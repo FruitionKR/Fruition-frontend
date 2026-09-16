@@ -1,0 +1,115 @@
+import { Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { SvgIcon, toggleIcon } from "@/shared/ui/SvgIcon";
+import { useSelectedWorkspace } from "@/entities/workspace/model/useWorkspaceName";
+import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
+import { createWorkspace, fetchWorkspaces } from "@/entities/workspace";
+import { setSelectedWorkspaceId } from "@/shared/lib/auth";
+import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
+import { getErrorMessage } from "@/shared/lib/errors";
+import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
+import type { WorkspaceResponse } from "@/entities/workspace";
+import { cx } from "@/shared/lib/classNames";
+import styles from "./DocumentSidebar.module.css";
+
+/** 선택한 워크스페이스로 전환하고 화면을 새로 그린다 */
+function switchWorkspace(workspaceId: string) {
+  setSelectedWorkspaceId(workspaceId);
+  window.location.reload();
+}
+
+/** 사이드바 상단 워크스페이스 헤더: 클릭하면 워크스페이스 전환 메뉴를 연다. */
+export function SidebarWorkspaceHeader() {
+  const selectedWorkspace = useSelectedWorkspace();
+  const name = selectedWorkspace?.name ?? "워크스페이스";
+  const [isOpen, setIsOpen] = useState(false);
+  const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useDismissOnOutside(rootRef, isOpen, () => setIsOpen(false));
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    fetchWorkspaces()
+      .then((response) => {
+        if (cancelled) return;
+        setWorkspaces(response.workspaces ?? []);
+        setLoadErrorMessage(null);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, "워크스페이스를 불러오지 못했습니다."));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  async function handleCreateWorkspace() {
+    if (isCreating) return;
+    setIsCreating(true);
+    try {
+      const workspace = await createWorkspace("새 워크스페이스");
+      switchWorkspace(workspace.id);
+    } catch (error: unknown) {
+      setLoadErrorMessage(getErrorMessage(error, "워크스페이스 생성에 실패했습니다."));
+      setIsCreating(false);
+    }
+  }
+
+  return (
+    <div className={styles["sidebar-workspace"]} ref={rootRef}>
+      {isCreating && <LoadingOverlay message="워크스페이스 생성 중…" />}
+      <button
+        type="button"
+        className={styles["sidebar-workspace-trigger"]}
+        aria-label="워크스페이스 전환"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} />
+        <span className={styles["sidebar-workspace-name"]}>
+          <span>{name}</span>
+          <SvgIcon src={toggleIcon} className={cx(styles["sidebar-workspace-toggle"], isOpen && styles["is-open"])} />
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className={styles["workspace-dropdown"]}>
+          {loadErrorMessage ? (
+            <p className={styles["workspace-dropdown-error"]} role="alert">{loadErrorMessage}</p>
+          ) : (
+            <div className={styles["workspace-dropdown-list"]}>
+              {workspaces.map((workspace) => (
+                <button
+                  key={workspace.id}
+                  type="button"
+                  className={styles["workspace-dropdown-item"]}
+                  onClick={() => {
+                    setIsOpen(false);
+                    switchWorkspace(workspace.id);
+                  }}
+                >
+                  <WorkspaceIcon workspace={workspace} className={styles["workspace-dropdown-avatar"]} />
+                  <span className={styles["workspace-dropdown-label"]}>{workspace.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className={styles["workspace-dropdown-new"]}
+            onClick={handleCreateWorkspace}
+            disabled={isCreating}
+          >
+            <Plus size={12} />새 워크스페이스
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

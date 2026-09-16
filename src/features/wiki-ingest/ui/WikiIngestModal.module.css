@@ -1,0 +1,111 @@
+/* Ingest 대상 선택 모달 본문. 셸(overlay·박스·헤더·닫기)은 shared/ui/CenteredModal.module.css를 쓴다. */
+.ingest-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.ingest-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.ingest-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ingest-result:hover,
+.ingest-result:focus-within {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.ingest-result input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.ingest-result-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.ingest-result-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+}
+
+.ingest-result-state {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.ingest-empty {
+  margin: 0;
+  padding: 8px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ingest-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.ingest-count {
+  color: var(--subdued);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+}
+
+.ingest-submit {
+  padding: 10px 20px;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ingest-submit:hover:not(:disabled),
+.ingest-submit:focus-visible:not(:disabled) {
+  --button-hover-overlay: none;
+  background: #3f3f3f;
+  border-color: #5a5a5a;
+}
+
+.ingest-submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
