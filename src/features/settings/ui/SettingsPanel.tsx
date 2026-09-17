@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
+import { AccessCodeSection } from "./AccessCodeSection";
 import styles from "./SettingsPanel.module.css";
 
 function SettingRow({
@@ -107,6 +108,8 @@ export function SettingsPanel() {
             기본값 복원
           </button>
         </header>
+
+        <AccessCodeSection />
 
         <section className={styles["settings-section"]}>
           <h3>화면과 접근성</h3>

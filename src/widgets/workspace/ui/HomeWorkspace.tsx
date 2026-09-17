@@ -6,7 +6,7 @@ import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
 import { Graph } from "@/widgets/graph/ui/Graph";
 import { SchemaWorkspace } from "@/features/schema-manage/ui/SchemaWorkspace";
 import { LogView } from "@/widgets/log-view";
-import { SettingsPanel } from "@/features/settings";
+import { SettingsPanel, useAccessGate } from "@/features/settings";
 import {
   DocumentProcessingNotifications,
   fetchWikiMaintenanceStatus,
@@ -83,6 +83,11 @@ export function HomeWorkspace() {
   const [isHomeAgentPanelOpen, setIsHomeAgentPanelOpen] = useState(true);
   const [isGraphAgentPanelOpen, setIsGraphAgentPanelOpen] = useState(false);
   const [activeView, setActiveView] = useState<RailView>("home");
+  // 접근 코드 미입력 상태면 설정 화면에 고정한다. API는 middleware가 403으로 막는다.
+  const { isLocked: isAccessLocked } = useAccessGate();
+  useEffect(() => {
+    if (isAccessLocked && activeView !== "settings") setActiveView("settings");
+  }, [isAccessLocked, activeView]);
   const [markdownEditContext, setMarkdownEditContext] = useState<ActiveMarkdownEditContext | null>(null);
   const [pendingExportDocumentId, setPendingExportDocumentId] = useState<string | null>(null);
   const [pendingConvertDocumentIds, setPendingConvertDocumentIds] = useState<readonly string[]>([]);

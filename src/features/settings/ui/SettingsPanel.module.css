@@ -199,3 +199,33 @@
     align-self: flex-end;
   }
 }
+
+.settings-section.is-locked {
+  border-color: var(--yellow);
+}
+
+.settings-inline-form {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-inline-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #181818;
+  font-size: 12px;
+}
+
+.settings-inline-form input:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+
+.settings-inline-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

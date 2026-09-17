@@ -8,7 +8,7 @@ Fruition의 Next.js 웹 프론트엔드입니다. 이 저장소는 화면·API �
 
 ### 로컬 실행
 
-Node.js 22를 사용합니다.
+Node.js 24를 사용합니다.
 
 ```bash
 npm ci
@@ -29,7 +29,7 @@ npm run build
 
 ### Vercel
 
-이 GitHub 저장소를 Import하고 Framework를 Next.js, Root Directory를 저장소 루트(`.`), Node.js를 22.x로 설정합니다. Install Command는 `npm ci`, Build Command는 `npm run build`, Output Directory는 Next.js 기본값을 사용합니다.
+이 GitHub 저장소를 Import하고 Framework를 Next.js, Root Directory를 저장소 루트(`.`), Node.js를 24.x로 설정합니다. Install Command는 `npm ci`, Build Command는 `npm run build`, Output Directory는 Next.js 기본값을 사용합니다.
 
 Preview·Production별로 실제 HTTPS API 주소를 설정하고 배포합니다. `NEXT_PUBLIC_*`에는 공개 API 주소만 넣으며 비밀 키를 저장하지 않습니다. 백엔드 연결 전에는 업무 기능이 동작하지 않습니다.
 
@@ -41,7 +41,7 @@ Fruition's Next.js web frontend. This repository owns the UI, API calls, UI test
 
 ### Local development
 
-Use Node.js 22.
+Use Node.js 24.
 
 ```bash
 npm ci
@@ -62,7 +62,7 @@ Do not run the development server and production build in the same checkout at t
 
 ### Vercel
 
-Import this repository into Vercel. Select Next.js, use the repository root (`.`) as Root Directory, and select Node.js 22.x. Use `npm ci` as Install Command and `npm run build` as Build Command. Keep the default Next.js Output Directory.
+Import this repository into Vercel. Select Next.js, use the repository root (`.`) as Root Directory, and select Node.js 24.x. Use `npm ci` as Install Command and `npm run build` as Build Command. Keep the default Next.js Output Directory.
 
 Configure the actual HTTPS API URLs separately for Preview and Production. Only public API URLs belong in `NEXT_PUBLIC_*`; never put secret keys there. Application features require a connected backend.
 
