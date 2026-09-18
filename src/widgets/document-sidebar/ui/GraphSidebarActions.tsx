@@ -14,6 +14,7 @@ import type { Project } from "@/entities/tree";
 import { ingestIcon, plusIcon, refreshIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { toggleDocumentIds } from "../model/wikiIngestSelection";
 import { WikiIngestTree } from "./WikiIngestTree";
+import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
 /**
@@ -93,16 +94,16 @@ export function GraphSidebarActions({
     isLintActive
   });
   const lintTitle = isMaintenanceStatusError
-    ? "Lint 가능 상태를 불러오지 못했습니다. 클릭해서 다시 확인하세요."
+    ? "위키 최신화 가능 상태를 불러오지 못했습니다. 클릭해서 다시 확인하세요."
     : isIngestActive
-      ? "Ingest가 끝난 뒤 Lint할 수 있습니다."
+      ? "위키 편입이 끝난 뒤 최신화할 수 있습니다."
       : isMaintenanceStatusFetching
-        ? "Lint 가능 상태를 확인하고 있습니다."
+        ? "위키 최신화 가능 상태를 확인하고 있습니다."
         : maintenanceStatus?.needs_lint === false
-          ? "새로 반영된 Wiki 내용이 없습니다."
+          ? "새로 편입된 내용이 없어 최신화할 것이 없습니다."
           : pending === "lint"
-            ? "Lint 진행 중"
-            : "Lint";
+            ? "위키 최신화 진행 중"
+            : "편입된 문서를 바탕으로 위키 페이지를 최신 상태로 정리합니다.";
 
   function exitSelection() {
     setIsSelecting(false);
@@ -129,6 +130,12 @@ export function GraphSidebarActions({
       </div>
 
       <div className={styles["graph-bottom"]}>
+        <HoverHint
+          className={styles["graph-pill-hint"]}
+          text={isSelecting
+            ? "체크한 Markdown 문서를 위키 그래프에 편입합니다."
+            : "편입할 문서를 고르는 선택 모드를 엽니다. Markdown 문서만 편입할 수 있습니다."}
+        >
         <button
           type="button"
           className={styles["graph-pill"]}
@@ -146,12 +153,13 @@ export function GraphSidebarActions({
               ? "위키 편입 중…"
               : "위키 편입"}
         </button>
+        </HoverHint>
         {isSelecting ? (
+          <HoverHint align="end" text="선택을 취소하고 문서 목록으로 돌아갑니다. (Esc)">
           <button
             type="button"
             className={cx(styles["graph-pill"], styles["is-round"])}
             aria-label="선택 취소"
-            title="선택 취소 (Esc)"
             onClick={(event) => {
               event.stopPropagation();
               exitSelection();
@@ -159,13 +167,14 @@ export function GraphSidebarActions({
           >
             <SvgIcon src={plusIcon} className={styles["graph-cancel-icon"]} />
           </button>
+          </HoverHint>
         ) : (
+          <HoverHint align="end" text={lintTitle}>
           <button
             type="button"
             className={cx(styles["graph-pill"], styles["is-round"], pending === "lint" && styles["is-spinning"])}
             disabled={!isLintEnabled && !isMaintenanceStatusError}
-            aria-label={isMaintenanceStatusError ? "Lint 상태 재확인" : "Lint"}
-            title={lintTitle}
+            aria-label={isMaintenanceStatusError ? "위키 최신화 상태 재확인" : "위키 최신화"}
             onClick={(event) => {
               event.stopPropagation();
               if (isMaintenanceStatusError) {
@@ -177,6 +186,7 @@ export function GraphSidebarActions({
           >
             <SvgIcon src={refreshIcon} />
           </button>
+          </HoverHint>
         )}
       </div>
     </div>

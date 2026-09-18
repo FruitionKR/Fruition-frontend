@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { SvgIcon, toggleIcon } from "@/shared/ui/SvgIcon";
+import { listIcon, SvgIcon, toggleIcon } from "@/shared/ui/SvgIcon";
 import { useSelectedWorkspace } from "@/entities/workspace/model/useWorkspaceName";
 import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
 import { createWorkspace, fetchWorkspaces } from "@/entities/workspace";
@@ -12,6 +12,7 @@ import type { WorkspaceResponse } from "@/entities/workspace";
 import { cx } from "@/shared/lib/classNames";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { WikiWorkPopover } from "./WikiWorkPopover";
+import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
 /** 선택한 워크스페이스로 전환하고 화면을 새로 그린다 */
@@ -89,6 +90,7 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
         </span>
       </button>
 
+      <HoverHint placement="bottom" align="end" className={styles["wiki-work-trigger-hint"]} text="진행 중인 AI 작업(위키 편입·위키 최신화·PDF→MD 변환)을 확인합니다.">
       <button
         type="button"
         className={styles["wiki-work-trigger"]}
@@ -99,11 +101,9 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
           setIsWorkOpen((open) => !open);
         }}
       >
-        <span className={styles["wiki-work-icon"]} aria-hidden="true">
-          <span className={styles["wiki-work-icon-line"]} />
-          <span className={styles["wiki-work-icon-line"]} />
-        </span>
+        <SvgIcon src={listIcon} className={styles["wiki-work-icon"]} />
       </button>
+      </HoverHint>
       {isWorkOpen && <WikiWorkPopover documents={documents} />}
 
       {isOpen && (

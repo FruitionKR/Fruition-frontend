@@ -23,9 +23,14 @@ import sourcePageIcon from "../../../svg/graph/source_page.svg";
 import shareIcon from "../../../svg/navigation/menu_graph.svg";
 import profileToggleIcon from "../../../svg/workspace/profile_toggle.svg";
 import toggleIcon from "../../../svg/workspace/toggle.svg";
+import listIcon from "../../../svg/workspace/list.svg";
 import userCircleIcon from "../../../svg/workspace/UserCircle.svg";
 import userCircleOutlineIcon from "../../../svg/workspace/UserCircleOutline.svg";
 import questionMarkIcon from "../../../svg/common/QuestionMarkCircleOutline.svg";
+import copyIcon from "../../../svg/common/copy.svg";
+import computerIcon from "../../../svg/device/computer.svg";
+import phoneIcon from "../../../svg/device/phone.svg";
+import downloadIcon from "../../../svg/common/download.svg";
 import checkOnIcon from "../../../svg/wiki/check_on.svg";
 import ingestIcon from "../../../svg/wiki/ingest.svg";
 import refreshIcon from "../../../svg/wiki/refresh.svg";
@@ -86,6 +91,11 @@ export {
   sourcePageIcon,
   settingIcon,
   toggleIcon,
+  listIcon,
+  copyIcon,
+  downloadIcon,
+  computerIcon,
+  phoneIcon,
   userCircleIcon
 };
 

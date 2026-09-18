@@ -30,7 +30,8 @@ test("메뉴 행의 새 폴더 버튼은 canCreateProjectFromView로 감싼다",
   // 조건을 지우거나 다른 조건으로 바꾸면 실패하도록, 게이트와 버튼의 연결을 검증한다.
   assert.match(
     source,
-    /canCreateProjectFromView\(activeView\)\s*&&\s*\(\s*<button[^>]*\n(?:.*\n)*?\s*aria-label="새 폴더 생성"/
+    // HoverHint 같은 설명 래퍼가 버튼을 감쌀 수 있어 게이트와 버튼 사이의 래퍼 한 겹은 허용한다.
+    /canCreateProjectFromView\(activeView\)\s*&&\s*\(\s*(?:<HoverHint[^>]*>\s*)?<button[^>]*\n(?:.*\n)*?\s*aria-label="새 폴더 생성"/
   );
 });
 

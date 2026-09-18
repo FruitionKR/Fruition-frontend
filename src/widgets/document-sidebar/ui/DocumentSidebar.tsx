@@ -15,6 +15,7 @@ import { DocumentSearch } from "@/features/document-search/ui/DocumentSearch";
 import type { SelectableTreeItem, TreeInteractionProps } from "../model/types";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
 import { useFileDropZone } from "../lib/useFileDropZone";
+import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
 export function DocumentSidebar({
@@ -211,17 +212,22 @@ export function DocumentSidebar({
           <LogSidebarEntries {...logEntries} />
         ) : projectTree}
       </div>
-      <button
-        type="button"
-        className={styles["sidebar-chat-start"]}
-        onClick={(event) => {
-          event.stopPropagation();
-          onStartChat();
-        }}
-      >
-        <SvgIcon src={chatBubbleIcon} />
-        채팅 시작
-      </button>
+      {/* 그래프 뷰는 하단에 위키 편입·위키 최신화 버튼만 둔다. */}
+      {activeView !== "graph" && (
+        <HoverHint className={styles["sidebar-chat-start-hint"]} text="AI 에이전트와 채팅을 시작합니다.">
+        <button
+          type="button"
+          className={styles["sidebar-chat-start"]}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStartChat();
+          }}
+        >
+          <SvgIcon src={chatBubbleIcon} />
+          채팅 시작
+        </button>
+        </HoverHint>
+      )}
       <SidebarProfile />
     </aside>
       <button

@@ -65,34 +65,11 @@
   line-height: 1.8;
 }
 
-.landing-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 40px;
-}
-
-.landing-actions a {
-  padding: 14px 24px;
-  font-weight: 700;
-  text-decoration: none;
-  border-radius: 12px;
-}
-
-.landing-primary-action {
-  color: #111827;
-  background: #f8fafc;
-}
-
 .landing-login-link:hover {
   border-color: #c7d2fe;
 }
 
-.landing-primary-action:hover {
-  background: #e0e7ff;
-}
-
-.landing-login-link:focus-visible,
-.landing-actions a:focus-visible {
+.landing-login-link:focus-visible {
   outline: 3px solid #818cf8;
   outline-offset: 3px;
 }
@@ -109,14 +86,5 @@
   .landing-hero {
     min-height: calc(100vh - 72px);
     padding: 56px 0 96px;
-  }
-
-  .landing-actions {
-    width: 100%;
-    flex-direction: column;
-  }
-
-  .landing-actions a {
-    text-align: center;
   }
 }

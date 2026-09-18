@@ -138,69 +138,65 @@
   color: #8ab4e8;
 }
 
+/* 원문 근거 강조 (Figma 1132:10762): 노란 배경·좌측 선, 블록 끝에 순위 [n]을 순위 색으로 표시 */
 .markdown-source-block.is-highlighted {
+  position: relative;
   margin: 0 0 10px;
-  padding: 10px 12px;
-  color: #f0f0f0;
-  background: var(--citation-bg-soft);
-  border-left: 3px solid var(--citation-color);
-  border-radius: 8px;
+  padding: 12px 24px;
+  color: #f9fafb;
+  background: rgba(255, 193, 23, 0.16);
+  border-left: 2.4px solid var(--yellow);
+  border-radius: 6px;
+  font-weight: 500;
+  line-height: 1.8;
 }
 
+.markdown-source-block.is-highlighted > :is(p, h1, h2, h3, h4, h5, h6):last-child {
+  display: inline;
+  margin: 0;
+}
+
+.markdown-source-block.is-highlighted::after {
+  content: "[" attr(data-citation-rank) "]";
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--citation-color);
+  font-weight: 600;
+}
+
+/* 답변 속 근거 표시 (Figma 1132:10782): 배경 없이 [n] 텍스트를 순위 색으로 */
 .markdown-citation {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
+  display: inline;
   margin: 0 2px;
-  padding: 0 6px;
-  color: #0a0a0a;
+  padding: 0;
+  color: var(--citation-color);
+  background: transparent;
   border: 0;
-  border-radius: 5px;
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
+  font-weight: 600;
+  line-height: inherit;
   vertical-align: baseline;
 }
 
-.markdown-citation.citation-rank-1 {
-  background: var(--yellow);
-}
-
-.markdown-citation.citation-rank-2 {
-  background: #58a6ff;
-}
-
-.markdown-citation.citation-rank-3 {
-  background: #7ee787;
-}
-
-.markdown-citation.citation-rank-4 {
-  background: #ff9b72;
-}
-
-.markdown-citation.citation-rank-5 {
-  background: #d2a8ff;
-}
-
 .markdown-citation:hover {
-  filter: brightness(1.12);
+  text-decoration: underline;
 }
 
 .markdown-citation:focus-visible {
   outline: 2px solid #f0f0f0;
   outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .citation-rank-1 {
-  --citation-color: var(--yellow);
-  --citation-bg-soft: rgba(255, 193, 23, 0.12);
+  --citation-color: #21b273;
+  --citation-bg-soft: rgba(33, 178, 115, 0.14);
 }
 
 .citation-rank-2 {
-  --citation-color: #58a6ff;
-  --citation-bg-soft: rgba(88, 166, 255, 0.14);
+  --citation-color: #f59e0a;
+  --citation-bg-soft: rgba(245, 158, 10, 0.14);
 }
 
 .citation-rank-3 {

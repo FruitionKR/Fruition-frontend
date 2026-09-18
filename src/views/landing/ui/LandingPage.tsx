@@ -1,7 +1,21 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useMe } from "@/entities/user";
 import styles from "./LandingPage.module.css";
 
 export default function LandingPage() {
+  const router = useRouter();
+  // access token은 메모리에만 있어 새 탭에서는 비어 있지만, HttpOnly refresh 쿠키가 살아 있으면
+  // /me 호출이 재발급을 거쳐 성공한다. 이미 로그인한 사용자는 로그인 화면을 거치지 않고 바로 들어간다.
+  const { isSuccess } = useMe();
+
+  useEffect(() => {
+    if (isSuccess) router.replace("/workspaces");
+  }, [isSuccess, router]);
+
   return (
     <main className={styles["landing-page"]}>
       <nav className={styles["landing-nav"]} aria-label="주요 메뉴">
@@ -17,11 +31,6 @@ export default function LandingPage() {
         <p className={styles["landing-description"]}>
           문서와 지식을 한곳에 모아 탐색하고, AI와 함께 더 빠르게 인사이트를 발견하세요.
         </p>
-        <div className={styles["landing-actions"]}>
-          <Link className={styles["landing-primary-action"]} href="/login">
-            시작하기
-          </Link>
-        </div>
       </section>
     </main>
   );

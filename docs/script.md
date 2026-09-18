@@ -15,6 +15,22 @@ npm run dev
 | `ACCESS_URL` | `http://localhost:8081` | 인증·워크스페이스·멤버·초대 |
 | `BACKEND_URL` | `http://localhost:8080` | 문서·Wiki·채팅·AI 업무 API |
 
+## 백엔드 없이 실행 (mock API)
+
+```bash
+npm run dev:mock
+```
+
+`mock/dev.mjs`가 `mock/server.mjs`(Access 8081 + Document 8080, 인메모리 상태)와 `next dev`(3000)를 함께 띄우고 Ctrl+C로 둘 다 종료합니다. `.env.local` 없이 기본 주소(`localhost:8081`, `localhost:8080`)로 연결되며, `ACCESS_CODE`가 비어 있어 접근 코드 게이트는 꺼집니다. mock 서버만 필요하면 `npm run mock`.
+
+| 항목 | 값 |
+|---|---|
+| 데모 계정 | `demo@fruition.local` / `demo1234` (MFA 없음) |
+| 이메일 인증번호 | 아무 6자리 숫자 또는 `9700` |
+| 초대 링크 예시 | `http://localhost:3000/invitations/mock-invite-token` |
+
+mock 서버는 요청마다 `METHOD path → status`를, 구현되지 않은 경로는 `mock: unhandled ...`를 터미널에 출력합니다. Ingest·변환·Lint는 타이머로 수 초 뒤 완료되며 상태는 프로세스 재시작 시 초기화됩니다.
+
 `npm test`는 `tests/*.test.mjs` 전체를 실행합니다. 특정 영역은 `package.json`의 `test:*` 명령으로 확인합니다.
 
 ```bash

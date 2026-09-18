@@ -74,6 +74,8 @@ export function SourcePreviewPanel({
   const [rawMarkdown, setRawMarkdown] = useState<string | null>(null);
   const [noteContentVersion, setNoteContentVersion] = useState(0);
   const [rawDocumentUrl, setRawDocumentUrl] = useState<string | null>(null);
+  // 텍스트 원본(TXT 등)은 iframe이 흰 배경으로 그리므로 본문을 직접 받아 패널 배경 위에 그린다.
+  const [rawText, setRawText] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState(() => getMarkdownDocumentTitle(title));
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -123,6 +125,7 @@ export function SourcePreviewPanel({
   const isPdfOrOther = !pageId && !!documentId && !isMarkdownFile;
   // PDF는 편집 불가 문서라 제목·본문 chrome 없이 뷰어가 콘텐츠 영역 전체를 채운다.
   const isPdfFile = isPdfOrOther && /\.pdf$/i.test(title);
+  const isTextFile = isPdfOrOther && /\.txt$/i.test(title);
   const visibleTitle = isMarkdownFile ? getMarkdownDocumentTitle(title) : title;
   const saveStatusLabel = SAVE_STATUS_LABELS[noteSaveStatus];
   const editableNote = useMemo(() => {
@@ -268,6 +271,7 @@ export function SourcePreviewPanel({
       setRawMarkdown(null);
       setNoteContentVersion(0);
       setRawDocumentUrl(null);
+      setRawText(null);
     }
 
     const loadDocument = async () => {
@@ -292,6 +296,11 @@ export function SourcePreviewPanel({
       }
 
       const blob = await fetchDocumentOriginal(documentId);
+      if (isTextFile || blob.type.startsWith("text/")) {
+        const text = await blob.text();
+        if (!ignore) setRawText(text);
+        return;
+      }
       objectUrl = URL.createObjectURL(blob);
       if (ignore) {
         URL.revokeObjectURL(objectUrl);
@@ -315,7 +324,7 @@ export function SourcePreviewPanel({
       ignore = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [documentId, documentReloadCount, isMarkdownFile, pageId]);
+  }, [documentId, documentReloadCount, isMarkdownFile, isTextFile, pageId]);
 
   useEffect(() => {
     if (!isMarkdownFile || selectedBlockHighlights.length === 0 || rawMarkdown === null) return;
@@ -509,7 +518,10 @@ export function SourcePreviewPanel({
         )}
         {isPdfOrOther && isLoading && <p>문서를 불러오는 중입니다.</p>}
         {isPdfOrOther && errorMessage && <p>{errorMessage}</p>}
-        {isPdfOrOther && !isLoading && !errorMessage && rawDocumentUrl && (
+        {isPdfOrOther && !isLoading && !errorMessage && rawText !== null && (
+          <pre className={styles["source-preview-plain-text"]}>{rawText}</pre>
+        )}
+        {isPdfOrOther && !isLoading && !errorMessage && rawText === null && rawDocumentUrl && (
           <iframe
             src={rawDocumentUrl}
             title={title}
