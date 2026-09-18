@@ -73,6 +73,7 @@ export async function runQueryStream(
     onStage: (event: QueryStageEvent) => void;
     onStarted?: (run: QueryRun) => void;
     signal?: AbortSignal;
+    allowWebSearch?: boolean;
   }
 ): Promise<QueryResponse> {
   const { workspaceId, sessionId } = await getSessionContext();
@@ -84,12 +85,12 @@ export async function runQueryStream(
       signal: handlers.signal,
       headers: { "Content-Type": "application/json" },
       // provider/model은 백엔드 카탈로그 검증 대상이라 쌍으로 보내야 한다.
-      // allow_web_search는 @NotNull 필수 필드이며, 웹 검색 토글 UI가 없으므로 안전 기본값 false를 명시한다.
+      // allow_web_search는 @NotNull 필수 필드라 항상 명시한다. composer의 웹 서칭 토글 값.
       body: JSON.stringify({
         question,
         provider: selection.provider,
         model: selection.model,
-        allow_web_search: false
+        allow_web_search: handlers.allowWebSearch ?? false
       })
     }
   );

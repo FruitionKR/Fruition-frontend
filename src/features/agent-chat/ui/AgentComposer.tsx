@@ -1,4 +1,4 @@
-import { ArrowUp, ChevronDown } from "lucide-react";
+import { ArrowUp, Check, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
@@ -21,6 +21,8 @@ export function AgentComposer({
   modelCatalogStatus,
   canSubmit,
   onModelChange,
+  allowWebSearch = false,
+  onWebSearchChange,
   onChange,
   onSubmit,
   onCancel,
@@ -35,6 +37,8 @@ export function AgentComposer({
   modelCatalogStatus: AiModelCatalogStatus;
   canSubmit: boolean;
   onModelChange: (model: AiModel) => void;
+  allowWebSearch?: boolean;
+  onWebSearchChange?: (enabled: boolean) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
   onCancel?: () => void;
@@ -106,25 +110,55 @@ export function AgentComposer({
             onClick={() => setIsModelListOpen((open) => !open)}
           >
             <span>{selectedModel?.display_name ?? emptyModelLabel}</span>
+            {selectedModel && allowWebSearch && (
+              <span className={styles["composer-model-extra"]}>
+                <span aria-hidden>·</span>
+                <span>웹 서칭</span>
+              </span>
+            )}
             <ChevronDown size={8} className={cx(isModelListOpen && styles["is-open"])} />
           </button>
           {isModelListOpen && (
-            <div className={styles["composer-model-list"]} role="listbox" aria-label="모델 목록">
-              {models.map((model) => (
-                <button
-                  key={modelKey(model)}
-                  type="button"
-                  role="option"
-                  aria-selected={modelKey(model) === selectedKey}
-                  className={cx(modelKey(model) === selectedKey && styles["is-selected"])}
-                  onClick={() => {
-                    onModelChange(model);
-                    setIsModelListOpen(false);
-                  }}
-                >
-                  {model.display_name}
-                </button>
-              ))}
+            <div className={styles["composer-model-list"]}>
+              <div role="listbox" aria-label="모델 목록">
+                {models.map((model) => {
+                  const isSelected = modelKey(model) === selectedKey;
+                  return (
+                    <button
+                      key={modelKey(model)}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={cx(styles["composer-model-option"], isSelected && styles["is-selected"])}
+                      onClick={() => {
+                        onModelChange(model);
+                        setIsModelListOpen(false);
+                      }}
+                    >
+                      <span>{model.display_name}</span>
+                      {isSelected && <Check size={12} aria-hidden />}
+                    </button>
+                  );
+                })}
+              </div>
+              {onWebSearchChange && (
+                <div className={styles["composer-web-search"]}>
+                  <div className={styles["composer-web-search-label"]}>
+                    <span>웹 서칭</span>
+                    <span>필요시, 웹에서 정보를 추가 검색합니다.</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={allowWebSearch}
+                    aria-label="웹 서칭"
+                    className={cx(styles["composer-switch"], allowWebSearch && styles["is-on"])}
+                    onClick={() => onWebSearchChange(!allowWebSearch)}
+                  >
+                    <span />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

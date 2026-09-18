@@ -1062,6 +1062,13 @@
   background: var(--soft);
 }
 
+/* 트리거의 "· 웹 서칭" 보조 라벨 */
+.composer-model-extra {
+  display: inline-flex;
+  gap: 2px;
+  color: #6d6d6d;
+}
+
 .composer-model-trigger svg {
   flex: 0 0 auto;
   transition: transform 120ms ease;
@@ -1079,34 +1086,116 @@
   z-index: 12;
   width: max-content;
   min-width: 100%;
-  padding: 5px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+  border: 1px solid var(--soft);
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
 }
 
-.composer-model-list button {
+.composer-model-list > [role="listbox"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composer-model-option {
   width: 100%;
-  height: 30px;
+  min-height: 24px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 9px;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 2px;
   color: var(--ink);
   background: transparent;
   border-radius: 5px;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.4;
   text-align: left;
   white-space: nowrap;
 }
 
-.composer-model-list button:hover,
-.composer-model-list button:focus-visible,
-.composer-model-list button.is-selected {
+.composer-model-option svg {
+  flex: 0 0 auto;
+  color: var(--yellow);
+}
+
+.composer-model-option:hover,
+.composer-model-option:focus-visible {
   --button-hover-overlay: none;
   background: var(--soft);
+}
+
+/* 웹 서칭 토글 행: 구분선 아래 */
+.composer-web-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.composer-web-search-label {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+
+.composer-web-search-label span:first-child {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-web-search-label span:last-child {
+  color: #8a8a8a;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.4;
+}
+
+.composer-switch {
+  position: relative;
+  width: 24px;
+  height: 14px;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 100px;
+  background: var(--soft);
+  cursor: pointer;
+}
+
+.composer-switch span {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1.5px 9px rgba(0, 0, 0, 0.04);
+  transition: transform 120ms ease;
+}
+
+.composer-switch.is-on {
+  background: var(--yellow);
+}
+
+.composer-switch.is-on span {
+  transform: translateX(10px);
+}
+
+.composer-switch:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
 }
 
 /* 전송: 24px 흰 원 + 검은 화살표 */

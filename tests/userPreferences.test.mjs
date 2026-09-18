@@ -72,3 +72,9 @@ test("마지막 사용 모드는 저장된 실제 편집 모드로 해석한다"
 
   assert.equal(resolveEditorMode(preferences), "markdown");
 });
+
+test("웹 서칭 설정은 기본 false이며 boolean만 받아들인다", () => {
+  assert.equal(normalizeUserPreferences(null).webSearch, false);
+  assert.equal(normalizeUserPreferences({ webSearch: true }).webSearch, true);
+  assert.equal(normalizeUserPreferences({ webSearch: "yes" }).webSearch, false);
+});

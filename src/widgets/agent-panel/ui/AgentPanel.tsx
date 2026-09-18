@@ -83,6 +83,7 @@ export function AgentPanel({
   const [aiModelCatalogStatus, setAiModelCatalogStatus] = useState<AiModelCatalogStatus>("loading");
   const [aiModelsErrorMessage, setAiModelsErrorMessage] = useState<string | null>(null);
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
+  const allowWebSearch = preferences.webSearch;
   const {
     messages,
     queryErrorMessage,
@@ -166,7 +167,8 @@ export function AgentPanel({
     const request = buildAgentTurnRequest(question, context, {
       sessionId,
       selectedModel: { provider: model.provider, model: model.model },
-      selectedPairIds: conversationPairIds
+      selectedPairIds: conversationPairIds,
+      allowWebSearch
     });
     setAgentTurnRequest(request);
     setAgentTurnResponse(null);
@@ -184,7 +186,7 @@ export function AgentPanel({
         setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
       })
       .finally(() => setIsAgentTurnLoading(false));
-  }, [refreshMessages]);
+  }, [allowWebSearch, refreshMessages]);
 
   function handleSubmit() {
     const question = composerValue.trim();
@@ -198,7 +200,11 @@ export function AgentPanel({
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
-    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model });
+    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch);
+  }
+
+  function handleWebSearchChange(enabled: boolean) {
+    updatePreferences((current) => ({ ...current, webSearch: enabled }));
   }
 
   function handleModelChange(model: AiModel) {
@@ -446,6 +452,8 @@ export function AgentPanel({
           modelCatalogStatus={aiModelCatalogStatus}
           canSubmit={!isPairSelectionMode && activeSessionId !== null && selectedModel !== null}
           onModelChange={handleModelChange}
+          allowWebSearch={allowWebSearch}
+          onWebSearchChange={handleWebSearchChange}
           onChange={setComposerValue}
           onSubmit={handleSubmit}
           onCancel={isLoading ? cancelQuery : undefined}
