@@ -10,6 +10,8 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import type { WorkspaceResponse } from "@/entities/workspace";
 import { cx } from "@/shared/lib/classNames";
+import type { DocumentItemResponse } from "@/entities/document/model/document";
+import { WikiWorkPopover } from "./WikiWorkPopover";
 import styles from "./DocumentSidebar.module.css";
 
 /** 선택한 워크스페이스로 전환하고 화면을 새로 그린다 */
@@ -18,17 +20,23 @@ function switchWorkspace(workspaceId: string) {
   window.location.reload();
 }
 
-/** 사이드바 상단 워크스페이스 헤더: 클릭하면 워크스페이스 전환 메뉴를 연다. */
-export function SidebarWorkspaceHeader() {
+/**
+ * 사이드바 상단 워크스페이스 헤더 (Figma 1131:7125).
+ * 이름을 클릭하면 워크스페이스 전환 메뉴, 오른쪽 목록 버튼을 클릭하면 진행 중 작업 팝오버를 연다.
+ * 두 메뉴는 동시에 열리지 않는다.
+ */
+export function SidebarWorkspaceHeader({ documents = [] }: { documents?: DocumentItemResponse[] }) {
   const selectedWorkspace = useSelectedWorkspace();
   const name = selectedWorkspace?.name ?? "워크스페이스";
   const [isOpen, setIsOpen] = useState(false);
+  const [isWorkOpen, setIsWorkOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useDismissOnOutside(rootRef, isOpen, () => setIsOpen(false));
+  useDismissOnOutside(rootRef, isWorkOpen, () => setIsWorkOpen(false));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,7 +77,10 @@ export function SidebarWorkspaceHeader() {
         className={styles["sidebar-workspace-trigger"]}
         aria-label="워크스페이스 전환"
         aria-expanded={isOpen}
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => {
+          setIsWorkOpen(false);
+          setIsOpen((open) => !open);
+        }}
       >
         <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} />
         <span className={styles["sidebar-workspace-name"]}>
@@ -77,6 +88,23 @@ export function SidebarWorkspaceHeader() {
           <SvgIcon src={toggleIcon} className={cx(styles["sidebar-workspace-toggle"], isOpen && styles["is-open"])} />
         </span>
       </button>
+
+      <button
+        type="button"
+        className={styles["wiki-work-trigger"]}
+        aria-label="진행 중인 작업"
+        aria-expanded={isWorkOpen}
+        onClick={() => {
+          setIsOpen(false);
+          setIsWorkOpen((open) => !open);
+        }}
+      >
+        <span className={styles["wiki-work-icon"]} aria-hidden="true">
+          <span className={styles["wiki-work-icon-line"]} />
+          <span className={styles["wiki-work-icon-line"]} />
+        </span>
+      </button>
+      {isWorkOpen && <WikiWorkPopover documents={documents} />}
 
       {isOpen && (
         <div className={styles["workspace-dropdown"]}>
