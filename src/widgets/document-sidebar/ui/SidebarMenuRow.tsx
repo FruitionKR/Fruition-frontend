@@ -84,7 +84,7 @@ export function SidebarMenuRow({
       </button>
       </HoverHint>
       {canCreateProjectFromView(activeView) && (
-        <HoverHint placement="bottom" className={styles["sidebar-menu-add"]} text="새 프로젝트 폴더를 만듭니다.">
+        <HoverHint placement="bottom" align="end" className={styles["sidebar-menu-add"]} text="새 프로젝트 폴더를 만듭니다.">
         <button
           type="button"
           className={styles["sidebar-menu-item"]}

@@ -15,6 +15,7 @@
   bottom: calc(100% + 8px);
   left: 50%;
   z-index: 30;
+  width: max-content;
   max-width: 220px;
   padding: 8px 10px;
   color: var(--ink);
@@ -31,6 +32,12 @@
   pointer-events: none;
   transform: translateX(-50%);
   animation: hover-hint-in 120ms ease-out;
+}
+
+.hover-hint-bubble.is-end {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .hover-hint-bubble.is-bottom {

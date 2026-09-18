@@ -90,7 +90,7 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
         </span>
       </button>
 
-      <HoverHint placement="bottom" className={styles["wiki-work-trigger-hint"]} text="진행 중인 AI 작업(위키 편입·위키 최신화·PDF→MD 변환)을 확인합니다.">
+      <HoverHint placement="bottom" align="end" className={styles["wiki-work-trigger-hint"]} text="진행 중인 AI 작업(위키 편입·위키 최신화·PDF→MD 변환)을 확인합니다.">
       <button
         type="button"
         className={styles["wiki-work-trigger"]}

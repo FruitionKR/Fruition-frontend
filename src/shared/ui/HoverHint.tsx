@@ -13,11 +13,14 @@ const HOVER_HINT_DELAY_MS = 2000;
 export function HoverHint({
   text,
   placement = "top",
+  align = "center",
   className,
   children
 }: {
   text: string;
   placement?: "top" | "bottom";
+  /** end는 말풍선을 버튼 오른쪽 끝에 맞춘다(사이드바 우측 가장자리 버튼용). */
+  align?: "center" | "end";
   className?: string;
   children: ReactNode;
 }) {
@@ -54,7 +57,11 @@ export function HoverHint({
         <span
           id={hintId}
           role="tooltip"
-          className={cx(styles["hover-hint-bubble"], placement === "bottom" && styles["is-bottom"])}
+          className={cx(
+            styles["hover-hint-bubble"],
+            placement === "bottom" && styles["is-bottom"],
+            align === "end" && styles["is-end"]
+          )}
         >
           {text}
         </span>

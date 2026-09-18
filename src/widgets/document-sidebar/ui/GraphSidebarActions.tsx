@@ -155,7 +155,7 @@ export function GraphSidebarActions({
         </button>
         </HoverHint>
         {isSelecting ? (
-          <HoverHint text="선택을 취소하고 문서 목록으로 돌아갑니다. (Esc)">
+          <HoverHint align="end" text="선택을 취소하고 문서 목록으로 돌아갑니다. (Esc)">
           <button
             type="button"
             className={cx(styles["graph-pill"], styles["is-round"])}
@@ -169,7 +169,7 @@ export function GraphSidebarActions({
           </button>
           </HoverHint>
         ) : (
-          <HoverHint text={lintTitle}>
+          <HoverHint align="end" text={lintTitle}>
           <button
             type="button"
             className={cx(styles["graph-pill"], styles["is-round"], pending === "lint" && styles["is-spinning"])}
