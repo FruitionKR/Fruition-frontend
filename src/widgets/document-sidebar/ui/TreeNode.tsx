@@ -18,7 +18,7 @@ const MIME_TYPE_BADGES: [pattern: string, label: string][] = [
 ];
 
 /** 실제 파일명은 유지하고 표시할 이름과 우측 확장자를 분리한다. */
-function fileDisplay(item: TreeItem) {
+export function fileDisplay(item: TreeItem) {
   if (!isFileItem(item)) return { name: item.label, badge: null };
 
   const dotIndex = item.label.lastIndexOf(".");

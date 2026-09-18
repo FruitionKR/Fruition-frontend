@@ -67,7 +67,7 @@ export function DocumentSidebar({
   uploadInputRef: RefObject<HTMLInputElement | null>;
   activeView: RailView;
   /** 그래프 뷰에서 문서 트리 대신 보여줄 위키 액션. */
-  graphActions?: ComponentProps<typeof GraphSidebarActions>;
+  graphActions?: Omit<ComponentProps<typeof GraphSidebarActions>, "projects" | "tree">;
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
   logEntries?: ComponentProps<typeof LogSidebarEntries>;
   onViewChange: (view: RailView) => void;
@@ -129,6 +129,36 @@ export function DocumentSidebar({
     onCancelEditing
   };
 
+  // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 하단 위키 액션과 함께 감싼다.
+  const projectTree = (
+    <>
+      {projects.map((project, index) => (
+        <ProjectSection
+          key={project.id}
+          project={project}
+          isPrimary={index === 0}
+          useFullSidebarDropZone={Boolean(onlyProject)}
+          onUploadToProject={onUploadToProject}
+          onContextMenuProject={onContextMenuProject}
+          interaction={interaction}
+        />
+      ))}
+      {contextMenu && (
+        <ContextMenu
+          contextMenu={contextMenu}
+          canCreateProject={canCreateProjectFromView(activeView)}
+          convertTarget={convertContextTarget}
+          canRenameTarget={canRenameContextTarget}
+          onRenameContextTarget={onRenameContextTarget}
+          onAddProject={onAddProject}
+          onAddMarkdownFromContext={onAddMarkdownFromContext}
+          onConvertContextTarget={onConvertContextTarget}
+          onDeleteContextTarget={onDeleteContextTarget}
+        />
+      )}
+    </>
+  );
+
   return (
     <>
     <aside
@@ -172,37 +202,10 @@ export function DocumentSidebar({
         }}
       >
         {activeView === "graph" && graphActions ? (
-          <GraphSidebarActions {...graphActions} />
+          <GraphSidebarActions {...graphActions} projects={projects} tree={projectTree} />
         ) : activeView === "logs" && logEntries ? (
           <LogSidebarEntries {...logEntries} />
-        ) : (
-          <>
-            {projects.map((project, index) => (
-              <ProjectSection
-                key={project.id}
-                project={project}
-                isPrimary={index === 0}
-                useFullSidebarDropZone={Boolean(onlyProject)}
-                onUploadToProject={onUploadToProject}
-                onContextMenuProject={onContextMenuProject}
-                interaction={interaction}
-              />
-            ))}
-            {contextMenu && (
-              <ContextMenu
-                contextMenu={contextMenu}
-                canCreateProject={canCreateProjectFromView(activeView)}
-                convertTarget={convertContextTarget}
-                canRenameTarget={canRenameContextTarget}
-                onRenameContextTarget={onRenameContextTarget}
-                onAddProject={onAddProject}
-                onAddMarkdownFromContext={onAddMarkdownFromContext}
-                onConvertContextTarget={onConvertContextTarget}
-                onDeleteContextTarget={onDeleteContextTarget}
-              />
-            )}
-          </>
-        )}
+        ) : projectTree}
       </div>
       <button
         type="button"

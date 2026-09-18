@@ -26,6 +26,9 @@ import toggleIcon from "../../../svg/workspace/toggle.svg";
 import userCircleIcon from "../../../svg/workspace/UserCircle.svg";
 import userCircleOutlineIcon from "../../../svg/workspace/UserCircleOutline.svg";
 import questionMarkIcon from "../../../svg/common/QuestionMarkCircleOutline.svg";
+import checkOnIcon from "../../../svg/wiki/check_on.svg";
+import ingestIcon from "../../../svg/wiki/ingest.svg";
+import refreshIcon from "../../../svg/wiki/refresh.svg";
 
 // svg 파일 없이 인라인 SVG로만 렌더링하는 아이콘 식별자
 const bellIcon = { inlineIcon: "bell" } as const;
@@ -50,6 +53,9 @@ export type SvgAsset =
 
 export {
   arrowIcon,
+  checkOnIcon,
+  ingestIcon,
+  refreshIcon,
   settingScrollIcon,
   skillBackIcon,
   userCircleOutlineIcon,
