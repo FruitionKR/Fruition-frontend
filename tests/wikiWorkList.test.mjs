@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWikiWorkRows, formatWorkStartTime } from "../src/features/wiki-ingest/model/wikiWorkList.ts";
+import { buildWikiWorkSections, formatWorkStartTime } from "../src/features/wiki-ingest/model/wikiWorkList.ts";
 
 function makeDocument(overrides) {
   return {
@@ -48,26 +48,37 @@ test("시작 시각이 없거나 깨졌으면 --:--", () => {
   assert.equal(formatWorkStartTime("not-a-date"), "--:--");
 });
 
-test("진행 중인 ingest 문서를 파일명·시작 시각 행으로 만든다", () => {
-  const rows = buildWikiWorkRows([
+test("진행 중인 ingest 문서는 위키 편입 구역에 파일명·시작 시각으로 들어간다", () => {
+  const sections = buildWikiWorkSections([
     makeDocument({ id: "a", filename: "a.md", status: "processing", processing_started_at: "2026-08-17T01:02:00Z" }),
     makeDocument({ id: "b", filename: "b.md", processing_state: "running" })
   ], null);
-  assert.deepEqual(rows.map((row) => [row.label, row.startTime]), [
+  assert.deepEqual(sections.map((section) => section.kind), ["ingest"]);
+  assert.deepEqual(sections[0].rows.map((row) => [row.label, row.startTime]), [
     ["a.md", localHHMM("2026-08-17T01:02:00Z")],
     ["b.md", "--:--"]
   ]);
 });
 
-test("lint가 진행 중이면 Wiki Lint 행을 뒤에 붙인다", () => {
-  const rows = buildWikiWorkRows(
+test("lint가 진행 중이면 위키 최신화 구역이 생긴다", () => {
+  const sections = buildWikiWorkSections(
     [makeDocument({ id: "a", filename: "a.md", status: "processing" })],
     makeLog({ created_at: "2026-08-17T03:04:00Z" })
   );
-  assert.deepEqual(rows.map((row) => row.label), ["a.md", "Wiki Lint"]);
-  assert.equal(rows[1].startTime, localHHMM("2026-08-17T03:04:00Z"));
+  assert.deepEqual(sections.map((section) => section.title), ["위키 편입", "위키 최신화"]);
+  assert.equal(sections[1].rows[0].startTime, localHHMM("2026-08-17T03:04:00Z"));
 });
 
-test("진행 중인 작업이 없으면 빈 배열이다", () => {
-  assert.deepEqual(buildWikiWorkRows([], null), []);
+test("변환 시작한 문서나 processing_stage가 convert인 문서는 PDF → MD 변환 구역으로 간다", () => {
+  const sections = buildWikiWorkSections([
+    makeDocument({ id: "a", filename: "a.md", status: "processing" }),
+    makeDocument({ id: "b", filename: "b.md", status: "processing" }),
+    makeDocument({ id: "c", filename: "c.md", status: "processing", processing_stage: "markdown_convert" })
+  ], null, new Set(["b"]));
+  assert.deepEqual(sections.map((section) => section.kind), ["ingest", "convert"]);
+  assert.deepEqual(sections[1].rows.map((row) => row.label), ["b.md", "c.md"]);
+});
+
+test("진행 중인 작업이 없으면 구역이 하나도 없다", () => {
+  assert.deepEqual(buildWikiWorkSections([], null), []);
 });

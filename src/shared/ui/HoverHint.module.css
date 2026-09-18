@@ -1,0 +1,50 @@
+/* 2초 hover 설명 말풍선 */
+.hover-hint {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* disabled 버튼은 마우스 이벤트를 삼키므로 래퍼가 받도록 한다 */
+.hover-hint > :disabled {
+  pointer-events: none;
+}
+
+.hover-hint-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 30;
+  max-width: 220px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: keep-all;
+  text-align: left;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: hover-hint-in 120ms ease-out;
+}
+
+.hover-hint-bubble.is-bottom {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+@keyframes hover-hint-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hover-hint-bubble {
+    animation: none;
+  }
+}

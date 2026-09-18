@@ -13,6 +13,7 @@ import {
   type SvgAsset
 } from "@/shared/ui/SvgIcon";
 import { canCreateProjectFromView } from "../model/sidebarMenu";
+import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
 // Figma 747:5861 — 좌측 홈/그래프/로그/검색, 우측 새 폴더. 활성 항목은 select 아이콘으로 렌더한다.
@@ -21,6 +22,16 @@ const menuItems: { id: RailView; label: string; icon: SvgAsset; selectIcon: SvgA
   { id: "graph", label: "그래프", icon: shareIcon, selectIcon: graphSelectIcon },
   { id: "logs", label: "로그", icon: collectionIcon, selectIcon: logSelectIcon }
 ];
+
+
+// 2초 hover 시 보여줄 버튼 설명
+const MENU_HINTS: Record<RailView, string> = {
+  home: "문서를 열어 읽고 편집하는 홈 화면으로 이동합니다.",
+  graph: "위키 그래프를 보고 문서를 편입·최신화합니다.",
+  logs: "AI 작업 기록을 시간순으로 확인합니다.",
+  rules: "스키마 규칙을 관리합니다.",
+  settings: "개인 설정을 변경합니다."
+};
 
 /** 사이드바 가로 아이콘 메뉴 줄. 활성 항목만 라벨이 있는 pill로 표시한다. */
 export function SidebarMenuRow({
@@ -39,8 +50,8 @@ export function SidebarMenuRow({
   return (
     <nav className={styles["sidebar-menu"]} aria-label="워크스페이스 메뉴">
       {menuItems.map((item) => (
+        <HoverHint key={item.id} placement="bottom" text={MENU_HINTS[item.id]}>
         <button
-          key={item.id}
           type="button"
           className={cx(styles["sidebar-menu-item"], activeView === item.id && styles["is-active"])}
           aria-label={item.label}
@@ -56,7 +67,9 @@ export function SidebarMenuRow({
           />
           {activeView === item.id && <span>{item.label}</span>}
         </button>
+        </HoverHint>
       ))}
+      <HoverHint placement="bottom" text="문서 이름으로 검색합니다.">
       <button
         type="button"
         className={cx(styles["sidebar-menu-item"], isSearchOpen && styles["is-open"])}
@@ -69,10 +82,12 @@ export function SidebarMenuRow({
       >
         <SvgIcon src={menuSearchIcon} className={styles["sidebar-menu-icon"]} />
       </button>
+      </HoverHint>
       {canCreateProjectFromView(activeView) && (
+        <HoverHint placement="bottom" className={styles["sidebar-menu-add"]} text="새 프로젝트 폴더를 만듭니다.">
         <button
           type="button"
-          className={cx(styles["sidebar-menu-item"], styles["sidebar-menu-add"])}
+          className={styles["sidebar-menu-item"]}
           aria-label="새 폴더 생성"
           onClick={(event) => {
             event.stopPropagation();
@@ -81,6 +96,7 @@ export function SidebarMenuRow({
         >
           <SvgIcon src={folderPlusIcon} className={styles["sidebar-menu-icon"]} />
         </button>
+        </HoverHint>
       )}
     </nav>
   );
