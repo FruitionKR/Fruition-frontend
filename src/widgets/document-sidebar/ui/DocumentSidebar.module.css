@@ -79,8 +79,119 @@
   height: 48px;
   display: flex;
   align-items: center;
-  padding: 12px 16px 12px 24px;
+  padding: 12px 22px 12px 24px;
   border-bottom: 1px solid var(--line);
+}
+
+/* 헤더 오른쪽 진행 중 작업 목록 버튼 (Figma 1131:7034) */
+.wiki-work-trigger {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.wiki-work-trigger:hover,
+.wiki-work-trigger:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.wiki-work-icon {
+  width: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 한 줄 = 4px 테두리 사각형 + 나머지를 채우는 1px 선 */
+.wiki-work-icon-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.wiki-work-icon-line::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border: 1px solid var(--muted);
+  border-radius: 1px;
+}
+
+.wiki-work-icon-line::after {
+  content: "";
+  flex: 1 1 0;
+  height: 0;
+  border-top: 1px solid var(--muted);
+}
+
+/* 목록 버튼 아래 오른쪽 정렬로 열리는 진행 중 작업 팝오버 (Figma 1131:6591) */
+.wiki-work-popover {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: 22px;
+  z-index: 12;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.wiki-work-title {
+  margin: 0;
+  padding: 4px 0;
+  color: var(--subdued);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.wiki-work-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wiki-work-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.wiki-work-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wiki-work-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .sidebar-workspace-trigger {

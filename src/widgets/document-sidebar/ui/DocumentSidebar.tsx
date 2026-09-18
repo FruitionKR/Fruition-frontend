@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent as ReactChangeEvent, type ComponentProps, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
+import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { chatBubbleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { ContextMenu } from "./ContextMenu";
@@ -28,6 +29,7 @@ export function DocumentSidebar({
   canRenameContextTarget,
   uploadInputRef,
   activeView,
+  documents,
   graphActions,
   logEntries,
   onViewChange,
@@ -66,6 +68,8 @@ export function DocumentSidebar({
   canRenameContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
   activeView: RailView;
+  /** 워크스페이스 문서 목록. 헤더의 진행 중 작업 팝오버가 여기서 ingest 진행 문서를 고른다. */
+  documents?: DocumentItemResponse[];
   /** 그래프 뷰에서 문서 트리 대신 보여줄 위키 액션. */
   graphActions?: Omit<ComponentProps<typeof GraphSidebarActions>, "projects" | "tree">;
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
@@ -167,7 +171,7 @@ export function DocumentSidebar({
       onDragLeave={onlyProject ? handleDragLeave : undefined}
       onDrop={onlyProject ? handleDrop : undefined}
     >
-      <SidebarWorkspaceHeader />
+      <SidebarWorkspaceHeader documents={documents} />
       <SidebarMenuRow
         activeView={activeView}
         isSearchOpen={isSearchOpen}
