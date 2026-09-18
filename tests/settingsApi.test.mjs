@@ -250,7 +250,7 @@ test("아이콘 프록시는 document-svc 기본 경로보다 먼저 access-svc�
   const iconIndex = rules.findIndex((rule) => rule.source === "/api/workspaces/:wid/icon/:path*");
   const defaultIndex = rules.findIndex((rule) => rule.source === "/api/:path*");
   assert.ok(iconIndex >= 0 && iconIndex < defaultIndex);
-  assert.equal(rules[iconIndex].destination, `${process.env.NEXT_PUBLIC_ACCESS_URL || "http://localhost:8081"}/api/workspaces/:wid/icon/:path*`);
+  assert.equal(rules[iconIndex].destination, `${process.env.ACCESS_URL || "http://localhost:8081"}/api/workspaces/:wid/icon/:path*`);
 });
 
 for (const oauth of [false, true]) {
