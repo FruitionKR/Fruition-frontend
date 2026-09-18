@@ -27,6 +27,8 @@ import listIcon from "../../../svg/workspace/list.svg";
 import userCircleIcon from "../../../svg/workspace/UserCircle.svg";
 import userCircleOutlineIcon from "../../../svg/workspace/UserCircleOutline.svg";
 import questionMarkIcon from "../../../svg/common/QuestionMarkCircleOutline.svg";
+import copyIcon from "../../../svg/common/copy.svg";
+import downloadIcon from "../../../svg/common/download.svg";
 import checkOnIcon from "../../../svg/wiki/check_on.svg";
 import ingestIcon from "../../../svg/wiki/ingest.svg";
 import refreshIcon from "../../../svg/wiki/refresh.svg";
@@ -88,6 +90,8 @@ export {
   settingIcon,
   toggleIcon,
   listIcon,
+  copyIcon,
+  downloadIcon,
   userCircleIcon
 };
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ME_QUERY_KEY, SESSIONS_QUERY_KEY, updateDisplayName, useMe } from "@/entities/user";
+import { ME_QUERY_KEY, SESSIONS_QUERY_KEY, updateDisplayName, useMe, useSignOut } from "@/entities/user";
 import { EmailChangeModal } from "./EmailChangeModal";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
@@ -12,10 +12,10 @@ import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
 
 /** 계정 설정 패널 (Figma 963:8660). */
-export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLockChange: (locked: boolean) => void }) {
-  const [mfaFlow, setMfaFlow] = useState(false);
+export function AccountPanel() {
   const { data: me, error: loadError } = useMe();
   const queryClient = useQueryClient();
+  const { signOut } = useSignOut();
   const [nicknameDraft, setNicknameDraft] = useState<string | null>(null);
   const nickname = nicknameDraft ?? me?.display_name ?? "";
   const nameRequestPending = useRef(false);
@@ -24,7 +24,6 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [passwordSaved, setPasswordSaved] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
 
@@ -57,7 +56,7 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
 
   return (
     <div className={styles.detail}>
-      {!mfaFlow && <>
+      <>
       <div className={styles.title}>
         <div className={styles["title-row"]}>
           <h2>계정 설정</h2>
@@ -112,7 +111,7 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
             type="button"
             className={styles.btn}
             disabled={!me}
-            onClick={() => { setPasswordSaved(false); setShowPassword(true); }}
+            onClick={() => setShowPassword(true)}
           >
             비밀번호 변경
           </button>
@@ -120,21 +119,21 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
         {showPassword && me && (
           <PasswordChangeModal
             email={me.email}
-            onSaved={() => { setShowPassword(false); setPasswordSaved(true); }}
+            // 비밀번호를 바꾸면 서버가 모든 refresh 토큰을 폐기하므로 다시 로그인해야 한다.
+            onSaved={() => { setShowPassword(false); void signOut({ callLogout: true }); }}
             onClose={() => setShowPassword(false)}
           />
         )}
-        {passwordSaved && <small role="status">비밀번호를 변경했습니다.</small>}
       </div>
 
-      </>}
+      </>
       <div className={styles.section}>
-        {!mfaFlow && <div className={styles["section-header"]}>
+        <div className={styles["section-header"]}>
           <span>계정 보안</span>
           <span className={styles["section-line"]} />
-        </div>}
-        {me && <MfaPanel onFlowChange={setMfaFlow} onNavigationLockChange={onMfaNavigationLockChange} />}
-        {me && !mfaFlow && <SessionsPanel />}
+        </div>
+        {me && <MfaPanel />}
+        {me && <SessionsPanel />}
       </div>
     </div>
   );
