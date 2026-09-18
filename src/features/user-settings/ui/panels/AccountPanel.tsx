@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { changePassword, ME_QUERY_KEY, SESSIONS_QUERY_KEY, updateDisplayName, useMe } from "@/entities/user";
-import { EmailChangeForm } from "./EmailChangeForm";
+import { EmailChangeModal } from "./EmailChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
 import { MfaPanel } from "./MfaPanel";
 import { getErrorMessage } from "@/shared/lib/errors";
@@ -124,12 +124,17 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
             <strong>이메일</strong>
             <small>{me?.email || "이메일 정보를 불러오지 못했습니다."}</small>
           </div>
-          <button type="button" className={styles.btn} disabled={!me} aria-expanded={showEmail}
-            onClick={() => { setShowEmail(!showEmail); setEmailSaved(false); }}>
-            {showEmail ? "닫기" : "이메일 변경"}
+          <button type="button" className={styles.btn} disabled={!me}
+            onClick={() => { setShowEmail(true); setEmailSaved(false); }}>
+            이메일 변경
           </button>
         </div>
-        {showEmail && <EmailChangeForm onSaved={() => { setShowEmail(false); setEmailSaved(true); }} />}
+        {showEmail && (
+          <EmailChangeModal
+            onSaved={() => { setShowEmail(false); setEmailSaved(true); }}
+            onClose={() => setShowEmail(false)}
+          />
+        )}
         {emailSaved && <small role="status">이메일을 변경했습니다.</small>}
         <div className={styles.row}>
           <div className={styles["row-title"]}>

@@ -295,6 +295,14 @@
   font-family: inherit;
 }
 
+/* TXT 원본 본문. 패널 배경 그대로, 본문 서체 유지 */
+.source-preview-plain-text {
+  color: var(--ink);
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 /* markdown 콘텐츠 어휘(전역) override */
 .source-preview-content :global(.markdown-codeblock) {
   padding: 2px 2px 2px 6px;
