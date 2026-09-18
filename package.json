@@ -5,6 +5,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "next dev",
+    "mock": "node mock/server.mjs",
+    "dev:mock": "node mock/dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
