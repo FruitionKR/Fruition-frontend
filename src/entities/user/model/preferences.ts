@@ -8,6 +8,8 @@ export type UserPreferences = {
   documentFont: DocumentFontPreference;
   // 채팅 composer에서 마지막으로 고른 AI 모델. 카탈로그와 대조 후에만 사용한다.
   aiModel: { provider: string; model: string } | null;
+  // 채팅 질의 시 웹 검색 허용 여부(allow_web_search).
+  webSearch: boolean;
   // 편집한 내용을 자동으로 저장할지 여부
   autoSave: boolean;
   editor: {
@@ -40,6 +42,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   motion: "system",
   documentFont: "system-sans",
   aiModel: null,
+  webSearch: false,
   autoSave: true,
   editor: {
     defaultMode: "last",
@@ -115,6 +118,7 @@ export function normalizeUserPreferences(value: unknown): UserPreferences {
       DEFAULT_USER_PREFERENCES.documentFont
     ),
     aiModel: aiModelValue(value.aiModel),
+    webSearch: booleanValue(value.webSearch, DEFAULT_USER_PREFERENCES.webSearch),
     autoSave: booleanValue(value.autoSave, DEFAULT_USER_PREFERENCES.autoSave),
     editor: {
       defaultMode: enumValue(

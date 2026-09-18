@@ -17,6 +17,7 @@ export type AgentTurnRequestContext = {
   sessionId: string;
   selectedModel: AiModelSelection;
   selectedPairIds: string[];
+  allowWebSearch?: boolean;
 };
 
 export type AgentTurnAction =
@@ -128,7 +129,7 @@ export function buildAgentTurnRequest(
     message,
     provider: requestContext.selectedModel.provider,
     model: requestContext.selectedModel.model,
-    allow_web_search: false,
+    allow_web_search: requestContext.allowWebSearch ?? false,
     // 선택한 문답이 있을 때만 서버가 지원하는 pair ID 계약으로 전달한다.
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }

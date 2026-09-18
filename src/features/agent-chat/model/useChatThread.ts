@@ -186,7 +186,7 @@ export function useChatThread(activeSessionId?: string | null) {
       .finally(() => { request.cancellation = null; });
   }
 
-  async function submitQuery(question: string, selection: AiModelSelection) {
+  async function submitQuery(question: string, selection: AiModelSelection, allowWebSearch = false) {
     if (!question || activeQueryRef.current || isLoading) return;
     const request: ActiveQueryRequest = {
       run: null, controller: new AbortController(), cancelRequested: false, cancellation: null
@@ -212,6 +212,7 @@ export function useChatThread(activeSessionId?: string | null) {
       // 질의 대상 세션을 고정해 두고, refresh 반영 시점에 세션이 바뀌었으면 turn을 갱신하지 않는다.
       querySessionId = (await getSessionContext()).sessionId;
       const queryResponse = await runQueryStream(question, selection, {
+        allowWebSearch,
         signal: request.controller.signal,
         onStarted: (run) => {
           request.run = run;

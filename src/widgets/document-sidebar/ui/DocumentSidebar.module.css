@@ -79,8 +79,119 @@
   height: 48px;
   display: flex;
   align-items: center;
-  padding: 12px 16px 12px 24px;
+  padding: 12px 22px 12px 24px;
   border-bottom: 1px solid var(--line);
+}
+
+/* 헤더 오른쪽 진행 중 작업 목록 버튼 (Figma 1131:7034) */
+.wiki-work-trigger {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.wiki-work-trigger:hover,
+.wiki-work-trigger:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.wiki-work-icon {
+  width: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 한 줄 = 4px 테두리 사각형 + 나머지를 채우는 1px 선 */
+.wiki-work-icon-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.wiki-work-icon-line::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border: 1px solid var(--muted);
+  border-radius: 1px;
+}
+
+.wiki-work-icon-line::after {
+  content: "";
+  flex: 1 1 0;
+  height: 0;
+  border-top: 1px solid var(--muted);
+}
+
+/* 목록 버튼 아래 오른쪽 정렬로 열리는 진행 중 작업 팝오버 (Figma 1131:6591) */
+.wiki-work-popover {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: 22px;
+  z-index: 12;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.wiki-work-title {
+  margin: 0;
+  padding: 4px 0;
+  color: var(--subdued);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.wiki-work-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wiki-work-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.wiki-work-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wiki-work-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .sidebar-workspace-trigger {
@@ -834,70 +945,164 @@
   color: #c2372f;
 }
 
-/* 그래프 뷰에서 문서 트리 대신 놓이는 위키 액션 패널 */
-.graph-actions {
+/* 그래프 뷰: 문서 트리 위에 하단 [위키 편입][Lint] pill을 고정 (Figma 1027:8099) */
+.graph-panel {
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
 }
 
-.graph-action {
+.graph-panel-tree {
+  flex: 1 0 auto;
+}
+
+.graph-bottom {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--panel);
+}
+
+.graph-pill {
+  min-width: 0;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  gap: 8px;
+  padding: 14px 12px;
   color: var(--ink);
   background: var(--soft);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.graph-action:hover:not(:disabled),
-.graph-action:focus-visible:not(:disabled) {
+.graph-pill.is-round {
+  flex: 0 0 44px;
+  width: 44px;
+  padding: 14px 0;
+}
+
+.graph-pill :global(.svg-icon) {
+  width: 16px;
+  height: 16px;
+}
+
+.graph-pill:hover:not(:disabled),
+.graph-pill:focus-visible:not(:disabled) {
   --button-hover-overlay: none;
   background: #3f3f3f;
   border-color: #5a5a5a;
 }
 
-.graph-action:disabled {
+.graph-pill:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-/* Ingest / Lint 버튼 아래에 놓이는 진행 중 위키 작업 목록 */
-.graph-active-work {
+/* Lint 진행 중 새로고침 아이콘 회전 (reduced-motion은 base.css 전역 규칙이 끈다) */
+.graph-pill.is-spinning :global(.svg-icon) {
+  animation: graph-pill-spin 1s linear infinite;
+}
+
+@keyframes graph-pill-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 선택 취소: + 아이콘을 45도 돌려 X로 쓴다 */
+.graph-cancel-icon {
+  transform: rotate(45deg);
+}
+
+/* 위키 편입 선택 모드 트리 (Figma 1027:6233) */
+.ingest-tree {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
+  gap: 2px;
+  padding: 2px 16px 0;
 }
 
-.graph-active-item {
+.ingest-title {
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--muted);
+  gap: 10px;
+  padding: 8px 6px;
+  color: #8a8a8a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
-.graph-active-kind {
-  flex: none;
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 10px;
+.ingest-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.ingest-row {
+  width: 100%;
+  height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  color: var(--ink);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ingest-row.is-folder {
   font-weight: 600;
 }
 
-.graph-active-label {
+.ingest-row:hover:not(:disabled),
+.ingest-row:focus-visible:not(:disabled) {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+/* PDF/TXT·이미 반영된 문서: 행은 보이되 체크박스만 흐리게 */
+.ingest-row:disabled {
+  cursor: not-allowed;
+}
+
+.ingest-row:disabled .ingest-check {
+  opacity: 0.4;
+}
+
+.ingest-check {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.ingest-check.is-checked {
+  border: 0;
+}
+
+.ingest-label {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
 }
 

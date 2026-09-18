@@ -40,10 +40,9 @@ export async function loginWithEmail(email: string, password: string): Promise<L
 }
 
 export function getOAuthAuthorizationUrl(provider: OAuthProvider): string {
-  // OAuth 시작은 access-svc(8081) 오리진으로 직접 이동한다.
-  // redirect_uri가 서버 자신 오리진 기준이라 Next rewrite 경유 시 3000 오리진으로 계산되므로 절대 URL을 유지한다.
-  const accessUrl = process.env.NEXT_PUBLIC_ACCESS_URL || "http://localhost:8081";
-  return `${accessUrl}/oauth2/authorization/${provider}`;
+  // next.config.mjs의 redirects()가 access-svc 오리진으로 307 리다이렉트한다.
+  // redirect_uri가 서버 자신 오리진 기준이라 rewrite(프록시)가 아닌 redirect여야 한다.
+  return `/oauth2/authorization/${provider}`;
 }
 
 export async function exchangeOAuthCode(code: string): Promise<LoginResponse> {

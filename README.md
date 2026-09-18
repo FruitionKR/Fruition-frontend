@@ -16,7 +16,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-로그인·문서·AI 기능은 별도로 실행 중인 Access·Document API가 필요합니다. API 주소는 `.env.local`의 `NEXT_PUBLIC_ACCESS_URL`, `NEXT_PUBLIC_BACKEND_URL`로 설정합니다.
+로그인·문서·AI 기능은 별도로 실행 중인 Access·Document API가 필요합니다. API 주소는 `.env.local`의 `ACCESS_URL`, `BACKEND_URL`로 설정합니다.
 
 ### 검증
 
@@ -49,7 +49,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Authentication, document, and AI features require running Access and Document APIs. Set their URLs in `.env.local` using `NEXT_PUBLIC_ACCESS_URL` and `NEXT_PUBLIC_BACKEND_URL`.
+Authentication, document, and AI features require running Access and Document APIs. Set their URLs in `.env.local` using `ACCESS_URL` and `BACKEND_URL`.
 
 ### Validation
 

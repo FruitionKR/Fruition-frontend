@@ -309,3 +309,11 @@ for (const [name, replacementMarkdown] of markdownReplacementFixtures) {
     assert.equal(prepareMarkdownEditPreview(request, response).nextMarkdown, replacementMarkdown);
   });
 }
+
+test("웹 서칭 토글이 켜지면 allow_web_search를 true로 보낸다", () => {
+  const request = buildAgentTurnRequest("본문을 다듬어줘", markdownEditContext, {
+    ...agentRequestContext,
+    allowWebSearch: true
+  });
+  assert.equal(request.allow_web_search, true);
+});

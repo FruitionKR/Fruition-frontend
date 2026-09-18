@@ -393,6 +393,7 @@ export function HomeWorkspace() {
         canRenameContextTarget={projectTree.canRenameContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
+        documents={documents}
         graphActions={{
           documents,
           pending: wikiActionPending,

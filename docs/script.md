@@ -12,8 +12,8 @@ npm run dev
 
 | 환경변수 | 로컬 기본값 | 대상 |
 |---|---|---|
-| `NEXT_PUBLIC_ACCESS_URL` | `http://localhost:8081` | 인증·워크스페이스·멤버·초대 |
-| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:8080` | 문서·Wiki·채팅·AI 업무 API |
+| `ACCESS_URL` | `http://localhost:8081` | 인증·워크스페이스·멤버·초대 |
+| `BACKEND_URL` | `http://localhost:8080` | 문서·Wiki·채팅·AI 업무 API |
 
 `npm test`는 `tests/*.test.mjs` 전체를 실행합니다. 특정 영역은 `package.json`의 `test:*` 명령으로 확인합니다.
 
