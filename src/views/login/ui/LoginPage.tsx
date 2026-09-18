@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { exchangeOAuthCode, loginWithEmail } from "@/entities/user";
+import { exchangeOAuthCode, loginWithEmail, useMe } from "@/entities/user";
 import { saveAccessToken } from "@/shared/lib/auth";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
@@ -37,6 +37,14 @@ function LoginPageContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error"));
+  // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
+  // OAuth 콜백(code/error)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
+  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken });
+
+  useEffect(() => {
+    if (isAlreadySignedIn) router.replace("/workspaces");
+  }, [isAlreadySignedIn, router]);
 
   useEffect(() => {
     const legacyRoute = LEGACY_AUTH_ROUTES[searchParams.get("view") ?? ""];
