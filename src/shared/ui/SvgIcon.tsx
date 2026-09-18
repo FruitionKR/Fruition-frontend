@@ -28,6 +28,8 @@ import userCircleIcon from "../../../svg/workspace/UserCircle.svg";
 import userCircleOutlineIcon from "../../../svg/workspace/UserCircleOutline.svg";
 import questionMarkIcon from "../../../svg/common/QuestionMarkCircleOutline.svg";
 import copyIcon from "../../../svg/common/copy.svg";
+import computerIcon from "../../../svg/device/computer.svg";
+import phoneIcon from "../../../svg/device/phone.svg";
 import downloadIcon from "../../../svg/common/download.svg";
 import checkOnIcon from "../../../svg/wiki/check_on.svg";
 import ingestIcon from "../../../svg/wiki/ingest.svg";
@@ -92,6 +94,8 @@ export {
   listIcon,
   copyIcon,
   downloadIcon,
+  computerIcon,
+  phoneIcon,
   userCircleIcon
 };
 

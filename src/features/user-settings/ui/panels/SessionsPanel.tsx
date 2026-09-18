@@ -5,9 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSessions, revokeSession, SESSIONS_QUERY_KEY, useSignOut, type LoginSession } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { SvgIcon, userCircleOutlineIcon } from "@/shared/ui/SvgIcon";
+import { computerIcon, phoneIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
+
+/** 휴대기기(iOS·Android 등) 여부. 아이콘 선택에만 쓴다. */
+function isMobileDevice(userAgent: string | null): boolean {
+  return /iPhone|iPad|iPod|Android|Mobile/i.test(userAgent ?? "");
+}
 
 /** user-agent 문자열에서 사람이 읽을 기기 이름을 뽑는다. */
 function describeDevice(userAgent: string | null): string {
@@ -72,7 +77,7 @@ export function SessionsPanel() {
     <ul className={panelStyles["device-list"]} aria-label="로그인된 기기">
       {sessions?.map((session) => (
         <li key={session.session_id} className={cx(panelStyles["device-row"], session.current && panelStyles["is-current"])}>
-          <SvgIcon src={userCircleOutlineIcon} className={panelStyles["device-icon"]} />
+          <SvgIcon src={isMobileDevice(session.user_agent) ? phoneIcon : computerIcon} className={panelStyles["device-icon"]} />
           <div className={panelStyles["device-text"]}>
             <span className={panelStyles["device-name"]}>
               {describeDevice(session.user_agent)}
