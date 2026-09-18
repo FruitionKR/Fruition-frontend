@@ -199,3 +199,64 @@
   outline: 2px solid var(--yellow);
   outline-offset: 2px;
 }
+
+/* 이전 버튼이 없는 첫 단계는 다음 버튼만 오른쪽에 둔다 */
+.footer.is-end {
+  justify-content: flex-end;
+}
+
+/* 입력칸 오른쪽 장식(남은 시간·비밀번호 표시 토글) */
+.field-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.field-control input {
+  padding-right: 44px;
+}
+
+.field-timer {
+  position: absolute;
+  right: 12px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.16px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.field-toggle {
+  position: absolute;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  line-height: 0;
+}
+
+.field-toggle img {
+  width: 16px;
+  height: 16px;
+}
+
+.field-toggle:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fields .field {
+  padding: 0;
+}

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { changePassword, ME_QUERY_KEY, SESSIONS_QUERY_KEY, updateDisplayName, useMe } from "@/entities/user";
+import { ME_QUERY_KEY, SESSIONS_QUERY_KEY, updateDisplayName, useMe } from "@/entities/user";
 import { EmailChangeModal } from "./EmailChangeModal";
+import { PasswordChangeModal } from "./PasswordChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
 import { MfaPanel } from "./MfaPanel";
 import { getErrorMessage } from "@/shared/lib/errors";
@@ -23,11 +24,6 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
@@ -58,35 +54,6 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
     const timer = window.setTimeout(() => void saveName(), 600);
     return () => window.clearTimeout(timer);
   }, [saveName, savingName, nameError, composingName, nicknameDraft]);
-
-  function clearPasswords() {
-    setCurrentPassword("");
-    setNewPassword("");
-    setPasswordConfirm("");
-  }
-
-  async function savePassword(event: FormEvent) {
-    event.preventDefault();
-    if (savingPassword) return;
-    setPasswordError(null);
-    setPasswordSaved(false);
-    if (newPassword !== passwordConfirm) {
-      setPasswordError("새 비밀번호가 일치하지 않습니다.");
-      return;
-    }
-    setSavingPassword(true);
-    try {
-      await changePassword(currentPassword, newPassword);
-      void queryClient.invalidateQueries({ queryKey: SESSIONS_QUERY_KEY });
-      clearPasswords();
-      setShowPassword(false);
-      setPasswordSaved(true);
-    } catch (error: unknown) {
-      setPasswordError(getErrorMessage(error, "비밀번호를 변경하지 못했습니다."));
-    } finally {
-      setSavingPassword(false);
-    }
-  }
 
   return (
     <div className={styles.detail}>
@@ -144,36 +111,18 @@ export function AccountPanel({ onMfaNavigationLockChange }: { onMfaNavigationLoc
           <button
             type="button"
             className={styles.btn}
-            disabled={!me || savingPassword}
-            aria-expanded={showPassword}
-            onClick={() => { clearPasswords(); setPasswordError(null); setPasswordSaved(false); setShowPassword(!showPassword); }}
+            disabled={!me}
+            onClick={() => { setPasswordSaved(false); setShowPassword(true); }}
           >
             비밀번호 변경
           </button>
         </div>
-        {showPassword && (
-          <form className={panelStyles["password-form"]} onSubmit={(event) => void savePassword(event)}>
-            <div className={styles.field}>
-              <label htmlFor="current-password">현재 비밀번호</label>
-              <input id="current-password" type="password" autoComplete="current-password" required
-                value={currentPassword} disabled={savingPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="new-password">새 비밀번호</label>
-              <input id="new-password" type="password" autoComplete="new-password" required minLength={8} maxLength={72}
-                value={newPassword} disabled={savingPassword} onChange={(event) => setNewPassword(event.target.value)} />
-              <small>8~72자로 입력해 주세요. 변경하면 다른 기기의 로그인 갱신이 해제됩니다.</small>
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="confirm-password">새 비밀번호 확인</label>
-              <input id="confirm-password" type="password" autoComplete="new-password" required minLength={8} maxLength={72}
-                value={passwordConfirm} disabled={savingPassword} onChange={(event) => setPasswordConfirm(event.target.value)} />
-            </div>
-            {passwordError && <small className={styles["model-error"]} role="alert">{passwordError}</small>}
-            <button type="submit" className={styles.btn} disabled={savingPassword}>
-              {savingPassword ? "변경 중…" : "비밀번호 저장"}
-            </button>
-          </form>
+        {showPassword && me && (
+          <PasswordChangeModal
+            email={me.email}
+            onSaved={() => { setShowPassword(false); setPasswordSaved(true); }}
+            onClose={() => setShowPassword(false)}
+          />
         )}
         {passwordSaved && <small role="status">비밀번호를 변경했습니다.</small>}
       </div>

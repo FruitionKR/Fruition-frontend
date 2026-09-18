@@ -5,10 +5,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { changeEmail, confirmEmailVerification, requestEmailVerification, ME_QUERY_KEY, SESSIONS_QUERY_KEY } from "@/entities/user";
+import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { plusIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import styles from "./EmailChangeModal.module.css";
+import styles from "./AccountFlowModal.module.css";
 
 const CODE_LENGTH = 6;
 
@@ -85,13 +86,9 @@ export function EmailChangeModal({ onSaved, onClose }: { onSaved: () => void; on
     else void sendCode();
   }
 
-  // 1단계의 '이전'은 모달을 닫고, 2단계의 '이전'은 이메일 입력으로 돌아간다.
+  // 2단계의 '이전'은 이메일 입력으로 돌아간다.
   function handleBack() {
     if (busy) return;
-    if (!isCodeStep) {
-      onClose();
-      return;
-    }
     setVerificationId(null);
     setToken(null);
     setCode("");
@@ -165,10 +162,12 @@ export function EmailChangeModal({ onSaved, onClose }: { onSaved: () => void; on
             </div>
           )}
 
-          <div className={styles.footer}>
-            <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
-              <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
-            </button>
+          <div className={cx(styles.footer, !isCodeStep && styles["is-end"])}>
+            {isCodeStep && (
+              <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
+                <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+              </button>
+            )}
             <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
               {busy ? "처리 중…" : isCodeStep ? "인증하기" : retrySeconds > 0 ? `${retrySeconds}초 후 가능` : "변경하기"}
               {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
