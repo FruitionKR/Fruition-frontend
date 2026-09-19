@@ -1,3 +1,4 @@
+import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEvents";
 import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { getSessionContext } from "@/entities/chat/api/chat";
 import type { AiModelSelection } from "@/entities/ai";
@@ -17,7 +18,7 @@ export async function fetchBackendData(): Promise<BackendData> {
 }
 
 // SSE로 전달되는 질의 진행 단계 이벤트.
-export type QueryStageEvent = { stage: string; message: string; sequence: number };
+export type QueryStageEvent = RunStageEvent;
 
 export type QueryRun = { workspaceId: string; requestId: string };
 
@@ -41,23 +42,6 @@ export async function cancelQueryRun(run: QueryRun, signal: AbortSignal): Promis
     await new Promise((resolve) => setTimeout(resolve, 1000));
     signal.throwIfAborted();
     response = await apiFetch(path, { cache: "no-store", signal });
-  }
-}
-
-/** SSE 프레임(event/data 줄) 한 개를 파싱한다. heartbeat(':' 주석)는 무시한다. */
-function parseSseFrame(raw: string): { event: string; data: unknown } | null {
-  let event = "message";
-  const dataLines: string[] = [];
-  for (const line of raw.split("\n")) {
-    if (line.startsWith(":")) continue;
-    if (line.startsWith("event:")) event = line.slice("event:".length).trim();
-    else if (line.startsWith("data:")) dataLines.push(line.slice("data:".length).replace(/^ /, ""));
-  }
-  if (dataLines.length === 0) return null;
-  try {
-    return { event, data: JSON.parse(dataLines.join("\n")) };
-  } catch {
-    return null;
   }
 }
 
@@ -107,42 +91,8 @@ export async function runQueryStream(
     throw new Error(await parseErrorResponse(eventsResponse, ERROR_MESSAGES.queryFailed));
   }
 
-  const reader = eventsResponse.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let failedError: string | null = null;
-  let completed = false;
-
-  try {
-    while (!completed) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex !== -1) {
-        const frame = parseSseFrame(buffer.slice(0, separatorIndex));
-        buffer = buffer.slice(separatorIndex + 2);
-        if (frame?.event === "query.log") {
-          const payload = frame.data as { stage?: string; message?: string; sequence?: number };
-          handlers.onStage({ stage: payload.stage ?? "", message: payload.message ?? "", sequence: payload.sequence ?? 0 });
-        } else if (frame?.event === "query.completed") {
-          completed = true;
-          break;
-        } else if (frame?.event === "query.failed") {
-          failedError = (frame.data as { error?: string }).error || ERROR_MESSAGES.queryFailed;
-          completed = true;
-          break;
-        } else if (frame?.event === "query.cancelled") {
-          throw new QueryCancelledError();
-        }
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
-
-  if (failedError) throw new Error(failedError);
+  const terminal = await readRunEvents(eventsResponse, handlers.onStage, ERROR_MESSAGES.queryFailed);
+  if (terminal === "cancelled") throw new QueryCancelledError();
 
   const statusResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}`, { cache: "no-store", signal: handlers.signal });
   const status = await parseJsonOrThrow<{ status: string; result: QueryResponse | null }>(statusResponse, ERROR_MESSAGES.queryFailed);
