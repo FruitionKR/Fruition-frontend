@@ -10,7 +10,7 @@ import { history } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
-import { editorViewCtx, keymapCtx, parserCtx } from "@milkdown/core";
+import { editorViewCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
 import type { KeymapItem } from "@milkdown/core";
 import { closeHistory, history as prosemirrorHistory } from "@milkdown/prose/history";
 import { listItemSchema } from "@milkdown/kit/preset/commonmark";
@@ -110,6 +110,8 @@ export function NoteEditor({
       const parser = ctx.get(parserCtx);
       const doc = parser(nextMarkdown);
       if (!doc) return;
+      // 편집기는 목록·빈 항목 등을 정규화한다. 이 반향은 사용자 편집으로 저장하지 않는다.
+      programmaticBodyRef.current = ctx.get(serializerCtx)(doc);
       const { state } = view;
       const tr = state.tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0));
       tr.setMeta("addToHistory", false);
@@ -297,14 +299,14 @@ export function NoteEditor({
     }).on((listener) => {
       listener.markdownUpdated((_ctx, nextBody, previousBody) => {
         if (isDisposed || nextBody === previousBody) return;
-        bodyRef.current = nextBody;
-        setBody(nextBody);
-        publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
         if (programmaticBodyRef.current === nextBody) {
           programmaticBodyRef.current = null;
           return;
         }
         programmaticBodyRef.current = null;
+        bodyRef.current = nextBody;
+        setBody(nextBody);
+        publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
         queueSaveRef.current(nextBody);
       });
     });
