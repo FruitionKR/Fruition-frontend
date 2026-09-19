@@ -103,7 +103,7 @@ export function AgentHeader({
     return () => {
       cancelled = true;
     };
-  }, [isListOpen]);
+  }, [isListOpen, sessionTitle]);
 
   // 세션 title이 없으면 헤더와 동일하게 "새 채팅"으로 표시한다
   const fallbackTitle = "새 채팅";
