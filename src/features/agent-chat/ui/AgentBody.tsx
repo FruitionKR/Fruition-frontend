@@ -5,7 +5,7 @@ import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
 import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
-import { buildDocumentCommandSteps, type StatusStep } from "../lib/agentData";
+import { type StatusStep } from "../lib/agentData";
 import { resolveChatTurnPresentation } from "../lib/markdownAgent";
 import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
@@ -22,7 +22,6 @@ const MAX_RESULT_CARDS = 3;
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
 
 // 답변 공개 단계: 1=상태 목록만, 2=결과 카드까지, 3=답변 본문까지 표시
-const STAGE_STATUS = 1;
 const STAGE_RESULTS = 2;
 const STAGE_ANSWER = 3;
 
@@ -110,6 +109,7 @@ export function AgentBody({
   isCancelling = false,
   isDocumentCommandLoading,
   documentCommandQuestion,
+  documentCommandStages = [],
   activeSessionId,
   activeTurn,
   queryErrorMessage,
@@ -131,6 +131,7 @@ export function AgentBody({
   isCancelling?: boolean;
   isDocumentCommandLoading: boolean;
   documentCommandQuestion: string | null;
+  documentCommandStages?: QueryStageEvent[];
   activeSessionId: string | null;
   activeTurn: ActiveAgentTurn | null;
   queryErrorMessage: string | null;
@@ -322,7 +323,12 @@ export function AgentBody({
       {isDocumentCommandLoading && documentCommandQuestion && (
         <>
           <div className={styles["question-bubble"]}>{documentCommandQuestion}</div>
-          <div className={styles.typing}><i /><i /><i /> 명령을 해석 중입니다…</div>
+          <div className={styles["agent-thread"]} role="status" aria-live="polite">
+            <StatusList title="요청 처리 중" isLoading hasResponse={false}
+              steps={documentCommandStages.length ? documentCommandStages.map((stage, index): StatusStep => [
+                stage.message, index === documentCommandStages.length - 1 ? "active" : "done"
+              ]) : [["요청을 전달하고 있어요.", "active"]]} />
+          </div>
         </>
       )}
 
@@ -373,17 +379,16 @@ function AssistantThread({
 
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
-      {!isWorkspacePlan && (documentCommandAction || isSearchAnswer) && (!isAnimated || visibleAnswerStage >= STAGE_STATUS) && (
-        <div className={isAnimated ? styles["agent-stage"] : undefined}>
-          <StatusList
-            title={documentCommandAction ? "문서 명령 실행 완료" : SEARCH_STATUS_TITLE}
-            isLoading={false}
-            hasResponse
-            steps={documentCommandAction
-              ? buildDocumentCommandSteps(documentCommandAction, false, true)
-              : undefined}
-          />
-        </div>
+      {!isWorkspacePlan && ((message.progress?.length ?? 0) > 0 || message.status === "pending") && (
+        <StatusList
+          title={message.status === "pending" ? "요청 처리 중" : message.status === "completed" ? "요청 처리 완료" : "요청 처리 종료"}
+          isLoading={message.status === "pending"}
+          hasResponse={message.status === "completed"}
+          steps={message.progress?.length ? message.progress.map((stage, index): StatusStep => [
+            stage.message,
+            message.status === "pending" && index === message.progress!.length - 1 ? "active" : "done"
+          ]) : [["요청을 전달하고 있어요.", "active"]]}
+        />
       )}
 
       {isSearchAnswer && resultCards.length > 0 && (!isAnimated || visibleAnswerStage >= STAGE_RESULTS) && (

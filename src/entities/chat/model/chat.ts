@@ -28,6 +28,7 @@ export type ChatMessageRelatedPageResponse = RelatedPageBase & {
 
 export type ChatMessageResponse = QueryMessageSummary & {
   run_id?: string;
+  progress?: import("@/shared/lib/runEvents").RunStageEvent[];
   action?: string;
   related_pages?: ChatMessageRelatedPageResponse[];
   references: ChatMessageReferenceResponse[];

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RunStageEvent } from "@/shared/lib/runEvents";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer, type AiModelCatalogStatus } from "@/features/agent-chat/ui/AgentComposer";
@@ -74,6 +75,9 @@ export function AgentPanel({
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
   const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
   const [isAgentTurnLoading, setIsAgentTurnLoading] = useState(false);
+  const [agentStages, setAgentStages] = useState<RunStageEvent[]>([]);
+  const agentRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => agentRequestRef.current?.abort(), []);
   const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
   const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -94,11 +98,12 @@ export function AgentPanel({
     isCancelling,
     queryStatusMessage,
     queryStages,
+    hasPendingMessages,
     refreshMessages,
     submitQuery,
     cancelQuery
   } = useChatThread(activeSessionId);
-  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown;
+  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
     () => classifyChatExportPairs(messages),
     [messages]
@@ -175,17 +180,29 @@ export function AgentPanel({
     setAgentTurnErrorMessage(null);
     setMarkdownCreateErrorMessage(null);
     setIsAgentTurnLoading(true);
-    requestAgentTurn(request)
+    setAgentStages([]);
+    agentRequestRef.current?.abort();
+    const controller = new AbortController();
+    agentRequestRef.current = controller;
+    requestAgentTurn(request, {
+      signal: controller.signal,
+      onStage: (stage) => {
+        if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
+      }
+    })
       .then(async (response) => {
+        if (controller.signal.aborted) return;
         await refreshMessages({ animateLatest: true });
+        if (controller.signal.aborted) return;
         setAgentTurnResponse(
           resolveChatTurnPresentation(response.result.action).kind === "document-command" ? response : null
         );
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
         setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
       })
-      .finally(() => setIsAgentTurnLoading(false));
+      .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
   }, [allowWebSearch, refreshMessages]);
 
   function handleSubmit() {
@@ -392,6 +409,7 @@ export function AgentPanel({
         isLoading={isLoading}
         isCancelling={isCancelling}
         isDocumentCommandLoading={isAgentTurnLoading}
+        documentCommandStages={agentStages}
         documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
         activeSessionId={activeSessionId}
         activeTurn={activeTurn}

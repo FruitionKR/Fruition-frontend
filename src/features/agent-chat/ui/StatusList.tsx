@@ -26,8 +26,8 @@ export function StatusList({
         {title} <ChevronDown size={14} className={isExpanded ? undefined : styles["is-collapsed"]} />
       </button>
       {isExpanded && <div className={styles["status-steps"]}>
-        {resolvedSteps.map(([label, state]) => (
-          <div className={cx(styles["status-row"], styles[state])} key={`${title}-${label}`}>
+        {resolvedSteps.map(([label, state], index) => (
+          <div className={cx(styles["status-row"], styles[state])} key={`${title}-${index}-${label}`}>
             <span>{state === "done" && <SvgIcon src={chatCheckIcon} />}{state === "pending" && <SvgIcon src={rawPageIcon} />}</span>
             <p>{label}</p>
           </div>
