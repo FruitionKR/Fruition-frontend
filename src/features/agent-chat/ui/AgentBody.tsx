@@ -5,7 +5,7 @@ import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
 import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
-import { type StatusStep } from "../lib/agentData";
+import { buildProgressSteps } from "../lib/progressSteps";
 import { resolveChatTurnPresentation } from "../lib/markdownAgent";
 import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
@@ -225,17 +225,14 @@ export function AgentBody({
   const selectedRangeStart = selectedPairIds[0] ?? null;
   const selectedRangeEnd = selectedPairIds.at(-1) ?? null;
   // SSE로 받은 실제 진행 단계를 상태 목록으로 표시한다. 마지막 단계는 아직 진행 중이면 active로 둔다.
-  const stageSteps: StatusStep[] = queryStages.map((stage, index): StatusStep => [
-    stage.message || stage.stage,
-    index === queryStages.length - 1 && isLoading ? "active" : "done"
-  ]);
+  const stageSteps = buildProgressSteps(queryStages, isLoading);
   const pendingStatusThread = (
     <div className={styles["agent-thread"]}>
       <StatusList
         title={isCancelling ? "질의 취소 중" : SEARCH_STATUS_TITLE}
         isLoading={isLoading}
         hasResponse={false}
-        steps={isCancelling ? [["변경 복구 확인", "active"]] : stageSteps.length > 0 ? stageSteps : undefined}
+        steps={isCancelling ? [["변경 복구 확인", "active"]] : stageSteps.length > 0 ? stageSteps : [["질문의 의도를 파악하고 있어요.", "active"]]}
       />
     </div>
   );
@@ -325,9 +322,8 @@ export function AgentBody({
           <div className={styles["question-bubble"]}>{documentCommandQuestion}</div>
           <div className={styles["agent-thread"]} role="status" aria-live="polite">
             <StatusList title="요청 처리 중" isLoading hasResponse={false}
-              steps={documentCommandStages.length ? documentCommandStages.map((stage, index): StatusStep => [
-                stage.message, index === documentCommandStages.length - 1 ? "active" : "done"
-              ]) : [["요청을 전달하고 있어요.", "active"]]} />
+              steps={documentCommandStages.length ? buildProgressSteps(documentCommandStages, true)
+                : [["요청을 전달하고 있어요.", "active"]]} />
           </div>
         </>
       )}
@@ -336,7 +332,6 @@ export function AgentBody({
 
       {queryErrorMessage && <p className={styles["query-error"]}>{queryErrorMessage}</p>}
       {chatLoadErrorMessage && <p className={styles["query-error"]}>{chatLoadErrorMessage}</p>}
-      {isLoading && !queryErrorMessage && <div className={styles.typing}><i /><i /><i /> {isCancelling ? "질의 취소를 확인하고 있어요…" : "답변을 작성하고 있어요…"}</div>}
     </div>
   );
 }
@@ -384,10 +379,8 @@ function AssistantThread({
           title={message.status === "pending" ? "요청 처리 중" : message.status === "completed" ? "요청 처리 완료" : "요청 처리 종료"}
           isLoading={message.status === "pending"}
           hasResponse={message.status === "completed"}
-          steps={message.progress?.length ? message.progress.map((stage, index): StatusStep => [
-            stage.message,
-            message.status === "pending" && index === message.progress!.length - 1 ? "active" : "done"
-          ]) : [["요청을 전달하고 있어요.", "active"]]}
+          steps={message.progress?.length ? buildProgressSteps(message.progress, message.status === "pending")
+            : [["요청을 전달하고 있어요.", "active"]]}
         />
       )}
 
