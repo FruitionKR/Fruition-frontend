@@ -69,20 +69,22 @@ export function SidebarMenuRow({
         </button>
         </HoverHint>
       ))}
-      <HoverHint placement="bottom" text="문서 이름으로 검색합니다.">
-      <button
-        type="button"
-        className={cx(styles["sidebar-menu-item"], isSearchOpen && styles["is-open"])}
-        aria-label="문서 검색"
-        aria-expanded={isSearchOpen}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleSearch();
-        }}
-      >
-        <SvgIcon src={menuSearchIcon} className={styles["sidebar-menu-icon"]} />
-      </button>
-      </HoverHint>
+      {activeView === "home" && (
+        <HoverHint placement="bottom" text="문서 이름으로 검색합니다.">
+        <button
+          type="button"
+          className={cx(styles["sidebar-menu-item"], isSearchOpen && styles["is-open"])}
+          aria-label="문서 검색"
+          aria-expanded={isSearchOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleSearch();
+          }}
+        >
+          <SvgIcon src={menuSearchIcon} className={styles["sidebar-menu-icon"]} />
+        </button>
+        </HoverHint>
+      )}
       {canCreateProjectFromView(activeView) && (
         <HoverHint placement="bottom" align="end" className={styles["sidebar-menu-add"]} text="새 프로젝트 폴더를 만듭니다.">
         <button
