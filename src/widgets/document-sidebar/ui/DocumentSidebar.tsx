@@ -180,7 +180,7 @@ export function DocumentSidebar({
         onToggleSearch={() => setIsSearchOpen((open) => !open)}
         onAddProject={onAddProject}
       />
-      {isSearchOpen && (
+      {activeView === "home" && isSearchOpen && (
         <DocumentSearch
           projects={projects}
           onSelectGraphNode={onSelectGraphNode}
