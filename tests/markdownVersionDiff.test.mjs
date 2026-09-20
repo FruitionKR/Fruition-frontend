@@ -45,3 +45,26 @@ test("hunk가 여러 개면 사이에 생략(gap) 행을 넣는다", () => {
 test("hunk가 없으면 빈 목록을 반환한다", () => {
   assert.deepEqual(flattenDiffHunks([]), []);
 });
+
+test("첫 줄 식별 주석만 숨기고 본문 예제와 일반 주석은 보존한다", () => {
+  const lines = [
+    { type: "DELETE", old_line: 1, new_line: null, content: "<!-- fruition-note: old -->" },
+    { type: "ADD", old_line: null, new_line: 1, content: "<!-- fruition-workspace: new -->" },
+    { type: "CONTEXT", old_line: 2, new_line: 2, content: "<!-- 일반 주석 -->" },
+    { type: "ADD", old_line: null, new_line: 3, content: "<!-- fruition-note: example -->" },
+    { type: "DELETE", old_line: 3, new_line: null, content: "# 이전" },
+    { type: "ADD", old_line: null, new_line: 4, content: "# 현재" }
+  ];
+  const hunk = (lines) => ({ old_start: 1, old_lines: 3, new_start: 1, new_lines: 4, lines });
+  assert.deepEqual(flattenDiffHunks([hunk(lines)]), [
+    { type: "context", text: "<!-- 일반 주석 -->" },
+    { type: "insert", text: "<!-- fruition-note: example -->" },
+    { type: "delete", text: "# 이전" },
+    { type: "insert", text: "# 현재" }
+  ]);
+  assert.deepEqual(flattenDiffHunks([hunk(lines.slice(0, 2))]), []);
+  assert.deepEqual(flattenDiffHunks([hunk(lines.slice(0, 2)), hunk(lines.slice(4))]), [
+    { type: "delete", text: "# 이전" },
+    { type: "insert", text: "# 현재" }
+  ]);
+});
