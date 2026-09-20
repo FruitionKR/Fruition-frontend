@@ -388,20 +388,20 @@ export function SourcePreviewPanel({
                         onRefreshDocuments?.();
                         publishNotice({
                           kind: "completed",
-                          title: "위키 반영 요청",
+                          title: "위키 편입 요청",
                           message: `"${visibleTitle}" 문서 처리를 시작했습니다.`
                         });
                       })
                       .catch((error: unknown) => {
                         publishNotice({
                           kind: "failed",
-                          title: "위키 반영 실패",
-                          message: getErrorMessage(error, "위키 반영 요청에 실패했습니다.")
+                          title: "위키 편입 실패",
+                          message: getErrorMessage(error, "위키 편입 요청에 실패했습니다.")
                         });
                       });
                   }}
                 >
-                  위키에 반영
+                  위키 편입
                 </button>
                 {isMarkdownFile && (
                   <>

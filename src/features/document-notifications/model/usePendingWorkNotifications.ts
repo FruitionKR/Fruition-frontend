@@ -44,14 +44,14 @@ function publishIngestPrompt(candidates: DocumentItemResponse[], title: string) 
   const documents = candidates.filter((document) => document.mime_type !== "application/pdf");
   if (documents.length === 0) return;
   const message = documents.length === 1
-    ? `"${documents[0].filename}" 문서를 위키에 반영하려면 분석을 시작하세요.`
-    : `${documents.length}개 문서를 위키에 반영하려면 분석을 시작하세요.`;
+    ? `"${documents[0].filename}" 문서의 위키 편입을 시작해 보세요.`
+    : `${documents.length}개 문서의 위키 편입을 시작해 보세요.`;
   publishNotice({
     kind: "info",
     title,
     message,
     action: {
-      label: "분석 시작",
+      label: "위키 편입",
       onAction: () => {
         void Promise.allSettled(
           documents.map((document) => reflectDocumentToWiki(document.id, document.document_role))
@@ -65,7 +65,7 @@ function publishIngestPrompt(candidates: DocumentItemResponse[], title: string) 
           if (failures.length > 0) {
             publishNotice({
               kind: "failed",
-              title: "분석 시작 실패",
+              title: "위키 편입 시작 실패",
               message: failures.join(" / ")
             });
           }
@@ -128,7 +128,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       const initial = uploaded.filter((document) => !promptedIdsRef.current.has(document.id));
       initial.forEach((document) => promptedIdsRef.current.add(document.id));
       persistPromptMemory();
-      publishIngestPrompt(initial, "분석 대기 중인 문서가 있습니다");
+      publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다");
       return;
     }
 
@@ -189,7 +189,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       });
       persistPromptMemory();
 
-      publishIngestPrompt(stalled, "문서 분석이 아직 시작되지 않았습니다");
+      publishIngestPrompt(stalled, "위키 편입이 아직 시작되지 않았습니다");
     }
 
     checkStalledUploads();
@@ -217,7 +217,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
     }
     fresh.forEach((document) => reingestNotifiedRef.current.add(document.id));
     persistPromptMemory();
-    publishIngestPrompt(fresh, "마지막 분석 이후 수정된 문서가 있습니다");
+    publishIngestPrompt(fresh, "마지막 위키 편입 이후 수정된 문서가 있습니다");
   }, [documents]);
 
   // lint 필요 감지: 문서가 completed로 전이하면 유지보수 상태를 확인한다 (DB 비교라 저렴)

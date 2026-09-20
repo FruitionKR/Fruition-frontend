@@ -33,7 +33,7 @@ async function startDocumentIngest(documentId: string): Promise<void> {
     workspacePath(workspaceId, "documents", documentId, "ingest"),
     { method: "POST" }
   );
-  await throwIfNotOk(response, "문서 분석 시작에 실패했습니다.");
+  await throwIfNotOk(response, "위키 편입 시작에 실패했습니다.");
 }
 
 /**
