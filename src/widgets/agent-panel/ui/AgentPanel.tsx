@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RunStageEvent } from "@/shared/lib/runEvents";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer, type AiModelCatalogStatus } from "@/features/agent-chat/ui/AgentComposer";
@@ -22,7 +23,7 @@ import {
   validateMarkdownEditApplication
 } from "@/features/agent-chat/lib/markdownAgent";
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/markdownAgent";
-import { findLastUserMessage } from "@/shared/lib/messages";
+import { fetchChatSessions } from "@/entities/chat/api/chat";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import {
   classifyChatExportPairs,
@@ -33,17 +34,6 @@ import {
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
-
-// 헤더 세션 제목으로 보여줄 마지막 질문의 최대 길이
-const SESSION_TITLE_MAX_LENGTH = 12;
-
-/** 마지막 user 질문을 잘라 세션 제목으로 만든다. 없으면 "새 채팅" */
-function buildSessionTitle(question: string | undefined): string {
-  if (!question) return "새 채팅";
-  return question.length > SESSION_TITLE_MAX_LENGTH
-    ? `${question.slice(0, SESSION_TITLE_MAX_LENGTH)}…`
-    : question;
-}
 
 // AgentBody 등이 이 파일에서 ActiveAgentTurn을 import하므로 re-export 유지
 export type { ActiveAgentTurn } from "@/features/agent-chat/model/useChatThread";
@@ -74,6 +64,9 @@ export function AgentPanel({
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
   const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
   const [isAgentTurnLoading, setIsAgentTurnLoading] = useState(false);
+  const [agentStages, setAgentStages] = useState<RunStageEvent[]>([]);
+  const agentRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => agentRequestRef.current?.abort(), []);
   const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
   const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -94,11 +87,12 @@ export function AgentPanel({
     isCancelling,
     queryStatusMessage,
     queryStages,
+    hasPendingMessages,
     refreshMessages,
     submitQuery,
     cancelQuery
   } = useChatThread(activeSessionId);
-  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown;
+  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
     () => classifyChatExportPairs(messages),
     [messages]
@@ -130,8 +124,30 @@ export function AgentPanel({
     if (!preferencesReady || aiModels.length === 0 || selectedModel) return;
     setSelectedModel(resolveInitialModel(aiModels, preferences.aiModel));
   }, [aiModels, preferences.aiModel, preferencesReady, selectedModel]);
-  const lastQuestion = activeTurn?.question ?? findLastUserMessage(messages)?.content;
-  const sessionTitle = lastQuestion ? buildSessionTitle(lastQuestion) : (activeSessionTitle ?? "새 채팅");
+  const sessionTitle = activeSessionTitle ?? "새 채팅";
+  const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    async function loadTitle() {
+      attempts += 1;
+      try {
+        const response = await fetchChatSessions();
+        if (cancelled) return;
+        const title = response.sessions.find((session) => session.id === activeSessionId)?.title ?? null;
+        setActiveSessionTitle(title);
+        if (completedReplies > 0 && (!title || title === "새 채팅") && attempts < 30) {
+          timer = setTimeout(loadTitle, 2000);
+        }
+      } catch {
+        // 제목 조회 실패가 대화 표시를 막지는 않는다.
+      }
+    }
+    void loadTitle();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [activeSessionId, completedReplies]);
   const composerPlaceholder = "AI 에이전트에게 무엇이든 물어보세요.";
   const editPreviewState = useMemo<{
     preview: MarkdownEditPreviewData | null;
@@ -175,17 +191,29 @@ export function AgentPanel({
     setAgentTurnErrorMessage(null);
     setMarkdownCreateErrorMessage(null);
     setIsAgentTurnLoading(true);
-    requestAgentTurn(request)
+    setAgentStages([]);
+    agentRequestRef.current?.abort();
+    const controller = new AbortController();
+    agentRequestRef.current = controller;
+    requestAgentTurn(request, {
+      signal: controller.signal,
+      onStage: (stage) => {
+        if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
+      }
+    })
       .then(async (response) => {
+        if (controller.signal.aborted) return;
         await refreshMessages({ animateLatest: true });
+        if (controller.signal.aborted) return;
         setAgentTurnResponse(
           resolveChatTurnPresentation(response.result.action).kind === "document-command" ? response : null
         );
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
         setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
       })
-      .finally(() => setIsAgentTurnLoading(false));
+      .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
   }, [allowWebSearch, refreshMessages]);
 
   function handleSubmit() {
@@ -392,6 +420,7 @@ export function AgentPanel({
         isLoading={isLoading}
         isCancelling={isCancelling}
         isDocumentCommandLoading={isAgentTurnLoading}
+        documentCommandStages={agentStages}
         documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
         activeSessionId={activeSessionId}
         activeTurn={activeTurn}

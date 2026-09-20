@@ -113,6 +113,25 @@ export function useChatThread(activeSessionId?: string | null) {
     return nextMessages;
   }, []);
 
+  const hasPendingMessages = messages.some((message) => message.role === "assistant" && message.status === "pending");
+  // 새로 연 대화는 저장된 진행 단계부터 복원하고, 미완료 문답만 완료될 때까지 갱신한다.
+  useEffect(() => {
+    if (!hasPendingMessages || isLoading) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        await refreshMessages();
+      } catch (error) {
+        if (!cancelled) setChatLoadErrorMessage(getErrorMessage(error, "진행 상태를 불러오지 못했습니다."));
+      } finally {
+        if (!cancelled) timer = setTimeout(poll, 1000);
+      }
+    }
+    timer = setTimeout(poll, 1000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [activeSessionId, hasPendingMessages, isLoading, refreshMessages]);
+
   // 선택 세션이 바뀌면 해당 세션 메시지로 교체하고 이전 세션의 진행 상태를 초기화한다.
   useEffect(() => {
     let cancelled = false;
@@ -277,6 +296,7 @@ export function useChatThread(activeSessionId?: string | null) {
     isCancelling,
     queryStatusMessage,
     queryStages,
+    hasPendingMessages,
     refreshMessages,
     submitQuery,
     cancelQuery
