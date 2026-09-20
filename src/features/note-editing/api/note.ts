@@ -48,7 +48,8 @@ export async function saveNoteDraft(
 ): Promise<NoteContentResponse> {
   const workspaceId = getWorkspaceId();
   const formData = new FormData();
-  formData.append("markdown", markdown);
+  // 문자열 part는 전송 시 LF가 CRLF로 바뀐다. AI 승인 원문과 같은 바이트를 보낸다.
+  formData.append("markdown", new Blob([markdown], { type: "text/plain;charset=UTF-8" }), "content.md");
   formData.append("base_revision", String(expectedContentVersion));
   // 같은 저장의 네트워크 재시도를 서버가 멱등 처리할 수 있게 쓰기 ID를 부여한다
   formData.append("revision_write_id", crypto.randomUUID());
