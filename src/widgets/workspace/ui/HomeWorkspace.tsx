@@ -308,14 +308,14 @@ export function HomeWorkspace() {
       await refreshBackendData();
       publishNotice({
         kind: "completed",
-        title: "위키 반영 요청",
+        title: "위키 편입 요청",
         message: `${startedCount}개 문서 처리를 시작했습니다.`
       });
     }
     if (failures.length > 0) {
       publishNotice({
         kind: "failed",
-        title: "위키 반영 실패",
+        title: "위키 편입 실패",
         message: failures.join(" / ")
       });
     }

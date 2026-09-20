@@ -88,7 +88,7 @@ test("restore 로그에서 이미 롤백한 원본 작업 ID를 수집한다", (
 test("작업 유형 라벨은 Figma 로그 화면의 한국어 명칭을 쓴다", () => {
   assert.deepEqual(OPERATION_TYPE_LABELS, {
     document_edit: "AI 편집 반영",
-    ingest: "위키 페이지 생성",
+    ingest: "위키 편입",
     lint: "Lint",
     restore: "롤백"
   });

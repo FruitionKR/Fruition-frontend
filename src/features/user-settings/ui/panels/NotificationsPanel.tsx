@@ -10,8 +10,8 @@ interface NotificationsPanelProps {
 
 /** 알림 항목 정의 (Figma 963:8257). */
 const NOTIFICATION_ROWS: { key: NotificationKey; label: string; description: string }[] = [
-  { key: "completed", label: "문서 처리 완료", description: "문서(Ingest) 분석이 끝나면 알림 카드를 표시합니다." },
-  { key: "failed", label: "문서 처리 실패", description: "문서 처리가 실패하면 알림 카드를 표시합니다." },
+  { key: "completed", label: "위키 편입 완료", description: "위키 편입이 끝나면 알림 카드를 표시합니다." },
+  { key: "failed", label: "위키 편입 실패", description: "위키 편입에 실패하면 알림 카드를 표시합니다." },
   { key: "lint", label: "위키 다듬기", description: "위키 다듬기(lint) 작업이 끝나면 알립니다." },
   { key: "restore", label: "복구(롤백)", description: "AI 작업 되돌리기가 끝나면 알립니다." },
   { key: "query", label: "질의 완료", description: "채팅 질의의 답변 도착•실패를 알립니다." },

@@ -224,21 +224,21 @@ export function SettingsPanel() {
         </section>
 
         <section className={styles["settings-section"]}>
-          <h3>문서 처리 알림</h3>
-          <SettingRow title="처리 완료" description="문서 분석이 끝나면 앱 안에서 알립니다.">
+          <h3>위키 편입 알림</h3>
+          <SettingRow title="처리 완료" description="위키 편입이 끝나면 앱 안에서 알립니다.">
             <SettingSwitch
               checked={preferences.notifications.completed}
-              label="문서 처리 완료 알림"
+              label="위키 편입 완료 알림"
               onChange={(completed) => updatePreferences((current) => ({
                 ...current,
                 notifications: { ...current.notifications, completed }
               }))}
             />
           </SettingRow>
-          <SettingRow title="처리 실패" description="문서 분석에 실패하면 앱 안에서 알립니다.">
+          <SettingRow title="처리 실패" description="위키 편입에 실패하면 앱 안에서 알립니다.">
             <SettingSwitch
               checked={preferences.notifications.failed}
-              label="문서 처리 실패 알림"
+              label="위키 편입 실패 알림"
               onChange={(failed) => updatePreferences((current) => ({
                 ...current,
                 notifications: { ...current.notifications, failed }
