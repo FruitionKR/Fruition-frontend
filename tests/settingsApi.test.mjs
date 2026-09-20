@@ -334,3 +334,49 @@ for (const [status, code] of [[400, "INVALID_MFA_CHALLENGE"], [401, "INVALID_MFA
     assert.equal(calls, 1);
   });
 }
+
+test("스킬 삭제는 인증된 DELETE를 보내고 빈 204 응답을 처리한다", async (t) => {
+  const { deleteSkill } = await import("../src/entities/skill/api/skill.ts");
+  saveAccessToken("test-access");
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    assert.equal(path, "/api/workspaces/ws_test/skills/skill_test");
+    assert.equal(init.method, "DELETE");
+    assert.equal(init.headers.get("Authorization"), "Bearer test-access");
+    return new Response(null, { status: 204 });
+  });
+  await deleteSkill("ws_test", "skill_test");
+});
+
+test("스킬 삭제 권한 거부를 성공으로 처리하지 않는다", async (t) => {
+  const { deleteSkill } = await import("../src/entities/skill/api/skill.ts");
+  t.mock.method(globalThis, "fetch", async () => Response.json(
+    { error: { message: "스킬이 없거나 삭제 권한이 없습니다." } }, { status: 404 }
+  ));
+  await assert.rejects(deleteSkill("ws_test", "skill_test"), /삭제 권한/);
+});
+
+test("게시 버전이 남아 있어도 disabled 스킬은 OFF이고 클릭하면 활성화한다", async () => {
+  const source = readFileSync(new URL("../src/features/user-settings/ui/panels/SkillsPanel.tsx", import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } });
+  const exports = {};
+  const calls = [];
+  const element = (type, props) => ({ type, props });
+  const skill = { id: "skill_test", slug: "meeting-summary", status: "disabled", scope_type: "personal", enabled_version: { description: "설명" } };
+  const modules = {
+    react: { useState: (initial) => [initial, () => {}], useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn() },
+    "react/jsx-runtime": { jsx: element, jsxs: element },
+    "@tanstack/react-query": { useQuery: () => ({ data: [skill] }), useQueryClient: () => ({}), useMutation: (options) => ({ mutate: options.mutationFn }) },
+    "@/entities/skill": { enableSkill: (...args) => calls.push(["enable", ...args]), disableSkill: (...args) => calls.push(["disable", ...args]) },
+    "@/shared/lib/auth": { getSelectedWorkspaceId: () => "ws_test" }
+  };
+  runInNewContext(outputText, { exports, require: (name) => modules[name] ?? { default: {} } });
+  function findSwitch(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.props?.role === "switch") return node;
+    return [node.props?.children].flat(Infinity).map(findSwitch).find(Boolean);
+  }
+  const toggle = findSwitch(exports.SkillsPanel());
+  assert.equal(toggle.props["aria-checked"], false);
+  await toggle.props.onClick();
+  assert.deepEqual(calls, [["enable", "ws_test", "skill_test"]]);
+});
