@@ -87,8 +87,8 @@ export function useDocumentUpload({
 
   function createMarkdownFile(projectId: string, folderId: string | null) {
     const noteId = createClientId("note");
-    const markdown = `<!-- fruition-note: ${noteId} -->\n# 새 문서\n`;
-    const file = new File([markdown], "새 문서.md", { type: "text/markdown" });
+    const markdown = `<!-- fruition-note: ${noteId} -->\n# 새 노트\n`;
+    const file = new File([markdown], "새 노트.md", { type: "text/markdown" });
     dropUploadFiles(projectId, folderId, [file]);
   }
 

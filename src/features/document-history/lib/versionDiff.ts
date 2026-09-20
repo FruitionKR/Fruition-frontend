@@ -32,9 +32,15 @@ const ROW_TYPE_BY_SERVER_TYPE: Record<ServerDiffLineType, VersionDiffRow["type"]
 // hunk 사이에는 생략 구간 표시(gap) 행을 끼워 넣는다.
 export function flattenDiffHunks(hunks: ServerDiffHunk[]): VersionDiffRow[] {
   const rows: VersionDiffRow[] = [];
-  hunks.forEach((hunk, index) => {
-    if (index > 0) rows.push({ type: "gap", text: "⋯" });
-    for (const line of hunk.lines) {
+  hunks.forEach((hunk) => {
+    // 문서 첫 줄의 내부 식별 주석만 숨긴다. 본문 예제나 일반 주석은 보존한다.
+    const visibleLines = hunk.lines.filter((line) => !(
+      (line.old_line === 1 || line.new_line === 1)
+      && /^<!--\s*fruition-(?:note|workspace):\s*[^\r\n]+?\s*-->\r?$/.test(line.content)
+    ));
+    if (!visibleLines.length) return;
+    if (rows.length > 0) rows.push({ type: "gap", text: "⋯" });
+    for (const line of visibleLines) {
       rows.push({ type: ROW_TYPE_BY_SERVER_TYPE[line.type], text: line.content });
     }
   });

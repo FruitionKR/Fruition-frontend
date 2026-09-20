@@ -18,7 +18,7 @@ function wasProcessing(status: DocumentStatus | undefined) {
 function completedNoticeText(count: number) {
   return {
     title: "문서 처리 완료",
-    message: count === 1 ? "문서 분석이 완료되었습니다." : `${count}개 문서 분석이 완료되었습니다.`
+    message: count === 1 ? "위키 편입이 완료되었습니다." : `${count}개 문서의 위키 편입이 완료되었습니다.`
   };
 }
 
