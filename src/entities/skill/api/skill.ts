@@ -1,4 +1,4 @@
-import { apiFetch, parseJsonOrThrow } from "@/shared/api/client";
+import { apiFetch, parseJsonOrThrow, throwIfNotOk } from "@/shared/api/client";
 import type {
   SkillAuthoringRequest,
   SkillAuthoringResult,
@@ -51,4 +51,11 @@ export async function enableSkill(workspaceId: string, skillId: string): Promise
 export async function disableSkill(workspaceId: string, skillId: string): Promise<SkillResponse> {
   const response = await apiFetch(`/api/workspaces/${workspaceId}/skills/${skillId}/disable`, { method: "POST" });
   return parseJsonOrThrow<SkillResponse>(response, "스킬을 비활성화하지 못했습니다.");
+}
+
+export async function deleteSkill(workspaceId: string, skillId: string): Promise<void> {
+  const response = await apiFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/skills/${encodeURIComponent(skillId)}`, {
+    method: "DELETE"
+  });
+  await throwIfNotOk(response, "스킬을 삭제하지 못했습니다.");
 }

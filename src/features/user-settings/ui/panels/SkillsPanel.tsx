@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  deleteSkill,
   disableSkill,
   enableSkill,
   fetchSkills,
@@ -28,9 +30,9 @@ type StateFilter = (typeof STATE_FILTERS)[number];
 const SCOPE_LABELS: Record<ScopeFilter, string> = { all: "전체", personal: "개인", team: "팀" };
 const STATE_LABELS: Record<StateFilter, string> = { all: "전체", enabled: "사용 중", disabled: "사용 안 함" };
 
-/** enabled_version이 있으면 Agent 실행 대상에 포함된 상태다. */
+/** 자동 선택은 서버 상태가 enabled이고 게시된 버전이 있을 때만 켜진다. */
 function isSkillEnabled(skill: SkillResponse): boolean {
-  return skill.enabled_version != null;
+  return skill.status === "enabled" && skill.enabled_version != null;
 }
 
 function skillLabel(skill: SkillResponse): { command: string; description: string } {
@@ -54,6 +56,14 @@ export function SkillsPanel() {
   // 워크스페이스별 캐시 분리 (documents 쿼리 키 관례와 동일)
   const SKILLS_QUERY_KEY = ["skills", workspaceId] as const;
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
+  const deleteDialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (deleteTarget) deleteDialogRef.current?.showModal();
+    else deleteDialogRef.current?.close();
+  }, [deleteTarget]);
 
   // 필터·검색 상태 (전부 클라이언트 필터링)
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
@@ -143,6 +153,23 @@ export function SkillsPanel() {
     },
     onError: (mutationError: unknown) => {
       setEditError(getErrorMessage(mutationError, "스킬 정의를 수정하지 못했습니다."));
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (skill: SkillResponse) => deleteSkill(workspaceId ?? "", skill.id),
+    onSuccess: (_, skill) => {
+      queryClient.setQueryData<SkillResponse[]>(SKILLS_QUERY_KEY, (current) =>
+        current?.filter((item) => item.id !== skill.id)
+      );
+      void queryClient.invalidateQueries({ queryKey: SKILLS_QUERY_KEY });
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        next.delete(skill.id);
+        return next;
+      });
+      setEditingId((current) => current === skill.id ? null : current);
+      setDeleteTarget(null);
     }
   });
 
@@ -282,7 +309,15 @@ export function SkillsPanel() {
       {/* 스킬 테이블 */}
       <div className={styles.table}>
         <div className={`${styles.row} ${styles["row-head"]}`}>
-          <span className={styles.checkbox} aria-hidden />
+          <input
+            type="checkbox"
+            className={styles.checkbox}
+            aria-label="표시된 스킬 전체 선택"
+            checked={filteredSkills.length > 0 && filteredSkills.every((skill) => selectedIds.has(skill.id))}
+            disabled={deleteMutation.isPending || filteredSkills.length === 0}
+            onChange={(event) => setSelectedIds(event.target.checked
+              ? new Set(filteredSkills.map((skill) => skill.id)) : new Set())}
+          />
           <span>커맨드</span>
           <span>설명</span>
           <span className={styles["cell-scope"]}>저장 범위</span>
@@ -301,7 +336,22 @@ export function SkillsPanel() {
           return (
             <div key={skill.id}>
               <div className={styles.row}>
-                <span className={styles.checkbox} aria-hidden />
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  aria-label={`${command} 삭제 선택`}
+                  checked={selectedIds.has(skill.id)}
+                  disabled={deleteMutation.isPending}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setSelectedIds((current) => {
+                      const next = new Set(current);
+                      if (checked) next.add(skill.id);
+                      else next.delete(skill.id);
+                      return next;
+                    });
+                  }}
+                />
                 <button
                   type="button"
                   className={styles.command}
@@ -317,9 +367,23 @@ export function SkillsPanel() {
                   </span>
                 </span>
                 <span className={styles["cell-state"]}>
+                  {selectedIds.has(skill.id) ? (
+                    <button
+                      type="button"
+                      className={styles["delete-btn"]}
+                      aria-label={`${command} 삭제`}
+                      disabled={deleteMutation.isPending || toggleMutation.isPending || updateMutation.isPending}
+                      onClick={() => {
+                        deleteMutation.reset();
+                        setDeleteTarget(skill);
+                      }}
+                    >
+                      <Trash2 size={20} aria-hidden="true" />
+                    </button>
+                  ) : (
                   <button
                     type="button"
-                    className={`${modalStyles.switch} ${enabled ? modalStyles["is-on"] : ""}`}
+                    className={`${modalStyles.switch} ${enabled ? modalStyles["is-on"] : styles["is-off"]}`}
                     role="switch"
                     aria-checked={enabled}
                     aria-label={`${command} 사용 상태`}
@@ -328,6 +392,7 @@ export function SkillsPanel() {
                   >
                     <span className={modalStyles["switch-ball"]} />
                   </button>
+                  )}
                 </span>
               </div>
 
@@ -374,6 +439,36 @@ export function SkillsPanel() {
           );
         })}
       </div>
+
+      <dialog
+        ref={deleteDialogRef}
+        className={styles["delete-dialog"]}
+        aria-labelledby="skill-delete-title"
+        aria-describedby="skill-delete-description"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") event.stopPropagation();
+        }}
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <h2 id="skill-delete-title">스킬을 삭제하시겠습니까?</h2>
+        <p id="skill-delete-description">
+          「/{deleteTarget?.slug}」 스킬과 저장된 버전이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+        </p>
+        {deleteMutation.isError && (
+          <p role="alert">{getErrorMessage(deleteMutation.error, "스킬을 삭제하지 못했습니다.")}</p>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="modal-cancel-button" autoFocus disabled={deleteMutation.isPending}
+            onClick={() => setDeleteTarget(null)}>취소</button>
+          <button type="button" className="modal-delete-button" disabled={deleteMutation.isPending}
+            onClick={() => {
+              if (deleteTarget && !deleteMutation.isPending) deleteMutation.mutate(deleteTarget);
+            }}>{deleteMutation.isPending ? "삭제 중…" : "삭제"}</button>
+        </div>
+      </dialog>
 
       {createOpen && workspaceId != null && (
         <SkillCreateWizard
