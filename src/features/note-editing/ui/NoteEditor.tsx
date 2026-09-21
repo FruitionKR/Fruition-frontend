@@ -23,6 +23,7 @@ import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownE
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
+import { configureMarkdownMath, doubleDollarMathInputRule } from "../model/markdownMath";
 import styles from "./NoteEditor.module.css";
 
 /** Backspace로 리스트 항목의 첫 문단 맨 앞을 지우면 문단을 리스트 밖으로 빼낸다 (Shift+Tab과 동일).
@@ -310,7 +311,8 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).config((ctx) => {
+      configureMarkdownMath(ctx);
       // commonmark 기본 Backspace(priority 50)보다 먼저 실행시킨다
       ctx.get(keymapCtx).add({ key: "Backspace", priority: 100, onRun: liftListItemOnBackspace });
     });
