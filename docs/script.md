@@ -13,7 +13,8 @@ npm run dev
 | 환경변수 | 로컬 기본값 | 대상 |
 |---|---|---|
 | `ACCESS_URL` | `http://localhost:8081` | 인증·워크스페이스·멤버·초대 |
-| `BACKEND_URL` | `http://localhost:8080` | 문서·Wiki·채팅·AI 업무 API |
+| `BACKEND_URL` | `http://localhost:8080` | 문서·Wiki·채팅·AI 업무 API. 설정하면 브라우저가 문서 API를 이 origin으로 직접 호출하고 PDF는 S3 multipart로 업로드 |
+| `DOCUMENT_DIRECT_UPLOAD_ENABLED` | (비움) | `false`로만 PDF 직접 업로드를 끈다. 비우면 `BACKEND_URL` 설정 여부를 따른다 |
 
 ## 백엔드 없이 실행 (mock API)
 

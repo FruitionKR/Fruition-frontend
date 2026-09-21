@@ -3,8 +3,10 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  if (specifier === "next/server") return nextResolve("next/server.js", context);
   return nextResolve(specifier, context);
 }});
+const { GET: transportRoute } = await import("../app/api/document-transport/route.ts");
 const { apiFetch } = await import("../src/shared/api/client.ts");
 const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
 const { uploadDocumentFile } = await import("../src/entities/document/api/document.ts");
@@ -19,6 +21,30 @@ function browser(t) {
   saveAccessToken("access-test");
 }
 const transport = () => Response.json({ origin: "https://api.example.test", directUpload: true });
+function serverEnv(t, values) {
+  const keys = ["BACKEND_URL", "DOCUMENT_DIRECT_UPLOAD_ENABLED"];
+  const old = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  keys.forEach(key => { if (values[key] === undefined) delete process.env[key]; else process.env[key] = values[key]; });
+  t.after(() => keys.forEach(key => { if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; }));
+}
+test("transport route enables direct upload by default when BACKEND_URL is set", async t => {
+  serverEnv(t, { BACKEND_URL: "https://api.example.test/base" });
+  const response = transportRoute();
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), { origin: "https://api.example.test", directUpload: true });
+});
+test("transport route turns direct upload off only with an explicit false flag", async t => {
+  serverEnv(t, { BACKEND_URL: "https://api.example.test", DOCUMENT_DIRECT_UPLOAD_ENABLED: "false" });
+  assert.deepEqual(await transportRoute().json(), { origin: "https://api.example.test", directUpload: false });
+});
+test("transport route keeps direct upload enabled with the legacy true flag", async t => {
+  serverEnv(t, { BACKEND_URL: "https://api.example.test", DOCUMENT_DIRECT_UPLOAD_ENABLED: "true" });
+  assert.deepEqual(await transportRoute().json(), { origin: "https://api.example.test", directUpload: true });
+});
+test("transport route stays disabled without BACKEND_URL", async t => {
+  serverEnv(t, {});
+  assert.deepEqual(await transportRoute().json(), { origin: null, directUpload: false });
+});
 test("large PDF is sent in parts to storage without auth and completion goes to AWS", async t => {
   browser(t);
   const file = new File([new Uint8Array(6 * 1024 * 1024)], "large.pdf", { type: "application/pdf" });
