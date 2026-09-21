@@ -7,6 +7,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { Element } from "hast";
 import type { PhrasingContent, Root } from "mdast";
+import type { PluggableList } from "unified";
 import { visit } from "unist-util-visit";
 import { cx } from "@/shared/lib/classNames";
 import { splitMarkdownBlockRanges } from "@/shared/lib/markdownSegments";
@@ -77,7 +78,12 @@ function remarkCustomTokens() {
 }
 
 // 렌더마다 배열 참조가 바뀌면 react-markdown이 재파싱하므로 모듈 상수로 유지한다.
-const REMARK_PLUGINS = [remarkGfm, remarkMath, remarkCustomTokens];
+const REMARK_PLUGINS: PluggableList = [
+  remarkGfm,
+  // 금액의 $는 그대로 표시하고, 수식은 $$...$$로 작성한다.
+  [remarkMath, { singleDollarTextMath: false }],
+  remarkCustomTokens,
+];
 
 export function MarkdownViewer({
   markdown,
