@@ -1,6 +1,8 @@
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
 import type { DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
+import { getDocumentTransport } from "@/shared/api/documentTransport";
+import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
 
 export async function fetchDocuments() {
   const workspaceId = getWorkspaceId();
@@ -14,6 +16,10 @@ export async function fetchDocuments() {
 
 export async function uploadDocumentFile(file: File) {
   const workspaceId = getWorkspaceId();
+  const transport = await getDocumentTransport();
+  if (transport.directUpload && file.name.toLowerCase().endsWith(".pdf")) {
+    return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file);
+  }
   const formData = new FormData();
   formData.append("file", file);
 
@@ -139,4 +145,10 @@ export async function fetchDocumentOriginal(documentId: string): Promise<Blob> {
 
   await throwIfNotOk(response, ERROR_MESSAGES.documentOriginalLoadFailed);
   return response.blob();
+}
+
+export async function fetchDocumentReadUrl(documentId: string): Promise<string | null> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "original-url"), { cache: "no-store" });
+  const result = await parseJsonOrThrow<{ url: string | null }>(response, ERROR_MESSAGES.documentOriginalLoadFailed);
+  return result.url;
 }

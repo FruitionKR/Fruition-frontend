@@ -4,6 +4,7 @@ const accessUrl = process.env.ACCESS_URL || "http://localhost:8081";
 const documentUrl = process.env.BACKEND_URL || "http://localhost:8080";
 
 const nextConfig = {
+  env: { NEXT_PUBLIC_DOCUMENT_DIRECT_API: process.env.BACKEND_URL ? "true" : "false" },
   async redirects() {
     // OAuth 시작은 access-svc 오리진으로 직접 이동해야 한다(redirect_uri가 서버 자신 오리진 기준).
     // 서버 리다이렉트로 처리해 백엔드 주소를 브라우저 번들에 넣지 않는다.
