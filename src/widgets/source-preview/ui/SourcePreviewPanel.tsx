@@ -5,7 +5,7 @@ import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { HistoryPanel } from "@/features/document-history";
-import { fetchDocumentOriginal, reflectDocumentToWiki } from "@/entities/document";
+import { fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
@@ -295,6 +295,13 @@ export function SourcePreviewPanel({
         return;
       }
 
+      if (isPdfFile) {
+        const url = await fetchDocumentReadUrl(documentId);
+        if (url) {
+          if (!ignore) setRawDocumentUrl(url);
+          return;
+        }
+      }
       const blob = await fetchDocumentOriginal(documentId);
       if (isTextFile || blob.type.startsWith("text/")) {
         const text = await blob.text();
@@ -324,7 +331,7 @@ export function SourcePreviewPanel({
       ignore = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [documentId, documentReloadCount, isMarkdownFile, isTextFile, pageId]);
+  }, [documentId, documentReloadCount, isMarkdownFile, isPdfFile, isTextFile, pageId]);
 
   useEffect(() => {
     if (!isMarkdownFile || selectedBlockHighlights.length === 0 || rawMarkdown === null) return;
@@ -444,6 +451,7 @@ export function SourcePreviewPanel({
             {errorMessage && <p>{errorMessage}</p>}
             {!isLoading && !errorMessage && rawDocumentUrl && (
               <iframe
+                referrerPolicy="no-referrer"
                 src={rawDocumentUrl}
                 title={title}
                 className={styles["source-preview-pdf-frame"]}
@@ -523,6 +531,7 @@ export function SourcePreviewPanel({
         )}
         {isPdfOrOther && !isLoading && !errorMessage && rawText === null && rawDocumentUrl && (
           <iframe
+                referrerPolicy="no-referrer"
             src={rawDocumentUrl}
             title={title}
             className="source-preview-iframe"
