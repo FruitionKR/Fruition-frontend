@@ -70,16 +70,23 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     if (!previousStatuses) return;
 
     let completedCount = 0;
+    let convertedCount = 0;
     const failedDocuments: DocumentItemResponse[] = [];
     documents.forEach((document) => {
       const previousStatus = previousStatuses.get(document.id);
       if (!wasProcessing(previousStatus)) return;
-      if (document.status === "completed") completedCount += 1;
+      if (document.status === "completed") {
+        if (document.pipeline_run_id?.startsWith("convert:")) convertedCount += 1;
+        else completedCount += 1;
+      }
       if (document.status === "failed") failedDocuments.push(document);
     });
 
     if (completedCount > 0 && completedNotifications) {
       publishNotice({ kind: "completed", ...completedNoticeText(completedCount) });
+    }
+    if (convertedCount > 0 && completedNotifications) {
+      publishNotice({ kind: "completed", title: "PDF 변환 완료", message: `${convertedCount}개 PDF의 Markdown 변환이 완료되었습니다.` });
     }
     // 문서별 카드 대신 요약 카드 하나만 발행한다 (대량 실패 시 스택 넘침 방지).
     if (failedNotifications && failedDocuments.length > 0) {

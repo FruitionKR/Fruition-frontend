@@ -31,3 +31,22 @@ export function availableFolderName(projects: Project[], base: string): string {
   }
   return name;
 }
+
+export function availableDocumentName(projects: Project[], filename: string): string {
+  const names = new Set<string>();
+  function visit(items: TreeItem[]) {
+    for (const item of items) {
+      if (isFileItem(item)) names.add(normalizeTreeName(item.label));
+      if (item.children) visit(item.children);
+    }
+  }
+  projects.forEach((project) => visit(project.items));
+  const dot = filename.lastIndexOf(".");
+  const base = dot > 0 ? filename.slice(0, dot) : filename;
+  const extension = dot > 0 ? filename.slice(dot) : "";
+  let candidate = filename;
+  for (let number = 2; names.has(normalizeTreeName(candidate)); number += 1) {
+    candidate = `${base} (${number})${extension}`;
+  }
+  return candidate;
+}

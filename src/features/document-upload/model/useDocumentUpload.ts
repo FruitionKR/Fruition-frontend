@@ -1,23 +1,28 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
-import { uploadDocumentFile } from "@/entities/document/api/document";
+import { DocumentNameConflictError, uploadDocumentFile } from "@/entities/document/api/document";
+import { publishNotice } from "@/features/document-notifications";
 import {
   appendItemsToFolder,
+  availableDocumentName,
   applyUploadedDocument,
   createClientId,
   findTreeItem,
   isSupportedUploadFile,
+  removeTreeItem,
   updateTreeItemStatus
 } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
 
 export function useDocumentUpload({
+  projects,
   setProjects,
   setDocuments,
   setFileDropTarget,
   refreshBackendData
 }: {
+  projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setDocuments: React.Dispatch<React.SetStateAction<DocumentItemResponse[]>>;
   setFileDropTarget: React.Dispatch<React.SetStateAction<FileDropTarget | null>>;
@@ -77,10 +82,22 @@ export function useDocumentUpload({
           void refreshBackendData();
         })
         .catch((error: Error) => {
+          if (error instanceof DocumentNameConflictError) {
+            setProjects((current) => current.map((project) => ({
+              ...project,
+              items: removeTreeItem(project.items, item.id).items
+            })));
+            publishNotice({ kind: "failed", title: "문서 이름 중복", message: error.message });
+            // 다른 탭·사용자가 만든 문서도 중복 안내와 함께 목록에 반영한다.
+            void refreshBackendData().catch(() => {});
+            return;
+          }
           setProjects((current) => current.map((project) => {
             if (!findTreeItem(project.items, item.id)) return project;
             return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", error.message) };
           }));
+          // 사전 검사 이후 서버가 중복·버전 충돌로 거절한 경우도 재조회한다.
+          void refreshBackendData().catch(() => {});
         });
     });
   }
@@ -88,7 +105,7 @@ export function useDocumentUpload({
   function createMarkdownFile(projectId: string, folderId: string | null) {
     const noteId = createClientId("note");
     const markdown = `<!-- fruition-note: ${noteId} -->\n# 새 노트\n`;
-    const file = new File([markdown], "새 노트.md", { type: "text/markdown" });
+    const file = new File([markdown], availableDocumentName(projects, "새 노트.md"), { type: "text/markdown" });
     dropUploadFiles(projectId, folderId, [file]);
   }
 

@@ -12,7 +12,7 @@ test("저장 값이 없으면 안전한 개인 설정 기본값을 사용한다"
   assert.deepEqual(preferences, DEFAULT_USER_PREFERENCES);
   assert.equal(preferences.motion, "system");
   assert.equal(preferences.editor.markdown.lineWrapping, true);
-  assert.equal(preferences.graph.visibleKinds.raw, false);
+  assert.deepEqual(preferences.graph.visibleKinds, { raw: true, source: true, concept: true });
   assert.equal(preferences.notifications.failed, true);
 });
 

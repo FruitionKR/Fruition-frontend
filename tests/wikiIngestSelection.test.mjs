@@ -32,9 +32,9 @@ test("마크다운 판정은 mimeType 또는 .md 확장자를 본다", () => {
   assert.equal(isMarkdownTreeItem(file("4", "memo.txt", "text/plain")), false);
 });
 
-test("PDF/TXT 문서와 폴더는 선택할 수 없다", () => {
+test("PDF도 변환 후 편입 대상으로 선택하고 TXT는 제외한다", () => {
   assert.equal(isSelectableTreeItem(file("1", "note.md", "text/markdown"), eligible), true);
-  assert.equal(isSelectableTreeItem(file("3", "paper.pdf", "application/pdf"), eligible), false);
+  assert.equal(isSelectableTreeItem(file("3", "paper.pdf", "application/pdf"), eligible), true);
   assert.equal(isSelectableTreeItem(file("4", "memo.txt", "text/plain"), eligible), false);
   assert.equal(isSelectableTreeItem(folder("a", []), eligible), false);
 });
@@ -43,15 +43,15 @@ test("이미 반영됐거나 처리 중인 문서는 마크다운이어도 선�
   assert.equal(isSelectableTreeItem(file("1", "note.md", "text/markdown"), new Set()), false);
 });
 
-test("폴더는 하위의 선택 가능한 마크다운 문서만 모은다", () => {
-  assert.deepEqual(collectSelectableDocumentIds(tree, eligible), ["doc-1", "doc-2"]);
+test("폴더는 하위의 선택 가능한 PDF와 마크다운 문서를 모은다", () => {
+  assert.deepEqual(collectSelectableDocumentIds(tree, eligible), ["doc-1", "doc-2", "doc-3"]);
   assert.deepEqual(collectSelectableDocumentIds(tree, new Set(["doc-2"])), ["doc-2"]);
 });
 
 test("폴더 체크는 하위 문서를 모두 선택하고, 다시 누르면 모두 해제한다", () => {
   const ids = collectSelectableDocumentIds(tree, eligible);
   const selected = toggleDocumentIds(new Set(), ids);
-  assert.deepEqual([...selected], ["doc-1", "doc-2"]);
+  assert.deepEqual([...selected], ["doc-1", "doc-2", "doc-3"]);
   assert.equal(isAllSelected(selected, ids), true);
 
   const cleared = toggleDocumentIds(selected, ids);

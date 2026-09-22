@@ -291,7 +291,12 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
         const previousLabel = target?.label ?? nextLabel;
         setProjects((current) => current.map((project) => {
           if (project.id !== projectId) return project;
-          return { ...project, items: updateTreeItemLabel(project.items, itemId, nextLabel) };
+          return {
+            ...project,
+            items: documentId
+              ? updateDocumentItemLabel(project.items, documentId, nextLabel)
+              : updateTreeItemLabel(project.items, itemId, nextLabel)
+          };
         }));
         // 실제 문서면 서버 표시명도 변경한다. 실패 시 이전 이름으로 원복한다.
         if (documentId) {
@@ -301,8 +306,9 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
               publishNotice({ kind: "failed", title: "문서 이름 변경 실패", message: error instanceof Error ? error.message : "이름 변경에 실패했습니다." });
               setProjects((current) => current.map((project) => {
                 if (project.id !== projectId) return project;
-                return { ...project, items: updateTreeItemLabel(project.items, itemId, previousLabel) };
+                return { ...project, items: updateDocumentItemLabel(project.items, documentId, previousLabel) };
               }));
+              void refreshRef.current().catch(() => {});
             });
         }
       }
@@ -333,6 +339,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
           items: updateDocumentItemLabel(project.items, documentId, previousLabel)
         })));
       }
+      // 화면을 최신 서버 목록으로 맞추되 조회 실패가 원래 변경 오류를 가리지 않게 한다.
+      await refreshRef.current().catch(() => {});
       throw error;
     }
   }

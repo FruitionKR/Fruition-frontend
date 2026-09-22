@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useUserPreferences } from "@/entities/user";
+import { DEFAULT_USER_PREFERENCES } from "@/entities/user/model/preferences";
 import type { GraphFilterKind, GraphLink, GraphNode } from "@/entities/wiki";
 import { GraphCanvas } from "./GraphCanvas";
 import { GraphFilterChips } from "./GraphFilterChips";
@@ -28,11 +29,25 @@ export function Graph({
   loading?: boolean;
   errorMessage?: string | null;
 }) {
-  const { preferences, updatePreferences } = useUserPreferences();
+  const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
+  const [filtersReady, setFiltersReady] = useState(false);
+
+  // 그래프에 진입할 때는 이전에 저장한 숨김 설정과 관계없이 모든 종류를 표시한다.
+  // 비동기 개인 설정 복원이 끝난 뒤 초기화하여 오래된 설정이 덮어쓰지 않게 한다.
+  useEffect(() => {
+    if (!preferencesReady) return;
+    updatePreferences((current) => ({
+      ...current,
+      graph: { ...current.graph, visibleKinds: { ...DEFAULT_USER_PREFERENCES.graph.visibleKinds } }
+    }));
+    setFiltersReady(true);
+  }, [preferencesReady, updatePreferences]);
   const sourceNodeCount = nodes.filter((node) => node.kind === "source").length;
   const conceptNodeCount = nodes.filter((node) => !node.kind || node.kind === "concept").length;
 
-  const visibleKinds = preferences.graph.visibleKinds;
+  const visibleKinds = filtersReady
+    ? preferences.graph.visibleKinds
+    : DEFAULT_USER_PREFERENCES.graph.visibleKinds;
   const toggleKind = (kind: GraphFilterKind) => {
     updatePreferences((current) => {
       const nextVisibleKinds = {
