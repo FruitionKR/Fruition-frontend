@@ -3,6 +3,10 @@ import Image from "next/image";
 import type { ReactElement } from "react";
 import { cx } from "@/shared/lib/classNames";
 import arrowIcon from "../../../svg/document/arrow.svg";
+import chatIcon from "../../../svg/agent/chat.svg";
+import chatScrollIcon from "../../../svg/agent/chat_scroll.svg";
+import sendIcon from "../../../svg/agent/send.svg";
+import emptyChatIcon from "../../../svg/agent/empty_chat.svg";
 import chatCheckIcon from "../../../svg/agent/chat_check.svg";
 import claudeIcon from "../../../svg/llm/claude.svg";
 import geminiIcon from "../../../svg/llm/gemini.svg";
@@ -28,6 +32,7 @@ import userCircleIcon from "../../../svg/workspace/UserCircle.svg";
 import userCircleOutlineIcon from "../../../svg/workspace/UserCircleOutline.svg";
 import questionMarkIcon from "../../../svg/common/QuestionMarkCircleOutline.svg";
 import copyIcon from "../../../svg/common/copy.svg";
+import addFileIcon from "../../../svg/common/plus.svg";
 import computerIcon from "../../../svg/device/computer.svg";
 import phoneIcon from "../../../svg/device/phone.svg";
 import downloadIcon from "../../../svg/common/download.svg";
@@ -37,7 +42,7 @@ import refreshIcon from "../../../svg/wiki/refresh.svg";
 
 // svg 파일 없이 인라인 SVG로만 렌더링하는 아이콘 식별자
 const bellIcon = { inlineIcon: "bell" } as const;
-const chatBubbleIcon = { inlineIcon: "chatBubble" } as const;
+
 const lightningIcon = { inlineIcon: "lightning" } as const;
 const menuSearchIcon = { inlineIcon: "menuSearch" } as const;
 const plusIcon = { inlineIcon: "plus" } as const;
@@ -48,7 +53,6 @@ const skillBackIcon = { inlineIcon: "skillBack" } as const;
 export type SvgAsset =
   | StaticImageData
   | typeof bellIcon
-  | typeof chatBubbleIcon
   | typeof lightningIcon
   | typeof menuSearchIcon
   | typeof plusIcon
@@ -57,6 +61,8 @@ export type SvgAsset =
   | typeof skillBackIcon;
 
 export {
+  sendIcon,
+  addFileIcon,
   arrowIcon,
   checkOnIcon,
   ingestIcon,
@@ -66,7 +72,9 @@ export {
   userCircleOutlineIcon,
   questionMarkIcon,
   bellIcon,
-  chatBubbleIcon,
+  chatIcon,
+  chatScrollIcon,
+  emptyChatIcon,
   folderPlusIcon,
   graphSelectIcon,
   homeSelectIcon,
@@ -145,7 +153,7 @@ const inlineIconRenderers = new Map<SvgAsset, (iconClassName: string) => ReactEl
       <path d="M10 18.5a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )],
-  [chatBubbleIcon, (iconClassName) => (
+  [emptyChatIcon, (iconClassName) => (
     <svg aria-hidden className={iconClassName} viewBox="0 0 16 16" fill="none">
       <path d="M8 2.2C4.6 2.2 1.9 4.5 1.9 7.4C1.9 8.9 2.6 10.2 3.8 11.1L3.2 13.6L5.9 12.2C6.6 12.4 7.3 12.5 8 12.5C11.4 12.5 14.1 10.2 14.1 7.4C14.1 4.5 11.4 2.2 8 2.2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>

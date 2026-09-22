@@ -209,8 +209,9 @@
   align-items: center;
   gap: 4px;
   color: var(--ink);
+  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .sidebar-workspace-name span {
@@ -411,10 +412,10 @@
   border-radius: 6px;
 }
 
-/* 채팅 시작 버튼 (Figma 599:4962: bg secondary/700, py-14, 리스트 좌우 16px 정렬) */
+/* 채팅 시작 버튼 (Figma 1246:7328): 좌측 12px, 우측·하단 16px */
 .sidebar-chat-start-hint {
   display: flex;
-  margin: 10px 16px 16px;
+  margin: 10px 16px 16px 12px;
 }
 
 .sidebar-chat-start-hint .sidebar-chat-start {
@@ -427,7 +428,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 10px 16px 16px;
+  margin: 10px 16px 16px 12px;
   padding: 14px 12px;
   color: var(--ink);
   background: var(--soft);
@@ -435,6 +436,8 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+  line-height: normal;
+  flex-shrink: 0;
 }
 
 .sidebar-chat-start:hover,
@@ -444,9 +447,20 @@
   border-color: #5a5a5a;
 }
 
-.sidebar-chat-start :global(.svg-icon) {
+.sidebar-chat-start-icon {
+  position: relative;
   width: 12px;
+  height: 10.667px;
+  flex: 0 0 12px;
+}
+
+.sidebar-chat-start-icon :global(.svg-icon) {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
   height: 12px;
+  transform: translate(-50%, -50%);
 }
 
 /* 프로필 푸터 (Figma 747:6648: h-60, UserCircle 22px, 온라인 회색, 우측 화살표) */
@@ -654,12 +668,14 @@
   color: var(--muted);
   background: transparent;
   border-radius: 4px;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
+}
+
+.project-add-file-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .project-title:hover .project-add-file,
