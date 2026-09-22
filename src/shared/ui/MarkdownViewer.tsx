@@ -12,6 +12,7 @@ import { visit } from "unist-util-visit";
 import { cx } from "@/shared/lib/classNames";
 import { splitMarkdownBlockRanges } from "@/shared/lib/markdownSegments";
 import { createRehypeSourceBlocks } from "@/shared/lib/markdownSourceBlocks";
+import { remarkClosedMath } from "@/shared/lib/remarkClosedMath";
 import type { SourceBlockHighlight } from "@/entities/document";
 
 // citation 강조에 사용하는 색상 팔레트 개수
@@ -22,12 +23,12 @@ function rankColorClass(rank: number) {
 }
 
 /** wikilink([[...]])와 citation([1,2])을 커스텀 노드로 분리하는 remark 플러그인 */
-function remarkCustomTokens() {
+function remarkCustomTokens(options?: { citationRankMap?: ReadonlyMap<number, number> }) {
   return (tree: Root) => {
     visit(tree, "text", (node, index, parent) => {
       if (!parent || index === undefined) return;
 
-      const pattern = /(\[\[[^\]|]+(?:\|[^\]]+)?\]\]|\[(?:\d+)(?:\s*,\s*\d+)*\])/g;
+      const pattern = /(\[\[[^\]|]+(?:\|[^\]]+)?\]\]|\[(?:\d+)(?:\s*,\s*\d+)*\](?:[ \t]*\[(?:\d+)(?:\s*,\s*\d+)*\])*)/g;
       const value = node.value;
       const replacements: PhrasingContent[] = [];
       let lastIndex = 0;
@@ -49,11 +50,10 @@ function remarkCustomTokens() {
             children: [{ type: "text", value: label }]
           } as unknown as PhrasingContent);
         } else {
-          const ranks = token
-            .slice(1, -1)
-            .split(",")
-            .map((part) => Number(part.trim()))
-            .filter(Number.isFinite);
+          const ranks = [...new Set((token.match(/\d+/g) ?? [])
+            .map(Number)
+            .filter(Number.isFinite)
+            .map((rank) => options?.citationRankMap?.get(rank) ?? rank))];
           ranks.forEach((rank) => {
             replacements.push({
               type: "citationToken",
@@ -82,6 +82,7 @@ const REMARK_PLUGINS: PluggableList = [
   remarkGfm,
   // 금액의 $는 그대로 표시하고, 수식은 $$...$$로 작성한다.
   [remarkMath, { singleDollarTextMath: false }],
+  remarkClosedMath,
   remarkCustomTokens,
 ];
 
@@ -89,15 +90,23 @@ export function MarkdownViewer({
   markdown,
   onCitationClick,
   canClickCitation,
+  citationRankMap,
   highlightedBlocks,
   onBlockRef
 }: {
   markdown: string;
   onCitationClick?: (rank: number) => void;
   canClickCitation?: (rank: number) => boolean;
+  citationRankMap?: ReadonlyMap<number, number>;
   highlightedBlocks?: SourceBlockHighlight[];
   onBlockRef?: (blockId: string, node: HTMLDivElement | null) => void;
 }) {
+  const remarkPlugins = useMemo<PluggableList>(
+    () => citationRankMap
+      ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap }]]
+      : REMARK_PLUGINS,
+    [citationRankMap]
+  );
   const highlightedBlockRankById = useMemo(
     () => new Map((highlightedBlocks ?? []).map((block) => [block.block_id, block.rank])),
     [highlightedBlocks]
@@ -201,7 +210,7 @@ export function MarkdownViewer({
           렌더 단계에서만 버린다. 저장된 markdown은 그대로 둔다. */}
       <ReactMarkdown
         skipHtml
-        remarkPlugins={REMARK_PLUGINS}
+        remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={components}
       >
