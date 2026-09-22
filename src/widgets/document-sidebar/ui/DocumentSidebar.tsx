@@ -2,7 +2,7 @@ import { useState, type ChangeEvent as ReactChangeEvent, type ComponentProps, ty
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
-import { chatBubbleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chatIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { ContextMenu } from "./ContextMenu";
 import { GraphSidebarActions } from "./GraphSidebarActions";
@@ -223,7 +223,9 @@ export function DocumentSidebar({
             onStartChat();
           }}
         >
-          <SvgIcon src={chatBubbleIcon} />
+          <span className={styles["sidebar-chat-start-icon"]}>
+            <SvgIcon src={chatIcon} />
+          </span>
           채팅 시작
         </button>
         </HoverHint>

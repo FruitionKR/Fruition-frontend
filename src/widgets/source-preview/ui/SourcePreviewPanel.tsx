@@ -2,6 +2,7 @@ import { MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { resolveEditorMode, useUserPreferences } from "@/entities/user";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { HistoryPanel } from "@/features/document-history";
@@ -445,9 +446,9 @@ export function SourcePreviewPanel({
         </div>
       </header>
       <div className={cx(styles["source-preview-document"], isPdfFile && styles["is-pdf"])}>
+        {isLoading && <DocumentLoading>{pageId ? "본문을 불러오는 중입니다." : "문서를 불러오는 중입니다."}</DocumentLoading>}
         {isPdfFile ? (
           <>
-            {isLoading && <p>문서를 불러오는 중입니다.</p>}
             {errorMessage && <p>{errorMessage}</p>}
             {!isLoading && !errorMessage && rawDocumentUrl && (
               <iframe
@@ -499,7 +500,6 @@ export function SourcePreviewPanel({
             <span role="alert">{renameError}</span>
           </div>
         )}
-        {isMarkdownFile && isLoading && <p>문서를 불러오는 중입니다.</p>}
         {isMarkdownFile && errorMessage && <p>{errorMessage}</p>}
         {isMarkdownFile && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length > 0 && (
           <MarkdownViewer
@@ -524,7 +524,6 @@ export function SourcePreviewPanel({
             onRegisterSave={registerNoteSave}
           />
         )}
-        {isPdfOrOther && isLoading && <p>문서를 불러오는 중입니다.</p>}
         {isPdfOrOther && errorMessage && <p>{errorMessage}</p>}
         {isPdfOrOther && !isLoading && !errorMessage && rawText !== null && (
           <pre className={styles["source-preview-plain-text"]}>{rawText}</pre>
@@ -538,7 +537,6 @@ export function SourcePreviewPanel({
             style={{ width: "100%", height: "100%", border: "none" }}
           />
         )}
-        {pageId && isLoading && <p>본문을 불러오는 중입니다.</p>}
         {pageId && errorMessage && <p>{errorMessage}</p>}
         {pageId && !isLoading && !errorMessage && page?.markdown && <MarkdownViewer markdown={page.markdown} />}
         {pageId && !isLoading && !errorMessage && !page?.markdown && page?.summary && <p>{page.summary}</p>}

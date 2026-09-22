@@ -9,12 +9,16 @@
 
 .agent-header {
   position: relative;
+  height: 48px;
+  min-height: 0;
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 28px 28px;
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
-  gap: 4px;
-  padding: 10px 12px 10px 16px;
+  gap: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
 }
 
 :global(.agent-panel.is-chat-selecting) .agent-header {
@@ -70,15 +74,19 @@
 /* 헤더 좌측 세션 제목 버튼 */
 .agent-session-title {
   min-width: 0;
+  max-width: 100%;
+  justify-self: start;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0;
+  gap: 0;
+  padding: 0 8px;
   color: #f0f0f0;
   background: transparent;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 400;
   text-align: left;
+  line-height: 16px;
 }
 
 .agent-session-title span {
@@ -87,23 +95,17 @@
   white-space: nowrap;
 }
 
-/* hover 하이라이트는 제목 전체가 아니라 캐럿 버튼 영역에만 표시한다 */
-.agent-session-title svg {
-  width: 18px;
-  height: 18px;
+/* 제목과 펼치기 아이콘을 하나의 클릭 영역으로 표시한다. */
+.agent-session-chevron {
+  /* 원본 28px 캔버스에 포함된 여백을 유지한다. */
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
-  padding: 3px;
-  color: #a7a7a7;
-  border-radius: 4px;
 }
 
-.agent-session-title:hover {
+.agent-session-title:not(:disabled):hover,
+.agent-session-title:focus-visible {
   --button-hover-overlay: none;
-}
-
-.agent-session-title:hover svg,
-.agent-session-title:focus-visible svg {
-  color: #f0f0f0;
   background: var(--soft);
 }
 
@@ -482,16 +484,18 @@
 }
 
 .question-bubble {
-  width: min(298px, 100%);
-  max-width: 100%;
-  margin-left: auto;
+  width: fit-content;
+  max-width: min(298px, 100%);
+  margin: 4px 0 4px auto;
   padding: 12px 16px;
   color: #f0f0f0;
   background: #323232;
   border-radius: 12px 12px 0 12px;
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.5;
   overflow-wrap: anywhere;
+  font-weight: 400;
+  white-space: pre-wrap;
 }
 
 .agent-thread {
@@ -635,13 +639,13 @@
   max-width: 100%;
   align-items: center;
   gap: 8px;
-  height: 14px;
+  min-height: 14px;
   padding: 0;
   color: #a7a7a7;
   background: transparent;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1;
+  line-height: normal;
 }
 
 .status-list button svg {
@@ -673,7 +677,8 @@
   min-height: 14px;
   color: #a7a7a7;
   font-size: 12px;
-  line-height: 1;
+  line-height: normal;
+  font-weight: 400;
 }
 
 .status-list.is-timed .status-row {
@@ -700,7 +705,7 @@
   left: 50%;
   top: 10px;
   width: 1px;
-  height: 24px;
+  height: 14px;
   background: repeating-linear-gradient(to bottom, var(--subdued) 0 2px, transparent 2px 4px);
   transform: translateX(-50%);
 }
@@ -747,6 +752,7 @@
 .status-row.active p,
 .status-row.pending p {
   color: #f0f0f0;
+  font-weight: 500;
 }
 
 .status-row p {
@@ -784,6 +790,9 @@
   color: #e2e2e2;
   font-size: 12px;
   line-height: 1.6;
+  font-family: inherit;
+  font-weight: 400;
+  letter-spacing: -0.12px;
 }
 
 .answer-section-title {
@@ -798,7 +807,7 @@
   color: #a7a7a7;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1;
+  line-height: normal;
 }
 
 .answer-section-title svg {
@@ -830,7 +839,7 @@
 }
 
 .agent-answer :global(.markdown-viewer) p {
-  margin: 0 0 8px;
+  margin: 0;
 }
 
 .agent-answer :global(.markdown-viewer) p:last-child {
@@ -869,23 +878,27 @@
   margin: 0 0 8px;
   color: #a7a7a7;
   font-size: 12px;
+  font-weight: 500;
+  line-height: normal;
+  letter-spacing: 0.2px;
 }
 
 .result-card {
   width: 100%;
   min-width: 0;
-  height: 56px;
+  min-height: 56px;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 10px;
   margin-top: 6px;
-  padding: 0 11px;
+  padding: 12px;
   color: #f0f0f0;
   background: #0a0a0a;
   border: 1px solid #4f4f4f;
   border-radius: 12px;
   text-align: left;
+  line-height: normal;
 }
 
 .file-box {
@@ -910,10 +923,10 @@
   height: 18px;
 }
 
-.result-card span {
+.result-card > span:not(.file-box) {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 
 .result-card strong {
@@ -922,6 +935,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .result-card small {
@@ -931,16 +945,17 @@
   white-space: nowrap;
   color: #a7a7a7;
   font-size: 10px;
+  font-weight: 400;
 }
 
 .result-card b {
-  padding: 2px 8px 3px;
+  padding: 2px 8px 3px 7px;
   color: #f0f0f0;
   background: #323232;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 600;
-  line-height: 12px;
+  line-height: normal;
 }
 
 .typing {
@@ -950,8 +965,11 @@
   gap: 12px;
   margin-top: 20px;
   color: #a7a7a7;
-  font-size: 11px;
+  font-size: 12px;
   overflow-wrap: anywhere;
+  padding: 12px 0;
+  font-weight: 400;
+  line-height: normal;
 }
 
 .typing i {
@@ -999,7 +1017,7 @@
   opacity: 0.45;
 }
 
-/* 시안형 컴포저: 어두운 라운드 박스 + 하단 노란 [↑] 버튼 */
+/* Figma 1246:7348: 4줄 입력과 흰색 전송 버튼 */
 /* 채팅 입력 카드 (Figma 787:2312): bg secondary/800, radius 12, 하단에 모델 선택 + 전송 */
 .composer {
   min-width: 0;
@@ -1023,7 +1041,11 @@
   background: transparent;
   font-family: inherit;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: normal;
+  display: block;
+  padding: 0;
+  margin: 0;
+  font-weight: 400;
 }
 
 .composer textarea::placeholder {
@@ -1045,14 +1067,15 @@
 .composer-model-trigger {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
+  gap: 2px;
+  padding: 0;
   color: var(--muted);
   background: transparent;
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
   white-space: nowrap;
+  line-height: 1.4;
 }
 
 .composer-model-trigger:hover,
@@ -1072,6 +1095,9 @@
 .composer-model-trigger svg {
   flex: 0 0 auto;
   transition: transform 120ms ease;
+  width: 16px;
+  height: 16px;
+  padding: 4px;
 }
 
 .composer-model-trigger svg.is-open {
@@ -1216,11 +1242,17 @@
 .composer-send:hover:not(:disabled),
 .composer-send:focus-visible {
   --button-hover-overlay: none;
-  background: #e2e2e2;
+  background: #fff;
 }
 
 .composer-send:disabled {
-  opacity: 0.4;
+  opacity: 1;
+  cursor: default;
+}
+
+.composer-send :global(.svg-icon) {
+  width: 18px;
+  height: 18px;
 }
 
 /* --- markdown-edit --- */

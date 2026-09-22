@@ -23,7 +23,8 @@ import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownE
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
-import { configureMarkdownMath, doubleDollarMathInputRule } from "../model/markdownMath";
+import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
+import { configureMathEditor } from "../model/mathEditor";
 import styles from "./NoteEditor.module.css";
 
 /** Backspace로 리스트 항목의 첫 문단 맨 앞을 지우면 문단을 리스트 밖으로 빼낸다 (Shift+Tab과 동일).
@@ -267,6 +268,12 @@ export function NoteEditor({
       featureConfigs: {
         // '/' 슬래시 메뉴 한글화
         [CrepeFeature.BlockEdit]: {
+          // 문서 편집에서는 블록 이동 핸들을 표시하지 않고 '/' 입력 메뉴만 유지한다.
+          blockHandle: { shouldShow: () => false },
+          buildMenu: (builder) => {
+            const math = builder.getGroup("advanced").group.items.find((item) => item.key === "math");
+            if (math) math.onRun = insertMathFromSlash;
+          },
           textGroup: {
             label: "텍스트",
             text: { label: "본문" },
@@ -311,8 +318,10 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.use(doubleDollarMathInputRule).config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).config((ctx) => {
       configureMarkdownMath(ctx);
+      configureMathEditor(ctx);
+      disableBlockHandle(ctx);
       // commonmark 기본 Backspace(priority 50)보다 먼저 실행시킨다
       ctx.get(keymapCtx).add({ key: "Backspace", priority: 100, onRun: liftListItemOnBackspace });
     });

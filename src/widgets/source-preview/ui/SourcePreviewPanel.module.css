@@ -74,16 +74,21 @@
   white-space: nowrap;
 }
 
-/* 상위 폴더는 표시 전용 텍스트 (Figma GNB: SemiBold) */
+.source-preview-topbar nav {
+  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
+  font-weight: 400;
+}
+
+/* 문서 경로와 이름은 강조 없이 동일한 굵기로 표시한다. */
 .source-preview-topbar nav > span:first-child {
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .source-preview-topbar nav strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .source-preview-actions {
@@ -165,13 +170,14 @@
 }
 
 .source-preview-document {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: hidden;
-  padding-top: 80px;
+  padding: 0;
 }
 
 /* PDF는 편집 chrome 없이 뷰어가 콘텐츠 영역 전체를 채운다. */
@@ -207,9 +213,9 @@
   border: 0;
   border-radius: 4px;
   outline: 0;
-  font-family: inherit;
+  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   font-size: 36px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.4;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
@@ -246,14 +252,14 @@
 }
 
 .source-preview-content {
-  /* 스크롤 컨테이너를 패널 전체 폭으로 두고 본문은 padding으로 900px 중앙 정렬.
-     이렇게 하면 세로 스크롤바가 항상 패널 맨 오른쪽에 붙는다(에이전트 패널 접힘/펼침 무관). */
+  /* Figma 1246:9026: 본문 여백은 상하 80px, 좌우 40px.
+     스크롤 영역 안에 여백을 두어 제목부터 문서 끝까지 함께 스크롤한다. */
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 max(24px, calc((100% - 900px) / 2)) 80px;
+  padding: 80px 40px;
   color: #f0f0f0;
   font-size: 16px;
   font-weight: 500;
@@ -356,13 +362,8 @@
     display: none;
   }
 
-  .source-preview-document {
-    padding-top: 48px;
-  }
-
   .source-preview-heading,
-  .source-preview-document-controls,
-  .source-preview-content {
+  .source-preview-document-controls {
     padding-inline: 20px;
   }
 

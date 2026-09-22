@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
@@ -11,6 +11,7 @@ import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
 import { findSourceNodeByDocumentId } from "@/entities/graph/lib/graph";
 import { citedRanks, formatAnswerMarkdown, formatReferenceMeta, formatWikiPageTitle } from "../lib/agentFormatters";
+import { buildCitationRankMap } from "../lib/citationRanks";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
@@ -359,16 +360,17 @@ function AssistantThread({
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
   const resultCards = buildRelatedPageCards(message, nodes);
   const ranksInAnswer = citedRanks(message.content);
+  const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
   const citationReferenceByRank = new Map(
     message.references
       .filter((item) => item.rank && ranksInAnswer.has(item.rank) && item.source_document_id && item.source_block_ids?.length)
-      .map((item) => [item.rank as number, item])
+      .map((item) => [citationRankMap.get(item.rank!) ?? item.rank!, item])
   );
   const canOpenCitation = (rank: number) => citationReferenceByRank.has(rank);
   const openCitation = (rank: number) => {
     const reference = citationReferenceByRank.get(rank);
     if (!reference?.source_document_id || !reference.source_block_ids?.length) return;
-    const highlights = reference.source_block_ids.map((blockId) => ({ block_id: blockId, rank }));
+    const highlights = [...new Set(reference.source_block_ids)].map((blockId) => ({ block_id: blockId, rank }));
     onOpenSourceBlocks(reference.source_document_id, sourceTitle(nodes, reference.source_document_id), highlights);
   };
 
@@ -422,6 +424,7 @@ function AssistantThread({
             markdown={formatAnswerMarkdown(message.content)}
             onCitationClick={openCitation}
             canClickCitation={canOpenCitation}
+            citationRankMap={citationRankMap}
           />}
         </section>
       )}

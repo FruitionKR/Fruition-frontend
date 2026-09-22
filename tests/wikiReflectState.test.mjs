@@ -84,6 +84,17 @@ test("processing_state가 completed면 진행 중으로 보지 않는다", () =>
   assert.equal(isWikiReflectEligible(document), false);
 });
 
+test("PDF 변환만 완료된 Markdown은 needs_reingest가 false여도 최초 편입할 수 있다", () => {
+  const document = makeDocument({ status: "completed", pipeline_run_id: "convert:doc-1", needs_reingest: false });
+  assert.equal(getWikiReflectState(document), "not-included");
+  assert.equal(isWikiReflectEligible(document), true);
+});
+
+test("변환 진행 중인 Markdown은 선택할 수 없다", () => {
+  const document = makeDocument({ status: "processing", pipeline_run_id: "convert:doc-1" });
+  assert.equal(isWikiReflectEligible(document), false);
+});
+
 test("새 Wiki 내용이 있고 진행 중인 작업이 없을 때만 lint할 수 있다", () => {
   assert.equal(isLintActionEnabled({ needsLint: true, isIngestActive: false, isLintActive: false }), true);
   assert.equal(isLintActionEnabled({ needsLint: false, isIngestActive: false, isLintActive: false }), false);

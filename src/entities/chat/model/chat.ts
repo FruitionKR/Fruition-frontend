@@ -18,6 +18,7 @@ export type ChatMessageReferenceResponse = {
   rank?: number;
   source_document_id?: string;
   source_block_ids?: string[];
+  source_refs?: { source_document_id: string; source_block_id: string }[];
   text?: string;
 };
 

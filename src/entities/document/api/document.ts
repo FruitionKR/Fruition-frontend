@@ -1,8 +1,49 @@
+import { fetchDocumentTree } from "@/entities/tree/api/folders";
+import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serverTree";
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
 import type { DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
+
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
+
+export class DocumentNameConflictError extends Error {
+  constructor(filename: string) {
+    super(`같은 폴더에 '${filename}' 이름의 항목이 이미 있습니다. 다른 이름을 사용해 주세요.`);
+    this.name = "DocumentNameConflictError";
+  }
+}
+
+// 같은 탭의 병렬 업로드·이름 변경이 목록 조회 사이에 같은 이름을 선점하지 않게 한다.
+const pendingDocumentNames = new Set<string>();
+
+async function withUniqueDocumentName<T>(
+  workspaceId: string,
+  filename: string,
+  excludedDocumentId: string | null,
+  action: () => Promise<T>,
+  folderId: string | null = null
+): Promise<T> {
+  const normalize = (value: string) => value.trim().normalize("NFC").toLowerCase();
+  const name = normalize(filename);
+  const tree = await fetchDocumentTree(workspaceId);
+  const parentId = excludedDocumentId ? findServerParent(tree.items, excludedDocumentId) : folderId;
+  if (parentId === undefined) throw new Error("문서를 찾을 수 없습니다. 목록을 새로고침해 주세요.");
+  const reservation = JSON.stringify([workspaceId, parentId, name]);
+  if (pendingDocumentNames.has(reservation)) throw new DocumentNameConflictError(filename);
+  pendingDocumentNames.add(reservation);
+  try {
+    const parent = parentId ? findServerTreeItem(tree.items, parentId) : null;
+    if (parentId && (!parent || parent.type !== "folder")) throw new Error("업로드할 폴더를 찾을 수 없습니다.");
+    const siblings = parent ? parent.children ?? [] : tree.items;
+    if (siblings.some((item) => item.id !== excludedDocumentId && normalize(item.name) === name)) {
+      throw new DocumentNameConflictError(filename);
+    }
+    return await action();
+  } finally {
+    pendingDocumentNames.delete(reservation);
+  }
+}
 
 export async function fetchDocuments() {
   const workspaceId = getWorkspaceId();
@@ -14,22 +55,25 @@ export async function fetchDocuments() {
   return data.documents ?? [];
 }
 
-export async function uploadDocumentFile(file: File) {
+export async function uploadDocumentFile(file: File, folderId: string | null = null) {
   const workspaceId = getWorkspaceId();
-  const transport = await getDocumentTransport();
-  if (transport.directUpload && file.name.toLowerCase().endsWith(".pdf")) {
-    return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file);
-  }
-  const formData = new FormData();
-  formData.append("file", file);
+  return withUniqueDocumentName(workspaceId, file.name, null, async () => {
+    const transport = await getDocumentTransport();
+    if (transport.directUpload && file.name.toLowerCase().endsWith(".pdf")) {
+      return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId);
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    if (folderId) formData.append("folder_id", folderId);
 
-  const response = await apiFetch(workspacePath(workspaceId, "documents"), {
-    method: "POST",
-    headers: { "Idempotency-Key": crypto.randomUUID() },
-    body: formData
-  });
+    const response = await apiFetch(workspacePath(workspaceId, "documents"), {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: formData
+    });
 
-  return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
+    return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
+  }, folderId);
 }
 
 /** 문서 ingest를 시작한다. 편집 가능 Markdown 전용이라 reflectDocumentToWiki를 거쳐 호출한다. */
@@ -46,7 +90,7 @@ async function startDocumentIngest(documentId: string): Promise<void> {
  * PDF 원본 문서의 Markdown 변환을 요청한다.
  * 202와 함께 processing 상태로 생성된 markdown 문서 요약을 반환한다.
  */
-export async function convertDocumentToMarkdown(documentId: string) {
+export async function convertDocumentToMarkdown(documentId: string, options?: { openWhenReady?: boolean }) {
   const workspaceId = getWorkspaceId();
   const response = await apiFetch(
     workspacePath(workspaceId, "documents", documentId, "convert-markdown"),
@@ -57,7 +101,7 @@ export async function convertDocumentToMarkdown(documentId: string) {
   );
   const created = await parseJsonOrThrow<DocumentItemResponse>(response, ERROR_MESSAGES.documentConvertFailed);
   // 트리거 경로와 무관하게 변환 완료 후 자동 열기가 동작하도록 시작 이벤트를 발행한다.
-  publishConvertStarted(created.id);
+  if (options?.openWhenReady !== false) publishConvertStarted(created.id);
   return created;
 }
 
@@ -110,7 +154,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
 }
 
 /** 문서 표시명을 변경한다. */
-export async function renameDocument(documentId: string, filename: string): Promise<void> {
+export async function renameDocument(documentId: string, filename: string, folderId: string | null = null): Promise<void> {
   const workspaceId = getWorkspaceId();
   const detailResponse = await apiFetch(workspacePath(workspaceId, "documents", documentId), { cache: "no-store" });
   const detail = await parseJsonOrThrow<{ current_version?: number; filename?: string } | null>(
@@ -124,15 +168,17 @@ export async function renameDocument(documentId: string, filename: string): Prom
   const name = filename.trim().normalize("NFC");
   const displayName = extension && name.toLowerCase().endsWith(extension.toLowerCase())
     ? name.slice(0, -extension.length) : name;
-  const response = await apiFetch(
-    workspacePath(workspaceId, "documents", documentId, "rename"),
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ display_name: displayName, base_version: detail.current_version })
-    }
-  );
-  await throwIfNotOk(response, ERROR_MESSAGES.documentRenameFailed);
+  await withUniqueDocumentName(workspaceId, `${displayName}${extension}`, documentId, async () => {
+    const response = await apiFetch(
+      workspacePath(workspaceId, "documents", documentId, "rename"),
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: displayName, base_version: detail.current_version })
+      }
+    );
+    await throwIfNotOk(response, ERROR_MESSAGES.documentRenameFailed);
+  }, folderId);
 }
 
 /** 현재 워크스페이스의 원본 문서를 인증된 요청으로 가져온다. */
@@ -146,6 +192,7 @@ export async function fetchDocumentOriginal(documentId: string): Promise<Blob> {
   await throwIfNotOk(response, ERROR_MESSAGES.documentOriginalLoadFailed);
   return response.blob();
 }
+
 
 export async function fetchDocumentReadUrl(documentId: string): Promise<string | null> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "original-url"), { cache: "no-store" });
