@@ -32,6 +32,7 @@ function ForgotPasswordPageContent() {
   const [isCodeStep, setIsCodeStep] = useState(Boolean(passwordResetDraft?.verificationId));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isRequestingVerification = isSubmitting && !isCodeStep;
   const countdown = useExpiryCountdown(passwordResetDraft?.expiresAt ?? 0);
   const { isResending, resend } = useVerificationResend({
     email: passwordResetDraft?.email ?? "",
@@ -135,7 +136,7 @@ function ForgotPasswordPageContent() {
               name="email"
               onChange={(event) => setEmail(event.target.value)}
               placeholder="example@email.com"
-              readOnly={isCodeStep}
+              readOnly={isCodeStep || isRequestingVerification}
               type="email"
               value={email}
             />
@@ -150,10 +151,11 @@ function ForgotPasswordPageContent() {
               />
             ) : null}
           </div>
+          {isRequestingVerification ? <p className="auth-prompt" role="status">인증번호를 발송하고 있습니다.</p> : null}
           {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
         </div>
         <AuthSubmitButton disabled={isSubmitting}>
-          {isCodeStep ? "인증 확인" : "인증 요청"}
+          {isRequestingVerification ? "발송 중" : isCodeStep ? "인증 확인" : "인증 요청"}
         </AuthSubmitButton>
       </form>
       {isCodeStep ? (
