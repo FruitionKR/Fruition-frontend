@@ -55,7 +55,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   },
   graph: {
     visibleKinds: {
-      raw: false,
+      raw: true,
       source: true,
       concept: true
     }

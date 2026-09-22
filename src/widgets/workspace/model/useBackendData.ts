@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchBackendData } from "@/entities/wiki";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { mergeBackendDataIntoProjects } from "@/entities/tree";
+import { projectsFromServerTree } from "@/entities/tree/lib/serverTree";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
@@ -38,8 +38,8 @@ export function useBackendData({
 
   // 백엔드 데이터가 갱신될 때 프로젝트 트리에 병합한다.
   useEffect(() => {
-    if (!backendData) return;
-    setProjects((current) => mergeBackendDataIntoProjects(current, backendData.documents, backendData.graph));
+    if (!backendData?.tree) return;
+    setProjects((current) => projectsFromServerTree(backendData.tree!, current));
   }, [backendData, setProjects]);
 
   const { refetch } = query;

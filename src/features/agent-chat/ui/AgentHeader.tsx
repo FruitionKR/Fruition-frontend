@@ -1,11 +1,11 @@
-import { ChevronDown, MoreHorizontal, MoreVertical, Plus, Search } from "lucide-react";
+import { MoreHorizontal, MoreVertical, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createChatSession, deleteChatSession, fetchChatSessions } from "@/entities/chat/api/chat";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
-import { chatBubbleIcon, fruitionLogo, sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chatScrollIcon, emptyChatIcon, fruitionLogo, sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import styles from "./AgentChat.module.css";
 
@@ -122,7 +122,7 @@ export function AgentHeader({
         onClick={() => setIsListOpen((open) => !open)}
       >
         <span>{sessionTitle}</span>
-        <ChevronDown size={12} />
+        <SvgIcon src={chatScrollIcon} className={styles["agent-session-chevron"]} />
       </button>
       <button className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
         <SvgIcon src={sideboxIcon} />
@@ -206,7 +206,7 @@ export function AgentHeader({
                   >
                     {isActive
                       ? <SvgIcon src={fruitionLogo} className={styles["chat-session-logo"]} />
-                      : <SvgIcon src={chatBubbleIcon} className={styles["chat-session-icon"]} />}
+                      : <SvgIcon src={emptyChatIcon} className={styles["chat-session-icon"]} />}
                     <span>{session.title ?? fallbackTitle}</span>
                   </button>
                   {isActive && (

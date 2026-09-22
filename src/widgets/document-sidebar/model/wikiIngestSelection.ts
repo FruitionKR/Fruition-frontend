@@ -1,9 +1,9 @@
 import type { TreeItem } from "@/entities/tree";
 
-/** 위키 편입은 마크다운 문서만 대상으로 한다. PDF/TXT 원본은 체크할 수 없다. */
+/** Markdown은 직접 편입하고 PDF는 확인 후 변환을 거친다. */
 export function isMarkdownTreeItem(item: TreeItem): boolean {
   if (item.mimeType?.includes("markdown")) return true;
-  return item.label.toLowerCase().endsWith(".md");
+  return /\.(md|markdown)$/i.test(item.label);
 }
 
 /** 체크박스를 켤 수 있는 문서인지. 폴더·위키 노드·반영 불가 문서는 false. */
@@ -11,7 +11,7 @@ export function isSelectableTreeItem(item: TreeItem, eligibleDocumentIds: Readon
   return (
     item.type === "file"
     && item.documentId !== undefined
-    && isMarkdownTreeItem(item)
+    && (isMarkdownTreeItem(item) || item.mimeType === "application/pdf" || /\.pdf$/i.test(item.label))
     && eligibleDocumentIds.has(item.documentId)
   );
 }

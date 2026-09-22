@@ -6,7 +6,12 @@
    문서를 열자마자 스크롤바가 생긴다. 높이는 내용에 맡긴다. */
 .note-editor-shell {
   position: relative;
-  padding: 0 0 48px;
+  padding: 0;
+}
+
+/* 기존 인스턴스가 갱신되는 동안에도 블록 이동 UI가 나타나지 않게 한다. */
+.note-wysiwyg-editor :global(.milkdown-block-handle) {
+  display: none !important;
 }
 
 .note-wysiwyg-editor :global(.milkdown) {
@@ -22,9 +27,9 @@
 }
 
 /* 글자 크기·행간은 문서 뷰어(.markdown-viewer)와 동일하게 맞춘다. */
-.note-wysiwyg-editor :global(.milkdown .ProseMirror) {
+.note-wysiwyg-editor :global(.milkdown > .ProseMirror) {
   min-height: 420px;
-  padding: 0 0 120px;
+  padding: 0;
   color: #d7d7d7;
   background: transparent;
   caret-color: var(--yellow);
@@ -150,7 +155,7 @@
 
 .note-markdown-editor :global(.cm-content) {
   max-width: none;
-  padding: 0 0 120px;
+  padding: 0;
   caret-color: var(--yellow);
 }
 
@@ -185,9 +190,8 @@
 }
 
 /* '/' 슬래시 메뉴: 기본 크기(항목 padding 14px·아이콘 24px·최소폭 220px)가 커서 컴팩트하게 줄인다 */
-.note-wysiwyg-editor :global(.milkdown .milkdown-slash-menu .tab-group ul li) {
-  padding: 4px 8px;
-  font-size: 13px;
+.note-wysiwyg-editor :global(.milkdown .milkdown-slash-menu .tab-group) {
+  display: none;
 }
 
 .note-wysiwyg-editor :global(.milkdown .milkdown-slash-menu .menu-groups) {
@@ -314,4 +318,64 @@
   width: 28px;
   height: 16px;
   padding: 0 6px;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor) {
+  position: fixed;
+  z-index: 100;
+  width: min(320px, calc(100vw - 16px));
+  padding: 12px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px #0008;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor[hidden]) {
+  display: none;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor textarea) {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  padding: 8px;
+  resize: vertical;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor textarea:focus) {
+  outline: 1px solid var(--yellow);
+}
+
+.note-wysiwyg-editor :global(.note-math-editor p) {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor > div) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor button) {
+  padding: 6px 12px;
+  color: var(--ink);
+  background: var(--soft);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.note-wysiwyg-editor :global(.note-math-editor button:last-child) {
+  color: var(--bg);
+  background: var(--yellow);
 }

@@ -6,7 +6,7 @@ import { useOperationNotifications } from "../model/useOperationNotifications";
 import { usePendingWorkNotifications } from "../model/usePendingWorkNotifications";
 import styles from "./DocumentProcessingNotifications.module.css";
 
-/** 우하단 알림 카드 스택 (Figma 673:3870). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 버스 발행 알림. */
+/** 우하단 알림 카드 스택 (Figma 1246:7338). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 버스 발행 알림. */
 export function DocumentProcessingNotifications({
   documents
 }: {

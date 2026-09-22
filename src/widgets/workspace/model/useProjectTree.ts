@@ -1,25 +1,23 @@
 import type { MouseEvent as ReactMouseEvent, MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
+import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
+import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
 import {
   findTreeItem,
   availableFolderName,
   folderNames,
+  findItemLocation,
+  serverFolderId,
+  folderItems,
   normalizeTreeName,
-  findTreeItemByDocumentId,
   initialProjects,
   isFileItem,
-  isWikiItem,
-  moveProjectTreeItem,
-  removeTreeItem,
-  updateDocumentItemLabel,
-  updateTreeItemLabel
+  isWikiItem
 } from "@/entities/tree";
-import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project, TreeItem } from "@/entities/tree";
+import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 
-const PROJECT_TREE_STORAGE_PREFIX = "fruition.project_tree.";
 
 /** 삭제 확인 모달이 필요로 하는 대상 정보. contextMenu가 닫힌 뒤에도 삭제를 실행할 수 있도록 스냅샷한다. */
 type DeleteConfirmTarget = {
@@ -30,49 +28,6 @@ type DeleteConfirmTarget = {
   kind: "folder" | "document";
 };
 
-function isPersistedTreeItem(value: unknown): value is TreeItem {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Partial<TreeItem>;
-  return typeof item.id === "string"
-    && typeof item.label === "string"
-    && (item.children === undefined || (Array.isArray(item.children) && item.children.every(isPersistedTreeItem)));
-}
-
-function isPersistedProject(value: unknown): value is Project {
-  if (!value || typeof value !== "object") return false;
-  const project = value as Partial<Project>;
-  return typeof project.id === "string"
-    && typeof project.title === "string"
-    && Array.isArray(project.items)
-    && project.items.every(isPersistedTreeItem);
-}
-
-function projectTreeStorageKey(): string | null {
-  const workspaceId = getSelectedWorkspaceId();
-  return workspaceId ? `${PROJECT_TREE_STORAGE_PREFIX}${workspaceId}` : null;
-}
-
-function loadPersistedProjects(): Project[] | null {
-  const key = projectTreeStorageKey();
-  if (!key) return null;
-  try {
-    const parsed: unknown = JSON.parse(window.localStorage.getItem(key) ?? "null");
-    return Array.isArray(parsed) && parsed.length > 0 && parsed.every(isPersistedProject) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function persistProjects(projects: Project[]) {
-  const key = projectTreeStorageKey();
-  if (!key) return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(projects));
-  } catch {
-    // 저장 공간을 사용할 수 없어도 현재 세션의 트리 편집은 유지한다.
-  }
-}
-
 export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<() => Promise<void>> }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [draggedItem, setDraggedItem] = useState<{ projectId: string; itemId: string } | null>(null);
@@ -81,18 +36,7 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmTarget | null>(null);
-  const [isPersistenceReady, setIsPersistenceReady] = useState(false);
   const editingCancelRef = useRef(false);
-
-  useEffect(() => {
-    const persisted = loadPersistedProjects();
-    if (persisted) setProjects(persisted);
-    setIsPersistenceReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (isPersistenceReady) persistProjects(projects);
-  }, [isPersistenceReady, projects]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -113,41 +57,78 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     };
   }, [contextMenu]);
 
-  function updateProjectTitle(projectId: string, title: string) {
-    setProjects((current) => current.map((project) => (
-      project.id === projectId ? { ...project, title } : project
-    )));
+  const mutationRunningRef = useRef(false);
+  async function runTreeMutation(action: () => Promise<void>, title: string) {
+    if (mutationRunningRef.current) return;
+    mutationRunningRef.current = true;
+    try { await action(); }
+    catch (error) { publishNotice({ kind: "failed", title, message: error instanceof Error ? error.message : "변경하지 못했습니다." }); }
+    finally {
+      await refreshRef.current().catch(() => {});
+      mutationRunningRef.current = false;
+    }
   }
 
   function addProject() {
-    const projectId = `project-${Date.now()}`;
-    const title = availableFolderName(projects, "새 폴더");
-    setProjects((current) => [
-      ...current,
-      {
-        id: projectId,
-        title,
-        items: []
-      }
-    ]);
-    editingCancelRef.current = false;
+    const context = contextMenu;
+    const project = context && projects.find((entry) => entry.id === context.projectId);
+    const target = project && context?.itemId ? findTreeItem(project.items, context.itemId) : null;
+    const location = context && project ? target && isFileItem(target) ? findItemLocation(projects, target.id) ?? undefined : {
+      projectId: project.id,
+      folderId: target && !isFileItem(target) && !isWikiItem(target) ? target.id : null
+    } : undefined;
+    const parentId = location ? serverFolderId(projects, location) : null;
     setContextMenu(null);
-    setEditing({ projectId, itemId: null, label: title });
+    void runTreeMutation(async () => {
+      const folder = await createFolder(availableFolderName(projects, "새 폴더", location), parentId);
+      editingCancelRef.current = false;
+      if (location && parentId !== null) {
+        setEditing({ projectId: location.projectId, itemId: folder.id, label: folder.name });
+      } else {
+        setProjects((current) => [...current, { id: folder.id, folderId: folder.id, title: folder.name, currentVersion: folder.current_version, items: [] }]);
+        setEditing({ projectId: folder.id, itemId: null, label: folder.name });
+      }
+    }, "폴더 생성 실패");
   }
 
   function moveTreeEntry(target: DropTarget) {
-    if (!draggedItem) {
-      setDropTarget(null);
-      return;
-    }
-    setProjects((current) => moveProjectTreeItem(
-      current,
-      draggedItem.projectId,
-      draggedItem.itemId,
-      target
-    ));
+    const dragged = draggedItem;
     setDropTarget(null);
     setDraggedItem(null);
+    if (!dragged) return;
+    const source = projects.find((project) => project.id === dragged.projectId);
+    const item = source && findTreeItem(source.items, dragged.itemId);
+    const targetProject = projects.find((project) => project.id === target.projectId);
+    const targetItem = targetProject && target.targetId ? findTreeItem(targetProject.items, target.targetId) : null;
+    if (!item || !targetProject || isWikiItem(item) || item.id === targetItem?.id) return;
+    if (isFileItem(item) && !item.documentId) return;
+    const parent = targetItem ? findItemLocation(projects, targetItem.id) : { projectId: target.projectId, folderId: null };
+    if (!parent) return;
+    const destination = target.position === "inside" && targetItem && !isFileItem(targetItem)
+      ? { projectId: target.projectId, folderId: targetItem.id } : parent;
+    const siblings = folderItems(projects, destination).filter((sibling) => sibling.id !== item.id);
+    const isMerge = target.position === "inside" && targetItem && isFileItem(item) && isFileItem(targetItem);
+    const conflicting = isMerge
+      ? normalizeTreeName(item.label) === normalizeTreeName(targetItem.label)
+      : siblings.some((sibling) => normalizeTreeName(sibling.label) === normalizeTreeName(item.label));
+    if (conflicting) {
+      publishNotice({ kind: "failed", title: "이동 실패", message: "대상 폴더에 같은 이름의 항목이 있습니다." });
+      return;
+    }
+    void runTreeMutation(async () => {
+      const folderId = serverFolderId(projects, destination);
+      if (isMerge && targetItem.documentId && item.documentId) {
+        const folder = await createFolder(availableFolderName(projects, "새 문서 묶음", destination), folderId);
+        // 부분 실패 시에도 최종 서버 위치를 재조회해 실제 상태를 표시한다.
+        await moveDocument(targetItem.documentId, folder.id);
+        await moveDocument(item.documentId, folder.id);
+      } else {
+        const index = targetItem ? siblings.findIndex((sibling) => sibling.id === targetItem.id) : -1;
+        const position = target.position === "inside" || index < 0 ? undefined : index + (target.position === "after" ? 1 : 0);
+        if (item.documentId) await moveDocument(item.documentId, folderId, position);
+        else await moveFolder(item.id, folderId, position);
+      }
+    }, "항목 이동 실패");
   }
 
   function openFolderMenu(event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) {
@@ -162,7 +143,7 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   }
 
   function renameContextTarget() {
-    if (!contextMenu) return;
+    if (!contextMenu || contextMenu.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) return;
     const project = projects.find((project) => project.id === contextMenu.projectId);
     if (!project) return;
     editingCancelRef.current = false;
@@ -181,12 +162,12 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     if (!contextMenu) return null;
     const project = projects.find((project) => project.id === contextMenu.projectId);
     const item = contextMenu.itemId && project ? findTreeItem(project.items, contextMenu.itemId) : null;
-    const target = {
+    const target = item && isFileItem(item) ? findItemLocation(projects, item.id) : {
       projectId: contextMenu.projectId,
       folderId: item && !isFileItem(item) && !isWikiItem(item) ? item.id : null
     };
     setContextMenu(null);
-    return target;
+    return target ?? null;
   }
 
   // 컨텍스트 메뉴 대상이 PDF 원본 문서일 때만 Markdown 변환 메뉴를 노출한다.
@@ -195,7 +176,7 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     ? findTreeItem(contextMenuProject.items, contextMenu.itemId)
     : null;
   // PDF 원본은 편집 불가 문서라 컨텍스트 메뉴에서 이름 변경을 숨긴다.
-  const canRenameContextTarget = contextMenuItem?.mimeType !== "application/pdf";
+  const canRenameContextTarget = !(contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) && contextMenuItem?.mimeType !== "application/pdf";
 
   const convertContextTarget = contextMenuItem?.documentId && contextMenuItem.mimeType === "application/pdf"
     ? {
@@ -218,6 +199,7 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   // 컨텍스트 메뉴의 삭제는 즉시 실행하지 않고 확인 모달을 연다. 실제 삭제는 confirmDelete에서 수행한다.
   function deleteContextTarget() {
     if (!contextMenu) return;
+    if (contextMenu.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) return;
     const projectId = contextMenu.projectId;
     const project = projects.find((project) => project.id === projectId);
     if (contextMenu.itemId === null) {
@@ -239,24 +221,12 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
 
   function confirmDelete() {
     if (!deleteConfirm) return;
-    const { projectId, itemId, documentId } = deleteConfirm;
-    if (itemId === null) {
-      setProjects((current) => current.filter((project) => project.id !== projectId));
-      setDeleteConfirm(null);
-      return;
-    }
-    setProjects((current) => current.map((project) => {
-      if (project.id !== projectId) return project;
-      return { ...project, items: removeTreeItem(project.items, itemId).items };
-    }));
-    // 실제 문서면 서버에서도 삭제한다. 성공·실패 모두 서버 상태로 재동기화한다
-    // (실패 시 문서가 트리에 다시 나타난다).
-    if (documentId) {
-      void deleteDocument(documentId)
-        .then(() => refreshRef.current())
-        .catch(() => refreshRef.current());
-    }
+    const { projectId, itemId, documentId, kind } = deleteConfirm;
     setDeleteConfirm(null);
+    void runTreeMutation(async () => {
+      if (kind === "folder") await deleteFolder(itemId ?? projectId);
+      else if (documentId) await deleteDocument(documentId);
+    }, "삭제 실패");
   }
 
   function cancelDelete() {
@@ -264,50 +234,23 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   }
 
   function commitEditing() {
-    if (editingCancelRef.current) {
-      editingCancelRef.current = false;
-      setEditing(null);
+    if (editingCancelRef.current) { editingCancelRef.current = false; setEditing(null); return; }
+    if (!editing) return;
+    const { projectId, itemId, label } = editing;
+    setEditing(null);
+    const nextLabel = label.trim().normalize("NFC");
+    if (!nextLabel) return;
+    const project = projects.find((project) => project.id === projectId);
+    const item = itemId && project ? findTreeItem(project.items, itemId) : null;
+    const location = itemId ? findItemLocation(projects, itemId) : undefined;
+    if (!item?.documentId && folderNames(projects, itemId ?? projectId, location).has(normalizeTreeName(nextLabel))) {
+      publishNotice({ kind: "failed", title: "이름 변경 실패", message: "같은 폴더 안에 같은 이름의 항목이 있습니다." });
       return;
     }
-    if (!editing) return;
-    const nextLabel = editing.label.trim().normalize("NFC");
-    if (nextLabel) {
-      const project = projects.find((project) => project.id === editing.projectId);
-      const target = editing.itemId && project ? findTreeItem(project.items, editing.itemId) : null;
-      const isFolder = editing.itemId === null || (target && !isFileItem(target) && !isWikiItem(target));
-      if (isFolder && folderNames(projects, editing.itemId ?? editing.projectId).has(normalizeTreeName(nextLabel))) {
-        publishNotice({ kind: "failed", title: "폴더 이름 변경 실패", message: "같은 워크스페이스에 같은 폴더명이 이미 있습니다. 다른 이름을 사용해 주세요." });
-        setEditing(null);
-        return;
-      }
-      if (editing.itemId === null) {
-        updateProjectTitle(editing.projectId, nextLabel);
-      } else {
-        const itemId = editing.itemId;
-        const projectId = editing.projectId;
-        const project = projects.find((project) => project.id === projectId);
-        const target = project ? findTreeItem(project.items, itemId) : null;
-        const documentId = target?.documentId;
-        const previousLabel = target?.label ?? nextLabel;
-        setProjects((current) => current.map((project) => {
-          if (project.id !== projectId) return project;
-          return { ...project, items: updateTreeItemLabel(project.items, itemId, nextLabel) };
-        }));
-        // 실제 문서면 서버 표시명도 변경한다. 실패 시 이전 이름으로 원복한다.
-        if (documentId) {
-          void renameDocument(documentId, nextLabel)
-            .then(() => refreshRef.current())
-            .catch((error: unknown) => {
-              publishNotice({ kind: "failed", title: "문서 이름 변경 실패", message: error instanceof Error ? error.message : "이름 변경에 실패했습니다." });
-              setProjects((current) => current.map((project) => {
-                if (project.id !== projectId) return project;
-                return { ...project, items: updateTreeItemLabel(project.items, itemId, previousLabel) };
-              }));
-            });
-        }
-      }
-    }
-    setEditing(null);
+    void runTreeMutation(async () => {
+      if (item?.documentId) await renameDocument(item.documentId, nextLabel);
+      else if (projectId !== ROOT_DOCUMENTS_PROJECT_ID || itemId) await renameFolder(itemId ?? projectId, nextLabel);
+    }, "이름 변경 실패");
   }
 
   function cancelEditing() {
@@ -316,25 +259,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   }
 
   async function renameDocumentById(documentId: string, nextLabel: string) {
-    const previousLabel = projects
-      .map((project) => findTreeItemByDocumentId(project.items, documentId)?.label)
-      .find((label): label is string => Boolean(label));
-    setProjects((current) => current.map((project) => ({
-      ...project,
-      items: updateDocumentItemLabel(project.items, documentId, nextLabel)
-    })));
-    try {
-      await renameDocument(documentId, nextLabel);
-      await refreshRef.current();
-    } catch (error) {
-      if (previousLabel) {
-        setProjects((current) => current.map((project) => ({
-          ...project,
-          items: updateDocumentItemLabel(project.items, documentId, previousLabel)
-        })));
-      }
-      throw error;
-    }
+    try { await renameDocument(documentId, nextLabel); }
+    finally { await refreshRef.current().catch(() => {}); }
   }
 
   function onDragStart(projectId: string, itemId: string) {

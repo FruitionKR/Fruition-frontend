@@ -1,6 +1,7 @@
 export type TreeItem = {
   id: string;
   label: string;
+  currentVersion?: number;
   type?: "folder" | "file" | "wiki";
   wikiKind?: "source" | "concept";
   generated?: boolean;
@@ -22,6 +23,9 @@ export type TreeItem = {
 
 export type Project = {
   id: string;
+  /** null은 서버 루트 문서를 보여주는 가상 그룹이다. */
+  folderId?: string | null;
+  currentVersion?: number;
   title: string;
   items: TreeItem[];
 };

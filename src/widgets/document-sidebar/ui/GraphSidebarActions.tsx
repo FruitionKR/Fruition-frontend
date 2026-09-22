@@ -4,10 +4,10 @@ import { cx } from "@/shared/lib/classNames";
 import { formatLintProgressLabel } from "@/features/wiki-ingest/model/activeLintOperation";
 import {
   isLintActionEnabled,
-  isWikiReflectEligible,
   selectActiveIngestDocuments
 } from "@/features/wiki-ingest/model/wikiReflectState";
 import { useActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
+import { isGraphIngestEligible } from "@/features/wiki-ingest/model/graphDocuments";
 import { fetchWikiMaintenanceStatus } from "@/features/document-notifications";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { Project } from "@/entities/tree";
@@ -42,7 +42,7 @@ export function GraphSidebarActions({
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
   const eligibleDocumentIds = useMemo(
-    () => new Set(documents.filter(isWikiReflectEligible).map((document) => document.id)),
+    () => new Set(documents.filter(isGraphIngestEligible).map((document) => document.id)),
     [documents]
   );
   const selectedDocuments = documents.filter(
@@ -133,13 +133,13 @@ export function GraphSidebarActions({
         <HoverHint
           className={styles["graph-pill-hint"]}
           text={isSelecting
-            ? "체크한 Markdown 문서를 위키 그래프에 편입합니다."
-            : "편입할 문서를 고르는 선택 모드를 엽니다. Markdown 문서만 편입할 수 있습니다."}
+            ? "선택한 문서를 위키에 편입합니다. PDF는 확인 후 Markdown으로 변환합니다."
+            : "편입할 PDF·Markdown 문서 또는 폴더를 선택합니다."}
         >
         <button
           type="button"
           className={styles["graph-pill"]}
-          disabled={isSelecting ? selectedDocuments.length === 0 : pending !== null || isLintActive}
+          disabled={pending !== null || isLintActive || (isSelecting && selectedDocuments.length === 0)}
           onClick={(event) => {
             event.stopPropagation();
             if (isSelecting) confirmSelection();

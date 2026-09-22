@@ -1,3 +1,4 @@
+import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -84,14 +85,24 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
  * 재발급까지 실패하면 로그인 필요 에러를 던진다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const response = await fetchWithToken(path, init);
+  let requestPath = path;
+  let requestInit = init;
+  if (typeof window !== "undefined" && usesDocumentTransport(path)) {
+    // 본문 없이 접근 코드 게이트를 확인한 뒤, 대용량 본문은 AWS로 보낸다.
+    const transport = await getDocumentTransport(init?.signal);
+    if (transport.origin) {
+      requestPath = transport.origin + path;
+      requestInit = { ...init, credentials: "omit" };
+    }
+  }
+  const response = await fetchWithToken(requestPath, requestInit);
   if (response.status !== 401) return response;
   // 비밀번호·MFA 코드 불일치는 인증 만료가 아니므로 재시도하지 않는다.
   if (await isCredentialRejection(path, response)) return response;
   // 로그인·회원가입 등 인증 요청 자체의 401은 재발급 대상이 아니지만, /me는 보호된 요청이다.
   const canRefresh = path === "/api/auth/me" || path.startsWith("/api/auth/me/") || !path.startsWith("/api/auth/");
   if (canRefresh && await tryRefreshTokens()) {
-    const retried = await fetchWithToken(path, init);
+    const retried = await fetchWithToken(requestPath, requestInit);
     if (retried.status !== 401) return retried;
     if (await isCredentialRejection(path, retried)) return retried;
   }

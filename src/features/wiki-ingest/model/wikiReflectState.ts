@@ -31,6 +31,12 @@ export function getWikiReflectState(document: DocumentItemResponse): WikiReflect
       (ACTIVE_PROCESSING_STATES as readonly string[]).includes(document.processing_state));
   if (isActive) return "processing";
 
+  // PDF 변환 완료도 completed이지만 위키 편입을 마쳤다는 뜻은 아니다.
+  // 변환 시 두 content hash가 같아 needs_reingest=false여도 최초 편입할 수 있어야 한다.
+  if (document.status === "completed" && document.pipeline_run_id?.startsWith("convert:")) {
+    return "not-included";
+  }
+
   if (document.needs_reingest === true) return "changed";
 
   if (document.status === "uploaded") return "not-included";

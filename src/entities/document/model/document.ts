@@ -6,6 +6,8 @@ export type DocumentRole = "EDITABLE" | "ORIGINAL";
 export type DocumentUploadResponse = {
   id: string;
   filename: string;
+  folder_id?: string | null;
+  current_version?: number;
   mime_type: string;
   byte_size: number;
   status: DocumentStatus;
@@ -15,6 +17,9 @@ export type DocumentUploadResponse = {
 };
 
 export type DocumentItemResponse = DocumentUploadResponse & {
+  /** 변환으로 생성된 문서의 원본 ID. 파일명 대신 이 관계로 변환본을 찾는다. */
+  source_document_id?: string;
+  pipeline_run_id?: string;
   extracted_text_uri?: string;
   processed_at?: string;
   processing_started_at?: string;

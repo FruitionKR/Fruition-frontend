@@ -3,7 +3,7 @@ import { useState } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { hasDroppedFiles } from "@/entities/tree";
 import type { Project } from "@/entities/tree";
-import { arrowIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { addFileIcon, arrowIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { InlineEditInput } from "./InlineEditInput";
 import { SidebarTree } from "./SidebarTree";
 import { useFileDropZone } from "../lib/useFileDropZone";
@@ -101,7 +101,7 @@ export function ProjectSection({
             onUploadToProject(project.id);
           }}
         >
-          +
+          <SvgIcon src={addFileIcon} className={styles["project-add-file-icon"]} />
         </button>
       </div>
       {isOpen && (

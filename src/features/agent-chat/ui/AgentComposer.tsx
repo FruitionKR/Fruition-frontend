@@ -1,4 +1,5 @@
-import { ArrowUp, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { sendIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
@@ -90,7 +91,7 @@ export function AgentComposer({
         readOnly={isLoading}
         aria-label="Query 질문 입력"
         aria-keyshortcuts={onCancel ? "Escape" : undefined}
-        rows={3}
+        rows={4}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
       />
@@ -168,7 +169,7 @@ export function AgentComposer({
           aria-label="전송"
           disabled={isLoading || !canSubmit || value.trim().length === 0}
         >
-          <ArrowUp size={15} />
+          <SvgIcon src={sendIcon} />
         </button>
       </div>
     </form>

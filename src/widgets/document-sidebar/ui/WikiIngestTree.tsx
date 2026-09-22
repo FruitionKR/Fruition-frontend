@@ -76,7 +76,9 @@ function IngestRow({
         disabled={!isSelectable}
         className={cx(styles["ingest-row"], isFolder && styles["is-folder"])}
         style={{ paddingLeft: INGEST_ROW_BASE_PADDING_PX + depth * INGEST_ROW_INDENT_PER_DEPTH_PX }}
-        title={isSelectable || isFolder ? undefined : "마크다운 문서만 위키에 편입할 수 있습니다."}
+        title={isSelectable ? undefined : isFolder
+          ? "편입할 수 있는 PDF·Markdown 문서가 없습니다. 처리 중이거나 이미 반영된 문서는 제외됩니다."
+          : "PDF·Markdown 문서만 선택할 수 있습니다. 처리 중이거나 이미 반영된 문서는 제외됩니다."}
         onClick={(event) => {
           event.stopPropagation();
           onToggle(targetIds);
