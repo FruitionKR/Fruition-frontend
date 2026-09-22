@@ -3,7 +3,7 @@ import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 import type { DocumentUploadResponse } from "@/entities/document/model/document";
 import { createClientId, isFileItem, isWikiItem } from "./guards";
 import { findTreeItem } from "./queries";
-import { availableFolderName } from "./names";
+import { availableFolderName, findItemLocation } from "./names";
 
 function itemContainsId(item: TreeItem, itemId: string): boolean {
   if (item.id === itemId) return true;
@@ -86,7 +86,7 @@ export function mergeTreeItemsIntoFolder(items: TreeItem[], draggedId: string, t
 
   const folder: TreeItem = {
     id: createClientId("merged-folder"),
-    label: folderName ?? availableFolderName([{ id: "", title: "", items }], "새 문서 묶음"),
+    label: folderName ?? availableFolderName([{ id: "", title: "", items }], "새 문서 묶음", findItemLocation([{ id: "", title: "", items }], targetId)),
     type: "folder",
     children: [targetItem, result.removed]
   };
@@ -110,7 +110,7 @@ export function moveProjectTreeItem(
     const targetItem = target.targetId ? findTreeItem(sourceProject.items, target.targetId) : null;
     let nextItems: TreeItem[];
     if (target.position === "inside" && target.targetId && dragged && targetItem && isFileItem(dragged) && isFileItem(targetItem)) {
-      nextItems = mergeTreeItemsIntoFolder(sourceProject.items, itemId, target.targetId, availableFolderName(projects, "새 문서 묶음"));
+      nextItems = mergeTreeItemsIntoFolder(sourceProject.items, itemId, target.targetId, availableFolderName(projects, "새 문서 묶음", findItemLocation(projects, target.targetId!)));
     } else {
       const normalizedTarget = target.position === "inside" && targetItem && isFileItem(targetItem)
         ? { ...target, position: "after" as const }
@@ -134,7 +134,7 @@ export function moveProjectTreeItem(
     if (target.position === "inside" && isFileItem(movedItem) && isFileItem(targetItem)) {
       const folder: TreeItem = {
         id: createClientId("merged-folder"),
-        label: availableFolderName(projects, "새 문서 묶음"),
+        label: availableFolderName(projects, "새 문서 묶음", findItemLocation(projects, target.targetId!)),
         type: "folder",
         children: [targetItem, movedItem]
       };

@@ -1,3 +1,4 @@
+import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import type { ContextMenuState } from "@/entities/tree";
 import { createPortal } from "react-dom";
 import styles from "./DocumentSidebar.module.css";
@@ -47,7 +48,9 @@ export function ContextMenu({
           Markdown으로 변환
         </button>
       )}
-      <button type="button" className={styles.danger} onClick={onDeleteContextTarget}>삭제</button>
+      {!(contextMenu.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) && (
+        <button type="button" className={styles.danger} onClick={onDeleteContextTarget}>삭제</button>
+      )}
     </div>,
     document.body
   );

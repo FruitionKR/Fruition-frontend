@@ -1,3 +1,4 @@
+import { fetchDocumentTree } from "@/entities/tree/api/folders";
 import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEvents";
 import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { getSessionContext } from "@/entities/chat/api/chat";
@@ -7,14 +8,15 @@ import type { DocumentListResponse } from "@/entities/document/model/document";
 
 export async function fetchBackendData(): Promise<BackendData> {
   const workspaceId = getWorkspaceId();
-  const [documentsResponse, graphResponse] = await Promise.all([
+  const [documentsResponse, graphResponse, tree] = await Promise.all([
     apiFetch(workspacePath(workspaceId, "documents"), { cache: "no-store" }),
-    apiFetch(workspacePath(workspaceId, "wiki", "graph"), { cache: "no-store" })
+    apiFetch(workspacePath(workspaceId, "wiki", "graph"), { cache: "no-store" }),
+    fetchDocumentTree(workspaceId)
   ]);
 
   const documents = await parseJsonOrThrow<DocumentListResponse>(documentsResponse, ERROR_MESSAGES.documentsLoadFailed);
   const graph = await parseJsonOrThrow<WikiGraphResponse>(graphResponse, ERROR_MESSAGES.wikiGraphLoadFailed);
-  return { documents: documents.documents ?? [], graph };
+  return { documents: documents.documents ?? [], graph, tree: tree.items };
 }
 
 // SSE로 전달되는 질의 진행 단계 이벤트.

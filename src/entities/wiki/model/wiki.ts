@@ -1,3 +1,4 @@
+import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { RelatedPageBase } from "@/shared/types/shared";
 
@@ -29,6 +30,7 @@ export type WikiGraphResponse = {
 };
 
 export type BackendData = {
+  tree?: ServerTreeItem[];
   documents: DocumentItemResponse[];
   graph: WikiGraphResponse;
 };

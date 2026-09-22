@@ -1,3 +1,5 @@
+import { fetchDocumentTree } from "@/entities/tree/api/folders";
+import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serverTree";
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
 import type { DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
@@ -7,7 +9,7 @@ import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
 
 export class DocumentNameConflictError extends Error {
   constructor(filename: string) {
-    super(`같은 워크스페이스에 '${filename}' 이름의 문서가 이미 있습니다. 다른 이름을 사용해 주세요.`);
+    super(`같은 폴더에 '${filename}' 이름의 항목이 이미 있습니다. 다른 이름을 사용해 주세요.`);
     this.name = "DocumentNameConflictError";
   }
 }
@@ -19,17 +21,22 @@ async function withUniqueDocumentName<T>(
   workspaceId: string,
   filename: string,
   excludedDocumentId: string | null,
-  action: () => Promise<T>
+  action: () => Promise<T>,
+  folderId: string | null = null
 ): Promise<T> {
   const normalize = (value: string) => value.trim().normalize("NFC").toLowerCase();
   const name = normalize(filename);
-  const reservation = JSON.stringify([workspaceId, name]);
+  const tree = await fetchDocumentTree(workspaceId);
+  const parentId = excludedDocumentId ? findServerParent(tree.items, excludedDocumentId) : folderId;
+  if (parentId === undefined) throw new Error("문서를 찾을 수 없습니다. 목록을 새로고침해 주세요.");
+  const reservation = JSON.stringify([workspaceId, parentId, name]);
   if (pendingDocumentNames.has(reservation)) throw new DocumentNameConflictError(filename);
   pendingDocumentNames.add(reservation);
   try {
-    const response = await apiFetch(workspacePath(workspaceId, "documents"), { cache: "no-store" });
-    const data = await parseJsonOrThrow<{ documents: DocumentItemResponse[] }>(response, ERROR_MESSAGES.documentsLoadFailed);
-    if ((data.documents ?? []).some((document) => document.id !== excludedDocumentId && normalize(document.filename) === name)) {
+    const parent = parentId ? findServerTreeItem(tree.items, parentId) : null;
+    if (parentId && (!parent || parent.type !== "folder")) throw new Error("업로드할 폴더를 찾을 수 없습니다.");
+    const siblings = parent ? parent.children ?? [] : tree.items;
+    if (siblings.some((item) => item.id !== excludedDocumentId && normalize(item.name) === name)) {
       throw new DocumentNameConflictError(filename);
     }
     return await action();
@@ -48,15 +55,16 @@ export async function fetchDocuments() {
   return data.documents ?? [];
 }
 
-export async function uploadDocumentFile(file: File) {
+export async function uploadDocumentFile(file: File, folderId: string | null = null) {
   const workspaceId = getWorkspaceId();
   return withUniqueDocumentName(workspaceId, file.name, null, async () => {
     const transport = await getDocumentTransport();
     if (transport.directUpload && file.name.toLowerCase().endsWith(".pdf")) {
-      return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file);
+      return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId);
     }
     const formData = new FormData();
     formData.append("file", file);
+    if (folderId) formData.append("folder_id", folderId);
 
     const response = await apiFetch(workspacePath(workspaceId, "documents"), {
       method: "POST",
@@ -65,7 +73,7 @@ export async function uploadDocumentFile(file: File) {
     });
 
     return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
-  });
+  }, folderId);
 }
 
 /** 문서 ingest를 시작한다. 편집 가능 Markdown 전용이라 reflectDocumentToWiki를 거쳐 호출한다. */
@@ -146,7 +154,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
 }
 
 /** 문서 표시명을 변경한다. */
-export async function renameDocument(documentId: string, filename: string): Promise<void> {
+export async function renameDocument(documentId: string, filename: string, folderId: string | null = null): Promise<void> {
   const workspaceId = getWorkspaceId();
   const detailResponse = await apiFetch(workspacePath(workspaceId, "documents", documentId), { cache: "no-store" });
   const detail = await parseJsonOrThrow<{ current_version?: number; filename?: string } | null>(
@@ -170,7 +178,7 @@ export async function renameDocument(documentId: string, filename: string): Prom
       }
     );
     await throwIfNotOk(response, ERROR_MESSAGES.documentRenameFailed);
-  });
+  }, folderId);
 }
 
 /** 현재 워크스페이스의 원본 문서를 인증된 요청으로 가져온다. */

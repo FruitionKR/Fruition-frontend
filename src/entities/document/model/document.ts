@@ -6,6 +6,8 @@ export type DocumentRole = "EDITABLE" | "ORIGINAL";
 export type DocumentUploadResponse = {
   id: string;
   filename: string;
+  folder_id?: string | null;
+  current_version?: number;
   mime_type: string;
   byte_size: number;
   status: DocumentStatus;

@@ -51,7 +51,7 @@ test("large PDF is sent in parts to storage without auth and completion goes to 
   let storageSeen = false;
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path === "/api/document-transport") return transport();
-    if (path === "https://api.example.test/api/workspaces/ws_test/documents" && (!init?.method || init.method === "GET")) return Response.json({ documents: [] });
+    if (path === "https://api.example.test/api/workspaces/ws_test/document-tree" && (!init?.method || init.method === "GET")) return Response.json({ items: [] });
     if (path === "https://api.example.test/api/workspaces/ws_test/documents/uploads") {
       assert.equal(init.headers.get("Authorization"), "Bearer access-test");
       assert.equal(JSON.parse(init.body).size, file.size);
@@ -78,7 +78,7 @@ test("editing preserves revision conflict and does not proxy the body through Ve
   browser(t);
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path === "/api/document-transport") return transport();
-    if (path === "https://api.example.test/api/workspaces/ws_test/documents" && (!init?.method || init.method === "GET")) return Response.json({ documents: [] });
+    if (path === "https://api.example.test/api/workspaces/ws_test/document-tree" && (!init?.method || init.method === "GET")) return Response.json({ items: [] });
     assert.equal(path, "https://api.example.test/api/workspaces/ws_test/documents/doc_test/content");
     assert.equal(init.method, "PUT");
     assert.equal(init.body.get("base_revision"), "12");
@@ -93,7 +93,7 @@ test("expired token refreshes on the same origin and retries the same direct bod
   let attempts = 0;
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path === "/api/document-transport") return transport();
-    if (path === "https://api.example.test/api/workspaces/ws_test/documents" && (!init?.method || init.method === "GET")) return Response.json({ documents: [] });
+    if (path === "https://api.example.test/api/workspaces/ws_test/document-tree" && (!init?.method || init.method === "GET")) return Response.json({ items: [] });
     if (path === "/api/auth/refresh") return Response.json({ access_token: "renewed" });
     assert.equal(path, "https://api.example.test/api/workspaces/ws_test/documents");
     assert.equal(init.body, body);
@@ -115,7 +115,7 @@ test("failed storage PUT aborts without registering a document", async t => {
   browser(t);
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path === "/api/document-transport") return transport();
-    if (path === "https://api.example.test/api/workspaces/ws_test/documents" && (!init?.method || init.method === "GET")) return Response.json({ documents: [] });
+    if (path === "https://api.example.test/api/workspaces/ws_test/document-tree" && (!init?.method || init.method === "GET")) return Response.json({ items: [] });
     if (path.endsWith("/documents/uploads")) return Response.json({ part_size: 64 * 1024 * 1024, part_count: 1, ticket: "ticket" });
     if (path.endsWith("/uploads/parts")) return Response.json({ parts: [{ part_number: 1, url: "https://storage.example.test/bucket" }] });
     if (path.endsWith("/uploads/abort")) return new Response(null, { status: 204 });
@@ -136,7 +136,7 @@ test("3GiB upload slices at long offsets with at most three concurrent PUTs and 
   const uploaded = new Set();
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path === "/api/document-transport") return transport();
-    if (path.endsWith("/documents")) return Response.json({ documents: [] });
+    if (path.endsWith("/document-tree")) return Response.json({ items: [] });
     if (path.endsWith("/uploads")) return Response.json({ ticket: "ticket", part_size: chunk, part_count: 48 });
     if (path.endsWith("/parts")) {
       const { first_part, count } = JSON.parse(init.body);

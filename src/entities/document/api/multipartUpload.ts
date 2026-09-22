@@ -5,10 +5,10 @@ type Start = { ticket: string; part_size: number; part_count: number };
 type PartUrl = { part_number: number; url: string };
 
 /** 본문을 메모리에 복제하지 않고 Blob.slice를 전송한다. 동시에 최대 3개, 실패한 조각만 최대 3회 재시도한다. */
-export async function uploadPdfMultipart(endpoint: string, file: File): Promise<DocumentUploadResponse> {
+export async function uploadPdfMultipart(endpoint: string, file: File, folderId: string | null = null): Promise<DocumentUploadResponse> {
   const started = await apiFetch(endpoint, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename: file.name, size: file.size })
+    body: JSON.stringify({ filename: file.name, size: file.size, folder_id: folderId })
   });
   const upload = await parseJsonOrThrow<Start>(started, ERROR_MESSAGES.uploadFailed);
   const idempotencyKey = crypto.randomUUID();

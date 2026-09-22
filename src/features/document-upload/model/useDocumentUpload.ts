@@ -5,6 +5,7 @@ import { publishNotice } from "@/features/document-notifications";
 import {
   appendItemsToFolder,
   availableDocumentName,
+  serverFolderId,
   applyUploadedDocument,
   createClientId,
   findTreeItem,
@@ -69,7 +70,7 @@ export function useDocumentUpload({
     }));
 
     uploads.forEach(({ file, item }) => {
-      void uploadDocumentFile(file)
+      void uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }))
         .then((response) => {
           setDocuments((current) => {
             const withoutCurrent = current.filter((document) => document.id !== response.id);
@@ -105,7 +106,7 @@ export function useDocumentUpload({
   function createMarkdownFile(projectId: string, folderId: string | null) {
     const noteId = createClientId("note");
     const markdown = `<!-- fruition-note: ${noteId} -->\n# 새 노트\n`;
-    const file = new File([markdown], availableDocumentName(projects, "새 노트.md"), { type: "text/markdown" });
+    const file = new File([markdown], availableDocumentName(projects, "새 노트.md", { projectId, folderId }), { type: "text/markdown" });
     dropUploadFiles(projectId, folderId, [file]);
   }
 
