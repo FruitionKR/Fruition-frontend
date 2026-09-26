@@ -8,6 +8,7 @@
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
+  font-size: 13px;
 }
 
 .invite-form {
@@ -28,7 +29,7 @@
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .filter-btn {
@@ -41,12 +42,55 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.28px;
   white-space: nowrap;
 }
 
 .filter-accent {
   color: var(--yellow);
+}
+
+/* 필터 드롭다운 */
+.filter-wrap {
+  position: relative;
+}
+
+.filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.filter-option {
+  padding: 6px 8px;
+  color: var(--ink);
+  background: transparent;
+  border-radius: 4px;
+  font-size: 14px;
+  letter-spacing: -0.28px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.filter-option:hover,
+.filter-option:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.filter-option.is-selected {
+  color: var(--yellow);
+  font-weight: 600;
 }
 
 .search-btn {
@@ -72,17 +116,20 @@
   padding: 6px 10px;
   color: var(--bg);
   background: var(--yellow);
+  border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.28px;
   white-space: nowrap;
 }
 
 .filter-btn:disabled,
 .search-btn:disabled,
 .invite-btn:disabled,
-.role-chip:disabled,
-.more-btn:disabled {
+.role-select:disabled,
+.more-btn:disabled,
+.filter-option:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -93,22 +140,23 @@
   flex-direction: column;
 }
 
+/* 체크박스 20 + 좌측 400 컨테이너 + 우측 끝 더보기 28 */
 .row {
   display: grid;
   grid-template-columns: 20px minmax(0, 400px) 1fr;
   align-items: center;
-  gap: 16px;
-  padding: 12px 0;
+  gap: 24px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   color: var(--ink);
   font-size: 14px;
 }
 
-/* 헤더 행은 더보기 열이 없어 2열만 쓴다. */
 .row-head {
-  grid-template-columns: 20px minmax(0, 400px);
+  height: 40px;
   color: #c4c4c4;
   font-weight: 500;
+  letter-spacing: -0.28px;
 }
 
 /* 사용자 정보 + 권한을 좌측 ~400px 컨테이너에 배치한다. */
@@ -124,7 +172,6 @@
   height: 20px;
   border: 1px solid #a7a7a7;
   border-radius: 4px;
-  opacity: 0.6;
 }
 
 .cell-role {
@@ -136,7 +183,7 @@
 .profile {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -152,40 +199,97 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  line-height: 1.2;
 }
 
 .profile-name {
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.28px;
 }
 
 .profile-email {
   color: var(--subdued);
   font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
 }
 
+/* 권한 라벨 (Figma label): select 위에 셰브론을 겹쳐 드롭다운처럼 보인다. */
 .role-chip {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px;
-  color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-size: 12px;
-  white-space: nowrap;
+}
+
+.role-select {
+  appearance: none;
+  width: 58px;
+  padding: 6px 22px 6px 6px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.role-select:focus-visible {
+  outline: none;
+}
+
+.role-chip:focus-within {
+  border-color: var(--soft);
+}
+
+.role-chip .chev-icon {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
 }
 
 /* 행 우측 끝 더보기 버튼 */
-.more-btn {
+.more-wrap {
+  position: relative;
   justify-self: end;
-  padding: 0 6px;
+}
+
+.more-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   color: var(--muted);
   background: transparent;
-  font-size: 16px;
-  line-height: 1;
+  border-radius: 4px;
+}
+
+.more-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
 /* 드롭다운 셰브론 아이콘 (svg/setting_scroll.svg) */
