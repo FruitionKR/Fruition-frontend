@@ -280,9 +280,10 @@ button.nav-row:disabled {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: -0.24px;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 

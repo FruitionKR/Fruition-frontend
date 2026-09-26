@@ -1,9 +1,77 @@
-/* 계정 설정 패널 전용 스타일 (Figma 963:8660). */
+/* 계정 설정 패널 전용 스타일 (Figma 1127:5275). */
 
+/* 로그인된 기기 행: 우측에 새로고침 아이콘 + 기기 수 pill (Figma 1131:5851) */
+.sessions-row {
+  padding-bottom: 0;
+}
 
-/* 로그인된 기기 목록 (Figma 1127:5249 행 형태: 40px, 24px 아이콘, 14px/600 라벨) */
+.sessions-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sessions-refresh {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--subdued);
+  background: transparent;
+}
+
+.sessions-refresh:hover:not(:disabled),
+.sessions-refresh:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--ink);
+}
+
+.sessions-refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.sessions-refresh-icon {
+  width: 14px;
+  height: 16px;
+}
+
+.sessions-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  color: var(--ink);
+  background: var(--soft);
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* 셰브론(아래 방향 원본)을 Figma대로 오른쪽으로 돌린다 */
+.sessions-count-arrow {
+  width: 8px;
+  height: 8px;
+  color: var(--muted);
+  transform: rotate(-90deg);
+}
+
+/* 기기 목록 표 (Figma 1131:5859): 120/160/220px 열 + 우측 버튼, 행마다 하단 구분선 */
+.device-table {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 40px;
+  overflow-x: auto;
+}
+
 .device-list {
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
@@ -11,60 +79,85 @@
 }
 
 .device-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(160px, 1fr) minmax(220px, 1.2fr) 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.device-row > :last-child {
+  justify-self: end;
+}
+
+.device-head {
+  height: 40px;
+  padding: 10px 12px;
+  color: #c4c4c4;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
+}
+
+.device-title {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 40px;
-  padding: 4px 6px;
-  border-radius: 6px;
-}
-
-.device-row.is-current {
-  background: var(--soft);
+  min-width: 0;
 }
 
 .device-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
 }
 
-.device-text {
-  flex: 1 1 0;
+.device-label {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  line-height: 1.2;
 }
 
 .device-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
-  line-height: 1.4;
-}
-
-.device-name em {
-  color: var(--yellow);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 600;
-}
-
-.device-meta {
-  color: var(--muted);
-  font-size: 12px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.device-current {
+  color: var(--yellow);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -0.24px;
+}
+
+.device-cell {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-cell-muted {
+  color: var(--subdued);
 }
 
 .device-empty {
-  padding: 8px 6px;
-  color: var(--muted);
+  padding: 12px;
+  color: var(--subdued);
   font-size: 12px;
 }

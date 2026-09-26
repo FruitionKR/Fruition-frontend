@@ -49,6 +49,8 @@ const plusIcon = { inlineIcon: "plus" } as const;
 const settingIcon = { inlineIcon: "setting" } as const;
 const settingScrollIcon = { inlineIcon: "settingScroll" } as const;
 const skillBackIcon = { inlineIcon: "skillBack" } as const;
+const moreIcon = { inlineIcon: "more" } as const;
+const retryIcon = { inlineIcon: "retry" } as const;
 
 export type SvgAsset =
   | StaticImageData
@@ -58,7 +60,9 @@ export type SvgAsset =
   | typeof plusIcon
   | typeof settingIcon
   | typeof settingScrollIcon
-  | typeof skillBackIcon;
+  | typeof skillBackIcon
+  | typeof moreIcon
+  | typeof retryIcon;
 
 export {
   sendIcon,
@@ -69,6 +73,8 @@ export {
   refreshIcon,
   settingScrollIcon,
   skillBackIcon,
+  moreIcon,
+  retryIcon,
   userCircleOutlineIcon,
   questionMarkIcon,
   bellIcon,
@@ -132,6 +138,21 @@ const inlineIconRenderers = new Map<SvgAsset, (iconClassName: string) => ReactEl
   [skillBackIcon, (iconClassName) => (
     <svg aria-hidden className={iconClassName} viewBox="0 0 5 10" fill="none">
       <path d="M4.31836 0.650391L0.884045 4.08471C0.571625 4.39712 0.571625 4.90366 0.884044 5.21608L4.31836 8.65039" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )],
+  // 행 우측 더보기 점 세 개 (Figma folder/tab 415:647): currentColor로 색 상속
+  [moreIcon, (iconClassName) => (
+    <svg aria-hidden className={iconClassName} viewBox="0 0 28 28" fill="none">
+      <circle cx="8.1668" cy="14" r="1.2" fill="currentColor" />
+      <circle cx="14.0002" cy="14" r="1.2" fill="currentColor" />
+      <circle cx="19.8335" cy="14" r="1.2" fill="currentColor" />
+    </svg>
+  )],
+  // 로그인된 기기 새로고침 (Figma 1131:5913 retry 에셋): currentColor로 색 상속
+  [retryIcon, (iconClassName) => (
+    <svg aria-hidden className={iconClassName} viewBox="0 0 14 15.6334" fill="none">
+      <path d="M1.14859 8.96514C1.14859 9.73358 1.29994 10.4945 1.59401 11.2044C1.88808 11.9144 2.3191 12.5594 2.86247 13.1028C3.40583 13.6462 4.0509 14.0772 4.76084 14.3713C5.47078 14.6653 6.23169 14.8167 7.00013 14.8167C7.76856 14.8167 8.52948 14.6653 9.23942 14.3713C9.94936 14.0772 10.5944 13.6462 11.1378 13.1028C11.6812 12.5594 12.1122 11.9144 12.4062 11.2044C12.7003 10.4945 12.8517 9.73358 12.8517 8.96514C12.8517 7.41322 12.2352 5.92485 11.1378 4.82748C10.0404 3.7301 8.55205 3.1136 7.00013 3.1136" stroke="currentColor" strokeWidth="1.63336" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.30595 0.816682L6.00725 3.11538L8.30595 5.41409" stroke="currentColor" strokeWidth="1.63336" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )],
   // 사이드바 메뉴용 검색: 36 버튼 규격, currentColor로 hover/활성 색 반영

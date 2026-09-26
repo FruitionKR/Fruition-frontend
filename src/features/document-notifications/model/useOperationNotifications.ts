@@ -1,17 +1,27 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { fetchOperationLogs, type OperationLogItem } from "@/entities/operation-log";
+import { fetchOperationLogs, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
 import { useUserPreferences } from "@/entities/user";
 import { publishNotice } from "./noticeBus";
 
 const POLL_INTERVAL_MS = 15_000;
+// 진행 중인 작업을 알고 있으면 종결을 빨리 잡도록 짧게 폴링한다.
+const ACTIVE_POLL_INTERVAL_MS = 3_000;
 const TERMINAL_STATUSES = new Set(["succeeded", "partially_succeeded", "failed", "conflict"]);
+// 목록 조회는 status를 비우면 진행 중 로그를 숨기므로, 진행 중 상태를 따로 조회해 합친다.
+// lint는 processing만 거치고 restore는 applying → rebuilding(→ notify_pending)을 거친다.
+const ACTIVE_QUERIES: { type: "lint" | "restore"; status: OperationStatus }[] = [
+  { type: "lint", status: "processing" },
+  { type: "restore", status: "applying" },
+  { type: "restore", status: "rebuilding" },
+  { type: "restore", status: "notify_pending" }
+];
 
 // ingest는 문서 처리 알림이 담당하고, document_edit은 채팅 화면에서 즉시 확인되므로 제외한다.
 const WATCHED_TYPES: Record<string, string> = {
   lint: "Lint",
-  restore: "복구"
+  restore: "롤백"
 };
 
 function isTerminal(status: string) {
@@ -43,13 +53,19 @@ export function useOperationNotifications() {
     if (!enabled) return;
 
     let cancelled = false;
+    let timer = 0;
 
     async function poll() {
       let logs: OperationLogItem[];
       try {
-        logs = (await fetchOperationLogs()).logs;
+        const [terminal, ...active] = await Promise.all([
+          fetchOperationLogs(),
+          ...ACTIVE_QUERIES.map((query) => fetchOperationLogs({ ...query, size: 10 }))
+        ]);
+        logs = [...terminal.logs, ...active.flatMap((page) => page.logs)];
       } catch {
         // 워크스페이스 미선택·일시적 실패는 다음 폴링에서 재시도한다.
+        schedule(POLL_INTERVAL_MS);
         return;
       }
       if (cancelled) return;
@@ -71,13 +87,19 @@ export function useOperationNotifications() {
         }
       }
       knownStatusesRef.current = next;
+      const hasActive = logs.some((log) => !isTerminal(log.status));
+      schedule(hasActive ? ACTIVE_POLL_INTERVAL_MS : POLL_INTERVAL_MS);
+    }
+
+    function schedule(delay: number) {
+      if (cancelled) return;
+      timer = window.setTimeout(() => void poll(), delay);
     }
 
     void poll();
-    const timer = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
   }, [enabled, lintEnabled, restoreEnabled]);
 }

@@ -82,3 +82,23 @@ test("변환 시작한 문서나 processing_stage가 convert인 문서는 PDF �
 test("진행 중인 작업이 없으면 구역이 하나도 없다", () => {
   assert.deepEqual(buildWikiWorkSections([], null), []);
 });
+
+test("진행 중인 롤백은 롤백 구역에 대상 이름과 시작 시각으로 표시한다", () => {
+  const restore = makeLog({
+    operation_id: "op_restore",
+    operation_type: "restore",
+    status: "applying",
+    target_display_name: "회의록.md",
+    created_at: "2026-08-17T03:04:00Z"
+  });
+
+  const sections = buildWikiWorkSections([], null, new Set(), [restore]);
+
+  assert.deepEqual(sections, [
+    {
+      kind: "restore",
+      title: "롤백",
+      rows: [{ key: "restore-op_restore", label: "회의록.md", startTime: localHHMM("2026-08-17T03:04:00Z") }]
+    }
+  ]);
+});

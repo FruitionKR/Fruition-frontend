@@ -202,6 +202,17 @@ export function seed() {
         { id: 7, resource_type: "wiki_page", resource_id: "page_c_ingest", resource_display_name: "Ingest", page_type: "concept", before_revision: 1, after_revision: 2, change_type: "updated", change_summary: "요약 문장 정리", additions: 2, deletions: 1 },
         { id: 8, resource_type: "wiki_page", resource_id: "page_c_rag", resource_display_name: "RAG 검색", page_type: "concept", before_revision: 1, after_revision: 2, change_type: "updated", change_summary: "링크 보정", additions: 1, deletions: 1 }
       ] },
+    // 완료된 롤백: 생성됐던 페이지 삭제(deleted, diff 없음)와 수정됐던 페이지 복원(restored)
+    { operation_id: "op_restore_1", workspace_id: WORKSPACE_ID, operation_type: "restore", status: "succeeded", target_document_id: null, target_display_name: null, summary: "2개 페이지 다듬음 롤백", changed_resource_count: 2, restored_from: "op_lint_1", created_at: minutesAgo(20), completed_at: minutesAgo(19),
+      changes: [
+        { id: 20, resource_type: "wiki_page", resource_id: "page_c_workspace", resource_display_name: "워크스페이스", before_revision: 1, after_revision: null, change_type: "deleted", change_summary: "받치는 기여가 남지 않아 삭제했습니다.", additions: null, deletions: null },
+        { id: 21, resource_type: "wiki_page", resource_id: "page_c_ingest", resource_display_name: "Ingest", before_revision: 2, after_revision: 1, change_type: "restored", change_summary: "revision 1 내용으로 되돌렸습니다.", additions: 1, deletions: 2,
+          hunks: [{ old_start: 3, old_lines: 2, new_start: 3, new_lines: 1, lines: [
+            { type: "DELETE", old_line: 3, new_line: null, content: "편집 가능한 Markdown을 입력으로 받아 페이지를 생성한다." },
+            { type: "DELETE", old_line: 4, new_line: null, content: "완료 후 Lint가 필요할 수 있다." },
+            { type: "ADD", old_line: null, new_line: 3, content: "편집 가능한 Markdown을 입력으로 받아 source/concept 페이지를 생성한다. 완료 후 [[Lint]]가 필요할 수 있다." }
+          ] }] }
+      ] },
     { operation_id: "op_ingest_failed", workspace_id: WORKSPACE_ID, operation_type: "ingest", status: "failed", target_document_id: "doc_failed", target_display_name: "깨진 문서.md", summary: "LLM 응답 파싱에 실패했습니다.", changed_resource_count: 0, restored_from: null, created_at: minutesAgo(49), completed_at: minutesAgo(48), changes: [] }
   );
 
