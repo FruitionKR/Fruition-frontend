@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/serverTree";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
 import { Graph } from "@/widgets/graph/ui/Graph";
@@ -20,6 +21,7 @@ import {
 import { railItems, type RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
 import { DeleteConfirmModal } from "@/shared/ui/DeleteConfirmModal";
+import { MergeConfirmModal } from "@/shared/ui/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
 import { useBackendData } from "../model/useBackendData";
@@ -160,12 +162,12 @@ export function HomeWorkspace() {
   }, [documents, pendingConvertDocumentIds, projectTree.projects, selection]);
 
   const selectedDocumentParentLabel = useMemo(() => {
-    if (!selection.selectedTreeItemId) return "업로드 문서";
+    if (!selection.selectedTreeItemId) return ROOT_DOCUMENTS_TITLE;
     for (const project of projectTree.projects) {
       const parentLabel = findParentLabel(project.items, selection.selectedTreeItemId, project.title);
       if (parentLabel) return parentLabel;
     }
-    return "업로드 문서";
+    return ROOT_DOCUMENTS_TITLE;
   }, [projectTree.projects, selection.selectedTreeItemId]);
 
   const selectedDocumentEditedAt = useMemo(() => {
@@ -383,6 +385,7 @@ export function HomeWorkspace() {
         projects={isGraphView ? graphProjects : projectTree.projects}
         draggedItemId={projectTree.draggedItem?.itemId ?? null}
         selectedItemId={selection.selectedTreeItemId}
+        selectedItemIds={projectTree.selectedItemIds}
         dropTarget={projectTree.dropTarget}
         fileDropTarget={projectTree.fileDropTarget}
         editing={projectTree.editing}
@@ -416,6 +419,8 @@ export function HomeWorkspace() {
         onMoveItem={projectTree.moveTreeEntry}
         onDropFiles={upload.dropUploadFiles}
         onDragStart={projectTree.onDragStart}
+        onToggleSelectItem={projectTree.toggleSelectedItem}
+        onClearSelectedItems={projectTree.clearSelectedItems}
         onDragOverItem={projectTree.onDragOverItem}
         onFileDragOver={projectTree.setFileDropTarget}
         onFileDragLeave={projectTree.onFileDragLeave}
@@ -428,8 +433,12 @@ export function HomeWorkspace() {
         onCancelEditing={projectTree.cancelEditing}
         onRenameContextTarget={projectTree.renameContextTarget}
         onAddMarkdownFromContext={() => {
-          const target = projectTree.takeMarkdownTargetFromContext();
+          const target = projectTree.takeFolderTargetFromContext();
           if (target) upload.createMarkdownFile(target.projectId, target.folderId);
+        }}
+        onUploadFromContext={() => {
+          const target = projectTree.takeFolderTargetFromContext();
+          if (target) upload.openUploadPicker(target.projectId, target.folderId);
         }}
         onConvertContextTarget={projectTree.convertContextTargetToMarkdown}
         onDeleteContextTarget={projectTree.deleteContextTarget}
@@ -538,6 +547,13 @@ export function HomeWorkspace() {
           target={projectTree.deleteConfirm}
           onConfirm={projectTree.confirmDelete}
           onCancel={projectTree.cancelDelete}
+        />
+      )}
+      {projectTree.mergeConfirm && (
+        <MergeConfirmModal
+          target={projectTree.mergeConfirm}
+          onConfirm={projectTree.confirmMerge}
+          onCancel={projectTree.cancelMerge}
         />
       )}
     </main>

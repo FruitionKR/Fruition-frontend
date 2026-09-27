@@ -1,6 +1,7 @@
 import { cx } from "@/shared/lib/classNames";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import {
+  addFileIcon,
   collectionIcon,
   graphSelectIcon,
   homeIcon,
@@ -16,7 +17,7 @@ import { canCreateProjectFromView } from "../model/sidebarMenu";
 import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
-// Figma 747:5861 — 좌측 홈/그래프/로그/검색, 우측 새 폴더. 활성 항목은 select 아이콘으로 렌더한다.
+// Figma 747:5861 — 좌측 홈/그래프/로그/검색, 우측 파일 업로드·새 폴더. 활성 항목은 select 아이콘으로 렌더한다.
 const menuItems: { id: RailView; label: string; icon: SvgAsset; selectIcon: SvgAsset }[] = [
   { id: "home", label: "홈", icon: homeIcon, selectIcon: homeSelectIcon },
   { id: "graph", label: "그래프", icon: shareIcon, selectIcon: graphSelectIcon },
@@ -39,13 +40,16 @@ export function SidebarMenuRow({
   isSearchOpen,
   onViewChange,
   onToggleSearch,
-  onAddProject
+  onAddProject,
+  onUploadFile
 }: {
   activeView: RailView;
   isSearchOpen: boolean;
   onViewChange: (view: RailView) => void;
   onToggleSearch: () => void;
   onAddProject: () => void;
+  /** 루트에 파일을 업로드하는 파일 선택기를 연다. */
+  onUploadFile: () => void;
 }) {
   return (
     <nav className={styles["sidebar-menu"]} aria-label="워크스페이스 메뉴">
@@ -86,7 +90,22 @@ export function SidebarMenuRow({
         </HoverHint>
       )}
       {canCreateProjectFromView(activeView) && (
-        <HoverHint placement="bottom" align="end" className={styles["sidebar-menu-add"]} text="새 프로젝트 폴더를 만듭니다.">
+        <HoverHint placement="bottom" align="end" className={styles["sidebar-menu-add"]} text="파일을 업로드합니다.">
+        <button
+          type="button"
+          className={styles["sidebar-menu-item"]}
+          aria-label="파일 업로드"
+          onClick={(event) => {
+            event.stopPropagation();
+            onUploadFile();
+          }}
+        >
+          <SvgIcon src={addFileIcon} className={cx(styles["sidebar-menu-icon"], styles["sidebar-upload-icon"])} />
+        </button>
+        </HoverHint>
+      )}
+      {canCreateProjectFromView(activeView) && (
+        <HoverHint placement="bottom" align="end" text="새 프로젝트 폴더를 만듭니다.">
         <button
           type="button"
           className={styles["sidebar-menu-item"]}

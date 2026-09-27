@@ -401,6 +401,11 @@
   padding: 10px;
 }
 
+/* 파일 업로드 + 아이콘은 16 캔버스라 36 캔버스 아트와 시각 크기를 맞춘다 */
+.sidebar-upload-icon {
+  padding: 9px;
+}
+
 /* 검색 토글 열림 상태 (Figma 시안엔 없음 — 기존 활성 배경 규칙 준용) */
 .sidebar-menu-item.is-open {
   color: var(--ink);
@@ -582,116 +587,31 @@
   background: var(--soft);
 }
 
-/* --- project-section --- */
-.project-section {
-  margin-top: 0;
-}
-
-.project-section {
+/* --- 루트 트리 --- */
+.tree-root {
   position: relative;
+  min-height: 120px;
   padding: 0 16px;
-  border-radius: 6px;
 }
 
-.project-section + .project-section {
-  margin-top: 12px;
-}
-
-.project-section.is-file-drop-target {
-  background: rgba(255, 193, 23, 0.1);
-  outline: 1px solid rgba(255, 193, 23, 0.52);
-}
-
-.project-section.is-file-drop-target > :not(.project-drop-overlay) {
-  opacity: 0.42;
-}
-
-.project-section.is-file-drop-target::after {
-  content: "이 프로젝트에 추가";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 2;
-  transform: translate(-50%, -50%);
-  padding: 6px 10px;
-  color: #7d5d00;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(255, 193, 23, 0.58);
-  border-radius: 999px;
-  box-shadow: 0 5px 14px rgba(35, 47, 66, 0.1);
-  font-size: 11px;
-  font-weight: 800;
-  pointer-events: none;
-}
-
-.project-title {
-  position: relative;
-  width: 100%;
-  height: 36px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 16px;
-  align-items: center;
-  gap: 0;
-  padding-right: 8px;
-  border-radius: 6px;
-}
-
-.project-title:hover,
-.project-title:has(:focus-visible),
-.project-title.is-tree-drop-target {
-  --button-hover-overlay: none;
-  background: #323232;
-}
-
-.project-title.is-tree-drop-target::after {
+/* 여백에 항목을 끌어다 놓으면 루트로 이동한다 */
+.tree-root.is-tree-drop-target::after {
   content: "";
   position: absolute;
-  right: 8px;
-  bottom: 0;
-  left: 8px;
-  height: 2px;
-  background: var(--yellow);
-  border-radius: 999px;
-}
-
-.project-section.is-primary .project-toggle {
-  color: #e2e2e2;
-}
-
-.project-add-file {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--muted);
-  background: transparent;
-  border-radius: 4px;
-  opacity: 0;
+  inset: 0 16px;
+  border: 1px dashed rgba(255, 193, 23, 0.52);
+  border-radius: 6px;
   pointer-events: none;
-  transition: opacity 120ms ease;
 }
 
-.project-add-file-icon {
-  width: 16px;
-  height: 16px;
+.tree-root-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--subdued);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-.project-title:hover .project-add-file,
-.project-title:has(:focus-visible) .project-add-file {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.project-add-file:hover,
-.project-add-file:focus-visible {
-  --button-hover-overlay: none;
-  color: var(--ink);
-  background: #323232;
-}
-
-.project-arrow,
 .tree-arrow {
   width: 8px;
   height: 8px;
@@ -700,63 +620,10 @@
   transition: transform 120ms ease, opacity 120ms ease;
 }
 
-.project-arrow.is-open,
 .tree-arrow.is-open {
   transform: rotate(90deg);
 }
 
-.project-toggle {
-  width: 100%;
-  box-sizing: border-box;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  color: var(--subdued);
-  background: transparent;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.project-toggle {
-  min-width: 0;
-  justify-content: flex-start;
-  gap: 10px;
-  color: #8a8a8a;
-  text-align: left;
-}
-
-.project-toggle span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-toggle:hover,
-.project-toggle:focus-visible {
-  --button-hover-overlay: none;
-  color: #e2e2e2;
-}
-
-.project-toggle:hover,
-.project-toggle:focus-visible {
-  --button-hover-overlay: none;
-  background: transparent;
-}
-
-.project-toggle:focus-visible {
-  outline: 2px solid rgba(90, 118, 160, 0.28);
-  outline-offset: 1px;
-}
-
-.project-empty {
-  margin: 0;
-  padding: 8px;
-  color: var(--subdued);
-  font-size: 12px;
-}
 
 /* --- tree-row --- */
 .tree-row {
@@ -788,8 +655,33 @@
   height: 33px;
 }
 
+/* Cmd/Ctrl+클릭으로 고른 항목: 이동 대상임을 노란 블록으로 표시 (Figma 1027:7161) */
+.tree-row.is-selected,
+.tree-row.is-selected:hover,
+.tree-row.is-selected:focus-visible {
+  --button-hover-overlay: none;
+  background: rgba(102, 74, 0, 0.8);
+}
+
 .tree-row.is-dragging {
   opacity: 0.18;
+}
+
+/* 업로드 중 자리표시 행: 흐리게, 클릭 불가 */
+.tree-row.is-uploading {
+  color: #8a8a8a;
+  cursor: progress;
+}
+
+/* 폴더 슬롯 자리에 도는 8px 링 (keyframes는 base.css 전역 spin) */
+.tree-upload-spinner {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border: 1.5px solid #4a4a4a;
+  border-top-color: var(--yellow);
+  border-radius: 999px;
+  animation: global(spin) 1s linear infinite;
 }
 
 .tree-row.is-drop-before::before,
@@ -814,6 +706,24 @@
 .tree-row.is-drop-inside {
   background: rgba(255, 193, 23, 0.22);
   outline: 1px solid rgba(255, 193, 23, 0.68);
+}
+
+/* 폴더 행 + 자식 행 묶음. 폴더 안으로 넣는 드롭이면 블록 전체를 한 상자로 강조한다 */
+.tree-group {
+  position: relative;
+  border-radius: 6px;
+}
+
+.tree-group.is-drop-inside {
+  background: rgba(255, 193, 23, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 193, 23, 0.68);
+}
+
+/* 블록이 강조되면 폴더 행 자체의 상자는 겹치지 않게 끈다 */
+.tree-group.is-drop-inside > .tree-row.is-drop-inside,
+.tree-group.is-drop-inside > .tree-row.is-file-drop-target {
+  background: transparent;
+  outline: none;
 }
 
 .tree-row.is-file-drop-target {
@@ -1083,19 +993,27 @@
   font-weight: 600;
 }
 
+/* 중첩 행은 Figma 기준 33px */
+.ingest-row.is-nested {
+  height: 33px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
 .ingest-row:hover:not(:disabled),
 .ingest-row:focus-visible:not(:disabled) {
   --button-hover-overlay: none;
   background: var(--soft);
 }
 
-/* PDF/TXT·이미 반영된 문서: 행은 보이되 체크박스만 흐리게 */
-.ingest-row:disabled {
-  cursor: not-allowed;
+/* 폴더 화살표는 Figma대로 hover 때만 드러난다 */
+.ingest-folder-arrow {
+  display: none;
 }
 
-.ingest-row:disabled .ingest-check {
-  opacity: 0.4;
+.ingest-row.is-folder:hover .ingest-folder-arrow,
+.ingest-row.is-folder:focus-visible .ingest-folder-arrow {
+  display: block;
 }
 
 .ingest-check {

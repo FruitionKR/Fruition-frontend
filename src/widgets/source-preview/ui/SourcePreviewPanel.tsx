@@ -41,7 +41,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentRole,
   documentStatus,
-  parentLabel = "업로드 문서",
+  parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
   onOpenAgentPanel,

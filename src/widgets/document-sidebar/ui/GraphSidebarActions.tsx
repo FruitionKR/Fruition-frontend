@@ -34,7 +34,7 @@ export function GraphSidebarActions({
   documents: DocumentItemResponse[];
   pending: "ingest" | "lint" | null;
   projects: Project[];
-  /** 기본 모드에서 보여줄 문서 트리(홈 뷰와 동일한 ProjectSection). */
+  /** 기본 모드에서 보여줄 문서 트리(홈 뷰와 동일한 RootTree). */
   tree: ReactNode;
   /** 선택 모드에서 고른 문서들을 한 번에 위키에 반영한다. */
   onIngestDocuments: (documents: DocumentItemResponse[]) => void;

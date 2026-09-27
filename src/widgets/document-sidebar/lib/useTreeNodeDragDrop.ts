@@ -60,8 +60,8 @@ export function useTreeNodeDragDrop({
       return;
     }
     if (item.generated) return;
-    const position = resolveDropPosition(event);
-    onDragOverItem({ projectId, targetId: item.id, position });
+    // 문서 트리는 항상 이름순 정렬이라 앞/뒤 순서 이동이 없다. 폴더 안으로 넣기(또는 문서끼리 묶기)만 허용한다.
+    onDragOverItem({ projectId, targetId: item.id, position: "inside" });
   }
 
   function handleDragLeave(event: ReactDragEvent<HTMLButtonElement>) {
@@ -86,7 +86,7 @@ export function useTreeNodeDragDrop({
       return;
     }
     if (!item.generated) {
-      onDropItem({ projectId, targetId: item.id, position: resolveDropPosition(event) });
+      onDropItem({ projectId, targetId: item.id, position: "inside" });
     }
   }
 

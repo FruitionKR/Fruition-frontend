@@ -7,7 +7,7 @@ import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { ContextMenu } from "./ContextMenu";
 import { GraphSidebarActions } from "./GraphSidebarActions";
 import { LogSidebarEntries } from "./LogSidebarEntries";
-import { ProjectSection } from "./ProjectSection";
+import { RootTree } from "./RootTree";
 import { SidebarMenuRow } from "./SidebarMenuRow";
 import { SidebarProfile } from "./SidebarProfile";
 import { SidebarWorkspaceHeader } from "./SidebarWorkspaceHeader";
@@ -22,6 +22,7 @@ export function DocumentSidebar({
   projects,
   draggedItemId,
   selectedItemId,
+  selectedItemIds,
   dropTarget,
   fileDropTarget,
   editing,
@@ -42,6 +43,8 @@ export function DocumentSidebar({
   onMoveItem,
   onDropFiles,
   onDragStart,
+  onToggleSelectItem,
+  onClearSelectedItems,
   onDragOverItem,
   onFileDragOver,
   onFileDragLeave,
@@ -54,12 +57,14 @@ export function DocumentSidebar({
   onCancelEditing,
   onRenameContextTarget,
   onAddMarkdownFromContext,
+  onUploadFromContext,
   onConvertContextTarget,
   onDeleteContextTarget
 }: {
   projects: Project[];
   draggedItemId: string | null;
   selectedItemId: string | null;
+  selectedItemIds: ReadonlySet<string>;
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
@@ -84,6 +89,8 @@ export function DocumentSidebar({
   onMoveItem: (target: DropTarget) => void;
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
+  onToggleSelectItem: (itemId: string) => void;
+  onClearSelectedItems: () => void;
   onDragOverItem: (target: DropTarget) => void;
   onFileDragOver: (target: FileDropTarget) => void;
   onFileDragLeave: () => void;
@@ -96,18 +103,20 @@ export function DocumentSidebar({
   onCancelEditing: () => void;
   onRenameContextTarget: () => void;
   onAddMarkdownFromContext: () => void;
+  onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const onlyProject = projects.length === 1 ? projects[0] : null;
+  // 트리는 루트 프로젝트 하나뿐이다. 사이드바 전체가 루트 파일 드롭 영역이 된다.
+  const rootProject = projects[0];
   const isSidebarFileDropTarget = Boolean(
-    onlyProject
-    && fileDropTarget?.projectId === onlyProject.id
+    rootProject
+    && fileDropTarget?.projectId === rootProject.id
     && fileDropTarget.folderId === null
   );
   const { handleDragOver, handleDragLeave, handleDrop } = useFileDropZone({
-    projectId: onlyProject?.id ?? "",
+    projectId: rootProject?.id ?? "",
     folderId: null,
     onFileDragOver,
     onFileDragLeave,
@@ -117,12 +126,15 @@ export function DocumentSidebar({
   const interaction: TreeInteractionProps = {
     draggedItemId,
     selectedItemId,
+    selectedItemIds,
     dropTarget,
     fileDropTarget,
     editing,
     onMoveItem,
     onDropFiles,
     onDragStart,
+    onToggleSelectItem,
+    onClearSelectedItems,
     onDragOverItem,
     onFileDragOver,
     onFileDragLeave,
@@ -137,17 +149,7 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 하단 위키 액션과 함께 감싼다.
   const projectTree = (
     <>
-      {projects.map((project, index) => (
-        <ProjectSection
-          key={project.id}
-          project={project}
-          isPrimary={index === 0}
-          useFullSidebarDropZone={Boolean(onlyProject)}
-          onUploadToProject={onUploadToProject}
-          onContextMenuProject={onContextMenuProject}
-          interaction={interaction}
-        />
-      ))}
+      {rootProject && <RootTree project={rootProject} interaction={interaction} />}
       {contextMenu && (
         <ContextMenu
           contextMenu={contextMenu}
@@ -157,6 +159,7 @@ export function DocumentSidebar({
           onRenameContextTarget={onRenameContextTarget}
           onAddProject={onAddProject}
           onAddMarkdownFromContext={onAddMarkdownFromContext}
+          onUploadFromContext={onUploadFromContext}
           onConvertContextTarget={onConvertContextTarget}
           onDeleteContextTarget={onDeleteContextTarget}
         />
@@ -168,9 +171,9 @@ export function DocumentSidebar({
     <>
     <aside
       className={cx(styles.sidebar, isSidebarFileDropTarget && styles["is-file-drop-target"])}
-      onDragOver={onlyProject ? handleDragOver : undefined}
-      onDragLeave={onlyProject ? handleDragLeave : undefined}
-      onDrop={onlyProject ? handleDrop : undefined}
+      onDragOver={rootProject ? handleDragOver : undefined}
+      onDragLeave={rootProject ? handleDragLeave : undefined}
+      onDrop={rootProject ? handleDrop : undefined}
     >
       <SidebarWorkspaceHeader documents={documents} />
       <SidebarMenuRow
@@ -179,6 +182,7 @@ export function DocumentSidebar({
         onViewChange={onViewChange}
         onToggleSearch={() => setIsSearchOpen((open) => !open)}
         onAddProject={onAddProject}
+        onUploadFile={() => rootProject && onUploadToProject(rootProject.id)}
       />
       {activeView === "home" && isSearchOpen && (
         <DocumentSearch

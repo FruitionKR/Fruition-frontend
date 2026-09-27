@@ -5,7 +5,7 @@ import { isPointerLeavingElement } from "./dragDrop";
 
 /**
  * 프로젝트 섹션 루트 영역의 파일 드래그앤드롭 핸들러를 반환합니다.
- * ProjectSection에서 사용하며, 노드별 DnD는 useTreeNodeDragDrop이 담당합니다.
+ * DocumentSidebar·TreeNode에서 사용하며, 노드별 DnD는 useTreeNodeDragDrop이 담당합니다.
  */
 export function useFileDropZone({
   projectId,

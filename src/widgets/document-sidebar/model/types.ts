@@ -12,12 +12,16 @@ export type SelectableTreeItem = {
 export type TreeInteractionProps = {
   draggedItemId: string | null;
   selectedItemId: string | null;
+  /** Cmd/Ctrl+클릭으로 고른 이동 대상 항목 id */
+  selectedItemIds: ReadonlySet<string>;
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
   onMoveItem: (target: DropTarget) => void;
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
+  onToggleSelectItem: (itemId: string) => void;
+  onClearSelectedItems: () => void;
   onDragOverItem: (target: DropTarget) => void;
   onFileDragOver: (target: FileDropTarget) => void;
   onFileDragLeave: () => void;

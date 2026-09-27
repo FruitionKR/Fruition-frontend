@@ -1,10 +1,11 @@
 import { cx } from "@/shared/lib/classNames";
 import type { Project, TreeItem } from "@/entities/tree";
-import { checkOnIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { arrowIcon, checkOnIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { fileDisplay } from "./TreeNode";
 import {
   collectSelectableDocumentIds,
-  isAllSelected
+  isAllSelected,
+  pruneIneligibleTreeItems
 } from "../model/wikiIngestSelection";
 import styles from "./DocumentSidebar.module.css";
 
@@ -13,9 +14,9 @@ const INGEST_ROW_BASE_PADDING_PX = 6;
 const INGEST_ROW_INDENT_PER_DEPTH_PX = 18;
 
 /**
- * 위키 편입 선택 모드 트리 (Figma 1027:6233).
+ * 위키 편입 선택 모드 트리 (Figma 1027:6315).
  * 문서 트리를 읽기 전용으로 펼쳐 놓고 행마다 체크박스를 붙인다.
- * 폴더를 체크하면 하위의 선택 가능한 문서를 한꺼번에 고른다.
+ * 반영할 수 없는 문서와 빈 폴더는 숨기고, 폴더를 체크하면 하위 문서를 한꺼번에 고른다.
  */
 export function WikiIngestTree({
   projects,
@@ -34,7 +35,7 @@ export function WikiIngestTree({
       <div className={styles["ingest-title"]}>
         <span>자료 목록</span>
       </div>
-      {projects.flatMap((project) => project.items).map((item) => (
+      {pruneIneligibleTreeItems(projects.flatMap((project) => project.items), eligibleDocumentIds).map((item) => (
         <IngestRow
           key={item.id}
           item={item}
@@ -63,7 +64,6 @@ function IngestRow({
 }) {
   const isFolder = item.type !== "file";
   const targetIds = collectSelectableDocumentIds([item], eligibleDocumentIds);
-  const isSelectable = targetIds.length > 0;
   const isChecked = isAllSelected(selectedIds, targetIds);
   const display = fileDisplay(item);
 
@@ -73,12 +73,8 @@ function IngestRow({
         type="button"
         role="checkbox"
         aria-checked={isChecked}
-        disabled={!isSelectable}
-        className={cx(styles["ingest-row"], isFolder && styles["is-folder"])}
+        className={cx(styles["ingest-row"], isFolder && styles["is-folder"], depth > 0 && styles["is-nested"])}
         style={{ paddingLeft: INGEST_ROW_BASE_PADDING_PX + depth * INGEST_ROW_INDENT_PER_DEPTH_PX }}
-        title={isSelectable ? undefined : isFolder
-          ? "편입할 수 있는 PDF·Markdown 문서가 없습니다. 처리 중이거나 이미 반영된 문서는 제외됩니다."
-          : "PDF·Markdown 문서만 선택할 수 있습니다. 처리 중이거나 이미 반영된 문서는 제외됩니다."}
         onClick={(event) => {
           event.stopPropagation();
           onToggle(targetIds);
@@ -87,6 +83,7 @@ function IngestRow({
         <span className={cx(styles["ingest-check"], isChecked && styles["is-checked"])} aria-hidden>
           {isChecked && <SvgIcon src={checkOnIcon} />}
         </span>
+        {isFolder && <SvgIcon src={arrowIcon} className={cx(styles["tree-arrow"], styles["is-open"], styles["ingest-folder-arrow"])} />}
         <span className={styles["ingest-label"]}>{display.name}</span>
         {display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
       </button>

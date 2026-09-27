@@ -11,6 +11,7 @@ export function ContextMenu({
   onRenameContextTarget,
   onAddProject,
   onAddMarkdownFromContext,
+  onUploadFromContext,
   onConvertContextTarget,
   onDeleteContextTarget
 }: {
@@ -24,6 +25,7 @@ export function ContextMenu({
   onRenameContextTarget: () => void;
   onAddProject: () => void;
   onAddMarkdownFromContext: () => void;
+  onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
 }) {
@@ -40,6 +42,7 @@ export function ContextMenu({
         <button type="button" onClick={onAddProject}>새 폴더</button>
       )}
       <button type="button" onClick={onAddMarkdownFromContext}>새 노트</button>
+      <button type="button" onClick={onUploadFromContext}>파일 업로드</button>
       {canRenameTarget && (
         <button type="button" onClick={onRenameContextTarget}>이름 변경</button>
       )}
