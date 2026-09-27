@@ -103,7 +103,7 @@ export function MarkdownViewer({
 }) {
   const remarkPlugins = useMemo<PluggableList>(
     () => citationRankMap
-      ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap }]]
+      ? [[remarkGfm, { singleTilde: false }], [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap }]]
       : REMARK_PLUGINS,
     [citationRankMap]
   );
