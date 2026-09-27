@@ -75,6 +75,7 @@ export function SkillsPanel() {
   const filterGroupRef = useDismissableMenu(openMenu !== null, () => setOpenMenu(null));
   // 행 우측 "…" 메뉴가 열린 스킬 id (한 번에 하나만)
   const [openRowMenuId, setOpenRowMenuId] = useState<string | null>(null);
+  const rowMenuRef = useDismissableMenu(openRowMenuId !== null, () => setOpenRowMenuId(null));
   const [searchText, setSearchText] = useState("");
 
   // 새 스킬 만들기 위저드 열림 상태
@@ -381,7 +382,7 @@ export function SkillsPanel() {
                     onClick={() => toggleMutation.mutate({ skill })}
                   />
                 </span>
-                <div className={`${styles["cell-more"]} ${styles["more-wrap"]}`}>
+                <div className={`${styles["cell-more"]} ${styles["more-wrap"]}`} ref={openRowMenuId === skill.id ? rowMenuRef : undefined}>
                   <button
                     type="button"
                     className={styles["more-btn"]}
