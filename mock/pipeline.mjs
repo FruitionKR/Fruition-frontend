@@ -69,7 +69,9 @@ export function startConvert(workspace, source) {
     id: id("doc"), workspace_id: workspace.id, filename, mime_type: "text/markdown", byte_size: 0, status: "processing",
     processing_state: "starting", processing_stage: "convert", processing_started_at: now(), document_role: "EDITABLE",
     source_uri: `mock://documents/${source.id}/markdown`, uploaded_at: now(), updated_at: now(),
-    markdown: null, content: Buffer.alloc(0), current_version: 0, edit_revision: 0, versions: [], converted_from: source.id
+    markdown: null, content: Buffer.alloc(0), current_version: 0, edit_revision: 0, versions: [], converted_from: source.id,
+    // 변환본은 원본과 같은 폴더에 둔다.
+    folder_id: source.folder_id ?? null, sort_order: (source.sort_order ?? 0) + 1
   };
   state.documents.push(created);
   setTimeout(() => {

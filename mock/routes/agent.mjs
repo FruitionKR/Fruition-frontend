@@ -1,4 +1,4 @@
-// document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run, 문서 트리.
+// document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
 import { state, id, hash, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now } from "../state.mjs";
 
 const TURN_DELAY_MS = 1_500;
@@ -120,12 +120,5 @@ export function registerAgentRoutes(router) {
       run.plan.operations.forEach((operation) => { operation.status = "completed"; });
     }, 1500);
     ctx.json(200, toRun(run));
-  });
-
-  router.get("/api/workspaces/:wid/document-tree", (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    const items = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at).map((doc) => ({ id: doc.id, name: doc.filename, type: "document" }));
-    ctx.json(200, { items });
   });
 }

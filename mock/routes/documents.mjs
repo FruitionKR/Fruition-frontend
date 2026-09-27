@@ -1,8 +1,16 @@
 // document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·본문 저장·버전·ingest·변환.
-import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument } from "../state.mjs";
+import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
+// 업로드 전송 시간 흉내: 기본 1초 + 200KB당 1초, 최대 12초. MOCK_UPLOAD_DELAY_MS로 고정할 수 있다.
+const UPLOAD_BYTES_PER_MS = 200;
+const UPLOAD_BASE_DELAY_MS = 1_000;
+const UPLOAD_MAX_DELAY_MS = 12_000;
+function uploadDelay(byteSize) {
+  if (process.env.MOCK_UPLOAD_DELAY_MS !== undefined) return Number(process.env.MOCK_UPLOAD_DELAY_MS);
+  return Math.min(UPLOAD_MAX_DELAY_MS, UPLOAD_BASE_DELAY_MS + Math.round(byteSize / UPLOAD_BYTES_PER_MS));
+}
 
 function requireDocument(ctx, workspace) {
   const doc = findDocument(workspace.id, ctx.params.id);
@@ -71,17 +79,20 @@ export function registerDocumentRoutes(router) {
   router.post("/api/workspaces/:wid/documents", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    const { file } = await ctx.body();
+    const { file, folder_id: folderId = null } = await ctx.body();
     if (!file?.buffer) return error(ctx, 400, "업로드할 파일이 필요합니다.");
+    if (folderId && !state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspace.id && !folder.deleted_at)) return error(ctx, 404, "폴더를 찾을 수 없습니다.");
     const filename = file.name.normalize("NFC");
     const extension = filename.split(".").pop()?.toLowerCase() ?? "";
     const mime = MIME_BY_EXTENSION[extension] ?? file.type ?? "application/octet-stream";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
     const isMarkdown = mime === "text/markdown";
     const text = isMarkdown ? file.buffer.toString("utf8") : null;
+    // 실제 업로드처럼 전송이 끝날 때까지 응답을 미룬다. 프론트는 그동안 "업로드 중" 자리표시 행을 보여준다.
+    await sleep(uploadDelay(file.buffer.length));
     const timestamp = now();
     const doc = {
-      id: id("doc"), workspace_id: workspace.id, filename, mime_type: mime, byte_size: file.buffer.length, status: "uploaded",
+      id: id("doc"), workspace_id: workspace.id, filename, mime_type: mime, byte_size: file.buffer.length, status: "uploaded", folder_id: folderId, sort_order: 0,
       source_uri: `mock://uploads/${filename}`, uploaded_at: timestamp, updated_at: timestamp,
       document_role: isMarkdown ? "EDITABLE" : "ORIGINAL", markdown: text, content: file.buffer,
       current_version: 1, edit_revision: 1,
