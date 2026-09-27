@@ -30,6 +30,20 @@ const STATUS_LABELS: Record<string, string> = {
   conflict: "충돌"
 };
 
+// diff가 없는 변경(삭제·복원 등)은 문구 대신 변경 종류만 보여준다. 값은 document-svc ChangeType.
+const CHANGE_TYPE_LABELS: Record<string, string> = {
+  created: "생성",
+  updated: "수정",
+  deleted: "삭제",
+  restored: "복원",
+  delegated: "재작성 위임",
+  rebuilt: "재작성",
+  rebuild_failed: "재작성 실패",
+  action_failed: "작업 실패",
+  link_removed: "링크 제거",
+  link_restored: "링크 복원"
+};
+
 /** Wiki 본문 대신 유형별로 생성·삭제된 페이지 제목을 보여준다. */
 function WikiTitles({ changes }: { changes: OperationChange[] }) {
   const groups = [
@@ -74,7 +88,7 @@ function ChangeDiff({ change }: { change: OperationChange }) {
         <p className={styles["change-notice"]}>
           {change.additions != null || change.deletions != null
             ? `추가 ${change.additions ?? 0}줄 · 삭제 ${change.deletions ?? 0}줄`
-            : "표시할 변경 내용이 없습니다."}
+            : CHANGE_TYPE_LABELS[change.change_type] ?? change.change_summary ?? "표시할 변경 내용이 없습니다."}
         </p>
       ) : (
         change.hunks.map((hunk, hunkIndex) => (

@@ -3,6 +3,8 @@ import { state, now, id, error, requireWorkspace, slugify } from "../state.mjs";
 
 const DEFAULT_LOG_PAGE_SIZE = 20;
 const MAX_LOG_PAGE_SIZE = 100;
+// 실제 백엔드처럼 status를 비우면 진행 중·실패 로그는 목록에서 숨긴다.
+const HIDDEN_DEFAULT_STATUSES = new Set(["processing", "applying", "notify_pending", "rebuilding", "failed", "conflict"]);
 const SKILL_ISSUE_RULES = [
   { pattern: /ignore (all |the )?(previous|above)|이전 지시.*무시|시스템 프롬프트/i, category: "instruction_override", reason: "기존 지시를 무시하도록 유도합니다." },
   { pattern: /api[_ ]?key|secret|password|비밀번호|토큰/i, category: "secret", reason: "비밀 정보가 스킬 본문에 포함되어 있습니다." }
@@ -69,7 +71,7 @@ export function registerCatalogRoutes(router) {
     const size = Math.min(MAX_LOG_PAGE_SIZE, Math.max(1, Number(ctx.query.get("size")) || DEFAULT_LOG_PAGE_SIZE));
     const cursor = Number(ctx.query.get("cursor")) || 0;
     const filtered = state.operationLogs
-      .filter((log) => log.workspace_id === workspace.id && (!type || log.operation_type === type) && (!status || log.status === status))
+      .filter((log) => log.workspace_id === workspace.id && (!type || log.operation_type === type) && (status ? log.status === status : !HIDDEN_DEFAULT_STATUSES.has(log.status)))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
     const pageItems = filtered.slice(cursor, cursor + size);
     const nextCursor = cursor + size < filtered.length ? String(cursor + size) : null;
@@ -111,9 +113,17 @@ export function registerCatalogRoutes(router) {
     if (!source) return error(ctx, 404, "작업 로그를 찾을 수 없습니다.");
     const { preview_token } = await ctx.body();
     if (typeof preview_token !== "string" || !preview_token.startsWith(`preview-${source.operation_id}-`)) return error(ctx, 409, "미리보기 토큰이 만료되었습니다. 다시 확인해주세요.");
-    const restore = { operation_id: id("op"), workspace_id: workspace.id, operation_type: "restore", status: "processing", target_document_id: source.target_document_id, target_display_name: source.target_display_name, summary: `${source.summary ?? source.operation_type} 롤백`, changed_resource_count: source.changed_resource_count, restored_from: source.operation_id, created_at: now(), completed_at: null, changes: [] };
+    // 실제 백엔드 상태 전이: applying → rebuilding → succeeded. 완료 시 생성 페이지는 deleted, 수정 페이지는 restored로 기록한다.
+    const restore = { operation_id: id("op"), workspace_id: workspace.id, operation_type: "restore", status: "applying", target_document_id: source.target_document_id, target_display_name: source.target_display_name, summary: `${source.summary ?? source.operation_type} 롤백`, changed_resource_count: source.changed_resource_count, restored_from: source.operation_id, created_at: now(), completed_at: null, changes: [] };
     state.operationLogs.unshift(restore);
-    setTimeout(() => { restore.status = "succeeded"; restore.completed_at = now(); }, 2500);
+    setTimeout(() => { restore.status = "rebuilding"; }, 4000);
+    setTimeout(() => {
+      restore.status = "succeeded";
+      restore.completed_at = now();
+      restore.changes = source.changes.map((change, index) => change.change_type === "created"
+        ? { id: 1000 + index, resource_type: change.resource_type, resource_id: change.resource_id, resource_display_name: change.resource_display_name, before_revision: change.after_revision, after_revision: null, change_type: "deleted", change_summary: "받치는 기여가 남지 않아 삭제했습니다.", additions: null, deletions: null }
+        : { id: 1000 + index, resource_type: change.resource_type, resource_id: change.resource_id, resource_display_name: change.resource_display_name, before_revision: change.after_revision, after_revision: change.before_revision, change_type: "restored", change_summary: `revision ${change.before_revision} 내용으로 되돌렸습니다.`, additions: change.deletions, deletions: change.additions, hunks: change.hunks });
+    }, 8000);
     ctx.json(202, { operation_id: restore.operation_id, restored_from: source.operation_id, status: "queued" });
   });
 

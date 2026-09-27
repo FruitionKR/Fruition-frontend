@@ -169,12 +169,20 @@
   text-overflow: ellipsis;
 }
 
+/* 진행 중 작업이 없을 때 (Figma 1276:13306): 12px 여백, 8px 모서리, 안내 문구 한 줄 */
+.wiki-work-popover.is-empty {
+  padding: 12px;
+  border-radius: 8px;
+}
+
 .wiki-work-empty {
   margin: 0;
-  color: var(--muted);
+  padding: 4px 0;
+  color: var(--subdued);
   font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .sidebar-workspace-trigger {

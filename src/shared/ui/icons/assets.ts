@@ -46,6 +46,8 @@ const plusIcon = { inlineIcon: "plus" } as const;
 const settingIcon = { inlineIcon: "setting" } as const;
 const settingScrollIcon = { inlineIcon: "settingScroll" } as const;
 const skillBackIcon = { inlineIcon: "skillBack" } as const;
+const moreIcon = { inlineIcon: "more" } as const;
+const retryIcon = { inlineIcon: "retry" } as const;
 
 export type SvgAsset =
   | StaticImageData
@@ -55,7 +57,9 @@ export type SvgAsset =
   | typeof plusIcon
   | typeof settingIcon
   | typeof settingScrollIcon
-  | typeof skillBackIcon;
+  | typeof skillBackIcon
+  | typeof moreIcon
+  | typeof retryIcon;
 
 export {
   sendIcon,
@@ -66,6 +70,8 @@ export {
   refreshIcon,
   settingScrollIcon,
   skillBackIcon,
+  moreIcon,
+  retryIcon,
   userCircleOutlineIcon,
   questionMarkIcon,
   bellIcon,

@@ -15,7 +15,9 @@ import {
   settingScrollIcon,
   shareIcon,
   skillBackIcon,
-  userCircleIcon
+  userCircleIcon,
+  moreIcon,
+  retryIcon
 } from "./assets";
 
 // currentColor 적용이 필요해 next/image 대신 인라인 SVG로 렌더링하는 아이콘 목록
@@ -46,6 +48,21 @@ export const inlineIconRenderers = new Map<SvgAsset, (iconClassName: string) => 
     </svg>
   )],
   // 사이드바 메뉴용 검색: 36 버튼 규격, currentColor로 hover/활성 색 반영
+  // 행 우측 더보기 점 세 개 (Figma folder/tab 415:647): currentColor로 색 상속
+  [moreIcon, (iconClassName) => (
+    <svg aria-hidden className={iconClassName} viewBox="0 0 28 28" fill="none">
+      <circle cx="8.1668" cy="14" r="1.2" fill="currentColor" />
+      <circle cx="14.0002" cy="14" r="1.2" fill="currentColor" />
+      <circle cx="19.8335" cy="14" r="1.2" fill="currentColor" />
+    </svg>
+  )],
+  // 로그인된 기기 새로고침 (Figma 1131:5913 retry 에셋): currentColor로 색 상속
+  [retryIcon, (iconClassName) => (
+    <svg aria-hidden className={iconClassName} viewBox="0 0 14 15.6334" fill="none">
+      <path d="M1.14859 8.96514C1.14859 9.73358 1.29994 10.4945 1.59401 11.2044C1.88808 11.9144 2.3191 12.5594 2.86247 13.1028C3.40583 13.6462 4.0509 14.0772 4.76084 14.3713C5.47078 14.6653 6.23169 14.8167 7.00013 14.8167C7.76856 14.8167 8.52948 14.6653 9.23942 14.3713C9.94936 14.0772 10.5944 13.6462 11.1378 13.1028C11.6812 12.5594 12.1122 11.9144 12.4062 11.2044C12.7003 10.4945 12.8517 9.73358 12.8517 8.96514C12.8517 7.41322 12.2352 5.92485 11.1378 4.82748C10.0404 3.7301 8.55205 3.1136 7.00013 3.1136" stroke="currentColor" strokeWidth="1.63336" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.30595 0.816682L6.00725 3.11538L8.30595 5.41409" stroke="currentColor" strokeWidth="1.63336" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )],
   [menuSearchIcon, (iconClassName) => (
     <svg aria-hidden className={iconClassName} viewBox="0 0 36 36" fill="none">
       <path d="M26.3 26.3L20.4 20.4M22.4 15.6C22.4 19.36 19.36 22.4 15.6 22.4C11.84 22.4 8.8 19.36 8.8 15.6C8.8 11.84 11.84 8.8 15.6 8.8C19.36 8.8 22.4 11.84 22.4 15.6Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
