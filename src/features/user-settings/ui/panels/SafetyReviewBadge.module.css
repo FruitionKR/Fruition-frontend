@@ -36,13 +36,7 @@
   mask: radial-gradient(closest-side, transparent calc(100% - 5.4px), #000 calc(100% - 5.3px));
   /* Figma 회전 속도(3.62s에 3회전 = 1.21s/회전)와 같되, 정지 구간 없는 연속 회전.
      원본의 68.6%~100% 정지 구간은 통과 시퀀스용이라 로딩 루프에 넣으면 멈춘 것처럼 끊겨 보인다. */
-  animation: spin 1.21s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  animation: global(spin) 1.21s linear infinite;
 }
 
 /* 통과: 링은 정지 상태로 남고, 아웃라인 원 페이드 인(0.1s) 후 체크 드로잉(0.48s) — Figma keyframe 그대로 */

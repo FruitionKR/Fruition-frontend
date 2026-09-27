@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
-import { cx } from "@/shared/lib/classNames";
+import { Switch } from "@/shared/ui/Switch";
 import { AccessCodeSection } from "./AccessCodeSection";
 import styles from "./SettingsPanel.module.css";
 
@@ -37,16 +37,12 @@ function SettingSwitch({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      className={cx(styles["settings-toggle"], checked && styles["is-on"])}
+    <Switch
+      checked={checked}
+      label={label}
+      classNames={{ root: styles["settings-toggle"], on: styles["is-on"] }}
       onClick={() => onChange(!checked)}
-    >
-      <span />
-    </button>
+    />
   );
 }
 

@@ -19,7 +19,7 @@
   border-radius: 999px;
   border: 3px solid var(--soft);
   border-top-color: var(--yellow);
-  animation: loading-overlay-spin 0.8s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 .loading-overlay-message {
@@ -27,12 +27,6 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
-}
-
-@keyframes loading-overlay-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

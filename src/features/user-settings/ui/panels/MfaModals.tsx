@@ -1,67 +1,16 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useState, type FormEvent } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { activateMfa, disableMfa, type MfaRegistration } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
-import { copyIcon, downloadIcon, plusIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { copyIcon, downloadIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
+import { FlowModal } from "./FlowModal";
 
 const CODE_LENGTH = 6;
-
-/** 계정 흐름 모달 공통 셸: 제목·부제·닫기 버튼. */
-function FlowModal({
-  title,
-  stepLabel,
-  subtitle,
-  ariaLabel,
-  canClose,
-  onClose,
-  onSubmit,
-  children
-}: {
-  title: string;
-  stepLabel?: string;
-  subtitle: ReactNode;
-  ariaLabel: string;
-  canClose: boolean;
-  onClose: () => void;
-  onSubmit: (event: FormEvent) => void;
-  children: ReactNode;
-}) {
-  useEscapeKey(canClose, onClose);
-  return createPortal(
-    <div className={styles.overlay} onClick={canClose ? onClose : undefined}>
-      <form
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label={ariaLabel}
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={onSubmit}
-      >
-        <div className={styles["title-block"]}>
-          <div className={styles["title-row"]}>
-            <div className={styles["title-stack"]}>
-              {stepLabel && <p className={styles["step-label"]}>{stepLabel}</p>}
-              <h2 className={styles.title}>{title}</h2>
-            </div>
-            <button type="button" className={styles.close} aria-label="닫기" disabled={!canClose} onClick={onClose}>
-              <SvgIcon src={plusIcon} className={styles["close-icon"]} />
-            </button>
-          </div>
-          <p className={styles.subtitle}>{subtitle}</p>
-        </div>
-        <div className={styles.body}>{children}</div>
-      </form>
-    </div>,
-    document.body
-  );
-}
 
 type SetupStep = "connect" | "verify" | "recovery";
 

@@ -26,3 +26,20 @@ export function findTreeItemByGraphNodeId(items: TreeItem[], graphNodeId: string
   }
   return null;
 }
+
+/** keep이 참인 항목만 남기며 하위 트리도 같은 기준으로 재구성한다. */
+export function filterTreeItems(items: TreeItem[], keep: (item: TreeItem) => boolean): TreeItem[] {
+  return items.flatMap((item) => {
+    if (!keep(item)) return [];
+    return item.children ? [{ ...item, children: filterTreeItems(item.children, keep) }] : [item];
+  });
+}
+
+/** 트리를 순회하며 pick이 값을 돌려준 항목만 모은다. */
+export function collectTreeItems<T>(items: TreeItem[], pick: (item: TreeItem) => T | undefined): T[] {
+  return items.flatMap((item) => {
+    const picked = pick(item);
+    const rest = item.children ? collectTreeItems(item.children, pick) : [];
+    return picked === undefined ? rest : [picked, ...rest];
+  });
+}

@@ -36,7 +36,8 @@ import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/markdownAgent";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/markdownAgent";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
-import { createClientId, findTreeItemByDocumentId } from "@/entities/tree";
+import { createClientId } from "@/entities/tree";
+import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
 import { useOperationLogFeed } from "../model/useOperationLogFeed";
 import { useResizeHandle } from "../model/useResizeHandle";
 import { canShowAgentPanel, isAgentPanelVisible } from "../lib/workspaceLayout";
@@ -53,34 +54,6 @@ const SOURCE_PREVIEW_MAX_FLOOR = 360;
 const AGENT_PANEL_WIDTH = 360;
 const AGENT_PANEL_COLLAPSED_WIDTH = 24;
 const RESIZE_SAFETY_MARGIN = 120;
-
-function findParentLabel(items: TreeItem[], itemId: string, parentLabel: string): string | null {
-  for (const item of items) {
-    if (item.id === itemId) return parentLabel;
-    const nestedLabel = item.children?.length
-      ? findParentLabel(item.children, itemId, item.label)
-      : null;
-    if (nestedLabel) return nestedLabel;
-  }
-  return null;
-}
-
-function findTreeItemInProjects(projects: ReadonlyArray<{ items: TreeItem[] }>, documentId: string): TreeItem | null {
-  for (const project of projects) {
-    const item = findTreeItemByDocumentId(project.items, documentId);
-    if (item) return item;
-  }
-  return null;
-}
-
-function findFirstSelectableNote(items: TreeItem[], documentIds: Set<string>): TreeItem | null {
-  for (const item of items) {
-    if ((item.documentId && documentIds.has(item.documentId)) || (!item.documentId && item.graphNodeId)) return item;
-    const nested = item.children?.length ? findFirstSelectableNote(item.children, documentIds) : null;
-    if (nested) return nested;
-  }
-  return null;
-}
 
 export function HomeWorkspace() {
   const [isHomeAgentPanelOpen, setIsHomeAgentPanelOpen] = useState(true);

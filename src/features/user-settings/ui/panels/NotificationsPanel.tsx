@@ -1,4 +1,5 @@
 import type { UserPreferences } from "@/entities/user";
+import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
 
 type NotificationKey = keyof UserPreferences["notifications"];
@@ -58,16 +59,7 @@ export function NotificationsPanel({ notifications, updatePreferences }: Notific
               <strong>{label}</strong>
               <small>{description}</small>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={notifications[key]}
-              aria-label={label}
-              className={`${styles.switch} ${notifications[key] ? styles["is-on"] : ""}`}
-              onClick={() => void toggleNotification(key)}
-            >
-              <span className={styles["switch-ball"]} />
-            </button>
+            <Switch checked={notifications[key]} label={label} onClick={() => void toggleNotification(key)} />
           </div>
         ))}
       </div>

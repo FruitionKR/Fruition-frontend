@@ -3,6 +3,7 @@ import { sendIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
+import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./AgentChat.module.css";
 
@@ -148,16 +149,12 @@ export function AgentComposer({
                     <span>웹 서칭</span>
                     <span>필요시, 웹에서 정보를 추가 검색합니다.</span>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={allowWebSearch}
-                    aria-label="웹 서칭"
-                    className={cx(styles["composer-switch"], allowWebSearch && styles["is-on"])}
+                  <Switch
+                    checked={allowWebSearch}
+                    label="웹 서칭"
+                    classNames={{ root: styles["composer-switch"], on: styles["is-on"] }}
                     onClick={() => onWebSearchChange(!allowWebSearch)}
-                  >
-                    <span />
-                  </button>
+                  />
                 </div>
               )}
             </div>

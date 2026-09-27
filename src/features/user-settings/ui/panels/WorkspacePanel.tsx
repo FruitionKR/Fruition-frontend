@@ -7,6 +7,7 @@ import { renameWorkspace } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
+import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./WorkspacePanel.module.css";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
@@ -131,16 +132,7 @@ export function WorkspacePanel({
             <strong>자동 저장</strong>
             <small>편집한 내용을 자동으로 저장합니다.</small>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isAutoSaveOn}
-            aria-label="자동 저장"
-            className={`${styles.switch} ${isAutoSaveOn ? styles["is-on"] : ""}`}
-            onClick={onToggleAutoSave}
-          >
-            <span className={styles["switch-ball"]} />
-          </button>
+          <Switch checked={isAutoSaveOn} label="자동 저장" onClick={onToggleAutoSave} />
         </div>
       </div>
 

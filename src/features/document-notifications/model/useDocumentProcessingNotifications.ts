@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUserPreferences } from "@/entities/user";
 import type { DocumentItemResponse } from "@/entities/document";
-import type { DocumentStatus } from "@/entities/tree";
+import { createClientId, type DocumentStatus } from "@/entities/tree";
+import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
 import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
 import { publishNotice, subscribeNotices, type NoticePayload } from "./noticeBus";
 
@@ -12,7 +13,7 @@ export type DocumentProcessingNotice = NoticePayload & { id: string };
 const NOTICE_DURATION_MS = 6000;
 
 function wasProcessing(status: DocumentStatus | undefined) {
-  return status === "uploaded" || status === "processing";
+  return isDocumentInFlight(status);
 }
 
 function completedNoticeText(count: number) {
@@ -39,7 +40,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
 
   // 카드 표시 + 백그라운드 탭이면 브라우저 알림까지. 모든 알림이 이 경로를 지난다.
   const pushNotice = useCallback((notice: NoticePayload) => {
-    const id = `${notice.kind}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const id = createClientId(notice.kind);
     setNotices((current) => [...current, { id, ...notice }]);
     // 액션이 있는 카드는 사용자가 선택할 때까지 남긴다.
     if (!notice.action) {

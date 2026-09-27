@@ -1,15 +1,10 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
+import { filterTreeItems } from "@/entities/tree/lib/queries";
+import { isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
 import { getWikiReflectState, isWikiReflectEligible } from "./wikiReflectState";
 
-export function isPdfDocument(document: DocumentItemResponse): boolean {
-  return document.mime_type === "application/pdf" || /\.pdf$/i.test(document.filename);
-}
-
-export function isMarkdownDocument(document: DocumentItemResponse): boolean {
-  return document.document_role === "EDITABLE"
-    && (document.mime_type.includes("markdown") || /\.(md|markdown)$/i.test(document.filename));
-}
+export { isMarkdownDocument, isPdfDocument };
 
 export function isFailedPdfConversion(document: DocumentItemResponse): boolean {
   return document.status === "failed" && document.pipeline_run_id?.startsWith("convert:") === true;
@@ -28,10 +23,8 @@ export function selectGraphDocuments(documents: DocumentItemResponse[]): Documen
 
 export function filterGraphProjects(projects: Project[], documents: DocumentItemResponse[]): Project[] {
   const visibleIds = new Set(selectGraphDocuments(documents).map((document) => document.id));
-  const filterItems = (items: TreeItem[]): TreeItem[] => items
-    .filter((item) => !item.documentId || visibleIds.has(item.documentId))
-    .map((item) => item.children ? { ...item, children: filterItems(item.children) } : item);
-  return projects.map((project) => ({ ...project, items: filterItems(project.items) }));
+  const keep = (item: TreeItem) => !item.documentId || visibleIds.has(item.documentId);
+  return projects.map((project) => ({ ...project, items: filterTreeItems(project.items, keep) }));
 }
 
 export function isGraphIngestEligible(document: DocumentItemResponse): boolean {

@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import { buildWikiWorkSections, formatWorkStartTime } from "../src/features/wiki-ingest/model/wikiWorkList.ts";
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
+  return next(specifier, context);
+} });
+const { buildWikiWorkSections, formatWorkStartTime } = await import("../src/features/wiki-ingest/model/wikiWorkList.ts");
 
 function makeDocument(overrides) {
   return {

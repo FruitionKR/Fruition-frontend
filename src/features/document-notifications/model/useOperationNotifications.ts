@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { fetchOperationLogs, type OperationLogItem } from "@/entities/operation-log";
+import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem } from "@/entities/operation-log";
 import { useUserPreferences } from "@/entities/user";
 import { publishNotice } from "./noticeBus";
 
@@ -10,8 +10,8 @@ const TERMINAL_STATUSES = new Set(["succeeded", "partially_succeeded", "failed",
 
 // ingest는 문서 처리 알림이 담당하고, document_edit은 채팅 화면에서 즉시 확인되므로 제외한다.
 const WATCHED_TYPES: Record<string, string> = {
-  lint: "Lint",
-  restore: "복구"
+  lint: OPERATION_TYPE_LABELS.lint,
+  restore: OPERATION_TYPE_LABELS.restore
 };
 
 function isTerminal(status: string) {

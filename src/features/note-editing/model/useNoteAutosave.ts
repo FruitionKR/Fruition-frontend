@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
+import { getErrorMessage } from "@/shared/lib/errors";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import {
   applyRequiredAgentSource,
@@ -161,7 +162,7 @@ export function useNoteAutosave({
         if (mountedRef.current) setStatus("error");
       }
       if (mountedRef.current) {
-        setErrorMessage(error instanceof Error ? error.message : "노트를 저장하지 못했습니다.");
+        setErrorMessage(getErrorMessage(error, "노트를 저장하지 못했습니다."));
       } else {
         onDetachedSaveCompleteRef.current?.({ success: false, error });
       }

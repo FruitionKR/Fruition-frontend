@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMfaStatus, registerMfa, MFA_QUERY_KEY, type MfaRegistration } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
 import { MfaDisableModal, MfaSetupModal } from "./MfaModals";
 
@@ -42,11 +43,8 @@ export function MfaPanel() {
         <strong>다단계 인증</strong>
         <small>{status?.enabled ? "다단계 인증 사용 중" : "로그인할 때 인증 앱의 코드를 추가로 확인합니다."}</small>
       </div>
-      <button type="button" role="switch" aria-checked={status?.enabled ?? false} aria-label="다단계 인증"
-        className={`${styles.switch} ${status?.enabled ? styles["is-on"] : ""}`}
-        disabled={!status || busy || isFetching} onClick={() => void toggle()}>
-        <span className={styles["switch-ball"]} />
-      </button>
+      <Switch checked={status?.enabled ?? false} label="다단계 인증"
+        disabled={!status || busy || isFetching} onClick={() => void toggle()} />
     </div>
     {(error || loadError) && <small className={styles["model-error"]} role="alert">{error || getErrorMessage(loadError, "다단계 인증 상태를 불러오지 못했습니다.")}</small>}
     {loadError && <button type="button" className={styles.btn} disabled={isFetching} onClick={() => void refetch()}>다시 확인</button>}

@@ -259,7 +259,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
                   publishNotice({
                     kind: "failed",
                     title: "Lint 실패",
-                    message: error instanceof Error ? error.message : "Lint 요청에 실패했습니다."
+                    message: getErrorMessage(error, "Lint 요청에 실패했습니다.")
                   });
                 });
             }

@@ -3,17 +3,16 @@
 import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
 import passwordHiddenIcon from "../../../../../svg/auth/auth-password-hidden.svg";
 import passwordVisibleIcon from "../../../../../svg/auth/auth-password-visible.svg";
 import { confirmEmailVerification, requestEmailVerification, resetPasswordWithVerification } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
-import { plusIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { useExpiryCountdown } from "@/views/auth/lib/useExpiryCountdown";
 import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "../../lib/passwordPolicy";
 import styles from "./AccountFlowModal.module.css";
+import { FlowModal } from "./FlowModal";
 
 const CODE_LENGTH = 6;
 
@@ -91,8 +90,6 @@ export function PasswordChangeModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const countdown = useExpiryCountdown(expiresAt);
-
-  useEscapeKey(!busy, onClose);
 
   async function sendCode() {
     setBusy(true);
@@ -179,94 +176,80 @@ export function PasswordChangeModal({
   );
   const submitLabel = busy ? "처리 중…" : step === "email" ? "다음으로" : step === "code" ? "인증하기" : "비밀번호 변경";
 
-  return createPortal(
-    <div className={styles.overlay} onClick={busy ? undefined : onClose}>
-      <form
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="비밀번호 변경"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        <div className={styles["title-block"]}>
-          <div className={styles["title-row"]}>
-            <h2 className={styles.title}>비밀번호 변경</h2>
-            <button type="button" className={styles.close} aria-label="닫기" disabled={busy} onClick={onClose}>
-              <SvgIcon src={plusIcon} className={styles["close-icon"]} />
-            </button>
-          </div>
-          <p className={styles.subtitle} style={{ whiteSpace: "pre-line" }}>{SUBTITLES[step]}</p>
+  return (
+    <FlowModal
+      title="비밀번호 변경"
+      subtitle={SUBTITLES[step]}
+      subtitleStyle={{ whiteSpace: "pre-line" }}
+      ariaLabel="비밀번호 변경"
+      canClose={!busy}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+    >
+      {step === "email" && (
+        <div className={styles.field}>
+          <label htmlFor="password-change-email">이메일 주소</label>
+          <input
+            id="password-change-email"
+            type="email"
+            autoComplete="email"
+            placeholder="example@email.com"
+            autoFocus
+            value={email}
+            disabled={busy}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          {error && <p className={styles.error} role="alert">{error}</p>}
         </div>
-
-        <div className={styles.body}>
-          {step === "email" && (
-            <div className={styles.field}>
-              <label htmlFor="password-change-email">이메일 주소</label>
-              <input
-                id="password-change-email"
-                type="email"
-                autoComplete="email"
-                placeholder="example@email.com"
-                autoFocus
-                value={email}
-                disabled={busy}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              {error && <p className={styles.error} role="alert">{error}</p>}
-            </div>
-          )}
-          {step === "code" && (
-            <div className={styles.field}>
-              <label htmlFor="password-change-code">인증번호 6자리</label>
-              <div className={styles["field-control"]}>
-                <input
-                  id="password-change-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]+"
-                  maxLength={CODE_LENGTH}
-                  placeholder="XXXXXX"
-                  autoFocus
-                  value={code}
-                  disabled={busy}
-                  onChange={(event) => setCode(event.target.value)}
-                />
-                <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>
-              </div>
-              {countdown.isExpired ? (
-                <button type="button" className={styles.resend} disabled={busy} onClick={() => void sendCode()}>
-                  인증번호가 만료되었습니다. 다시 받기
-                </button>
-              ) : (
-                <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
-              )}
-              {error && <p className={styles.error} role="alert">{error}</p>}
-            </div>
-          )}
-          {step === "password" && (
-            <div className={styles.fields}>
-              <PasswordField id="password-change-new" label="새 비밀번호" value={newPassword} disabled={busy} onChange={setNewPassword} />
-              <PasswordField id="password-change-confirm" label="새 비밀번호 확인" value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
-              <p className={styles.hint}>변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
-              {error && <p className={styles.error} role="alert">{error}</p>}
-            </div>
-          )}
-
-          <div className={cx(styles.footer, step === "email" && styles["is-end"])}>
-            {step !== "email" && (
-              <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
-                <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
-              </button>
-            )}
-            <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
-              {submitLabel}
-              {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-            </button>
+      )}
+      {step === "code" && (
+        <div className={styles.field}>
+          <label htmlFor="password-change-code">인증번호 6자리</label>
+          <div className={styles["field-control"]}>
+            <input
+              id="password-change-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]+"
+              maxLength={CODE_LENGTH}
+              placeholder="XXXXXX"
+              autoFocus
+              value={code}
+              disabled={busy}
+              onChange={(event) => setCode(event.target.value)}
+            />
+            <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>
           </div>
+          {countdown.isExpired ? (
+            <button type="button" className={styles.resend} disabled={busy} onClick={() => void sendCode()}>
+              인증번호가 만료되었습니다. 다시 받기
+            </button>
+          ) : (
+            <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
+          )}
+          {error && <p className={styles.error} role="alert">{error}</p>}
         </div>
-      </form>
-    </div>,
-    document.body
+      )}
+      {step === "password" && (
+        <div className={styles.fields}>
+          <PasswordField id="password-change-new" label="새 비밀번호" value={newPassword} disabled={busy} onChange={setNewPassword} />
+          <PasswordField id="password-change-confirm" label="새 비밀번호 확인" value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
+          <p className={styles.hint}>변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
+          {error && <p className={styles.error} role="alert">{error}</p>}
+        </div>
+      )}
+
+      <div className={cx(styles.footer, step === "email" && styles["is-end"])}>
+        {step !== "email" && (
+          <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
+            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+          </button>
+        )}
+        <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
+          {submitLabel}
+          {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
+        </button>
+      </div>
+    </FlowModal>
   );
 }

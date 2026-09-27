@@ -1026,13 +1026,7 @@
 
 /* Lint 진행 중 새로고침 아이콘 회전 (reduced-motion은 base.css 전역 규칙이 끈다) */
 .graph-pill.is-spinning :global(.svg-icon) {
-  animation: graph-pill-spin 1s linear infinite;
-}
-
-@keyframes graph-pill-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  animation: global(spin) 1s linear infinite;
 }
 
 /* 선택 취소: + 아이콘을 45도 돌려 X로 쓴다 */

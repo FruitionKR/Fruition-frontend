@@ -1,5 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { OperationLogItem } from "@/entities/operation-log/model/types";
+import { OPERATION_TYPE_LABELS } from "@/entities/operation-log/model/operationType";
 
 /** 사이드바 진행 작업 팝오버에 그릴 한 줄 */
 export interface WikiWorkRow {
@@ -19,7 +20,7 @@ export interface WikiWorkSection {
 }
 
 export const WIKI_WORK_TITLES: Record<WikiWorkKind, string> = {
-  ingest: "위키 편입",
+  ingest: OPERATION_TYPE_LABELS.ingest,
   lint: "위키 최신화",
   convert: "PDF → MD 변환"
 };

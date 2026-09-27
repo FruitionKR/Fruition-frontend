@@ -11,6 +11,7 @@ import * as classNames from "../src/shared/lib/classNames.ts";
 import * as segments from "../src/shared/lib/markdownSegments.ts";
 import * as closedMath from "../src/shared/lib/remarkClosedMath.ts";
 import * as sourceBlocks from "../src/shared/lib/markdownSourceBlocks.ts";
+import * as customTokens from "../src/shared/lib/remarkCustomTokens.ts";
 
 const require = createRequire(import.meta.url);
 const output = ts.transpileModule(readFileSync(new URL("../src/shared/ui/MarkdownViewer.tsx", import.meta.url), "utf8"), {
@@ -21,7 +22,8 @@ const aliases = {
   "@/shared/lib/remarkClosedMath": closedMath,
   "@/shared/lib/classNames": classNames,
   "@/shared/lib/markdownSegments": segments,
-  "@/shared/lib/markdownSourceBlocks": sourceBlocks
+  "@/shared/lib/markdownSourceBlocks": sourceBlocks,
+  "@/shared/lib/remarkCustomTokens": customTokens
 };
 runInNewContext(output, { exports, require: (id) => aliases[id] ?? require(id) });
 const { MarkdownViewer } = exports;

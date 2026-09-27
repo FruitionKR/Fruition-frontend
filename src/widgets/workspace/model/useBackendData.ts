@@ -6,6 +6,7 @@ import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { projectsFromServerTree } from "@/entities/tree/lib/serverTree";
 import type { DocumentItemResponse } from "@/entities/document";
+import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
 import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval } from "@/features/wiki-ingest/model/wikiWorkPolling";
@@ -14,9 +15,7 @@ const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 type DocumentData = Pick<BackendData, "documents" | "tree">;
 
 function hasProcessingDocuments(data: DocumentData | undefined) {
-  return (data?.documents ?? []).some(
-    (document) => document.status === "processing" || document.status === "uploaded"
-  );
+  return (data?.documents ?? []).some((document) => isDocumentInFlight(document.status));
 }
 
 export function useBackendData({

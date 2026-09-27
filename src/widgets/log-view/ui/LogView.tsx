@@ -16,7 +16,7 @@ import retryIcon from "../../../../svg/log/retry.svg";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { AlertModal } from "@/shared/ui/AlertModal";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./LogView.module.css";
 
@@ -293,17 +293,14 @@ export function LogView({
         )}
       </div>
       {pendingRestore && (
-        <AlertModal
+        <ConfirmModal
           titleId="restore-confirm-title"
           title="작업을 롤백하시겠습니까?"
           description={pendingRestore.message}
-          onClose={cancelRestore}
-        >
-          <div className="modal-actions">
-            <button type="button" className="modal-cancel-button" onClick={cancelRestore}>취소</button>
-            <button type="button" className="modal-confirm-button" onClick={() => void executeRestore()}>롤백</button>
-          </div>
-        </AlertModal>
+          confirmLabel="롤백"
+          onConfirm={() => void executeRestore()}
+          onCancel={cancelRestore}
+        />
       )}
     </section>
   );
