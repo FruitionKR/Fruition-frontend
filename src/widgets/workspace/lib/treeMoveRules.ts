@@ -10,6 +10,8 @@ export type DraggedTreeItem = { projectId: string; itemId: string };
 export type TreeMoveResolution =
   | { kind: "invalid" }
   | { kind: "conflict" }
+  /** 폴더를 자기 자신이나 하위 폴더 안으로 옮기려는 경우 */
+  | { kind: "cycle" }
   | { kind: "merge"; sourceItem: TreeItem; targetItem: TreeItem; destination: FolderLocation; folderId: string | null }
   | { kind: "move"; item: TreeItem; destination: FolderLocation; folderId: string | null; position: number | undefined }
   | { kind: "move-many"; items: TreeItem[]; destination: FolderLocation; folderId: string | null };
@@ -36,6 +38,7 @@ export function resolveTreeMove(
   if (selectedItemIds.has(item.id) && selectedItemIds.size > 1) {
     return resolveManyMove(projects, [...selectedItemIds], destination, targetItem?.id ?? null);
   }
+  if (movesIntoOwnSubtree(item, destination)) return { kind: "cycle" };
   const siblings = folderItems(projects, destination).filter((sibling) => sibling.id !== item.id);
   const isMerge = target.position === "inside" && targetItem && isFileItem(item) && isFileItem(targetItem);
   const conflicting = isMerge
@@ -63,6 +66,7 @@ function resolveManyMove(
     .filter((entry): entry is TreeItem => Boolean(entry) && !isWikiItem(entry!) && (!isFileItem(entry!) || Boolean(entry!.documentId)))
     .filter((entry) => entry.id !== targetId && entry.id !== destination.folderId);
   if (items.length === 0) return { kind: "invalid" };
+  if (items.some((entry) => movesIntoOwnSubtree(entry, destination))) return { kind: "cycle" };
   const movingIds = new Set(items.map((entry) => entry.id));
   const siblingNames = new Set(folderItems(projects, destination)
     .filter((sibling) => !movingIds.has(sibling.id))
@@ -72,4 +76,10 @@ function resolveManyMove(
     return { kind: "conflict" };
   }
   return { kind: "move-many", items, destination, folderId: serverFolderId(projects, destination) };
+}
+
+/** 폴더를 자기 자신이나 자기 하위 폴더로 옮기면 순환이 생긴다. 서버도 거절하지만 왕복 없이 먼저 막는다. */
+function movesIntoOwnSubtree(item: TreeItem, destination: FolderLocation): boolean {
+  if (isFileItem(item) || !destination.folderId) return false;
+  return destination.folderId === item.id || Boolean(findTreeItem(item.children ?? [], destination.folderId));
 }

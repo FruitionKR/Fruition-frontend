@@ -110,15 +110,20 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
       publishNotice({ kind: "failed", title: "이동 실패", message: "대상 폴더에 같은 이름의 항목이 있습니다." });
       return;
     }
+    if (resolution.kind === "cycle") {
+      publishNotice({ kind: "failed", title: "이동 실패", message: "폴더를 자기 자신이나 하위 폴더 안으로 옮길 수 없습니다." });
+      return;
+    }
     if (resolution.kind === "move-many") {
       const { items, folderId } = resolution;
       setSelectedItemIds(new Set());
       void runTreeMutation(async () => {
-        // 부분 실패 시에도 finally의 재조회가 실제 서버 위치를 보여준다.
-        for (const entry of items) {
-          if (entry.documentId) await moveDocument(entry.documentId, folderId);
-          else await moveFolder(entry.id, folderId);
-        }
+        // 하나가 실패해도 나머지는 계속 옮기고, 몇 개가 실패했는지 알린다. finally의 재조회가 실제 위치를 보여준다.
+        const results = await Promise.allSettled(items.map((entry) =>
+          entry.documentId ? moveDocument(entry.documentId, folderId) : moveFolder(entry.id, folderId)
+        ));
+        const failed = results.filter((result) => result.status === "rejected").length;
+        if (failed > 0) throw new Error(`${items.length}개 중 ${failed}개 항목을 옮기지 못했습니다.`);
       }, "항목 이동 실패");
       return;
     }

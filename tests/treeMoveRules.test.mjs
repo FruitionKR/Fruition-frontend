@@ -68,3 +68,20 @@ test("위키 항목이나 documentId 없는 파일은 invalid다", () => {
   assert.deepEqual(resolveTreeMove(p, { projectId: ROOT, itemId: "pending" }, { projectId: ROOT, targetId: "folder", position: "inside" }, none), { kind: "invalid" });
   assert.deepEqual(resolveTreeMove(p, null, { projectId: ROOT, targetId: "folder", position: "inside" }, none), { kind: "invalid" });
 });
+
+test("폴더를 자기 자신이나 하위 폴더 안으로 옮기면 cycle을 돌려준다", () => {
+  const nested = [{ id: ROOT, folderId: null, title: "문서", items: [
+    { id: "outer", label: "바깥", type: "folder", children: [
+      { id: "inner", label: "안쪽", type: "folder", children: [] }
+    ] },
+    file("a", "a.md")
+  ] }];
+  const drag = { projectId: ROOT, itemId: "outer" };
+  assert.equal(resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "cycle");
+  assert.equal(resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "outer", position: "inside" }, none).kind, "invalid");
+  // 묶음 이동에서도 하나라도 순환이면 전체를 막는다
+  const many = new Set(["outer", "a"]);
+  assert.equal(resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "inner", position: "inside" }, many).kind, "cycle");
+  // 다른 폴더로는 정상 이동
+  assert.equal(resolveTreeMove(nested, { projectId: ROOT, itemId: "a" }, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "move");
+});
