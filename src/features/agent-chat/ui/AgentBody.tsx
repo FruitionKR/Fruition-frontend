@@ -215,11 +215,7 @@ export function AgentBody({
     return () => window.cancelAnimationFrame(frameId);
   }, [messages.length, animatedMessageId, isLoading, queryErrorMessage, scrollToLatestMessage]);
 
-  const activeAssistantMessage = activeTurn?.assistantMessage;
-  const messagesToRender = activeTurn
-    ? messages.filter((message) => message.id !== activeTurn.userMessageId && message.id !== activeTurn.assistantMessage?.id)
-    : messages;
-  const messageGroups = groupMessagesByPair(messagesToRender);
+  const messageGroups = groupMessagesByPair(messages);
   const selectablePairIdSet = new Set(selectablePairIds);
   const excludedPairIdSet = new Set(excludedPairIds);
   const selectedPairIdSet = new Set(selectedPairIds);
@@ -302,18 +298,7 @@ export function AgentBody({
       {activeTurn && (
         <>
           <div className={styles["question-bubble"]}>{activeTurn.question}</div>
-          {activeAssistantMessage
-            ? (
-              <AssistantThread
-                message={activeAssistantMessage}
-                isAnimated={activeAssistantMessage.id === animatedMessageId}
-                visibleAnswerStage={visibleAnswerStage}
-                nodes={nodes}
-                onOpenWikiPage={onOpenWikiPage}
-                onOpenSourceBlocks={onOpenSourceBlocks}
-              />
-            )
-            : pendingStatusThread}
+          {pendingStatusThread}
         </>
       )}
       {showAgentStatus && pendingStatusThread}
