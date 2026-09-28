@@ -67,3 +67,17 @@ test("본문에서 관리 이미지 경로만 중복 없이 뽑는다", async ()
   ]);
   assert.deepEqual(extractManagedAssetPaths("이미지 없음"), []);
 });
+
+test("이미지 alt는 Crepe 비율 형식(소수점 둘째 자리)일 때만 비율로 보고 나머지는 보존한다", async () => {
+  const { splitImageAlt, formatImageAlt } = await import("../src/features/note-editing/model/imageAltText.ts");
+  assert.deepEqual(splitImageAlt("1.00"), { alt: "", ratio: 1 });
+  assert.deepEqual(splitImageAlt("0.75"), { alt: "", ratio: 0.75 });
+  assert.deepEqual(splitImageAlt("2024"), { alt: "2024", ratio: 1 });
+  assert.deepEqual(splitImageAlt("diagram"), { alt: "diagram", ratio: 1 });
+  assert.deepEqual(splitImageAlt(""), { alt: "", ratio: 1 });
+  assert.deepEqual(splitImageAlt(undefined), { alt: "", ratio: 1 });
+  assert.deepEqual(splitImageAlt("0.00"), { alt: "0.00", ratio: 1 });
+  assert.equal(formatImageAlt("diagram", 0.5), "diagram");
+  assert.equal(formatImageAlt("", 0.5), "0.50");
+  assert.equal(formatImageAlt("2024", 1), "2024");
+});

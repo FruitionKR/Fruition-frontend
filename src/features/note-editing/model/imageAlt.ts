@@ -1,10 +1,11 @@
 import type { Ctx } from "@milkdown/ctx";
 import { imageBlockSchema } from "@milkdown/kit/component/image-block";
 
+import { formatImageAlt, splitImageAlt } from "./imageAltText";
+
 // Crepe image-block은 Markdown alt 칸에 크기 비율("1.00")을 쓰고 읽는다.
 // 그대로 두면 백엔드 변환 문서의 `![diagram](…)` 같은 실제 alt가 열기만 해도 "1.00"으로 바뀐다.
-const RATIO_ALT = /^\d+(\.\d+)?$/;
-
+// 판정 규칙은 imageAltText.ts 참고.
 type ImageBlockAttrs = { src: string; caption: string; ratio: number; alt: string };
 
 /** image-block 스키마를 확장해 숫자가 아닌 alt는 보존하고, 비율은 alt가 비어 있을 때만 기록한다. */
@@ -25,14 +26,8 @@ export function preserveImageAlt(ctx: Ctx) {
       parseMarkdown: {
         match: ({ type }) => type === "image-block",
         runner: (state, node, type) => {
-          const alt = typeof node.alt === "string" ? node.alt : "";
-          const isRatio = RATIO_ALT.test(alt) && Number(alt) !== 0;
-          state.addNode(type, {
-            src: node.url,
-            caption: node.title,
-            ratio: isRatio ? Number(alt) : 1,
-            alt: isRatio ? "" : alt
-          });
+          const { alt, ratio } = splitImageAlt(node.alt as string | null | undefined);
+          state.addNode(type, { src: node.url, caption: node.title, ratio, alt });
         }
       },
       toMarkdown: {
@@ -43,7 +38,7 @@ export function preserveImageAlt(ctx: Ctx) {
           state.addNode("image", undefined, undefined, {
             title: attrs.caption,
             url: attrs.src,
-            alt: attrs.alt || `${Number.parseFloat(String(attrs.ratio)).toFixed(2)}`
+            alt: formatImageAlt(attrs.alt, attrs.ratio)
           });
           state.closeNode();
         }
