@@ -25,6 +25,10 @@ import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
+import { pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
+import { preserveImageAlt } from "../model/imageAlt";
+import { fetchAssetObjectUrl, isManagedAssetPath } from "@/shared/api/assets";
+import { publishNotice } from "@/features/document-notifications";
 import { configureMathEditor } from "../model/mathEditor";
 import styles from "./NoteEditor.module.css";
 
@@ -66,11 +70,14 @@ export function NoteEditor({
 }) {
   const { preferences } = useUserPreferences();
   const [body, setBody] = useState(initialBody);
+  // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
+  const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
   const { status, errorMessage, contentVersion, queueSave, saveNow } = useNoteAutosave({
     documentId,
     marker,
     initialVersion,
-    onDetachedSaveComplete
+    onDetachedSaveComplete,
+    onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved)
   });
   const editorExtensions = useMemo(
     () => [
@@ -101,8 +108,8 @@ export function NoteEditor({
     onRegisterSave?.(() => saveNowRef.current(bodyRef.current));
   }, [onRegisterSave]);
 
-  const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
-    if (bodyRef.current !== expectedMarkdown) return false;
+  /** 본문 전체를 프로그램적으로 바꾼다. 사용자 편집으로 저장되지 않게 반향을 표시하고 undo 히스토리에서 제외한다. */
+  const replaceEditorMarkdown = useCallback((nextMarkdown: string) => {
     bodyRef.current = nextMarkdown;
     programmaticBodyRef.current = nextMarkdown;
     setBody(nextMarkdown);
@@ -120,9 +127,22 @@ export function NoteEditor({
       tr.setMeta("addToHistory", false);
       view.dispatch(tr);
     });
+  }, []);
+
+  const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
+    if (bodyRef.current !== expectedMarkdown) return false;
+    replaceEditorMarkdown(nextMarkdown);
     queueSaveRef.current(nextMarkdown, "agent", applyOperationId);
     return true;
-  }, []);
+  }, [replaceEditorMarkdown]);
+
+  // 서버가 이미지 placeholder를 관리 경로로 바꿔 주면 편집기 본문에도 반영한다.
+  // 사용자가 그 사이 더 입력했어도 placeholder만 문자열 치환하므로 입력이 사라지지 않는다.
+  onAttachmentsSavedRef.current = (saved) => {
+    const paths = new Map(saved.map((entry) => [entry.attachment_id.toLowerCase(), entry.content_path]));
+    const next = substituteAttachmentPaths(bodyRef.current, paths);
+    if (next !== bodyRef.current) replaceEditorMarkdown(next);
+  };
 
   const publishMarkdownEditContext = useCallback((
     markdownValue: string,
@@ -263,10 +283,29 @@ export function NoteEditor({
       defaultValue: bodyRef.current,
       features: {
         [CrepeFeature.AI]: false,
-        [CrepeFeature.ImageBlock]: false,
         [CrepeFeature.TopBar]: false
       },
       featureConfigs: {
+        // 이미지: 붙여넣기·드롭·'/' 메뉴 모두 onUpload를 거친다. 저장 전에는 attachment:// placeholder + object URL로 보여주고,
+        // 저장 시 파일을 함께 보내 서버 관리 경로로 치환한다(이슈 #18).
+        [CrepeFeature.ImageBlock]: {
+          onUpload: async (file) => {
+            const problem = validateImageFile(file);
+            if (problem) {
+              publishNotice({ kind: "failed", title: "이미지 첨부 실패", message: problem });
+              throw new Error(problem);
+            }
+            return pendingImages.register(file);
+          },
+          // 저장 전 placeholder는 로컬 미리보기, 저장된 관리 경로는 인증 fetch로 받는다.
+          proxyDomURL: (url) => pendingImages.resolve(url) ?? (isManagedAssetPath(url) ? fetchAssetObjectUrl(url).catch(() => url) : url),
+          inlineUploadButton: "이미지 선택",
+          inlineUploadPlaceholderText: "또는 이미지 링크 붙여넣기",
+          blockUploadButton: "이미지 선택",
+          blockUploadPlaceholderText: "또는 이미지 링크 붙여넣기",
+          blockConfirmButton: "확인",
+          blockCaptionPlaceholderText: "캡션 입력"
+        },
         // '/' 슬래시 메뉴 한글화
         [CrepeFeature.BlockEdit]: {
           // 문서 편집에서는 블록 이동 핸들을 표시하지 않고 '/' 입력 메뉴만 유지한다.
@@ -322,6 +361,7 @@ export function NoteEditor({
     crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).config((ctx) => {
       configureMarkdownMath(ctx);
       configureStrikethrough(ctx);
+      preserveImageAlt(ctx);
       configureMathEditor(ctx);
       disableBlockHandle(ctx);
       // commonmark 기본 Backspace(priority 50)보다 먼저 실행시킨다

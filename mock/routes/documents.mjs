@@ -3,6 +3,9 @@ import { state, now, id, hash, error, requireWorkspace, findDocument, toDocument
 import { startConvert, startIngest } from "../pipeline.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
+// 편집기 이미지 첨부 계약: 본문의 attachment://<uuid> placeholder와 attachment_<uuid> file part
+const ATTACHMENT_PLACEHOLDER = /attachment:\/\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
+const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 // 업로드 전송 시간 흉내: 기본 1초 + 200KB당 1초, 최대 12초. MOCK_UPLOAD_DELAY_MS로 고정할 수 있다.
 const UPLOAD_BYTES_PER_MS = 200;
 const UPLOAD_BASE_DELAY_MS = 1_000;
@@ -150,13 +153,50 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
-    const { markdown, base_revision } = await ctx.body();
+    const body = await ctx.body();
+    // 이미지 포함 저장: metadata JSON + attachment_<uuid> file part. placeholder를 관리 경로로 치환해 돌려준다.
+    if (typeof body.metadata === "string") {
+      let metadata;
+      try { metadata = JSON.parse(body.metadata); } catch { return error(ctx, 400, "metadata JSON이 올바르지 않습니다."); }
+      if (typeof metadata.markdown !== "string" || !(Number(metadata.base_version) >= 1)) return error(ctx, 400, "metadata에는 markdown과 1 이상의 base_version이 필요합니다.");
+      if (Number(metadata.base_version) !== doc.edit_revision) return error(ctx, 409, "다른 편집 내용이 먼저 저장되었습니다.");
+      const placeholders = [...new Set([...metadata.markdown.matchAll(ATTACHMENT_PLACEHOLDER)].map((match) => match[1].toLowerCase()))];
+      const files = Object.entries(body).filter(([key]) => key.startsWith("attachment_")).map(([key, file]) => [key.slice("attachment_".length).toLowerCase(), file]);
+      const fileIds = files.map(([id]) => id);
+      if (placeholders.length !== fileIds.length || placeholders.some((id) => !fileIds.includes(id))) return error(ctx, 400, "placeholder와 이미지 file part가 일치하지 않습니다.");
+      if (files.length > 20) return error(ctx, 413, "저장당 이미지는 20개까지입니다.");
+      for (const [, file] of files) {
+        if (!ALLOWED_IMAGE_TYPES.has(file?.type)) return error(ctx, 415, "PNG, JPEG, WebP, GIF만 허용합니다.");
+        if (!file.buffer?.length) return error(ctx, 400, "빈 이미지 파일입니다.");
+        if (file.buffer.length > 10 * 1024 * 1024) return error(ctx, 413, "이미지당 10MB를 넘을 수 없습니다.");
+      }
+      const attachments = files.map(([attachmentId, file]) => {
+        const asset = { id: id("asset"), workspace_id: workspace.id, content_type: file.type, buffer: file.buffer, created_at: now() };
+        state.assets.push(asset);
+        return { attachment_id: attachmentId, asset_id: asset.id, content_path: `/api/workspaces/${workspace.id}/assets/${asset.id}/content` };
+      });
+      const pathById = new Map(attachments.map((entry) => [entry.attachment_id, entry.content_path]));
+      const markdown = metadata.markdown.replace(ATTACHMENT_PLACEHOLDER, (_whole, attachmentId) => pathById.get(attachmentId.toLowerCase()));
+      return ctx.json(200, { ...saveVersion(doc, markdown, ctx.user.id), markdown, attachments });
+    }
+    // 프론트는 CRLF 변환을 피하려고 markdown을 file part(Blob)로 보낸다. 문자열·파일 둘 다 받는다.
+    const markdown = typeof body.markdown === "string" ? body.markdown : body.markdown?.buffer?.toString("utf8");
+    const { base_revision } = body;
     if (typeof markdown !== "string") return error(ctx, 400, "markdown 본문이 필요합니다.");
     if (Number(base_revision) !== doc.edit_revision) return error(ctx, 409, "다른 편집 내용이 먼저 저장되었습니다.");
     if (markdown === doc.markdown) {
       return ctx.json(200, { document_id: doc.id, current_version: doc.current_version, content_hash: hash(markdown), updated_at: doc.updated_at, changed: false });
     }
     ctx.json(200, saveVersion(doc, markdown, ctx.user.id));
+  });
+
+  // 관리 이미지 조회 (REQ-005): 워크스페이스 멤버만. 다른 워크스페이스 asset은 404.
+  router.get("/api/workspaces/:wid/assets/:id/content", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const asset = state.assets.find((item) => item.id === ctx.params.id && item.workspace_id === workspace.id);
+    if (!asset) return error(ctx, 404, "이미지를 찾을 수 없습니다.");
+    ctx.bytes(200, asset.buffer, asset.content_type);
   });
 
   router.get("/api/workspaces/:wid/documents/:id/versions", (ctx) => {

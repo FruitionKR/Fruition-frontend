@@ -13,6 +13,7 @@ import { createRehypeSourceBlocks } from "@/shared/lib/markdownSourceBlocks";
 import { remarkClosedMath } from "@/shared/lib/remarkClosedMath";
 import { rankColorClass, remarkCustomTokens } from "@/shared/lib/remarkCustomTokens";
 import type { SourceBlockHighlight } from "@/entities/document";
+import { ManagedImage } from "@/shared/ui/markdown/ManagedImage";
 
 // 렌더마다 배열 참조가 바뀌면 react-markdown이 재파싱하므로 모듈 상수로 유지한다.
 const REMARK_PLUGINS: PluggableList = [
@@ -114,6 +115,7 @@ export function MarkdownViewer({
 
     return {
       pre: ({ children }: { children?: ReactNode }) => <pre className="markdown-codeblock">{children}</pre>,
+      img: ManagedImage,
       "citation-ref": CitationRef,
       "source-block": SourceBlock
     } as Components;
