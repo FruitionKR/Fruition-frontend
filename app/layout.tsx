@@ -15,6 +15,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        {/* 전역 UI 서체(base.css @font-face). 먼저 받아 두어 첫 화면이 대체 서체로 그려졌다 바뀌는 깜빡임을 줄인다. */}
+        <link
+          rel="preload"
+          href="/fonts/pretendard/PretendardVariable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>
