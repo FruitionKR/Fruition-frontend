@@ -1,4 +1,4 @@
-import { apiFetch, getWorkspaceId, workspacePath, parseJsonOrThrow, throwIfNotOk } from "@/shared/api/client";
+import { apiFetch, getWorkspaceId, workspacePath, parseJsonOrThrow, throwIfNotOk, idempotentJsonHeaders } from "@/shared/api/client";
 import { findServerTreeItem, type DocumentTreeResponse, type FolderResponse } from "@/entities/tree/model/serverTree";
 
 export async function fetchDocumentTree(workspaceId = getWorkspaceId()): Promise<DocumentTreeResponse> {
@@ -10,7 +10,7 @@ export async function fetchDocumentTree(workspaceId = getWorkspaceId()): Promise
 
 export async function createFolder(name: string, parentFolderId: string | null = null): Promise<FolderResponse> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "folders"), {
-    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+    method: "POST", headers: idempotentJsonHeaders(),
     body: JSON.stringify({ name, parent_folder_id: parentFolderId })
   });
   return parseJsonOrThrow<FolderResponse>(response, "폴더를 생성하지 못했습니다.");
@@ -22,7 +22,7 @@ async function mutateTreeItem(id: string, type: "folder" | "document", method: s
   const item = findServerTreeItem(tree.items, id);
   if (!item || item.type !== type) throw new Error("항목이 이동되거나 삭제되었습니다. 목록을 새로고침해 주세요.");
   const response = await apiFetch(workspacePath(workspaceId, type === "folder" ? "folders" : "documents", id, ...suffix), {
-    method, headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+    method, headers: idempotentJsonHeaders(),
     body: JSON.stringify({ ...payload, base_version: item.current_version })
   });
   await throwIfNotOk(response, "폴더 또는 문서를 변경하지 못했습니다.");

@@ -147,3 +147,12 @@ export function workspacePath(workspaceId: string, ...segments: (string | number
     segments.map((segment) => `/${encodeURIComponent(String(segment))}`).join("")
   );
 }
+
+export function idempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
+/** JSON 본문을 보내는 멱등 변경 요청의 기본 헤더. */
+export function idempotentJsonHeaders(): HeadersInit {
+  return { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey() };
+}

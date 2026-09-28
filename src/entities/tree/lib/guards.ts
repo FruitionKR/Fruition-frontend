@@ -1,10 +1,13 @@
 import type { DragEvent as ReactDragEvent } from "react";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
+import { SUPPORTED_UPLOAD_EXTENSIONS } from "@/entities/document/lib/documentKind";
 
+// 서버 트리를 받기 전 빈 루트. id·title은 serverTree.ts의 상수와 같다.
 export const initialProjects: Project[] = [
   {
     id: "project-uploaded-documents",
-    title: "업로드 문서",
+    folderId: null,
+    title: "문서",
     items: []
   }
 ];
@@ -24,7 +27,7 @@ export function canDragTreeItem(item: TreeItem) {
 
 export function isSupportedUploadFile(file: File) {
   const name = file.name.toLowerCase();
-  return name.endsWith(".pdf") || name.endsWith(".md") || name.endsWith(".txt");
+  return SUPPORTED_UPLOAD_EXTENSIONS.some((extension) => name.endsWith(extension));
 }
 
 // 미지원 파일 필터링은 dropUploadFiles에서 처리한다(거부 안내 모달 표시를 위해 원본 목록 유지).

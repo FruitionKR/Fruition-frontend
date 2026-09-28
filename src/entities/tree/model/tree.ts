@@ -23,7 +23,7 @@ export type TreeItem = {
 
 export type Project = {
   id: string;
-  /** null은 서버 루트 문서를 보여주는 가상 그룹이다. */
+  /** null은 서버 루트(문서·폴더를 한 트리로 보여주는 유일한 프로젝트)다. */
   folderId?: string | null;
   currentVersion?: number;
   title: string;

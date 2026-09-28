@@ -14,24 +14,28 @@ const doc = (id, name) => ({ type: "document", id, name, current_version: 3, doc
 
 test("서버 트리는 루트와 중첩 폴더 위치 및 이름 정렬을 복원한다", () => {
   const projects = projectsFromServerTree([doc("root", "Root.md"), folder("b", "B", [doc("2", "z.md"), folder("nested", "A", [doc("3", "Report.md")]), doc("1", "a.md")]), folder("a", "A")]);
-  assert.deepEqual(projects.map(p => p.title), ["업로드 문서", "A", "B"]);
-  assert.equal(projects[0].items[0].documentId, "root");
-  assert.deepEqual(projects[2].items.map(i => i.label), ["A", "a.md", "z.md"]);
-  assert.equal(projects[2].items[0].children[0].documentId, "3");
+  // 루트 문서와 루트 폴더가 가상 그룹 없이 하나의 트리에 이름순으로 놓인다.
+  assert.equal(projects.length, 1);
+  assert.equal(projects[0].id, ROOT_DOCUMENTS_PROJECT_ID);
+  assert.deepEqual(projects[0].items.map(i => i.label), ["A", "B", "Root.md"]);
+  assert.equal(projects[0].items[2].documentId, "root");
+  const b = projects[0].items[1];
+  assert.deepEqual(b.children.map(i => i.label), ["A", "a.md", "z.md"]);
+  assert.equal(b.children[0].children[0].documentId, "3");
   assert.equal(serverFolderId(projects, { projectId: ROOT_DOCUMENTS_PROJECT_ID, folderId: null }), null);
-  assert.equal(serverFolderId(projects, { projectId: "b", folderId: null }), "b");
-  assert.equal(serverFolderId(projects, { projectId: "b", folderId: "nested" }), "nested");
+  assert.equal(serverFolderId(projects, { projectId: ROOT_DOCUMENTS_PROJECT_ID, folderId: "b" }), "b");
+  assert.equal(serverFolderId(projects, { projectId: ROOT_DOCUMENTS_PROJECT_ID, folderId: "nested" }), "nested");
 });
 
 test("서버에서 이동·삭제한 항목은 로컬 배치로 되돌리지 않으며 진행 중 업로드는 유지한다", () => {
-  const old = [{ id: ROOT_DOCUMENTS_PROJECT_ID, folderId: null, title: "업로드 문서", items: [
+  const old = [{ id: ROOT_DOCUMENTS_PROJECT_ID, folderId: null, title: "문서", items: [
     { id: "old", documentId: "deleted", label: "deleted.md", type: "file" },
     { id: "upload-pending", label: "pending.md", type: "file", status: "uploading" },
     { id: "upload-done", documentId: "done", label: "done.md", type: "file" }
   ] }];
   const projects = projectsFromServerTree([folder("f", "폴더", [doc("done", "done.md")])], old);
-  assert.deepEqual(projects[0].items.map(i => i.id), ["upload-pending"]);
-  assert.equal(projects[1].items[0].documentId, "done");
+  assert.deepEqual(projects[0].items.map(i => i.id), ["f", "upload-pending"]);
+  assert.equal(projects[0].items[0].children[0].documentId, "done");
 });
 
 test("루트 파일과 실제 폴더는 이름 공간을 공유하고 가상 업로드 그룹명은 제외한다", () => {

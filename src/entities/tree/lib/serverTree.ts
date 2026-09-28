@@ -3,9 +3,13 @@ import type { ServerTreeItem } from "../model/serverTree";
 import { makeRawId } from "@/entities/graph/lib/graph";
 
 export const ROOT_DOCUMENTS_PROJECT_ID = "project-uploaded-documents";
+export const ROOT_DOCUMENTS_TITLE = "문서";
 const byName = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label, "ko", { numeric: true, sensitivity: "base" });
 
-/** 서버 트리가 위치의 기준이며, 아직 완료되지 않은 업로드만 화면에 유지한다. */
+/**
+ * 서버 트리가 위치의 기준이며, 아직 완료되지 않은 업로드만 화면에 유지한다.
+ * 루트 문서와 루트 폴더를 하나의 트리로 묶는다(가상 "업로드 문서" 그룹 없음).
+ */
 export function projectsFromServerTree(items: ServerTreeItem[], previous: Project[] = []): Project[] {
   const mapItem = (item: ServerTreeItem): TreeItem => {
     const doc = item.document;
@@ -17,13 +21,8 @@ export function projectsFromServerTree(items: ServerTreeItem[], previous: Projec
           errorMessage: doc?.error_message, sourceUri: doc?.source_uri, byteSize: doc?.byte_size,
           uploadedAt: doc?.uploaded_at, updatedAt: doc?.updated_at };
   };
-  const rootDocuments = items.filter((item) => item.type === "document").map(mapItem);
   const projects: Project[] = [
-    { id: ROOT_DOCUMENTS_PROJECT_ID, folderId: null, title: "업로드 문서", items: rootDocuments.sort(byName) },
-    ...items.filter((item) => item.type === "folder").map((item) => ({
-      id: item.id, folderId: item.id, title: item.name, currentVersion: item.current_version,
-      items: (item.children ?? []).map(mapItem).sort(byName)
-    })).sort((a, b) => a.title.localeCompare(b.title, "ko", { numeric: true, sensitivity: "base" }))
+    { id: ROOT_DOCUMENTS_PROJECT_ID, folderId: null, title: ROOT_DOCUMENTS_TITLE, items: items.map(mapItem).sort(byName) }
   ];
   const serverIds = new Set<string>();
   const collect = (nodes: ServerTreeItem[]) => nodes.forEach((node) => { serverIds.add(node.id); collect(node.children ?? []); });

@@ -6,6 +6,7 @@ import { useMe } from "@/entities/user";
 import { changeMemberRole, fetchMembers, inviteMember, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import { clearSelectedWorkspaceId, getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
 import styles from "./MembersPanel.module.css";
@@ -33,6 +34,9 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
   const [searchOpen, setSearchOpen] = useState(false);
   // 행 우측 "…" 메뉴가 열린 멤버 id (한 번에 하나만)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  // 필터·행 메뉴는 바깥 클릭이나 Escape로 닫는다. 행 메뉴 ref는 열린 행에만 붙인다.
+  const filterMenuRef = useDismissableMenu(filterOpen, () => setFilterOpen(false));
+  const rowMenuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
   const [showInvite, setShowInvite] = useState(false);
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("MEMBER");
@@ -115,7 +119,7 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
         <p>워크스페이스에 있는 사람과 역할을 관리합니다.</p>
       </div>
       <div className={styles.toolbar}>
-        <div className={styles["filter-wrap"]}>
+        <div className={styles["filter-wrap"]} ref={filterMenuRef}>
           <button
             type="button"
             className={styles["filter-btn"]}
@@ -221,7 +225,7 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
                 </span>
               </div>
               {canRemove && (
-                <div className={styles["more-wrap"]}>
+                <div className={styles["more-wrap"]} ref={openMenuId === member.user_id ? rowMenuRef : undefined}>
                   <button
                     type="button"
                     className={styles["more-btn"]}

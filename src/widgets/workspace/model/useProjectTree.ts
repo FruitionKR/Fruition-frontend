@@ -1,16 +1,18 @@
 import type { MouseEvent as ReactMouseEvent, MutableRefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
+import { getErrorMessage } from "@/shared/lib/errors";
+import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { resolveTreeMove } from "../lib/treeMoveRules";
 import {
   findTreeItem,
   availableFolderName,
   folderNames,
   findItemLocation,
   serverFolderId,
-  folderItems,
   normalizeTreeName,
   initialProjects,
   isFileItem,
@@ -28,6 +30,13 @@ type DeleteConfirmTarget = {
   kind: "folder" | "document";
 };
 
+/** 문서 위에 문서를 놓아 새 묶음 폴더를 만들기 전 확인 모달이 필요로 하는 정보. */
+type MergeConfirmTarget = {
+  sourceLabel: string;
+  targetLabel: string;
+  run: () => void;
+};
+
 export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<() => Promise<void>> }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [draggedItem, setDraggedItem] = useState<{ projectId: string; itemId: string } | null>(null);
@@ -36,33 +45,37 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmTarget | null>(null);
+  const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
+  // Cmd/Ctrl+클릭으로 고른 이동 대상. Escape나 일반 클릭으로 해제한다.
+  const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const editingCancelRef = useRef(false);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  const clearSelectedItems = useCallback(() => setSelectedItemIds(new Set()), []);
+  useEscapeKey(contextMenu !== null, closeContextMenu);
+  useEscapeKey(selectedItemIds.size > 0, clearSelectedItems);
 
   useEffect(() => {
     if (!contextMenu) return;
-
-    function closeContextMenu() {
-      setContextMenu(null);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeContextMenu();
-    }
-
     window.addEventListener("click", closeContextMenu);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("click", closeContextMenu);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [contextMenu]);
+    return () => window.removeEventListener("click", closeContextMenu);
+  }, [contextMenu, closeContextMenu]);
+
+  function toggleSelectedItem(itemId: string) {
+    setSelectedItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
 
   const mutationRunningRef = useRef(false);
   async function runTreeMutation(action: () => Promise<void>, title: string) {
     if (mutationRunningRef.current) return;
     mutationRunningRef.current = true;
     try { await action(); }
-    catch (error) { publishNotice({ kind: "failed", title, message: error instanceof Error ? error.message : "변경하지 못했습니다." }); }
+    catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
     finally {
       await refreshRef.current().catch(() => {});
       mutationRunningRef.current = false;
@@ -82,12 +95,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     void runTreeMutation(async () => {
       const folder = await createFolder(availableFolderName(projects, "새 폴더", location), parentId);
       editingCancelRef.current = false;
-      if (location && parentId !== null) {
-        setEditing({ projectId: location.projectId, itemId: folder.id, label: folder.name });
-      } else {
-        setProjects((current) => [...current, { id: folder.id, folderId: folder.id, title: folder.name, currentVersion: folder.current_version, items: [] }]);
-        setEditing({ projectId: folder.id, itemId: null, label: folder.name });
-      }
+      // 루트 폴더도 트리 행이므로 재조회 후 나타나는 행에서 바로 이름을 편집한다.
+      setEditing({ projectId: location?.projectId ?? ROOT_DOCUMENTS_PROJECT_ID, itemId: folder.id, label: folder.name });
     }, "폴더 생성 실패");
   }
 
@@ -95,40 +104,62 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     const dragged = draggedItem;
     setDropTarget(null);
     setDraggedItem(null);
-    if (!dragged) return;
-    const source = projects.find((project) => project.id === dragged.projectId);
-    const item = source && findTreeItem(source.items, dragged.itemId);
-    const targetProject = projects.find((project) => project.id === target.projectId);
-    const targetItem = targetProject && target.targetId ? findTreeItem(targetProject.items, target.targetId) : null;
-    if (!item || !targetProject || isWikiItem(item) || item.id === targetItem?.id) return;
-    if (isFileItem(item) && !item.documentId) return;
-    const parent = targetItem ? findItemLocation(projects, targetItem.id) : { projectId: target.projectId, folderId: null };
-    if (!parent) return;
-    const destination = target.position === "inside" && targetItem && !isFileItem(targetItem)
-      ? { projectId: target.projectId, folderId: targetItem.id } : parent;
-    const siblings = folderItems(projects, destination).filter((sibling) => sibling.id !== item.id);
-    const isMerge = target.position === "inside" && targetItem && isFileItem(item) && isFileItem(targetItem);
-    const conflicting = isMerge
-      ? normalizeTreeName(item.label) === normalizeTreeName(targetItem.label)
-      : siblings.some((sibling) => normalizeTreeName(sibling.label) === normalizeTreeName(item.label));
-    if (conflicting) {
+    const resolution = resolveTreeMove(projects, dragged, target, selectedItemIds);
+    if (resolution.kind === "invalid") return;
+    if (resolution.kind === "conflict") {
       publishNotice({ kind: "failed", title: "이동 실패", message: "대상 폴더에 같은 이름의 항목이 있습니다." });
       return;
     }
+    if (resolution.kind === "cycle") {
+      publishNotice({ kind: "failed", title: "이동 실패", message: "폴더를 자기 자신이나 하위 폴더 안으로 옮길 수 없습니다." });
+      return;
+    }
+    if (resolution.kind === "move-many") {
+      const { items, folderId } = resolution;
+      setSelectedItemIds(new Set());
+      void runTreeMutation(async () => {
+        // 하나가 실패해도 나머지는 계속 옮기고, 몇 개가 실패했는지 알린다. finally의 재조회가 실제 위치를 보여준다.
+        const results = await Promise.allSettled(items.map((entry) =>
+          entry.documentId ? moveDocument(entry.documentId, folderId) : moveFolder(entry.id, folderId)
+        ));
+        const failed = results.filter((result) => result.status === "rejected").length;
+        if (failed > 0) throw new Error(`${items.length}개 중 ${failed}개 항목을 옮기지 못했습니다.`);
+      }, "항목 이동 실패");
+      return;
+    }
+    if (resolution.kind === "merge") {
+      // 새 폴더가 생기는 동작이라 바로 실행하지 않고 확인 모달을 연다. 실제 생성은 confirmMerge에서 수행한다.
+      const { sourceItem, targetItem, destination, folderId } = resolution;
+      const sourceDocumentId = sourceItem.documentId as string;
+      const targetDocumentId = targetItem.documentId as string;
+      setMergeConfirm({
+        sourceLabel: sourceItem.label,
+        targetLabel: targetItem.label,
+        run: () => void runTreeMutation(async () => {
+          const folder = await createFolder(availableFolderName(projects, "새 문서 묶음", destination), folderId);
+          // 부분 실패 시에도 최종 서버 위치를 재조회해 실제 상태를 표시한다.
+          await moveDocument(targetDocumentId, folder.id);
+          await moveDocument(sourceDocumentId, folder.id);
+        }, "문서 묶음 생성 실패")
+      });
+      return;
+    }
+    const { item, folderId, position } = resolution;
     void runTreeMutation(async () => {
-      const folderId = serverFolderId(projects, destination);
-      if (isMerge && targetItem.documentId && item.documentId) {
-        const folder = await createFolder(availableFolderName(projects, "새 문서 묶음", destination), folderId);
-        // 부분 실패 시에도 최종 서버 위치를 재조회해 실제 상태를 표시한다.
-        await moveDocument(targetItem.documentId, folder.id);
-        await moveDocument(item.documentId, folder.id);
-      } else {
-        const index = targetItem ? siblings.findIndex((sibling) => sibling.id === targetItem.id) : -1;
-        const position = target.position === "inside" || index < 0 ? undefined : index + (target.position === "after" ? 1 : 0);
-        if (item.documentId) await moveDocument(item.documentId, folderId, position);
-        else await moveFolder(item.id, folderId, position);
-      }
+      if (item.documentId) await moveDocument(item.documentId, folderId, position);
+      else await moveFolder(item.id, folderId, position);
     }, "항목 이동 실패");
+  }
+
+  function confirmMerge() {
+    if (!mergeConfirm) return;
+    const { run } = mergeConfirm;
+    setMergeConfirm(null);
+    run();
+  }
+
+  function cancelMerge() {
+    setMergeConfirm(null);
   }
 
   function openFolderMenu(event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) {
@@ -158,7 +189,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     setContextMenu(null);
   }
 
-  function takeMarkdownTargetFromContext(): FileDropTarget | null {
+  /** 컨텍스트 메뉴가 가리키는 폴더 위치(새 노트·파일 업로드 대상). 파일 위면 그 파일의 부모 폴더다. */
+  function takeFolderTargetFromContext(): FileDropTarget | null {
     if (!contextMenu) return null;
     const project = projects.find((project) => project.id === contextMenu.projectId);
     const item = contextMenu.itemId && project ? findTreeItem(project.items, contextMenu.itemId) : null;
@@ -266,6 +298,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   function onDragStart(projectId: string, itemId: string) {
     setDraggedItem({ projectId, itemId });
     setContextMenu(null);
+    // 선택 밖의 항목을 끌면 선택은 의미가 없으므로 해제한다.
+    if (!selectedItemIds.has(itemId)) setSelectedItemIds(new Set());
   }
 
   function onDragOverItem(target: DropTarget) {
@@ -295,13 +329,19 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     contextMenu,
     editing,
     deleteConfirm,
+    mergeConfirm,
+    confirmMerge,
+    cancelMerge,
+    selectedItemIds,
+    toggleSelectedItem,
+    clearSelectedItems,
     setFileDropTarget,
     addProject,
     moveTreeEntry,
     openFolderMenu,
     openProjectMenu,
     renameContextTarget,
-    takeMarkdownTargetFromContext,
+    takeFolderTargetFromContext,
     canRenameContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,

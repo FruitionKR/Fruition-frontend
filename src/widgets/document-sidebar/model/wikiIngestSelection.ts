@@ -1,18 +1,28 @@
 import type { TreeItem } from "@/entities/tree";
+import { collectTreeItems, filterTreeItems } from "@/entities/tree/lib/queries";
+import { isMarkdownTreeItem, isPdfTreeItem } from "@/entities/document/lib/documentKind";
 
-/** Markdown은 직접 편입하고 PDF는 확인 후 변환을 거친다. */
-export function isMarkdownTreeItem(item: TreeItem): boolean {
-  if (item.mimeType?.includes("markdown")) return true;
-  return /\.(md|markdown)$/i.test(item.label);
-}
+export { isMarkdownTreeItem };
 
 /** 체크박스를 켤 수 있는 문서인지. 폴더·위키 노드·반영 불가 문서는 false. */
 export function isSelectableTreeItem(item: TreeItem, eligibleDocumentIds: ReadonlySet<string>): boolean {
   return (
     item.type === "file"
     && item.documentId !== undefined
-    && (isMarkdownTreeItem(item) || item.mimeType === "application/pdf" || /\.pdf$/i.test(item.label))
+    && (isMarkdownTreeItem(item) || isPdfTreeItem(item))
     && eligibleDocumentIds.has(item.documentId)
+  );
+}
+
+/**
+ * 선택 모드에 보여줄 트리. 반영할 수 없는 문서(TXT·처리 중·이미 반영됨)는 숨기고,
+ * 선택 가능한 문서가 하나도 없는 폴더도 함께 숨긴다.
+ */
+export function pruneIneligibleTreeItems(items: TreeItem[], eligibleDocumentIds: ReadonlySet<string>): TreeItem[] {
+  return filterTreeItems(items, (item) =>
+    item.type === "file"
+      ? isSelectableTreeItem(item, eligibleDocumentIds)
+      : collectSelectableDocumentIds(item.children ?? [], eligibleDocumentIds).length > 0
   );
 }
 
@@ -21,10 +31,8 @@ export function collectSelectableDocumentIds(
   items: TreeItem[],
   eligibleDocumentIds: ReadonlySet<string>
 ): string[] {
-  return items.flatMap((item) =>
-    item.documentId !== undefined && isSelectableTreeItem(item, eligibleDocumentIds)
-      ? [item.documentId]
-      : collectSelectableDocumentIds(item.children ?? [], eligibleDocumentIds)
+  return collectTreeItems(items, (item) =>
+    item.documentId !== undefined && isSelectableTreeItem(item, eligibleDocumentIds) ? item.documentId : undefined
   );
 }
 

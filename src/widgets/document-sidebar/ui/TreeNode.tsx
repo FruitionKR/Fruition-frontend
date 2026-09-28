@@ -52,12 +52,21 @@ export function TreeNode({
   /** 트리 상호작용 상태·핸들러 묶음. onMoveItem은 onDropItem으로 감싸서 받는다 */
   interaction: Omit<TreeInteractionProps, "onMoveItem">;
 }) {
-  const { draggedItemId, dropTarget, fileDropTarget, editing } = interaction;
+  const { draggedItemId, dropTarget, fileDropTarget, editing, selectedItemIds } = interaction;
+  const isSelected = selectedItemIds.has(item.id);
+  // 선택된 묶음 중 하나를 끌면 나머지 선택 항목도 함께 이동하므로 같이 흐리게 표시한다.
+  const isDraggingGroup = draggedItemId !== null && isSelected && selectedItemIds.has(draggedItemId);
   const hasChildren = Boolean(item.children?.length);
   const isOpen = openIds.has(item.id);
   const isDropTarget = dropTarget?.projectId === projectId && dropTarget.targetId === item.id;
   const isFileDropTarget = fileDropTarget?.projectId === projectId && fileDropTarget.folderId === item.id;
   const isEditing = editing?.projectId === projectId && editing.itemId === item.id;
+  // 폴더 안으로 넣는 드롭은 폴더 행만이 아니라 펼쳐진 자식까지 한 블록으로 강조한다.
+  const isFolder = item.type === "folder";
+  const isDropInside = isDropTarget && dropTarget.position === "inside";
+  const isFolderBlockTarget = isFolder && (isDropInside || isFileDropTarget);
+  // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
+  const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
   const {
     canDrag,
@@ -77,13 +86,15 @@ export function TreeNode({
   });
 
   return (
-    <>
+    <div className={cx(styles["tree-group"], isFolderBlockTarget && styles["is-drop-inside"])}>
       <button
         type="button"
         className={cx(
           styles["tree-row"],
           item.active && styles["is-active"],
-          draggedItemId === item.id && styles["is-dragging"],
+          isUploading && styles["is-uploading"],
+          isSelected && styles["is-selected"],
+          (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
           isFileDropTarget && styles["is-file-drop-target"],
           item.type === "folder" ? styles["is-folder"] : styles["is-note"],
           depth > 0 && styles["is-nested"],
@@ -92,15 +103,27 @@ export function TreeNode({
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
         title={item.errorMessage ?? item.sourceUri}
         aria-expanded={hasChildren ? isOpen : undefined}
-        draggable={!isEditing && canDrag}
+        aria-busy={isUploading || undefined}
+        aria-disabled={isUploading || undefined}
+        draggable={!isEditing && !isUploading && canDrag}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onDragEnd={interaction.onDragEnd}
-        onContextMenu={(event) => interaction.onContextMenuItem(event, projectId, item.id)}
+        onContextMenu={(event) => {
+          if (isUploading) return event.preventDefault();
+          interaction.onContextMenuItem(event, projectId, item.id);
+        }}
         onClick={(event) => {
           event.stopPropagation();
+          if (isUploading || isEditing) return;
+          // Cmd/Ctrl+클릭: 열지 않고 이동 대상으로 고른다. 위키 노드는 이동 대상이 아니다.
+          if ((event.metaKey || event.ctrlKey) && item.type !== "wiki") {
+            interaction.onToggleSelectItem(item.id);
+            return;
+          }
+          if (selectedItemIds.size > 0) interaction.onClearSelectedItems();
           if (!isEditing && (item.graphNodeId || item.documentId)) interaction.onSelectGraphNode(item);
           if (!isEditing && hasChildren) onToggle(item.id);
         }}
@@ -116,7 +139,9 @@ export function TreeNode({
         ) : (
           <>
             <span>{display.name}</span>
-            {display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
+            {isUploading
+              ? <small className={styles["tree-type-badge"]}>업로드 중</small>
+              : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
             {isFileDropTarget && <small className={styles["tree-drop-hint"]}>여기에 추가</small>}
           </>
         )}
@@ -133,6 +158,6 @@ export function TreeNode({
           interaction={interaction}
         />
       ))}
-    </>
+    </div>
   );
 }

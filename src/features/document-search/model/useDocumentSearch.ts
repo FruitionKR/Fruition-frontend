@@ -40,7 +40,7 @@ function collectSelectable(items: TreeItem[], projectTitle: string, acc: SearchH
         updatedAt: item.updatedAt ?? item.uploadedAt
       });
     }
-    if (item.children?.length) collectSelectable(item.children, projectTitle, acc);
+    if (item.children?.length) collectSelectable(item.children, item.label, acc);
   }
 }
 

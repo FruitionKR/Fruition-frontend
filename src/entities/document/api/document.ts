@@ -1,6 +1,7 @@
 import { fetchDocumentTree } from "@/entities/tree/api/folders";
 import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serverTree";
-import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
+import { hasPdfExtension } from "@/entities/document/lib/documentKind";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
 import type { DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
 
@@ -59,7 +60,7 @@ export async function uploadDocumentFile(file: File, folderId: string | null = n
   const workspaceId = getWorkspaceId();
   return withUniqueDocumentName(workspaceId, file.name, null, async () => {
     const transport = await getDocumentTransport();
-    if (transport.directUpload && file.name.toLowerCase().endsWith(".pdf")) {
+    if (transport.directUpload && hasPdfExtension(file.name)) {
       return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId);
     }
     const formData = new FormData();
@@ -68,7 +69,7 @@ export async function uploadDocumentFile(file: File, folderId: string | null = n
 
     const response = await apiFetch(workspacePath(workspaceId, "documents"), {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": idempotencyKey() },
       body: formData
     });
 
@@ -96,7 +97,7 @@ export async function convertDocumentToMarkdown(documentId: string, options?: { 
     workspacePath(workspaceId, "documents", documentId, "convert-markdown"),
     {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() }
+      headers: { "Idempotency-Key": idempotencyKey() }
     }
   );
   const created = await parseJsonOrThrow<DocumentItemResponse>(response, ERROR_MESSAGES.documentConvertFailed);
@@ -143,10 +144,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
     workspacePath(workspaceId, "documents", documentId),
     {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": crypto.randomUUID()
-      },
+      headers: idempotentJsonHeaders(),
       body: JSON.stringify({ base_version: current_version })
     }
   );

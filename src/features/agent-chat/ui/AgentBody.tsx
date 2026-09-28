@@ -1,17 +1,10 @@
-import { ChevronDown } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
-import { AgentResultCard } from "./AgentResultCard";
-import { AgentPlanPreview } from "./AgentPlanPreview";
-import { isWorkspacePlanAction } from "../lib/agentPlan";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { StatusList } from "./StatusList";
+import { AssistantThread, STAGE_ANSWER } from "./AssistantThread";
+import { groupMessagesByPair } from "../lib/messageGroups";
 import { buildProgressSteps } from "../lib/progressSteps";
-import { resolveChatTurnPresentation } from "../lib/markdownAgent";
 import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
-import { findSourceNodeByDocumentId } from "@/entities/graph/lib/graph";
-import { citedRanks, formatAnswerMarkdown, formatReferenceMeta, formatWikiPageTitle } from "../lib/agentFormatters";
-import { buildCitationRankMap } from "../lib/citationRanks";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
@@ -19,90 +12,7 @@ import { cx } from "@/shared/lib/classNames";
 import { useSmoothScroll } from "../lib/useSmoothScroll";
 import styles from "./AgentChat.module.css";
 
-const MAX_RESULT_CARDS = 3;
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
-
-// 답변 공개 단계: 1=상태 목록만, 2=결과 카드까지, 3=답변 본문까지 표시
-const STAGE_RESULTS = 2;
-const STAGE_ANSWER = 3;
-
-function findGraphNode(nodes: GraphNode[] | undefined, pageId: string) {
-  return nodes?.find((node) => node.id === pageId);
-}
-
-function isKnownPage(nodes: GraphNode[] | undefined, pageId: string) {
-  return !nodes || !!findGraphNode(nodes, pageId);
-}
-
-function buildRelatedPageCards(message: ChatMessageResponse, nodes: GraphNode[] | undefined) {
-  const relatedPages = message.related_pages ?? [];
-  if (relatedPages.length > 0) {
-    return relatedPages
-      .filter((page) => isKnownPage(nodes, page.wiki_page_id))
-      .slice(0, MAX_RESULT_CARDS)
-      .map((page) => ({
-        key: `related-${page.wiki_page_id}`,
-        pageId: page.wiki_page_id,
-        pageType: page.page_type,
-        title: findGraphNode(nodes, page.wiki_page_id)?.label ?? page.title,
-        meta: page.role || "관련 자료"
-      }));
-  }
-
-  const seenPageIds = new Set<string>();
-  return message.references
-    .map((reference) => ({
-      reference,
-      pageId: reference.source_document_id
-        ? findSourceNodeByDocumentId(nodes, reference.source_document_id)?.id ?? null
-        : null
-    }))
-    .filter(({ pageId }) => {
-      if (!pageId || seenPageIds.has(pageId)) return false;
-      seenPageIds.add(pageId);
-      return true;
-    })
-    .slice(0, MAX_RESULT_CARDS)
-    .map(({ reference, pageId }) => ({
-      key: `reference-${reference.id}`,
-      pageId: pageId as string,
-      pageType: "source",
-      title: formatWikiPageTitle(pageId as string, nodes, reference.source_document_id || "근거"),
-      meta: formatReferenceMeta(reference)
-    }));
-}
-
-function sourceTitle(nodes: GraphNode[] | undefined, documentId: string) {
-  return findSourceNodeByDocumentId(nodes, documentId)?.label ?? documentId;
-}
-
-type ChatMessageGroup = {
-  key: string;
-  pairId: string | null;
-  messages: ChatMessageResponse[];
-};
-
-function groupMessagesByPair(messages: ChatMessageResponse[]): ChatMessageGroup[] {
-  const groups: ChatMessageGroup[] = [];
-  const groupByPairId = new Map<string, ChatMessageGroup>();
-
-  for (const message of messages) {
-    if (!message.pair_id) {
-      groups.push({ key: message.id, pairId: null, messages: [message] });
-      continue;
-    }
-
-    let group = groupByPairId.get(message.pair_id);
-    if (!group) {
-      group = { key: message.pair_id, pairId: message.pair_id, messages: [] };
-      groupByPairId.set(message.pair_id, group);
-      groups.push(group);
-    }
-    group.messages.push(message);
-  }
-
-  return groups;
-}
 
 export function AgentBody({
   messages,
@@ -318,101 +228,6 @@ export function AgentBody({
 
       {queryErrorMessage && <p className={styles["query-error"]}>{queryErrorMessage}</p>}
       {chatLoadErrorMessage && <p className={styles["query-error"]}>{chatLoadErrorMessage}</p>}
-    </div>
-  );
-}
-
-/** assistant 메시지 하나를 상태 목록·결과 카드·답변 본문 순서로 렌더링한다. */
-function AssistantThread({
-  message,
-  isAnimated,
-  visibleAnswerStage,
-  nodes,
-  onOpenWikiPage,
-  onOpenSourceBlocks
-}: {
-  message: ChatMessageResponse;
-  isAnimated: boolean;
-  visibleAnswerStage: number;
-  nodes?: GraphNode[];
-  onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
-  onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
-}) {
-  const presentation = resolveChatTurnPresentation(message.action);
-  const isWorkspacePlan = isWorkspacePlanAction(message.action);
-  const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
-  const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
-  const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
-  const resultCards = buildRelatedPageCards(message, nodes);
-  const ranksInAnswer = citedRanks(message.content);
-  const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
-  const citationReferenceByRank = new Map(
-    message.references
-      .filter((item) => item.rank && ranksInAnswer.has(item.rank) && item.source_document_id && item.source_block_ids?.length)
-      .map((item) => [citationRankMap.get(item.rank!) ?? item.rank!, item])
-  );
-  const canOpenCitation = (rank: number) => citationReferenceByRank.has(rank);
-  const openCitation = (rank: number) => {
-    const reference = citationReferenceByRank.get(rank);
-    if (!reference?.source_document_id || !reference.source_block_ids?.length) return;
-    const highlights = [...new Set(reference.source_block_ids)].map((blockId) => ({ block_id: blockId, rank }));
-    onOpenSourceBlocks(reference.source_document_id, sourceTitle(nodes, reference.source_document_id), highlights);
-  };
-
-  return (
-    <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
-      {!isWorkspacePlan && ((message.progress?.length ?? 0) > 0 || message.status === "pending") && (
-        <StatusList
-          title={message.status === "pending" ? "요청 처리 중" : message.status === "completed" ? "요청 처리 완료" : "요청 처리 종료"}
-          isLoading={message.status === "pending"}
-          hasResponse={message.status === "completed"}
-          steps={message.progress?.length ? buildProgressSteps(message.progress, message.status === "pending")
-            : [["요청을 전달하고 있어요.", "active"]]}
-        />
-      )}
-
-      {isSearchAnswer && resultCards.length > 0 && (!isAnimated || visibleAnswerStage >= STAGE_RESULTS) && (
-        <div className={cx(styles.results, isAnimated && styles["agent-stage"])}>
-          <p>찾은 자료 {resultCards.length}건</p>
-          {resultCards.map((card) => (
-            <AgentResultCard
-              key={card.key}
-              title={card.title}
-              meta={card.meta}
-              pageType={card.pageType}
-              // raw 외 wiki page(source/concept·미지 타입)는 내부 구성(블록 참조 등)이 그대로 노출되므로 미리보기를 열지 않는다.
-              onClick={card.pageType.toLowerCase() === "raw"
-                ? () => onOpenWikiPage(card.pageId, card.title, card.pageType)
-                : undefined}
-            />
-          ))}
-        </div>
-      )}
-
-      {(!isAnimated || visibleAnswerStage >= STAGE_ANSWER) && (
-        <section
-          className={cx(styles["agent-answer"], isAnimated && styles["agent-stage"])}
-          aria-label={isSearchAnswer ? "실행 중 발견 사항" : "답변"}
-        >
-          {isSearchAnswer && (
-            <button
-              type="button"
-              className={styles["answer-section-title"]}
-              aria-expanded={isAnswerExpanded}
-              onClick={() => setIsAnswerExpanded((current) => !current)}
-            >
-              <span>실행 중 발견 사항</span>
-              <ChevronDown size={8} className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
-            </button>
-          )}
-          {isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
-            markdown={formatAnswerMarkdown(message.content)}
-            onCitationClick={openCitation}
-            canClickCitation={canOpenCitation}
-            citationRankMap={citationRankMap}
-          />}
-        </section>
-      )}
     </div>
   );
 }

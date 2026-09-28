@@ -2,14 +2,13 @@
 
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { changeEmail, confirmEmailVerification, requestEmailVerification, ME_QUERY_KEY, SESSIONS_QUERY_KEY } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
-import { plusIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
+import { FlowModal } from "./FlowModal";
 
 const CODE_LENGTH = 6;
 
@@ -29,8 +28,6 @@ export function EmailChangeModal({ onSaved, onClose }: { onSaved: () => void; on
   const [error, setError] = useState<string | null>(null);
   const retrySeconds = Math.max(0, Math.ceil((retryAt - now) / 1000));
   const isCodeStep = verificationId !== null;
-
-  useEscapeKey(!busy, onClose);
 
   useEffect(() => {
     if (!retryAt) return;
@@ -99,83 +96,66 @@ export function EmailChangeModal({ onSaved, onClose }: { onSaved: () => void; on
     ? code.trim().length === CODE_LENGTH && !busy
     : email.trim().length > 0 && !busy && retrySeconds === 0;
 
-  return createPortal(
-    <div className={styles.overlay} onClick={busy ? undefined : onClose}>
-      <form
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="이메일 변경"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        <div className={styles["title-block"]}>
-          <div className={styles["title-row"]}>
-            <h2 className={styles.title}>이메일 변경</h2>
-            <button type="button" className={styles.close} aria-label="닫기" disabled={busy} onClick={onClose}>
-              <SvgIcon src={plusIcon} className={styles["close-icon"]} />
-            </button>
-          </div>
-          <p className={styles.subtitle}>
-            {isCodeStep ? "인증번호 6자리를 입력하여 이메일을 인증하세요." : "이 계정에 로그인할 때 사용할 이메일을 변경합니다."}
-          </p>
+  return (
+    <FlowModal
+      title="이메일 변경"
+      subtitle={isCodeStep ? "인증번호 6자리를 입력하여 이메일을 인증하세요." : "이 계정에 로그인할 때 사용할 이메일을 변경합니다."}
+      ariaLabel="이메일 변경"
+      canClose={!busy}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+    >
+      {isCodeStep ? (
+        <div className={styles.field}>
+          <label htmlFor="email-change-code">인증번호 6자리</label>
+          <input
+            id="email-change-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]+"
+            maxLength={CODE_LENGTH}
+            placeholder="XXXXXX"
+            autoFocus
+            value={code}
+            disabled={busy || Boolean(token)}
+            onChange={(event) => setCode(event.target.value)}
+          />
+          <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
+          <button type="button" className={styles.resend} disabled={busy || retrySeconds > 0} onClick={() => void sendCode()}>
+            {retrySeconds > 0 ? `${retrySeconds}초 후 재전송 가능` : "인증번호 재전송"}
+          </button>
+          {error && <p className={styles.error} role="alert">{error}</p>}
         </div>
-
-        <div className={styles.body}>
-          {isCodeStep ? (
-            <div className={styles.field}>
-              <label htmlFor="email-change-code">인증번호 6자리</label>
-              <input
-                id="email-change-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]+"
-                maxLength={CODE_LENGTH}
-                placeholder="XXXXXX"
-                autoFocus
-                value={code}
-                disabled={busy || Boolean(token)}
-                onChange={(event) => setCode(event.target.value)}
-              />
-              <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
-              <button type="button" className={styles.resend} disabled={busy || retrySeconds > 0} onClick={() => void sendCode()}>
-                {retrySeconds > 0 ? `${retrySeconds}초 후 재전송 가능` : "인증번호 재전송"}
-              </button>
-              {error && <p className={styles.error} role="alert">{error}</p>}
-            </div>
-          ) : (
-            <div className={styles.field}>
-              <label htmlFor="email-change-email">변경할 이메일 주소</label>
-              <input
-                id="email-change-email"
-                type="email"
-                autoComplete="email"
-                maxLength={255}
-                placeholder="example@email.com"
-                autoFocus
-                value={email}
-                disabled={busy}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              <p className={styles.hint}>이메일을 변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
-              {error && <p className={styles.error} role="alert">{error}</p>}
-            </div>
-          )}
-
-          <div className={cx(styles.footer, !isCodeStep && styles["is-end"])}>
-            {isCodeStep && (
-              <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
-                <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
-              </button>
-            )}
-            <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
-              {busy ? "처리 중…" : isCodeStep ? "인증하기" : retrySeconds > 0 ? `${retrySeconds}초 후 가능` : "변경하기"}
-              {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-            </button>
-          </div>
+      ) : (
+        <div className={styles.field}>
+          <label htmlFor="email-change-email">변경할 이메일 주소</label>
+          <input
+            id="email-change-email"
+            type="email"
+            autoComplete="email"
+            maxLength={255}
+            placeholder="example@email.com"
+            autoFocus
+            value={email}
+            disabled={busy}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <p className={styles.hint}>이메일을 변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
+          {error && <p className={styles.error} role="alert">{error}</p>}
         </div>
-      </form>
-    </div>,
-    document.body
+      )}
+
+      <div className={cx(styles.footer, !isCodeStep && styles["is-end"])}>
+        {isCodeStep && (
+          <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
+            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+          </button>
+        )}
+        <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
+          {busy ? "처리 중…" : isCodeStep ? "인증하기" : retrySeconds > 0 ? `${retrySeconds}초 후 가능` : "변경하기"}
+          {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
+        </button>
+      </div>
+    </FlowModal>
   );
 }

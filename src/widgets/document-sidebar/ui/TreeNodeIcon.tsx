@@ -19,6 +19,7 @@ export function TreeNodeIcon({
   isOpen: boolean;
 }) {
   if (isFileItem(item)) {
+    if (item.status === "uploading") return <span className={styles["tree-upload-spinner"]} aria-hidden />;
     return <span className={styles["tree-folder-slot"]} aria-hidden />;
   }
   if (item.wikiKind === "source") return <SvgIcon src={sourceIcon} className={cx(styles["tree-asset"], styles.source)} />;

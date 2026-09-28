@@ -13,6 +13,7 @@ export const state = {
   members: [],
   invitations: [],
   documents: [],
+  folders: [],
   wikiPages: [],
   wikiEdges: [],
   chatSessions: [],

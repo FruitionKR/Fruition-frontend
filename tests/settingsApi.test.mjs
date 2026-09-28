@@ -12,6 +12,8 @@ registerHooks({
     if (specifier.startsWith("@/")) {
       return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
     }
+    // 배럴(auth.ts)의 확장자 없는 상대 경로 재수출도 .ts 소스로 해석한다.
+    if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
     return nextResolve(specifier, context);
   }
 });
@@ -367,16 +369,20 @@ test("게시 버전이 남아 있어도 disabled 스킬은 OFF이고 클릭하�
     "react/jsx-runtime": { jsx: element, jsxs: element },
     "@tanstack/react-query": { useQuery: () => ({ data: [skill] }), useQueryClient: () => ({}), useMutation: (options) => ({ mutate: options.mutationFn }) },
     "@/entities/skill": { enableSkill: (...args) => calls.push(["enable", ...args]), disableSkill: (...args) => calls.push(["disable", ...args]) },
-    "@/shared/lib/auth": { getSelectedWorkspaceId: () => "ws_test" }
+    "@/shared/lib/auth": { getSelectedWorkspaceId: () => "ws_test" },
+    "@/shared/lib/useDismissableMenu": { useDismissableMenu: () => ({ current: null }) },
+    // 공통 Switch 컴포넌트는 checked/onClick prop만 확인한다.
+    "@/shared/ui/Switch": { Switch }
   };
+  function Switch() {}
   runInNewContext(outputText, { exports, require: (name) => modules[name] ?? { default: {} } });
   function findSwitch(node) {
     if (!node || typeof node !== "object") return;
-    if (node.props?.role === "switch") return node;
+    if (node.type === Switch) return node;
     return [node.props?.children].flat(Infinity).map(findSwitch).find(Boolean);
   }
   const toggle = findSwitch(exports.SkillsPanel());
-  assert.equal(toggle.props["aria-checked"], false);
+  assert.equal(toggle.props.checked, false);
   await toggle.props.onClick();
   assert.deepEqual(calls, [["enable", "ws_test", "skill_test"]]);
 });

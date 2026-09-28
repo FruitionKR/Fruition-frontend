@@ -6,80 +6,18 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { Element } from "hast";
-import type { PhrasingContent, Root } from "mdast";
 import type { PluggableList } from "unified";
-import { visit } from "unist-util-visit";
 import { cx } from "@/shared/lib/classNames";
 import { splitMarkdownBlockRanges } from "@/shared/lib/markdownSegments";
 import { createRehypeSourceBlocks } from "@/shared/lib/markdownSourceBlocks";
 import { remarkClosedMath } from "@/shared/lib/remarkClosedMath";
+import { rankColorClass, remarkCustomTokens } from "@/shared/lib/remarkCustomTokens";
 import type { SourceBlockHighlight } from "@/entities/document";
-
-// citation 강조에 사용하는 색상 팔레트 개수
-const CITATION_COLOR_COUNT = 5;
-
-function rankColorClass(rank: number) {
-  return `citation-rank-${((rank - 1) % CITATION_COLOR_COUNT) + 1}`;
-}
-
-/** wikilink([[...]])와 citation([1,2])을 커스텀 노드로 분리하는 remark 플러그인 */
-function remarkCustomTokens(options?: { citationRankMap?: ReadonlyMap<number, number> }) {
-  return (tree: Root) => {
-    visit(tree, "text", (node, index, parent) => {
-      if (!parent || index === undefined) return;
-
-      const pattern = /(\[\[[^\]|]+(?:\|[^\]]+)?\]\]|\[(?:\d+)(?:\s*,\s*\d+)*\](?:[ \t]*\[(?:\d+)(?:\s*,\s*\d+)*\])*)/g;
-      const value = node.value;
-      const replacements: PhrasingContent[] = [];
-      let lastIndex = 0;
-      let match: RegExpExecArray | null;
-
-      while ((match = pattern.exec(value)) !== null) {
-        if (match.index > lastIndex) {
-          replacements.push({ type: "text", value: value.slice(lastIndex, match.index) });
-        }
-
-        const token = match[0];
-        if (token.startsWith("[[")) {
-          const body = token.slice(2, -2);
-          const label = body.includes("|") ? body.split("|")[1] : body;
-          // 커스텀 노드 타입이라 mdast 유니온에 없어 캐스팅한다. hName 기반으로 hast에서 span으로 변환된다.
-          replacements.push({
-            type: "wikiLinkToken",
-            data: { hName: "span", hProperties: { className: "markdown-wikilink" } },
-            children: [{ type: "text", value: label }]
-          } as unknown as PhrasingContent);
-        } else {
-          const ranks = [...new Set((token.match(/\d+/g) ?? [])
-            .map(Number)
-            .filter(Number.isFinite)
-            .map((rank) => options?.citationRankMap?.get(rank) ?? rank))];
-          ranks.forEach((rank) => {
-            replacements.push({
-              type: "citationToken",
-              data: { hName: "citation-ref", hProperties: { rank } },
-              children: [{ type: "text", value: `[${rank}]` }]
-            } as unknown as PhrasingContent);
-          });
-        }
-
-        lastIndex = match.index + token.length;
-      }
-
-      if (replacements.length === 0) return;
-      if (lastIndex < value.length) {
-        replacements.push({ type: "text", value: value.slice(lastIndex) });
-      }
-
-      parent.children.splice(index, 1, ...replacements);
-      return index + replacements.length;
-    });
-  };
-}
 
 // 렌더마다 배열 참조가 바뀌면 react-markdown이 재파싱하므로 모듈 상수로 유지한다.
 const REMARK_PLUGINS: PluggableList = [
-  remarkGfm,
+  // "5~7초" 같은 범위 표기가 취소선이 되지 않도록 `~~`만 인정한다.
+  [remarkGfm, { singleTilde: false }],
   // 금액의 $는 그대로 표시하고, 수식은 $$...$$로 작성한다.
   [remarkMath, { singleDollarTextMath: false }],
   remarkClosedMath,
@@ -103,7 +41,7 @@ export function MarkdownViewer({
 }) {
   const remarkPlugins = useMemo<PluggableList>(
     () => citationRankMap
-      ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap }]]
+      ? [[remarkGfm, { singleTilde: false }], [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap }]]
       : REMARK_PLUGINS,
     [citationRankMap]
   );

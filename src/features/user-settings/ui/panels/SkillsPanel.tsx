@@ -12,7 +12,9 @@ import {
 } from "@/entities/skill";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { Switch } from "@/shared/ui/Switch";
 import modalStyles from "../SettingsModal.module.css";
 import { SkillCreateWizard } from "./SkillCreateWizard";
 import { SkillSearchModal } from "./SkillSearchModal";
@@ -70,8 +72,10 @@ export function SkillsPanel() {
   const [searchOpen, setSearchOpen] = useState(false);
   // 열려 있는 필터 드롭다운 (한 번에 하나만)
   const [openMenu, setOpenMenu] = useState<"scope" | "state" | null>(null);
+  const filterGroupRef = useDismissableMenu(openMenu !== null, () => setOpenMenu(null));
   // 행 우측 "…" 메뉴가 열린 스킬 id (한 번에 하나만)
   const [openRowMenuId, setOpenRowMenuId] = useState<string | null>(null);
+  const rowMenuRef = useDismissableMenu(openRowMenuId !== null, () => setOpenRowMenuId(null));
   const [searchText, setSearchText] = useState("");
 
   // 새 스킬 만들기 위저드 열림 상태
@@ -195,7 +199,7 @@ export function SkillsPanel() {
 
       {/* 필터·검색·생성 툴바 */}
       <div className={styles.toolbar}>
-        <div className={styles["toolbar-group"]}>
+        <div className={styles["toolbar-group"]} ref={filterGroupRef}>
           <div className={styles["filter-wrap"]}>
             <button
               type="button"
@@ -370,19 +374,15 @@ export function SkillsPanel() {
                   </span>
                 </span>
                 <span className={styles["cell-state"]}>
-                  <button
-                    type="button"
-                    className={`${modalStyles.switch} ${enabled ? modalStyles["is-on"] : styles["is-off"]}`}
-                    role="switch"
-                    aria-checked={enabled}
-                    aria-label={`${command} 사용 상태`}
+                  <Switch
+                    checked={enabled}
+                    label={`${command} 사용 상태`}
+                    offClassName={styles["is-off"]}
                     disabled={toggleMutation.isPending}
                     onClick={() => toggleMutation.mutate({ skill })}
-                  >
-                    <span className={modalStyles["switch-ball"]} />
-                  </button>
+                  />
                 </span>
-                <div className={`${styles["cell-more"]} ${styles["more-wrap"]}`}>
+                <div className={`${styles["cell-more"]} ${styles["more-wrap"]}`} ref={openRowMenuId === skill.id ? rowMenuRef : undefined}>
                   <button
                     type="button"
                     className={styles["more-btn"]}

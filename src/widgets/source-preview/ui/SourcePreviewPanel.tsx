@@ -12,6 +12,7 @@ import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
+import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
@@ -40,7 +41,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentRole,
   documentStatus,
-  parentLabel = "업로드 문서",
+  parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
   onOpenAgentPanel,
@@ -122,11 +123,11 @@ export function SourcePreviewPanel({
   const pageTypeLabel = resolvedPageType === "concept" ? "Concept" : "Source";
   const sourceDocuments = page?.source_documents ?? [];
   const selectedBlockHighlights = useMemo(() => sourceBlockHighlights ?? [], [sourceBlockHighlights]);
-  const isMarkdownFile = !pageId && !!documentId && /\.(md|markdown)$/i.test(title);
+  const isMarkdownFile = !pageId && !!documentId && hasMarkdownExtension(title);
   const isPdfOrOther = !pageId && !!documentId && !isMarkdownFile;
   // PDF는 편집 불가 문서라 제목·본문 chrome 없이 뷰어가 콘텐츠 영역 전체를 채운다.
-  const isPdfFile = isPdfOrOther && /\.pdf$/i.test(title);
-  const isTextFile = isPdfOrOther && /\.txt$/i.test(title);
+  const isPdfFile = isPdfOrOther && hasPdfExtension(title);
+  const isTextFile = isPdfOrOther && hasTextExtension(title);
   const visibleTitle = isMarkdownFile ? getMarkdownDocumentTitle(title) : title;
   const saveStatusLabel = SAVE_STATUS_LABELS[noteSaveStatus];
   const editableNote = useMemo(() => {

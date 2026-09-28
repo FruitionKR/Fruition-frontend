@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cx } from "@/shared/lib/classNames";
+import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { formatLintProgressLabel } from "@/features/wiki-ingest/model/activeLintOperation";
 import {
   isLintActionEnabled,
@@ -33,7 +34,7 @@ export function GraphSidebarActions({
   documents: DocumentItemResponse[];
   pending: "ingest" | "lint" | null;
   projects: Project[];
-  /** 기본 모드에서 보여줄 문서 트리(홈 뷰와 동일한 ProjectSection). */
+  /** 기본 모드에서 보여줄 문서 트리(홈 뷰와 동일한 RootTree). */
   tree: ReactNode;
   /** 선택 모드에서 고른 문서들을 한 번에 위키에 반영한다. */
   onIngestDocuments: (documents: DocumentItemResponse[]) => void;
@@ -77,16 +78,11 @@ export function GraphSidebarActions({
   }, [isIngestActive, isLintActive, refetchMaintenanceStatus]);
 
   // 선택 모드는 Esc로도 빠져나온다.
-  useEffect(() => {
-    if (!isSelecting) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setIsSelecting(false);
-      setSelectedIds(new Set());
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isSelecting]);
+  const exitSelecting = useCallback(() => {
+    setIsSelecting(false);
+    setSelectedIds(new Set());
+  }, []);
+  useEscapeKey(isSelecting, exitSelecting);
 
   const isLintEnabled = isLintActionEnabled({
     needsLint: maintenanceStatus?.needs_lint === true,

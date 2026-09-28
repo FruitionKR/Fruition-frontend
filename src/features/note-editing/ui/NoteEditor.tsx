@@ -24,6 +24,7 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
+import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
 import { configureMathEditor } from "../model/mathEditor";
 import styles from "./NoteEditor.module.css";
 
@@ -318,8 +319,9 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).config((ctx) => {
       configureMarkdownMath(ctx);
+      configureStrikethrough(ctx);
       configureMathEditor(ctx);
       disableBlockHandle(ctx);
       // commonmark 기본 Backspace(priority 50)보다 먼저 실행시킨다

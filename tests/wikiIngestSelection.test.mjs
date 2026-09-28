@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import {
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
+  return next(specifier, context);
+} });
+const {
   collectSelectableDocumentIds,
   isAllSelected,
   isMarkdownTreeItem,
   isSelectableTreeItem,
+  pruneIneligibleTreeItems,
   toggleDocumentIds
-} from "../src/widgets/document-sidebar/model/wikiIngestSelection.ts";
+} = await import("../src/widgets/document-sidebar/model/wikiIngestSelection.ts");
 
 function file(id, label, mimeType) {
   return { id, label, type: "file", documentId: `doc-${id}`, mimeType };
@@ -73,4 +80,17 @@ test("toggleDocumentIds는 원본 Set을 바꾸지 않는다", () => {
   const original = new Set(["doc-1"]);
   toggleDocumentIds(original, ["doc-2"]);
   assert.deepEqual([...original], ["doc-1"]);
+});
+
+test("선택 모드 트리는 반영 불가 문서와 빈 폴더를 숨긴다", () => {
+  // note.md만 반영 가능: TXT·반영 불가 pdf/md는 사라지고, 빈 하위 폴더 b도 사라진다.
+  const pruned = pruneIneligibleTreeItems(tree, new Set(["doc-1"]));
+  assert.deepEqual(pruned.map((item) => item.id), ["a"]);
+  assert.deepEqual(pruned[0].children.map((item) => item.id), ["1"]);
+  // 하위에 반영 가능한 문서가 있으면 폴더 경로는 유지된다.
+  const nested = pruneIneligibleTreeItems(tree, new Set(["doc-3"]));
+  assert.deepEqual(nested[0].children.map((item) => item.id), ["b"]);
+  assert.deepEqual(nested[0].children[0].children.map((item) => item.id), ["3"]);
+  // 아무것도 반영할 수 없으면 빈 트리
+  assert.deepEqual(pruneIneligibleTreeItems(tree, new Set()), []);
 });

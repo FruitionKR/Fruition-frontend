@@ -1,4 +1,4 @@
-import { apiFetch, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
+import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import type { AgentPlan, AgentPlanRun, PlanTreeItem } from "../lib/agentPlan";
 
 /** 채팅의 turn ID와 실제 승인 대상 run ID는 서로 다르다. */
@@ -24,7 +24,7 @@ export async function fetchPlanTree(workspaceId: string, signal?: AbortSignal): 
 export async function decideAgentPlan(workspaceId: string, runId: string, decision: "approve" | "reject", plan: AgentPlan): Promise<AgentPlanRun> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId, decision), {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+    headers: idempotentJsonHeaders(),
     ...(decision === "approve" ? { body: JSON.stringify({ plan_version: plan.version, operation_hash: plan.operation_hash }) } : {})
   });
   return parseJsonOrThrow<AgentPlanRun>(response, "계획 승인·거절을 처리하지 못했습니다. 최신 상태를 확인해주세요.");

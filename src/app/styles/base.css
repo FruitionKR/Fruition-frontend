@@ -105,3 +105,10 @@ html[data-reduce-motion="true"] *::after {
   border: 2px solid var(--panel);
   border-radius: 999px;
 }
+
+/* 공통 회전 keyframes (로딩 스피너·아이콘 회전). CSS 모듈에서는 animation: global(spin)으로 참조한다 */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

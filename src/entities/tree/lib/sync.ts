@@ -2,6 +2,7 @@ import { makeRawId } from "@/entities/graph/lib/graph";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { WikiGraphResponse } from "@/entities/wiki/model/wiki";
+import { collectTreeItems, filterTreeItems } from "./queries";
 
 // 백엔드 wiki graph에서 자동 생성되는 그룹 폴더 ID
 const WIKI_SOURCE_GROUP_ID = "wiki-source-pages";
@@ -39,12 +40,8 @@ function syncDocumentItems(items: TreeItem[], documents: DocumentItemResponse[])
   });
 }
 
-function collectDocumentIds(items: TreeItem[], ids = new Set<string>()) {
-  for (const item of items) {
-    if (item.documentId) ids.add(item.documentId);
-    if (item.children?.length) collectDocumentIds(item.children, ids);
-  }
-  return ids;
+function collectDocumentIds(items: TreeItem[]) {
+  return new Set(collectTreeItems(items, (item) => item.documentId || undefined));
 }
 
 function areTreeItemsEqual(left: TreeItem[], right: TreeItem[]): boolean {
@@ -76,11 +73,9 @@ function areTreeItemsShallowEqual(left: TreeItem, right: TreeItem): boolean {
 
 export function mergeBackendDataIntoProjects(projects: Project[], documents: DocumentItemResponse[], graph: WikiGraphResponse) {
   const backendDocumentIds = new Set(documents.map((document) => document.id));
-  const removeMissingDocuments = (items: TreeItem[]): TreeItem[] => items.flatMap((item) => {
-    if (item.documentId && !backendDocumentIds.has(item.documentId) && item.status !== "uploading") return [];
-    if (!item.children?.length) return [item];
-    return [{ ...item, children: removeMissingDocuments(item.children) }];
-  });
+  const removeMissingDocuments = (items: TreeItem[]): TreeItem[] => filterTreeItems(items, (item) =>
+    !(item.documentId && !backendDocumentIds.has(item.documentId) && item.status !== "uploading")
+  );
   const reconciledProjects = projects.map((project) => ({
     ...project,
     items: removeMissingDocuments(project.items)

@@ -326,53 +326,6 @@ button.nav-row:disabled {
 }
 
 /* 스위치는 누를 때 손잡이가 살짝 늘어나고, 이동 끝에서 부드럽게 감속한다. */
-.switch {
-  width: 32px;
-  height: 19px;
-  flex: 0 0 auto;
-  display: flex;
-  padding: 1.5px;
-  background: #e2e2e2;
-  border-radius: 100px;
-  cursor: pointer;
-  transition: background-color 240ms ease-out;
-}
-
-.switch.is-on {
-  background: var(--yellow);
-}
-
-.switch-ball {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), width 160ms ease-out;
-}
-
-.switch.is-on .switch-ball {
-  transform: translateX(13px);
-}
-
-.switch:active:not(:disabled) .switch-ball {
-  width: 19px;
-}
-
-.switch.is-on:active:not(:disabled) .switch-ball {
-  transform: translateX(10px);
-}
-
-.switch:disabled {
-  cursor: default;
-}
-
-:global([data-reduce-motion="true"]) .switch,
-:global([data-reduce-motion="true"]) .switch-ball {
-  transition: none;
-}
-
 /* AI 모델 */
 .provider-setting {
   display: flex;
