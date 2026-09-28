@@ -347,7 +347,11 @@ export function NoteEditor({
             if (pending) return pending;
             if (!isManagedAssetPath(url)) return url;
             const cached = getCachedAssetObjectUrl(url);
-            if (cached) return cached;
+            if (cached) {
+              // 동기로 돌려주되 이 편집기의 참조도 잡아 둔다. 안 잡으면 다른 사용처가 놓을 때 표시 중인 URL이 revoke된다.
+              void acquireManagedAsset(url).catch(() => undefined);
+              return cached;
+            }
             return acquireManagedAsset(url).catch(() => url);
           },
           inlineUploadButton: "이미지 선택",
@@ -439,8 +443,9 @@ export function NoteEditor({
     });
     crepeRef.current = crepe;
     // 본문에 이미 있는 관리 이미지는 편집기를 만들기 전에 받아 둔다. 그래야 이미지 블록 첫 렌더에서
-    // proxyDomURL이 동기로 object URL을 돌려줘 원본 경로(401) 요청이 나가지 않는다. 오래 걸리면 기다리지 않는다.
-    const PREFETCH_CAP_MS = 3_000;
+    // proxyDomURL이 동기로 object URL을 돌려줘 원본 경로(401) 요청이 나가지 않는다.
+    // 이 동안 편집기 영역이 비어 보이므로 오래 기다리지 않는다. 느린 망에서는 원본 경로 요청 한 번(401)을 감수한다.
+    const PREFETCH_CAP_MS = 1_000;
     const prefetchAssets = Promise.race([
       Promise.allSettled(extractManagedAssetPaths(bodyRef.current).map((path) => acquireManagedAsset(path))),
       new Promise<void>((resolve) => setTimeout(resolve, PREFETCH_CAP_MS))
