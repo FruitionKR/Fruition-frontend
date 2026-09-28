@@ -211,15 +211,15 @@
   font-weight: 600;
 }
 
+/* 워크스페이스 이름 (Figma 1131:8268): 12px SemiBold. 서체는 body 전역 Pretendard를 상속한다 */
 .sidebar-workspace-name {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
   color: var(--ink);
-  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .sidebar-workspace-name span {
