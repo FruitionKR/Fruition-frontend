@@ -4,13 +4,15 @@ import { useUserPreferences } from "@/entities/user";
 import type { AiModelSelection } from "@/entities/ai";
 import { cancelQueryRun, QueryCancelledError, runQueryStream, type QueryRun, type QueryStageEvent } from "@/entities/wiki/api/wiki";
 import { publishNotice } from "@/features/document-notifications";
-import { buildNextActiveTurn, type ActiveAgentTurn } from "../lib/activeTurn";
 import { fetchMessagesForRequest } from "../lib/chatMessagesRequest";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { QueryRelatedPageResponse } from "@/entities/wiki/model/wiki";
 
-export type { ActiveAgentTurn } from "../lib/activeTurn";
+export type ActiveAgentTurn = {
+  question: string;
+};
 
 type ActiveQueryRequest = {
   run: QueryRun | null;
@@ -224,9 +226,11 @@ export function useChatThread(activeSessionId?: string | null) {
       if (nextMessages === null) return;
       const { sessionId: currentSessionId } = await getSessionContext();
       if (currentSessionId !== querySessionId) return;
-      const nextTurn = buildNextActiveTurn(nextMessages, previousAssistantMessageIds, queryRelatedPages, question);
-      setAnimatedMessageId(nextTurn.assistantMessage?.id ?? null);
-      setActiveTurn(nextTurn);
+      // 완료된 문답은 목록 안에서 다른 문답과 같이 그린다. 따로 그리면 편입 범위로 선택할 수 없다.
+      const merged = mergeQueryAnswer(nextMessages, previousAssistantMessageIds, queryRelatedPages);
+      setMessages(merged.messages);
+      setAnimatedMessageId(merged.answerMessageId);
+      setActiveTurn(null);
     }).catch((error: unknown) => {
       setChatLoadErrorMessage(getErrorMessage(error, "채팅 기록을 불러오지 못했습니다."));
       setActiveTurn(null);

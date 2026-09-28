@@ -29,7 +29,7 @@ test("구버전 일부 설정은 누락 필드를 기본값으로 보정한다",
   assert.equal(preferences.editor.defaultMode, "markdown");
   assert.equal(preferences.editor.markdown.lineNumbers, true);
   assert.equal(preferences.editor.markdown.lineWrapping, true);
-  assert.equal(preferences.documentFont, "system-sans");
+  assert.equal(preferences.documentFont, "readable-sans");
 });
 
 test("Graph 노드 표시를 모두 끈 저장 값은 Concept를 복원한다", () => {
