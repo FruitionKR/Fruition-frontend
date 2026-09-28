@@ -29,6 +29,22 @@ export function validateImageFile(file: { type: string; size: number }): string 
   return null;
 }
 
+/**
+ * 붙여넣기·드롭으로 들어온 파일 중 이미지가 아닌 것은 건드리지 않고, 이미지 가운데 넣을 수 없는 것만 걸러낸다.
+ * Crepe uploader는 묶음을 Promise.all로 처리하므로 한 장이라도 던지면 전부 사라지고 로딩 표시가 남는다.
+ */
+export function partitionImageFiles(files: ArrayLike<File>): { accepted: File[]; rejected: { file: File; reason: string }[] } {
+  const accepted: File[] = [];
+  const rejected: { file: File; reason: string }[] = [];
+  for (const file of Array.from(files)) {
+    if (!file.type.startsWith("image/")) continue;
+    const reason = validateImageFile(file);
+    if (reason) rejected.push({ file, reason });
+    else accepted.push(file);
+  }
+  return { accepted, rejected };
+}
+
 /** 서버가 돌려준 attachment → 관리 경로 매핑을 본문에 적용한다. 매핑에 없는 placeholder는 그대로 둔다. */
 export function substituteAttachmentPaths(markdown: string, saved: ReadonlyMap<string, string>): string {
   if (saved.size === 0) return markdown;

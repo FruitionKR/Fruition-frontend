@@ -58,6 +58,8 @@ export async function saveNoteDraft(
   if (attachments.length > 0) {
     // 새 이미지가 있으면 metadata JSON + attachment_<uuid> file part 계약을 쓴다. 서버가 placeholder를 관리 경로로 치환한다.
     // JSON은 개행이 \n으로 이스케이프돼 문자열 part의 CRLF 변환 영향을 받지 않는다.
+    // 이 경로는 revision_write_id를 받지 않는다. 서버(DocumentAssetContentService)가 base_version·본문 해시·첨부 해시로
+    // 쓰기 ID를 결정적으로 만들어 같은 요청의 재시도를 멱등 처리하므로 이미지가 중복 저장되지 않는다.
     formData.append("metadata", JSON.stringify({ markdown, base_version: expectedContentVersion }));
     attachments.forEach((image) => formData.append(`attachment_${image.id}`, image.file, image.file.name || "image"));
   } else {

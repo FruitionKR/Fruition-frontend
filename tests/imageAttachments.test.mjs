@@ -43,3 +43,17 @@ test("관리 이미지 경로만 인증 fetch 대상으로 본다", () => {
   assert.equal(isManagedAssetPath("data:image/png;base64,AAAA"), false);
   assert.equal(isManagedAssetPath("/api/workspaces/ws_1/documents/doc_1/original"), false);
 });
+
+test("붙여넣기 묶음에서 이미지가 아닌 파일은 무시하고 넣을 수 없는 이미지만 걸러낸다", async () => {
+  const { partitionImageFiles } = await import("../src/features/note-editing/model/imageAttachments.ts");
+  const file = (name, type, size) => ({ name, type, size });
+  const result = partitionImageFiles([
+    file("ok.png", "image/png", 10),
+    file("vector.svg", "image/svg+xml", 10),
+    file("huge.jpg", "image/jpeg", 10 * 1024 * 1024 + 1),
+    file("notes.txt", "text/plain", 10)
+  ]);
+  assert.deepEqual(result.accepted.map((f) => f.name), ["ok.png"]);
+  assert.deepEqual(result.rejected.map((r) => r.file.name), ["vector.svg", "huge.jpg"]);
+  assert.match(result.rejected[1].reason, /10MB/);
+});
