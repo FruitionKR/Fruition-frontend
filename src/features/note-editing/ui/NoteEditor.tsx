@@ -28,7 +28,7 @@ import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../mo
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
-import { fetchAssetObjectUrl, isManagedAssetPath } from "@/shared/api/assets";
+import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, isManagedAssetPath, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
 import { publishNotice } from "@/features/document-notifications";
 import { configureMathEditor } from "../model/mathEditor";
 import styles from "./NoteEditor.module.css";
@@ -307,6 +307,18 @@ export function NoteEditor({
     const host = document.createElement("div");
     wysiwygRootRef.current.appendChild(host);
 
+    // 이 편집기가 잡은 관리 이미지 참조. 정리 때 한꺼번에 놓아 object URL이 새지 않게 한다.
+    const acquiredAssetPaths = new Set<string>();
+    const acquireManagedAsset = (path: string) => {
+      // 같은 경로는 편집기당 한 번만 참조를 잡는다. 미리 받기와 이미지 블록 렌더가 겹쳐도 release 횟수와 맞는다.
+      if (acquiredAssetPaths.has(path)) {
+        const inFlight = peekAssetObjectUrl(path);
+        if (inFlight) return inFlight;
+      }
+      acquiredAssetPaths.add(path);
+      return acquireAssetObjectUrl(path);
+    };
+
     const crepe = new Crepe({
       root: host,
       defaultValue: bodyRef.current,
@@ -329,7 +341,19 @@ export function NoteEditor({
             return pendingImages.register(file);
           },
           // 저장 전 placeholder는 로컬 미리보기, 저장된 관리 경로는 인증 fetch로 받는다.
-          proxyDomURL: (url) => pendingImages.resolve(url) ?? (isManagedAssetPath(url) ? fetchAssetObjectUrl(url).catch(() => url) : url),
+          // 이미 받아 둔 경로는 동기로 돌려줘야 이미지 블록이 첫 렌더에서 원본 경로(401)를 요청하지 않는다.
+          proxyDomURL: (url) => {
+            const pending = pendingImages.resolve(url);
+            if (pending) return pending;
+            if (!isManagedAssetPath(url)) return url;
+            const cached = getCachedAssetObjectUrl(url);
+            if (cached) {
+              // 동기로 돌려주되 이 편집기의 참조도 잡아 둔다. 안 잡으면 다른 사용처가 놓을 때 표시 중인 URL이 revoke된다.
+              void acquireManagedAsset(url).catch(() => undefined);
+              return cached;
+            }
+            return acquireManagedAsset(url).catch(() => url);
+          },
           inlineUploadButton: "이미지 선택",
           inlineUploadPlaceholderText: "또는 이미지 링크 붙여넣기",
           blockUploadButton: "이미지 선택",
@@ -418,7 +442,16 @@ export function NoteEditor({
       ctx.get(keymapCtx).add({ key: "Backspace", priority: 100, onRun: liftListItemOnBackspace });
     });
     crepeRef.current = crepe;
-    const ready = crepe.create();
+    // 본문에 이미 있는 관리 이미지는 편집기를 만들기 전에 받아 둔다. 그래야 이미지 블록 첫 렌더에서
+    // proxyDomURL이 동기로 object URL을 돌려줘 원본 경로(401) 요청이 나가지 않는다.
+    // 이 동안 편집기 영역이 비어 보이므로 오래 기다리지 않는다. 느린 망에서는 원본 경로 요청 한 번(401)을 감수한다.
+    const PREFETCH_CAP_MS = 1_000;
+    const prefetchAssets = Promise.race([
+      Promise.allSettled(extractManagedAssetPaths(bodyRef.current).map((path) => acquireManagedAsset(path))),
+      new Promise<void>((resolve) => setTimeout(resolve, PREFETCH_CAP_MS))
+    ]);
+    // 미리 받기 도중 정리됐으면(StrictMode 이중 실행·빠른 문서 전환) 만들지 않는다. 만들면 캐시가 비어 원본 경로(401)를 요청한다.
+    const ready = prefetchAssets.then(() => (isDisposed ? crepe.editor : crepe.create()));
     // 입력 하나가 되돌리기 한 단계가 되도록 history의 그룹 병합을 사실상 끈다.
     // editor.config로 historyProviderConfig를 넣으면 plugin이 만들어질 때 이미 읽힌 뒤라
     // 반영되지 않으므로, 생성이 끝난 뒤 ProseMirror state에서 plugin을 교체한다.
@@ -459,6 +492,8 @@ export function NoteEditor({
 
     return () => {
       isDisposed = true;
+      acquiredAssetPaths.forEach((path) => releaseAssetObjectUrl(path));
+      acquiredAssetPaths.clear();
       if (crepeRef.current === crepe) crepeRef.current = null;
       // 이전 편집기는 즉시 숨기되 Milkdown 내부 destroy가 끝날 때까지 DOM에 유지한다.
       // 먼저 떼면 내부 컴포넌트가 parentNode.removeChild를 호출할 때 부모가 null일 수 있다.

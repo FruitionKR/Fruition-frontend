@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
-import { fetchAssetObjectUrl, isManagedAssetPath } from "@/shared/api/assets";
+import { acquireAssetObjectUrl, isManagedAssetPath, releaseAssetObjectUrl } from "@/shared/api/assets";
 
 /**
  * Markdown 이미지. 워크스페이스 관리 이미지(/api/workspaces/…/assets/…/content)는
@@ -19,10 +19,11 @@ export function ManagedImage({ src, alt, ...rest }: ImgHTMLAttributes<HTMLImageE
     let cancelled = false;
     setObjectUrl(null);
     setIsFailed(false);
-    fetchAssetObjectUrl(source)
+    acquireAssetObjectUrl(source)
       .then((url) => { if (!cancelled) setObjectUrl(url); })
       .catch(() => { if (!cancelled) setIsFailed(true); });
-    return () => { cancelled = true; };
+    // 마지막 사용처가 사라지면 object URL을 revoke한다
+    return () => { cancelled = true; releaseAssetObjectUrl(source); };
   }, [isManaged, source]);
 
   if (isManaged && isFailed) return <span className="markdown-image-missing" role="img" aria-label={alt ?? "이미지"}>이미지를 불러오지 못했습니다</span>;

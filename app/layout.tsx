@@ -16,14 +16,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        {/* 전역 UI 서체(base.css @font-face). 먼저 받아 두어 첫 화면이 대체 서체로 그려졌다 바뀌는 깜빡임을 줄인다. */}
-        <link
-          rel="preload"
-          href="/fonts/pretendard/PretendardVariable.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
+        {/* 전역 UI 서체 서브셋(fonts.css). 거의 모든 화면이 쓰는 라틴·상용 한글 두 조각만 먼저 받아
+            첫 화면이 대체 서체로 그려졌다 바뀌는 깜빡임을 줄인다. 드문 한글 조각은 필요할 때 받는다. */}
+        <link rel="preload" href="/fonts/pretendard/subset/PretendardVariable-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/pretendard/subset/PretendardVariable-ko-common.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       </head>
       <body>
         <Providers>{children}</Providers>
