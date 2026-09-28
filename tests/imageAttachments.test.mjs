@@ -57,3 +57,13 @@ test("붙여넣기 묶음에서 이미지가 아닌 파일은 무시하고 넣�
   assert.deepEqual(result.rejected.map((r) => r.file.name), ["vector.svg", "huge.jpg"]);
   assert.match(result.rejected[1].reason, /10MB/);
 });
+
+test("본문에서 관리 이미지 경로만 중복 없이 뽑는다", async () => {
+  const { extractManagedAssetPaths } = await import("../src/shared/api/assets.ts");
+  const markdown = "![a](/api/workspaces/ws_1/assets/asset_1/content) 글 ![b](/api/workspaces/ws_1/assets/asset_2/content)\n![a](/api/workspaces/ws_1/assets/asset_1/content) ![x](https://x.io/a.png) ![d](data:image/png;base64,AAAA)";
+  assert.deepEqual(extractManagedAssetPaths(markdown), [
+    "/api/workspaces/ws_1/assets/asset_1/content",
+    "/api/workspaces/ws_1/assets/asset_2/content"
+  ]);
+  assert.deepEqual(extractManagedAssetPaths("이미지 없음"), []);
+});
