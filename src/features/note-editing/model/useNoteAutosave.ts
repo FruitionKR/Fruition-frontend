@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
+import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
 import { getErrorMessage } from "@/shared/lib/errors";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
@@ -26,17 +27,24 @@ export function useNoteAutosave({
   documentId,
   marker,
   initialVersion,
-  onDetachedSaveComplete
+  onDetachedSaveComplete,
+  onAttachmentsSaved
 }: {
   documentId: string;
   marker: string;
   initialVersion: number;
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
+  /** 이미지 placeholder가 서버 관리 경로로 치환됐을 때. 편집기 본문의 placeholder를 바꿔 넣는 데 쓴다. */
+  onAttachmentsSaved?: (saved: SavedAttachment[]) => void;
 }) {
   const [status, setStatus] = useState<NoteSaveStatus>("saved");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [contentVersion, setContentVersion] = useState(initialVersion);
   const versionRef = useRef(initialVersion);
+  const onAttachmentsSavedRef = useRef(onAttachmentsSaved);
+  onAttachmentsSavedRef.current = onAttachmentsSaved;
+  // 이미 저장된 placeholder → 관리 경로. 사용자가 치환 전에 더 입력해도 같은 파일을 다시 올리지 않는다.
+  const savedAttachmentPathsRef = useRef(new Map<string, string>());
   const revisionRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduledSaveRef = useRef<PendingNoteSave | null>(null);
@@ -126,13 +134,24 @@ export function useNoteAutosave({
       if (saveCandidate.source === "agent") {
         agentRetryApplyOperationIdRef.current = saveCandidate.applyOperationId;
       }
+      const markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
+      const attachments = pendingImages.collect(markdownToSave);
+      if (attachments.length > MAX_IMAGES_PER_SAVE) {
+        throw new Error(`한 번에 저장할 수 있는 새 이미지는 ${MAX_IMAGES_PER_SAVE}개까지입니다.`);
+      }
       const saved = await saveNoteDraft(
         documentId,
-        saveCandidate.markdown,
+        markdownToSave,
         versionRef.current,
         saveCandidate.source,
-        saveCandidate.applyOperationId
+        saveCandidate.applyOperationId,
+        attachments
       );
+      if (saved.attachments.length > 0) {
+        saved.attachments.forEach((entry) => savedAttachmentPathsRef.current.set(entry.attachment_id.toLowerCase(), entry.content_path));
+        pendingImages.release(saved.attachments.map((entry) => entry.attachment_id.toLowerCase()));
+        onAttachmentsSavedRef.current?.(saved.attachments);
+      }
       versionRef.current = saved.content_version;
       if (mountedRef.current) setContentVersion(saved.content_version);
       if (saveCandidate.source === "agent") {

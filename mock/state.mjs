@@ -14,6 +14,7 @@ export const state = {
   invitations: [],
   documents: [],
   folders: [],
+  assets: [],
   wikiPages: [],
   wikiEdges: [],
   chatSessions: [],

@@ -23,7 +23,9 @@ const aliases = {
   "@/shared/lib/classNames": classNames,
   "@/shared/lib/markdownSegments": segments,
   "@/shared/lib/markdownSourceBlocks": sourceBlocks,
-  "@/shared/lib/remarkCustomTokens": customTokens
+  "@/shared/lib/remarkCustomTokens": customTokens,
+  // 관리 이미지 렌더러는 브라우저 fetch에 의존하므로 트리 검사에서는 단순 img로 대체한다
+  "@/shared/ui/markdown/ManagedImage": { ManagedImage: (props) => React.createElement("img", props) }
 };
 runInNewContext(output, { exports, require: (id) => aliases[id] ?? require(id) });
 const { MarkdownViewer } = exports;
