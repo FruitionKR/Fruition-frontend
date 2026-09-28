@@ -193,13 +193,15 @@
   border: 0;
 }
 
+/* 문서 제목 (Figma 1292:5456): 32px SemiBold, gray/050, 행간 1.4. 아래 블록과 20px.
+   Markdown 문서는 같은 자리에서 이름을 바로 고치는 input이라 h2와 동일하게 보이게 맞춘다. */
 .source-preview-heading {
   width: 100%;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .source-preview-heading h2,
@@ -208,22 +210,29 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  color: #8a8a8a;
+  color: #f9fafb;
   background: transparent;
   border: 0;
   border-radius: 4px;
   outline: 0;
-  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
-  font-size: 36px;
-  font-weight: 400;
+  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-size: 32px;
+  font-weight: 600;
   line-height: 1.4;
-  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
 
-.source-preview-title-input:hover,
+.source-preview-title-input::placeholder {
+  color: var(--subdued);
+}
+
+/* 편집 가능 표시는 색이 아니라 커서·포커스 밑줄로만 준다 (시안은 단일 색) */
+.source-preview-title-input:hover {
+  cursor: text;
+}
+
 .source-preview-title-input:focus {
-  color: #f0f0f0;
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 
 .source-preview-heading > span {
@@ -287,8 +296,8 @@
   font-weight: 700;
 }
 
+/* 문단 간격은 문서 타이포그래피(markdown.css·NoteEditor.module.css)가 정한다. 여기서는 줄바꿈만 */
 .source-preview-content p {
-  margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
 

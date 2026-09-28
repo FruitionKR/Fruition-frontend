@@ -1,20 +1,21 @@
 /* Markdown 렌더 공용 어휘. MarkdownViewer가 붙이는 클래스라 전역으로 유지한다.
    (기존 source-preview.css의 markdown-* 규칙 + agent-panel/answer.css의 markdown-citation 규칙 통합) */
 
+/* 문서 본문 타이포그래피 (Figma 1292:5455): gray/050, Medium 14px, 행간 1.8.
+   제목·문단·목록 간격도 같은 시안 기준이며 편집 모드(NoteEditor.module.css)와 값을 맞춘다. */
 .markdown-viewer {
-  color: #d0d7de;
+  color: #f9fafb;
   font-family: var(--document-font-family);
   font-size: 14px;
-  line-height: 1.65;
+  font-weight: 500;
+  line-height: 1.8;
 }
 
 .markdown-viewer h1,
 .markdown-viewer h2,
 .markdown-viewer h3 {
-  margin: 24px 0 12px;
-  color: #f0f0f0;
-  font-weight: 600;
-  line-height: 1.25;
+  color: #f9fafb;
+  line-height: 1.8;
 }
 
 /* 본문 첫 블록의 제목만 위 여백을 없앤다.
@@ -26,30 +27,54 @@
   margin-top: 0;
 }
 
+/* 문서 제목: 32px SemiBold, 아래 블록과 20px */
 .markdown-viewer h1 {
-  font-size: 24px;
+  margin: 0 0 20px;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
+/* 섹션 제목: 20px Medium, 위 블록과 20px·본문과 8px */
 .markdown-viewer h2 {
-  font-size: 19px;
+  margin: 20px 0 8px;
+  font-size: 20px;
+  font-weight: 500;
 }
 
+/* 소제목: 16px SemiBold, 섹션 사이 24px·본문과 4px. 섹션 제목 바로 아래면 8px */
 .markdown-viewer h3 {
+  margin: 24px 0 4px;
   font-size: 16px;
+  font-weight: 600;
 }
 
+.markdown-source-block:has(> h2) + .markdown-source-block > h3 {
+  margin-top: 8px;
+}
+
+/* 문단은 행간(1.8)만으로 이어진다 */
 .markdown-viewer p {
-  margin: 0 0 8px;
+  margin: 0;
 }
 
 .markdown-viewer ul,
 .markdown-viewer ol {
-  margin: 0 0 16px;
-  padding-left: 24px;
+  margin: 0;
+  padding-left: 21px;
 }
 
 .markdown-viewer li {
-  margin: 4px 0;
+  margin: 0;
+}
+
+/* 인용/안내 블록: 노란 배경·좌측 2.4px 선 (Figma 1292:5457 notice) */
+.markdown-viewer blockquote {
+  margin: 0;
+  padding: 12px 24px;
+  background: rgba(255, 193, 23, 0.16);
+  border-left: 2.4px solid var(--yellow);
+  border-radius: 6px;
 }
 
 .markdown-viewer code {
