@@ -1,17 +1,19 @@
 /* 스킬 패널 (Figma 981:10091). 작성·수정·필터·검색이 배선된 상태다. */
 
 /* --- 툴바 --- */
+/* Figma: 제목 ↔ 툴바 52px, 툴바 ↔ 표 40px. 모달 공통 gap 32px에 나머지를 더한다. */
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-top: 20px;
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .filter-btn {
@@ -24,7 +26,8 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.28px;
   white-space: nowrap;
 }
 
@@ -55,9 +58,11 @@
   padding: 6px 10px;
   color: var(--bg);
   background: var(--yellow);
+  border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.28px;
   white-space: nowrap;
 }
 
@@ -72,32 +77,60 @@
 .table {
   display: flex;
   flex-direction: column;
+  margin-top: 8px;
 }
 
+/* 체크박스 20 + 커맨드(24 간격 포함 200) + 설명 220~ + 저장범위 56 + 사용상태 + 더보기 28 */
 .row {
   display: grid;
-  grid-template-columns: 20px 200px minmax(220px, 1fr) 80px auto;
+  grid-template-columns: 20px 156px minmax(220px, 1fr) 56px max-content 28px;
   align-items: center;
-  gap: 16px;
-  padding: 12px 0;
+  gap: 24px;
+  padding: 12px;
   border-bottom: 1px solid var(--line);
   color: var(--ink);
   font-size: 14px;
+  letter-spacing: -0.28px;
 }
 
 .row-head {
+  height: 40px;
+  padding-block: 10px;
   color: #c4c4c4;
   font-weight: 500;
 }
 
+/* Figma check: 테두리만 있는 빈 사각형. 체크되면 노란 배경 + 검은 체크 표시. */
 .checkbox {
+  appearance: none;
   width: 20px;
   height: 20px;
+  margin: 0;
+  background: transparent;
   border: 1px solid #a7a7a7;
   border-radius: 4px;
-  margin: 0;
-  accent-color: var(--yellow);
   cursor: pointer;
+  display: grid;
+  place-content: center;
+}
+
+.checkbox:checked {
+  background: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.checkbox:checked::before {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid var(--bg);
+  border-bottom: 2px solid var(--bg);
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.checkbox:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .command {
@@ -121,22 +154,76 @@
   justify-content: center;
 }
 
+/* 저장범위 라벨 (Figma label): 24px 너비 텍스트 + 셰브론 */
 .scope-chip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 6px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 500;
   white-space: nowrap;
-  opacity: 0.6;
+}
+
+.scope-chip > :first-child {
+  display: inline-block;
+  width: 24px;
+  text-align: center;
 }
 
 .cell-state {
   display: flex;
   justify-content: flex-end;
+  white-space: nowrap;
+}
+
+/* 행 우측 끝 더보기 열 */
+.cell-more {
+  width: 28px;
+}
+
+.more-wrap {
+  position: relative;
+}
+
+.more-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border-radius: 4px;
+}
+
+.more-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.more-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
 /* --- 검색 입력 --- */
@@ -251,12 +338,18 @@
   font-size: 14px;
   letter-spacing: -0.28px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .filter-option:hover,
 .filter-option:focus-visible {
   --button-hover-overlay: none;
   background: var(--soft);
+}
+
+.filter-option:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .filter-option.is-selected {
@@ -267,17 +360,6 @@
 /* 활성 필터의 셰브론은 라벨과 같은 노란색으로 맞춘다. */
 .filter-btn:has(.filter-accent) .chev-icon {
   color: var(--yellow);
-}
-
-.delete-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 24px;
-  padding: 0;
-  color: var(--ink);
-  background: transparent;
 }
 
 .delete-dialog {
@@ -294,5 +376,6 @@
 .delete-dialog h2 { margin: 0 0 12px; font-size: 18px; }
 .delete-dialog p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; }
 
-.is-off[aria-checked="false"] { background: #505050; }
-.is-off[aria-checked="false"] span { background: #bdbdbd; }
+/* Figma switch off: secondary/200 트랙 + 흰 공 */
+.is-off[aria-checked="false"] { background: #c4c4c4; }
+.is-off[aria-checked="false"] span { background: #fff; }

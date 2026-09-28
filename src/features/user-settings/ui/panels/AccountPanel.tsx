@@ -11,7 +11,7 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
 
-/** 계정 설정 패널 (Figma 963:8660). */
+/** 계정 설정 패널 (Figma 1127:5275). */
 export function AccountPanel() {
   const { data: me, error: loadError } = useMe();
   const queryClient = useQueryClient();
@@ -105,7 +105,7 @@ export function AccountPanel() {
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>비밀번호</strong>
-            <small>현재 비밀번호를 확인하고 새 비밀번호로 변경합니다.</small>
+            <small>로그인에 사용하는 비밀번호를 변경하세요.</small>
           </div>
           <button
             type="button"

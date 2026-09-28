@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteSkill,
@@ -13,7 +12,7 @@ import {
 } from "@/entities/skill";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { menuSearchIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
 import { SkillCreateWizard } from "./SkillCreateWizard";
 import { SkillSearchModal } from "./SkillSearchModal";
@@ -71,6 +70,8 @@ export function SkillsPanel() {
   const [searchOpen, setSearchOpen] = useState(false);
   // 열려 있는 필터 드롭다운 (한 번에 하나만)
   const [openMenu, setOpenMenu] = useState<"scope" | "state" | null>(null);
+  // 행 우측 "…" 메뉴가 열린 스킬 id (한 번에 하나만)
+  const [openRowMenuId, setOpenRowMenuId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
 
   // 새 스킬 만들기 위저드 열림 상태
@@ -203,7 +204,7 @@ export function SkillsPanel() {
               onClick={() => setOpenMenu(openMenu === "scope" ? null : "scope")}
             >
               {scopeFilter === "all" ? (
-                <>저장범위 : 전체</>
+                <>저장범위</>
               ) : (
                 <span className={styles["filter-accent"]}>저장범위 : {SCOPE_LABELS[scopeFilter]}</span>
               )}
@@ -322,6 +323,7 @@ export function SkillsPanel() {
           <span>설명</span>
           <span className={styles["cell-scope"]}>저장 범위</span>
           <span className={styles["cell-state"]}>사용 상태</span>
+          <span className={styles["cell-more"]} aria-hidden />
         </div>
         {isLoading && <p className={styles.empty}>스킬 목록을 불러오는 중…</p>}
         {!isLoading && error == null && filteredSkills.length === 0 && (
@@ -339,7 +341,7 @@ export function SkillsPanel() {
                 <input
                   type="checkbox"
                   className={styles.checkbox}
-                  aria-label={`${command} 삭제 선택`}
+                  aria-label={`${command} 선택`}
                   checked={selectedIds.has(skill.id)}
                   disabled={deleteMutation.isPending}
                   onChange={(event) => {
@@ -363,24 +365,11 @@ export function SkillsPanel() {
                 <span className={styles.description}>{description}</span>
                 <span className={styles["cell-scope"]}>
                   <span className={styles["scope-chip"]}>
-                    {skill.scope_type === "personal" ? "개인" : "팀"}
+                    <span>{skill.scope_type === "personal" ? "개인" : "팀"}</span>
+                    <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
                   </span>
                 </span>
                 <span className={styles["cell-state"]}>
-                  {selectedIds.has(skill.id) ? (
-                    <button
-                      type="button"
-                      className={styles["delete-btn"]}
-                      aria-label={`${command} 삭제`}
-                      disabled={deleteMutation.isPending || toggleMutation.isPending || updateMutation.isPending}
-                      onClick={() => {
-                        deleteMutation.reset();
-                        setDeleteTarget(skill);
-                      }}
-                    >
-                      <Trash2 size={20} aria-hidden="true" />
-                    </button>
-                  ) : (
                   <button
                     type="button"
                     className={`${modalStyles.switch} ${enabled ? modalStyles["is-on"] : styles["is-off"]}`}
@@ -392,8 +381,49 @@ export function SkillsPanel() {
                   >
                     <span className={modalStyles["switch-ball"]} />
                   </button>
-                  )}
                 </span>
+                <div className={`${styles["cell-more"]} ${styles["more-wrap"]}`}>
+                  <button
+                    type="button"
+                    className={styles["more-btn"]}
+                    aria-label={`${command} 더보기`}
+                    aria-expanded={openRowMenuId === skill.id}
+                    disabled={deleteMutation.isPending}
+                    onClick={() => setOpenRowMenuId(openRowMenuId === skill.id ? null : skill.id)}
+                  >
+                    <SvgIcon src={moreIcon} className={styles["more-icon"]} />
+                  </button>
+                  {openRowMenuId === skill.id && (
+                    <div className={styles["more-menu"]} role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles["filter-option"]}
+                        disabled={updateMutation.isPending}
+                        onClick={() => {
+                          setOpenRowMenuId(null);
+                          if (isEditing) setEditingId(null);
+                          else openEditForm(skill);
+                        }}
+                      >
+                        {isEditing ? "수정 닫기" : "수정"}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={styles["filter-option"]}
+                        disabled={toggleMutation.isPending || updateMutation.isPending}
+                        onClick={() => {
+                          setOpenRowMenuId(null);
+                          deleteMutation.reset();
+                          setDeleteTarget(skill);
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 인라인 정의 수정 영역 */}

@@ -40,7 +40,7 @@ export function MfaPanel() {
     <div className={styles.row}>
       <div className={styles["row-title"]}>
         <strong>다단계 인증</strong>
-        <small>{status?.enabled ? "다단계 인증 사용 중" : "로그인할 때 인증 앱의 코드를 추가로 확인합니다."}</small>
+        <small>계정 보안을 위한 인증 단계에요.</small>
       </div>
       <button type="button" role="switch" aria-checked={status?.enabled ?? false} aria-label="다단계 인증"
         className={`${styles.switch} ${status?.enabled ? styles["is-on"] : ""}`}

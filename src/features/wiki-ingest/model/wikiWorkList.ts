@@ -10,7 +10,7 @@ export interface WikiWorkRow {
 }
 
 /** 팝오버에서 나눠 보여주는 AI 작업 종류 */
-export type WikiWorkKind = "ingest" | "lint" | "convert";
+export type WikiWorkKind = "ingest" | "lint" | "convert" | "restore";
 
 export interface WikiWorkSection {
   kind: WikiWorkKind;
@@ -21,7 +21,8 @@ export interface WikiWorkSection {
 export const WIKI_WORK_TITLES: Record<WikiWorkKind, string> = {
   ingest: "위키 편입",
   lint: "위키 최신화",
-  convert: "PDF → MD 변환"
+  convert: "PDF → MD 변환",
+  restore: "롤백"
 };
 
 const UNKNOWN_TIME = "--:--";
@@ -58,13 +59,14 @@ function toRow(kind: WikiWorkKind, document: DocumentItemResponse): WikiWorkRow 
 }
 
 /**
- * 진행 중인 문서(selectActiveIngestDocuments로 거른 목록)와 lint 작업을
- * 위키 편입 / 위키 최신화 / PDF→MD 변환 세 구역으로 나눈다. 행이 없는 구역은 제외한다.
+ * 진행 중인 문서(selectActiveIngestDocuments로 거른 목록)와 lint·롤백 작업을
+ * 위키 편입 / 위키 최신화 / PDF→MD 변환 / 롤백 네 구역으로 나눈다. 행이 없는 구역은 제외한다.
  */
 export function buildWikiWorkSections(
   activeDocuments: DocumentItemResponse[],
   activeLint: OperationLogItem | null,
-  convertingIds: ReadonlySet<string> = new Set()
+  convertingIds: ReadonlySet<string> = new Set(),
+  activeRestores: OperationLogItem[] = []
 ): WikiWorkSection[] {
   const ingestRows: WikiWorkRow[] = [];
   const convertRows: WikiWorkRow[] = [];
@@ -76,10 +78,17 @@ export function buildWikiWorkSections(
     ? [{ key: `lint-${activeLint.operation_id}`, label: "Wiki Lint", startTime: formatWorkStartTime(activeLint.created_at) }]
     : [];
 
+  const restoreRows: WikiWorkRow[] = activeRestores.map((restore) => ({
+    key: `restore-${restore.operation_id}`,
+    label: restore.target_display_name || restore.summary || "롤백",
+    startTime: formatWorkStartTime(restore.created_at)
+  }));
+
   const sections: WikiWorkSection[] = [
     { kind: "ingest", title: WIKI_WORK_TITLES.ingest, rows: ingestRows },
     { kind: "lint", title: WIKI_WORK_TITLES.lint, rows: lintRows },
-    { kind: "convert", title: WIKI_WORK_TITLES.convert, rows: convertRows }
+    { kind: "convert", title: WIKI_WORK_TITLES.convert, rows: convertRows },
+    { kind: "restore", title: WIKI_WORK_TITLES.restore, rows: restoreRows }
   ];
   return sections.filter((section) => section.rows.length > 0);
 }

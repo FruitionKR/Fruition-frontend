@@ -169,12 +169,20 @@
   text-overflow: ellipsis;
 }
 
+/* 진행 중 작업이 없을 때 (Figma 1276:13306): 12px 여백, 8px 모서리, 안내 문구 한 줄 */
+.wiki-work-popover.is-empty {
+  padding: 12px;
+  border-radius: 8px;
+}
+
 .wiki-work-empty {
   margin: 0;
-  color: var(--muted);
+  padding: 4px 0;
+  color: var(--subdued);
   font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .sidebar-workspace-trigger {
@@ -203,15 +211,15 @@
   font-weight: 600;
 }
 
+/* 워크스페이스 이름 (Figma 1131:8268): 12px SemiBold. 서체는 body 전역 Pretendard를 상속한다 */
 .sidebar-workspace-name {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
   color: var(--ink);
-  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .sidebar-workspace-name span {
