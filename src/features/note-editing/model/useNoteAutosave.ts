@@ -148,8 +148,9 @@ export function useNoteAutosave({
         attachments
       );
       if (saved.attachments.length > 0) {
+        // 보관소의 파일은 지우지 않는다. 사용자가 undo로 placeholder 노드를 되살리면 다음 저장에서 같은 파일을 다시 올려 해결된다.
+        // 대신 매핑을 기억해 두어 같은 placeholder가 그대로 남아 있으면 재업로드 없이 관리 경로로 바꾼다.
         saved.attachments.forEach((entry) => savedAttachmentPathsRef.current.set(entry.attachment_id.toLowerCase(), entry.content_path));
-        pendingImages.release(saved.attachments.map((entry) => entry.attachment_id.toLowerCase()));
         onAttachmentsSavedRef.current?.(saved.attachments);
       }
       versionRef.current = saved.content_version;
