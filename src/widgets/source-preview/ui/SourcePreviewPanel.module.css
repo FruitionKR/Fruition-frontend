@@ -215,7 +215,7 @@
   border: 0;
   border-radius: 4px;
   outline: 0;
-  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   font-size: 32px;
   font-weight: 600;
   line-height: 1.4;
@@ -296,9 +296,18 @@
   font-weight: 700;
 }
 
-/* 문단 간격은 문서 타이포그래피(markdown.css·NoteEditor.module.css)가 정한다. 여기서는 줄바꿈만 */
 .source-preview-content p {
   overflow-wrap: anywhere;
+}
+
+/* 문서 본문 문단은 시안(Figma 1292:5455)대로 행간으로만 이어진다. 편집 모드(NoteEditor.module.css)와 같은 값 */
+.source-preview-content :global(.markdown-viewer) p {
+  margin: 0;
+}
+
+/* 오류·요약 등 뷰어 밖의 단독 문단은 다음 블록과 간격을 둔다 */
+.source-preview-content > p {
+  margin: 0 0 8px;
 }
 
 .source-preview-content pre {

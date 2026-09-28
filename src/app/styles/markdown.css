@@ -53,9 +53,10 @@
   margin-top: 8px;
 }
 
-/* 문단은 행간(1.8)만으로 이어진다 */
+/* 채팅 답변·미리보기 등 공용 소비자는 문단 사이 8px를 유지한다.
+   문서 패널(SourcePreviewPanel)만 시안대로 행간(1.8)으로만 잇는다. */
 .markdown-viewer p {
-  margin: 0;
+  margin: 0 0 8px;
 }
 
 .markdown-viewer ul,

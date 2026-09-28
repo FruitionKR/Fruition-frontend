@@ -71,6 +71,11 @@
   margin-top: 8px;
 }
 
+/* 첫 블록은 읽기 모드(.markdown-source-block:first-child)처럼 위 여백을 없애 모드 전환 시 밀리지 않게 한다 */
+.note-wysiwyg-editor :global(.milkdown .ProseMirror > :first-child) {
+  margin-top: 0;
+}
+
 /* crepe 테마 reset.css가 p 16px/400, h4~h6 28/24/18px를 직접 지정하므로 읽기 모드 값으로 덮어쓴다.
    문단은 행간(1.8)만으로 이어진다. */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror p) {
