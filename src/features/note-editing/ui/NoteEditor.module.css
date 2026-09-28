@@ -22,74 +22,99 @@
   --crepe-color-selected: rgba(255, 193, 23, 0.2);
   --crepe-font-title: var(--document-font-family);
   --crepe-font-default: var(--document-font-family);
-  color: #d7d7d7;
+  color: #f9fafb;
   background: transparent;
 }
 
-/* 글자 크기·행간은 문서 뷰어(.markdown-viewer)와 동일하게 맞춘다. */
+/* 글자 크기·행간은 문서 뷰어(.markdown-viewer)와 동일하게 맞춘다 (Figma 1292:5455: Medium 14px, 행간 1.8). */
 .note-wysiwyg-editor :global(.milkdown > .ProseMirror) {
   min-height: 420px;
   padding: 0;
-  color: #d7d7d7;
+  color: #f9fafb;
   background: transparent;
   caret-color: var(--yellow);
   font-family: var(--document-font-family);
   font-size: 14px;
-  line-height: 1.65;
+  font-weight: 500;
+  line-height: 1.8;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror:focus) {
   outline: none;
 }
 
+/* 문서 제목: 32px SemiBold, 아래 블록과 20px */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h1) {
-  margin: 0 0 12px;
-  font-size: 24px;
-  line-height: 1.25;
+  margin: 0 0 20px;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
+/* 섹션 제목: 20px Medium, 위 블록과 20px·본문과 8px */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h2) {
-  margin: 24px 0 12px;
-  font-size: 19px;
-  line-height: 1.25;
+  margin: 20px 0 8px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.8;
 }
 
+/* 소제목: 16px SemiBold, 섹션 사이 24px·본문과 4px. 섹션 제목 바로 아래면 8px */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h3) {
-  margin: 24px 0 12px;
+  margin: 24px 0 4px;
   font-size: 16px;
-  line-height: 1.25;
+  font-weight: 600;
+  line-height: 1.8;
 }
 
-/* 읽기 모드 제목은 600, crepe 테마는 400이라 굵기도 맞춘다 */
-.note-wysiwyg-editor :global(.milkdown .ProseMirror h1),
-.note-wysiwyg-editor :global(.milkdown .ProseMirror h2),
-.note-wysiwyg-editor :global(.milkdown .ProseMirror h3),
+.note-wysiwyg-editor :global(.milkdown .ProseMirror h2 + h3) {
+  margin-top: 8px;
+}
+
+/* 첫 블록은 읽기 모드(.markdown-source-block:first-child)처럼 위 여백을 없애 모드 전환 시 밀리지 않게 한다 */
+.note-wysiwyg-editor :global(.milkdown .ProseMirror > :first-child) {
+  margin-top: 0;
+}
+
+/* crepe 테마 reset.css가 p 16px/400, h4~h6 28/24/18px를 직접 지정하므로 읽기 모드 값으로 덮어쓴다.
+   문단은 행간(1.8)만으로 이어진다. */
+.note-wysiwyg-editor :global(.milkdown .ProseMirror p) {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.8;
+}
+
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h4),
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h5),
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h6) {
   font-weight: 600;
-}
-
-/* crepe 테마 reset.css가 p 16px, h4~h6 28/24/18px를 직접 지정하므로
-   읽기 모드(.markdown-viewer: 14px, h4~h6는 브라우저 기본) 크기로 덮어쓴다 */
-.note-wysiwyg-editor :global(.milkdown .ProseMirror p) {
-  font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.8;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h4) {
   font-size: 14px;
-  line-height: 1.65;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h5) {
   font-size: 12px;
-  line-height: 1.65;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h6) {
   font-size: 11px;
-  line-height: 1.65;
+}
+
+/* 인용/안내 블록: 노란 배경·좌측 2.4px 선 (Figma 1292:5457 notice). crepe의 세로 막대 ::before는 끈다 */
+.note-wysiwyg-editor :global(.milkdown .ProseMirror blockquote) {
+  margin: 0;
+  padding: 12px 24px;
+  background: rgba(255, 193, 23, 0.16);
+  border-left: 2.4px solid var(--yellow);
+  border-radius: 6px;
+}
+
+.note-wysiwyg-editor :global(.milkdown .ProseMirror blockquote::before) {
+  display: none;
 }
 
 /* 아래 규칙들은 편집 모드 본문 상자를 읽기 모드(.markdown-viewer)와 같은 값으로 맞춘다.
@@ -107,15 +132,14 @@
   padding: 0;
 }
 
-/* 목록 하단 여백: crepe는 `.milkdown *`로 0을 주므로 읽기 모드 값(16px)을 되살린다 */
+/* 목록: 읽기 모드와 같이 여백 없이 행간(1.8)으로만 이어진다 */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror ul),
 .note-wysiwyg-editor :global(.milkdown .ProseMirror ol) {
-  margin: 0 0 16px;
+  margin: 0;
 }
 
-/* 목록 항목: 읽기 모드 li(margin 4px 0, 여백 상쇄로 행 간격 4px)와 같게 만든다 */
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block) {
-  margin: 4px 0;
+  margin: 0;
 }
 
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block p) {
@@ -123,11 +147,11 @@
   padding: 0;
 }
 
-/* crepe가 마커 박스를 32px로 고정해 행 높이가 글줄(1.65em)보다 커진다. 글줄 높이에 맞추면
+/* crepe가 마커 박스를 32px로 고정해 행 높이가 글줄(1.8em)보다 커진다. 글줄 높이에 맞추면
    label-wrapper가 세로 가운데 정렬이라 마커도 첫 줄 중앙에 그대로 남는다. */
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block li .label-wrapper),
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block li .label-wrapper .label) {
-  height: 1.65em;
+  height: 1.8em;
   padding: 0;
 }
 
