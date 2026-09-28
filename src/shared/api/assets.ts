@@ -56,13 +56,17 @@ export function acquireAssetObjectUrl(path: string): Promise<string> {
   return entry.promise;
 }
 
-/** 참조를 하나 놓는다. 마지막이면 object URL을 revoke한다. */
+/**
+ * 참조를 하나 놓는다. 마지막이면 object URL을 revoke한다.
+ * 아직 받는 중이면 엔트리를 남겨 둔다. 곧바로 다시 잡는 사용처(StrictMode 재마운트, 문서 왕복)가
+ * 같은 요청을 이어받게 하고, 완료 시점에 참조가 없으면 그때 정리한다.
+ */
 export function releaseAssetObjectUrl(path: string): void {
   const entry = entries.get(path);
   if (!entry) return;
   entry.refs -= 1;
-  if (entry.refs > 0) return;
-  if (entry.url) URL.revokeObjectURL(entry.url);
+  if (entry.refs > 0 || !entry.url) return;
+  URL.revokeObjectURL(entry.url);
   if (entries.get(path) === entry) entries.delete(path);
 }
 
