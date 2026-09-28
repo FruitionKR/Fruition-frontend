@@ -40,7 +40,8 @@ export type UserPreferences = {
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   motion: "system",
-  documentFont: "system-sans",
+  // 문서 시안(Figma 1292:5455)은 Pretendard 기준이라 기본값을 Readable Sans로 둔다
+  documentFont: "readable-sans",
   aiModel: null,
   webSearch: false,
   autoSave: true,
