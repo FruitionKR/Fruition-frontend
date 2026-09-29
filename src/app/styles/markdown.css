@@ -179,12 +179,20 @@
   line-height: 1.8;
 }
 
+/* 묶음의 첫 블록: 상자 안쪽 위 12px + 앞 문단과의 간격 12px (문단 자체는 여백이 없다) */
 .markdown-source-block.is-highlighted:first-child,
 .markdown-source-block:not(.is-highlighted) + .markdown-source-block.is-highlighted {
+  margin-top: 12px;
   padding-top: 12px;
 }
 
+.markdown-source-block.is-highlighted:first-child {
+  margin-top: 0;
+}
+
+/* 묶음의 마지막 블록: 상자 안쪽 아래 12px + 다음 문단과의 간격 12px */
 .markdown-source-block.is-highlighted:not(:has(+ .markdown-source-block.is-highlighted)) {
+  margin-bottom: 12px;
   padding-bottom: 12px;
 }
 
