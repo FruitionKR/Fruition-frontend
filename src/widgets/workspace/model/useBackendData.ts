@@ -72,6 +72,8 @@ export function useBackendData({
 
   return {
     documents: backendData?.documents ?? [],
+    /** 문서 목록을 서버에서 마지막으로 받은 시각. 응답 내용이 같아도 갱신된다. */
+    documentsUpdatedAt: query.dataUpdatedAt,
     setDocuments,
     wikiGraph: graphQuery.data ?? EMPTY_GRAPH,
     isGraphLoading: graphQuery.isLoading,
