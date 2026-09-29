@@ -164,22 +164,37 @@
   color: #8ab4e8;
 }
 
-/* 원문 근거 강조 (Figma 1132:10762): 노란 배경·좌측 선, 블록 끝에 순위 [n]을 순위 색으로 표시 */
+/* 원문 근거 강조 (Figma 1132:10762 notice): 노란 배경 16%·좌측 3px 선·좌우 24px, 14px Medium 행간 1.8.
+   각 근거 줄 끝에 순위 [n]을 순위 색으로 붙인다. 연속된 근거 블록은 한 상자로 이어져 보이도록
+   블록 사이 여백 없이 붙이고, 상자 위·아래 12px 여백은 이어진 묶음의 첫 블록과 마지막 블록에만 준다. */
 .markdown-source-block.is-highlighted {
   position: relative;
-  margin: 0 0 10px;
-  padding: 12px 24px;
+  margin: 0;
+  padding: 0 24px;
   color: #f9fafb;
   background: rgba(255, 193, 23, 0.16);
-  border-left: 2.4px solid var(--yellow);
-  border-radius: 6px;
+  border-left: 3px solid var(--yellow);
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.8;
 }
 
+.markdown-source-block.is-highlighted:first-child,
+.markdown-source-block:not(.is-highlighted) + .markdown-source-block.is-highlighted {
+  padding-top: 12px;
+}
+
+.markdown-source-block.is-highlighted:not(:has(+ .markdown-source-block.is-highlighted)) {
+  padding-bottom: 12px;
+}
+
+/* 근거로 잡힌 블록은 제목이어도 시안(notice)처럼 본문 크기·굵기로 한 줄에 보여준다 */
 .markdown-source-block.is-highlighted > :is(p, h1, h2, h3, h4, h5, h6):last-child {
   display: inline;
   margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
 }
 
 .markdown-source-block.is-highlighted::after {
@@ -187,7 +202,7 @@
   display: inline-block;
   margin-left: 4px;
   color: var(--citation-color);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* 답변 속 근거 표시 (Figma 1132:10782): 배경 없이 [n] 텍스트를 순위 색으로 */
