@@ -4,16 +4,26 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { getWikiReflectState } from "./wikiReflectState";
+import { getPdfIngestTaskStep } from "./pdfIngestTask";
 
 type PendingIngest = { documentId: string; filename: string };
 
-/** 확인한 PDF만 변환 완료 후 편입한다. 새로고침해도 같은 탭에서 이어서 처리한다. */
-export function usePdfWikiIngest(documents: DocumentItemResponse[], refresh: () => Promise<void>) {
+/**
+ * 확인한 PDF만 변환 완료 후 편입한다. 새로고침해도 같은 탭에서 이어서 처리한다.
+ * documentsUpdatedAt은 문서 목록이 서버에서 새로 내려온 시각으로, placeholder 유실 판정에 쓴다.
+ */
+export function usePdfWikiIngest(
+  documents: DocumentItemResponse[],
+  refresh: () => Promise<void>,
+  documentsUpdatedAt: number
+) {
   const [pending, setPending] = useState<PendingIngest[]>([]);
   const pendingRef = useRef<PendingIngest[]>([]);
   const storageKeyRef = useRef<string | null>(null);
   const runningRef = useRef(new Set<string>());
+  // 작업별로 placeholder 없이 지나간 목록 갱신 횟수. 목록에 다시 보이면 0으로 되돌린다.
+  const missingSnapshotsRef = useRef(new Map<string, number>());
+  const lastDocumentsUpdatedAtRef = useRef(documentsUpdatedAt);
 
   const updatePending = useCallback((update: (current: PendingIngest[]) => PendingIngest[]) => {
     const next = update(pendingRef.current);
@@ -53,13 +63,23 @@ export function usePdfWikiIngest(documents: DocumentItemResponse[], refresh: () 
   }, [updatePending]);
 
   useEffect(() => {
+    const isNewSnapshot = documentsUpdatedAt !== lastDocumentsUpdatedAtRef.current;
+    lastDocumentsUpdatedAtRef.current = documentsUpdatedAt;
     for (const task of pending) {
+      if (runningRef.current.has(task.documentId)) continue;
       const document = documents.find((item) => item.id === task.documentId);
-      if (!document || getWikiReflectState(document) === "processing" || runningRef.current.has(task.documentId)) continue;
+      const missingSnapshots = document ? 0 : (missingSnapshotsRef.current.get(task.documentId) ?? 0) + (isNewSnapshot ? 1 : 0);
+      missingSnapshotsRef.current.set(task.documentId, missingSnapshots);
+      const step = getPdfIngestTaskStep(document, missingSnapshots);
+      if (step === "waiting") continue;
       runningRef.current.add(task.documentId);
       void (async () => {
         try {
-          if (document.status === "failed") {
+          // waiting이 아닌데 문서가 없으면 placeholder가 목록에서 사라진(missing) 경우다.
+          if (!document) {
+            throw new Error("변환 문서가 목록에서 사라져 위키에 편입하지 못했습니다.");
+          }
+          if (step === "failed") {
             throw new Error(document.error_message || "PDF 변환에 실패하여 위키에 편입하지 못했습니다.");
           }
           // 편입 요청 직후 새로고침한 경우 서버에서 이미 완료된 작업을 다시 보내지 않는다.
@@ -73,11 +93,12 @@ export function usePdfWikiIngest(documents: DocumentItemResponse[], refresh: () 
         } finally {
           updatePending((current) => current.filter((item) => item.documentId !== task.documentId));
           runningRef.current.delete(task.documentId);
+          missingSnapshotsRef.current.delete(task.documentId);
           await refresh().catch(() => {});
         }
       })();
     }
-  }, [documents, pending, refresh, updatePending]);
+  }, [documents, documentsUpdatedAt, pending, refresh, updatePending]);
 
   return { startPdfIngest, isPending: pending.length > 0 };
 }

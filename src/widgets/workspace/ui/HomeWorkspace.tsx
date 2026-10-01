@@ -87,13 +87,14 @@ export function HomeWorkspace() {
   const projectTree = useProjectTree({ refreshRef });
   const {
     documents,
+    documentsUpdatedAt,
     setDocuments,
     wikiGraph,
     isGraphLoading,
     apiError,
     refreshBackendData
   } = useBackendData({ setProjects: projectTree.setProjects });
-  const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData);
+  const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData, documentsUpdatedAt);
   const graphDocuments = useMemo(() => selectGraphDocuments(documents), [documents]);
   const graphProjects = useMemo(() => filterGraphProjects(projectTree.projects, documents), [projectTree.projects, documents]);
   const documentTitles = useMemo(
@@ -281,6 +282,16 @@ export function HomeWorkspace() {
     if (graphIngestRunningRef.current || wikiActionPending || targets.length === 0) return;
     graphIngestRunningRef.current = true;
     setWikiActionPending("ingest");
+    try {
+      await sendGraphIngestRequests(targets);
+    } finally {
+      // 알림·재조회 단계에서 예외가 나도 버튼이 "위키 편입 중…"에 머물지 않게 한다.
+      setWikiActionPending(null);
+      graphIngestRunningRef.current = false;
+    }
+  }
+
+  async function sendGraphIngestRequests(targets: DocumentItemResponse[]) {
     // 한 문서가 실패해도 나머지 문서의 요청은 계속 보낸다.
     const results = await Promise.allSettled(
       targets.map((target) => isPdfDocument(target)
@@ -310,8 +321,6 @@ export function HomeWorkspace() {
         message: failures.join(" / ")
       });
     }
-    setWikiActionPending(null);
-    graphIngestRunningRef.current = false;
   }
 
   function requestGraphIngest(targets: DocumentItemResponse[]) {
