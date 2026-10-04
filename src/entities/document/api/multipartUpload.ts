@@ -1,8 +1,6 @@
 import { apiFetch, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
+import { putPartWithIdleTimeout } from "@/entities/document/api/partUpload";
 import type { DocumentUploadResponse } from "@/entities/document/model/document";
-
-/** 조각 PUT 하나의 상한. 응답이 영구히 오지 않는 연결에서 업로드가 매달리지 않게 한다. */
-export const PART_UPLOAD_TIMEOUT_MS = 120_000;
 
 type Start = { ticket: string; part_size: number; part_count: number };
 type PartUrl = { part_number: number; url: string };
@@ -47,11 +45,8 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
               if (renewed.length !== 1 || renewed[0].part_number !== part.part_number) throw new Error("파일 분할 정보가 올바르지 않습니다.");
               part = renewed[0];
             }
-            const response = await fetch(part.url, {
-              method: "PUT", body, credentials: "omit",
-              // timeout이 없으면 TCP가 블랙홀이 된 조각에서 fetch가 끝나지 않아 업로드 전체가 매달린다.
-              signal: AbortSignal.any([controller.signal, AbortSignal.timeout(PART_UPLOAD_TIMEOUT_MS)])
-            });
+            // 진행이 멈춘 시간만 제한한다. 제한이 없으면 블랙홀이 된 조각에서 업로드 전체가 매달린다.
+            const response = await putPartWithIdleTimeout(part.url, body, controller.signal);
             if (response.ok) return;
             if (response.status < 500 && response.status !== 429) {
               throw new Error(`파일 조각 전송 실패 (${response.status})`);
