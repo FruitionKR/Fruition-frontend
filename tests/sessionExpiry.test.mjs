@@ -151,3 +151,38 @@ test("세션 만료는 문구가 아니라 타입으로 구분된다", async (t)
     return true;
   });
 });
+
+test("동시에 터진 401들은 세션 만료 처리기를 한 번만 호출한다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 401 }));
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  const results = await Promise.allSettled([
+    apiFetch("/api/workspaces/ws_test/documents"),
+    apiFetch("/api/workspaces/ws_test/folders"),
+    apiFetch("/api/workspaces/ws_test/wiki/graph")
+  ]);
+
+  assert.ok(results.every((result) => result.status === "rejected"));
+  assert.equal(notified, 1, "로그아웃·캐시 비우기·라우팅을 요청 수만큼 반복하지 않는다");
+});
+
+test("다시 로그인하면 래치가 풀려 다음 만료도 알린다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 401 }));
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"));
+  assert.equal(notified, 1);
+
+  // 로그인 성공으로 새 access token을 받은 뒤의 만료는 다시 알려야 한다.
+  saveAccessToken("new-access");
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"));
+  assert.equal(notified, 2);
+});
