@@ -49,6 +49,8 @@ type WikiSchemaResponse = SchemaBodyResponse & {
 
 type WikiSchemaDraftResponse = { wiki_schema: WikiSchemaResponse };
 
+type WikiSchemaDraftListResponse = { wiki_schemas: WikiSchemaResponse[] };
+
 const SCHEMA_STATUSES: readonly SchemaStatus[] = ["draft", "active", "rejected"];
 
 function schemaBasePath(): string {
@@ -139,6 +141,17 @@ export async function activateWikiSchema(id: string): Promise<WikiSchema> {
   });
   if (!response.ok) await throwSchemaError(response, ERROR_MESSAGES.schemaActivateFailed);
   return toSchema(await response.json() as WikiSchemaResponse);
+}
+
+/**
+ * 초안 스킬 목록. 서버가 workspace와 인증 주체로 범위를 좁히므로 user_id는 보내지 않는다.
+ * status가 draft인 행만 created_at 최신순으로 내려오고, 활성 스킬은 /active로 따로 조회한다.
+ */
+export async function fetchWikiSchemaDrafts(): Promise<WikiSchema[]> {
+  const response = await apiFetch(`${schemaBasePath()}/drafts`, { cache: "no-store" });
+  if (!response.ok) await throwSchemaError(response, ERROR_MESSAGES.schemaLoadFailed);
+  const body = await response.json() as WikiSchemaDraftListResponse;
+  return body.wiki_schemas.map(toSchema);
 }
 
 /** 활성 스킬 조회. 활성 스킬이 없으면 서버가 200으로 null을 주므로 null을 그대로 돌려준다. */

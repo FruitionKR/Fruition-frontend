@@ -5,7 +5,7 @@ import test from "node:test";
 registerHooks({ resolve(specifier, context, next) {
   return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
 } });
-const { activateWikiSchema, createWikiSchemaDraft, fetchActiveWikiSchema, previewWikiSchema } =
+const { activateWikiSchema, createWikiSchemaDraft, fetchActiveWikiSchema, fetchWikiSchemaDrafts, previewWikiSchema } =
   await import("../src/entities/schema/api/schema.ts");
 
 const FRAGMENTS_RESPONSE = {
@@ -207,6 +207,71 @@ test("활성화 대상이 없으면 404 문구를 보여준다", async (t) => {
   useWorkspace(t);
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 404 }));
   await assert.rejects(activateWikiSchema("missing"), /찾을 수 없습니다/);
+});
+
+test("초안 목록은 wiki_schemas 배열을 활성 스킬과 같은 매퍼로 변환한다", async (t) => {
+  useWorkspace(t);
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    // user_id는 서버가 인증 주체에서 끌어온다. 클라이언트는 쿼리에 싣지 않는다.
+    assert.equal(path, "/api/workspaces/ws_test/wiki-schema/drafts");
+    assert.ok(!init?.method || init.method === "GET");
+    return Response.json({
+      wiki_schemas: [
+        schemaResponse({ id: "schema_new", created_at: "2026-10-03T00:00:00Z" }),
+        schemaResponse({ id: "schema_old", created_at: "2026-10-01T00:00:00Z" })
+      ]
+    });
+  });
+  const drafts = await fetchWikiSchemaDrafts();
+  // 서버가 created_at DESC로 정렬해 주므로 클라이언트는 순서를 바꾸지 않는다.
+  assert.deepEqual(drafts.map((draft) => draft.id), ["schema_new", "schema_old"]);
+  assert.equal(drafts[0].status, "draft");
+  assert.deepEqual(drafts[0].fragments, FRAGMENTS_EXPECTED);
+  assert.equal(drafts[0].previewMarkdown, "# 미리보기");
+  assert.equal(drafts[0].hasBlockedIssues, true);
+  assert.deepEqual(drafts[0].issues.map((issue) => issue.severity), ["blocked"]);
+});
+
+test("초안이 없으면 빈 배열을 돌려준다", async (t) => {
+  useWorkspace(t);
+  t.mock.method(globalThis, "fetch", async () => Response.json({ wiki_schemas: [] }));
+  assert.deepEqual(await fetchWikiSchemaDrafts(), []);
+});
+
+// 새로 고침과 같은 상황: 저장한 초안이 목록 조회로 다시 올라와 활성화까지 이어진다.
+test("저장한 초안은 다시 조회해도 목록에 남아 활성화할 수 있다", async (t) => {
+  useWorkspace(t);
+  const saved = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path.endsWith("/wiki-schema/drafts") && init?.method === "POST") {
+      const created = schemaResponse({ id: "schema_saved" });
+      saved.push(created);
+      return Response.json({ wiki_schema: created });
+    }
+    if (path.endsWith("/wiki-schema/drafts")) return Response.json({ wiki_schemas: saved });
+    if (path.endsWith("/wiki-schema/active")) return Response.json(null);
+    if (path.endsWith("/activate")) {
+      return Response.json(schemaResponse({ id: "schema_saved", status: "active", activated_at: "2026-10-04T00:00:00Z" }));
+    }
+    throw new Error(`Unexpected path: ${path}`);
+  });
+  assert.deepEqual(await fetchWikiSchemaDrafts(), []);
+  const draft = await createWikiSchemaDraft("# 설계", "이름");
+  const [drafts, active] = await Promise.all([fetchWikiSchemaDrafts(), fetchActiveWikiSchema()]);
+  assert.deepEqual(drafts.map((item) => item.id), ["schema_saved"]);
+  assert.equal(active, null);
+  assert.equal((await activateWikiSchema(draft.id)).status, "active");
+});
+
+test("초안 목록의 503도 서버 원문 없이 재시도 안내를 보여준다", async (t) => {
+  useWorkspace(t);
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ error: { message: "llmPipeline unavailable" } }, { status: 503 }));
+  await assert.rejects(fetchWikiSchemaDrafts(), (error) => {
+    assert.match(error.message, /잠시 후 다시 시도해 주세요/);
+    assert.doesNotMatch(error.message, /llmPipeline/);
+    return true;
+  });
 });
 
 test("워크스페이스를 고르지 않으면 요청 없이 막는다", async (t) => {

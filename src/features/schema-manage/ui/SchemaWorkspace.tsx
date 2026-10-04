@@ -9,17 +9,17 @@ import {
   activateWikiSchema,
   createWikiSchemaDraft,
   fetchActiveWikiSchema,
+  fetchWikiSchemaDrafts,
   previewWikiSchema
 } from "@/entities/schema/api/schema";
 import { getErrorMessage } from "@/shared/lib/errors";
 import type { WikiSchema, WikiSchemaPreview } from "@/entities/schema/model/schema";
 
 // 스킬(스키마) 관리 임시 화면. rail "규칙" 뷰에 마운트된다.
-// 서버는 활성 스킬 조회만 제공하고 초안 목록 API가 없다. 그래서 목록은 활성 스킬과
-// 이 화면에서 방금 만든 초안만 보여준다. 새로 고치면 저장된 초안은 다시 찾을 수 없다.
+// 초안 목록과 활성 스킬은 엔드포인트가 나뉘어 있어 둘을 함께 조회해 한 목록으로 합친다.
 export function SchemaWorkspace() {
   const [activeSchema, setActiveSchema] = useState<WikiSchema | null>(null);
-  const [sessionDrafts, setSessionDrafts] = useState<WikiSchema[]>([]);
+  const [drafts, setDrafts] = useState<WikiSchema[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [rawMarkdown, setRawMarkdown] = useState("");
@@ -28,17 +28,19 @@ export function SchemaWorkspace() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setActiveSchema(await fetchActiveWikiSchema());
+    const [nextDrafts, nextActive] = await Promise.all([fetchWikiSchemaDrafts(), fetchActiveWikiSchema()]);
+    setDrafts(nextDrafts);
+    setActiveSchema(nextActive);
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const schemas = useMemo<WikiSchema[]>(() => {
-    const drafts = sessionDrafts.filter((draft) => draft.id !== activeSchema?.id);
-    return activeSchema ? [...drafts, activeSchema] : drafts;
-  }, [activeSchema, sessionDrafts]);
+  const schemas = useMemo<WikiSchema[]>(
+    () => (activeSchema ? [...drafts, activeSchema] : drafts),
+    [activeSchema, drafts]
+  );
 
   const selectedPreview = useMemo<WikiSchemaPreview | null>(() => {
     const selected = schemas.find((schema) => schema.id === selectedId);
@@ -73,7 +75,7 @@ export function SchemaWorkspace() {
   function handleSaveDraft() {
     void run(async () => {
       const draft = await createWikiSchemaDraft(rawMarkdown, name);
-      setSessionDrafts((previous) => [draft, ...previous]);
+      await refresh();
       setSelectedId(draft.id);
       setPreview(null);
     });
@@ -82,7 +84,8 @@ export function SchemaWorkspace() {
   function handleActivate(schema: WikiSchema) {
     void run(async () => {
       const activated = await activateWikiSchema(schema.id);
-      setActiveSchema(activated);
+      // 활성화는 기존 활성 스킬을 draft로 되돌리므로 목록까지 다시 읽는다.
+      await refresh();
       setSelectedId(activated.id);
     });
   }
