@@ -25,7 +25,8 @@ const SAVE_STATUS_LABELS: Partial<Record<NoteSaveStatus, string>> = {
   dirty: "변경됨",
   saving: "저장 중",
   error: "저장 실패",
-  conflict: "저장 충돌"
+  conflict: "저장 충돌",
+  "lock-lost": "편집 권한 상실"
 };
 
 export function SourcePreviewPanel({
@@ -361,7 +362,7 @@ export function SourcePreviewPanel({
           {saveStatusLabel && (
             <span
               className={cx(styles["source-preview-save-status"], styles[`is-${noteSaveStatus}`])}
-              role={noteSaveStatus === "error" || noteSaveStatus === "conflict" ? "alert" : "status"}
+              role={noteSaveStatus === "saving" || noteSaveStatus === "dirty" ? "status" : "alert"}
               title={noteSaveError ?? undefined}
             >
               {saveStatusLabel}
