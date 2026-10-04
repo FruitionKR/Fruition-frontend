@@ -7,7 +7,7 @@ export async function fetchWorkspaces(): Promise<WorkspaceListResponse> {
 }
 
 export async function renameWorkspace(workspaceId: string, name: string): Promise<WorkspaceResponse> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}`, {
+  const response = await apiFetch(workspacePath(workspaceId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name })
