@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { isSessionExpired } from "@/shared/lib/auth";
+import { getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import {
   applyRequiredAgentSource,
@@ -15,7 +16,7 @@ import {
 import { trackPendingDocumentSave } from "./pendingDocumentSave";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
-export type NoteSaveBlock = "conflict" | "lock-lost";
+export type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
 
 export type DetachedNoteSaveResult =
   | { success: true }
@@ -53,7 +54,7 @@ export function useNoteAutosave({
   const scheduledSaveRef = useRef<PendingNoteSave | null>(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
-  // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)와 lock-lost(편집 잠금 상실)를 같은 방식으로 막는다.
+  // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)·lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
   const saveBlockRef = useRef<NoteSaveBlock | null>(null);
   const agentRetryRequiredRef = useRef(false);
   const agentRetryApplyOperationIdRef = useRef<string | undefined>(undefined);
@@ -81,9 +82,18 @@ export function useNoteAutosave({
       );
       scheduledSaveRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (scheduled && !saveBlockRef.current) void flushSaveRef.current(scheduled);
+      if (scheduled && !isSaveBlocked()) void flushSaveRef.current(scheduled);
     };
   }, []);
+
+  /**
+   * 저장을 막아야 하는지. conflict·lock-lost는 이 화면에서 풀리지 않지만,
+   * session-expired는 다른 요청·탭의 재발급이나 재로그인으로 세션이 돌아오면 푼다.
+   */
+  function isSaveBlocked(): boolean {
+    if (saveBlockRef.current === "session-expired" && !isSessionExpired()) saveBlockRef.current = null;
+    return saveBlockRef.current !== null;
+  }
 
   function cancelAgentRetry() {
     if (agentRetryTimerRef.current) clearTimeout(agentRetryTimerRef.current);
@@ -123,7 +133,7 @@ export function useNoteAutosave({
       agentRetryRequiredRef.current,
       agentRetryApplyOperationIdRef.current
     );
-    if (saveBlockRef.current) return false;
+    if (isSaveBlocked()) return false;
     if (saveInFlightRef.current) {
       pendingSaveRef.current = mergePendingNoteSave(pendingSaveRef.current, saveCandidate);
       return true;
@@ -176,6 +186,11 @@ export function useNoteAutosave({
         saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
+      } else if (error instanceof SessionExpiredError) {
+        // 세션이 끝난 뒤의 저장은 몇 번을 보내도 실패한다. 저장된 척하지 않고 입력을 멈춘다.
+        saveBlockRef.current = "session-expired";
+        cancelAgentRetry();
+        if (mountedRef.current) setStatus("session-expired");
       } else {
         if (saveCandidate.source === "agent") {
           const recovery = recoverPendingNoteSaveAfterAgentFailure(pendingSaveRef.current);
@@ -211,7 +226,8 @@ export function useNoteAutosave({
    * 예약된 디바운스·AI 재시도까지 버려 잠금을 잃은 뒤의 편집이 남의 본문을 덮어쓰지 않게 한다.
    */
   function reportSaveBlock(block: NoteSaveBlock, message: string) {
-    if (saveBlockRef.current) return;
+    // session-expired는 세션이 돌아오면 풀리므로, 풀리지 않는 사유가 오면 덮어쓴다.
+    if (saveBlockRef.current && saveBlockRef.current !== "session-expired") return;
     saveBlockRef.current = block;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
@@ -225,7 +241,7 @@ export function useNoteAutosave({
   }
 
   function queueSave(body: string, source?: "agent", applyOperationId?: string) {
-    if (saveBlockRef.current) return;
+    if (isSaveBlocked()) return;
     // 새 저장이 밀린 AI 편집분을 그대로 싣고 가므로 예약된 재시도는 버린다.
     cancelAgentRetry();
     revisionRef.current += 1;
@@ -258,7 +274,7 @@ export function useNoteAutosave({
 
   /** 디바운스를 건너뛰고 즉시 저장한다 (Cmd/Ctrl+S). 성공 여부를 반환한다. */
   function saveNow(body: string): Promise<boolean> {
-    if (saveBlockRef.current) return Promise.resolve(false);
+    if (isSaveBlocked()) return Promise.resolve(false);
     cancelAgentRetry();
     if (timerRef.current) {
       clearTimeout(timerRef.current);

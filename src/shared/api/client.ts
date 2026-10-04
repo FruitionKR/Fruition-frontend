@@ -1,7 +1,9 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
+import { SessionExpiredError } from "@/shared/lib/errors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
+  notifySessionExpired,
   saveAccessToken,
   withAuthRefreshLock
 } from "@/shared/lib/auth";
@@ -42,7 +44,8 @@ export const ERROR_MESSAGES = {
   schemaInvalid: "스킬 정의가 올바르지 않습니다. 내용을 확인해 주세요.",
   schemaNotFound: "스킬 또는 워크스페이스를 찾을 수 없습니다.",
   schemaUnavailable: "스킬 해석 서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-  meLoadFailed: "사용자 정보를 불러오지 못했습니다."
+  meLoadFailed: "사용자 정보를 불러오지 못했습니다.",
+  authRefreshUnavailable: "인증을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요."
 } as const;
 
 // HTTP 응답에서 에러 메시지를 추출하는 공통 헬퍼
@@ -59,23 +62,31 @@ export async function parseErrorResponse(response: Response, fallback: string): 
   }
 }
 
-// 동시 401들이 refresh를 중복 호출하지 않도록 진행 중인 재발급을 공유한다.
-let refreshPromise: Promise<boolean> | null = null;
+/**
+ * 재발급 결과.
+ * rejected: 서버가 refresh token을 거절(401·403)했다. 세션이 끝났다.
+ * unavailable: 네트워크 오류·5xx·토큰 없는 응답처럼 다시 시도하면 회복될 수 있는 실패다.
+ */
+type RefreshOutcome = "refreshed" | "rejected" | "unavailable";
 
-async function tryRefreshTokens(): Promise<boolean> {
+// 동시 401들이 refresh를 중복 호출하지 않도록 진행 중인 재발급을 공유한다.
+let refreshPromise: Promise<RefreshOutcome> | null = null;
+
+async function tryRefreshTokens(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
-    refreshPromise = withAuthRefreshLock(async () => {
+    refreshPromise = withAuthRefreshLock(async (): Promise<RefreshOutcome> => {
       try {
         const response = await fetch("/api/auth/refresh", {
           method: "POST"
         });
-        if (!response.ok) return false;
+        if (response.status === 401 || response.status === 403) return "rejected";
+        if (!response.ok) return "unavailable";
         const body = await response.json() as { access_token?: string };
-        if (!body.access_token) return false;
+        if (!body.access_token) return "unavailable";
         saveAccessToken(body.access_token);
-        return true;
+        return "refreshed";
       } catch {
-        return false;
+        return "unavailable";
       }
     }).finally(() => {
       refreshPromise = null;
@@ -94,7 +105,8 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 /**
  * Bearer 토큰을 부착하는 공통 fetch.
  * access token 만료(401) 시 refresh token으로 재발급을 1회 시도하고 원요청을 재시도한다.
- * 재발급까지 실패하면 로그인 필요 에러를 던진다.
+ * 세션이 있던 요청에서 refresh token이 거절됐거나, 재발급 뒤에도 401이면 세션 만료로 보고 SessionExpiredError를 던진다.
+ * 재발급이 일시적으로 실패하면 세션 만료가 아니므로 일반 에러를 던져 호출부가 다시 시도하게 한다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   let requestPath = path;
@@ -107,26 +119,47 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
       requestInit = { ...init, credentials: "omit" };
     }
   }
+  // 이 요청을 보낼 때 세션이 있었는지 기억한다. 없었다면 refresh 거절은 만료가 아니라 로그인 전 상태다.
+  const hadAccessToken = Boolean(getAccessToken());
   const response = await fetchWithToken(requestPath, requestInit);
   if (response.status !== 401) return response;
-  // 비밀번호·MFA 코드 불일치는 인증 만료가 아니므로 재시도하지 않는다.
+  // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
+  // 다만 본문이 비어 있거나 code가 없어도 세션 만료로 단정하지 않는다(아래 재발급 성공 분기).
   if (await isCredentialRejection(path, response)) return response;
   // 로그인·회원가입 등 인증 요청 자체의 401은 재발급 대상이 아니지만, /me는 보호된 요청이다.
   const canRefresh = path === "/api/auth/me" || path.startsWith("/api/auth/me/") || !path.startsWith("/api/auth/");
-  if (canRefresh && await tryRefreshTokens()) {
+  // 재발급 대상이 아닌 요청의 401은 요청 자체가 거절된 것이다. 호출부가 응답을 읽어 안내한다.
+  if (!canRefresh) return response;
+  const outcome = await tryRefreshTokens();
+  // 터널·엘리베이터 같은 일시적인 연결 상실은 세션 만료가 아니다. 재로그인을 안내하지 않는다.
+  if (outcome === "unavailable") throw new Error(ERROR_MESSAGES.authRefreshUnavailable);
+  // 로그아웃 상태로 /login·랜딩에서 /me를 물으면 끝난 세션이 없다. 만료 안내·래치 없이 로그인 필요만 알린다.
+  // 로그인 전에 시작해 로그인 뒤에 끝난 요청도 여기서 걸러져, 늦은 만료 안내가 로그인 직후 화면을 막지 않는다.
+  if (outcome === "rejected" && !hadAccessToken) throw new Error(ERROR_MESSAGES.loginRequired);
+  if (outcome === "refreshed") {
     const retried = await fetchWithToken(requestPath, requestInit);
     if (retried.status !== 401) return retried;
-    if (await isCredentialRejection(path, retried)) return retried;
+    // 비밀번호·MFA 확인 요청의 401은 세션이 살아 있어도 입력이 틀리면 온다.
+    // 본문이 비어 있거나 code가 없어도 호출부가 입력 오류로 안내하게 응답을 넘긴다.
+    if (credentialRejectionCode(path)) return retried;
   }
-  throw new Error(ERROR_MESSAGES.loginRequired);
+  // 호출부마다 처리하면 대부분 놓치므로, 세션 만료는 한 곳에서 재인증으로 이어 붙인다.
+  notifySessionExpired();
+  throw new SessionExpiredError(ERROR_MESSAGES.loginRequired);
 }
 
+/** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */
 async function isCredentialRejection(path: string, response: Response): Promise<boolean> {
-  const expectedCode = path === "/api/auth/me/password" ? "INVALID_CREDENTIALS"
-    : path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate" ? "INVALID_MFA_CODE" : null;
+  const expectedCode = credentialRejectionCode(path);
   if (!expectedCode) return false;
   const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
   return body?.error?.code === expectedCode;
+}
+
+/** 입력한 비밀번호·MFA 코드를 확인하는 요청이면, 서버가 불일치를 알리는 code. */
+function credentialRejectionCode(path: string): string | null {
+  return path === "/api/auth/me/password" ? "INVALID_CREDENTIALS"
+    : path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate" ? "INVALID_MFA_CODE" : null;
 }
 
 /** 응답이 실패(!ok)면 에러 메시지를 추출해 던진다. 본문이 필요 없는 요청에서 사용한다. */

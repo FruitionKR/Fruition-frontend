@@ -19,6 +19,37 @@ function browser(t) {
   globalThis.window = { localStorage: { getItem: () => "ws_test", removeItem() {} } };
   t.after(() => { if (old === undefined) delete globalThis.window; else globalThis.window = old; });
   saveAccessToken("access-test");
+  installXhrOverFetch(t);
+}
+
+/**
+ * 조각 PUT은 업로드 진행률을 봐야 해서 XMLHttpRequest로 보낸다.
+ * 테스트는 mock된 fetch로 서버를 흉내내므로, 대역이 같은 fetch로 넘겨준다.
+ */
+function installXhrOverFetch(t) {
+  class FetchBackedXhr {
+    constructor() {
+      this.upload = {};
+      this.status = 0;
+    }
+    open(method, url) {
+      this.method = method;
+      this.url = url;
+    }
+    send(body) {
+      // presigned URL은 인증 헤더·쿠키 없이 보낸다.
+      globalThis.fetch(this.url, { method: this.method, body, credentials: "omit" }).then(
+        (response) => { this.status = response.status; this.onload?.(); },
+        () => this.onerror?.()
+      );
+    }
+    abort() {
+      this.onabort?.();
+    }
+  }
+  const old = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FetchBackedXhr;
+  t.after(() => { if (old === undefined) delete globalThis.XMLHttpRequest; else globalThis.XMLHttpRequest = old; });
 }
 const transport = () => Response.json({ origin: "https://api.example.test", directUpload: true });
 function serverEnv(t, values) {

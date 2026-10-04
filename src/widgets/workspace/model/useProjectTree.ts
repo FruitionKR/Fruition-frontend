@@ -5,6 +5,7 @@ import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } fr
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { resolveTreeMove } from "../lib/treeMoveRules";
 import {
@@ -70,16 +71,15 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     });
   }
 
-  const mutationRunningRef = useRef(false);
-  async function runTreeMutation(action: () => Promise<void>, title: string) {
-    if (mutationRunningRef.current) return;
-    mutationRunningRef.current = true;
-    try { await action(); }
-    catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
-    finally {
-      await refreshRef.current().catch(() => {});
-      mutationRunningRef.current = false;
-    }
+  // 동시 변경은 막아야 하지만, 진행 중인 변경이 있다고 다음 변경을 버리면
+  // 사용자는 요청도 안내도 없이 메뉴가 닫히는 것만 본다. 직렬로 줄을 세운다.
+  const enqueueMutation = useRef(createSerialQueue()).current;
+  function runTreeMutation(action: () => Promise<void>, title: string): Promise<void> {
+    return enqueueMutation(async () => {
+      try { await action(); }
+      catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
+      finally { await refreshRef.current().catch(() => {}); }
+    });
   }
 
   function addProject() {
@@ -217,15 +217,15 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     }
     : null;
 
-  // Markdown 변환을 요청한다. 성공·실패 모두 서버 상태로 재동기화해
-  // 새 문서가 '변환 중' 상태로 목록에 나타나게 한다.
+  // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
+  // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
   function convertContextTargetToMarkdown() {
     const documentId = contextMenuItem?.documentId;
     setContextMenu(null);
     if (!documentId) return;
-    void convertDocumentToMarkdown(documentId)
-      .then(() => refreshRef.current())
-      .catch(() => refreshRef.current());
+    void runTreeMutation(async () => {
+      await convertDocumentToMarkdown(documentId);
+    }, "Markdown 변환 실패");
   }
 
   // 컨텍스트 메뉴의 삭제는 즉시 실행하지 않고 확인 모달을 연다. 실제 삭제는 confirmDelete에서 수행한다.

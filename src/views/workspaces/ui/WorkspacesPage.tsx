@@ -6,9 +6,8 @@ import { LogIn, RefreshCw, WifiOff } from "lucide-react";
 import { clearSessionCache } from "@/entities/chat";
 import { fetchMe, useSignOut } from "@/entities/user";
 import { createWorkspace, fetchWorkspaces } from "@/entities/workspace";
-import { ERROR_MESSAGES } from "@/shared/api/client";
 import { setSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage, isErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import styles from "./WorkspacesPage.module.css";
 
@@ -30,7 +29,7 @@ export default function WorkspacesPage() {
       setSelectedWorkspaceId(workspace.id);
       router.replace("/home");
     } catch (error: unknown) {
-      if (isErrorMessage(error, ERROR_MESSAGES.loginRequired)) {
+      if (error instanceof SessionExpiredError) {
         void signOut();
         return;
       }
