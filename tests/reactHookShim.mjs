@@ -1,5 +1,5 @@
-// node --test에서 React 훅을 1회 렌더로 실제 실행하기 위한 최소 런타임.
-// 재렌더는 흉내내지 않는다. 저장 훅의 판단은 ref에 들어 있어 1회 렌더만으로 검증할 수 있다.
+// node --test에서 React 훅을 실제로 실행하기 위한 최소 런타임.
+// setState는 스스로 재렌더하지 않는다. 재렌더가 필요한 테스트는 rerender()를 직접 호출한다.
 
 let slots = [];
 let cursor = 0;
@@ -10,8 +10,18 @@ export function render(hook) {
   slots = [];
   cursor = 0;
   cleanups = [];
-  const result = hook();
-  return { result, unmount: () => cleanups.forEach((cleanup) => cleanup?.()) };
+  const box = {
+    result: runHook(hook),
+    // setState 후 새 렌더 결과(파생값·콜백)를 보려면 호출한다.
+    rerender: () => (box.result = runHook(hook)),
+    unmount: () => cleanups.forEach((cleanup) => cleanup?.())
+  };
+  return box;
+}
+
+function runHook(hook) {
+  cursor = 0;
+  return hook();
 }
 
 export function useState(initial) {

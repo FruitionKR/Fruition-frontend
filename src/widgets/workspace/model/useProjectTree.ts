@@ -5,6 +5,7 @@ import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } fr
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { resolveTreeMove } from "../lib/treeMoveRules";
 import {
@@ -70,16 +71,15 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     });
   }
 
-  const mutationRunningRef = useRef(false);
-  async function runTreeMutation(action: () => Promise<void>, title: string) {
-    if (mutationRunningRef.current) return;
-    mutationRunningRef.current = true;
-    try { await action(); }
-    catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
-    finally {
-      await refreshRef.current().catch(() => {});
-      mutationRunningRef.current = false;
-    }
+  // 동시 변경은 막아야 하지만, 진행 중인 변경이 있다고 다음 변경을 버리면
+  // 사용자는 요청도 안내도 없이 메뉴가 닫히는 것만 본다. 직렬로 줄을 세운다.
+  const enqueueMutation = useRef(createSerialQueue()).current;
+  function runTreeMutation(action: () => Promise<void>, title: string): Promise<void> {
+    return enqueueMutation(async () => {
+      try { await action(); }
+      catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
+      finally { await refreshRef.current().catch(() => {}); }
+    });
   }
 
   function addProject() {
