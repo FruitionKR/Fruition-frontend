@@ -58,6 +58,24 @@ test("재발급까지 실패하면 세션 만료를 중앙 처리기에 알리�
   assert.equal(notified, 1, "세션이 만료되면 재인증 처리기가 정확히 한 번 호출된다");
 });
 
+test("refresh가 403으로 거절되면 세션 만료로 알리고 로그인 필요 에러를 던진다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/auth/refresh") return new Response(null, { status: 403 });
+    return new Response(null, { status: 401 });
+  });
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), (error) => {
+    assert.ok(error instanceof SessionExpiredError, "403 refresh 거절은 일시적인 실패가 아니다");
+    return true;
+  });
+  assert.equal(notified, 1);
+});
+
 test("정상 응답에서는 세션 만료를 알리지 않는다", async (t) => {
   workspaceEnv(t);
   t.mock.method(globalThis, "fetch", async () => Response.json({ ok: true }));
