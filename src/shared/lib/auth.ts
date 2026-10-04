@@ -32,6 +32,11 @@ export function notifySessionExpired() {
   sessionExpiredHandler?.();
 }
 
+/** 세션 만료를 알린 뒤 아직 로그인·재발급으로 새 access token을 받지 못했으면 참이다. */
+export function isSessionExpired(): boolean {
+  return hasNotifiedSessionExpired;
+}
+
 function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(key);

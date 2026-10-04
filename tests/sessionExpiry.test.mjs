@@ -285,6 +285,34 @@ test("refresh가 502로 한 번 실패해도 autosave는 멈추지 않고 이후
   assert.match(sent[1], /터널을 나와 이어 쓴 문장/);
 });
 
+test("세션 만료로 멈춘 autosave는 다시 인증되면 저장을 재개한다", async (t) => {
+  workspaceEnv(t);
+  let expired = true;
+  const sent = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path === "/api/auth/refresh") return new Response(null, { status: 401 });
+    if (expired) return new Response(null, { status: 401 });
+    sent.push(await init.body.get("markdown").text());
+    return savedResponse(8);
+  });
+
+  const { result: autosave } = render(() => useNoteAutosave({
+    documentId: DOCUMENT_ID,
+    marker: "<!-- note -->",
+    initialVersion: 7
+  }));
+
+  assert.equal(await autosave.saveNow("만료 중 편집"), false);
+
+  // 다른 경로(다른 탭의 로그인, 다른 요청의 재발급)로 새 access token을 받았다.
+  expired = false;
+  saveAccessToken("relogin-access");
+
+  assert.equal(await autosave.saveNow("재인증 후 편집"), true, "세션이 돌아오면 저장 차단이 풀린다");
+  assert.equal(sent.length, 1);
+  assert.match(sent[0], /재인증 후 편집/);
+});
+
 test("일시적인 refresh 실패 뒤 실제로 세션이 만료되면 그때 정확히 한 번 알린다", async (t) => {
   workspaceEnv(t);
   let refreshStatus = 502;
@@ -319,4 +347,28 @@ test("재발급이 성공해도 재시도가 다시 401이면 세션 만료로 �
 
   await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), (error) => error instanceof SessionExpiredError);
   assert.equal(notified, 1);
+});
+
+test("세션 만료 중 잠금을 잃었으면 세션이 돌아와도 저장을 재개하지 않는다", async (t) => {
+  workspaceEnv(t);
+  let saves = 0;
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/auth/refresh") return new Response(null, { status: 401 });
+    saves++;
+    return new Response(null, { status: 401 });
+  });
+
+  const { result: autosave } = render(() => useNoteAutosave({
+    documentId: DOCUMENT_ID,
+    marker: "<!-- note -->",
+    initialVersion: 7
+  }));
+
+  assert.equal(await autosave.saveNow("만료 중 편집"), false);
+  autosave.reportSaveBlock("lock-lost", ERROR_MESSAGES.editLockLost);
+  saveAccessToken("relogin-access");
+  const savesBefore = saves;
+
+  assert.equal(await autosave.saveNow("잠금을 잃은 뒤 편집"), false, "잠금 상실은 세션 회복으로 풀리지 않는다");
+  assert.equal(saves, savesBefore);
 });
