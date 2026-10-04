@@ -105,7 +105,7 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 /**
  * Bearer 토큰을 부착하는 공통 fetch.
  * access token 만료(401) 시 refresh token으로 재발급을 1회 시도하고 원요청을 재시도한다.
- * refresh token이 거절됐거나, 재발급 뒤에도 401이면 세션 만료로 보고 SessionExpiredError를 던진다.
+ * 세션이 있던 요청에서 refresh token이 거절됐거나, 재발급 뒤에도 401이면 세션 만료로 보고 SessionExpiredError를 던진다.
  * 재발급이 일시적으로 실패하면 세션 만료가 아니므로 일반 에러를 던져 호출부가 다시 시도하게 한다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -119,6 +119,8 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
       requestInit = { ...init, credentials: "omit" };
     }
   }
+  // 이 요청을 보낼 때 세션이 있었는지 기억한다. 없었다면 refresh 거절은 만료가 아니라 로그인 전 상태다.
+  const hadAccessToken = Boolean(getAccessToken());
   const response = await fetchWithToken(requestPath, requestInit);
   if (response.status !== 401) return response;
   // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
@@ -131,6 +133,9 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   const outcome = await tryRefreshTokens();
   // 터널·엘리베이터 같은 일시적인 연결 상실은 세션 만료가 아니다. 재로그인을 안내하지 않는다.
   if (outcome === "unavailable") throw new Error(ERROR_MESSAGES.authRefreshUnavailable);
+  // 로그아웃 상태로 /login·랜딩에서 /me를 물으면 끝난 세션이 없다. 만료 안내·래치 없이 로그인 필요만 알린다.
+  // 로그인 전에 시작해 로그인 뒤에 끝난 요청도 여기서 걸러져, 늦은 만료 안내가 로그인 직후 화면을 막지 않는다.
+  if (outcome === "rejected" && !hadAccessToken) throw new Error(ERROR_MESSAGES.loginRequired);
   if (outcome === "refreshed") {
     const retried = await fetchWithToken(requestPath, requestInit);
     if (retried.status !== 401) return retried;

@@ -17,7 +17,7 @@ registerHooks({
 });
 
 const { ERROR_MESSAGES, apiFetch } = await import("../src/shared/api/client.ts");
-const { saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/auth.ts");
+const { clearAuth, isSessionExpired, saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/auth.ts");
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { HEARTBEAT_RETRY_MS } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
@@ -433,4 +433,53 @@ test("저장 중 세션 만료가 났다가 돌아오면 언마운트 때 예약
 
   assert.equal(sent.length, 1, "세션이 돌아왔으면 지난 만료 래치로 마지막 편집을 버리지 않는다");
   assert.match(sent[0], /저장 중에 이어 쓴 문장/);
+});
+
+test("access token 없이 보낸 요청의 refresh 거절은 세션 만료가 아니라 로그인 전 상태로 다룬다", async (t) => {
+  workspaceEnv(t);
+  // 로그인 화면·랜딩에서 로그아웃 상태로 /me를 물어보는 상황이다.
+  clearAuth();
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 401 }));
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  await assert.rejects(apiFetch("/api/auth/me"), (error) => {
+    assert.ok(!(error instanceof SessionExpiredError), "끝난 세션이 없으므로 만료로 구분하지 않는다");
+    assert.equal(error.message, ERROR_MESSAGES.loginRequired);
+    return true;
+  });
+  assert.equal(notified, 0, "로그인 폼 위에 세션 만료 안내를 띄우지 않는다");
+  assert.equal(isSessionExpired(), false, "래치를 걸지 않아 로그인 뒤 autosave를 막지 않는다");
+});
+
+test("로그인 전에 시작한 /me가 로그인 뒤 refresh 거절로 끝나도 세션 만료를 알리지 않는다", async (t) => {
+  workspaceEnv(t);
+  clearAuth();
+  let rejectRefresh;
+  const refreshGate = new Promise((resolve) => {
+    rejectRefresh = resolve;
+  });
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/auth/refresh") {
+      await refreshGate;
+      return new Response(null, { status: 401 });
+    }
+    return new Response(null, { status: 401 });
+  });
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  const stale = apiFetch("/api/auth/me");
+  await new Promise((resolve) => setImmediate(resolve));
+  // 빠른 로그인으로 새 access token을 받은 뒤 지난 요청이 끝난다.
+  saveAccessToken("logged-in");
+  rejectRefresh();
+
+  await assert.rejects(stale);
+  assert.equal(notified, 0, "로그인 직후 /workspaces에 늦은 만료 안내가 따라오지 않는다");
+  assert.equal(isSessionExpired(), false);
 });
