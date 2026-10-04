@@ -44,7 +44,8 @@ export const ERROR_MESSAGES = {
   schemaInvalid: "스킬 정의가 올바르지 않습니다. 내용을 확인해 주세요.",
   schemaNotFound: "스킬 또는 워크스페이스를 찾을 수 없습니다.",
   schemaUnavailable: "스킬 해석 서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-  meLoadFailed: "사용자 정보를 불러오지 못했습니다."
+  meLoadFailed: "사용자 정보를 불러오지 못했습니다.",
+  authRefreshUnavailable: "인증을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요."
 } as const;
 
 // HTTP 응답에서 에러 메시지를 추출하는 공통 헬퍼
@@ -61,23 +62,31 @@ export async function parseErrorResponse(response: Response, fallback: string): 
   }
 }
 
-// 동시 401들이 refresh를 중복 호출하지 않도록 진행 중인 재발급을 공유한다.
-let refreshPromise: Promise<boolean> | null = null;
+/**
+ * 재발급 결과.
+ * rejected: 서버가 refresh token을 거절(401·403)했다. 세션이 끝났다.
+ * unavailable: 네트워크 오류·5xx·토큰 없는 응답처럼 다시 시도하면 회복될 수 있는 실패다.
+ */
+type RefreshOutcome = "refreshed" | "rejected" | "unavailable";
 
-async function tryRefreshTokens(): Promise<boolean> {
+// 동시 401들이 refresh를 중복 호출하지 않도록 진행 중인 재발급을 공유한다.
+let refreshPromise: Promise<RefreshOutcome> | null = null;
+
+async function tryRefreshTokens(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
-    refreshPromise = withAuthRefreshLock(async () => {
+    refreshPromise = withAuthRefreshLock(async (): Promise<RefreshOutcome> => {
       try {
         const response = await fetch("/api/auth/refresh", {
           method: "POST"
         });
-        if (!response.ok) return false;
+        if (response.status === 401 || response.status === 403) return "rejected";
+        if (!response.ok) return "unavailable";
         const body = await response.json() as { access_token?: string };
-        if (!body.access_token) return false;
+        if (!body.access_token) return "unavailable";
         saveAccessToken(body.access_token);
-        return true;
+        return "refreshed";
       } catch {
-        return false;
+        return "unavailable";
       }
     }).finally(() => {
       refreshPromise = null;
@@ -96,8 +105,9 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 /**
  * Bearer 토큰을 부착하는 공통 fetch.
  * access token 만료(401) 시 refresh token으로 재발급을 1회 시도하고 원요청을 재시도한다.
- * 재발급까지 실패했을 때만 세션 만료로 보고 SessionExpiredError를 던진다.
+ * refresh token이 거절됐을 때만 세션 만료로 보고 SessionExpiredError를 던진다.
  * 재발급이 성공한 뒤의 401은 세션이 아니라 요청이 거절된 것이므로 응답을 그대로 돌려준다.
+ * 재발급이 일시적으로 실패하면 세션 만료가 아니므로 일반 에러를 던져 호출부가 다시 시도하게 한다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   let requestPath = path;
@@ -119,7 +129,10 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   const canRefresh = path === "/api/auth/me" || path.startsWith("/api/auth/me/") || !path.startsWith("/api/auth/");
   // 재발급 대상이 아닌 요청의 401은 요청 자체가 거절된 것이다. 호출부가 응답을 읽어 안내한다.
   if (!canRefresh) return response;
-  if (await tryRefreshTokens()) {
+  const outcome = await tryRefreshTokens();
+  // 터널·엘리베이터 같은 일시적인 연결 상실은 세션 만료가 아니다. 재로그인을 안내하지 않는다.
+  if (outcome === "unavailable") throw new Error(ERROR_MESSAGES.authRefreshUnavailable);
+  if (outcome === "refreshed") {
     // 재발급이 성공했으면 세션은 살아 있다. 그래도 401이면 비밀번호·MFA 코드 불일치처럼
     // 요청 자체가 거절된 것이므로, 응답 본문이 어떻든 세션 만료로 다루지 않는다.
     return await fetchWithToken(requestPath, requestInit);
