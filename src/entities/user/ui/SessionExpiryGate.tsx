@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { setSessionExpiredHandler } from "@/shared/lib/auth";
+import { usePathname } from "next/navigation";
+import { isPublicAuthPath, setSessionExpiredHandler } from "@/shared/lib/auth";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import { useSignOut } from "../model/useSignOut";
 
@@ -14,6 +15,7 @@ import { useSignOut } from "../model/useSignOut";
  */
 export function SessionExpiryGate({ children }: { children: React.ReactNode }) {
   const { signOut } = useSignOut();
+  const pathname = usePathname();
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
@@ -30,7 +32,8 @@ export function SessionExpiryGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      {isExpired && (
+      {/* 로그인·회원가입 화면에는 지킬 편집 내용이 없고, 안내가 로그인 폼을 가리면 다시 로그인할 수 없다. */}
+      {isExpired && !isPublicAuthPath(pathname) && (
         <ConfirmModal
           titleId="session-expired-title"
           title="세션이 만료되었습니다."
