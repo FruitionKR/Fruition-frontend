@@ -1,4 +1,4 @@
-import { apiFetch, parseJsonOrThrow, throwIfNotOk } from "@/shared/api/client";
+import { apiFetch, parseJsonOrThrow, throwIfNotOk, workspacePath } from "@/shared/api/client";
 import type {
   SkillAuthoringRequest,
   SkillAuthoringResult,
@@ -8,12 +8,12 @@ import type {
 } from "@/entities/skill/model/skill";
 
 export async function fetchSkills(workspaceId: string): Promise<SkillResponse[]> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}/skills`, { cache: "no-store" });
+  const response = await apiFetch(workspacePath(workspaceId, "skills"), { cache: "no-store" });
   return parseJsonOrThrow<SkillResponse[]>(response, "스킬 목록을 불러오지 못했습니다.");
 }
 
 export async function authorSkill(workspaceId: string, body: SkillAuthoringRequest): Promise<SkillAuthoringResult> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}/skills/author`, {
+  const response = await apiFetch(workspacePath(workspaceId, "skills", "author"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -22,7 +22,7 @@ export async function authorSkill(workspaceId: string, body: SkillAuthoringReque
 }
 
 export async function publishSkill(workspaceId: string, body: SkillPublishRequest): Promise<SkillAuthoringResult> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}/skills/author/publish`, {
+  const response = await apiFetch(workspacePath(workspaceId, "skills", "author", "publish"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -35,7 +35,7 @@ export async function updateSkill(
   skillId: string,
   body: SkillUpdateRequest
 ): Promise<SkillAuthoringResult> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}/skills/${skillId}`, {
+  const response = await apiFetch(workspacePath(workspaceId, "skills", skillId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -44,17 +44,17 @@ export async function updateSkill(
 }
 
 export async function enableSkill(workspaceId: string, skillId: string): Promise<SkillResponse> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}/skills/${skillId}/enable`, { method: "POST" });
+  const response = await apiFetch(workspacePath(workspaceId, "skills", skillId, "enable"), { method: "POST" });
   return parseJsonOrThrow<SkillResponse>(response, "스킬을 활성화하지 못했습니다.");
 }
 
 export async function disableSkill(workspaceId: string, skillId: string): Promise<SkillResponse> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}/skills/${skillId}/disable`, { method: "POST" });
+  const response = await apiFetch(workspacePath(workspaceId, "skills", skillId, "disable"), { method: "POST" });
   return parseJsonOrThrow<SkillResponse>(response, "스킬을 비활성화하지 못했습니다.");
 }
 
 export async function deleteSkill(workspaceId: string, skillId: string): Promise<void> {
-  const response = await apiFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/skills/${encodeURIComponent(skillId)}`, {
+  const response = await apiFetch(workspacePath(workspaceId, "skills", skillId), {
     method: "DELETE"
   });
   await throwIfNotOk(response, "스킬을 삭제하지 못했습니다.");
