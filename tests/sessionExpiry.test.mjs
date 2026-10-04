@@ -390,3 +390,47 @@ test("세션 만료 중 잠금을 잃었으면 세션이 돌아와도 저장을 
   assert.equal(await autosave.saveNow("잠금을 잃은 뒤 편집"), false, "잠금 상실은 세션 회복으로 풀리지 않는다");
   assert.equal(saves, savesBefore);
 });
+
+test("저장 중 세션 만료가 났다가 돌아오면 언마운트 때 예약된 편집을 저장한다", async (t) => {
+  workspaceEnv(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let expired = true;
+  let releaseFirstSave;
+  const firstSaveReleased = new Promise((resolve) => {
+    releaseFirstSave = resolve;
+  });
+  const sent = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path === "/api/auth/refresh") return new Response(null, { status: 401 });
+    if (expired) {
+      await firstSaveReleased;
+      return new Response(null, { status: 401 });
+    }
+    sent.push(await init.body.get("markdown").text());
+    return savedResponse(8);
+  });
+
+  const hook = render(() => useNoteAutosave({
+    documentId: DOCUMENT_ID,
+    marker: "<!-- note -->",
+    initialVersion: 7
+  }));
+  const autosave = hook.result;
+
+  // 저장이 서버로 가 있는 동안 사용자가 이어 써서 디바운스 저장이 예약된다.
+  const inFlight = autosave.saveNow("저장 중이던 문장");
+  autosave.queueSave("저장 중에 이어 쓴 문장");
+
+  // 진행 중이던 저장이 세션 만료로 실패해 저장 차단 래치가 걸린다.
+  releaseFirstSave();
+  assert.equal(await inFlight, false);
+
+  // 다른 탭의 재로그인으로 세션이 돌아왔고, 디바운스가 터지기 전에 화면을 떠난다.
+  expired = false;
+  saveAccessToken("relogin-access");
+  hook.unmount();
+  for (let turn = 0; turn < 20; turn++) await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(sent.length, 1, "세션이 돌아왔으면 지난 만료 래치로 마지막 편집을 버리지 않는다");
+  assert.match(sent[0], /저장 중에 이어 쓴 문장/);
+});

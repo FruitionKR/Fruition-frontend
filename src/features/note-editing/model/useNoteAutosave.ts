@@ -82,7 +82,7 @@ export function useNoteAutosave({
       );
       scheduledSaveRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (scheduled && !saveBlockRef.current) void flushSaveRef.current(scheduled);
+      if (scheduled && !isSaveBlocked()) void flushSaveRef.current(scheduled);
     };
   }, []);
 
