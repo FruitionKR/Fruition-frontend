@@ -45,10 +45,10 @@
 | 경로 | 상태 |
 |---|---|
 | `GET /api/workspaces/{workspace_id}/wiki-schema/active` | wiki-schema 배선 진행 중. 현재는 `src/entities/schema/api/schema.ts`의 `localStorage` 목업 |
-| `GET·POST /api/workspaces/{workspace_id}/wiki-schema/drafts` | 같음 |
+| `POST /api/workspaces/{workspace_id}/wiki-schema/drafts` | 같음 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/preview` | 같음 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/{schema_id}/activate` | 같음 |
-| `POST·DELETE /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock` | 문서 편집 잠금 배선 진행 중 |
+| `POST·DELETE /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock` | 호출 없음. `main` 기준으로는 배선 여부를 확인할 수 없다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock/heartbeat` | 같음 |
 
 ### UI 없음 — 음성·회의

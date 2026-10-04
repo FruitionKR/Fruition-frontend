@@ -38,7 +38,7 @@ backend 서비스 문서는 API를 **제공하는** 쪽 기준으로 각 API마�
 | 소비하는 document-svc `/api/**` | 87개 중 **53개 호출 / 34개 미호출** |
 | 소비하는 access-svc `/api/**` | 29개 중 **26개 호출 / 3개 미호출** |
 | `apiFetch` 호출 지점 | 21개 파일 / 84곳 |
-| 인증 헤더 없는 raw `fetch` 호출 지점 | 6개 파일 / 11곳 |
+| 인증 헤더 없는 raw `fetch` 호출 지점 | 5개 파일 / 11곳 |
 
 `/internal/**` (document-svc 9개, access-svc 3개)는 서비스 간 경로이며 이 저장소는 호출하지 않는다.
 
