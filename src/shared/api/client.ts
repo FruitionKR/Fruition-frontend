@@ -17,6 +17,11 @@ export const ERROR_MESSAGES = {
   documentDeleteFailed: "문서 삭제에 실패했습니다.",
   documentRenameFailed: "문서 이름 변경에 실패했습니다.",
   documentConvertFailed: "Markdown 변환 요청에 실패했습니다.",
+  editLockHeld: "다른 사용자가 편집 중입니다.",
+  editLockLost: "다른 사용자가 편집을 시작해 편집 권한을 잃었습니다. 이후 변경은 저장되지 않습니다.",
+  editLockForbidden: "문서 소유자만 편집할 수 있습니다.",
+  editLockMissing: "문서를 찾을 수 없습니다.",
+  editLockFailed: "편집 잠금을 확인하지 못해 읽기 전용으로 열었습니다.",
   noteDraftLoadFailed: "노트 draft를 불러오지 못했습니다.",
   noteDraftSaveFailed: "노트 draft를 저장하지 못했습니다.",
   documentOriginalLoadFailed: "원본 문서를 불러오지 못했습니다.",
@@ -30,6 +35,13 @@ export const ERROR_MESSAGES = {
   wikiGraphLoadFailed: "Wiki graph를 불러오지 못했습니다.",
   wikiPageLoadFailed: "Wiki page를 불러오지 못했습니다.",
   workspaceLoadFailed: "워크스페이스를 불러오지 못했습니다.",
+  schemaLoadFailed: "스킬을 불러오지 못했습니다.",
+  schemaPreviewFailed: "스킬 미리보기를 생성하지 못했습니다.",
+  schemaDraftFailed: "스킬 초안을 저장하지 못했습니다.",
+  schemaActivateFailed: "스킬을 활성화하지 못했습니다.",
+  schemaInvalid: "스킬 정의가 올바르지 않습니다. 내용을 확인해 주세요.",
+  schemaNotFound: "스킬 또는 워크스페이스를 찾을 수 없습니다.",
+  schemaUnavailable: "스킬 해석 서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
   meLoadFailed: "사용자 정보를 불러오지 못했습니다."
 } as const;
 

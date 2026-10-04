@@ -23,6 +23,7 @@ import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownE
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
+import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
@@ -30,6 +31,8 @@ import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, isManagedAssetPath, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
 import { publishNotice } from "@/features/document-notifications";
+import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { configureMathEditor } from "../model/mathEditor";
 import styles from "./NoteEditor.module.css";
 
@@ -73,13 +76,24 @@ export function NoteEditor({
   const [body, setBody] = useState(initialBody);
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
-  const { status, errorMessage, contentVersion, queueSave, saveNow } = useNoteAutosave({
+  const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
     documentId,
     marker,
     initialVersion,
     onDetachedSaveComplete,
     onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved)
   });
+  // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
+  const editLock = useEditLock({
+    documentId,
+    onLockLost: (message) => {
+      reportSaveBlock("lock-lost", message);
+      // 저장 상태 표시만으로는 놓치기 쉬운 상황이라 알림으로도 알린다.
+      publishNotice({ kind: "failed", title: "편집 권한 상실", message });
+    }
+  });
+  // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
+  const canEdit = editLock.phase === "granted" || editLock.phase === "lost";
   const editorExtensions = useMemo(
     () => [
       markdown(),
@@ -298,7 +312,7 @@ export function NoteEditor({
   }, [documentId, sourceMode]);
 
   useEffect(() => {
-    if (sourceMode || !wysiwygRootRef.current) return;
+    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
 
     let isDisposed = false;
     // Crepe의 create/destroy가 비동기라 root를 공유하면 이전 인스턴스 DOM이 남은 채
@@ -504,7 +518,24 @@ export function NoteEditor({
         .catch(() => {})
         .finally(() => host.remove());
     };
-  }, [documentId, sourceMode]);
+  }, [canEdit, documentId, sourceMode]);
+
+  if (!canEdit) {
+    return (
+      <div className={styles["note-editor-shell"]}>
+        {editLock.phase === "acquiring" ? (
+          <DocumentLoading>편집 권한을 확인하는 중입니다.</DocumentLoading>
+        ) : (
+          <>
+            <p className={styles["note-editor-readonly-notice"]} role="alert">
+              {editLock.message} 읽기 전용으로 열었습니다.
+            </p>
+            <MarkdownViewer markdown={initialBody} />
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={styles["note-editor-shell"]}>
