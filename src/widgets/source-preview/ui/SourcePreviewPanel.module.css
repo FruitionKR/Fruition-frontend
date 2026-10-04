@@ -138,7 +138,8 @@
 }
 
 .source-preview-save-status.is-error,
-.source-preview-save-status.is-conflict {
+.source-preview-save-status.is-conflict,
+.source-preview-save-status.is-lock-lost {
   color: #ff8f87;
 }
 

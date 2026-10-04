@@ -403,3 +403,13 @@
   color: var(--bg);
   background: var(--yellow);
 }
+
+/* 다른 사용자가 편집 중이거나 잠금을 확인하지 못해 읽기 전용으로 열었을 때의 안내. */
+.note-editor-readonly-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 143, 135, 0.12);
+  color: #ff8f87;
+  font-size: 13px;
+}

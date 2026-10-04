@@ -14,6 +14,9 @@ import {
 } from "./pendingSave";
 import { trackPendingDocumentSave } from "./pendingDocumentSave";
 
+/** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
+export type NoteSaveBlock = "conflict" | "lock-lost";
+
 export type DetachedNoteSaveResult =
   | { success: true }
   | { success: false; error: unknown };
@@ -50,7 +53,8 @@ export function useNoteAutosave({
   const scheduledSaveRef = useRef<PendingNoteSave | null>(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
-  const conflictRef = useRef(false);
+  // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)와 lock-lost(편집 잠금 상실)를 같은 방식으로 막는다.
+  const saveBlockRef = useRef<NoteSaveBlock | null>(null);
   const agentRetryRequiredRef = useRef(false);
   const agentRetryApplyOperationIdRef = useRef<string | undefined>(undefined);
   const agentRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,7 +81,7 @@ export function useNoteAutosave({
       );
       scheduledSaveRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (scheduled && !conflictRef.current) void flushSaveRef.current(scheduled);
+      if (scheduled && !saveBlockRef.current) void flushSaveRef.current(scheduled);
     };
   }, []);
 
@@ -108,7 +112,7 @@ export function useNoteAutosave({
     agentRetryTimerRef.current = setTimeout(() => {
       agentRetryTimerRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (conflictRef.current) return;
+      if (saveBlockRef.current) return;
       void trackedFlushSave(candidate);
     }, plan.delayMs);
   }
@@ -119,7 +123,7 @@ export function useNoteAutosave({
       agentRetryRequiredRef.current,
       agentRetryApplyOperationIdRef.current
     );
-    if (conflictRef.current) return false;
+    if (saveBlockRef.current) return false;
     if (saveInFlightRef.current) {
       pendingSaveRef.current = mergePendingNoteSave(pendingSaveRef.current, saveCandidate);
       return true;
@@ -169,7 +173,7 @@ export function useNoteAutosave({
       return true;
     } catch (error) {
       if (error instanceof NoteContentConflictError) {
-        conflictRef.current = true;
+        saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
       } else {
@@ -191,7 +195,7 @@ export function useNoteAutosave({
       saveInFlightRef.current = false;
       const pending = pendingSaveRef.current;
       pendingSaveRef.current = null;
-      if (pending && !conflictRef.current) void trackedFlushSave(pending);
+      if (pending && !saveBlockRef.current) void trackedFlushSave(pending);
     }
   }
 
@@ -202,8 +206,26 @@ export function useNoteAutosave({
   }
   flushSaveRef.current = trackedFlushSave;
 
+  /**
+   * 저장을 영구히 멈춘다. useEditLock이 heartbeat 409(잠금 상실)를 받으면 호출한다.
+   * 예약된 디바운스·AI 재시도까지 버려 잠금을 잃은 뒤의 편집이 남의 본문을 덮어쓰지 않게 한다.
+   */
+  function reportSaveBlock(block: NoteSaveBlock, message: string) {
+    if (saveBlockRef.current) return;
+    saveBlockRef.current = block;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    scheduledSaveRef.current = null;
+    pendingSaveRef.current = null;
+    cancelAgentRetry();
+    if (mountedRef.current) {
+      setStatus(block);
+      setErrorMessage(message);
+    }
+  }
+
   function queueSave(body: string, source?: "agent", applyOperationId?: string) {
-    if (conflictRef.current) return;
+    if (saveBlockRef.current) return;
     // 새 저장이 밀린 AI 편집분을 그대로 싣고 가므로 예약된 재시도는 버린다.
     cancelAgentRetry();
     revisionRef.current += 1;
@@ -236,7 +258,7 @@ export function useNoteAutosave({
 
   /** 디바운스를 건너뛰고 즉시 저장한다 (Cmd/Ctrl+S). 성공 여부를 반환한다. */
   function saveNow(body: string): Promise<boolean> {
-    if (conflictRef.current) return Promise.resolve(false);
+    if (saveBlockRef.current) return Promise.resolve(false);
     cancelAgentRetry();
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -255,5 +277,5 @@ export function useNoteAutosave({
     return trackedFlushSave(candidate);
   }
 
-  return { status, errorMessage, contentVersion, queueSave, saveNow };
+  return { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock };
 }
