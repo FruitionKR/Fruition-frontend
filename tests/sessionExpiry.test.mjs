@@ -95,18 +95,14 @@ test("세션이 만료되면 autosave가 저장을 멈추고 더 이상 서버�
   assert.equal(saves, savesAfterBlock, "세션이 만료된 뒤에는 저장 요청을 보내지 않는다");
 });
 
-test("heartbeat 실패는 로그인 필요거나 연속 한도를 넘으면 더 재시도하지 않는다", () => {
+test("세션이 만료된 heartbeat는 만료 시각이 남아 있어도 즉시 종료한다", () => {
+  const now = Date.now();
   const loginRequired = new SessionExpiredError(ERROR_MESSAGES.loginRequired);
-  const network = new Error("Failed to fetch");
 
-  // 세션 만료는 기다려도 회복되지 않으므로 즉시 종료로 본다.
-  assert.equal(resolveHeartbeatFailure(loginRequired, 1), "terminal");
-  // 일시적인 네트워크 오류는 한도 안에서는 재시도한다.
-  assert.equal(resolveHeartbeatFailure(network, 1), "retry");
-  assert.equal(resolveHeartbeatFailure(network, 2), "retry");
-  // 한도를 넘으면 잠금을 쥐고 있다고 주장하지 않는다.
-  assert.equal(resolveHeartbeatFailure(network, 3), "terminal");
-  assert.equal(resolveHeartbeatFailure(network, 9), "terminal");
+  // 재인증 없이는 어떤 요청도 성공하지 않으므로 기다릴 이유가 없다.
+  assert.equal(resolveHeartbeatFailure(loginRequired, now + 300_000, now), "terminal");
+  // 반면 일시적인 네트워크 오류는 만료 전까지 계속 재시도한다.
+  assert.equal(resolveHeartbeatFailure(new Error("Failed to fetch"), now + 300_000, now), "retry");
 });
 
 test("재발급이 성공하면 이어지는 401은 세션 만료가 아니라 요청 거절로 다룬다", async (t) => {

@@ -17,6 +17,7 @@ registerHooks({
 });
 
 const {
+  EditLockDeniedError,
   EditLockHeldError,
   EditLockLostError,
   acquireEditLock,
@@ -27,9 +28,13 @@ const {
   HEARTBEAT_FALLBACK_MS,
   HEARTBEAT_MAX_MS,
   HEARTBEAT_MIN_MS,
+  HEARTBEAT_RETRY_MS,
   describeEditLockHolder,
-  resolveHeartbeatDelayMs
+  resolveHeartbeatDelayMs,
+  resolveHeartbeatFailure
 } = await import("../src/features/note-editing/model/editLockSchedule.ts");
+const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
+const { SessionExpiredError } = await import("../src/shared/lib/errors.ts");
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { ERROR_MESSAGES } = await import("../src/shared/api/client.ts");
 const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
@@ -189,4 +194,109 @@ test("heartbeat 409로 잠금을 잃으면 autosave가 더 이상 서버에 쓰�
   autosave.queueSave("잠금 상실 후 디바운스 편집");
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(saves, 1, "잠금을 잃은 뒤에는 저장 요청을 보내지 않는다");
+});
+
+test("heartbeat 실패 처리는 실패 횟수가 아니라 서버 만료 시각으로 끝낸다", () => {
+  const now = Date.parse("2026-10-04T00:00:00Z");
+  const network = new Error("Failed to fetch");
+
+  // 만료 전이라면 서버 잠금은 아직 우리 것이다. 몇 번을 실패해도 편집기를 닫지 않는다.
+  assert.equal(resolveHeartbeatFailure(network, now + 60_000, now), "retry");
+  // 만료 후에는 보유를 주장하지 않고 재획득으로 사실을 확인한다.
+  assert.equal(resolveHeartbeatFailure(network, now - 1, now), "reacquire");
+  assert.equal(resolveHeartbeatFailure(network, null, now), "reacquire");
+  // 세션 만료는 기다려도 회복되지 않는다.
+  assert.equal(resolveHeartbeatFailure(new SessionExpiredError("로그인이 필요합니다."), now + 60_000, now), "terminal");
+});
+
+/** mock timer를 진행시킨 뒤 heartbeat의 비동기 후속 작업이 끝날 틈을 준다. */
+async function advance(t, ms) {
+  t.mock.timers.tick(ms);
+  for (let turn = 0; turn < 20; turn++) await Promise.resolve();
+}
+
+function lockEnv(t, { expiresInMs, onHeartbeat, onAcquire }) {
+  workspaceEnv(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const acquires = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path.endsWith("/heartbeat")) return onHeartbeat();
+    if (init?.method === "POST") {
+      acquires.push(Date.now());
+      return onAcquire
+        ? onAcquire()
+        : Response.json({ expires_at: new Date(Date.now() + expiresInMs).toISOString() });
+    }
+    return new Response(null, { status: 204 });
+  });
+  const lost = [];
+  const view = render(() => useEditLock({ documentId: DOCUMENT_ID, onLockLost: (message) => lost.push(message) }));
+  return { acquires, lost, view };
+}
+
+test("만료 전의 연속 네트워크 오류는 편집기를 끝내지 않고 계속 재시도한다", async (t) => {
+  // 서버 TTL 300초. 30초짜리 터널에서 편집기가 죽지 않아야 한다.
+  const { lost, acquires } = lockEnv(t, {
+    expiresInMs: 300_000,
+    onHeartbeat: () => { throw new Error("Failed to fetch"); }
+  });
+  await advance(t, 0);
+
+  // 첫 heartbeat(100초) 이후 5초 간격 재시도를 180초 동안 반복한다.
+  for (let elapsed = 0; elapsed < 180_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.deepEqual(lost, [], "만료 전에는 잠금 상실로 보지 않는다");
+  assert.equal(acquires.length, 1, "만료 전에는 재획득하지 않는다");
+});
+
+test("만료 후 연결이 돌아오면 잠금을 다시 받아 편집을 이어간다", async (t) => {
+  let failHeartbeat = true;
+  const { lost, acquires, view } = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => {
+      if (failHeartbeat) throw new Error("Failed to fetch");
+      return Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() });
+    }
+  });
+  await advance(t, 0);
+
+  // 만료(30초)를 지나도록 heartbeat를 계속 실패시킨다.
+  for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.deepEqual(lost, [], "아무도 가져가지 않았다면 편집기는 그대로 살아난다");
+  assert.ok(acquires.length >= 2, `만료 후에는 재획득을 시도한다 (acquires=${acquires.length})`);
+  assert.equal(view.rerender().phase, "granted");
+});
+
+test("만료 후 다른 사용자가 잠금을 가져갔으면 재획득 실패로 끝낸다", async (t) => {
+  const { lost } = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => { throw new Error("Failed to fetch"); },
+    onAcquire: (() => {
+      let first = true;
+      return () => {
+        if (first) {
+          first = false;
+          return Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() });
+        }
+        return Response.json({ holder_display_name: "다른 사용자" }, { status: 423 });
+      };
+    })()
+  });
+  await advance(t, 0);
+
+  for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.equal(lost.length, 1, "다른 사용자가 보유 중이면 저장을 멈춘다");
+  assert.match(lost[0], /다른 사용자/);
+});
+
+test("잠글 수 없는 문서(403·404)는 네트워크 오류와 구분된다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 403 }));
+  await assert.rejects(acquireEditLock(DOCUMENT_ID), (error) => {
+    assert.ok(error instanceof EditLockDeniedError);
+    assert.equal(error.message, ERROR_MESSAGES.editLockForbidden);
+    return true;
+  });
 });
