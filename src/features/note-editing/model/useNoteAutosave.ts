@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { ERROR_MESSAGES } from "@/shared/api/client";
+import { getErrorMessage, isErrorMessage } from "@/shared/lib/errors";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import {
   applyRequiredAgentSource,
@@ -15,7 +16,7 @@ import {
 import { trackPendingDocumentSave } from "./pendingDocumentSave";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
-export type NoteSaveBlock = "conflict" | "lock-lost";
+export type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
 
 export type DetachedNoteSaveResult =
   | { success: true }
@@ -53,7 +54,7 @@ export function useNoteAutosave({
   const scheduledSaveRef = useRef<PendingNoteSave | null>(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
-  // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)와 lock-lost(편집 잠금 상실)를 같은 방식으로 막는다.
+  // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)·lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
   const saveBlockRef = useRef<NoteSaveBlock | null>(null);
   const agentRetryRequiredRef = useRef(false);
   const agentRetryApplyOperationIdRef = useRef<string | undefined>(undefined);
@@ -176,6 +177,11 @@ export function useNoteAutosave({
         saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
+      } else if (isErrorMessage(error, ERROR_MESSAGES.loginRequired)) {
+        // 세션이 끝난 뒤의 저장은 몇 번을 보내도 실패한다. 저장된 척하지 않고 입력을 멈춘다.
+        saveBlockRef.current = "session-expired";
+        cancelAgentRetry();
+        if (mountedRef.current) setStatus("session-expired");
       } else {
         if (saveCandidate.source === "agent") {
           const recovery = recoverPendingNoteSaveAfterAgentFailure(pendingSaveRef.current);

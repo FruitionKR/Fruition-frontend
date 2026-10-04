@@ -2,6 +2,7 @@ import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/docume
 import {
   getAccessToken,
   getSelectedWorkspaceId,
+  notifySessionExpired,
   saveAccessToken,
   withAuthRefreshLock
 } from "@/shared/lib/auth";
@@ -118,6 +119,8 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     if (retried.status !== 401) return retried;
     if (await isCredentialRejection(path, retried)) return retried;
   }
+  // 호출부마다 처리하면 대부분 놓치므로, 세션 만료는 한 곳에서 재인증으로 이어 붙인다.
+  notifySessionExpired();
   throw new Error(ERROR_MESSAGES.loginRequired);
 }
 

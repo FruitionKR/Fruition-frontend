@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { acquireEditLock, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat } from "../api/editLock";
-import { resolveHeartbeatDelayMs } from "./editLockSchedule";
+import { resolveHeartbeatDelayMs, resolveHeartbeatFailure } from "./editLockSchedule";
 
 export type EditLockPhase =
   /** 진입 직후. 잠금을 받기 전까지는 편집기를 열지 않는다. */
@@ -42,6 +42,7 @@ export function useEditLock({
     let disposed = false;
     let holding = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let consecutiveFailures = 0;
 
     function scheduleHeartbeat(expiresAt: string | undefined) {
       timer = setTimeout(beat, resolveHeartbeatDelayMs(expiresAt, Date.now()));
@@ -60,10 +61,18 @@ export function useEditLock({
       try {
         const lock = await sendEditLockHeartbeat(documentId);
         if (disposed) return;
+        consecutiveFailures = 0;
         scheduleHeartbeat(lock.expires_at);
       } catch (error) {
         if (error instanceof EditLockLostError) {
           loseLock(error.message);
+          return;
+        }
+        consecutiveFailures += 1;
+        // 세션 만료나 연속 실패 한도를 넘긴 상황은 기다려도 회복되지 않는다.
+        // 이때까지 granted를 유지하면 다른 사용자가 잠금을 가져간 뒤에도 양쪽이 보유 중이라고 믿는다.
+        if (resolveHeartbeatFailure(error, consecutiveFailures) === "terminal") {
+          loseLock(getErrorMessage(error, ERROR_MESSAGES.editLockLost));
           return;
         }
         // 일시적인 네트워크 오류는 잠금 상실이 아니다. 만료 전에 다시 시도한다.

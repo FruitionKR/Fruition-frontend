@@ -15,6 +15,18 @@ const PUBLIC_AUTH_PATHS = new Set([
 ]);
 
 let accessToken: string | null = null;
+// 재발급까지 실패해 세션이 끝난 순간을 앱 전체가 한 곳에서 처리하도록 등록하는 처리기.
+let sessionExpiredHandler: (() => void) | null = null;
+
+/** 세션 만료 시 재인증(로그아웃 후 /login) 처리기를 등록한다. 앱 루트에서 한 번만 등록한다. */
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  sessionExpiredHandler = handler;
+}
+
+/** refresh까지 실패해 더 이상 인증된 요청을 보낼 수 없을 때 호출한다. */
+export function notifySessionExpired() {
+  sessionExpiredHandler?.();
+}
 
 function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;

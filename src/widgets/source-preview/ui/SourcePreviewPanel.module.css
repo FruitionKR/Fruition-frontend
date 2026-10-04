@@ -139,7 +139,8 @@
 
 .source-preview-save-status.is-error,
 .source-preview-save-status.is-conflict,
-.source-preview-save-status.is-lock-lost {
+.source-preview-save-status.is-lock-lost,
+.source-preview-save-status.is-session-expired {
   color: #ff8f87;
 }
 

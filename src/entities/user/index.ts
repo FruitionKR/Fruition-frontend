@@ -3,4 +3,5 @@ export * from "./model/auth";
 export * from "./model/preferences";
 export * from "./model/useMe";
 export * from "./model/useSignOut";
+export * from "./model/useSessionExpiry";
 export * from "./model/UserPreferencesProvider";
