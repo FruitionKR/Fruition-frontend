@@ -30,6 +30,13 @@ export const ERROR_MESSAGES = {
   wikiGraphLoadFailed: "Wiki graph를 불러오지 못했습니다.",
   wikiPageLoadFailed: "Wiki page를 불러오지 못했습니다.",
   workspaceLoadFailed: "워크스페이스를 불러오지 못했습니다.",
+  schemaLoadFailed: "스킬을 불러오지 못했습니다.",
+  schemaPreviewFailed: "스킬 미리보기를 생성하지 못했습니다.",
+  schemaDraftFailed: "스킬 초안을 저장하지 못했습니다.",
+  schemaActivateFailed: "스킬을 활성화하지 못했습니다.",
+  schemaInvalid: "스킬 정의가 올바르지 않습니다. 내용을 확인해 주세요.",
+  schemaNotFound: "스킬 또는 워크스페이스를 찾을 수 없습니다.",
+  schemaUnavailable: "스킬 해석 서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
   meLoadFailed: "사용자 정보를 불러오지 못했습니다."
 } as const;
 

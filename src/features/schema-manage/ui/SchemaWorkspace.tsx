@@ -8,16 +8,18 @@ import { SchemaPreviewCard } from "./SchemaPreviewCard";
 import {
   activateWikiSchema,
   createWikiSchemaDraft,
-  listWikiSchemas,
+  fetchActiveWikiSchema,
   previewWikiSchema
 } from "@/entities/schema/api/schema";
 import { getErrorMessage } from "@/shared/lib/errors";
 import type { WikiSchema, WikiSchemaPreview } from "@/entities/schema/model/schema";
 
 // 스킬(스키마) 관리 임시 화면. rail "규칙" 뷰에 마운트된다.
-// 데이터는 목업(_lib/api/schema.ts)으로 구동하며, 실제 배선은 상호참조 이슈로 정리한다.
+// 서버는 활성 스킬 조회만 제공하고 초안 목록 API가 없다. 그래서 목록은 활성 스킬과
+// 이 화면에서 방금 만든 초안만 보여준다. 새로 고치면 저장된 초안은 다시 찾을 수 없다.
 export function SchemaWorkspace() {
-  const [schemas, setSchemas] = useState<WikiSchema[]>([]);
+  const [activeSchema, setActiveSchema] = useState<WikiSchema | null>(null);
+  const [sessionDrafts, setSessionDrafts] = useState<WikiSchema[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [rawMarkdown, setRawMarkdown] = useState("");
@@ -26,12 +28,17 @@ export function SchemaWorkspace() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setSchemas(await listWikiSchemas());
+    setActiveSchema(await fetchActiveWikiSchema());
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const schemas = useMemo<WikiSchema[]>(() => {
+    const drafts = sessionDrafts.filter((draft) => draft.id !== activeSchema?.id);
+    return activeSchema ? [...drafts, activeSchema] : drafts;
+  }, [activeSchema, sessionDrafts]);
 
   const selectedPreview = useMemo<WikiSchemaPreview | null>(() => {
     const selected = schemas.find((schema) => schema.id === selectedId);
@@ -66,7 +73,7 @@ export function SchemaWorkspace() {
   function handleSaveDraft() {
     void run(async () => {
       const draft = await createWikiSchemaDraft(rawMarkdown, name);
-      await refresh();
+      setSessionDrafts((previous) => [draft, ...previous]);
       setSelectedId(draft.id);
       setPreview(null);
     });
@@ -74,9 +81,9 @@ export function SchemaWorkspace() {
 
   function handleActivate(schema: WikiSchema) {
     void run(async () => {
-      await activateWikiSchema(schema.id);
-      await refresh();
-      setSelectedId(schema.id);
+      const activated = await activateWikiSchema(schema.id);
+      setActiveSchema(activated);
+      setSelectedId(activated.id);
     });
   }
 
