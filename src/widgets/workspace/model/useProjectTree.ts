@@ -217,15 +217,15 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     }
     : null;
 
-  // Markdown 변환을 요청한다. 성공·실패 모두 서버 상태로 재동기화해
-  // 새 문서가 '변환 중' 상태로 목록에 나타나게 한다.
+  // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
+  // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
   function convertContextTargetToMarkdown() {
     const documentId = contextMenuItem?.documentId;
     setContextMenu(null);
     if (!documentId) return;
-    void convertDocumentToMarkdown(documentId)
-      .then(() => refreshRef.current())
-      .catch(() => refreshRef.current());
+    void runTreeMutation(async () => {
+      await convertDocumentToMarkdown(documentId);
+    }, "Markdown 변환 실패");
   }
 
   // 컨텍스트 메뉴의 삭제는 즉시 실행하지 않고 확인 모달을 연다. 실제 삭제는 confirmDelete에서 수행한다.
