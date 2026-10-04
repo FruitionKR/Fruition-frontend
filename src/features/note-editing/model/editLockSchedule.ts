@@ -1,5 +1,5 @@
 import { ERROR_MESSAGES } from "@/shared/api/client";
-import { isErrorMessage } from "@/shared/lib/errors";
+import { SessionExpiredError } from "@/shared/lib/errors";
 import type { EditLockResponse } from "../api/editLock";
 
 /** 만료가 임박해도 초당 요청으로 번지지 않게 하는 하한. */
@@ -33,7 +33,7 @@ export function resolveHeartbeatFailure(
   error: unknown,
   consecutiveFailures: number
 ): "retry" | "terminal" {
-  if (isErrorMessage(error, ERROR_MESSAGES.loginRequired)) return "terminal";
+  if (error instanceof SessionExpiredError) return "terminal";
   return consecutiveFailures >= HEARTBEAT_MAX_CONSECUTIVE_FAILURES ? "terminal" : "retry";
 }
 

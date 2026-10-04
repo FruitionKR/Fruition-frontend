@@ -1,4 +1,5 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
+import { SessionExpiredError } from "@/shared/lib/errors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -95,7 +96,8 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 /**
  * Bearer 토큰을 부착하는 공통 fetch.
  * access token 만료(401) 시 refresh token으로 재발급을 1회 시도하고 원요청을 재시도한다.
- * 재발급까지 실패하면 로그인 필요 에러를 던진다.
+ * 재발급까지 실패했을 때만 세션 만료로 보고 SessionExpiredError를 던진다.
+ * 재발급이 성공한 뒤의 401은 세션이 아니라 요청이 거절된 것이므로 응답을 그대로 돌려준다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   let requestPath = path;
@@ -110,20 +112,24 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   }
   const response = await fetchWithToken(requestPath, requestInit);
   if (response.status !== 401) return response;
-  // 비밀번호·MFA 코드 불일치는 인증 만료가 아니므로 재시도하지 않는다.
+  // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
+  // 다만 본문이 비어 있거나 code가 없어도 세션 만료로 단정하지 않는다(아래 재발급 성공 분기).
   if (await isCredentialRejection(path, response)) return response;
   // 로그인·회원가입 등 인증 요청 자체의 401은 재발급 대상이 아니지만, /me는 보호된 요청이다.
   const canRefresh = path === "/api/auth/me" || path.startsWith("/api/auth/me/") || !path.startsWith("/api/auth/");
-  if (canRefresh && await tryRefreshTokens()) {
-    const retried = await fetchWithToken(requestPath, requestInit);
-    if (retried.status !== 401) return retried;
-    if (await isCredentialRejection(path, retried)) return retried;
+  // 재발급 대상이 아닌 요청의 401은 요청 자체가 거절된 것이다. 호출부가 응답을 읽어 안내한다.
+  if (!canRefresh) return response;
+  if (await tryRefreshTokens()) {
+    // 재발급이 성공했으면 세션은 살아 있다. 그래도 401이면 비밀번호·MFA 코드 불일치처럼
+    // 요청 자체가 거절된 것이므로, 응답 본문이 어떻든 세션 만료로 다루지 않는다.
+    return await fetchWithToken(requestPath, requestInit);
   }
   // 호출부마다 처리하면 대부분 놓치므로, 세션 만료는 한 곳에서 재인증으로 이어 붙인다.
   notifySessionExpired();
-  throw new Error(ERROR_MESSAGES.loginRequired);
+  throw new SessionExpiredError(ERROR_MESSAGES.loginRequired);
 }
 
+/** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */
 async function isCredentialRejection(path: string, response: Response): Promise<boolean> {
   const expectedCode = path === "/api/auth/me/password" ? "INVALID_CREDENTIALS"
     : path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate" ? "INVALID_MFA_CODE" : null;

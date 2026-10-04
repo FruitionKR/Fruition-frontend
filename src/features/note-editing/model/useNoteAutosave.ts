@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
-import { ERROR_MESSAGES } from "@/shared/api/client";
-import { getErrorMessage, isErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import {
   applyRequiredAgentSource,
@@ -177,7 +176,7 @@ export function useNoteAutosave({
         saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
-      } else if (isErrorMessage(error, ERROR_MESSAGES.loginRequired)) {
+      } else if (error instanceof SessionExpiredError) {
         // 세션이 끝난 뒤의 저장은 몇 번을 보내도 실패한다. 저장된 척하지 않고 입력을 멈춘다.
         saveBlockRef.current = "session-expired";
         cancelAgentRetry();

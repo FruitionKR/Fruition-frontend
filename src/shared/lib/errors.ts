@@ -1,4 +1,15 @@
 /**
+ * 재발급까지 실패해 세션이 끝났음을 나타낸다.
+ * 안내 문구는 언제든 바뀔 수 있으므로 제어 흐름은 문자열 비교가 아니라 이 타입으로 판단한다.
+ */
+export class SessionExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionExpiredError";
+  }
+}
+
+/**
  * unknown 에러에서 사람이 읽을 메시지를 안전하게 추출합니다.
  * Error가 아니면 fallback 문구를 반환합니다.
  */

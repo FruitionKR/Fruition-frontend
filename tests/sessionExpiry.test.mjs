@@ -20,6 +20,7 @@ const { ERROR_MESSAGES, apiFetch } = await import("../src/shared/api/client.ts")
 const { saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/auth.ts");
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { resolveHeartbeatFailure } = await import("../src/features/note-editing/model/editLockSchedule.ts");
+const { SessionExpiredError } = await import("../src/shared/lib/errors.ts");
 const { render } = await import("./reactHookShim.mjs");
 
 const DOCUMENT_ID = "doc_session_expiry";
@@ -95,7 +96,7 @@ test("세션이 만료되면 autosave가 저장을 멈추고 더 이상 서버�
 });
 
 test("heartbeat 실패는 로그인 필요거나 연속 한도를 넘으면 더 재시도하지 않는다", () => {
-  const loginRequired = new Error(ERROR_MESSAGES.loginRequired);
+  const loginRequired = new SessionExpiredError(ERROR_MESSAGES.loginRequired);
   const network = new Error("Failed to fetch");
 
   // 세션 만료는 기다려도 회복되지 않으므로 즉시 종료로 본다.
@@ -106,4 +107,47 @@ test("heartbeat 실패는 로그인 필요거나 연속 한도를 넘으면 더 
   // 한도를 넘으면 잠금을 쥐고 있다고 주장하지 않는다.
   assert.equal(resolveHeartbeatFailure(network, 3), "terminal");
   assert.equal(resolveHeartbeatFailure(network, 9), "terminal");
+});
+
+test("재발급이 성공하면 이어지는 401은 세션 만료가 아니라 요청 거절로 다룬다", async (t) => {
+  workspaceEnv(t);
+  // 현재 비밀번호를 틀린 상황: 본문이 비어 있고 code도 없는 401이 온다.
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/auth/refresh") return Response.json({ access_token: "fresh" });
+    return new Response(null, { status: 401 });
+  });
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  const response = await apiFetch("/api/auth/me/password", { method: "PUT" });
+
+  assert.equal(response.status, 401, "호출부가 응답을 읽어 입력 오류를 안내할 수 있다");
+  assert.equal(notified, 0, "비밀번호 확인 실패로 로그아웃시키지 않는다");
+});
+
+test("재발급 대상이 아닌 인증 요청의 401은 응답을 그대로 돌려준다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 401 }));
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  const response = await apiFetch("/api/auth/login", { method: "POST" });
+
+  assert.equal(response.status, 401);
+  assert.equal(notified, 0);
+});
+
+test("세션 만료는 문구가 아니라 타입으로 구분된다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 401 }));
+  setSessionExpiredHandler(() => {});
+
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), (error) => {
+    assert.ok(error instanceof SessionExpiredError);
+    return true;
+  });
 });
