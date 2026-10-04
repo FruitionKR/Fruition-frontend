@@ -305,3 +305,18 @@ test("일시적인 refresh 실패 뒤 실제로 세션이 만료되면 그때 �
   await assert.rejects(apiFetch("/api/workspaces/ws_test/folders"), (error) => error instanceof SessionExpiredError);
   assert.equal(notified, 1, "실제 만료는 한 번만 알린다");
 });
+
+test("재발급이 성공해도 재시도가 다시 401이면 세션 만료로 다룬다", async (t) => {
+  workspaceEnv(t);
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/auth/refresh") return Response.json({ access_token: "fresh" });
+    return new Response(null, { status: 401 });
+  });
+  let notified = 0;
+  setSessionExpiredHandler(() => {
+    notified++;
+  });
+
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), (error) => error instanceof SessionExpiredError);
+  assert.equal(notified, 1);
+});

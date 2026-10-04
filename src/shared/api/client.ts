@@ -105,8 +105,7 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 /**
  * Bearer 토큰을 부착하는 공통 fetch.
  * access token 만료(401) 시 refresh token으로 재발급을 1회 시도하고 원요청을 재시도한다.
- * refresh token이 거절됐을 때만 세션 만료로 보고 SessionExpiredError를 던진다.
- * 재발급이 성공한 뒤의 401은 세션이 아니라 요청이 거절된 것이므로 응답을 그대로 돌려준다.
+ * refresh token이 거절됐거나, 재발급 뒤에도 401이면 세션 만료로 보고 SessionExpiredError를 던진다.
  * 재발급이 일시적으로 실패하면 세션 만료가 아니므로 일반 에러를 던져 호출부가 다시 시도하게 한다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -133,9 +132,11 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   // 터널·엘리베이터 같은 일시적인 연결 상실은 세션 만료가 아니다. 재로그인을 안내하지 않는다.
   if (outcome === "unavailable") throw new Error(ERROR_MESSAGES.authRefreshUnavailable);
   if (outcome === "refreshed") {
-    // 재발급이 성공했으면 세션은 살아 있다. 그래도 401이면 비밀번호·MFA 코드 불일치처럼
-    // 요청 자체가 거절된 것이므로, 응답 본문이 어떻든 세션 만료로 다루지 않는다.
-    return await fetchWithToken(requestPath, requestInit);
+    const retried = await fetchWithToken(requestPath, requestInit);
+    if (retried.status !== 401) return retried;
+    // 비밀번호·MFA 확인 요청의 401은 세션이 살아 있어도 입력이 틀리면 온다.
+    // 본문이 비어 있거나 code가 없어도 호출부가 입력 오류로 안내하게 응답을 넘긴다.
+    if (credentialRejectionCode(path)) return retried;
   }
   // 호출부마다 처리하면 대부분 놓치므로, 세션 만료는 한 곳에서 재인증으로 이어 붙인다.
   notifySessionExpired();
@@ -144,11 +145,16 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 
 /** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */
 async function isCredentialRejection(path: string, response: Response): Promise<boolean> {
-  const expectedCode = path === "/api/auth/me/password" ? "INVALID_CREDENTIALS"
-    : path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate" ? "INVALID_MFA_CODE" : null;
+  const expectedCode = credentialRejectionCode(path);
   if (!expectedCode) return false;
   const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
   return body?.error?.code === expectedCode;
+}
+
+/** 입력한 비밀번호·MFA 코드를 확인하는 요청이면, 서버가 불일치를 알리는 code. */
+function credentialRejectionCode(path: string): string | null {
+  return path === "/api/auth/me/password" ? "INVALID_CREDENTIALS"
+    : path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate" ? "INVALID_MFA_CODE" : null;
 }
 
 /** 응답이 실패(!ok)면 에러 메시지를 추출해 던진다. 본문이 필요 없는 요청에서 사용한다. */
