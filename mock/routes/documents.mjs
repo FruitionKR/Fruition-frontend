@@ -32,6 +32,11 @@ function activeEditLock(documentId) {
   return null;
 }
 
+/** 응답 시점에 남은 TTL(ttl_ms)을 붙인다. 프론트는 시계 차이와 무관하게 이 값으로 만료를 판단한다. */
+function withLockTtl(lock) {
+  return { ...lock, ttl_ms: Math.max(0, Date.parse(lock.expires_at) - Date.now()) };
+}
+
 function isTextDocument(doc) {
   return doc.document_role === "EDITABLE" || doc.mime_type.startsWith("text/");
 }
@@ -271,14 +276,14 @@ export function registerDocumentRoutes(router) {
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
     const current = activeEditLock(doc.id);
-    if (current && current.holder_user_id !== ctx.user.id) return ctx.json(423, current);
+    if (current && current.holder_user_id !== ctx.user.id) return ctx.json(423, withLockTtl(current));
     const lock = {
       holder_user_id: ctx.user.id,
       holder_display_name: ctx.user.display_name,
       expires_at: new Date(Date.now() + EDIT_LOCK_TTL_MS).toISOString()
     };
     state.editLocks.set(doc.id, lock);
-    ctx.json(200, lock);
+    ctx.json(200, withLockTtl(lock));
   });
 
   // heartbeat: 본인이 보유한 유효 잠금만 연장한다. 만료·타인 보유는 구분 없이 409.
@@ -291,7 +296,7 @@ export function registerDocumentRoutes(router) {
     if (!current || current.holder_user_id !== ctx.user.id) return error(ctx, 409, "편집 잠금을 보유하고 있지 않습니다.");
     const lock = { ...current, expires_at: new Date(Date.now() + EDIT_LOCK_TTL_MS).toISOString() };
     state.editLocks.set(doc.id, lock);
-    ctx.json(200, lock);
+    ctx.json(200, withLockTtl(lock));
   });
 
   // 해제: 본인 잠금만 지우며 멱등이다.

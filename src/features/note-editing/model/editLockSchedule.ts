@@ -10,14 +10,13 @@ export const HEARTBEAT_MAX_MS = 60_000;
 export const HEARTBEAT_FALLBACK_MS = 15_000;
 
 /**
- * 다음 heartbeat까지의 대기 시간. 서버가 준 expires_at에서 남은 TTL의 1/3을 쓴다.
+ * 다음 heartbeat까지의 대기 시간. 응답 시점에 남은 TTL의 1/3을 쓴다.
  * 1/3이면 만료 전에 두 번 더 시도할 수 있어 한 번의 실패·지연으로 잠금을 잃지 않는다.
+ * ttl_ms가 있으면 그것을, 없으면(구버전 서버) expires_at과 nowMs의 차이를 남은 TTL로 본다.
  */
-export function resolveHeartbeatDelayMs(expiresAt: string | undefined, nowMs: number): number {
-  if (!expiresAt) return HEARTBEAT_FALLBACK_MS;
-  const expiresMs = Date.parse(expiresAt);
-  if (Number.isNaN(expiresMs)) return HEARTBEAT_FALLBACK_MS;
-  const remaining = expiresMs - nowMs;
+export function resolveHeartbeatDelayMs(expiresAt: string | undefined, nowMs: number, ttlMs?: number): number {
+  const remaining = resolveLockRemainingMs({ expires_at: expiresAt, ttl_ms: ttlMs }, nowMs);
+  if (remaining === null) return HEARTBEAT_FALLBACK_MS;
   return Math.min(HEARTBEAT_MAX_MS, Math.max(HEARTBEAT_MIN_MS, Math.floor(remaining / 3)));
 }
 
@@ -31,25 +30,40 @@ export function parseLockExpiryMs(expiresAt: string | undefined): number | null 
   return Number.isNaN(expiresMs) ? null : expiresMs;
 }
 
+/**
+ * 응답 시점에 잠금이 남은 시간(ms). 판단 근거가 없으면 null.
+ * ttl_ms는 서버 시계 기준이라 클라이언트 시계 차이에 영향받지 않는다.
+ * ttl_ms가 없는 구버전 서버 응답이면 expires_at을 클라이언트 시계(wallNowMs)로 뺀다.
+ */
+export function resolveLockRemainingMs(
+  lock: Pick<EditLockResponse, "expires_at" | "ttl_ms">,
+  wallNowMs: number
+): number | null {
+  if (typeof lock.ttl_ms === "number" && Number.isFinite(lock.ttl_ms)) return lock.ttl_ms;
+  const expiresMs = parseLockExpiryMs(lock.expires_at);
+  return expiresMs === null ? null : expiresMs - wallNowMs;
+}
+
 export type HeartbeatFailureAction = "retry" | "reacquire" | "terminal";
 
 /**
  * heartbeat 실패를 재시도할지, 재획득할지, 잠금 상실로 끝낼지 정한다.
  *
- * 종료 시점은 임의의 실패 횟수가 아니라 서버가 준 expires_at이어야 한다.
+ * 종료 시점은 임의의 실패 횟수가 아니라 서버가 준 잠금 만료 시점이어야 한다.
+ * deadlineMs와 nowMs는 같은 시계 기준이어야 한다(useEditLock은 performance.now()).
  * 만료 전이라면 서버 잠금은 아직 우리 것이므로, 터널·엘리베이터 같은 일시적인
  * 연결 상실 중에도 편집기를 닫지 않고 계속 시도한다.
  * 만료 후에는 보유 중이라고 주장하지 않고 재획득으로 사실을 확인한다.
  */
 export function resolveHeartbeatFailure(
   error: unknown,
-  expiresAtMs: number | null,
+  deadlineMs: number | null,
   nowMs: number
 ): HeartbeatFailureAction {
   // 세션 만료는 기다려도 회복되지 않는다.
   if (error instanceof SessionExpiredError) return "terminal";
-  if (expiresAtMs === null) return "reacquire";
-  return nowMs < expiresAtMs ? "retry" : "reacquire";
+  if (deadlineMs === null) return "reacquire";
+  return nowMs < deadlineMs ? "retry" : "reacquire";
 }
 
 /** 423 보유자 안내 문구. 표시 이름이 없으면 누구인지 밝히지 않고 편집 중임만 알린다. */

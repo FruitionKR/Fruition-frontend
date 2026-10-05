@@ -5,6 +5,8 @@ import { describeEditLockHolder } from "../model/editLockSchedule";
 export type EditLockResponse = {
   /** 잠금 만료 시각(ISO-8601 UTC). 이 시각이 지나면 다른 사용자가 잠글 수 있다. */
   expires_at?: string;
+  /** 응답 시점 서버 시계 기준 남은 잠금 시간(ms). 구버전 서버는 내려주지 않는다. */
+  ttl_ms?: number;
   holder_display_name?: string;
   holder_user_id?: string;
 };

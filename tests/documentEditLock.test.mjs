@@ -31,7 +31,8 @@ const {
   HEARTBEAT_RETRY_MS,
   describeEditLockHolder,
   resolveHeartbeatDelayMs,
-  resolveHeartbeatFailure
+  resolveHeartbeatFailure,
+  resolveLockRemainingMs
 } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
 const { SessionExpiredError } = await import("../src/shared/lib/errors.ts");
@@ -219,6 +220,53 @@ test("heartbeat 실패 처리는 실패 횟수가 아니라 서버 만료 시각
   assert.equal(resolveHeartbeatFailure(new SessionExpiredError("로그인이 필요합니다."), now + 60_000, now), "terminal");
 });
 
+const TEN_MINUTES_MS = 10 * 60_000;
+
+/** 응답을 받은 순간의 단조 시계에 남은 시간을 더한 로컬 마감 시각. useEditLock과 같은 계산이다. */
+function localDeadline(lock, monotonicNowMs, wallNowMs) {
+  const remaining = resolveLockRemainingMs(lock, wallNowMs);
+  return remaining === null ? null : monotonicNowMs + remaining;
+}
+
+test("클라이언트 시계가 서버보다 느려도 서버 TTL이 지나면 heartbeat 실패 시 재획득한다", () => {
+  const serverNow = Date.parse("2026-10-04T00:10:00Z");
+  const network = new Error("Failed to fetch");
+  const lock = { expires_at: new Date(serverNow + 30_000).toISOString(), ttl_ms: 30_000 };
+
+  // 응답 시점 단조 시계 1초, 클라이언트 벽시계는 서버보다 10분 느리다.
+  const deadline = localDeadline(lock, 1_000, serverNow - TEN_MINUTES_MS);
+
+  // 서버 TTL(30초)이 지난 뒤의 실패는 만료로 보고 재획득으로 확인한다.
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 30_001), "reacquire");
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 29_000), "retry");
+});
+
+test("클라이언트 시계가 서버보다 빨라도 서버 TTL이 남아 있으면 heartbeat 실패 시 재시도한다", () => {
+  const serverNow = Date.parse("2026-10-04T00:10:00Z");
+  const network = new Error("Failed to fetch");
+  const lock = { expires_at: new Date(serverNow + 30_000).toISOString(), ttl_ms: 30_000 };
+
+  const deadline = localDeadline(lock, 1_000, serverNow + TEN_MINUTES_MS);
+
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 10_000), "retry");
+  // 주기도 시계 차이와 무관하게 TTL의 1/3이다.
+  assert.equal(resolveHeartbeatDelayMs(lock.expires_at, serverNow + TEN_MINUTES_MS, lock.ttl_ms), 10_000);
+});
+
+test("ttl_ms가 없는 구버전 응답은 expires_at과 클라이언트 시계로 판단한다", () => {
+  const now = Date.parse("2026-10-04T00:00:00Z");
+  const network = new Error("Failed to fetch");
+  const lock = { expires_at: new Date(now + 30_000).toISOString() };
+
+  assert.equal(resolveLockRemainingMs(lock, now), 30_000);
+  const deadline = localDeadline(lock, 1_000, now);
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 29_000), "retry");
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 30_000), "reacquire");
+  assert.equal(resolveHeartbeatDelayMs(lock.expires_at, now, undefined), 10_000);
+  // 만료 시각도 TTL도 없으면 기존처럼 판단 근거가 없다.
+  assert.equal(resolveLockRemainingMs({}, now), null);
+});
+
 /** mock timer를 진행시킨 뒤 heartbeat의 비동기 후속 작업이 끝날 틈을 준다. */
 async function advance(t, ms) {
   t.mock.timers.tick(ms);
@@ -228,6 +276,8 @@ async function advance(t, ms) {
 function lockEnv(t, { expiresInMs, onHeartbeat, onAcquire }) {
   workspaceEnv(t);
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  // 단조 시계도 mock 시간을 따르게 한다. 벽시계와 어긋나는 상황은 응답의 expires_at으로 흉내 낸다.
+  t.mock.method(performance, "now", () => Date.now());
   const acquires = [];
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path.endsWith("/heartbeat")) return onHeartbeat();
@@ -299,6 +349,24 @@ test("만료 후 다른 사용자가 잠금을 가져갔으면 재획득 실패�
 
   assert.equal(lost.length, 1, "다른 사용자가 보유 중이면 저장을 멈춘다");
   assert.match(lost[0], /다른 사용자/);
+});
+
+test("서버 시계가 10분 앞서도 ttl_ms가 지나면 재시도를 멈추고 재획득한다", async (t) => {
+  // 서버 시계 = 클라이언트 + 10분. expires_at만 보면 10분 넘게 만료 전으로 보인다.
+  const serverLock = () => Response.json({
+    expires_at: new Date(Date.now() + TEN_MINUTES_MS + 30_000).toISOString(),
+    ttl_ms: 30_000
+  });
+  const { lost, acquires } = lockEnv(t, {
+    onHeartbeat: () => { throw new Error("Failed to fetch"); },
+    onAcquire: serverLock
+  });
+  await advance(t, 0);
+
+  for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.ok(acquires.length >= 2, `서버 TTL이 지나면 재획득으로 사실을 확인한다 (acquires=${acquires.length})`);
+  assert.deepEqual(lost, []);
 });
 
 test("잠글 수 없는 문서(403·404)는 네트워크 오류와 구분된다", async (t) => {
