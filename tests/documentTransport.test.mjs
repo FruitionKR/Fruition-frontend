@@ -53,7 +53,7 @@ function installXhrOverFetch(t) {
 }
 const transport = () => Response.json({ origin: "https://api.example.test", directUpload: true });
 function serverEnv(t, values) {
-  const keys = ["BACKEND_URL", "DOCUMENT_DIRECT_UPLOAD_ENABLED"];
+  const keys = ["BACKEND_URL", "DOCUMENT_DIRECT_UPLOAD_ENABLED", "SAME_ORIGIN_API"];
   const old = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   keys.forEach(key => { if (values[key] === undefined) delete process.env[key]; else process.env[key] = values[key]; });
   t.after(() => keys.forEach(key => { if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; }));
@@ -74,6 +74,14 @@ test("transport route keeps direct upload enabled with the legacy true flag", as
 });
 test("transport route stays disabled without BACKEND_URL", async t => {
   serverEnv(t, {});
+  assert.deepEqual(await transportRoute().json(), { origin: null, directUpload: false });
+});
+test("transport route enables direct upload on the same origin when the ALB routes the API", async t => {
+  serverEnv(t, { SAME_ORIGIN_API: "true" });
+  assert.deepEqual(await transportRoute().json(), { origin: null, directUpload: true });
+});
+test("transport route turns same-origin direct upload off with an explicit false flag", async t => {
+  serverEnv(t, { SAME_ORIGIN_API: "true", DOCUMENT_DIRECT_UPLOAD_ENABLED: "false" });
   assert.deepEqual(await transportRoute().json(), { origin: null, directUpload: false });
 });
 test("large PDF is sent in parts to storage without auth and completion goes to AWS", async t => {

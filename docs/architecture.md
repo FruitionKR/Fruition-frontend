@@ -1,6 +1,6 @@
 # Frontend 구조
 
-Next.js App Router를 사용하는 독립 npm 프로젝트입니다. `app/`은 페이지·레이아웃을, `src/`는 entities·features·widgets·shared 경계의 화면 구현을 소유합니다. Vercel에 배포합니다.
+Next.js App Router를 사용하는 독립 npm 프로젝트입니다. `app/`은 페이지·레이아웃을, `src/`는 entities·features·widgets·shared 경계의 화면 구현을 소유합니다. 운영은 AWS EKS(Fargate)에 이미지로 배포하며, ALB가 같은 호스트에서 화면과 API 경로를 나눕니다.
 
 브라우저는 `/api/*`를 호출하고 `next.config.mjs`의 rewrite가 Access와 Document로 전달합니다. 인증·워크스페이스·멤버·초대는 Access, 그 밖의 업무 요청은 Document가 담당합니다. AI 내부 API는 브라우저에서 직접 호출하지 않습니다.
 
