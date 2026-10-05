@@ -35,13 +35,13 @@ export const inlineIconRenderers = new Map<SvgAsset, (iconClassName: string) => 
       <circle cx="18.2499" cy="18.2504" r="3.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )],
-  // 드롭다운 셰브론 (svg/navigation/setting_scroll.svg 원본): 배경색에 따라 currentColor로 색 상속
+  // 드롭다운 셰브론 (shared/assets/svg/navigation/setting_scroll.svg 원본): 배경색에 따라 currentColor로 색 상속
   [settingScrollIcon, (iconClassName) => (
     <svg aria-hidden className={iconClassName} viewBox="0 0 10 5" fill="none">
       <path d="M8.65039 0.650391L5.21608 4.08471C4.90366 4.39712 4.39713 4.39713 4.08471 4.08471L0.650391 0.650391" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   )],
-  // 뒤로 가기 셰브론 (svg/navigation/skill_back.svg 원본): currentColor로 색 상속
+  // 뒤로 가기 셰브론 (shared/assets/svg/navigation/skill_back.svg 원본): currentColor로 색 상속
   [skillBackIcon, (iconClassName) => (
     <svg aria-hidden className={iconClassName} viewBox="0 0 5 10" fill="none">
       <path d="M4.31836 0.650391L0.884045 4.08471C0.571625 4.39712 0.571625 4.90366 0.884044 5.21608L4.31836 8.65039" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />

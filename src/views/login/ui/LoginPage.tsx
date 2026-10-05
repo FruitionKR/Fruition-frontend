@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { exchangeOAuthCode, loginWithEmail, useMe } from "@/entities/user";
-import { saveAccessToken } from "@/shared/lib/auth";
+import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
@@ -43,7 +43,7 @@ function LoginPageContent() {
   const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken });
 
   useEffect(() => {
-    if (isAlreadySignedIn) router.replace("/workspaces");
+    if (isAlreadySignedIn) router.replace(takeAfterLoginPath());
   }, [isAlreadySignedIn, router]);
 
   useEffect(() => {
@@ -77,7 +77,7 @@ function LoginPageContent() {
         }
         saveAccessToken(tokens.access_token);
         queryClient.clear();
-        router.replace("/workspaces");
+        router.replace(takeAfterLoginPath());
       })
       .catch(() => {
         setErrorMessage("간편 로그인에 실패했습니다.");
@@ -104,7 +104,7 @@ function LoginPageContent() {
       }
       saveAccessToken(tokens.access_token);
       queryClient.clear();
-      router.replace("/workspaces");
+      router.replace(takeAfterLoginPath());
     } catch {
       isLoginRequestInFlight.current = false;
       setErrorMessage(INVALID_CREDENTIALS_MESSAGE);

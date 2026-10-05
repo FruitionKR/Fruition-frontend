@@ -3,8 +3,8 @@
 import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useState, type FormEvent } from "react";
-import passwordHiddenIcon from "../../../../../svg/auth/auth-password-hidden.svg";
-import passwordVisibleIcon from "../../../../../svg/auth/auth-password-visible.svg";
+import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
+import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
 import { confirmEmailVerification, requestEmailVerification, resetPasswordWithVerification } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";

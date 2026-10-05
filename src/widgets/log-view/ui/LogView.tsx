@@ -10,9 +10,9 @@ import {
   type OperationChange,
   type OperationLogDetail
 } from "@/entities/operation-log";
-import addIcon from "../../../../svg/log/add.svg";
-import deleteIcon from "../../../../svg/log/delete.svg";
-import retryIcon from "../../../../svg/log/retry.svg";
+import addIcon from "@/shared/assets/svg/log/add.svg";
+import deleteIcon from "@/shared/assets/svg/log/delete.svg";
+import retryIcon from "@/shared/assets/svg/log/retry.svg";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";

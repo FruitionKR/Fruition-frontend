@@ -1,6 +1,6 @@
 import type { GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
 import { GRAPH_COLORS, hexToRgb, mixHexColor } from "./graphColors";
-import rawNodeIcon from "../../../../svg/graph/raw.svg";
+import rawNodeIcon from "@/shared/assets/svg/graph/raw.svg";
 
 const RAW_NODE_ICON_SRC = rawNodeIcon.src;
 

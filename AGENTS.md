@@ -22,7 +22,7 @@
 
 ## 허용되는 변경
 
-- `app`, `svg`, `package.json`, `next.config.mjs` 등 프론트엔드 실행과 화면 구현에 필요한 파일 수정
+- `app`, `src/shared/assets/svg`, `package.json`, `next.config.mjs` 등 프론트엔드 실행과 화면 구현에 필요한 파일 수정
 - 백엔드 API 호출을 위한 프론트엔드 fetch/client 코드 작성
 - 백엔드 응답을 화면 상태와 UI 컴포넌트에 맞게 변환하는 코드 작성
 - 프론트엔드 레이아웃, 스타일, 인터랙션, 접근성 개선
