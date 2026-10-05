@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { loginWithMfa } from "@/entities/user";
-import { saveAccessToken } from "@/shared/lib/auth";
+import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 
@@ -25,7 +25,7 @@ export function MfaLoginForm({ token, onCancel }: { token: string; onCancel: () 
       saveAccessToken(tokens.access_token);
       queryClient.clear();
       setCode("");
-      router.replace("/workspaces");
+      router.replace(takeAfterLoginPath());
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "다단계 인증에 실패했습니다."));
       setBusy(false);
