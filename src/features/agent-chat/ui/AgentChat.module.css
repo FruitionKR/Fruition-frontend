@@ -221,9 +221,9 @@
   color: var(--muted);
 }
 
+/* 현재 채팅은 Fruition 로고로만 구분하고, 배경은 hover·포커스일 때만 칠한다. */
 .chat-session-item:hover,
-.chat-session-item:focus-visible,
-.chat-session-item.is-active {
+.chat-session-item:has(:focus-visible) {
   --button-hover-overlay: none;
   background: var(--soft);
 }
@@ -271,6 +271,14 @@
   color: var(--ink);
   background: transparent;
   cursor: pointer;
+  opacity: 0;
+}
+
+/* 옵션 버튼은 행 hover·포커스·메뉴 열림일 때만 보인다. */
+.chat-session-item:hover .chat-session-more,
+.chat-session-item:has(:focus-visible) .chat-session-more,
+.chat-session-more[aria-expanded="true"] {
+  opacity: 1;
 }
 
 .chat-session-more:hover,
