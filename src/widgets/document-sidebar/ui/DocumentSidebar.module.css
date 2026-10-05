@@ -325,10 +325,16 @@
   opacity: 1;
 }
 
-.workspace-dropdown-more:hover,
+.workspace-dropdown-more:not(:disabled):hover,
 .workspace-dropdown-more:focus-visible {
   --button-hover-overlay: none;
   background: var(--line-soft);
+}
+
+/* 로그인 정보를 불러오는 동안에는 역할을 판별할 수 없어 옵션을 막는다. */
+.workspace-dropdown-row .workspace-dropdown-more:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 /* 행 옵션 메뉴 (채팅 세션 .chat-session-menu-list와 같은 모양) */

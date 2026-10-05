@@ -14,6 +14,7 @@ import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import type { WorkspaceResponse } from "@/entities/workspace";
 import { cx } from "@/shared/lib/classNames";
+import { canLeaveWorkspace, getWorkspaceMenuRole, type WorkspaceMenuRole } from "../model/workspaceMenu";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { WikiWorkPopover } from "./WikiWorkPopover";
 import { HoverHint } from "@/shared/ui/HoverHint";
@@ -31,12 +32,10 @@ const ROW_MENU_WIDTH = 132;
 type WorkspaceAction = "leave" | "delete";
 
 /** 행 옵션 메뉴 상태. 역할은 메뉴를 열 때 멤버 목록으로 확인한다(워크스페이스 목록 응답에 역할이 없다). */
-type RowMenu = {
+type RowMenu = WorkspaceMenuRole & {
   workspace: WorkspaceResponse;
   top: number;
   left: number;
-  role: "OWNER" | "MEMBER" | null;
-  isLastOwner: boolean;
 };
 
 const ACTION_COPY: Record<WorkspaceAction, { title: string; description: (name: string) => string; confirm: string; pending: string; failed: string }> = {
@@ -114,6 +113,8 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
   }
 
   async function openRowMenu(workspace: WorkspaceResponse, anchor: HTMLElement) {
+    // 본인 id가 있어야 역할을 판별할 수 있다. 로딩 중에는 옵션 버튼도 비활성이다.
+    if (!me) return;
     if (rowMenu?.workspace.id === workspace.id) {
       setRowMenu(null);
       return;
@@ -123,11 +124,9 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
     setRowMenu({ ...base, role: null, isLastOwner: false });
     try {
       const members = await fetchMembers(workspace.id);
-      const role = members.find((member) => member.user_id === me?.id)?.role ?? null;
-      const ownerCount = members.filter((member) => member.role === "OWNER").length;
       // 응답 사이 다른 행 메뉴로 바뀌었으면 덮어쓰지 않는다.
       setRowMenu((current) => current?.workspace.id === workspace.id
-        ? { ...base, role, isLastOwner: role === "OWNER" && ownerCount <= 1 }
+        ? { ...base, ...getWorkspaceMenuRole(members, me.id) }
         : current);
     } catch (error: unknown) {
       setRowMenu(null);
@@ -220,6 +219,7 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
                     className={styles["workspace-dropdown-more"]}
                     aria-label={`${workspace.name} 옵션`}
                     aria-expanded={rowMenu?.workspace.id === workspace.id}
+                    disabled={!me}
                     onClick={(event) => void openRowMenu(workspace, event.currentTarget)}
                   >
                     <MoreVertical size={12} />
@@ -250,8 +250,8 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
             type="button"
             role="menuitem"
             className={styles["is-danger"]}
-            disabled={rowMenu.role === null || rowMenu.isLastOwner}
-            title={rowMenu.isLastOwner ? "다른 OWNER를 지정한 뒤 탈퇴할 수 있습니다." : undefined}
+            disabled={!canLeaveWorkspace(rowMenu)}
+            title={rowMenu.role === null ? "권한 확인 중…" : rowMenu.isLastOwner ? "다른 OWNER를 지정한 뒤 탈퇴할 수 있습니다." : undefined}
             onClick={() => {
               setPendingAction({ workspace: rowMenu.workspace, action: "leave" });
               setRowMenu(null);
