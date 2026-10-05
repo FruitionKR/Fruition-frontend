@@ -441,3 +441,24 @@ test("탭이 다시 보이거나 온라인이 되면 예약을 기다리지 않�
   assert.equal(heartbeats, 3, "편집기를 떠나면 리스너를 지운다");
   assert.deepEqual(lost, []);
 });
+
+test("편집기를 떠나면 탭 복귀·온라인 리스너를 해제한다", async (t) => {
+  const { view } = lockEnv(t, { expiresInMs: 30_000 });
+  // disposed 가드가 있어 이벤트를 쏴 보는 것만으로는 해제 누락이 드러나지 않는다. 등록 수를 직접 센다.
+  const active = { visibilitychange: new Set(), online: new Set() };
+  for (const target of [document, window]) {
+    const add = target.addEventListener.bind(target);
+    const remove = target.removeEventListener.bind(target);
+    target.addEventListener = (type, listener, options) => { active[type]?.add(listener); add(type, listener, options); };
+    target.removeEventListener = (type, listener, options) => { active[type]?.delete(listener); remove(type, listener, options); };
+  }
+  view.unmount();
+  const remounted = render(() => useEditLock({ documentId: DOCUMENT_ID, onLockLost() {} }));
+  await advance(t, 0);
+  assert.equal(active.visibilitychange.size, 1);
+  assert.equal(active.online.size, 1);
+
+  remounted.unmount();
+  assert.equal(active.visibilitychange.size, 0, "visibilitychange 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
+  assert.equal(active.online.size, 0, "online 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
+});
