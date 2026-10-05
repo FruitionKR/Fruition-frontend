@@ -44,13 +44,25 @@ export function resolveLockRemainingMs(
   return expiresMs === null ? null : expiresMs - wallNowMs;
 }
 
+/** 잠금 요청을 보낸 시점의 단조 시계·벽시계 값. 남은 시간을 셀 기준점이다. */
+export type LockClockAnchor = { monoMs: number; wallMs: number };
+
+/**
+ * 기준점 이후 흐른 시간(ms). 단조 시계와 벽시계 중 더 많이 흐른 쪽을 쓴다.
+ * 단조 시계(performance.now())는 브라우저에 따라 절전 중 멈추고, 벽시계는 사용자가 바꿀 수 있다.
+ * 더 큰 경과를 쓰면 어느 쪽이 틀려도 만료를 늦게 알아차리지 않는다(이르게 알면 재획득으로 확인한다).
+ */
+export function resolveLockElapsedMs(anchor: LockClockAnchor, monoNowMs: number, wallNowMs: number): number {
+  return Math.max(monoNowMs - anchor.monoMs, wallNowMs - anchor.wallMs);
+}
+
 export type HeartbeatFailureAction = "retry" | "reacquire" | "terminal";
 
 /**
  * heartbeat 실패를 재시도할지, 재획득할지, 잠금 상실로 끝낼지 정한다.
  *
  * 종료 시점은 임의의 실패 횟수가 아니라 서버가 준 잠금 만료 시점이어야 한다.
- * deadlineMs와 nowMs는 같은 시계 기준이어야 한다(useEditLock은 performance.now()).
+ * deadlineMs와 nowMs는 같은 기준이어야 한다(useEditLock은 기준점 이후 남은 시간과 흐른 시간을 넘긴다).
  * 만료 전이라면 서버 잠금은 아직 우리 것이므로, 터널·엘리베이터 같은 일시적인
  * 연결 상실 중에도 편집기를 닫지 않고 계속 시도한다.
  * 만료 후에는 보유 중이라고 주장하지 않고 재획득으로 사실을 확인한다.

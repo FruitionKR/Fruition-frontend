@@ -32,6 +32,7 @@ const {
   describeEditLockHolder,
   resolveHeartbeatDelayMs,
   resolveHeartbeatFailure,
+  resolveLockElapsedMs,
   resolveLockRemainingMs
 } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
@@ -265,6 +266,26 @@ test("ttl_ms가 없는 구버전 응답은 expires_at과 클라이언트 시계�
   assert.equal(resolveHeartbeatDelayMs(lock.expires_at, now, undefined), 10_000);
   // 만료 시각도 TTL도 없으면 기존처럼 판단 근거가 없다.
   assert.equal(resolveLockRemainingMs({}, now), null);
+});
+
+test("절전으로 단조 시계가 멈춰도 벽시계 경과로 만료를 판단한다", () => {
+  const network = new Error("Failed to fetch");
+  const sentAt = { monoMs: 1_000, wallMs: Date.parse("2026-10-04T00:00:00Z") };
+
+  // 10분 절전: 단조 시계는 거의 그대로, 벽시계만 10분 흘렀다. 서버 TTL 30초는 이미 지났다.
+  const elapsed = resolveLockElapsedMs(sentAt, 1_000 + 500, sentAt.wallMs + TEN_MINUTES_MS);
+  assert.equal(elapsed, TEN_MINUTES_MS);
+  assert.equal(resolveHeartbeatFailure(network, 30_000, elapsed), "reacquire");
+});
+
+test("벽시계가 뒤로 바뀌어도 단조 시계 경과로 판단한다", () => {
+  const network = new Error("Failed to fetch");
+  const sentAt = { monoMs: 1_000, wallMs: Date.parse("2026-10-04T00:00:00Z") };
+
+  // 사용자가 시계를 1시간 되돌렸다. 실제로는 10초 흘렀다.
+  const elapsed = resolveLockElapsedMs(sentAt, 1_000 + 10_000, sentAt.wallMs - 3_600_000);
+  assert.equal(elapsed, 10_000);
+  assert.equal(resolveHeartbeatFailure(network, 30_000, elapsed), "retry");
 });
 
 /** mock timer를 진행시킨 뒤 heartbeat의 비동기 후속 작업이 끝날 틈을 준다. */
@@ -529,4 +550,19 @@ test("편집기를 떠나면 탭 복귀·온라인 리스너를 해제한다", a
   remounted.unmount();
   assert.equal(active.visibilitychange.size, 0, "visibilitychange 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
   assert.equal(active.online.size, 0, "online 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
+});
+
+test("절전 직후 오프라인이어도 서버 TTL이 지났으면 재시도 대신 재획득한다", async (t) => {
+  const { acquires } = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => { throw new Error("Failed to fetch"); }
+  });
+  await advance(t, 0);
+  // 획득 직후 절전에 들어가 단조 시계가 멈춘 상황을 만든다. 벽시계(mock Date)는 계속 흐른다.
+  const frozenMono = performance.now();
+  performance.now.mock.mockImplementation(() => frozenMono);
+
+  for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.ok(acquires.length >= 2, `만료가 지나면 재획득으로 확인한다 (acquires=${acquires.length})`);
 });
