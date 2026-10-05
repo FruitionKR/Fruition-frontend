@@ -21,6 +21,7 @@ export const ERROR_MESSAGES = {
   documentConvertFailed: "Markdown 변환 요청에 실패했습니다.",
   editLockHeld: "다른 사용자가 편집 중입니다.",
   editLockLost: "다른 사용자가 편집을 시작해 편집 권한을 잃었습니다. 이후 변경은 저장되지 않습니다.",
+  editLockExpired: "연결이 끊긴 동안 편집 권한이 만료되었습니다. 이후 변경은 저장되지 않습니다.",
   editLockForbidden: "문서 소유자만 편집할 수 있습니다.",
   editLockMissing: "문서를 찾을 수 없습니다.",
   editLockFailed: "편집 잠금을 확인하지 못해 읽기 전용으로 열었습니다.",

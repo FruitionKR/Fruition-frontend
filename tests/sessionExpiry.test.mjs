@@ -28,15 +28,19 @@ const DOCUMENT_ID = "doc_session_expiry";
 
 function workspaceEnv(t) {
   const original = globalThis.window;
-  globalThis.window = {
+  const originalDocument = globalThis.document;
+  // useEditLock이 탭 복귀·온라인 복귀 리스너를 거므로 이벤트를 받을 수 있는 window·document를 둔다.
+  globalThis.window = Object.assign(new EventTarget(), {
     localStorage: {
       getItem: (key) => (key === "fruition.workspace_id" ? "ws_test" : null),
       setItem() {},
       removeItem() {}
     }
-  };
+  });
+  globalThis.document = Object.assign(new EventTarget(), { visibilityState: "visible" });
   t.after(() => {
     globalThis.window = original;
+    globalThis.document = originalDocument;
     setSessionExpiredHandler(null);
   });
   saveAccessToken("test-access");

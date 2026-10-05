@@ -46,7 +46,8 @@ export async function acquireEditLock(documentId: string): Promise<EditLockRespo
 /** 편집 중 주기적으로 호출해 잠금을 연장한다. 보유자가 아니거나 만료됐으면 409. */
 export async function sendEditLockHeartbeat(documentId: string): Promise<EditLockResponse> {
   const response = await apiFetch(`${editLockPath(documentId)}/heartbeat`, { method: "POST", cache: "no-store" });
-  if (response.status === 409) throw new EditLockLostError(ERROR_MESSAGES.editLockLost);
+  // 409는 만료와 타인 보유를 구분하지 않는다. 타인 보유는 재획득 423으로만 확인되므로 여기서는 만료로 안내한다.
+  if (response.status === 409) throw new EditLockLostError(ERROR_MESSAGES.editLockExpired);
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }
 
