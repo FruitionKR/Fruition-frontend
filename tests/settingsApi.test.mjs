@@ -144,6 +144,7 @@ test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 
     "@tanstack/react-query": { useQuery: () => ({ data: { email: "invited@example.test" } }), useQueryClient: () => queryClient },
     "@/shared/lib/auth": auth,
     "@/entities/workspace/api/invitations": { acceptInvitation, fetchInvitation },
+    "@/entities/user": { useSignOut: () => ({ signOut: async () => {} }) },
     "@/shared/lib/errors": {},
     "@/views/workspaces/ui/WorkspacesPage.module.css": { default: {} }
   };
