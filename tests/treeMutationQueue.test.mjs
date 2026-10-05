@@ -165,3 +165,91 @@ test("Markdown 변환 실패는 알림으로 보고된다", async (t) => {
   assert.equal(notices[0].title, "Markdown 변환 실패");
   assert.equal(notices[0].message, "이미 변환 중입니다.");
 });
+
+const MENU_EVENT = { preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0 };
+const flush = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("연속으로 새 폴더를 두 번 만들면 큐는 실행 시점 트리로 서로 다른 이름을 고른다", async (t) => {
+  domEnv(t);
+  const createdNames = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path.endsWith("/folders") && init?.method === "POST") {
+      const { name } = JSON.parse(init.body);
+      createdNames.push(name);
+      return Response.json({ id: `folder_${createdNames.length}`, name });
+    }
+    return Response.json({});
+  });
+
+  const refreshRef = { current: async () => {} };
+  const view = render(() => useProjectTree({ refreshRef }));
+  view.result.setProjects([{ id: "project-uploaded-documents", folderId: null, title: "문서", items: [] }]);
+  // 서버 재조회는 방금 만든 폴더를 트리에 병합한다. 렌더는 일어나지 않는다(shim은 자동 재렌더가 없다).
+  refreshRef.current = async () => {
+    const id = `folder_${createdNames.length}`;
+    view.result.setProjects((current) => current.map((project) => ({
+      ...project,
+      items: [...project.items, { id, label: createdNames.at(-1), type: "folder", children: [] }]
+    })));
+  };
+  const opened = view.rerender();
+
+  // 같은 렌더에서 두 번 누른다. 두 번째 작업은 첫 폴더가 반영된 트리로 이름을 계산해야 한다.
+  opened.addProject();
+  opened.addProject();
+  await flush();
+
+  assert.deepEqual(createdNames, ["새 폴더", "새 폴더 (2)"]);
+});
+
+test("삭제가 끝나 사라진 항목의 이름 변경은 요청을 보내지 않고 알린다", async (t) => {
+  domEnv(t);
+  const requested = [];
+  let releaseDelete;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    requested.push(`${init?.method ?? "GET"} ${path}`);
+    // 폴더 변경은 서버 트리에서 현재 버전을 먼저 읽는다.
+    if (path.endsWith("/document-tree")) {
+      return Response.json({ items: [{ id: "folder_a", type: "folder", name: "A", current_version: 1, children: [] }] });
+    }
+    if (init?.method === "DELETE") await new Promise((resolve) => { releaseDelete = resolve; });
+    return new Response(null, { status: 204 });
+  });
+  const notices = [];
+  const unsubscribe = subscribeNotices((notice) => notices.push(notice));
+  t.after(unsubscribe);
+
+  const child = { id: "document-file-doc_child", label: "메모.md", type: "file", documentId: "doc_child" };
+  const refreshRef = { current: async () => {} };
+  const view = render(() => useProjectTree({ refreshRef }));
+  view.result.setProjects([{
+    id: "project-uploaded-documents",
+    folderId: null,
+    title: "문서",
+    items: [{ id: "folder_a", label: "A", type: "folder", children: [child] }]
+  }]);
+  // 삭제 후 재조회하면 폴더 A와 그 아래 문서가 사라진다.
+  refreshRef.current = async () => {
+    view.result.setProjects((current) => current.map((project) => ({ ...project, items: [] })));
+  };
+
+  // 폴더 A 삭제를 큐에 넣는다(서버 응답 대기 중).
+  view.rerender().openFolderMenu(MENU_EVENT, "project-uploaded-documents", "folder_a");
+  view.rerender().deleteContextTarget();
+  view.rerender().confirmDelete();
+  for (let tick = 0; !releaseDelete && tick < 100; tick += 1) await flush(1);
+  assert.ok(releaseDelete, `폴더 삭제 요청이 서버 응답을 기다리는 중이다 (requested=${requested.join(", ")})`);
+
+  // 삭제가 끝나기 전에 A 아래 문서의 이름 변경을 큐에 넣는다.
+  view.rerender().openFolderMenu(MENU_EVENT, "project-uploaded-documents", child.id);
+  view.rerender().renameContextTarget();
+  view.rerender().onEditingChange("새 이름.md");
+  view.rerender().commitEditing();
+
+  releaseDelete();
+  await flush();
+
+  assert.ok(!requested.some((entry) => entry.includes("doc_child")), `사라진 문서에 요청하지 않는다 (requested=${requested.join(", ")})`);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].title, "이름 변경 실패");
+});
