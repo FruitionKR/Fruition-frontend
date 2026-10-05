@@ -65,7 +65,8 @@ export function AgentHeader({
     }
   }
 
-  // 세션 삭제 후 남은 세션 중 첫 번째로 전환하고, 없으면 새 채팅을 만든다.
+  // 현재 채팅을 삭제하면 남은 세션 중 첫 번째로 전환하고, 없으면 새 채팅을 만든다.
+  // 다른 세션을 삭제하면 목록만 갱신한다.
   async function handleDeleteSession(sessionId: string) {
     setRowMenu(null);
     try {
@@ -73,6 +74,7 @@ export function AgentHeader({
       const response = await fetchChatSessions();
       const remaining = response.sessions ?? [];
       setSessions(remaining);
+      if (sessionId !== activeSessionId) return;
       if (remaining[0]) onSelectSession(remaining[0].id, remaining[0].title);
       else await startNewChat();
     } catch (error: unknown) {
@@ -167,20 +169,6 @@ export function AgentHeader({
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </label>
-          <button
-            type="button"
-            className={styles["chat-session-new"]}
-            disabled={isInteractionLocked || isCreatingChat}
-            onClick={() => {
-              // 실패 시 목록을 열어 둔 채 에러 문구를 보여주기 위해 성공했을 때만 닫는다.
-              void startNewChat().then((created) => {
-                if (created) setIsListOpen(false);
-              });
-            }}
-          >
-            <Plus size={12} />
-            <span>새 채팅</span>
-          </button>
           {loadErrorMessage ? (
             <p className={styles["chat-session-error"]} role="alert">{loadErrorMessage}</p>
           ) : visibleSessions.length === 0 ? (
@@ -209,32 +197,44 @@ export function AgentHeader({
                       : <SvgIcon src={emptyChatIcon} className={styles["chat-session-icon"]} />}
                     <span>{session.title ?? fallbackTitle}</span>
                   </button>
-                  {isActive && (
-                    <div className={styles["chat-session-menu"]}>
-                      <button
-                        type="button"
-                        className={styles["chat-session-more"]}
-                        aria-label="채팅 옵션"
-                        aria-expanded={rowMenu?.id === session.id}
-                        disabled={isInteractionLocked}
-                        onClick={(event) => {
-                          if (rowMenu?.id === session.id) {
-                            setRowMenu(null);
-                            return;
-                          }
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          setRowMenu({ id: session.id, top: rect.bottom + 4, left: rect.right - 132 });
-                        }}
-                      >
-                        <MoreVertical size={12} />
-                      </button>
-                    </div>
-                  )}
+                  <div className={styles["chat-session-menu"]}>
+                    <button
+                      type="button"
+                      className={styles["chat-session-more"]}
+                      aria-label="채팅 옵션"
+                      aria-expanded={rowMenu?.id === session.id}
+                      disabled={isInteractionLocked}
+                      onClick={(event) => {
+                        if (rowMenu?.id === session.id) {
+                          setRowMenu(null);
+                          return;
+                        }
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        setRowMenu({ id: session.id, top: rect.bottom + 4, left: rect.right - 132 });
+                      }}
+                    >
+                      <MoreVertical size={12} />
+                    </button>
+                  </div>
                 </div>
                 );
               })}
             </div>
           )}
+          <button
+            type="button"
+            className={styles["chat-session-new"]}
+            disabled={isInteractionLocked || isCreatingChat}
+            onClick={() => {
+              // 실패 시 목록을 열어 둔 채 에러 문구를 보여주기 위해 성공했을 때만 닫는다.
+              void startNewChat().then((created) => {
+                if (created) setIsListOpen(false);
+              });
+            }}
+          >
+            <Plus size={12} />
+            <span>새 채팅</span>
+          </button>
         </div>
       )}
 

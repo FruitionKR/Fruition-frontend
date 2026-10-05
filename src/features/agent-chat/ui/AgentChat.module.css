@@ -158,23 +158,26 @@
   color: var(--muted);
 }
 
-/* 세션 목록 위에 상시 노출되는 새 채팅 버튼 */
+/* 세션 목록 아래 새 채팅 버튼 (워크스페이스 드롭다운 .workspace-dropdown-new와 같은 모양) */
 .chat-session-new {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
+  gap: 8px;
+  width: 100%;
   flex: 0 0 auto;
-  padding: 0 6px;
-  color: var(--ink);
+  padding: 10px 8px;
+  color: var(--subdued);
   background: transparent;
-  border-bottom: 1px solid var(--line);
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.chat-session-new:hover {
+.chat-session-new:hover,
+.chat-session-new:focus-visible {
   --button-hover-overlay: none;
+  color: var(--yellow);
   background: var(--soft);
 }
 
@@ -221,9 +224,9 @@
   color: var(--muted);
 }
 
+/* 현재 채팅은 Fruition 로고로만 구분하고, 배경은 hover·포커스일 때만 칠한다. */
 .chat-session-item:hover,
-.chat-session-item:focus-visible,
-.chat-session-item.is-active {
+.chat-session-item:has(:focus-visible) {
   --button-hover-overlay: none;
   background: var(--soft);
 }
@@ -240,6 +243,8 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+  /* 배경은 행(.chat-session-item)이 칠하므로 전역 버튼 오버레이를 겹치지 않는다. */
+  --button-hover-overlay: none;
 }
 
 /* 현재 사용 중 채널 표시용 Fruition 로고 */
@@ -271,6 +276,14 @@
   color: var(--ink);
   background: transparent;
   cursor: pointer;
+  opacity: 0;
+}
+
+/* 옵션 버튼은 행 hover·포커스·메뉴 열림일 때만 보인다. */
+.chat-session-item:hover .chat-session-more,
+.chat-session-item:has(:focus-visible) .chat-session-more,
+.chat-session-more[aria-expanded="true"] {
+  opacity: 1;
 }
 
 .chat-session-more:hover,
