@@ -150,6 +150,32 @@ test("access-code rejection prevents any direct AWS call", async t => {
   });
   await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), /접근 코드 필요/);
 });
+test("transport setting is fetched once per page and reused by later document calls", async t => {
+  browser(t);
+  let lookups = 0;
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/document-transport") { lookups++; return transport(); }
+    return Response.json({ documents: [] });
+  });
+  await Promise.all([apiFetch("/api/workspaces/ws_test/documents"), apiFetch("/api/workspaces/ws_test/document-tree")]);
+  await apiFetch("/api/workspaces/ws_test/folders");
+  assert.equal(lookups, 1);
+});
+test("a rejected transport lookup is retried after the access code is entered", async t => {
+  browser(t);
+  let unlocked = false, lookups = 0;
+  t.mock.method(globalThis, "fetch", async (path) => {
+    if (path === "/api/document-transport") {
+      lookups++;
+      return unlocked ? transport() : Response.json({ error: { message: "접근 코드 필요" } }, { status: 403 });
+    }
+    return Response.json({ documents: [] });
+  });
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), /접근 코드 필요/);
+  unlocked = true;
+  assert.equal((await apiFetch("/api/workspaces/ws_test/documents")).status, 200);
+  assert.equal(lookups, 2);
+});
 test("failed storage PUT aborts without registering a document", async t => {
   browser(t);
   t.mock.method(globalThis, "fetch", async (path, init) => {
