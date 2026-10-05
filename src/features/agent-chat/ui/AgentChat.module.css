@@ -158,23 +158,26 @@
   color: var(--muted);
 }
 
-/* 세션 목록 위에 상시 노출되는 새 채팅 버튼 */
+/* 세션 목록 아래 새 채팅 버튼 (워크스페이스 드롭다운 .workspace-dropdown-new와 같은 모양) */
 .chat-session-new {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
+  gap: 8px;
+  width: 100%;
   flex: 0 0 auto;
-  padding: 0 6px;
-  color: var(--ink);
+  padding: 10px 8px;
+  color: var(--subdued);
   background: transparent;
-  border-bottom: 1px solid var(--line);
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.chat-session-new:hover {
+.chat-session-new:hover,
+.chat-session-new:focus-visible {
   --button-hover-overlay: none;
+  color: var(--yellow);
   background: var(--soft);
 }
 

@@ -169,20 +169,6 @@ export function AgentHeader({
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </label>
-          <button
-            type="button"
-            className={styles["chat-session-new"]}
-            disabled={isInteractionLocked || isCreatingChat}
-            onClick={() => {
-              // 실패 시 목록을 열어 둔 채 에러 문구를 보여주기 위해 성공했을 때만 닫는다.
-              void startNewChat().then((created) => {
-                if (created) setIsListOpen(false);
-              });
-            }}
-          >
-            <Plus size={12} />
-            <span>새 채팅</span>
-          </button>
           {loadErrorMessage ? (
             <p className={styles["chat-session-error"]} role="alert">{loadErrorMessage}</p>
           ) : visibleSessions.length === 0 ? (
@@ -235,6 +221,20 @@ export function AgentHeader({
               })}
             </div>
           )}
+          <button
+            type="button"
+            className={styles["chat-session-new"]}
+            disabled={isInteractionLocked || isCreatingChat}
+            onClick={() => {
+              // 실패 시 목록을 열어 둔 채 에러 문구를 보여주기 위해 성공했을 때만 닫는다.
+              void startNewChat().then((created) => {
+                if (created) setIsListOpen(false);
+              });
+            }}
+          >
+            <Plus size={12} />
+            <span>새 채팅</span>
+          </button>
         </div>
       )}
 
