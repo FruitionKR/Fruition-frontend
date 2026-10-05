@@ -150,28 +150,9 @@
 }
 
 .cell-scope {
-  display: flex;
-  justify-content: center;
-}
-
-/* 저장범위 라벨 (Figma label): 24px 너비 텍스트 + 셰브론 */
-.scope-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 14px;
   font-weight: 500;
-  white-space: nowrap;
-}
-
-.scope-chip > :first-child {
-  display: inline-block;
-  width: 24px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .cell-state {

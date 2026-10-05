@@ -211,7 +211,7 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
                 <div className={styles.profile}>
                   <SvgIcon src={userCircleIcon} className={styles["profile-icon"]} />
                   <div className={styles["profile-text"]}>
-                    <span className={styles["profile-name"]}>{member.display_name || "사용자"}{self ? " (나)" : ""}</span>
+                    <span className={styles["profile-name"]}>{member.display_name || "사용자"}</span>
                     <span className={styles["profile-email"]}>{member.email}</span>
                   </div>
                 </div>

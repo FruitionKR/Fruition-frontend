@@ -367,12 +367,7 @@ export function SkillsPanel() {
                   {command}
                 </button>
                 <span className={styles.description}>{description}</span>
-                <span className={styles["cell-scope"]}>
-                  <span className={styles["scope-chip"]}>
-                    <span>{skill.scope_type === "personal" ? "개인" : "팀"}</span>
-                    <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
-                  </span>
-                </span>
+                <span className={styles["cell-scope"]}>{skill.scope_type === "personal" ? "개인" : "팀"}</span>
                 <span className={styles["cell-state"]}>
                   <Switch
                     checked={enabled}
