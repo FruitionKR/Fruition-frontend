@@ -1,31 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { ACCESS_COOKIE, getAccessCode, hashAccessCode } from "@/shared/lib/accessCode";
+import type { NextRequest } from "next/server";
+import { handleAccessGate } from "@/shared/lib/accessGate";
 
-// 접근 코드 없이도 허용하는 API. 로그인 → 워크스페이스 선택 → 설정 화면까지 도달하는 데 필요한 최소 경로.
-const OPEN_API_PATTERNS = [
-  /^\/api\/auth\//,
-  /^\/api\/invitations\//,
-  /^\/api\/workspaces$/,
-  /^\/api\/workspaces\/[^/]+$/
-];
-
-export async function middleware(request: NextRequest) {
-  const accessCode = getAccessCode();
-  // ACCESS_CODE 미설정이면 게이트 비활성.
-  if (!accessCode) return NextResponse.next();
-
-  const { pathname } = request.nextUrl;
-  if (OPEN_API_PATTERNS.some((pattern) => pattern.test(pathname))) return NextResponse.next();
-
-  const token = request.cookies.get(ACCESS_COOKIE)?.value;
-  if (token && token === (await hashAccessCode(accessCode))) return NextResponse.next();
-
-  return NextResponse.json(
-    { error: { message: "설정에서 접근 코드를 입력해야 사용할 수 있습니다." } },
-    { status: 403 }
-  );
+// Next.js는 라우팅 app/과 같은 위치(프로젝트 루트)의 middleware.ts만 인식한다.
+// 그래서 이 파일은 루트에 두고, 게이트 로직은 src/shared/lib/accessGate.ts에 둔다.
+export function middleware(request: NextRequest) {
+  return handleAccessGate(request);
 }
 
+// Next가 빌드 시 정적으로 읽는 값이라 다른 모듈에서 가져오지 않고 이 파일에 직접 선언한다.
 export const config = {
   matcher: ["/api/:path*"]
 };

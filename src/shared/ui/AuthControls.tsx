@@ -3,12 +3,12 @@
 import Image from "next/image";
 import { useState } from "react";
 import type { ChangeEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
-import errorIcon from "../../../svg/auth/auth-error-circle.svg";
-import googleLogo from "../../../svg/auth/auth-google-logo.svg";
-import kakaoLogo from "../../../svg/auth/auth-kakao-logo.svg";
-import naverLogo from "../../../svg/auth/auth-naver-logo.svg";
-import passwordHiddenIcon from "../../../svg/auth/auth-password-hidden.svg";
-import passwordVisibleIcon from "../../../svg/auth/auth-password-visible.svg";
+import errorIcon from "@/shared/assets/svg/auth/auth-error-circle.svg";
+import googleLogo from "@/shared/assets/svg/auth/auth-google-logo.svg";
+import kakaoLogo from "@/shared/assets/svg/auth/auth-kakao-logo.svg";
+import naverLogo from "@/shared/assets/svg/auth/auth-naver-logo.svg";
+import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
+import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
 import { getOAuthAuthorizationUrl } from "@/entities/user";
 
 type AuthFieldProps = {
