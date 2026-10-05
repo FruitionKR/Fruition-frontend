@@ -39,7 +39,8 @@ function savePromptMemory(memory: Required<PromptMemory>) {
   }
 }
 
-function publishIngestPrompt(candidates: DocumentItemResponse[], title: string) {
+function publishIngestPrompt(candidates: DocumentItemResponse[], title: string, enabled: boolean) {
+  if (!enabled) return;
   // PDF 원본은 ingest 대상이 아니므로 분석 제안에서 제외한다.
   const documents = candidates.filter((document) => document.mime_type !== "application/pdf");
   if (documents.length === 0) return;
@@ -83,7 +84,9 @@ function publishIngestPrompt(candidates: DocumentItemResponse[], title: string) 
  */
 export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
   const { preferences } = useUserPreferences();
-  const lintSuggestEnabled = preferences.notifications.lint;
+  const suggestEnabled = preferences.notifications.suggest;
+  const suggestEnabledRef = useRef(suggestEnabled);
+  suggestEnabledRef.current = suggestEnabled;
   const documentsRef = useRef(documents);
   documentsRef.current = documents;
   const knownIdsRef = useRef<Set<string> | null>(null);
@@ -128,7 +131,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       const initial = uploaded.filter((document) => !promptedIdsRef.current.has(document.id));
       initial.forEach((document) => promptedIdsRef.current.add(document.id));
       persistPromptMemory();
-      publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다");
+      publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다", suggestEnabledRef.current);
       return;
     }
 
@@ -151,7 +154,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
         const targets = documentsRef.current.filter(
           (document) => queuedIds.has(document.id) && document.status === "uploaded"
         );
-        publishIngestPrompt(targets, "새 문서가 추가되었습니다");
+        publishIngestPrompt(targets, "새 문서가 추가되었습니다", suggestEnabledRef.current);
       }, INGEST_PROMPT_DEBOUNCE_MS);
     }
   }, [documents]);
@@ -189,7 +192,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       });
       persistPromptMemory();
 
-      publishIngestPrompt(stalled, "위키 편입이 아직 시작되지 않았습니다");
+      publishIngestPrompt(stalled, "위키 편입이 아직 시작되지 않았습니다", suggestEnabledRef.current);
     }
 
     checkStalledUploads();
@@ -217,7 +220,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
     }
     fresh.forEach((document) => reingestNotifiedRef.current.add(document.id));
     persistPromptMemory();
-    publishIngestPrompt(fresh, "마지막 위키 편입 이후 수정된 문서가 있습니다");
+    publishIngestPrompt(fresh, "마지막 위키 편입 이후 수정된 문서가 있습니다", suggestEnabledRef.current);
   }, [documents]);
 
   // lint 필요 감지: 문서가 completed로 전이하면 유지보수 상태를 확인한다 (DB 비교라 저렴)
@@ -225,7 +228,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
     const currentStatuses = new Map(documents.map((document) => [document.id, document.status as string]));
     const previousStatuses = previousStatusesRef.current;
     previousStatusesRef.current = currentStatuses;
-    if (!previousStatuses || !lintSuggestEnabled) return;
+    if (!previousStatuses || !suggestEnabled) return;
 
     const hasNewCompletion = documents.some((document) =>
       document.status === "completed" && previousStatuses.get(document.id) !== "completed"
@@ -272,5 +275,5 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       .finally(() => {
         lintCheckInFlightRef.current = false;
       });
-  }, [documents, lintSuggestEnabled]);
+  }, [documents, suggestEnabled]);
 }

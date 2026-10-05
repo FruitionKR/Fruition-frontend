@@ -15,6 +15,7 @@ const NOTIFICATION_ROWS: { key: NotificationKey; label: string; description: str
   { key: "failed", label: "위키 편입 실패", description: "위키 편입에 실패하면 알림 카드를 표시합니다." },
   { key: "lint", label: "위키 다듬기", description: "위키 다듬기(lint) 작업이 끝나면 알립니다." },
   { key: "restore", label: "복구(롤백)", description: "AI 작업 되돌리기가 끝나면 알립니다." },
+  { key: "suggest", label: "작업 제안", description: "위키 편입이나 Lint가 필요한 문서가 있으면 실행을 제안합니다." },
   { key: "query", label: "질의 완료", description: "채팅 질의의 답변 도착•실패를 알립니다." },
   { key: "browser", label: "브라우저 알림", description: "탭이 백그라운드일 때 브라우저 알림으로도 보냅니다." }
 ];
