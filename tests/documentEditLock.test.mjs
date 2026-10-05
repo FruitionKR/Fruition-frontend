@@ -46,15 +46,19 @@ const LOCK_PATH = `/api/workspaces/ws_test/documents/${DOCUMENT_ID}/edit-lock`;
 /** 편집 잠금 API는 선택된 워크스페이스와 access token을 쓴다. */
 function workspaceEnv(t) {
   const original = globalThis.window;
-  globalThis.window = {
+  const originalDocument = globalThis.document;
+  globalThis.window = Object.assign(new EventTarget(), {
     localStorage: {
       getItem: (key) => (key === "fruition.workspace_id" ? "ws_test" : null),
       setItem() {},
       removeItem() {}
     }
-  };
+  });
+  // 탭 복귀(visibilitychange)를 흉내 내려고 visibilityState를 바꿀 수 있는 document를 둔다.
+  globalThis.document = Object.assign(new EventTarget(), { visibilityState: "visible" });
   t.after(() => {
     globalThis.window = original;
+    globalThis.document = originalDocument;
   });
   saveAccessToken("test-access");
 }
@@ -131,7 +135,13 @@ test("heartbeat는 POST로 잠금을 연장하고 409면 EditLockLostError를 �
 
   assert.equal((await sendEditLockHeartbeat(DOCUMENT_ID)).expires_at, "2026-10-04T00:02:00Z");
   lost = true;
-  await assert.rejects(sendEditLockHeartbeat(DOCUMENT_ID), EditLockLostError);
+  await assert.rejects(sendEditLockHeartbeat(DOCUMENT_ID), (error) => {
+    assert.ok(error instanceof EditLockLostError);
+    // 409는 대부분 만료다. 혼자 쓰는 문서에서 다른 사용자를 탓하지 않는다.
+    assert.equal(error.message, ERROR_MESSAGES.editLockExpired);
+    assert.doesNotMatch(error.message, /다른 사용자/);
+    return true;
+  });
   assert.deepEqual(calls, [
     [`${LOCK_PATH}/heartbeat`, "POST"],
     [`${LOCK_PATH}/heartbeat`, "POST"]
@@ -299,4 +309,156 @@ test("잠글 수 없는 문서(403·404)는 네트워크 오류와 구분된다"
     assert.equal(error.message, ERROR_MESSAGES.editLockForbidden);
     return true;
   });
+});
+
+/** 첫 heartbeat는 409, 재획득은 onReacquire 응답. 혼자 쓰는 문서에서 heartbeat가 늦어 만료된 상황이다. */
+function expiredHeartbeatEnv(t, onReacquire) {
+  let heartbeats = 0;
+  let acquireCount = 0;
+  const env = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => {
+      heartbeats++;
+      return heartbeats === 1
+        ? Response.json({ error: { message: "lock expired" } }, { status: 409 })
+        : Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() });
+    },
+    onAcquire: () => {
+      acquireCount++;
+      return acquireCount === 1
+        ? Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() })
+        : onReacquire();
+    }
+  });
+  return { ...env, heartbeats: () => heartbeats };
+}
+
+test("heartbeat 409라도 재획득이 되면 잠금을 잃지 않고 heartbeat를 이어간다", async (t) => {
+  const { lost, acquires, view, heartbeats } = expiredHeartbeatEnv(t, () => Response.json({
+    expires_at: new Date(Date.now() + 30_000).toISOString()
+  }));
+  await advance(t, 0);
+
+  // 첫 heartbeat(10초)가 409를 받는다.
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, [], "만료됐어도 아무도 가져가지 않았으면 저장을 멈추지 않는다");
+  assert.equal(acquires.length, 2, "409를 받으면 재획득으로 사실을 확인한다");
+  assert.equal(view.rerender().phase, "granted");
+
+  await advance(t, 10_000);
+  assert.equal(heartbeats(), 2, "재획득한 잠금도 계속 연장한다");
+});
+
+test("heartbeat 409 후 재획득이 423이면 보유자 이름으로 잠금 상실을 알린다", async (t) => {
+  const { lost, view } = expiredHeartbeatEnv(t, () => Response.json(
+    { holder_display_name: "테스트사용자", holder_user_id: "user_other" },
+    { status: 423 }
+  ));
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, ["테스트사용자님이 편집 중입니다."]);
+  assert.equal(view.rerender().phase, "lost");
+});
+
+test("heartbeat 409 후 보유자 이름 없는 423이면 다른 사용자 문구로 알린다", async (t) => {
+  const { lost } = expiredHeartbeatEnv(t, () => Response.json({}, { status: 423 }));
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, [ERROR_MESSAGES.editLockLost]);
+});
+
+test("heartbeat 409 후 재획득이 403이면 권한 문구로 잠금을 잃는다", async (t) => {
+  const { lost } = expiredHeartbeatEnv(t, () => new Response(null, { status: 403 }));
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, [ERROR_MESSAGES.editLockForbidden]);
+});
+
+test("heartbeat 409 후 재획득도 일시 오류면 만료 문구로 잠금을 잃는다", async (t) => {
+  const { lost, view } = expiredHeartbeatEnv(t, () => { throw new Error("Failed to fetch"); });
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  // 서버가 이미 만료시킨 잠금이라 보유를 주장하지 않는다. 다만 다른 사용자를 탓하지 않는다.
+  assert.deepEqual(lost, [ERROR_MESSAGES.editLockExpired]);
+  assert.equal(view.rerender().phase, "lost");
+});
+
+test("탭이 다시 보이거나 온라인이 되면 예약을 기다리지 않고 heartbeat를 보낸다", async (t) => {
+  let heartbeats = 0;
+  let release = null;
+  const { lost, view } = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => {
+      heartbeats++;
+      return new Promise((resolve) => {
+        release = () => resolve(Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() }));
+      });
+    }
+  });
+  await advance(t, 0);
+
+  document.visibilityState = "hidden";
+  document.dispatchEvent(new Event("visibilitychange"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 0, "숨겨질 때는 보내지 않는다");
+
+  document.visibilityState = "visible";
+  document.dispatchEvent(new Event("visibilitychange"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 1, "다시 보이면 즉시 보낸다");
+
+  // 응답을 기다리는 중에는 겹쳐 보내지 않는다.
+  document.dispatchEvent(new Event("visibilitychange"));
+  window.dispatchEvent(new Event("online"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 1, "진행 중인 heartbeat가 있으면 중복 요청하지 않는다");
+
+  release();
+  await advance(t, 0);
+  window.dispatchEvent(new Event("online"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 2, "온라인 복귀에도 즉시 보낸다");
+  release();
+  await advance(t, 0);
+
+  // 즉시 보낸 뒤에는 원래 예약이 취소돼 같은 주기에 두 번 보내지 않는다.
+  await advance(t, 9_999);
+  assert.equal(heartbeats, 2);
+  await advance(t, 1);
+  assert.equal(heartbeats, 3);
+  release();
+  await advance(t, 0);
+
+  view.unmount();
+  document.dispatchEvent(new Event("visibilitychange"));
+  window.dispatchEvent(new Event("online"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 3, "편집기를 떠나면 리스너를 지운다");
+  assert.deepEqual(lost, []);
+});
+
+test("편집기를 떠나면 탭 복귀·온라인 리스너를 해제한다", async (t) => {
+  const { view } = lockEnv(t, { expiresInMs: 30_000 });
+  // disposed 가드가 있어 이벤트를 쏴 보는 것만으로는 해제 누락이 드러나지 않는다. 등록 수를 직접 센다.
+  const active = { visibilitychange: new Set(), online: new Set() };
+  for (const target of [document, window]) {
+    const add = target.addEventListener.bind(target);
+    const remove = target.removeEventListener.bind(target);
+    target.addEventListener = (type, listener, options) => { active[type]?.add(listener); add(type, listener, options); };
+    target.removeEventListener = (type, listener, options) => { active[type]?.delete(listener); remove(type, listener, options); };
+  }
+  view.unmount();
+  const remounted = render(() => useEditLock({ documentId: DOCUMENT_ID, onLockLost() {} }));
+  await advance(t, 0);
+  assert.equal(active.visibilitychange.size, 1);
+  assert.equal(active.online.size, 1);
+
+  remounted.unmount();
+  assert.equal(active.visibilitychange.size, 0, "visibilitychange 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
+  assert.equal(active.online.size, 0, "online 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
 });
