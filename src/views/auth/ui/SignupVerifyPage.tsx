@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { confirmEmailVerification, loginWithEmail, signupWithEmail } from "@/entities/user";
-import { saveAccessToken } from "@/shared/lib/auth";
+import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
@@ -75,7 +75,7 @@ export default function SignupVerificationPage() {
       }
       saveAccessToken(tokens.access_token);
       queryClient.clear();
-      router.replace("/workspaces");
+      router.replace(takeAfterLoginPath());
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error, "회원가입에 실패했습니다."));
       setIsSubmitting(false);

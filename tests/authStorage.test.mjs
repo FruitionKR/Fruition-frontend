@@ -6,6 +6,8 @@ import {
   getAccessToken,
   isPublicAuthPath,
   saveAccessToken,
+  setAfterLoginPath,
+  takeAfterLoginPath,
   withAuthRefreshLock
 } from "../src/shared/lib/auth.ts";
 
@@ -51,6 +53,15 @@ test("인증 화면과 랜딩 화면은 공개 경로로 판별한다", () => {
   assert.equal(isPublicAuthPath("/invitations/test-token/accept"), false);
   assert.equal(isPublicAuthPath("/home"), false);
   assert.equal(isPublicAuthPath("/workspaces"), false);
+});
+
+test("로그인 후 이동 경로는 남긴 곳으로 한 번만 돌아가고 없으면 워크스페이스로 간다", () => {
+  globalThis.window = { localStorage: createStorage(), sessionStorage: createStorage() };
+
+  setAfterLoginPath("/invitations/test-token");
+
+  assert.equal(takeAfterLoginPath(), "/invitations/test-token");
+  assert.equal(takeAfterLoginPath(), "/workspaces");
 });
 
 test("refresh 작업은 origin 공유 Web Lock 안에서 실행한다", async () => {
