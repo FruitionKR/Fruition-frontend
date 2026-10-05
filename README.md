@@ -4,7 +4,7 @@
 
 ## 한국어
 
-Fruition의 Next.js 웹 프론트엔드입니다. 이 저장소는 화면·API 호출·UI 테스트·frontend 문서를 소유하며 Vercel에 독립 배포합니다.
+Fruition의 Next.js 웹 프론트엔드입니다. 이 저장소는 화면·API 호출·UI 테스트·frontend 문서를 소유합니다. 운영은 플랫폼 저장소(Fruition-flatform)가 이미지로 빌드해 AWS EKS(Fargate)에 배포합니다.
 
 ### 로컬 실행
 
@@ -43,17 +43,17 @@ npm run build
 
 같은 폴더에서 개발 서버 실행 중에는 프로덕션 빌드를 실행하지 않습니다. GitHub Actions는 전체 테스트와 빌드를 검증합니다.
 
-### Vercel
+### AWS 배포
 
-이 GitHub 저장소를 Import하고 Framework를 Next.js, Root Directory를 저장소 루트(`.`), Node.js를 24.x로 설정합니다. Install Command는 `npm ci`, Build Command는 `npm run build`, Output Directory는 Next.js 기본값을 사용합니다.
+main CI가 성공하면 플랫폼 저장소의 이미지 게시 workflow가 루트 `Dockerfile`로 이미지를 빌드합니다. 이 이미지는 `SAME_ORIGIN_API=true`로 빌드되어 Next가 API를 중계하지 않고, ALB가 같은 호스트에서 `/api/*`·`/oauth2/*`를 access-svc·document-svc로, 나머지를 이 화면으로 나눕니다. 운영 Pod에는 `ACCESS_CODE`만 주입합니다. `/api/*` 접근 코드 검사는 ALB 앞의 AWS WAF가 같은 규칙으로 수행합니다.
 
-Preview·Production별로 실제 HTTPS API 주소를 설정하고 배포합니다. `NEXT_PUBLIC_*`에는 공개 API 주소만 넣으며 비밀 키를 저장하지 않습니다. 백엔드 연결 전에는 업무 기능이 동작하지 않습니다.
+로컬에서 이미지를 확인하려면 `docker build -t fruition-frontend .` 후 `docker run -p 3000:3000 fruition-frontend`로 실행하고 `/healthz`를 확인합니다.
 
 자세한 구조·실행법은 [문서 안내](docs/README.md)를 참고하세요.
 
 ## English
 
-Fruition's Next.js web frontend. This repository owns the UI, API calls, UI tests, and frontend documentation, and is deployed independently on Vercel.
+Fruition's Next.js web frontend. This repository owns the UI, API calls, UI tests, and frontend documentation. In production the platform repository (Fruition-flatform) builds it as an image and deploys it to AWS EKS (Fargate).
 
 ### Local development
 
@@ -92,11 +92,11 @@ npm run build
 
 Do not run the development server and production build in the same checkout at the same time. GitHub Actions runs the full frontend test suite and production build.
 
-### Vercel
+### AWS deployment
 
-Import this repository into Vercel. Select Next.js, use the repository root (`.`) as Root Directory, and select Node.js 24.x. Use `npm ci` as Install Command and `npm run build` as Build Command. Keep the default Next.js Output Directory.
+After main CI succeeds, the platform repository's image publish workflow builds the root `Dockerfile`. The image is built with `SAME_ORIGIN_API=true`, so Next does not proxy the API; the ALB splits `/api/*` and `/oauth2/*` to access-svc and document-svc on the same host and sends everything else to this UI. Only `ACCESS_CODE` is injected into the production pod. The `/api/*` access-code check is enforced by AWS WAF in front of the ALB with the same rules.
 
-Configure the actual HTTPS API URLs separately for Preview and Production. Only public API URLs belong in `NEXT_PUBLIC_*`; never put secret keys there. Application features require a connected backend.
+To check the image locally, run `docker build -t fruition-frontend .`, then `docker run -p 3000:3000 fruition-frontend`, and open `/healthz`.
 
 See the [documentation index](docs/README.md) for architecture and execution details.
 

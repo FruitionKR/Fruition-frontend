@@ -42,6 +42,6 @@ npm start
 
 같은 폴더의 개발 서버를 종료한 뒤 프로덕션 빌드를 실행합니다. GitHub Actions는 Node.js 24에서 `npm ci` → `npm test` → `npm run build` 순서로 검증합니다.
 
-Vercel에서는 Root Directory를 저장소 루트(`.`), Framework를 Next.js, Node.js를 24.x로 설정합니다. 설치·빌드 명령은 각각 `npm ci`, `npm run build`이며 Output Directory는 기본값입니다. Preview와 Production에 맞는 실제 HTTPS API 주소를 설정하고, 환경변수 변경 후 새로 배포합니다. `localhost`는 배포된 백엔드 주소로 사용할 수 없습니다.
+운영 이미지는 루트 `Dockerfile`로 빌드합니다. `SAME_ORIGIN_API=true` 빌드는 rewrite·redirect를 비우고 Next standalone 서버를 만들며, API 경로 분기는 ALB가 맡습니다. 컨테이너는 uid 10001로 3000번 포트를 열고 `/healthz`로 상태를 확인합니다. `/app/.next/cache`는 쓰기 가능한 볼륨이 필요합니다.
 
 비밀값과 실제 환경 파일은 Git에 올리지 않습니다. AWS 리소스·DB·서비스 통합 실행은 별도 platform 저장소가 관리합니다.
