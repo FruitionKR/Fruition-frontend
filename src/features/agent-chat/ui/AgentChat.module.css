@@ -240,6 +240,8 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+  /* 배경은 행(.chat-session-item)이 칠하므로 전역 버튼 오버레이를 겹치지 않는다. */
+  --button-hover-overlay: none;
 }
 
 /* 현재 사용 중 채널 표시용 Fruition 로고 */

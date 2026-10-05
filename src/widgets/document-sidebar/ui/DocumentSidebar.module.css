@@ -276,14 +276,22 @@
 .workspace-dropdown-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
-/* 워크스페이스 행: 전환 버튼 + hover 시 나타나는 옵션(⋮) 버튼 */
+/* 워크스페이스 행: 전환 버튼 + hover 시 나타나는 옵션(⋮) 버튼. 행 간격은 위아래 padding이 맡는다. */
 .workspace-dropdown-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+/* 채팅 세션 행과 같이 hover·포커스 시 행 전체에 배경 블럭 하나만 칠한다. */
+.workspace-dropdown-row:hover,
+.workspace-dropdown-row:has(:focus-visible) {
+  background: var(--soft);
 }
 
 .workspace-dropdown-item {
