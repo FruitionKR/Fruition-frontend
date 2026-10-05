@@ -26,7 +26,8 @@ const SAVE_STATUS_LABELS: Partial<Record<NoteSaveStatus, string>> = {
   saving: "저장 중",
   error: "저장 실패",
   conflict: "저장 충돌",
-  "lock-lost": "편집 권한 상실"
+  "lock-lost": "편집 권한 상실",
+  "session-expired": "세션 만료"
 };
 
 export function SourcePreviewPanel({

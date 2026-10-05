@@ -84,3 +84,13 @@ test("refresh 작업은 origin 공유 Web Lock 안에서 실행한다", async ()
     }
   }
 });
+
+test("세션 만료 안내는 공개 인증 화면에서 띄우지 않는다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const gate = await readFile(new URL("../src/entities/user/ui/SessionExpiryGate.tsx", import.meta.url), "utf8");
+  // 로그아웃 상태의 /me 실패나 지난 요청의 만료가 로그인 폼을 가리면 로그인할 수 없다.
+  assert.match(gate, /isExpired && !isPublicAuthPath\(pathname\)/);
+  for (const path of ["/", "/login", "/signup", "/signup/verify", "/forgot-password", "/reset-password", "/oauth/callback"]) {
+    assert.equal(isPublicAuthPath(path), true, path);
+  }
+});

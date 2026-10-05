@@ -1,4 +1,5 @@
 import { apiFetch, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
+import { putPartWithIdleTimeout } from "@/entities/document/api/partUpload";
 import type { DocumentUploadResponse } from "@/entities/document/model/document";
 
 type Start = { ticket: string; part_size: number; part_count: number };
@@ -44,9 +45,8 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
               if (renewed.length !== 1 || renewed[0].part_number !== part.part_number) throw new Error("파일 분할 정보가 올바르지 않습니다.");
               part = renewed[0];
             }
-            const response = await fetch(part.url, {
-              method: "PUT", body, credentials: "omit", signal: controller.signal
-            });
+            // 진행이 멈춘 시간만 제한한다. 제한이 없으면 블랙홀이 된 조각에서 업로드 전체가 매달린다.
+            const response = await putPartWithIdleTimeout(part.url, body, controller.signal);
             if (response.ok) return;
             if (response.status < 500 && response.status !== 429) {
               throw new Error(`파일 조각 전송 실패 (${response.status})`);
@@ -69,11 +69,14 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
           headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
           body: JSON.stringify({ ticket: upload.ticket })
         });
-        if (completed.status >= 500 && attempt < 2) continue;
-        return await parseJsonOrThrow<DocumentUploadResponse>(completed, ERROR_MESSAGES.uploadFailed);
+        if (completed.status < 500 || attempt === 2) {
+          return await parseJsonOrThrow<DocumentUploadResponse>(completed, ERROR_MESSAGES.uploadFailed);
+        }
       } catch (error) {
         if (attempt === 2) throw error;
       }
+      // 조각 전송과 같은 backoff를 지킨다. 즉시 재시도하면 힘들어하는 서버를 연달아 때린다.
+      await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
     }
     throw new Error(ERROR_MESSAGES.uploadFailed);
   } catch (error) {

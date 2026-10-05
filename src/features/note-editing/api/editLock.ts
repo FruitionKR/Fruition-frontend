@@ -22,6 +22,9 @@ export class EditLockHeldError extends Error {
 /** 편집 중에 잠금을 잃었다(heartbeat 409: 만료 또는 타인 보유). */
 export class EditLockLostError extends Error {}
 
+/** 잠글 수 없는 문서다(403 권한 없음·404 없음). 네트워크 오류와 달리 기다려도 달라지지 않는다. */
+export class EditLockDeniedError extends Error {}
+
 function editLockPath(documentId: string): string {
   return `${workspacePath(getWorkspaceId(), "documents", documentId)}/edit-lock`;
 }
@@ -35,8 +38,8 @@ export async function acquireEditLock(documentId: string): Promise<EditLockRespo
   if (response.status === 423) {
     throw new EditLockHeldError(await response.json().catch(() => ({})) as EditLockResponse);
   }
-  if (response.status === 403) throw new Error(ERROR_MESSAGES.editLockForbidden);
-  if (response.status === 404) throw new Error(ERROR_MESSAGES.editLockMissing);
+  if (response.status === 403) throw new EditLockDeniedError(ERROR_MESSAGES.editLockForbidden);
+  if (response.status === 404) throw new EditLockDeniedError(ERROR_MESSAGES.editLockMissing);
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }
 
