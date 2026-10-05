@@ -56,7 +56,7 @@ export default function InvitationPage({ token }: { token: string }) {
           <p>권한: {invitation.role} · 만료: {new Date(invitation.expires_at).toLocaleString("ko-KR")}</p>
           <div className={styles["error-actions"]}>
             <button type="button" className={styles["retry-button"]} disabled={busy} onClick={() => void accept()}>{busy ? "수락 중…" : "초대 수락"}</button>
-            <button type="button" className={styles["login-button"]} disabled={busy} onClick={() => void loginAsInvitee()}>다른 계정으로 로그인 / 회원가입</button>
+            <button type="button" className={styles["login-button"]} disabled={busy} onClick={() => void loginAsInvitee()}>초대받은 계정으로 로그인 / 회원가입</button>
           </div>
           <p className={styles["error-support"]}>로그인을 마치면 이 화면으로 돌아옵니다.</p>
         </>}

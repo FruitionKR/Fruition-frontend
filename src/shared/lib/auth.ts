@@ -98,5 +98,6 @@ export function setAfterLoginPath(path: string) {
 export function takeAfterLoginPath(): string {
   const path = window.sessionStorage.getItem(AFTER_LOGIN_STORAGE_KEY);
   window.sessionStorage.removeItem(AFTER_LOGIN_STORAGE_KEY);
-  return path ?? "/workspaces";
+  // 같은 오리진 경로만 따른다. "//host"와 "/\host"는 브라우저가 다른 오리진으로 해석한다.
+  return path && path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\") ? path : "/workspaces";
 }

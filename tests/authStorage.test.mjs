@@ -64,6 +64,15 @@ test("로그인 후 이동 경로는 남긴 곳으로 한 번만 돌아가고 �
   assert.equal(takeAfterLoginPath(), "/workspaces");
 });
 
+test("같은 오리진 경로가 아닌 복귀 경로는 버리고 워크스페이스로 간다", () => {
+  globalThis.window = { localStorage: createStorage(), sessionStorage: createStorage() };
+
+  for (const path of ["//evil.example", "https://evil.example", "invitations/test-token", "/\\evil.example"]) {
+    setAfterLoginPath(path);
+    assert.equal(takeAfterLoginPath(), "/workspaces", path);
+  }
+});
+
 test("refresh 작업은 origin 공유 Web Lock 안에서 실행한다", async () => {
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   const events = [];
