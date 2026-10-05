@@ -178,6 +178,7 @@
   width: 84px;
   flex: 0 0 auto;
   display: flex;
+  justify-content: flex-end;
 }
 
 .profile {
@@ -216,7 +217,8 @@
   letter-spacing: -0.24px;
 }
 
-/* 권한 라벨 (Figma label): select 위에 셰브론을 겹쳐 드롭다운처럼 보인다. */
+/* 권한 라벨 (Figma label): select 위에 셰브론을 겹쳐 드롭다운처럼 보인다.
+   Figma: padding 6 + 텍스트 58 + gap 6 + 셰브론 10 + padding 6. */
 .role-chip {
   position: relative;
   display: inline-flex;
@@ -228,11 +230,12 @@
 
 .role-select {
   appearance: none;
-  width: 58px;
+  width: 86px;
   padding: 6px 22px 6px 6px;
   color: var(--ink);
   background: transparent;
   border: none;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
