@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
 import { changeMemberRole, fetchMembers, inviteMember, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
-import { clearSelectedWorkspaceId, getSelectedWorkspaceId } from "@/shared/lib/auth";
+import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
@@ -17,7 +17,7 @@ type RoleFilter = (typeof ROLE_FILTERS)[number];
 const ROLE_FILTER_LABELS: Record<RoleFilter, string> = { "": "전체", OWNER: "OWNER", MEMBER: "MEMBER" };
 
 /** 멤버 관리 패널 (Figma 987:10705). */
-export function MembersPanel({ onLeave }: { onLeave: () => void }) {
+export function MembersPanel() {
   const { data: me } = useMe();
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
@@ -45,7 +45,9 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   const isOwner = members.find((member) => member.user_id === me?.id)?.role === "OWNER";
   const ownerCount = members.filter((member) => member.role === "OWNER").length;
+  // 로그인한 본인은 목록에서 제외하고, 워크스페이스에 추가한 사용자만 보여준다.
   const visibleMembers = members.filter((member) =>
+    member.user_id !== me?.id &&
     (!filter || member.role === filter) &&
     ((member.display_name ?? "") + " " + member.email).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
@@ -58,8 +60,6 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
     try {
       const updated = await changeMemberRole(workspaceId, member.user_id, role);
       queryClient.setQueryData<WorkspaceMember[]>(queryKey, (current) => current?.map((item) => item.user_id === updated.user_id ? updated : item));
-      // 자기 역할 변경은 다른 화면의 권한 표시에도 반영한다.
-      if (member.user_id === me?.id) window.location.reload();
       setMessage("멤버 권한을 변경했습니다.");
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "멤버 권한을 변경하지 못했습니다."));
@@ -71,20 +71,12 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
   async function remove(member: WorkspaceMember) {
     if (!workspaceId || busy) return;
     setOpenMenuId(null);
-    const self = member.user_id === me?.id;
-    if (!window.confirm(self ? "이 워크스페이스에서 탈퇴하시겠습니까?" : (member.display_name || member.email) + " 님을 워크스페이스에서 제거하시겠습니까?")) return;
+    if (!window.confirm((member.display_name || member.email) + " 님을 워크스페이스에서 제거하시겠습니까?")) return;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
       await removeMember(workspaceId, member.user_id);
-      if (self) {
-        clearSelectedWorkspaceId();
-        queryClient.clear();
-        onLeave();
-        window.location.assign("/workspaces");
-        return;
-      }
       queryClient.setQueryData<WorkspaceMember[]>(queryKey, (current) => current?.filter((item) => item.user_id !== member.user_id));
       setMessage("멤버를 제거했습니다.");
     } catch (cause: unknown) {
@@ -201,9 +193,7 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
           <div className={styles["row-main"]}><span>사용자</span><span className={styles["cell-role"]}>사용 권한</span></div>
         </div>
         {visibleMembers.map((member) => {
-          const self = member.user_id === me?.id;
           const lastOwner = member.role === "OWNER" && ownerCount <= 1;
-          const canRemove = isOwner || self;
           return (
             <div className={styles.row} key={member.user_id}>
               <span className={styles.checkbox} aria-hidden />
@@ -224,7 +214,7 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
                   </span>
                 </span>
               </div>
-              {canRemove && (
+              {isOwner && (
                 <div className={styles["more-wrap"]} ref={openMenuId === member.user_id ? rowMenuRef : undefined}>
                   <button
                     type="button"
@@ -243,10 +233,10 @@ export function MembersPanel({ onLeave }: { onLeave: () => void }) {
                         role="menuitem"
                         className={styles["filter-option"]}
                         disabled={lastOwner}
-                        title={lastOwner ? "다른 OWNER를 지정한 뒤 탈퇴할 수 있습니다." : undefined}
+                        title={lastOwner ? "마지막 OWNER는 제거할 수 없습니다." : undefined}
                         onClick={() => void remove(member)}
                       >
-                        {self ? "워크스페이스 탈퇴" : "멤버 제거"}
+                        멤버 제거
                       </button>
                     </div>
                   )}

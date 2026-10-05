@@ -177,7 +177,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               onSelectProvider={(provider) => void selectAiProvider(provider)}
             />
           )}
-          {activeSection === "members" && <MembersPanel onLeave={onClose} />}
+          {activeSection === "members" && <MembersPanel />}
           {activeSection === "skills" && <SkillsPanel />}
           <button type="button" className={styles.close} aria-label="설정 닫기" onClick={onClose}>
             <SvgIcon src={plusIcon} className={styles["close-icon"]} />
