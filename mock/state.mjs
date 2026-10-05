@@ -24,6 +24,8 @@ export const state = {
   agentRuns: new Map(),
   operationLogs: [],
   lintRuns: new Map(),
+  // 문서 id → { holder_user_id, holder_display_name, expires_at }
+  editLocks: new Map(),
   skills: [],
   aiModels: []
 };
