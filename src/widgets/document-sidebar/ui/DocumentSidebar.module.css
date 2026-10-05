@@ -279,13 +279,87 @@
   gap: 8px;
 }
 
+/* 워크스페이스 행: 전환 버튼 + hover 시 나타나는 옵션(⋮) 버튼 */
+.workspace-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .workspace-dropdown-item {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   padding: 0;
   background: transparent;
   text-align: left;
+}
+
+/* 옵션 버튼은 행 hover·포커스·메뉴 열림일 때만 보인다 (채팅 세션 .chat-session-more와 같은 모양) */
+.workspace-dropdown-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 2px;
+  border-radius: 6px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.workspace-dropdown-row:hover .workspace-dropdown-more,
+.workspace-dropdown-row:has(:focus-visible) .workspace-dropdown-more,
+.workspace-dropdown-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.workspace-dropdown-more:hover,
+.workspace-dropdown-more:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--line-soft);
+}
+
+/* 행 옵션 메뉴 (채팅 세션 .chat-session-menu-list와 같은 모양) */
+.workspace-dropdown-menu-list {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.workspace-dropdown-menu-list button {
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-dropdown-menu-list button:hover,
+.workspace-dropdown-menu-list button:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.workspace-dropdown-menu-list button.is-danger {
+  color: #f04452;
+}
+
+.workspace-dropdown-menu-list button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .workspace-dropdown-avatar {
