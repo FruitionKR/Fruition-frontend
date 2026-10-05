@@ -7,12 +7,18 @@ export async function fetchWorkspaces(): Promise<WorkspaceListResponse> {
 }
 
 export async function renameWorkspace(workspaceId: string, name: string): Promise<WorkspaceResponse> {
-  const response = await apiFetch(`/api/workspaces/${workspaceId}`, {
+  const response = await apiFetch(workspacePath(workspaceId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name })
   });
   return parseJsonOrThrow<WorkspaceResponse>(response, "워크스페이스 이름을 변경하지 못했습니다.");
+}
+
+/** 워크스페이스를 삭제한다. OWNER만 가능하다. */
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  const response = await apiFetch(workspacePath(workspaceId), { method: "DELETE" });
+  await throwIfNotOk(response, "워크스페이스를 삭제하지 못했습니다.");
 }
 
 export async function createWorkspace(name: string): Promise<WorkspaceResponse> {

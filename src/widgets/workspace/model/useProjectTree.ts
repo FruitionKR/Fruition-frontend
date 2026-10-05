@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent, MutableRefObject } from "react";
+import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
@@ -19,7 +19,19 @@ import {
   isFileItem,
   isWikiItem
 } from "@/entities/tree";
-import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
+import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
+
+/** 큐에서 기다리는 동안 대상이 삭제·이동되면 요청을 보내지 않고 이 문구로 알린다. */
+const STALE_TARGET_MESSAGE = "대상이 이미 삭제되었거나 이동되어 요청을 보내지 않았습니다.";
+
+function hasTreeItem(projects: Project[], itemId: string) {
+  return findItemLocation(projects, itemId) !== undefined;
+}
+
+function hasFolderLocation(projects: Project[], location: FolderLocation) {
+  const project = projects.find((entry) => entry.id === location.projectId);
+  return Boolean(project && (location.folderId === null || findTreeItem(project.items, location.folderId)));
+}
 
 
 /** 삭제 확인 모달이 필요로 하는 대상 정보. contextMenu가 닫힌 뒤에도 삭제를 실행할 수 있도록 스냅샷한다. */
@@ -39,7 +51,14 @@ type MergeConfirmTarget = {
 };
 
 export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<() => Promise<void>> }) {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjectsState] = useState<Project[]>(initialProjects);
+  // 큐의 작업은 실행 시점의 최신 트리를 읽어야 한다. 렌더를 기다리지 않도록 갱신과 동시에 ref에 반영한다.
+  const projectsRef = useRef<Project[]>(initialProjects);
+  const setProjects = useCallback<Dispatch<SetStateAction<Project[]>>>((next) => {
+    const value = typeof next === "function" ? next(projectsRef.current) : next;
+    projectsRef.current = value;
+    setProjectsState(value);
+  }, []);
   const [draggedItem, setDraggedItem] = useState<{ projectId: string; itemId: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [fileDropTarget, setFileDropTarget] = useState<FileDropTarget | null>(null);
@@ -73,10 +92,11 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
 
   // 동시 변경은 막아야 하지만, 진행 중인 변경이 있다고 다음 변경을 버리면
   // 사용자는 요청도 안내도 없이 메뉴가 닫히는 것만 본다. 직렬로 줄을 세운다.
+  // 작업은 큐에 넣을 때가 아니라 실행할 때의 최신 트리(latest)로 이름과 대상을 정한다.
   const enqueueMutation = useRef(createSerialQueue()).current;
-  function runTreeMutation(action: () => Promise<void>, title: string): Promise<void> {
+  function runTreeMutation(action: (latest: Project[]) => Promise<void>, title: string): Promise<void> {
     return enqueueMutation(async () => {
-      try { await action(); }
+      try { await action(projectsRef.current); }
       catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
       finally { await refreshRef.current().catch(() => {}); }
     });
@@ -90,10 +110,11 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
       projectId: project.id,
       folderId: target && !isFileItem(target) && !isWikiItem(target) ? target.id : null
     } : undefined;
-    const parentId = location ? serverFolderId(projects, location) : null;
     setContextMenu(null);
-    void runTreeMutation(async () => {
-      const folder = await createFolder(availableFolderName(projects, "새 폴더", location), parentId);
+    void runTreeMutation(async (latest) => {
+      if (location && !hasFolderLocation(latest, location)) throw new Error(STALE_TARGET_MESSAGE);
+      const parentId = location ? serverFolderId(latest, location) : null;
+      const folder = await createFolder(availableFolderName(latest, "새 폴더", location), parentId);
       editingCancelRef.current = false;
       // 루트 폴더도 트리 행이므로 재조회 후 나타나는 행에서 바로 이름을 편집한다.
       setEditing({ projectId: location?.projectId ?? ROOT_DOCUMENTS_PROJECT_ID, itemId: folder.id, label: folder.name });
@@ -115,9 +136,13 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
       return;
     }
     if (resolution.kind === "move-many") {
-      const { items, folderId } = resolution;
+      const { items: selectedItems, destination, folderId } = resolution;
       setSelectedItemIds(new Set());
-      void runTreeMutation(async () => {
+      void runTreeMutation(async (latest) => {
+        if (!hasFolderLocation(latest, destination)) throw new Error(STALE_TARGET_MESSAGE);
+        // 기다리는 동안 사라진 항목은 빼고 옮긴다.
+        const items = selectedItems.filter((entry) => hasTreeItem(latest, entry.id));
+        if (items.length === 0) throw new Error(STALE_TARGET_MESSAGE);
         // 하나가 실패해도 나머지는 계속 옮기고, 몇 개가 실패했는지 알린다. finally의 재조회가 실제 위치를 보여준다.
         const results = await Promise.allSettled(items.map((entry) =>
           entry.documentId ? moveDocument(entry.documentId, folderId) : moveFolder(entry.id, folderId)
@@ -135,8 +160,11 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
       setMergeConfirm({
         sourceLabel: sourceItem.label,
         targetLabel: targetItem.label,
-        run: () => void runTreeMutation(async () => {
-          const folder = await createFolder(availableFolderName(projects, "새 문서 묶음", destination), folderId);
+        run: () => void runTreeMutation(async (latest) => {
+          if (!hasTreeItem(latest, sourceItem.id) || !hasTreeItem(latest, targetItem.id) || !hasFolderLocation(latest, destination)) {
+            throw new Error(STALE_TARGET_MESSAGE);
+          }
+          const folder = await createFolder(availableFolderName(latest, "새 문서 묶음", destination), folderId);
           // 부분 실패 시에도 최종 서버 위치를 재조회해 실제 상태를 표시한다.
           await moveDocument(targetDocumentId, folder.id);
           await moveDocument(sourceDocumentId, folder.id);
@@ -144,8 +172,9 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
       });
       return;
     }
-    const { item, folderId, position } = resolution;
-    void runTreeMutation(async () => {
+    const { item, destination, folderId, position } = resolution;
+    void runTreeMutation(async (latest) => {
+      if (!hasTreeItem(latest, item.id) || !hasFolderLocation(latest, destination)) throw new Error(STALE_TARGET_MESSAGE);
       if (item.documentId) await moveDocument(item.documentId, folderId, position);
       else await moveFolder(item.id, folderId, position);
     }, "항목 이동 실패");
@@ -220,10 +249,12 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
   // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
   // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
   function convertContextTargetToMarkdown() {
+    const itemId = contextMenuItem?.id;
     const documentId = contextMenuItem?.documentId;
     setContextMenu(null);
-    if (!documentId) return;
-    void runTreeMutation(async () => {
+    if (!itemId || !documentId) return;
+    void runTreeMutation(async (latest) => {
+      if (!hasTreeItem(latest, itemId)) throw new Error(STALE_TARGET_MESSAGE);
       await convertDocumentToMarkdown(documentId);
     }, "Markdown 변환 실패");
   }
@@ -255,7 +286,9 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     if (!deleteConfirm) return;
     const { projectId, itemId, documentId, kind } = deleteConfirm;
     setDeleteConfirm(null);
-    void runTreeMutation(async () => {
+    void runTreeMutation(async (latest) => {
+      // 기다리는 동안 이미 사라졌으면 삭제 목적은 이뤄졌으므로 조용히 건너뛴다.
+      if (itemId ? !hasTreeItem(latest, itemId) : !latest.some((project) => project.id === projectId)) return;
       if (kind === "folder") await deleteFolder(itemId ?? projectId);
       else if (documentId) await deleteDocument(documentId);
     }, "삭제 실패");
@@ -274,12 +307,17 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     if (!nextLabel) return;
     const project = projects.find((project) => project.id === projectId);
     const item = itemId && project ? findTreeItem(project.items, itemId) : null;
-    const location = itemId ? findItemLocation(projects, itemId) : undefined;
-    if (!item?.documentId && folderNames(projects, itemId ?? projectId, location).has(normalizeTreeName(nextLabel))) {
+    const isDuplicateName = (tree: Project[]) => !item?.documentId
+      && folderNames(tree, itemId ?? projectId, itemId ? findItemLocation(tree, itemId) : undefined).has(normalizeTreeName(nextLabel));
+    if (isDuplicateName(projects)) {
       publishNotice({ kind: "failed", title: "이름 변경 실패", message: "같은 폴더 안에 같은 이름의 항목이 있습니다." });
       return;
     }
-    void runTreeMutation(async () => {
+    void runTreeMutation(async (latest) => {
+      const exists = itemId ? hasTreeItem(latest, itemId) : latest.some((entry) => entry.id === projectId);
+      if (!exists) throw new Error(STALE_TARGET_MESSAGE);
+      // 기다리는 동안 같은 폴더에 같은 이름이 생겼을 수 있어 실행 시점에 다시 확인한다.
+      if (isDuplicateName(latest)) throw new Error("같은 폴더 안에 같은 이름의 항목이 있습니다.");
       if (item?.documentId) await renameDocument(item.documentId, nextLabel);
       else if (projectId !== ROOT_DOCUMENTS_PROJECT_ID || itemId) await renameFolder(itemId ?? projectId, nextLabel);
     }, "이름 변경 실패");

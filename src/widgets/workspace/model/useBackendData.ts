@@ -55,8 +55,12 @@ export function useBackendData({
   const { refetch } = query;
   const { refetch: refetchGraph } = graphQuery;
   const refreshBackendData = useCallback(async (options?: { throwOnError?: boolean }) => {
-    await Promise.all([refetch({ throwOnError: options?.throwOnError }), refetchGraph()]);
-  }, [refetch, refetchGraph]);
+    const [documentsResult] = await Promise.all([refetch({ throwOnError: options?.throwOnError }), refetchGraph()]);
+    // 트리 변경 큐의 다음 작업이 렌더를 기다리지 않고 최신 트리를 보도록 바로 병합한다.
+    // 위 effect가 같은 데이터로 다시 병합해도 결과는 같다.
+    const tree = documentsResult.data?.tree;
+    if (tree) setProjects((current) => projectsFromServerTree(tree, current));
+  }, [refetch, refetchGraph, setProjects]);
 
   /** 업로드 낙관적 갱신용: query cache의 documents를 직접 수정한다. */
   const setDocuments = useCallback(

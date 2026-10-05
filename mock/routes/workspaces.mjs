@@ -115,8 +115,12 @@ export function registerWorkspaceRoutes(router) {
 
   router.delete("/api/workspaces/:wid/members/:uid", (ctx) => {
     const workspace = requireWorkspace(ctx);
-    if (!workspace || !requireOwner(ctx, workspace)) return;
-    if (ctx.params.uid === ctx.user.id) return error(ctx, 400, "자기 자신은 제거할 수 없습니다.");
+    if (!workspace) return;
+    // 본인 제거는 탈퇴다. 역할과 무관하게 허용하되 마지막 OWNER는 막는다. 타인 제거는 OWNER만 가능하다.
+    if (ctx.params.uid === ctx.user.id) {
+      const owners = state.members.filter((member) => member.workspace_id === workspace.id && member.role === "OWNER");
+      if (owners.length === 1 && owners[0].user_id === ctx.user.id) return error(ctx, 400, "마지막 OWNER는 탈퇴할 수 없습니다.");
+    } else if (!requireOwner(ctx, workspace)) return;
     state.members = state.members.filter((member) => !(member.workspace_id === workspace.id && member.user_id === ctx.params.uid));
     ctx.json(204);
   });

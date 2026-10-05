@@ -78,3 +78,8 @@ test("웹 서칭 설정은 기본 false이며 boolean만 받아들인다", () =>
   assert.equal(normalizeUserPreferences({ webSearch: true }).webSearch, true);
   assert.equal(normalizeUserPreferences({ webSearch: "yes" }).webSearch, false);
 });
+
+test("작업 제안 알림은 기본으로 켜고, 저장된 끔 값을 유지한다", () => {
+  assert.equal(normalizeUserPreferences({ notifications: { lint: false } }).notifications.suggest, true);
+  assert.equal(normalizeUserPreferences({ notifications: { suggest: false } }).notifications.suggest, false);
+});

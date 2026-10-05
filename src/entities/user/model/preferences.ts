@@ -33,6 +33,8 @@ export type UserPreferences = {
     failed: boolean;
     lint: boolean;
     restore: boolean;
+    // 위키 편입·Lint 실행을 권하는 제안 카드
+    suggest: boolean;
     query: boolean;
     browser: boolean;
   };
@@ -66,6 +68,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
     failed: true,
     lint: true,
     restore: true,
+    suggest: true,
     query: false,
     browser: false
   }
@@ -164,6 +167,10 @@ export function normalizeUserPreferences(value: unknown): UserPreferences {
       restore: booleanValue(
         notifications.restore,
         DEFAULT_USER_PREFERENCES.notifications.restore
+      ),
+      suggest: booleanValue(
+        notifications.suggest,
+        DEFAULT_USER_PREFERENCES.notifications.suggest
       ),
       query: booleanValue(
         notifications.query,

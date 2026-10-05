@@ -1,4 +1,4 @@
-// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·본문 저장·버전·ingest·변환.
+// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·본문 저장·버전·ingest·변환·편집 잠금.
 import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 
@@ -19,6 +19,22 @@ function requireDocument(ctx, workspace) {
   const doc = findDocument(workspace.id, ctx.params.id);
   if (!doc) error(ctx, 404, "문서를 찾을 수 없습니다.");
   return doc;
+}
+
+// 편집 잠금 TTL. 프론트는 남은 TTL의 1/3마다 heartbeat를 보낸다.
+const EDIT_LOCK_TTL_MS = 60_000;
+
+/** 만료되지 않은 잠금만 돌려준다. 만료된 잠금은 지운다. */
+function activeEditLock(documentId) {
+  const lock = state.editLocks.get(documentId);
+  if (lock && Date.parse(lock.expires_at) > Date.now()) return lock;
+  state.editLocks.delete(documentId);
+  return null;
+}
+
+/** 응답 시점에 남은 TTL(ttl_ms)을 붙인다. 프론트는 시계 차이와 무관하게 이 값으로 만료를 판단한다. */
+function withLockTtl(lock) {
+  return { ...lock, ttl_ms: Math.max(0, Date.parse(lock.expires_at) - Date.now()) };
 }
 
 function isTextDocument(doc) {
@@ -251,5 +267,43 @@ export function registerDocumentRoutes(router) {
     if (!doc) return;
     if (doc.document_role === "EDITABLE") return error(ctx, 400, "이미 Markdown 문서입니다.");
     ctx.json(202, startConvert(workspace, doc));
+  });
+
+  // 편집 잠금: 비었거나 만료됐거나 본인 보유면 획득, 타인 보유면 423(보유자 정보 포함).
+  router.post("/api/workspaces/:wid/documents/:id/edit-lock", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    const current = activeEditLock(doc.id);
+    if (current && current.holder_user_id !== ctx.user.id) return ctx.json(423, withLockTtl(current));
+    const lock = {
+      holder_user_id: ctx.user.id,
+      holder_display_name: ctx.user.display_name,
+      expires_at: new Date(Date.now() + EDIT_LOCK_TTL_MS).toISOString()
+    };
+    state.editLocks.set(doc.id, lock);
+    ctx.json(200, withLockTtl(lock));
+  });
+
+  // heartbeat: 본인이 보유한 유효 잠금만 연장한다. 만료·타인 보유는 구분 없이 409.
+  router.post("/api/workspaces/:wid/documents/:id/edit-lock/heartbeat", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    const current = activeEditLock(doc.id);
+    if (!current || current.holder_user_id !== ctx.user.id) return error(ctx, 409, "편집 잠금을 보유하고 있지 않습니다.");
+    const lock = { ...current, expires_at: new Date(Date.now() + EDIT_LOCK_TTL_MS).toISOString() };
+    state.editLocks.set(doc.id, lock);
+    ctx.json(200, withLockTtl(lock));
+  });
+
+  // 해제: 본인 잠금만 지우며 멱등이다.
+  router.delete("/api/workspaces/:wid/documents/:id/edit-lock", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    if (state.editLocks.get(ctx.params.id)?.holder_user_id === ctx.user.id) state.editLocks.delete(ctx.params.id);
+    ctx.json(204, null);
   });
 }

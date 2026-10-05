@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { SessionExpiredError } from "@/shared/lib/errors";
-import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat } from "../api/editLock";
-import { HEARTBEAT_RETRY_MS, parseLockExpiryMs, resolveHeartbeatDelayMs, resolveHeartbeatFailure } from "./editLockSchedule";
+import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
+import { HEARTBEAT_RETRY_MS, resolveHeartbeatDelayMs, resolveHeartbeatFailure, resolveLockElapsedMs, resolveLockRemainingMs, type LockClockAnchor } from "./editLockSchedule";
 
 export type EditLockPhase =
   /** 진입 직후. 잠금을 받기 전까지는 편집기를 열지 않는다. */
@@ -12,7 +12,7 @@ export type EditLockPhase =
   | "granted"
   /** 다른 사용자가 편집 중(423). */
   | "held"
-  /** 편집 중 잠금을 잃음(heartbeat 409). 이미 입력한 내용은 보이되 저장은 멈춘다. */
+  /** 편집 중 잠금을 잃음(heartbeat 409 후 재획득 실패). 이미 입력한 내용은 보이되 저장은 멈춘다. */
   | "lost"
   /** 403·404·네트워크 등으로 잠금을 확인하지 못함. */
   | "error";
@@ -25,7 +25,7 @@ export type EditLockState = {
 
 /**
  * 문서 편집 잠금을 진입 시 획득하고, 편집 중 주기적으로 연장하고, 종료 시 해제한다.
- * heartbeat가 409(잠금 상실)를 받으면 onLockLost로 autosave를 멈춘다.
+ * heartbeat가 409를 받으면 재획득을 시도하고, 그래도 받지 못하면 onLockLost로 autosave를 멈춘다.
  */
 export function useEditLock({
   documentId,
@@ -43,12 +43,23 @@ export function useEditLock({
     let disposed = false;
     let holding = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    // 서버가 마지막으로 알려준 잠금 만료 시각. heartbeat를 언제까지 다시 시도할지의 기준이다.
-    let expiresAtMs: number | null = null;
+    // 마지막 응답 기준 남은 잠금 시간과, 그 시간을 셀 기준점(요청을 보낸 시점).
+    // heartbeat를 언제까지 다시 시도할지의 기준이다. 서버 TTL을 로컬 경과 시간과 비교해
+    // 클라이언트 벽시계가 서버와 어긋나도 흔들리지 않는다.
+    let remainingMs: number | null = null;
+    let anchor: LockClockAnchor = { monoMs: 0, wallMs: 0 };
+    // heartbeat(재획득 포함)가 진행 중인지. 탭 복귀 즉시 heartbeat가 예약 heartbeat와 겹치지 않게 한다.
+    let beating = false;
 
-    function scheduleHeartbeat(expiresAt: string | undefined) {
-      expiresAtMs = parseLockExpiryMs(expiresAt);
-      timer = setTimeout(beat, resolveHeartbeatDelayMs(expiresAt, Date.now()));
+    /** 요청 직전에 기준점을 잡는다. 응답 지연만큼 마감이 늦게 잡히지 않게 한다. */
+    function markSent(): LockClockAnchor {
+      return { monoMs: performance.now(), wallMs: Date.now() };
+    }
+
+    function scheduleHeartbeat(lock: EditLockResponse, sentAt: LockClockAnchor) {
+      remainingMs = resolveLockRemainingMs(lock, sentAt.wallMs);
+      anchor = sentAt;
+      timer = setTimeout(beat, resolveHeartbeatDelayMs(lock.expires_at, sentAt.wallMs, lock.ttl_ms));
     }
 
     function loseLock(message: string) {
@@ -61,18 +72,30 @@ export function useEditLock({
 
     async function beat() {
       timer = null;
+      beating = true;
       try {
+        await sendHeartbeat();
+      } finally {
+        beating = false;
+      }
+    }
+
+    async function sendHeartbeat() {
+      try {
+        const sentAt = markSent();
         const lock = await sendEditLockHeartbeat(documentId);
         if (disposed) return;
-        scheduleHeartbeat(lock.expires_at);
+        scheduleHeartbeat(lock, sentAt);
       } catch (error) {
+        // 409는 만료 또는 타인 보유다. 백그라운드 탭 타이머 지연·절전으로 heartbeat가 늦으면
+        // 혼자 쓰는 문서도 만료되므로, 바로 잃지 않고 재획득으로 어느 쪽인지 확인한다.
         if (error instanceof EditLockLostError) {
-          loseLock(error.message);
+          if (!disposed) await reacquire(error);
           return;
         }
-        const action = resolveHeartbeatFailure(error, expiresAtMs, Date.now());
+        const action = resolveHeartbeatFailure(error, remainingMs, resolveLockElapsedMs(anchor, performance.now(), Date.now()));
         if (action === "terminal") {
-          loseLock(getErrorMessage(error, ERROR_MESSAGES.editLockLost));
+          loseLock(getErrorMessage(error, ERROR_MESSAGES.editLockExpired));
           return;
         }
         if (disposed) return;
@@ -82,7 +105,7 @@ export function useEditLock({
           return;
         }
         // 만료됐으면 보유를 주장하지 않고, 아무도 가져가지 않았는지 재획득으로 확인한다.
-        void reacquire(error);
+        await reacquire(error);
       }
     }
 
@@ -93,6 +116,7 @@ export function useEditLock({
      */
     async function reacquire(lastError: unknown) {
       try {
+        const sentAt = markSent();
         const lock = await acquireEditLock(documentId);
         if (disposed) {
           void releaseEditLock(documentId).catch(() => {});
@@ -100,17 +124,37 @@ export function useEditLock({
         }
         holding = true;
         setState({ phase: "granted", message: null });
-        scheduleHeartbeat(lock.expires_at);
+        scheduleHeartbeat(lock, sentAt);
       } catch (error) {
+        // 보유자 이름이 없는 423도 다른 사용자가 가져간 것이 확인된 경우라 그 사실을 알린다.
+        if (error instanceof EditLockHeldError && !error.lock.holder_display_name?.trim()) {
+          loseLock(ERROR_MESSAGES.editLockLost);
+          return;
+        }
         const reason = error instanceof EditLockHeldError
           || error instanceof EditLockDeniedError
           || error instanceof SessionExpiredError
           ? error
           : lastError;
-        loseLock(getErrorMessage(reason, ERROR_MESSAGES.editLockLost));
+        loseLock(getErrorMessage(reason, ERROR_MESSAGES.editLockExpired));
       }
     }
 
+    /**
+     * 탭이 다시 보이거나 연결이 돌아오면 예약을 기다리지 않고 바로 연장한다.
+     * 숨겨진 탭의 타이머는 브라우저가 분 단위로 늦추므로, 복귀 시점에 만료 전에 잠금을 붙잡는다.
+     */
+    function beatNow() {
+      if (!holding || beating || disposed) return;
+      if (document.visibilityState !== "visible") return;
+      if (timer) clearTimeout(timer);
+      void beat();
+    }
+
+    document.addEventListener("visibilitychange", beatNow);
+    window.addEventListener("online", beatNow);
+
+    const initialSentAt = markSent();
     acquireEditLock(documentId).then(
       (lock) => {
         if (disposed) {
@@ -120,7 +164,7 @@ export function useEditLock({
         }
         holding = true;
         setState({ phase: "granted", message: null });
-        scheduleHeartbeat(lock.expires_at);
+        scheduleHeartbeat(lock, initialSentAt);
       },
       (error) => {
         if (disposed) return;
@@ -134,6 +178,8 @@ export function useEditLock({
 
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", beatNow);
+      window.removeEventListener("online", beatNow);
       if (timer) clearTimeout(timer);
       timer = null;
       // 보유 중일 때만 해제한다. 423·409 상태에서는 우리 잠금이 아니다.

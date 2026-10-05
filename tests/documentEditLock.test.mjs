@@ -31,7 +31,9 @@ const {
   HEARTBEAT_RETRY_MS,
   describeEditLockHolder,
   resolveHeartbeatDelayMs,
-  resolveHeartbeatFailure
+  resolveHeartbeatFailure,
+  resolveLockElapsedMs,
+  resolveLockRemainingMs
 } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
 const { SessionExpiredError } = await import("../src/shared/lib/errors.ts");
@@ -46,15 +48,19 @@ const LOCK_PATH = `/api/workspaces/ws_test/documents/${DOCUMENT_ID}/edit-lock`;
 /** 편집 잠금 API는 선택된 워크스페이스와 access token을 쓴다. */
 function workspaceEnv(t) {
   const original = globalThis.window;
-  globalThis.window = {
+  const originalDocument = globalThis.document;
+  globalThis.window = Object.assign(new EventTarget(), {
     localStorage: {
       getItem: (key) => (key === "fruition.workspace_id" ? "ws_test" : null),
       setItem() {},
       removeItem() {}
     }
-  };
+  });
+  // 탭 복귀(visibilitychange)를 흉내 내려고 visibilityState를 바꿀 수 있는 document를 둔다.
+  globalThis.document = Object.assign(new EventTarget(), { visibilityState: "visible" });
   t.after(() => {
     globalThis.window = original;
+    globalThis.document = originalDocument;
   });
   saveAccessToken("test-access");
 }
@@ -131,7 +137,13 @@ test("heartbeat는 POST로 잠금을 연장하고 409면 EditLockLostError를 �
 
   assert.equal((await sendEditLockHeartbeat(DOCUMENT_ID)).expires_at, "2026-10-04T00:02:00Z");
   lost = true;
-  await assert.rejects(sendEditLockHeartbeat(DOCUMENT_ID), EditLockLostError);
+  await assert.rejects(sendEditLockHeartbeat(DOCUMENT_ID), (error) => {
+    assert.ok(error instanceof EditLockLostError);
+    // 409는 대부분 만료다. 혼자 쓰는 문서에서 다른 사용자를 탓하지 않는다.
+    assert.equal(error.message, ERROR_MESSAGES.editLockExpired);
+    assert.doesNotMatch(error.message, /다른 사용자/);
+    return true;
+  });
   assert.deepEqual(calls, [
     [`${LOCK_PATH}/heartbeat`, "POST"],
     [`${LOCK_PATH}/heartbeat`, "POST"]
@@ -209,6 +221,73 @@ test("heartbeat 실패 처리는 실패 횟수가 아니라 서버 만료 시각
   assert.equal(resolveHeartbeatFailure(new SessionExpiredError("로그인이 필요합니다."), now + 60_000, now), "terminal");
 });
 
+const TEN_MINUTES_MS = 10 * 60_000;
+
+/** 응답을 받은 순간의 단조 시계에 남은 시간을 더한 로컬 마감 시각. useEditLock과 같은 계산이다. */
+function localDeadline(lock, monotonicNowMs, wallNowMs) {
+  const remaining = resolveLockRemainingMs(lock, wallNowMs);
+  return remaining === null ? null : monotonicNowMs + remaining;
+}
+
+test("클라이언트 시계가 서버보다 느려도 서버 TTL이 지나면 heartbeat 실패 시 재획득한다", () => {
+  const serverNow = Date.parse("2026-10-04T00:10:00Z");
+  const network = new Error("Failed to fetch");
+  const lock = { expires_at: new Date(serverNow + 30_000).toISOString(), ttl_ms: 30_000 };
+
+  // 응답 시점 단조 시계 1초, 클라이언트 벽시계는 서버보다 10분 느리다.
+  const deadline = localDeadline(lock, 1_000, serverNow - TEN_MINUTES_MS);
+
+  // 서버 TTL(30초)이 지난 뒤의 실패는 만료로 보고 재획득으로 확인한다.
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 30_001), "reacquire");
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 29_000), "retry");
+});
+
+test("클라이언트 시계가 서버보다 빨라도 서버 TTL이 남아 있으면 heartbeat 실패 시 재시도한다", () => {
+  const serverNow = Date.parse("2026-10-04T00:10:00Z");
+  const network = new Error("Failed to fetch");
+  const lock = { expires_at: new Date(serverNow + 30_000).toISOString(), ttl_ms: 30_000 };
+
+  const deadline = localDeadline(lock, 1_000, serverNow + TEN_MINUTES_MS);
+
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 10_000), "retry");
+  // 주기도 시계 차이와 무관하게 TTL의 1/3이다.
+  assert.equal(resolveHeartbeatDelayMs(lock.expires_at, serverNow + TEN_MINUTES_MS, lock.ttl_ms), 10_000);
+});
+
+test("ttl_ms가 없는 구버전 응답은 expires_at과 클라이언트 시계로 판단한다", () => {
+  const now = Date.parse("2026-10-04T00:00:00Z");
+  const network = new Error("Failed to fetch");
+  const lock = { expires_at: new Date(now + 30_000).toISOString() };
+
+  assert.equal(resolveLockRemainingMs(lock, now), 30_000);
+  const deadline = localDeadline(lock, 1_000, now);
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 29_000), "retry");
+  assert.equal(resolveHeartbeatFailure(network, deadline, 1_000 + 30_000), "reacquire");
+  assert.equal(resolveHeartbeatDelayMs(lock.expires_at, now, undefined), 10_000);
+  // 만료 시각도 TTL도 없으면 기존처럼 판단 근거가 없다.
+  assert.equal(resolveLockRemainingMs({}, now), null);
+});
+
+test("절전으로 단조 시계가 멈춰도 벽시계 경과로 만료를 판단한다", () => {
+  const network = new Error("Failed to fetch");
+  const sentAt = { monoMs: 1_000, wallMs: Date.parse("2026-10-04T00:00:00Z") };
+
+  // 10분 절전: 단조 시계는 거의 그대로, 벽시계만 10분 흘렀다. 서버 TTL 30초는 이미 지났다.
+  const elapsed = resolveLockElapsedMs(sentAt, 1_000 + 500, sentAt.wallMs + TEN_MINUTES_MS);
+  assert.equal(elapsed, TEN_MINUTES_MS);
+  assert.equal(resolveHeartbeatFailure(network, 30_000, elapsed), "reacquire");
+});
+
+test("벽시계가 뒤로 바뀌어도 단조 시계 경과로 판단한다", () => {
+  const network = new Error("Failed to fetch");
+  const sentAt = { monoMs: 1_000, wallMs: Date.parse("2026-10-04T00:00:00Z") };
+
+  // 사용자가 시계를 1시간 되돌렸다. 실제로는 10초 흘렀다.
+  const elapsed = resolveLockElapsedMs(sentAt, 1_000 + 10_000, sentAt.wallMs - 3_600_000);
+  assert.equal(elapsed, 10_000);
+  assert.equal(resolveHeartbeatFailure(network, 30_000, elapsed), "retry");
+});
+
 /** mock timer를 진행시킨 뒤 heartbeat의 비동기 후속 작업이 끝날 틈을 준다. */
 async function advance(t, ms) {
   t.mock.timers.tick(ms);
@@ -218,6 +297,8 @@ async function advance(t, ms) {
 function lockEnv(t, { expiresInMs, onHeartbeat, onAcquire }) {
   workspaceEnv(t);
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  // 단조 시계도 mock 시간을 따르게 한다. 벽시계와 어긋나는 상황은 응답의 expires_at으로 흉내 낸다.
+  t.mock.method(performance, "now", () => Date.now());
   const acquires = [];
   t.mock.method(globalThis, "fetch", async (path, init) => {
     if (path.endsWith("/heartbeat")) return onHeartbeat();
@@ -291,6 +372,24 @@ test("만료 후 다른 사용자가 잠금을 가져갔으면 재획득 실패�
   assert.match(lost[0], /다른 사용자/);
 });
 
+test("서버 시계가 10분 앞서도 ttl_ms가 지나면 재시도를 멈추고 재획득한다", async (t) => {
+  // 서버 시계 = 클라이언트 + 10분. expires_at만 보면 10분 넘게 만료 전으로 보인다.
+  const serverLock = () => Response.json({
+    expires_at: new Date(Date.now() + TEN_MINUTES_MS + 30_000).toISOString(),
+    ttl_ms: 30_000
+  });
+  const { lost, acquires } = lockEnv(t, {
+    onHeartbeat: () => { throw new Error("Failed to fetch"); },
+    onAcquire: serverLock
+  });
+  await advance(t, 0);
+
+  for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.ok(acquires.length >= 2, `서버 TTL이 지나면 재획득으로 사실을 확인한다 (acquires=${acquires.length})`);
+  assert.deepEqual(lost, []);
+});
+
 test("잠글 수 없는 문서(403·404)는 네트워크 오류와 구분된다", async (t) => {
   workspaceEnv(t);
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 403 }));
@@ -299,4 +398,171 @@ test("잠글 수 없는 문서(403·404)는 네트워크 오류와 구분된다"
     assert.equal(error.message, ERROR_MESSAGES.editLockForbidden);
     return true;
   });
+});
+
+/** 첫 heartbeat는 409, 재획득은 onReacquire 응답. 혼자 쓰는 문서에서 heartbeat가 늦어 만료된 상황이다. */
+function expiredHeartbeatEnv(t, onReacquire) {
+  let heartbeats = 0;
+  let acquireCount = 0;
+  const env = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => {
+      heartbeats++;
+      return heartbeats === 1
+        ? Response.json({ error: { message: "lock expired" } }, { status: 409 })
+        : Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() });
+    },
+    onAcquire: () => {
+      acquireCount++;
+      return acquireCount === 1
+        ? Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() })
+        : onReacquire();
+    }
+  });
+  return { ...env, heartbeats: () => heartbeats };
+}
+
+test("heartbeat 409라도 재획득이 되면 잠금을 잃지 않고 heartbeat를 이어간다", async (t) => {
+  const { lost, acquires, view, heartbeats } = expiredHeartbeatEnv(t, () => Response.json({
+    expires_at: new Date(Date.now() + 30_000).toISOString()
+  }));
+  await advance(t, 0);
+
+  // 첫 heartbeat(10초)가 409를 받는다.
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, [], "만료됐어도 아무도 가져가지 않았으면 저장을 멈추지 않는다");
+  assert.equal(acquires.length, 2, "409를 받으면 재획득으로 사실을 확인한다");
+  assert.equal(view.rerender().phase, "granted");
+
+  await advance(t, 10_000);
+  assert.equal(heartbeats(), 2, "재획득한 잠금도 계속 연장한다");
+});
+
+test("heartbeat 409 후 재획득이 423이면 보유자 이름으로 잠금 상실을 알린다", async (t) => {
+  const { lost, view } = expiredHeartbeatEnv(t, () => Response.json(
+    { holder_display_name: "테스트사용자", holder_user_id: "user_other" },
+    { status: 423 }
+  ));
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, ["테스트사용자님이 편집 중입니다."]);
+  assert.equal(view.rerender().phase, "lost");
+});
+
+test("heartbeat 409 후 보유자 이름 없는 423이면 다른 사용자 문구로 알린다", async (t) => {
+  const { lost } = expiredHeartbeatEnv(t, () => Response.json({}, { status: 423 }));
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, [ERROR_MESSAGES.editLockLost]);
+});
+
+test("heartbeat 409 후 재획득이 403이면 권한 문구로 잠금을 잃는다", async (t) => {
+  const { lost } = expiredHeartbeatEnv(t, () => new Response(null, { status: 403 }));
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  assert.deepEqual(lost, [ERROR_MESSAGES.editLockForbidden]);
+});
+
+test("heartbeat 409 후 재획득도 일시 오류면 만료 문구로 잠금을 잃는다", async (t) => {
+  const { lost, view } = expiredHeartbeatEnv(t, () => { throw new Error("Failed to fetch"); });
+  await advance(t, 0);
+  await advance(t, 10_000);
+
+  // 서버가 이미 만료시킨 잠금이라 보유를 주장하지 않는다. 다만 다른 사용자를 탓하지 않는다.
+  assert.deepEqual(lost, [ERROR_MESSAGES.editLockExpired]);
+  assert.equal(view.rerender().phase, "lost");
+});
+
+test("탭이 다시 보이거나 온라인이 되면 예약을 기다리지 않고 heartbeat를 보낸다", async (t) => {
+  let heartbeats = 0;
+  let release = null;
+  const { lost, view } = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => {
+      heartbeats++;
+      return new Promise((resolve) => {
+        release = () => resolve(Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString() }));
+      });
+    }
+  });
+  await advance(t, 0);
+
+  document.visibilityState = "hidden";
+  document.dispatchEvent(new Event("visibilitychange"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 0, "숨겨질 때는 보내지 않는다");
+
+  document.visibilityState = "visible";
+  document.dispatchEvent(new Event("visibilitychange"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 1, "다시 보이면 즉시 보낸다");
+
+  // 응답을 기다리는 중에는 겹쳐 보내지 않는다.
+  document.dispatchEvent(new Event("visibilitychange"));
+  window.dispatchEvent(new Event("online"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 1, "진행 중인 heartbeat가 있으면 중복 요청하지 않는다");
+
+  release();
+  await advance(t, 0);
+  window.dispatchEvent(new Event("online"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 2, "온라인 복귀에도 즉시 보낸다");
+  release();
+  await advance(t, 0);
+
+  // 즉시 보낸 뒤에는 원래 예약이 취소돼 같은 주기에 두 번 보내지 않는다.
+  await advance(t, 9_999);
+  assert.equal(heartbeats, 2);
+  await advance(t, 1);
+  assert.equal(heartbeats, 3);
+  release();
+  await advance(t, 0);
+
+  view.unmount();
+  document.dispatchEvent(new Event("visibilitychange"));
+  window.dispatchEvent(new Event("online"));
+  await advance(t, 0);
+  assert.equal(heartbeats, 3, "편집기를 떠나면 리스너를 지운다");
+  assert.deepEqual(lost, []);
+});
+
+test("편집기를 떠나면 탭 복귀·온라인 리스너를 해제한다", async (t) => {
+  const { view } = lockEnv(t, { expiresInMs: 30_000 });
+  // disposed 가드가 있어 이벤트를 쏴 보는 것만으로는 해제 누락이 드러나지 않는다. 등록 수를 직접 센다.
+  const active = { visibilitychange: new Set(), online: new Set() };
+  for (const target of [document, window]) {
+    const add = target.addEventListener.bind(target);
+    const remove = target.removeEventListener.bind(target);
+    target.addEventListener = (type, listener, options) => { active[type]?.add(listener); add(type, listener, options); };
+    target.removeEventListener = (type, listener, options) => { active[type]?.delete(listener); remove(type, listener, options); };
+  }
+  view.unmount();
+  const remounted = render(() => useEditLock({ documentId: DOCUMENT_ID, onLockLost() {} }));
+  await advance(t, 0);
+  assert.equal(active.visibilitychange.size, 1);
+  assert.equal(active.online.size, 1);
+
+  remounted.unmount();
+  assert.equal(active.visibilitychange.size, 0, "visibilitychange 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
+  assert.equal(active.online.size, 0, "online 리스너가 남으면 떠난 편집기가 계속 이벤트를 받는다");
+});
+
+test("절전 직후 오프라인이어도 서버 TTL이 지났으면 재시도 대신 재획득한다", async (t) => {
+  const { acquires } = lockEnv(t, {
+    expiresInMs: 30_000,
+    onHeartbeat: () => { throw new Error("Failed to fetch"); }
+  });
+  await advance(t, 0);
+  // 획득 직후 절전에 들어가 단조 시계가 멈춘 상황을 만든다. 벽시계(mock Date)는 계속 흐른다.
+  const frozenMono = performance.now();
+  performance.now.mock.mockImplementation(() => frozenMono);
+
+  for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
+
+  assert.ok(acquires.length >= 2, `만료가 지나면 재획득으로 확인한다 (acquires=${acquires.length})`);
 });
