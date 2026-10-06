@@ -143,6 +143,9 @@ export function HistoryPanel({
                 <span className={styles["history-item-label"]}>
                   v{item.version}
                   {item.version === currentVersion && <em className={styles["history-item-badge"]}>현재</em>}
+                  {item.restored_from_version != null && (
+                    <span className={styles["history-item-restored"]}>v{item.restored_from_version}에서 복원</span>
+                  )}
                 </span>
                 <span className={styles["history-item-time"]}>{formatTimestamp(item.created_at)}</span>
               </button>

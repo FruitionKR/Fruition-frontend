@@ -106,6 +106,14 @@
   font-weight: 600;
 }
 
+.history-item-restored {
+  color: #8a8a8a;
+  font-size: 11px;
+  font-weight: 400;
+  /* 한글 문구가 글자 사이에서 접히지 않게 한 줄로 둔다(버전·배지·문구·시간이 360px 패널에 들어감). */
+  white-space: nowrap;
+}
+
 .history-item-time {
   flex: none;
   color: #8a8a8a;

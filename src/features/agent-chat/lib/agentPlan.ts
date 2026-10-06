@@ -111,6 +111,11 @@ export function shouldPollAgentPlan(status: string | undefined): boolean {
   return !status || ["queued", "planning", "awaiting_approval", "executing", "verifying", "cancel_requested", "rolling_back"].includes(status);
 }
 
+/** 같은 화면에서 진행 중 → 종료 전이를 봤을 때만 참이다. 이미 끝난 계획을 다시 마운트할 때는 거짓. */
+export function isPlanRunSettled(previous: string | undefined, next: string | undefined): boolean {
+  return previous !== undefined && next !== undefined && shouldPollAgentPlan(previous) && !shouldPollAgentPlan(next);
+}
+
 export function agentPlanStatusLabel(status: string | undefined): string {
   const labels: Record<string, string> = {
     queued: "계획 생성 대기", planning: "계획 생성 중", awaiting_approval: "승인 대기",

@@ -4,17 +4,31 @@ import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspa
 import { getSessionContext } from "@/entities/chat/api/chat";
 import type { AiModelSelection } from "@/entities/ai";
 import type { BackendData, QueryResponse, WikiGraphResponse, WikiPageDetailResponse } from "@/entities/wiki/model/wiki";
-import type { DocumentListResponse } from "@/entities/document/model/document";
+import type { DocumentItemResponse } from "@/entities/document/model/document";
+import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
 
+/** 폴링이 공유하는 문서·트리 쿼리 키. 계획 미리보기도 이 캐시의 트리를 쓴다. */
+export const documentDataQueryKey = (workspaceId: string | null) => ["backendData", workspaceId, "documents"] as const;
+
+/** 트리 문서 항목은 문서 목록 조회와 같은 항목을 싣는다. 서버 목록과 같은 순서로 평탄화한다. */
+export function documentsFromTree(items: ServerTreeItem[]): DocumentItemResponse[] {
+  const documents: DocumentItemResponse[] = [];
+  const order = new Map<string, number>();
+  const visit = (nodes: ServerTreeItem[]) => nodes.forEach((node) => {
+    if (node.document) {
+      documents.push(node.document);
+      order.set(node.document.id, node.sort_order);
+    }
+    visit(node.children ?? []);
+  });
+  visit(items);
+  return documents.sort((a, b) => (order.get(a.id)! - order.get(b.id)!) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** documents 목록 조회는 같은 데이터라 트리 한 번만 받는다(#66). */
 export async function fetchDocumentData(): Promise<Pick<BackendData, "documents" | "tree">> {
-  const workspaceId = getWorkspaceId();
-  const [documentsResponse, tree] = await Promise.all([
-    apiFetch(workspacePath(workspaceId, "documents"), { cache: "no-store" }),
-    fetchDocumentTree(workspaceId)
-  ]);
-
-  const documents = await parseJsonOrThrow<DocumentListResponse>(documentsResponse, ERROR_MESSAGES.documentsLoadFailed);
-  return { documents: documents.documents ?? [], tree: tree.items };
+  const tree = await fetchDocumentTree(getWorkspaceId(), ERROR_MESSAGES.documentsLoadFailed);
+  return { documents: documentsFromTree(tree.items), tree: tree.items };
 }
 
 export async function fetchWikiGraph(): Promise<WikiGraphResponse> {

@@ -11,6 +11,7 @@ import * as segments from "../src/shared/lib/markdownSegments.ts";
 import * as closedMath from "../src/shared/lib/remarkClosedMath.ts";
 import * as sourceBlocks from "../src/shared/lib/markdownSourceBlocks.ts";
 import * as customTokens from "../src/shared/lib/remarkCustomTokens.ts";
+import * as externalResources from "../src/shared/lib/externalResources.ts";
 
 const require = createRequire(import.meta.url);
 const output = ts.transpileModule(readFileSync(new URL("../src/shared/ui/MarkdownViewer.tsx", import.meta.url), "utf8"), {
@@ -23,6 +24,7 @@ const aliases = {
   "@/shared/lib/markdownSegments": segments,
   "@/shared/lib/markdownSourceBlocks": sourceBlocks,
   "@/shared/lib/remarkCustomTokens": customTokens,
+  "@/shared/lib/externalResources": externalResources,
   "@/shared/ui/markdown/ManagedImage": { ManagedImage: (props) => React.createElement("img", props) }
 };
 runInNewContext(output, { exports, require: (id) => aliases[id] ?? require(id) });

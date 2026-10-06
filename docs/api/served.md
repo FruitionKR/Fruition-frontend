@@ -5,7 +5,7 @@
 이 저장소가 직접 서비스하는 Next.js route handler다. 실제 서버 엔드포인트이므로
 backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 사항이 없더라도 항목을 생략하지 않는다.
 
-- 핸들러 수: 5 (파일 3개)
+- 핸들러 수: 6 (파일 4개)
 
 ## API 목차
 
@@ -16,6 +16,7 @@ backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 �
 | [`POST /access/verify`](#detail-post-access-verify) | 접근 코드를 검증하고 해제 쿠키를 심는다 |
 | [`POST /wake`](#detail-post-wake) | 절전 중인 서버(EKS 노드)의 기동을 요청한다 |
 | [`GET /wake`](#detail-get-wake) | 서버 절전 상태(`phase`)를 알려준다 |
+| [`POST /csp-report`](#detail-post-csp-report) | 브라우저의 CSP(Report-Only) 위반 보고를 받아 요약 로그로 남긴다 |
 
 ## 한눈에 보기
 
@@ -26,6 +27,7 @@ backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 �
 | `POST /access/verify` | `{ code }` | `200` `{ ok: true }` + `Set-Cookie` | 클라이언트당 10분 10회 실패까지 | `401` 코드 불일치, `429` 시도 초과 |
 | `POST /wake` | 쿠키 `fruition_access` | `204` | `ACCESS_CODE` 설정 + 접근 코드 통과 | `403` 접근 코드 미통과·게이트 꺼짐 |
 | `GET /wake` | 쿠키 `fruition_access` | `200` `{ phase }` | 없음 | 없음 (미통과·게이트 꺼짐·실패는 `phase: "unknown"`) |
+| `POST /csp-report` | CSP 위반 보고 JSON | `204` | 본문 16KB 이하만 읽음 | 없음 (형식 오류·초과도 `204`) |
 
 ---
 
@@ -419,6 +421,82 @@ curl -s http://localhost:3000/wake
 - 핸들러: `app/wake/route.ts` (`GET`)
 - DynamoDB 조회: `app/wake/requestWake.ts` (`readWakePhase`)
 - 호출 측: `src/views/login/model/useServerWake.ts` (안내 중 10초 간격 확인, 최대 15분), 판단 `src/views/login/model/wakeStep.ts`
+
+---
+
+<a id="detail-post-csp-report"></a>
+## `POST /csp-report`
+
+### 1. Method + Path
+
+`POST /csp-report`
+
+### 2. 목적
+
+앱 화면 응답에 붙인 `Content-Security-Policy-Report-Only`의 `report-uri`다(이슈 #77).
+CSP를 강제하기 전에 어떤 지시어가 어느 오리진을 막게 될지 수집한다. 보고에서 지시어와 차단 오리진만
+뽑아 서버 로그에 `[csp-report] <directive> <blocked>` 한 줄로 남긴다.
+
+### 3. Auth 필요 여부
+
+- 불필요하다. 브라우저가 쿠키·토큰 없이 자동으로 보낸다.
+- `/api` 밖이라 `middleware.ts` 접근 코드 게이트를 거치지 않는다. 게이트를 해제하기 전 화면의 위반도 받기 위해서다.
+- 누구나 보낼 수 있으므로 본문 크기·로그 수를 제한하고(8번), 응답은 항상 같다.
+
+### 4. Request body
+
+| 위치 | 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|---|
+| header | `Content-Type` | `string` | 아니오 | `application/csp-report` 또는 `application/reports+json`. 값과 관계없이 본문을 JSON으로 읽는다 |
+| body | `csp-report` | `object` | 아니오 | report-uri 형식. `effective-directive`(없으면 `violated-directive`)와 `blocked-uri`만 쓴다 |
+| body | `[]` | `array` | 아니오 | Reporting API 형식. `type: "csp-violation"` 항목의 `body.effectiveDirective`·`body.blockedURL`만 쓴다 |
+
+`document-uri`·`source-file`·`script-sample` 등 나머지 필드는 읽지 않고 버린다.
+
+### 5. Response body
+
+- HTTP `204`, 본문 없음, `Cache-Control: no-store`
+
+### 6. Error response
+
+| 상태 | 발생 조건 | 본문 |
+|---|---|---|
+| - | - | - |
+
+오류 응답이 없다. JSON 형식 오류, 16KB 초과(`Content-Length` 선검사 + 스트림 상한), 로그 상한 초과도 모두 `204`다.
+
+### 7. Pagination / filtering
+
+- 해당 없음. 한 요청에서 최대 10건까지만 요약한다.
+
+### 8. 권한 규칙
+
+- 권한 검사가 없다. 대신 남용을 다음으로 제한한다.
+  - 본문 16KB 초과는 읽지 않는다.
+  - 로그는 서버 프로세스마다 분당 60줄까지만 남긴다.
+  - 지시어는 `[a-z-]` 40자 이내만, 차단 대상은 `inline`·`eval` 같은 키워드, `data`·`blob`, http(s)·ws(s) 오리진만 남긴다.
+    경로·쿼리(문서 내용이 실릴 수 있음)와 문서 URL은 기록하지 않는다.
+
+### 9. 예시 요청/응답
+
+```sh
+curl -i -X POST http://localhost:3000/csp-report \
+  -H 'Content-Type: application/csp-report' \
+  -d '{"csp-report":{"effective-directive":"img-src","blocked-uri":"https://attacker.example/p.png?q=1"}}'
+```
+
+```
+HTTP/1.1 204 No Content
+Cache-Control: no-store
+```
+
+서버 로그: `[csp-report] img-src https://attacker.example`
+
+### 10. 구현 파일
+
+- 핸들러: `app/csp-report/route.ts` (`export const dynamic = "force-dynamic"`)
+- 요약·상한: `app/csp-report/cspReport.ts` (`summarizeCspReports`, `readCappedText`, `createLogLimiter`)
+- 정책 문자열: `src/shared/lib/contentSecurityPolicy.mjs` (`buildContentSecurityPolicy`), 헤더 부착: `next.config.mjs` `headers()` (production만)
 
 ---
 
