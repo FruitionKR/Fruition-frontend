@@ -98,3 +98,11 @@ test("이미지 alt는 Crepe 비율 형식(소수점 둘째 자리)일 때만 �
   assert.equal(formatImageAlt("", 0.5), "0.50");
   assert.equal(formatImageAlt("2024", 1), "2024");
 });
+
+test("외부 URL 안에 끼어 있는 관리 이미지 경로는 뽑지 않는다", async () => {
+  const { extractManagedAssetPaths } = await import("../src/shared/api/assets.ts");
+  const inner = "/api/workspaces/ws_1/assets/asset_1/content";
+  assert.deepEqual(extractManagedAssetPaths(`![](https://evil.example/x${inner})`), []);
+  assert.deepEqual(extractManagedAssetPaths(`![](https://evil.example${inner})`), []);
+  assert.deepEqual(extractManagedAssetPaths(`<img src="${inner}"> [r]: ${inner}\n${inner}`), [inner]);
+});

@@ -145,3 +145,13 @@ test("로그 상한을 넘긴 보고는 버리고 다음 창에서 버린 건수
   const next = warn.mock.calls.slice(60).map((call) => call.arguments[0]);
   assert.deepEqual(next, ["[csp-report] dropped 10 reports in previous window", "[csp-report] img-src https://a0.example"]);
 });
+
+test("CSP 보고 요약은 알려진 키워드를 남기고 지나치게 긴 오리진은 잘라 둔다", () => {
+  const keywords = ["mediastream", "filesystem", "about"].map((blocked) => ({ "csp-report": { "effective-directive": "img-src", "blocked-uri": blocked } }));
+  assert.deepEqual(keywords.flatMap((report) => summarizeCspReports(JSON.stringify(report))).map((summary) => summary.blocked), ["mediastream", "filesystem", "about"]);
+  const longHost = `https://${"a".repeat(60)}.${"b".repeat(60)}.${"c".repeat(60)}.${"d".repeat(60)}.example/x?q=secret`;
+  const [summary] = summarizeCspReports(JSON.stringify({ "csp-report": { "effective-directive": "img-src", "blocked-uri": longHost } }));
+  assert.ok(summary.blocked.length <= 200);
+  assert.ok(summary.blocked.startsWith("https://aaaa"));
+  assert.doesNotMatch(summary.blocked, /secret/);
+});

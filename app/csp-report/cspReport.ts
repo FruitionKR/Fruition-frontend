@@ -10,7 +10,12 @@ export const MAX_REPORT_BYTES = 16 * 1024;
 const MAX_SUMMARIES_PER_REQUEST = 10;
 const DIRECTIVE = /^[a-z-]{1,40}$/;
 // blocked-uri 자리에 오는 CSP 키워드. 무인증 엔드포인트라 이 밖의 글자는 로그에 그대로 남기지 않는다.
-const BLOCKED_KEYWORDS = new Set(["inline", "eval", "wasm-eval", "trusted-types-policy", "trusted-types-sink", "self", "data", "blob"]);
+const BLOCKED_KEYWORDS = new Set([
+  "inline", "eval", "wasm-eval", "trusted-types-policy", "trusted-types-sink",
+  "self", "data", "blob", "mediastream", "filesystem", "about"
+]);
+// 호스트가 비정상적으로 길면(최대 수 KB) 상한 안에서도 로그가 커지므로 오리진을 잘라 남긴다.
+const MAX_ORIGIN_LENGTH = 200;
 
 function normalizeDirective(value: unknown): string {
   if (typeof value !== "string") return "unknown";
@@ -26,7 +31,7 @@ function normalizeBlocked(value: unknown): string {
     const url = new URL(value);
     if (url.protocol === "data:" || url.protocol === "blob:") return url.protocol.slice(0, -1);
     // 경로·쿼리에 문서 내용이 실릴 수 있으므로 오리진만 남긴다
-    if (["http:", "https:", "ws:", "wss:"].includes(url.protocol)) return url.origin;
+    if (["http:", "https:", "ws:", "wss:"].includes(url.protocol)) return url.origin.slice(0, MAX_ORIGIN_LENGTH);
     return "other";
   } catch {
     return "other";

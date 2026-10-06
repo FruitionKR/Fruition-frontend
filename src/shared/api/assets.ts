@@ -3,8 +3,10 @@ import { apiFetch, throwIfNotOk } from "@/shared/api/client";
 // 관리 이미지 경로 판별은 외부 이미지 분류와 같은 기준을 쓰도록 externalResources에 둔다.
 export { isManagedAssetPath } from "@/shared/lib/externalResources";
 
-// isManagedAssetPath와 같은 ID 문자만 받고, 뒤에 쿼리·조각 등이 붙은 경로는 뽑지 않는다
-const MANAGED_ASSET_PATH_IN_TEXT = /\/api\/workspaces\/[A-Za-z0-9_-]+\/assets\/[A-Za-z0-9_-]+\/content(?![^\s)>"'])/g;
+// isManagedAssetPath와 같은 ID 문자만 받고, 뒤에 쿼리·조각 등이 붙은 경로는 뽑지 않는다.
+// 앞도 Markdown·HTML에서 주소가 시작하는 자리(줄 처음·공백·괄호·꺾쇠·따옴표·=)만 받아,
+// 외부 URL 안에 끼어 있는 경로(https://host/x/api/...)를 미리 받지 않는다.
+const MANAGED_ASSET_PATH_IN_TEXT = /(?<![^\s(<"'=])\/api\/workspaces\/[A-Za-z0-9_-]+\/assets\/[A-Za-z0-9_-]+\/content(?![^\s)>"'])/g;
 
 /** 본문 문자열에 들어 있는 관리 이미지 경로 목록(중복 제거). 편집기를 만들기 전에 미리 받아 두는 데 쓴다. */
 export function extractManagedAssetPaths(markdown: string): string[] {
