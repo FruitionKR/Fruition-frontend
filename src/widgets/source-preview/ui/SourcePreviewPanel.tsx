@@ -8,7 +8,6 @@ import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { HistoryPanel } from "@/features/document-history";
 import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
-import { resolveSourceBlockRanges } from "@/entities/document/lib/sourceBlockRanges";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
@@ -18,6 +17,7 @@ import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entit
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
 import { canShowHighlightedMarkdown, findHighlightedScrollTarget } from "../lib/highlightScroll";
+import { getSourceHighlightStatus, resolveHighlightRanges } from "../lib/sourceHighlightState";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
@@ -84,6 +84,8 @@ export function SourcePreviewPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rawMarkdown, setRawMarkdown] = useState<string | null>(null);
+  // 화면 본문을 불러온 문서와 횟수. 근거 block 조회 키로 써서 본문이 바뀌면(복원·재편입 등) block도 다시 받는다.
+  const [markdownLoad, setMarkdownLoad] = useState<{ documentId: string; count: number } | null>(null);
   const [noteContentVersion, setNoteContentVersion] = useState(0);
   const [rawDocumentUrl, setRawDocumentUrl] = useState<string | null>(null);
   // 텍스트 원본(TXT 등)은 iframe이 흰 배경으로 그리므로 본문을 직접 받아 패널 배경 위에 그린다.
@@ -263,6 +265,7 @@ export function SourcePreviewPanel({
     if (pageId || !documentId) {
       loadedDocumentIdRef.current = null;
       setRawMarkdown(null);
+      setMarkdownLoad(null);
       setNoteContentVersion(0);
       setRawDocumentUrl(null);
       return;
@@ -277,6 +280,7 @@ export function SourcePreviewPanel({
     if (!isSameDocumentReload) {
       setIsLoading(true);
       setRawMarkdown(null);
+      setMarkdownLoad(null);
       setNoteContentVersion(0);
       setRawDocumentUrl(null);
       setRawText(null);
@@ -290,6 +294,7 @@ export function SourcePreviewPanel({
         if (draft) {
           if (!ignore) {
             setRawMarkdown(draft.markdown);
+            setMarkdownLoad((previous) => ({ documentId, count: (previous?.count ?? 0) + 1 }));
             setNoteContentVersion(draft.content_version);
           }
           return;
@@ -298,6 +303,7 @@ export function SourcePreviewPanel({
         const text = await blob.text();
         if (!ignore) {
           setRawMarkdown(text);
+          setMarkdownLoad((previous) => ({ documentId, count: (previous?.count ?? 0) + 1 }));
           setNoteContentVersion(0);
         }
         return;
@@ -342,34 +348,40 @@ export function SourcePreviewPanel({
   }, [documentId, documentReloadCount, isMarkdownFile, isPdfFile, isTextFile, pageId]);
 
   // 근거 block ID는 영구 ID라 본문을 다시 잘라 순번을 매기면 어긋난다(#65). 서버 block 위치를 받아 맞춘다.
-  const isBlocksQueryEnabled = isMarkdownFile && !!documentId && selectedBlockHighlights.length > 0;
+  // 본문을 불러온 뒤에 그 본문 버전 키로 조회해, 복원·재편입 전 응답을 새 본문에 적용하지 않게 한다.
+  const isBlocksQueryEnabled = isMarkdownFile
+    && !!documentId
+    && markdownLoad?.documentId === documentId
+    && selectedBlockHighlights.length > 0;
   const blocksQuery = useQuery({
-    queryKey: ["document-blocks", documentId],
+    queryKey: ["document-blocks", documentId, markdownLoad?.count],
     queryFn: () => fetchDocumentBlocks(documentId as string),
-    enabled: isBlocksQueryEnabled
+    enabled: isBlocksQueryEnabled,
+    // 같은 문서를 다시 불러오는 동안에는 이전 응답으로 본문을 유지한다(서버 줄 범위는 믿지 않는다).
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === documentId ? previous : undefined
   });
-  const isBlocksLoading = isBlocksQueryEnabled && blocksQuery.isPending;
-  const resolvedHighlight = useMemo(() => {
-    if (rawMarkdown === null || !blocksQuery.data) return null;
-    return resolveSourceBlockRanges(
-      rawMarkdown,
-      blocksQuery.data,
-      selectedBlockHighlights.map((highlight) => highlight.block_id)
-    );
-  }, [blocksQuery.data, rawMarkdown, selectedBlockHighlights]);
+  const resolvedHighlight = useMemo(() => resolveHighlightRanges(
+    rawMarkdown,
+    { data: blocksQuery.data, isPlaceholderData: blocksQuery.isPlaceholderData },
+    selectedBlockHighlights.map((highlight) => highlight.block_id)
+  ), [blocksQuery.data, blocksQuery.isPlaceholderData, rawMarkdown, selectedBlockHighlights]);
+  const { isLoading: isBlocksLoading, notice: highlightNotice } = getSourceHighlightStatus(
+    {
+      isEnabled: isBlocksQueryEnabled,
+      isPending: blocksQuery.isPending,
+      isError: blocksQuery.isError,
+      isPlaceholderData: blocksQuery.isPlaceholderData,
+      data: blocksQuery.data
+    },
+    resolvedHighlight
+  );
   const highlightRanges = useMemo(() => resolvedHighlight?.ranges ?? [], [resolvedHighlight]);
   // 위치를 찾은 근거만 스크롤 대상으로 삼는다. 첫 근거가 빠져도 다음 근거로 이동한다.
   const locatedHighlights = useMemo(() => {
     const locatedIds = new Set(highlightRanges.map((range) => range.blockId));
     return selectedBlockHighlights.filter((highlight) => locatedIds.has(highlight.block_id));
   }, [highlightRanges, selectedBlockHighlights]);
-  const highlightNotice = blocksQuery.isError
-    ? "근거 위치를 불러오지 못해 본문만 표시합니다."
-    : resolvedHighlight && locatedHighlights.length === 0
-      ? "문서에서 근거 위치를 찾지 못해 본문만 표시합니다."
-      : resolvedHighlight && resolvedHighlight.missingBlockIds.length > 0
-        ? "일부 근거는 문서에서 위치를 찾지 못했습니다."
-        : null;
 
   // 하이라이트 본문 렌더와 스크롤 effect가 같은 조건을 보게 한다.
   // 본문과 로딩 종료가 다른 렌더로 나뉘면, 블록이 그려지기 전에 스크롤을 시도하고 끝나 버린다.

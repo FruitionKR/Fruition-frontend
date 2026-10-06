@@ -121,3 +121,23 @@ test("CRLF·들여쓰기·여러 공백이 섞여도 서버 정규화 텍스트�
     { blockId: "B0002", startLine: 3, endLine: 4 }
   ]);
 });
+
+test("공백 판정은 서버(Python str.isspace)와 같고 JS \\s와 다른 글자도 맞춘다", () => {
+  // Python에서만 공백: U+001C~U+001F, U+0085. JS \s에서만 공백: U+FEFF.
+  assert.equal(normalizeBlockText("가\u001c\u001f나\u0085다"), "가 나 다");
+  assert.equal(normalizeBlockText("﻿가﻿나﻿"), "﻿가﻿나﻿");
+  assert.equal(normalizeBlockText("\u0085 가 \u001d"), "가");
+
+  const markdown = ["# 제목", "", "가\u001c나", "﻿다"].join("\n");
+  const response = {
+    is_stale: true,
+    blocks: [block("B0002", "가 나"), block("B0003", "﻿다")]
+  };
+  assert.deepEqual(resolveSourceBlockRanges(markdown, response, ["B0002", "B0003"]), {
+    ranges: [
+      { blockId: "B0002", startLine: 3, endLine: 3 },
+      { blockId: "B0003", startLine: 4, endLine: 4 }
+    ],
+    missingBlockIds: []
+  });
+});

@@ -16,11 +16,16 @@ type NormalizedMarkdown = {
   isLineLast: boolean[];
 };
 
-const WHITESPACE = /\s/;
+// 서버 normalize_space(Python re `\s`·str.strip)의 공백 집합(str.isspace)과 같게 맞춘다.
+// JS `\s`는 U+FEFF를 포함하고 U+001C~U+001F·U+0085를 빼므로 그대로 쓰면 대조가 어긋난다.
+const PYTHON_WHITESPACE_CLASS = "\\t\\n\\v\\f\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+const WHITESPACE = new RegExp(`[${PYTHON_WHITESPACE_CLASS}]`);
+const WHITESPACE_RUN = new RegExp(`[${PYTHON_WHITESPACE_CLASS}]+`, "g");
 
 /** 서버 normalize_space와 같은 규칙: 공백 연속을 한 칸으로 줄이고 양끝을 자른다. */
 export function normalizeBlockText(text: string) {
-  return text.replace(/\s+/g, " ").trim();
+  // 연속 공백은 이미 한 칸이라 양끝 한 칸만 지우면 된다. trim()은 U+FEFF까지 지운다.
+  return text.replace(WHITESPACE_RUN, " ").replace(/^ | $/g, "");
 }
 
 function normalizeMarkdown(markdown: string): NormalizedMarkdown {
