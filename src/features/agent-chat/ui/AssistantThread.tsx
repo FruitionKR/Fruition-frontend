@@ -7,8 +7,8 @@ import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { resolveChatTurnPresentation } from "../lib/markdownAgent";
-import { citedRanks, formatAnswerMarkdown } from "../lib/agentFormatters";
-import { buildCitationRankMap } from "../lib/citationRanks";
+import { formatAnswerMarkdown } from "../lib/agentFormatters";
+import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
 import { buildRelatedPageCards, sourceTitle } from "../lib/relatedPageCards";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
@@ -42,12 +42,15 @@ export function AssistantThread({
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
   const resultCards = buildRelatedPageCards(message, nodes);
-  const ranksInAnswer = citedRanks(message.content);
   const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
-  const citationReferenceByRank = new Map(
-    message.references
-      .filter((item) => item.rank && ranksInAnswer.has(item.rank) && item.source_document_id && item.source_block_ids?.length)
-      .map((item) => [citationRankMap.get(item.rank!) ?? item.rank!, item])
+  // 본문의 숫자 괄호는 모두 이 rank일 때만 citation이 된다(숫자 배열 오인 방지).
+  const citableRanks = useMemo(
+    () => new Set(message.references.flatMap((item) => item.rank && Number.isInteger(item.rank) && item.rank >= 1 ? [item.rank] : [])),
+    [message.references]
+  );
+  const citationReferenceByRank = useMemo(
+    () => buildCitationReferenceByRank(message.references, citationRankMap),
+    [message.references, citationRankMap]
   );
   const canOpenCitation = (rank: number) => citationReferenceByRank.has(rank);
   const openCitation = (rank: number) => {
@@ -108,6 +111,7 @@ export function AssistantThread({
             onCitationClick={openCitation}
             canClickCitation={canOpenCitation}
             citationRankMap={citationRankMap}
+            citableRanks={citableRanks}
           />}
         </section>
       )}
