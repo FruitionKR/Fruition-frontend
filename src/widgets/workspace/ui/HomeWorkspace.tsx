@@ -33,6 +33,7 @@ import { filterGraphProjects, isGraphIngestEligible, isPdfDocument, selectGraphD
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
+import { isDocumentConverting } from "@/entities/document/lib/documentKind";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/markdownAgent";
@@ -184,6 +185,10 @@ export function HomeWorkspace() {
     if (!selection.selectedDocumentId) return undefined;
     return documents.find((item) => item.id === selection.selectedDocumentId)?.status;
   }, [documents, selection.selectedDocumentId]);
+  const selectedDocumentConverting = useMemo(
+    () => isDocumentConverting(documents.find((item) => item.id === selection.selectedDocumentId)),
+    [documents, selection.selectedDocumentId]
+  );
   const firstSidebarNote = useMemo(() => {
     const documentIds = new Set(documents.map((document) => document.id));
     for (const project of projectTree.projects) {
@@ -476,6 +481,7 @@ export function HomeWorkspace() {
             onRefreshDocuments={() => void refreshBackendData()}
             documentRole={selectedDocumentRole}
             documentStatus={selectedDocumentStatus}
+            documentConverting={selectedDocumentConverting}
             parentLabel={selectedDocumentParentLabel}
             editedAt={selectedDocumentEditedAt}
             isAgentPanelOpen={isHomeAgentPanelOpen}

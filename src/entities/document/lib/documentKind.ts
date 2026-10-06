@@ -39,3 +39,8 @@ export function isPdfTreeItem(item: TreeItem): boolean {
 export function isDocumentInFlight(status: DocumentStatus | undefined): boolean {
   return status === "processing" || status === "uploaded";
 }
+
+/** PDF 변환이 진행 중인 문서인지. 변환 중에는 서버가 묶음마다 본문을 이어 붙여 편집 저장을 거부한다. */
+export function isDocumentConverting(document: Pick<DocumentItemResponse, "status" | "pipeline_run_id"> | undefined): boolean {
+  return document?.status === "processing" && document.pipeline_run_id?.startsWith("convert:") === true;
+}

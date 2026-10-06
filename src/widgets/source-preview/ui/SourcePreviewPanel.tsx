@@ -43,6 +43,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentRole,
   documentStatus,
+  documentConverting = false,
   parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
@@ -64,6 +65,8 @@ export function SourcePreviewPanel({
   documentRole?: DocumentRole;
   /** 열린 문서의 처리 상태. processing→completed 전이 시 본문을 다시 불러온다. */
   documentStatus?: DocumentStatus;
+  /** PDF 변환이 진행 중인지. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
+  documentConverting?: boolean;
   parentLabel?: string;
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
@@ -513,7 +516,15 @@ export function SourcePreviewPanel({
             }}
           />
         )}
-        {isMarkdownFile && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+        {isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
+          <>
+            <div className={styles["source-preview-document-controls"]}>
+              <span role="status">PDF 변환이 끝나면 편집할 수 있어요.</span>
+            </div>
+            <MarkdownViewer markdown={rawMarkdown} />
+          </>
+        )}
+        {isMarkdownFile && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
           <DynamicNoteEditor
             key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
             documentId={documentId}
