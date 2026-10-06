@@ -14,6 +14,7 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
+import { getCenteredScrollTop } from "../lib/centerScrollTop";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
@@ -114,6 +115,7 @@ export function SourcePreviewPanel({
     }
   }, [documentId, documentStatus, documentConverting]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const contentRef = useRef<HTMLDivElement>(null);
   // 복원 완료 콜백이 도착한 시점에 보고 있는 문서를 판별하기 위한 ref
   const activeDocumentIdRef = useRef(documentId);
   activeDocumentIdRef.current = documentId;
@@ -339,8 +341,24 @@ export function SourcePreviewPanel({
   useEffect(() => {
     if (!isMarkdownFile || selectedBlockHighlights.length === 0 || rawMarkdown === null) return;
 
+    // scrollIntoView는 조상 요소·페이지까지 밀 수 있어(#64) 미리보기 스크롤 영역만 직접 스크롤한다.
     const frameId = window.requestAnimationFrame(() => {
-      blockRefs.current[selectedBlockHighlights[0].block_id]?.scrollIntoView({ block: "center" });
+      const block = blockRefs.current[selectedBlockHighlights[0].block_id];
+      const container = contentRef.current;
+      if (!block || !container) return;
+      const containerRect = container.getBoundingClientRect();
+      const blockRect = block.getBoundingClientRect();
+      container.scrollTo({
+        top: getCenteredScrollTop(
+          {
+            top: containerRect.top + container.clientTop,
+            scrollTop: container.scrollTop,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight
+          },
+          { top: blockRect.top, height: blockRect.height }
+        )
+      });
     });
     return () => window.cancelAnimationFrame(frameId);
   }, [isMarkdownFile, rawMarkdown, selectedBlockHighlights]);
@@ -462,7 +480,7 @@ export function SourcePreviewPanel({
             )}
           </>
         ) : (
-        <div className={styles["source-preview-content"]}>
+        <div ref={contentRef} className={styles["source-preview-content"]}>
         <header className={styles["source-preview-heading"]}>
           {isMarkdownFile ? (
             <input
