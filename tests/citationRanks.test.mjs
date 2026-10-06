@@ -53,10 +53,10 @@ test("대표 블록이 같아도 추가 문서 근거가 다르면 구분한다"
   assert.equal(map.get(2), 2);
 });
 
-function render(markdown) {
+function render(markdown, props = {}) {
   return renderToStaticMarkup(React.createElement(MarkdownViewer, {
-    markdown, citationRankMap: buildCitationRankMap([ref(1), ref(2), ref(3, ["B0002"])]),
-    onCitationClick() {}, canClickCitation: (rank) => rank === 1 || rank === 3
+    markdown, citationRankMap: buildCitationRankMap([ref(1), ref(2), ref(3, ["B0002"])]), citableRanks: new Set([1, 2, 3]),
+    onCitationClick() {}, canClickCitation: (rank) => rank === 1 || rank === 3, ...props
   }));
 }
 const buttons = (html) => [...html.matchAll(/<button[^>]*>\[(\d+)\]<\/button>/g)].map((match) => Number(match[1]));
@@ -89,4 +89,18 @@ test("양쪽을 감싼 인라인·여러 줄 수식은 렌더링한다", () => {
   for (const markdown of ["$$x+y$$", "$$ x+y $$", "$$\nx+y\n$$", "> $$\n> x+y\n> $$"]) {
     assert.match(render(markdown), /class="katex/);
   }
+});
+
+test("답변 속 숫자 배열은 citation으로 바꾸지 않고 정상 citation만 연결한다", () => {
+  const html = render("insertion_sort([5, 2, 4, 6, 1, 3]) 출력 i=1: [2, 5, 4, 6, 1, 3]\n\n```python\nsort([5, 1])\n```\n\n근거[1, 3]");
+  assert.deepEqual(buttons(html), [1, 3]);
+  assert.match(html, /insertion_sort\(\[5, 2, 4, 6, 1, 3\]\)/);
+  assert.match(html, /i=1: \[2, 5, 4, 6, 1, 3\]/);
+  assert.match(html, /sort\(\[5, 1\]\)/);
+});
+
+test("citableRanks 없이 렌더하면 숫자 괄호를 원문으로 둔다", () => {
+  const html = render("근거[1, 2]", { citationRankMap: undefined, citableRanks: undefined });
+  assert.deepEqual(buttons(html), []);
+  assert.match(html, /근거\[1, 2\]/);
 });

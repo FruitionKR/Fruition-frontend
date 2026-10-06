@@ -48,15 +48,3 @@ export function formatReferenceMeta(reference: ChatMessageReferenceResponse): st
 
   return [blockLabel, description].filter(Boolean).join(" · ") || "관련 근거";
 }
-
-/** 답변 본문에 등장하는 `[1, 2]` 형태의 인용 rank 집합을 추출한다. */
-export function citedRanks(content: string): Set<number> {
-  const ranks = new Set<number>();
-  for (const match of content.matchAll(/\[((?:\d+)(?:\s*,\s*\d+)*)\]/g)) {
-    match[1].split(",").forEach((value) => {
-      const rank = Number(value.trim());
-      if (Number.isFinite(rank)) ranks.add(rank);
-    });
-  }
-  return ranks;
-}
