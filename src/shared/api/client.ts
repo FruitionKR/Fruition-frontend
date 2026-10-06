@@ -28,6 +28,7 @@ export const ERROR_MESSAGES = {
   noteDraftLoadFailed: "노트 draft를 불러오지 못했습니다.",
   noteDraftSaveFailed: "노트 draft를 저장하지 못했습니다.",
   documentOriginalLoadFailed: "원본 문서를 불러오지 못했습니다.",
+  documentBlocksLoadFailed: "근거 위치를 불러오지 못했습니다.",
   queryFailed: "질의에 실패했습니다.",
   aiModelsLoadFailed: "AI 모델 목록을 불러오지 못했습니다.",
   agentTurnFailed: "AI 편집 요청에 실패했습니다.",

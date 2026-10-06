@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -9,7 +9,12 @@ import type { Element } from "hast";
 import type { PluggableList } from "unified";
 import { cx } from "@/shared/lib/classNames";
 import { splitMarkdownBlockRanges } from "@/shared/lib/markdownSegments";
-import { createRehypeSourceBlocks } from "@/shared/lib/markdownSourceBlocks";
+import {
+  createRehypeSourceBlocks,
+  overlappingSourceBlockId,
+  SOURCE_BLOCK_ID_SEPARATOR,
+  type SourceBlockRange
+} from "@/shared/lib/markdownSourceBlocks";
 import { remarkClosedMath } from "@/shared/lib/remarkClosedMath";
 import { rankColorClass, remarkCustomTokens } from "@/shared/lib/remarkCustomTokens";
 import { classifyLinkHref } from "@/shared/lib/externalResources";
@@ -55,6 +60,7 @@ export function MarkdownViewer({
   citationRankMap,
   citableRanks,
   highlightedBlocks,
+  highlightRanges,
   onBlockRef
 }: {
   markdown: string;
@@ -64,6 +70,8 @@ export function MarkdownViewer({
   citationRankMap?: ReadonlyMap<number, number>;
   citableRanks?: ReadonlySet<number>;
   highlightedBlocks?: SourceBlockHighlight[];
+  /** 서버 block ID의 현재 본문 줄 범위. 주어지면 이 범위와 겹치는 노드에 서버 ID를 붙인다. */
+  highlightRanges?: SourceBlockRange[];
   onBlockRef?: (blockId: string, node: HTMLDivElement | null) => void;
 }) {
   const remarkPlugins = useMemo<PluggableList>(
@@ -76,12 +84,14 @@ export function MarkdownViewer({
     () => new Map((highlightedBlocks ?? []).map((block) => [block.block_id, block.rank])),
     [highlightedBlocks]
   );
+  // 로컬 분할 ID는 렌더 래핑용이다. 서버 범위를 쓸 때는 서버 block ID와 겹치지 않게 접두어를 붙인다.
+  const localIdPrefix = highlightRanges ? "local-" : "";
   const sourceBlocks = useMemo(
     () => splitMarkdownBlockRanges(markdown).map((segment, index) => ({
       ...segment,
-      blockId: `B${String(index + 1).padStart(4, "0")}`
+      blockId: `${localIdPrefix}B${String(index + 1).padStart(4, "0")}`
     })),
-    [markdown]
+    [localIdPrefix, markdown]
   );
   const bodyMarkdown = useMemo(() => {
     const lines = markdown.split("\n");
@@ -95,8 +105,23 @@ export function MarkdownViewer({
     return lines.join("\n");
   }, [markdown, sourceBlocks]);
   const rehypePlugins = useMemo(
-    () => [rehypeKatex, createRehypeSourceBlocks(sourceBlocks)],
-    [sourceBlocks]
+    () => [rehypeKatex, createRehypeSourceBlocks(sourceBlocks, highlightRanges)],
+    [highlightRanges, sourceBlocks]
+  );
+
+  // 래퍼 하나가 서버 block 여러 개를 덮으면 ID가 공백으로 이어져 있다.
+  const highlightedRankOf = useCallback(
+    (blockId: string) => blockId
+      .split(SOURCE_BLOCK_ID_SEPARATOR)
+      .map((id) => highlightedBlockRankById.get(id))
+      .find((rank) => rank !== undefined),
+    [highlightedBlockRankById]
+  );
+  const registerBlockRef = useCallback(
+    (blockId: string, element: HTMLDivElement | null) => {
+      blockId.split(SOURCE_BLOCK_ID_SEPARATOR).forEach((id) => onBlockRef?.(id, element));
+    },
+    [onBlockRef]
   );
 
   const components = useMemo(() => {
@@ -121,7 +146,7 @@ export function MarkdownViewer({
 
     function SourceBlock({ node, children }: { node?: Element; children?: ReactNode }) {
       const blockId = String(node?.properties?.dataBlockId ?? "");
-      const highlightedRank = highlightedBlockRankById.get(blockId);
+      const highlightedRank = highlightedRankOf(blockId);
 
       return (
         <div
@@ -132,7 +157,7 @@ export function MarkdownViewer({
           )}
           data-block-id={blockId}
           data-citation-rank={highlightedRank}
-          ref={(element) => onBlockRef?.(blockId, element)}
+          ref={(element) => registerBlockRef(blockId, element)}
         >
           {children}
         </div>
@@ -146,14 +171,16 @@ export function MarkdownViewer({
       "citation-ref": CitationRef,
       "source-block": SourceBlock
     } as Components;
-  }, [canClickCitation, highlightedBlockRankById, linkPolicy, onBlockRef, onCitationClick]);
+  }, [canClickCitation, highlightedRankOf, linkPolicy, onCitationClick, registerBlockRef]);
 
   return (
     <div className="markdown-viewer">
       {sourceBlocks
         .filter((block) => block.kind === "frontmatter")
         .map((block) => {
-          const highlightedRank = highlightedBlockRankById.get(block.blockId);
+          const blockId = (highlightRanges && overlappingSourceBlockId(highlightRanges, block.startLine, block.endLine))
+            ?? block.blockId;
+          const highlightedRank = highlightedRankOf(blockId);
           return (
           <div
             className={cx(
@@ -161,9 +188,9 @@ export function MarkdownViewer({
               highlightedRank && "is-highlighted",
               highlightedRank && rankColorClass(highlightedRank)
             )}
-            data-block-id={block.blockId}
+            data-block-id={blockId}
             data-citation-rank={highlightedRank}
-            ref={(element) => onBlockRef?.(block.blockId, element)}
+            ref={(element) => registerBlockRef(blockId, element)}
             key={block.blockId}
           >
             <details className="markdown-frontmatter">

@@ -6,8 +6,8 @@ document-svc의 문서·폴더·본문·이력 API다. 이 경로군은 전부 �
 (`documents|document-tree|folders`)에 걸리므로 `BACKEND_URL`이 설정된 배포에서는 rewrite를
 우회해 document-svc 오리진으로 직접 나간다. 관리 이미지(`assets`)만 예외로 rewrite를 경유한다.
 
-- 호출 지점: 24
-- 호출 경로: 20
+- 호출 지점: 25
+- 호출 경로: 21
 
 ## 목록·트리
 
@@ -39,6 +39,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | `PATCH /api/workspaces/{workspace_id}/documents/{document_id}/position` | 문서 이동·순서 변경 | `src/entities/tree/api/folders.ts` `moveDocument` (`mutateTreeItem`) | `workspacePath(workspaceId, "documents", id, "position")` (`...suffix` 전개) | `{ folder_id, position, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. 트리에서 항목 타입이 `document`가 아니면 호출하지 않는다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/original` | 원본 파일 조회 | `src/entities/document/api/document.ts` `fetchDocumentOriginal` | `workspacePath(workspaceId, "documents", documentId, "original")` | `cache: no-store` | 응답 `Blob` | Bearer가 필요해 iframe/`<embed>` 직접 지정이 불가해 Blob으로 받는다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/original-url` | 원본 presigned 조회 URL | `src/entities/document/api/document.ts` `fetchDocumentReadUrl` | `workspacePath(getWorkspaceId(), "documents", documentId, "original-url")` | `cache: no-store` | `url` (`null` 가능) | 원본 뷰어(`src/widgets/source-preview/ui`)가 Blob 대신 쓸 수 있는 경로 |
+| `GET /api/workspaces/{workspace_id}/documents/{document_id}/blocks` | 근거 하이라이트용 원본 block 목록 | `src/entities/document/api/document.ts` `fetchDocumentBlocks` | `workspacePath(getWorkspaceId(), "documents", documentId, "blocks")` | `cache: no-store` | `is_stale`, `blocks[].block_id`, `blocks[].line_start`, `blocks[].line_end`, `blocks[].text` | 원본 미리보기가 근거 하이라이트를 열 때만 부른다(react-query `["document-blocks", documentId]`). block ID는 영구 ID라 본문을 다시 잘라 순번을 매기지 않는다. `is_stale === false`면 서버 줄 범위를 쓰고, 그 외(`true`·`null`·필드 없는 구 응답·범위 `null`)는 정규화 `text`를 현재 본문에서 줄 경계 기준으로 찾는다(`src/entities/document/lib/sourceBlockRanges.ts`). 못 찾은 근거는 하이라이트하지 않고 안내만 띄운다 |
 
 ## 본문 편집
 

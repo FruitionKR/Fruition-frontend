@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { canShowHighlightedMarkdown, findHighlightedScrollTarget } = await import(
+const { canShowHighlightedMarkdown, findHighlightedScrollTarget, getHighlightScrollKey } = await import(
   "../src/widgets/source-preview/lib/highlightScroll.ts"
 );
 
@@ -42,4 +42,25 @@ test("블록이 없거나 정리(null)됐거나 하이라이트가 없으면 대
 
 test("문서에서 분리된 이전 문서의 블록은 대상으로 삼지 않는다", () => {
   assert.equal(findHighlightedScrollTarget({ a: { isConnected: false } }, [{ block_id: "a" }]), null);
+});
+
+test("스크롤 키는 첫 위치 근거와 줄 범위가 같으면 재계산돼도 같다", () => {
+  const highlights = [{ block_id: "B0002" }, { block_id: "B0005" }];
+  const ranges = [
+    { blockId: "B0005", startLine: 9, endLine: 9 },
+    { blockId: "B0002", startLine: 3, endLine: 4 }
+  ];
+  // placeholder→실응답처럼 새 배열로 같은 위치가 다시 계산되는 경우
+  assert.equal(getHighlightScrollKey(ranges, highlights), getHighlightScrollKey(ranges.map((range) => ({ ...range })), [...highlights]));
+  assert.equal(getHighlightScrollKey(ranges, highlights), "B0002:3-4");
+});
+
+test("스크롤 키는 대상 block이나 줄 범위가 바뀌면 달라지고, 대상이 없으면 null이다", () => {
+  const highlights = [{ block_id: "B0002" }];
+  assert.notEqual(
+    getHighlightScrollKey([{ blockId: "B0002", startLine: 3, endLine: 4 }], highlights),
+    getHighlightScrollKey([{ blockId: "B0002", startLine: 7, endLine: 8 }], highlights)
+  );
+  assert.equal(getHighlightScrollKey([], highlights), null);
+  assert.equal(getHighlightScrollKey([{ blockId: "B0002", startLine: 3, endLine: 4 }], []), null);
 });

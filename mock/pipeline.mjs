@@ -1,5 +1,6 @@
 // AI 파이프라인(ingest·변환·lint) 진행 시뮬레이션. 타이머로 상태를 바꿔 폴링 UI가 진행을 보게 한다.
 import { state, now, id, hash, slugify, addOperationLog, touchWiki, toDocumentItem } from "./state.mjs";
+import { ingestSourceBlocks } from "./lib/sourceBlocks.mjs";
 
 export const INGEST_DELAY_MS = 5_000;
 const CONVERT_DELAY_MS = 3_000;
@@ -45,6 +46,8 @@ function completeIngest(workspace, doc, log) {
     }
     if (created) changes.push({ resource_id: page.id, resource_display_name: page.title, page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성" });
   }
+  // 성공한 ingest 입력으로 block 스냅샷을 갱신한다. 같은 텍스트 block은 이전 ID를 유지한다.
+  doc.source_snapshot = ingestSourceBlocks(doc.markdown ?? "", doc.source_snapshot?.blocks);
   Object.assign(doc, { status: "completed", processing_state: "completed", processing_stage: "done", processed_at: now(), needs_reingest: false, error_message: undefined, extracted_text_uri: `mock://extracted/${doc.id}.txt` });
   Object.assign(log, {
     status: "succeeded", completed_at: now(), changed_resource_count: changes.length,
