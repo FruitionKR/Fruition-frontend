@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { documentDataQueryKey, type BackendData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun, fetchPlanTree } from "../api/agentPlan";
-import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, shouldPollAgentPlan, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan, type PlanPreviewNode } from "../lib/agentPlan";
 import styles from "./AgentChat.module.css";
 
 function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: number }) {
@@ -41,14 +42,17 @@ export function AgentPlanPreview({ turnId, action }: { turnId?: string; action: 
     retry: false,
     refetchInterval: (current) => !current.state.error && shouldPollAgentPlan(current.state.data?.status) ? 3000 : false
   });
+  // 폴링 중인 문서 트리를 계획마다 한 번 담아 두고, 다시 마운트돼도 트리를 새로 받지 않는다(#66).
   const tree = useQuery({
-    queryKey: ["agentPlanTree", workspaceId],
+    queryKey: ["agentPlanTree", workspaceId, turnId],
     queryFn: ({ signal }) => fetchPlanTree(workspaceId, signal),
+    initialData: () => client.getQueryData<Pick<BackendData, "tree">>(documentDataQueryKey(workspaceId))?.tree,
+    initialDataUpdatedAt: () => client.getQueryState(documentDataQueryKey(workspaceId))?.dataUpdatedAt,
+    staleTime: Infinity,
     enabled: Boolean(query.data?.plan),
     retry: false
   });
   const run = query.data;
-  const runId = run?.id;
   const runStatus = run?.status;
   const plan = run?.plan;
   const mutation = useMutation({
@@ -59,11 +63,14 @@ export function AgentPlanPreview({ turnId, action }: { turnId?: string; action: 
     },
     onSettled: () => client.invalidateQueries({ queryKey })
   });
+  // 이미 끝난 계획이 다시 마운트될 때마다 문서·트리·그래프를 다시 받지 않도록 전이를 볼 때만 갱신한다(#66).
+  const previousStatus = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (runId && !shouldPollAgentPlan(runStatus)) {
+    if (isPlanRunSettled(previousStatus.current, runStatus)) {
       void client.invalidateQueries({ queryKey: ["backendData"] });
     }
-  }, [client, runId, runStatus]);
+    previousStatus.current = runStatus;
+  }, [client, runStatus]);
 
   const error = !turnId ? "이 답변에 계획 조회 정보가 없습니다. 다시 요청해주세요."
     : query.error || tree.error || mutation.error;
