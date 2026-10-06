@@ -226,13 +226,13 @@ export function NoteEditor({
 
   useEffect(() => () => onMarkdownEditContextChange?.(null), [onMarkdownEditContextChange]);
 
-  // 아래 편집기 DOM 보정 effect들은 편집 권한 확인 중(canEdit=false)에는 root가 없으므로,
-  // canEdit이 바뀌면 다시 연결되도록 의존성에 넣는다.
+  // 아래 편집기 DOM 보정 effect들은 root가 있을 때만 연결한다. root는 편집 권한을 받고(canEdit)
+  // 원문 모드가 아닐 때만 렌더되므로, 두 값은 다시 연결할 시점을 알리려고 의존성에만 둔다.
   // 표 행/열 추가 핸들을 오른쪽·아래쪽 바깥 경계에서만 노출한다.
   // (위젯이 placement를 DOM에 남기지 않아 좌표로 판별한다)
   useEffect(() => {
-    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     const EDGE_TOLERANCE_PX = 8;
 
     const observer = new MutationObserver(() => {
@@ -263,8 +263,8 @@ export function NoteEditor({
   // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
   // (Crepe가 버튼에 라벨·식별 속성을 넣지 않아 렌더 순서로 매핑한다: 볼드→기울임→취소선→코드→[수식]→링크)
   useEffect(() => {
-    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     const LABELS_WITH_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "수식", "링크"];
     const LABELS_WITHOUT_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "링크"];
 
@@ -287,8 +287,8 @@ export function NoteEditor({
   // '/' 슬래시 메뉴가 화면 밖으로 넘어가지 않게 표시 위치를 viewport 안으로 보정한다.
   // (Crepe는 flip만 적용하고 shift 미들웨어를 노출하지 않아 가장자리에서 잘림)
   useEffect(() => {
-    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     const VIEWPORT_MARGIN_PX = 8;
 
     const observer = new MutationObserver(() => {
