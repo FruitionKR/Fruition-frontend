@@ -106,6 +106,12 @@
   font-weight: 600;
 }
 
+.history-item-restored {
+  color: #8a8a8a;
+  font-size: 11px;
+  font-weight: 400;
+}
+
 .history-item-time {
   flex: none;
   color: #8a8a8a;

@@ -73,7 +73,7 @@ function lineDiff(before, after) {
   };
 }
 
-function saveVersion(doc, markdown, createdBy) {
+function saveVersion(doc, markdown, createdBy, restoredFromVersion = null) {
   const buffer = Buffer.from(markdown, "utf8");
   doc.current_version += 1;
   doc.edit_revision = doc.current_version;
@@ -83,7 +83,7 @@ function saveVersion(doc, markdown, createdBy) {
   doc.updated_at = now();
   if (doc.status === "completed") doc.needs_reingest = true;
   const contentHash = hash(markdown);
-  doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown });
+  doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown, restored_from_version: restoredFromVersion });
   return { document_id: doc.id, current_version: doc.current_version, content_hash: contentHash, updated_at: doc.updated_at, changed: true };
 }
 
@@ -220,7 +220,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
-    const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at }) => ({ version, content_hash, created_by, created_at }));
+    const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at, restored_from_version }) => ({ version, content_hash, created_by, created_at, restored_from_version: restored_from_version ?? null }));
     ctx.json(200, { document_id: doc.id, current_version: doc.current_version, versions });
   });
 
@@ -246,7 +246,7 @@ export function registerDocumentRoutes(router) {
     if (base_version !== doc.current_version) return error(ctx, 409, "다른 편집 내용이 먼저 저장되어 복원하지 못했습니다.");
     const target = doc.versions.find((item) => item.version === Number(ctx.params.version));
     if (!target) return error(ctx, 404, "복원할 버전을 찾을 수 없습니다.");
-    ctx.json(200, saveVersion(doc, target.markdown ?? "", ctx.user.id));
+    ctx.json(200, saveVersion(doc, target.markdown ?? "", ctx.user.id, target.version));
   });
 
   router.post("/api/workspaces/:wid/documents/:id/ingest", (ctx) => {
