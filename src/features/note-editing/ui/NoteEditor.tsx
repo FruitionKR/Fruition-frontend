@@ -261,8 +261,9 @@ export function NoteEditor({
 
   // 편집기 폭이 바뀌면(채팅창 열고 닫기 등) 이미지 블록 높이를 새 폭으로 다시 계산한다(이슈 #63).
   // 높이를 바꾸면 root 높이도 바뀌어 다시 불리므로 폭이 같을 때는 무시한다.
+  // 편집 권한 확인 중에는 root가 없으므로 canEdit이 바뀌면 다시 연결한다.
   useEffect(() => {
-    if (sourceMode || !wysiwygRootRef.current) return;
+    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
     let lastWidth = -1;
     let frame = 0;
@@ -279,7 +280,7 @@ export function NoteEditor({
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [documentId, sourceMode]);
+  }, [canEdit, documentId, sourceMode]);
 
   // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
   // (Crepe가 버튼에 라벨·식별 속성을 넣지 않아 렌더 순서로 매핑한다: 볼드→기울임→취소선→코드→[수식]→링크)
