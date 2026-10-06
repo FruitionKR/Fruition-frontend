@@ -267,13 +267,27 @@ export function NoteEditor({
     const root = wysiwygRootRef.current;
     let lastWidth = -1;
     let frame = 0;
+    // data-origin이 없는 이미지(폭 0일 때 로드)는 DOM에 ratio가 없어 노드 attr에서 읽는다.
+    const readRatio = (host: Element) => {
+      try {
+        return crepeRef.current?.editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const node = view.state.doc.nodeAt(view.posAtDOM(host, 0));
+          return node?.type.name === "image-block" ? Number(node.attrs.ratio) : undefined;
+        });
+      } catch {
+        // 편집기가 이미 정리됐으면 기본 ratio(1)로 계산한다.
+        return undefined;
+      }
+    };
 
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width;
-      if (width === lastWidth) return;
+      // 1px 미만의 소수점 흔들림은 무시한다(높이 재계산 → 폭 미세 변화 → 재계산 반복 방지).
+      if (Math.abs(width - lastWidth) < 1) return;
       lastWidth = width;
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => refitImageBlocks(root));
+      frame = requestAnimationFrame(() => refitImageBlocks(root, readRatio));
     });
     observer.observe(root);
     return () => {
@@ -368,6 +382,7 @@ export function NoteEditor({
         // 이미지: 붙여넣기·드롭·'/' 메뉴 모두 onUpload를 거친다. 저장 전에는 attachment:// placeholder + object URL로 보여주고,
         // 저장 시 파일을 함께 보내 서버 관리 경로로 치환한다(이슈 #18).
         [CrepeFeature.ImageBlock]: {
+          // maxWidth/maxHeight를 지정하면 refitImageBlocks(model/imageBlockHeight.ts)에도 같은 값을 넘겨야 한다.
           // 붙여넣기·드롭은 아래 uploader 래퍼가 먼저 걸러 여기엔 유효한 파일만 온다.
           // '/' 메뉴·업로드 버튼 경로만 여기서 검사하며, 던지면 Crepe가 빈 노드를 남기므로 안내 후 거부한다.
           onUpload: async (file) => {

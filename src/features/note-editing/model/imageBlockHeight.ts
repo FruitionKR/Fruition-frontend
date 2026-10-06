@@ -27,15 +27,28 @@ export function computeImageBlockHeight({
   return { origin: origin.toFixed(2), height: (origin * ratio).toFixed(2) };
 }
 
-/** root 안의 로드된 이미지 블록 높이를 현재 폭으로 다시 맞춘다. 값이 같으면 DOM을 건드리지 않는다. */
-export function refitImageBlocks(root: HTMLElement) {
-  root.querySelectorAll<HTMLImageElement>(".milkdown-image-block img[data-origin]").forEach((image) => {
+/** 크기 조절 핸들이 노드 attr에 저장하는 식(소수 둘째 자리 반올림)과 같게 data-height/data-origin에서 ratio를 되살린다. */
+export function recoverImageBlockRatio(height: number, origin: number): number | null {
+  if (!origin) return null;
+  const ratio = Number.parseFloat((height / origin).toFixed(2));
+  return Number.isNaN(ratio) ? null : ratio;
+}
+
+/**
+ * root 안의 로드된 이미지 블록 높이를 현재 폭으로 다시 맞춘다. 값이 같으면 DOM을 건드리지 않는다.
+ * 폭이 0일 때(숨김 상태) 로드된 이미지는 onImageLoad가 건너뛰어 data-origin이 없다. 높이는 auto라 잘리지는 않지만
+ * 노드의 ratio가 무시되고 크기 조절 핸들도 ratio를 저장하지 못하므로, 이런 이미지는 readRatio(노드 attr, 없으면 1)로 처음 계산한다.
+ * maxWidth/maxHeight는 넘기지 않는다. 앱 설정(NoteEditor의 CrepeFeature.ImageBlock featureConfig)이 둘 다 지정하지 않기 때문이며,
+ * 설정에 추가하면 여기서도 같은 값을 넘겨야 라이브러리와 높이가 일치한다.
+ */
+export function refitImageBlocks(root: HTMLElement, readRatio?: (host: Element) => number | undefined) {
+  root.querySelectorAll<HTMLImageElement>(".milkdown-image-block img").forEach((image) => {
     const host = image.closest(".milkdown-image-block");
-    const previousOrigin = Number(image.dataset.origin);
-    if (!host || !previousOrigin) return;
-    // 크기 조절 핸들이 노드 attr에 저장하는 식(소수 둘째 자리 반올림)과 같게 ratio를 되살린다.
-    const ratio = Number.parseFloat((Number(image.dataset.height) / previousOrigin).toFixed(2));
-    if (Number.isNaN(ratio)) return;
+    if (!host || !image.complete) return;
+    const ratio = image.dataset.origin
+      ? recoverImageBlockRatio(Number(image.dataset.height), Number(image.dataset.origin))
+      : (readRatio?.(host) ?? 1);
+    if (ratio === null) return;
     const next = computeImageBlockHeight({
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
