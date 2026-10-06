@@ -13,6 +13,7 @@ import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult
 import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
+import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
@@ -43,6 +44,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentRole,
   documentStatus,
+  documentConverting = false,
   parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
@@ -64,6 +66,8 @@ export function SourcePreviewPanel({
   documentRole?: DocumentRole;
   /** 열린 문서의 처리 상태. processing→completed 전이 시 본문을 다시 불러온다. */
   documentStatus?: DocumentStatus;
+  /** PDF 변환이 진행 중인지. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
+  documentConverting?: boolean;
   parentLabel?: string;
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
@@ -100,20 +104,15 @@ export function SourcePreviewPanel({
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
   // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되면 실제 본문으로 다시 불러온다.
-  // 단, 미저장 편집이 있으면(ingest 완료 시점에 편집 중) 리로드하지 않는다 — remount로 입력이 유실될 수 있다.
-  const previousStatusRef = useRef<{ id: string | null; status?: DocumentStatus }>({ id: null });
+  const previousStatusRef = useRef<OpenDocumentState>({ id: null, converting: false });
   useEffect(() => {
     const previous = previousStatusRef.current;
-    previousStatusRef.current = { id: documentId ?? null, status: documentStatus };
-    if (
-      previous.id === documentId &&
-      previous.status === "processing" &&
-      documentStatus === "completed" &&
-      noteSaveStatusRef.current === "saved"
-    ) {
+    const current = { id: documentId ?? null, status: documentStatus, converting: documentConverting };
+    previousStatusRef.current = current;
+    if (shouldReloadOpenDocument(previous, current, noteSaveStatusRef.current === "saved")) {
       setDocumentReloadCount((count) => count + 1);
     }
-  }, [documentId, documentStatus]);
+  }, [documentId, documentStatus, documentConverting]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   // 복원 완료 콜백이 도착한 시점에 보고 있는 문서를 판별하기 위한 ref
   const activeDocumentIdRef = useRef(documentId);
@@ -513,7 +512,15 @@ export function SourcePreviewPanel({
             }}
           />
         )}
-        {isMarkdownFile && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+        {isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
+          <>
+            <div className={styles["source-preview-document-controls"]}>
+              <span role="status">PDF 변환이 끝나면 편집할 수 있어요.</span>
+            </div>
+            <MarkdownViewer markdown={rawMarkdown} />
+          </>
+        )}
+        {isMarkdownFile && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
           <DynamicNoteEditor
             key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
             documentId={documentId}
