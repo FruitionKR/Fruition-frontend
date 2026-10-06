@@ -12,6 +12,7 @@ import * as segments from "../src/shared/lib/markdownSegments.ts";
 import * as closedMath from "../src/shared/lib/remarkClosedMath.ts";
 import * as sourceBlocks from "../src/shared/lib/markdownSourceBlocks.ts";
 import * as customTokens from "../src/shared/lib/remarkCustomTokens.ts";
+import * as externalResources from "../src/shared/lib/externalResources.ts";
 
 const require = createRequire(import.meta.url);
 const output = ts.transpileModule(readFileSync(new URL("../src/shared/ui/MarkdownViewer.tsx", import.meta.url), "utf8"), {
@@ -24,6 +25,7 @@ const aliases = {
   "@/shared/lib/markdownSegments": segments,
   "@/shared/lib/markdownSourceBlocks": sourceBlocks,
   "@/shared/lib/remarkCustomTokens": customTokens,
+  "@/shared/lib/externalResources": externalResources,
   // 관리 이미지 렌더러는 브라우저 fetch에 의존하므로 트리 검사에서는 단순 img로 대체한다
   "@/shared/ui/markdown/ManagedImage": { ManagedImage: (props) => React.createElement("img", props) }
 };

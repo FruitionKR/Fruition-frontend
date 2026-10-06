@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -12,6 +12,7 @@ import { splitMarkdownBlockRanges } from "@/shared/lib/markdownSegments";
 import { createRehypeSourceBlocks } from "@/shared/lib/markdownSourceBlocks";
 import { remarkClosedMath } from "@/shared/lib/remarkClosedMath";
 import { rankColorClass, remarkCustomTokens } from "@/shared/lib/remarkCustomTokens";
+import { classifyLinkHref } from "@/shared/lib/externalResources";
 import type { SourceBlockHighlight } from "@/entities/document";
 import { ManagedImage } from "@/shared/ui/markdown/ManagedImage";
 
@@ -25,8 +26,30 @@ const REMARK_PLUGINS: PluggableList = [
   remarkCustomTokens,
 ];
 
+/**
+ * 외부 링크 처리 방식.
+ * - default: 사용자가 쓴 문서. 그대로 클릭할 수 있되 Referer·opener를 넘기지 않는다.
+ * - inert-external: AI가 만든 본문. 프롬프트 주입으로 넣은 피싱·유출 링크를 누르지 않도록 글자와 도메인만 보여준다(이슈 #77).
+ */
+export type MarkdownLinkPolicy = "default" | "inert-external";
+
+function createMarkdownLink(linkPolicy: MarkdownLinkPolicy) {
+  return function MarkdownLink({ href, children, node: _node, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { node?: unknown }) {
+    const target = classifyLinkHref(href);
+    if (!target.external) return <a {...rest} href={href}>{children}</a>;
+    if (linkPolicy === "inert-external") {
+      return <span className="markdown-inert-link">{children}{target.host && ` (${target.host})`}</span>;
+    }
+    return <a {...rest} href={href} rel="noopener noreferrer">{children}</a>;
+  };
+}
+
+const DEFAULT_LINK = createMarkdownLink("default");
+const INERT_EXTERNAL_LINK = createMarkdownLink("inert-external");
+
 export function MarkdownViewer({
   markdown,
+  linkPolicy = "default",
   onCitationClick,
   canClickCitation,
   citationRankMap,
@@ -35,6 +58,7 @@ export function MarkdownViewer({
   onBlockRef
 }: {
   markdown: string;
+  linkPolicy?: MarkdownLinkPolicy;
   onCitationClick?: (rank: number) => void;
   canClickCitation?: (rank: number) => boolean;
   citationRankMap?: ReadonlyMap<number, number>;
@@ -118,10 +142,11 @@ export function MarkdownViewer({
     return {
       pre: ({ children }: { children?: ReactNode }) => <pre className="markdown-codeblock">{children}</pre>,
       img: ManagedImage,
+      a: linkPolicy === "inert-external" ? INERT_EXTERNAL_LINK : DEFAULT_LINK,
       "citation-ref": CitationRef,
       "source-block": SourceBlock
     } as Components;
-  }, [canClickCitation, highlightedBlockRankById, onBlockRef, onCitationClick]);
+  }, [canClickCitation, highlightedBlockRankById, linkPolicy, onBlockRef, onCitationClick]);
 
   return (
     <div className="markdown-viewer">

@@ -577,7 +577,7 @@ export function SourcePreviewPanel({
           />
         )}
         {pageId && errorMessage && <p>{errorMessage}</p>}
-        {pageId && !isLoading && !errorMessage && page?.markdown && <MarkdownViewer markdown={page.markdown} />}
+        {pageId && !isLoading && !errorMessage && page?.markdown && <MarkdownViewer markdown={page.markdown} linkPolicy="inert-external" />}
         {pageId && !isLoading && !errorMessage && !page?.markdown && page?.summary && <p>{page.summary}</p>}
         {pageId && !isLoading && !errorMessage && page && !page.markdown && (
           <p>본문 markdown을 찾지 못했습니다. 연결된 원본 문서 정보만 표시합니다.</p>
