@@ -16,8 +16,16 @@ import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableN
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
-import { canShowHighlightedMarkdown, findHighlightedScrollTarget } from "../lib/highlightScroll";
-import { getSourceHighlightStatus, resolveHighlightRanges } from "../lib/sourceHighlightState";
+import { canShowHighlightedMarkdown, findHighlightedScrollTarget, getHighlightScrollKey } from "../lib/highlightScroll";
+import {
+  createMarkdownLoadSequence,
+  getSourceBlocksQueryKey,
+  getSourceHighlightStatus,
+  keepSameDocumentBlocks,
+  resolveHighlightRanges,
+  selectSourceBlocksForLoad,
+  type MarkdownLoad
+} from "../lib/sourceHighlightState";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
@@ -84,8 +92,10 @@ export function SourcePreviewPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rawMarkdown, setRawMarkdown] = useState<string | null>(null);
-  // 화면 본문을 불러온 문서와 횟수. 근거 block 조회 키로 써서 본문이 바뀌면(복원·재편입 등) block도 다시 받는다.
-  const [markdownLoad, setMarkdownLoad] = useState<{ documentId: string; count: number } | null>(null);
+  // 화면 본문을 불러온 문서와 로드 ID. 근거 block 조회 키로 써서 본문이 바뀌면(복원·재편입 등) block도 다시 받는다.
+  // 로드 ID는 문서를 바꿔도 다시 세지 않아, 이전 로드의 키(캐시)를 재사용하지 않는다.
+  const [markdownLoad, setMarkdownLoad] = useState<MarkdownLoad | null>(null);
+  const nextMarkdownLoadRef = useRef(createMarkdownLoadSequence());
   const [noteContentVersion, setNoteContentVersion] = useState(0);
   const [rawDocumentUrl, setRawDocumentUrl] = useState<string | null>(null);
   // 텍스트 원본(TXT 등)은 iframe이 흰 배경으로 그리므로 본문을 직접 받아 패널 배경 위에 그린다.
@@ -294,7 +304,7 @@ export function SourcePreviewPanel({
         if (draft) {
           if (!ignore) {
             setRawMarkdown(draft.markdown);
-            setMarkdownLoad((previous) => ({ documentId, count: (previous?.count ?? 0) + 1 }));
+            setMarkdownLoad(nextMarkdownLoadRef.current(documentId));
             setNoteContentVersion(draft.content_version);
           }
           return;
@@ -303,7 +313,7 @@ export function SourcePreviewPanel({
         const text = await blob.text();
         if (!ignore) {
           setRawMarkdown(text);
-          setMarkdownLoad((previous) => ({ documentId, count: (previous?.count ?? 0) + 1 }));
+          setMarkdownLoad(nextMarkdownLoadRef.current(documentId));
           setNoteContentVersion(0);
         }
         return;
@@ -354,25 +364,33 @@ export function SourcePreviewPanel({
     && markdownLoad?.documentId === documentId
     && selectedBlockHighlights.length > 0;
   const blocksQuery = useQuery({
-    queryKey: ["document-blocks", documentId, markdownLoad?.count],
-    queryFn: () => fetchDocumentBlocks(documentId as string),
+    queryKey: getSourceBlocksQueryKey(documentId, markdownLoad),
+    queryFn: async () => {
+      const load = markdownLoad as MarkdownLoad;
+      return { ...load, response: await fetchDocumentBlocks(load.documentId) };
+    },
     enabled: isBlocksQueryEnabled,
+    // 키가 로드마다 달라 지난 로드의 캐시는 다시 쓰지 않으므로 바로 정리한다.
+    gcTime: 0,
     // 같은 문서를 다시 불러오는 동안에는 이전 응답으로 본문을 유지한다(서버 줄 범위는 믿지 않는다).
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === documentId ? previous : undefined
+    placeholderData: (previous) => keepSameDocumentBlocks(documentId, previous)
   });
+  // 응답을 요청한 로드가 현재 본문 로드일 때만 서버 줄 범위를 믿는다.
+  const currentBlocks = useMemo(
+    () => selectSourceBlocksForLoad(markdownLoad, blocksQuery.data),
+    [blocksQuery.data, markdownLoad]
+  );
   const resolvedHighlight = useMemo(() => resolveHighlightRanges(
     rawMarkdown,
-    { data: blocksQuery.data, isPlaceholderData: blocksQuery.isPlaceholderData },
+    currentBlocks,
     selectedBlockHighlights.map((highlight) => highlight.block_id)
-  ), [blocksQuery.data, blocksQuery.isPlaceholderData, rawMarkdown, selectedBlockHighlights]);
+  ), [currentBlocks, rawMarkdown, selectedBlockHighlights]);
   const { isLoading: isBlocksLoading, notice: highlightNotice } = getSourceHighlightStatus(
     {
       isEnabled: isBlocksQueryEnabled,
       isPending: blocksQuery.isPending,
       isError: blocksQuery.isError,
-      isPlaceholderData: blocksQuery.isPlaceholderData,
-      data: blocksQuery.data
+      ...currentBlocks
     },
     resolvedHighlight
   );
@@ -382,6 +400,10 @@ export function SourcePreviewPanel({
     const locatedIds = new Set(highlightRanges.map((range) => range.blockId));
     return selectedBlockHighlights.filter((highlight) => locatedIds.has(highlight.block_id));
   }, [highlightRanges, selectedBlockHighlights]);
+  // 근거를 새로 고르거나 스크롤 대상이 실제로 바뀔 때만 다시 스크롤한다.
+  // placeholder→실응답처럼 같은 위치로 재계산되면 사용자 스크롤을 되돌리지 않는다.
+  const scrollTargetBlockId = locatedHighlights[0]?.block_id ?? null;
+  const scrollTargetKey = getHighlightScrollKey(highlightRanges, locatedHighlights);
 
   // 하이라이트 본문 렌더와 스크롤 effect가 같은 조건을 보게 한다.
   // 본문과 로딩 종료가 다른 렌더로 나뉘면, 블록이 그려지기 전에 스크롤을 시도하고 끝나 버린다.
@@ -399,7 +421,10 @@ export function SourcePreviewPanel({
 
     // scrollIntoView는 조상 요소·페이지까지 밀 수 있어(#64) 미리보기 스크롤 영역만 직접 스크롤한다.
     const frameId = window.requestAnimationFrame(() => {
-      const block = findHighlightedScrollTarget(blockRefs.current, locatedHighlights);
+      const block = findHighlightedScrollTarget(
+        blockRefs.current,
+        scrollTargetBlockId ? [{ block_id: scrollTargetBlockId }] : []
+      );
       const container = contentRef.current;
       if (!block || !container) return;
       const containerRect = container.getBoundingClientRect();
@@ -417,7 +442,7 @@ export function SourcePreviewPanel({
       });
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [showHighlightedMarkdown, rawMarkdown, locatedHighlights]);
+  }, [showHighlightedMarkdown, rawMarkdown, selectedBlockHighlights, scrollTargetBlockId, scrollTargetKey]);
 
   return (
     <section

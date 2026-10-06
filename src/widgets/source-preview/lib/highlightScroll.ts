@@ -34,3 +34,16 @@ export function findHighlightedScrollTarget<T extends { isConnected: boolean }>(
   const block = blockRefs[firstBlockId];
   return block?.isConnected ? block : null;
 }
+
+/**
+ * 스크롤 대상(첫 위치 근거 block과 그 줄 범위)을 값으로 비교할 키를 만든다.
+ * 근거 배열은 재계산마다 새로 만들어지므로, 대상이 실제로 바뀔 때만 다시 스크롤하도록 이 키를 effect 의존성으로 쓴다.
+ */
+export function getHighlightScrollKey(
+  ranges: readonly { blockId: string; startLine: number; endLine: number }[],
+  locatedHighlights: readonly { block_id: string }[]
+): string | null {
+  const firstBlockId = locatedHighlights[0]?.block_id;
+  const range = ranges.find((item) => item.blockId === firstBlockId);
+  return range ? `${range.blockId}:${range.startLine}-${range.endLine}` : null;
+}

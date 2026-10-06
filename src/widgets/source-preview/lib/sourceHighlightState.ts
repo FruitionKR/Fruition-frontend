@@ -7,11 +7,55 @@ export const HIGHLIGHT_NOTICES = {
   someMissing: "일부 근거는 문서에서 위치를 찾지 못했습니다."
 } as const;
 
+/** 화면 본문 한 번의 로드. loadId는 문서를 오가도 다시 쓰지 않아 로드마다 고유하다. */
+export type MarkdownLoad = { documentId: string; loadId: number };
+
+/** 근거 block 응답과 그 응답을 요청한 본문 로드 */
+export type LoadedSourceBlocks = MarkdownLoad & { response: DocumentBlocksResponse };
+
+/**
+ * 본문 로드 ID를 매기는 순번을 만든다. 문서를 바꿔도 1부터 다시 세지 않는다.
+ * 다시 세면 A→B→A 전환 때 이전 A 로드의 키가 재사용되어 복원 전 응답이 캐시에서 그대로 나온다.
+ */
+export function createMarkdownLoadSequence(): (documentId: string) => MarkdownLoad {
+  let lastLoadId = 0;
+  return (documentId) => {
+    lastLoadId += 1;
+    return { documentId, loadId: lastLoadId };
+  };
+}
+
+/** 근거 block 조회 키. 본문 로드마다 키가 달라 이전 로드의 응답을 캐시에서 받지 않는다. */
+export function getSourceBlocksQueryKey(documentId: string | null | undefined, load: MarkdownLoad | null) {
+  return ["document-blocks", documentId, load && load.documentId === documentId ? load.loadId : null] as const;
+}
+
+/** 같은 문서를 다시 불러오는 동안에만 이전 응답을 임시로 이어 쓴다. */
+export function keepSameDocumentBlocks(
+  documentId: string | null | undefined,
+  previous: LoadedSourceBlocks | undefined
+): LoadedSourceBlocks | undefined {
+  return previous && previous.documentId === documentId ? previous : undefined;
+}
+
+/**
+ * 응답이 현재 본문 로드용인지 가린다.
+ * 다른 문서의 응답은 버리고, 같은 문서라도 다른 로드의 응답은 placeholder로 보아 서버 줄 범위를 믿지 않는다.
+ * 캐시·placeholder 여부와 무관하게 응답을 요청한 로드 ID로만 판단한다.
+ */
+export function selectSourceBlocksForLoad(
+  load: MarkdownLoad | null,
+  loaded: LoadedSourceBlocks | undefined
+): Pick<SourceBlocksQueryState, "data" | "isPlaceholderData"> {
+  if (!load || !loaded || loaded.documentId !== load.documentId) return { data: undefined, isPlaceholderData: false };
+  return { data: loaded.response, isPlaceholderData: loaded.loadId !== load.loadId };
+}
+
 export type SourceBlocksQueryState = {
   isEnabled: boolean;
   isPending: boolean;
   isError: boolean;
-  /** 현재 본문용 응답을 기다리는 동안 이전 본문 버전의 응답을 임시로 쓰는 중인지 */
+  /** 현재 본문 로드용 응답이 아니라 이전 로드의 응답을 임시로 쓰는 중인지 */
   isPlaceholderData: boolean;
   data: DocumentBlocksResponse | undefined;
 };
