@@ -12,3 +12,10 @@ export async function hashAccessCode(code: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/** 접근 코드가 설정되어 있고 쿠키 값이 그 코드를 통과했는지. ACCESS_CODE 미설정이면 false다(/wake처럼 게이트가 꺼져도 열면 안 되는 곳에 쓴다). */
+export async function hasVerifiedAccessCode(token: string | undefined): Promise<boolean> {
+  const accessCode = getAccessCode();
+  if (!accessCode) return false;
+  return Boolean(token) && token === (await hashAccessCode(accessCode));
+}

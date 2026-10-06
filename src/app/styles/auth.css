@@ -268,6 +268,12 @@
   cursor: pointer;
 }
 
+/* 접근 코드 확인 전에는 간편 로그인을 막는다. */
+.auth-social-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 .auth-social-button--kakao {
   padding-top: 2px;
   background: #fee500;
@@ -311,6 +317,12 @@
 
 .auth-prompt button {
   color: var(--auth-accent);
+}
+
+/* 서버 준비 안내처럼 문장이 길어 한 줄을 넘을 수 있는 안내 */
+.auth-prompt--wrap {
+  justify-content: center;
+  white-space: normal;
 }
 
 .auth-prompt button:disabled {

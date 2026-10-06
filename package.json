@@ -28,6 +28,8 @@
     "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1146.0",
+    "@aws-sdk/client-eventbridge": "^3.1146.0",
     "@codemirror/lang-markdown": "^6.5.1",
     "@codemirror/view": "^6.43.6",
     "@milkdown/crepe": "^7.21.3",

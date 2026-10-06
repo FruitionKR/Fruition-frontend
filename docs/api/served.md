@@ -5,7 +5,7 @@
 이 저장소가 직접 서비스하는 Next.js route handler다. 실제 서버 엔드포인트이므로
 backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 사항이 없더라도 항목을 생략하지 않는다.
 
-- 핸들러 수: 3 (파일 2개)
+- 핸들러 수: 5 (파일 3개)
 
 ## API 목차
 
@@ -14,6 +14,8 @@ backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 �
 | [`GET /api/document-transport`](#detail-get-api-document-transport) | 문서 계열 요청을 직접 보낼 backend 오리진과 직접 업로드 가능 여부를 알려준다 |
 | [`GET /access/verify`](#detail-get-access-verify) | 현재 브라우저의 접근 코드 게이트 상태를 알려준다 |
 | [`POST /access/verify`](#detail-post-access-verify) | 접근 코드를 검증하고 해제 쿠키를 심는다 |
+| [`POST /wake`](#detail-post-wake) | 절전 중인 서버(EKS 노드)의 기동을 요청한다 |
+| [`GET /wake`](#detail-get-wake) | 서버 절전 상태(`phase`)를 알려준다 |
 
 ## 한눈에 보기
 
@@ -21,7 +23,9 @@ backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 �
 |---|---|---|---|---|
 | `GET /api/document-transport` | 없음 | `200` `{ origin, directUpload }` | 접근 코드 게이트 통과 필요 | `403` 접근 코드 미입력 |
 | `GET /access/verify` | 쿠키 `fruition_access` | `200` `{ enabled, unlocked }` | 없음 | 없음 |
-| `POST /access/verify` | `{ code }` | `200` `{ ok: true }` + `Set-Cookie` | 없음 | `401` 코드 불일치 |
+| `POST /access/verify` | `{ code }` | `200` `{ ok: true }` + `Set-Cookie` | 클라이언트당 10분 10회 실패까지 | `401` 코드 불일치, `429` 시도 초과 |
+| `POST /wake` | 쿠키 `fruition_access` | `204` | `ACCESS_CODE` 설정 + 접근 코드 통과 | `403` 접근 코드 미통과·게이트 꺼짐 |
+| `GET /wake` | 쿠키 `fruition_access` | `200` `{ phase }` | 없음 | 없음 (미통과·게이트 꺼짐·실패는 `phase: "unknown"`) |
 
 ---
 
@@ -220,8 +224,9 @@ curl -s http://localhost:3000/access/verify
 | 상태 | 발생 조건 | 본문 |
 |---|---|---|
 | `401` | 코드가 비었거나 `ACCESS_CODE`와 다름 | `{ "message": "코드가 올바르지 않습니다." }` |
+| `429` | 같은 클라이언트가 첫 실패로부터 10분 안에 10번 실패함. 차단 중에는 맞는 코드도 확인하지 않는다 | `{ "message": "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해 주세요." }` + `Retry-After`(초) |
 
-본문 파싱 실패는 `null`로 흡수해 `401`과 같은 경로로 떨어진다. backend의 `ErrorResponse`
+본문 파싱 실패는 `null`로 흡수해 `401`과 같은 경로로 떨어진다(실패 횟수에 포함). backend의 `ErrorResponse`
 envelope 형식(`error.code`)이 아니라 `message` 평면 필드를 쓴다.
 
 ### 7. Pagination / filtering
@@ -231,7 +236,12 @@ envelope 형식(`error.code`)이 아니라 `message` 평면 필드를 쓴다.
 ### 8. 권한 규칙
 
 - 워크스페이스·역할 권한과 무관하다. 배포 전체에 하나의 코드를 쓰는 단일 게이트다.
-- 코드 비교는 단순 문자열 비교이며 시도 횟수 제한(rate limiting)이 없다.
+- 코드 비교는 입력과 `ACCESS_CODE`의 SHA-256 다이제스트를 `timingSafeEqual`로 비교한다(상수 시간).
+- 시도 제한: 클라이언트별 실패 횟수를 Pod 메모리에서 센다(첫 실패부터 10분 고정 윈도, 10회 초과 시 `429`, 성공하면 초기화).
+  클라이언트 키는 `x-forwarded-for`의 **마지막** hop이다. ALB가 실제 접속 IP를 끝에 덧붙이므로, 클라이언트가 위조할 수 있는
+  앞쪽 hop은 쓰지 않는다. 헤더가 없으면(로컬) 모든 요청이 한 키를 공유한다. 추적 키는 최대 1만 개이며, 넘치면 만료된 것부터,
+  그다음 가장 오래된 것부터 지운다.
+- 이 제한은 레플리카마다 따로 세고 재시작하면 초기화된다. 단일 출처의 빠른 대입을 막는 보완책이며, 분산 IP 대입은 WAF rate 규칙이 맡는다.
 - 쿠키에는 코드가 아닌 해시를 저장하고 `httpOnly`로 스크립트 접근을 막는다.
 
 ### 9. 예시 요청/응답
@@ -251,9 +261,164 @@ Set-Cookie: fruition_access=<sha256>; Path=/; HttpOnly; SameSite=Lax
 
 ### 10. 구현 파일
 
-- 핸들러: `app/access/verify/route.ts` (`POST`)
+- 핸들러: `app/access/verify/route.ts` (`POST`, 상수 시간 비교 `isSameCode`)
+- 시도 제한: `app/access/verify/attemptLimiter.ts` (서버 전용)
 - 헬퍼: `src/shared/lib/accessCode.ts`
 - 게이트: `middleware.ts`
+- 호출 측: `src/shared/api/accessGate.ts` (`submitAccessCode` → `"ok" | "invalid" | "rate-limited"`)
+
+---
+
+<a id="detail-post-wake"></a>
+## `POST /wake`
+
+### 1. Method + Path
+
+`POST /wake`
+
+### 2. 목적
+
+AWS 절전(노드 0대) 중 로그인 화면 진입·로그인 제출 직전에 플랫폼 Lambda에 기동을 요청한다.
+EventBridge 기본 버스에 `PutEvents`로 이벤트 한 건(`Source`=`REQUEST_WAKE_EVENT_SOURCE`,
+`DetailType`=`REQUEST_WAKE_DETAIL_TYPE`, `Detail`=`"{}"`)을 보낸다. Lambda는 `asleep`일 때만 기동하므로
+여러 번 보내도 안전하다. 사용자가 로그인 정보를 입력하는 동안 노드가 뜨기 시작하게 하는 것이 목적이다.
+
+### 3. Auth 필요 여부
+
+- 사용자 인증은 불필요하다.
+- `/api` 밖이라 `middleware.ts`와 WAF 접근 코드 규칙을 거치지 않으므로 **핸들러가 직접**
+  `fruition_access` 쿠키를 확인한다(`hasVerifiedAccessCode`). 미통과면 이벤트를 보내지 않는다.
+  봇 방문만으로 서버가 깨어 비용이 나가는 것을 막기 위해서다.
+- `ACCESS_CODE`가 비어 있는 배포는 확인할 코드가 없으므로 **항상 `403`**이다. `/api` 게이트(게이트 꺼짐 = 통과)와 판단이 다르다.
+  운영에서 `ACCESS_CODE`가 빠지면 화면의 기동 요청이 꺼지고 플랫폼의 ALB 5XX 감지만 남는다(비용 방어가 함께 사라지지 않게 하려는 선택).
+
+### 4. Request body
+
+| 위치 | 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|---|
+| cookie | `fruition_access` | `string` | 예 | `ACCESS_CODE` 해시와 일치해야 한다 |
+
+본문은 없다.
+
+### 5. Response body
+
+- HTTP `204`, 본문 없음, `Cache-Control: no-store`.
+- 다음 경우에도 모두 `204`다. 로그인 흐름을 막지 않기 위해서다.
+  - `REQUEST_WAKE_EVENT_SOURCE` 또는 `REQUEST_WAKE_DETAIL_TYPE` 미설정(기능 꺼짐, 프로세스당 한 번 경고 로그)
+  - 같은 Pod에서 마지막 발행 **성공** 후 60초 이내, 또는 마지막 발행 **실패** 후 10초 이내(발행 생략)
+  - 같은 Pod에서 발행이 진행 중(그 발행이 끝날 때까지 기다린 뒤 응답)
+  - AWS 호출 실패·3초 타임아웃·`FailedEntryCount > 0`(오류 로그)
+
+### 6. Error response
+
+| 상태 | 발생 조건 | 본문 |
+|---|---|---|
+| `403` | 접근 코드 미통과, 또는 `ACCESS_CODE` 미설정(게이트 꺼짐) | 없음 |
+
+AWS 실패는 오류 응답으로 바꾸지 않고 `[wake]` 로그만 남긴다. 이때는 플랫폼의 ALB 5XX 감지가 예비로 동작한다.
+
+### 7. Pagination / filtering
+
+- 해당 없음.
+
+### 8. 권한 규칙
+
+- 워크스페이스·역할 권한과 무관하다. 접근 코드 쿠키 해시 일치만 본다.
+- 중복 방지는 Pod 메모리 단위다. 레플리카가 N개면 60초에 최대 N건이 나갈 수 있으나 Lambda가 멱등이다.
+- 발행 중인 요청을 Pod 메모리에 두어 동시 요청도 한 건만 보낸다. 성공하면 60초 동안 다시 보내지 않고,
+  실패(예외·타임아웃·`FailedEntryCount > 0`)하면 10초 뒤부터 재시도한다(일시 오류 복구, 오류 로그는 Pod당 분당 최대 6건).
+- AWS 권한은 IRSA role `fruition-frontend-wake`가 준다(EventBridge `PutEvents` 한정).
+
+### 9. 예시 요청/응답
+
+```sh
+curl -i -X POST http://localhost:3000/wake -H 'Cookie: fruition_access=<hash>'
+```
+
+```
+HTTP/1.1 204 No Content
+Cache-Control: no-store
+```
+
+### 10. 구현 파일
+
+- 핸들러: `app/wake/route.ts` (`POST`, `export const dynamic = "force-dynamic"`)
+- AWS 호출·중복 방지: `app/wake/requestWake.ts` (`requestWake`). 서버 전용이라 `app/wake/` 밖에서 import하지 않는다.
+- 접근 코드 판정: `src/shared/lib/accessCode.ts` (`hasVerifiedAccessCode`)
+- 호출 측: `src/views/login/model/useServerWake.ts` (로그인 화면 진입 시·제출 직전, 응답 무시. `GET /access/verify`가 `enabled: false`면 부르지 않는다)
+- 플랫폼 라우팅: ALB가 `/wake`를 화면으로 보내야 한다(플랫폼 `test_aws_frontend_routing.py`의 화면 경로)
+
+---
+
+<a id="detail-get-wake"></a>
+## `GET /wake`
+
+### 1. Method + Path
+
+`GET /wake`
+
+### 2. 목적
+
+로그인 화면이 서버 준비 안내를 띄울지 판단하도록 플랫폼 절전 상태를 알려준다.
+DynamoDB `REQUEST_WAKE_STATE_TABLE`의 `GetItem(Key={"id": "controller"})`에서 `phase`만 읽는다.
+
+### 3. Auth 필요 여부
+
+- 사용자 인증은 불필요하다.
+- 접근 코드 미통과이거나 `ACCESS_CODE`가 비어 있으면 DynamoDB를 조회하지 않고 `{"phase":"unknown"}`을 준다(`POST`와 같은 판정).
+
+### 4. Request body
+
+| 위치 | 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|---|
+| cookie | `fruition_access` | `string` | 예 | 없거나 틀리면(또는 게이트 꺼짐이면) `phase: "unknown"` |
+
+본문은 없다.
+
+### 5. Response body
+
+- HTTP `200`, `Content-Type: application/json`, `Cache-Control: no-store`
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `phase` | `"asleep" \| "sleeping" \| "waking" \| "awake" \| "unknown"` | 항목이 없으면 `awake`. 테이블 미설정·`ACCESS_CODE` 미설정·접근 코드 미통과·조회 실패·모르는 값이면 `unknown` |
+
+```json
+{ "phase": "waking" }
+```
+
+다른 필드(갱신 시각, 노드 수 등)는 노출하지 않는다.
+
+### 6. Error response
+
+| 상태 | 발생 조건 | 본문 |
+|---|---|---|
+| - | - | 오류 분기가 없다. 실패는 `[wake]` 로그와 `200 {"phase":"unknown"}`으로 흡수한다 |
+
+### 7. Pagination / filtering
+
+- 해당 없음.
+
+### 8. 권한 규칙
+
+- 워크스페이스·역할 권한과 무관하다.
+- AWS 권한은 IRSA role `fruition-frontend-wake`의 DynamoDB `GetItem` 한정이다. 조회는 3초 타임아웃.
+- `awake`는 노드가 떴다는 뜻이지 앱 준비를 보장하지 않는다. 호출 측은 `GET /api/auth/me`(토큰 없이)가
+  5xx가 아닌 응답을 줄 때 준비로 본다.
+- 호출 측 확인은 최대 15분(10초 간격 90회)이다. 그 안에 준비가 끝나지 않으면 확인을 멈추고 "잠시 후 다시 시도" 안내로 바꾼다.
+
+### 9. 예시 요청/응답
+
+```sh
+curl -s http://localhost:3000/wake
+# {"phase":"unknown"}
+```
+
+### 10. 구현 파일
+
+- 핸들러: `app/wake/route.ts` (`GET`)
+- DynamoDB 조회: `app/wake/requestWake.ts` (`readWakePhase`)
+- 호출 측: `src/views/login/model/useServerWake.ts` (안내 중 10초 간격 확인, 최대 15분), 판단 `src/views/login/model/wakeStep.ts`
 
 ---
 
