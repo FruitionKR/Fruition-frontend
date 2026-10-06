@@ -91,6 +91,8 @@ export function useOperationNotifications() {
       schedule(hasActive);
     }
 
+    // 숨김 전에 예약된 타이머는 숨김 뒤에도 한 번 더 실행된다. 보이는 상태에서 방금 시작한 lint·restore를
+    // 이 폴링이 잡으면 hasActive로 3초 폴링이 이어지므로 의도한 동작이다. 멈춤은 그다음 schedule에서 판단한다.
     function schedule(hasActive: boolean) {
       if (cancelled) return;
       const delay = nextOperationPollDelay(hasActive, document.visibilityState === "hidden");

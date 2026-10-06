@@ -33,6 +33,8 @@ export function useOperationLogFeed(isActive: boolean) {
   // 로그 뷰를 다시 열면 이전 요청의 응답을 버린다.
   const requestIdRef = useRef(0);
   const silentPollInFlightRef = useRef(false);
+  // 로그 뷰가 열린 채 숨김으로 폴링이 멈췄는지. 마운트 직후의 refresh()와 복귀 갱신이 겹치지 않게 한다.
+  const pausedWhileActiveRef = useRef(false);
 
   const refresh = useCallback(async (
     preferredOperationId?: string,
@@ -93,9 +95,21 @@ export function useOperationLogFeed(isActive: boolean) {
     void refresh();
   }, [isActive, refresh]);
 
-  // 숨김 탭에서는 목록 폴링을 멈추고, 다시 보이면 같은 주기로 재개한다.
+  // 숨김 탭에서는 목록 폴링을 멈추고, 다시 보이면 즉시 한 번 조용히 갱신한 뒤 같은 주기로 재개한다.
   useEffect(() => {
-    if (!isActive || !isPageVisible) return;
+    if (!isActive) {
+      // 로그 뷰를 다시 열 때는 위 effect의 refresh()가 받으므로 복귀 갱신을 겹치지 않는다.
+      pausedWhileActiveRef.current = false;
+      return;
+    }
+    if (!isPageVisible) {
+      pausedWhileActiveRef.current = true;
+      return;
+    }
+    if (pausedWhileActiveRef.current) {
+      pausedWhileActiveRef.current = false;
+      void refresh(undefined, { silent: true });
+    }
     const intervalId = window.setInterval(
       () => void refresh(undefined, { silent: true }),
       LOG_POLL_INTERVAL_MS
