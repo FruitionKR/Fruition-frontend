@@ -44,7 +44,7 @@ export function MarkdownEditPreview({
               ))}
             </div>
             <div className={styles["markdown-edit-rendered-preview"]}>
-              <MarkdownViewer markdown={preview.replacementMarkdown} />
+              <MarkdownViewer markdown={preview.replacementMarkdown} linkPolicy="inert-external" />
             </div>
           </details>
         </div>

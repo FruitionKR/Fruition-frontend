@@ -1,13 +1,9 @@
 import { apiFetch, throwIfNotOk } from "@/shared/api/client";
 
-// 백엔드가 본문 저장 응답에서 치환해 주는 관리 이미지 경로 (REQ-005)
-const MANAGED_ASSET_PATH = /^\/api\/workspaces\/[^/]+\/assets\/[^/]+\/content$/;
-const MANAGED_ASSET_PATH_IN_TEXT = /\/api\/workspaces\/[^/\s)]+\/assets\/[^/\s)]+\/content/g;
+// 관리 이미지 경로 판별은 외부 이미지 분류와 같은 기준을 쓰도록 externalResources에 둔다.
+export { isManagedAssetPath } from "@/shared/lib/externalResources";
 
-/** 워크스페이스 멤버만 볼 수 있는 관리 이미지 경로인지. 일반 <img src>로 요청하면 401이라 JWT fetch가 필요하다. */
-export function isManagedAssetPath(src: string): boolean {
-  return MANAGED_ASSET_PATH.test(src);
-}
+const MANAGED_ASSET_PATH_IN_TEXT = /\/api\/workspaces\/[^/\s)]+\/assets\/[^/\s)]+\/content/g;
 
 /** 본문 문자열에 들어 있는 관리 이미지 경로 목록(중복 제거). 편집기를 만들기 전에 미리 받아 두는 데 쓴다. */
 export function extractManagedAssetPaths(markdown: string): string[] {

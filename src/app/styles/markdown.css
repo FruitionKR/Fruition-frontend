@@ -164,6 +164,23 @@
   color: #8ab4e8;
 }
 
+/* AI 본문의 외부 링크는 누를 수 없는 글자로 둔다(이슈 #77). 링크처럼 보이지 않게 본문 색을 유지한다. */
+.markdown-inert-link {
+  color: inherit;
+}
+
+/* 요청하지 않은 외부·미지원 이미지와 불러오지 못한 관리 이미지 자리 표시 */
+.markdown-image-blocked,
+.markdown-image-missing {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: #9a9a9a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* 원문 근거 강조 (Figma 1132:10762 notice): 노란 배경 16%·좌측 3px 선·좌우 24px, 14px Medium 행간 1.8.
    각 근거 줄 끝에 순위 [n]을 순위 색으로 붙인다. 연속된 근거 블록은 한 상자로 이어져 보이도록
    블록 사이 여백 없이 붙이고, 상자 위·아래 12px 여백은 이어진 묶음의 첫 블록과 마지막 블록에만 준다. */
