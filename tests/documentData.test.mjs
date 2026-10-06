@@ -34,6 +34,13 @@ test("문서 목록은 documents를 따로 받지 않고 트리 한 번으로 �
   assert.deepEqual(paths, ["/api/workspaces/ws_test/document-tree"]);
 });
 
+test("문서 목록 조회가 실패하면 폴더가 아니라 문서 목록 실패 문구를 쓴다", async t => {
+  globalThis.window = { localStorage: { getItem: () => "ws_test", removeItem() {} } };
+  t.after(() => { delete globalThis.window; });
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 500 }));
+  await assert.rejects(fetchDocumentData(), { message: "문서 목록을 불러오지 못했습니다." });
+});
+
 test("트리 문서를 서버 목록과 같은 sort_order·id 순으로 평탄화하고 폴더는 뺀다", () => {
   const doc = (id, sortOrder) => ({ id, type: "document", name: `${id}.md`, sort_order: sortOrder, document: { id, status: "ready" } });
   const items = [

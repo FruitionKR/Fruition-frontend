@@ -1,5 +1,5 @@
 import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
-import type { AgentPlan, AgentPlanRun, PlanTreeItem } from "../lib/agentPlan";
+import type { AgentPlan, AgentPlanRun } from "../lib/agentPlan";
 
 /** 채팅의 turn ID와 실제 승인 대상 run ID는 서로 다르다. */
 export async function fetchAgentPlanRun(workspaceId: string, turnId: string, signal?: AbortSignal): Promise<AgentPlanRun | null> {
@@ -14,11 +14,6 @@ export async function fetchAgentPlanRun(workspaceId: string, turnId: string, sig
   if (!turn.result?.run_id) throw new Error("이 답변의 계획 정보를 찾을 수 없습니다. 다시 요청해주세요.");
   const runResponse = await apiFetch(workspacePath(workspaceId, "agent", "runs", turn.result.run_id), { cache: "no-store", signal });
   return parseJsonOrThrow<AgentPlanRun>(runResponse, "작업 계획을 불러오지 못했습니다.");
-}
-
-export async function fetchPlanTree(workspaceId: string, signal?: AbortSignal): Promise<PlanTreeItem[]> {
-  const response = await apiFetch(workspacePath(workspaceId, "document-tree"), { cache: "no-store", signal });
-  return (await parseJsonOrThrow<{ items: PlanTreeItem[] }>(response, "문서와 폴더 이름을 불러오지 못했습니다.")).items;
 }
 
 export async function decideAgentPlan(workspaceId: string, runId: string, decision: "approve" | "reject", plan: AgentPlan): Promise<AgentPlanRun> {

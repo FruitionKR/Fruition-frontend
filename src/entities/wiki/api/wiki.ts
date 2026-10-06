@@ -27,7 +27,7 @@ export function documentsFromTree(items: ServerTreeItem[]): DocumentItemResponse
 
 /** documents 목록 조회는 같은 데이터라 트리 한 번만 받는다(#66). */
 export async function fetchDocumentData(): Promise<Pick<BackendData, "documents" | "tree">> {
-  const tree = await fetchDocumentTree(getWorkspaceId());
+  const tree = await fetchDocumentTree(getWorkspaceId(), ERROR_MESSAGES.documentsLoadFailed);
   return { documents: documentsFromTree(tree.items), tree: tree.items };
 }
 

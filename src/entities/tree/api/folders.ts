@@ -1,9 +1,13 @@
 import { apiFetch, getWorkspaceId, workspacePath, parseJsonOrThrow, throwIfNotOk, idempotentJsonHeaders } from "@/shared/api/client";
 import { findServerTreeItem, type DocumentTreeResponse, type FolderResponse } from "@/entities/tree/model/serverTree";
 
-export async function fetchDocumentTree(workspaceId = getWorkspaceId()): Promise<DocumentTreeResponse> {
+export async function fetchDocumentTree(
+  workspaceId = getWorkspaceId(),
+  // 문서 목록 폴링처럼 트리를 다른 용도로 받을 때 그 용도에 맞는 실패 문구를 쓴다.
+  failureMessage = "폴더 목록을 불러오지 못했습니다."
+): Promise<DocumentTreeResponse> {
   const response = await apiFetch(workspacePath(workspaceId, "document-tree"), { cache: "no-store" });
-  const tree = await parseJsonOrThrow<DocumentTreeResponse>(response, "폴더 목록을 불러오지 못했습니다.");
+  const tree = await parseJsonOrThrow<DocumentTreeResponse>(response, failureMessage);
   if (!Array.isArray(tree.items)) throw new Error("폴더 목록 응답이 올바르지 않습니다.");
   return tree;
 }
