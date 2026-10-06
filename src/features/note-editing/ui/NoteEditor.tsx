@@ -314,14 +314,15 @@ export function NoteEditor({
   }, [canEdit, documentId, sourceMode]);
 
   useEffect(() => {
-    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
+    const root = wysiwygRootRef.current;
+    if (!root) return;
 
     let isDisposed = false;
     // Crepe의 create/destroy가 비동기라 root를 공유하면 이전 인스턴스 DOM이 남은 채
     // 다음 인스턴스가 붙어 편집기 높이가 잠깐 두 배가 된다(문서 전환·StrictMode 재실행).
     // 인스턴스마다 전용 host를 두고 정리 때 동기로 떼어내 겹침을 없앤다.
     const host = document.createElement("div");
-    wysiwygRootRef.current.appendChild(host);
+    root.appendChild(host);
 
     // 이 편집기가 잡은 관리 이미지 참조. 정리 때 한꺼번에 놓아 object URL이 새지 않게 한다.
     const acquiredAssetPaths = new Set<string>();
