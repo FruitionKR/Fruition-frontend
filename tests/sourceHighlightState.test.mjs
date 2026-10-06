@@ -161,3 +161,77 @@ test("본문을 아직 불러오지 않았거나 다른 문서의 로드면 조�
   assert.deepEqual(getSourceBlocksQueryKey("doc_2", load), ["document-blocks", "doc_2", null]);
   assert.deepEqual(getSourceBlocksQueryKey("doc_1", null), ["document-blocks", "doc_1", null]);
 });
+
+// 패널이 쓰는 조회 옵션을 실제 react-query QueryObserver로 돌려, 로드별 키·캐시 정리·placeholder 배선을 확인한다.
+const { QueryClient, QueryObserver } = await import("@tanstack/query-core");
+const { getSourceBlocksQueryOptions, createMarkdownLoadSequence: createSequence, selectSourceBlocksForLoad: selectForLoad } =
+  await import("../src/widgets/source-preview/lib/sourceHighlightState.ts");
+
+function blocksResponse(documentId, lineStart) {
+  return {
+    document_id: documentId, source_content_hash: "h", current_content_hash: "h", is_stale: false,
+    blocks: [{ block_id: "B0007", position: 1, line_start: lineStart, line_end: lineStart, block_type: "paragraph", text: "x" }]
+  };
+}
+
+async function settle(observer) {
+  for (let i = 0; i < 20 && observer.getCurrentResult().isFetching; i += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+test("실제 QueryClient에서 A→B→A로 돌아와도 이전 A 로드의 응답을 현재 로드용으로 믿지 않는다", async (t) => {
+  const client = new QueryClient();
+  t.after(() => client.clear());
+  const nextLoad = createSequence();
+  const fetchBlocks = async (documentId) => blocksResponse(documentId, documentId === "A" ? 3 : 9);
+  const loadA1 = nextLoad("A");
+  const observer = new QueryObserver(client, getSourceBlocksQueryOptions("A", loadA1, true, fetchBlocks));
+  const unsubscribe = observer.subscribe(() => {});
+  t.after(unsubscribe);
+  await settle(observer);
+  assert.equal(selectForLoad(loadA1, observer.getCurrentResult().data).isPlaceholderData, false);
+
+  const loadB = nextLoad("B");
+  observer.setOptions(getSourceBlocksQueryOptions("B", loadB, true, fetchBlocks));
+  await settle(observer);
+  const loadA2 = nextLoad("A");
+  observer.setOptions(getSourceBlocksQueryOptions("A", loadA2, true, fetchBlocks));
+
+  // 이전 A 로드의 캐시는 gcTime 0으로 정리돼 다시 나오지 않고, B의 응답은 placeholder로 쓰지 않는다.
+  assert.equal(client.getQueryCache().find({ queryKey: ["document-blocks", "A", loadA1.loadId], exact: true }), undefined);
+  assert.equal(observer.getCurrentResult().data, undefined);
+  await settle(observer);
+  const selected = selectForLoad(loadA2, observer.getCurrentResult().data);
+  assert.equal(selected.isPlaceholderData, false);
+  assert.equal(selected.data.document_id, "A");
+});
+
+test("실제 QueryClient에서 같은 문서를 다시 불러오는 동안 이전 응답은 placeholder로만 쓴다", async (t) => {
+  const client = new QueryClient();
+  t.after(() => client.clear());
+  const nextLoad = createSequence();
+  let release;
+  let calls = 0;
+  const fetchBlocks = (documentId) => {
+    calls += 1;
+    if (calls === 1) return Promise.resolve(blocksResponse(documentId, 3));
+    return new Promise((resolve) => { release = () => resolve(blocksResponse(documentId, 5)); });
+  };
+  const load1 = nextLoad("A");
+  const observer = new QueryObserver(client, getSourceBlocksQueryOptions("A", load1, true, fetchBlocks));
+  const unsubscribe = observer.subscribe(() => {});
+  t.after(unsubscribe);
+  await settle(observer);
+
+  // 복원 등으로 같은 문서를 다시 불러오면, 새 응답이 오기 전까지 이전 응답이 placeholder로 남고 서버 범위는 믿지 않는다.
+  const load2 = nextLoad("A");
+  observer.setOptions(getSourceBlocksQueryOptions("A", load2, true, fetchBlocks));
+  const pending = observer.getCurrentResult();
+  assert.equal(pending.isPlaceholderData, true);
+  assert.equal(selectForLoad(load2, pending.data).isPlaceholderData, true);
+
+  release();
+  await settle(observer);
+  const done = selectForLoad(load2, observer.getCurrentResult().data);
+  assert.equal(done.isPlaceholderData, false);
+  assert.equal(done.data.blocks[0].line_start, 5);
+});

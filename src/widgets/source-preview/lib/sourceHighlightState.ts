@@ -30,6 +30,30 @@ export function getSourceBlocksQueryKey(documentId: string | null | undefined, l
   return ["document-blocks", documentId, load && load.documentId === documentId ? load.loadId : null] as const;
 }
 
+/**
+ * 근거 block 조회 옵션. 패널과 테스트가 같은 설정을 쓰도록 한곳에 둔다.
+ * - 키가 로드마다 달라 지난 로드의 캐시는 다시 쓰지 않으므로 바로 정리한다(gcTime 0).
+ * - 같은 문서를 다시 불러오는 동안에는 이전 응답으로 본문을 유지한다(서버 줄 범위는 믿지 않는다).
+ * - 응답에 요청한 로드를 실어 selectSourceBlocksForLoad가 현재 로드용인지 가릴 수 있게 한다.
+ */
+export function getSourceBlocksQueryOptions(
+  documentId: string | null | undefined,
+  load: MarkdownLoad | null,
+  enabled: boolean,
+  fetchBlocks: (documentId: string) => Promise<DocumentBlocksResponse>
+) {
+  return {
+    queryKey: getSourceBlocksQueryKey(documentId, load),
+    queryFn: async (): Promise<LoadedSourceBlocks> => {
+      const current = load as MarkdownLoad;
+      return { ...current, response: await fetchBlocks(current.documentId) };
+    },
+    enabled,
+    gcTime: 0,
+    placeholderData: (previous: LoadedSourceBlocks | undefined) => keepSameDocumentBlocks(documentId, previous)
+  };
+}
+
 /** 같은 문서를 다시 불러오는 동안에만 이전 응답을 임시로 이어 쓴다. */
 export function keepSameDocumentBlocks(
   documentId: string | null | undefined,
@@ -82,7 +106,8 @@ export function resolveHighlightRanges(
 
 /**
  * 하이라이트 로딩 여부와 안내 문구를 정한다.
- * - 조회 실패 안내는 보여줄 응답이 없을 때만 낸다. 재조회만 실패하면 남은 응답으로 하이라이트를 그린다.
+ * - 조회 실패 안내는 보여줄 응답이 없을 때만 낸다. react-query는 placeholder를 조회 대기(pending) 중에만 주므로,
+ *   새 로드의 조회가 실패하면 응답이 없어져 실패 안내가 뜬다(이전 응답으로 하이라이트를 남기지 않는다).
  * - 이전 본문 버전의 응답(placeholder)으로 찾은 결과는 잠정이라 안내를 보류한다.
  */
 export function getSourceHighlightStatus(

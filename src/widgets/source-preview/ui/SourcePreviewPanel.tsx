@@ -19,9 +19,8 @@ import { getCenteredScrollTop } from "../lib/centerScrollTop";
 import { canShowHighlightedMarkdown, findHighlightedScrollTarget, getHighlightScrollKey } from "../lib/highlightScroll";
 import {
   createMarkdownLoadSequence,
-  getSourceBlocksQueryKey,
+  getSourceBlocksQueryOptions,
   getSourceHighlightStatus,
-  keepSameDocumentBlocks,
   resolveHighlightRanges,
   selectSourceBlocksForLoad,
   type MarkdownLoad
@@ -95,7 +94,8 @@ export function SourcePreviewPanel({
   // 화면 본문을 불러온 문서와 로드 ID. 근거 block 조회 키로 써서 본문이 바뀌면(복원·재편입 등) block도 다시 받는다.
   // 로드 ID는 문서를 바꿔도 다시 세지 않아, 이전 로드의 키(캐시)를 재사용하지 않는다.
   const [markdownLoad, setMarkdownLoad] = useState<MarkdownLoad | null>(null);
-  const nextMarkdownLoadRef = useRef(createMarkdownLoadSequence());
+  // 순번 함수는 처음 한 번만 만든다(렌더마다 만들고 버리지 않게).
+  const [nextMarkdownLoad] = useState(createMarkdownLoadSequence);
   const [noteContentVersion, setNoteContentVersion] = useState(0);
   const [rawDocumentUrl, setRawDocumentUrl] = useState<string | null>(null);
   // 텍스트 원본(TXT 등)은 iframe이 흰 배경으로 그리므로 본문을 직접 받아 패널 배경 위에 그린다.
@@ -304,7 +304,7 @@ export function SourcePreviewPanel({
         if (draft) {
           if (!ignore) {
             setRawMarkdown(draft.markdown);
-            setMarkdownLoad(nextMarkdownLoadRef.current(documentId));
+            setMarkdownLoad(nextMarkdownLoad(documentId));
             setNoteContentVersion(draft.content_version);
           }
           return;
@@ -313,7 +313,7 @@ export function SourcePreviewPanel({
         const text = await blob.text();
         if (!ignore) {
           setRawMarkdown(text);
-          setMarkdownLoad(nextMarkdownLoadRef.current(documentId));
+          setMarkdownLoad(nextMarkdownLoad(documentId));
           setNoteContentVersion(0);
         }
         return;
@@ -355,7 +355,7 @@ export function SourcePreviewPanel({
       ignore = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [documentId, documentReloadCount, isMarkdownFile, isPdfFile, isTextFile, pageId]);
+  }, [documentId, documentReloadCount, isMarkdownFile, isPdfFile, isTextFile, nextMarkdownLoad, pageId]);
 
   // 근거 block ID는 영구 ID라 본문을 다시 잘라 순번을 매기면 어긋난다(#65). 서버 block 위치를 받아 맞춘다.
   // 본문을 불러온 뒤에 그 본문 버전 키로 조회해, 복원·재편입 전 응답을 새 본문에 적용하지 않게 한다.
@@ -363,18 +363,9 @@ export function SourcePreviewPanel({
     && !!documentId
     && markdownLoad?.documentId === documentId
     && selectedBlockHighlights.length > 0;
-  const blocksQuery = useQuery({
-    queryKey: getSourceBlocksQueryKey(documentId, markdownLoad),
-    queryFn: async () => {
-      const load = markdownLoad as MarkdownLoad;
-      return { ...load, response: await fetchDocumentBlocks(load.documentId) };
-    },
-    enabled: isBlocksQueryEnabled,
-    // 키가 로드마다 달라 지난 로드의 캐시는 다시 쓰지 않으므로 바로 정리한다.
-    gcTime: 0,
-    // 같은 문서를 다시 불러오는 동안에는 이전 응답으로 본문을 유지한다(서버 줄 범위는 믿지 않는다).
-    placeholderData: (previous) => keepSameDocumentBlocks(documentId, previous)
-  });
+  const blocksQuery = useQuery(
+    getSourceBlocksQueryOptions(documentId, markdownLoad, isBlocksQueryEnabled, fetchDocumentBlocks)
+  );
   // 응답을 요청한 로드가 현재 본문 로드일 때만 서버 줄 범위를 믿는다.
   const currentBlocks = useMemo(
     () => selectSourceBlocksForLoad(markdownLoad, blocksQuery.data),
