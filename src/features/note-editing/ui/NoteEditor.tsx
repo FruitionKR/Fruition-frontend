@@ -29,6 +29,7 @@ import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../mo
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
+import { refitImageBlocks } from "../model/imageBlockHeight";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, isManagedAssetPath, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
 import { publishNotice } from "@/features/document-notifications";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
@@ -256,6 +257,28 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
     return () => observer.disconnect();
+  }, [documentId, sourceMode]);
+
+  // 편집기 폭이 바뀌면(채팅창 열고 닫기 등) 이미지 블록 높이를 새 폭으로 다시 계산한다(이슈 #63).
+  // 높이를 바꾸면 root 높이도 바뀌어 다시 불리므로 폭이 같을 때는 무시한다.
+  useEffect(() => {
+    if (sourceMode || !wysiwygRootRef.current) return;
+    const root = wysiwygRootRef.current;
+    let lastWidth = -1;
+    let frame = 0;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => refitImageBlocks(root));
+    });
+    observer.observe(root);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [documentId, sourceMode]);
 
   // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
