@@ -11,6 +11,7 @@ import {
   type OperationLogItem
 } from "@/entities/operation-log";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { usePageVisible } from "@/shared/lib/usePageVisible";
 
 /** 사이드바 목록 한 페이지 크기. 백엔드 기본은 20, 최대는 100이다. */
 const PAGE_SIZE = 30;
@@ -28,6 +29,7 @@ export function useOperationLogFeed(isActive: boolean) {
   const [loadMoreErrorMessage, setLoadMoreErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const isPageVisible = usePageVisible();
   // 로그 뷰를 다시 열면 이전 요청의 응답을 버린다.
   const requestIdRef = useRef(0);
   const silentPollInFlightRef = useRef(false);
@@ -91,14 +93,15 @@ export function useOperationLogFeed(isActive: boolean) {
     void refresh();
   }, [isActive, refresh]);
 
+  // 숨김 탭에서는 목록 폴링을 멈추고, 다시 보이면 같은 주기로 재개한다.
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || !isPageVisible) return;
     const intervalId = window.setInterval(
       () => void refresh(undefined, { silent: true }),
       LOG_POLL_INTERVAL_MS
     );
     return () => window.clearInterval(intervalId);
-  }, [isActive, refresh]);
+  }, [isActive, isPageVisible, refresh]);
 
   const selectOperation = useCallback((operationId: string) => {
     setSelectedOperationId(operationId);

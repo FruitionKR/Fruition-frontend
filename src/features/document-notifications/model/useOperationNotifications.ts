@@ -4,10 +4,8 @@ import { useEffect, useRef } from "react";
 import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
 import { useUserPreferences } from "@/entities/user";
 import { publishNotice } from "./noticeBus";
+import { nextOperationPollDelay } from "./operationPolling";
 
-const POLL_INTERVAL_MS = 15_000;
-// 진행 중인 작업을 알고 있으면 종결을 빨리 잡도록 짧게 폴링한다.
-const ACTIVE_POLL_INTERVAL_MS = 3_000;
 const TERMINAL_STATUSES = new Set(["succeeded", "partially_succeeded", "failed", "conflict"]);
 // 목록 조회는 status를 비우면 진행 중 로그를 숨기므로, 진행 중 상태를 따로 조회해 합친다.
 // lint는 processing만 거치고 restore는 applying → rebuilding(→ notify_pending)을 거친다.
@@ -54,6 +52,8 @@ export function useOperationNotifications() {
 
     let cancelled = false;
     let timer = 0;
+    // 숨김 탭에서 예약을 건너뛴 상태. 다시 보이면 즉시 한 번 폴링한다.
+    let paused = false;
 
     async function poll() {
       let logs: OperationLogItem[];
@@ -65,7 +65,7 @@ export function useOperationNotifications() {
         logs = [...terminal.logs, ...active.flatMap((page) => page.logs)];
       } catch {
         // 워크스페이스 미선택·일시적 실패는 다음 폴링에서 재시도한다.
-        schedule(POLL_INTERVAL_MS);
+        schedule(false);
         return;
       }
       if (cancelled) return;
@@ -88,17 +88,31 @@ export function useOperationNotifications() {
       }
       knownStatusesRef.current = next;
       const hasActive = logs.some((log) => !isTerminal(log.status));
-      schedule(hasActive ? ACTIVE_POLL_INTERVAL_MS : POLL_INTERVAL_MS);
+      schedule(hasActive);
     }
 
-    function schedule(delay: number) {
+    function schedule(hasActive: boolean) {
       if (cancelled) return;
+      const delay = nextOperationPollDelay(hasActive, document.visibilityState === "hidden");
+      if (delay === null) {
+        paused = true;
+        return;
+      }
       timer = window.setTimeout(() => void poll(), delay);
     }
 
+    function resumeWhenVisible() {
+      if (!paused || document.visibilityState === "hidden") return;
+      paused = false;
+      window.clearTimeout(timer);
+      void poll();
+    }
+
+    document.addEventListener("visibilitychange", resumeWhenVisible);
     void poll();
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", resumeWhenVisible);
       window.clearTimeout(timer);
     };
   }, [enabled, lintEnabled, restoreEnabled]);

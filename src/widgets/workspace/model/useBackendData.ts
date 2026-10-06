@@ -9,7 +9,8 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
 import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
-import { getWikiWorkPollInterval } from "@/features/wiki-ingest/model/wikiWorkPolling";
+import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
+import { usePageVisible } from "@/shared/lib/usePageVisible";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 type DocumentData = Pick<BackendData, "documents" | "tree">;
@@ -25,23 +26,25 @@ export function useBackendData({
 }) {
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
+  const isPageVisible = usePageVisible();
   const query = useQuery({
     queryKey: ["backendData", workspaceId, "documents"],
     queryFn: fetchDocumentData,
     enabled: Boolean(workspaceId),
     refetchInterval: (activeQuery) =>
-      getWikiWorkPollInterval(hasProcessingDocuments(activeQuery.state.data)),
+      getWikiWorkPollInterval(hasProcessingDocuments(activeQuery.state.data), isPageVisible),
+    // 처리 중인 문서가 있으면 숨김 탭에서도 폴링해 완료 브라우저 알림을 띄운다.
     refetchIntervalInBackground: true,
-    // 폴링으로 갱신 주기를 이미 제어하므로 탭 포커스마다 refetch하지 않는다.
-    refetchOnWindowFocus: false
+    // 숨김 탭에서 멈춰 있던 동안 오래된 데이터만 복귀 즉시 다시 받는다.
+    refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
   });
   const graphQuery = useQuery({
     queryKey: ["backendData", workspaceId, "graph"],
     queryFn: fetchWikiGraph,
     enabled: Boolean(workspaceId),
-    refetchInterval: getWikiWorkPollInterval(hasProcessingDocuments(query.data)),
+    refetchInterval: getWikiWorkPollInterval(hasProcessingDocuments(query.data), isPageVisible),
     refetchIntervalInBackground: true,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
   });
 
   const backendData = query.data;

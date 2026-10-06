@@ -5,7 +5,8 @@ import {
   selectActiveIngestDocuments
 } from "../src/features/wiki-ingest/model/wikiReflectState.ts";
 import { formatLintProgressLabel } from "../src/features/wiki-ingest/model/activeLintOperation.ts";
-import { getWikiWorkPollInterval } from "../src/features/wiki-ingest/model/wikiWorkPolling.ts";
+import { getWikiWorkPollInterval, isStaleForIdlePoll } from "../src/features/wiki-ingest/model/wikiWorkPolling.ts";
+import { nextOperationPollDelay } from "../src/features/document-notifications/model/operationPolling.ts";
 
 function makeDocument(overrides) {
   return {
@@ -88,4 +89,22 @@ test("진행 중인 lint가 없으면 라벨이 없다", () => {
 test("활성 작업이 없어도 저빈도 polling을 유지한다", () => {
   assert.equal(getWikiWorkPollInterval(false), 15_000);
   assert.equal(getWikiWorkPollInterval(true), 3_000);
+});
+
+test("숨김 탭은 진행 중 작업이 있을 때만 폴링한다", () => {
+  assert.equal(getWikiWorkPollInterval(true, false), 3_000);
+  assert.equal(getWikiWorkPollInterval(false, false), false);
+  assert.equal(getWikiWorkPollInterval(false, true), 15_000);
+});
+
+test("탭 복귀 시 평소 폴링 주기 이상 지난 데이터만 다시 받는다", () => {
+  assert.equal(isStaleForIdlePoll(100_000, 114_999), false);
+  assert.equal(isStaleForIdlePoll(100_000, 115_000), true);
+});
+
+test("작업 알림 폴링은 진행 중 작업이 없는 숨김 탭에서 멈춘다", () => {
+  assert.equal(nextOperationPollDelay(true, true), 3_000);
+  assert.equal(nextOperationPollDelay(true, false), 3_000);
+  assert.equal(nextOperationPollDelay(false, false), 15_000);
+  assert.equal(nextOperationPollDelay(false, true), null);
 });
