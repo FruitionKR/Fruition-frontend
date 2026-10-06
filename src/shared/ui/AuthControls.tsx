@@ -103,7 +103,8 @@ export function AuthSubmitButton({ children, disabled = false }: { children: str
   );
 }
 
-export function SocialLoginButtons() {
+/** disabled: 접근 코드 확인 전처럼 간편 로그인으로 넘어가면 안 될 때 버튼을 막는다. */
+export function SocialLoginButtons({ disabled = false }: { disabled?: boolean }) {
   const providers = [
     { name: "카카오", provider: "kakao", logo: kakaoLogo },
     { name: "네이버", provider: "naver", logo: naverLogo },
@@ -122,7 +123,9 @@ export function SocialLoginButtons() {
           <button
             aria-label={`${name}로 로그인`}
             className={`auth-social-button auth-social-button--${provider}`}
+            disabled={disabled}
             key={provider}
+            title={disabled ? "접근 코드를 먼저 확인해 주세요." : undefined}
             onClick={() => window.location.assign(getOAuthAuthorizationUrl(provider))}
             type="button"
           >

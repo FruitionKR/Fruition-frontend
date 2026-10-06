@@ -13,7 +13,8 @@ import { useServerWake, type AccessCodeResult } from "@/views/login/model/useSer
 const INVALID_CREDENTIALS_MESSAGE = "가입하지 않은 아이디거나, 잘못된 비밀번호입니다.";
 const SERVER_PREPARING_MESSAGE = "서버가 아직 준비 중이에요. 준비가 끝나면 다시 로그인해 주세요.";
 const ACCESS_CODE_ERROR_ID = "login-access-code-error";
-const ACCESS_CODE_MESSAGES: Record<Exclude<AccessCodeResult, "ok">, string> = {
+const ACCESS_CODE_MESSAGES: Record<Exclude<AccessCodeResult, "ok"> | "empty", string> = {
+  empty: "접근 코드를 입력해 주세요.",
   invalid: "접근 코드가 올바르지 않습니다.",
   error: "접근 코드를 확인하지 못했어요. 다시 시도해 주세요.",
   "rate-limited": "시도 횟수가 너무 많아요. 잠시 후 다시 시도해 주세요."
@@ -119,9 +120,9 @@ function LoginPageContent() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    // 접근 코드는 선택 입력이다. 적었으면 로그인 전에 확인하고, 틀리면 로그인 요청을 보내지 않는다.
-    if (isAccessCodeVisible && !isAccessCodeVerified && accessCode.trim()) {
-      const result = await unlockAccessCode(accessCode);
+    // 접근 코드 게이트가 켜져 있으면 코드가 확인되기 전에는 로그인하지 않는다(서비스 사용 불가).
+    if (isAccessCodeVisible && !isAccessCodeVerified) {
+      const result = accessCode.trim() ? await unlockAccessCode(accessCode) : "empty";
       if (result !== "ok") {
         setAccessCodeError(ACCESS_CODE_MESSAGES[result]);
         isLoginRequestInFlight.current = false;
@@ -159,7 +160,7 @@ function LoginPageContent() {
   );
 
   return (
-    <AuthScreen extra={<SocialLoginButtons />} shellModifier="login" title="로그인">
+    <AuthScreen extra={<SocialLoginButtons disabled={isAccessCodeVisible && !isAccessCodeVerified} />} shellModifier="login" title="로그인">
       <form className="auth-form" method="post" onSubmit={handleLogin}>
         <div className="auth-field-stack">
           {isAccessCodeVisible && !hasOAuthParams ? (
@@ -175,8 +176,9 @@ function LoginPageContent() {
                   setAccessCode(event.target.value);
                   setAccessCodeError(null);
                 }}
-                placeholder="접근 코드가 있으면 입력해 주세요"
+                placeholder="접근 코드를 입력해 주세요"
                 readOnly={isAccessCodeVerified}
+                // 빈 값도 handleLogin에서 칸 아래 문구로 알리도록 브라우저 기본 검증은 쓰지 않는다.
                 required={false}
                 value={accessCode}
               />
