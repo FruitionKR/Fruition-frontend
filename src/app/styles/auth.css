@@ -313,6 +313,12 @@
   color: var(--auth-accent);
 }
 
+/* 서버 준비 안내처럼 문장이 길어 한 줄을 넘을 수 있는 안내 */
+.auth-prompt--wrap {
+  justify-content: center;
+  white-space: normal;
+}
+
 .auth-prompt button:disabled {
   color: #c4c4c4;
   cursor: not-allowed;

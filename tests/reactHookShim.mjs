@@ -39,9 +39,16 @@ export function useRef(initial) {
   return slots[index];
 }
 
-export function useEffect(effect) {
-  cursor++;
-  cleanups.push(effect());
+// React처럼 deps가 그대로면 재렌더에서 effect를 다시 실행하지 않는다. deps를 생략하면 매 렌더 실행한다.
+export function useEffect(effect, deps) {
+  const index = cursor++;
+  const previous = slots[index];
+  const unchanged = previous && deps && previous.deps
+    && deps.length === previous.deps.length && deps.every((dep, i) => Object.is(dep, previous.deps[i]));
+  if (unchanged) return;
+  previous?.cleanup?.();
+  slots[index] = { deps, cleanup: effect() };
+  cleanups[index] = slots[index].cleanup;
 }
 
 export function useMemo(factory) {

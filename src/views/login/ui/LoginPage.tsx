@@ -8,8 +8,10 @@ import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
+import { useServerWake } from "@/views/login/model/useServerWake";
 
 const INVALID_CREDENTIALS_MESSAGE = "가입하지 않은 아이디거나, 잘못된 비밀번호입니다.";
+const SERVER_PREPARING_MESSAGE = "서버가 아직 준비 중이에요. 준비가 끝나면 다시 로그인해 주세요.";
 
 const LEGACY_AUTH_ROUTES: Record<string, string> = {
   signup: "/signup",
@@ -37,6 +39,7 @@ function LoginPageContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const { isPreparing, requestBeforeSubmit } = useServerWake();
   const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error"));
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
   // OAuth 콜백(code/error)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
@@ -90,6 +93,7 @@ function LoginPageContent() {
     if (isSubmitting || isLoginRequestInFlight.current) return;
 
     isLoginRequestInFlight.current = true;
+    requestBeforeSubmit();
     setErrorMessage(null);
     setIsSubmitting(true);
 
@@ -107,7 +111,8 @@ function LoginPageContent() {
       router.replace(takeAfterLoginPath());
     } catch {
       isLoginRequestInFlight.current = false;
-      setErrorMessage(INVALID_CREDENTIALS_MESSAGE);
+      // 서버 준비 중의 실패는 자격 증명 문제가 아니다. 자동 재전송하지 않고 사용자가 다시 누르게 한다.
+      setErrorMessage(isPreparing ? SERVER_PREPARING_MESSAGE : INVALID_CREDENTIALS_MESSAGE);
       setIsSubmitting(false);
     }
   }
@@ -145,6 +150,7 @@ function LoginPageContent() {
           </div>
         </div>
         <AuthSubmitButton disabled={isSubmitting}>로그인</AuthSubmitButton>
+        {isPreparing ? <p className="auth-prompt auth-prompt--wrap" role="status">서버를 준비하고 있어요. 수 분 걸릴 수 있어요.</p> : null}
       </form>
       <nav aria-label="계정 도움말" className="auth-login-links">
         <button onClick={() => router.push("/forgot-password")} type="button">비밀번호 찾기</button>
