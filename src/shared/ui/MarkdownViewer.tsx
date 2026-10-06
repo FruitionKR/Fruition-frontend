@@ -30,6 +30,7 @@ export function MarkdownViewer({
   onCitationClick,
   canClickCitation,
   citationRankMap,
+  citableRanks,
   highlightedBlocks,
   onBlockRef
 }: {
@@ -37,14 +38,15 @@ export function MarkdownViewer({
   onCitationClick?: (rank: number) => void;
   canClickCitation?: (rank: number) => boolean;
   citationRankMap?: ReadonlyMap<number, number>;
+  citableRanks?: ReadonlySet<number>;
   highlightedBlocks?: SourceBlockHighlight[];
   onBlockRef?: (blockId: string, node: HTMLDivElement | null) => void;
 }) {
   const remarkPlugins = useMemo<PluggableList>(
-    () => citationRankMap
-      ? [[remarkGfm, { singleTilde: false }], [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap }]]
+    () => citationRankMap || citableRanks
+      ? [[remarkGfm, { singleTilde: false }], [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap, citableRanks }]]
       : REMARK_PLUGINS,
-    [citationRankMap]
+    [citationRankMap, citableRanks]
   );
   const highlightedBlockRankById = useMemo(
     () => new Map((highlightedBlocks ?? []).map((block) => [block.block_id, block.rank])),

@@ -29,6 +29,7 @@ import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../mo
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
+import { refitImageBlocks } from "../model/imageBlockHeight";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, isManagedAssetPath, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
 import { publishNotice } from "@/features/document-notifications";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
@@ -226,11 +227,13 @@ export function NoteEditor({
 
   useEffect(() => () => onMarkdownEditContextChange?.(null), [onMarkdownEditContextChange]);
 
+  // 아래 편집기 DOM 보정 effect들은 root가 있을 때만 연결한다. root는 편집 권한을 받고(canEdit)
+  // 원문 모드가 아닐 때만 렌더되므로, 두 값은 다시 연결할 시점을 알리려고 의존성에만 둔다.
   // 표 행/열 추가 핸들을 오른쪽·아래쪽 바깥 경계에서만 노출한다.
   // (위젯이 placement를 DOM에 남기지 않아 좌표로 판별한다)
   useEffect(() => {
-    if (sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     const EDGE_TOLERANCE_PX = 8;
 
     const observer = new MutationObserver(() => {
@@ -256,13 +259,50 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
     return () => observer.disconnect();
-  }, [documentId, sourceMode]);
+  }, [canEdit, documentId, sourceMode]);
+
+  // 편집기 폭이 바뀌면(채팅창 열고 닫기 등) 이미지 블록 높이를 새 폭으로 다시 계산한다(이슈 #63).
+  // 높이를 바꾸면 root 높이도 바뀌어 다시 불리므로 폭이 같을 때는 무시한다.
+  // 편집 권한 확인 중에는 root가 없으므로 canEdit이 바뀌면 다시 연결한다.
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    let lastWidth = -1;
+    let frame = 0;
+    // data-origin이 없는 이미지(폭 0일 때 로드)는 DOM에 ratio가 없어 노드 attr에서 읽는다.
+    const readRatio = (host: Element) => {
+      try {
+        return crepeRef.current?.editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const node = view.state.doc.nodeAt(view.posAtDOM(host, 0));
+          return node?.type.name === "image-block" ? Number(node.attrs.ratio) : undefined;
+        });
+      } catch {
+        // 편집기가 이미 정리됐으면 기본 ratio(1)로 계산한다.
+        return undefined;
+      }
+    };
+
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      // 1px 미만의 소수점 흔들림은 무시한다(높이 재계산 → 폭 미세 변화 → 재계산 반복 방지).
+      if (Math.abs(width - lastWidth) < 1) return;
+      lastWidth = width;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => refitImageBlocks(root, readRatio));
+    });
+    observer.observe(root);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [canEdit, documentId, sourceMode]);
 
   // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
   // (Crepe가 버튼에 라벨·식별 속성을 넣지 않아 렌더 순서로 매핑한다: 볼드→기울임→취소선→코드→[수식]→링크)
   useEffect(() => {
-    if (sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     const LABELS_WITH_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "수식", "링크"];
     const LABELS_WITHOUT_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "링크"];
 
@@ -280,13 +320,13 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, childList: true });
     return () => observer.disconnect();
-  }, [documentId, sourceMode]);
+  }, [canEdit, documentId, sourceMode]);
 
   // '/' 슬래시 메뉴가 화면 밖으로 넘어가지 않게 표시 위치를 viewport 안으로 보정한다.
   // (Crepe는 flip만 적용하고 shift 미들웨어를 노출하지 않아 가장자리에서 잘림)
   useEffect(() => {
-    if (sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     const VIEWPORT_MARGIN_PX = 8;
 
     const observer = new MutationObserver(() => {
@@ -309,17 +349,18 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
     return () => observer.disconnect();
-  }, [documentId, sourceMode]);
+  }, [canEdit, documentId, sourceMode]);
 
   useEffect(() => {
-    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
+    const root = wysiwygRootRef.current;
+    if (!root) return;
 
     let isDisposed = false;
     // Crepe의 create/destroy가 비동기라 root를 공유하면 이전 인스턴스 DOM이 남은 채
     // 다음 인스턴스가 붙어 편집기 높이가 잠깐 두 배가 된다(문서 전환·StrictMode 재실행).
     // 인스턴스마다 전용 host를 두고 정리 때 동기로 떼어내 겹침을 없앤다.
     const host = document.createElement("div");
-    wysiwygRootRef.current.appendChild(host);
+    root.appendChild(host);
 
     // 이 편집기가 잡은 관리 이미지 참조. 정리 때 한꺼번에 놓아 object URL이 새지 않게 한다.
     const acquiredAssetPaths = new Set<string>();
@@ -344,6 +385,7 @@ export function NoteEditor({
         // 이미지: 붙여넣기·드롭·'/' 메뉴 모두 onUpload를 거친다. 저장 전에는 attachment:// placeholder + object URL로 보여주고,
         // 저장 시 파일을 함께 보내 서버 관리 경로로 치환한다(이슈 #18).
         [CrepeFeature.ImageBlock]: {
+          // maxWidth/maxHeight를 지정하면 refitImageBlocks(model/imageBlockHeight.ts)에도 같은 값을 넘겨야 한다.
           // 붙여넣기·드롭은 아래 uploader 래퍼가 먼저 걸러 여기엔 유효한 파일만 온다.
           // '/' 메뉴·업로드 버튼 경로만 여기서 검사하며, 던지면 Crepe가 빈 노드를 남기므로 안내 후 거부한다.
           onUpload: async (file) => {

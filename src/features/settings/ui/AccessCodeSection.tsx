@@ -1,9 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import type { AccessCodeSubmitResult } from "@/shared/api/accessGate";
 import { cx } from "@/shared/lib/classNames";
 import { useAccessGate } from "../model/useAccessGate";
 import styles from "./SettingsPanel.module.css";
+
+const UNLOCK_MESSAGES: Record<AccessCodeSubmitResult, string> = {
+  ok: "접근 코드가 확인되었습니다.",
+  invalid: "코드가 올바르지 않습니다.",
+  "rate-limited": "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해주세요."
+};
 
 export function AccessCodeSection() {
   const { isEnabled, isLocked, unlock } = useAccessGate();
@@ -19,9 +26,9 @@ export function AccessCodeSection() {
     setIsSubmitting(true);
     setMessage(null);
     try {
-      const ok = await unlock(code.trim());
-      setMessage(ok ? "접근 코드가 확인되었습니다." : "코드가 올바르지 않습니다.");
-      if (ok) setCode("");
+      const result = await unlock(code.trim());
+      setMessage(UNLOCK_MESSAGES[result]);
+      if (result === "ok") setCode("");
     } catch {
       setMessage("확인 중 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {

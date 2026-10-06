@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import type { ChangeEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
+import type { ChangeEventHandler, FocusEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
 import errorIcon from "@/shared/assets/svg/auth/auth-error-circle.svg";
 import googleLogo from "@/shared/assets/svg/auth/auth-google-logo.svg";
 import kakaoLogo from "@/shared/assets/svg/auth/auth-kakao-logo.svg";
@@ -13,8 +13,12 @@ import { getOAuthAuthorizationUrl } from "@/entities/user";
 
 type AuthFieldProps = {
   autoComplete?: HTMLInputAutoCompleteAttribute;
+  /** 입력과 연결할 오류·안내 문구의 id */
+  describedBy?: string;
+  invalid?: boolean;
   label: string;
   name: string;
+  onBlur?: FocusEventHandler<HTMLInputElement>;
   onChange: ChangeEventHandler<HTMLInputElement>;
   placeholder: string;
   readOnly?: boolean;
@@ -26,8 +30,11 @@ type AuthFieldProps = {
 
 export function AuthField({
   autoComplete,
+  describedBy,
+  invalid,
   label,
   name,
+  onBlur,
   onChange,
   placeholder,
   readOnly = false,
@@ -45,8 +52,11 @@ export function AuthField({
       <span>{label}</span>
       <span className={timer || isPassword ? "auth-field-control has-adornment" : "auth-field-control"}>
         <input
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
           autoComplete={autoComplete}
           name={name}
+          onBlur={onBlur}
           onChange={onChange}
           placeholder={placeholder}
           readOnly={readOnly}
@@ -76,9 +86,9 @@ export function AuthField({
   );
 }
 
-export function AuthError({ children }: { children: string }) {
+export function AuthError({ children, id }: { children: string; id?: string }) {
   return (
-    <p className="auth-error" role="alert">
+    <p className="auth-error" id={id} role="alert">
       <Image alt="" aria-hidden src={errorIcon} />
       <span>{children}</span>
     </p>
@@ -93,7 +103,8 @@ export function AuthSubmitButton({ children, disabled = false }: { children: str
   );
 }
 
-export function SocialLoginButtons() {
+/** disabled: 접근 코드 확인 전처럼 간편 로그인으로 넘어가면 안 될 때 버튼을 막는다. */
+export function SocialLoginButtons({ disabled = false }: { disabled?: boolean }) {
   const providers = [
     { name: "카카오", provider: "kakao", logo: kakaoLogo },
     { name: "네이버", provider: "naver", logo: naverLogo },
@@ -112,7 +123,9 @@ export function SocialLoginButtons() {
           <button
             aria-label={`${name}로 로그인`}
             className={`auth-social-button auth-social-button--${provider}`}
+            disabled={disabled}
             key={provider}
+            title={disabled ? "접근 코드를 먼저 확인해 주세요." : undefined}
             onClick={() => window.location.assign(getOAuthAuthorizationUrl(provider))}
             type="button"
           >

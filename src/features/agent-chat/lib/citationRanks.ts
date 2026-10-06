@@ -34,3 +34,23 @@ export function buildCitationRankMap(references: ChatMessageReferenceResponse[])
   }
   return result;
 }
+
+/**
+ * 통합된 인용 번호별로 열 reference를 고른다.
+ * 같은 번호에 여럿이 모이면 그 번호 자신의 reference를, 없으면 가장 작은 rank를 고른다(같으면 목록 순서).
+ */
+export function buildCitationReferenceByRank(
+  references: ChatMessageReferenceResponse[],
+  citationRankMap: ReadonlyMap<number, number>
+): ReadonlyMap<number, ChatMessageReferenceResponse> {
+  const canonicalOf = (rank: number) => citationRankMap.get(rank) ?? rank;
+  const candidates = references
+    .filter((item) => item.rank && item.source_document_id && item.source_block_ids?.length)
+    .sort((a, b) => Number(a.rank !== canonicalOf(a.rank!)) - Number(b.rank !== canonicalOf(b.rank!)) || a.rank! - b.rank!);
+  const result = new Map<number, ChatMessageReferenceResponse>();
+  for (const item of candidates) {
+    const rank = canonicalOf(item.rank!);
+    if (!result.has(rank)) result.set(rank, item);
+  }
+  return result;
+}

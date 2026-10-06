@@ -36,6 +36,7 @@ access-svc의 `/api/auth/**`를 호출한다. 이 경로군은 `next.config.mjs`
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `GET /api/auth/me` | 내 정보 조회 | `src/entities/user/api/account.ts` `fetchMe` | 리터럴 | `cache: no-store` | 사용자 프로필 | `apiFetch`. `/api/auth/` 하위인데도 재발급 대상으로 예외 처리된 경로 |
+| `GET /api/auth/me` | 서버 기동 후 앱 준비 확인 | `src/views/login/model/useServerWake.ts` `isAppReady` | 리터럴 | `cache: no-store`, 토큰 없음 | 상태 코드만 (`< 500`이면 준비) | raw `fetch`. 401이 정상이며 재발급을 시도하지 않는다. 서버 준비 안내 중에만 호출 |
 | `PATCH /api/auth/me` | 프로필 수정 | `src/entities/user/api/account.ts` `updateMe` | 리터럴 | JSON | 갱신된 프로필 | `apiFetch` |
 | `PUT /api/auth/me/password` | 비밀번호 변경 | `src/entities/user/api/account.ts` `changePassword` | 리터럴 | JSON | - | `401` + `INVALID_CREDENTIALS`는 재발급하지 않고 그대로 올린다 |
 | `PUT /api/auth/me/email` | 이메일 변경 | `src/entities/user/api/account.ts` `changeEmail` | 리터럴 | JSON (인증 토큰 포함) | - | `apiFetch` |
