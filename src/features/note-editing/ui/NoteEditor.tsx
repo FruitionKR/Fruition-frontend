@@ -263,8 +263,8 @@ export function NoteEditor({
   // 높이를 바꾸면 root 높이도 바뀌어 다시 불리므로 폭이 같을 때는 무시한다.
   // 편집 권한 확인 중에는 root가 없으므로 canEdit이 바뀌면 다시 연결한다.
   useEffect(() => {
-    if (!canEdit || sourceMode || !wysiwygRootRef.current) return;
     const root = wysiwygRootRef.current;
+    if (!root) return;
     let lastWidth = -1;
     let frame = 0;
     // data-origin이 없는 이미지(폭 0일 때 로드)는 DOM에 ratio가 없어 노드 attr에서 읽는다.
