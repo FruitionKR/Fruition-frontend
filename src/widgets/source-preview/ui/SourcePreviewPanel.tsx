@@ -15,6 +15,7 @@ import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableN
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
+import { canShowHighlightedMarkdown, findHighlightedScrollTarget } from "../lib/highlightScroll";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
@@ -338,12 +339,22 @@ export function SourcePreviewPanel({
     };
   }, [documentId, documentReloadCount, isMarkdownFile, isPdfFile, isTextFile, pageId]);
 
+  // 하이라이트 본문 렌더와 스크롤 effect가 같은 조건을 보게 한다.
+  // 본문과 로딩 종료가 다른 렌더로 나뉘면, 블록이 그려지기 전에 스크롤을 시도하고 끝나 버린다.
+  const showHighlightedMarkdown = canShowHighlightedMarkdown({
+    isMarkdownFile,
+    isLoading,
+    errorMessage,
+    rawMarkdown,
+    highlightCount: selectedBlockHighlights.length
+  });
+
   useEffect(() => {
-    if (!isMarkdownFile || selectedBlockHighlights.length === 0 || rawMarkdown === null) return;
+    if (!showHighlightedMarkdown) return;
 
     // scrollIntoView는 조상 요소·페이지까지 밀 수 있어(#64) 미리보기 스크롤 영역만 직접 스크롤한다.
     const frameId = window.requestAnimationFrame(() => {
-      const block = blockRefs.current[selectedBlockHighlights[0].block_id];
+      const block = findHighlightedScrollTarget(blockRefs.current, selectedBlockHighlights);
       const container = contentRef.current;
       if (!block || !container) return;
       const containerRect = container.getBoundingClientRect();
@@ -361,7 +372,7 @@ export function SourcePreviewPanel({
       });
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [isMarkdownFile, rawMarkdown, selectedBlockHighlights]);
+  }, [showHighlightedMarkdown, rawMarkdown, selectedBlockHighlights]);
 
   return (
     <section
@@ -521,7 +532,7 @@ export function SourcePreviewPanel({
           </div>
         )}
         {isMarkdownFile && errorMessage && <p>{errorMessage}</p>}
-        {isMarkdownFile && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length > 0 && (
+        {showHighlightedMarkdown && rawMarkdown !== null && (
           <MarkdownViewer
             markdown={rawMarkdown}
             highlightedBlocks={selectedBlockHighlights}
