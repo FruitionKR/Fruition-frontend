@@ -5,15 +5,20 @@ import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 export type WakePhase = "asleep" | "sleeping" | "waking" | "awake" | "unknown";
 
 const KNOWN_PHASES = new Set<WakePhase>(["asleep", "sleeping", "waking", "awake"]);
+// 발행에 성공하면 60초 동안 다시 보내지 않는다. 실패하면 10초 뒤부터 재시도해 일시 오류(자격 증명 첫 조회 등)를 넘기되
+// 로그 폭주는 막는다(Pod당 최대 분당 6건).
 const DEDUPE_WINDOW_MS = 60_000;
+const RETRY_BACKOFF_MS = 10_000;
 const AWS_TIMEOUT_MS = 3_000;
 
-let lastRequestedAt: number | null = null;
+let lastSucceededAt: number | null = null;
+let lastFailedAt: number | null = null;
+let inFlight: Promise<void> | null = null;
 let hasWarnedDisabled = false;
 let eventBridge: EventBridgeClient | null = null;
 let dynamo: DynamoDBClient | null = null;
 
-/** 기동 이벤트를 보낸다. 60초 안 중복은 건너뛰고, 어떤 실패도 던지지 않는다. */
+/** 기동 이벤트를 보낸다. 성공 뒤 60초·실패 뒤 10초 안 요청은 건너뛰고, 어떤 실패도 던지지 않는다. */
 export async function requestWake(): Promise<void> {
   const source = process.env.REQUEST_WAKE_EVENT_SOURCE?.trim();
   const detailType = process.env.REQUEST_WAKE_DETAIL_TYPE?.trim();
@@ -23,20 +28,36 @@ export async function requestWake(): Promise<void> {
     return;
   }
 
+  // 발행 중에 들어온 요청은 같은 발행을 기다린다. 동시 요청도 이벤트는 한 건만 나간다.
+  if (inFlight) return inFlight;
   const now = Date.now();
-  if (lastRequestedAt !== null && now - lastRequestedAt < DEDUPE_WINDOW_MS) return;
-  // await 전에 기록해 동시 요청도 한 건만 보낸다. 실패해도 유지해 60초 동안 재시도·로그 폭주를 막는다.
-  lastRequestedAt = now;
+  if (lastSucceededAt !== null && now - lastSucceededAt < DEDUPE_WINDOW_MS) return;
+  if (lastFailedAt !== null && now - lastFailedAt < RETRY_BACKOFF_MS) return;
 
+  inFlight = publishWakeEvent(source, detailType)
+    .then((ok) => {
+      if (ok) lastSucceededAt = now;
+      else lastFailedAt = now;
+    })
+    .finally(() => {
+      inFlight = null;
+    });
+  return inFlight;
+}
+
+async function publishWakeEvent(source: string, detailType: string): Promise<boolean> {
   try {
     eventBridge ??= new EventBridgeClient({});
     const result = await eventBridge.send(
       new PutEventsCommand({ Entries: [{ Source: source, DetailType: detailType, Detail: "{}" }] }),
       { abortSignal: AbortSignal.timeout(AWS_TIMEOUT_MS) }
     );
-    if (result.FailedEntryCount) console.error("[wake] 기동 이벤트 발행 실패", result.Entries?.[0]?.ErrorCode);
+    if (!result.FailedEntryCount) return true;
+    console.error("[wake] 기동 이벤트 발행 실패", result.Entries?.[0]?.ErrorCode);
+    return false;
   } catch (error) {
     console.error("[wake] 기동 이벤트 발행 실패", error);
+    return false;
   }
 }
 

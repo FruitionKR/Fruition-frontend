@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchAccessGateStatus, submitAccessCode } from "@/shared/api/accessGate";
+import { fetchAccessGateStatus, submitAccessCode, type AccessCodeSubmitResult } from "@/shared/api/accessGate";
 import { decideWakeStep, isReadyStatus, type WakePhase } from "@/views/login/model/wakeStep";
 
 const POLL_INTERVAL_MS = 10_000;
+// 이만큼 확인해도 준비가 끝나지 않으면 확인을 멈추고 나중에 다시 시도하라고 안내한다.
+const MAX_POLL_DURATION_MS = 15 * 60_000;
+const MAX_POLL_COUNT = MAX_POLL_DURATION_MS / POLL_INTERVAL_MS;
 
 /** 로그인 화면의 접근 코드 확인 결과. error는 네트워크 오류처럼 코드 일치 여부를 모르는 경우다. */
-export type AccessCodeResult = "ok" | "invalid" | "error";
+export type AccessCodeResult = AccessCodeSubmitResult | "error";
 
 // 아래 요청은 모두 화면 흐름을 막지 않도록 실패를 흡수한다. 서버 쪽(/wake)이 실패 로그를 남긴다.
 function requestServerWake(): void {
@@ -38,13 +41,19 @@ async function isAppReady(): Promise<boolean> {
 /**
  * 로그인 화면 진입 시 접근 코드가 통과된 브라우저면 서버 기동을 요청하고, 절전·기동 중이면 준비 안내를 띄운다.
  * 접근 쿠키가 없는 브라우저는 isAccessCodeVisible로 접근 코드 칸을 띄우고, unlockAccessCode가 통과하면 같은 흐름을 시작한다.
- * isPreparing: 안내 표시 여부. requestBeforeSubmit: 로그인 제출 직전에 기동을 한 번 더 요청한다(응답을 기다리지 않음).
+ * 게이트가 꺼진 배포(enabled=false)는 /wake가 항상 막혀 있으므로 칸도 띄우지 않고 기동도 요청하지 않는다.
+ * isPreparing: 안내 표시 여부. isWakeTimedOut: 15분 넘게 준비가 끝나지 않아 확인을 멈춘 상태.
+ * isServerUnready: 비동기 처리 중에도 최신 값을 읽는 getter(준비 중이거나 확인을 멈춘 상태).
+ * requestBeforeSubmit: 로그인 제출 직전에 기동을 한 번 더 요청한다(응답을 기다리지 않음).
  */
 export function useServerWake() {
   const [isPreparing, setIsPreparing] = useState(false);
+  const [isWakeTimedOut, setIsWakeTimedOut] = useState(false);
   const [isAccessCodeVisible, setIsAccessCodeVisible] = useState(false);
   const [isAccessCodeVerified, setIsAccessCodeVerified] = useState(false);
   const isUnlocked = useRef(false);
+  // 로그인 제출의 catch처럼 렌더 시점 값이 오래될 수 있는 곳에서 읽는다.
+  const isServerUnreadyRef = useRef(false);
   // 기동 요청·상태 확인 시작. 화면이 살아 있는 동안만 값이 있어, 언마운트 뒤 늦게 끝난 확인이 시작하지 못한다.
   const startRef = useRef<(() => void) | null>(null);
   // blur와 제출이 겹쳐도 같은 코드는 한 번만 확인하고, 실패한 코드는 다시 보내지 않는다.
@@ -55,8 +64,21 @@ export function useServerWake() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let isNoticeShown = false;
+    let pollCount = 0;
+
+    const showPreparing = (value: boolean) => {
+      isServerUnreadyRef.current = value;
+      setIsPreparing(value);
+    };
 
     const schedule = () => {
+      pollCount += 1;
+      if (pollCount > MAX_POLL_COUNT) {
+        // 준비 안내 대신 나중에 다시 시도하라는 안내를 남긴다. 서버는 여전히 준비 전으로 본다.
+        setIsPreparing(false);
+        setIsWakeTimedOut(true);
+        return;
+      }
       timer = setTimeout(() => void check(), POLL_INTERVAL_MS);
     };
 
@@ -71,12 +93,12 @@ export function useServerWake() {
         if (cancelled) return;
         if (ready) {
           isNoticeShown = false;
-          setIsPreparing(false);
+          showPreparing(false);
           return;
         }
       } else {
         isNoticeShown = true;
-        setIsPreparing(true);
+        showPreparing(true);
         if (step === "request-wake") requestServerWake();
       }
       schedule();
@@ -93,7 +115,8 @@ export function useServerWake() {
     void fetchAccessGateStatus()
       .then((status) => {
         if (cancelled) return;
-        if (!status.enabled || status.unlocked) start();
+        if (!status.enabled) return;
+        if (status.unlocked) start();
         else setIsAccessCodeVisible(true);
       })
       // 상태를 모르면 칸을 띄우지 않고 지금처럼 로그인하게 둔다.
@@ -114,11 +137,10 @@ export function useServerWake() {
     if (pendingRef.current?.code === code) return pendingRef.current.result;
 
     const result = submitAccessCode(code)
-      .then((ok): AccessCodeResult => {
-        if (!ok) {
-          invalidCodeRef.current = code;
-          return "invalid";
-        }
+      .then((submitted): AccessCodeResult => {
+        // 시도 제한(rate-limited)은 코드가 틀렸다는 뜻이 아니라 잠시 뒤 같은 코드로 다시 시도할 수 있게 기억하지 않는다.
+        if (submitted === "invalid") invalidCodeRef.current = code;
+        if (submitted !== "ok") return submitted;
         setIsAccessCodeVerified(true);
         startRef.current?.();
         return "ok";
@@ -135,5 +157,15 @@ export function useServerWake() {
     if (isUnlocked.current) requestServerWake();
   }, []);
 
-  return { isPreparing, isAccessCodeVisible, isAccessCodeVerified, unlockAccessCode, requestBeforeSubmit };
+  const isServerUnready = useCallback(() => isServerUnreadyRef.current, []);
+
+  return {
+    isPreparing,
+    isWakeTimedOut,
+    isAccessCodeVisible,
+    isAccessCodeVerified,
+    unlockAccessCode,
+    requestBeforeSubmit,
+    isServerUnready
+  };
 }

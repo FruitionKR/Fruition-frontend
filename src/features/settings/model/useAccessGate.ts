@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchAccessGateStatus, submitAccessCode } from "@/shared/api/accessGate";
+import { fetchAccessGateStatus, submitAccessCode, type AccessCodeSubmitResult } from "@/shared/api/accessGate";
 
 export const ACCESS_GATE_QUERY_KEY = ["access-gate"] as const;
 
@@ -12,10 +12,10 @@ export function useAccessGate() {
   const isLocked = data ? data.enabled && !data.unlocked : false;
   const isEnabled = data?.enabled ?? false;
 
-  async function unlock(code: string): Promise<boolean> {
-    const ok = await submitAccessCode(code);
-    if (ok) await queryClient.invalidateQueries({ queryKey: ACCESS_GATE_QUERY_KEY });
-    return ok;
+  async function unlock(code: string): Promise<AccessCodeSubmitResult> {
+    const result = await submitAccessCode(code);
+    if (result === "ok") await queryClient.invalidateQueries({ queryKey: ACCESS_GATE_QUERY_KEY });
+    return result;
   }
 
   return { isEnabled, isLocked, unlock };
