@@ -9,6 +9,8 @@ export type DocumentVersionItem = {
   content_hash: string;
   created_by: string;
   created_at: string;
+  /** 과거 버전 복원으로 만든 버전이면 복원 대상 버전 번호. 일반 저장 버전은 null이다. */
+  restored_from_version?: number | null;
 };
 
 export type DocumentVersionListResponse = {
