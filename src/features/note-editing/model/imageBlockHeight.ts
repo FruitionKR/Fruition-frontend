@@ -34,6 +34,11 @@ export function recoverImageBlockRatio(height: number, origin: number): number |
   return Number.isNaN(ratio) ? null : ratio;
 }
 
+// 노드 attr은 외부 데이터라 NaN·0·음수가 오면 data-origin이 깨져 다시 계산되지 않는다. 그때는 기본값 1을 쓴다.
+function validRatioOrDefault(ratio: number | undefined): number {
+  return ratio !== undefined && Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+
 /**
  * root 안의 로드된 이미지 블록 높이를 현재 폭으로 다시 맞춘다. 값이 같으면 DOM을 건드리지 않는다.
  * 폭이 0일 때(숨김 상태) 로드된 이미지는 onImageLoad가 건너뛰어 data-origin이 없다. 높이는 auto라 잘리지는 않지만
@@ -47,7 +52,7 @@ export function refitImageBlocks(root: HTMLElement, readRatio?: (host: Element) 
     if (!host || !image.complete) return;
     const ratio = image.dataset.origin
       ? recoverImageBlockRatio(Number(image.dataset.height), Number(image.dataset.origin))
-      : (readRatio?.(host) ?? 1);
+      : validRatioOrDefault(readRatio?.(host));
     if (ratio === null) return;
     const next = computeImageBlockHeight({
       naturalWidth: image.naturalWidth,

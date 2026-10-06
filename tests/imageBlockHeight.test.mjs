@@ -133,6 +133,14 @@ test("노드 ratio를 읽지 못하면 1로 계산한다", () => {
   assert.deepEqual(elements[0].dataset, { origin: "300.00", height: "300.00" });
 });
 
+test("노드 ratio가 유효한 양수가 아니면 1로 계산해 data-origin이 깨지지 않는다", () => {
+  for (const invalid of [Number.NaN, 0, -1, Number.POSITIVE_INFINITY]) {
+    const { root, elements } = fakeEditor(600, [{ naturalWidth: 2000, naturalHeight: 1000, dataset: {} }]);
+    refitImageBlocks(root, () => invalid);
+    assert.deepEqual(elements[0].dataset, { origin: "300.00", height: "300.00" }, String(invalid));
+  }
+});
+
 test("로드 전 이미지, 깨진 이미지, 폭 0인 호스트는 건너뛴다", () => {
   const pending = fakeEditor(600, [{ complete: false, naturalWidth: 0, naturalHeight: 0, dataset: {} }]);
   const broken = fakeEditor(600, [{ naturalWidth: 0, naturalHeight: 0, dataset: {} }]);
