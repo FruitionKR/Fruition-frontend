@@ -65,13 +65,22 @@ export function useServerWake() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let isNoticeShown = false;
     let pollCount = 0;
+    // 숨김 탭에서 다음 확인을 예약하지 않은 상태. 다시 보이면 바로 한 번 확인한다.
+    let paused = false;
+    const isHidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
 
     const showPreparing = (value: boolean) => {
       isServerUnreadyRef.current = value;
       setIsPreparing(value);
     };
 
+    // 숨김 탭에서 처음 열려도 진입 시 확인은 한 번 하고, 다음 확인부터 멈춘다.
+    // 멈출 때는 확인 횟수를 세지 않아, 숨겨 둔 시간이 15분 상한에 들어가지 않는다.
     const schedule = () => {
+      if (isHidden()) {
+        paused = true;
+        return;
+      }
       pollCount += 1;
       if (pollCount > MAX_POLL_COUNT) {
         // 준비 안내 대신 나중에 다시 시도하라는 안내를 남긴다. 서버는 여전히 준비 전으로 본다.
@@ -80,6 +89,12 @@ export function useServerWake() {
         return;
       }
       timer = setTimeout(() => void check(), POLL_INTERVAL_MS);
+    };
+
+    const resumeWhenVisible = () => {
+      if (!paused || cancelled || isHidden()) return;
+      paused = false;
+      void check();
     };
 
     const check = async () => {
@@ -111,6 +126,7 @@ export function useServerWake() {
       void check();
     };
     startRef.current = start;
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", resumeWhenVisible);
 
     void fetchAccessGateStatus()
       .then((status) => {
@@ -126,6 +142,7 @@ export function useServerWake() {
       cancelled = true;
       startRef.current = null;
       clearTimeout(timer);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", resumeWhenVisible);
     };
   }, []);
 
