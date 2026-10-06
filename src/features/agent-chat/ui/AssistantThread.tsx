@@ -8,7 +8,7 @@ import { StatusList } from "./StatusList";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { resolveChatTurnPresentation } from "../lib/markdownAgent";
 import { formatAnswerMarkdown } from "../lib/agentFormatters";
-import { buildCitationRankMap } from "../lib/citationRanks";
+import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
 import { buildRelatedPageCards, sourceTitle } from "../lib/relatedPageCards";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
@@ -48,10 +48,9 @@ export function AssistantThread({
     () => new Set(message.references.flatMap((item) => item.rank && Number.isInteger(item.rank) && item.rank >= 1 ? [item.rank] : [])),
     [message.references]
   );
-  const citationReferenceByRank = new Map(
-    message.references
-      .filter((item) => item.rank && item.source_document_id && item.source_block_ids?.length)
-      .map((item) => [citationRankMap.get(item.rank!) ?? item.rank!, item])
+  const citationReferenceByRank = useMemo(
+    () => buildCitationReferenceByRank(message.references, citationRankMap),
+    [message.references, citationRankMap]
   );
   const canOpenCitation = (rank: number) => citationReferenceByRank.has(rank);
   const openCitation = (rank: number) => {

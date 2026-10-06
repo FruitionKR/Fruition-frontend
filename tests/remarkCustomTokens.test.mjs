@@ -27,7 +27,21 @@ test("remarkCustomTokens는 references rank가 아닌 숫자 배열을 중복 �
   const citable = new Set([1, 2]);
   assert.deepEqual(texts(await parse("insertion_sort([5, 2, 4, 6, 1, 3])", { citableRanks: citable })), ["insertion_sort([5, 2, 4, 6, 1, 3])"]);
   assert.deepEqual(texts(await parse("배열 [1, 1, 3]", { citableRanks: new Set([1]) })), ["배열 [1, 1, 3]"]);
-  assert.deepEqual(texts(await parse("[1, 9] 와 [1][9]", { citableRanks: citable })), ["[1, 9] 와 [1][9]"]);
+  assert.deepEqual(texts(await parse("[1, 9] 와 [1, 2, 9]", { citableRanks: citable })), ["[1, 9] 와 [1, 2, 9]"]);
+});
+
+test("remarkCustomTokens는 연쇄 citation을 괄호 묶음마다 판정한다", async () => {
+  const options = { citableRanks: new Set([1, 2]) };
+  assert.deepEqual(texts(await parse("[1, 9] 와 [1][9]", options)), ["[1, 9] 와 ", "<citationToken:1>", "[9]"]);
+  assert.deepEqual(texts(await parse("근거[1] [9] 끝", options)), ["근거", "<citationToken:1>", " [9] 끝"]);
+  assert.deepEqual(texts(await parse("[9][1]", options)), ["[9]", "<citationToken:1>"]);
+  assert.deepEqual(texts(await parse("[1][9][2]", options)), ["<citationToken:1>", "[9]", "<citationToken:2>"]);
+  assert.deepEqual(texts(await parse("[1] [2][1]", options)), ["<citationToken:1>", "<citationToken:2>"]);
+});
+
+test("remarkCustomTokens는 묶음 안에서 같은 번호로 합쳐지는 rank를 한 번만 보인다", async () => {
+  const tree = await parse("근거[1, 3]", { citableRanks: new Set([1, 3]), citationRankMap: new Map([[1, 1], [3, 1]]) });
+  assert.deepEqual(texts(tree), ["근거", "<citationToken:1>"]);
 });
 
 test("remarkCustomTokens는 citableRanks가 없거나 비어 있으면 숫자 괄호를 바꾸지 않는다", async () => {

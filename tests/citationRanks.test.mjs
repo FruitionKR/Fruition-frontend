@@ -6,7 +6,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildCitationRankMap } from "../src/features/agent-chat/lib/citationRanks.ts";
+import { buildCitationRankMap, buildCitationReferenceByRank } from "../src/features/agent-chat/lib/citationRanks.ts";
 import * as classNames from "../src/shared/lib/classNames.ts";
 import * as segments from "../src/shared/lib/markdownSegments.ts";
 import * as closedMath from "../src/shared/lib/remarkClosedMath.ts";
@@ -51,6 +51,27 @@ test("대표 블록이 같아도 추가 문서 근거가 다르면 구분한다"
     source_refs: [{ source_document_id: "doc2", source_block_id: "B0001" }]
   })]);
   assert.equal(map.get(2), 2);
+});
+
+test("통합된 번호에는 그 번호 자신의 reference를 연결한다", () => {
+  const references = [ref(3, ["B2", "B1"]), ref(1, ["B1", "B2"]), ref(2, ["B9"])];
+  const byRank = buildCitationReferenceByRank(references, buildCitationRankMap(references));
+  assert.deepEqual([...byRank].map(([rank, item]) => [rank, item.rank]), [[1, 1], [2, 2]]);
+});
+
+test("같은 번호의 서로 다른 근거는 목록 첫 항목을, 추가 문서 근거가 다르면 각자 연결한다", () => {
+  const conflicting = [{ ...ref(1, ["B2"]), id: "first" }, { ...ref(1, ["B3"]), id: "second" }, ref(2, ["B4"]), ref(3)];
+  const conflictMap = buildCitationReferenceByRank(conflicting, buildCitationRankMap(conflicting));
+  assert.equal(conflictMap.get(1).id, "first");
+
+  const multi = [ref(1), ref(2, ["B0001"], "doc1", { source_refs: [{ source_document_id: "doc2", source_block_id: "B0001" }] })];
+  const multiMap = buildCitationReferenceByRank(multi, buildCitationRankMap(multi));
+  assert.deepEqual([...multiMap].map(([rank, item]) => [rank, item.rank]), [[1, 1], [2, 2]]);
+});
+
+test("블록 없는 reference는 연결하지 않는다", () => {
+  const references = [ref(1, []), ref(2, ["B1"], null)];
+  assert.equal(buildCitationReferenceByRank(references, buildCitationRankMap(references)).size, 0);
 });
 
 function render(markdown, props = {}) {
