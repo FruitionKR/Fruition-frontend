@@ -283,3 +283,38 @@ test("숨김 탭에서는 상태 확인을 멈추고, 다시 보이면 바로 �
   hook.unmount();
   assert.equal(doc.listenerCount, 0);
 });
+
+test("준비가 끝나 확인을 멈춘 뒤에는 탭을 숨겼다 다시 보여도 확인을 재개하지 않는다", async (t) => {
+  const doc = fakeDocument(t);
+  const calls = mockServer(t, { phases: ["waking", "awake"], probes: [401] });
+  const hook = render(() => useServerWake());
+  await flush();
+  t.mock.timers.tick(10_000);
+  await flush();
+  assert.equal(hook.rerender().isPreparing, false);
+  const before = calls.length;
+
+  doc.setVisibility("hidden");
+  doc.setVisibility("visible");
+  t.mock.timers.tick(60_000);
+  await flush();
+  assert.equal(calls.length, before);
+});
+
+test("숨겨서 멈출 때는 확인 횟수를 세지 않는다", async (t) => {
+  const doc = fakeDocument(t);
+  mockServer(t, { phases: Array.from({ length: 200 }, () => "waking") });
+  const hook = render(() => useServerWake());
+  await flush();
+
+  // 상한(90회) 직전까지 확인한 뒤 탭을 숨긴다. 멈추는 순간은 횟수에 들어가지 않아 시간 초과 안내가 뜨지 않는다.
+  for (let i = 0; i < 89; i += 1) {
+    t.mock.timers.tick(10_000);
+    await flush();
+  }
+  doc.setVisibility("hidden");
+  t.mock.timers.tick(10_000);
+  await flush();
+  assert.equal(hook.rerender().isWakeTimedOut, false);
+  assert.equal(hook.rerender().isPreparing, true);
+});

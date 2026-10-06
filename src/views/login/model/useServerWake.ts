@@ -74,16 +74,18 @@ export function useServerWake() {
       setIsPreparing(value);
     };
 
+    // 숨김 탭에서 처음 열려도 진입 시 확인은 한 번 하고, 다음 확인부터 멈춘다.
+    // 멈출 때는 확인 횟수를 세지 않아, 숨겨 둔 시간이 15분 상한에 들어가지 않는다.
     const schedule = () => {
+      if (isHidden()) {
+        paused = true;
+        return;
+      }
       pollCount += 1;
       if (pollCount > MAX_POLL_COUNT) {
         // 준비 안내 대신 나중에 다시 시도하라는 안내를 남긴다. 서버는 여전히 준비 전으로 본다.
         setIsPreparing(false);
         setIsWakeTimedOut(true);
-        return;
-      }
-      if (isHidden()) {
-        paused = true;
         return;
       }
       timer = setTimeout(() => void check(), POLL_INTERVAL_MS);
