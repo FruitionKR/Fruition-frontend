@@ -101,8 +101,8 @@ function collectListBlock(lines: string[], startIndex: number) {
 
 /**
  * markdown을 블록 단위 문자열로 분할한다.
- * 분할 순서가 백엔드 block ID(B0001, B0002, ...) 계약과 일치해야 하므로
- * 기존 파서와 동일한 경계 규칙을 유지한다.
+ * 렌더 래핑과 frontmatter 분리에 쓰는 로컬 분할이다. 백엔드 block ID는 영구 ID라
+ * 이 순서로 다시 매길 수 없으므로, 근거 하이라이트는 서버 block 위치를 따로 받는다(#65).
  */
 export function splitMarkdownBlockRanges(markdown: string): MarkdownSegmentRange[] {
   const segments: MarkdownSegmentRange[] = [];

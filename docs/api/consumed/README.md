@@ -12,7 +12,7 @@
 |---|---:|---|---|
 | [인증·계정](auth-account.md) | 21 | access-svc | `src/entities/user/api` |
 | [워크스페이스](workspace.md) | 12 | access-svc | `src/entities/workspace/api` |
-| [문서·트리](document.md) | 24 | document-svc | `src/entities/document/api`, `src/entities/tree/api`, `src/features/note-editing`, `src/features/document-history` |
+| [문서·트리](document.md) | 25 | document-svc | `src/entities/document/api`, `src/entities/tree/api`, `src/features/note-editing`, `src/features/document-history` |
 | [Wiki](wiki.md) | 7 | document-svc | `src/entities/wiki/api`, `src/features/wiki-export`, `src/features/document-notifications` |
 | [AI·Agent·Query](ai-agent.md) | 18 | document-svc | `src/entities/ai/api`, `src/entities/chat/api`, `src/entities/operation-log/api`, `src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `src/entities/skill/api` |
@@ -24,14 +24,14 @@
 
 | 서비스 | `/api/**` 전체 | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 53 | 34 |
+| document-svc | 87 | 54 | 33 |
 | access-svc | 29 | 26 | 3 |
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.
 
 ## 경로 미해석
 
-없다. 84개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
+없다. 85개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
 다음 세 곳은 변수를 호출자까지 따라가야 해석되므로 근거를 남긴다.
 
 | 호출 지점 | 변수 | 호출자 추적 결과 |

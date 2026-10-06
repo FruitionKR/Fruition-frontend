@@ -1,12 +1,14 @@
 import { MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { resolveEditorMode, useUserPreferences } from "@/entities/user";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { HistoryPanel } from "@/features/document-history";
-import { fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
+import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
+import { resolveSourceBlockRanges } from "@/entities/document/lib/sourceBlockRanges";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
@@ -339,11 +341,42 @@ export function SourcePreviewPanel({
     };
   }, [documentId, documentReloadCount, isMarkdownFile, isPdfFile, isTextFile, pageId]);
 
+  // 근거 block ID는 영구 ID라 본문을 다시 잘라 순번을 매기면 어긋난다(#65). 서버 block 위치를 받아 맞춘다.
+  const isBlocksQueryEnabled = isMarkdownFile && !!documentId && selectedBlockHighlights.length > 0;
+  const blocksQuery = useQuery({
+    queryKey: ["document-blocks", documentId],
+    queryFn: () => fetchDocumentBlocks(documentId as string),
+    enabled: isBlocksQueryEnabled
+  });
+  const isBlocksLoading = isBlocksQueryEnabled && blocksQuery.isPending;
+  const resolvedHighlight = useMemo(() => {
+    if (rawMarkdown === null || !blocksQuery.data) return null;
+    return resolveSourceBlockRanges(
+      rawMarkdown,
+      blocksQuery.data,
+      selectedBlockHighlights.map((highlight) => highlight.block_id)
+    );
+  }, [blocksQuery.data, rawMarkdown, selectedBlockHighlights]);
+  const highlightRanges = useMemo(() => resolvedHighlight?.ranges ?? [], [resolvedHighlight]);
+  // 위치를 찾은 근거만 스크롤 대상으로 삼는다. 첫 근거가 빠져도 다음 근거로 이동한다.
+  const locatedHighlights = useMemo(() => {
+    const locatedIds = new Set(highlightRanges.map((range) => range.blockId));
+    return selectedBlockHighlights.filter((highlight) => locatedIds.has(highlight.block_id));
+  }, [highlightRanges, selectedBlockHighlights]);
+  const highlightNotice = blocksQuery.isError
+    ? "근거 위치를 불러오지 못해 본문만 표시합니다."
+    : resolvedHighlight && locatedHighlights.length === 0
+      ? "문서에서 근거 위치를 찾지 못해 본문만 표시합니다."
+      : resolvedHighlight && resolvedHighlight.missingBlockIds.length > 0
+        ? "일부 근거는 문서에서 위치를 찾지 못했습니다."
+        : null;
+
   // 하이라이트 본문 렌더와 스크롤 effect가 같은 조건을 보게 한다.
   // 본문과 로딩 종료가 다른 렌더로 나뉘면, 블록이 그려지기 전에 스크롤을 시도하고 끝나 버린다.
+  // 근거 위치 조회도 끝나야 하이라이트 블록이 그려지므로 로딩으로 함께 본다.
   const showHighlightedMarkdown = canShowHighlightedMarkdown({
     isMarkdownFile,
-    isLoading,
+    isLoading: isLoading || isBlocksLoading,
     errorMessage,
     rawMarkdown,
     highlightCount: selectedBlockHighlights.length
@@ -354,7 +387,7 @@ export function SourcePreviewPanel({
 
     // scrollIntoView는 조상 요소·페이지까지 밀 수 있어(#64) 미리보기 스크롤 영역만 직접 스크롤한다.
     const frameId = window.requestAnimationFrame(() => {
-      const block = findHighlightedScrollTarget(blockRefs.current, selectedBlockHighlights);
+      const block = findHighlightedScrollTarget(blockRefs.current, locatedHighlights);
       const container = contentRef.current;
       if (!block || !container) return;
       const containerRect = container.getBoundingClientRect();
@@ -372,7 +405,7 @@ export function SourcePreviewPanel({
       });
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [showHighlightedMarkdown, rawMarkdown, selectedBlockHighlights]);
+  }, [showHighlightedMarkdown, rawMarkdown, locatedHighlights]);
 
   return (
     <section
@@ -477,7 +510,7 @@ export function SourcePreviewPanel({
         </div>
       </header>
       <div className={cx(styles["source-preview-document"], isPdfFile && styles["is-pdf"])}>
-        {isLoading && <DocumentLoading>{pageId ? "본문을 불러오는 중입니다." : "문서를 불러오는 중입니다."}</DocumentLoading>}
+        {(isLoading || isBlocksLoading) && <DocumentLoading>{pageId ? "본문을 불러오는 중입니다." : "문서를 불러오는 중입니다."}</DocumentLoading>}
         {isPdfFile ? (
           <>
             {errorMessage && <p>{errorMessage}</p>}
@@ -533,13 +566,21 @@ export function SourcePreviewPanel({
         )}
         {isMarkdownFile && errorMessage && <p>{errorMessage}</p>}
         {showHighlightedMarkdown && rawMarkdown !== null && (
-          <MarkdownViewer
-            markdown={rawMarkdown}
-            highlightedBlocks={selectedBlockHighlights}
-            onBlockRef={(blockId, node) => {
-              blockRefs.current[blockId] = node;
-            }}
-          />
+          <>
+            {highlightNotice && (
+              <div className={styles["source-preview-document-controls"]}>
+                <span role="status">{highlightNotice}</span>
+              </div>
+            )}
+            <MarkdownViewer
+              markdown={rawMarkdown}
+              highlightedBlocks={selectedBlockHighlights}
+              highlightRanges={highlightRanges}
+              onBlockRef={(blockId, node) => {
+                blockRefs.current[blockId] = node;
+              }}
+            />
+          </>
         )}
         {isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
           <>

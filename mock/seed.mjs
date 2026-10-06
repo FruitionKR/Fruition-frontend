@@ -1,5 +1,6 @@
 // 데모 계정·워크스페이스·문서·위키·로그·스킬 초기 데이터.
 import { state, now, minutesAgo, hash } from "./state.mjs";
+import { ingestSourceBlocks } from "./lib/sourceBlocks.mjs";
 
 export const DEMO_EMAIL = "demo@fruition.local";
 export const DEMO_PASSWORD = "demo1234";
@@ -38,6 +39,14 @@ Ingest는 편집 가능한 Markdown만 입력으로 받습니다. PDF 등 원본
 
 Lint는 마지막 실행 이후 바뀐 위키 페이지를 다듬고 중복 개념을 병합합니다.
 `;
+
+// 아키텍처 개요의 마지막 ingest 입력(v1). 이후 Lint 문단이 편집되어 현재 본문(v2)과 다르다(stale).
+const ARCH_INGESTED_MD = ARCH_MD.replace(
+  "Lint는 마지막 실행 이후 바뀐 위키 페이지를 다듬고 중복 개념을 병합합니다.",
+  "Lint는 위키 페이지를 다듬습니다."
+);
+// 재편입을 거친 영구 block ID라 문서 순서와 번호가 다르다. 인용 B0004는 Ingest 문단(로컬 순번으로는 5번째)이다.
+const ARCH_BLOCK_IDS = ["B0001", "B0006", "B0007", "B0002", "B0004", "B0003", "B0005"];
 
 const PAPER_MD = `<!-- page 1 -->
 # 지식 그래프 기반 문서 검색
@@ -143,7 +152,8 @@ export function seed() {
 
   state.documents.push(
     document({ id: "doc_intro", filename: "프로젝트 소개.md", markdown: INTRO_MD, processed_at: minutesAgo(100) }),
-    document({ id: "doc_arch", filename: "아키텍처 개요.md", markdown: ARCH_MD, processed_at: minutesAgo(95), needs_reingest: true, updated_at: minutesAgo(30), current_version: 2, edit_revision: 2 }),
+    document({ id: "doc_arch", filename: "아키텍처 개요.md", markdown: ARCH_MD, processed_at: minutesAgo(95), needs_reingest: true, updated_at: minutesAgo(30), current_version: 2, edit_revision: 2,
+      source_snapshot: ingestSourceBlocks(ARCH_INGESTED_MD, [], ARCH_BLOCK_IDS) }),
     document({ id: "doc_paper", filename: "지식 그래프 검색 논문.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Knowledge Graph Retrieval - Fruition mock PDF"), processed_at: minutesAgo(80), folder_id: "folder_research" }),
     document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: "folder_research" }),
     document({ id: "doc_notes", filename: "회의 노트 초안.md", markdown: NOTES_MD, status: "processing", processing_state: "running", processing_stage: "concept_extraction", processing_started_at: minutesAgo(1), uploaded_at: minutesAgo(3) }),
@@ -151,6 +161,10 @@ export function seed() {
     document({ id: "doc_todo", filename: "할 일.md", markdown: TODO_MD, status: "uploaded", uploaded_at: minutesAgo(5) }),
     document({ id: "doc_meeting", filename: "주간 회의.txt", mime_type: "text/plain", document_role: "ORIGINAL", content: Buffer.from(MEETING_TXT, "utf8"), status: "uploaded", uploaded_at: minutesAgo(4) })
   );
+  // ingest가 끝난 Markdown 문서는 현재 본문 그대로 block 스냅샷을 가진다(stale 아님).
+  state.documents
+    .filter((doc) => doc.status === "completed" && doc.markdown && !doc.source_snapshot)
+    .forEach((doc) => { doc.source_snapshot = ingestSourceBlocks(doc.markdown); });
 
   state.wikiPages.push(
     page({ id: "page_src_intro", page_type: "source", title: "프로젝트 소개", slug: "project-intro", summary: "Fruition 서비스의 목적과 핵심 흐름을 정리한 문서.", source_document_id: "doc_intro", markdown: "# 프로젝트 소개\n\nFruition은 문서를 위키와 지식 그래프로 바꾼다. 핵심 흐름은 업로드 → [[Ingest]] → 질의다.\n" }),

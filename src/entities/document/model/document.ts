@@ -46,3 +46,26 @@ export type SourceBlockHighlight = {
   block_id: string;
   rank: number;
 };
+
+/**
+ * 원본 block. 줄 범위는 block을 만든 ingest 스냅샷 기준(1부터, 양끝 포함)이다.
+ * 위치 정보가 없는 block(chat_export, 위치 저장 이전 데이터)이나 구 응답이면 null 또는 생략된다.
+ */
+export type DocumentSourceBlock = {
+  block_id: string;
+  position?: number | null;
+  line_start?: number | null;
+  line_end?: number | null;
+  block_type?: string | null;
+  /** 공백 정규화된 block 원문(Markdown 문법 포함) */
+  text: string;
+};
+
+export type DocumentBlocksResponse = {
+  document_id: string;
+  source_content_hash?: string | null;
+  current_content_hash?: string | null;
+  /** block을 만든 뒤 문서가 바뀌었으면 true. 판단할 수 없으면 null(구 응답은 생략) */
+  is_stale?: boolean | null;
+  blocks: DocumentSourceBlock[];
+};

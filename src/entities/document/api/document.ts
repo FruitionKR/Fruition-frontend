@@ -3,7 +3,7 @@ import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serv
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
 import { hasPdfExtension } from "@/entities/document/lib/documentKind";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
-import type { DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
+import type { DocumentBlocksResponse, DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
@@ -196,4 +196,11 @@ export async function fetchDocumentReadUrl(documentId: string): Promise<string |
   const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "original-url"), { cache: "no-store" });
   const result = await parseJsonOrThrow<{ url: string | null }>(response, ERROR_MESSAGES.documentOriginalLoadFailed);
   return result.url;
+}
+
+/** 근거 하이라이트용 원본 block 목록. 문서 순서이며 영구 block ID와 스냅샷 기준 줄 범위를 준다. */
+export async function fetchDocumentBlocks(documentId: string): Promise<DocumentBlocksResponse> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "blocks"), { cache: "no-store" });
+  const result = await parseJsonOrThrow<DocumentBlocksResponse>(response, ERROR_MESSAGES.documentBlocksLoadFailed);
+  return { ...result, blocks: Array.isArray(result.blocks) ? result.blocks : [] };
 }

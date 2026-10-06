@@ -16,14 +16,14 @@
 
 | 서비스 | 전체 `/api/**` | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 53 | 34 |
+| document-svc | 87 | 54 | 33 |
 | access-svc | 29 | 26 | 3 |
 
-미호출 34개 분류: 의도적 비사용 4, 진행 중 6, UI 없음 9, 미배선 15.
+미호출 33개 분류: 의도적 비사용 4, 진행 중 6, UI 없음 9, 미배선 14.
 
 ---
 
-## document-svc 미호출 34개
+## document-svc 미호출 33개
 
 ### 의도적 비사용
 
@@ -83,7 +83,6 @@ UI 필요 여부를 단정하지 않는다.
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/restore` | 문서 복구 호출이 없다. 삭제는 소프트 삭제인데 복구 경로가 배선되지 않았다 |
 | `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/markdown` | Markdown 문서 전용 목록. 이 저장소는 `documents` 전체 목록만 쓴다 |
-| `GET /api/workspaces/{workspace_id}/documents/{document_id}/blocks` | 블록 단위 조회를 쓰지 않는다. 본문은 `documents/{id}` 상세의 `markdown` 필드로 받는다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/export` | 문서 내보내기 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 단일 버전 본문 조회. `src/features/document-history/api/versions.ts`는 목록(`/versions`), diff(`/diff`), 복원(`/versions/{version}/restore`)만 부른다. 버전 내용 표시는 서버 계산 diff로 대체한다 |

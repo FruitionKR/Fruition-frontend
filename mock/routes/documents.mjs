@@ -1,6 +1,7 @@
-// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·본문 저장·버전·ingest·변환·편집 잠금.
+// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·버전·ingest·변환·편집 잠금.
 import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
+import { sha256 } from "../lib/sourceBlocks.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
 // 편집기 이미지 첨부 계약: 본문의 attachment://<uuid> placeholder와 attachment_<uuid> file part
@@ -162,6 +163,23 @@ export function registerDocumentRoutes(router) {
     if (!doc) return;
     const contentType = isTextDocument(doc) ? `${doc.mime_type}; charset=utf-8` : doc.mime_type;
     ctx.bytes(200, doc.content, contentType);
+  });
+
+  // 근거 하이라이트용 원본 block. 마지막 ingest 스냅샷 기준이며 현재 본문과 해시가 다르면 is_stale이다.
+  router.get("/api/workspaces/:wid/documents/:id/blocks", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    const snapshot = doc.source_snapshot ?? null;
+    const currentContentHash = typeof doc.markdown === "string" ? sha256(doc.markdown) : null;
+    ctx.json(200, {
+      document_id: doc.id,
+      source_content_hash: snapshot?.content_hash ?? null,
+      current_content_hash: currentContentHash,
+      is_stale: snapshot ? snapshot.content_hash !== currentContentHash : null,
+      blocks: snapshot?.blocks ?? []
+    });
   });
 
   router.put("/api/workspaces/:wid/documents/:id/content", async (ctx) => {
