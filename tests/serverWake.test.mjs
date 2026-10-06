@@ -237,3 +237,49 @@ test("isServerUnready는 렌더 시점이 아니라 최신 준비 상태를 돌�
   await flush();
   assert.equal(stale.isServerUnready(), false);
 });
+
+/** 탭 가시성을 바꿀 수 있는 최소 document. 훅이 visibilitychange를 구독하는지도 확인한다. */
+function fakeDocument(t) {
+  const listeners = new Set();
+  const fake = {
+    visibilityState: "visible",
+    addEventListener: (type, listener) => type === "visibilitychange" && listeners.add(listener),
+    removeEventListener: (type, listener) => type === "visibilitychange" && listeners.delete(listener),
+    setVisibility(state) {
+      fake.visibilityState = state;
+      listeners.forEach((listener) => listener());
+    },
+    get listenerCount() {
+      return listeners.size;
+    }
+  };
+  globalThis.document = fake;
+  t.after(() => delete globalThis.document);
+  return fake;
+}
+
+test("숨김 탭에서는 상태 확인을 멈추고, 다시 보이면 바로 확인한다", async (t) => {
+  const doc = fakeDocument(t);
+  const calls = mockServer(t, { phases: ["waking", "waking", "waking"] });
+  const hook = render(() => useServerWake());
+  await flush();
+  const statusChecks = () => calls.filter((call) => call === "GET /wake").length;
+  assert.equal(statusChecks(), 1);
+
+  // 다음 확인이 예약된 뒤 탭을 숨기면, 그 확인이 끝난 뒤로는 예약하지 않는다.
+  doc.setVisibility("hidden");
+  t.mock.timers.tick(10_000);
+  await flush();
+  assert.equal(statusChecks(), 2);
+  t.mock.timers.tick(60_000);
+  await flush();
+  assert.equal(statusChecks(), 2);
+
+  doc.setVisibility("visible");
+  await flush();
+  assert.equal(statusChecks(), 3);
+  assert.equal(hook.rerender().isPreparing, true);
+
+  hook.unmount();
+  assert.equal(doc.listenerCount, 0);
+});

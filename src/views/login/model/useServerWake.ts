@@ -65,6 +65,9 @@ export function useServerWake() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let isNoticeShown = false;
     let pollCount = 0;
+    // 숨김 탭에서 다음 확인을 예약하지 않은 상태. 다시 보이면 바로 한 번 확인한다.
+    let paused = false;
+    const isHidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
 
     const showPreparing = (value: boolean) => {
       isServerUnreadyRef.current = value;
@@ -79,7 +82,17 @@ export function useServerWake() {
         setIsWakeTimedOut(true);
         return;
       }
+      if (isHidden()) {
+        paused = true;
+        return;
+      }
       timer = setTimeout(() => void check(), POLL_INTERVAL_MS);
+    };
+
+    const resumeWhenVisible = () => {
+      if (!paused || cancelled || isHidden()) return;
+      paused = false;
+      void check();
     };
 
     const check = async () => {
@@ -111,6 +124,7 @@ export function useServerWake() {
       void check();
     };
     startRef.current = start;
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", resumeWhenVisible);
 
     void fetchAccessGateStatus()
       .then((status) => {
@@ -126,6 +140,7 @@ export function useServerWake() {
       cancelled = true;
       startRef.current = null;
       clearTimeout(timer);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", resumeWhenVisible);
     };
   }, []);
 
