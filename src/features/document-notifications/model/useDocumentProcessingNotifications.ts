@@ -5,7 +5,9 @@ import { useUserPreferences } from "@/entities/user";
 import type { DocumentItemResponse } from "@/entities/document";
 import { createClientId, type DocumentStatus } from "@/entities/tree";
 import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
+import { usePageVisible } from "@/shared/lib/usePageVisible";
 import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
+import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, subscribeNotices, type NoticePayload } from "./noticeBus";
 
 export type DocumentProcessingNotice = NoticePayload & { id: string };
@@ -32,6 +34,9 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
   } = preferences.notifications;
   const [notices, setNotices] = useState<DocumentProcessingNotice[]>([]);
   const previousStatusesRef = useRef<Map<string, DocumentStatus> | null>(null);
+  // documents 폴링이 멈춘(숨김 + 처리 중 문서 없음) 시점의 processed_at 기준점. 다음 갱신 1회에 소비한다.
+  const pausedBaselineRef = useRef<number | null>(null);
+  const isPageVisible = usePageVisible();
   const timersRef = useRef<number[]>([]);
 
   const dismissNotice = useCallback((id: string) => {
@@ -68,6 +73,8 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     const currentStatuses = new Map(documents.map((document) => [document.id, document.status]));
     const previousStatuses = previousStatusesRef.current;
     previousStatusesRef.current = currentStatuses;
+    const pausedBaseline = pausedBaselineRef.current;
+    pausedBaselineRef.current = null;
     if (!previousStatuses) return;
 
     let completedCount = 0;
@@ -75,7 +82,9 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     const failedDocuments: DocumentItemResponse[] = [];
     documents.forEach((document) => {
       const previousStatus = previousStatuses.get(document.id);
-      if (!wasProcessing(previousStatus)) return;
+      // 처리 중이었다가 종결됐거나, 폴링이 멈춘 동안 시작·종결돼 처리 중 상태를 보지 못한 문서
+      const finishedWhilePaused = pausedBaseline !== null && hasFinishedSince(document, pausedBaseline);
+      if (!wasProcessing(previousStatus) && !finishedWhilePaused) return;
       if (document.status === "completed") {
         if (document.pipeline_run_id?.startsWith("convert:")) convertedCount += 1;
         else completedCount += 1;
@@ -94,6 +103,13 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
       publishNotice(buildFailedDocumentsNotice(failedDocuments));
     }
   }, [documents, completedNotifications, failedNotifications]);
+
+  // 위 effect가 이전 기준점을 소비한 뒤에 다시 기록하도록 뒤에 둔다.
+  // 처리 완료 문서가 하나도 없으면(첫 로드 전 빈 목록 포함) 기준점을 두지 않아 전체 문서가 알림으로 뜨지 않게 한다.
+  useEffect(() => {
+    if (isPageVisible || documents.some((document) => isDocumentInFlight(document.status))) return;
+    pausedBaselineRef.current = latestProcessedAt(documents);
+  }, [documents, isPageVisible]);
 
   return { notices, dismissNotice };
 }

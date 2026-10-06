@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchOperationLogs, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
-import { getWikiWorkPollInterval } from "./wikiWorkPolling";
+import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { getWikiWorkPollInterval, isStaleForIdlePoll } from "./wikiWorkPolling";
 
 const ACTIVE_RESTORE_QUERY_KEY = ["activeRestoreOperations"] as const;
 
@@ -16,6 +17,7 @@ const ACTIVE_RESTORE_STATUSES: OperationStatus[] = ["applying", "rebuilding", "n
  * 진행 중일 때만 3초 폴링한다(useActiveLintOperation과 같은 방식).
  */
 export function useActiveRestoreOperations(): OperationLogItem[] {
+  const isPageVisible = usePageVisible();
   const query = useQuery({
     queryKey: ACTIVE_RESTORE_QUERY_KEY,
     queryFn: async () => {
@@ -24,9 +26,9 @@ export function useActiveRestoreOperations(): OperationLogItem[] {
       );
       return pages.flatMap((page) => page.logs);
     },
-    refetchInterval: (activeQuery) => getWikiWorkPollInterval((activeQuery.state.data?.length ?? 0) > 0),
+    refetchInterval: (activeQuery) => getWikiWorkPollInterval((activeQuery.state.data?.length ?? 0) > 0, isPageVisible),
     refetchIntervalInBackground: true,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
   });
 
   return query.data ?? [];

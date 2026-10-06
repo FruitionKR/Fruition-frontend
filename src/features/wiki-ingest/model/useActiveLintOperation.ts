@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchOperationLogs, type OperationLogItem } from "@/entities/operation-log";
-import { getWikiWorkPollInterval } from "./wikiWorkPolling";
+import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { getWikiWorkPollInterval, isStaleForIdlePoll } from "./wikiWorkPolling";
 
 const ACTIVE_LINT_QUERY_KEY = ["activeLintOperation"] as const;
 
@@ -14,14 +15,16 @@ const ACTIVE_LINT_QUERY_KEY = ["activeLintOperation"] as const;
  * 조회 실패는 진행 표시가 잠깐 비는 것뿐이라 react-query 재시도에 맡긴다.
  */
 export function useActiveLintOperation(isLintRequested: boolean): OperationLogItem | null {
+  const isPageVisible = usePageVisible();
   const query = useQuery({
     queryKey: ACTIVE_LINT_QUERY_KEY,
     queryFn: () => fetchOperationLogs({ type: "lint", status: "processing", size: 1 }),
     refetchInterval: (activeQuery) => getWikiWorkPollInterval(
-      isLintRequested || (activeQuery.state.data?.logs.length ?? 0) > 0
+      isLintRequested || (activeQuery.state.data?.logs.length ?? 0) > 0,
+      isPageVisible
     ),
     refetchIntervalInBackground: true,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
   });
 
   return query.data?.logs[0] ?? null;
