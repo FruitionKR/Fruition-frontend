@@ -63,6 +63,34 @@ test("입력·링크 입력처럼 외부 이미지를 새로 넣는 변경은 �
   assert.equal(blocked.length, 2);
 });
 
+test("기존 외부 이미지를 다른 외부 주소로 바꾸는 변경은 개수가 같아도 거부한다", () => {
+  const doc = schema.node("doc", null, [p(text("가"), image(EXTERNAL)), block(EXTERNAL)]);
+  const { state, blocked } = setup(doc);
+  const OTHER = "https://other.example/q.png";
+
+  // 선택한 외부 이미지를 지우고 같은 자리에 다른 외부 이미지를 넣는 드롭·붙여넣기
+  const imagePos = 2;
+  const swapped = state.applyTransaction(state.tr.replaceWith(imagePos, imagePos + 1, image(OTHER)));
+  assert.equal(swapped.state.doc.eq(state.doc), true);
+  assert.equal(blocked.length, 1);
+
+  // 이미지 블록의 src만 외부 → 외부로 바꾸는 AttrStep
+  const blockPos = doc.firstChild.nodeSize;
+  const relinked = state.applyTransaction(state.tr.setNodeAttribute(blockPos, "src", OTHER));
+  assert.equal(relinked.state.doc.eq(state.doc), true);
+  assert.equal(blocked.length, 2);
+
+  // 이미 있는 외부 이미지 하나를 복제하는 것도 새로 넣는 것으로 본다
+  const duplicated = state.applyTransaction(state.tr.insert(1, image(EXTERNAL)));
+  assert.equal(duplicated.state.doc.eq(state.doc), true);
+  assert.equal(blocked.length, 3);
+
+  // 같은 주소로 다시 넣는 교체(예: 같은 이미지 드래그 이동)는 허용한다
+  const same = state.applyTransaction(state.tr.replaceWith(imagePos, imagePos + 1, image(EXTERNAL)));
+  assert.equal(countExternalImages(same.state.doc), 2);
+  assert.equal(blocked.length, 3);
+});
+
 test("관리 이미지 추가, 기존 외부 이미지 이동·삭제, undo, 프로그램 교체는 허용한다", () => {
   const history = new Plugin({ key: new PluginKey("history") });
   const doc = schema.node("doc", null, [p(text("가"), image(EXTERNAL)), p(text("나"))]);

@@ -55,16 +55,17 @@ const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, 
 };
 
 // 링크 입력처럼 글자마다 막히는 경로에서 알림 카드가 쌓이지 않게 한다.
+// 안내 문구마다 따로 세어, 종류가 다른 차단은 3초 안이어도 알린다.
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
-let lastExternalImageNoticeAt = 0;
+const lastExternalImageNoticeAt = new Map<string, number>();
 
 // 원문 모드는 글을 그대로 두므로 "넣을 수 없다" 대신 표시되지 않는다고 알린다.
 const EXTERNAL_IMAGE_HIDDEN_MESSAGE = "보안을 위해 외부 이미지는 표시되지 않습니다. 이미지를 내려받아 직접 업로드해 주세요.";
 
 function notifyExternalImageBlocked(message: string = EXTERNAL_IMAGE_BLOCKED_MESSAGE) {
   const now = Date.now();
-  if (now - lastExternalImageNoticeAt < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
-  lastExternalImageNoticeAt = now;
+  if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
+  lastExternalImageNoticeAt.set(message, now);
   publishNotice({ kind: "failed", title: "외부 이미지 차단", message });
 }
 

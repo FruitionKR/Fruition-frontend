@@ -7,7 +7,7 @@ import { createLogLimiter, MAX_REPORT_BYTES, readCappedText, summarizeCspReports
 export const dynamic = "force-dynamic";
 
 const LOG_LINES_PER_MINUTE = 60;
-const allowLog = createLogLimiter(LOG_LINES_PER_MINUTE, 60_000);
+const takeLog = createLogLimiter(LOG_LINES_PER_MINUTE, 60_000);
 
 function noContent() {
   return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
@@ -18,8 +18,10 @@ export async function POST(request: NextRequest) {
   const body = await readCappedText(request.body, MAX_REPORT_BYTES).catch(() => null);
   if (!body) return noContent();
   for (const { directive, blocked } of summarizeCspReports(body)) {
-    if (!allowLog(Date.now())) break;
-    console.warn(`[csp-report] ${directive} ${blocked}`);
+    const { allowed, dropped } = takeLog(Date.now());
+    // 상한을 넘겨 버린 보고는 창마다 한 줄로 합산해 남긴다(다음 보고가 올 때 직전 창 분을 쓴다)
+    if (dropped > 0) console.warn(`[csp-report] dropped ${dropped} reports in previous window`);
+    if (allowed) console.warn(`[csp-report] ${directive} ${blocked}`);
   }
   return noContent();
 }

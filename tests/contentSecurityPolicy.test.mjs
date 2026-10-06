@@ -86,12 +86,31 @@ test("두 보고 형식에서 지시어와 차단 오리진만 남긴다", () =>
   assert.equal(summarizeCspReports(JSON.stringify(Array.from({ length: 50 }, () => ({ type: "csp-violation", body: {} })))).length, 10);
 });
 
+test("URL이 아닌 blocked 값은 CSP 키워드만 그대로 남기고 나머지는 other로 줄인다", () => {
+  const report = (blocked) => JSON.stringify({ "csp-report": { "effective-directive": "script-src-elem", "blocked-uri": blocked } });
+  for (const keyword of ["inline", "eval", "wasm-eval", "trusted-types-policy", "trusted-types-sink", "self", "data", "blob", "EVAL"]) {
+    assert.deepEqual(summarizeCspReports(report(keyword)), [{ directive: "script-src-elem", blocked: keyword.toLowerCase() }], keyword);
+  }
+  for (const value of ["fake-admin-logged-in-ok", "inline-x", "관리자 로그인 성공", "not a url"]) {
+    assert.deepEqual(summarizeCspReports(report(value)), [{ directive: "script-src-elem", blocked: "other" }], value);
+  }
+  assert.deepEqual(summarizeCspReports(report("")), [{ directive: "script-src-elem", blocked: "unknown" }]);
+});
+
 test("보고 본문은 상한까지만 읽고, 로그는 시간 창마다 상한까지만 남긴다", async () => {
   const stream = (text) => new Blob([text]).stream();
   assert.equal(await readCappedText(stream("abc"), 3), "abc");
   assert.equal(await readCappedText(stream("abcd"), 3), null);
-  const allow = createLogLimiter(2, 1000);
-  assert.deepEqual([allow(0), allow(10), allow(20), allow(1000)], [true, true, false, true]);
+  const take = createLogLimiter(2, 1000);
+  assert.deepEqual([take(0), take(10), take(20), take(30), take(1000), take(1010)], [
+    { allowed: true, dropped: 0 },
+    { allowed: true, dropped: 0 },
+    { allowed: false, dropped: 0 },
+    { allowed: false, dropped: 0 },
+    // 새 창의 첫 호출이 직전 창에서 버린 건수를 한 번만 넘겨준다
+    { allowed: true, dropped: 2 },
+    { allowed: true, dropped: 0 }
+  ]);
 });
 
 test("보고 엔드포인트는 내용과 관계없이 캐시되지 않는 204를 돌려준다", async (t) => {
@@ -105,4 +124,24 @@ test("보고 엔드포인트는 내용과 관계없이 캐시되지 않는 204�
   const tooLarge = await POST(new Request("http://localhost/csp-report", { method: "POST", body: "x".repeat(17 * 1024) }));
   assert.equal(tooLarge.status, 204);
   assert.equal(warn.mock.calls.length, 1);
+});
+
+test("로그 상한을 넘긴 보고는 버리고 다음 창에서 버린 건수를 한 줄로 남긴다", async (t) => {
+  const warn = t.mock.method(console, "warn", () => {});
+  // 앞 테스트가 같은 모듈 상한을 썼으므로 새 창에서 시작한다
+  const start = Date.now() + 3_600_000;
+  const clock = t.mock.method(Date, "now", () => start);
+  const send = (count) => POST(new Request("http://localhost/csp-report", {
+    method: "POST",
+    body: JSON.stringify(Array.from({ length: count }, (_, index) => ({ type: "csp-violation", body: { effectiveDirective: "img-src", blockedURL: `https://a${index}.example/x` } })))
+  }));
+  for (let i = 0; i < 7; i += 1) await send(10);
+  const lines = warn.mock.calls.map((call) => call.arguments[0]);
+  assert.equal(lines.length, 60);
+  assert.ok(lines.every((line) => line.startsWith("[csp-report] img-src https://")));
+
+  clock.mock.mockImplementation(() => start + 60_000);
+  await send(1);
+  const next = warn.mock.calls.slice(60).map((call) => call.arguments[0]);
+  assert.deepEqual(next, ["[csp-report] dropped 10 reports in previous window", "[csp-report] img-src https://a0.example"]);
 });

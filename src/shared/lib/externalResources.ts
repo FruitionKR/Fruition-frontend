@@ -5,7 +5,10 @@
  */
 
 // 백엔드가 본문 저장 응답에서 치환해 주는 관리 이미지 경로 (REQ-005)
-const MANAGED_ASSET_PATH = /^\/api\/workspaces\/[^/]+\/assets\/[^/]+\/content$/;
+// 관리 경로면 열람자 인증을 실어 그대로 요청하므로, 세그먼트를 실제 ID 문자(워크스페이스 `ws_…`, 자산 UUID·`asset_…`)로 좁힌다.
+// `..`·`%2e%2e`·`?`·`#`·빈 세그먼트를 받으면 /api 아래 다른 GET을 열람만으로 부를 수 있다.
+// src/shared/api/assets.ts의 본문 추출 정규식도 같은 기준을 쓴다.
+const MANAGED_ASSET_PATH = /^\/api\/workspaces\/[A-Za-z0-9_-]+\/assets\/[A-Za-z0-9_-]+\/content$/;
 
 // 상대 경로를 풀 때 쓰는 가상 오리진. 서버 렌더링과 브라우저가 같은 결과를 내도록 window.location을 쓰지 않는다.
 // 그래서 우리 앱 오리진을 적은 절대 URL도 외부로 본다.

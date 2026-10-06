@@ -19,6 +19,15 @@ function isExternalImage(node: ProseNode): boolean {
   return IMAGE_NODE_TYPES.has(node.type.name) && typeof src === "string" && classifyImageSource(src).kind === "external";
 }
 
+/** 문서 안 외부 이미지 src별 개수. */
+function countExternalImageSources(doc: ProseNode): Map<string, number> {
+  const counts = new Map<string, number>();
+  doc.descendants((node) => {
+    if (isExternalImage(node)) counts.set(node.attrs.src, (counts.get(node.attrs.src) ?? 0) + 1);
+  });
+  return counts;
+}
+
 /** 문서나 조각 안의 외부 이미지 노드 수. */
 export function countExternalImages(content: Fragment | ProseNode): number {
   let count = 0;
@@ -52,11 +61,19 @@ function isHistoryTransaction(tr: Transaction, state: EditorState): boolean {
   return Boolean(history && tr.getMeta(history));
 }
 
-/** 이 트랜잭션이 외부 이미지 수를 늘리는지. 이동·삭제·undo·프로그램 교체는 허용한다. */
+/**
+ * 이 트랜잭션이 이전 문서에 없던 외부 이미지 src를 들여오는지. src별 개수로 비교하므로
+ * 기존 외부 이미지를 지우며 다른 외부 이미지를 넣는 교체(선택 영역 드롭, src 속성 변경)도 잡는다.
+ * 같은 src를 옮기거나 지우는 것, undo/redo, 프로그램 교체(AI 편집 적용)는 허용한다.
+ */
 export function addsExternalImage(tr: Transaction, state: EditorState): boolean {
   if (!tr.docChanged || tr.getMeta(ALLOW_EXTERNAL_IMAGES_META) || isHistoryTransaction(tr, state)) return false;
   if (!tr.steps.some(stepMayInsertExternalImage)) return false;
-  return countExternalImages(tr.doc) > countExternalImages(state.doc);
+  const before = countExternalImageSources(state.doc);
+  for (const [src, count] of countExternalImageSources(tr.doc)) {
+    if (count > (before.get(src) ?? 0)) return true;
+  }
+  return false;
 }
 
 /** 입력 규칙(`![](https://…)`)·드롭·이미지 링크 입력 등 모든 경로에서 외부 이미지가 늘어나는 변경을 거부한다. */

@@ -9,8 +9,8 @@ export type CspViolationSummary = { directive: string; blocked: string };
 export const MAX_REPORT_BYTES = 16 * 1024;
 const MAX_SUMMARIES_PER_REQUEST = 10;
 const DIRECTIVE = /^[a-z-]{1,40}$/;
-// blocked-uri 자리에 오는 키워드(inline, eval, wasm-eval, trusted-types-policy 등)
-const KEYWORD = /^[a-z-]{1,30}$/;
+// blocked-uri 자리에 오는 CSP 키워드. 무인증 엔드포인트라 이 밖의 글자는 로그에 그대로 남기지 않는다.
+const BLOCKED_KEYWORDS = new Set(["inline", "eval", "wasm-eval", "trusted-types-policy", "trusted-types-sink", "self", "data", "blob"]);
 
 function normalizeDirective(value: unknown): string {
   if (typeof value !== "string") return "unknown";
@@ -21,7 +21,7 @@ function normalizeDirective(value: unknown): string {
 function normalizeBlocked(value: unknown): string {
   if (typeof value !== "string" || !value) return "unknown";
   const trimmed = value.trim().toLowerCase();
-  if (KEYWORD.test(trimmed)) return trimmed;
+  if (BLOCKED_KEYWORDS.has(trimmed)) return trimmed;
   try {
     const url = new URL(value);
     if (url.protocol === "data:" || url.protocol === "blob:") return url.protocol.slice(0, -1);
@@ -29,7 +29,7 @@ function normalizeBlocked(value: unknown): string {
     if (["http:", "https:", "ws:", "wss:"].includes(url.protocol)) return url.origin;
     return "other";
   } catch {
-    return "unknown";
+    return "other";
   }
 }
 
@@ -83,17 +83,27 @@ export async function readCappedText(stream: ReadableStream<Uint8Array> | null, 
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-/** 분당 로그 줄 수 상한. 서버(프로세스)마다 따로 센다. 보고가 몰려도 로그가 넘치지 않게 한다. */
+/**
+ * 분당 로그 줄 수 상한. 서버(프로세스)마다 따로 센다. 보고가 몰려도 로그가 넘치지 않게 한다.
+ * 누구나 상한을 채울 수 있으므로 버린 건수를 세어, 새 창의 첫 호출에서 직전 창의 버린 건수(dropped)를 한 번 돌려준다.
+ */
 export function createLogLimiter(maxPerWindow: number, windowMs: number) {
   let windowStart = 0;
   let count = 0;
-  return (now: number): boolean => {
+  let dropped = 0;
+  return (now: number): { allowed: boolean; dropped: number } => {
+    let previousDropped = 0;
     if (now - windowStart >= windowMs) {
+      previousDropped = dropped;
       windowStart = now;
       count = 0;
+      dropped = 0;
     }
-    if (count >= maxPerWindow) return false;
+    if (count >= maxPerWindow) {
+      dropped += 1;
+      return { allowed: false, dropped: previousDropped };
+    }
     count += 1;
-    return true;
+    return { allowed: true, dropped: previousDropped };
   };
 }

@@ -42,6 +42,34 @@ test("관리 경로가 아닌 같은 출처 경로·알 수 없는 스킴·빈 �
   }
 });
 
+test("관리 경로는 실제 ID 문자만 받고 점 세그먼트·인코딩·쿼리·조각·빈 세그먼트는 요청하지 않는다", () => {
+  for (const src of [
+    "/api/workspaces/ws_fruition/assets/asset_1a2b3c4d/content",
+    "/api/workspaces/ws_1/assets/0c973836-6687-4018-b2c7-f2f66984e87b/content"
+  ]) {
+    assert.deepEqual(classifyImageSource(src), { kind: "managed" }, src);
+  }
+  for (const src of [
+    "/api/workspaces/x/assets/../content",
+    "/api/workspaces/x/assets/./content",
+    "/api/workspaces/x/assets/%2e%2e/content",
+    "/api/workspaces/..%2f/assets/y/content",
+    "/api/workspaces/x%2Fy/assets/z/content",
+    "/api/workspaces/x?a/assets/y/content",
+    "/api/workspaces/x/assets/y/content?x",
+    "/api/workspaces/x/assets/y/content#x",
+    "/api/workspaces/x#/assets/y/content",
+    "/api/workspaces//assets/y/content",
+    "//api/workspaces/x/assets/y/content",
+    "/api/workspaces/x//assets/y/content",
+    "/api/workspaces/x/assets/y//content",
+    " /api/workspaces/x/assets/y/content"
+  ]) {
+    assert.equal(isManagedAssetPath(src), false, src);
+    assert.notDeepEqual(classifyImageSource(src), { kind: "managed" }, src);
+  }
+});
+
 test("링크는 상대 경로·#·?는 내부, 다른 오리진과 mailto:는 외부로 본다", () => {
   for (const href of [undefined, "", "#heading", "?tab=1", "/workspaces/ws/documents/1", "notes/a.md"]) {
     assert.deepEqual(classifyLinkHref(href), { external: false }, String(href));
