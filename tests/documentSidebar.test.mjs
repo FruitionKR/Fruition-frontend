@@ -123,3 +123,9 @@ test("컨텍스트 메뉴는 click이 아닌 바깥 pointerdown으로 닫힌다"
   assert.match(treeNodeSource, /data-folder-menu-trigger=""/);
   assert.match(menuSource, /closest\("\[data-folder-menu-trigger\]"\)/);
 });
+
+test("업로드 스피너는 행 라벨용 flex 규칙에서 빠져 8px 원을 유지한다", async () => {
+  const css = await readFile(new URL("../src/widgets/document-sidebar/ui/DocumentSidebar.module.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.tree-row > span:not\(\.tree-folder-slot\):not\(\.tree-upload-spinner\) \{/);
+});

@@ -825,7 +825,7 @@
   outline: 1px solid rgba(255, 193, 23, 0.58);
 }
 
-.tree-row > span:not(.tree-folder-slot) {
+.tree-row > span:not(.tree-folder-slot):not(.tree-upload-spinner) {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
