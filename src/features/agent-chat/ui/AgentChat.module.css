@@ -491,6 +491,37 @@
   border-radius: 2px;
 }
 
+/* 개별 선택: 떨어진 문답을 각각 체크박스로 표시한다. */
+.is-individual-selecting .chat-pair.is-selected {
+  border: 1.2px dashed var(--yellow, #ffc117);
+  border-radius: 6px;
+}
+
+.is-individual-selecting .chat-pair.is-selected + .chat-pair.is-selected {
+  margin-top: 24px;
+  padding-top: 12px;
+}
+
+.chat-pair-checkbox {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 1px solid #777;
+  border-radius: 2px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.is-selected .chat-pair-checkbox {
+  color: #323232;
+  background: var(--yellow, #ffc117);
+  border-color: var(--yellow, #ffc117);
+}
+
 .chat-selection-overlay:focus-visible {
   outline: 2px solid #f6dc85;
   outline-offset: -3px;
@@ -549,6 +580,54 @@
   align-items: flex-end;
   padding: 16px 24px;
   background: rgba(65, 65, 65, 0.6);
+}
+
+.chat-selection-toolbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-selection-kind {
+  display: inline-flex;
+  padding: 2px;
+  background: #1e1e1e;
+  border: 1px solid #4f4f4f;
+  border-radius: 6px;
+}
+
+.chat-selection-kind-option {
+  height: 25px;
+  padding: 0 10px;
+  color: #c4c4c4;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-selection-kind-option:hover:not(:disabled) {
+  color: #f0f0f0;
+}
+
+.chat-selection-kind-option[aria-pressed="true"] {
+  color: var(--yellow, #ffc117);
+  background: #323232;
+  font-weight: 600;
+}
+
+.chat-selection-kind-option:focus-visible {
+  outline: 2px solid #f6dc85;
+  outline-offset: -2px;
+}
+
+.chat-selection-kind-option:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .chat-selection-buttons {

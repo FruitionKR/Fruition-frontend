@@ -29,7 +29,9 @@ import {
   classifyChatExportPairs,
   EMPTY_CHAT_PAIR_RANGE_SELECTION,
   selectChatPairRange,
-  type ChatPairRangeSelection
+  toggleChatPair,
+  type ChatPairRangeSelection,
+  type ChatPairSelectionKind
 } from "@/features/agent-chat/lib/chatPairSelection";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
@@ -37,6 +39,11 @@ import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
 // AgentBody 등이 이 파일에서 ActiveAgentTurn을 import하므로 re-export 유지
 export type { ActiveAgentTurn } from "@/features/agent-chat/model/useChatThread";
+
+const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
+  { kind: "range", label: "범위 선택" },
+  { kind: "individual", label: "개별 선택" }
+];
 
 export function AgentPanel({
   onClose,
@@ -60,6 +67,7 @@ export function AgentPanel({
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
   const [pairSelection, setPairSelection] = useState<ChatPairRangeSelection>(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+  const [pairSelectionKind, setPairSelectionKind] = useState<ChatPairSelectionKind>("range");
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
   const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
@@ -322,7 +330,15 @@ export function AgentPanel({
 
   function selectPair(pairId: string) {
     if (isExporting) return;
-    setPairSelection((current) => selectChatPairRange(exportPairIds, current, pairId));
+    const select = pairSelectionKind === "individual" ? toggleChatPair : selectChatPairRange;
+    setPairSelection((current) => select(exportPairIds, current, pairId));
+  }
+
+  function changePairSelectionKind(kind: ChatPairSelectionKind) {
+    if (isExporting || kind === pairSelectionKind) return;
+    // 범위 선택과 개별 선택은 선택 규칙이 달라 모드를 바꾸면 선택을 처음부터 다시 한다.
+    setPairSelectionKind(kind);
+    setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
   }
 
   function cancelPairSelection() {
@@ -436,6 +452,7 @@ export function AgentPanel({
         onOpenWikiPage={onOpenWikiPage}
         onOpenSourceBlocks={onOpenSourceBlocks}
         isPairSelectionMode={isPairSelectionMode}
+        pairSelectionKind={pairSelectionKind}
         selectablePairIds={exportPairIds}
         excludedPairIds={excludedPairIds}
         selectedPairIds={selectedPairIds}
@@ -445,28 +462,44 @@ export function AgentPanel({
       />
       {isPairSelectionMode ? (
         <div className={styles["chat-selection-actions"]}>
-          <div className={styles["chat-selection-buttons"]}>
-            <button
-              type="button"
-              className={styles["chat-selection-reset"]}
-              aria-label="채팅 선택 다시 하기"
-              disabled={isExporting || selectedPairIds.length === 0}
-              onClick={() => setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION)}
-            >
-              <RotateCcw size={16} />
-            </button>
-            <button type="button" className={styles["chat-selection-cancel"]} disabled={isExporting} onClick={cancelPairSelection}>
-              취소
-            </button>
-            <button
-              type="button"
-              className={styles["chat-selection-confirm"]}
-              aria-label={selectedPairIds.length > 0 ? `${selectedPairIds.length}개 문답 편입 확인` : "편입할 문답을 선택하세요"}
-              disabled={isExporting || selectedPairIds.length === 0}
-              onClick={() => void acceptExport()}
-            >
-              확인
-            </button>
+          <div className={styles["chat-selection-toolbar"]}>
+            <div className={styles["chat-selection-kind"]} role="group" aria-label="편입 문답 선택 방식">
+              {PAIR_SELECTION_KIND_OPTIONS.map(({ kind, label }) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={pairSelectionKind === kind}
+                  className={styles["chat-selection-kind-option"]}
+                  disabled={isExporting}
+                  onClick={() => changePairSelectionKind(kind)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className={styles["chat-selection-buttons"]}>
+              <button
+                type="button"
+                className={styles["chat-selection-reset"]}
+                aria-label="채팅 선택 다시 하기"
+                disabled={isExporting || selectedPairIds.length === 0}
+                onClick={() => setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION)}
+              >
+                <RotateCcw size={16} />
+              </button>
+              <button type="button" className={styles["chat-selection-cancel"]} disabled={isExporting} onClick={cancelPairSelection}>
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles["chat-selection-confirm"]}
+                aria-label={selectedPairIds.length > 0 ? `${selectedPairIds.length}개 문답 편입 확인` : "편입할 문답을 선택하세요"}
+                disabled={isExporting || selectedPairIds.length === 0}
+                onClick={() => void acceptExport()}
+              >
+                확인
+              </button>
+            </div>
           </div>
           {exportErrorMessage && <p className={styles["chat-selection-error"]} role="alert">{exportErrorMessage}</p>}
         </div>
