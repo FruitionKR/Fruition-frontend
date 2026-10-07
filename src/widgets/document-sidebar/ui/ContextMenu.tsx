@@ -1,6 +1,8 @@
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import type { ContextMenuState } from "@/entities/tree";
+import { useRef } from "react";
 import { createPortal } from "react-dom";
+import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./DocumentSidebar.module.css";
 
 export function ContextMenu({
@@ -14,7 +16,8 @@ export function ContextMenu({
   onAddMarkdownFromContext,
   onUploadFromContext,
   onConvertContextTarget,
-  onDeleteContextTarget
+  onDeleteContextTarget,
+  onClose
 }: {
   contextMenu: ContextMenuState;
   /** 새 폴더 생성은 뷰 정책(canCreateProjectFromView)을 따른다. */
@@ -31,10 +34,17 @@ export function ContextMenu({
   onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
+  onClose: () => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  // 편집기 등은 click 전파를 막으므로 click이 아닌 pointerdown으로 바깥 입력을 감지한다.
+  // 폴더 + 버튼은 자체 onClick으로 같은 폴더면 닫고 다른 폴더면 메뉴를 옮기므로 바깥으로 보지 않는다.
+  useDismissOnOutside(menuRef, true, onClose, isFolderMenuTrigger);
+
   // 사이드바의 overflow와 스태킹 컨텍스트에 갇히지 않도록 viewport 좌표 그대로 body에 렌더한다.
   return createPortal(
     <div
+      ref={menuRef}
       className={styles["folder-context-menu"]}
       style={{ left: contextMenu.x, top: contextMenu.y }}
       onClick={(event) => event.stopPropagation()}
@@ -64,4 +74,9 @@ export function ContextMenu({
     </div>,
     document.body
   );
+}
+
+/** 폴더 행 + 버튼(TreeNode의 data-folder-menu-trigger)인지 확인한다. */
+function isFolderMenuTrigger(target: Node): boolean {
+  return target instanceof Element && target.closest("[data-folder-menu-trigger]") !== null;
 }

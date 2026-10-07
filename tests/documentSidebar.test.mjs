@@ -107,3 +107,19 @@ test("문서 컨텍스트 메뉴는 사이드바 스태킹 컨텍스트를 벗�
   assert.match(source, /return createPortal\(/);
   assert.match(source, /,\s*document\.body\s*\)/);
 });
+
+test("컨텍스트 메뉴는 click이 아닌 바깥 pointerdown으로 닫힌다", async () => {
+  const [menuSource, treeNodeSource, projectTreeSource] = await Promise.all([
+    readFile(contextMenuPath, "utf8"),
+    readFile(treeNodePath, "utf8"),
+    readFile(new URL("../src/widgets/workspace/model/useProjectTree.ts", import.meta.url), "utf8")
+  ]);
+
+  // 편집기 패널이 click 전파를 막아 window click 리스너로는 닫히지 않았다.
+  assert.match(menuSource, /useDismissOnOutside\(menuRef, true, onClose, isFolderMenuTrigger\)/);
+  assert.match(menuSource, /ref=\{menuRef\}/);
+  assert.doesNotMatch(projectTreeSource, /addEventListener\("click"/);
+  // + 버튼은 바깥 판정에서 빠져 자체 onClick으로 토글한다.
+  assert.match(treeNodeSource, /data-folder-menu-trigger=""/);
+  assert.match(menuSource, /closest\("\[data-folder-menu-trigger\]"\)/);
+});

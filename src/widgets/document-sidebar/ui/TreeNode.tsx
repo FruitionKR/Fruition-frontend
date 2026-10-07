@@ -156,8 +156,9 @@ export function TreeNode({
           className={styles["tree-row-action"]}
           aria-label={`${item.label}에 추가`}
           aria-haspopup="menu"
+          data-folder-menu-trigger=""
           onClick={(event) => {
-            // 행 토글·선택 해제와 window click에 의한 메뉴 즉시 닫힘을 막는다.
+            // 행 토글·선택 해제로 전파되지 않게 막는다.
             event.stopPropagation();
             interaction.onOpenFolderMenuAt(projectId, item.id, event.currentTarget);
           }}

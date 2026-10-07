@@ -1,12 +1,11 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { useEscapeLayer } from "@/shared/lib/useEscapeLayer";
 import { resolveTreeMove } from "../lib/treeMoveRules";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
@@ -87,15 +86,8 @@ export function useProjectTree({
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const clearSelectedItems = useCallback(() => setSelectedItemIds(new Set()), []);
-  useEscapeKey(contextMenu !== null, closeContextMenu);
   // 선택 해제는 모달·메뉴 등 열린 레이어가 없을 때만 Escape로 처리한다.
   useEscapeLayer(selectedItemIds.size > 0, clearSelectedItems, "fallback");
-
-  useEffect(() => {
-    if (!contextMenu) return;
-    window.addEventListener("click", closeContextMenu);
-    return () => window.removeEventListener("click", closeContextMenu);
-  }, [contextMenu, closeContextMenu]);
 
   function toggleSelectedItem(itemId: string) {
     setSelectedItemIds((current) => {
@@ -396,6 +388,7 @@ export function useProjectTree({
     dropTarget,
     fileDropTarget,
     contextMenu,
+    closeContextMenu,
     editing,
     deleteConfirm,
     mergeConfirm,

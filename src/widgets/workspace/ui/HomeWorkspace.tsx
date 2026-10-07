@@ -492,6 +492,7 @@ export function HomeWorkspace() {
         }}
         onConvertContextTarget={projectTree.convertContextTargetToMarkdown}
         onDeleteContextTarget={projectTree.deleteContextTarget}
+        onCloseContextMenu={projectTree.closeContextMenu}
       />
 
       {isHomeView && apiError && (
