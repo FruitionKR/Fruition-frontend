@@ -63,7 +63,8 @@ export function DocumentSidebar({
   onAddMarkdownFromContext,
   onUploadFromContext,
   onConvertContextTarget,
-  onDeleteContextTarget
+  onDeleteContextTarget,
+  onCloseContextMenu
 }: {
   projects: Project[];
   draggedItemId: string | null;
@@ -115,6 +116,7 @@ export function DocumentSidebar({
   onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
+  onCloseContextMenu: () => void;
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // 트리는 루트 프로젝트 하나뿐이다. 사이드바 전체가 루트 파일 드롭 영역이 된다.
@@ -176,6 +178,7 @@ export function DocumentSidebar({
           onUploadFromContext={onUploadFromContext}
           onConvertContextTarget={onConvertContextTarget}
           onDeleteContextTarget={onDeleteContextTarget}
+          onClose={onCloseContextMenu}
         />
       )}
     </>

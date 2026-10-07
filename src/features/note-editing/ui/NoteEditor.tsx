@@ -26,6 +26,7 @@ import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAu
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
+import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/markdownHeading";
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
@@ -480,8 +481,9 @@ export function NoteEditor({
             h2: { label: "제목 2" },
             h3: { label: "제목 3" },
             h4: { label: "제목 4" },
-            h5: { label: "제목 5" },
-            h6: { label: "제목 6" },
+            // 본문보다 작은 h5·h6은 만들지 않는다(model/markdownHeading.ts).
+            h5: null,
+            h6: null,
             quote: { label: "인용" },
             divider: { label: "구분선" }
           },
@@ -519,7 +521,7 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(externalImageGuard).config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(cappedHeadingInputRule).use(externalImageGuard).config((ctx) => {
       // direct prop이라 Milkdown clipboard plugin의 handlePaste보다 먼저 실행된다.
       const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), () => notifyExternalImageBlocked());
       ctx.update(editorViewOptionsCtx, (previous) => ({
@@ -528,6 +530,7 @@ export function NoteEditor({
       }));
       configureMarkdownMath(ctx);
       configureStrikethrough(ctx);
+      disableSmallHeadingShortcuts(ctx);
       preserveImageAlt(ctx);
       // 붙여넣기·드롭 묶음에서 넣을 수 없는 이미지만 빼고 나머지는 그대로 올린다.
       // Crepe 기본 uploader는 한 장이 실패하면 묶음 전체를 버리고 로딩 표시를 지우지 않는다.
