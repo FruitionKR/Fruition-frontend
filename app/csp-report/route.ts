@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createLogLimiter, MAX_REPORT_BYTES, readCappedText, summarizeCspReports } from "./cspReport";
 
-// 브라우저가 Content-Security-Policy-Report-Only 위반을 보내는 곳(이슈 #77).
+// 브라우저가 Content-Security-Policy 위반을 보내는 곳(이슈 #77).
 // 보고는 접근 코드 쿠키 없이도 오므로 /api 밖에 두어 접근 코드 게이트를 거치지 않는다.
 // 누구나 보낼 수 있으므로 크기·로그 수를 제한하고, 결과와 관계없이 204만 돌려준다.
 export const dynamic = "force-dynamic";
