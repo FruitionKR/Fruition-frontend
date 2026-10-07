@@ -15,6 +15,7 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
+import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
 import { canShowHighlightedMarkdown, findHighlightedScrollTarget, getHighlightScrollKey } from "../lib/highlightScroll";
 import {
@@ -55,7 +56,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentRole,
   documentStatus,
-  documentConverting = false,
+  documentConversion = null,
   parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
@@ -77,8 +78,8 @@ export function SourcePreviewPanel({
   documentRole?: DocumentRole;
   /** 열린 문서의 처리 상태. processing→completed 전이 시 본문을 다시 불러온다. */
   documentStatus?: DocumentStatus;
-  /** PDF 변환이 진행 중인지. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
-  documentConverting?: boolean;
+  /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
+  documentConversion?: DocumentConversionView | null;
   parentLabel?: string;
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
@@ -87,6 +88,8 @@ export function SourcePreviewPanel({
   fillMain?: boolean;
 }) {
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
+  const documentConverting = documentConversion !== null;
+  const conversionRevision = documentConversion?.revision;
   const [page, setPage] = useState<WikiPageDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -119,16 +122,16 @@ export function SourcePreviewPanel({
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>("saved");
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
-  // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되면 실제 본문으로 다시 불러온다.
+  // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되거나 변환 묶음이 추가되면 본문을 다시 불러온다.
   const previousStatusRef = useRef<OpenDocumentState>({ id: null, converting: false });
   useEffect(() => {
     const previous = previousStatusRef.current;
-    const current = { id: documentId ?? null, status: documentStatus, converting: documentConverting };
+    const current = { id: documentId ?? null, status: documentStatus, converting: documentConverting, revision: conversionRevision };
     previousStatusRef.current = current;
     if (shouldReloadOpenDocument(previous, current, noteSaveStatusRef.current === "saved")) {
       setDocumentReloadCount((count) => count + 1);
     }
-  }, [documentId, documentStatus, documentConverting]);
+  }, [documentId, documentStatus, documentConverting, conversionRevision]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const contentRef = useRef<HTMLDivElement>(null);
   // 복원 완료 콜백이 도착한 시점에 보고 있는 문서를 판별하기 위한 ref
@@ -610,10 +613,10 @@ export function SourcePreviewPanel({
             />
           </>
         )}
-        {isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
+        {isMarkdownFile && documentConversion && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
           <>
             <div className={styles["source-preview-document-controls"]}>
-              <span role="status">PDF 변환이 끝나면 편집할 수 있어요.</span>
+              <span role="status">{getConversionNotice(documentConversion)}</span>
             </div>
             <MarkdownViewer markdown={rawMarkdown} />
           </>

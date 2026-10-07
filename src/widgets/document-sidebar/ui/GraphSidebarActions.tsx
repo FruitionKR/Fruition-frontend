@@ -129,8 +129,8 @@ export function GraphSidebarActions({
         <HoverHint
           className={styles["graph-pill-hint"]}
           text={isSelecting
-            ? "선택한 문서를 위키에 편입합니다. PDF는 확인 후 Markdown으로 변환합니다."
-            : "편입할 PDF·Markdown 문서 또는 폴더를 선택합니다."}
+            ? "선택한 Markdown 문서를 위키에 편입합니다."
+            : "편입할 Markdown 문서 또는 폴더를 선택합니다."}
         >
         <button
           type="button"
