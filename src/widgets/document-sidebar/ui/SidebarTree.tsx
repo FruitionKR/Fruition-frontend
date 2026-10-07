@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { TreeNode } from "./TreeNode";
 import type { TreeInteractionProps } from "../model/types";
@@ -6,16 +6,14 @@ import type { TreeInteractionProps } from "../model/types";
 export function SidebarTree({
   items,
   projectId,
-  interaction,
-  defaultOpenIds = []
+  interaction
 }: {
   items: TreeItem[];
   projectId: string;
   /** 트리 상호작용 상태·핸들러 묶음 */
   interaction: TreeInteractionProps;
-  defaultOpenIds?: string[];
 }) {
-  const [openIds, setOpenIds] = useState(() => new Set(defaultOpenIds));
+  const { openIds, onToggleOpen, onOpenMany } = interaction;
   const generatedFolderIds = useMemo(
     () => items.filter((item) => item.generated && item.children?.length).map((item) => item.id),
     [items]
@@ -23,21 +21,8 @@ export function SidebarTree({
 
   useEffect(() => {
     if (generatedFolderIds.length === 0) return;
-    setOpenIds((current) => {
-      const next = new Set(current);
-      generatedFolderIds.forEach((id) => next.add(id));
-      return next;
-    });
-  }, [generatedFolderIds]);
-
-  function toggleNode(id: string) {
-    setOpenIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+    onOpenMany(generatedFolderIds);
+  }, [generatedFolderIds, onOpenMany]);
 
   function handleDropItem(target: DropTarget) {
     if (!interaction.draggedItemId) return;
@@ -52,7 +37,7 @@ export function SidebarTree({
           item={item}
           depth={0}
           openIds={openIds}
-          onToggle={toggleNode}
+          onToggle={onToggleOpen}
           projectId={projectId}
           onDropItem={handleDropItem}
           interaction={interaction}

@@ -11,12 +11,16 @@ const contextMenuPath = new URL(
   "../src/widgets/document-sidebar/ui/ContextMenu.tsx",
   import.meta.url
 );
+const treeNodePath = new URL(
+  "../src/widgets/document-sidebar/ui/TreeNode.tsx",
+  import.meta.url
+);
 const documentSidebarPath = new URL(
   "../src/widgets/document-sidebar/ui/DocumentSidebar.tsx",
   import.meta.url
 );
 
-test("새 폴더 버튼은 홈 뷰에서만 표시한다", () => {
+test("새 폴더 생성은 홈 뷰에서만 허용한다", () => {
   assert.equal(canCreateProjectFromView("home"), true);
 
   for (const view of ["graph", "logs", "rules", "settings"]) {
@@ -24,15 +28,13 @@ test("새 폴더 버튼은 홈 뷰에서만 표시한다", () => {
   }
 });
 
-test("메뉴 행의 새 폴더 버튼은 canCreateProjectFromView로 감싼다", async () => {
+test("메뉴 행에는 파일 업로드·새 폴더 버튼을 두지 않는다", async () => {
   const source = await readFile(sidebarMenuRowPath, "utf8");
 
-  // 조건을 지우거나 다른 조건으로 바꾸면 실패하도록, 게이트와 버튼의 연결을 검증한다.
-  assert.match(
-    source,
-    // HoverHint 같은 설명 래퍼가 버튼을 감쌀 수 있어 게이트와 버튼 사이의 래퍼 한 겹은 허용한다.
-    /canCreateProjectFromView\(activeView\)\s*&&\s*\(\s*(?:<HoverHint[^>]*>\s*)?<button[^>]*\n(?:.*\n)*?\s*aria-label="새 폴더 생성"/
-  );
+  // 생성은 우클릭 메뉴·폴더 hover + 버튼·드롭 업로드로만 제공한다.
+  assert.doesNotMatch(source, /aria-label="파일 업로드"/);
+  assert.doesNotMatch(source, /aria-label="새 폴더 생성"/);
+  assert.doesNotMatch(source, /onAddProject|onUploadFile/);
 });
 
 test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따른다", async () => {
@@ -43,6 +45,28 @@ test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따른다", a
 
   assert.match(menuSource, /canCreateProject\s*&&\s*\(\s*<button[^>]*>새 폴더<\/button>/);
   assert.match(sidebarSource, /canCreateProject=\{canCreateProjectFromView\(activeView\)\}/);
+});
+
+test("파일 컨텍스트 메뉴에서는 생성 항목을 숨긴다", async () => {
+  const [menuSource, sidebarSource] = await Promise.all([
+    readFile(contextMenuPath, "utf8"),
+    readFile(documentSidebarPath, "utf8")
+  ]);
+
+  // 새 폴더·새 노트·파일 업로드가 모두 canCreateInTarget 게이트 안에 있어야 한다.
+  const gated = menuSource.match(/\{canCreateInTarget && \([\s\S]*?\n      \)\}/)?.[0] ?? "";
+  for (const label of ["새 폴더", "새 노트", "파일 업로드"]) {
+    assert.match(gated, new RegExp(`>${label}</button>`));
+  }
+  assert.match(sidebarSource, /canCreateInTarget=\{canCreateInContextTarget\}/);
+});
+
+test("폴더 행 + 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 전파하지 않는다", async () => {
+  const source = await readFile(treeNodePath, "utf8");
+
+  assert.match(source, /aria-haspopup="menu"/);
+  assert.match(source, /aria-label=\{`\$\{item\.label\}에 추가`\}/);
+  assert.match(source, /event\.stopPropagation\(\);\s*interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
 });
 
 test("빈 영역 우클릭은 문서 뷰에서만 첫 프로젝트 메뉴를 연다", () => {

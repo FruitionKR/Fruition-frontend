@@ -30,6 +30,8 @@ import { useDocumentUpload } from "@/features/document-upload/model/useDocumentU
 import { useProjectTree } from "../model/useProjectTree";
 import type { DeletedTreeIds } from "../lib/deletedTreeIds";
 import { useTreeSelection } from "../model/useTreeSelection";
+import { useTreeOpenState } from "../model/useTreeOpenState";
+import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
 import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
@@ -86,6 +88,8 @@ export function HomeWorkspace() {
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
   const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
+  // 뷰 전환으로 사이드바 트리가 다시 마운트돼도 폴더 펼침을 유지한다.
+  const treeOpen = useTreeOpenState();
   const {
     documents,
     setDocuments,
@@ -424,9 +428,13 @@ export function HomeWorkspace() {
         dropTarget={projectTree.dropTarget}
         fileDropTarget={projectTree.fileDropTarget}
         editing={projectTree.editing}
+        openIds={treeOpen.openIds}
+        onToggleOpen={treeOpen.toggle}
+        onOpenMany={treeOpen.openMany}
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
         canRenameContextTarget={projectTree.canRenameContextTarget}
+        canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
         documents={documents}
@@ -447,8 +455,12 @@ export function HomeWorkspace() {
           if (!canShowAgentPanel(activeView)) setActiveView("home");
           setIsHomeAgentPanelOpen(true);
         }}
-        onUploadToProject={(projectId) => upload.openUploadPicker(projectId, null)}
-        onAddProject={projectTree.addProject}
+        onAddProject={() => {
+          // 폴더 안에 만들면 새 항목이 보이도록 대상 폴더를 펼친다.
+          const folderId = findContextFolderId(projectTree.projects, projectTree.contextMenu);
+          if (folderId) treeOpen.open(folderId);
+          projectTree.addProject();
+        }}
         onResizeStart={sidebarResize.start}
         onUploadPickerChange={upload.handleUploadPickerChange}
         onMoveItem={projectTree.moveTreeEntry}
@@ -462,6 +474,7 @@ export function HomeWorkspace() {
         onDragEnd={projectTree.onDragEnd}
         onContextMenuProject={projectTree.openProjectMenu}
         onContextMenuItem={projectTree.openFolderMenu}
+        onOpenFolderMenuAt={projectTree.openFolderMenuAt}
         onSelectGraphNode={selection.selectTreeGraphNode}
         onEditingChange={projectTree.onEditingChange}
         onCommitEditing={projectTree.commitEditing}
@@ -469,10 +482,12 @@ export function HomeWorkspace() {
         onRenameContextTarget={projectTree.renameContextTarget}
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
+          if (target?.folderId) treeOpen.open(target.folderId);
           if (target) upload.createMarkdownFile(target.projectId, target.folderId);
         }}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
+          if (target?.folderId) treeOpen.open(target.folderId);
           if (target) upload.openUploadPicker(target.projectId, target.folderId);
         }}
         onConvertContextTarget={projectTree.convertContextTargetToMarkdown}

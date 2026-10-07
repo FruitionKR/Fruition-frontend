@@ -17,6 +17,10 @@ export type TreeInteractionProps = {
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
+  /** 펼친 폴더 id. 뷰 전환으로 트리가 다시 마운트돼도 유지되도록 HomeWorkspace가 소유한다 */
+  openIds: ReadonlySet<string>;
+  onToggleOpen: (id: string) => void;
+  onOpenMany: (ids: readonly string[]) => void;
   onMoveItem: (target: DropTarget) => void;
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
@@ -27,6 +31,8 @@ export type TreeInteractionProps = {
   onFileDragLeave: () => void;
   onDragEnd: () => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
+  /** 폴더 행 + 버튼으로 버튼 아래에 생성 메뉴를 연다(같은 폴더면 닫는다) */
+  onOpenFolderMenuAt: (projectId: string, itemId: string, anchor: HTMLElement) => void;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
   onCommitEditing: () => void;

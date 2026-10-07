@@ -6,6 +6,7 @@ import styles from "./DocumentSidebar.module.css";
 export function ContextMenu({
   contextMenu,
   canCreateProject,
+  canCreateInTarget,
   convertTarget,
   canRenameTarget,
   onRenameContextTarget,
@@ -18,6 +19,8 @@ export function ContextMenu({
   contextMenu: ContextMenuState;
   /** 새 폴더 생성은 뷰 정책(canCreateProjectFromView)을 따른다. */
   canCreateProject: boolean;
+  /** 파일(노트·PDF) 메뉴면 false. 새 폴더·새 노트·파일 업로드를 숨긴다. */
+  canCreateInTarget: boolean;
   /** PDF 원본 문서일 때만 값이 있고, 처리 중이면 isDisabled로 비활성화한다. */
   convertTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
@@ -38,11 +41,15 @@ export function ContextMenu({
       // 열린 메뉴 위 우클릭이 사이드바 빈 영역 핸들러로 버블돼 메뉴가 바뀌지 않도록 막는다.
       onContextMenu={(event) => event.preventDefault()}
     >
-      {canCreateProject && (
-        <button type="button" onClick={onAddProject}>새 폴더</button>
+      {canCreateInTarget && (
+        <>
+          {canCreateProject && (
+            <button type="button" onClick={onAddProject}>새 폴더</button>
+          )}
+          <button type="button" onClick={onAddMarkdownFromContext}>새 노트</button>
+          <button type="button" onClick={onUploadFromContext}>파일 업로드</button>
+        </>
       )}
-      <button type="button" onClick={onAddMarkdownFromContext}>새 노트</button>
-      <button type="button" onClick={onUploadFromContext}>파일 업로드</button>
       {canRenameTarget && (
         <button type="button" onClick={onRenameContextTarget}>이름 변경</button>
       )}
