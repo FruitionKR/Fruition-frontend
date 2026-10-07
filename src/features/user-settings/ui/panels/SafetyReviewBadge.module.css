@@ -76,11 +76,17 @@
   }
 }
 
-[data-reduce-motion="true"] .gradient-arc,
 [data-reduce-motion="true"] .outline-circle,
 [data-reduce-motion="true"] .checkmark {
   animation: none;
   stroke-dashoffset: 0;
+}
+
+/* 진행 표시는 꼭 필요한 움직임이라 동작 줄이기에서도 멈추지 않고 느리게 돈다.
+   base.css의 전역 규칙(html[data-reduce-motion] *, !important)보다 특이도를 높여 덮어쓴다. */
+html[data-reduce-motion="true"] .gradient-arc {
+  animation-duration: 2.4s !important;
+  animation-iteration-count: infinite !important;
 }
 
 .text-loading {

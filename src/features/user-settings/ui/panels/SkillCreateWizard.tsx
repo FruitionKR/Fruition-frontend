@@ -9,6 +9,7 @@ import { DocumentPickerModal } from "./DocumentPickerModal";
 import { SafetyReviewBadge } from "./SafetyReviewBadge";
 import { AlertModal } from "@/shared/ui/AlertModal";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { describeSkillAuthorError, skillAuthoringOutcome } from "../../lib/skillAuthoring";
 import { fetchWorkspaces, useWorkspaceName } from "@/entities/workspace";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
@@ -49,11 +50,19 @@ const SCOPE_OPTIONS = ["personal", "team"] as const;
 type ScopeType = (typeof SCOPE_OPTIONS)[number];
 const SCOPE_LABELS: Record<ScopeType, string> = { personal: "개인", team: "팀" };
 
-// 안전 검토 issue category 한글 라벨
+// 안전 검토 issue category 한글 라벨 (AI safety 검사 카테고리)
 const ISSUE_CATEGORY_LABELS: Record<string, string> = {
   approval_bypass: "권한 우회 표현",
   sensitive_info: "민감정보로 보이는 내용",
-  tool_policy: "허용되지 않은 도구 사용"
+  tool_policy: "허용되지 않은 도구 사용",
+  permission_escalation: "권한을 넓히려는 표현",
+  forbidden_tool: "허용되지 않은 도구 사용",
+  policy_weakening: "안전 정책을 약화하는 표현",
+  hidden_prompt: "숨겨진 지시",
+  role_override: "역할을 바꾸려는 표현",
+  instruction_override: "기존 지시를 무시하게 하는 표현",
+  credential: "인증 정보로 보이는 내용",
+  secret: "비밀 정보로 보이는 내용"
 };
 
 /** author 응답 issues 항목({category, text, reason, ...})을 표시용 텍스트로 변환한다. */
@@ -158,6 +167,9 @@ export function SkillCreateWizard({
   const showPublishNameError = touched.has("publishName") && publishName.length === 0;
   const isPublishBlocked = publishName.length === 0 || isInvalidCommand || isDuplicatePublishName || isDescriptionEmpty;
 
+  // AI가 지침을 더 구체적으로 적어 달라고 되물은 질문(clarification_required)
+  const [clarifyQuestion, setClarifyQuestion] = useState<string | null>(null);
+
   // 검토 오버레이 상태 머신 — react-query 파생값 대신 한 상태로 관리해
   // loading→complete 전환이 단일 setState로 이뤄져 프레임 공백(끊김)이 없다.
   const [overlayPhase, setOverlayPhase] = useState<"loading" | "complete" | null>(null);
@@ -174,9 +186,15 @@ export function SkillCreateWizard({
       }),
     onMutate: () => setOverlayPhase("loading"),
     onSuccess: (result) => {
+      const outcome = skillAuthoringOutcome(result);
+      if (outcome === "clarify") {
+        // 초안 없이 되묻는 응답이다. 화면은 그대로 두고 질문을 알린다.
+        setOverlayPhase(null);
+        setClarifyQuestion(result.question?.trim() || "무엇을 할지 조금 더 구체적으로 적어 주세요.");
+        return;
+      }
       setDraft(result);
-      const clean = (result.issues ?? []).length === 0;
-      if (clean) {
+      if (outcome === "pass") {
         // 통과면 STEP 2를 건너뛰고 오버레이 후 STEP 3으로 직행한다. 이전 버튼 목적지를 위해 출발점을 기억한다.
         setSkippedStep2(step === 1);
         setOverlayPhase("complete");
@@ -251,8 +269,7 @@ export function SkillCreateWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  const authorError =
-    authorMutation.error != null ? getErrorMessage(authorMutation.error, "스킬 초안을 생성하지 못했습니다.") : null;
+  const authorError = authorMutation.error != null ? describeSkillAuthorError(authorMutation.error) : null;
 
   // blocked 응답이면 초안 내용이 null이라, STEP1에서 입력한 지침을 편집 대상으로 보여준다.
   const reviewContent = draft?.instructions_markdown ?? instruction;
@@ -700,33 +717,40 @@ export function SkillCreateWizard({
 
         {/* 안전 검토 오버레이 (Figma 1033:8390 → 1033:8429) — 진행·통과가 한 오버레이를 공유해
             전환 시 화면이 끊기지 않는다. 통과 상태에서 클릭하면 즉시 STEP 3으로 진행한다. */}
+        {/* 버튼 안의 내용은 보조기술에 읽히지 않아, 진행 상태를 알리는 status 영역으로 둔다. 통과 후에는 자동으로 넘어간다. */}
         {overlayPhase != null && (
-          <button
-            type="button"
+          <div
             className={styles["pass-overlay"]}
-            disabled={overlayPhase === "loading"}
-            onClick={finishPassOverlay}
+            role="status"
+            aria-live="polite"
+            onClick={overlayPhase === "complete" ? finishPassOverlay : undefined}
           >
             <SafetyReviewBadge variant={overlayPhase} />
-          </button>
+          </div>
         )}
 
         {/* 검토·재생성 실패 사유 알림 (인라인 대신 알림 창으로 안내) */}
         {authorError && (
           <AlertModal
             titleId="skill-author-error-title"
-            title="스킬 검토 요청이 거부되었습니다."
-            description={
-              <>
-                {authorError}
-                <br />
-                위험한 표현(승인 우회·무확인 실행·민감정보 등)이 많으면 AI가 안전하게
-                재작성하지 못합니다. 스킬 내용에서 해당 표현을 직접 고친 뒤 다시 검토해 주세요.
-              </>
-            }
+            title={authorError.title}
+            description={authorError.description}
             onClose={() => authorMutation.reset()}
           >
             <button type="button" className="modal-confirm-button" onClick={() => authorMutation.reset()}>
+              확인
+            </button>
+          </AlertModal>
+        )}
+
+        {clarifyQuestion && (
+          <AlertModal
+            titleId="skill-author-clarify-title"
+            title="스킬 지침을 조금 더 구체적으로 적어 주세요."
+            description={clarifyQuestion}
+            onClose={() => setClarifyQuestion(null)}
+          >
+            <button type="button" className="modal-confirm-button" onClick={() => setClarifyQuestion(null)}>
               확인
             </button>
           </AlertModal>
