@@ -229,6 +229,8 @@ export function LogView({
       const result = await restoreOperation(restoreOperationId, previewToken);
       setLocallyRestoredOperationIds((current) => new Set(current).add(restoreOperationId));
       publishNotice({
+        // 즉시 끝난 경우에만 작업 id로 로그 폴링의 완료 알림과 중복을 거른다. 시작 안내는 완료 알림과 별개다.
+        operation: { type: "restore", id: result.status === "succeeded" ? result.operation_id : undefined },
         kind: "completed",
         title: "롤백 요청 완료",
         message: result.status === "succeeded" ? "작업을 롤백했습니다." : "롤백 작업을 시작했습니다."

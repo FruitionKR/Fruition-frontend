@@ -346,9 +346,10 @@ export function HomeWorkspace() {
         publishNotice({ kind: "info", ...WIKI_UP_TO_DATE_NOTICE });
         return;
       }
-      const { changedPageCount } = await requestWikiLint(false);
+      const { changedPageCount, operationId } = await requestWikiLint(false);
       void refreshBackendData();
       publishNotice({
+        operation: { type: "lint", id: operationId },
         kind: "completed",
         title: "Lint 완료",
         message: `${changedPageCount}개 페이지를 다듬었습니다.`

@@ -273,6 +273,10 @@ button.nav-row:disabled {
   letter-spacing: -0.24px;
 }
 
+.row-title .row-error {
+  color: #ff7a7a;
+}
+
 .btn {
   flex: 0 0 auto;
   padding: 6px 8px;

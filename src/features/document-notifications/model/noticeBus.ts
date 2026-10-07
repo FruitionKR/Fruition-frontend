@@ -8,6 +8,11 @@ export type NoticePayload = {
   message: string;
   /** 있으면 취소/실행 2버튼 카드로 렌더한다 (Figma 673:3870). 자동 닫힘 없음. */
   action?: { label: string; onAction: () => void };
+  /**
+   * lint·restore 작업 알림. 해당 유형 알림 설정이 꺼져 있으면 표시하지 않고,
+   * id가 있으면 같은 작업의 알림(직접 발행 + 로그 폴링)을 한 번만 표시한다.
+   */
+  operation?: { type: "lint" | "restore"; id?: string };
 };
 
 type NoticeListener = (notice: NoticePayload) => void;

@@ -10,6 +10,7 @@ import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, subscribeNotices, type NoticePayload } from "./noticeBus";
 import { enqueueNotice } from "./noticeQueue";
+import { createOperationNoticeFilter } from "./operationNoticeFilter";
 
 export type DocumentProcessingNotice = NoticePayload & { id: string; leaving?: boolean };
 
@@ -34,7 +35,9 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
   const {
     browser: browserNotifications,
     completed: completedNotifications,
-    failed: failedNotifications
+    failed: failedNotifications,
+    lint: lintNotifications,
+    restore: restoreNotifications
   } = preferences.notifications;
   const [notices, setNotices] = useState<DocumentProcessingNotice[]>([]);
   const previousStatusesRef = useRef<Map<string, DocumentStatus> | null>(null);
@@ -44,6 +47,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
   // 카드 id별 자동 닫힘 타이머와 퇴장 후 제거 타이머
   const autoDismissTimersRef = useRef(new Map<string, number>());
   const exitTimersRef = useRef(new Map<string, number>());
+  const operationFilterRef = useRef(createOperationNoticeFilter());
 
   // 닫기는 퇴장 표시(leaving) → NOTICE_EXIT_MS 뒤 제거 두 단계다. reduce-motion이면 바로 제거한다.
   const dismissNotice = useCallback((id: string) => {
@@ -56,6 +60,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
 
   // 카드 표시 + 백그라운드 탭이면 브라우저 알림까지. 모든 알림이 이 경로를 지난다.
   const pushNotice = useCallback((notice: NoticePayload) => {
+    if (!operationFilterRef.current(notice, { lint: lintNotifications, restore: restoreNotifications })) return;
     const id = createClientId(notice.kind);
     setNotices((current) => enqueueNotice(current, { id, ...notice }, {
       max: MAX_VISIBLE_NOTICES,
@@ -74,7 +79,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     ) {
       new Notification(notice.title, { body: notice.message });
     }
-  }, [browserNotifications, dismissNotice, reduceMotion]);
+  }, [browserNotifications, dismissNotice, lintNotifications, reduceMotion, restoreNotifications]);
 
   // 닫혔거나 퇴장 중인 카드의 자동 닫힘 타이머를 해제하고, 퇴장 중인 카드는 애니메이션 뒤 제거한다.
   useEffect(() => {

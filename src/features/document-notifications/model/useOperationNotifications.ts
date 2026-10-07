@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
 import { useUserPreferences } from "@/entities/user";
-import { publishNotice } from "./noticeBus";
+import { publishNotice, type NoticePayload } from "./noticeBus";
 import { nextOperationPollDelay } from "./operationPolling";
 
 const TERMINAL_STATUSES = new Set(["succeeded", "partially_succeeded", "failed", "conflict"]);
@@ -26,10 +26,11 @@ function isTerminal(status: string) {
   return TERMINAL_STATUSES.has(status);
 }
 
-function noticeFor(item: OperationLogItem) {
+function noticeFor(item: OperationLogItem): NoticePayload {
   const label = WATCHED_TYPES[item.operation_type];
   const isFailed = item.status === "failed" || item.status === "conflict";
   return {
+    operation: { type: item.operation_type as "lint" | "restore", id: item.operation_id },
     kind: isFailed ? ("failed" as const) : ("completed" as const),
     title: `${label} ${isFailed ? "실패" : "완료"}`,
     message: item.summary || `${label} 작업이 ${isFailed ? "실패했습니다." : "완료되었습니다."}`

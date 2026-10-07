@@ -112,7 +112,8 @@ export function startLint(workspace, dryRun) {
       workspace.maintenance.last_lint_at = now();
     }
   }, LINT_DELAY_MS);
-  return runId;
+  // 실제 백엔드처럼 실제 실행(dry_run=false)일 때만 operation_id를 함께 돌려준다.
+  return { runId, operationId: log?.operation_id };
 }
 
 /** 서버 시작 시 seed의 processing 문서가 실제로 끝나도록 예약한다. */
