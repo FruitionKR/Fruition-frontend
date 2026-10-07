@@ -433,7 +433,6 @@ export function HomeWorkspace() {
           if (!canShowAgentPanel(activeView)) setActiveView("home");
           setIsHomeAgentPanelOpen(true);
         }}
-        onUploadToProject={(projectId) => upload.openUploadPicker(projectId, null)}
         onAddProject={() => {
           // 폴더 안에 만들면 새 항목이 보이도록 대상 폴더를 펼친다.
           const folderId = findContextFolderId(projectTree.projects, projectTree.contextMenu);

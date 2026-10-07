@@ -16,7 +16,7 @@ const documentSidebarPath = new URL(
   import.meta.url
 );
 
-test("새 폴더 버튼은 홈 뷰에서만 표시한다", () => {
+test("새 폴더 생성은 홈 뷰에서만 허용한다", () => {
   assert.equal(canCreateProjectFromView("home"), true);
 
   for (const view of ["graph", "logs", "rules", "settings"]) {
@@ -24,15 +24,13 @@ test("새 폴더 버튼은 홈 뷰에서만 표시한다", () => {
   }
 });
 
-test("메뉴 행의 새 폴더 버튼은 canCreateProjectFromView로 감싼다", async () => {
+test("메뉴 행에는 파일 업로드·새 폴더 버튼을 두지 않는다", async () => {
   const source = await readFile(sidebarMenuRowPath, "utf8");
 
-  // 조건을 지우거나 다른 조건으로 바꾸면 실패하도록, 게이트와 버튼의 연결을 검증한다.
-  assert.match(
-    source,
-    // HoverHint 같은 설명 래퍼가 버튼을 감쌀 수 있어 게이트와 버튼 사이의 래퍼 한 겹은 허용한다.
-    /canCreateProjectFromView\(activeView\)\s*&&\s*\(\s*(?:<HoverHint[^>]*>\s*)?<button[^>]*\n(?:.*\n)*?\s*aria-label="새 폴더 생성"/
-  );
+  // 생성은 우클릭 메뉴·폴더 hover + 버튼·드롭 업로드로만 제공한다.
+  assert.doesNotMatch(source, /aria-label="파일 업로드"/);
+  assert.doesNotMatch(source, /aria-label="새 폴더 생성"/);
+  assert.doesNotMatch(source, /onAddProject|onUploadFile/);
 });
 
 test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따른다", async () => {

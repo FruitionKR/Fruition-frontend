@@ -497,20 +497,10 @@
   padding: 10px;
 }
 
-/* 파일 업로드 + 아이콘은 16 캔버스라 36 캔버스 아트와 시각 크기를 맞춘다 */
-.sidebar-upload-icon {
-  padding: 9px;
-}
-
 /* 검색 토글 열림 상태 (Figma 시안엔 없음 — 기존 활성 배경 규칙 준용) */
 .sidebar-menu-item.is-open {
   color: var(--ink);
   background: var(--soft);
-}
-
-.sidebar-menu-add {
-  margin-left: auto;
-  border-radius: 6px;
 }
 
 /* 채팅 시작 버튼 (Figma 1246:7328): 좌측 12px, 우측·하단 16px */

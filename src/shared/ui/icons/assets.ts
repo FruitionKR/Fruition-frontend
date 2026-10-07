@@ -12,7 +12,6 @@ import collectionIcon from "@/shared/assets/svg/navigation/menu_log.svg";
 import conceptPageIcon from "@/shared/assets/svg/graph/conceptpage.svg";
 import fileIcon from "@/shared/assets/svg/document/file.svg";
 import fruitionLogo from "@/shared/assets/svg/brand/fruition-logo.svg";
-import folderPlusIcon from "@/shared/assets/svg/navigation/menu_new.svg";
 import graphSelectIcon from "@/shared/assets/svg/navigation/graph_select.svg";
 import homeIcon from "@/shared/assets/svg/navigation/menu_home.svg";
 import homeSelectIcon from "@/shared/assets/svg/navigation/home_select.svg";
@@ -29,7 +28,6 @@ import userCircleIcon from "@/shared/assets/svg/workspace/UserCircle.svg";
 import userCircleOutlineIcon from "@/shared/assets/svg/workspace/UserCircleOutline.svg";
 import questionMarkIcon from "@/shared/assets/svg/common/QuestionMarkCircleOutline.svg";
 import copyIcon from "@/shared/assets/svg/common/copy.svg";
-import addFileIcon from "@/shared/assets/svg/common/plus.svg";
 import computerIcon from "@/shared/assets/svg/device/computer.svg";
 import phoneIcon from "@/shared/assets/svg/device/phone.svg";
 import downloadIcon from "@/shared/assets/svg/common/download.svg";
@@ -63,7 +61,6 @@ export type SvgAsset =
 
 export {
   sendIcon,
-  addFileIcon,
   arrowIcon,
   checkOnIcon,
   ingestIcon,
@@ -78,7 +75,6 @@ export {
   chatIcon,
   chatScrollIcon,
   emptyChatIcon,
-  folderPlusIcon,
   graphSelectIcon,
   homeSelectIcon,
   logSelectIcon,

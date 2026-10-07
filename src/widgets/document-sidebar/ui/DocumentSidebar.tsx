@@ -39,7 +39,6 @@ export function DocumentSidebar({
   logEntries,
   onViewChange,
   onStartChat,
-  onUploadToProject,
   onAddProject,
   onResizeStart,
   onUploadPickerChange,
@@ -88,7 +87,6 @@ export function DocumentSidebar({
   logEntries?: ComponentProps<typeof LogSidebarEntries>;
   onViewChange: (view: RailView) => void;
   onStartChat: () => void;
-  onUploadToProject: (projectId: string) => void;
   onAddProject: () => void;
   onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onUploadPickerChange: (event: ReactChangeEvent<HTMLInputElement>) => void;
@@ -190,8 +188,6 @@ export function DocumentSidebar({
         isSearchOpen={isSearchOpen}
         onViewChange={onViewChange}
         onToggleSearch={() => setIsSearchOpen((open) => !open)}
-        onAddProject={onAddProject}
-        onUploadFile={() => rootProject && onUploadToProject(rootProject.id)}
       />
       {activeView === "home" && isSearchOpen && (
         <DocumentSearch
