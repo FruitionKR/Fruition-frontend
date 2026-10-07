@@ -88,7 +88,7 @@ export function startConvert(workspace, source) {
     processing_state: "starting", processing_stage: "PDF 변환 대기", processing_started_at: now(), document_role: "EDITABLE",
     pipeline_run_id: `convert:${createdId}`,
     source_uri: `mock://documents/${source.id}/markdown`, uploaded_at: now(), updated_at: now(),
-    markdown: null, content: Buffer.alloc(0), current_version: 0, edit_revision: 0, versions: [], converted_from: source.id,
+    markdown: null, content: Buffer.alloc(0), current_version: 0, edit_revision: 0, versions: [], source_document_id: source.id,
     // 변환본은 원본과 같은 폴더에 둔다.
     folder_id: source.folder_id ?? null, sort_order: (source.sort_order ?? 0) + 1
   };

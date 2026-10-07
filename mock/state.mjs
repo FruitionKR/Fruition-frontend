@@ -62,7 +62,7 @@ export function findDocument(workspaceId, documentId) {
 const PUBLIC_DOCUMENT_FIELDS = [
   "id", "filename", "mime_type", "byte_size", "status", "source_uri", "uploaded_at", "document_role",
   "extracted_text_uri", "processed_at", "processing_started_at", "updated_at", "error_message",
-  "processing_state", "processing_stage", "needs_reingest", "pipeline_run_id"
+  "processing_state", "processing_stage", "needs_reingest", "pipeline_run_id", "source_document_id"
 ];
 
 /** 내부 필드(본문·버전)를 제외한 문서 요약 응답. */

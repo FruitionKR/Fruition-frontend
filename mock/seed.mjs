@@ -155,7 +155,7 @@ export function seed() {
     document({ id: "doc_arch", filename: "아키텍처 개요.md", markdown: ARCH_MD, processed_at: minutesAgo(95), needs_reingest: true, updated_at: minutesAgo(30), current_version: 2, edit_revision: 2,
       source_snapshot: ingestSourceBlocks(ARCH_INGESTED_MD, [], ARCH_BLOCK_IDS) }),
     document({ id: "doc_paper", filename: "지식 그래프 검색 논문.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Knowledge Graph Retrieval - Fruition mock PDF"), processed_at: minutesAgo(80), folder_id: "folder_research" }),
-    document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: "folder_research" }),
+    document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", source_document_id: "doc_paper", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: "folder_research" }),
     document({ id: "doc_notes", filename: "회의 노트 초안.md", markdown: NOTES_MD, status: "processing", processing_state: "running", processing_stage: "concept_extraction", processing_started_at: minutesAgo(1), uploaded_at: minutesAgo(3) }),
     document({ id: "doc_failed", filename: "깨진 문서.md", markdown: "# 제목만 있는 문서\n", status: "failed", processing_state: "failed", error_message: "LLM 응답 파싱에 실패했습니다.", uploaded_at: minutesAgo(50) }),
     document({ id: "doc_todo", filename: "할 일.md", markdown: TODO_MD, status: "uploaded", uploaded_at: minutesAgo(5) }),
