@@ -5,10 +5,14 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { CenteredModal } from "@/shared/ui/CenteredModal";
 import modalStyles from "@/shared/ui/CenteredModal.module.css";
 import { fileIcon, plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { documentDisplayName, pickerCandidates } from "../../lib/documentPicker";
 // 검색 결과 리스트 스타일은 스킬 검색 모달과 동일한 형태를 쓴다.
 import styles from "./SkillSearchModal.module.css";
 
-/** 참고 문서 선택 모달. 네비게이션 문서 검색과 같은 중앙 모달 UX로, 클릭 시 선택/해제를 토글한다. */
+/**
+ * 참고 문서 선택 모달. 네비게이션 문서 검색과 같은 중앙 모달 UX로, 클릭 시 선택/해제를 토글한다.
+ * Markdown 문서만 고를 수 있다. PDF는 변환된 Markdown으로 대신 선택하고, 변환본이 없으면 막고 안내한다.
+ */
 export function DocumentPickerModal({
   documents,
   selectedIds,
@@ -29,11 +33,8 @@ export function DocumentPickerModal({
     inputRef.current?.focus();
   }, []);
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const results = useMemo(() => {
-    if (!normalizedQuery) return documents;
-    return documents.filter((doc) => doc.filename.toLowerCase().includes(normalizedQuery));
-  }, [documents, normalizedQuery]);
+  const hasQuery = query.trim() !== "";
+  const results = useMemo(() => pickerCandidates(documents, query), [documents, query]);
 
   return (
     <CenteredModal ariaLabel="참고 문서 검색" onClose={onClose}>
@@ -52,29 +53,31 @@ export function DocumentPickerModal({
       <div className={styles["search-body"]}>
         <div className={styles["search-results"]} role="group" aria-label="참고 문서 검색 결과">
           {results.length > 0 ? (
-            results.map((doc) => {
-              const isSelected = selectedIds.includes(doc.id);
+            results.map(({ document: doc, target, notice }) => {
+              const isSelected = target != null && selectedIds.includes(target.id);
               const isFull = !isSelected && selectedIds.length >= maxCount;
+              const meta = isSelected ? "선택됨 ✓" : notice ?? "";
               return (
                 <button
                   key={doc.id}
                   type="button"
                   className={styles["search-result"]}
                   aria-pressed={isSelected}
-                  disabled={isFull}
-                  onClick={() => onToggle(doc)}
+                  disabled={target == null || isFull}
+                  title={notice ?? undefined}
+                  onClick={() => target && onToggle(target)}
                 >
                   <span className={styles["search-result-title"]}>
                     <SvgIcon src={fileIcon} className={styles["search-result-icon"]} />
-                    <span className={styles["search-result-label"]}>{doc.filename}</span>
+                    <span className={styles["search-result-label"]}>{documentDisplayName(doc)}</span>
                   </span>
-                  <span className={styles["search-result-meta"]}>{isSelected ? "선택됨 ✓" : ""}</span>
+                  <span className={styles["search-result-meta"]}>{meta}</span>
                 </button>
               );
             })
           ) : (
             <p className={styles["search-empty"]}>
-              {normalizedQuery ? "검색 결과가 없습니다." : "선택할 문서가 없습니다."}
+              {hasQuery ? "검색 결과가 없습니다." : "선택할 문서가 없습니다."}
             </p>
           )}
         </div>
