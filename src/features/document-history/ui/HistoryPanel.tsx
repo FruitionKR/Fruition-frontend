@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getErrorMessage } from "@/shared/lib/errors";
 import {
+  fetchDocumentVersion,
   fetchDocumentVersionDiff,
   fetchDocumentVersions,
-  restoreDocumentVersion,
-  VersionRestoreConflictError,
   type DocumentVersionListResponse
 } from "../api/versions";
 import { flattenDiffHunks, type VersionDiffRow } from "../lib/versionDiff";
+import { groupVersionsByInterval, VERSION_GROUP_INTERVAL_MS } from "../lib/versionGroups";
+import type { ViewedDocumentVersion } from "./VersionPreview";
 import styles from "./HistoryPanel.module.css";
 
 const DIFF_MARKERS: Record<VersionDiffRow["type"], string> = {
@@ -28,20 +29,30 @@ function formatTimestamp(createdAt: string): string {
 
 export function HistoryPanel({
   documentId,
-  onRestored,
+  viewingVersion,
+  refreshKey,
+  onBeforeViewVersion,
+  onViewVersion,
+  onExitVersionView,
   onClose
 }: {
   documentId: string;
-  /** 복원 성공 후 복원된 문서 id와 함께 호출된다. 호출 측은 해당 문서 본문을 다시 불러와야 한다. */
-  onRestored: (restoredDocumentId: string) => void;
+  /** 지금 읽기 전용으로 열어 둔 버전. 없으면 null(편집 중인 현재 문서). */
+  viewingVersion: number | null;
+  /** 값이 바뀌면 버전 목록을 다시 불러온다(복원 후 등). */
+  refreshKey: number;
+  /** 버전을 열기 전에 대기 중인 저장을 flush한다. 저장하지 못하면 false를 반환하고 열람하지 않는다. */
+  onBeforeViewVersion: () => Promise<boolean>;
+  onViewVersion: (viewed: ViewedDocumentVersion) => void;
+  onExitVersionView: () => void;
   onClose: () => void;
 }) {
   const [versionData, setVersionData] = useState<DocumentVersionListResponse | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [diffRows, setDiffRows] = useState<VersionDiffRow[] | null>(null);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
+  const [openingVersion, setOpeningVersion] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const selectedVersion = viewingVersion;
 
   const loadVersions = useCallback(async () => {
     const data = await fetchDocumentVersions(documentId);
@@ -52,7 +63,6 @@ export function HistoryPanel({
   useEffect(() => {
     let ignore = false;
     setVersionData(null);
-    setSelectedVersion(null);
     setDiffRows(null);
     setErrorMessage(null);
     loadVersions().catch((error: unknown) => {
@@ -61,9 +71,14 @@ export function HistoryPanel({
     return () => {
       ignore = true;
     };
-  }, [loadVersions]);
+  }, [loadVersions, refreshKey]);
 
   const currentVersion = versionData?.current_version ?? null;
+  // 자동 저장마다 쌓이는 버전을 일정 간격 스냅샷처럼 묶어 보여 준다. 실제 저장 단위는 서버가 정한다.
+  const visibleVersions = useMemo(
+    () => groupVersionsByInterval(versionData?.versions ?? [], VERSION_GROUP_INTERVAL_MS, currentVersion),
+    [currentVersion, versionData]
+  );
   const selected = useMemo(
     () => versionData?.versions.find((item) => item.version === selectedVersion) ?? null,
     [selectedVersion, versionData]
@@ -93,26 +108,32 @@ export function HistoryPanel({
     };
   }, [currentVersion, documentId, selectedVersion]);
 
-  async function handleRestore() {
-    if (selectedVersion === null || currentVersion === null || isRestoring) return;
-    setIsRestoring(true);
+  async function handleSelectVersion(version: number) {
+    if (openingVersion !== null) return;
+    if (version === currentVersion) {
+      onExitVersionView();
+      return;
+    }
+    setOpeningVersion(version);
     setErrorMessage(null);
     try {
-      await restoreDocumentVersion(documentId, selectedVersion, currentVersion);
-      setSelectedVersion(null);
-      setDiffRows(null);
-      await loadVersions();
-      onRestored(documentId);
-    } catch (error) {
-      if (error instanceof VersionRestoreConflictError) {
-        // 다른 저장이 먼저 반영됐다. 최신 목록으로 갱신해 사용자가 다시 비교하게 한다.
-        setErrorMessage(error.message);
-        void loadVersions().catch(() => {});
-      } else {
-        setErrorMessage(getErrorMessage(error, "버전 복원에 실패했습니다."));
+      // 열람 중에는 저장하지 않으므로 미저장 편집분을 먼저 서버에 남긴다.
+      if (!(await onBeforeViewVersion())) {
+        setErrorMessage("저장되지 않은 편집 내용이 있어 버전을 열지 않았습니다. 저장 상태를 확인해 주세요.");
+        return;
       }
+      // 방금 저장으로 현재 버전이 바뀌었을 수 있어 목록을 다시 받아 복원 기준 버전으로 쓴다.
+      const latest = await loadVersions();
+      if (version === latest.current_version) {
+        onExitVersionView();
+        return;
+      }
+      const content = await fetchDocumentVersion(documentId, version);
+      onViewVersion({ documentId, version, markdown: content.markdown, baseVersion: latest.current_version });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "버전 본문을 불러오지 못했습니다."));
     } finally {
-      setIsRestoring(false);
+      setOpeningVersion(null);
     }
   }
 
@@ -132,13 +153,15 @@ export function HistoryPanel({
       ) : versionData !== null && versionData.versions.length === 0 ? (
         <p className={styles["history-empty"]}>아직 저장된 버전이 없습니다. 문서를 저장하면 버전이 기록됩니다.</p>
       ) : versionData !== null ? (
-        <ol className={styles["history-list"]}>
-          {versionData.versions.map((item) => (
+        <ol className={styles["history-list"]} aria-label={`${VERSION_GROUP_INTERVAL_MS / 60_000}분 간격으로 묶은 버전 목록`}>
+          {visibleVersions.map((item) => (
             <li key={item.version}>
               <button
                 type="button"
                 className={`${styles["history-item"]}${item.version === selectedVersion ? ` ${styles["is-selected"]}` : ""}`}
-                onClick={() => setSelectedVersion(item.version)}
+                aria-pressed={item.version === selectedVersion}
+                disabled={openingVersion !== null}
+                onClick={() => void handleSelectVersion(item.version)}
               >
                 <span className={styles["history-item-label"]}>
                   v{item.version}
@@ -147,7 +170,9 @@ export function HistoryPanel({
                     <span className={styles["history-item-restored"]}>v{item.restored_from_version}에서 복원</span>
                   )}
                 </span>
-                <span className={styles["history-item-time"]}>{formatTimestamp(item.created_at)}</span>
+                <span className={styles["history-item-time"]}>
+                  {item.version === openingVersion ? "여는 중…" : formatTimestamp(item.created_at)}
+                </span>
               </button>
             </li>
           ))}
@@ -174,14 +199,6 @@ export function HistoryPanel({
               )}
             </div>
           ) : null}
-          <button
-            type="button"
-            className={styles["history-restore"]}
-            disabled={isSelectedCurrent || isDiffLoading || isRestoring || !hasChanges}
-            onClick={() => void handleRestore()}
-          >
-            {isRestoring ? "복원 중…" : "이 버전으로 복원"}
-          </button>
         </section>
       )}
     </aside>

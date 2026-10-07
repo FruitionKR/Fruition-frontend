@@ -1,4 +1,4 @@
-// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·버전·ingest·변환·편집 잠금.
+// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·버전(목록·단건·diff·복원)·ingest·변환·편집 잠금.
 import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
@@ -260,6 +260,17 @@ export function registerDocumentRoutes(router) {
     if (!doc) return;
     const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at, restored_from_version }) => ({ version, content_hash, created_by, created_at, restored_from_version: restored_from_version ?? null }));
     ctx.json(200, { document_id: doc.id, current_version: doc.current_version, versions });
+  });
+
+  router.get("/api/workspaces/:wid/documents/:id/versions/:version", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    const target = doc.versions.find((item) => item.version === Number(ctx.params.version));
+    if (!target) return error(ctx, 404, "버전을 찾을 수 없습니다.");
+    const { version, content_hash, created_by, created_at, markdown } = target;
+    ctx.json(200, { document_id: doc.id, version, content_hash, created_by, created_at, markdown: markdown ?? "" });
   });
 
   router.get("/api/workspaces/:wid/documents/:id/diff", (ctx) => {

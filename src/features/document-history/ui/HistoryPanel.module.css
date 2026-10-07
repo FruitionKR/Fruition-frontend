@@ -1,4 +1,4 @@
-/* 문서 버전 기록(서버 버전 목록·diff·복원) 패널. 문서 화면 위 오버레이. */
+/* 문서 버전 기록(서버 버전 목록·diff) 패널. 문서 화면 위 오버레이. */
 .history-panel {
   position: absolute;
   top: 56px;
@@ -76,6 +76,10 @@
   color: #e7e7e7;
   cursor: pointer;
   text-align: left;
+}
+
+.history-item:disabled {
+  cursor: progress;
 }
 
 .history-item:hover {
@@ -163,21 +167,4 @@
   color: #6a6a6a;
   background: #1b1b1b;
   text-align: center;
-}
-
-.history-restore {
-  align-self: flex-end;
-  padding: 7px 14px;
-  border: 1px solid #315efb;
-  border-radius: 8px;
-  background: #315efb;
-  color: #fff;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.history-restore:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }

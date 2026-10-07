@@ -6,7 +6,7 @@ import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
-import { HistoryPanel } from "@/features/document-history";
+import { HistoryPanel, VersionPreview, type ViewedDocumentVersion } from "@/features/document-history";
 import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
@@ -107,6 +107,9 @@ export function SourcePreviewPanel({
   const [sourceMode, setSourceMode] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  // 버전 기록에서 연 과거 버전. 있으면 편집기 대신 읽기 전용 본문을 보여 준다.
+  const [viewedVersion, setViewedVersion] = useState<ViewedDocumentVersion | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   // 버전 복원 후 문서 본문·버전을 다시 불러오기 위한 카운터
   const [documentReloadCount, setDocumentReloadCount] = useState(0);
   // 현재 화면에 본문이 올라와 있는 문서. 같은 문서 재조회인지 판별해 깜빡임을 막는다.
@@ -143,6 +146,7 @@ export function SourcePreviewPanel({
   const selectedBlockHighlights = useMemo(() => sourceBlockHighlights ?? [], [sourceBlockHighlights]);
   const isMarkdownFile = !pageId && !!documentId && hasMarkdownExtension(title);
   const isPdfOrOther = !pageId && !!documentId && !isMarkdownFile;
+  const isViewingVersion = isMarkdownFile && viewedVersion !== null && viewedVersion.documentId === documentId;
   // PDF는 편집 불가 문서라 제목·본문 chrome 없이 뷰어가 콘텐츠 영역 전체를 채운다.
   const isPdfFile = isPdfOrOther && hasPdfExtension(title);
   const isTextFile = isPdfOrOther && hasTextExtension(title);
@@ -192,6 +196,7 @@ export function SourcePreviewPanel({
   useEffect(() => {
     setIsOptionsOpen(false);
     setIsHistoryOpen(false);
+    setViewedVersion(null);
     noteSaveRef.current = null;
     noteSaveStatusRef.current = "saved";
     setNoteSaveStatus("saved");
@@ -223,6 +228,26 @@ export function SourcePreviewPanel({
       message: getErrorMessage(result.error, "문서를 이동하는 동안 편집 내용을 저장하지 못했습니다.")
     });
   }, [onRefreshDocuments]);
+
+  /** 버전 열람 전에 대기 중인 저장을 끝낸다. 저장이 막혔거나 실패하면 false(편집기를 내리면 편집분을 잃는다). */
+  async function flushNoteSaveBeforeVersionView(): Promise<boolean> {
+    if (!documentId) return false;
+    if (noteSaveStatusRef.current !== "saved") {
+      const save = noteSaveRef.current;
+      if (!save || !(await save())) return false;
+    }
+    await waitForPendingDocumentSave(documentId);
+    return true;
+  }
+
+  /** 버전 열람을 끝내고 편집기를 최신 본문으로 다시 띄운다. */
+  function exitVersionView() {
+    if (!viewedVersion) return;
+    setViewedVersion(null);
+    // 열람 전에 저장한 편집분까지 반영된 본문을 다시 받는다. 받는 동안 이전 본문으로 편집기를 띄우지 않는다.
+    setIsLoading(true);
+    setDocumentReloadCount((count) => count + 1);
+  }
 
   async function commitTitle() {
     if (!isMarkdownFile || !documentId || !onRenameDocument || isRenaming) return;
@@ -594,7 +619,19 @@ export function SourcePreviewPanel({
           </div>
         )}
         {isMarkdownFile && errorMessage && <p>{errorMessage}</p>}
-        {showHighlightedMarkdown && rawMarkdown !== null && (
+        {isViewingVersion && viewedVersion && (
+          <VersionPreview
+            key={`${viewedVersion.documentId}:${viewedVersion.version}`}
+            viewed={viewedVersion}
+            onExit={exitVersionView}
+            onRestored={(restoredDocumentId) => {
+              if (restoredDocumentId !== activeDocumentIdRef.current) return;
+              exitVersionView();
+              setHistoryRefreshKey((key) => key + 1);
+            }}
+          />
+        )}
+        {!isViewingVersion && showHighlightedMarkdown && rawMarkdown !== null && (
           <>
             {highlightNotice && (
               <div className={styles["source-preview-document-controls"]}>
@@ -611,7 +648,7 @@ export function SourcePreviewPanel({
             />
           </>
         )}
-        {isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
+        {!isViewingVersion && isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
           <>
             <div className={styles["source-preview-document-controls"]}>
               <span role="status">PDF 변환이 끝나면 편집할 수 있어요.</span>
@@ -619,7 +656,7 @@ export function SourcePreviewPanel({
             <MarkdownViewer markdown={rawMarkdown} />
           </>
         )}
-        {isMarkdownFile && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+        {!isViewingVersion && isMarkdownFile && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
           <DynamicNoteEditor
             key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
             documentId={documentId}
@@ -667,14 +704,21 @@ export function SourcePreviewPanel({
       {isHistoryOpen && isMarkdownFile && documentId && (
         <HistoryPanel
           documentId={documentId}
-          onRestored={(restoredDocumentId) => {
-            // 복원 중 다른 문서로 전환했으면 무시한다. 현재 문서의 에디터가 리마운트되어
-            // 저장 전 편집분이 초기화되는 것을 막는다.
-            if (restoredDocumentId === activeDocumentIdRef.current) {
-              setDocumentReloadCount((count) => count + 1);
-            }
+          viewingVersion={isViewingVersion ? viewedVersion?.version ?? null : null}
+          refreshKey={historyRefreshKey}
+          onBeforeViewVersion={flushNoteSaveBeforeVersionView}
+          onViewVersion={(viewed) => {
+            // 저장·조회를 기다리는 동안 다른 문서로 전환했으면 무시한다.
+            if (viewed.documentId !== activeDocumentIdRef.current) return;
+            // 편집기가 내려가므로 Cmd/Ctrl+S가 내려간 편집기의 저장(PUT)을 부르지 않게 끊는다. 다시 띄우면 새로 등록된다.
+            noteSaveRef.current = null;
+            setViewedVersion(viewed);
           }}
-          onClose={() => setIsHistoryOpen(false)}
+          onExitVersionView={exitVersionView}
+          onClose={() => {
+            setIsHistoryOpen(false);
+            exitVersionView();
+          }}
         />
       )}
       {!fillMain && (

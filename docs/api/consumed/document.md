@@ -53,6 +53,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions` | 버전 메타데이터 목록 | `src/features/document-history/api/versions.ts` `fetchDocumentVersions` | 템플릿 결합 (`` `${documentPath(id)}/versions` ``, `documentPath`는 `workspacePath(getWorkspaceId(), "documents", id)`) | `cache: no-store` | `DocumentVersionListResponse` | 로컬 헬퍼가 `workspacePath`를 감싸는 이중 조립이라 리터럴 검색으로 찾히지 않는다 |
+| `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 특정 버전 전체 본문(읽기 전용 열람) | `src/features/document-history/api/versions.ts` `fetchDocumentVersion` | 템플릿 결합 (`` `${documentPath(id)}/versions/${version}` ``) | `cache: no-store` | `markdown` | 버전 기록에서 버전을 고르면 편집기 대신 이 본문을 보여 준다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/diff` | 두 버전 간 서버 계산 diff | `src/features/document-history/api/versions.ts` `fetchDocumentVersionDiff` | 템플릿 결합 (`` `${documentPath(id)}/diff?${query}` ``) | query `from_version`, `to_version` | `DocumentVersionDiffResponse` | 이 저장소가 query string을 만드는 두 경로 중 하나 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}/restore` | 과거 버전을 새 버전으로 비파괴 복원 | `src/features/document-history/api/versions.ts` `restoreDocumentVersion` | 템플릿 결합 (`` `${documentPath(id)}/versions/${version}/restore` ``) | `{ base_version }` | `DocumentContentSaveResponse` | `409` → `VersionRestoreConflictError` |
 
