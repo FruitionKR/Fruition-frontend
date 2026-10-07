@@ -264,7 +264,7 @@ export function HomeWorkspace() {
       { type: "text/markdown" }
     );
     const created = await uploadDocumentFile(file).catch(async (error: unknown) => {
-      // AI가 만든 문서도 이름 중복으로 거절되면 최신 목록을 보여 준다.
+      // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
       throw error;
     });

@@ -88,6 +88,24 @@ function saveVersion(doc, markdown, createdBy, restoredFromVersion = null) {
   return { document_id: doc.id, current_version: doc.current_version, content_hash: contentHash, updated_at: doc.updated_at, changed: true };
 }
 
+/**
+ * 서버 DocumentEditingRules.uniqueUploadFilename 흉내: 같은 부모에 같은 이름(문서·폴더, 대소문자 무시)이 있으면
+ * `이름 (2).pdf`처럼 번호를 붙인다. 업로드는 이름 중복으로 거절하지 않는다.
+ */
+function uniqueUploadFilename(workspaceId, folderId, filename) {
+  const normalize = (value) => value.trim().normalize("NFC").toLowerCase();
+  const taken = new Set([
+    ...state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && (doc.folder_id ?? null) === folderId).map((doc) => normalize(doc.filename)),
+    ...state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at && (folder.parent_folder_id ?? null) === folderId).map((folder) => normalize(folder.name))
+  ]);
+  const dot = filename.lastIndexOf(".");
+  const base = dot > 0 ? filename.slice(0, dot) : filename;
+  const extension = dot > 0 ? filename.slice(dot) : "";
+  let candidate = filename;
+  for (let number = 2; taken.has(normalize(candidate)); number += 1) candidate = `${base} (${number})${extension}`;
+  return candidate;
+}
+
 export function registerDocumentRoutes(router) {
   router.get("/api/workspaces/:wid/documents", (ctx) => {
     const workspace = requireWorkspace(ctx);
@@ -102,14 +120,16 @@ export function registerDocumentRoutes(router) {
     const { file, folder_id: folderId = null } = await ctx.body();
     if (!file?.buffer) return error(ctx, 400, "업로드할 파일이 필요합니다.");
     if (folderId && !state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspace.id && !folder.deleted_at)) return error(ctx, 404, "폴더를 찾을 수 없습니다.");
-    const filename = file.name.normalize("NFC");
-    const extension = filename.split(".").pop()?.toLowerCase() ?? "";
+    const requestedName = file.name.normalize("NFC");
+    const extension = requestedName.split(".").pop()?.toLowerCase() ?? "";
     const mime = MIME_BY_EXTENSION[extension] ?? file.type ?? "application/octet-stream";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
     const isMarkdown = mime === "text/markdown";
     const text = isMarkdown ? file.buffer.toString("utf8") : null;
     // 실제 업로드처럼 전송이 끝날 때까지 응답을 미룬다. 프론트는 그동안 "업로드 중" 자리표시 행을 보여준다.
     await sleep(uploadDelay(file.buffer.length));
+    // 동시 업로드도 서로 다른 번호를 받도록 전송이 끝난 시점에 이름을 정한다.
+    const filename = uniqueUploadFilename(workspace.id, folderId, requestedName);
     const timestamp = now();
     const doc = {
       id: id("doc"), workspace_id: workspace.id, filename, mime_type: mime, byte_size: file.buffer.length, status: "uploaded", folder_id: folderId, sort_order: 0,

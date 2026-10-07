@@ -10,7 +10,7 @@ registerHooks({
   }
 });
 const { folderNames, availableFolderName, availableDocumentName, normalizeTreeName } = await import("../src/entities/tree/lib/names.ts");
-const { moveProjectTreeItem } = await import("../src/entities/tree/lib/mutations.ts");
+const { moveProjectTreeItem, applyUploadedDocument } = await import("../src/entities/tree/lib/mutations.ts");
 const { renameDocument, uploadDocumentFile, DocumentNameConflictError } = await import("../src/entities/document/api/document.ts");
 const projects = [
   { id: "a", title: "자료", items: [{ id: "folder", label: "운영", type: "folder", children: [] }] },
@@ -68,33 +68,32 @@ test("새 노트는 같은 폴더의 업로드 중인 항목만 확인해 번호
   assert.equal(availableDocumentName(tree, "새 노트.md", { projectId: "p", folderId: "f" }), "새 노트 (2).md");
 });
 
-test("같은 파일명은 공백·한글 조합·대소문자 차이가 있어도 업로드하지 않는다", async (t) => {
+test("업로드는 이름 중복을 미리 검사하지 않고 서버가 붙인 이름을 돌려준다", async (t) => {
   selectWorkspace(t);
   const calls = [];
   t.mock.method(globalThis, "fetch", async (path, init) => {
     calls.push(init?.method ?? "GET");
-    return Response.json({ items: [{ type: "document", id: "existing", name: "보고서.md" }] });
+    assert.equal(init.body.get("file").name, "보고서.md");
+    return Response.json({ id: "new", filename: "보고서 (2).md" }, { status: 201 });
   });
-  await assert.rejects(uploadDocumentFile(new File([""], " 보고서.MD ")), DocumentNameConflictError);
-  assert.deepEqual(calls, ["GET"]);
+  const created = await uploadDocumentFile(new File([""], "보고서.md"));
+  assert.equal(created.filename, "보고서 (2).md");
+  assert.deepEqual(calls, ["POST"]);
 });
 
-test("동시 업로드의 중복 이름은 한 번만 전송하고 실패 후 예약을 해제한다", async (t) => {
+test("같은 이름의 동시 업로드도 모두 서버로 보낸다", async (t) => {
   selectWorkspace(t);
   let posts = 0;
-  t.mock.method(globalThis, "fetch", async (_path, init) => {
-    if (init?.method !== "POST") return Response.json({ items: [] });
+  t.mock.method(globalThis, "fetch", async () => {
     posts++;
-    return Response.json({ error: { message: "업로드 실패" } }, { status: 500 });
+    return Response.json({ id: String(posts), filename: posts === 1 ? "same.md" : `same (${posts}).md` }, { status: 201 });
   });
-  const results = await Promise.allSettled([
+  const results = await Promise.all([
     uploadDocumentFile(new File([""], "same.md")),
     uploadDocumentFile(new File([""], "SAME.MD"))
   ]);
-  assert.equal(posts, 1);
-  assert.equal(results[1].reason instanceof DocumentNameConflictError, true);
-  await assert.rejects(uploadDocumentFile(new File([""], "same.md")));
   assert.equal(posts, 2);
+  assert.deepEqual(results.map((result) => result.filename), ["same.md", "same (2).md"]);
 });
 
 test("확장자를 생략한 이름 변경도 최종 파일명의 중복을 검사한다", async (t) => {
@@ -146,7 +145,6 @@ test("다른 폴더의 같은 파일명은 허용하고 업로드에 대상 폴�
   });
   await uploadDocumentFile(new File([""], "report.md"), "b");
   assert.equal(posts, 1);
-  await assert.rejects(uploadDocumentFile(new File([""], "report.md"), "a"), DocumentNameConflictError);
 });
 
 test("이름 변경은 서버의 실제 부모를 기준으로 검사한다", async (t) => {
@@ -161,10 +159,16 @@ test("이름 변경은 서버의 실제 부모를 기준으로 검사한다", as
   assert.equal(patches, 1);
 });
 
-test("파일과 폴더는 같은 부모에서 이름 공간을 공유한다", async (t) => {
+test("이름 변경 시 파일과 폴더는 같은 부모에서 이름 공간을 공유한다", async (t) => {
   selectWorkspace(t);
-  t.mock.method(globalThis, "fetch", async () => Response.json({ items: [folder("Report.md")] }));
-  await assert.rejects(uploadDocumentFile(new File([""], "report.md")), DocumentNameConflictError);
+  let patches = 0;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init?.method === "PATCH") patches++;
+    if (path.endsWith("/self")) return Response.json({ filename: "old.md", current_version: 2 });
+    return Response.json({ items: [folder("Report.md"), doc("self", "old.md")] });
+  });
+  await assert.rejects(renameDocument("self", "report.md"), DocumentNameConflictError);
+  assert.equal(patches, 0);
 });
 
 test("다른 폴더의 동시 업로드는 같은 이름이어도 모두 허용한다", async (t) => {
@@ -179,13 +183,10 @@ test("다른 폴더의 동시 업로드는 같은 이름이어도 모두 허용�
   assert.equal(posts, 2);
 });
 
-test("없는 폴더나 트리 조회 실패 시 업로드하지 않는다", async (t) => {
-  selectWorkspace(t);
-  let posts = 0;
-  t.mock.method(globalThis, "fetch", async (_path, init) => {
-    if (init?.method === "POST") posts++;
-    return Response.json({ items: [] });
-  });
-  await assert.rejects(uploadDocumentFile(new File([""], "same.md"), "missing"), /폴더를 찾을/);
-  assert.equal(posts, 0);
+test("업로드 완료 시 임시 항목 라벨을 서버가 저장한 이름으로 바꾼다", () => {
+  const items = [{ id: "upload_1", label: "회의록.pdf", type: "file", status: "uploading" }];
+  const [item] = applyUploadedDocument(items, "upload_1", { id: "doc_1", filename: "회의록 (2).pdf", status: "uploaded", mime_type: "application/pdf" });
+  assert.equal(item.label, "회의록 (2).pdf");
+  assert.equal(item.documentId, "doc_1");
+  assert.equal(item.status, "uploaded");
 });

@@ -1,7 +1,6 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
-import { DocumentNameConflictError, uploadDocumentFile } from "@/entities/document/api/document";
-import { publishNotice } from "@/features/document-notifications";
+import { uploadDocumentFile } from "@/entities/document/api/document";
 import {
   appendItemsToFolder,
   availableDocumentName,
@@ -10,7 +9,6 @@ import {
   createClientId,
   findTreeItem,
   isSupportedUploadFile,
-  removeTreeItem,
   updateTreeItemStatus
 } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
@@ -83,21 +81,11 @@ export function useDocumentUpload({
           void refreshBackendData();
         })
         .catch((error: Error) => {
-          if (error instanceof DocumentNameConflictError) {
-            setProjects((current) => current.map((project) => ({
-              ...project,
-              items: removeTreeItem(project.items, item.id).items
-            })));
-            publishNotice({ kind: "failed", title: "문서 이름 중복", message: error.message });
-            // 다른 탭·사용자가 만든 문서도 중복 안내와 함께 목록에 반영한다.
-            void refreshBackendData().catch(() => {});
-            return;
-          }
           setProjects((current) => current.map((project) => {
             if (!findTreeItem(project.items, item.id)) return project;
             return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", error.message) };
           }));
-          // 사전 검사 이후 서버가 중복·버전 충돌로 거절한 경우도 재조회한다.
+          // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
           void refreshBackendData().catch(() => {});
         });
     });
