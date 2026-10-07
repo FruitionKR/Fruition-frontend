@@ -26,6 +26,9 @@ export function DocumentSidebar({
   dropTarget,
   fileDropTarget,
   editing,
+  openIds,
+  onToggleOpen,
+  onOpenMany,
   contextMenu,
   convertContextTarget,
   canRenameContextTarget,
@@ -68,6 +71,9 @@ export function DocumentSidebar({
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
+  openIds: ReadonlySet<string>;
+  onToggleOpen: (id: string) => void;
+  onOpenMany: (ids: readonly string[]) => void;
   contextMenu: ContextMenuState | null;
   convertContextTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
@@ -130,6 +136,9 @@ export function DocumentSidebar({
     dropTarget,
     fileDropTarget,
     editing,
+    openIds,
+    onToggleOpen,
+    onOpenMany,
     onMoveItem,
     onDropFiles,
     onDragStart,

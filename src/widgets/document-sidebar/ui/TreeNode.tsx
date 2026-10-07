@@ -45,7 +45,7 @@ export function TreeNode({
 }: {
   item: TreeItem;
   depth: number;
-  openIds: Set<string>;
+  openIds: ReadonlySet<string>;
   onToggle: (id: string) => void;
   projectId: string;
   onDropItem: (target: DropTarget) => void;

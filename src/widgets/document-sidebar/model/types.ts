@@ -17,6 +17,10 @@ export type TreeInteractionProps = {
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
+  /** 펼친 폴더 id. 뷰 전환으로 트리가 다시 마운트돼도 유지되도록 HomeWorkspace가 소유한다 */
+  openIds: ReadonlySet<string>;
+  onToggleOpen: (id: string) => void;
+  onOpenMany: (ids: readonly string[]) => void;
   onMoveItem: (target: DropTarget) => void;
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
