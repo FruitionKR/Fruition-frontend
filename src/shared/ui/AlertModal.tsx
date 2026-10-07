@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 
 /** 경고 아이콘 + 제목 + 설명 + 액션 버튼으로 구성된 공통 알림 모달 (Figma 512:10792 패턴) */
 export function AlertModal({
@@ -16,6 +17,8 @@ export function AlertModal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  useEscapeKey(true, onClose);
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div

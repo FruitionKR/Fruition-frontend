@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cx } from "@/shared/lib/classNames";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { useEscapeLayer } from "@/shared/lib/useEscapeLayer";
 import { formatLintProgressLabel } from "@/features/wiki-ingest/model/activeLintOperation";
 import {
   isLintActionEnabled,
@@ -77,12 +77,12 @@ export function GraphSidebarActions({
     }
   }, [isIngestActive, isLintActive, refetchMaintenanceStatus]);
 
-  // 선택 모드는 Esc로도 빠져나온다.
+  // 선택 모드는 Esc로도 빠져나온다. 모달·메뉴가 열려 있으면 그 레이어가 먼저 닫힌다.
   const exitSelecting = useCallback(() => {
     setIsSelecting(false);
     setSelectedIds(new Set());
   }, []);
-  useEscapeKey(isSelecting, exitSelecting);
+  useEscapeLayer(isSelecting, exitSelecting, "fallback");
 
   const isLintEnabled = isLintActionEnabled({
     needsLint: maintenanceStatus?.needs_lint === true,

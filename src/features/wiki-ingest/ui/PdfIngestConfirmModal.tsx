@@ -1,12 +1,10 @@
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 
 export function PdfIngestConfirmModal({ pdfCount, onConfirm, onCancel }: {
   pdfCount: number;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  useEscapeKey(true, onCancel);
   return (
     <ConfirmModal
       titleId="pdf-ingest-confirm-title"

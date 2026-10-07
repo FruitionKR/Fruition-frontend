@@ -29,7 +29,10 @@ export function FlowModal({
   onSubmit: (event: FormEvent) => void;
   children: ReactNode;
 }) {
-  useEscapeKey(canClose, onClose);
+  // 닫을 수 없는 동안에도 레이어는 유지해 Escape가 아래 설정 창으로 넘어가지 않게 한다.
+  useEscapeKey(true, () => {
+    if (canClose) onClose();
+  });
   return createPortal(
     <div className={styles.overlay} onClick={canClose ? onClose : undefined}>
       <form
