@@ -27,10 +27,10 @@
   margin-top: 0;
 }
 
-/* 문서 제목: 32px SemiBold, 아래 블록과 20px */
+/* 본문 h1: 28px SemiBold, 아래 블록과 20px. 문서 제목(36px)보다 작게 둬 제목과 구분한다 */
 .markdown-viewer h1 {
   margin: 0 0 20px;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -162,6 +162,23 @@
 .markdown-viewer a,
 .markdown-wikilink {
   color: #8ab4e8;
+}
+
+/* AI 본문의 외부 링크는 누를 수 없는 글자로 둔다(이슈 #77). 링크처럼 보이지 않게 본문 색을 유지한다. */
+.markdown-inert-link {
+  color: inherit;
+}
+
+/* 요청하지 않은 외부·미지원 이미지와 불러오지 못한 관리 이미지 자리 표시 */
+.markdown-image-blocked,
+.markdown-image-missing {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: #9a9a9a;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* 원문 근거 강조 (Figma 1132:10762 notice): 노란 배경 16%·좌측 3px 선·좌우 24px, 14px Medium 행간 1.8.

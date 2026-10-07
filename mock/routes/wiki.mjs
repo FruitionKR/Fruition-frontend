@@ -53,7 +53,8 @@ export function registerWikiRoutes(router) {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
     const { dry_run } = await ctx.body();
-    ctx.json(202, { run_id: startLint(workspace, dry_run !== false) });
+    const { runId, operationId } = startLint(workspace, dry_run !== false);
+    ctx.json(202, operationId ? { run_id: runId, operation_id: operationId } : { run_id: runId });
   });
 
   router.get("/api/workspaces/:wid/wiki/maintenance/runs/:runId", (ctx) => {

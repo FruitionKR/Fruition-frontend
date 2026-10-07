@@ -14,6 +14,7 @@ import {
 import { useMe, useUserPreferences } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useWorkspaceName";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import {
   bellIcon,
@@ -70,6 +71,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEscapeKey(true, onClose);
+  const backdropClick = useBackdropClick(onClose);
 
   const name = me?.display_name || "사용자";
   const wsName = workspaceName ?? "워크스페이스";
@@ -97,7 +99,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   // 사이드바(z-index 스태킹 컨텍스트) 내부에 렌더되면 편집기 등에 가려지므로 body로 portal한다.
   return createPortal(
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} {...backdropClick}>
       <div
         className={styles.modal}
         role="dialog"

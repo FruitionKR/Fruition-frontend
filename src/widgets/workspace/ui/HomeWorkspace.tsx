@@ -24,16 +24,21 @@ import { DeleteConfirmModal } from "@/shared/ui/DeleteConfirmModal";
 import { MergeConfirmModal } from "@/shared/ui/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useProjectTree } from "../model/useProjectTree";
+import type { DeletedTreeIds } from "../lib/deletedTreeIds";
 import { useTreeSelection } from "../model/useTreeSelection";
+import { useTreeOpenState } from "../model/useTreeOpenState";
+import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
-import { filterGraphProjects, isGraphIngestEligible, isPdfDocument, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
+import { filterGraphProjects, isGraphIngestEligible, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
+import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
-import { isDocumentConverting } from "@/entities/document/lib/documentKind";
+import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/markdownAgent";
@@ -46,6 +51,7 @@ import { useResizeHandle } from "../model/useResizeHandle";
 import { canShowAgentPanel, isAgentPanelVisible } from "../lib/workspaceLayout";
 import type { DocumentItemResponse, SourceBlockHighlight } from "@/entities/document";
 import type { TreeItem } from "@/entities/tree";
+import type { GraphNode } from "@/entities/wiki";
 import type { ChatWikiExportResponse } from "@/features/wiki-export";
 
 const SIDEBAR_DEFAULT_WIDTH = 320;
@@ -85,7 +91,9 @@ export function HomeWorkspace() {
   );
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
-  const projectTree = useProjectTree({ refreshRef });
+  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
+  // 뷰 전환으로 사이드바 트리가 다시 마운트돼도 폴더 펼침을 유지한다.
+  const treeOpen = useTreeOpenState();
   const {
     documents,
     documentsUpdatedAt,
@@ -185,8 +193,8 @@ export function HomeWorkspace() {
     if (!selection.selectedDocumentId) return undefined;
     return documents.find((item) => item.id === selection.selectedDocumentId)?.status;
   }, [documents, selection.selectedDocumentId]);
-  const selectedDocumentConverting = useMemo(
-    () => isDocumentConverting(documents.find((item) => item.id === selection.selectedDocumentId)),
+  const selectedDocumentConversion = useMemo(
+    () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
   );
   const firstSidebarNote = useMemo(() => {
@@ -243,6 +251,28 @@ export function HomeWorkspace() {
     }
   }, [selection.selectedDocumentId, selection.selectedPreviewTarget?.pageId]);
 
+  // 열린 문서나 그 상위 폴더가 삭제되면 미리보기를 닫는다(빈 화면으로 둔다).
+  // 새로고침 때 삭제된 문서가 마지막 문서로 복원되지 않도록 기록도 지운다.
+  function handleTreeDeleted({ documentIds, treeItemIds }: DeletedTreeIds) {
+    const { selectedDocumentId, selectedTreeItemId } = selection;
+    const isOpenDocumentDeleted = (selectedDocumentId !== null && documentIds.includes(selectedDocumentId))
+      || (selectedTreeItemId !== null && treeItemIds.includes(selectedTreeItemId));
+    if (isOpenDocumentDeleted) {
+      // 자동 열기가 아직 안 돌았더라도 첫 노트로 넘어가지 않게 막는다.
+      didAutoOpenRef.current = true;
+      selection.clearTreeGraphSelection();
+    }
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId) return;
+    const key = `fruition.last-document.${workspaceId}`;
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(key) ?? "null");
+      if (isOpenDocumentDeleted || documentIds.includes(saved?.documentId)) window.sessionStorage.removeItem(key);
+    } catch {
+      // 저장소를 사용할 수 없으면 정리하지 않는다. 복원 시 목록에 없는 문서는 열리지 않는다.
+    }
+  }
+
   function handleViewChange(view: RailView) {
     // 다른 화면에서 열어 둔 문서(홈 자동 열기 포함)의 포커스가 그래프 선택으로 이어지지 않게 한다.
     // 그래프 화면 안에서의 노드 선택(사이드바·더블클릭)은 전환 이후 동작이라 영향 없다.
@@ -255,6 +285,16 @@ export function HomeWorkspace() {
     selection.openSourceBlockPreview(documentId, documentTitle, highlights);
   }
 
+  // 그래프 노드 더블클릭: 원본(raw) 노드는 홈으로 전환해 문서를 열고, 그 외 노드는 그래프 포커스만 옮긴다.
+  function openGraphNode(node: GraphNode) {
+    if (node.kind === "raw" && node.documentId) {
+      setActiveView("home");
+      openSourceBlocks(node.documentId, node.label, []);
+      return;
+    }
+    selection.openGraphNodePreview(node);
+  }
+
   async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft) {
     const noteId = createClientId("ai-note");
     const body = draft.markdown.endsWith("\n") ? draft.markdown : `${draft.markdown}\n`;
@@ -264,7 +304,7 @@ export function HomeWorkspace() {
       { type: "text/markdown" }
     );
     const created = await uploadDocumentFile(file).catch(async (error: unknown) => {
-      // AI가 만든 문서도 이름 중복으로 거절되면 최신 목록을 보여 준다.
+      // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
       throw error;
     });
@@ -328,6 +368,7 @@ export function HomeWorkspace() {
     }
   }
 
+  // 변환 전 PDF가 섞여 있으면 먼저 Markdown으로 변환한다는 확인을 받는다.
   function requestGraphIngest(targets: DocumentItemResponse[]) {
     if (targets.some(isPdfDocument)) {
       setPdfIngestConfirmation(targets);
@@ -346,9 +387,10 @@ export function HomeWorkspace() {
         publishNotice({ kind: "info", ...WIKI_UP_TO_DATE_NOTICE });
         return;
       }
-      const { changedPageCount } = await requestWikiLint(false);
+      const { changedPageCount, operationId } = await requestWikiLint(false);
       void refreshBackendData();
       publishNotice({
+        operation: { type: "lint", id: operationId },
         kind: "completed",
         title: "Lint 완료",
         message: `${changedPageCount}개 페이지를 다듬었습니다.`
@@ -374,6 +416,10 @@ export function HomeWorkspace() {
     sourcePreviewResize.stop(event);
   }
 
+  // main 배경을 직접 누르고 뗐을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서 버블된 클릭이나
+  // 편집기에서 드래그해 바깥에서 놓은 클릭까지 해제하면 노트 선택이 풀려 편집기가 비어 보인다.
+  const workspaceBackgroundClick = useBackdropClick<HTMLElement>(selection.clearTreeGraphSelection);
+
   return (
     <main
       className={cx(
@@ -386,11 +432,7 @@ export function HomeWorkspace() {
         "--sidebar-width": `${sidebarResize.width}px`,
         "--source-preview-width": `${sourcePreviewResize.width}px`
       } as CSSProperties}
-      onClick={(event) => {
-        // main 배경을 직접 클릭했을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서
-        // 버블된 클릭까지 해제하면 노트 선택이 풀려 편집기가 비어 보인다.
-        if (event.target === event.currentTarget) selection.clearTreeGraphSelection();
-      }}
+      {...workspaceBackgroundClick}
       onPointerMove={handleResizePointerMove}
       onPointerUp={handleResizePointerEnd}
       onPointerCancel={handleResizePointerEnd}
@@ -403,14 +445,19 @@ export function HomeWorkspace() {
         dropTarget={projectTree.dropTarget}
         fileDropTarget={projectTree.fileDropTarget}
         editing={projectTree.editing}
+        openIds={treeOpen.openIds}
+        onToggleOpen={treeOpen.toggle}
+        onOpenMany={treeOpen.openMany}
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
         canRenameContextTarget={projectTree.canRenameContextTarget}
+        canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
         documents={documents}
         graphActions={{
-          documents: graphDocuments,
+          documents,
+          projects: projectTree.projects,
           pending: wikiActionPending ?? (pdfWikiIngest.isPending ? "ingest" : null),
           onIngestDocuments: requestGraphIngest,
           onLint: () => void handleGraphLint()
@@ -426,8 +473,12 @@ export function HomeWorkspace() {
           if (!canShowAgentPanel(activeView)) setActiveView("home");
           setIsHomeAgentPanelOpen(true);
         }}
-        onUploadToProject={(projectId) => upload.openUploadPicker(projectId, null)}
-        onAddProject={projectTree.addProject}
+        onAddProject={() => {
+          // 폴더 안에 만들면 새 항목이 보이도록 대상 폴더를 펼친다.
+          const folderId = findContextFolderId(projectTree.projects, projectTree.contextMenu);
+          if (folderId) treeOpen.open(folderId);
+          projectTree.addProject();
+        }}
         onResizeStart={sidebarResize.start}
         onUploadPickerChange={upload.handleUploadPickerChange}
         onMoveItem={projectTree.moveTreeEntry}
@@ -441,6 +492,7 @@ export function HomeWorkspace() {
         onDragEnd={projectTree.onDragEnd}
         onContextMenuProject={projectTree.openProjectMenu}
         onContextMenuItem={projectTree.openFolderMenu}
+        onOpenFolderMenuAt={projectTree.openFolderMenuAt}
         onSelectGraphNode={selection.selectTreeGraphNode}
         onEditingChange={projectTree.onEditingChange}
         onCommitEditing={projectTree.commitEditing}
@@ -448,14 +500,17 @@ export function HomeWorkspace() {
         onRenameContextTarget={projectTree.renameContextTarget}
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
+          if (target?.folderId) treeOpen.open(target.folderId);
           if (target) upload.createMarkdownFile(target.projectId, target.folderId);
         }}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
+          if (target?.folderId) treeOpen.open(target.folderId);
           if (target) upload.openUploadPicker(target.projectId, target.folderId);
         }}
         onConvertContextTarget={projectTree.convertContextTargetToMarkdown}
         onDeleteContextTarget={projectTree.deleteContextTarget}
+        onCloseContextMenu={projectTree.closeContextMenu}
       />
 
       {isHomeView && apiError && (
@@ -481,7 +536,7 @@ export function HomeWorkspace() {
             onRefreshDocuments={() => void refreshBackendData()}
             documentRole={selectedDocumentRole}
             documentStatus={selectedDocumentStatus}
-            documentConverting={selectedDocumentConverting}
+            documentConversion={selectedDocumentConversion}
             parentLabel={selectedDocumentParentLabel}
             editedAt={selectedDocumentEditedAt}
             isAgentPanelOpen={isHomeAgentPanelOpen}
@@ -501,7 +556,7 @@ export function HomeWorkspace() {
             links={graphData.links}
             rawDocumentCount={graphDocuments.length}
             focusedNodeId={selection.focusedGraphNodeId}
-            onOpenNodePreview={selection.openGraphNodePreview}
+            onOpenNodePreview={openGraphNode}
             onClearNodeFocus={selection.clearGraphFocus}
             loading={isGraphLoading}
             errorMessage={apiError}
@@ -515,8 +570,10 @@ export function HomeWorkspace() {
           onCancel={() => setPdfIngestConfirmation(null)}
           onConfirm={() => {
             const selectedIds = new Set(pdfIngestConfirmation.map((document) => document.id));
-            // 확인을 기다리는 동안 상태가 바뀐 문서에는 중복 요청을 보내지 않는다.
-            const targets = graphDocuments.filter((document) => selectedIds.has(document.id) && isGraphIngestEligible(document));
+            // 확인을 기다리는 동안 상태가 바뀐 문서(변환 시작·편입 진행 등)에는 중복 요청을 보내지 않는다.
+            const targets = documents.filter((document) =>
+              selectedIds.has(document.id) && isGraphIngestEligible(document, documents)
+            );
             setPdfIngestConfirmation(null);
             void handleGraphIngest(targets);
           }}

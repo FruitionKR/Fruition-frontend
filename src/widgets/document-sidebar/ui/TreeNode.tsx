@@ -1,5 +1,6 @@
 import { cx } from "@/shared/lib/classNames";
 import { isFileItem } from "@/entities/tree";
+import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
 import { TreeNodeIcon } from "./TreeNodeIcon";
@@ -45,7 +46,7 @@ export function TreeNode({
 }: {
   item: TreeItem;
   depth: number;
-  openIds: Set<string>;
+  openIds: ReadonlySet<string>;
   onToggle: (id: string) => void;
   projectId: string;
   onDropItem: (target: DropTarget) => void;
@@ -56,18 +57,20 @@ export function TreeNode({
   const isSelected = selectedItemIds.has(item.id);
   // 선택된 묶음 중 하나를 끌면 나머지 선택 항목도 함께 이동하므로 같이 흐리게 표시한다.
   const isDraggingGroup = draggedItemId !== null && isSelected && selectedItemIds.has(draggedItemId);
-  const hasChildren = Boolean(item.children?.length);
   const isOpen = openIds.has(item.id);
   const isDropTarget = dropTarget?.projectId === projectId && dropTarget.targetId === item.id;
   const isFileDropTarget = fileDropTarget?.projectId === projectId && fileDropTarget.folderId === item.id;
   const isEditing = editing?.projectId === projectId && editing.itemId === item.id;
   // 폴더 안으로 넣는 드롭은 폴더 행만이 아니라 펼쳐진 자식까지 한 블록으로 강조한다.
+  // 빈 폴더도 펼침 화살표·토글을 가져 노트와 구분되게 한다.
   const isFolder = item.type === "folder";
   const isDropInside = isDropTarget && dropTarget.position === "inside";
   const isFolderBlockTarget = isFolder && (isDropInside || isFileDropTarget);
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
+  // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
+  const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
   const {
     canDrag,
     handleDragStart,
@@ -87,6 +90,7 @@ export function TreeNode({
 
   return (
     <div className={cx(styles["tree-group"], isFolderBlockTarget && styles["is-drop-inside"])}>
+      <div className={styles["tree-row-wrap"]}>
       <button
         type="button"
         className={cx(
@@ -102,7 +106,7 @@ export function TreeNode({
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
         title={item.errorMessage ?? item.sourceUri}
-        aria-expanded={hasChildren ? isOpen : undefined}
+        aria-expanded={isFolder ? isOpen : undefined}
         aria-busy={isUploading || undefined}
         aria-disabled={isUploading || undefined}
         draggable={!isEditing && !isUploading && canDrag}
@@ -125,10 +129,10 @@ export function TreeNode({
           }
           if (selectedItemIds.size > 0) interaction.onClearSelectedItems();
           if (!isEditing && (item.graphNodeId || item.documentId)) interaction.onSelectGraphNode(item);
-          if (!isEditing && hasChildren) onToggle(item.id);
+          if (!isEditing && isFolder) onToggle(item.id);
         }}
       >
-        <TreeNodeIcon item={item} hasChildren={hasChildren} isOpen={isOpen} />
+        <TreeNodeIcon item={item} isExpandable={isFolder} isOpen={isOpen} />
         {isEditing ? (
           <InlineEditInput
             value={editing.label}
@@ -146,7 +150,25 @@ export function TreeNode({
           </>
         )}
       </button>
-      {hasChildren && isOpen && item.children?.map((child) => (
+      {canShowFolderAction && (
+        <button
+          type="button"
+          className={styles["tree-row-action"]}
+          aria-label={`${item.label}에 추가`}
+          aria-haspopup="menu"
+          data-folder-menu-trigger=""
+          onClick={(event) => {
+            // 행 토글·선택 해제로 전파되지 않게 막는다.
+            event.stopPropagation();
+            interaction.onOpenFolderMenuAt(projectId, item.id, event.currentTarget);
+          }}
+          onContextMenu={(event) => interaction.onContextMenuItem(event, projectId, item.id)}
+        >
+          <SvgIcon src={plusIcon} className={styles["tree-row-action-icon"]} />
+        </button>
+      )}
+      </div>
+      {isFolder && isOpen && item.children?.map((child) => (
         <TreeNode
           key={child.id}
           item={child}

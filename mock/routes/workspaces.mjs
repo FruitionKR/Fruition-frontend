@@ -62,6 +62,9 @@ export function registerWorkspaceRoutes(router) {
   router.delete("/api/workspaces/:wid", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace || !requireOwner(ctx, workspace)) return;
+    // Access(IdempotencyService.validateKey)처럼 Idempotency-Key가 없거나 255자를 넘으면 거부한다.
+    const key = ctx.req.headers["idempotency-key"] ?? "";
+    if (key.length < 1 || key.length > 255) return error(ctx, 400, "Idempotency-Key는 1자 이상 255자 이하여야 합니다.");
     workspace.deleted_at = now();
     ctx.json(204);
   });

@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   classifyChatExportPairs,
   EMPTY_CHAT_PAIR_RANGE_SELECTION,
-  selectChatPairRange
+  selectChatPairRange,
+  toggleChatPair
 } from "../src/features/agent-chat/lib/chatPairSelection.ts";
 import { getChatExportSuccessMessage } from "../src/features/wiki-export/lib/exportStatus.ts";
 
@@ -88,6 +89,47 @@ test("현재 대화에 없는 문답 클릭은 선택을 바꾸지 않는다", (
   const current = selectChatPairRange(pairIds, EMPTY_CHAT_PAIR_RANGE_SELECTION, "pair-2");
 
   assert.equal(selectChatPairRange(pairIds, current, "missing-pair"), current);
+});
+
+test("범위 모드에서 시작점을 다시 클릭하면 선택을 해제한다", () => {
+  const first = selectChatPairRange(pairIds, EMPTY_CHAT_PAIR_RANGE_SELECTION, "pair-2");
+
+  assert.equal(selectChatPairRange(pairIds, first, "pair-2"), EMPTY_CHAT_PAIR_RANGE_SELECTION);
+});
+
+test("범위를 확정한 뒤 시작점을 다시 클릭해도 선택을 해제하고 다음 클릭이 새 시작점이 된다", () => {
+  const first = selectChatPairRange(pairIds, EMPTY_CHAT_PAIR_RANGE_SELECTION, "pair-2");
+  const second = selectChatPairRange(pairIds, first, "pair-4");
+  const cleared = selectChatPairRange(pairIds, second, "pair-2");
+
+  assert.equal(cleared, EMPTY_CHAT_PAIR_RANGE_SELECTION);
+  assert.deepEqual(selectChatPairRange(pairIds, cleared, "pair-3"), {
+    anchorPairId: "pair-3",
+    endPairId: "pair-3",
+    selectedPairIds: ["pair-3"]
+  });
+});
+
+test("개별 모드는 떨어진 문답을 골라 대화 시간순으로 정렬한다", () => {
+  const first = toggleChatPair(pairIds, EMPTY_CHAT_PAIR_RANGE_SELECTION, "pair-4");
+  const second = toggleChatPair(pairIds, first, "pair-1");
+
+  assert.deepEqual(second.selectedPairIds, ["pair-1", "pair-4"]);
+});
+
+test("개별 모드에서 선택된 문답을 다시 클릭하면 그 문답만 해제한다", () => {
+  const selected = ["pair-1", "pair-3", "pair-4"].reduce(
+    (current, pairId) => toggleChatPair(pairIds, current, pairId),
+    EMPTY_CHAT_PAIR_RANGE_SELECTION
+  );
+
+  assert.deepEqual(toggleChatPair(pairIds, selected, "pair-3").selectedPairIds, ["pair-1", "pair-4"]);
+});
+
+test("개별 모드에서도 선택 불가 문답 클릭은 선택을 바꾸지 않는다", () => {
+  const current = toggleChatPair(pairIds, EMPTY_CHAT_PAIR_RANGE_SELECTION, "pair-2");
+
+  assert.equal(toggleChatPair(pairIds, current, "missing-pair"), current);
 });
 
 test("채팅 Export 결과가 skipped면 기존 문서를 열었다고 안내한다", () => {

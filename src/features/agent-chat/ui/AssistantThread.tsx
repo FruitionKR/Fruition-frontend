@@ -108,6 +108,7 @@ export function AssistantThread({
           )}
           {isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
             markdown={formatAnswerMarkdown(message.content)}
+            linkPolicy="inert-external"
             onCitationClick={openCitation}
             canClickCitation={canOpenCitation}
             citationRankMap={citationRankMap}

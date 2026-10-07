@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -102,4 +102,14 @@ test("이름이 같은 기존 폴더도 ID로 구분하고 중첩 폴더·최상
   const preview = buildPlanPreviewTree({ ...plan, operations }, tree);
   assert.deepEqual(preview.nodes.map((node) => node.id), ["b", "doc-1"]);
   assert.equal(preview.nodes[0].children[0].name, "분류");
+});
+
+test("계획 완료 갱신은 같은 화면에서 진행 중 → 종료 전이를 볼 때만 한다", () => {
+  assert.equal(isPlanRunSettled("executing", "succeeded"), true);
+  assert.equal(isPlanRunSettled("awaiting_approval", "rejected"), true);
+  // 이미 끝난 계획이 다시 마운트되거나 같은 상태로 다시 렌더될 때는 갱신하지 않는다.
+  assert.equal(isPlanRunSettled(undefined, "succeeded"), false);
+  assert.equal(isPlanRunSettled("succeeded", "succeeded"), false);
+  assert.equal(isPlanRunSettled("executing", "verifying"), false);
+  assert.equal(isPlanRunSettled("executing", undefined), false);
 });

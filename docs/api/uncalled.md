@@ -16,14 +16,14 @@
 
 | 서비스 | 전체 `/api/**` | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 53 | 34 |
+| document-svc | 87 | 50 | 37 |
 | access-svc | 29 | 26 | 3 |
 
-미호출 34개 분류: 의도적 비사용 4, 진행 중 6, UI 없음 9, 미배선 15.
+미호출 37개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 9, 미배선 14.
 
 ---
 
-## document-svc 미호출 34개
+## document-svc 미호출 37개
 
 ### 의도적 비사용
 
@@ -33,6 +33,10 @@
 | `GET /api/workspaces/{workspace_id}/navigation` | 트리는 `document-tree`를 한 번 받아 쓴다 |
 | `GET /api/workspaces/{workspace_id}/navigation/search` | `src/features/document-search/model/useDocumentSearch.ts`가 이미 받아 둔 트리를 `allItems.filter(...)`로 **클라이언트에서 필터링**한다. 서버 검색을 부르지 않는 것이 현재 설계다 |
 | `GET /api/workspaces/{workspace_id}/navigation/breadcrumb` | 경로 표시도 받아 둔 트리에서 계산한다(`src/entities/tree/model/serverTree.ts` `findServerParent` 등) |
+| `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions` | 문서 버전 기록 화면을 제거했다. 버전은 본문 저장 시 서버가 계속 만든다 |
+| `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 같은 이유(과거 버전 읽기 전용 열람 제거) |
+| `GET /api/workspaces/{workspace_id}/documents/{document_id}/diff` | 같은 이유(버전 간 비교 제거) |
+| `POST /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}/restore` | 같은 이유(과거 버전 복원 제거) |
 
 `navigation*` 3개를 "의도적"으로 분류한 근거는 대체 구현이 코드에 실제로 있다는 점이다.
 다만 트리 전체를 받아 클라이언트에서 거르는 방식이므로 워크스페이스 규모가 커지면
@@ -83,10 +87,8 @@ UI 필요 여부를 단정하지 않는다.
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/restore` | 문서 복구 호출이 없다. 삭제는 소프트 삭제인데 복구 경로가 배선되지 않았다 |
 | `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/markdown` | Markdown 문서 전용 목록. 이 저장소는 `documents` 전체 목록만 쓴다 |
-| `GET /api/workspaces/{workspace_id}/documents/{document_id}/blocks` | 블록 단위 조회를 쓰지 않는다. 본문은 `documents/{id}` 상세의 `markdown` 필드로 받는다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/export` | 문서 내보내기 호출이 없다 |
-| `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 단일 버전 본문 조회. `src/features/document-history/api/versions.ts`는 목록(`/versions`), diff(`/diff`), 복원(`/versions/{version}/restore`)만 부른다. 버전 내용 표시는 서버 계산 diff로 대체한다 |
 | `GET /api/workspaces/{workspace_id}/folders/{folder_id}/children` | 자식 조회를 쓰지 않는다. 트리를 한 번에 받는다 |
 | `GET /api/workspaces/{workspace_id}/usage/models` | 모델 사용량 조회 호출이 없다. 설정 화면은 `ai-models`와 `ai-model-settings`만 쓴다 |
 | `GET /api/workspaces/{workspace_id}/wiki/pages/{wiki_page_id}/diff` | Wiki 페이지 변경 비교 호출이 없다 |
@@ -126,8 +128,6 @@ access-svc에는 워크스페이스 삭제(`DELETE /api/workspaces/{workspace_id
     `mutateTreeItem`의 `...suffix` 전개로 만들어진다.
   - `POST .../documents/uploads/parts`·`/complete`·`/abort` — 호출자가 넘긴
     `endpoint` 변수에 접미사를 붙인다.
-  - `GET .../documents/{document_id}/versions`·`/diff`, `POST .../versions/{version}/restore` —
-    로컬 `documentPath()`가 `workspacePath`를 감싼 이중 조립이다.
   - `POST .../ai/tasks/{id}/cancel` — `workspacePath` 결과에 `/cancel`을 붙인다.
   - `GET .../agent/turn/{run_id}/events` — 같은 패턴.
   53/34가 맞다고 보지만, 두 집계가 각각 어느 경로를 다르게 분류했는지는 위 목록을

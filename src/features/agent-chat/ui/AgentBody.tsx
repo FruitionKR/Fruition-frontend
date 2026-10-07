@@ -5,6 +5,7 @@ import { groupMessagesByPair } from "../lib/messageGroups";
 import { buildProgressSteps } from "../lib/progressSteps";
 import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
+import type { ChatPairSelectionKind } from "../lib/chatPairSelection";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
@@ -13,6 +14,23 @@ import { useSmoothScroll } from "../lib/useSmoothScroll";
 import styles from "./AgentChat.module.css";
 
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
+
+function getPairSelectionLabel({
+  isSelectable,
+  isSelected,
+  isExcluded,
+  isIndividualSelection
+}: {
+  isSelectable: boolean;
+  isSelected: boolean;
+  isExcluded: boolean;
+  isIndividualSelection: boolean;
+}): string {
+  if (!isSelectable) return isExcluded ? "선택 불가 · 문서·Skill 명령" : "선택 불가 · 완료된 문답이 아닙니다";
+  // 개별 선택은 체크박스가 선택 상태를 보여 주므로 라벨에 ✓를 중복하지 않는다.
+  if (isSelected) return isIndividualSelection ? "선택됨" : "✓ 선택됨";
+  return isIndividualSelection ? "선택 가능 · 클릭하여 선택·해제" : "선택 가능 · 클릭하여 범위 지정";
+}
 
 export function AgentBody({
   messages,
@@ -30,6 +48,7 @@ export function AgentBody({
   onOpenWikiPage,
   onOpenSourceBlocks,
   isPairSelectionMode,
+  pairSelectionKind = "range",
   selectablePairIds,
   excludedPairIds,
   selectedPairIds,
@@ -52,6 +71,7 @@ export function AgentBody({
   onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   isPairSelectionMode: boolean;
+  pairSelectionKind?: ChatPairSelectionKind;
   selectablePairIds: string[];
   excludedPairIds: string[];
   selectedPairIds: string[];
@@ -129,8 +149,10 @@ export function AgentBody({
   const selectablePairIdSet = new Set(selectablePairIds);
   const excludedPairIdSet = new Set(excludedPairIds);
   const selectedPairIdSet = new Set(selectedPairIds);
-  const selectedRangeStart = selectedPairIds[0] ?? null;
-  const selectedRangeEnd = selectedPairIds.at(-1) ?? null;
+  const isIndividualSelection = pairSelectionKind === "individual";
+  // 개별 선택은 떨어진 문답을 각각 표시하므로 범위 시작·끝 테두리를 쓰지 않는다.
+  const selectedRangeStart = isIndividualSelection ? null : selectedPairIds[0] ?? null;
+  const selectedRangeEnd = isIndividualSelection ? null : selectedPairIds.at(-1) ?? null;
   // SSE로 받은 실제 진행 단계를 상태 목록으로 표시한다. 마지막 단계는 아직 진행 중이면 active로 둔다.
   const stageSteps = buildProgressSteps(queryStages, isLoading);
   const pendingStatusThread = (
@@ -145,7 +167,11 @@ export function AgentBody({
   );
 
   return (
-    <div className={cx(styles["agent-body"], isPairSelectionMode && styles["is-pair-selecting"])} ref={bodyRef}>
+    <div className={cx(
+      styles["agent-body"],
+      isPairSelectionMode && styles["is-pair-selecting"],
+      isPairSelectionMode && isIndividualSelection && styles["is-individual-selecting"]
+    )} ref={bodyRef}>
       {messageGroups.map((group) => {
         const isSelectable = group.pairId !== null && selectablePairIdSet.has(group.pairId);
         const isExcluded = group.pairId !== null && excludedPairIdSet.has(group.pairId);
@@ -168,17 +194,20 @@ export function AgentBody({
           >
             {isPairSelectionMode && (
               <div className={styles["chat-pair-selection-label"]}>
-                {isSelectable
-                  ? isSelected ? "✓ 선택됨" : "선택 가능 · 클릭하여 범위 지정"
-                  : isExcluded ? "선택 불가 · 문서·Skill 명령" : "선택 불가 · 완료된 문답이 아닙니다"}
+                {isIndividualSelection && isSelectable && (
+                  <span className={styles["chat-pair-checkbox"]} aria-hidden="true">{isSelected ? "✓" : null}</span>
+                )}
+                {getPairSelectionLabel({ isSelectable, isSelected, isExcluded, isIndividualSelection })}
               </div>
             )}
             {isPairSelectionMode && isSelectable && (
               <button
                 type="button"
+                role={isIndividualSelection ? "checkbox" : undefined}
                 className={styles["chat-selection-overlay"]}
-                aria-pressed={isSelected}
-                aria-label="이 문답을 편입 범위로 선택"
+                aria-checked={isIndividualSelection ? isSelected : undefined}
+                aria-pressed={isIndividualSelection ? undefined : isSelected}
+                aria-label={isIndividualSelection ? "이 문답을 편입 대상으로 선택" : "이 문답을 편입 범위로 선택"}
                 onClick={() => onSelectPair(group.pairId as string)}
               />
             )}

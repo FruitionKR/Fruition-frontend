@@ -10,7 +10,7 @@ import { history } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
-import { editorViewCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
+import { editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
 import type { KeymapItem } from "@milkdown/core";
 import { closeHistory, history as prosemirrorHistory } from "@milkdown/prose/history";
 import { listItemSchema } from "@milkdown/kit/preset/commonmark";
@@ -26,11 +26,15 @@ import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAu
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
+import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/markdownHeading";
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
 import { refitImageBlocks } from "../model/imageBlockHeight";
-import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, isManagedAssetPath, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
+import { ALLOW_EXTERNAL_IMAGES_META, blockedImagePlaceholderUrl, createExternalImageGuard, createExternalImagePasteHandler } from "../model/externalImageGuard";
+import { $prose } from "@milkdown/utils";
+import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
+import { classifyImageSource, countExternalMarkdownImages, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
@@ -50,6 +54,26 @@ const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, 
   if ($from.node(-1).type !== listItemType) return false;
   return liftListItem(listItemType)(state, dispatch, view);
 };
+
+// 링크 입력처럼 글자마다 막히는 경로에서 알림 카드가 쌓이지 않게 한다.
+// 안내 문구마다 따로 세어, 종류가 다른 차단은 3초 안이어도 알린다.
+/** 빈 본문 안내 문구(Figma 426:2202). WYSIWYG·소스 모드가 같은 문구를 쓴다. */
+const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하거나 내용을 입력하세요";
+
+const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
+const lastExternalImageNoticeAt = new Map<string, number>();
+
+// 원문 모드는 글을 그대로 두므로 "넣을 수 없다" 대신 표시되지 않는다고 알린다.
+const EXTERNAL_IMAGE_HIDDEN_MESSAGE = "보안을 위해 외부 이미지는 표시되지 않습니다. 이미지를 내려받아 직접 업로드해 주세요.";
+
+function notifyExternalImageBlocked(message: string = EXTERNAL_IMAGE_BLOCKED_MESSAGE) {
+  const now = Date.now();
+  if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
+  lastExternalImageNoticeAt.set(message, now);
+  publishNotice({ kind: "failed", title: "외부 이미지 차단", message });
+}
+
+const externalImageGuard = $prose(() => createExternalImageGuard(() => notifyExternalImageBlocked()));
 
 export function NoteEditor({
   documentId,
@@ -146,6 +170,8 @@ export function NoteEditor({
       const size = tr.doc.content.size;
       tr.setSelection(TextSelection.between(tr.doc.resolve(Math.min(from, size)), tr.doc.resolve(Math.min(to, size))));
       tr.setMeta("addToHistory", false);
+      // AI 편집 적용 등 프로그램 교체다. 외부 이미지가 들어 있어도 화면엔 자리 표시만 나온다.
+      tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
       view.dispatch(tr);
     });
   }, []);
@@ -322,6 +348,23 @@ export function NoteEditor({
     return () => observer.disconnect();
   }, [canEdit, documentId, sourceMode]);
 
+  // 이미지 블록의 링크 입력칸은 글자를 받는 즉시 <img src={입력값}> 미리보기를 그려 외부 주소를 요청한다.
+  // Crepe 컴포넌트(Vue)가 입력 요소에 단 리스너보다 먼저 capture 단계에서 막고 입력값을 비운다(이슈 #77).
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    const onInput = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || !target.matches(".image-edit .link-input-area")) return;
+      if (!target.value || isAllowedImageSource(target.value)) return;
+      event.stopPropagation();
+      target.value = "";
+      notifyExternalImageBlocked();
+    };
+    root.addEventListener("input", onInput, true);
+    return () => root.removeEventListener("input", onInput, true);
+  }, [canEdit, documentId, sourceMode]);
+
   // '/' 슬래시 메뉴가 화면 밖으로 넘어가지 않게 표시 위치를 viewport 안으로 보정한다.
   // (Crepe는 flip만 적용하고 shift 미들웨어를 노출하지 않아 가장자리에서 잘림)
   useEffect(() => {
@@ -398,10 +441,16 @@ export function NoteEditor({
           },
           // 저장 전 placeholder는 로컬 미리보기, 저장된 관리 경로는 인증 fetch로 받는다.
           // 이미 받아 둔 경로는 동기로 돌려줘야 이미지 블록이 첫 렌더에서 원본 경로(401)를 요청하지 않는다.
+          // 외부 주소·관리 경로가 아닌 src는 요청하지 않고 자리 표시 그림을 돌려준다(이슈 #77). 노드 src는 그대로라 본문은 바뀌지 않는다.
+          // 빈 src는 그대로 둬야 이미지 블록이 업로드 입력칸을 보여준다.
           proxyDomURL: (url) => {
             const pending = pendingImages.resolve(url);
             if (pending) return pending;
-            if (!isManagedAssetPath(url)) return url;
+            if (!url) return url;
+            const source = classifyImageSource(url);
+            if (source.kind === "external") return blockedImagePlaceholderUrl(source.host);
+            if (source.kind === "unsupported") return blockedImagePlaceholderUrl(null);
+            if (source.kind === "inline") return url;
             const cached = getCachedAssetObjectUrl(url);
             if (cached) {
               // 동기로 돌려주되 이 편집기의 참조도 잡아 둔다. 안 잡으면 다른 사용처가 놓을 때 표시 중인 URL이 revoke된다.
@@ -411,9 +460,9 @@ export function NoteEditor({
             return acquireManagedAsset(url).catch(() => url);
           },
           inlineUploadButton: "이미지 선택",
-          inlineUploadPlaceholderText: "또는 이미지 링크 붙여넣기",
+          inlineUploadPlaceholderText: "이미지 파일을 선택해 올려 주세요",
           blockUploadButton: "이미지 선택",
-          blockUploadPlaceholderText: "또는 이미지 링크 붙여넣기",
+          blockUploadPlaceholderText: "이미지 파일을 선택해 올려 주세요",
           blockConfirmButton: "확인",
           blockCaptionPlaceholderText: "캡션 입력"
         },
@@ -431,9 +480,10 @@ export function NoteEditor({
             h1: { label: "제목 1" },
             h2: { label: "제목 2" },
             h3: { label: "제목 3" },
-            h4: { label: "제목 4" },
-            h5: { label: "제목 5" },
-            h6: { label: "제목 6" },
+            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/markdownHeading.ts).
+            h4: null,
+            h5: null,
+            h6: null,
             quote: { label: "인용" },
             divider: { label: "구분선" }
           },
@@ -451,8 +501,10 @@ export function NoteEditor({
             math: { label: "수식" }
           }
         },
+        // 문서 전체가 비었을 때만 보여 준다(새 노트 본문은 비어 있다). 데코레이션이라 저장되는 마크다운에는 들어가지 않는다.
         [CrepeFeature.Placeholder]: {
-          text: "내용을 입력하거나 '/'로 명령을 여세요"
+          text: NOTE_BODY_PLACEHOLDER,
+          mode: "doc"
         }
       }
     }).on((listener) => {
@@ -469,9 +521,16 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(cappedHeadingInputRule).use(externalImageGuard).config((ctx) => {
+      // direct prop이라 Milkdown clipboard plugin의 handlePaste보다 먼저 실행된다.
+      const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), () => notifyExternalImageBlocked());
+      ctx.update(editorViewOptionsCtx, (previous) => ({
+        ...previous,
+        handlePaste: (view, event, slice) => guardPaste(view, event, slice) || (previous.handlePaste?.(view, event, slice) ?? false)
+      }));
       configureMarkdownMath(ctx);
       configureStrikethrough(ctx);
+      disableSmallHeadingShortcuts(ctx);
       preserveImageAlt(ctx);
       // 붙여넣기·드롭 묶음에서 넣을 수 없는 이미지만 빼고 나머지는 그대로 올린다.
       // Crepe 기본 uploader는 한 장이 실패하면 묶음 전체를 버리고 로딩 표시를 지우지 않는다.
@@ -586,6 +645,7 @@ export function NoteEditor({
           className={styles["note-markdown-editor"]}
           value={body}
           minHeight="420px"
+          placeholder={NOTE_BODY_PLACEHOLDER}
           extensions={editorExtensions}
           basicSetup={{
             lineNumbers: preferences.editor.markdown.lineNumbers,
@@ -607,6 +667,7 @@ export function NoteEditor({
             publishMarkdownEditContext(viewUpdate.state.doc.toString(), selection.from, selection.to);
           }}
           onChange={(nextBody) => {
+            const previousBody = bodyRef.current;
             bodyRef.current = nextBody;
             setBody(nextBody);
             if (programmaticBodyRef.current === nextBody) {
@@ -614,6 +675,9 @@ export function NoteEditor({
               return;
             }
             programmaticBodyRef.current = null;
+            // 원문 모드는 글을 지우지 않고 저장도 막지 않는다. 저장을 막으면 이동할 때 편집분을 잃고,
+            // 외부 이미지가 이미 있는 문서는 편집 자체가 막힌다. 넣어도 어디서도 불러오지 않으므로 알리기만 한다.
+            if (countExternalMarkdownImages(nextBody) > countExternalMarkdownImages(previousBody)) notifyExternalImageBlocked(EXTERNAL_IMAGE_HIDDEN_MESSAGE);
             queueSave(nextBody);
           }}
         />

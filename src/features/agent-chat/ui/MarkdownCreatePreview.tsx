@@ -25,7 +25,7 @@ export function MarkdownCreatePreview({
         <p>{draft.summary}</p>
       </header>
       <div className={styles["markdown-create-rendered-preview"]}>
-        <MarkdownViewer markdown={draft.markdown} />
+        <MarkdownViewer markdown={draft.markdown} linkPolicy="inert-external" />
       </div>
       {errorMessage && <p className={styles["markdown-edit-error"]} role="alert">{errorMessage}</p>}
       <footer>

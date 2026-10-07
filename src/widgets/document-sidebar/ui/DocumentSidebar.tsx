@@ -2,7 +2,7 @@ import { useState, type ChangeEvent as ReactChangeEvent, type ComponentProps, ty
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
-import { chatIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chatIcon, plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { ContextMenu } from "./ContextMenu";
 import { GraphSidebarActions } from "./GraphSidebarActions";
@@ -26,9 +26,13 @@ export function DocumentSidebar({
   dropTarget,
   fileDropTarget,
   editing,
+  openIds,
+  onToggleOpen,
+  onOpenMany,
   contextMenu,
   convertContextTarget,
   canRenameContextTarget,
+  canCreateInContextTarget,
   uploadInputRef,
   activeView,
   documents,
@@ -36,7 +40,6 @@ export function DocumentSidebar({
   logEntries,
   onViewChange,
   onStartChat,
-  onUploadToProject,
   onAddProject,
   onResizeStart,
   onUploadPickerChange,
@@ -51,6 +54,7 @@ export function DocumentSidebar({
   onDragEnd,
   onContextMenuProject,
   onContextMenuItem,
+  onOpenFolderMenuAt,
   onSelectGraphNode,
   onEditingChange,
   onCommitEditing,
@@ -59,7 +63,8 @@ export function DocumentSidebar({
   onAddMarkdownFromContext,
   onUploadFromContext,
   onConvertContextTarget,
-  onDeleteContextTarget
+  onDeleteContextTarget,
+  onCloseContextMenu
 }: {
   projects: Project[];
   draggedItemId: string | null;
@@ -68,21 +73,25 @@ export function DocumentSidebar({
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
+  openIds: ReadonlySet<string>;
+  onToggleOpen: (id: string) => void;
+  onOpenMany: (ids: readonly string[]) => void;
   contextMenu: ContextMenuState | null;
   convertContextTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameContextTarget: boolean;
+  /** 파일 메뉴에서는 생성 항목(새 폴더·새 노트·파일 업로드)을 숨긴다. */
+  canCreateInContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
   activeView: RailView;
   /** 워크스페이스 문서 목록. 헤더의 진행 중 작업 팝오버가 여기서 ingest 진행 문서를 고른다. */
   documents?: DocumentItemResponse[];
   /** 그래프 뷰에서 문서 트리 대신 보여줄 위키 액션. */
-  graphActions?: Omit<ComponentProps<typeof GraphSidebarActions>, "projects" | "tree">;
+  graphActions?: Omit<ComponentProps<typeof GraphSidebarActions>, "tree">;
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
   logEntries?: ComponentProps<typeof LogSidebarEntries>;
   onViewChange: (view: RailView) => void;
   onStartChat: () => void;
-  onUploadToProject: (projectId: string) => void;
   onAddProject: () => void;
   onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onUploadPickerChange: (event: ReactChangeEvent<HTMLInputElement>) => void;
@@ -97,6 +106,7 @@ export function DocumentSidebar({
   onDragEnd: () => void;
   onContextMenuProject: (event: ReactMouseEvent<HTMLElement>, projectId: string) => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
+  onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement) => void;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
   onCommitEditing: () => void;
@@ -106,6 +116,7 @@ export function DocumentSidebar({
   onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
+  onCloseContextMenu: () => void;
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // 트리는 루트 프로젝트 하나뿐이다. 사이드바 전체가 루트 파일 드롭 영역이 된다.
@@ -130,6 +141,9 @@ export function DocumentSidebar({
     dropTarget,
     fileDropTarget,
     editing,
+    openIds,
+    onToggleOpen,
+    onOpenMany,
     onMoveItem,
     onDropFiles,
     onDragStart,
@@ -140,6 +154,7 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDragEnd,
     onContextMenuItem,
+    onOpenFolderMenuAt,
     onSelectGraphNode,
     onEditingChange,
     onCommitEditing,
@@ -149,11 +164,31 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 하단 위키 액션과 함께 감싼다.
   const projectTree = (
     <>
+      {/* 문서가 많아 빈 영역이 없어도 최상위에 만들 수 있도록 트리 상단에 생성 메뉴 버튼을 둔다. */}
+      {activeView === "home" && rootProject && (
+        <div className={styles["tree-root-header"]}>
+          <span>문서</span>
+          <button
+            type="button"
+            className={styles["tree-root-add"]}
+            aria-label="최상위에 추가"
+            aria-haspopup="menu"
+            data-folder-menu-trigger=""
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenFolderMenuAt(rootProject.id, null, event.currentTarget);
+            }}
+          >
+            <SvgIcon src={plusIcon} className={styles["tree-row-action-icon"]} />
+          </button>
+        </div>
+      )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
       {contextMenu && (
         <ContextMenu
           contextMenu={contextMenu}
           canCreateProject={canCreateProjectFromView(activeView)}
+          canCreateInTarget={canCreateInContextTarget}
           convertTarget={convertContextTarget}
           canRenameTarget={canRenameContextTarget}
           onRenameContextTarget={onRenameContextTarget}
@@ -162,6 +197,7 @@ export function DocumentSidebar({
           onUploadFromContext={onUploadFromContext}
           onConvertContextTarget={onConvertContextTarget}
           onDeleteContextTarget={onDeleteContextTarget}
+          onClose={onCloseContextMenu}
         />
       )}
     </>
@@ -181,8 +217,6 @@ export function DocumentSidebar({
         isSearchOpen={isSearchOpen}
         onViewChange={onViewChange}
         onToggleSearch={() => setIsSearchOpen((open) => !open)}
-        onAddProject={onAddProject}
-        onUploadFile={() => rootProject && onUploadToProject(rootProject.id)}
       />
       {activeView === "home" && isSearchOpen && (
         <DocumentSearch
@@ -211,7 +245,7 @@ export function DocumentSidebar({
         }}
       >
         {activeView === "graph" && graphActions ? (
-          <GraphSidebarActions {...graphActions} projects={projects} tree={projectTree} />
+          <GraphSidebarActions {...graphActions} tree={projectTree} />
         ) : activeView === "logs" && logEntries ? (
           <LogSidebarEntries {...logEntries} />
         ) : projectTree}

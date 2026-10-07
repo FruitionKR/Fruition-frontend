@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchDocumentData, fetchWikiGraph } from "@/entities/wiki";
+import { documentDataQueryKey, fetchDocumentData, fetchWikiGraph } from "@/entities/wiki";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { projectsFromServerTree } from "@/entities/tree/lib/serverTree";
@@ -28,7 +28,7 @@ export function useBackendData({
   const workspaceId = getSelectedWorkspaceId();
   const isPageVisible = usePageVisible();
   const query = useQuery({
-    queryKey: ["backendData", workspaceId, "documents"],
+    queryKey: documentDataQueryKey(workspaceId),
     queryFn: fetchDocumentData,
     enabled: Boolean(workspaceId),
     refetchInterval: (activeQuery) =>
@@ -68,7 +68,7 @@ export function useBackendData({
   /** 업로드 낙관적 갱신용: query cache의 documents를 직접 수정한다. */
   const setDocuments = useCallback(
     (action: SetStateAction<DocumentItemResponse[]>) => {
-      queryClient.setQueryData<DocumentData>(["backendData", workspaceId, "documents"], (current) => {
+      queryClient.setQueryData<DocumentData>(documentDataQueryKey(workspaceId), (current) => {
         const base = current ?? { documents: [] };
         const nextDocuments = typeof action === "function" ? action(base.documents) : action;
         return { ...base, documents: nextDocuments };

@@ -36,9 +36,36 @@ const BLOCK_REF_SOURCE =
   "(?:[A-Za-z0-9_.-]+:)?(?:B\\d{4}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})";
 const BLOCK_REF_TOKEN = new RegExp(`\\s*\\[${BLOCK_REF_SOURCE}(?:\\s*,\\s*${BLOCK_REF_SOURCE})*\\]`, "g");
 
-/** 문장 끝 마침표 뒤에 빈 줄을 넣어 답변 가독성을 높인다(소수점은 제외). */
+// 마침표 뒤의 citation 묶음([1], [1, 2], [1][2])은 앞 문장에 붙여 둔 채 그 다음 공백에서 나눈다.
+const SENTENCE_END = /(?<!\d)\.((?:[ \t]*\[\d+(?:\s*,\s*\d+)*\])*)[ \t]+(?=\S)(?!\[\d)/g;
+// 줄 끝에서 끝나는 문장. 다음 줄이 일반 문단이면 빈 줄로 나눈다.
+const LINE_SENTENCE_END = /(?<!\d)\.(?:[ \t]*\[\d+(?:\s*,\s*\d+)*\])*[ \t]*$/;
+// 나누면 Markdown 구조가 깨지는 줄: 리스트, 제목, 인용, 표.
+const STRUCTURAL_LINE = /^\s*(?:[-*+]\s|\d+[.)]\s|#|>|\|)/;
+const CODE_FENCE = /^\s*(?:```|~~~)/;
+
+function isPlainTextLine(line: string | undefined): boolean {
+  return line !== undefined && line.trim() !== "" && !STRUCTURAL_LINE.test(line) && !CODE_FENCE.test(line);
+}
+
+/**
+ * 문장 끝 마침표 뒤에 빈 줄을 넣어 답변 가독성을 높인다.
+ * 소수점, 리스트·제목·인용·표 줄, 코드 펜스 안은 나누지 않는다.
+ */
 export function formatAnswerMarkdown(content: string): string {
-  return content.replace(BLOCK_REF_TOKEN, "").replace(/(?<!\d)\.(?!\d)\s+/g, ".\n\n");
+  const lines = content.replace(BLOCK_REF_TOKEN, "").split("\n");
+  let isInFence = false;
+
+  return lines.map((line, index) => {
+    if (CODE_FENCE.test(line)) {
+      isInFence = !isInFence;
+      return line;
+    }
+    if (isInFence || !isPlainTextLine(line)) return line;
+
+    const formatted = line.replace(SENTENCE_END, (_, cites: string) => `.${cites}\n\n`);
+    return LINE_SENTENCE_END.test(formatted) && isPlainTextLine(lines[index + 1]) ? `${formatted}\n` : formatted;
+  }).join("\n");
 }
 
 /** citation 근거의 block id와 본문을 합쳐 메타 문자열을 만든다. */

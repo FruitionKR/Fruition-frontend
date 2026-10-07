@@ -2,6 +2,7 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
@@ -29,9 +30,13 @@ export function FlowModal({
   onSubmit: (event: FormEvent) => void;
   children: ReactNode;
 }) {
-  useEscapeKey(canClose, onClose);
+  // 닫을 수 없는 동안에도 레이어는 유지해 Escape가 아래 설정 창으로 넘어가지 않게 한다.
+  useEscapeKey(true, () => {
+    if (canClose) onClose();
+  });
+  const backdropClick = useBackdropClick(canClose ? onClose : undefined);
   return createPortal(
-    <div className={styles.overlay} onClick={canClose ? onClose : undefined}>
+    <div className={styles.overlay} {...backdropClick}>
       <form
         className={styles.modal}
         role="dialog"

@@ -68,6 +68,23 @@ test("본문에서 관리 이미지 경로만 중복 없이 뽑는다", async ()
   assert.deepEqual(extractManagedAssetPaths("이미지 없음"), []);
 });
 
+test("본문에서 뽑는 관리 이미지 경로도 실제 ID 형식만 받는다", async () => {
+  const { extractManagedAssetPaths } = await import("../src/shared/api/assets.ts");
+  const markdown = [
+    "![](/api/workspaces/x/assets/../content)",
+    "![](/api/workspaces/x/assets/%2e%2e/content)",
+    "![](/api/workspaces/..%2f/assets/y/content)",
+    "![](/api/workspaces/x/assets/y/content?u=1)",
+    "![](/api/workspaces/x/assets/y/content#x)",
+    "![](/api/workspaces/ws_1/assets/0c973836-6687-4018-b2c7-f2f66984e87b/content \"제목\")",
+    "![](</api/workspaces/ws_1/assets/asset_9/content>)"
+  ].join("\n");
+  assert.deepEqual(extractManagedAssetPaths(markdown), [
+    "/api/workspaces/ws_1/assets/0c973836-6687-4018-b2c7-f2f66984e87b/content",
+    "/api/workspaces/ws_1/assets/asset_9/content"
+  ]);
+});
+
 test("이미지 alt는 Crepe 비율 형식(소수점 둘째 자리)일 때만 비율로 보고 나머지는 보존한다", async () => {
   const { splitImageAlt, formatImageAlt } = await import("../src/features/note-editing/model/imageAltText.ts");
   assert.deepEqual(splitImageAlt("1.00"), { alt: "", ratio: 1 });
@@ -80,4 +97,12 @@ test("이미지 alt는 Crepe 비율 형식(소수점 둘째 자리)일 때만 �
   assert.equal(formatImageAlt("diagram", 0.5), "diagram");
   assert.equal(formatImageAlt("", 0.5), "0.50");
   assert.equal(formatImageAlt("2024", 1), "2024");
+});
+
+test("외부 URL 안에 끼어 있는 관리 이미지 경로는 뽑지 않는다", async () => {
+  const { extractManagedAssetPaths } = await import("../src/shared/api/assets.ts");
+  const inner = "/api/workspaces/ws_1/assets/asset_1/content";
+  assert.deepEqual(extractManagedAssetPaths(`![](https://evil.example/x${inner})`), []);
+  assert.deepEqual(extractManagedAssetPaths(`![](https://evil.example${inner})`), []);
+  assert.deepEqual(extractManagedAssetPaths(`<img src="${inner}"> [r]: ${inner}\n${inner}`), [inner]);
 });
