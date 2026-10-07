@@ -6,7 +6,6 @@ import {
   fetchAiModels,
   fetchWorkspaceAiModelSettings,
   isSameSelection,
-  resolveProviderModel,
   updateWorkspaceAiModelSettings,
   type AiModel,
   type AiModelSelection
@@ -76,11 +75,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const name = me?.display_name || "사용자";
   const wsName = workspaceName ?? "워크스페이스";
 
-  async function selectAiProvider(provider: string) {
-    if (!canUpdateAiModel) return;
-    const selected = resolveProviderModel(aiModels, provider, aiModelSelection);
-    // provider만 같고 model이 catalog에서 빠진 경우에도 유효 조합으로 복구해야 하므로 전체를 비교한다.
-    if (!selected || isSameSelection(selected, aiModelSelection) || isAiModelSaving) return;
+  async function selectAiModel(selected: AiModel) {
+    if (!canUpdateAiModel || isSameSelection(selected, aiModelSelection) || isAiModelSaving) return;
     setIsAiModelSaving(true);
     setAiModelError(null);
     try {
@@ -176,7 +172,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               aiModelError={aiModelError}
               isAiModelSaving={isAiModelSaving}
               canUpdateAiModel={canUpdateAiModel}
-              onSelectProvider={(provider) => void selectAiProvider(provider)}
+              onSelectModel={(model) => void selectAiModel(model)}
             />
           )}
           {activeSection === "members" && <MembersPanel />}

@@ -1,7 +1,7 @@
 import { Check, ChevronDown } from "lucide-react";
 import { sendIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { AiModel } from "@/entities/ai";
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
@@ -48,14 +48,70 @@ export function AgentComposer({
   statusMessage?: string | null;
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
+  const [modelQuery, setModelQuery] = useState("");
+  const [activeModelIndex, setActiveModelIndex] = useState(0);
   const modelListRef = useRef<HTMLDivElement | null>(null);
+  const modelTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const modelListId = useId();
   const selectedKey = selectedModel ? modelKey(selectedModel) : null;
+  const modelGroups = groupAiModelsByProvider(filterAiModels(models, modelQuery));
+  // 키보드 이동 순서는 화면에 보이는 묶음 순서와 같아야 한다.
+  const visibleModels = modelGroups.flatMap((group) => group.models);
+  const activeModel = visibleModels[activeModelIndex] ?? null;
+  const activeOptionId = activeModel ? modelOptionId(activeModel) : undefined;
 
-  useDismissOnOutside(modelListRef, isModelListOpen, () => setIsModelListOpen(false));
+  // ESC는 useDismissOnOutside가 ESC 레이어 스택으로 처리한다. 목록 안에 포커스가 있었으면 트리거로 돌려준다.
+  function closeModelList() {
+    setIsModelListOpen(false);
+    if (modelListRef.current?.contains(document.activeElement)) modelTriggerRef.current?.focus();
+  }
+
+  useDismissOnOutside(modelListRef, isModelListOpen, closeModelList);
 
   useEffect(() => {
     if (isLoading) setIsModelListOpen(false);
   }, [isLoading]);
+
+  // 활성 항목이 스크롤 밖에 있으면 보이도록 맞춘다.
+  useEffect(() => {
+    if (!isModelListOpen || !activeOptionId) return;
+    document.getElementById(activeOptionId)?.scrollIntoView({ block: "nearest" });
+  }, [isModelListOpen, activeOptionId]);
+
+  function modelOptionId(model: AiModel) {
+    return `${modelListId}-${modelKey(model)}`;
+  }
+
+  function openModelList() {
+    setModelQuery("");
+    const selectedIndex = groupAiModelsByProvider(models)
+      .flatMap((group) => group.models)
+      .findIndex((model) => modelKey(model) === selectedKey);
+    setActiveModelIndex(Math.max(selectedIndex, 0));
+    setIsModelListOpen(true);
+  }
+
+  function chooseModel(model: AiModel) {
+    onModelChange(model);
+    closeModelList();
+  }
+
+  function handleModelSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing) return;
+    const count = visibleModels.length;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (count === 0) return;
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActiveModelIndex((index) => (index + step + count) % count);
+      return;
+    }
+    if (event.key === "Enter") {
+      // 폼 안의 input이라 Enter가 질문 전송으로 이어지지 않게 막는다.
+      event.preventDefault();
+      if (activeModel) chooseModel(activeModel);
+    }
+  }
 
   function submitComposer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -106,10 +162,11 @@ export function AgentComposer({
           <button
             type="button"
             className={styles["composer-model-trigger"]}
+            ref={modelTriggerRef}
             aria-label="모델 선택"
             aria-expanded={isModelListOpen}
             disabled={isLoading || !selectedModel}
-            onClick={() => setIsModelListOpen((open) => !open)}
+            onClick={() => (isModelListOpen ? setIsModelListOpen(false) : openModelList())}
           >
             <span>{selectedModel?.display_name ?? emptyModelLabel}</span>
             {selectedModel && allowWebSearch && (
@@ -122,26 +179,57 @@ export function AgentComposer({
           </button>
           {isModelListOpen && (
             <div className={styles["composer-model-list"]}>
-              <div role="listbox" aria-label="모델 목록">
-                {models.map((model) => {
-                  const isSelected = modelKey(model) === selectedKey;
-                  return (
-                    <button
-                      key={modelKey(model)}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      className={cx(styles["composer-model-option"], isSelected && styles["is-selected"])}
-                      onClick={() => {
-                        onModelChange(model);
-                        setIsModelListOpen(false);
-                      }}
-                    >
-                      <span>{model.display_name}</span>
-                      {isSelected && <Check size={12} aria-hidden />}
-                    </button>
-                  );
-                })}
+              <input
+                type="search"
+                className={styles["composer-model-search"]}
+                placeholder="모델 검색"
+                role="combobox"
+                aria-label="모델 검색"
+                aria-expanded
+                aria-controls={modelListId}
+                aria-autocomplete="list"
+                aria-activedescendant={activeOptionId}
+                autoFocus
+                value={modelQuery}
+                onChange={(event) => {
+                  setModelQuery(event.target.value);
+                  setActiveModelIndex(0);
+                }}
+                onKeyDown={handleModelSearchKeyDown}
+              />
+              <div id={modelListId} role="listbox" aria-label="모델 목록" className={styles["composer-model-options"]}>
+                {modelGroups.length === 0 && <p className={styles["composer-model-empty"]}>검색 결과가 없습니다.</p>}
+                {modelGroups.map((group) => (
+                  <div key={group.provider} role="group" aria-label={getProviderLabel(group.provider)}>
+                    <p className={styles["composer-model-group-label"]} aria-hidden>
+                      {getProviderLabel(group.provider)}
+                    </p>
+                    {group.models.map((model) => {
+                      const isSelected = modelKey(model) === selectedKey;
+                      const isActive = model === activeModel;
+                      return (
+                        <button
+                          key={modelKey(model)}
+                          id={modelOptionId(model)}
+                          type="button"
+                          role="option"
+                          tabIndex={-1}
+                          aria-selected={isSelected}
+                          className={cx(
+                            styles["composer-model-option"],
+                            isSelected && styles["is-selected"],
+                            isActive && styles["is-active"]
+                          )}
+                          onMouseEnter={() => setActiveModelIndex(visibleModels.indexOf(model))}
+                          onClick={() => chooseModel(model)}
+                        >
+                          <span>{model.display_name}</span>
+                          {isSelected && <Check size={12} aria-hidden />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
               {onWebSearchChange && (
                 <div className={styles["composer-web-search"]}>
