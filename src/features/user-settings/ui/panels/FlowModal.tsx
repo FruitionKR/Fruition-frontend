@@ -2,6 +2,7 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
@@ -33,8 +34,9 @@ export function FlowModal({
   useEscapeKey(true, () => {
     if (canClose) onClose();
   });
+  const backdropClick = useBackdropClick(canClose ? onClose : undefined);
   return createPortal(
-    <div className={styles.overlay} onClick={canClose ? onClose : undefined}>
+    <div className={styles.overlay} {...backdropClick}>
       <form
         className={styles.modal}
         role="dialog"
