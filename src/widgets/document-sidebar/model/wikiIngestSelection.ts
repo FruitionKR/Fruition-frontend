@@ -1,39 +1,47 @@
 import type { TreeItem } from "@/entities/tree";
-import { collectTreeItems, filterTreeItems } from "@/entities/tree/lib/queries";
-import { isMarkdownTreeItem, isPdfTreeItem } from "@/entities/document/lib/documentKind";
+import { collectTreeItems } from "@/entities/tree/lib/queries";
+import { isMarkdownTreeItem } from "@/entities/document/lib/documentKind";
 
 export { isMarkdownTreeItem };
 
-/** 체크박스를 켤 수 있는 문서인지. 폴더·위키 노드·반영 불가 문서는 false. */
-export function isSelectableTreeItem(item: TreeItem, eligibleDocumentIds: ReadonlySet<string>): boolean {
-  return (
-    item.type === "file"
-    && item.documentId !== undefined
-    && (isMarkdownTreeItem(item) || isPdfTreeItem(item))
-    && eligibleDocumentIds.has(item.documentId)
-  );
+/** 문서 id별로 위키 편입 선택을 막는 이유. null이면 고를 수 있다. */
+export type IngestBlockReasons = ReadonlyMap<string, string | null>;
+
+/** 문서 목록에 아직 없는 항목(업로드 중 등)을 고를 수 없는 이유 */
+export const INGEST_UNAVAILABLE_REASON = "아직 편입할 수 없는 파일이에요";
+
+/** 파일 행을 고를 수 없는 이유. 고를 수 있으면 null, 폴더는 대상이 아니라 null이다. */
+export function getTreeItemBlockReason(item: TreeItem, reasons: IngestBlockReasons): string | null {
+  if (item.type !== "file") return null;
+  if (item.documentId === undefined) return INGEST_UNAVAILABLE_REASON;
+  const reason = reasons.get(item.documentId);
+  return reason === undefined ? INGEST_UNAVAILABLE_REASON : reason;
+}
+
+/** 체크박스를 켤 수 있는 파일인지. 폴더·위키 노드·편입할 수 없는 파일은 false. */
+export function isSelectableTreeItem(item: TreeItem, reasons: IngestBlockReasons): boolean {
+  return item.type === "file" && getTreeItemBlockReason(item, reasons) === null;
 }
 
 /**
- * 선택 모드에 보여줄 트리. 반영할 수 없는 문서(TXT·처리 중·이미 반영됨)는 숨기고,
- * 선택 가능한 문서가 하나도 없는 폴더도 함께 숨긴다.
+ * 폴더 체크 시 한꺼번에 고를 문서 id. 하위 폴더까지 내려가 선택 가능한 Markdown만 모은다.
+ * 변환 전 PDF는 변환 확인이 필요해 폴더 일괄 선택에 넣지 않고 행에서 직접 고른다.
  */
-export function pruneIneligibleTreeItems(items: TreeItem[], eligibleDocumentIds: ReadonlySet<string>): TreeItem[] {
-  return filterTreeItems(items, (item) =>
-    item.type === "file"
-      ? isSelectableTreeItem(item, eligibleDocumentIds)
-      : collectSelectableDocumentIds(item.children ?? [], eligibleDocumentIds).length > 0
+export function collectFolderMarkdownIds(items: TreeItem[], reasons: IngestBlockReasons): string[] {
+  return collectTreeItems(items, (item) =>
+    item.documentId !== undefined && isSelectableTreeItem(item, reasons) && isMarkdownTreeItem(item)
+      ? item.documentId
+      : undefined
   );
 }
 
-/** 항목 자신과 하위 트리에서 선택 가능한 문서 id를 모두 모은다. 폴더 체크 시 일괄 선택 단위가 된다. */
-export function collectSelectableDocumentIds(
-  items: TreeItem[],
-  eligibleDocumentIds: ReadonlySet<string>
-): string[] {
-  return collectTreeItems(items, (item) =>
-    item.documentId !== undefined && isSelectableTreeItem(item, eligibleDocumentIds) ? item.documentId : undefined
-  );
+export type SelectionState = "checked" | "mixed" | "unchecked";
+
+/** 대상 id가 모두 선택되면 checked, 일부만 선택되면 mixed(indeterminate). 대상이 없으면 unchecked. */
+export function getSelectionState(selected: ReadonlySet<string>, ids: string[]): SelectionState {
+  const count = ids.filter((id) => selected.has(id)).length;
+  if (count === 0) return "unchecked";
+  return count === ids.length ? "checked" : "mixed";
 }
 
 /** 대상 id가 하나 이상 있고 전부 선택돼 있을 때만 체크 상태로 본다. */

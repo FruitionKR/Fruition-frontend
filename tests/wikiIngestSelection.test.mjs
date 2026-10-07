@@ -7,11 +7,13 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const {
-  collectSelectableDocumentIds,
+  INGEST_UNAVAILABLE_REASON,
+  collectFolderMarkdownIds,
+  getSelectionState,
+  getTreeItemBlockReason,
   isAllSelected,
   isMarkdownTreeItem,
   isSelectableTreeItem,
-  pruneIneligibleTreeItems,
   toggleDocumentIds
 } = await import("../src/widgets/document-sidebar/model/wikiIngestSelection.ts");
 
@@ -27,10 +29,17 @@ const tree = [
   folder("a", [
     file("1", "note.md", "text/markdown"),
     folder("b", [file("2", "plan.md", "text/markdown"), file("3", "paper.pdf", "application/pdf")]),
-    file("4", "memo.txt", "text/plain")
+    file("4", "memo.txt", "text/plain"),
+    folder("empty", [])
   ])
 ];
-const eligible = new Set(["doc-1", "doc-2", "doc-3", "doc-4"]);
+// 문서 id별 막힌 이유: null이면 선택 가능. 변환 전 PDF(doc-3)는 선택 가능, TXT는 막힘.
+const reasons = new Map([
+  ["doc-1", null],
+  ["doc-2", null],
+  ["doc-3", null],
+  ["doc-4", "Markdown 문서만 위키에 편입할 수 있어요"]
+]);
 
 test("마크다운 판정은 mimeType 또는 .md 확장자를 본다", () => {
   assert.equal(isMarkdownTreeItem(file("1", "note", "text/markdown")), true);
@@ -39,26 +48,38 @@ test("마크다운 판정은 mimeType 또는 .md 확장자를 본다", () => {
   assert.equal(isMarkdownTreeItem(file("4", "memo.txt", "text/plain")), false);
 });
 
-test("PDF도 변환 후 편입 대상으로 선택하고 TXT는 제외한다", () => {
-  assert.equal(isSelectableTreeItem(file("1", "note.md", "text/markdown"), eligible), true);
-  assert.equal(isSelectableTreeItem(file("3", "paper.pdf", "application/pdf"), eligible), true);
-  assert.equal(isSelectableTreeItem(file("4", "memo.txt", "text/plain"), eligible), false);
-  assert.equal(isSelectableTreeItem(folder("a", []), eligible), false);
+test("파일 행은 문서별 이유를 따르고, 폴더는 행 자체로 선택 대상이 아니다", () => {
+  assert.equal(isSelectableTreeItem(file("1", "note.md", "text/markdown"), reasons), true);
+  assert.equal(isSelectableTreeItem(file("3", "paper.pdf", "application/pdf"), reasons), true);
+  assert.equal(isSelectableTreeItem(file("4", "memo.txt", "text/plain"), reasons), false);
+  assert.equal(getTreeItemBlockReason(file("4", "memo.txt", "text/plain"), reasons), "Markdown 문서만 위키에 편입할 수 있어요");
+  assert.equal(isSelectableTreeItem(folder("a", []), reasons), false);
+  assert.equal(getTreeItemBlockReason(folder("a", []), reasons), null);
 });
 
-test("이미 반영됐거나 처리 중인 문서는 마크다운이어도 선택할 수 없다", () => {
-  assert.equal(isSelectableTreeItem(file("1", "note.md", "text/markdown"), new Set()), false);
+test("문서 목록에 아직 없는 파일은 고를 수 없다", () => {
+  assert.equal(getTreeItemBlockReason(file("9", "new.md", "text/markdown"), reasons), INGEST_UNAVAILABLE_REASON);
+  assert.equal(getTreeItemBlockReason({ id: "up", label: "up.md", type: "file" }, reasons), INGEST_UNAVAILABLE_REASON);
 });
 
-test("폴더는 하위의 선택 가능한 PDF와 마크다운 문서를 모은다", () => {
-  assert.deepEqual(collectSelectableDocumentIds(tree, eligible), ["doc-1", "doc-2", "doc-3"]);
-  assert.deepEqual(collectSelectableDocumentIds(tree, new Set(["doc-2"])), ["doc-2"]);
+test("폴더는 하위 폴더까지 선택 가능한 Markdown만 모으고 PDF·TXT는 넣지 않는다", () => {
+  assert.deepEqual(collectFolderMarkdownIds(tree[0].children, reasons), ["doc-1", "doc-2"]);
+  assert.deepEqual(collectFolderMarkdownIds(tree[0].children, new Map([["doc-2", null]])), ["doc-2"]);
+  assert.deepEqual(collectFolderMarkdownIds([], reasons), []);
 });
 
-test("폴더 체크는 하위 문서를 모두 선택하고, 다시 누르면 모두 해제한다", () => {
-  const ids = collectSelectableDocumentIds(tree, eligible);
+test("폴더 선택 상태는 전부·일부·없음을 checked·mixed·unchecked로 나눈다", () => {
+  const ids = ["doc-1", "doc-2"];
+  assert.equal(getSelectionState(new Set(), ids), "unchecked");
+  assert.equal(getSelectionState(new Set(["doc-1"]), ids), "mixed");
+  assert.equal(getSelectionState(new Set(["doc-1", "doc-2", "doc-3"]), ids), "checked");
+  assert.equal(getSelectionState(new Set(["doc-1"]), []), "unchecked");
+});
+
+test("폴더 체크는 하위 Markdown을 모두 선택하고, 다시 누르면 모두 해제한다", () => {
+  const ids = collectFolderMarkdownIds(tree[0].children, reasons);
   const selected = toggleDocumentIds(new Set(), ids);
-  assert.deepEqual([...selected], ["doc-1", "doc-2", "doc-3"]);
+  assert.deepEqual([...selected], ["doc-1", "doc-2"]);
   assert.equal(isAllSelected(selected, ids), true);
 
   const cleared = toggleDocumentIds(selected, ids);
@@ -80,17 +101,4 @@ test("toggleDocumentIds는 원본 Set을 바꾸지 않는다", () => {
   const original = new Set(["doc-1"]);
   toggleDocumentIds(original, ["doc-2"]);
   assert.deepEqual([...original], ["doc-1"]);
-});
-
-test("선택 모드 트리는 반영 불가 문서와 빈 폴더를 숨긴다", () => {
-  // note.md만 반영 가능: TXT·반영 불가 pdf/md는 사라지고, 빈 하위 폴더 b도 사라진다.
-  const pruned = pruneIneligibleTreeItems(tree, new Set(["doc-1"]));
-  assert.deepEqual(pruned.map((item) => item.id), ["a"]);
-  assert.deepEqual(pruned[0].children.map((item) => item.id), ["1"]);
-  // 하위에 반영 가능한 문서가 있으면 폴더 경로는 유지된다.
-  const nested = pruneIneligibleTreeItems(tree, new Set(["doc-3"]));
-  assert.deepEqual(nested[0].children.map((item) => item.id), ["b"]);
-  assert.deepEqual(nested[0].children[0].children.map((item) => item.id), ["3"]);
-  // 아무것도 반영할 수 없으면 빈 트리
-  assert.deepEqual(pruneIneligibleTreeItems(tree, new Set()), []);
 });

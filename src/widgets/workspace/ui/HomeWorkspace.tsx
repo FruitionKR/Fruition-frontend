@@ -33,7 +33,10 @@ import { useTreeSelection } from "../model/useTreeSelection";
 import { useTreeOpenState } from "../model/useTreeOpenState";
 import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
-import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
+import { filterGraphProjects, isGraphIngestEligible, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
+import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
+import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
+import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getErrorMessage } from "@/shared/lib/errors";
@@ -74,6 +77,7 @@ export function HomeWorkspace() {
   const [pendingExportDocumentId, setPendingExportDocumentId] = useState<string | null>(null);
   const [pendingConvertDocumentIds, setPendingConvertDocumentIds] = useState<readonly string[]>([]);
   const [wikiActionPending, setWikiActionPending] = useState<"ingest" | "lint" | null>(null);
+  const [pdfIngestConfirmation, setPdfIngestConfirmation] = useState<DocumentItemResponse[] | null>(null);
   const graphIngestRunningRef = useRef(false);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
   const sidebarResize = useResizeHandle(SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH, () => SIDEBAR_MAX_WIDTH);
@@ -92,12 +96,14 @@ export function HomeWorkspace() {
   const treeOpen = useTreeOpenState();
   const {
     documents,
+    documentsUpdatedAt,
     setDocuments,
     wikiGraph,
     isGraphLoading,
     apiError,
     refreshBackendData
   } = useBackendData({ setProjects: projectTree.setProjects });
+  const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData, documentsUpdatedAt);
   const graphDocuments = useMemo(() => selectGraphDocuments(documents), [documents]);
   const graphProjects = useMemo(() => filterGraphProjects(projectTree.projects, documents), [projectTree.projects, documents]);
   const documentTitles = useMemo(
@@ -333,7 +339,9 @@ export function HomeWorkspace() {
   async function sendGraphIngestRequests(targets: DocumentItemResponse[]) {
     // 한 문서가 실패해도 나머지 문서의 요청은 계속 보낸다.
     const results = await Promise.allSettled(
-      targets.map((target) => reflectDocumentToWiki(target.id, target.document_role))
+      targets.map((target) => isPdfDocument(target)
+        ? pdfWikiIngest.startPdfIngest(target)
+        : reflectDocumentToWiki(target.id, target.document_role))
     );
     // 실패 사유는 백엔드 원문을 그대로 보여준다. 개수만 알려주면 원인을 알 수 없다.
     const failures = results.flatMap((result, index) =>
@@ -358,6 +366,15 @@ export function HomeWorkspace() {
         message: failures.join(" / ")
       });
     }
+  }
+
+  // 변환 전 PDF가 섞여 있으면 먼저 Markdown으로 변환한다는 확인을 받는다.
+  function requestGraphIngest(targets: DocumentItemResponse[]) {
+    if (targets.some(isPdfDocument)) {
+      setPdfIngestConfirmation(targets);
+      return;
+    }
+    void handleGraphIngest(targets);
   }
 
   async function handleGraphLint() {
@@ -439,9 +456,10 @@ export function HomeWorkspace() {
         activeView={activeView}
         documents={documents}
         graphActions={{
-          documents: graphDocuments,
-          pending: wikiActionPending,
-          onIngestDocuments: (targets) => void handleGraphIngest(targets),
+          documents,
+          projects: projectTree.projects,
+          pending: wikiActionPending ?? (pdfWikiIngest.isPending ? "ingest" : null),
+          onIngestDocuments: requestGraphIngest,
           onLint: () => void handleGraphLint()
         }}
         logEntries={{ ...operationLogFeed, documentTitles }}
@@ -543,6 +561,22 @@ export function HomeWorkspace() {
             errorMessage={apiError}
           />
         </>
+      )}
+
+      {pdfIngestConfirmation && (
+        <PdfIngestConfirmModal
+          pdfCount={pdfIngestConfirmation.filter(isPdfDocument).length}
+          onCancel={() => setPdfIngestConfirmation(null)}
+          onConfirm={() => {
+            const selectedIds = new Set(pdfIngestConfirmation.map((document) => document.id));
+            // 확인을 기다리는 동안 상태가 바뀐 문서(변환 시작·편입 진행 등)에는 중복 요청을 보내지 않는다.
+            const targets = documents.filter((document) =>
+              selectedIds.has(document.id) && isGraphIngestEligible(document, documents)
+            );
+            setPdfIngestConfirmation(null);
+            void handleGraphIngest(targets);
+          }}
+        />
       )}
 
       {isAgentPanelShown && (

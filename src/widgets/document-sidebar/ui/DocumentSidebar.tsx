@@ -86,7 +86,7 @@ export function DocumentSidebar({
   /** 워크스페이스 문서 목록. 헤더의 진행 중 작업 팝오버가 여기서 ingest 진행 문서를 고른다. */
   documents?: DocumentItemResponse[];
   /** 그래프 뷰에서 문서 트리 대신 보여줄 위키 액션. */
-  graphActions?: Omit<ComponentProps<typeof GraphSidebarActions>, "projects" | "tree">;
+  graphActions?: Omit<ComponentProps<typeof GraphSidebarActions>, "tree">;
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
   logEntries?: ComponentProps<typeof LogSidebarEntries>;
   onViewChange: (view: RailView) => void;
@@ -223,7 +223,7 @@ export function DocumentSidebar({
         }}
       >
         {activeView === "graph" && graphActions ? (
-          <GraphSidebarActions {...graphActions} projects={projects} tree={projectTree} />
+          <GraphSidebarActions {...graphActions} tree={projectTree} />
         ) : activeView === "logs" && logEntries ? (
           <LogSidebarEntries {...logEntries} />
         ) : projectTree}
