@@ -1,24 +1,16 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
 import { filterTreeItems } from "@/entities/tree/lib/queries";
-import { isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
-import { getWikiReflectState, isWikiReflectEligible } from "./wikiReflectState";
-
-export { isMarkdownDocument, isPdfDocument };
+import { isMarkdownDocument } from "@/entities/document/lib/documentKind";
+import { isWikiReflectEligible } from "./wikiReflectState";
 
 export function isFailedPdfConversion(document: DocumentItemResponse): boolean {
   return document.status === "failed" && document.pipeline_run_id?.startsWith("convert:") === true;
 }
 
-/** 그래프에서는 변환본이 있으면 PDF 원본 대신 Markdown을 표시한다. 실패한 변환은 PDF로 재시도한다. */
+/** 그래프 raw 노드와 위키 편입 트리는 Markdown만 대상이다. PDF는 우클릭 "Markdown으로 변환"으로만 변환한다. */
 export function selectGraphDocuments(documents: DocumentItemResponse[]): DocumentItemResponse[] {
-  const convertedSourceIds = new Set(documents
-    .filter((document) => isMarkdownDocument(document) && !isFailedPdfConversion(document))
-    .map((document) => document.source_document_id)
-    .filter(Boolean));
-  return documents.filter((document) =>
-    !isFailedPdfConversion(document) && !(isPdfDocument(document) && convertedSourceIds.has(document.id))
-  );
+  return documents.filter((document) => isMarkdownDocument(document) && !isFailedPdfConversion(document));
 }
 
 export function filterGraphProjects(projects: Project[], documents: DocumentItemResponse[]): Project[] {
@@ -28,6 +20,5 @@ export function filterGraphProjects(projects: Project[], documents: DocumentItem
 }
 
 export function isGraphIngestEligible(document: DocumentItemResponse): boolean {
-  if (isPdfDocument(document)) return getWikiReflectState(document) !== "processing";
   return isMarkdownDocument(document) && !isFailedPdfConversion(document) && isWikiReflectEligible(document);
 }
