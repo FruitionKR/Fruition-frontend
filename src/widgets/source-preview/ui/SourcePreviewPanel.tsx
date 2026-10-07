@@ -558,6 +558,7 @@ export function SourcePreviewPanel({
             <input
               className={styles["source-preview-title-input"]}
               aria-label="문서 이름"
+              placeholder="제목을 입력하세요"
               value={titleInput}
               disabled={isRenaming}
               spellCheck={false}

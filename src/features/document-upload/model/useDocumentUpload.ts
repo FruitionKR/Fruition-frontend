@@ -105,7 +105,8 @@ export function useDocumentUpload({
 
   function createMarkdownFile(projectId: string, folderId: string | null) {
     const noteId = createClientId("note");
-    const markdown = `<!-- fruition-note: ${noteId} -->\n# 새 노트\n`;
+    // 본문은 비워 두고 편집기 placeholder로 안내한다. 제목은 파일 이름 input이 맡는다.
+    const markdown = `<!-- fruition-note: ${noteId} -->\n`;
     const file = new File([markdown], availableDocumentName(projects, "새 노트.md", { projectId, folderId }), { type: "text/markdown" });
     dropUploadFiles(projectId, folderId, [file]);
   }

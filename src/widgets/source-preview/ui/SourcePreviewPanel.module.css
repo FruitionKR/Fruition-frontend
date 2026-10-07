@@ -195,7 +195,7 @@
   border: 0;
 }
 
-/* 문서 제목 (Figma 1292:5456): 32px SemiBold, gray/050, 행간 1.4. 아래 블록과 20px.
+/* 문서 제목 (Figma 426:2202): 36px SemiBold, gray/050, 행간 1.4. 본문과 구분선으로 나누고 본문까지 24px.
    Markdown 문서는 같은 자리에서 이름을 바로 고치는 input이라 h2와 동일하게 보이게 맞춘다. */
 .source-preview-heading {
   width: 100%;
@@ -203,7 +203,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--line);
 }
 
 .source-preview-heading h2,
@@ -218,7 +220,7 @@
   border-radius: 4px;
   outline: 0;
   font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -389,6 +391,6 @@
 
   .source-preview-heading h2,
   .source-preview-title-input {
-    font-size: 28px;
+    font-size: 32px;
   }
 }
