@@ -8,7 +8,7 @@ import {
   selectActiveIngestDocuments
 } from "@/features/wiki-ingest/model/wikiReflectState";
 import { useActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
-import { isGraphIngestEligible } from "@/features/wiki-ingest/model/graphDocuments";
+import { getGraphIngestBlockReason, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { fetchWikiMaintenanceStatus } from "@/features/document-notifications";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { Project } from "@/entities/tree";
@@ -22,6 +22,7 @@ import styles from "./DocumentSidebar.module.css";
  * 그래프 뷰 사이드바 (Figma 1027:8099 / 1027:6233).
  * 기본 모드는 홈과 같은 문서 트리 + 하단 [위키 편입][Lint] pill.
  * 위키 편입을 누르면 체크박스 트리로 바뀌고, 같은 버튼이 확정 버튼이 된다.
+ * 선택 트리는 PDF를 숨긴 그래프 트리가 아니라 원래 폴더 구조 전체를 보여 준다.
  */
 export function GraphSidebarActions({
   documents,
@@ -31,26 +32,28 @@ export function GraphSidebarActions({
   onIngestDocuments,
   onLint
 }: {
+  /** 워크스페이스 전체 문서(PDF 포함). 선택 가능 여부와 진행 중 편입 판정에 쓴다. */
   documents: DocumentItemResponse[];
   pending: "ingest" | "lint" | null;
+  /** 선택 모드 트리에 보여줄 원래 폴더 구조(PDF·TXT·빈 폴더 포함). */
   projects: Project[];
   /** 기본 모드에서 보여줄 문서 트리(홈 뷰와 동일한 RootTree). */
   tree: ReactNode;
-  /** 선택 모드에서 고른 문서들을 한 번에 위키에 반영한다. */
+  /** 선택 모드에서 고른 문서들을 한 번에 위키에 반영한다. 변환 전 PDF가 섞일 수 있다. */
   onIngestDocuments: (documents: DocumentItemResponse[]) => void;
   onLint: () => void;
 }) {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const eligibleDocumentIds = useMemo(
-    () => new Set(documents.filter(isGraphIngestEligible).map((document) => document.id)),
+  const blockReasons = useMemo(
+    () => new Map(documents.map((document) => [document.id, getGraphIngestBlockReason(document, documents)])),
     [documents]
   );
   const selectedDocuments = documents.filter(
-    (document) => selectedIds.has(document.id) && eligibleDocumentIds.has(document.id)
+    (document) => selectedIds.has(document.id) && blockReasons.get(document.id) === null
   );
 
-  const activeIngestDocuments = selectActiveIngestDocuments(documents);
+  const activeIngestDocuments = selectActiveIngestDocuments(selectGraphDocuments(documents));
   const activeLintOperation = useActiveLintOperation(pending === "lint");
   const lintProgressLabel = formatLintProgressLabel(activeLintOperation, pending === "lint");
   const isIngestActive = pending === "ingest" || activeIngestDocuments.length > 0;
@@ -118,7 +121,7 @@ export function GraphSidebarActions({
         {isSelecting ? (
           <WikiIngestTree
             projects={projects}
-            eligibleDocumentIds={eligibleDocumentIds}
+            blockReasons={blockReasons}
             selectedIds={selectedIds}
             onToggle={(ids) => setSelectedIds((current) => toggleDocumentIds(current, ids))}
           />
@@ -129,7 +132,7 @@ export function GraphSidebarActions({
         <HoverHint
           className={styles["graph-pill-hint"]}
           text={isSelecting
-            ? "선택한 Markdown 문서를 위키에 편입합니다."
+            ? "선택한 문서를 위키에 편입합니다. 변환 전 PDF는 확인 후 Markdown으로 변환해 편입합니다."
             : "편입할 Markdown 문서 또는 폴더를 선택합니다."}
         >
         <button

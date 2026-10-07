@@ -1146,33 +1146,75 @@
   padding-bottom: 8px;
 }
 
-.ingest-row:hover:not(:disabled),
-.ingest-row:focus-visible:not(:disabled) {
+.ingest-row {
+  cursor: pointer;
+}
+
+.ingest-row:hover:not(.is-disabled),
+.ingest-row:focus-within:not(.is-disabled) {
   --button-hover-overlay: none;
   background: var(--soft);
 }
 
-/* 폴더 화살표는 Figma대로 hover 때만 드러난다 */
-.ingest-folder-arrow {
-  display: none;
+/* 편입할 수 없는 파일·Markdown이 없는 폴더는 회색으로 두고 선택을 막는다 */
+.ingest-row.is-disabled {
+  color: var(--subdued);
+  cursor: default;
 }
 
-.ingest-row.is-folder:hover .ingest-folder-arrow,
-.ingest-row.is-folder:focus-visible .ingest-folder-arrow {
-  display: block;
+.ingest-row.is-disabled .ingest-check {
+  border-color: var(--line);
+}
+
+/* 폴더 화살표는 Figma대로 hover·포커스 때 드러나고, 접힌 폴더는 항상 보인다. 누르면 펼침/접힘만 바꾼다. */
+.ingest-folder-toggle {
+  display: none;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.ingest-row.is-folder:hover .ingest-folder-toggle,
+.ingest-row.is-folder:focus-within .ingest-folder-toggle,
+.ingest-folder-toggle[aria-expanded="false"] {
+  display: flex;
 }
 
 .ingest-check {
   width: 20px;
   height: 20px;
   flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--muted);
   border-radius: 4px;
   background: transparent;
+  color: inherit;
+}
+
+.ingest-check:disabled {
+  cursor: default;
 }
 
 .ingest-check.is-checked {
   border: 0;
+}
+
+/* 폴더 하위 문서가 일부만 선택된 상태(indeterminate) */
+.ingest-check.is-mixed::after {
+  content: "";
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink);
 }
 
 .ingest-label {
