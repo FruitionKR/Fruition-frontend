@@ -56,6 +56,9 @@ const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, 
 
 // 링크 입력처럼 글자마다 막히는 경로에서 알림 카드가 쌓이지 않게 한다.
 // 안내 문구마다 따로 세어, 종류가 다른 차단은 3초 안이어도 알린다.
+/** 빈 본문 안내 문구(Figma 426:2202). WYSIWYG·소스 모드가 같은 문구를 쓴다. */
+const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하거나 내용을 입력하세요";
+
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
 const lastExternalImageNoticeAt = new Map<string, number>();
 
@@ -496,8 +499,10 @@ export function NoteEditor({
             math: { label: "수식" }
           }
         },
+        // 문서 전체가 비었을 때만 보여 준다(새 노트 본문은 비어 있다). 데코레이션이라 저장되는 마크다운에는 들어가지 않는다.
         [CrepeFeature.Placeholder]: {
-          text: "내용을 입력하거나 '/'로 명령을 여세요"
+          text: NOTE_BODY_PLACEHOLDER,
+          mode: "doc"
         }
       }
     }).on((listener) => {
@@ -637,6 +642,7 @@ export function NoteEditor({
           className={styles["note-markdown-editor"]}
           value={body}
           minHeight="420px"
+          placeholder={NOTE_BODY_PLACEHOLDER}
           extensions={editorExtensions}
           basicSetup={{
             lineNumbers: preferences.editor.markdown.lineNumbers,

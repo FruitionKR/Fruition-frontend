@@ -85,7 +85,6 @@ UI 필요 여부를 단정하지 않는다.
 | `GET /api/workspaces/{workspace_id}/documents/markdown` | Markdown 문서 전용 목록. 이 저장소는 `documents` 전체 목록만 쓴다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/export` | 문서 내보내기 호출이 없다 |
-| `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 단일 버전 본문 조회. `src/features/document-history/api/versions.ts`는 목록(`/versions`), diff(`/diff`), 복원(`/versions/{version}/restore`)만 부른다. 버전 내용 표시는 서버 계산 diff로 대체한다 |
 | `GET /api/workspaces/{workspace_id}/folders/{folder_id}/children` | 자식 조회를 쓰지 않는다. 트리를 한 번에 받는다 |
 | `GET /api/workspaces/{workspace_id}/usage/models` | 모델 사용량 조회 호출이 없다. 설정 화면은 `ai-models`와 `ai-model-settings`만 쓴다 |
 | `GET /api/workspaces/{workspace_id}/wiki/pages/{wiki_page_id}/diff` | Wiki 페이지 변경 비교 호출이 없다 |

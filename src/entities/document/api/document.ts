@@ -15,7 +15,7 @@ export class DocumentNameConflictError extends Error {
   }
 }
 
-// 같은 탭의 병렬 업로드·이름 변경이 목록 조회 사이에 같은 이름을 선점하지 않게 한다.
+// 같은 탭의 병렬 이름 변경이 목록 조회 사이에 같은 이름을 선점하지 않게 한다.
 const pendingDocumentNames = new Set<string>();
 
 async function withUniqueDocumentName<T>(
@@ -56,25 +56,27 @@ export async function fetchDocuments() {
   return data.documents ?? [];
 }
 
+/**
+ * 파일을 업로드한다. 같은 폴더에 같은 이름이 있어도 서버가 `이름 (2).pdf`처럼 번호를 붙여 저장하므로
+ * 이름 중복을 미리 막지 않는다. 실제 저장된 이름은 응답의 filename이다.
+ */
 export async function uploadDocumentFile(file: File, folderId: string | null = null) {
   const workspaceId = getWorkspaceId();
-  return withUniqueDocumentName(workspaceId, file.name, null, async () => {
-    const transport = await getDocumentTransport();
-    if (transport.directUpload && hasPdfExtension(file.name)) {
-      return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId);
-    }
-    const formData = new FormData();
-    formData.append("file", file);
-    if (folderId) formData.append("folder_id", folderId);
+  const transport = await getDocumentTransport();
+  if (transport.directUpload && hasPdfExtension(file.name)) {
+    return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId);
+  }
+  const formData = new FormData();
+  formData.append("file", file);
+  if (folderId) formData.append("folder_id", folderId);
 
-    const response = await apiFetch(workspacePath(workspaceId, "documents"), {
-      method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey() },
-      body: formData
-    });
+  const response = await apiFetch(workspacePath(workspaceId, "documents"), {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey() },
+    body: formData
+  });
 
-    return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
-  }, folderId);
+  return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
 }
 
 /** 문서 ingest를 시작한다. 편집 가능 Markdown 전용이라 reflectDocumentToWiki를 거쳐 호출한다. */

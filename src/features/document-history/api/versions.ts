@@ -19,6 +19,16 @@ export type DocumentVersionListResponse = {
   versions: DocumentVersionItem[];
 };
 
+/** 단일 버전 본문. markdown은 노트 마커를 포함한 저장 원문이다. */
+export type DocumentVersionContentResponse = {
+  document_id: string;
+  version: number;
+  content_hash: string;
+  created_by: string;
+  created_at: string;
+  markdown: string;
+};
+
 export type DocumentVersionDiffResponse = {
   document_id: string;
   from_version: number;
@@ -44,6 +54,12 @@ function documentPath(documentId: string): string {
 export async function fetchDocumentVersions(documentId: string): Promise<DocumentVersionListResponse> {
   const response = await apiFetch(`${documentPath(documentId)}/versions`, { cache: "no-store" });
   return parseJsonOrThrow<DocumentVersionListResponse>(response, "버전 이력을 불러오지 못했습니다.");
+}
+
+/** 특정 버전의 전체 본문을 조회한다(읽기 전용 열람용). */
+export async function fetchDocumentVersion(documentId: string, version: number): Promise<DocumentVersionContentResponse> {
+  const response = await apiFetch(`${documentPath(documentId)}/versions/${version}`, { cache: "no-store" });
+  return parseJsonOrThrow<DocumentVersionContentResponse>(response, "버전 본문을 불러오지 못했습니다.");
 }
 
 /** 두 저장 버전 사이의 서버 계산 diff를 조회한다. */
