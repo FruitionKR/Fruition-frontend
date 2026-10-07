@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
-import { changeMemberRole, fetchMembers, inviteMember, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
+import { changeMemberRole, fetchMembers, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
+import { InviteMemberModal } from "./InviteMemberModal";
 import styles from "./MembersPanel.module.css";
 
 // 권한 필터 순서. 빈 값은 전체.
@@ -38,8 +39,6 @@ export function MembersPanel() {
   const filterMenuRef = useDismissableMenu(filterOpen, () => setFilterOpen(false));
   const rowMenuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
   const [showInvite, setShowInvite] = useState(false);
-  const [email, setEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<WorkspaceRole>("MEMBER");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -81,24 +80,6 @@ export function MembersPanel() {
       setMessage("멤버를 제거했습니다.");
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "멤버를 제거하지 못했습니다."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function invite(event: FormEvent) {
-    event.preventDefault();
-    if (!workspaceId || !isOwner || busy) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await inviteMember(workspaceId, email.trim(), inviteRole);
-      setMessage("초대 메일을 보냈습니다. 상대가 수락하면 멤버 목록에 표시됩니다.");
-      setEmail("");
-      setShowInvite(false);
-    } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "초대 메일을 보내지 못했습니다."));
     } finally {
       setBusy(false);
     }
@@ -163,25 +144,30 @@ export function MembersPanel() {
           >
             <SvgIcon src={menuSearchIcon} className={styles["search-icon"]} />
           </button>
-          <button type="button" className={styles["invite-btn"]} disabled={!isOwner || busy} aria-expanded={showInvite} onClick={() => setShowInvite(!showInvite)}>
-            멤버 추가하기 <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
+          <button
+            type="button"
+            className={styles["invite-btn"]}
+            disabled={!isOwner || busy}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setError(null);
+              setMessage(null);
+              setShowInvite(true);
+            }}
+          >
+            멤버 추가하기
           </button>
         </div>
       </div>
-      {showInvite && isOwner && (
-        <form className={styles["invite-form"]} onSubmit={(event) => void invite(event)}>
-          <div className={modalStyles.field}>
-            <label htmlFor="invite-email">초대할 이메일</label>
-            <input id="invite-email" type="email" maxLength={255} required value={email} disabled={busy} onChange={(event) => setEmail(event.target.value)} />
-          </div>
-          <span className={styles["role-chip"]}>
-            <select className={styles["role-select"]} aria-label="초대할 멤버 권한" value={inviteRole} disabled={busy} onChange={(event) => setInviteRole(event.target.value as WorkspaceRole)}>
-              <option value="MEMBER">MEMBER</option><option value="OWNER">OWNER</option>
-            </select>
-            <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
-          </span>
-          <button type="submit" className={styles["invite-btn"]} disabled={busy}>{busy ? "전송 중…" : "초대 보내기"}</button>
-        </form>
+      {showInvite && isOwner && workspaceId && (
+        <InviteMemberModal
+          workspaceId={workspaceId}
+          onInvited={(text) => {
+            setMessage(text);
+            setShowInvite(false);
+          }}
+          onClose={() => setShowInvite(false)}
+        />
       )}
       {(!workspaceId || error || loadError) && <p className={modalStyles["model-error"]} role="alert">{!workspaceId ? "워크스페이스를 선택해 주세요." : error || getErrorMessage(loadError, "멤버 목록을 불러오지 못했습니다.")}</p>}
       {message && <p role="status">{message}</p>}
