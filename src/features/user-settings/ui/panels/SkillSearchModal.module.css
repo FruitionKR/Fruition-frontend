@@ -32,7 +32,7 @@
   background: var(--soft);
 }
 
-/* 고를 수 없는 항목(변환 전 PDF·선택 개수 초과) */
+/* 고를 수 없는 항목(선택 개수 초과) */
 .search-result:disabled {
   cursor: default;
 }
