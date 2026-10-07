@@ -223,13 +223,9 @@
   color: var(--subdued);
 }
 
-/* 편집 가능 표시는 색이 아니라 커서·포커스 밑줄로만 준다 (시안은 단일 색) */
+/* 편집 가능 표시는 색이 아니라 커서로만 준다 (시안은 단일 색). 포커스 밑줄은 제목·본문 구분선과 겹쳐 두지 않는다. */
 .source-preview-title-input:hover {
   cursor: text;
-}
-
-.source-preview-title-input:focus {
-  box-shadow: inset 0 -1px 0 var(--line);
 }
 
 .source-preview-heading > span {
