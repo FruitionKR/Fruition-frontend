@@ -251,8 +251,9 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
             label: "Lint",
             onAction: () => {
               requestWikiLint(false)
-                .then(({ changedPageCount }) => {
+                .then(({ changedPageCount, operationId }) => {
                   publishNotice({
+                    operation: { type: "lint", id: operationId },
                     kind: "completed",
                     title: "Lint 완료",
                     message: `${changedPageCount}개 페이지를 다듬었습니다.`

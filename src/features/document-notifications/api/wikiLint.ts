@@ -20,7 +20,9 @@ export async function fetchWikiMaintenanceStatus(): Promise<WikiMaintenanceStatu
   return parseJsonOrThrow<WikiMaintenanceStatus>(response, "위키 상태를 불러오지 못했습니다.");
 }
 
-export async function requestWikiLint(dryRun: boolean): Promise<{ changedPageCount: number }> {
+export async function requestWikiLint(
+  dryRun: boolean
+): Promise<{ changedPageCount: number; operationId?: string }> {
   const response = await apiFetch(
     workspacePath(getWorkspaceId(), "wiki", "maintenance", "lint"),
     {
@@ -29,7 +31,8 @@ export async function requestWikiLint(dryRun: boolean): Promise<{ changedPageCou
       body: JSON.stringify({ dry_run: dryRun })
     }
   );
-  const queued = await parseJsonOrThrow<{ run_id: string }>(
+  // operation_id는 실제 실행(dry_run=false)에서만 온다. AI 작업 로그 알림과 중복을 거르는 데 쓴다.
+  const queued = await parseJsonOrThrow<{ run_id: string; operation_id?: string }>(
     response,
     "Lint 요청에 실패했습니다."
   );
@@ -47,7 +50,10 @@ export async function requestWikiLint(dryRun: boolean): Promise<{ changedPageCou
         manifest?: { task_result?: { changed_pages?: unknown[] } };
       }>(polled, "Lint 상태를 불러오지 못했습니다.");
       if (run.status === "succeeded") {
-        return { changedPageCount: run.manifest?.task_result?.changed_pages?.length ?? 0 };
+        return {
+          changedPageCount: run.manifest?.task_result?.changed_pages?.length ?? 0,
+          operationId: queued.operation_id
+        };
       }
       if (run.status === "failed") throw new Error(run.error || "Lint에 실패했습니다.");
       return null;
