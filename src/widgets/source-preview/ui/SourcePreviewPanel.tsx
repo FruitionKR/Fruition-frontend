@@ -6,8 +6,9 @@ import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
+import { DynamicPdfViewer } from "./DynamicPdfViewer";
 import { HistoryPanel } from "@/features/document-history";
-import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
+import { fetchDocumentBlocks, fetchDocumentOriginal, reflectDocumentToWiki } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
@@ -322,13 +323,8 @@ export function SourcePreviewPanel({
         return;
       }
 
-      if (isPdfFile) {
-        const url = await fetchDocumentReadUrl(documentId);
-        if (url) {
-          if (!ignore) setRawDocumentUrl(url);
-          return;
-        }
-      }
+      // PDF는 PdfViewer가 원본을 직접 받아 그린다.
+      if (isPdfFile) return;
       const blob = await fetchDocumentOriginal(documentId);
       if (isTextFile || blob.type.startsWith("text/")) {
         const text = await blob.text();
@@ -545,13 +541,8 @@ export function SourcePreviewPanel({
         {isPdfFile ? (
           <>
             {errorMessage && <p>{errorMessage}</p>}
-            {!isLoading && !errorMessage && rawDocumentUrl && (
-              <iframe
-                referrerPolicy="no-referrer"
-                src={rawDocumentUrl}
-                title={title}
-                className={styles["source-preview-pdf-frame"]}
-              />
+            {!isLoading && !errorMessage && documentId && (
+              <DynamicPdfViewer documentId={documentId} reloadKey={documentReloadCount} title={title} />
             )}
           </>
         ) : (

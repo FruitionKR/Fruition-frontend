@@ -192,12 +192,6 @@ export async function fetchDocumentOriginal(documentId: string): Promise<Blob> {
 }
 
 
-export async function fetchDocumentReadUrl(documentId: string): Promise<string | null> {
-  const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "original-url"), { cache: "no-store" });
-  const result = await parseJsonOrThrow<{ url: string | null }>(response, ERROR_MESSAGES.documentOriginalLoadFailed);
-  return result.url;
-}
-
 /** 근거 하이라이트용 원본 block 목록. 문서 순서이며 영구 block ID와 스냅샷 기준 줄 범위를 준다. */
 export async function fetchDocumentBlocks(documentId: string): Promise<DocumentBlocksResponse> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "blocks"), { cache: "no-store" });
