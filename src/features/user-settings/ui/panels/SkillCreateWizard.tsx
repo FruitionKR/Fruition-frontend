@@ -11,6 +11,7 @@ import { AlertModal } from "@/shared/ui/AlertModal";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { fetchWorkspaces, useWorkspaceName } from "@/entities/workspace";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { menuSearchIcon, questionMarkIcon, settingScrollIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./SkillCreateWizard.module.css";
@@ -130,8 +131,9 @@ export function SkillCreateWizard({
   // STEP 2~3 초안 (author 결과, 로컬 편집 허용)
   const [draft, setDraft] = useState<SkillAuthoringResult | null>(null);
 
-  // 메뉴가 열려 있으면 Escape는 메뉴만 닫는다(useDismissableMenu). 위저드는 그다음 Escape에 닫힌다.
-  useEscapeKey(!scopeMenuOpen && !workspaceMenuOpen, onClose);
+  // 메뉴·문서 선택 모달이 열려 있으면 Escape는 그 레이어부터 닫는다(useEscapeLayer 스택).
+  useEscapeKey(true, onClose);
+  const backdropClick = useBackdropClick(onClose);
 
   // 서버 name 패턴에 맞을 때만 전달한다. 빈 값·비허용 문자를 보내면 400이 난다.
   const normalizedCommand = command.trim();
@@ -636,7 +638,7 @@ export function SkillCreateWizard({
   };
 
   return createPortal(
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} {...backdropClick}>
       <div
         className={styles.modal}
         role="dialog"

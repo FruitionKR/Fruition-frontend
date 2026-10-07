@@ -372,6 +372,7 @@ test("게시 버전이 남아 있어도 disabled 스킬은 OFF이고 클릭하�
     "@/entities/skill": { enableSkill: (...args) => calls.push(["enable", ...args]), disableSkill: (...args) => calls.push(["disable", ...args]) },
     "@/shared/lib/auth": { getSelectedWorkspaceId: () => "ws_test" },
     "@/shared/lib/useDismissableMenu": { useDismissableMenu: () => ({ current: null }) },
+    "@/shared/lib/useEscapeKey": { useEscapeKey() {} },
     // 공통 Switch 컴포넌트는 checked/onClick prop만 확인한다.
     "@/shared/ui/Switch": { Switch }
   };

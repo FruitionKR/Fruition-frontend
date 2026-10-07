@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import styles from "./CenteredModal.module.css";
 
@@ -23,9 +24,10 @@ export function CenteredModal({
   children: ReactNode;
 }) {
   useEscapeKey(true, onClose);
+  const backdropClick = useBackdropClick(onClose);
 
   return createPortal(
-    <div className={styles["modal-overlay"]} onClick={onClose}>
+    <div className={styles["modal-overlay"]} {...backdropClick}>
       <div
         className={cx(styles["modal-box"], className)}
         role="dialog"

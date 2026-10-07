@@ -7,6 +7,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { useEscapeLayer } from "@/shared/lib/useEscapeLayer";
 import { resolveTreeMove } from "../lib/treeMoveRules";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
@@ -84,7 +85,8 @@ export function useProjectTree({
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const clearSelectedItems = useCallback(() => setSelectedItemIds(new Set()), []);
   useEscapeKey(contextMenu !== null, closeContextMenu);
-  useEscapeKey(selectedItemIds.size > 0, clearSelectedItems);
+  // 선택 해제는 모달·메뉴 등 열린 레이어가 없을 때만 Escape로 처리한다.
+  useEscapeLayer(selectedItemIds.size > 0, clearSelectedItems, "fallback");
 
   useEffect(() => {
     if (!contextMenu) return;

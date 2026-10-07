@@ -24,6 +24,7 @@ import { DeleteConfirmModal } from "@/shared/ui/DeleteConfirmModal";
 import { MergeConfirmModal } from "@/shared/ui/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
+import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useProjectTree } from "../model/useProjectTree";
@@ -394,6 +395,10 @@ export function HomeWorkspace() {
     sourcePreviewResize.stop(event);
   }
 
+  // main 배경을 직접 누르고 뗐을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서 버블된 클릭이나
+  // 편집기에서 드래그해 바깥에서 놓은 클릭까지 해제하면 노트 선택이 풀려 편집기가 비어 보인다.
+  const workspaceBackgroundClick = useBackdropClick<HTMLElement>(selection.clearTreeGraphSelection);
+
   return (
     <main
       className={cx(
@@ -406,11 +411,7 @@ export function HomeWorkspace() {
         "--sidebar-width": `${sidebarResize.width}px`,
         "--source-preview-width": `${sourcePreviewResize.width}px`
       } as CSSProperties}
-      onClick={(event) => {
-        // main 배경을 직접 클릭했을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서
-        // 버블된 클릭까지 해제하면 노트 선택이 풀려 편집기가 비어 보인다.
-        if (event.target === event.currentTarget) selection.clearTreeGraphSelection();
-      }}
+      {...workspaceBackgroundClick}
       onPointerMove={handleResizePointerMove}
       onPointerUp={handleResizePointerEnd}
       onPointerCancel={handleResizePointerEnd}
