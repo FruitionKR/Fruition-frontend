@@ -31,8 +31,8 @@ export type TreeInteractionProps = {
   onFileDragLeave: () => void;
   onDragEnd: () => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
-  /** 폴더 행 + 버튼으로 버튼 아래에 생성 메뉴를 연다(같은 폴더면 닫는다) */
-  onOpenFolderMenuAt: (projectId: string, itemId: string, anchor: HTMLElement) => void;
+  /** 폴더 행·트리 상단 + 버튼으로 버튼 아래에 생성 메뉴를 연다(itemId가 null이면 최상위, 같은 대상이면 닫는다) */
+  onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement) => void;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
   onCommitEditing: () => void;

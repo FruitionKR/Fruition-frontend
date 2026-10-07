@@ -205,8 +205,8 @@ export function useProjectTree({
     setContextMenu({ projectId, itemId, x: event.clientX, y: event.clientY });
   }
 
-  /** 폴더 행의 + 버튼: 버튼 아래에 우클릭과 같은 메뉴를 열고, 같은 폴더에서 다시 누르면 닫는다. */
-  function openFolderMenuAt(projectId: string, itemId: string, anchor: HTMLElement) {
+  /** 폴더 행·트리 상단의 + 버튼: 버튼 아래에 우클릭과 같은 메뉴를 열고, 같은 대상에서 다시 누르면 닫는다. itemId가 null이면 최상위다. */
+  function openFolderMenuAt(projectId: string, itemId: string | null, anchor: HTMLElement) {
     if (contextMenu?.projectId === projectId && contextMenu.itemId === itemId) {
       setContextMenu(null);
       return;

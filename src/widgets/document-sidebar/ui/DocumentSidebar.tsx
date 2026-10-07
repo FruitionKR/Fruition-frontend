@@ -2,7 +2,7 @@ import { useState, type ChangeEvent as ReactChangeEvent, type ComponentProps, ty
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
-import { chatIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chatIcon, plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { ContextMenu } from "./ContextMenu";
 import { GraphSidebarActions } from "./GraphSidebarActions";
@@ -106,7 +106,7 @@ export function DocumentSidebar({
   onDragEnd: () => void;
   onContextMenuProject: (event: ReactMouseEvent<HTMLElement>, projectId: string) => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
-  onOpenFolderMenuAt: (projectId: string, itemId: string, anchor: HTMLElement) => void;
+  onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement) => void;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
   onCommitEditing: () => void;
@@ -164,6 +164,25 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 하단 위키 액션과 함께 감싼다.
   const projectTree = (
     <>
+      {/* 문서가 많아 빈 영역이 없어도 최상위에 만들 수 있도록 트리 상단에 생성 메뉴 버튼을 둔다. */}
+      {activeView === "home" && rootProject && (
+        <div className={styles["tree-root-header"]}>
+          <span>문서</span>
+          <button
+            type="button"
+            className={styles["tree-root-add"]}
+            aria-label="최상위에 추가"
+            aria-haspopup="menu"
+            data-folder-menu-trigger=""
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenFolderMenuAt(rootProject.id, null, event.currentTarget);
+            }}
+          >
+            <SvgIcon src={plusIcon} className={styles["tree-row-action-icon"]} />
+          </button>
+        </div>
+      )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
       {contextMenu && (
         <ContextMenu

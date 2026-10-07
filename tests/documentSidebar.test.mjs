@@ -31,10 +31,19 @@ test("새 폴더 생성은 홈 뷰에서만 허용한다", () => {
 test("메뉴 행에는 파일 업로드·새 폴더 버튼을 두지 않는다", async () => {
   const source = await readFile(sidebarMenuRowPath, "utf8");
 
-  // 생성은 우클릭 메뉴·폴더 hover + 버튼·드롭 업로드로만 제공한다.
+  // 생성은 우클릭 메뉴·트리 상단/폴더 hover + 버튼·드롭 업로드로만 제공한다.
   assert.doesNotMatch(source, /aria-label="파일 업로드"/);
   assert.doesNotMatch(source, /aria-label="새 폴더 생성"/);
   assert.doesNotMatch(source, /onAddProject|onUploadFile/);
+});
+
+test("홈 뷰 트리 상단 + 버튼은 최상위 생성 메뉴를 연다", async () => {
+  const source = await readFile(documentSidebarPath, "utf8");
+
+  // 문서가 많아 빈 영역이 사라져도 최상위에 만들 수 있어야 한다.
+  assert.match(source, /activeView === "home" && rootProject && \(/);
+  assert.match(source, /aria-label="최상위에 추가"/);
+  assert.match(source, /onOpenFolderMenuAt\(rootProject\.id, null, event\.currentTarget\)/);
 });
 
 test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따른다", async () => {
