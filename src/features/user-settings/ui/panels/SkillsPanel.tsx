@@ -13,6 +13,7 @@ import {
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
+import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { Switch } from "@/shared/ui/Switch";
 import modalStyles from "../SettingsModal.module.css";
@@ -176,6 +177,11 @@ export function SkillsPanel() {
       setEditingId((current) => current === skill.id ? null : current);
       setDeleteTarget(null);
     }
+  });
+
+  // 삭제 dialog도 ESC 레이어로 등록해 Escape 한 번에 dialog만 닫히게 한다(삭제 중에는 유지).
+  useEscapeKey(deleteTarget !== null, () => {
+    if (!deleteMutation.isPending) setDeleteTarget(null);
   });
 
   function openEditForm(skill: SkillResponse) {
@@ -470,10 +476,8 @@ export function SkillsPanel() {
         className={styles["delete-dialog"]}
         aria-labelledby="skill-delete-title"
         aria-describedby="skill-delete-description"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") event.stopPropagation();
-        }}
         onCancel={(event) => {
+          // Escape는 레이어 스택이 처리한다. 브라우저 기본 닫기는 막고 상태로만 닫는다.
           event.preventDefault();
           if (!deleteMutation.isPending) setDeleteTarget(null);
         }}

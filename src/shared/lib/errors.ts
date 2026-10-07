@@ -10,6 +10,22 @@ export class SessionExpiredError extends Error {
 }
 
 /**
+ * HTTP 실패 응답. message는 기존처럼 사람이 읽을 문구이고, 분기는 status와 서버 code(error.code)로 한다.
+ * Error를 상속하므로 message만 보던 호출부는 그대로 동작한다.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
  * unknown 에러에서 사람이 읽을 메시지를 안전하게 추출합니다.
  * Error가 아니면 fallback 문구를 반환합니다.
  */

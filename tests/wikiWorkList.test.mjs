@@ -75,14 +75,17 @@ test("lint가 진행 중이면 위키 최신화 구역이 생긴다", () => {
   assert.equal(sections[1].rows[0].startTime, localHHMM("2026-08-17T03:04:00Z"));
 });
 
-test("변환 시작한 문서나 processing_stage가 convert인 문서는 PDF → MD 변환 구역으로 간다", () => {
+test("변환 placeholder만 PDF → MD 변환 구역으로 가고 변환 후 ingest는 위키 편입 구역에 남는다", () => {
   const sections = buildWikiWorkSections([
     makeDocument({ id: "a", filename: "a.md", status: "processing" }),
-    makeDocument({ id: "b", filename: "b.md", status: "processing" }),
-    makeDocument({ id: "c", filename: "c.md", status: "processing", processing_stage: "markdown_convert" })
-  ], null, new Set(["b"]));
+    makeDocument({ id: "b", filename: "b.md", status: "processing", pipeline_run_id: "convert:b", processing_stage: "PDF 1/3페이지 변환 완료" }),
+    // 변환 완료 후 자동 ingest: 백엔드가 지우지 않은 변환 단계 문구가 남아 있어도 편입으로 본다.
+    makeDocument({ id: "c", filename: "c.md", status: "processing", pipeline_run_id: "run_ingest", processing_stage: "PDF 3/3페이지 변환 완료" }),
+    makeDocument({ id: "d", filename: "d.md", status: "processing", processing_stage: "markdown_convert" })
+  ], null);
   assert.deepEqual(sections.map((section) => section.kind), ["ingest", "convert"]);
-  assert.deepEqual(sections[1].rows.map((row) => row.label), ["b.md", "c.md"]);
+  assert.deepEqual(sections[0].rows.map((row) => row.label), ["a.md", "c.md", "d.md"]);
+  assert.deepEqual(sections[1].rows.map((row) => row.label), ["b.md"]);
 });
 
 test("진행 중인 작업이 없으면 구역이 하나도 없다", () => {
@@ -98,7 +101,7 @@ test("진행 중인 롤백은 롤백 구역에 대상 이름과 시작 시각으
     created_at: "2026-08-17T03:04:00Z"
   });
 
-  const sections = buildWikiWorkSections([], null, new Set(), [restore]);
+  const sections = buildWikiWorkSections([], null, [restore]);
 
   assert.deepEqual(sections, [
     {

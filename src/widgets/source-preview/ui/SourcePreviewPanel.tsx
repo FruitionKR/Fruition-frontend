@@ -6,8 +6,8 @@ import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
-import { HistoryPanel } from "@/features/document-history";
-import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl, reflectDocumentToWiki } from "@/entities/document";
+import { DynamicPdfViewer } from "./DynamicPdfViewer";
+import { fetchDocumentBlocks, fetchDocumentOriginal, reflectDocumentToWiki } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
@@ -15,6 +15,7 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
+import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
 import { canShowHighlightedMarkdown, findHighlightedScrollTarget, getHighlightScrollKey } from "../lib/highlightScroll";
 import {
@@ -55,7 +56,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentRole,
   documentStatus,
-  documentConverting = false,
+  documentConversion = null,
   parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
@@ -77,8 +78,8 @@ export function SourcePreviewPanel({
   documentRole?: DocumentRole;
   /** 열린 문서의 처리 상태. processing→completed 전이 시 본문을 다시 불러온다. */
   documentStatus?: DocumentStatus;
-  /** PDF 변환이 진행 중인지. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
-  documentConverting?: boolean;
+  /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
+  documentConversion?: DocumentConversionView | null;
   parentLabel?: string;
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
@@ -87,6 +88,8 @@ export function SourcePreviewPanel({
   fillMain?: boolean;
 }) {
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
+  const documentConverting = documentConversion !== null;
+  const conversionRevision = documentConversion?.revision;
   const [page, setPage] = useState<WikiPageDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -106,8 +109,7 @@ export function SourcePreviewPanel({
   const skipNextTitleCommitRef = useRef(false);
   const [sourceMode, setSourceMode] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  // 버전 복원 후 문서 본문·버전을 다시 불러오기 위한 카운터
+  // 변환·분석이 끝난 문서의 본문·버전을 다시 불러오기 위한 카운터
   const [documentReloadCount, setDocumentReloadCount] = useState(0);
   // 현재 화면에 본문이 올라와 있는 문서. 같은 문서 재조회인지 판별해 깜빡임을 막는다.
   const loadedDocumentIdRef = useRef<string | null>(null);
@@ -119,21 +121,18 @@ export function SourcePreviewPanel({
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>("saved");
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
-  // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되면 실제 본문으로 다시 불러온다.
+  // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되거나 변환 묶음이 추가되면 본문을 다시 불러온다.
   const previousStatusRef = useRef<OpenDocumentState>({ id: null, converting: false });
   useEffect(() => {
     const previous = previousStatusRef.current;
-    const current = { id: documentId ?? null, status: documentStatus, converting: documentConverting };
+    const current = { id: documentId ?? null, status: documentStatus, converting: documentConverting, revision: conversionRevision };
     previousStatusRef.current = current;
     if (shouldReloadOpenDocument(previous, current, noteSaveStatusRef.current === "saved")) {
       setDocumentReloadCount((count) => count + 1);
     }
-  }, [documentId, documentStatus, documentConverting]);
+  }, [documentId, documentStatus, documentConverting, conversionRevision]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const contentRef = useRef<HTMLDivElement>(null);
-  // 복원 완료 콜백이 도착한 시점에 보고 있는 문서를 판별하기 위한 ref
-  const activeDocumentIdRef = useRef(documentId);
-  activeDocumentIdRef.current = documentId;
   const optionsRef = useRef<HTMLDivElement | null>(null);
   const preferencesRef = useRef(preferences);
   preferencesRef.current = preferences;
@@ -191,7 +190,6 @@ export function SourcePreviewPanel({
   // preferencesReady는 경로가 바뀔 때마다 다시 false→true가 되므로, 같이 묶으면 저장 중이거나 실패한 상태를 덮어쓴다.
   useEffect(() => {
     setIsOptionsOpen(false);
-    setIsHistoryOpen(false);
     noteSaveRef.current = null;
     noteSaveStatusRef.current = "saved";
     setNoteSaveStatus("saved");
@@ -319,13 +317,8 @@ export function SourcePreviewPanel({
         return;
       }
 
-      if (isPdfFile) {
-        const url = await fetchDocumentReadUrl(documentId);
-        if (url) {
-          if (!ignore) setRawDocumentUrl(url);
-          return;
-        }
-      }
+      // PDF는 PdfViewer가 원본을 직접 받아 그린다.
+      if (isPdfFile) return;
       const blob = await fetchDocumentOriginal(documentId);
       if (isTextFile || blob.type.startsWith("text/")) {
         const text = await blob.text();
@@ -504,31 +497,20 @@ export function SourcePreviewPanel({
                   위키 편입
                 </button>
                 {isMarkdownFile && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextMode = sourceMode ? "wysiwyg" : "markdown";
-                        setSourceMode(nextMode === "markdown");
-                        updatePreferences((current) => ({
-                          ...current,
-                          editor: { ...current.editor, lastMode: nextMode }
-                        }));
-                        setIsOptionsOpen(false);
-                      }}
-                    >
-                      {sourceMode ? "자동 미리보기로 전환" : "Markdown 원문 보기"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsHistoryOpen(true);
-                        setIsOptionsOpen(false);
-                      }}
-                    >
-                      버전 기록
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMode = sourceMode ? "wysiwyg" : "markdown";
+                      setSourceMode(nextMode === "markdown");
+                      updatePreferences((current) => ({
+                        ...current,
+                        editor: { ...current.editor, lastMode: nextMode }
+                      }));
+                      setIsOptionsOpen(false);
+                    }}
+                  >
+                    {sourceMode ? "자동 미리보기로 전환" : "Markdown 원문 보기"}
+                  </button>
                 )}
               </div>
             )}
@@ -542,13 +524,8 @@ export function SourcePreviewPanel({
         {isPdfFile ? (
           <>
             {errorMessage && <p>{errorMessage}</p>}
-            {!isLoading && !errorMessage && rawDocumentUrl && (
-              <iframe
-                referrerPolicy="no-referrer"
-                src={rawDocumentUrl}
-                title={title}
-                className={styles["source-preview-pdf-frame"]}
-              />
+            {!isLoading && !errorMessage && documentId && (
+              <DynamicPdfViewer documentId={documentId} reloadKey={documentReloadCount} title={title} />
             )}
           </>
         ) : (
@@ -558,6 +535,7 @@ export function SourcePreviewPanel({
             <input
               className={styles["source-preview-title-input"]}
               aria-label="문서 이름"
+              placeholder="제목을 입력하세요"
               value={titleInput}
               disabled={isRenaming}
               spellCheck={false}
@@ -610,10 +588,10 @@ export function SourcePreviewPanel({
             />
           </>
         )}
-        {isMarkdownFile && documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
+        {isMarkdownFile && documentConversion && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
           <>
             <div className={styles["source-preview-document-controls"]}>
-              <span role="status">PDF 변환이 끝나면 편집할 수 있어요.</span>
+              <span role="status">{getConversionNotice(documentConversion)}</span>
             </div>
             <MarkdownViewer markdown={rawMarkdown} />
           </>
@@ -663,19 +641,6 @@ export function SourcePreviewPanel({
         </div>
         )}
       </div>
-      {isHistoryOpen && isMarkdownFile && documentId && (
-        <HistoryPanel
-          documentId={documentId}
-          onRestored={(restoredDocumentId) => {
-            // 복원 중 다른 문서로 전환했으면 무시한다. 현재 문서의 에디터가 리마운트되어
-            // 저장 전 편집분이 초기화되는 것을 막는다.
-            if (restoredDocumentId === activeDocumentIdRef.current) {
-              setDocumentReloadCount((count) => count + 1);
-            }
-          }}
-          onClose={() => setIsHistoryOpen(false)}
-        />
-      )}
       {!fillMain && (
         <button
           type="button"

@@ -252,6 +252,12 @@
   resize: vertical;
 }
 
+/* 비었거나 형식이 틀린 필수 필드 — 오류 문구(.error)와 같은 색 테두리 */
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: #f04452;
+}
+
 /* 참고 문서 검색 (미배선 — 비활성) */
 .doc-search-btn {
   display: flex;
@@ -430,7 +436,8 @@
   white-space: nowrap;
 }
 
-.btn-primary:disabled {
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] {
   cursor: default;
   opacity: 0.5;
 }

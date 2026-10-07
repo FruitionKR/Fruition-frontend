@@ -1,4 +1,5 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
+import { isDocumentConverting } from "@/entities/document/lib/documentKind";
 import type { OperationLogItem } from "@/entities/operation-log/model/types";
 import { OPERATION_TYPE_LABELS } from "@/entities/operation-log/model/operationType";
 
@@ -38,19 +39,6 @@ export function formatWorkStartTime(startedAt: string | undefined): string {
   return `${hours}:${minutes}`;
 }
 
-/**
- * 처리 중 문서가 PDF→MD 변환인지 판단한다.
- * 백엔드가 변환·ingest를 같은 processing 상태로 내려주므로, 이 세션에서 변환을 시작한 문서 id 집합과
- * processing_stage 문구로 구분한다.
- */
-export function isConvertingDocument(
-  document: DocumentItemResponse,
-  convertingIds: ReadonlySet<string>
-): boolean {
-  if (convertingIds.has(document.id)) return true;
-  return (document.processing_stage ?? "").toLowerCase().includes("convert");
-}
-
 function toRow(kind: WikiWorkKind, document: DocumentItemResponse): WikiWorkRow {
   return {
     key: `${kind}-${document.id}`,
@@ -66,13 +54,13 @@ function toRow(kind: WikiWorkKind, document: DocumentItemResponse): WikiWorkRow 
 export function buildWikiWorkSections(
   activeDocuments: DocumentItemResponse[],
   activeLint: OperationLogItem | null,
-  convertingIds: ReadonlySet<string> = new Set(),
   activeRestores: OperationLogItem[] = []
 ): WikiWorkSection[] {
   const ingestRows: WikiWorkRow[] = [];
   const convertRows: WikiWorkRow[] = [];
   for (const document of activeDocuments) {
-    if (isConvertingDocument(document, convertingIds)) convertRows.push(toRow("convert", document));
+    // 변환 placeholder는 status processing + `convert:` run이다. 변환 후 자동 ingest는 다른 run id라 편입으로 분류된다.
+    if (isDocumentConverting(document)) convertRows.push(toRow("convert", document));
     else ingestRows.push(toRow("ingest", document));
   }
   const lintRows: WikiWorkRow[] = activeLint

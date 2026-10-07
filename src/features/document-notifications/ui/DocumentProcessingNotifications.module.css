@@ -62,6 +62,23 @@
   }
 }
 
+/* 닫히거나 밀려나는 카드 (NOTICE_EXIT_MS와 길이를 맞춘다) */
+.notice.is-leaving {
+  pointer-events: none;
+  animation: notice-leave 200ms ease-in forwards;
+}
+
+@keyframes notice-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
 :global([data-reduce-motion="true"]) .notice {
   animation: none;
 }

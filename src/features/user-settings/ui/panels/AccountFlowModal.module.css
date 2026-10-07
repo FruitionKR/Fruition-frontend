@@ -423,3 +423,8 @@
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* --- 멤버 초대 모달 --- */
+.field-role {
+  align-self: flex-start;
+}

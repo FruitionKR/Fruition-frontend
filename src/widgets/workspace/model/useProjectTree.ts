@@ -1,13 +1,14 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { useEscapeLayer } from "@/shared/lib/useEscapeLayer";
 import { resolveTreeMove } from "../lib/treeMoveRules";
+import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
   findTreeItem,
   availableFolderName,
@@ -20,6 +21,9 @@ import {
   isWikiItem
 } from "@/entities/tree";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
+
+/** + 버튼 아래로 메뉴를 띄울 때 버튼과의 간격 (px) */
+const FOLDER_MENU_ANCHOR_GAP_PX = 4;
 
 /** 큐에서 기다리는 동안 대상이 삭제·이동되면 요청을 보내지 않고 이 문구로 알린다. */
 const STALE_TARGET_MESSAGE = "대상이 이미 삭제되었거나 이동되어 요청을 보내지 않았습니다.";
@@ -50,7 +54,17 @@ type MergeConfirmTarget = {
   run: () => void;
 };
 
-export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<() => Promise<void>> }) {
+export function useProjectTree({
+  refreshRef,
+  onDeleted
+}: {
+  refreshRef: MutableRefObject<() => Promise<void>>;
+  /** 삭제 API가 성공한 뒤 호출된다. 폴더를 지우면 삭제 직전 트리의 하위 id까지 넘긴다. */
+  onDeleted?: (deleted: DeletedTreeIds) => void;
+}) {
+  // 큐에서 늦게 실행되는 삭제도 최신 렌더의 콜백을 부르도록 ref로 들고 있는다.
+  const onDeletedRef = useRef(onDeleted);
+  onDeletedRef.current = onDeleted;
   const [projects, setProjectsState] = useState<Project[]>(initialProjects);
   // 큐의 작업은 실행 시점의 최신 트리를 읽어야 한다. 렌더를 기다리지 않도록 갱신과 동시에 ref에 반영한다.
   const projectsRef = useRef<Project[]>(initialProjects);
@@ -72,14 +86,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const clearSelectedItems = useCallback(() => setSelectedItemIds(new Set()), []);
-  useEscapeKey(contextMenu !== null, closeContextMenu);
-  useEscapeKey(selectedItemIds.size > 0, clearSelectedItems);
-
-  useEffect(() => {
-    if (!contextMenu) return;
-    window.addEventListener("click", closeContextMenu);
-    return () => window.removeEventListener("click", closeContextMenu);
-  }, [contextMenu, closeContextMenu]);
+  // 선택 해제는 모달·메뉴 등 열린 레이어가 없을 때만 Escape로 처리한다.
+  useEscapeLayer(selectedItemIds.size > 0, clearSelectedItems, "fallback");
 
   function toggleSelectedItem(itemId: string) {
     setSelectedItemIds((current) => {
@@ -197,6 +205,16 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     setContextMenu({ projectId, itemId, x: event.clientX, y: event.clientY });
   }
 
+  /** 폴더 행·트리 상단의 + 버튼: 버튼 아래에 우클릭과 같은 메뉴를 열고, 같은 대상에서 다시 누르면 닫는다. itemId가 null이면 최상위다. */
+  function openFolderMenuAt(projectId: string, itemId: string | null, anchor: HTMLElement) {
+    if (contextMenu?.projectId === projectId && contextMenu.itemId === itemId) {
+      setContextMenu(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    setContextMenu({ projectId, itemId, x: rect.left, y: rect.bottom + FOLDER_MENU_ANCHOR_GAP_PX });
+  }
+
   function openProjectMenu(event: ReactMouseEvent<HTMLElement>, projectId: string) {
     event.preventDefault();
     setContextMenu({ projectId, itemId: null, x: event.clientX, y: event.clientY });
@@ -237,6 +255,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     ? findTreeItem(contextMenuProject.items, contextMenu.itemId)
     : null;
   // PDF 원본은 편집 불가 문서라 컨텍스트 메뉴에서 이름 변경을 숨긴다.
+  // 파일(노트·PDF) 메뉴에서는 새 폴더·새 노트·파일 업로드를 숨긴다. 생성은 폴더·빈 영역에서만 한다.
+  const canCreateInContextTarget = !contextMenuItem || !isFileItem(contextMenuItem);
   const canRenameContextTarget = !(contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) && contextMenuItem?.mimeType !== "application/pdf";
 
   const convertContextTarget = contextMenuItem?.documentId && contextMenuItem.mimeType === "application/pdf"
@@ -289,8 +309,11 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     void runTreeMutation(async (latest) => {
       // 기다리는 동안 이미 사라졌으면 삭제 목적은 이뤄졌으므로 조용히 건너뛴다.
       if (itemId ? !hasTreeItem(latest, itemId) : !latest.some((project) => project.id === projectId)) return;
+      const deleted = collectDeletedTreeIds(latest, projectId, itemId);
       if (kind === "folder") await deleteFolder(itemId ?? projectId);
       else if (documentId) await deleteDocument(documentId);
+      else return;
+      onDeletedRef.current?.(deleted);
     }, "삭제 실패");
   }
 
@@ -365,6 +388,7 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     dropTarget,
     fileDropTarget,
     contextMenu,
+    closeContextMenu,
     editing,
     deleteConfirm,
     mergeConfirm,
@@ -377,10 +401,12 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     addProject,
     moveTreeEntry,
     openFolderMenu,
+    openFolderMenuAt,
     openProjectMenu,
     renameContextTarget,
     takeFolderTargetFromContext,
     canRenameContextTarget,
+    canCreateInContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,
     deleteContextTarget,

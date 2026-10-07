@@ -1,14 +1,6 @@
-import { useEffect } from "react";
+import { useEscapeLayer } from "./useEscapeLayer";
 
-/** active일 때 Escape 키 입력 시 onEscape를 호출한다. */
+/** active일 때 Escape 키 입력 시 onEscape를 호출한다. 열린 레이어 중 맨 위 하나만 닫힌다(useEscapeLayer). */
 export function useEscapeKey(active: boolean, onEscape: () => void): void {
-  useEffect(() => {
-    if (!active) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onEscape();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, onEscape]);
+  useEscapeLayer(active, onEscape);
 }

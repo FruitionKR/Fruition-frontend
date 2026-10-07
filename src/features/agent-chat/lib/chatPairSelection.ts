@@ -58,7 +58,9 @@ export function classifyChatExportPairs(messages: ChatPairMessage[]): ChatExport
   return { selectablePairIds, excludedPairIds };
 }
 
-/** 첫 선택을 기준점으로 유지하고, 마지막 선택까지의 문답을 시간순으로 반환한다. */
+export type ChatPairSelectionKind = "range" | "individual";
+
+/** 첫 선택을 기준점으로 유지하고, 마지막 선택까지의 문답을 시간순으로 반환한다. 기준점을 다시 누르면 해제한다. */
 export function selectChatPairRange(
   pairIds: string[],
   current: ChatPairRangeSelection,
@@ -66,6 +68,7 @@ export function selectChatPairRange(
 ): ChatPairRangeSelection {
   const clickedIndex = pairIds.indexOf(clickedPairId);
   if (clickedIndex < 0) return current;
+  if (current.anchorPairId === clickedPairId) return EMPTY_CHAT_PAIR_RANGE_SELECTION;
 
   const anchorPairId = current.anchorPairId ?? clickedPairId;
   const anchorIndex = pairIds.indexOf(anchorPairId);
@@ -83,5 +86,24 @@ export function selectChatPairRange(
     anchorPairId,
     endPairId: clickedPairId,
     selectedPairIds: pairIds.slice(startIndex, endIndex + 1)
+  };
+}
+
+/** 개별 선택 모드: 누른 문답을 선택 집합에 넣거나 빼고, 결과는 대화 시간순으로 정렬한다. */
+export function toggleChatPair(
+  pairIds: string[],
+  current: ChatPairRangeSelection,
+  clickedPairId: string
+): ChatPairRangeSelection {
+  if (!pairIds.includes(clickedPairId)) return current;
+
+  const isSelected = current.selectedPairIds.includes(clickedPairId);
+  const nextSelected = new Set(current.selectedPairIds);
+  if (isSelected) nextSelected.delete(clickedPairId);
+  else nextSelected.add(clickedPairId);
+  return {
+    anchorPairId: null,
+    endPairId: null,
+    selectedPairIds: pairIds.filter((pairId) => nextSelected.has(pairId))
   };
 }

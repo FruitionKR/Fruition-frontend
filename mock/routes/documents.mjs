@@ -1,4 +1,4 @@
-// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·버전·ingest·변환·편집 잠금.
+// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·ingest·변환·편집 잠금.
 import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
@@ -42,39 +42,7 @@ function isTextDocument(doc) {
   return doc.document_role === "EDITABLE" || doc.mime_type.startsWith("text/");
 }
 
-/** LCS 기반 줄 단위 diff. 서버 계약(DiffHunk/DiffLine)에 맞춰 한 hunk로 돌려준다. */
-function lineDiff(before, after) {
-  const a = before.split("\n");
-  const b = after.split("\n");
-  const table = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i -= 1) {
-    for (let j = b.length - 1; j >= 0; j -= 1) {
-      table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
-    }
-  }
-  const lines = [];
-  let i = 0;
-  let j = 0;
-  while (i < a.length || j < b.length) {
-    if (i < a.length && j < b.length && a[i] === b[j]) {
-      lines.push({ type: "CONTEXT", old_line: i + 1, new_line: j + 1, content: a[i] });
-      i += 1; j += 1;
-    } else if (j < b.length && (i >= a.length || table[i][j + 1] >= table[i + 1][j])) {
-      lines.push({ type: "ADD", old_line: null, new_line: j + 1, content: b[j] });
-      j += 1;
-    } else {
-      lines.push({ type: "DELETE", old_line: i + 1, new_line: null, content: a[i] });
-      i += 1;
-    }
-  }
-  return {
-    additions: lines.filter((line) => line.type === "ADD").length,
-    deletions: lines.filter((line) => line.type === "DELETE").length,
-    hunks: [{ old_start: 1, old_lines: a.length, new_start: 1, new_lines: b.length, lines }]
-  };
-}
-
-function saveVersion(doc, markdown, createdBy, restoredFromVersion = null) {
+function saveVersion(doc, markdown, createdBy) {
   const buffer = Buffer.from(markdown, "utf8");
   doc.current_version += 1;
   doc.edit_revision = doc.current_version;
@@ -84,8 +52,26 @@ function saveVersion(doc, markdown, createdBy, restoredFromVersion = null) {
   doc.updated_at = now();
   if (doc.status === "completed") doc.needs_reingest = true;
   const contentHash = hash(markdown);
-  doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown, restored_from_version: restoredFromVersion });
+  doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown });
   return { document_id: doc.id, current_version: doc.current_version, content_hash: contentHash, updated_at: doc.updated_at, changed: true };
+}
+
+/**
+ * 서버 DocumentEditingRules.uniqueUploadFilename 흉내: 같은 부모에 같은 이름(문서·폴더, 대소문자 무시)이 있으면
+ * `이름 (2).pdf`처럼 번호를 붙인다. 업로드는 이름 중복으로 거절하지 않는다.
+ */
+function uniqueUploadFilename(workspaceId, folderId, filename) {
+  const normalize = (value) => value.trim().normalize("NFC").toLowerCase();
+  const taken = new Set([
+    ...state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && (doc.folder_id ?? null) === folderId).map((doc) => normalize(doc.filename)),
+    ...state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at && (folder.parent_folder_id ?? null) === folderId).map((folder) => normalize(folder.name))
+  ]);
+  const dot = filename.lastIndexOf(".");
+  const base = dot > 0 ? filename.slice(0, dot) : filename;
+  const extension = dot > 0 ? filename.slice(dot) : "";
+  let candidate = filename;
+  for (let number = 2; taken.has(normalize(candidate)); number += 1) candidate = `${base} (${number})${extension}`;
+  return candidate;
 }
 
 export function registerDocumentRoutes(router) {
@@ -102,14 +88,16 @@ export function registerDocumentRoutes(router) {
     const { file, folder_id: folderId = null } = await ctx.body();
     if (!file?.buffer) return error(ctx, 400, "업로드할 파일이 필요합니다.");
     if (folderId && !state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspace.id && !folder.deleted_at)) return error(ctx, 404, "폴더를 찾을 수 없습니다.");
-    const filename = file.name.normalize("NFC");
-    const extension = filename.split(".").pop()?.toLowerCase() ?? "";
+    const requestedName = file.name.normalize("NFC");
+    const extension = requestedName.split(".").pop()?.toLowerCase() ?? "";
     const mime = MIME_BY_EXTENSION[extension] ?? file.type ?? "application/octet-stream";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
     const isMarkdown = mime === "text/markdown";
     const text = isMarkdown ? file.buffer.toString("utf8") : null;
     // 실제 업로드처럼 전송이 끝날 때까지 응답을 미룬다. 프론트는 그동안 "업로드 중" 자리표시 행을 보여준다.
     await sleep(uploadDelay(file.buffer.length));
+    // 동시 업로드도 서로 다른 번호를 받도록 전송이 끝난 시점에 이름을 정한다.
+    const filename = uniqueUploadFilename(workspace.id, folderId, requestedName);
     const timestamp = now();
     const doc = {
       id: id("doc"), workspace_id: workspace.id, filename, mime_type: mime, byte_size: file.buffer.length, status: "uploaded", folder_id: folderId, sort_order: 0,
@@ -231,40 +219,6 @@ export function registerDocumentRoutes(router) {
     const asset = state.assets.find((item) => item.id === ctx.params.id && item.workspace_id === workspace.id);
     if (!asset) return error(ctx, 404, "이미지를 찾을 수 없습니다.");
     ctx.bytes(200, asset.buffer, asset.content_type);
-  });
-
-  router.get("/api/workspaces/:wid/documents/:id/versions", (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    const doc = requireDocument(ctx, workspace);
-    if (!doc) return;
-    const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at, restored_from_version }) => ({ version, content_hash, created_by, created_at, restored_from_version: restored_from_version ?? null }));
-    ctx.json(200, { document_id: doc.id, current_version: doc.current_version, versions });
-  });
-
-  router.get("/api/workspaces/:wid/documents/:id/diff", (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    const doc = requireDocument(ctx, workspace);
-    if (!doc) return;
-    const from = Number(ctx.query.get("from_version"));
-    const to = Number(ctx.query.get("to_version"));
-    const fromVersion = doc.versions.find((item) => item.version === from);
-    const toVersion = doc.versions.find((item) => item.version === to);
-    if (!fromVersion || !toVersion) return error(ctx, 404, "비교할 버전을 찾을 수 없습니다.");
-    ctx.json(200, { document_id: doc.id, from_version: from, to_version: to, ...lineDiff(fromVersion.markdown ?? "", toVersion.markdown ?? "") });
-  });
-
-  router.post("/api/workspaces/:wid/documents/:id/versions/:version/restore", async (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    const doc = requireDocument(ctx, workspace);
-    if (!doc) return;
-    const { base_version } = await ctx.body();
-    if (base_version !== doc.current_version) return error(ctx, 409, "다른 편집 내용이 먼저 저장되어 복원하지 못했습니다.");
-    const target = doc.versions.find((item) => item.version === Number(ctx.params.version));
-    if (!target) return error(ctx, 404, "복원할 버전을 찾을 수 없습니다.");
-    ctx.json(200, saveVersion(doc, target.markdown ?? "", ctx.user.id, target.version));
   });
 
   router.post("/api/workspaces/:wid/documents/:id/ingest", (ctx) => {

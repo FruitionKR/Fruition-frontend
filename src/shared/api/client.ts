@@ -1,5 +1,5 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
-import { SessionExpiredError } from "@/shared/lib/errors";
+import { ApiError, SessionExpiredError } from "@/shared/lib/errors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -52,15 +52,21 @@ export const ERROR_MESSAGES = {
 
 // HTTP 응답에서 에러 메시지를 추출하는 공통 헬퍼
 export async function parseErrorResponse(response: Response, fallback: string): Promise<string> {
+  return (await parseApiError(response, fallback)).message;
+}
+
+/** 실패 응답을 ApiError로 바꾼다. 메시지와 함께 HTTP status와 서버 error.code를 보존한다. */
+export async function parseApiError(response: Response, fallback: string): Promise<ApiError> {
   try {
     const body = await response.json() as {
-      error?: { message?: string };
+      error?: { message?: string; code?: string };
       detail?: string | { message?: string };
     } | undefined;
     const detailMessage = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
-    return body?.error?.message || detailMessage || fallback;
+    const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
+    return new ApiError(body?.error?.message || detailMessage || fallback, response.status, code);
   } catch {
-    return fallback;
+    return new ApiError(fallback, response.status);
   }
 }
 
@@ -167,13 +173,13 @@ function credentialRejectionCode(path: string): string | null {
 /** 응답이 실패(!ok)면 에러 메시지를 추출해 던진다. 본문이 필요 없는 요청에서 사용한다. */
 export async function throwIfNotOk(response: Response, fallbackMessage: string): Promise<void> {
   if (!response.ok) {
-    throw new Error(await parseErrorResponse(response, fallbackMessage));
+    throw await parseApiError(response, fallbackMessage);
   }
 }
 
 export async function parseJsonOrThrow<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) {
-    throw new Error(await parseErrorResponse(response, fallback));
+    throw await parseApiError(response, fallback);
   }
   return response.json() as Promise<T>;
 }

@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
+import { MoreHorizontal } from "lucide-react";
 import { useMe, useSignOut } from "@/entities/user";
 import { SettingsModal } from "@/features/user-settings";
-import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
-import { profileToggleIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
+import { SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import styles from "./DocumentSidebar.module.css";
 
-/** 사이드바 하단 프로필 푸터 (Figma 747:6648): 화살표 클릭 시 설정/로그아웃 메뉴를 연다. */
+/** 사이드바 하단 프로필 푸터 (Figma 747:6648): 점 세 개 버튼 클릭 시 설정/로그아웃 메뉴를 연다. */
 export function SidebarProfile() {
   const { signOut } = useSignOut();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -24,13 +24,22 @@ export function SidebarProfile() {
   return (
     <footer className={styles["sidebar-profile"]} ref={rootRef}>
       <div className={styles["sidebar-profile-row"]}>
-        <span className={styles["sidebar-profile-user"]}>
+        {/* 프로필 이미지·이름을 누르면 메뉴를 거치지 않고 사용자 설정을 바로 연다. */}
+        <button
+          type="button"
+          className={styles["sidebar-profile-user"]}
+          aria-label="사용자 설정 열기"
+          onClick={() => {
+            setIsMenuOpen(false);
+            setIsSettingsOpen(true);
+          }}
+        >
           <SvgIcon src={userCircleIcon} className={styles["sidebar-profile-avatar"]} />
           <span className={styles["sidebar-profile-info"]}>
             <strong>{name}</strong>
             <small>온라인</small>
           </span>
-        </span>
+        </button>
         <button
           type="button"
           className={styles["sidebar-profile-toggle"]}
@@ -38,10 +47,8 @@ export function SidebarProfile() {
           aria-expanded={isMenuOpen}
           onClick={() => setIsMenuOpen((open) => !open)}
         >
-          <SvgIcon
-            src={profileToggleIcon}
-            className={cx(styles["sidebar-profile-toggle-icon"], isMenuOpen && styles["is-open"])}
-          />
+          {/* 채팅 옵션(AgentHeader)과 같은 점 세 개 아이콘 */}
+          <MoreHorizontal size={16} aria-hidden />
         </button>
       </div>
 

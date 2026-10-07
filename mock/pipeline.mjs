@@ -58,38 +58,74 @@ function completeIngest(workspace, doc, log) {
 }
 
 export function startIngest(workspace, doc) {
-  Object.assign(doc, { status: "processing", processing_state: "starting", processing_stage: "queued", processing_started_at: now(), error_message: undefined });
+  Object.assign(doc, { status: "processing", processing_state: "starting", processing_stage: "queued", processing_started_at: now(), pipeline_run_id: id("run"), error_message: undefined });
   const log = addOperationLog(workspace.id, { operation_type: "ingest", target_document_id: doc.id, target_display_name: doc.filename, summary: "위키 페이지 생성 중" });
   setTimeout(() => { doc.processing_state = "running"; doc.processing_stage = "concept_extraction"; }, INGEST_DELAY_MS / 3);
   setTimeout(() => completeIngest(workspace, doc, log), INGEST_DELAY_MS);
   return log;
 }
 
-/** PDF·TXT 원본을 편집 가능한 Markdown 문서로 변환한다. 202 응답용 processing 문서를 즉시 만든다. */
+const CONVERT_PAGE_COUNT = 3;
+const CONVERT_PLACEHOLDER = "PDF 변환 중...\n";
+
+function setConvertedBody(doc, text) {
+  doc.markdown = text;
+  doc.content = Buffer.from(text, "utf8");
+  doc.byte_size = doc.content.length;
+  doc.updated_at = now();
+}
+
+/**
+ * PDF·TXT 원본을 편집 가능한 Markdown 문서로 변환한다. 202 응답용 processing 문서를 즉시 만든다.
+ * 실제 백엔드처럼 placeholder MD에 `convert:<id>` run을 붙이고, PDF는 페이지 묶음마다 본문과
+ * processing_stage("PDF n/m페이지 변환 완료")를 갱신한다. 파일명에 "stall"이 있으면 첫 묶음 뒤 멈춘다.
+ */
 export function startConvert(workspace, source) {
   const filename = source.filename.replace(/\.[^.]+$/, "") + ".md";
+  const createdId = id("doc");
   const created = {
-    id: id("doc"), workspace_id: workspace.id, filename, mime_type: "text/markdown", byte_size: 0, status: "processing",
-    processing_state: "starting", processing_stage: "convert", processing_started_at: now(), document_role: "EDITABLE",
+    id: createdId, workspace_id: workspace.id, filename, mime_type: "text/markdown", byte_size: 0, status: "processing",
+    processing_state: "starting", processing_stage: "PDF 변환 대기", processing_started_at: now(), document_role: "EDITABLE",
+    pipeline_run_id: `convert:${createdId}`,
     source_uri: `mock://documents/${source.id}/markdown`, uploaded_at: now(), updated_at: now(),
-    markdown: null, content: Buffer.alloc(0), current_version: 0, edit_revision: 0, versions: [], converted_from: source.id,
+    markdown: null, content: Buffer.alloc(0), current_version: 0, edit_revision: 0, versions: [], source_document_id: source.id,
     // 변환본은 원본과 같은 폴더에 둔다.
     folder_id: source.folder_id ?? null, sort_order: (source.sort_order ?? 0) + 1
   };
+  setConvertedBody(created, CONVERT_PLACEHOLDER);
   state.documents.push(created);
-  setTimeout(() => {
-    const text = source.mime_type === "application/pdf"
-      ? `<!-- page 1 -->\n# ${filename.replace(/\.md$/, "")}\n\nPDF에서 변환한 Markdown입니다. (mock 변환 결과)\n\n## 본문\n\n원본 PDF의 문단이 여기에 들어갑니다.\n`
-      : `# ${filename.replace(/\.md$/, "")}\n\n${source.content.toString("utf8")}`;
-    const buffer = Buffer.from(text, "utf8");
-    Object.assign(created, {
-      markdown: text, content: buffer, byte_size: buffer.length, status: "uploaded", processing_state: "completed", processing_stage: "done",
-      current_version: 1, edit_revision: 1, updated_at: now(),
-      versions: [{ version: 1, content_hash: hash(text), created_by: "system", created_at: now(), markdown: text }]
-    });
-    source.status = "completed";
-    source.processed_at = now();
-  }, CONVERT_DELAY_MS);
+  const title = filename.replace(/\.md$/, "");
+  const isPdf = source.mime_type === "application/pdf";
+  const pageCount = isPdf ? CONVERT_PAGE_COUNT : 1;
+  const stallAfterPage = /stall/i.test(source.filename) ? 1 : null;
+  const pageText = (page) => isPdf
+    ? `<!-- page ${page} -->\n${page === 1 ? `# ${title}\n\nPDF에서 변환한 Markdown입니다. (mock 변환 결과)\n\n` : ""}## ${page}페이지\n\n원본 PDF ${page}페이지의 문단이 여기에 들어갑니다.\n\n`
+    : `# ${title}\n\n${source.content.toString("utf8")}`;
+  const stepMs = CONVERT_DELAY_MS / pageCount;
+
+  for (let page = 1; page <= pageCount; page += 1) {
+    setTimeout(() => {
+      if (created.processing_state === "stalled" || created.deleted_at) return;
+      setConvertedBody(created, (page === 1 ? CONVERT_PLACEHOLDER : created.markdown) + pageText(page));
+      created.processing_state = "running";
+      if (isPdf) created.processing_stage = `PDF ${page}/${pageCount}페이지 변환 완료`;
+      if (page === stallAfterPage) {
+        // 묶음 루프가 취소된 경우: processing + convert: 상태로 남고 heartbeat만 끊긴다.
+        setTimeout(() => { created.processing_state = "stalled"; }, stepMs);
+        return;
+      }
+      if (page < pageCount) return;
+      // 완료 시 placeholder 첫 줄을 걷어낸다. 백엔드처럼 processing_stage는 지우지 않는다.
+      const text = created.markdown.slice(CONVERT_PLACEHOLDER.length);
+      setConvertedBody(created, text);
+      Object.assign(created, {
+        status: "uploaded", processing_state: "completed", current_version: 1, edit_revision: 1,
+        versions: [{ version: 1, content_hash: hash(text), created_by: "system", created_at: now(), markdown: text }]
+      });
+      source.status = "completed";
+      source.processed_at = now();
+    }, stepMs * page);
+  }
   return toDocumentItem(created);
 }
 
@@ -112,7 +148,8 @@ export function startLint(workspace, dryRun) {
       workspace.maintenance.last_lint_at = now();
     }
   }, LINT_DELAY_MS);
-  return runId;
+  // 실제 백엔드처럼 실제 실행(dry_run=false)일 때만 operation_id를 함께 돌려준다.
+  return { runId, operationId: log?.operation_id };
 }
 
 /** 서버 시작 시 seed의 processing 문서가 실제로 끝나도록 예약한다. */

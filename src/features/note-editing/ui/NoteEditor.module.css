@@ -43,12 +43,22 @@
   outline: none;
 }
 
-/* 문서 제목: 32px SemiBold, 아래 블록과 20px */
+/* 본문 h1: 28px SemiBold, 아래 블록과 20px. 문서 제목(36px)보다 작게 둬 제목과 구분한다 */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h1) {
   margin: 0 0 20px;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* 빈 본문 placeholder: Figma 426:2202 gray(#8a8a8a). crepe 기본값은 반투명 전경색이다 */
+.note-wysiwyg-editor :global(.milkdown .crepe-placeholder::before) {
+  color: var(--subdued);
+}
+
+/* 소스 모드(CodeMirror) placeholder도 같은 색으로 맞춘다 */
+.note-markdown-editor :global(.cm-placeholder) {
+  color: var(--subdued);
 }
 
 /* 섹션 제목: 20px Medium, 위 블록과 20px·본문과 8px */

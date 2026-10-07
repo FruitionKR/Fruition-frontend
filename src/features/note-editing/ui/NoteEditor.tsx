@@ -26,6 +26,7 @@ import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAu
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
+import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/markdownHeading";
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/imageAlt";
@@ -56,6 +57,9 @@ const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, 
 
 // 링크 입력처럼 글자마다 막히는 경로에서 알림 카드가 쌓이지 않게 한다.
 // 안내 문구마다 따로 세어, 종류가 다른 차단은 3초 안이어도 알린다.
+/** 빈 본문 안내 문구(Figma 426:2202). WYSIWYG·소스 모드가 같은 문구를 쓴다. */
+const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하거나 내용을 입력하세요";
+
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
 const lastExternalImageNoticeAt = new Map<string, number>();
 
@@ -476,9 +480,10 @@ export function NoteEditor({
             h1: { label: "제목 1" },
             h2: { label: "제목 2" },
             h3: { label: "제목 3" },
-            h4: { label: "제목 4" },
-            h5: { label: "제목 5" },
-            h6: { label: "제목 6" },
+            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/markdownHeading.ts).
+            h4: null,
+            h5: null,
+            h6: null,
             quote: { label: "인용" },
             divider: { label: "구분선" }
           },
@@ -496,8 +501,10 @@ export function NoteEditor({
             math: { label: "수식" }
           }
         },
+        // 문서 전체가 비었을 때만 보여 준다(새 노트 본문은 비어 있다). 데코레이션이라 저장되는 마크다운에는 들어가지 않는다.
         [CrepeFeature.Placeholder]: {
-          text: "내용을 입력하거나 '/'로 명령을 여세요"
+          text: NOTE_BODY_PLACEHOLDER,
+          mode: "doc"
         }
       }
     }).on((listener) => {
@@ -514,7 +521,7 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(externalImageGuard).config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(cappedHeadingInputRule).use(externalImageGuard).config((ctx) => {
       // direct prop이라 Milkdown clipboard plugin의 handlePaste보다 먼저 실행된다.
       const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), () => notifyExternalImageBlocked());
       ctx.update(editorViewOptionsCtx, (previous) => ({
@@ -523,6 +530,7 @@ export function NoteEditor({
       }));
       configureMarkdownMath(ctx);
       configureStrikethrough(ctx);
+      disableSmallHeadingShortcuts(ctx);
       preserveImageAlt(ctx);
       // 붙여넣기·드롭 묶음에서 넣을 수 없는 이미지만 빼고 나머지는 그대로 올린다.
       // Crepe 기본 uploader는 한 장이 실패하면 묶음 전체를 버리고 로딩 표시를 지우지 않는다.
@@ -637,6 +645,7 @@ export function NoteEditor({
           className={styles["note-markdown-editor"]}
           value={body}
           minHeight="420px"
+          placeholder={NOTE_BODY_PLACEHOLDER}
           extensions={editorExtensions}
           basicSetup={{
             lineNumbers: preferences.editor.markdown.lineNumbers,

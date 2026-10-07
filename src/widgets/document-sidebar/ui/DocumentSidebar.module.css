@@ -497,20 +497,10 @@
   padding: 10px;
 }
 
-/* 파일 업로드 + 아이콘은 16 캔버스라 36 캔버스 아트와 시각 크기를 맞춘다 */
-.sidebar-upload-icon {
-  padding: 9px;
-}
-
 /* 검색 토글 열림 상태 (Figma 시안엔 없음 — 기존 활성 배경 규칙 준용) */
 .sidebar-menu-item.is-open {
   color: var(--ink);
   background: var(--soft);
-}
-
-.sidebar-menu-add {
-  margin-left: auto;
-  border-radius: 6px;
 }
 
 /* 채팅 시작 버튼 (Figma 1246:7328): 좌측 12px, 우측·하단 16px */
@@ -587,9 +577,27 @@
 
 .sidebar-profile-user {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 하이라이트 여백만큼 당겨 아바타 위치를 유지한다 */
+  margin: 0 4px 0 -6px;
+  padding: 6px;
+  color: inherit;
+  background: transparent;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.sidebar-profile-user:hover,
+.sidebar-profile-user:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.sidebar-profile-user:active {
+  background: #3d3d3d;
 }
 
 .sidebar-profile-avatar {
@@ -634,24 +642,14 @@
 }
 
 .sidebar-profile-toggle:hover,
-.sidebar-profile-toggle:focus-visible {
+.sidebar-profile-toggle:focus-visible,
+.sidebar-profile-toggle[aria-expanded="true"] {
   --button-hover-overlay: none;
   color: var(--ink);
   background: var(--soft);
 }
 
-.sidebar-profile-toggle-icon {
-  width: 10px;
-  height: 5px;
-  transition: transform 120ms ease;
-}
-
-/* 메뉴가 위로 열리므로 열림 상태에서 화살표를 뒤집는다 */
-.sidebar-profile-toggle-icon.is-open {
-  transform: rotate(180deg);
-}
-
-/* 프로필 화살표 클릭 시 위로 열리는 설정/로그아웃 메뉴 */
+/* 프로필 메뉴 버튼 클릭 시 위로 열리는 설정/로그아웃 메뉴 */
 .profile-menu {
   position: absolute;
   right: 8px;
@@ -698,6 +696,41 @@
   border: 1px dashed rgba(255, 193, 23, 0.52);
   border-radius: 6px;
   pointer-events: none;
+}
+
+/* 트리 상단: 최상위 생성 메뉴를 여는 + 버튼 */
+.tree-root-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px 4px 24px;
+  color: var(--subdued);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tree-root-add {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--subdued);
+  background: transparent;
+  border-radius: 5px;
+}
+
+.tree-root-add:hover,
+.tree-root-add:focus-visible {
+  --button-hover-overlay: none;
+  color: #f0f0f0;
+  background: #454545;
+}
+
+.tree-root-add:focus-visible {
+  outline: 2px solid rgba(90, 118, 160, 0.28);
+  outline-offset: 1px;
 }
 
 .tree-root-empty {
@@ -816,8 +849,8 @@
 }
 
 /* 블록이 강조되면 폴더 행 자체의 상자는 겹치지 않게 끈다 */
-.tree-group.is-drop-inside > .tree-row.is-drop-inside,
-.tree-group.is-drop-inside > .tree-row.is-file-drop-target {
+.tree-group.is-drop-inside > .tree-row-wrap > .tree-row.is-drop-inside,
+.tree-group.is-drop-inside > .tree-row-wrap > .tree-row.is-file-drop-target {
   background: transparent;
   outline: none;
 }
@@ -827,7 +860,7 @@
   outline: 1px solid rgba(255, 193, 23, 0.58);
 }
 
-.tree-row > span:not(.tree-folder-slot) {
+.tree-row > span:not(.tree-folder-slot):not(.tree-upload-spinner) {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
@@ -884,6 +917,58 @@
 .tree-row:focus-visible {
   outline: 2px solid rgba(90, 118, 160, 0.28);
   outline-offset: 1px;
+}
+
+/* 행 버튼과 폴더 + 버튼을 형제로 감싼다. 자식 행은 바깥이라 부모 +가 뜨지 않는다 */
+.tree-row-wrap {
+  position: relative;
+}
+
+/* + 버튼에 올려도 행 hover 배경을 유지한다 */
+.tree-row-wrap:hover > .tree-row:not(.is-selected) {
+  --button-hover-overlay: none;
+  background: #323232;
+}
+
+/* 폴더 행 우측 + 버튼: 평소엔 숨기고 행 hover·키보드 포커스 시 나타난다 */
+.tree-row-action {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--subdued);
+  background: #323232;
+  border-radius: 5px;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.tree-row-wrap:hover > .tree-row-action,
+.tree-row-wrap:focus-within > .tree-row-action {
+  opacity: 1;
+}
+
+.tree-row-action:hover,
+.tree-row-action:focus-visible {
+  --button-hover-overlay: none;
+  color: #f0f0f0;
+  background: #454545;
+}
+
+.tree-row-action:focus-visible {
+  outline: 2px solid rgba(90, 118, 160, 0.28);
+  outline-offset: 1px;
+}
+
+.tree-row-action-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .tree-row svg,
@@ -1096,33 +1181,75 @@
   padding-bottom: 8px;
 }
 
-.ingest-row:hover:not(:disabled),
-.ingest-row:focus-visible:not(:disabled) {
+.ingest-row {
+  cursor: pointer;
+}
+
+.ingest-row:hover:not(.is-disabled),
+.ingest-row:focus-within:not(.is-disabled) {
   --button-hover-overlay: none;
   background: var(--soft);
 }
 
-/* 폴더 화살표는 Figma대로 hover 때만 드러난다 */
-.ingest-folder-arrow {
-  display: none;
+/* 편입할 수 없는 파일·Markdown이 없는 폴더는 회색으로 두고 선택을 막는다 */
+.ingest-row.is-disabled {
+  color: var(--subdued);
+  cursor: default;
 }
 
-.ingest-row.is-folder:hover .ingest-folder-arrow,
-.ingest-row.is-folder:focus-visible .ingest-folder-arrow {
-  display: block;
+.ingest-row.is-disabled .ingest-check {
+  border-color: var(--line);
+}
+
+/* 폴더 화살표는 Figma대로 hover·포커스 때 드러나고, 접힌 폴더는 항상 보인다. 누르면 펼침/접힘만 바꾼다. */
+.ingest-folder-toggle {
+  display: none;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.ingest-row.is-folder:hover .ingest-folder-toggle,
+.ingest-row.is-folder:focus-within .ingest-folder-toggle,
+.ingest-folder-toggle[aria-expanded="false"] {
+  display: flex;
 }
 
 .ingest-check {
   width: 20px;
   height: 20px;
   flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--muted);
   border-radius: 4px;
   background: transparent;
+  color: inherit;
+}
+
+.ingest-check:disabled {
+  cursor: default;
 }
 
 .ingest-check.is-checked {
   border: 0;
+}
+
+/* 폴더 하위 문서가 일부만 선택된 상태(indeterminate) */
+.ingest-check.is-mixed::after {
+  content: "";
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink);
 }
 
 .ingest-label {

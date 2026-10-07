@@ -138,6 +138,8 @@ export function registerCatalogRoutes(router) {
     if (!workspace) return;
     const { instruction, name, description, scope_type } = await ctx.body();
     if (typeof instruction !== "string" || !instruction.trim()) return error(ctx, 400, "스킬 지시문을 입력해주세요.");
+    // 실제 백엔드는 AI의 의도 분류 실패(400)를 사유 없이 SKILL_REQUEST_REJECTED로 덮는다. 자모만 나열한 지침으로 재현한다.
+    if (/^[\sㄱ-ㅎㅏ-ㅣ]+$/.test(instruction)) return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
     const skillName = (name ?? slugify(instruction.slice(0, 20))).trim();
     const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities: ["summarize"], instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n` };
     ctx.json(200, toAuthoringResult({ id: id("skill"), scope_type: scope_type ?? "personal" }, version, detectSkillIssues(instruction)));

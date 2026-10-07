@@ -27,10 +27,10 @@
   margin-top: 0;
 }
 
-/* 문서 제목: 32px SemiBold, 아래 블록과 20px */
+/* 본문 h1: 28px SemiBold, 아래 블록과 20px. 문서 제목(36px)보다 작게 둬 제목과 구분한다 */
 .markdown-viewer h1 {
   margin: 0 0 20px;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.4;
 }

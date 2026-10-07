@@ -16,12 +16,13 @@ import { FlowModal } from "./FlowModal";
 
 const CODE_LENGTH = 6;
 
-type Step = "email" | "code" | "password";
+type Step = "email" | "code" | "password" | "done";
 
 const SUBTITLES: Record<Step, string> = {
   email: "현재 이메일 계정을 인증합니다.",
   code: "인증번호 6자리를 입력하여 이메일을 인증하세요.",
-  password: "최소 15자의 문자 또는\n최소 8자의 문자와 숫자 조합을 비밀번호로 사용하세요."
+  password: "최소 15자의 문자 또는\n최소 8자의 문자와 숫자 조합을 비밀번호로 사용하세요.",
+  done: "비밀번호가 변경되었습니다.\n새 비밀번호로 다시 로그인해 주세요."
 };
 
 function PasswordField({
@@ -69,6 +70,7 @@ function PasswordField({
 /**
  * 비밀번호 변경 3단계 모달 (Figma 1131:6030 / 6048 / 6529).
  * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 인증 토큰으로 password-reset 계약을 사용한다.
+ * 변경에 성공하면 모달 안에서 재로그인 안내를 보여 주고, 확인(또는 닫기) 후 onSaved로 로그아웃을 맡긴다.
  */
 export function PasswordChangeModal({
   email: accountEmail,
@@ -136,7 +138,7 @@ export function PasswordChangeModal({
     setError(null);
     try {
       await resetPasswordWithVerification(email.trim(), newPassword, token);
-      onSaved();
+      setStep("done");
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "비밀번호를 변경하지 못했습니다."));
     } finally {
@@ -147,7 +149,8 @@ export function PasswordChangeModal({
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    if (step === "email") void sendCode();
+    if (step === "done") onSaved();
+    else if (step === "email") void sendCode();
     else if (step === "code") void verifyCode();
     else void savePassword();
   }
@@ -168,22 +171,25 @@ export function PasswordChangeModal({
   }
 
   const canSubmit = !busy && (
-    step === "email"
+    step === "done" ? true
+    : step === "email"
       ? email.trim().length > 0
       : step === "code"
         ? code.trim().length === CODE_LENGTH && !countdown.isExpired
         : newPassword.length > 0 && passwordConfirm.length > 0
   );
-  const submitLabel = busy ? "처리 중…" : step === "email" ? "다음으로" : step === "code" ? "인증하기" : "비밀번호 변경";
+  const submitLabel = busy ? "처리 중…"
+    : step === "email" ? "다음으로" : step === "code" ? "인증하기" : step === "password" ? "비밀번호 변경" : "확인";
 
   return (
     <FlowModal
       title="비밀번호 변경"
-      subtitle={SUBTITLES[step]}
+      subtitle={step === "done" ? <span role="status">{SUBTITLES.done}</span> : SUBTITLES[step]}
       subtitleStyle={{ whiteSpace: "pre-line" }}
       ariaLabel="비밀번호 변경"
       canClose={!busy}
-      onClose={onClose}
+      // 변경 후에는 기존 세션이 폐기됐으므로 닫아도 로그아웃한다.
+      onClose={step === "done" ? onSaved : onClose}
       onSubmit={handleSubmit}
     >
       {step === "email" && (
@@ -239,15 +245,22 @@ export function PasswordChangeModal({
         </div>
       )}
 
-      <div className={cx(styles.footer, step === "email" && styles["is-end"])}>
-        {step !== "email" && (
+      <div className={cx(styles.footer, (step === "email" || step === "done") && styles["is-end"])}>
+        {(step === "code" || step === "password") && (
           <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
             <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
           </button>
         )}
-        <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
+        {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다. */}
+        <button
+          key={step === "done" ? "done" : "next"}
+          type="submit"
+          className={styles["btn-next"]}
+          disabled={!canSubmit}
+          autoFocus={step === "done"}
+        >
           {submitLabel}
-          {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
+          {!busy && step !== "done" && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
         </button>
       </div>
     </FlowModal>

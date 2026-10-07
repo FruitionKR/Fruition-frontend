@@ -2,12 +2,12 @@
 
 [API 배선 문서](../README.md) / [소비 API](README.md)
 
-document-svc의 문서·폴더·본문·이력 API다. 이 경로군은 전부 직접 전송 정규식
+document-svc의 문서·폴더·본문 API다. 이 경로군은 전부 직접 전송 정규식
 (`documents|document-tree|folders`)에 걸리므로 `BACKEND_URL`이 설정된 배포에서는 rewrite를
 우회해 document-svc 오리진으로 직접 나간다. 관리 이미지(`assets`)만 예외로 rewrite를 경유한다.
 
-- 호출 지점: 25
-- 호출 경로: 21
+- 호출 지점: 21
+- 호출 경로: 17
 
 ## 목록·트리
 
@@ -48,14 +48,6 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | `PUT /api/workspaces/{workspace_id}/documents/{document_id}/content` | Markdown 본문 저장 | `src/features/note-editing/api/note.ts` `saveNoteDraft` | `workspacePath(workspaceId, "documents", documentId, "content")` | `FormData`. 첨부 없음: `markdown`(Blob part `content.md`), `base_revision`, `revision_write_id`, 선택 `source`. 첨부 있음: `metadata` JSON(`{ markdown, base_version }`) + `attachment_<uuid>` 파일 part. `source === "agent"`면 `apply_operation_id` | `document_id`, `markdown`, `current_version`, `updated_at`, `attachments[]` | `409` → `NoteContentConflictError`. 본문을 문자열 part가 아닌 Blob으로 보내 LF→CRLF 변환을 피한다. 첨부 경로는 `revision_write_id`를 보내지 않고 서버가 `base_version`·본문 해시·첨부 해시로 쓰기 ID를 결정한다 |
 | `GET /api/workspaces/{workspace_id}/assets/{asset_id}/content` | 본문 속 관리 이미지 조회 | `src/shared/api/assets.ts` `acquireAssetObjectUrl` | 본문에서 정규식으로 추출한 경로 | `cache: no-store` | 응답 `Blob` → object URL | 직접 전송 정규식에 `assets`가 없어 rewrite를 경유한다. 참조 계수로 revoke 관리 |
 
-## 버전 이력
-
-| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
-|---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions` | 버전 메타데이터 목록 | `src/features/document-history/api/versions.ts` `fetchDocumentVersions` | 템플릿 결합 (`` `${documentPath(id)}/versions` ``, `documentPath`는 `workspacePath(getWorkspaceId(), "documents", id)`) | `cache: no-store` | `DocumentVersionListResponse` | 로컬 헬퍼가 `workspacePath`를 감싸는 이중 조립이라 리터럴 검색으로 찾히지 않는다 |
-| `GET /api/workspaces/{workspace_id}/documents/{document_id}/diff` | 두 버전 간 서버 계산 diff | `src/features/document-history/api/versions.ts` `fetchDocumentVersionDiff` | 템플릿 결합 (`` `${documentPath(id)}/diff?${query}` ``) | query `from_version`, `to_version` | `DocumentVersionDiffResponse` | 이 저장소가 query string을 만드는 두 경로 중 하나 |
-| `POST /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}/restore` | 과거 버전을 새 버전으로 비파괴 복원 | `src/features/document-history/api/versions.ts` `restoreDocumentVersion` | 템플릿 결합 (`` `${documentPath(id)}/versions/${version}/restore` ``) | `{ base_version }` | `DocumentContentSaveResponse` | `409` → `VersionRestoreConflictError` |
-
 ## 폴더
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
@@ -80,6 +72,5 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 - 업로드: `src/features/document-upload/ui`
 - 사이드바 트리·이름 변경·이동·삭제: `src/widgets/document-sidebar/ui`
 - 노트 편집기: `src/features/note-editing/ui`
-- 버전 이력·비교·복원: `src/features/document-history/ui`
 - 원본 미리보기: `src/widgets/source-preview/ui`
 - 검색(클라이언트 필터): `src/features/document-search/model/useDocumentSearch.ts`, `src/features/document-search/ui`
