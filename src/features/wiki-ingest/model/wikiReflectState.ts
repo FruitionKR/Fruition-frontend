@@ -66,6 +66,20 @@ export function getWikiReflectLabel(document: DocumentItemResponse): string | nu
   return WIKI_REFLECT_LABELS[getWikiReflectState(document)] ?? null;
 }
 
+const CHAT_EVIDENCE_NOTICES: Partial<Record<WikiReflectState, string>> = {
+  "not-included": "이 노트는 아직 위키에 편입되지 않아 답변 근거로 쓰이지 않습니다.",
+  changed: "편입 후 수정된 내용은 답변 근거에 반영되지 않습니다."
+};
+
+/**
+ * 채팅 답변 근거는 위키 페이지만 검색하므로, 열린 노트가 미편입·편입 후 수정 상태면 안내 문구를 돌려준다.
+ * 편입이 진행 중이거나 최신이면 안내하지 않는다.
+ */
+export function getChatEvidenceNotice(document: DocumentItemResponse | undefined): string | null {
+  if (!document || !isWikiReflectEligible(document)) return null;
+  return CHAT_EVIDENCE_NOTICES[getWikiReflectState(document)] ?? null;
+}
+
 export function isLintActionEnabled({
   needsLint,
   isIngestActive,

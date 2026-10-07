@@ -35,6 +35,7 @@ import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
 import { filterGraphProjects, isGraphIngestEligible, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
+import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
@@ -197,6 +198,12 @@ export function HomeWorkspace() {
     () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
   );
+  // 채팅이 editorSnapshot으로 함께 보내는 노트. 답변 근거는 위키만 검색하므로 미편입·변경 상태를 안내한다.
+  const chatContextDocument = useMemo(
+    () => documents.find((document) => document.id === markdownEditContext?.documentId),
+    [documents, markdownEditContext?.documentId]
+  );
+  const chatEvidenceNotice = getChatEvidenceNotice(chatContextDocument);
   const firstSidebarNote = useMemo(() => {
     const documentIds = new Set(documents.map((document) => document.id));
     for (const project of projectTree.projects) {
@@ -592,6 +599,11 @@ export function HomeWorkspace() {
           markdownEditContext={markdownEditContext}
           onDocumentExported={handleChatDocumentExported}
           nodes={graphData.nodes}
+          wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
+            message: chatEvidenceNotice,
+            isPending: wikiActionPending === "ingest",
+            onIngest: () => requestGraphIngest([chatContextDocument])
+          } : null}
         />
       )}
 

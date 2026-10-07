@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getChatEvidenceNotice,
   getWikiReflectLabel,
   getWikiReflectState,
   isLintActionEnabled,
@@ -100,4 +101,28 @@ test("새 Wiki 내용이 있고 진행 중인 작업이 없을 때만 lint할 �
   assert.equal(isLintActionEnabled({ needsLint: false, isIngestActive: false, isLintActive: false }), false);
   assert.equal(isLintActionEnabled({ needsLint: true, isIngestActive: true, isLintActive: false }), false);
   assert.equal(isLintActionEnabled({ needsLint: true, isIngestActive: false, isLintActive: true }), false);
+});
+
+test("미편입 노트는 답변 근거로 쓰이지 않는다고 안내한다", () => {
+  assert.equal(
+    getChatEvidenceNotice(makeDocument({ status: "uploaded" })),
+    "이 노트는 아직 위키에 편입되지 않아 답변 근거로 쓰이지 않습니다."
+  );
+});
+
+test("편입 후 수정된 노트는 수정 내용이 반영되지 않는다고 안내한다", () => {
+  assert.equal(
+    getChatEvidenceNotice(makeDocument({ status: "completed", needs_reingest: true })),
+    "편입 후 수정된 내용은 답변 근거에 반영되지 않습니다."
+  );
+});
+
+test("편입이 진행 중이거나 최신이면 답변 근거 안내를 하지 않는다", () => {
+  assert.equal(getChatEvidenceNotice(makeDocument({ status: "processing", needs_reingest: true })), null);
+  assert.equal(getChatEvidenceNotice(makeDocument({ status: "completed" })), null);
+});
+
+test("문서를 찾지 못했거나 PDF 원본이면 답변 근거 안내를 하지 않는다", () => {
+  assert.equal(getChatEvidenceNotice(undefined), null);
+  assert.equal(getChatEvidenceNotice(makeDocument({ status: "uploaded", mime_type: "application/pdf" })), null);
 });
