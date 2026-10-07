@@ -1,10 +1,13 @@
-/* 과거 버전 읽기 전용 열람 배너. 본문 위에 붙어 편집 화면이 아님을 알린다. */
+/* 과거 버전 읽기 전용 열람 배너. 본문 위에 붙어 편집 화면이 아님을 알린다.
+   열람 중에는 버전 기록 패널(오른쪽 24px, 폭 360px)이 늘 떠 있으므로 버튼이 그 아래로 가려지지 않게
+   오른쪽을 비운다: 패널 왼쪽 끝(384px) - 본문 좌우 여백(40px) + 간격(12px) = 356px. */
 .version-preview-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px 12px;
+  margin-right: 356px;
   margin-bottom: 20px;
   padding: 10px 12px 10px 14px;
   border: 1px solid #315efb;
@@ -21,6 +24,7 @@
 
 .version-preview-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
