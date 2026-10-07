@@ -624,24 +624,14 @@
 }
 
 .sidebar-profile-toggle:hover,
-.sidebar-profile-toggle:focus-visible {
+.sidebar-profile-toggle:focus-visible,
+.sidebar-profile-toggle[aria-expanded="true"] {
   --button-hover-overlay: none;
   color: var(--ink);
   background: var(--soft);
 }
 
-.sidebar-profile-toggle-icon {
-  width: 10px;
-  height: 5px;
-  transition: transform 120ms ease;
-}
-
-/* 메뉴가 위로 열리므로 열림 상태에서 화살표를 뒤집는다 */
-.sidebar-profile-toggle-icon.is-open {
-  transform: rotate(180deg);
-}
-
-/* 프로필 화살표 클릭 시 위로 열리는 설정/로그아웃 메뉴 */
+/* 프로필 메뉴 버튼 클릭 시 위로 열리는 설정/로그아웃 메뉴 */
 .profile-menu {
   position: absolute;
   right: 8px;

@@ -21,7 +21,6 @@ import sideboxIcon from "@/shared/assets/svg/workspace/sidebox.svg";
 import sourceIcon from "@/shared/assets/svg/document/source.svg";
 import sourcePageIcon from "@/shared/assets/svg/graph/source_page.svg";
 import shareIcon from "@/shared/assets/svg/navigation/menu_graph.svg";
-import profileToggleIcon from "@/shared/assets/svg/workspace/profile_toggle.svg";
 import toggleIcon from "@/shared/assets/svg/workspace/toggle.svg";
 import listIcon from "@/shared/assets/svg/workspace/list.svg";
 import userCircleIcon from "@/shared/assets/svg/workspace/UserCircle.svg";
@@ -91,7 +90,6 @@ export {
   fruitionLogo,
   homeIcon,
   lightningIcon,
-  profileToggleIcon,
   rawPageIcon,
   sideboxIcon,
   sourceIcon,
