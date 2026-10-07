@@ -1,4 +1,4 @@
-import { apiFetch, parseJsonOrThrow, throwIfNotOk, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { apiFetch, idempotencyKey, parseJsonOrThrow, throwIfNotOk, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import type { WorkspaceListResponse, WorkspaceResponse } from "@/entities/workspace/model/workspace";
 
 export async function fetchWorkspaces(): Promise<WorkspaceListResponse> {
@@ -17,7 +17,10 @@ export async function renameWorkspace(workspaceId: string, name: string): Promis
 
 /** 워크스페이스를 삭제한다. OWNER만 가능하다. */
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
-  const response = await apiFetch(workspacePath(workspaceId), { method: "DELETE" });
+  const response = await apiFetch(workspacePath(workspaceId), {
+    method: "DELETE",
+    headers: { "Idempotency-Key": idempotencyKey() }
+  });
   await throwIfNotOk(response, "워크스페이스를 삭제하지 못했습니다.");
 }
 
