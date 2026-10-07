@@ -4,9 +4,12 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
     "dev": "next dev",
     "mock": "node mock/server.mjs",
+    "predev:mock": "node scripts/copy-pdfjs-assets.mjs",
     "dev:mock": "node mock/dev.mjs",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

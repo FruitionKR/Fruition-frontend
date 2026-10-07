@@ -21,6 +21,14 @@ type MatchesCount = { current: number; total: number };
 // pdf.js FindState.PENDING. 상수 때문에 뷰어 모듈을 정적으로 불러오지 않도록 값만 둔다.
 const FIND_STATE_PENDING = 3;
 const EMPTY_MATCHES: MatchesCount = { current: 0, total: 0 };
+// scripts/copy-pdfjs-assets.mjs가 public/pdfjs로 복사한다. 폰트 비임베드 한글 PDF(CMap)·JPX 이미지(wasm)에 필요하다.
+const PDFJS_ASSET_OPTIONS = {
+  cMapUrl: "/pdfjs/cmaps/",
+  cMapPacked: true,
+  standardFontDataUrl: "/pdfjs/standard_fonts/",
+  wasmUrl: "/pdfjs/wasm/"
+};
+const PAGE_WIDTH_SCALE = "page-width";
 
 /**
  * pdf.js 기반 PDF 뷰어. 브라우저 내장 뷰어(iframe)는 Ctrl+F가 앱 전체를 검색하므로,
@@ -42,6 +50,9 @@ export function PdfViewer({ documentId, reloadKey, title }: PdfViewerProps) {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<MatchesCount>(EMPTY_MATCHES);
   const [isSearchPending, setIsSearchPending] = useState(false);
+  // 같은 문서를 다시 불러온 뒤 열린 검색어로 검색을 다시 실행할 때 읽는다.
+  const queryRef = useRef("");
+  queryRef.current = isSearchOpen ? query : "";
 
   useEffect(() => {
     const container = containerRef.current;
@@ -72,7 +83,8 @@ export function PdfViewer({ documentId, reloadKey, title }: PdfViewerProps) {
       const pdfViewer = new PDFViewer({ container, viewer, eventBus, linkService, findController, removePageBorders: true });
       linkService.setViewer(pdfViewer);
       eventBus.on("pagesinit", () => {
-        pdfViewer.currentScaleValue = "page-width";
+        pdfViewer.currentScaleValue = PAGE_WIDTH_SCALE;
+        if (queryRef.current) dispatchFindOn(eventBus, queryRef.current, "");
       });
       eventBus.on("pagechanging", ({ pageNumber: next }: { pageNumber: number }) => setPageNumber(next));
       eventBus.on("scalechanging", ({ scale: next }: { scale: number }) => setScale(next));
@@ -82,7 +94,7 @@ export function PdfViewer({ documentId, reloadKey, title }: PdfViewerProps) {
         setMatches(matchesCount);
       });
 
-      const loadingTask = pdfjs.getDocument({ data });
+      const loadingTask = pdfjs.getDocument({ data, ...PDFJS_ASSET_OPTIONS });
       destroyDocument = () => {
         pdfViewer.setDocument(null);
         linkService.setDocument(null);
@@ -113,6 +125,23 @@ export function PdfViewer({ documentId, reloadKey, title }: PdfViewerProps) {
     };
   }, [documentId, reloadKey]);
 
+  // PDFViewer는 컨테이너 폭이 바뀌어도 배율을 다시 계산하지 않는다. 패널·사이드바 토글 때 폭 맞춤을 다시 적용한다.
+  // 사용자가 직접 확대·축소했으면(page-width가 아니면) 그 배율을 유지한다.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    let lastWidth = container.clientWidth;
+    const observer = new ResizeObserver(() => {
+      const width = container.clientWidth;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      const pdfViewer = pdfViewerRef.current;
+      if (pdfViewer?.currentScaleValue === PAGE_WIDTH_SCALE) pdfViewer.currentScaleValue = PAGE_WIDTH_SCALE;
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
   const dispatchFind = (nextQuery: string, type: "" | "again", findPrevious = false) => {
     if (!nextQuery) {
       eventBusRef.current?.dispatch("findbarclose", { source: null });
@@ -120,16 +149,7 @@ export function PdfViewer({ documentId, reloadKey, title }: PdfViewerProps) {
       setIsSearchPending(false);
       return;
     }
-    eventBusRef.current?.dispatch("find", {
-      source: null,
-      type,
-      query: nextQuery,
-      caseSensitive: false,
-      entireWord: false,
-      highlightAll: true,
-      findPrevious,
-      matchDiacritics: false
-    });
+    if (eventBusRef.current) dispatchFindOn(eventBusRef.current, nextQuery, type, findPrevious);
   };
 
   const openSearch = () => {
@@ -258,4 +278,17 @@ export function PdfViewer({ documentId, reloadKey, title }: PdfViewerProps) {
       </div>
     </section>
   );
+}
+
+function dispatchFindOn(eventBus: EventBus, query: string, type: "" | "again", findPrevious = false) {
+  eventBus.dispatch("find", {
+    source: null,
+    type,
+    query,
+    caseSensitive: false,
+    entireWord: false,
+    highlightAll: true,
+    findPrevious,
+    matchDiacritics: false
+  });
 }

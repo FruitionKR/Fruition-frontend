@@ -251,7 +251,14 @@ export function PasswordChangeModal({
             <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
           </button>
         )}
-        <button type="submit" className={styles["btn-next"]} disabled={!canSubmit} autoFocus={step === "done"}>
+        {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다. */}
+        <button
+          key={step === "done" ? "done" : "next"}
+          type="submit"
+          className={styles["btn-next"]}
+          disabled={!canSubmit}
+          autoFocus={step === "done"}
+        >
           {submitLabel}
           {!busy && step !== "done" && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
         </button>
