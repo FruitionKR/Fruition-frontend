@@ -1,0 +1,124 @@
+/* pdf.js 기반 PDF 뷰어(#107). 툴바 아래 영역을 PDF 스크롤 컨테이너가 채운다. */
+.pdf-viewer {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pdf-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 12px;
+  color: var(--subdued);
+  font-size: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pdf-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pdf-page-indicator,
+.pdf-scale,
+.pdf-search-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pdf-scale {
+  min-width: 40px;
+  text-align: center;
+}
+
+.pdf-icon-button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  color: var(--subdued);
+  background: transparent;
+  border-radius: 6px;
+}
+
+.pdf-icon-button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--soft);
+}
+
+.pdf-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pdf-icon-button:focus-visible,
+.pdf-search-input:focus-visible,
+.pdf-scroll:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: -2px;
+}
+
+.pdf-search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pdf-search-input {
+  width: 180px;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.pdf-search-count {
+  min-width: 44px;
+  text-align: center;
+}
+
+.pdf-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* pdf.js PDFViewer는 스크롤 container가 absolute여야 한다. */
+.pdf-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 16px 0;
+}
+
+.pdf-scroll :global(.pdfViewer.removePageBorders .page) {
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+}
+
+/* 검색 하이라이트는 앱 강조색(--yellow)으로 맞춘다. 선택된 일치 항목은 더 진하게. */
+.pdf-scroll :global(.textLayer .highlight) {
+  --highlight-bg-color: color-mix(in srgb, var(--yellow) 35%, transparent);
+  --highlight-selected-bg-color: color-mix(in srgb, var(--yellow) 75%, transparent);
+}
+
+.pdf-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+}
