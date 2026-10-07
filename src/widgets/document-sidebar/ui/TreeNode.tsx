@@ -1,5 +1,6 @@
 import { cx } from "@/shared/lib/classNames";
 import { isFileItem } from "@/entities/tree";
+import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
 import { TreeNodeIcon } from "./TreeNodeIcon";
@@ -68,6 +69,8 @@ export function TreeNode({
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
+  // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
+  const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
   const {
     canDrag,
     handleDragStart,
@@ -87,6 +90,7 @@ export function TreeNode({
 
   return (
     <div className={cx(styles["tree-group"], isFolderBlockTarget && styles["is-drop-inside"])}>
+      <div className={styles["tree-row-wrap"]}>
       <button
         type="button"
         className={cx(
@@ -146,6 +150,23 @@ export function TreeNode({
           </>
         )}
       </button>
+      {canShowFolderAction && (
+        <button
+          type="button"
+          className={styles["tree-row-action"]}
+          aria-label={`${item.label}에 추가`}
+          aria-haspopup="menu"
+          onClick={(event) => {
+            // 행 토글·선택 해제와 window click에 의한 메뉴 즉시 닫힘을 막는다.
+            event.stopPropagation();
+            interaction.onOpenFolderMenuAt(projectId, item.id, event.currentTarget);
+          }}
+          onContextMenu={(event) => interaction.onContextMenuItem(event, projectId, item.id)}
+        >
+          <SvgIcon src={plusIcon} className={styles["tree-row-action-icon"]} />
+        </button>
+      )}
+      </div>
       {isFolder && isOpen && item.children?.map((child) => (
         <TreeNode
           key={child.id}

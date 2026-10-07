@@ -32,6 +32,7 @@ export function DocumentSidebar({
   contextMenu,
   convertContextTarget,
   canRenameContextTarget,
+  canCreateInContextTarget,
   uploadInputRef,
   activeView,
   documents,
@@ -53,6 +54,7 @@ export function DocumentSidebar({
   onDragEnd,
   onContextMenuProject,
   onContextMenuItem,
+  onOpenFolderMenuAt,
   onSelectGraphNode,
   onEditingChange,
   onCommitEditing,
@@ -77,6 +79,8 @@ export function DocumentSidebar({
   convertContextTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameContextTarget: boolean;
+  /** 파일 메뉴에서는 생성 항목(새 폴더·새 노트·파일 업로드)을 숨긴다. */
+  canCreateInContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
   activeView: RailView;
   /** 워크스페이스 문서 목록. 헤더의 진행 중 작업 팝오버가 여기서 ingest 진행 문서를 고른다. */
@@ -101,6 +105,7 @@ export function DocumentSidebar({
   onDragEnd: () => void;
   onContextMenuProject: (event: ReactMouseEvent<HTMLElement>, projectId: string) => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
+  onOpenFolderMenuAt: (projectId: string, itemId: string, anchor: HTMLElement) => void;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
   onCommitEditing: () => void;
@@ -147,6 +152,7 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDragEnd,
     onContextMenuItem,
+    onOpenFolderMenuAt,
     onSelectGraphNode,
     onEditingChange,
     onCommitEditing,
@@ -161,6 +167,7 @@ export function DocumentSidebar({
         <ContextMenu
           contextMenu={contextMenu}
           canCreateProject={canCreateProjectFromView(activeView)}
+          canCreateInTarget={canCreateInContextTarget}
           convertTarget={convertContextTarget}
           canRenameTarget={canRenameContextTarget}
           onRenameContextTarget={onRenameContextTarget}

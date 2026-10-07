@@ -21,6 +21,9 @@ import {
 } from "@/entities/tree";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
 
+/** + 버튼 아래로 메뉴를 띄울 때 버튼과의 간격 (px) */
+const FOLDER_MENU_ANCHOR_GAP_PX = 4;
+
 /** 큐에서 기다리는 동안 대상이 삭제·이동되면 요청을 보내지 않고 이 문구로 알린다. */
 const STALE_TARGET_MESSAGE = "대상이 이미 삭제되었거나 이동되어 요청을 보내지 않았습니다.";
 
@@ -197,6 +200,16 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     setContextMenu({ projectId, itemId, x: event.clientX, y: event.clientY });
   }
 
+  /** 폴더 행의 + 버튼: 버튼 아래에 우클릭과 같은 메뉴를 열고, 같은 폴더에서 다시 누르면 닫는다. */
+  function openFolderMenuAt(projectId: string, itemId: string, anchor: HTMLElement) {
+    if (contextMenu?.projectId === projectId && contextMenu.itemId === itemId) {
+      setContextMenu(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    setContextMenu({ projectId, itemId, x: rect.left, y: rect.bottom + FOLDER_MENU_ANCHOR_GAP_PX });
+  }
+
   function openProjectMenu(event: ReactMouseEvent<HTMLElement>, projectId: string) {
     event.preventDefault();
     setContextMenu({ projectId, itemId: null, x: event.clientX, y: event.clientY });
@@ -237,6 +250,8 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     ? findTreeItem(contextMenuProject.items, contextMenu.itemId)
     : null;
   // PDF 원본은 편집 불가 문서라 컨텍스트 메뉴에서 이름 변경을 숨긴다.
+  // 파일(노트·PDF) 메뉴에서는 새 폴더·새 노트·파일 업로드를 숨긴다. 생성은 폴더·빈 영역에서만 한다.
+  const canCreateInContextTarget = !contextMenuItem || !isFileItem(contextMenuItem);
   const canRenameContextTarget = !(contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) && contextMenuItem?.mimeType !== "application/pdf";
 
   const convertContextTarget = contextMenuItem?.documentId && contextMenuItem.mimeType === "application/pdf"
@@ -377,10 +392,12 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     addProject,
     moveTreeEntry,
     openFolderMenu,
+    openFolderMenuAt,
     openProjectMenu,
     renameContextTarget,
     takeFolderTargetFromContext,
     canRenameContextTarget,
+    canCreateInContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,
     deleteContextTarget,

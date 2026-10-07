@@ -413,6 +413,7 @@ export function HomeWorkspace() {
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
         canRenameContextTarget={projectTree.canRenameContextTarget}
+        canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
         documents={documents}
@@ -452,6 +453,7 @@ export function HomeWorkspace() {
         onDragEnd={projectTree.onDragEnd}
         onContextMenuProject={projectTree.openProjectMenu}
         onContextMenuItem={projectTree.openFolderMenu}
+        onOpenFolderMenuAt={projectTree.openFolderMenuAt}
         onSelectGraphNode={selection.selectTreeGraphNode}
         onEditingChange={projectTree.onEditingChange}
         onCommitEditing={projectTree.commitEditing}

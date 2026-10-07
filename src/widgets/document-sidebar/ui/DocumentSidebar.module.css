@@ -806,8 +806,8 @@
 }
 
 /* 블록이 강조되면 폴더 행 자체의 상자는 겹치지 않게 끈다 */
-.tree-group.is-drop-inside > .tree-row.is-drop-inside,
-.tree-group.is-drop-inside > .tree-row.is-file-drop-target {
+.tree-group.is-drop-inside > .tree-row-wrap > .tree-row.is-drop-inside,
+.tree-group.is-drop-inside > .tree-row-wrap > .tree-row.is-file-drop-target {
   background: transparent;
   outline: none;
 }
@@ -874,6 +874,58 @@
 .tree-row:focus-visible {
   outline: 2px solid rgba(90, 118, 160, 0.28);
   outline-offset: 1px;
+}
+
+/* 행 버튼과 폴더 + 버튼을 형제로 감싼다. 자식 행은 바깥이라 부모 +가 뜨지 않는다 */
+.tree-row-wrap {
+  position: relative;
+}
+
+/* + 버튼에 올려도 행 hover 배경을 유지한다 */
+.tree-row-wrap:hover > .tree-row:not(.is-selected) {
+  --button-hover-overlay: none;
+  background: #323232;
+}
+
+/* 폴더 행 우측 + 버튼: 평소엔 숨기고 행 hover·키보드 포커스 시 나타난다 */
+.tree-row-action {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--subdued);
+  background: #323232;
+  border-radius: 5px;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.tree-row-wrap:hover > .tree-row-action,
+.tree-row-wrap:focus-within > .tree-row-action {
+  opacity: 1;
+}
+
+.tree-row-action:hover,
+.tree-row-action:focus-visible {
+  --button-hover-overlay: none;
+  color: #f0f0f0;
+  background: #454545;
+}
+
+.tree-row-action:focus-visible {
+  outline: 2px solid rgba(90, 118, 160, 0.28);
+  outline-offset: 1px;
+}
+
+.tree-row-action-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .tree-row svg,
