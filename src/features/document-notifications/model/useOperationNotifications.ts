@@ -53,10 +53,11 @@ export function useOperationNotifications() {
 
     let cancelled = false;
     let timer = 0;
-    // 숨김 탭에서 예약을 건너뛴 상태. 다시 보이면 즉시 한 번 폴링한다.
+    // 숨김 탭에서 예약을 건너뛰었거나 느린 주기로 예약한 상태. 다시 보이면 즉시 한 번 폴링한다.
     let paused = false;
 
     async function poll() {
+      paused = false;
       let logs: OperationLogItem[];
       try {
         const [terminal, ...active] = await Promise.all([
@@ -96,11 +97,10 @@ export function useOperationNotifications() {
     // 이 폴링이 잡으면 hasActive로 3초 폴링이 이어지므로 의도한 동작이다. 멈춤은 그다음 schedule에서 판단한다.
     function schedule(hasActive: boolean) {
       if (cancelled) return;
-      const delay = nextOperationPollDelay(hasActive, document.visibilityState === "hidden");
-      if (delay === null) {
-        paused = true;
-        return;
-      }
+      const isHidden = document.visibilityState === "hidden";
+      const delay = nextOperationPollDelay(hasActive, isHidden);
+      paused = isHidden;
+      if (delay === null) return;
       timer = window.setTimeout(() => void poll(), delay);
     }
 
