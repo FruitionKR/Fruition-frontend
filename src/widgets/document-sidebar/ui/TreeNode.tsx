@@ -56,12 +56,12 @@ export function TreeNode({
   const isSelected = selectedItemIds.has(item.id);
   // 선택된 묶음 중 하나를 끌면 나머지 선택 항목도 함께 이동하므로 같이 흐리게 표시한다.
   const isDraggingGroup = draggedItemId !== null && isSelected && selectedItemIds.has(draggedItemId);
-  const hasChildren = Boolean(item.children?.length);
   const isOpen = openIds.has(item.id);
   const isDropTarget = dropTarget?.projectId === projectId && dropTarget.targetId === item.id;
   const isFileDropTarget = fileDropTarget?.projectId === projectId && fileDropTarget.folderId === item.id;
   const isEditing = editing?.projectId === projectId && editing.itemId === item.id;
   // 폴더 안으로 넣는 드롭은 폴더 행만이 아니라 펼쳐진 자식까지 한 블록으로 강조한다.
+  // 빈 폴더도 펼침 화살표·토글을 가져 노트와 구분되게 한다.
   const isFolder = item.type === "folder";
   const isDropInside = isDropTarget && dropTarget.position === "inside";
   const isFolderBlockTarget = isFolder && (isDropInside || isFileDropTarget);
@@ -102,7 +102,7 @@ export function TreeNode({
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
         title={item.errorMessage ?? item.sourceUri}
-        aria-expanded={hasChildren ? isOpen : undefined}
+        aria-expanded={isFolder ? isOpen : undefined}
         aria-busy={isUploading || undefined}
         aria-disabled={isUploading || undefined}
         draggable={!isEditing && !isUploading && canDrag}
@@ -125,10 +125,10 @@ export function TreeNode({
           }
           if (selectedItemIds.size > 0) interaction.onClearSelectedItems();
           if (!isEditing && (item.graphNodeId || item.documentId)) interaction.onSelectGraphNode(item);
-          if (!isEditing && hasChildren) onToggle(item.id);
+          if (!isEditing && isFolder) onToggle(item.id);
         }}
       >
-        <TreeNodeIcon item={item} hasChildren={hasChildren} isOpen={isOpen} />
+        <TreeNodeIcon item={item} isExpandable={isFolder} isOpen={isOpen} />
         {isEditing ? (
           <InlineEditInput
             value={editing.label}
@@ -146,7 +146,7 @@ export function TreeNode({
           </>
         )}
       </button>
-      {hasChildren && isOpen && item.children?.map((child) => (
+      {isFolder && isOpen && item.children?.map((child) => (
         <TreeNode
           key={child.id}
           item={child}
