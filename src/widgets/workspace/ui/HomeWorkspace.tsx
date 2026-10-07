@@ -31,7 +31,7 @@ import { useTreeSelection } from "../model/useTreeSelection";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
 import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
-import { isDocumentConverting } from "@/entities/document/lib/documentKind";
+import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/markdownAgent";
@@ -180,8 +180,8 @@ export function HomeWorkspace() {
     if (!selection.selectedDocumentId) return undefined;
     return documents.find((item) => item.id === selection.selectedDocumentId)?.status;
   }, [documents, selection.selectedDocumentId]);
-  const selectedDocumentConverting = useMemo(
-    () => isDocumentConverting(documents.find((item) => item.id === selection.selectedDocumentId)),
+  const selectedDocumentConversion = useMemo(
+    () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
   );
   const firstSidebarNote = useMemo(() => {
@@ -466,7 +466,7 @@ export function HomeWorkspace() {
             onRefreshDocuments={() => void refreshBackendData()}
             documentRole={selectedDocumentRole}
             documentStatus={selectedDocumentStatus}
-            documentConverting={selectedDocumentConverting}
+            documentConversion={selectedDocumentConversion}
             parentLabel={selectedDocumentParentLabel}
             editedAt={selectedDocumentEditedAt}
             isAgentPanelOpen={isHomeAgentPanelOpen}

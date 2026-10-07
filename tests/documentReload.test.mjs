@@ -26,3 +26,10 @@ test("다른 문서로 바뀌었거나 상태 변화가 없으면 다시 불러�
   assert.equal(shouldReloadOpenDocument(open("processing", true, "doc_1"), open("completed", false, "doc_2"), true), false);
   assert.equal(shouldReloadOpenDocument(open("processing", true), open("processing", true), true), false);
 });
+
+test("변환 중 묶음이 추가돼 revision이 바뀌면 본문을 다시 불러온다", () => {
+  const converting = (revision) => ({ id: "doc_1", status: "processing", converting: true, revision });
+  assert.equal(shouldReloadOpenDocument(converting("PDF 1/3페이지 변환 완료|t1"), converting("PDF 2/3페이지 변환 완료|t2"), false), true);
+  assert.equal(shouldReloadOpenDocument(converting("PDF 1/3페이지 변환 완료|t1"), converting("PDF 1/3페이지 변환 완료|t1"), true), false);
+  assert.equal(shouldReloadOpenDocument({ ...converting("a"), id: "doc_2" }, converting("b"), true), false);
+});
