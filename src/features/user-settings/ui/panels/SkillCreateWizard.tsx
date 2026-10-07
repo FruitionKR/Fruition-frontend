@@ -146,6 +146,18 @@ export function SkillCreateWizard({
   const isDuplicatePublishName =
     publishName !== "" && (existingSkills ?? []).some((skill) => skill.slug === publishName);
 
+  // 필수 필드 안내는 blur하거나 진행 버튼을 누른 뒤에 보여준다.
+  const [touched, setTouched] = useState<ReadonlySet<"instruction" | "publishName">>(new Set());
+  const touch = (field: "instruction" | "publishName") =>
+    setTouched((current) => (current.has(field) ? current : new Set([...current, field])));
+  const isInstructionEmpty = instruction.trim().length === 0;
+  const showInstructionError = touched.has("instruction") && isInstructionEmpty;
+  const isStep1Blocked = isInstructionEmpty || isInvalidCommand || isDuplicateCommand;
+  // STEP 3은 AI 초안으로 채워진 검토 화면이라, 설명이 비면 바로 안내한다(빈 설명은 서버가 400으로 거절한다).
+  const isDescriptionEmpty = draft != null && (draft.description ?? "").trim().length === 0;
+  const showPublishNameError = touched.has("publishName") && publishName.length === 0;
+  const isPublishBlocked = publishName.length === 0 || isInvalidCommand || isDuplicatePublishName || isDescriptionEmpty;
+
   // 검토 오버레이 상태 머신 — react-query 파생값 대신 한 상태로 관리해
   // loading→complete 전환이 단일 setState로 이뤄져 프레임 공백(끊김)이 없다.
   const [overlayPhase, setOverlayPhase] = useState<"loading" | "complete" | null>(null);
@@ -321,21 +333,19 @@ export function SkillCreateWizard({
                 maxLength={NAME_MAX}
                 placeholder={suggestCommand(instruction)}
                 value={command}
+                aria-invalid={isInvalidCommand || isDuplicateCommand}
+                aria-describedby={isInvalidCommand || isDuplicateCommand ? "skill-command-error" : undefined}
                 onChange={(event) => setCommand(event.target.value)}
-                onFocus={() => {
-                  // 추천 커맨드명이 placeholder로 보이다가, 비어 있는 필드를 선택하면 자동으로 채운다.
-                  if (command === "") setCommand(suggestCommand(instruction));
-                }}
               />
               <span className={styles.counter}>{command.length}/{NAME_MAX}</span>
             </div>
             {isInvalidCommand && (
-              <small className={styles.error} role="alert">
+              <small id="skill-command-error" className={styles.error} role="alert">
                 커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)
               </small>
             )}
             {isDuplicateCommand && (
-              <small className={styles.error} role="alert">
+              <small id="skill-command-error" className={styles.error} role="alert">
                 이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.
               </small>
             )}
@@ -350,8 +360,16 @@ export function SkillCreateWizard({
               rows={6}
               placeholder="예: 회의록을 요약해서 액션 아이템 문서를 만들어 줘"
               value={instruction}
+              aria-invalid={showInstructionError}
+              aria-describedby={showInstructionError ? "skill-instruction-error" : undefined}
               onChange={(event) => setInstruction(event.target.value)}
+              onBlur={() => touch("instruction")}
             />
+            {showInstructionError && (
+              <small id="skill-instruction-error" className={styles.error} role="alert">
+                스킬 지침을 입력해 주세요.
+              </small>
+            )}
           </div>
 
           {/* 참고 문서 (최대 3개) — 검색 아이콘으로 워크스페이스 문서를 선택한다 */}
@@ -399,8 +417,13 @@ export function SkillCreateWizard({
           <button
             type="button"
             className={styles["btn-primary"]}
-            disabled={instruction.trim().length === 0 || isInvalidCommand || isDuplicateCommand || authorMutation.isPending}
-            onClick={() => authorMutation.mutate({ instruction })}
+            disabled={authorMutation.isPending}
+            aria-disabled={isStep1Blocked}
+            onClick={() => {
+              // 비활성 버튼은 클릭을 받지 못하므로 aria-disabled로 두고, 누르면 빈 필수 필드를 표시한다.
+              touch("instruction");
+              if (!isStep1Blocked) authorMutation.mutate({ instruction });
+            }}
           >
             {authorMutation.isPending ? "안전 검토 중…" : "안전 검토 들어가기 ›"}
           </button>
@@ -500,10 +523,16 @@ export function SkillCreateWizard({
                 className={styles.input}
                 maxLength={NAME_MAX}
                 value={command}
+                aria-invalid={isInvalidCommand || isDuplicatePublishName || showPublishNameError}
                 onChange={(event) => setCommand(event.target.value)}
               />
               <span className={styles.counter}>{command.length}/{NAME_MAX}</span>
             </div>
+            {showPublishNameError && (
+              <small className={styles.error} role="alert">
+                커맨드를 입력해 주세요.
+              </small>
+            )}
           </div>
 
           <div className={styles.field}>
@@ -511,9 +540,16 @@ export function SkillCreateWizard({
             <input
               type="text"
               className={styles.input}
-              value={draft.description}
+              value={draft.description ?? ""}
+              aria-invalid={isDescriptionEmpty}
+              aria-describedby={isDescriptionEmpty ? "skill-description-error" : undefined}
               onChange={(event) => setDraft({ ...draft, description: event.target.value })}
             />
+            {isDescriptionEmpty && (
+              <small id="skill-description-error" className={styles.error} role="alert">
+                설명을 입력해 주세요. 설명이 비어 있으면 게시할 수 없습니다.
+              </small>
+            )}
           </div>
 
           <div className={styles.field}>
@@ -615,8 +651,12 @@ export function SkillCreateWizard({
             <button
               type="button"
               className={styles["btn-primary"]}
-              disabled={publishMutation.isPending || publishName.length === 0 || isInvalidCommand || isDuplicatePublishName}
-              onClick={() => publishMutation.mutate()}
+              disabled={publishMutation.isPending}
+              aria-disabled={isPublishBlocked}
+              onClick={() => {
+                touch("publishName");
+                if (!isPublishBlocked) publishMutation.mutate();
+              }}
             >
               {publishMutation.isPending ? "게시 중…" : "최종 게시 ›"}
             </button>
