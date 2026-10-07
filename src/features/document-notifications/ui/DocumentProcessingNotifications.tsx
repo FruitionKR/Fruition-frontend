@@ -23,8 +23,9 @@ export function DocumentProcessingNotifications({
       {notices.map((notice) => (
         <div
           key={notice.id}
-          className={styles["notice"]}
+          className={notice.leaving ? `${styles["notice"]} ${styles["is-leaving"]}` : styles["notice"]}
           role={notice.kind === "failed" ? "alert" : "status"}
+          aria-hidden={notice.leaving || undefined}
         >
           <div className={styles["notice-title"]}>
             <strong>{notice.title}</strong>
