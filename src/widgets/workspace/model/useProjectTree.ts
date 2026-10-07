@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { resolveTreeMove } from "../lib/treeMoveRules";
+import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
   findTreeItem,
   availableFolderName,
@@ -50,7 +51,17 @@ type MergeConfirmTarget = {
   run: () => void;
 };
 
-export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<() => Promise<void>> }) {
+export function useProjectTree({
+  refreshRef,
+  onDeleted
+}: {
+  refreshRef: MutableRefObject<() => Promise<void>>;
+  /** 삭제 API가 성공한 뒤 호출된다. 폴더를 지우면 삭제 직전 트리의 하위 id까지 넘긴다. */
+  onDeleted?: (deleted: DeletedTreeIds) => void;
+}) {
+  // 큐에서 늦게 실행되는 삭제도 최신 렌더의 콜백을 부르도록 ref로 들고 있는다.
+  const onDeletedRef = useRef(onDeleted);
+  onDeletedRef.current = onDeleted;
   const [projects, setProjectsState] = useState<Project[]>(initialProjects);
   // 큐의 작업은 실행 시점의 최신 트리를 읽어야 한다. 렌더를 기다리지 않도록 갱신과 동시에 ref에 반영한다.
   const projectsRef = useRef<Project[]>(initialProjects);
@@ -289,8 +300,11 @@ export function useProjectTree({ refreshRef }: { refreshRef: MutableRefObject<()
     void runTreeMutation(async (latest) => {
       // 기다리는 동안 이미 사라졌으면 삭제 목적은 이뤄졌으므로 조용히 건너뛴다.
       if (itemId ? !hasTreeItem(latest, itemId) : !latest.some((project) => project.id === projectId)) return;
+      const deleted = collectDeletedTreeIds(latest, projectId, itemId);
       if (kind === "folder") await deleteFolder(itemId ?? projectId);
       else if (documentId) await deleteDocument(documentId);
+      else return;
+      onDeletedRef.current?.(deleted);
     }, "삭제 실패");
   }
 

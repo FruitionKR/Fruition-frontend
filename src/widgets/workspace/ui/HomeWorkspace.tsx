@@ -27,6 +27,7 @@ import { cx } from "@/shared/lib/classNames";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useProjectTree } from "../model/useProjectTree";
+import type { DeletedTreeIds } from "../lib/deletedTreeIds";
 import { useTreeSelection } from "../model/useTreeSelection";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
 import { filterGraphProjects, isGraphIngestEligible, isPdfDocument, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
@@ -85,7 +86,7 @@ export function HomeWorkspace() {
   );
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
-  const projectTree = useProjectTree({ refreshRef });
+  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
   const {
     documents,
     documentsUpdatedAt,
@@ -242,6 +243,28 @@ export function HomeWorkspace() {
       // 저장소가 차단되어도 문서 열람은 계속한다.
     }
   }, [selection.selectedDocumentId, selection.selectedPreviewTarget?.pageId]);
+
+  // 열린 문서나 그 상위 폴더가 삭제되면 미리보기를 닫는다(빈 화면으로 둔다).
+  // 새로고침 때 삭제된 문서가 마지막 문서로 복원되지 않도록 기록도 지운다.
+  function handleTreeDeleted({ documentIds, treeItemIds }: DeletedTreeIds) {
+    const { selectedDocumentId, selectedTreeItemId } = selection;
+    const isOpenDocumentDeleted = (selectedDocumentId !== null && documentIds.includes(selectedDocumentId))
+      || (selectedTreeItemId !== null && treeItemIds.includes(selectedTreeItemId));
+    if (isOpenDocumentDeleted) {
+      // 자동 열기가 아직 안 돌았더라도 첫 노트로 넘어가지 않게 막는다.
+      didAutoOpenRef.current = true;
+      selection.clearTreeGraphSelection();
+    }
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId) return;
+    const key = `fruition.last-document.${workspaceId}`;
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(key) ?? "null");
+      if (isOpenDocumentDeleted || documentIds.includes(saved?.documentId)) window.sessionStorage.removeItem(key);
+    } catch {
+      // 저장소를 사용할 수 없으면 정리하지 않는다. 복원 시 목록에 없는 문서는 열리지 않는다.
+    }
+  }
 
   function handleViewChange(view: RailView) {
     // 다른 화면에서 열어 둔 문서(홈 자동 열기 포함)의 포커스가 그래프 선택으로 이어지지 않게 한다.
