@@ -577,9 +577,27 @@
 
 .sidebar-profile-user {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 하이라이트 여백만큼 당겨 아바타 위치를 유지한다 */
+  margin: 0 4px 0 -6px;
+  padding: 6px;
+  color: inherit;
+  background: transparent;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.sidebar-profile-user:hover,
+.sidebar-profile-user:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.sidebar-profile-user:active {
+  background: #3d3d3d;
 }
 
 .sidebar-profile-avatar {

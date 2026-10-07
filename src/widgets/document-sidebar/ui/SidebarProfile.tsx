@@ -24,13 +24,22 @@ export function SidebarProfile() {
   return (
     <footer className={styles["sidebar-profile"]} ref={rootRef}>
       <div className={styles["sidebar-profile-row"]}>
-        <span className={styles["sidebar-profile-user"]}>
+        {/* 프로필 이미지·이름을 누르면 메뉴를 거치지 않고 사용자 설정을 바로 연다. */}
+        <button
+          type="button"
+          className={styles["sidebar-profile-user"]}
+          aria-label="사용자 설정 열기"
+          onClick={() => {
+            setIsMenuOpen(false);
+            setIsSettingsOpen(true);
+          }}
+        >
           <SvgIcon src={userCircleIcon} className={styles["sidebar-profile-avatar"]} />
           <span className={styles["sidebar-profile-info"]}>
             <strong>{name}</strong>
             <small>온라인</small>
           </span>
-        </span>
+        </button>
         <button
           type="button"
           className={styles["sidebar-profile-toggle"]}
