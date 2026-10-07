@@ -45,7 +45,7 @@
 - `리터럴` — `"/api/ai-models"`처럼 코드에 문자열로 그대로 있다.
 - `workspacePath(...)` — 헬퍼로 조립한다. 괄호 안에 실제 인자를 적는다.
 - `템플릿 결합` — `workspacePath(...)` 결과나 호출자가 넘긴 변수에 접미사를 붙인다.
-  (`` `${path}/cancel` ``, `` `${endpoint}/parts` ``, `documentPath(id) + "/versions"` 등)
+  (`` `${path}/cancel` ``, `` `${endpoint}/parts` `` 등)
 
 템플릿 결합 경로는 리터럴 검색으로는 찾히지 않는다. 이 문서는 변수를 호출자까지 따라가
 구체 경로를 적어 두었다.
@@ -87,11 +87,10 @@ multipart 업로드 등록은 재시도에서도 **같은 키**를 재사용해 
 |---|---|
 | `GET .../documents/{document_id}` 의 `current_version` | 문서 삭제·이름 변경 |
 | `GET .../document-tree` 항목의 `current_version` | 폴더·문서 이동·이름 변경·폴더 삭제 |
-| 편집기 상태의 `content_version` | 본문 저장, 버전 복원 |
+| 편집기 상태의 `content_version` | 본문 저장 |
 
 `409`를 전용 오류 타입으로 바꾸는 지점: `NoteContentConflictError`
-(`src/features/note-editing/api/note.ts`), `VersionRestoreConflictError`
-(`src/features/document-history/api/versions.ts`),
+(`src/features/note-editing/api/note.ts`),
 `DocumentNameConflictError`(`src/entities/document/api/document.ts`, 서버 호출 전 클라이언트 선점 검사).
 
 ## 오류 처리
