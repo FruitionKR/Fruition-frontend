@@ -10,6 +10,7 @@ import { SafetyReviewBadge } from "./SafetyReviewBadge";
 import { AlertModal } from "@/shared/ui/AlertModal";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { describeSkillAuthorError, skillAuthoringOutcome } from "../../lib/skillAuthoring";
+import { documentDisplayName } from "../../lib/documentPicker";
 import { fetchWorkspaces, useWorkspaceName } from "@/entities/workspace";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
@@ -410,14 +411,14 @@ export function SkillCreateWizard({
                 {selectedDocs.map((doc) => (
                   <div key={doc.id} className={styles["doc-card"]}>
                     <div className={styles["doc-card-text"]}>
-                      <span className={styles["doc-card-name"]}>{doc.filename}</span>
+                      <span className={styles["doc-card-name"]}>{documentDisplayName(doc)}</span>
                       <span className={styles["doc-card-size"]}>{formatBytes(doc.byte_size)}</span>
                     </div>
                     <span className={styles["doc-card-ext"]}>{fileExtension(doc.filename)}</span>
                     <button
                       type="button"
                       className={styles["doc-card-remove"]}
-                      aria-label={`${doc.filename} 선택 해제`}
+                      aria-label={`${documentDisplayName(doc)} 선택 해제`}
                       onClick={() => setSelectedDocs(selectedDocs.filter((item) => item.id !== doc.id))}
                     >
                       ✕

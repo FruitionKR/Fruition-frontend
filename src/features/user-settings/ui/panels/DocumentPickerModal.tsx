@@ -5,6 +5,7 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { CenteredModal } from "@/shared/ui/CenteredModal";
 import modalStyles from "@/shared/ui/CenteredModal.module.css";
 import { fileIcon, plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { documentDisplayName, filterPickerDocuments } from "../../lib/documentPicker";
 // 검색 결과 리스트 스타일은 스킬 검색 모달과 동일한 형태를 쓴다.
 import styles from "./SkillSearchModal.module.css";
 
@@ -29,11 +30,8 @@ export function DocumentPickerModal({
     inputRef.current?.focus();
   }, []);
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const results = useMemo(() => {
-    if (!normalizedQuery) return documents;
-    return documents.filter((doc) => doc.filename.toLowerCase().includes(normalizedQuery));
-  }, [documents, normalizedQuery]);
+  const hasQuery = query.trim() !== "";
+  const results = useMemo(() => filterPickerDocuments(documents, query), [documents, query]);
 
   return (
     <CenteredModal ariaLabel="참고 문서 검색" onClose={onClose}>
@@ -66,7 +64,7 @@ export function DocumentPickerModal({
                 >
                   <span className={styles["search-result-title"]}>
                     <SvgIcon src={fileIcon} className={styles["search-result-icon"]} />
-                    <span className={styles["search-result-label"]}>{doc.filename}</span>
+                    <span className={styles["search-result-label"]}>{documentDisplayName(doc)}</span>
                   </span>
                   <span className={styles["search-result-meta"]}>{isSelected ? "선택됨 ✓" : ""}</span>
                 </button>
@@ -74,7 +72,7 @@ export function DocumentPickerModal({
             })
           ) : (
             <p className={styles["search-empty"]}>
-              {normalizedQuery ? "검색 결과가 없습니다." : "선택할 문서가 없습니다."}
+              {hasQuery ? "검색 결과가 없습니다." : "선택할 문서가 없습니다."}
             </p>
           )}
         </div>
