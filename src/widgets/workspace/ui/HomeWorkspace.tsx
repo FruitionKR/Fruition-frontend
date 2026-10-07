@@ -44,6 +44,7 @@ import { useResizeHandle } from "../model/useResizeHandle";
 import { canShowAgentPanel, isAgentPanelVisible } from "../lib/workspaceLayout";
 import type { DocumentItemResponse, SourceBlockHighlight } from "@/entities/document";
 import type { TreeItem } from "@/entities/tree";
+import type { GraphNode } from "@/entities/wiki";
 import type { ChatWikiExportResponse } from "@/features/wiki-export";
 
 const SIDEBAR_DEFAULT_WIDTH = 320;
@@ -248,6 +249,16 @@ export function HomeWorkspace() {
   function openSourceBlocks(documentId: string, title: string, highlights: SourceBlockHighlight[]) {
     const documentTitle = documents.find((document) => document.id === documentId)?.filename ?? title;
     selection.openSourceBlockPreview(documentId, documentTitle, highlights);
+  }
+
+  // 그래프 노드 더블클릭: 원본(raw) 노드는 홈으로 전환해 문서를 열고, 그 외 노드는 그래프 포커스만 옮긴다.
+  function openGraphNode(node: GraphNode) {
+    if (node.kind === "raw" && node.documentId) {
+      setActiveView("home");
+      openSourceBlocks(node.documentId, node.label, []);
+      return;
+    }
+    selection.openGraphNodePreview(node);
   }
 
   async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft) {
@@ -486,7 +497,7 @@ export function HomeWorkspace() {
             links={graphData.links}
             rawDocumentCount={graphDocuments.length}
             focusedNodeId={selection.focusedGraphNodeId}
-            onOpenNodePreview={selection.openGraphNodePreview}
+            onOpenNodePreview={openGraphNode}
             onClearNodeFocus={selection.clearGraphFocus}
             loading={isGraphLoading}
             errorMessage={apiError}
