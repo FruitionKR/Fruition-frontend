@@ -480,8 +480,8 @@ export function NoteEditor({
             h1: { label: "제목 1" },
             h2: { label: "제목 2" },
             h3: { label: "제목 3" },
-            h4: { label: "제목 4" },
-            // 본문보다 작은 h5·h6은 만들지 않는다(model/markdownHeading.ts).
+            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/markdownHeading.ts).
+            h4: null,
             h5: null,
             h6: null,
             quote: { label: "인용" },
