@@ -182,7 +182,9 @@ export function WorkspacePanel({
             )}
             {isSavedModelMissing && (
               <small className={styles["provider-readonly"]}>
-                저장된 모델을 더 이상 사용할 수 없습니다. 모델을 다시 골라 주세요.
+                {/* 모델은 OWNER만 바꿀 수 있으므로 그 외 사용자에게는 OWNER에게 요청하도록 안내한다. */}
+                저장된 모델을 더 이상 사용할 수 없습니다.{" "}
+                {canUpdateAiModel ? "모델을 다시 골라 주세요." : "워크스페이스 OWNER에게 모델 변경을 요청하세요."}
               </small>
             )}
             {isProviderListOpen && canUpdateAiModel && (
