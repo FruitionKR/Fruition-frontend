@@ -3,7 +3,20 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { exchangeOAuthCode, loginWithEmail, useMe } from "@/entities/user";
+import {
+  confirmOAuthLink,
+  exchangeOAuthCode,
+  loginWithEmail,
+  ME_QUERY_KEY,
+  OAUTH_LINK_FAILED_MESSAGE,
+  OAUTH_LINK_SUCCESS_MESSAGE,
+  oauthAccountErrorMessage,
+  parseOAuthLinkCallback,
+  saveOAuthLinkResult,
+  useMe,
+  type OAuthLinkCallback,
+  type OAuthLinkResult
+} from "@/entities/user";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
@@ -57,9 +70,11 @@ function LoginPageContent() {
     requestBeforeSubmit,
     isServerUnready
   } = useServerWake();
-  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error"));
+  // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 돌아갈 화면을 먼저 가져가지 않게 처음 값을 유지한다.
+  const [isOAuthLinkCallback] = useState(() => parseOAuthLinkCallback(searchParams) !== null);
+  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error")) || isOAuthLinkCallback;
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
-  // OAuth 콜백(code/error)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
+  // OAuth 콜백(code/error, 연동의 link_code/link)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
   const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken });
 
   useEffect(() => {
@@ -74,6 +89,19 @@ function LoginPageContent() {
     }
 
     if (hasHandledOAuth.current) return;
+
+    // 설정에서 시작한 소셜 계정 연동의 콜백. 로그인한 채로 확정한 뒤 연동을 시작한 화면으로 돌아간다.
+    const linkCallback = parseOAuthLinkCallback(searchParams);
+    if (linkCallback) {
+      hasHandledOAuth.current = true;
+      window.history.replaceState({}, "", window.location.pathname);
+      void finishOAuthLink(linkCallback).then((result) => {
+        saveOAuthLinkResult(result);
+        void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+        router.replace(takeAfterLoginPath());
+      });
+      return;
+    }
 
     const code = searchParams.get("code");
     const oauthError = searchParams.get("error");
@@ -153,6 +181,9 @@ function LoginPageContent() {
     }
   }
 
+  // 연동 확정은 곧바로 설정 화면으로 돌아가므로 로그인 폼을 잠깐이라도 보이지 않는다.
+  if (isOAuthLinkCallback) return <AuthScreenBlank />;
+
   if (mfaToken) return (
     <AuthScreen shellModifier="login" title="다단계 인증">
       <MfaLoginForm token={mfaToken} onCancel={() => { setMfaToken(null); setErrorMessage(null); }} />
@@ -219,4 +250,14 @@ function LoginPageContent() {
       </nav>
     </AuthScreen>
   );
+}
+
+async function finishOAuthLink(callback: OAuthLinkCallback): Promise<OAuthLinkResult> {
+  if (callback.kind === "failed") return { ok: false, message: OAUTH_LINK_FAILED_MESSAGE };
+  try {
+    await confirmOAuthLink(callback.linkCode);
+    return { ok: true, message: OAUTH_LINK_SUCCESS_MESSAGE };
+  } catch (error: unknown) {
+    return { ok: false, message: oauthAccountErrorMessage(error, "소셜 계정을 연동하지 못했습니다.") };
+  }
 }

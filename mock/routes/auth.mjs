@@ -7,8 +7,19 @@ const REFRESH_COOKIE = "refresh";
 const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 14;
 const VERIFICATION_TTL_SECONDS = 300;
 
+const OAUTH_PROVIDERS = new Set(["google", "kakao", "naver"]);
+// 연동 시작 토큰·콜백 code → { userId, provider }. 실제 서버처럼 1회용이다.
+const oauthLinkTokens = new Map();
+const oauthLinkCodes = new Map();
+
+/** 로그인 수단으로 연결된 소셜 provider. 소셜로 가입한 사용자는 가입 provider가 처음부터 연결돼 있다. */
+function linkedProviders(user) {
+  user.oauth_providers ??= OAUTH_PROVIDERS.has(user.provider) ? [user.provider] : [];
+  return user.oauth_providers;
+}
+
 function toMe(user) {
-  return { id: user.id, email: user.email, display_name: user.display_name, created_at: user.created_at };
+  return { id: user.id, email: user.email, display_name: user.display_name, created_at: user.created_at, oauth_providers: [...linkedProviders(user)].sort() };
 }
 
 function startSession(ctx, user) {
@@ -58,7 +69,17 @@ export function registerAuthRoutes(router) {
   }, { open: true });
 
   // OAuth 시작: next.config redirects()가 이 주소로 보낸다. 로그인 페이지로 code를 돌려준다.
+  // 연동 모드(mode=link)면 link_token을 소비하고 콜백 페이지로 link_code(실패 시 link=failed)를 돌려준다.
   router.get("/oauth2/authorization/:provider", (ctx) => {
+    if (ctx.query.get("mode") === "link") {
+      const token = ctx.query.get("link_token");
+      const pending = token ? oauthLinkTokens.get(token) : null;
+      if (token) oauthLinkTokens.delete(token);
+      if (!pending || pending.provider !== ctx.params.provider) return ctx.redirect("http://localhost:3000/oauth/callback?link=failed");
+      const linkCode = id("link_code");
+      oauthLinkCodes.set(linkCode, pending);
+      return ctx.redirect(`http://localhost:3000/oauth/callback?link_code=${linkCode}`);
+    }
     ctx.redirect(`http://localhost:3000/login?code=mock-${ctx.params.provider}`);
   }, { open: true });
 
@@ -88,8 +109,11 @@ export function registerAuthRoutes(router) {
 
   router.post("/api/auth/email-availability", async (ctx) => {
     const { email } = await ctx.body();
-    const available = !state.users.some((user) => user.email === String(email ?? "").toLowerCase());
-    ctx.json(200, { available });
+    // 실제 서버처럼 일반 가입(email) 계정만 중복으로 보고, 소셜 가입 계정은 안내용 provider로만 알린다.
+    const sameEmail = state.users.filter((user) => user.email === String(email ?? "").toLowerCase());
+    const available = !sameEmail.some((user) => user.provider === "email");
+    const oauth_providers = [...new Set(sameEmail.map((user) => user.provider).filter((provider) => OAUTH_PROVIDERS.has(provider)))].sort();
+    ctx.json(200, { available, oauth_providers });
   }, { open: true });
 
   router.post("/api/auth/email-verifications", async (ctx) => {
@@ -113,7 +137,7 @@ export function registerAuthRoutes(router) {
     const { email, password, display_name, verification_token } = await ctx.body();
     if (!state.verificationTokens.has(verification_token)) return error(ctx, 400, "이메일 인증이 필요합니다.");
     const normalized = String(email ?? "").toLowerCase();
-    if (state.users.some((user) => user.email === normalized)) return error(ctx, 409, "이미 가입된 이메일입니다.");
+    if (state.users.some((user) => user.email === normalized && user.provider === "email")) return error(ctx, 409, "이미 가입된 이메일입니다.");
     state.verificationTokens.delete(verification_token);
     state.users.push({ id: id("user"), email: normalized, password, display_name: display_name || null, provider: "email", created_at: now(), mfa: { enabled: false, activated_at: null, secret: null, recovery_codes: [] } });
     ctx.json(201, { ok: true });
@@ -149,6 +173,38 @@ export function registerAuthRoutes(router) {
     state.verificationTokens.delete(verification_token);
     ctx.user.email = String(new_email).toLowerCase();
     ctx.json(200, toMe(ctx.user));
+  });
+
+  router.post("/api/auth/me/oauth-accounts/:provider/link", (ctx) => {
+    const { provider } = ctx.params;
+    if (!OAUTH_PROVIDERS.has(provider)) return error(ctx, 404, "지원하지 않는 OAuth provider입니다.", "UNSUPPORTED_OAUTH_PROVIDER");
+    const linkToken = id("link_token");
+    oauthLinkTokens.set(linkToken, { userId: ctx.user.id, provider });
+    ctx.json(200, { link_token: linkToken });
+  });
+
+  router.post("/api/auth/me/oauth-accounts/link/confirm", async (ctx) => {
+    const { link_code } = await ctx.body();
+    const pending = oauthLinkCodes.get(link_code);
+    oauthLinkCodes.delete(link_code);
+    if (!pending || pending.userId !== ctx.user.id) return error(ctx, 400, "연동 code가 유효하지 않습니다.", "INVALID_OAUTH_LINK_CODE");
+    const providers = linkedProviders(ctx.user);
+    if (providers.includes(pending.provider)) return ctx.json(204);
+    // mock에는 provider별 소셜 계정이 하나뿐이라, 다른 사용자가 이미 연결했으면 같은 소셜 계정으로 본다.
+    // 시드의 김지현(google)이 있어 데모 사용자의 Google 연동은 409, 카카오·네이버는 성공한다.
+    const takenByOther = state.users.some((user) => user !== ctx.user && linkedProviders(user).includes(pending.provider));
+    if (takenByOther) return error(ctx, 409, "이미 다른 계정에 연결된 소셜 계정입니다.", "OAUTH_ACCOUNT_ALREADY_LINKED");
+    providers.push(pending.provider);
+    ctx.json(204);
+  });
+
+  router.delete("/api/auth/me/oauth-accounts/:provider", (ctx) => {
+    const { provider } = ctx.params;
+    const providers = linkedProviders(ctx.user);
+    if (!providers.includes(provider)) return error(ctx, 404, "연결되지 않은 소셜 계정입니다.", "OAUTH_ACCOUNT_NOT_FOUND");
+    if (provider === ctx.user.provider) return error(ctx, 409, "가입할 때 쓴 소셜 계정은 해제할 수 없습니다.", "OAUTH_UNLINK_NOT_ALLOWED");
+    ctx.user.oauth_providers = providers.filter((item) => item !== provider);
+    ctx.json(204);
   });
 
   router.get("/api/auth/me/mfa", (ctx) => {
