@@ -1268,6 +1268,58 @@
   gap: 4px;
 }
 
+/* 모델 검색 입력: 목록 맨 위 */
+.composer-model-search {
+  width: 100%;
+  min-width: 180px;
+  padding: 4px 8px;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-model-search::placeholder {
+  color: var(--muted);
+}
+
+/* 모델이 수십 개여도 composer 위로 너무 길게 뻗지 않게 스크롤한다. */
+.composer-model-options {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.composer-model-options [role="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composer-model-options [role="group"] + [role="group"] {
+  margin-top: 6px;
+}
+
+/* provider 묶음 제목 */
+.composer-model-group-label {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-model-empty {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .composer-model-option {
   width: 100%;
   min-height: 24px;
@@ -1292,7 +1344,8 @@
 }
 
 .composer-model-option:hover,
-.composer-model-option:focus-visible {
+.composer-model-option:focus-visible,
+.composer-model-option.is-active {
   --button-hover-overlay: none;
   background: var(--soft);
 }

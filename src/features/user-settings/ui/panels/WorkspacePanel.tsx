@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { AiModel, AiModelSelection } from "@/entities/ai";
+import { Check } from "lucide-react";
+import { getProviderLabel, isSameSelection, type AiModel, type AiModelSelection } from "@/entities/ai";
 import { renameWorkspace } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
@@ -12,11 +13,11 @@ import styles from "../SettingsModal.module.css";
 import panelStyles from "./WorkspacePanel.module.css";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
 
-// provider id → 표시 라벨·아이콘
-const providerMeta: Record<string, { label: string; icon: SvgAsset }> = {
-  openai: { label: "OpenAI", icon: gptIcon },
-  gemini: { label: "Gemini", icon: geminiIcon },
-  claude: { label: "Claude", icon: claudeIcon }
+// provider id → 아이콘
+const providerIcons: Record<string, SvgAsset> = {
+  openai: gptIcon,
+  gemini: geminiIcon,
+  claude: claudeIcon
 };
 
 interface WorkspacePanelProps {
@@ -28,7 +29,7 @@ interface WorkspacePanelProps {
   aiModelError: string | null;
   isAiModelSaving: boolean;
   canUpdateAiModel: boolean;
-  onSelectProvider: (provider: string) => void;
+  onSelectModel: (model: AiModel) => void;
 }
 
 /** 워크스페이스 설정 패널 (Figma 771:18800). */
@@ -41,10 +42,12 @@ export function WorkspacePanel({
   aiModelError,
   isAiModelSaving,
   canUpdateAiModel,
-  onSelectProvider
+  onSelectModel
 }: WorkspacePanelProps) {
   // "모델 변경" 클릭 시에만 provider 선택 목록을 펼친다.
   const [isProviderListOpen, setIsProviderListOpen] = useState(false);
+  // provider 클릭은 모델 목록만 바꿔 보여 주고, 저장은 모델을 고를 때 한다.
+  const [viewingProvider, setViewingProvider] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const [nameInput, setNameInput] = useState(wsName);
@@ -79,7 +82,15 @@ export function WorkspacePanel({
 
   // 카탈로그에 실제로 존재하는 provider만 노출한다.
   const providers = Array.from(new Set(aiModels.map((model) => model.provider)));
-  const selectedMeta = aiModelSelection ? providerMeta[aiModelSelection.provider] : undefined;
+  const selectedIcon = aiModelSelection ? providerIcons[aiModelSelection.provider] : undefined;
+  // 저장된 provider가 카탈로그에 없으면 첫 provider를 보여 준다(빈 목록 방지).
+  const savedProvider =
+    aiModelSelection && providers.includes(aiModelSelection.provider) ? aiModelSelection.provider : null;
+  const activeProvider = viewingProvider ?? savedProvider ?? providers[0] ?? null;
+  const providerModels = aiModels.filter((model) => model.provider === activeProvider);
+  // 저장된 provider+model 조합이 카탈로그에 없으면 다시 고르도록 안내한다.
+  const isSavedModelMissing =
+    aiModels.length > 0 && aiModelSelection !== null && !aiModels.some((model) => isSameSelection(model, aiModelSelection));
 
   return (
     <div className={styles.detail}>
@@ -150,8 +161,8 @@ export function WorkspacePanel({
             <div className={panelStyles["model-actions"]}>
               {aiModelSelection && (
                 <span className={panelStyles.pill}>
-                  {selectedMeta && <SvgIcon src={selectedMeta.icon} className={panelStyles["pill-icon"]} />}
-                  {selectedMeta?.label ?? aiModelSelection.provider} • {aiModelSelection.model}
+                  {selectedIcon && <SvgIcon src={selectedIcon} className={panelStyles["pill-icon"]} />}
+                  {getProviderLabel(aiModelSelection.provider)} • {aiModelSelection.model}
                 </span>
               )}
               <button
@@ -169,26 +180,65 @@ export function WorkspacePanel({
                 Provider 변경은 워크스페이스 OWNER만 할 수 있습니다.
               </small>
             )}
+            {isSavedModelMissing && (
+              <small className={styles["provider-readonly"]}>
+                {/* 모델은 OWNER만 바꿀 수 있으므로 그 외 사용자에게는 OWNER에게 요청하도록 안내한다. */}
+                저장된 모델을 더 이상 사용할 수 없습니다.{" "}
+                {canUpdateAiModel ? "모델을 다시 골라 주세요." : "워크스페이스 OWNER에게 모델 변경을 요청하세요."}
+              </small>
+            )}
             {isProviderListOpen && canUpdateAiModel && (
-              <div className={styles["provider-list"]}>
-                {providers.map((provider) => {
-                  const meta = providerMeta[provider];
-                  const isSelected = aiModelSelection?.provider === provider;
-                  return (
-                    <button
-                      key={provider}
-                      type="button"
-                      className={`${styles["provider-button"]} ${isSelected ? styles["is-selected"] : ""}`}
-                      aria-pressed={isSelected}
-                      disabled={isAiModelSaving || !canUpdateAiModel}
-                      onClick={() => onSelectProvider(provider)}
-                    >
-                      {meta && <SvgIcon src={meta.icon} className={styles["provider-icon"]} />}
-                      <span>{meta?.label ?? provider}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                {aiModels.length === 0 && (
+                  <small className={styles["provider-readonly"]}>사용할 수 있는 모델이 없습니다.</small>
+                )}
+                <div className={styles["provider-list"]}>
+                  {providers.map((provider) => {
+                    const icon = providerIcons[provider];
+                    const isActive = activeProvider === provider;
+                    return (
+                      <button
+                        key={provider}
+                        type="button"
+                        className={`${styles["provider-button"]} ${isActive ? styles["is-selected"] : ""}`}
+                        aria-pressed={isActive}
+                        disabled={isAiModelSaving}
+                        onClick={() => setViewingProvider(provider)}
+                      >
+                        {icon && <SvgIcon src={icon} className={styles["provider-icon"]} />}
+                        <span>{getProviderLabel(provider)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {providerModels.length > 0 && (
+                  <div
+                    className={panelStyles["model-list"]}
+                    role="group"
+                    aria-label={`${getProviderLabel(activeProvider ?? "")} 모델`}
+                  >
+                    {providerModels.map((model) => {
+                      const isSelected = isSameSelection(model, aiModelSelection);
+                      return (
+                        <button
+                          key={model.model}
+                          type="button"
+                          className={`${panelStyles["model-option"]} ${isSelected ? panelStyles["is-selected"] : ""}`}
+                          aria-pressed={isSelected}
+                          disabled={isAiModelSaving}
+                          onClick={() => onSelectModel(model)}
+                        >
+                          <span className={panelStyles["model-option-text"]}>
+                            <span>{model.display_name}</span>
+                            <small>{model.model}</small>
+                          </span>
+                          {isSelected && <Check size={12} aria-hidden />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
             {aiModelError && (
               <small className={styles["model-error"]} role="alert">
