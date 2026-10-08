@@ -4,3 +4,4 @@ export * from "./mfa";
 export * from "./emailVerification";
 export * from "./account";
 export * from "./sessions";
+export * from "./oauthAccounts";

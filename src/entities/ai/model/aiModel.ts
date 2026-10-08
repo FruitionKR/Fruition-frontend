@@ -36,13 +36,34 @@ export function isSameSelection(selected: AiModelSelection, current: AiModelSele
   return selected.provider === current?.provider && selected.model === current?.model;
 }
 
-/** Provider만 고르는 설정 UI에서 서버에 저장할 유효한 provider/model 쌍을 정한다. */
-export function resolveProviderModel(
-  catalog: AiModel[],
-  provider: string,
-  current: AiModelSelection | null
-): AiModel | null {
-  const providerModels = catalog.filter((item) => item.provider === provider);
-  if (providerModels.length === 0) return null;
-  return providerModels.find((item) => item.model === current?.model) ?? providerModels[0];
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI",
+  gemini: "Gemini",
+  claude: "Claude"
+};
+
+/** provider id를 화면 표시 라벨로 바꾼다. 모르는 provider는 id를 그대로 보여 준다. */
+export function getProviderLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider;
+}
+
+export type AiModelGroup = { provider: string; models: AiModel[] };
+
+/** 카탈로그를 provider별로 묶는다. provider와 모델 순서는 카탈로그(백엔드) 순서를 그대로 따른다. */
+export function groupAiModelsByProvider(models: AiModel[]): AiModelGroup[] {
+  const groups = new Map<string, AiModel[]>();
+  for (const model of models) {
+    groups.set(model.provider, [...(groups.get(model.provider) ?? []), model]);
+  }
+  return Array.from(groups, ([provider, items]) => ({ provider, models: items }));
+}
+
+/** 모델 표시 이름 또는 model id에 검색어가 들어간 항목만 남긴다(대소문자·앞뒤 공백 무시). */
+export function filterAiModels(models: AiModel[], query: string): AiModel[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return models;
+  return models.filter(
+    (item) =>
+      item.display_name.toLowerCase().includes(normalized) || item.model.toLowerCase().includes(normalized)
+  );
 }

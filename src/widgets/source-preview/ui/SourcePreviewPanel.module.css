@@ -188,6 +188,13 @@
   align-items: stretch;
 }
 
+.source-preview-pdf-frame {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 0;
+}
+
 /* 문서 제목 (Figma 426:2202): 36px SemiBold, gray/050, 행간 1.4. 본문과 구분선으로 나누고 본문까지 24px.
    Markdown 문서는 같은 자리에서 이름을 바로 고치는 input이라 h2와 동일하게 보이게 맞춘다. */
 .source-preview-heading {

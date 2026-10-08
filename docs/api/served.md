@@ -16,7 +16,7 @@ backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 �
 | [`POST /access/verify`](#detail-post-access-verify) | 접근 코드를 검증하고 해제 쿠키를 심는다 |
 | [`POST /wake`](#detail-post-wake) | 절전 중인 서버(EKS 노드)의 기동을 요청한다 |
 | [`GET /wake`](#detail-get-wake) | 서버 절전 상태(`phase`)를 알려준다 |
-| [`POST /csp-report`](#detail-post-csp-report) | 브라우저의 CSP(Report-Only) 위반 보고를 받아 요약 로그로 남긴다 |
+| [`POST /csp-report`](#detail-post-csp-report) | 브라우저의 CSP 위반 보고를 받아 요약 로그로 남긴다 |
 
 ## 한눈에 보기
 
@@ -433,8 +433,8 @@ curl -s http://localhost:3000/wake
 
 ### 2. 목적
 
-앱 화면 응답에 붙인 `Content-Security-Policy-Report-Only`의 `report-uri`다(이슈 #77).
-CSP를 강제하기 전에 어떤 지시어가 어느 오리진을 막게 될지 수집한다. 보고에서 지시어와 차단 오리진만
+앱 화면 응답에 붙인 `Content-Security-Policy`(강제)의 `report-uri`다(이슈 #77).
+CSP가 어떤 지시어로 어느 오리진을 막았는지 수집한다. 보고에서 지시어와 차단 오리진만
 뽑아 서버 로그에 `[csp-report] <directive> <blocked>` 한 줄로 남긴다.
 
 ### 3. Auth 필요 여부
@@ -496,7 +496,7 @@ Cache-Control: no-store
 
 - 핸들러: `app/csp-report/route.ts` (`export const dynamic = "force-dynamic"`)
 - 요약·상한: `app/csp-report/cspReport.ts` (`summarizeCspReports`, `readCappedText`, `createLogLimiter`)
-- 정책 문자열: `src/shared/lib/contentSecurityPolicy.mjs` (`buildContentSecurityPolicy`), 헤더 부착: `next.config.mjs` `headers()` (production만)
+- 정책 문자열: `src/shared/lib/contentSecurityPolicy.ts` (`buildContentSecurityPolicy`), 헤더 부착: `middleware.ts` → `src/shared/lib/contentSecurityHeaders.ts` (production만, 요청마다 nonce)
 
 ---
 

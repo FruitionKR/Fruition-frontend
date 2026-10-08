@@ -3,6 +3,9 @@ import "katex/dist/katex.min.css";
 import { Providers } from "@/app/providers";
 import "@/app/styles/globals.css";
 
+// CSP nonce가 요청마다 달라 미리 만든 HTML로는 스크립트가 막힌다. 모든 화면을 요청 때 렌더링한다(이슈 #77).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Fruition Agent",
   description: "Research workspace prototype"
