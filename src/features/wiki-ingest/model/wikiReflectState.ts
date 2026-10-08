@@ -66,19 +66,31 @@ export function getWikiReflectLabel(document: DocumentItemResponse): string | nu
   return WIKI_REFLECT_LABELS[getWikiReflectState(document)] ?? null;
 }
 
-const CHAT_EVIDENCE_NOTICES: Partial<Record<WikiReflectState, string>> = {
-  "not-included": "이 노트는 아직 위키에 편입되지 않아 답변 근거로 쓰이지 않습니다.",
-  changed: "편입 후 수정된 내용은 답변 근거에 반영되지 않습니다.",
-  retry: "위키 편입에 실패해 이 노트는 답변 근거로 쓰이지 않습니다."
+export type ChatEvidenceNotice = {
+  message: string;
+  /** 편입을 요청하는 버튼 문구. 편입이 진행 중이면 누를 것이 없어 null이다. */
+  actionLabel: string | null;
+};
+
+const CHAT_EVIDENCE_NOTICES: Partial<Record<WikiReflectState, ChatEvidenceNotice>> = {
+  "not-included": {
+    message: "이 노트는 위키에 편입되지 않아 채팅에서 내용을 찾을 수 없습니다. 위키에 편입하면 이 노트를 근거로 답합니다.",
+    actionLabel: "위키에 편입"
+  },
+  changed: { message: "마지막 편입 이후 수정한 내용은 답변에 반영되지 않습니다.", actionLabel: "수정 내용 반영" },
+  retry: { message: "위키 편입에 실패해 이 노트를 답변 근거로 쓸 수 없습니다.", actionLabel: "다시 편입" },
+  processing: { message: "위키에 편입하는 중입니다. 끝나면 이 노트를 근거로 답합니다.", actionLabel: null }
 };
 
 /**
- * 채팅 답변 근거는 위키 페이지만 검색하므로, 열린 노트가 미편입·편입 후 수정·편입 실패 상태면 안내 문구를 돌려준다.
- * 편입이 진행 중이거나 최신이면 안내하지 않는다.
+ * 채팅 답변 근거는 위키 페이지만 검색하므로, 열린 노트의 최신 내용이 편입돼 있지 않으면 상태별 안내를 돌려준다.
+ * 최신 내용이 편입돼 있으면 안내하지 않는다. PDF 원본과 PDF 변환 중인 노트는 편입 대상이 아니라 안내하지 않는다.
  */
-export function getChatEvidenceNotice(document: DocumentItemResponse | undefined): string | null {
-  if (!document || !isWikiReflectEligible(document)) return null;
-  return CHAT_EVIDENCE_NOTICES[getWikiReflectState(document)] ?? null;
+export function getChatEvidenceNotice(document: DocumentItemResponse | undefined): ChatEvidenceNotice | null {
+  if (!document || document.mime_type === "application/pdf") return null;
+  const state = getWikiReflectState(document);
+  if (state === "processing" && document.pipeline_run_id?.startsWith("convert:")) return null;
+  return CHAT_EVIDENCE_NOTICES[state] ?? null;
 }
 
 export function isLintActionEnabled({

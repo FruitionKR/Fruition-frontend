@@ -65,6 +65,7 @@ export function AgentPanel({
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
   wikiEvidenceNotice?: {
     message: string;
+    actionLabel: string | null;
     isDisabled: boolean;
     isIngesting: boolean;
     onIngest: () => void;
@@ -516,9 +517,11 @@ export function AgentPanel({
         {wikiEvidenceNotice && !isPairSelectionMode && (
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
-            <button type="button" disabled={wikiEvidenceNotice.isDisabled} onClick={wikiEvidenceNotice.onIngest}>
-              {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : "위키 편입"}
-            </button>
+            {wikiEvidenceNotice.actionLabel && (
+              <button type="button" disabled={wikiEvidenceNotice.isDisabled} onClick={wikiEvidenceNotice.onIngest}>
+                {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : wikiEvidenceNotice.actionLabel}
+              </button>
+            )}
           </div>
         )}
         <AgentComposer
