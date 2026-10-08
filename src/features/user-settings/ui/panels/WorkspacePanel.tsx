@@ -83,8 +83,14 @@ export function WorkspacePanel({
   // 카탈로그에 실제로 존재하는 provider만 노출한다.
   const providers = Array.from(new Set(aiModels.map((model) => model.provider)));
   const selectedIcon = aiModelSelection ? providerIcons[aiModelSelection.provider] : undefined;
-  const activeProvider = viewingProvider ?? aiModelSelection?.provider ?? providers[0] ?? null;
+  // 저장된 provider가 카탈로그에 없으면 첫 provider를 보여 준다(빈 목록 방지).
+  const savedProvider =
+    aiModelSelection && providers.includes(aiModelSelection.provider) ? aiModelSelection.provider : null;
+  const activeProvider = viewingProvider ?? savedProvider ?? providers[0] ?? null;
   const providerModels = aiModels.filter((model) => model.provider === activeProvider);
+  // 저장된 provider+model 조합이 카탈로그에 없으면 다시 고르도록 안내한다.
+  const isSavedModelMissing =
+    aiModels.length > 0 && aiModelSelection !== null && !aiModels.some((model) => isSameSelection(model, aiModelSelection));
 
   return (
     <div className={styles.detail}>
@@ -174,8 +180,16 @@ export function WorkspacePanel({
                 Provider 변경은 워크스페이스 OWNER만 할 수 있습니다.
               </small>
             )}
+            {isSavedModelMissing && (
+              <small className={styles["provider-readonly"]}>
+                저장된 모델을 더 이상 사용할 수 없습니다. 모델을 다시 골라 주세요.
+              </small>
+            )}
             {isProviderListOpen && canUpdateAiModel && (
               <>
+                {aiModels.length === 0 && (
+                  <small className={styles["provider-readonly"]}>사용할 수 있는 모델이 없습니다.</small>
+                )}
                 <div className={styles["provider-list"]}>
                   {providers.map((provider) => {
                     const icon = providerIcons[provider];

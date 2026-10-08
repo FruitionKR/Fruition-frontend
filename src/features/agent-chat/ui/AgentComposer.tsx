@@ -93,7 +93,10 @@ export function AgentComposer({
 
   function chooseModel(model: AiModel) {
     onModelChange(model);
-    closeModelList();
+    setIsModelListOpen(false);
+    // Safari는 클릭한 버튼에 포커스를 주지 않으므로 목록 안 포커스 여부와 관계없이 트리거로 돌려준다.
+    const trigger = modelTriggerRef.current;
+    if (trigger && !trigger.disabled) trigger.focus();
   }
 
   function handleModelSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
@@ -220,7 +223,10 @@ export function AgentComposer({
                             isSelected && styles["is-selected"],
                             isActive && styles["is-active"]
                           )}
-                          onMouseEnter={() => setActiveModelIndex(visibleModels.indexOf(model))}
+                          // 키보드 스크롤로 항목이 정지한 커서 아래로 와도 활성 항목을 빼앗지 않도록 실제 마우스 이동에만 반응한다.
+                          onMouseMove={() => {
+                            if (!isActive) setActiveModelIndex(visibleModels.indexOf(model));
+                          }}
                           onClick={() => chooseModel(model)}
                         >
                           <span>{model.display_name}</span>
