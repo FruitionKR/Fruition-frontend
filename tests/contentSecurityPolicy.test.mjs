@@ -53,6 +53,21 @@ test("BACKEND_URL·CSP_S3_ORIGIN이 있으면 connect-src를 그 오리진으로
   assert.deepEqual(policy["connect-src"], ["'self'", "https://document.example.com", "https://bucket.s3.ap-northeast-2.amazonaws.com"]);
 });
 
+test("잘못된 BACKEND_URL은 출처를 빼고 잘못된 CSP_S3_ORIGIN은 기본 S3 와일드카드로 돌아가며 던지지 않는다", (t) => {
+  const error = t.mock.method(console, "error", () => {});
+  const build = () => buildContentSecurityPolicy({ nonce: "abc", backendUrl: "not-a-url", s3Origin: "bucket.s3.amazonaws.com" });
+  const policy = directives(build());
+  assert.deepEqual(policy["connect-src"], ["'self'", "https://*.amazonaws.com"]);
+  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-abc'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
+  // 오리진이 없는 URL(예: 스킴만 있는 값)도 출처로 넣지 않는다
+  assert.deepEqual(directives(buildContentSecurityPolicy({ nonce: "abc", backendUrl: "mailto:a@b" }))["connect-src"], ["'self'", "https://*.amazonaws.com"]);
+  const logged = error.mock.calls.length;
+  assert.equal(logged, 3);
+  // 요청마다 불려도 같은 잘못된 값은 다시 로그하지 않는다
+  build();
+  assert.equal(error.mock.calls.length, logged);
+});
+
 function withNodeEnv(t, nodeEnv) {
   const old = process.env.NODE_ENV;
   process.env.NODE_ENV = nodeEnv;
@@ -72,13 +87,14 @@ test("production 화면 응답에는 요청마다 다른 nonce로 CSP를 강제�
   assert.notEqual(nonceOf(policy), nonceOf(second.headers.get("Content-Security-Policy")));
 });
 
-test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·pdf.js 자산은 뺀다", async (t) => {
+test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·pdf.js 자산·화면 아닌 경로는 뺀다", async (t) => {
   withNodeEnv(t, "production");
   // Next가 matcher를 해석하는 것과 같은 path-to-regexp로 확인한다
   const matchers = middlewareConfig.matcher.map((source) => getPathMatch(source));
   const matched = (path) => matchers.some((matches) => matches(path) !== false);
-  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents"]) assert.ok(matched(path), path);
-  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/pdf.worker.min.mjs", "/fonts/pretendard/a.woff2", "/pdfjs/wasm/openjpeg.wasm"]) {
+  // 화면 아닌 경로와 이름이 같은 접두어로 시작하는 화면은 그대로 CSP를 받는다
+  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/icon.svgx"]) assert.ok(matched(path), path);
+  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/pdf.worker.min.mjs", "/fonts/pretendard/a.woff2", "/pdfjs/wasm/openjpeg.wasm", "/healthz", "/wake", "/csp-report", "/icon.svg"]) {
     assert.equal(matched(path), false, path);
   }
   // /api 요청은 CSP 대신 접근 코드 게이트를 거친다

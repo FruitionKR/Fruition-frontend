@@ -14,9 +14,29 @@ type ContentSecurityPolicyOptions = {
   s3Origin?: string;
 };
 
+// 요청마다 불리므로 같은 잘못된 값은 한 번만 로그를 남긴다.
+const reportedInvalidOrigins = new Set<string>();
+
+// 잘못된 env(스킴 없는 값 등) 하나로 모든 화면이 500이 되지 않도록 던지지 않고 null을 돌려준다.
+function parseOrigin(name: string, value: string): string | null {
+  try {
+    const { origin } = new URL(value);
+    if (origin !== "null") return origin;
+  } catch {
+    // 아래에서 한 번만 알린다
+  }
+  const key = `${name}=${value}`;
+  if (!reportedInvalidOrigins.has(key)) {
+    reportedInvalidOrigins.add(key);
+    console.error(`[csp] ${name}가 올바른 URL이 아니라 CSP에서 무시한다: ${value}`);
+  }
+  return null;
+}
+
 export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: ContentSecurityPolicyOptions): string {
-  const backendOrigin = backendUrl ? new URL(backendUrl).origin : null;
-  const s3 = s3Origin ? new URL(s3Origin).origin : DEFAULT_S3_ORIGIN;
+  // 잘못된 BACKEND_URL은 출처를 빼고, 잘못된 CSP_S3_ORIGIN은 기본 S3 와일드카드로 돌아간다.
+  const backendOrigin = backendUrl ? parseOrigin("BACKEND_URL", backendUrl) : null;
+  const s3 = (s3Origin ? parseOrigin("CSP_S3_ORIGIN", s3Origin) : null) ?? DEFAULT_S3_ORIGIN;
   const directives = [
     ["default-src", "'self'"],
     // Next 인라인 부트스트랩 스크립트는 nonce로 허용하고, 그 스크립트가 넣는 청크는 'strict-dynamic'으로 이어받는다.
