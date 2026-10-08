@@ -55,6 +55,8 @@ export function useOperationNotifications() {
     let timer = 0;
     // 숨김 탭에서 예약을 건너뛰었거나 느린 주기로 예약한 상태. 다시 보이면 즉시 한 번 폴링한다.
     let paused = false;
+    // 마지막으로 성공한 폴링에서 진행 중 작업이 있었는지. 실패 시 재시도 주기를 정하는 데 쓴다.
+    let lastHasActive = false;
 
     async function poll() {
       paused = false;
@@ -66,8 +68,9 @@ export function useOperationNotifications() {
         ]);
         logs = [...terminal.logs, ...active.flatMap((page) => page.logs)];
       } catch {
-        // 워크스페이스 미선택·일시적 실패는 다음 폴링에서 재시도한다.
-        schedule(false);
+        // 워크스페이스 미선택·일시적 실패는 다음 폴링에서 재시도한다. 직전에 진행 중 작업이 있었다면
+        // 숨김 탭에서도 멈추지 않고 느린 주기로 계속 재시도해 종결 알림을 놓치지 않는다.
+        schedule(lastHasActive);
         return;
       }
       if (cancelled) return;
@@ -90,6 +93,7 @@ export function useOperationNotifications() {
       }
       knownStatusesRef.current = next;
       const hasActive = logs.some((log) => !isTerminal(log.status));
+      lastHasActive = hasActive;
       schedule(hasActive);
     }
 
