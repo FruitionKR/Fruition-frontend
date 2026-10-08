@@ -78,6 +78,8 @@ export function HomeWorkspace() {
   const [pendingExportDocumentId, setPendingExportDocumentId] = useState<string | null>(null);
   const [pendingConvertDocumentIds, setPendingConvertDocumentIds] = useState<readonly string[]>([]);
   const [wikiActionPending, setWikiActionPending] = useState<"ingest" | "lint" | null>(null);
+  // 진행 중인 편입 요청의 대상 문서. 채팅 안내 버튼이 "이 노트"가 편입 중인지 구분하는 데 쓴다.
+  const [ingestTargetIds, setIngestTargetIds] = useState<readonly string[]>([]);
   const [pdfIngestConfirmation, setPdfIngestConfirmation] = useState<DocumentItemResponse[] | null>(null);
   const graphIngestRunningRef = useRef(false);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
@@ -334,11 +336,13 @@ export function HomeWorkspace() {
     if (graphIngestRunningRef.current || wikiActionPending || targets.length === 0) return;
     graphIngestRunningRef.current = true;
     setWikiActionPending("ingest");
+    setIngestTargetIds(targets.map((target) => target.id));
     try {
       await sendGraphIngestRequests(targets);
     } finally {
       // 알림·재조회 단계에서 예외가 나도 버튼이 "위키 편입 중…"에 머물지 않게 한다.
       setWikiActionPending(null);
+      setIngestTargetIds([]);
       graphIngestRunningRef.current = false;
     }
   }
@@ -601,7 +605,9 @@ export function HomeWorkspace() {
           nodes={graphData.nodes}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             message: chatEvidenceNotice,
-            isPending: wikiActionPending === "ingest",
+            // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.
+            isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending,
+            isIngesting: wikiActionPending === "ingest" && ingestTargetIds.includes(chatContextDocument.id),
             onIngest: () => requestGraphIngest([chatContextDocument])
           } : null}
         />

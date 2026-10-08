@@ -63,7 +63,12 @@ export function AgentPanel({
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   nodes?: GraphNode[];
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
-  wikiEvidenceNotice?: { message: string; isPending: boolean; onIngest: () => void } | null;
+  wikiEvidenceNotice?: {
+    message: string;
+    isDisabled: boolean;
+    isIngesting: boolean;
+    onIngest: () => void;
+  } | null;
 }) {
   const [composerValue, setComposerValue] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -509,10 +514,10 @@ export function AgentPanel({
       ) : null}
       <div className={styles["composer-region"]}>
         {wikiEvidenceNotice && !isPairSelectionMode && (
-          <div className={styles["wiki-evidence-notice"]} role="status">
-            <p>{wikiEvidenceNotice.message}</p>
-            <button type="button" disabled={wikiEvidenceNotice.isPending} onClick={wikiEvidenceNotice.onIngest}>
-              {wikiEvidenceNotice.isPending ? "위키 편입 중…" : "위키 편입"}
+          <div className={styles["wiki-evidence-notice"]}>
+            <p role="status">{wikiEvidenceNotice.message}</p>
+            <button type="button" disabled={wikiEvidenceNotice.isDisabled} onClick={wikiEvidenceNotice.onIngest}>
+              {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : "위키 편입"}
             </button>
           </div>
         )}

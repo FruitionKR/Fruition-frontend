@@ -117,6 +117,28 @@ test("편입 후 수정된 노트는 수정 내용이 반영되지 않는다고 
   );
 });
 
+test("편입에 실패한 노트는 답변 근거로 쓰이지 않는다고 안내한다", () => {
+  assert.equal(
+    getChatEvidenceNotice(makeDocument({ status: "failed" })),
+    "위키 편입에 실패해 이 노트는 답변 근거로 쓰이지 않습니다."
+  );
+});
+
+test("PDF 변환으로 만든 노트는 편입 전이므로 미편입 안내를 한다", () => {
+  const document = makeDocument({ status: "completed", pipeline_run_id: "convert:run-1", needs_reingest: false });
+  assert.equal(getWikiReflectState(document), "not-included");
+  assert.equal(
+    getChatEvidenceNotice(document),
+    "이 노트는 아직 위키에 편입되지 않아 답변 근거로 쓰이지 않습니다."
+  );
+});
+
+test("실패 상태에서 needs_reingest가 켜져 있으면 수정 안내를 우선한다", () => {
+  const document = makeDocument({ status: "failed", needs_reingest: true });
+  assert.equal(getWikiReflectState(document), "changed");
+  assert.equal(getChatEvidenceNotice(document), "편입 후 수정된 내용은 답변 근거에 반영되지 않습니다.");
+});
+
 test("편입이 진행 중이거나 최신이면 답변 근거 안내를 하지 않는다", () => {
   assert.equal(getChatEvidenceNotice(makeDocument({ status: "processing", needs_reingest: true })), null);
   assert.equal(getChatEvidenceNotice(makeDocument({ status: "completed" })), null);
