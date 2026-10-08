@@ -5,10 +5,13 @@ const documentUrl = process.env.BACKEND_URL || "http://localhost:8080";
 // AWS 배포는 ALB가 화면·API를 같은 호스트에서 경로로 나눈다. Next가 API를 중계하면 access-svc가
 // 보는 클라이언트 IP가 프론트 서버 주소가 되므로, 이 모드에서는 rewrite·redirect를 두지 않는다.
 const sameOriginApi = process.env.SAME_ORIGIN_API === "true";
+// 맥 데스크톱 앱(Fruition-desktop)에 담는 빌드. 앱 안의 Next가 localhost에서 화면을 띄우고 모든 API를 운영 서버로 중계한다.
+// 문서 API를 다른 출처로 직접 부르면 CORS가 필요하므로 BACKEND_URL이 있어도 직접 호출을 켜지 않는다.
+const desktopBuild = process.env.DESKTOP_BUILD === "true";
 
 const nextConfig = {
-  output: sameOriginApi ? "standalone" : undefined,
-  env: { NEXT_PUBLIC_DOCUMENT_DIRECT_API: process.env.BACKEND_URL || sameOriginApi ? "true" : "false" },
+  output: sameOriginApi || desktopBuild ? "standalone" : undefined,
+  env: { NEXT_PUBLIC_DOCUMENT_DIRECT_API: !desktopBuild && (process.env.BACKEND_URL || sameOriginApi) ? "true" : "false" },
   async redirects() {
     if (sameOriginApi) return [];
     // OAuth 시작은 access-svc 오리진으로 직접 이동해야 한다(redirect_uri가 서버 자신 오리진 기준).

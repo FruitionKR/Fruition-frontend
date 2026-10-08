@@ -27,3 +27,18 @@ test("ALB가 경로를 나누는 같은 출처 배포에서는 Next가 API를 �
   assert.equal(config.output, "standalone");
   assert.equal(config.env.NEXT_PUBLIC_DOCUMENT_DIRECT_API, "true");
 });
+
+test("데스크톱 빌드는 standalone으로 만들고, 문서 API도 앱 안의 Next가 운영 서버로 중계한다", async (t) => {
+  const keys = ["DESKTOP_BUILD", "ACCESS_URL", "BACKEND_URL", "SAME_ORIGIN_API"];
+  const old = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, { DESKTOP_BUILD: "true", ACCESS_URL: "https://fruition.example", BACKEND_URL: "https://fruition.example" });
+  delete process.env.SAME_ORIGIN_API;
+  t.after(() => keys.forEach((key) => { if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; }));
+  const config = (await import("../next.config.mjs?desktop=true")).default;
+
+  assert.equal(config.output, "standalone");
+  // 앱 화면은 localhost에서 뜨므로 문서 API를 다른 출처로 직접 부르면 CORS가 필요하다. 중계로 같은 출처를 유지한다.
+  assert.equal(config.env.NEXT_PUBLIC_DOCUMENT_DIRECT_API, "false");
+  const rewrites = await config.rewrites();
+  assert.equal(rewrites.find((route) => route.source === "/api/:path*")?.destination, "https://fruition.example/api/:path*");
+});
