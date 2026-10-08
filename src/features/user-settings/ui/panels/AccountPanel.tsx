@@ -52,6 +52,15 @@ export function AccountPanel() {
     if (result) setOAuthResult(result);
   }, []);
 
+  // 소셜 인증 화면에서 뒤로 가기로 bfcache 복원되면 이동 직전의 "처리 중" 상태가 그대로 남는다.
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) setOAuthPending(null);
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   async function linkProvider(provider: OAuthProvider) {
     setOAuthPending(provider);
     setOAuthResult(null);
