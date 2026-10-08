@@ -12,14 +12,12 @@ import {
   OAUTH_LINK_SUCCESS_MESSAGE,
   oauthAccountErrorMessage,
   parseOAuthLinkCallback,
-  passwordLoginUnavailableMessage,
   saveOAuthLinkResult,
   useMe,
   type OAuthLinkCallback,
   type OAuthLinkResult
 } from "@/entities/user";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
-import { ApiError } from "@/shared/lib/errors";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
@@ -174,15 +172,11 @@ function LoginPageContent() {
       saveAccessToken(tokens.access_token);
       queryClient.clear();
       router.replace(takeAfterLoginPath());
-    } catch (error: unknown) {
+    } catch {
       isLoginRequestInFlight.current = false;
       // 서버 준비 중의 실패는 자격 증명 문제가 아니다. 자동 재전송하지 않고 사용자가 다시 누르게 한다.
       // 제출 시점 렌더의 값이 아니라 요청이 끝난 지금의 상태로 판단한다.
-      setErrorMessage(
-        isServerUnready() ? SERVER_PREPARING_MESSAGE
-          : error instanceof ApiError && error.code === "PASSWORD_LOGIN_UNAVAILABLE" ? passwordLoginUnavailableMessage(error.message)
-            : INVALID_CREDENTIALS_MESSAGE
-      );
+      setErrorMessage(isServerUnready() ? SERVER_PREPARING_MESSAGE : INVALID_CREDENTIALS_MESSAGE);
       setIsSubmitting(false);
     }
   }

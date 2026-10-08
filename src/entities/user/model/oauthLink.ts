@@ -46,19 +46,6 @@ export function signupOAuthHint(providers: readonly string[]): string | null {
   return `이 이메일은 ${names}로 가입된 계정이 있습니다. 기존 계정으로 로그인한 뒤 설정에서 연동하세요. 새 계정을 만들려면 인증 요청을 한 번 더 눌러 주세요.`;
 }
 
-/**
- * 소셜로만 가입한 이메일로 비밀번호 로그인을 시도했을 때의 안내.
- * 서버는 provider를 별도 필드 없이 메시지에만 담으므로, 메시지에서 아는 provider를 찾아 이름을 쓴다.
- */
-export function passwordLoginUnavailableMessage(serverMessage: string): string {
-  const names = OAUTH_PROVIDER_OPTIONS
-    .filter(({ provider }) => new RegExp(`\\b${provider}\\b`, "i").test(serverMessage))
-    .map(({ name }) => name);
-  if (names.length === 0) return "소셜 로그인으로 가입한 이메일입니다. 가입한 소셜 계정으로 로그인해 주세요.";
-  const joined = names.join(", ");
-  return `${joined}로 가입한 이메일입니다. ${joined}로 로그인해 주세요.`;
-}
-
 /** 연동 콜백에서 설정 화면으로 돌아갈 때 결과를 넘기는 sessionStorage 항목. */
 const OAUTH_LINK_RESULT_STORAGE_KEY = "fruition.oauth_link_result";
 

@@ -4,7 +4,6 @@ import test from "node:test";
 const {
   oauthAccountErrorMessage,
   parseOAuthLinkCallback,
-  passwordLoginUnavailableMessage,
   saveOAuthLinkResult,
   hasOAuthLinkResult,
   signupOAuthHint,
@@ -43,15 +42,6 @@ test("소셜 가입 이메일이면 provider 이름으로 기존 계정 연동�
   assert.equal(signupOAuthHint([]), null);
   assert.match(signupOAuthHint(["google"]), /^이 이메일은 Google로 가입된 계정이 있습니다\. 기존 계정으로 로그인한 뒤 설정에서 연동하세요\./);
   assert.match(signupOAuthHint(["google", "kakao"]), /Google, 카카오로 가입된/);
-});
-
-test("비밀번호 로그인 불가 안내는 서버 메시지에 있는 provider를 이름으로 보여 준다", () => {
-  assert.equal(
-    passwordLoginUnavailableMessage("이 이메일은 google 로그인으로 가입되어 있어 비밀번호를 설정할 수 없습니다."),
-    "Google로 가입한 이메일입니다. Google로 로그인해 주세요."
-  );
-  assert.match(passwordLoginUnavailableMessage("kakao, naver"), /^카카오, 네이버로 가입한/);
-  assert.match(passwordLoginUnavailableMessage(""), /소셜 로그인으로 가입한 이메일입니다/);
 });
 
 test("연동 결과는 한 번만 읽히고, 형식이 틀린 값은 버린다", () => {
