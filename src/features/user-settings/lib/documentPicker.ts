@@ -28,8 +28,10 @@ export function pickerDocuments(documents: DocumentItemResponse[], query: string
   return filterPickerDocuments(documents.filter((document) => isMarkdownDocument(document) && !isUnfinishedConversion(document)), query);
 }
 
+/** 변환 실패는 failed + convert: run으로 판별한다. 변환 뒤 위키 편입만 실패한 노트는 본문이 정상이라 남긴다. */
 function isUnfinishedConversion(document: DocumentItemResponse): boolean {
-  return Boolean(document.source_document_id) && (isDocumentConverting(document) || document.status === "failed");
+  return isDocumentConverting(document)
+    || (document.status === "failed" && document.pipeline_run_id?.startsWith("convert:") === true);
 }
 
 /**
@@ -64,6 +66,7 @@ export function skillReferenceFileError(file: Pick<File, "name">): string | null
 /** 참고 문서 업로드 실패를 사유별 안내로 바꾼다. */
 export function describeSkillReferenceUploadError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.status === 413) return "Markdown 파일은 5MB 이하만 참고 문서로 올릴 수 있습니다.";
     if (error.status === 415) return "Markdown(.md)이나 텍스트(.txt) 파일만 참고 문서로 올릴 수 있습니다.";
     if (error.code === "DUPLICATE_NAME") return "같은 이름의 참고 문서가 이미 있습니다. 파일 이름을 바꿔 다시 올려 주세요.";
     if (error.status === 409) return "같은 업로드 요청이 처리 중입니다. 잠시 후 다시 시도해 주세요.";

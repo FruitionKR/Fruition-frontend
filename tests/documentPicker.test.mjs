@@ -45,12 +45,16 @@ test("PDF는 변환본이 있어도 목록에 없고 변환된 Markdown만 검�
   assert.deepEqual(pickerDocuments([pdf({}), converted], "원본.pdf"), []);
 });
 
-test("변환 중이거나 변환에 실패한 Markdown은 빼고, 일반 Markdown은 상태와 관계없이 둔다", () => {
+test("변환 중이거나 변환에 실패한 Markdown은 빼고, 편입만 실패한 변환본과 일반 Markdown은 둔다", () => {
   const converting = md({ id: "converting", source_document_id: "pdf", status: "processing", pipeline_run_id: "convert:1" });
-  const failed = md({ id: "failed", source_document_id: "pdf", status: "failed" });
+  const failed = md({ id: "failed", source_document_id: "pdf", status: "failed", pipeline_run_id: "convert:1" });
   const done = md({ id: "done", source_document_id: "pdf" });
+  const ingestFailed = md({ id: "ingest-failed", source_document_id: "pdf", status: "failed", pipeline_run_id: "run-2" });
   const plainFailed = md({ id: "plain", status: "failed" });
-  assert.deepEqual(pickerDocuments([converting, failed, done, plainFailed], "").map((doc) => doc.id), ["done", "plain"]);
+  assert.deepEqual(
+    pickerDocuments([converting, failed, done, ingestFailed, plainFailed], "").map((doc) => doc.id),
+    ["done", "ingest-failed", "plain"]
+  );
 });
 
 const { orderPickerDocuments, skillReferenceFileError, describeSkillReferenceUploadError } = await import("../src/features/user-settings/lib/documentPicker.ts");
@@ -72,8 +76,9 @@ test("참고 문서 업로드는 PDF를 막고 Markdown·txt만 받는다", () =
   for (const name of ["양식.md", "양식.markdown", "memo.TXT"]) assert.equal(skillReferenceFileError({ name }), null);
 });
 
-test("참고 문서 업로드 실패는 415·이름 충돌·origin 오류를 구분해 안내한다", () => {
+test("참고 문서 업로드 실패는 413·415·이름 충돌·origin 오류를 구분해 안내한다", () => {
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 415, "UNSUPPORTED_FILE_TYPE")), /\.md.*\.txt/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "MARKDOWN_CONTENT_TOO_LARGE")), /5MB/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 409, "DUPLICATE_NAME")), /같은 이름/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 409)), /처리 중/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 400, "INVALID_DOCUMENT_ORIGIN")), /올릴 수 없는/);
