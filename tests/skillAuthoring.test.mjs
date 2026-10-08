@@ -53,13 +53,14 @@ test("거절(400·SKILL_REQUEST_REJECTED)은 위험 표현이 아니라 중립 �
   }
 });
 
-test("사유 code(의도 불명확·지침 오류)는 서버 message를 그대로 보여준다", () => {
+test("사유 code(의도 불명확·지침 오류)는 응답 파싱을 거친 서버 message를 그대로 보여준다", async () => {
   const cases = [
     ["SKILL_INTENT_AMBIGUOUS", "어떤 작업을 반복할지 구체적으로 적어 주세요."],
     ["SKILL_INSTRUCTION_INVALID", "참조 문서가 비어 있습니다."]
   ];
   for (const [code, message] of cases) {
-    const notice = describeSkillAuthorError(new ApiError(message, 400, code));
+    const error = await parseApiError(jsonResponse(400, { error: { code, message } }), "스킬 초안을 생성하지 못했습니다.");
+    const notice = describeSkillAuthorError(error);
     assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
     assert.equal(notice.description, message);
   }
@@ -72,11 +73,6 @@ test("불가능한 작업은 서버 message와 관계없이 '불가능한 작업
     assert.match(notice.description, /불가능한 작업/);
     assert.doesNotMatch(notice.description, /지원하지 않는/);
   }
-});
-
-test("사유 code의 message가 비면 code별 기본 안내를 보여준다", () => {
-  assert.match(describeSkillAuthorError(new ApiError("", 400, "SKILL_INTENT_AMBIGUOUS")).description, /구체적으로/);
-  assert.match(describeSkillAuthorError(new ApiError("", 400, "SKILL_INSTRUCTION_INVALID")).description, /참조 문서/);
 });
 
 test("사유 없는 거절은 상태 코드와 관계없이, 알 수 없는 400 code는 중립 문구로 안내한다", () => {

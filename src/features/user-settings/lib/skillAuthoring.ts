@@ -8,15 +8,9 @@ const UNAVAILABLE_TITLE = "스킬 검토를 완료하지 못했습니다.";
 const REJECTED_DESCRIPTION =
   "요청한 작업을 이해하지 못했거나 스킬로는 불가능한 작업입니다. 무엇을 할지 구체적으로 적어 주세요.";
 const UNAVAILABLE_DESCRIPTION = "AI 검토가 지금 응답하지 않습니다. 잠시 후 다시 시도해 주세요.";
-/** 서버 message를 그대로 보여 주는 거절 code와, message가 비었을 때의 기본 안내. */
-const REASON_DESCRIPTIONS: Record<string, string> = {
-  SKILL_INTENT_AMBIGUOUS: "어떤 작업을 반복할지 구체적으로 적어 주세요.",
-  SKILL_INSTRUCTION_INVALID: "지침 길이, 스킬 이름 형식, 참조 문서를 확인해 주세요."
-};
-/** 서버 message("지원하지 않는 작업") 대신 화면에서 정한 문구로 안내하는 거절 code. */
-const FIXED_REASON_DESCRIPTIONS: Record<string, string> = {
-  SKILL_INTENT_UNSUPPORTED: "스킬로는 불가능한 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중 하나로 적어 주세요."
-};
+const UNSUPPORTED_DESCRIPTION = "스킬로는 불가능한 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중 하나로 적어 주세요.";
+/** 서버 message가 화면용 한국어 안내인 거절 code. 빈 message는 parseApiError가 호출부 fallback으로 채운다. */
+const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTION_INVALID"]);
 
 /**
  * author 요청 실패를 사유별 안내로 바꾼다.
@@ -36,12 +30,11 @@ export function describeSkillAuthorError(error: unknown): SkillAuthorErrorNotice
   if (error.code === "SKILL_AI_UNAVAILABLE" || error.status >= 500 || error.status === 408) {
     return { title: UNAVAILABLE_TITLE, description: UNAVAILABLE_DESCRIPTION };
   }
-  if (error.code != null && Object.hasOwn(FIXED_REASON_DESCRIPTIONS, error.code)) {
-    return { title: REJECTED_TITLE, description: FIXED_REASON_DESCRIPTIONS[error.code] };
+  if (error.code === "SKILL_INTENT_UNSUPPORTED") {
+    return { title: REJECTED_TITLE, description: UNSUPPORTED_DESCRIPTION };
   }
-  const reasonDescription = error.code != null && Object.hasOwn(REASON_DESCRIPTIONS, error.code) ? REASON_DESCRIPTIONS[error.code] : undefined;
-  if (reasonDescription != null) {
-    return { title: REJECTED_TITLE, description: error.message.trim() || reasonDescription };
+  if (error.code != null && SERVER_MESSAGE_CODES.has(error.code)) {
+    return { title: REJECTED_TITLE, description: error.message };
   }
   if (error.code === "SKILL_REQUEST_REJECTED" || error.status === 400) {
     return { title: REJECTED_TITLE, description: REJECTED_DESCRIPTION };
