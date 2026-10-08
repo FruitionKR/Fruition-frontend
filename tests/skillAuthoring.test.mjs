@@ -56,7 +56,7 @@ test("거절(400·SKILL_REQUEST_REJECTED)은 위험 표현이 아니라 중립 �
 test("사유 code(의도 불명확·지침 오류)는 응답 파싱을 거친 서버 message를 그대로 보여준다", async () => {
   const cases = [
     ["SKILL_INTENT_AMBIGUOUS", "어떤 작업을 반복할지 구체적으로 적어 주세요."],
-    ["SKILL_INSTRUCTION_INVALID", "참조 문서가 비어 있습니다."]
+    ["SKILL_INSTRUCTION_INVALID", "참조 문서를 확인해 주세요. 접근할 수 없거나 비어 있거나 너무 긴 문서가 있습니다."]
   ];
   for (const [code, message] of cases) {
     const error = await parseApiError(jsonResponse(400, { error: { code, message } }), "스킬 초안을 생성하지 못했습니다.");
@@ -73,6 +73,17 @@ test("불가능한 작업은 서버 message와 관계없이 '불가능한 작업
     assert.match(notice.description, /불가능한 작업/);
     assert.doesNotMatch(notice.description, /지원하지 않는/);
   }
+});
+
+test("참고 문서 한 개가 너무 길면(413) AI의 내부 용어 대신 글자 수 제한을 안내한다", async () => {
+  const error = await parseApiError(
+    jsonResponse(413, { error: { code: "REFERENCE_DOCUMENT_TOO_LARGE", message: "EDITABLE 참조 문서는 30,000자 이하여야 합니다." } }),
+    "스킬 초안을 생성하지 못했습니다."
+  );
+  const notice = describeSkillAuthorError(error);
+  assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+  assert.match(notice.description, /30,000자/);
+  assert.doesNotMatch(notice.description, /EDITABLE/);
 });
 
 test("사유 없는 거절은 상태 코드와 관계없이, 알 수 없는 400 code는 중립 문구로 안내한다", () => {

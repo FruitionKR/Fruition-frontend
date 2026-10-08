@@ -13,7 +13,9 @@ const SKILL_ISSUE_RULES = [
 const SKILL_REJECT_RULES = [
   { pattern: /^[\sㄱ-ㅎㅏ-ㅣ]+$/, status: 400, code: "SKILL_INTENT_AMBIGUOUS", message: "어떤 작업을 반복할지 구체적으로 적어 주세요." },
   { pattern: /#불가능/, status: 400, code: "SKILL_INTENT_UNSUPPORTED", message: "지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요." },
-  { pattern: /#지침오류/, status: 400, code: "SKILL_INSTRUCTION_INVALID", message: "참조 문서가 너무 커서 읽을 수 없습니다. 더 작은 문서를 골라 주세요." },
+  { pattern: /#지침오류/, status: 400, code: "SKILL_INSTRUCTION_INVALID", message: "참조 문서를 확인해 주세요. 접근할 수 없거나 비어 있거나 너무 긴 문서가 있습니다." },
+  // 참고 문서 한 개가 30,000자를 넘으면 document가 AI의 413 응답을 그대로 중계한다.
+  { pattern: /#문서초과/, status: 413, code: "REFERENCE_DOCUMENT_TOO_LARGE", message: "EDITABLE 참조 문서는 30,000자 이하여야 합니다." },
   { pattern: /#거절/, status: 400, code: "SKILL_REQUEST_REJECTED", message: "Skill 요청이 거부되었습니다." },
   { pattern: /#AI장애/, status: 503, code: "SKILL_AI_UNAVAILABLE", message: "AI 서버를 사용할 수 없습니다." }
 ];
