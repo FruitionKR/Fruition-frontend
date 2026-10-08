@@ -9,5 +9,3 @@ dist
 tsconfig.tsbuildinfo
 .vercel
 *.log
-# pdf.js 런타임 에셋(scripts/copy-pdfjs-assets.mjs가 생성)
-/public/pdfjs
