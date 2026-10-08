@@ -89,6 +89,8 @@ const CHAT_EVIDENCE_NOTICES: Partial<Record<WikiReflectState, ChatEvidenceNotice
 export function getChatEvidenceNotice(document: DocumentItemResponse | undefined): ChatEvidenceNotice | null {
   if (!document || document.mime_type === "application/pdf") return null;
   const state = getWikiReflectState(document);
+  // PDF 변환 중인 노트는 편입 대상이 아니다. documentKind의 isDocumentConverting은 status만 보고,
+  // 테스트 런타임에서 @/ alias import가 풀리지 않아 processing_state까지 포함해 여기서 직접 판정한다.
   if (state === "processing" && document.pipeline_run_id?.startsWith("convert:")) return null;
   return CHAT_EVIDENCE_NOTICES[state] ?? null;
 }
