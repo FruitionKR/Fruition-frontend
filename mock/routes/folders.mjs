@@ -1,13 +1,14 @@
 // document-svc(8080) 폴더 라우트: 문서 트리, 폴더 생성·이름 변경·삭제·이동, 문서 이동.
 // 실제 백엔드처럼 base_version 낙관적 잠금을 검사하고 변경마다 current_version을 올린다.
-import { state, now, id, error, requireWorkspace, findDocument, toDocumentItem } from "../state.mjs";
+import { state, now, id, error, requireWorkspace, findDocument, toDocumentItem, isSkillReference } from "../state.mjs";
 
 function liveFolders(workspaceId) {
   return state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at);
 }
 
+// 스킬 참고 문서는 트리와 이름 공간 밖에 있다.
 function liveDocuments(workspaceId) {
-  return state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at);
+  return state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && !isSkillReference(doc));
 }
 
 function findFolder(workspaceId, folderId) {
@@ -128,7 +129,7 @@ export function registerFolderRoutes(router) {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
     const doc = findDocument(workspace.id, ctx.params.id);
-    if (!doc) return error(ctx, 404, "문서를 찾을 수 없습니다.");
+    if (!doc || isSkillReference(doc)) return error(ctx, 404, "문서를 찾을 수 없습니다.");
     const { folder_id: folderId = null, position, base_version } = await ctx.body();
     if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     if (!requireParent(ctx, workspace, folderId)) return;

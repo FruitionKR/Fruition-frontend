@@ -1,0 +1,54 @@
+/* 참고 문서 피커의 전용 업로드 줄. Figma 시안이 없어 위저드의 doc-search-btn·검색 결과 토큰을 따른다. */
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 6px;
+}
+
+.upload-button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: var(--ink, #f0f0f0);
+  background: transparent;
+  border: 1px solid var(--line, #4f4f4f);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.26px;
+}
+
+.upload-button:not(:disabled):hover,
+.upload-button:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.upload-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.upload-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.upload-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.upload-error {
+  margin: 0;
+  padding: 0 6px;
+  color: #f04452;
+  font-size: 13px;
+}

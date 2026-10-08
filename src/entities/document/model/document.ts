@@ -3,6 +3,9 @@ import type { DocumentProcessingState, DocumentStatus } from "@/entities/tree/mo
 /** 백엔드 DocumentRole. EDITABLE은 편집 가능 Markdown, ORIGINAL은 업로드 원본(PDF 등)이다. */
 export type DocumentRole = "EDITABLE" | "ORIGINAL";
 
+/** 스킬 참고 문서 origin. 문서 트리·기본 목록·검색·위키 편입에서 빠지고 전용 조회로만 보인다. Markdown·txt만 받는다. */
+export const SKILL_REFERENCE_ORIGIN = "skill_reference";
+
 export type DocumentUploadResponse = {
   id: string;
   filename: string;

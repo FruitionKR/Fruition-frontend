@@ -74,6 +74,13 @@ export function toDocumentItem(doc) {
   return item;
 }
 
+export const SKILL_REFERENCE_ORIGIN = "skill_reference";
+
+/** 스킬 참고 문서. 문서 트리·기본 목록·위키 편입에서 빠진다. */
+export function isSkillReference(doc) {
+  return doc.origin === SKILL_REFERENCE_ORIGIN;
+}
+
 export function isMarkdownDocument(doc) {
   return doc.document_role === "EDITABLE" && /\.(md|markdown)$/i.test(doc.filename);
 }
