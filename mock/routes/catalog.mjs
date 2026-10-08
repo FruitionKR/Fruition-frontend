@@ -9,6 +9,14 @@ const SKILL_ISSUE_RULES = [
   { pattern: /ignore (all |the )?(previous|above)|이전 지시.*무시|시스템 프롬프트/i, category: "instruction_override", reason: "기존 지시를 무시하도록 유도합니다." },
   { pattern: /api[_ ]?key|secret|password|비밀번호|토큰/i, category: "secret", reason: "비밀 정보가 스킬 본문에 포함되어 있습니다." }
 ];
+// 실제 백엔드의 author 거절 code를 재현한다. 자모만 나열한 지침은 의도 불명확, 나머지는 지침에 넣은 표식으로 고른다.
+const SKILL_REJECT_RULES = [
+  { pattern: /^[\sㄱ-ㅎㅏ-ㅣ]+$/, status: 400, code: "SKILL_INTENT_AMBIGUOUS", message: "어떤 작업을 반복할지 구체적으로 적어 주세요." },
+  { pattern: /#미지원/, status: 400, code: "SKILL_INTENT_UNSUPPORTED", message: "지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요." },
+  { pattern: /#지침오류/, status: 400, code: "SKILL_INSTRUCTION_INVALID", message: "참조 문서가 너무 커서 읽을 수 없습니다. 더 작은 문서를 골라 주세요." },
+  { pattern: /#거절/, status: 400, code: "SKILL_REQUEST_REJECTED", message: "Skill 요청이 거부되었습니다." },
+  { pattern: /#AI장애/, status: 503, code: "SKILL_AI_UNAVAILABLE", message: "AI 서버를 사용할 수 없습니다." }
+];
 
 function isOwner(ctx, workspace) {
   return state.members.some((member) => member.workspace_id === workspace.id && member.user_id === ctx.user.id && member.role === "OWNER");
@@ -138,8 +146,8 @@ export function registerCatalogRoutes(router) {
     if (!workspace) return;
     const { instruction, name, description, scope_type } = await ctx.body();
     if (typeof instruction !== "string" || !instruction.trim()) return error(ctx, 400, "스킬 지시문을 입력해주세요.");
-    // 실제 백엔드는 AI의 의도 분류 실패(400)를 사유 없이 SKILL_REQUEST_REJECTED로 덮는다. 자모만 나열한 지침으로 재현한다.
-    if (/^[\sㄱ-ㅎㅏ-ㅣ]+$/.test(instruction)) return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
+    const reject = SKILL_REJECT_RULES.find((rule) => rule.pattern.test(instruction));
+    if (reject) return error(ctx, reject.status, reject.message, reject.code);
     const skillName = (name ?? slugify(instruction.slice(0, 20))).trim();
     const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities: ["summarize"], instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n` };
     ctx.json(200, toAuthoringResult({ id: id("skill"), scope_type: scope_type ?? "personal" }, version, detectSkillIssues(instruction)));

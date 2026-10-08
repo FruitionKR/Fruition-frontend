@@ -53,6 +53,37 @@ test("거절(400·SKILL_REQUEST_REJECTED)은 위험 표현이 아니라 중립 �
   }
 });
 
+test("사유 code(의도 불명확·미지원·지침 오류)는 서버 message를 그대로 보여준다", () => {
+  const cases = [
+    ["SKILL_INTENT_AMBIGUOUS", "어떤 작업을 반복할지 구체적으로 적어 주세요."],
+    ["SKILL_INTENT_UNSUPPORTED", "지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요."],
+    ["SKILL_INSTRUCTION_INVALID", "참조 문서가 비어 있습니다."]
+  ];
+  for (const [code, message] of cases) {
+    const notice = describeSkillAuthorError(new ApiError(message, 400, code));
+    assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+    assert.equal(notice.description, message);
+  }
+});
+
+test("사유 code의 message가 비면 code별 기본 안내를 보여준다", () => {
+  assert.match(describeSkillAuthorError(new ApiError("", 400, "SKILL_INTENT_AMBIGUOUS")).description, /구체적으로/);
+  assert.match(describeSkillAuthorError(new ApiError("  ", 400, "SKILL_INTENT_UNSUPPORTED")).description, /지원하지 않는 작업/);
+  assert.match(describeSkillAuthorError(new ApiError("", 400, "SKILL_INSTRUCTION_INVALID")).description, /참조 문서/);
+});
+
+test("사유 없는 거절은 상태 코드와 관계없이, 알 수 없는 400 code는 중립 문구로 안내한다", () => {
+  for (const error of [
+    new ApiError("Skill 요청이 거부되었습니다.", 409, "SKILL_REQUEST_REJECTED"),
+    new ApiError("Skill 요청이 거부되었습니다.", 422, "SKILL_REQUEST_REJECTED"),
+    new ApiError("알 수 없음", 400, "SKILL_SOMETHING_NEW")
+  ]) {
+    const notice = describeSkillAuthorError(error);
+    assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+    assert.match(notice.description, /구체적으로/);
+  }
+});
+
 test("AI 장애·5xx·타임아웃·네트워크 오류는 재시도 문구로 구분한다", () => {
   const errors = [
     new ApiError("x", 400, "SKILL_AI_UNAVAILABLE"),
