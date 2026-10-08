@@ -67,7 +67,8 @@ export function GraphSidebarActions({
     queryKey: ["wikiMaintenanceStatus"],
     queryFn: fetchWikiMaintenanceStatus,
     refetchInterval: isIngestActive ? 3000 : false,
-    refetchIntervalInBackground: true,
+    // Lint 버튼 상태용이라 숨김 탭에서는 멈춘다. 편입이 끝나면 아래 effect가 다시 받는다(#66).
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false
   });
   const previousWorkRef = useRef({ isIngestActive, isLintActive });

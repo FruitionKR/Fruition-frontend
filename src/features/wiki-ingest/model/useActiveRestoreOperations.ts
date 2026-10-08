@@ -27,7 +27,8 @@ export function useActiveRestoreOperations(): OperationLogItem[] {
       return pages.flatMap((page) => page.logs);
     },
     refetchInterval: (activeQuery) => getWikiWorkPollInterval((activeQuery.state.data?.length ?? 0) > 0, isPageVisible),
-    refetchIntervalInBackground: true,
+    // 진행 표시용이라 숨김 탭에서는 멈춘다. 완료 알림은 useOperationNotifications가 따로 폴링한다(#66).
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
   });
 
