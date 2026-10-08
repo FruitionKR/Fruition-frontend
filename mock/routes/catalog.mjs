@@ -12,7 +12,7 @@ const SKILL_ISSUE_RULES = [
 // 실제 백엔드의 author 거절 code를 재현한다. 자모만 나열한 지침은 의도 불명확, 나머지는 지침에 넣은 표식으로 고른다.
 const SKILL_REJECT_RULES = [
   { pattern: /^[\sㄱ-ㅎㅏ-ㅣ]+$/, status: 400, code: "SKILL_INTENT_AMBIGUOUS", message: "어떤 작업을 반복할지 구체적으로 적어 주세요." },
-  { pattern: /#미지원/, status: 400, code: "SKILL_INTENT_UNSUPPORTED", message: "지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요." },
+  { pattern: /#불가능/, status: 400, code: "SKILL_INTENT_UNSUPPORTED", message: "지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요." },
   { pattern: /#지침오류/, status: 400, code: "SKILL_INSTRUCTION_INVALID", message: "참조 문서가 너무 커서 읽을 수 없습니다. 더 작은 문서를 골라 주세요." },
   { pattern: /#거절/, status: 400, code: "SKILL_REQUEST_REJECTED", message: "Skill 요청이 거부되었습니다." },
   { pattern: /#AI장애/, status: 503, code: "SKILL_AI_UNAVAILABLE", message: "AI 서버를 사용할 수 없습니다." }
