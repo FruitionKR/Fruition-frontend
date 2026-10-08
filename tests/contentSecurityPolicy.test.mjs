@@ -30,7 +30,6 @@ test("이미지는 같은 출처·data:·blob:만 허용하고 위반은 /csp-re
   assert.deepEqual(policy["base-uri"], ["'self'"]);
   assert.deepEqual(policy["form-action"], ["'self'"]);
   assert.deepEqual(policy["font-src"], ["'self'", "data:"]);
-  assert.deepEqual(policy["worker-src"], ["'self'"]);
   // 원본 보기 iframe은 blob:만 쓴다. S3 URL을 iframe으로 열지 않는다.
   assert.deepEqual(policy["frame-src"], ["'self'", "blob:"]);
   assert.deepEqual(policy["report-uri"], [CSP_REPORT_PATH]);
@@ -39,7 +38,7 @@ test("이미지는 같은 출처·data:·blob:만 허용하고 위반은 /csp-re
 
 test("스크립트는 nonce와 strict-dynamic으로만 허용하고 인라인·eval은 허용하지 않는다", () => {
   const policy = directives(buildContentSecurityPolicy({ nonce: "bm9uY2U=" }));
-  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-bm9uY2U='", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
+  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-bm9uY2U='", "'strict-dynamic'"]);
   assert.ok(!policy["script-src"].includes("'unsafe-inline'"));
   assert.ok(!policy["script-src"].includes("'unsafe-eval'"));
 });
@@ -58,7 +57,7 @@ test("잘못된 BACKEND_URL은 출처를 빼고 잘못된 CSP_S3_ORIGIN은 기�
   const build = () => buildContentSecurityPolicy({ nonce: "abc", backendUrl: "not-a-url", s3Origin: "bucket.s3.amazonaws.com" });
   const policy = directives(build());
   assert.deepEqual(policy["connect-src"], ["'self'", "https://*.amazonaws.com"]);
-  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-abc'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
+  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-abc'", "'strict-dynamic'"]);
   // 오리진이 없는 URL(예: 스킴만 있는 값)도 출처로 넣지 않는다
   assert.deepEqual(directives(buildContentSecurityPolicy({ nonce: "abc", backendUrl: "mailto:a@b" }))["connect-src"], ["'self'", "https://*.amazonaws.com"]);
   const logged = error.mock.calls.length;
@@ -87,14 +86,14 @@ test("production 화면 응답에는 요청마다 다른 nonce로 CSP를 강제�
   assert.notEqual(nonceOf(policy), nonceOf(second.headers.get("Content-Security-Policy")));
 });
 
-test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·pdf.js 자산·화면 아닌 경로는 뺀다", async (t) => {
+test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·화면 아닌 경로는 뺀다", async (t) => {
   withNodeEnv(t, "production");
   // Next가 matcher를 해석하는 것과 같은 path-to-regexp로 확인한다
   const matchers = middlewareConfig.matcher.map((source) => getPathMatch(source));
   const matched = (path) => matchers.some((matches) => matches(path) !== false);
   // 화면 아닌 경로와 이름이 같은 접두어로 시작하는 화면은 그대로 CSP를 받는다
   for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/icon.svgx"]) assert.ok(matched(path), path);
-  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/pdf.worker.min.mjs", "/fonts/pretendard/a.woff2", "/pdfjs/wasm/openjpeg.wasm", "/healthz", "/wake", "/csp-report", "/icon.svg"]) {
+  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/a.woff2", "/fonts/pretendard/a.woff2", "/healthz", "/wake", "/csp-report", "/icon.svg"]) {
     assert.equal(matched(path), false, path);
   }
   // /api 요청은 CSP 대신 접근 코드 게이트를 거친다
