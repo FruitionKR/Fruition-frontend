@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { fetchDocuments, type DocumentItemResponse } from "@/entities/document";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchDocuments,
+  fetchSkillReferenceDocuments,
+  uploadSkillReferenceDocument,
+  type DocumentItemResponse
+} from "@/entities/document";
 import { authorSkill, fetchSkills, publishSkill, type SkillAuthoringResult } from "@/entities/skill";
 import { DocumentPickerModal } from "./DocumentPickerModal";
 import { SafetyReviewBadge } from "./SafetyReviewBadge";
@@ -113,6 +118,27 @@ export function SkillCreateWizard({
     queryFn: fetchDocuments,
     enabled: docPickerOpen
   });
+  // 스킬 참고 문서는 기본 목록에 나오지 않아 따로 조회한다. 메인 트리 캐시와 키를 나눠 업로드가 트리에 섞이지 않게 한다.
+  const referenceDocumentsKey = ["skill-reference-documents", workspaceId];
+  const { data: referenceDocuments } = useQuery({
+    queryKey: referenceDocumentsKey,
+    queryFn: fetchSkillReferenceDocuments,
+    enabled: docPickerOpen
+  });
+  const queryClient = useQueryClient();
+
+  /** 피커에서 올린 참고 문서를 목록 맨 앞에 넣고 선택한다. */
+  async function uploadReferenceDocument(file: File): Promise<DocumentItemResponse> {
+    const uploaded = await uploadSkillReferenceDocument(file);
+    queryClient.setQueryData<DocumentItemResponse[]>(referenceDocumentsKey, (current = []) => [
+      uploaded,
+      ...current.filter((doc) => doc.id !== uploaded.id)
+    ]);
+    setSelectedDocs((current) =>
+      current.some((doc) => doc.id === uploaded.id) || current.length >= REFERENCE_DOC_MAX ? current : [uploaded, ...current]
+    );
+    return uploaded;
+  }
 
   // 기존 스킬 커맨드와 중복되면 STEP 1에서 미리 막는다 (서버도 게시 시점에 중복을 차단한다).
   const { data: existingSkills } = useQuery({
@@ -763,7 +789,8 @@ export function SkillCreateWizard({
         {docPickerOpen && (
           <DocumentPickerModal
             documents={documents ?? []}
-            selectedIds={selectedDocs.map((doc) => doc.id)}
+            referenceDocuments={referenceDocuments ?? []}
+            selectedDocs={selectedDocs}
             maxCount={REFERENCE_DOC_MAX}
             onToggle={(doc) =>
               setSelectedDocs((current) =>
@@ -772,6 +799,7 @@ export function SkillCreateWizard({
                   : [...current, doc]
               )
             }
+            onUpload={uploadReferenceDocument}
             onClose={() => setDocPickerOpen(false)}
           />
         )}
