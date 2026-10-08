@@ -1,5 +1,3 @@
-import { buildContentSecurityPolicy } from "./src/shared/lib/contentSecurityPolicy.mjs";
-
 /** @type {import('next').NextConfig} */
 // 백엔드 분리: 인증·워크스페이스 CRUD는 access-svc(8081), 나머지 기능 경로는 document-svc(8080).
 const accessUrl = process.env.ACCESS_URL || "http://localhost:8081";
@@ -11,22 +9,6 @@ const sameOriginApi = process.env.SAME_ORIGIN_API === "true";
 const nextConfig = {
   output: sameOriginApi ? "standalone" : undefined,
   env: { NEXT_PUBLIC_DOCUMENT_DIRECT_API: process.env.BACKEND_URL || sameOriginApi ? "true" : "false" },
-  async headers() {
-    // dev는 HMR이 eval·websocket을 써서 보고가 넘치므로 붙이지 않는다. 값은 빌드 시점 BACKEND_URL로 굳는다.
-    if (process.env.NODE_ENV !== "production") return [];
-    return [
-      {
-        // API 응답(JSON·파일)과 정적 청크에는 붙이지 않는다.
-        source: "/((?!api/|_next/).*)",
-        headers: [
-          {
-            key: "Content-Security-Policy-Report-Only",
-            value: buildContentSecurityPolicy({ backendUrl: process.env.BACKEND_URL })
-          }
-        ]
-      }
-    ];
-  },
   async redirects() {
     if (sameOriginApi) return [];
     // OAuth 시작은 access-svc 오리진으로 직접 이동해야 한다(redirect_uri가 서버 자신 오리진 기준).

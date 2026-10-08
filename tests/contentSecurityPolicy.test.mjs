@@ -3,13 +3,17 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier === "next/server") return nextResolve("next/server.js", context);
-  // route.ts가 확장자 없이 부르는 ./cspReport만 .ts로 푼다(next 내부 require는 건드리지 않는다)
-  if (specifier.startsWith(".") && context.parentURL?.includes("/app/csp-report/") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
+  if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  // 앱 모듈이 확장자 없이 부르는 상대 경로만 .ts로 푼다(next 내부 require는 건드리지 않는다)
+  const isAppModule = /\/(app\/csp-report|src\/shared\/lib)\//.test(context.parentURL ?? "");
+  if (specifier.startsWith(".") && isAppModule && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});
-const { buildContentSecurityPolicy, CSP_REPORT_PATH } = await import("../src/shared/lib/contentSecurityPolicy.mjs");
+const { buildContentSecurityPolicy, CSP_REPORT_PATH } = await import("../src/shared/lib/contentSecurityPolicy.ts");
 const { createLogLimiter, readCappedText, summarizeCspReports } = await import("../app/csp-report/cspReport.ts");
 const { POST } = await import("../app/csp-report/route.ts");
+const { middleware, config: middlewareConfig } = await import("../middleware.ts");
+const { NextRequest } = await import("next/server.js");
 const { getPathMatch } = await import("next/dist/shared/lib/router/utils/path-match.js");
 
 const directives = (policy) => Object.fromEntries(policy.split("; ").map((entry) => {
@@ -18,7 +22,7 @@ const directives = (policy) => Object.fromEntries(policy.split("; ").map((entry)
 }));
 
 test("이미지는 같은 출처·data:·blob:만 허용하고 위반은 /csp-report로 보고한다", () => {
-  const policy = directives(buildContentSecurityPolicy());
+  const policy = directives(buildContentSecurityPolicy({ nonce: "abc" }));
   assert.deepEqual(policy["img-src"], ["'self'", "data:", "blob:"]);
   assert.deepEqual(policy["default-src"], ["'self'"]);
   assert.deepEqual(policy["object-src"], ["'none'"]);
@@ -26,39 +30,82 @@ test("이미지는 같은 출처·data:·blob:만 허용하고 위반은 /csp-re
   assert.deepEqual(policy["base-uri"], ["'self'"]);
   assert.deepEqual(policy["form-action"], ["'self'"]);
   assert.deepEqual(policy["font-src"], ["'self'", "data:"]);
-  assert.ok(policy["frame-src"].includes("blob:"));
+  assert.deepEqual(policy["worker-src"], ["'self'"]);
+  // 원본 보기 iframe은 blob:만 쓴다. S3 URL을 iframe으로 열지 않는다.
+  assert.deepEqual(policy["frame-src"], ["'self'", "blob:"]);
   assert.deepEqual(policy["report-uri"], [CSP_REPORT_PATH]);
   assert.deepEqual(policy["connect-src"], ["'self'", "https://*.amazonaws.com"]);
 });
 
-test("BACKEND_URL이 있으면 문서 API 오리진을 connect-src에 더한다", () => {
-  const policy = directives(buildContentSecurityPolicy({ backendUrl: "https://document.example.com/base/" }));
-  assert.deepEqual(policy["connect-src"], ["'self'", "https://document.example.com", "https://*.amazonaws.com"]);
+test("스크립트는 nonce와 strict-dynamic으로만 허용하고 인라인·eval은 허용하지 않는다", () => {
+  const policy = directives(buildContentSecurityPolicy({ nonce: "bm9uY2U=" }));
+  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-bm9uY2U='", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
+  assert.ok(!policy["script-src"].includes("'unsafe-inline'"));
+  assert.ok(!policy["script-src"].includes("'unsafe-eval'"));
 });
 
-async function loadConfig(t, nodeEnv) {
+test("BACKEND_URL·CSP_S3_ORIGIN이 있으면 connect-src를 그 오리진으로 정한다", () => {
+  const policy = directives(buildContentSecurityPolicy({
+    nonce: "abc",
+    backendUrl: "https://document.example.com/base/",
+    s3Origin: "https://bucket.s3.ap-northeast-2.amazonaws.com/path"
+  }));
+  assert.deepEqual(policy["connect-src"], ["'self'", "https://document.example.com", "https://bucket.s3.ap-northeast-2.amazonaws.com"]);
+});
+
+test("잘못된 BACKEND_URL은 출처를 빼고 잘못된 CSP_S3_ORIGIN은 기본 S3 와일드카드로 돌아가며 던지지 않는다", (t) => {
+  const error = t.mock.method(console, "error", () => {});
+  const build = () => buildContentSecurityPolicy({ nonce: "abc", backendUrl: "not-a-url", s3Origin: "bucket.s3.amazonaws.com" });
+  const policy = directives(build());
+  assert.deepEqual(policy["connect-src"], ["'self'", "https://*.amazonaws.com"]);
+  assert.deepEqual(policy["script-src"], ["'self'", "'nonce-abc'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
+  // 오리진이 없는 URL(예: 스킴만 있는 값)도 출처로 넣지 않는다
+  assert.deepEqual(directives(buildContentSecurityPolicy({ nonce: "abc", backendUrl: "mailto:a@b" }))["connect-src"], ["'self'", "https://*.amazonaws.com"]);
+  const logged = error.mock.calls.length;
+  assert.equal(logged, 3);
+  // 요청마다 불려도 같은 잘못된 값은 다시 로그하지 않는다
+  build();
+  assert.equal(error.mock.calls.length, logged);
+});
+
+function withNodeEnv(t, nodeEnv) {
   const old = process.env.NODE_ENV;
   process.env.NODE_ENV = nodeEnv;
   t.after(() => { if (old === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = old; });
-  return (await import(`../next.config.mjs?node-env=${nodeEnv}`)).default;
 }
 
-test("production 화면 응답에만 Report-Only CSP를 붙이고 API·정적 청크는 뺀다", async (t) => {
-  const config = await loadConfig(t, "production");
-  const [rule] = await config.headers();
-  assert.equal(rule.headers[0].key, "Content-Security-Policy-Report-Only");
-  assert.match(rule.headers[0].value, /img-src 'self' data: blob:/);
-  // Next가 headers()의 source를 해석하는 것과 같은 matcher로 확인한다
-  const matches = getPathMatch(rule.source);
-  assert.ok(matches("/"));
-  assert.ok(matches("/workspaces/ws"));
-  assert.equal(matches("/api/workspaces/ws/documents"), false);
-  assert.equal(matches("/_next/static/chunks/a.js"), false);
+test("production 화면 응답에는 요청마다 다른 nonce로 CSP를 강제하고 같은 값을 Next에 넘긴다", async (t) => {
+  withNodeEnv(t, "production");
+  const first = await middleware(new NextRequest("http://localhost/workspaces/ws"));
+  const second = await middleware(new NextRequest("http://localhost/login"));
+  const policy = first.headers.get("Content-Security-Policy");
+  assert.match(policy, /script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+  assert.equal(first.headers.get("Content-Security-Policy-Report-Only"), null);
+  // Next는 요청 헤더의 CSP에서 nonce를 읽어 자기 스크립트에 붙인다
+  assert.equal(first.headers.get("x-middleware-request-content-security-policy"), policy);
+  const nonceOf = (value) => value.match(/'nonce-([^']+)'/)[1];
+  assert.notEqual(nonceOf(policy), nonceOf(second.headers.get("Content-Security-Policy")));
+});
+
+test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·pdf.js 자산·화면 아닌 경로는 뺀다", async (t) => {
+  withNodeEnv(t, "production");
+  // Next가 matcher를 해석하는 것과 같은 path-to-regexp로 확인한다
+  const matchers = middlewareConfig.matcher.map((source) => getPathMatch(source));
+  const matched = (path) => matchers.some((matches) => matches(path) !== false);
+  // 화면 아닌 경로와 이름이 같은 접두어로 시작하는 화면은 그대로 CSP를 받는다
+  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/icon.svgx"]) assert.ok(matched(path), path);
+  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/pdf.worker.min.mjs", "/fonts/pretendard/a.woff2", "/pdfjs/wasm/openjpeg.wasm", "/healthz", "/wake", "/csp-report", "/icon.svg"]) {
+    assert.equal(matched(path), false, path);
+  }
+  // /api 요청은 CSP 대신 접근 코드 게이트를 거친다
+  const api = await middleware(new NextRequest("http://localhost/api/workspaces/ws/documents"));
+  assert.equal(api.headers.get("Content-Security-Policy"), null);
 });
 
 test("개발 서버(HMR eval·websocket)에는 CSP를 붙이지 않는다", async (t) => {
-  const config = await loadConfig(t, "development");
-  assert.deepEqual(await config.headers(), []);
+  withNodeEnv(t, "development");
+  const response = await middleware(new NextRequest("http://localhost/login"));
+  assert.equal(response.headers.get("Content-Security-Policy"), null);
 });
 
 test("두 보고 형식에서 지시어와 차단 오리진만 남긴다", () => {
