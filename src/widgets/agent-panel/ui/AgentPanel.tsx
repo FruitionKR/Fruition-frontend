@@ -52,7 +52,8 @@ export function AgentPanel({
   onCreateMarkdownDocument,
   markdownEditContext,
   onDocumentExported,
-  nodes
+  nodes,
+  wikiEvidenceNotice
 }: {
   onClose: () => void;
   onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
@@ -61,6 +62,13 @@ export function AgentPanel({
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   nodes?: GraphNode[];
+  /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
+  wikiEvidenceNotice?: {
+    message: string;
+    isDisabled: boolean;
+    isIngesting: boolean;
+    onIngest: () => void;
+  } | null;
 }) {
   const [composerValue, setComposerValue] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -505,6 +513,14 @@ export function AgentPanel({
         </div>
       ) : null}
       <div className={styles["composer-region"]}>
+        {wikiEvidenceNotice && !isPairSelectionMode && (
+          <div className={styles["wiki-evidence-notice"]}>
+            <p role="status">{wikiEvidenceNotice.message}</p>
+            <button type="button" disabled={wikiEvidenceNotice.isDisabled} onClick={wikiEvidenceNotice.onIngest}>
+              {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : "위키 편입"}
+            </button>
+          </div>
+        )}
         <AgentComposer
           value={composerValue}
           isLoading={isSubmitting || isPairSelectionMode}
