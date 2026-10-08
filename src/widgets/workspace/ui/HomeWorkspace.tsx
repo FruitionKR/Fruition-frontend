@@ -604,7 +604,7 @@ export function HomeWorkspace() {
           onDocumentExported={handleChatDocumentExported}
           nodes={graphData.nodes}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
-            message: chatEvidenceNotice,
+            ...chatEvidenceNotice,
             // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.
             isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending,
             isIngesting: wikiActionPending === "ingest" && ingestTargetIds.includes(chatContextDocument.id),
