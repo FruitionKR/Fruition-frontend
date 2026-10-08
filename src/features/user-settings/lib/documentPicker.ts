@@ -1,5 +1,5 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
-import { hasMarkdownExtension, hasPdfExtension, hasTextExtension, isMarkdownDocument } from "@/entities/document/lib/documentKind";
+import { hasMarkdownExtension, hasPdfExtension, hasTextExtension, isDocumentConverting, isMarkdownDocument } from "@/entities/document/lib/documentKind";
 import { normalizeTreeName } from "@/entities/tree/lib/names";
 import { ApiError } from "@/shared/lib/errors";
 
@@ -22,9 +22,14 @@ export function filterPickerDocuments<T extends Pick<DocumentItemResponse, "file
  * 참고 문서 후보. 스킬 검토는 참고 문서의 Markdown 본문만 읽을 수 있어서
  * (원본 PDF는 위키 편입 전에는 본문이 없어 검토가 거절된다) Markdown 문서만 보여준다.
  * PDF·TXT 등 다른 파일은 목록에 넣지 않는다. PDF는 변환된 Markdown 문서를 직접 고른다.
+ * 변환 중이거나 변환에 실패한 Markdown은 본문이 placeholder라 뺀다.
  */
 export function pickerDocuments(documents: DocumentItemResponse[], query: string): DocumentItemResponse[] {
-  return filterPickerDocuments(documents.filter(isMarkdownDocument), query);
+  return filterPickerDocuments(documents.filter((document) => isMarkdownDocument(document) && !isUnfinishedConversion(document)), query);
+}
+
+function isUnfinishedConversion(document: DocumentItemResponse): boolean {
+  return Boolean(document.source_document_id) && (isDocumentConverting(document) || document.status === "failed");
 }
 
 /**

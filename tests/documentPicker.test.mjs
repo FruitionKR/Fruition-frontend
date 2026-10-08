@@ -45,6 +45,14 @@ test("PDF는 변환본이 있어도 목록에 없고 변환된 Markdown만 검�
   assert.deepEqual(pickerDocuments([pdf({}), converted], "원본.pdf"), []);
 });
 
+test("변환 중이거나 변환에 실패한 Markdown은 빼고, 일반 Markdown은 상태와 관계없이 둔다", () => {
+  const converting = md({ id: "converting", source_document_id: "pdf", status: "processing", pipeline_run_id: "convert:1" });
+  const failed = md({ id: "failed", source_document_id: "pdf", status: "failed" });
+  const done = md({ id: "done", source_document_id: "pdf" });
+  const plainFailed = md({ id: "plain", status: "failed" });
+  assert.deepEqual(pickerDocuments([converting, failed, done, plainFailed], "").map((doc) => doc.id), ["done", "plain"]);
+});
+
 const { orderPickerDocuments, skillReferenceFileError, describeSkillReferenceUploadError } = await import("../src/features/user-settings/lib/documentPicker.ts");
 const { ApiError } = await import("../src/shared/lib/errors.ts");
 
