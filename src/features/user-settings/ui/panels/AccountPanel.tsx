@@ -2,7 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ME_QUERY_KEY, SESSIONS_QUERY_KEY, updateDisplayName, useMe, useSignOut } from "@/entities/user";
+import {
+  getOAuthLinkAuthorizationUrl,
+  ME_QUERY_KEY,
+  OAUTH_PROVIDER_OPTIONS,
+  oauthAccountErrorMessage,
+  oauthProviderName,
+  SESSIONS_QUERY_KEY,
+  startOAuthLink,
+  takeOAuthLinkResult,
+  unlinkOAuthAccount,
+  updateDisplayName,
+  useMe,
+  useSignOut,
+  type OAuthLinkResult,
+  type OAuthProvider
+} from "@/entities/user";
+import { setAfterLoginPath } from "@/shared/lib/auth";
 import { EmailChangeModal } from "./EmailChangeModal";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
@@ -26,6 +42,43 @@ export function AccountPanel() {
   const [showPassword, setShowPassword] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
+  const [oauthPending, setOAuthPending] = useState<OAuthProvider | null>(null);
+  const [oauthResult, setOAuthResult] = useState<OAuthLinkResult | null>(null);
+  const linkedProviders = me?.oauth_providers ?? [];
+
+  // 연동 콜백이 남긴 결과를 한 번만 읽어 이 섹션에 보여 준다.
+  useEffect(() => {
+    const result = takeOAuthLinkResult();
+    if (result) setOAuthResult(result);
+  }, []);
+
+  async function linkProvider(provider: OAuthProvider) {
+    setOAuthPending(provider);
+    setOAuthResult(null);
+    try {
+      const linkToken = await startOAuthLink(provider);
+      // 소셜 인증을 마치면 콜백 페이지가 이 화면으로 되돌려 보낸다.
+      setAfterLoginPath(`${window.location.pathname}${window.location.search}`);
+      window.location.assign(getOAuthLinkAuthorizationUrl(provider, linkToken));
+    } catch (error: unknown) {
+      setOAuthResult({ ok: false, message: oauthAccountErrorMessage(error, "소셜 계정 연동을 시작하지 못했습니다.") });
+      setOAuthPending(null);
+    }
+  }
+
+  async function unlinkProvider(provider: OAuthProvider) {
+    setOAuthPending(provider);
+    setOAuthResult(null);
+    try {
+      await unlinkOAuthAccount(provider);
+      await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+      setOAuthResult({ ok: true, message: `${oauthProviderName(provider)} 연동을 해제했습니다.` });
+    } catch (error: unknown) {
+      setOAuthResult({ ok: false, message: oauthAccountErrorMessage(error, "소셜 계정 연동을 해제하지 못했습니다.") });
+    } finally {
+      setOAuthPending(null);
+    }
+  }
 
   const saveName = useCallback(async () => {
     if (!me || nameRequestPending.current || composingName || nicknameDraft === null || !nickname.trim() || nickname.trim() === me.display_name) return;
@@ -124,6 +177,35 @@ export function AccountPanel() {
             onClose={() => setShowPassword(false)}
           />
         )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles["section-header"]}>
+          <span>연결된 계정</span>
+          <span className={styles["section-line"]} />
+        </div>
+        {OAUTH_PROVIDER_OPTIONS.map(({ provider, name }) => {
+          const isLinked = linkedProviders.includes(provider);
+          return (
+            <div className={styles.row} key={provider}>
+              <div className={styles["row-title"]}>
+                <strong>{name}</strong>
+                <small>{isLinked ? `${name} 계정으로 로그인할 수 있습니다.` : "연결되지 않음"}</small>
+              </div>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={!me || oauthPending !== null}
+                onClick={() => void (isLinked ? unlinkProvider(provider) : linkProvider(provider))}
+              >
+                {oauthPending === provider ? "처리 중…" : isLinked ? "연동 해제" : "연동"}
+              </button>
+            </div>
+          );
+        })}
+        {oauthResult && (oauthResult.ok
+          ? <small role="status">{oauthResult.message}</small>
+          : <small className={styles["model-error"]} role="alert">{oauthResult.message}</small>)}
       </div>
 
       </>
