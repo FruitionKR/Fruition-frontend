@@ -26,57 +26,69 @@ const nextConfig = {
   },
   async rewrites() {
     if (sameOriginApi) return [];
-    // 배열 순서대로 먼저 매칭되는 규칙이 적용된다.
-    return [
-      {
-        source: "/api/auth/:path*",
-        destination: `${accessUrl}/api/auth/:path*`
-      },
-      {
-        source: "/api/workspaces",
-        destination: `${accessUrl}/api/workspaces`
-      },
-      {
-        // 워크스페이스 자체 CRUD·휴지통·복구는 access-svc. 그 밖의 하위 기능은 document-svc가 받는다.
-        source: "/api/workspaces/:wid",
-        destination: `${accessUrl}/api/workspaces/:wid`
-      },
-      {
-        source: "/api/workspaces/:wid/restore",
-        destination: `${accessUrl}/api/workspaces/:wid/restore`
-      },
-      {
-        source: "/api/workspaces/:wid/icon/:path*",
-        destination: `${accessUrl}/api/workspaces/:wid/icon/:path*`
-      },
-      {
-        // 멤버 관리와 초대는 멤버십을 소유한 access-svc가 받는다.
-        source: "/api/workspaces/:wid/members",
-        destination: `${accessUrl}/api/workspaces/:wid/members`
-      },
-      {
-        source: "/api/workspaces/:wid/members/:uid",
-        destination: `${accessUrl}/api/workspaces/:wid/members/:uid`
-      },
-      {
-        source: "/api/workspaces/:wid/invitations",
-        destination: `${accessUrl}/api/workspaces/:wid/invitations`
-      },
-      {
-        source: "/api/workspaces/:wid/invitations/:invitationId",
-        destination: `${accessUrl}/api/workspaces/:wid/invitations/:invitationId`
-      },
-      {
-        // 초대 링크 수신자가 부르는 경로. 워크스페이스 하위가 아니라 최상위다.
-        source: "/api/invitations/:path*",
-        destination: `${accessUrl}/api/invitations/:path*`
-      },
-      {
-        source: "/api/:path*",
-        destination: `${documentUrl}/api/:path*`
-      }
-    ];
+    if (desktopBuild) {
+      // 운영은 /api마다 접근 코드 쿠키를 확인한다. 앱 안의 /access/verify(접근 코드 미설정이라 항상 열림) 대신
+      // 운영 웹으로 보내 쿠키를 localhost에 받는다. 파일 경로보다 먼저 적용되도록 beforeFiles에 둔다.
+      return {
+        beforeFiles: [{ source: "/access/verify", destination: `${process.env.DESKTOP_WEB_URL || documentUrl}/access/verify` }],
+        afterFiles: apiRewrites()
+      };
+    }
+    return apiRewrites();
   }
 };
+
+function apiRewrites() {
+  // 배열 순서대로 먼저 매칭되는 규칙이 적용된다.
+  return [
+    {
+      source: "/api/auth/:path*",
+      destination: `${accessUrl}/api/auth/:path*`
+    },
+    {
+      source: "/api/workspaces",
+      destination: `${accessUrl}/api/workspaces`
+    },
+    {
+      // 워크스페이스 자체 CRUD·휴지통·복구는 access-svc. 그 밖의 하위 기능은 document-svc가 받는다.
+      source: "/api/workspaces/:wid",
+      destination: `${accessUrl}/api/workspaces/:wid`
+    },
+    {
+      source: "/api/workspaces/:wid/restore",
+      destination: `${accessUrl}/api/workspaces/:wid/restore`
+    },
+    {
+      source: "/api/workspaces/:wid/icon/:path*",
+      destination: `${accessUrl}/api/workspaces/:wid/icon/:path*`
+    },
+    {
+      // 멤버 관리와 초대는 멤버십을 소유한 access-svc가 받는다.
+      source: "/api/workspaces/:wid/members",
+      destination: `${accessUrl}/api/workspaces/:wid/members`
+    },
+    {
+      source: "/api/workspaces/:wid/members/:uid",
+      destination: `${accessUrl}/api/workspaces/:wid/members/:uid`
+    },
+    {
+      source: "/api/workspaces/:wid/invitations",
+      destination: `${accessUrl}/api/workspaces/:wid/invitations`
+    },
+    {
+      source: "/api/workspaces/:wid/invitations/:invitationId",
+      destination: `${accessUrl}/api/workspaces/:wid/invitations/:invitationId`
+    },
+    {
+      // 초대 링크 수신자가 부르는 경로. 워크스페이스 하위가 아니라 최상위다.
+      source: "/api/invitations/:path*",
+      destination: `${accessUrl}/api/invitations/:path*`
+    },
+    {
+      source: "/api/:path*",
+      destination: `${documentUrl}/api/:path*`
+    }
+  ];
+}
 
 export default nextConfig;
