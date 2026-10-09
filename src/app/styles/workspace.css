@@ -5,7 +5,7 @@
   min-width: 0;
   height: 100vh;
   overflow: hidden;
-  background: #0a0a0a;
+  background: var(--color-canvas);
 }
 
 .topbar {
@@ -17,8 +17,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  background: #1e1e1e;
-  border-bottom: 1px solid #4f4f4f;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .brand {
@@ -33,9 +33,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: #0a0a0a;
-  border: 1px solid #4f4f4f;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 16px;
   font-weight: 600;
@@ -47,7 +47,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  color: #a7a7a7;
+  color: var(--color-body);
 }
 
 .profile div {
@@ -57,72 +57,96 @@
 }
 
 .profile strong {
-  color: #f0f0f0;
+  color: var(--color-foreground);
   font-size: 12px;
   font-weight: 600;
 }
 
 .profile span {
-  color: #a7a7a7;
+  color: var(--color-body);
   font-size: 10px;
 }
 
 /* 워크스페이스 빈 화면 (HomeWorkspace 렌더). 기존 rail.css에서 이동. */
+/* 화면 전환(레일·문서/그래프): 새로 그려지는 메인 화면을 짧게 페이드인해 뚝 끊겨 바뀌는 느낌을 줄인다.
+   opacity만 써서 레이아웃·고정 위치 요소에 영향이 없다. 한 화면 안에서 내용만 바뀔 때는 다시 재생되지 않는다. */
+.workspace > section {
+  animation: workspace-view-enter 160ms ease-out;
+}
+
+@keyframes workspace-view-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace > section {
+    animation: none;
+  }
+}
+
+/* 패널이 없는 화면에서 열려 있던 채팅 패널을 숨겨 둔다(마운트 유지). 보일 때는 래퍼가 레이아웃에 끼지 않는다. */
+.agent-panel-host {
+  display: contents;
+}
+
+.agent-panel-host.is-hidden {
+  display: none;
+}
+
 .blank-view {
   position: absolute;
   inset: 0 0 0 var(--sidebar-width, 320px);
   z-index: 1;
-  background: #0a0a0a;
+  background: var(--color-canvas);
 }
 
-.workspace.is-sidebar-collapsed .blank-view {
-  left: 0;
+/* 사이드바·채팅 패널 핸들을 끄는 동안 문서 iframe(PDF 내장 뷰어 등)이 포인터 이벤트를 가로채지 않게 한다.
+   pointer capture가 있어도 브라우저에 따라 iframe 위에서 이벤트가 끊길 수 있어 함께 막는다. */
+.workspace.is-panel-resizing iframe {
+  pointer-events: none;
 }
 
-/* 콘텐츠 영역 상단 배너. 좌우 inset은 사이드바 접힘·agent-panel 개폐 상태를 따라간다
-   (agent-panel 폭 360/330/300은 agent-panel-shell.css와 동일). */
+/* 콘텐츠 영역 상단 배너. 좌우 inset은 --sidebar-width·--agent-panel-width(닫히면 0)를 따라간다. */
 .workspace-api-error {
+  /* 오류 배너 색: 라이트는 danger 토큰에서 파생, 다크는 기존 다크 배너 색을 유지한다 */
+  --api-error-fg: var(--color-danger);
+  --api-error-bg: var(--color-danger-weak);
+  --api-error-border: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  --api-error-button-fg: #ffffff;
+  --api-error-button-bg: var(--color-danger);
+
   position: fixed;
   top: 16px;
   left: calc(var(--sidebar-width, 320px) + 16px);
-  right: calc(360px + 16px);
+  right: calc(var(--agent-panel-width, 360px) + 16px);
   z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 10px 12px;
-  color: #ffd0cc;
-  background: #321917;
-  border: 1px solid #7a3530;
+  color: var(--api-error-fg);
+  background: var(--api-error-bg);
+  border: 1px solid var(--api-error-border);
   border-radius: 8px;
   font-size: 12px;
-}
-
-.workspace.is-sidebar-collapsed .workspace-api-error {
-  left: 16px;
-}
-
-.workspace.is-agent-collapsed .workspace-api-error {
-  right: 16px;
-}
-
-@media (max-width: 1300px) {
-  .workspace-api-error {
-    right: calc(330px + 16px);
-  }
-}
-
-@media (max-width: 1080px) {
-  .workspace-api-error {
-    right: calc(300px + 16px);
-  }
 }
 
 .workspace-api-error button {
   flex: 0 0 auto;
   padding: 5px 9px;
-  color: #fff;
-  background: #71302c;
+  color: var(--api-error-button-fg);
+  background: var(--api-error-button-bg);
   border-radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .workspace-api-error {
+    --api-error-fg: #ffd0cc;
+    --api-error-bg: #321917;
+    --api-error-border: #7a3530;
+    --api-error-button-bg: #71302c;
+  }
 }

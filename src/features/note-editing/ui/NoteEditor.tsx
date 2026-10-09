@@ -1,13 +1,10 @@
 "use client";
 
 import "@milkdown/crepe/theme/common/style.css";
-import "@milkdown/crepe/theme/frame-dark.css";
+// 라이트 frame 테마를 기본으로 두고, 색 변수는 NoteEditor.module.css에서 앱 토큰으로 덮어 다크 모드도 맞춘다.
+import "@milkdown/crepe/theme/frame.css";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CodeMirror from "@uiw/react-codemirror";
-import { markdown } from "@codemirror/lang-markdown";
-import { history } from "@codemirror/commands";
-import { EditorView } from "@codemirror/view";
+import { useCallback, useEffect, useRef } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
 import { editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
@@ -18,7 +15,6 @@ import { Slice } from "@milkdown/prose/model";
 import { liftListItem } from "@milkdown/prose/schema-list";
 import { TextSelection } from "@milkdown/prose/state";
 import { CellSelection } from "@milkdown/prose/tables";
-import { useUserPreferences } from "@/entities/user";
 import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownEditContext";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
@@ -34,7 +30,7 @@ import { refitImageBlocks } from "../model/imageBlockHeight";
 import { ALLOW_EXTERNAL_IMAGES_META, blockedImagePlaceholderUrl, createExternalImageGuard, createExternalImagePasteHandler } from "../model/externalImageGuard";
 import { $prose } from "@milkdown/utils";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
-import { classifyImageSource, countExternalMarkdownImages, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/externalResources";
+import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
@@ -63,9 +59,6 @@ const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
 const lastExternalImageNoticeAt = new Map<string, number>();
 
-// 원문 모드는 글을 그대로 두므로 "넣을 수 없다" 대신 표시되지 않는다고 알린다.
-const EXTERNAL_IMAGE_HIDDEN_MESSAGE = "보안을 위해 외부 이미지는 표시되지 않습니다. 이미지를 내려받아 직접 업로드해 주세요.";
-
 function notifyExternalImageBlocked(message: string = EXTERNAL_IMAGE_BLOCKED_MESSAGE) {
   const now = Date.now();
   if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
@@ -75,12 +68,12 @@ function notifyExternalImageBlocked(message: string = EXTERNAL_IMAGE_BLOCKED_MES
 
 const externalImageGuard = $prose(() => createExternalImageGuard(() => notifyExternalImageBlocked()));
 
+
 export function NoteEditor({
   documentId,
   marker,
   initialBody,
   initialVersion,
-  sourceMode,
   onMarkdownEditContextChange,
   onSaveStatusChange,
   onDetachedSaveComplete,
@@ -90,15 +83,12 @@ export function NoteEditor({
   marker: string;
   initialBody: string;
   initialVersion: number;
-  sourceMode: boolean;
   onMarkdownEditContextChange?: (context: ActiveMarkdownEditContext | null) => void;
   onSaveStatusChange?: (status: NoteSaveStatus, errorMessage: string | null) => void;
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
 }) {
-  const { preferences } = useUserPreferences();
-  const [body, setBody] = useState(initialBody);
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
   const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
@@ -119,19 +109,9 @@ export function NoteEditor({
   });
   // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
   const canEdit = editLock.phase === "granted" || editLock.phase === "lost";
-  const editorExtensions = useMemo(
-    () => [
-      markdown(),
-      // 입력 하나 단위로 undo되도록 그룹 병합을 끈다 (기본 500ms 내 입력이 한 그룹으로 묶임)
-      history({ newGroupDelay: 0 }),
-      ...(preferences.editor.markdown.lineWrapping ? [EditorView.lineWrapping] : [])
-    ],
-    [preferences.editor.markdown.lineWrapping]
-  );
   const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
   const crepeRef = useRef<Crepe | null>(null);
-  const selectionRef = useRef({ from: 0, to: 0 });
-  const bodyRef = useRef(body);
+  const bodyRef = useRef(initialBody);
   const queueSaveRef = useRef(queueSave);
   const publishMarkdownEditContextRef = useRef<(
     markdownValue: string,
@@ -152,7 +132,6 @@ export function NoteEditor({
   const replaceEditorMarkdown = useCallback((nextMarkdown: string) => {
     bodyRef.current = nextMarkdown;
     programmaticBodyRef.current = nextMarkdown;
-    setBody(nextMarkdown);
     // 전체 문서 교체를 undo 히스토리에서 제외한다.
     // (기본 replaceAll은 통째 트랜잭션이라 cmd+z 한 번에 문서 전체가 되돌려짐)
     crepeRef.current?.editor.action((ctx) => {
@@ -189,7 +168,7 @@ export function NoteEditor({
     const paths = new Map(saved.map((entry) => [entry.attachment_id.toLowerCase(), entry.content_path]));
     const crepe = crepeRef.current;
     if (!crepe) {
-      // 소스 모드(CodeMirror)는 본문 문자열만 바꾼다.
+      // 편집기가 아직 준비되지 않았으면 본문 문자열만 바꾼다.
       const next = substituteAttachmentPaths(bodyRef.current, paths);
       if (next !== bodyRef.current) replaceEditorMarkdown(next);
       return;
@@ -209,7 +188,6 @@ export function NoteEditor({
       const nextBody = ctx.get(serializerCtx)(tr.doc);
       bodyRef.current = nextBody;
       programmaticBodyRef.current = nextBody;
-      setBody(nextBody);
       view.dispatch(tr);
     });
   };
@@ -243,18 +221,13 @@ export function NoteEditor({
   }, [errorMessage, onSaveStatusChange, status]);
 
   useEffect(() => {
-    publishMarkdownEditContext(
-      bodyRef.current,
-      selectionRef.current.from,
-      selectionRef.current.to,
-      !sourceMode
-    );
-  }, [publishMarkdownEditContext, sourceMode]);
+    publishMarkdownEditContext(bodyRef.current, 0, 0, true);
+  }, [publishMarkdownEditContext]);
 
   useEffect(() => () => onMarkdownEditContextChange?.(null), [onMarkdownEditContextChange]);
 
-  // 아래 편집기 DOM 보정 effect들은 root가 있을 때만 연결한다. root는 편집 권한을 받고(canEdit)
-  // 원문 모드가 아닐 때만 렌더되므로, 두 값은 다시 연결할 시점을 알리려고 의존성에만 둔다.
+  // 아래 편집기 DOM 보정 effect들은 root가 있을 때만 연결한다. root는 편집 권한을 받을 때(canEdit)
+  // 렌더되므로, canEdit·documentId는 다시 연결할 시점을 알리려고 의존성에만 둔다.
   // 표 행/열 추가 핸들을 오른쪽·아래쪽 바깥 경계에서만 노출한다.
   // (위젯이 placement를 DOM에 남기지 않아 좌표로 판별한다)
   useEffect(() => {
@@ -285,7 +258,7 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
     return () => observer.disconnect();
-  }, [canEdit, documentId, sourceMode]);
+  }, [canEdit, documentId]);
 
   // 편집기 폭이 바뀌면(채팅창 열고 닫기 등) 이미지 블록 높이를 새 폭으로 다시 계산한다(이슈 #63).
   // 높이를 바꾸면 root 높이도 바뀌어 다시 불리므로 폭이 같을 때는 무시한다.
@@ -322,7 +295,7 @@ export function NoteEditor({
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [canEdit, documentId, sourceMode]);
+  }, [canEdit, documentId]);
 
   // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
   // (Crepe가 버튼에 라벨·식별 속성을 넣지 않아 렌더 순서로 매핑한다: 볼드→기울임→취소선→코드→[수식]→링크)
@@ -346,7 +319,7 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, childList: true });
     return () => observer.disconnect();
-  }, [canEdit, documentId, sourceMode]);
+  }, [canEdit, documentId]);
 
   // 이미지 블록의 링크 입력칸은 글자를 받는 즉시 <img src={입력값}> 미리보기를 그려 외부 주소를 요청한다.
   // Crepe 컴포넌트(Vue)가 입력 요소에 단 리스너보다 먼저 capture 단계에서 막고 입력값을 비운다(이슈 #77).
@@ -363,7 +336,7 @@ export function NoteEditor({
     };
     root.addEventListener("input", onInput, true);
     return () => root.removeEventListener("input", onInput, true);
-  }, [canEdit, documentId, sourceMode]);
+  }, [canEdit, documentId]);
 
   // '/' 슬래시 메뉴가 화면 밖으로 넘어가지 않게 표시 위치를 viewport 안으로 보정한다.
   // (Crepe는 flip만 적용하고 shift 미들웨어를 노출하지 않아 가장자리에서 잘림)
@@ -392,7 +365,7 @@ export function NoteEditor({
     });
     observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
     return () => observer.disconnect();
-  }, [canEdit, documentId, sourceMode]);
+  }, [canEdit, documentId]);
 
   useEffect(() => {
     const root = wysiwygRootRef.current;
@@ -516,8 +489,7 @@ export function NoteEditor({
         }
         programmaticBodyRef.current = null;
         bodyRef.current = nextBody;
-        setBody(nextBody);
-        publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
+          publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
         queueSaveRef.current(nextBody);
       });
     });
@@ -619,7 +591,7 @@ export function NoteEditor({
         .catch(() => {})
         .finally(() => host.remove());
     };
-  }, [canEdit, documentId, sourceMode]);
+  }, [canEdit, documentId]);
 
   if (!canEdit) {
     return (
@@ -640,48 +612,6 @@ export function NoteEditor({
 
   return (
     <div className={styles["note-editor-shell"]}>
-      {sourceMode ? (
-        <CodeMirror
-          className={styles["note-markdown-editor"]}
-          value={body}
-          minHeight="420px"
-          placeholder={NOTE_BODY_PLACEHOLDER}
-          extensions={editorExtensions}
-          basicSetup={{
-            lineNumbers: preferences.editor.markdown.lineNumbers,
-            // 기본 history 대신 위 editorExtensions의 history({ newGroupDelay: 0 })를 쓴다
-            history: false,
-            foldGutter: false,
-            highlightActiveLine: preferences.editor.markdown.highlightActiveLine,
-            highlightActiveLineGutter: preferences.editor.markdown.lineNumbers
-          }}
-          onCreateEditor={(view) => {
-            const selection = view.state.selection.main;
-            selectionRef.current = { from: selection.from, to: selection.to };
-            publishMarkdownEditContext(view.state.doc.toString(), selection.from, selection.to);
-          }}
-          onUpdate={(viewUpdate) => {
-            if (!viewUpdate.docChanged && !viewUpdate.selectionSet) return;
-            const selection = viewUpdate.state.selection.main;
-            selectionRef.current = { from: selection.from, to: selection.to };
-            publishMarkdownEditContext(viewUpdate.state.doc.toString(), selection.from, selection.to);
-          }}
-          onChange={(nextBody) => {
-            const previousBody = bodyRef.current;
-            bodyRef.current = nextBody;
-            setBody(nextBody);
-            if (programmaticBodyRef.current === nextBody) {
-              programmaticBodyRef.current = null;
-              return;
-            }
-            programmaticBodyRef.current = null;
-            // 원문 모드는 글을 지우지 않고 저장도 막지 않는다. 저장을 막으면 이동할 때 편집분을 잃고,
-            // 외부 이미지가 이미 있는 문서는 편집 자체가 막힌다. 넣어도 어디서도 불러오지 않으므로 알리기만 한다.
-            if (countExternalMarkdownImages(nextBody) > countExternalMarkdownImages(previousBody)) notifyExternalImageBlocked(EXTERNAL_IMAGE_HIDDEN_MESSAGE);
-            queueSave(nextBody);
-          }}
-        />
-      ) : (
         <div
           ref={wysiwygRootRef}
           className={styles["note-wysiwyg-editor"]}
@@ -718,7 +648,6 @@ export function NoteEditor({
             });
           }}
         />
-      )}
     </div>
   );
 }

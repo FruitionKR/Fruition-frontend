@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { checkEmailAvailability, requestEmailVerification } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 import { AuthScreen } from "@/shared/ui/AuthScreen";
@@ -25,8 +26,9 @@ export default function SignupPage() {
     event.preventDefault();
     if (isSubmitting) return;
 
-    if (password.length < 8) {
-      setErrorMessage("비밀번호는 8자 이상 입력해주세요.");
+    const passwordError = getPasswordPolicyError(password);
+    if (passwordError) {
+      setErrorMessage(passwordError);
       return;
     }
 

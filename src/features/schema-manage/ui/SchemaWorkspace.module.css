@@ -8,11 +8,38 @@
   gap: 24px;
   padding: 32px;
   overflow: auto;
-  background: #0a0a0a;
+  background: var(--color-canvas);
+  /* 이 화면 고유 색. 토큰으로 표현되지 않는 상태 배지·이슈 배경과 파랑 강조는 여기서만 정의하고,
+     다크에서는 기존 값을 유지한다. */
+  --schema-accent: #3182f6;
+  --schema-accent-ring: rgb(49 130 246 / 12%);
+  /* 강조색이 두 테마 모두 파랑이라 그 위 글자는 항상 흰색이다. */
+  --schema-on-accent: #ffffff;
+  --schema-input-bg: var(--color-canvas);
+  --schema-active-bg: #e8f8f0;
+  --schema-active-fg: var(--color-status-success);
+  --schema-danger-bg: var(--color-danger-weak);
+  --schema-danger-tag-bg: #ffd9db;
+  --schema-danger-fg: var(--color-danger);
+  --schema-warning-bg: #fff5e5;
+  --schema-warning-tag-bg: #ffe6c2;
+  --schema-warning-fg: #e08600;
 }
 
-:global(.workspace.is-sidebar-collapsed) .schema-workspace {
-  left: 0;
+@media (prefers-color-scheme: dark) {
+  .schema-workspace {
+    --schema-accent: #315efb;
+    --schema-accent-ring: rgb(49 94 251 / 12%);
+    --schema-input-bg: #323232;
+    --schema-active-bg: #0f2e1d;
+    --schema-active-fg: #6ce9a6;
+    --schema-danger-bg: #3a1a17;
+    --schema-danger-tag-bg: #5a221d;
+    --schema-danger-fg: #ff8f87;
+    --schema-warning-bg: #33270a;
+    --schema-warning-tag-bg: #4a3610;
+    --schema-warning-fg: #fdb022;
+  }
 }
 
 .schema-column {
@@ -26,25 +53,25 @@
   margin: 0 0 4px;
   font-size: 20px;
   font-weight: 700;
-  color: #f0f0f0;
+  color: var(--color-foreground);
 }
 
 .schema-header p {
   margin: 0;
   font-size: 12px;
-  color: #a7a7a7;
+  color: var(--color-body);
   line-height: 1.5;
 }
 
 .schema-error {
   margin: 0;
-  color: #ff8f87;
+  color: var(--schema-danger-fg);
   font-size: 12px;
 }
 
 .schema-muted {
   margin: 0;
-  color: #a7a7a7;
+  color: var(--color-body);
   font-size: 12px;
 }
 
@@ -70,22 +97,22 @@
   gap: 8px;
   flex: 1 1 auto;
   padding: 10px 12px;
-  border: 1px solid #4f4f4f;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #1e1e1e;
+  background: var(--color-surface);
   cursor: pointer;
   text-align: left;
 }
 
 .schema-list-item.is-selected {
-  border-color: #315efb;
-  box-shadow: 0 0 0 1px #315efb;
+  border-color: var(--schema-accent);
+  box-shadow: 0 0 0 1px var(--schema-accent);
 }
 
 .schema-list-name {
   font-size: 13px;
   font-weight: 500;
-  color: #f0f0f0;
+  color: var(--color-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -94,10 +121,10 @@
 .schema-list-activate {
   flex: none;
   padding: 6px 10px;
-  border: 1px solid #4f4f4f;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #1e1e1e;
-  color: #f0f0f0;
+  background: var(--color-surface);
+  color: var(--color-foreground);
   cursor: pointer;
   font-size: 11px;
 }
@@ -116,19 +143,19 @@
 }
 
 .schema-badge.is-active {
-  background: #0f2e1d;
-  color: #6ce9a6;
+  background: var(--schema-active-bg);
+  color: var(--schema-active-fg);
 }
 
 .schema-badge.is-draft {
-  background: #2a2a2a;
-  color: #a7a7a7;
+  background: var(--color-surface-strong);
+  color: var(--color-body);
 }
 
 .schema-badge.is-rejected,
 .schema-badge.is-blocked {
-  background: #3a1a17;
-  color: #ff8f87;
+  background: var(--schema-danger-bg);
+  color: var(--schema-danger-fg);
 }
 
 .schema-form {
@@ -136,9 +163,9 @@
   flex-direction: column;
   gap: 14px;
   padding: 20px;
-  border: 1px solid #4f4f4f;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
-  background: #1e1e1e;
+  background: var(--color-surface);
 }
 
 .schema-field {
@@ -147,18 +174,18 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #a7a7a7;
+  color: var(--color-body);
 }
 
 .schema-field input,
 .schema-field textarea {
   padding: 10px 12px;
-  border: 1px solid #4f4f4f;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 400;
-  color: #f0f0f0;
-  background: #323232;
+  color: var(--color-foreground);
+  background: var(--schema-input-bg);
   font-family: inherit;
   resize: vertical;
 }
@@ -171,8 +198,8 @@
 .schema-field input:focus,
 .schema-field textarea:focus {
   outline: none;
-  border-color: #315efb;
-  box-shadow: 0 0 0 3px rgba(49, 94, 251, 0.12);
+  border-color: var(--schema-accent);
+  box-shadow: 0 0 0 3px var(--schema-accent-ring);
 }
 
 .schema-form-actions {
@@ -183,19 +210,19 @@
 
 .schema-form-actions button {
   padding: 8px 16px;
-  border: 1px solid #4f4f4f;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #1e1e1e;
-  color: #f0f0f0;
+  background: var(--color-surface);
+  color: var(--color-foreground);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
 }
 
 .schema-form-actions button.is-primary {
-  border-color: #315efb;
-  background: #315efb;
-  color: #fff;
+  border-color: var(--schema-accent);
+  background: var(--schema-accent);
+  color: var(--schema-on-accent);
 }
 
 .schema-form-actions button:disabled {
@@ -209,9 +236,9 @@
   gap: 14px;
   margin-top: 16px;
   padding: 20px;
-  border: 1px solid #4f4f4f;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
-  background: #1e1e1e;
+  background: var(--color-surface);
 }
 
 .schema-preview header {
@@ -222,7 +249,7 @@
 
 .schema-preview header strong {
   font-size: 14px;
-  color: #f0f0f0;
+  color: var(--color-foreground);
 }
 
 .schema-fragments {
@@ -240,7 +267,7 @@
 .schema-fragment-label {
   font-size: 11px;
   font-weight: 700;
-  color: #a7a7a7;
+  color: var(--color-body);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -249,8 +276,8 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #2a2a2a;
-  color: #f0f0f0;
+  background: var(--color-surface-strong);
+  color: var(--color-foreground);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -274,11 +301,11 @@
 }
 
 .schema-issue.is-blocked {
-  background: #3a1a17;
+  background: var(--schema-danger-bg);
 }
 
 .schema-issue.is-unclear {
-  background: #33270a;
+  background: var(--schema-warning-bg);
 }
 
 .schema-issue-tag {
@@ -291,36 +318,36 @@
 }
 
 .schema-issue.is-blocked .schema-issue-tag {
-  background: #5a221d;
-  color: #ff8f87;
+  background: var(--schema-danger-tag-bg);
+  color: var(--schema-danger-fg);
 }
 
 .schema-issue.is-unclear .schema-issue-tag {
-  background: #4a3610;
-  color: #fdb022;
+  background: var(--schema-warning-tag-bg);
+  color: var(--schema-warning-fg);
 }
 
 .schema-issue-text {
   margin: 0 0 2px;
   font-size: 12px;
   font-weight: 500;
-  color: #f0f0f0;
+  color: var(--color-foreground);
   overflow-wrap: anywhere;
 }
 
 .schema-issue-reason {
   margin: 0;
   font-size: 11px;
-  color: #a7a7a7;
+  color: var(--color-body);
 }
 
 .schema-activate {
   align-self: flex-start;
   padding: 9px 18px;
-  border: 1px solid #315efb;
+  border: 1px solid var(--schema-accent);
   border-radius: 8px;
-  background: #315efb;
-  color: #fff;
+  background: var(--schema-accent);
+  color: var(--schema-on-accent);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
@@ -328,7 +355,7 @@
 
 .schema-activate:disabled {
   cursor: not-allowed;
-  border-color: #4f4f4f;
-  background: #2a2a2a;
-  color: #667085;
+  border-color: var(--color-border);
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
 }

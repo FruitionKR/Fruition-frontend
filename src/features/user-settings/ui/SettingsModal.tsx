@@ -18,7 +18,6 @@ import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import {
   bellIcon,
-  lightningIcon,
   plusIcon,
   settingIcon,
   SvgIcon,
@@ -27,13 +26,12 @@ import {
 import { AccountPanel } from "./panels/AccountPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
-import { SkillsPanel } from "./panels/SkillsPanel";
 import { WorkspacePanel } from "./panels/WorkspacePanel";
 import styles from "./SettingsModal.module.css";
 
-type SettingsSection = "account" | "notifications" | "general" | "members" | "skills";
+type SettingsSection = "account" | "notifications" | "general" | "members";
 
-/** 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800 / 981:10091). */
+/** 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800). 스킬은 레일 "스킬" 화면으로 옮겼다. */
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const workspaceName = useWorkspaceName();
   const { preferences, updatePreferences } = useUserPreferences();
@@ -145,25 +143,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />
               <span>멤버 관리</span>
             </button>
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "skills" ? styles["is-active"] : ""}`}
-              onClick={() => setActiveSection("skills")}
-            >
-              <SvgIcon src={lightningIcon} className={styles["nav-icon"]} />
-              <span>스킬</span>
-            </button>
           </div>
         </nav>
 
         <div className={styles.content} data-section={activeSection}>
           {activeSection === "account" && <AccountPanel />}
-          {activeSection === "notifications" && (
-            <NotificationsPanel
-              notifications={preferences.notifications}
-              updatePreferences={updatePreferences}
-            />
-          )}
+          {activeSection === "notifications" && <NotificationsPanel />}
           {activeSection === "general" && (
             <WorkspacePanel
               wsName={wsName}
@@ -180,7 +165,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             />
           )}
           {activeSection === "members" && <MembersPanel />}
-          {activeSection === "skills" && <SkillsPanel />}
           <button type="button" className={styles.close} aria-label="설정 닫기" onClick={onClose}>
             <SvgIcon src={plusIcon} className={styles["close-icon"]} />
           </button>

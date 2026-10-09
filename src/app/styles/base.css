@@ -1,20 +1,81 @@
+/* 색 토큰. 라이트(기본)는 Figma UXUI 변수 값이고, 다크는 같은 레이아웃에 색만 바꾼다(OS 설정을 따름).
+   컴포넌트는 hex 대신 아래 --color-* 의미 토큰을 쓴다. */
 :root {
-  --bg: #0a0a0a;
-  --panel: #1e1e1e;
-  --ink: #f0f0f0;
-  --muted: #a7a7a7;
-  --line: #4f4f4f;
-  --soft: #323232;
-  --subdued: #8a8a8a;
-  --line-soft: #3a3a3a;
-  --yellow: #ffc117;
-  --source-page: #bbcf6c;
-  --concept-page: #fffdf0;
+  color-scheme: light;
+  --color-canvas: #ffffff;
+  --color-surface: #f2f4f6;
+  --color-surface-strong: #e5e8eb;
+  --color-border: #e5e8eb;
+  --color-foreground: #21252a;
+  --color-body: #4e5968;
+  --color-muted: #8b95a1;
+  --color-subtle: #afb8c1;
+  --color-placeholder: #c3cad2;
+  --color-primary: #3182f6;
+  --color-on-primary: #ffffff;
+  --color-primary-default: #8cb7f5;
+  --color-primary-weak: #f2f8ff;
+  --color-primary-weak-foreground: #185ac4;
+  --color-danger: #f04452;
+  --color-danger-weak: #ffeeee;
+  --color-status-success: #03b26c;
+  --color-status-warning: #fe9800;
+  --color-overlay: rgb(0 0 0 / 40%);
+  --color-hover-overlay: rgb(0 0 0 / 4%);
+  --color-shadow: rgb(0 0 0 / 8%);
+  --color-graph-raw: #4e5968;
+  --color-graph-source: #185ac4;
+  --color-graph-concept: #fe9800;
+
+  /* 기존 이름 호환 별칭. 새 코드는 --color-* 를 쓴다. */
+  --bg: var(--color-canvas);
+  --panel: var(--color-canvas);
+  --ink: var(--color-foreground);
+  --muted: var(--color-body);
+  --line: var(--color-border);
+  --soft: var(--color-surface);
+  --subdued: var(--color-muted);
+  --line-soft: var(--color-surface);
+  --yellow: var(--color-primary);
+  --source-page: var(--color-graph-source);
+  --concept-page: var(--color-graph-concept);
   --document-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-canvas: #0a0a0a;
+    --color-surface: #1e1e1e;
+    --color-surface-strong: #323232;
+    --color-border: #4f4f4f;
+    --color-foreground: #f0f0f0;
+    --color-body: #a7a7a7;
+    --color-muted: #8a8a8a;
+    --color-subtle: #6b6b6b;
+    --color-placeholder: #6b6b6b;
+    --color-primary: #ffc117;
+    --color-on-primary: #0a0a0a;
+    --color-primary-default: #8a6a10;
+    --color-primary-weak: #2a2414;
+    --color-primary-weak-foreground: #ffd666;
+    --color-danger: #f04452;
+    --color-danger-weak: rgb(240 68 82 / 24%);
+    --color-status-success: #03b26c;
+    --color-status-warning: #fe9800;
+    --color-overlay: rgb(0 0 0 / 60%);
+    --color-hover-overlay: rgb(255 255 255 / 9%);
+    --color-shadow: rgb(0 0 0 / 40%);
+    --color-graph-raw: #a7a7a7;
+    --color-graph-source: #bbcf6c;
+    --color-graph-concept: #fffdf0;
+    --panel: var(--color-surface);
+    --line-soft: #3a3a3a;
+  }
+}
+
 html[data-document-font="readable-sans"] {
-  --document-font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --document-font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
 html[data-document-font="serif"] {
@@ -55,7 +116,7 @@ button {
 
 /* 개별 hover 효과가 있는 버튼은 이 값을 none으로 지정한다. */
 :where(button, [role="button"], [role="menuitem"], [role="tab"], input[type="button"], input[type="submit"], input[type="reset"]) {
-  --button-hover-overlay: linear-gradient(rgb(255 255 255 / 9%), rgb(255 255 255 / 9%));
+  --button-hover-overlay: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
 }
 
 /* 개별 효과가 없는 활성 버튼에만 공통 강조를 더한다. */

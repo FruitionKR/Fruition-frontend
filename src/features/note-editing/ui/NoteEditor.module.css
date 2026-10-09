@@ -1,5 +1,5 @@
 /* note-editing 슬라이스 스타일. 기존 app/styles/source-preview.css의 note-editor-shell /
-   note-wysiwyg-editor(milkdown) / note-markdown-editor(codemirror) 규칙을 분리했다.
+   note-wysiwyg-editor(milkdown) 규칙을 분리했다.
    milkdown/.ProseMirror/.cm-* 는 서드파티 DOM이 붙이는 전역 클래스라 :global 로 참조한다. */
 
 /* min-height: 100%를 주면 스크롤 컨테이너의 제목·패딩 높이만큼 항상 넘쳐
@@ -14,59 +14,114 @@
   display: none !important;
 }
 
+/* crepe 색 변수: frame(라이트) 테마 위에 앱 토큰을 얹는다. 토큰에 없는 값은 아래 로컬 변수로 두고
+   다크 모드에서 기존 frame-dark 값으로 바꾼다. */
+.note-wysiwyg-editor {
+  --note-crepe-surface: var(--color-surface);
+  --note-crepe-surface-low: var(--color-surface-strong);
+  --note-crepe-inverse: #f0f0f0;
+  --note-crepe-on-inverse: #1a1a1a;
+  --note-crepe-inline-code: #ba1a1a;
+  --note-crepe-inline-area: #cacaca;
+  --note-crepe-shadow-1: 0 1px 3px 1px rgb(0 0 0 / 15%), 0 1px 2px 0 rgb(0 0 0 / 30%);
+  --note-crepe-shadow-2: 0 2px 6px 2px rgb(0 0 0 / 15%), 0 1px 2px 0 rgb(0 0 0 / 30%);
+  --note-table-indicator: var(--color-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  .note-wysiwyg-editor {
+    --note-crepe-surface: #161616;
+    --note-crepe-surface-low: var(--color-surface);
+    --note-crepe-inverse: #e5e5e5;
+    --note-crepe-on-inverse: #2a2a2a;
+    --note-crepe-inline-code: #ff6666;
+    --note-crepe-inline-area: #2b2b2b;
+    --note-crepe-shadow-1: 0 1px 2px 0 rgb(255 255 255 / 30%), 0 1px 3px 1px rgb(255 255 255 / 15%);
+    --note-crepe-shadow-2: 0 1px 2px 0 rgb(255 255 255 / 30%), 0 2px 6px 2px rgb(255 255 255 / 15%);
+    --note-table-indicator: #ffe600;
+  }
+}
+
 .note-wysiwyg-editor :global(.milkdown) {
   --crepe-color-background: transparent;
-  --crepe-color-surface: #161616;
-  --crepe-color-surface-low: #1e1e1e;
-  --crepe-color-primary: var(--yellow);
-  --crepe-color-selected: rgba(255, 193, 23, 0.2);
+  --crepe-color-on-background: var(--color-foreground);
+  --crepe-color-surface: var(--note-crepe-surface);
+  --crepe-color-surface-low: var(--note-crepe-surface-low);
+  --crepe-color-on-surface: var(--color-foreground);
+  --crepe-color-on-surface-variant: var(--color-body);
+  --crepe-color-outline: var(--color-subtle);
+  --crepe-color-primary: var(--color-primary);
+  --crepe-color-secondary: var(--color-surface-strong);
+  --crepe-color-on-secondary: var(--color-foreground);
+  --crepe-color-inverse: var(--note-crepe-inverse);
+  --crepe-color-on-inverse: var(--note-crepe-on-inverse);
+  --crepe-color-inline-code: var(--note-crepe-inline-code);
+  --crepe-color-error: var(--color-danger);
+  --crepe-color-hover: var(--color-hover-overlay);
+  --crepe-color-selected: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  --crepe-color-inline-area: var(--note-crepe-inline-area);
+  --crepe-shadow-1: var(--note-crepe-shadow-1);
+  --crepe-shadow-2: var(--note-crepe-shadow-2);
   --crepe-font-title: var(--document-font-family);
   --crepe-font-default: var(--document-font-family);
-  color: #f9fafb;
+  color: var(--color-foreground);
   background: transparent;
 }
 
-/* 글자 크기·행간은 문서 뷰어(.markdown-viewer)와 동일하게 맞춘다 (Figma 1292:5455: Medium 14px, 행간 1.8). */
+/* 커서 색을 본문 caret(primary)과 맞춘다. crepe는 서식 경계·제목 등에서 그리는 가상 커서와
+   코드 블록·이미지 입력의 커서를 outline(회색)으로 칠한다. */
+.note-wysiwyg-editor :global(.milkdown .ProseMirror-focused) {
+  --prosemirror-virtual-cursor-color: var(--color-primary);
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-panel input),
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools input),
+.note-wysiwyg-editor :global(.milkdown .milkdown-image-inline input),
+.note-wysiwyg-editor :global(.milkdown .milkdown-image-block input) {
+  caret-color: var(--color-primary);
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-cursor) {
+  border-left-color: var(--color-primary);
+}
+
+/* 글자 크기·행간은 문서 뷰어(.markdown-viewer)와 동일하게 맞춘다 (Figma 1406:10314: Medium 14px, 행간 1.4). */
 .note-wysiwyg-editor :global(.milkdown > .ProseMirror) {
   min-height: 420px;
   padding: 0;
-  color: #f9fafb;
+  color: var(--color-foreground);
   background: transparent;
-  caret-color: var(--yellow);
+  caret-color: var(--color-primary);
   font-family: var(--document-font-family);
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.8;
+  line-height: 1.4;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror:focus) {
   outline: none;
 }
 
-/* 본문 h1: 28px SemiBold, 아래 블록과 20px. 문서 제목(36px)보다 작게 둬 제목과 구분한다 */
+/* 본문 h1 (Figma 1406:10313): 24px Bold, 자간 -1%, 위 블록과 32px·본문과 8px. 문서 제목(32px)보다 작다 */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h1) {
-  margin: 0 0 20px;
-  font-size: 28px;
-  font-weight: 600;
+  margin: 32px 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.24px;
   line-height: 1.4;
 }
 
-/* 빈 본문 placeholder: Figma 426:2202 gray(#8a8a8a). crepe 기본값은 반투명 전경색이다 */
+/* 빈 본문 placeholder: muted 색. crepe 기본값은 반투명 전경색이다 */
 .note-wysiwyg-editor :global(.milkdown .crepe-placeholder::before) {
-  color: var(--subdued);
+  color: var(--color-muted);
 }
 
-/* 소스 모드(CodeMirror) placeholder도 같은 색으로 맞춘다 */
-.note-markdown-editor :global(.cm-placeholder) {
-  color: var(--subdued);
-}
-
-/* 섹션 제목: 20px Medium, 위 블록과 20px·본문과 8px */
+/* 섹션 제목: 20px SemiBold, 위 블록과 24px·본문과 8px */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h2) {
-  margin: 20px 0 8px;
+  margin: 24px 0 8px;
   font-size: 20px;
-  font-weight: 500;
-  line-height: 1.8;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 /* 소제목: 16px SemiBold, 섹션 사이 24px·본문과 4px. 섹션 제목 바로 아래면 8px */
@@ -74,7 +129,7 @@
   margin: 24px 0 4px;
   font-size: 16px;
   font-weight: 600;
-  line-height: 1.8;
+  line-height: 1.4;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h2 + h3) {
@@ -87,19 +142,21 @@
 }
 
 /* crepe 테마 reset.css가 p 16px/400, h4~h6 28/24/18px를 직접 지정하므로 읽기 모드 값으로 덮어쓴다.
-   문단은 행간(1.8)만으로 이어진다. */
+   문단은 행간(1.4)에 2px만 더 띄워 잇는다 (읽기 모드와 같은 값). */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror p) {
-  margin: 0;
+  margin: 0 0 2px;
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.8;
+  line-height: 1.4;
 }
 
+/* h4~h6 (Figma 1406:10310 "프로젝트 정의" 같은 항목 제목): SemiBold, body 색 */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h4),
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h5),
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h6) {
+  color: var(--color-body);
   font-weight: 600;
-  line-height: 1.8;
+  line-height: 1.4;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror h4) {
@@ -114,13 +171,18 @@
   font-size: 11px;
 }
 
-/* 인용/안내 블록: 노란 배경·좌측 2.4px 선 (Figma 1292:5457 notice). crepe의 세로 막대 ::before는 끈다 */
+/* 인용/안내 블록 (Figma 1406:10302 notice): primary-weak 배경·좌측 3px primary 선, 행간 1.8.
+   crepe의 세로 막대 ::before는 끈다 */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror blockquote) {
   margin: 0;
   padding: 12px 24px;
-  background: rgba(255, 193, 23, 0.16);
-  border-left: 2.4px solid var(--yellow);
-  border-radius: 6px;
+  background: var(--color-primary-weak);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0;
+}
+
+.note-wysiwyg-editor :global(.milkdown .ProseMirror blockquote p) {
+  line-height: 1.8;
 }
 
 .note-wysiwyg-editor :global(.milkdown .ProseMirror blockquote::before) {
@@ -142,7 +204,7 @@
   padding: 0;
 }
 
-/* 목록: 읽기 모드와 같이 여백 없이 행간(1.8)으로만 이어진다 */
+/* 목록: 읽기 모드와 같이 여백 없이 행간(1.4)으로만 이어진다 */
 .note-wysiwyg-editor :global(.milkdown .ProseMirror ul),
 .note-wysiwyg-editor :global(.milkdown .ProseMirror ol) {
   margin: 0;
@@ -152,75 +214,27 @@
   margin: 0;
 }
 
+/* 목록 항목 사이 2px (읽기 모드와 같은 값). 체크리스트는 아래 규칙이 더 띄운다 */
+.note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block + .milkdown-list-item-block) {
+  margin-top: 2px;
+}
+
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block p) {
   margin: 0;
   padding: 0;
 }
 
-/* crepe가 마커 박스를 32px로 고정해 행 높이가 글줄(1.8em)보다 커진다. 글줄 높이에 맞추면
+/* 체크리스트: 체크박스가 글줄 높이라 줄끼리 붙어 보여 항목 사이를 띄운다 (읽기 모드 .markdown-viewer와 같은 값) */
+.note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block:has(> li > .label-wrapper .label.checked, > li > .label-wrapper .label.unchecked) + .milkdown-list-item-block) {
+  margin-top: 6px;
+}
+
+/* crepe가 마커 박스를 32px로 고정해 행 높이가 글줄(1.4em)보다 커진다. 글줄 높이에 맞추면
    label-wrapper가 세로 가운데 정렬이라 마커도 첫 줄 중앙에 그대로 남는다. */
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block li .label-wrapper),
 .note-wysiwyg-editor :global(.milkdown .milkdown-list-item-block li .label-wrapper .label) {
-  height: 1.8em;
+  height: 1.4em;
   padding: 0;
-}
-
-.note-markdown-editor :global(.cm-editor) {
-  color: #e7e7e7;
-  background: transparent;
-  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.note-markdown-editor :global(.cm-editor.cm-focused) {
-  outline: none;
-}
-
-.note-markdown-editor :global(.cm-scroller),
-.note-markdown-editor :global(.cm-gutters) {
-  background: transparent;
-}
-
-.note-markdown-editor :global(.cm-gutters) {
-  border-right: 0;
-}
-
-.note-markdown-editor :global(.cm-content) {
-  max-width: none;
-  padding: 0;
-  caret-color: var(--yellow);
-}
-
-.note-markdown-editor :global(.cm-line) {
-  padding: 0;
-}
-
-.note-markdown-editor :global(.cm-selectionBackground),
-.note-markdown-editor :global(.cm-content ::selection) {
-  background: rgba(255, 193, 23, 0.22) !important;
-}
-
-.note-markdown-editor :global(.cm-cursor) {
-  border-left-color: var(--yellow);
-}
-
-.note-markdown-editor :global(.cm-lineNumbers .cm-gutterElement) {
-  color: #777;
-}
-
-.note-markdown-editor :global(.cm-lineNumbers .cm-gutterElement.cm-activeLineGutter) {
-  position: relative;
-  color: transparent;
-  background: transparent;
-}
-
-.note-markdown-editor :global(.cm-lineNumbers .cm-gutterElement.cm-activeLineGutter::after) {
-  position: absolute;
-  right: 8px;
-  color: #8a8a8a;
-  content: "|";
 }
 
 /* '/' 슬래시 메뉴: 기본 크기(항목 padding 14px·아이콘 24px·최소폭 220px)가 커서 컴팩트하게 줄인다 */
@@ -286,9 +300,9 @@
   left: 50%;
   z-index: 20;
   padding: 3px 8px;
-  color: #e7e7e7;
-  background: #2a2a2a;
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 500;
@@ -320,13 +334,13 @@
 }
 
 .note-wysiwyg-editor :global(.milkdown-table-block .line-handle[data-display-type="indicator"]) {
-  background-color: #ffe600;
-  box-shadow: 0 0 4px #ffe600;
+  background-color: var(--note-table-indicator);
+  box-shadow: 0 0 4px var(--note-table-indicator);
   z-index: 101;
 }
 
 .note-wysiwyg-editor :global(.crepe-drop-cursor) {
-  background-color: #ffe600;
+  background-color: var(--note-table-indicator);
   opacity: 1;
 }
 
@@ -359,11 +373,11 @@
   z-index: 100;
   width: min(320px, calc(100vw - 16px));
   padding: 12px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 4px 20px #0008;
+  box-shadow: 0 4px 20px var(--color-shadow);
 }
 
 .note-wysiwyg-editor :global(.note-math-editor[hidden]) {
@@ -376,9 +390,9 @@
   min-height: 72px;
   padding: 8px;
   resize: vertical;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   font-family: ui-monospace, monospace;
   font-size: 13px;
@@ -386,12 +400,12 @@
 }
 
 .note-wysiwyg-editor :global(.note-math-editor textarea:focus) {
-  outline: 1px solid var(--yellow);
+  outline: 1px solid var(--color-primary);
 }
 
 .note-wysiwyg-editor :global(.note-math-editor p) {
   margin: 8px 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 11px;
 }
 
@@ -403,15 +417,15 @@
 
 .note-wysiwyg-editor :global(.note-math-editor button) {
   padding: 6px 12px;
-  color: var(--ink);
-  background: var(--soft);
+  color: var(--color-foreground);
+  background: var(--color-surface);
   border-radius: 4px;
   font-size: 12px;
 }
 
 .note-wysiwyg-editor :global(.note-math-editor button:last-child) {
-  color: var(--bg);
-  background: var(--yellow);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
 }
 
 /* 다른 사용자가 편집 중이거나 잠금을 확인하지 못해 읽기 전용으로 열었을 때의 안내. */
@@ -419,7 +433,7 @@
   margin: 0 0 12px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(255, 143, 135, 0.12);
-  color: #ff8f87;
+  background: var(--color-danger-weak);
+  color: var(--color-danger);
   font-size: 13px;
 }

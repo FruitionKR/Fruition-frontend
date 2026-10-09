@@ -1,114 +1,87 @@
-/* 로그 화면 (Figma 747:6105). rail "로그" 뷰. */
+/* 로그 화면 (Figma 1436:16438). rail "로그" 뷰. 상단 탭 바(GNB)는 웹이라 두지 않는다. */
 .logs {
   position: absolute;
   inset: 0 0 0 var(--sidebar-width, 320px);
   z-index: 1;
   overflow: auto;
-  padding: 40px;
-  background: var(--bg);
-  color: var(--ink);
+  background: var(--color-canvas);
+  color: var(--color-foreground);
 }
 
-:global(.workspace.is-sidebar-collapsed) .logs {
-  left: 0;
-}
-
-.logs-inner {
-  max-width: 1520px;
-  margin: 0 auto;
-}
-
-.logs-header {
+/* Hero block: 문서 제목과 같은 위 48px·좌우 40px 여백 */
+.logs-hero {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 24px;
+  padding: 48px 40px 0;
+}
+
+.logs-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logs-title h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.64px;
+  line-height: 1.4;
+}
+
+.logs-title p {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.tabs-bar {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 26px;
+  height: 60px;
+  border-bottom: 1.2px solid var(--color-border);
 }
 
-.logs-header h2 {
-  margin: 0 0 6px;
+.tabs {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.3;
+  gap: 16px;
+  height: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 
-.logs-header p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.logs-message {
-  margin: 0;
-  padding: 16px 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-/* 작업 1건 카드 (Figma 754:10436: bg secondary/800, radius 12) */
-.card {
-  /* 카드 세로 리듬과 diff 격자를 한 곳에서 잡는다 */
-  --log-pad-x: 24px;
-  --log-gutter: 56px;
-
-  overflow: hidden;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 59px;
-  padding: 20px var(--log-pad-x);
-}
-
-.card-header h3 {
-  margin: 0;
+.tab {
+  flex: 0 0 auto;
+  height: 100%;
+  padding: 0 8px;
+  color: var(--color-muted);
+  background: none;
+  border: 0;
+  /* 활성 밑줄 자리를 늘 비워 두어 탭 전환 때 글자가 움직이지 않게 한다 */
+  border-bottom: 3px solid transparent;
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.32px;
-  line-height: 1.2;
+  letter-spacing: -0.16px;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
-.card-description {
-  min-width: 0;
-  flex: 1;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--subdued);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.24px;
+.tab:hover,
+.tab:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-body);
 }
 
-.card-description > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card-status {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  background: var(--soft);
-  border-radius: 999px;
-  font-size: 11px;
-}
-
-.card-status.is-failed {
-  color: #ff8f87;
-  background: #3a1f1d;
+.tab.is-active {
+  color: var(--color-body);
+  border-bottom-color: var(--color-muted);
+  font-weight: 700;
 }
 
 .rollback-button {
@@ -117,12 +90,12 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 4px 8px;
-  color: #e2e2e2;
-  background: var(--soft);
-  border: 1px solid var(--subdued);
-  border-radius: 100px;
-  font-size: 12px;
+  padding: 6px 8px;
+  color: var(--color-body);
+  background: none;
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
   white-space: nowrap;
@@ -131,23 +104,229 @@
 .rollback-button:hover:not(:disabled),
 .rollback-button:focus-visible {
   --button-hover-overlay: none;
-  background: #3f3f3f;
+  background: var(--color-surface);
 }
 
 .rollback-button:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
+/* Figma retry 에셋은 좌우 반전 상태로 놓여 있다 */
 .rollback-icon {
   width: 14px;
-  height: 14px;
+  height: 16px;
+  transform: scaleX(-1);
 }
 
-.card-notice {
+.logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 12px 40px 40px;
+}
+
+.logs-message {
   margin: 0;
-  padding: 0 var(--log-pad-x) 20px;
-  color: var(--muted);
+  padding: 16px 0;
+  color: var(--color-body);
+  font-size: 13px;
+}
+
+/* 날짜 그룹 헤더 (Figma "03 분석 과정 4"): 회색 바 + 개수 + 접기 셰브론 */
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.group-header:hover,
+.group-header:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface-strong);
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  line-height: 1.4;
+}
+
+.group-count {
+  color: var(--color-muted);
+}
+
+.group-chevron {
+  width: 10px;
+  height: 5px;
+  margin-right: 3px;
+  color: var(--color-muted);
+  transition: transform 150ms ease;
+}
+
+.group-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.rows {
+  margin: 0;
+  padding: 12px 0;
+  list-style: none;
+}
+
+/* 작업 행: 위아래 1px 구분선, 선택 행은 연한 강조 배경 + 오른쪽 점 */
+.row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:first-child {
+  border-top: 1px solid var(--color-border);
+}
+
+.row.is-selected {
+  background: var(--color-primary-weak);
+}
+
+.row-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  color: var(--color-body);
+  background: none;
+  border: 0;
+  text-align: left;
+}
+
+.row-title-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.row-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  line-height: 1.4;
+}
+
+.row-date {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.row-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 10px;
+  background: var(--color-placeholder);
+}
+
+.row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  background: var(--color-primary);
+  border-radius: 50%;
+}
+
+.row-description {
+  width: 100%;
+  margin-top: -4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 1.4;
+}
+
+.row-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 1.4;
+}
+
+.row-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-foreground);
+}
+
+.row-status {
+  padding: 1px 6px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.row-status.is-failed {
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+}
+
+.row-time {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+/* 선택 행 아래 펼친 변경 상세 */
+.row-detail {
+  --log-pad-x: 16px;
+  --log-gutter: 48px;
+
+  margin: 0 16px 12px;
+  padding-top: 8px;
+  overflow: hidden;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.detail-notice {
+  margin: 0;
+  padding: 4px var(--log-pad-x) 12px;
+  color: var(--color-body);
   font-size: 12px;
 }
 
@@ -155,7 +334,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 20px;
+  padding-bottom: 12px;
 }
 
 /* 변경 리소스 1건 */
@@ -175,7 +354,7 @@
 .change-notice {
   margin: 0;
   padding: 0 var(--log-pad-x) 4px;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
 }
 
@@ -211,7 +390,7 @@
   display: flex;
   align-items: center;
   padding: 2px 12px 2px var(--log-pad-x);
-  color: var(--subdued);
+  color: var(--color-muted);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   user-select: none;
@@ -223,7 +402,7 @@
   align-items: center;
   gap: 8px;
   padding: 2px var(--log-pad-x) 2px 8px;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-weight: 600;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -236,17 +415,17 @@
 }
 
 .diff-line.is-add .diff-gutter {
-  background: rgba(33, 178, 115, 0.3);
+  background: color-mix(in srgb, var(--color-status-success) 30%, transparent);
 }
 
 .diff-line.is-add .diff-content {
-  background: rgba(33, 178, 115, 0.14);
+  background: color-mix(in srgb, var(--color-status-success) 14%, transparent);
 }
 
 .diff-line.is-delete .diff-gutter {
-  background: rgba(240, 68, 82, 0.3);
+  background: color-mix(in srgb, var(--color-danger) 30%, transparent);
 }
 
 .diff-line.is-delete .diff-content {
-  background: rgba(240, 68, 82, 0.14);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
 }

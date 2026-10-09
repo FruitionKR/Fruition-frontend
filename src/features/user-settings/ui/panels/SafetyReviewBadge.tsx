@@ -19,14 +19,14 @@ export function SafetyReviewBadge({ variant }: { variant: "loading" | "complete"
               cy="32"
               r="29.6"
               fill="none"
-              stroke="#00de5a"
+              stroke="currentColor"
               strokeWidth="4.8"
             />
             <path
               className={styles.checkmark}
               d="M17.4 34.3 L27.2 44.1 L45.9 25.4"
               fill="none"
-              stroke="#00de5a"
+              stroke="currentColor"
               strokeWidth="4.8"
               strokeLinecap="round"
             />

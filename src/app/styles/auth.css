@@ -6,14 +6,56 @@
   padding: 24px;
 }
 
+/* 다크(기본): 검정 + 노랑 강조 */
 .auth-screen--login {
   --auth-primary: #e6a800;
+  --auth-on-primary: #0a0a0a;
   --auth-accent: #ffc117;
   --auth-danger: #f04452;
+  --auth-bg: #0a0a0a;
+  --auth-ink: #f0f0f0;
+  --auth-input-bg: #1e1e1e;
+  --auth-input-border: #4f4f4f;
+  --auth-placeholder: #8a8a8a;
+  --auth-icon: #c4c4c4;
+  --auth-timer: #f0f0f0;
+  --auth-error-bg: rgba(240, 68, 82, 0.24);
+  --auth-error-ink: #fff;
+  --auth-link: #a7a7a7;
+  --auth-link-divider: #4f4f4f;
+  --auth-divider: #4f4f4f;
+  --auth-caption: #a7a7a7;
+  --auth-prompt: #c4c4c4;
+  --auth-prompt-disabled: #c4c4c4;
   min-height: 100dvh;
   padding: 0;
-  background: #0a0a0a;
+  background: var(--auth-bg);
   font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+/* 라이트(Figma UXUI 인증 화면): 흰색 + 파랑 강조. 값은 base.css 라이트 토큰과 같으므로 토큰을 참조한다.
+   다크는 위 기본값(기존 인증 화면 색)을 그대로 쓴다. */
+@media (prefers-color-scheme: light) {
+  .auth-screen--login {
+    --auth-primary: var(--color-primary);
+    --auth-on-primary: var(--color-on-primary);
+    --auth-accent: var(--color-primary);
+    --auth-bg: var(--color-canvas);
+    --auth-ink: var(--color-foreground);
+    --auth-input-bg: var(--color-canvas);
+    --auth-input-border: var(--color-border);
+    --auth-placeholder: var(--color-placeholder);
+    --auth-icon: var(--color-muted);
+    --auth-timer: var(--color-muted);
+    --auth-error-bg: var(--color-danger-weak);
+    --auth-error-ink: var(--color-foreground);
+    --auth-link: var(--color-body);
+    --auth-link-divider: var(--color-muted);
+    --auth-divider: var(--color-placeholder);
+    --auth-caption: var(--color-body);
+    --auth-prompt: var(--color-body);
+    --auth-prompt-disabled: var(--color-muted);
+  }
 }
 
 .auth-shell {
@@ -57,7 +99,7 @@
 
 .auth-screen--login .auth-title {
   margin: 0;
-  color: #f0f0f0;
+  color: var(--auth-ink);
   font-size: 28px;
   font-weight: 600;
   line-height: normal;
@@ -87,11 +129,12 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  color: #f0f0f0;
+  color: var(--auth-ink);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
   letter-spacing: 0.14px;
+  font-feature-settings: "ss10" 1;
 }
 
 .auth-field-control {
@@ -104,10 +147,10 @@
   width: 100%;
   min-height: 44px;
   padding: 10px 16px;
-  background: #1e1e1e;
-  border: 1px solid #4f4f4f;
+  background: var(--auth-input-bg);
+  border: 1.6px solid var(--auth-input-border);
   border-radius: 8px;
-  color: #f0f0f0;
+  color: var(--auth-ink);
   font-size: 16px;
   font-weight: 500;
   line-height: 1.4;
@@ -120,7 +163,7 @@
 }
 
 .auth-screen--login .auth-field input::placeholder {
-  color: #8a8a8a;
+  color: var(--auth-placeholder);
   opacity: 1;
 }
 
@@ -150,10 +193,14 @@
   display: block;
   width: 16px;
   height: 16px;
+  background-color: var(--auth-icon, #c4c4c4);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
 }
 
 .auth-field-timer {
-  color: #f0f0f0;
+  color: var(--auth-timer);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
@@ -167,11 +214,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(240, 68, 82, 0.24);
-  border: 1.2px solid rgba(240, 68, 82, 0.4);
+  background: var(--auth-error-bg);
   border-radius: 8px;
-  color: #fff;
+  color: var(--auth-error-ink);
   font-size: 14px;
+  font-feature-settings: "ss10" 1;
   font-weight: 500;
   line-height: normal;
 }
@@ -188,7 +235,7 @@
   padding: 12px 0;
   background: var(--auth-primary);
   border-radius: 8px;
-  color: #0a0a0a;
+  color: var(--auth-on-primary);
   font-size: 16px;
   font-weight: 700;
   line-height: 1.4;
@@ -216,13 +263,13 @@
 }
 
 .auth-login-links button {
-  color: #a7a7a7;
+  color: var(--auth-link);
 }
 
 .auth-login-links > span {
   width: 1px;
   height: 12px;
-  background: #4f4f4f;
+  background: var(--auth-link-divider);
 }
 
 .auth-social {
@@ -240,12 +287,12 @@
 .auth-social-divider span {
   height: 1px;
   flex: 1;
-  background: #4f4f4f;
+  background: var(--auth-divider);
 }
 
 .auth-social-divider p {
   margin: 0;
-  color: #a7a7a7;
+  color: var(--auth-caption);
   font-size: 12px;
   font-weight: 600;
   line-height: normal;
@@ -307,7 +354,7 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  color: #c4c4c4;
+  color: var(--auth-prompt);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
@@ -325,8 +372,17 @@
   white-space: normal;
 }
 
+/* 비밀번호 칸 한/영 경고: 칸 바로 아래 왼쪽 정렬, 오류보다 약한 주황 */
+.auth-prompt--warning {
+  justify-content: flex-start;
+  color: var(--color-status-warning, #fe9800);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
 .auth-prompt button:disabled {
-  color: #c4c4c4;
+  color: var(--auth-prompt-disabled);
   cursor: not-allowed;
 }
 

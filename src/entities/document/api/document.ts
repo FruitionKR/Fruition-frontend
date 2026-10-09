@@ -193,6 +193,13 @@ export async function fetchDocumentOriginal(documentId: string): Promise<Blob> {
   return response.blob();
 }
 
+/** 원본을 직접 여는 임시 읽기 URL(presigned). 저장소가 지원하지 않으면 null. */
+export async function fetchDocumentReadUrl(documentId: string): Promise<string | null> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "original-url"), { cache: "no-store" });
+  const result = await parseJsonOrThrow<{ url: string | null }>(response, ERROR_MESSAGES.documentOriginalLoadFailed);
+  return result.url;
+}
+
 
 /** 근거 하이라이트용 원본 block 목록. 문서 순서이며 영구 block ID와 스냅샷 기준 줄 범위를 준다. */
 export async function fetchDocumentBlocks(documentId: string): Promise<DocumentBlocksResponse> {

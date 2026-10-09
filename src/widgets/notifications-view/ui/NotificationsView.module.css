@@ -1,0 +1,401 @@
+/* 알림 화면 (Figma 1486:3011 목록 / 1540:21203 알림 설정). rail "알림" 뷰.
+   색은 base.css --color-* 토큰만 써서 라이트(시안)/다크(OS 설정)에서 같은 레이아웃을 유지한다. */
+.notifications {
+  position: absolute;
+  inset: 0 var(--agent-panel-width, 0px) 0 var(--sidebar-width, 320px);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+}
+
+/* Hero block (Figma 1486:3174): 위 48 · 좌우 40, 제목과 탭 사이 24 */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 48px 40px 0;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.64px;
+  color: var(--color-foreground);
+}
+
+.heading p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-body);
+}
+
+/* Tabs (Figma 1486:3178): 60px, 아래 1.2px 선. 오른쪽에 전체 읽음 처리 */
+.tabs {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1.2px solid var(--color-border);
+}
+
+.tab-list {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tab {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 0;
+  /* 선택 탭의 3px 밑줄 자리를 미리 비워 탭 전환 시 글자가 흔들리지 않게 한다. */
+  border-bottom: 3px solid transparent;
+  border-top: 3px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.16px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.tab:hover {
+  color: var(--color-body);
+}
+
+.tab.is-active {
+  color: var(--color-body);
+  font-weight: 700;
+  border-bottom-color: var(--color-muted);
+}
+
+.tab:focus-visible,
+.read-all:focus-visible,
+.row-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* 전체 읽음 처리 (Figma 1486:3184 label) */
+.read-all {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-primary-weak);
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 150ms ease-out;
+}
+
+.read-all:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-primary-weak));
+}
+
+.read-all:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.panel {
+  flex: 1 0 auto;
+}
+
+/* 목록 (Figma 1486:3189): 좌우 40 */
+.list {
+  margin: 0;
+  padding: 0 40px 40px;
+  list-style: none;
+}
+
+.row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 안 읽은 행: 연한 파랑 배경 (Figma rgba(232,243,255,0.32)) */
+.row.is-unread {
+  background: color-mix(in srgb, var(--color-primary-weak) 50%, transparent);
+}
+
+.row-button {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.row-button:hover {
+  background: var(--color-hover-overlay);
+}
+
+.row-icon {
+  flex: 0 0 auto;
+}
+
+.row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.row-text {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+.row-title,
+.row-description {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  color: var(--color-body);
+}
+
+.row-title.is-failure {
+  color: var(--color-danger);
+}
+
+.row-description {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  color: var(--color-muted);
+}
+
+/* 변경 수 칩 (Figma 1486:3383 "17 NEW") */
+.row-chip {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--color-primary-weak);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* 오른쪽: 위에 안 읽음 점, 아래에 상대 시간 (Figma 1486:3446) */
+.row-meta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  opacity: 0;
+}
+
+.row.is-unread .row-dot {
+  opacity: 1;
+}
+
+/* 펼친 짧은 설명: 아이콘(32) + 간격(12) 뒤 본문 열에 맞춘다 */
+.row-detail[hidden] {
+  display: none;
+}
+
+.row-detail-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px 14px 60px;
+  animation: detail-in 180ms ease-out;
+}
+
+.detail-lines {
+  /* 내용 폭으로 줄지 않고 남은 가로 공간을 채운다 (작업 알림이면 오른쪽 버튼 앞까지) */
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  /* 설명 줄을 세로로 쌓지 않고 가로로 이어 쓰고, 폭이 모자라면 다음 줄로 넘긴다 */
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.24px;
+  color: var(--color-body);
+  overflow-wrap: anywhere;
+}
+
+.detail-time {
+  color: var(--color-muted);
+}
+
+/* 항목 사이 구분점. 줄이 넘쳐 꺾이면 다음 줄 첫 항목 앞에도 붙지만 읽는 데 지장이 없다 */
+.detail-lines > li + li::before {
+  content: "·";
+  margin: 0 8px;
+  color: var(--color-muted);
+}
+
+.detail-link {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary-weak);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.detail-link:hover {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-primary-weak));
+}
+
+.detail-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@keyframes detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.message {
+  margin: 0;
+  padding: 24px 40px;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.message[role="alert"] {
+  color: var(--color-danger);
+}
+
+/* 알림 설정 (Figma 1540:21375): 좌우 48 · 위아래 16, 행 간격 12 */
+.settings {
+  margin: 0;
+  padding: 16px 48px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setting-row {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.setting-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setting-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.28px;
+  color: var(--color-body);
+}
+
+.setting-text span {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  color: var(--color-muted);
+}
+
+.setting-text .setting-error {
+  color: var(--color-danger);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .read-all,
+  .row-button {
+    transition: none;
+  }
+
+  .row-detail-inner {
+    animation: none;
+  }
+}

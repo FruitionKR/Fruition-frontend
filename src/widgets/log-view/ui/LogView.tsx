@@ -4,20 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import {
   fetchOperationLogDetail,
   fetchRestorePreview,
+  filterOperationLogsByType,
+  formatOperationLogDateTime,
   formatOperationLogDescription,
   formatOperationLogTitle,
+  groupOperationLogsByDate,
+  OPERATION_TYPE_LABELS,
   restoreOperation,
   type OperationChange,
-  type OperationLogDetail
+  type OperationLogDetail,
+  type OperationLogItem,
+  type OperationType
 } from "@/entities/operation-log";
 import addIcon from "@/shared/assets/svg/log/add.svg";
 import deleteIcon from "@/shared/assets/svg/log/delete.svg";
-import retryIcon from "@/shared/assets/svg/log/retry.svg";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import { SvgIcon } from "@/shared/ui/SvgIcon";
+import { formatRelativeTime } from "@/shared/lib/time";
+import { retryIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./LogView.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -123,22 +129,78 @@ function ChangeDiff({ change }: { change: OperationChange }) {
   );
 }
 
-/** 로그 화면 (Figma 747:6105). 사이드바에서 고른 작업 1건의 상세만 그린다. */
+/** 로그 화면 목록 상태. HomeWorkspace의 useOperationLogFeed 반환값을 그대로 받는다. */
+type OperationLogFeedState = {
+  items: OperationLogItem[];
+  hasMore: boolean;
+  errorMessage: string | null;
+  loadMoreErrorMessage: string | null;
+  isLoading: boolean;
+  isLoadingMore: boolean;
+  onSelect: (operationId: string) => void;
+  onLoadMore: () => void;
+};
+
+// 유형 탭 (Figma 1436:16604 "위키 페이지 생성 / 다른 로그 명"). 실제 작업 유형으로 나누고 첫 탭은 전체.
+const TYPE_TABS: Array<{ type: OperationType | null; label: string }> = [
+  { type: null, label: "전체" },
+  ...(Object.entries(OPERATION_TYPE_LABELS) as Array<[OperationType, string]>).map(
+    ([type, label]) => ({ type, label })
+  )
+];
+
+/** 선택한 작업의 변경 상세. 선택 행 아래에 펼친다. */
+function OperationDetailBody({
+  detail,
+  errorMessage
+}: {
+  detail: OperationLogDetail | null;
+  errorMessage: string | null;
+}) {
+  if (errorMessage) return <p className={styles["detail-notice"]} role="alert">{errorMessage}</p>;
+  if (!detail) return <p className={styles["detail-notice"]}>로그 불러오는 중…</p>;
+  const isWikiOperation = detail.operation_type === "ingest" || detail.operation_type === "lint";
+  if (detail.changes.length === 0) {
+    return (
+      <p className={styles["detail-notice"]}>
+        {isWikiOperation ? "생성되거나 삭제된 Wiki가 없습니다." : "변경된 리소스가 없습니다."}
+      </p>
+    );
+  }
+  if (isWikiOperation) return <WikiTitles changes={detail.changes} />;
+  return (
+    <div className={styles["card-body"]}>
+      {detail.changes.map((change) => (
+        <ChangeDiff key={change.id} change={change} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 로그 화면 (Figma 1436:16438). 날짜별 그룹 아래 작업 행을 나열하고, 고른 작업은 행 아래에 상세를 펼친다.
+ * 상단 탭 바(GNB)는 웹 화면이라 적용하지 않는다.
+ * feed가 없으면 선택된 작업 1건만 행으로 보여준다.
+ */
 export function LogView({
   operationId,
+  feed,
   restoredOperationIds,
   documentTitles,
   onRestoreComplete
 }: {
   operationId: string | null;
+  feed?: OperationLogFeedState;
   restoredOperationIds: ReadonlySet<string>;
   documentTitles: ReadonlyMap<string, string>;
   onRestoreComplete: (operationId: string) => Promise<void>;
 }) {
   const [detail, setDetail] = useState<OperationLogDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<OperationType | null>(null);
+  // 접은 날짜 그룹. 폴링으로 목록이 갱신돼도 접힘 상태를 유지한다.
+  const [collapsedDateKeys, setCollapsedDateKeys] = useState<ReadonlySet<string>>(new Set());
   // 롤백 확인 모달. preview 결과와 함께 열리고, 확인 시 preview_token으로 실행한다.
   const [pendingRestore, setPendingRestore] = useState<{
     operationId: string;
@@ -156,11 +218,7 @@ export function LogView({
     // 다른 작업으로 이동하면 열려 있던 롤백 확인 모달을 닫는다.
     setPendingRestore(null);
     setIsRestoring(false);
-    if (!operationId) {
-      setIsLoading(false);
-      return;
-    }
-    setIsLoading(true);
+    if (!operationId) return;
     fetchOperationLogDetail(operationId)
       .then((response) => {
         if (requestIdRef.current === requestId) setDetail(response);
@@ -169,13 +227,9 @@ export function LogView({
         if (requestIdRef.current === requestId) {
           setErrorMessage(getErrorMessage(error, "로그 상세를 불러오지 못했습니다."));
         }
-      })
-      .finally(() => {
-        if (requestIdRef.current === requestId) setIsLoading(false);
       });
   }, [operationId]);
 
-  const statusLabel = detail ? STATUS_LABELS[detail.status] : undefined;
   const documentTitle = detail?.target_display_name ?? (detail?.target_document_id
     ? documentTitles.get(detail.target_document_id)
     : undefined);
@@ -248,64 +302,173 @@ export function LogView({
     }
   }
 
+  // feed가 없으면 상세 응답(목록 항목 필드 포함)을 행 1개로 쓴다.
+  const allItems = feed?.items ?? (detail ? [detail] : []);
+  const visibleItems = filterOperationLogsByType(allItems, typeFilter);
+  const groups = groupOperationLogsByDate(visibleItems);
+  const rollbackDisabledReason = !detail
+    ? "롤백할 작업을 선택하세요."
+    : canRestore ? undefined : "롤백할 수 없는 작업입니다.";
+
+  function selectType(type: OperationType | null) {
+    setTypeFilter(type);
+    // 고른 작업이 새 탭에 없으면 탭의 가장 최근 작업으로 옮긴다.
+    const nextItems = filterOperationLogsByType(allItems, type);
+    if (feed && nextItems.length > 0 && !nextItems.some((item) => item.operation_id === operationId)) {
+      feed.onSelect(nextItems[0].operation_id);
+    }
+  }
+
+  function toggleGroup(dateKey: string) {
+    setCollapsedDateKeys((current) => {
+      const next = new Set(current);
+      if (!next.delete(dateKey)) next.add(dateKey);
+      return next;
+    });
+  }
+
+  function documentTitleOf(item: OperationLogItem) {
+    return item.target_display_name
+      ?? (item.target_document_id ? documentTitles.get(item.target_document_id) : undefined);
+  }
+
   return (
     <section className={styles["logs"]} aria-label="로그">
-      <div className={styles["logs-inner"]}>
-        <header className={styles["logs-header"]}>
-          <div>
-            <h2>
-              로그
-            </h2>
-            <p>워크스페이스 활동 기록입니다.</p>
+      <header className={styles["logs-hero"]}>
+        <div className={styles["logs-title"]}>
+          <h2>로그</h2>
+          <p>워크스페이스 활동 기록입니다.</p>
+        </div>
+        <div className={styles["tabs-bar"]}>
+          <div className={styles["tabs"]} role="tablist" aria-label="작업 유형">
+            {TYPE_TABS.map(({ type, label }) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={typeFilter === type}
+                className={cx(styles["tab"], typeFilter === type && styles["is-active"])}
+                onClick={() => selectType(type)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        </header>
+          <button
+            type="button"
+            className={styles["rollback-button"]}
+            onClick={() => void handleRestore()}
+            disabled={!canRestore || isRestoring}
+            title={rollbackDisabledReason}
+          >
+            <SvgIcon src={retryIcon} className={styles["rollback-icon"]} />
+            {isRestoring ? "처리 중…" : "Rollback"}
+          </button>
+        </div>
+      </header>
 
-        {errorMessage ? (
-          <p className={styles["logs-message"]} role="alert">{errorMessage}</p>
-        ) : !operationId ? (
-          <p className={styles["logs-message"]}>왼쪽 목록에서 작업을 선택하세요.</p>
-        ) : isLoading || !detail ? (
+      <div className={styles["logs-list"]} role="tabpanel">
+        {feed?.errorMessage ? (
+          <p className={styles["logs-message"]} role="alert">{feed.errorMessage}</p>
+        ) : feed?.isLoading && allItems.length === 0 ? (
           <p className={styles["logs-message"]}>로그 불러오는 중…</p>
+        ) : !feed && !operationId ? (
+          <p className={styles["logs-message"]}>왼쪽 목록에서 작업을 선택하세요.</p>
+        ) : !feed && errorMessage ? (
+          <p className={styles["logs-message"]} role="alert">{errorMessage}</p>
+        ) : !feed && !detail ? (
+          <p className={styles["logs-message"]}>로그 불러오는 중…</p>
+        ) : visibleItems.length === 0 ? (
+          <p className={styles["logs-message"]}>
+            {allItems.length === 0 ? "아직 기록된 AI 작업이 없습니다." : "이 유형의 작업이 없습니다."}
+          </p>
         ) : (
-          <article className={styles["card"]}>
-            <header className={styles["card-header"]}>
-              <h3># {formatOperationLogTitle(detail)}</h3>
-              <p className={styles["card-description"]}>
-                <span>{description}</span>
-                {statusLabel && detail.status !== "succeeded" && (
-                  <span className={cx(styles["card-status"], detail.status === "failed" && styles["is-failed"])}>
-                    {statusLabel}
-                  </span>
-                )}
-              </p>
-              {canRestore && (
+          groups.map((group) => {
+            const isCollapsed = collapsedDateKeys.has(group.dateKey);
+            return (
+              <section key={group.dateKey} className={styles["group"]} aria-label={group.label}>
                 <button
                   type="button"
-                  className={styles["rollback-button"]}
-                  onClick={() => void handleRestore()}
-                  disabled={isRestoring}
+                  className={styles["group-header"]}
+                  aria-expanded={!isCollapsed}
+                  onClick={() => toggleGroup(group.dateKey)}
                 >
-                  <SvgIcon src={retryIcon} className={styles["rollback-icon"]} />
-                  {isRestoring ? "처리 중…" : "Rollback"}
+                  <span className={styles["group-title"]}>
+                    <span>{group.label}</span>
+                    <span className={styles["group-count"]}>{group.items.length}</span>
+                  </span>
+                  <SvgIcon
+                    src={settingScrollIcon}
+                    className={cx(styles["group-chevron"], isCollapsed && styles["is-collapsed"])}
+                  />
                 </button>
-              )}
-            </header>
-            {detail.changes.length === 0 ? (
-              <p className={styles["card-notice"]}>
-                {detail.operation_type === "ingest" || detail.operation_type === "lint"
-                  ? "생성되거나 삭제된 Wiki가 없습니다."
-                  : "변경된 리소스가 없습니다."}
-              </p>
-            ) : detail.operation_type === "ingest" || detail.operation_type === "lint" ? (
-              <WikiTitles changes={detail.changes} />
-            ) : (
-              <div className={styles["card-body"]}>
-                {detail.changes.map((change) => (
-                  <ChangeDiff key={change.id} change={change} />
-                ))}
-              </div>
-            )}
-          </article>
+                {!isCollapsed && (
+                  <ul className={styles["rows"]}>
+                    {group.items.map((item) => {
+                      const isSelected = item.operation_id === operationId;
+                      const rowStatusLabel = STATUS_LABELS[item.status];
+                      return (
+                        <li
+                          key={item.operation_id}
+                          className={cx(styles["row"], isSelected && styles["is-selected"])}
+                        >
+                          <button
+                            type="button"
+                            className={styles["row-summary"]}
+                            aria-current={isSelected || undefined}
+                            onClick={() => feed?.onSelect(item.operation_id)}
+                          >
+                            <span className={styles["row-title-line"]}>
+                              <span className={styles["row-heading"]}>
+                                <span className={styles["row-date"]}>
+                                  {formatOperationLogDateTime(item.created_at)}
+                                </span>
+                                <span className={styles["row-divider"]} aria-hidden />
+                                <span className={styles["row-title"]}>{formatOperationLogTitle(item)}</span>
+                              </span>
+                              {isSelected && <span className={styles["row-dot"]} aria-hidden />}
+                            </span>
+                            <span className={styles["row-description"]}>
+                              {formatOperationLogDescription(item, documentTitleOf(item))}
+                            </span>
+                            <span className={styles["row-meta"]}>
+                              <span className={styles["row-meta-info"]}>
+                                <span>변경 {item.changed_resource_count}건</span>
+                                {rowStatusLabel && (
+                                  <span className={cx(styles["row-status"], item.status === "failed" && styles["is-failed"])}>
+                                    {rowStatusLabel}
+                                  </span>
+                                )}
+                              </span>
+                              <span className={styles["row-time"]}>{formatRelativeTime(item.created_at)}</span>
+                            </span>
+                          </button>
+                          {isSelected && (
+                            <div className={styles["row-detail"]}>
+                              <OperationDetailBody detail={detail} errorMessage={errorMessage} />
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          })
+        )}
+        {feed?.hasMore && (
+          <button
+            type="button"
+            className={styles["more-button"]}
+            onClick={feed.onLoadMore}
+            disabled={feed.isLoadingMore}
+          >
+            {feed.isLoadingMore ? "불러오는 중…" : feed.loadMoreErrorMessage ? "다시 시도" : "더 보기"}
+          </button>
+        )}
+        {feed?.loadMoreErrorMessage && (
+          <p className={styles["logs-message"]} role="alert">{feed.loadMoreErrorMessage}</p>
         )}
       </div>
       {pendingRestore && (

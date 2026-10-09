@@ -1,4 +1,5 @@
 import type { GraphLink, GraphNode } from "@/entities/wiki";
+import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { GraphEmptyState } from "./GraphEmptyState";
 import { useGraphCanvas } from "../model/useGraphCanvas";
 import styles from "./Graph.module.css";
@@ -10,7 +11,8 @@ export function GraphCanvas({
   onOpenNodePreview,
   onClearNodeFocus,
   loading = false,
-  errorMessage = null
+  errorMessage = null,
+  ingestProgressInputs
 }: {
   nodes: GraphNode[];
   links: GraphLink[];
@@ -19,8 +21,16 @@ export function GraphCanvas({
   onClearNodeFocus?: () => void;
   loading?: boolean;
   errorMessage?: string | null;
+  ingestProgressInputs?: readonly GraphIngestProgressInput[];
 }) {
-  const { canvasRef, graphCanvasProps } = useGraphCanvas({ nodes, links, focusedNodeId, onOpenNodePreview, onClearNodeFocus });
+  const { canvasRef, graphCanvasProps } = useGraphCanvas({
+    nodes,
+    links,
+    focusedNodeId,
+    onOpenNodePreview,
+    onClearNodeFocus,
+    ingestProgressInputs
+  });
 
   return (
     <div className={styles["graph-canvas"]} {...graphCanvasProps} style={{ touchAction: "none" }}>

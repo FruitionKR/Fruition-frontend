@@ -14,18 +14,22 @@ const sourcePreviewStyles = readFileSync(
 test("읽기 모드의 표 외곽선과 셀 경계를 표시한다", () => {
   assert.match(
     markdownStyles,
-    /\.markdown-viewer table\s*\{[^}]*border:\s*1px solid var\(--line\);[^}]*border-collapse:\s*collapse;/s
+    /\.markdown-viewer table\s*\{[^}]*border:\s*1px solid var\(--color-border\);[^}]*border-collapse:\s*collapse;/s
   );
   assert.match(
     markdownStyles,
-    /\.markdown-viewer th,\s*\.markdown-viewer td\s*\{[^}]*border:\s*1px solid var\(--line\);/s
+    /\.markdown-viewer th,\s*\.markdown-viewer td\s*\{[^}]*border:\s*1px solid var\(--color-border\);/s
   );
 });
 
-test("읽기 모드 링크는 어두운 기본 파란색 대신 밝고 낮은 채도의 파란색을 사용한다", () => {
+test("읽기 모드 링크는 다크에서 어두운 기본 파란색 대신 밝고 낮은 채도의 파란색을 사용한다", () => {
   assert.match(
     markdownStyles,
-    /\.markdown-viewer a,\s*\.markdown-wikilink\s*\{[^}]*color:\s*#8ab4e8;/s
+    /\.markdown-viewer a,\s*\.markdown-wikilink\s*\{[^}]*color:\s*var\(--markdown-link\);/s
+  );
+  assert.match(
+    markdownStyles,
+    /@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{[^}]*--markdown-link:\s*#8ab4e8;/s
   );
 });
 

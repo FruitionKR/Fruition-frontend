@@ -1,10 +1,10 @@
-import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
 import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
+import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { resolveChatTurnPresentation } from "../lib/markdownAgent";
 import { formatAnswerMarkdown } from "../lib/agentFormatters";
@@ -80,7 +80,6 @@ export function AssistantThread({
               key={card.key}
               title={card.title}
               meta={card.meta}
-              pageType={card.pageType}
               // raw 외 wiki page(source/concept·미지 타입)는 내부 구성(블록 참조 등)이 그대로 노출되므로 미리보기를 열지 않는다.
               onClick={card.pageType.toLowerCase() === "raw"
                 ? () => onOpenWikiPage(card.pageId, card.title, card.pageType)
@@ -103,7 +102,7 @@ export function AssistantThread({
               onClick={() => setIsAnswerExpanded((current) => !current)}
             >
               <span>실행 중 발견 사항</span>
-              <ChevronDown size={8} className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
+              <AgentChevronIcon isWide className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
             </button>
           )}
           {isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer

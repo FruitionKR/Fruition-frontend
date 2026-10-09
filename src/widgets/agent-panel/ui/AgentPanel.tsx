@@ -52,7 +52,8 @@ export function AgentPanel({
   onCreateMarkdownDocument,
   markdownEditContext,
   onDocumentExported,
-  nodes
+  nodes,
+  composerDraft
 }: {
   onClose: () => void;
   onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
@@ -61,8 +62,13 @@ export function AgentPanel({
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   nodes?: GraphNode[];
+  /** 입력창에 채울 문장(스킬 실행의 "/slug "). id가 바뀔 때마다 한 번 채운다 */
+  composerDraft?: { id: number; text: string } | null;
 }) {
   const [composerValue, setComposerValue] = useState("");
+  useEffect(() => {
+    if (composerDraft) setComposerValue(composerDraft.text);
+  }, [composerDraft]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);

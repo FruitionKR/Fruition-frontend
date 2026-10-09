@@ -2,34 +2,25 @@
    에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓는다. */
 .notice-stack {
   position: fixed;
-  right: calc(360px + 24px);
+  right: calc(var(--agent-panel-width, 360px) + 24px);
   bottom: 24px;
   z-index: 50;
   display: grid;
   width: min(320px, calc(100vw - 48px));
   gap: 10px;
   font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
+  /* 떠 있는 카드 배경: 라이트는 흰 카드, 다크는 기존 패널색 */
+  --notice-bg: var(--color-canvas);
 }
 
-:global(.workspace.is-agent-collapsed) .notice-stack {
-  right: 24px;
-}
-
-@media (max-width: 1300px) {
+@media (prefers-color-scheme: dark) {
   .notice-stack {
-    right: calc(330px + 24px);
-  }
-}
-
-@media (max-width: 1080px) {
-  .notice-stack {
-    right: calc(300px + 24px);
+    --notice-bg: var(--color-surface);
   }
 }
 
 @media (max-width: 700px) {
-  .notice-stack,
-  :global(.workspace.is-agent-collapsed) .notice-stack {
+  .notice-stack {
     right: 16px;
     left: 16px;
     bottom: 16px;
@@ -42,10 +33,10 @@
   flex-direction: column;
   gap: 20px;
   padding: 20px 20px 16px;
-  color: var(--ink);
-  background: var(--panel);
+  color: var(--color-foreground);
+  background: var(--notice-bg);
   /* Figma의 안쪽 stroke는 콘텐츠의 패딩과 너비에 더해지지 않는다. */
-  box-shadow: inset 0 0 0 1px var(--soft);
+  box-shadow: inset 0 0 0 1px var(--color-surface-strong);
   border-radius: 16px;
   overflow: hidden;
   animation: notice-bottom-up 240ms ease-out;
@@ -91,7 +82,7 @@
 }
 
 .notice-title strong {
-  color: #fff;
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
@@ -100,7 +91,7 @@
 
 .notice-title p {
   margin: 0;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 12px;
   font-weight: 500;
   line-height: 14px;
@@ -134,9 +125,9 @@
 .notice-cancel {
   flex: 1;
   padding: 6px 18px;
-  color: #e2e2e2;
-  background: var(--soft);
-  box-shadow: inset 0 0 0 1px var(--soft);
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+  box-shadow: inset 0 0 0 1px var(--color-surface-strong);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
@@ -145,16 +136,15 @@
 .notice-cancel:hover,
 .notice-cancel:focus-visible {
   --button-hover-overlay: none;
-  background: #3f3f3f;
-  border-color: #3f3f3f;
+  background: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay)), var(--color-surface-strong);
 }
 
 .notice-confirm {
   width: 100%;
   padding: 6px 18px;
-  color: #0a0a0a;
-  background: #e6a800;
-  box-shadow: inset 0 0 0 1px #e6a800;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -163,6 +153,5 @@
 .notice-confirm:hover,
 .notice-confirm:focus-visible {
   --button-hover-overlay: none;
-  background: var(--yellow);
-  border-color: var(--yellow);
+  background: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay)), var(--color-primary);
 }
