@@ -299,8 +299,11 @@ export function SourcePreviewPanel({
         if (!ignore) setRawText(text);
         return;
       }
-      // 프록시가 octet-stream으로 주면 내장 뷰어 대신 다운로드되므로 PDF 형식을 명시한다.
-      objectUrl = URL.createObjectURL(isPdfFile ? new Blob([blob], { type: "application/pdf" }) : blob);
+      // PDF는 브라우저 내장 뷰어로 연다. 응답 MIME이 PDF가 아니면 iframe이 그리지 않고 내려받으므로 타입을 맞춘다.
+      const viewBlob = isPdfFile && blob.type !== "application/pdf"
+        ? new Blob([blob], { type: "application/pdf" })
+        : blob;
+      objectUrl = URL.createObjectURL(viewBlob);
       if (ignore) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;

@@ -44,3 +44,43 @@ test("PDF는 변환본이 있어도 목록에 없고 변환된 Markdown만 검�
   assert.deepEqual(pickerDocuments([pdf({}), converted], "원본").map((doc) => doc.id), ["conv"]);
   assert.deepEqual(pickerDocuments([pdf({}), converted], "원본.pdf"), []);
 });
+
+test("변환 중이거나 변환에 실패한 Markdown은 빼고, 편입만 실패한 변환본과 일반 Markdown은 둔다", () => {
+  const converting = md({ id: "converting", source_document_id: "pdf", status: "processing", pipeline_run_id: "convert:1" });
+  const failed = md({ id: "failed", source_document_id: "pdf", status: "failed", pipeline_run_id: "convert:1" });
+  const done = md({ id: "done", source_document_id: "pdf" });
+  const ingestFailed = md({ id: "ingest-failed", source_document_id: "pdf", status: "failed", pipeline_run_id: "run-2" });
+  const plainFailed = md({ id: "plain", status: "failed" });
+  assert.deepEqual(
+    pickerDocuments([converting, failed, done, ingestFailed, plainFailed], "").map((doc) => doc.id),
+    ["done", "ingest-failed", "plain"]
+  );
+});
+
+const { orderPickerDocuments, skillReferenceFileError, describeSkillReferenceUploadError } = await import("../src/features/user-settings/lib/documentPicker.ts");
+const { ApiError } = await import("../src/shared/lib/errors.ts");
+
+test("피커 순서는 고정(선택·방금 올린) 문서 → 참고 문서 → 그 밖의 문서 최근 업로드 순이고 중복은 한 번만 넣는다", () => {
+  const old = md({ id: "old", uploaded_at: "2026-01-01T00:00:00Z" });
+  const recent = md({ id: "recent", uploaded_at: "2026-03-01T00:00:00Z" });
+  const ref2 = md({ id: "ref2", uploaded_at: "2026-02-01T00:00:00Z" });
+  const ref1 = md({ id: "ref1", uploaded_at: "2026-01-15T00:00:00Z" });
+  const uploaded = md({ id: "uploaded", uploaded_at: "2026-04-01T00:00:00Z" });
+  const ordered = orderPickerDocuments([uploaded, old], [uploaded, ref2, ref1], [old, recent]);
+  assert.deepEqual(ordered.map((doc) => doc.id), ["uploaded", "old", "ref2", "ref1", "recent"]);
+});
+
+test("참고 문서 업로드는 PDF를 막고 Markdown·txt만 받는다", () => {
+  assert.match(skillReferenceFileError({ name: "회의록.PDF" }), /PDF는 참고 문서로 올릴 수 없습니다/);
+  assert.match(skillReferenceFileError({ name: "image.png" }), /\.md.*\.txt/);
+  for (const name of ["양식.md", "양식.markdown", "memo.TXT"]) assert.equal(skillReferenceFileError({ name }), null);
+});
+
+test("참고 문서 업로드 실패는 413·415·이름 충돌·origin 오류를 구분해 안내한다", () => {
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 415, "UNSUPPORTED_FILE_TYPE")), /\.md.*\.txt/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "MARKDOWN_CONTENT_TOO_LARGE")), /5MB/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 409, "DUPLICATE_NAME")), /같은 이름/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 409)), /처리 중/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 400, "INVALID_DOCUMENT_ORIGIN")), /올릴 수 없는/);
+  assert.match(describeSkillReferenceUploadError(new TypeError("network")), /올리지 못했습니다/);
+});

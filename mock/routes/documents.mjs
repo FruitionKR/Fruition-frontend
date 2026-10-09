@@ -1,5 +1,5 @@
 // document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·ingest·변환·편집 잠금.
-import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, sleep } from "../state.mjs";
+import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 
@@ -60,12 +60,15 @@ function saveVersion(doc, markdown, createdBy) {
  * 서버 DocumentEditingRules.uniqueUploadFilename 흉내: 같은 부모에 같은 이름(문서·폴더, 대소문자 무시)이 있으면
  * `이름 (2).pdf`처럼 번호를 붙인다. 업로드는 이름 중복으로 거절하지 않는다.
  */
-function uniqueUploadFilename(workspaceId, folderId, filename) {
+function uniqueUploadFilename(workspaceId, folderId, filename, isReference = false) {
   const normalize = (value) => value.trim().normalize("NFC").toLowerCase();
-  const taken = new Set([
-    ...state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && (doc.folder_id ?? null) === folderId).map((doc) => normalize(doc.filename)),
-    ...state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at && (folder.parent_folder_id ?? null) === folderId).map((folder) => normalize(folder.name))
-  ]);
+  // 스킬 참고 문서는 트리 이름 공간 밖이라 참고 문서끼리만 워크스페이스 단위로 비교한다.
+  const taken = new Set(isReference
+    ? state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && isSkillReference(doc)).map((doc) => normalize(doc.filename))
+    : [
+      ...state.documents.filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && !isSkillReference(doc) && (doc.folder_id ?? null) === folderId).map((doc) => normalize(doc.filename)),
+      ...state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at && (folder.parent_folder_id ?? null) === folderId).map((folder) => normalize(folder.name))
+    ]);
   const dot = filename.lastIndexOf(".");
   const base = dot > 0 ? filename.slice(0, dot) : filename;
   const extension = dot > 0 ? filename.slice(dot) : "";
@@ -78,29 +81,40 @@ export function registerDocumentRoutes(router) {
   router.get("/api/workspaces/:wid/documents", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    const documents = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at).map(toDocumentItem);
-    ctx.json(200, { documents });
+    // 스킬 참고 문서는 기본 목록에서 빠지고 origin=skill_reference로만 최근 업로드 순으로 조회한다.
+    const origin = ctx.query.get("origin");
+    if (origin !== null && origin !== SKILL_REFERENCE_ORIGIN) return error(ctx, 400, "허용하지 않는 origin입니다.", "INVALID_DOCUMENT_ORIGIN");
+    const documents = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && isSkillReference(doc) === (origin !== null));
+    if (origin !== null) documents.sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
+    ctx.json(200, { documents: documents.map(toDocumentItem) });
   });
 
   router.post("/api/workspaces/:wid/documents", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
     const { file, folder_id: folderId = null } = await ctx.body();
+    const origin = ctx.query.get("origin");
+    const isReference = origin === SKILL_REFERENCE_ORIGIN;
     if (!file?.buffer) return error(ctx, 400, "업로드할 파일이 필요합니다.");
+    if (origin !== null && (!isReference || folderId)) return error(ctx, 400, "허용하지 않는 origin이거나 참고 문서에 폴더를 지정했습니다.", "INVALID_DOCUMENT_ORIGIN");
     if (folderId && !state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspace.id && !folder.deleted_at)) return error(ctx, 404, "폴더를 찾을 수 없습니다.");
-    const requestedName = file.name.normalize("NFC");
+    let requestedName = file.name.normalize("NFC");
     const extension = requestedName.split(".").pop()?.toLowerCase() ?? "";
-    const mime = MIME_BY_EXTENSION[extension] ?? file.type ?? "application/octet-stream";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
+    if (isReference && extension === "pdf") return error(ctx, 415, "스킬 참고 문서는 Markdown·txt만 올릴 수 있습니다.", "UNSUPPORTED_FILE_TYPE");
+    // 서버처럼 참고 문서 txt는 .md 이름의 편집 가능 Markdown으로 저장한다.
+    if (isReference && extension === "txt") requestedName = requestedName.replace(/\.txt$/i, ".md");
+    const mime = isReference ? "text/markdown" : MIME_BY_EXTENSION[extension];
     const isMarkdown = mime === "text/markdown";
     const text = isMarkdown ? file.buffer.toString("utf8") : null;
     // 실제 업로드처럼 전송이 끝날 때까지 응답을 미룬다. 프론트는 그동안 "업로드 중" 자리표시 행을 보여준다.
     await sleep(uploadDelay(file.buffer.length));
     // 동시 업로드도 서로 다른 번호를 받도록 전송이 끝난 시점에 이름을 정한다.
-    const filename = uniqueUploadFilename(workspace.id, folderId, requestedName);
+    const filename = uniqueUploadFilename(workspace.id, folderId, requestedName, isReference);
     const timestamp = now();
     const doc = {
       id: id("doc"), workspace_id: workspace.id, filename, mime_type: mime, byte_size: file.buffer.length, status: "uploaded", folder_id: folderId, sort_order: 0,
+      ...(isReference ? { origin: SKILL_REFERENCE_ORIGIN } : {}),
       source_uri: `mock://uploads/${filename}`, uploaded_at: timestamp, updated_at: timestamp,
       document_role: isMarkdown ? "EDITABLE" : "ORIGINAL", markdown: text, content: file.buffer,
       current_version: 1, edit_revision: 1,
@@ -227,6 +241,7 @@ export function registerDocumentRoutes(router) {
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
     if (doc.document_role !== "EDITABLE") return error(ctx, 400, "편집 가능한 Markdown 문서만 분석할 수 있습니다.");
+    if (isSkillReference(doc)) return error(ctx, 400, "스킬 참고 문서는 위키에 편입할 수 없습니다.");
     if (doc.status === "processing") return error(ctx, 409, "이미 분석 중인 문서입니다.");
     startIngest(workspace, doc);
     ctx.json(202, { document_id: doc.id, status: "processing" });

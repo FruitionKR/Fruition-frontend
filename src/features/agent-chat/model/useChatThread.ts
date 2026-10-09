@@ -6,6 +6,7 @@ import { cancelQueryRun, QueryCancelledError, runQueryStream, type QueryRun, typ
 import { publishNotice } from "@/features/document-notifications";
 import { fetchMessagesForRequest } from "../lib/chatMessagesRequest";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { usePageVisible } from "@/shared/lib/usePageVisible";
 import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { QueryRelatedPageResponse } from "@/entities/wiki/model/wiki";
@@ -63,9 +64,11 @@ export function useChatThread(activeSessionId?: string | null) {
   }, []);
 
   const hasPendingMessages = messages.some((message) => message.role === "assistant" && message.status === "pending");
+  const isPageVisible = usePageVisible();
   // 새로 연 대화는 저장된 진행 단계부터 복원하고, 미완료 문답만 완료될 때까지 갱신한다.
+  // 숨김 탭에서는 멈추고, 다시 보이면 effect가 다시 돌며 곧바로 이어 받는다(#66).
   useEffect(() => {
-    if (!hasPendingMessages || isLoading) return;
+    if (!hasPendingMessages || isLoading || !isPageVisible) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
@@ -79,7 +82,7 @@ export function useChatThread(activeSessionId?: string | null) {
     }
     timer = setTimeout(poll, 1000);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [activeSessionId, hasPendingMessages, isLoading, refreshMessages]);
+  }, [activeSessionId, hasPendingMessages, isLoading, isPageVisible, refreshMessages]);
 
   // 선택 세션이 바뀌면 해당 세션 메시지로 교체하고 이전 세션의 진행 상태를 초기화한다.
   useEffect(() => {

@@ -1,6 +1,7 @@
 type Transport = { origin: string | null; directUpload: boolean };
 
-const DOCUMENT_API = /^\/api\/workspaces\/[^/]+\/(?:documents|document-tree|folders|agent|chat|wiki-schema|skills)(?:\/|$)/;
+// `documents?origin=...`처럼 쿼리가 바로 붙는 경로도 문서 API다.
+const DOCUMENT_API = /^\/api\/workspaces\/[^/]+\/(?:documents|document-tree|folders|agent|chat|wiki-schema|skills)(?:[/?]|$)/;
 
 /** AWS document API에만 Bearer를 전송한다. 인증·refresh는 기존 동일 출처 경로를 사용한다. */
 export function usesDocumentTransport(path: string): boolean {

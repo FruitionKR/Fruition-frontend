@@ -91,8 +91,9 @@ test("활성 작업이 없어도 저빈도 polling을 유지한다", () => {
   assert.equal(getWikiWorkPollInterval(true), 3_000);
 });
 
-test("숨김 탭은 진행 중 작업이 있을 때만 폴링한다", () => {
-  assert.equal(getWikiWorkPollInterval(true, false), 3_000);
+test("숨김 탭은 진행 중 작업이 있을 때만 느린 주기로 폴링한다", () => {
+  assert.equal(getWikiWorkPollInterval(true, false), 30_000);
+  assert.equal(getWikiWorkPollInterval(true, true), 3_000);
   assert.equal(getWikiWorkPollInterval(false, false), false);
   assert.equal(getWikiWorkPollInterval(false, true), 15_000);
 });
@@ -102,8 +103,8 @@ test("탭 복귀 시 평소 폴링 주기 이상 지난 데이터만 다시 받�
   assert.equal(isStaleForIdlePoll(100_000, 115_000), true);
 });
 
-test("작업 알림 폴링은 진행 중 작업이 없는 숨김 탭에서 멈춘다", () => {
-  assert.equal(nextOperationPollDelay(true, true), 3_000);
+test("작업 알림 폴링은 진행 중 작업이 없는 숨김 탭에서 멈추고, 있으면 숨김 탭에서 느리게 돈다", () => {
+  assert.equal(nextOperationPollDelay(true, true), 30_000);
   assert.equal(nextOperationPollDelay(true, false), 3_000);
   assert.equal(nextOperationPollDelay(false, false), 15_000);
   assert.equal(nextOperationPollDelay(false, true), null);

@@ -28,6 +28,12 @@ export function getOAuthAuthorizationUrl(provider: OAuthProvider): string {
   return `/oauth2/authorization/${provider}`;
 }
 
+/** 로그인과 같은 OAuth 경로를 연동 모드로 시작한다. 서버가 link_token으로 연동 대상 사용자를 찾는다. */
+export function getOAuthLinkAuthorizationUrl(provider: OAuthProvider, linkToken: string): string {
+  const query = new URLSearchParams({ mode: "link", link_token: linkToken });
+  return `${getOAuthAuthorizationUrl(provider)}?${query.toString()}`;
+}
+
 export async function exchangeOAuthCode(code: string): Promise<LoginResponse> {
   const response = await fetch("/api/auth/oauth/exchange", {
     method: "POST",

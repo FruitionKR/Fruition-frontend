@@ -53,6 +53,51 @@ test("거절(400·SKILL_REQUEST_REJECTED)은 위험 표현이 아니라 중립 �
   }
 });
 
+test("사유 code(의도 불명확·지침 오류)는 응답 파싱을 거친 서버 message를 그대로 보여준다", async () => {
+  const cases = [
+    ["SKILL_INTENT_AMBIGUOUS", "어떤 작업을 반복할지 구체적으로 적어 주세요."],
+    ["SKILL_INSTRUCTION_INVALID", "참조 문서를 확인해 주세요. 접근할 수 없거나 비어 있거나 너무 긴 문서가 있습니다."]
+  ];
+  for (const [code, message] of cases) {
+    const error = await parseApiError(jsonResponse(400, { error: { code, message } }), "스킬 초안을 생성하지 못했습니다.");
+    const notice = describeSkillAuthorError(error);
+    assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+    assert.equal(notice.description, message);
+  }
+});
+
+test("불가능한 작업은 서버 message와 관계없이 '불가능한 작업'으로 안내한다", () => {
+  for (const message of ["지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요.", ""]) {
+    const notice = describeSkillAuthorError(new ApiError(message, 400, "SKILL_INTENT_UNSUPPORTED"));
+    assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+    assert.match(notice.description, /불가능한 작업/);
+    assert.doesNotMatch(notice.description, /지원하지 않는/);
+  }
+});
+
+test("참고 문서 한 개가 너무 길면(413) AI의 내부 용어 대신 글자 수 제한을 안내한다", async () => {
+  const error = await parseApiError(
+    jsonResponse(413, { error: { code: "REFERENCE_DOCUMENT_TOO_LARGE", message: "EDITABLE 참조 문서는 30,000자 이하여야 합니다." } }),
+    "스킬 초안을 생성하지 못했습니다."
+  );
+  const notice = describeSkillAuthorError(error);
+  assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+  assert.match(notice.description, /30,000자/);
+  assert.doesNotMatch(notice.description, /EDITABLE/);
+});
+
+test("사유 없는 거절은 상태 코드와 관계없이, 알 수 없는 400 code는 중립 문구로 안내한다", () => {
+  for (const error of [
+    new ApiError("Skill 요청이 거부되었습니다.", 409, "SKILL_REQUEST_REJECTED"),
+    new ApiError("Skill 요청이 거부되었습니다.", 422, "SKILL_REQUEST_REJECTED"),
+    new ApiError("알 수 없음", 400, "SKILL_SOMETHING_NEW")
+  ]) {
+    const notice = describeSkillAuthorError(error);
+    assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
+    assert.match(notice.description, /구체적으로/);
+  }
+});
+
 test("AI 장애·5xx·타임아웃·네트워크 오류는 재시도 문구로 구분한다", () => {
   const errors = [
     new ApiError("x", 400, "SKILL_AI_UNAVAILABLE"),

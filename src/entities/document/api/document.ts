@@ -3,7 +3,7 @@ import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serv
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
 import { hasPdfExtension } from "@/entities/document/lib/documentKind";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
-import type { DocumentBlocksResponse, DocumentItemResponse, DocumentRole, DocumentUploadResponse } from "@/entities/document/model/document";
+import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
@@ -54,6 +54,38 @@ export async function fetchDocuments() {
     ERROR_MESSAGES.documentsLoadFailed
   );
   return data.documents ?? [];
+}
+
+/** 스킬 참고 문서 목록. 서버가 최근 업로드 순으로 준다. 기본 목록(fetchDocuments)에는 나오지 않는다. */
+export async function fetchSkillReferenceDocuments() {
+  const workspaceId = getWorkspaceId();
+  const response = await apiFetch(
+    `${workspacePath(workspaceId, "documents")}?origin=${SKILL_REFERENCE_ORIGIN}`,
+    { cache: "no-store" }
+  );
+  const data = await parseJsonOrThrow<{ documents: DocumentItemResponse[] }>(
+    response,
+    ERROR_MESSAGES.documentsLoadFailed
+  );
+  return data.documents ?? [];
+}
+
+/**
+ * 스킬 참고 문서로 올린다. Markdown·txt만 받고(PDF는 415) 폴더에 둘 수 없다.
+ * 이름은 참고 문서끼리만 비교해 서버가 `(2)`처럼 번호를 붙인다.
+ */
+export async function uploadSkillReferenceDocument(file: File) {
+  const workspaceId = getWorkspaceId();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await apiFetch(`${workspacePath(workspaceId, "documents")}?origin=${SKILL_REFERENCE_ORIGIN}`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey() },
+    body: formData
+  });
+
+  return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
 }
 
 /**

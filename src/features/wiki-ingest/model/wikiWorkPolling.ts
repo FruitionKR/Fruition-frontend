@@ -1,12 +1,15 @@
 export const ACTIVE_WIKI_WORK_POLL_INTERVAL_MS = 3_000;
 export const IDLE_WIKI_WORK_POLL_INTERVAL_MS = 15_000;
+/** 숨김 탭에서 완료 브라우저 알림만을 위해 남기는 느린 주기(#66). */
+export const HIDDEN_ACTIVE_WIKI_WORK_POLL_INTERVAL_MS = 30_000;
 
 /**
- * 진행 중인 작업이 있으면 숨김 탭에서도 짧게 폴링한다(완료 브라우저 알림용).
+ * 진행 중인 작업이 있으면 보이는 탭은 짧게, 숨김 탭은 완료 브라우저 알림용으로 느리게 폴링한다.
  * 진행 중인 작업이 없으면 보이는 탭에서만 폴링한다.
+ * 숨김 탭 폴링이 알림에 필요 없는 쿼리는 refetchIntervalInBackground: false로 숨김 동안 멈춘다.
  */
 export function getWikiWorkPollInterval(hasActiveWork: boolean, isPageVisible = true): number | false {
-  if (hasActiveWork) return ACTIVE_WIKI_WORK_POLL_INTERVAL_MS;
+  if (hasActiveWork) return isPageVisible ? ACTIVE_WIKI_WORK_POLL_INTERVAL_MS : HIDDEN_ACTIVE_WIKI_WORK_POLL_INTERVAL_MS;
   return isPageVisible ? IDLE_WIKI_WORK_POLL_INTERVAL_MS : false;
 }
 

@@ -33,7 +33,7 @@ export function useBackendData({
     enabled: Boolean(workspaceId),
     refetchInterval: (activeQuery) =>
       getWikiWorkPollInterval(hasProcessingDocuments(activeQuery.state.data), isPageVisible),
-    // 처리 중인 문서가 있으면 숨김 탭에서도 폴링해 완료 브라우저 알림을 띄운다.
+    // 처리 중인 문서가 있으면 숨김 탭에서도 느리게 폴링해 완료 브라우저 알림을 띄운다.
     refetchIntervalInBackground: true,
     // 숨김 탭에서 멈춰 있던 동안 오래된 데이터만 복귀 즉시 다시 받는다.
     refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
@@ -43,7 +43,8 @@ export function useBackendData({
     queryFn: fetchWikiGraph,
     enabled: Boolean(workspaceId),
     refetchInterval: getWikiWorkPollInterval(hasProcessingDocuments(query.data), isPageVisible),
-    refetchIntervalInBackground: true,
+    // 그래프는 알림에 쓰이지 않으므로 숨김 탭에서는 멈추고, 복귀할 때 오래된 경우만 다시 받는다(#66).
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
   });
 

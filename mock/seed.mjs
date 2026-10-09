@@ -247,11 +247,25 @@ export function seed() {
   );
 
   state.aiModels.push(
+    // 모델 선택 UI(#75) 확인용: provider당 여러 모델을 둔다.
+    // 백엔드 계약(doc#51): catalog[0] = gpt-5-nano, provider별 첫 항목이 그 provider의 기본값이다.
+    { provider: "openai", model: "gpt-5-nano", display_name: "GPT-5 nano" },
+    { provider: "openai", model: "gpt-5", display_name: "ChatGPT (GPT-5)" },
+    { provider: "openai", model: "gpt-5-mini", display_name: "GPT-5 mini" },
+    { provider: "openai", model: "gpt-4.1", display_name: "GPT-4.1" },
+    { provider: "openai", model: "gpt-4.1-mini", display_name: "GPT-4.1 mini" },
+    { provider: "openai", model: "o4-mini", display_name: "o4-mini" },
     { provider: "claude", model: "claude-sonnet-4-5", display_name: "Claude Sonnet 4.5" },
     { provider: "claude", model: "claude-opus-4-1", display_name: "Claude Opus 4.1" },
+    { provider: "claude", model: "claude-haiku-4-5", display_name: "Claude Haiku 4.5" },
+    { provider: "claude", model: "claude-sonnet-4", display_name: "Claude Sonnet 4" },
+    { provider: "claude", model: "claude-opus-4", display_name: "Claude Opus 4" },
+    { provider: "claude", model: "claude-3-7-sonnet", display_name: "Claude Sonnet 3.7" },
     { provider: "gemini", model: "gemini-2.5-pro", display_name: "Gemini 2.5 Pro" },
     { provider: "gemini", model: "gemini-2.5-flash", display_name: "Gemini 2.5 Flash" },
-    { provider: "openai", model: "gpt-5", display_name: "ChatGPT (GPT-5)" }
+    { provider: "gemini", model: "gemini-2.5-flash-lite", display_name: "Gemini 2.5 Flash-Lite" },
+    { provider: "gemini", model: "gemini-2.0-flash", display_name: "Gemini 2.0 Flash" },
+    { provider: "gemini", model: "gemini-2.0-flash-lite", display_name: "Gemini 2.0 Flash-Lite" }
   );
 
   state.invitations.push({ id: "inv_1", token: "mock-invite-token", workspace_id: WORKSPACE_ID, email: "newbie@fruition.local", role: "MEMBER", invited_by: DEMO_EMAIL, expires_at: new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(), created_at: now() });
