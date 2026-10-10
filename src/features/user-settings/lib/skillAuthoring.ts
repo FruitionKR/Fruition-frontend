@@ -1,4 +1,4 @@
-import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
+import type { SkillAuthoringResult, SkillResponse, SkillUpdateRequest } from "@/entities/skill/model/skill";
 import { ApiError, getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
 
 export type SkillAuthorErrorNotice = { title: string; description: string };
@@ -57,4 +57,20 @@ export function skillAuthoringOutcome(result: Pick<SkillAuthoringResult, "status
   if (result.status === "clarification_required") return "clarify";
   if (result.status === "blocked" || (result.issues ?? []).length > 0) return "review";
   return "pass";
+}
+
+/**
+ * 스킬 수정 요청을 만든다. 이름은 편집하지 않으므로 편집 초안을 채운 버전의 이름을 그대로 보낸다.
+ * 버전 이름은 slug와 같게 만들어지므로, 버전이 없으면 slug로 대신한다.
+ */
+export function skillUpdateRequest(
+  skill: Pick<SkillResponse, "slug" | "enabled_version" | "latest_version">,
+  draft: { description: string; instructionsMarkdown: string }
+): SkillUpdateRequest {
+  const version = skill.enabled_version ?? skill.latest_version;
+  return {
+    name: version?.name ?? skill.slug,
+    description: draft.description,
+    instructions_markdown: draft.instructionsMarkdown
+  };
 }

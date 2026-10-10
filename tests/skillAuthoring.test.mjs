@@ -14,7 +14,7 @@ registerHooks({
 
 const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/client.ts");
 const { ApiError, SessionExpiredError } = await import("../src/shared/lib/errors.ts");
-const { describeSkillAuthorError, skillAuthoringOutcome } = await import("../src/features/user-settings/lib/skillAuthoring.ts");
+const { describeSkillAuthorError, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/user-settings/lib/skillAuthoring.ts");
 
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -125,4 +125,15 @@ test("author 응답 status로 되묻기·검토·통과를 나눈다", () => {
   assert.equal(skillAuthoringOutcome({ status: "draft", issues: [{ category: "credential" }] }), "review");
   assert.equal(skillAuthoringOutcome({ status: "draft", issues: [] }), "pass");
   assert.equal(skillAuthoringOutcome({ status: "draft", issues: undefined }), "pass");
+});
+
+test("스킬 수정 요청은 편집한 버전의 이름을 함께 보낸다(백엔드 name 필수)", () => {
+  const version = (name) => ({ id: "v", name, description: "", status: "published", version: 1, allowed_tools: [], capabilities: [], instructions_markdown: "" });
+  const draft = { description: "새 설명", instructionsMarkdown: "새 지침" };
+  assert.deepEqual(
+    skillUpdateRequest({ slug: "meeting-notes", enabled_version: version("enabled-name"), latest_version: version("latest-name") }, draft),
+    { name: "enabled-name", description: "새 설명", instructions_markdown: "새 지침" }
+  );
+  assert.equal(skillUpdateRequest({ slug: "s", enabled_version: null, latest_version: version("latest-name") }, draft).name, "latest-name");
+  assert.equal(skillUpdateRequest({ slug: "fallback-slug", enabled_version: null, latest_version: null }, draft).name, "fallback-slug");
 });
