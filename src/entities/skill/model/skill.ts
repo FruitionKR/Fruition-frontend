@@ -47,10 +47,11 @@ export interface SkillPublishRequest {
 }
 
 // PATCH /skills/{skill_id} 요청 (SkillUpdateRequest)
+// PATCH /skills/{id} 요청. 백엔드가 세 필드를 모두 필수로 검증한다.
 export interface SkillUpdateRequest {
-  name?: string;
-  description?: string;
-  instructions_markdown?: string;
+  name: string;
+  description: string;
+  instructions_markdown: string;
 }
 
 export interface SkillResponse {
