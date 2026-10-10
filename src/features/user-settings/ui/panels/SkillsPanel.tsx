@@ -17,6 +17,7 @@ import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { Switch } from "@/shared/ui/Switch";
 import modalStyles from "../SettingsModal.module.css";
+import { skillUpdateRequest } from "../../lib/skillAuthoring";
 import { SkillCreateWizard } from "./SkillCreateWizard";
 import { SkillSearchModal } from "./SkillSearchModal";
 import styles from "./SkillsPanel.module.css";
@@ -128,10 +129,7 @@ export function SkillsPanel() {
 
   const updateMutation = useMutation({
     mutationFn: ({ skill }: { skill: SkillResponse }) =>
-      updateSkill(workspaceId ?? "", skill.id, {
-        description: editDraft.description,
-        instructions_markdown: editDraft.instructionsMarkdown
-      }),
+      updateSkill(workspaceId ?? "", skill.id, skillUpdateRequest(skill, editDraft)),
     onSuccess: (result, { skill }) => {
       setEditError(null);
       // 저장 중 다른 스킬 편집으로 전환했을 수 있으니, 저장한 스킬의 편집 상태만 닫는다.
