@@ -11,10 +11,16 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .badge {
+  :root:not([data-theme="light"]) .badge {
     --safety-pass: #00de5a;
     --safety-loading-fg: #6d6d6d;
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .badge {
+  --safety-pass: #00de5a;
+  --safety-loading-fg: #6d6d6d;
 }
 
 .ring {

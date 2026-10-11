@@ -394,9 +394,14 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .pass-overlay {
+  :root:not([data-theme="light"]) .pass-overlay {
     --wizard-pass-veil: rgb(0 0 0 / 80%);
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .pass-overlay {
+  --wizard-pass-veil: rgb(0 0 0 / 80%);
 }
 
 .pass-text {
@@ -567,7 +572,12 @@
 
 /* 떠 있는 메뉴·대화상자: 라이트는 흰 바탕, 다크는 기존 패널색을 유지한다. */
 @media (prefers-color-scheme: dark) {
-  .scope-menu {
+  :root:not([data-theme="light"]) .scope-menu {
     background: var(--color-surface);
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .scope-menu {
+  background: var(--color-surface);
 }

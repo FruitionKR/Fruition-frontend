@@ -104,5 +104,5 @@
 
 /* 알림 종의 안 읽음 점 그림자 (Figma Rectangle 1456 drop shadow y1 blur4 12%) */
 .rail-badge {
-  filter: drop-shadow(0 1px 2px var(--color-shadow));
+  filter: drop-shadow(0 1px 2px var(--color-notification-dot-shadow));
 }

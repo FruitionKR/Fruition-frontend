@@ -1,54 +1,51 @@
-import { findSourceNodeByDocumentId } from "@/entities/graph/lib/graph";
-import { formatReferenceMeta, formatWikiPageTitle } from "./agentFormatters";
-import type { ChatMessageResponse } from "@/entities/chat/model/chat";
+import { findSourceNodeByDocumentId, makeRawId } from "@/entities/graph/lib/graph";
+import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entities/chat/model/chat";
+import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 
-const MAX_RESULT_CARDS = 3;
+export type SourceDocumentCard = {
+  key: string;
+  documentId: string;
+  title: string;
+  meta: string;
+  /** 누르면 원본을 열고 강조할 근거 block */
+  highlights: SourceBlockHighlight[];
+};
 
-export function findGraphNode(nodes: GraphNode[] | undefined, pageId: string) {
-  return nodes?.find((node) => node.id === pageId);
+const UNRANKED = Number.MAX_SAFE_INTEGER;
+
+/** 근거 하나가 가리키는 (문서, block) 쌍. source_refs(다중 문서)를 우선하고 legacy 대표 문서 필드를 더한다. */
+function referenceLocations(reference: ChatMessageReferenceResponse): { documentId: string; blockId: string | null }[] {
+  const fromRefs = (reference.source_refs ?? []).map((ref) => ({ documentId: ref.source_document_id, blockId: ref.source_block_id }));
+  const legacyDocumentId = reference.source_document_id;
+  const fromLegacy = legacyDocumentId
+    ? (reference.source_block_ids?.length ? reference.source_block_ids : [null]).map((blockId) => ({ documentId: legacyDocumentId, blockId }))
+    : [];
+  return [...fromRefs, ...fromLegacy];
 }
 
-function isKnownPage(nodes: GraphNode[] | undefined, pageId: string) {
-  return !nodes || !!findGraphNode(nodes, pageId);
-}
-
-export function buildRelatedPageCards(message: ChatMessageResponse, nodes: GraphNode[] | undefined) {
-  const relatedPages = message.related_pages ?? [];
-  if (relatedPages.length > 0) {
-    return relatedPages
-      .filter((page) => isKnownPage(nodes, page.wiki_page_id))
-      .slice(0, MAX_RESULT_CARDS)
-      .map((page) => ({
-        key: `related-${page.wiki_page_id}`,
-        pageId: page.wiki_page_id,
-        pageType: page.page_type,
-        title: findGraphNode(nodes, page.wiki_page_id)?.label ?? page.title,
-        meta: page.role || "관련 자료"
-      }));
+/**
+ * "찾은 자료": 답변 근거(references)로 쓰인 원본 문서를 rank 순서로 하나씩 모은다.
+ * related_pages는 위키(concept 등) 페이지라 원본이 아니므로 쓰지 않는다.
+ * 그래프에 raw 노드가 없는 문서(삭제됨 등)는 열 수 없어 뺀다.
+ */
+export function buildSourceDocumentCards(message: ChatMessageResponse, nodes: GraphNode[] | undefined): SourceDocumentCard[] {
+  const sorted = [...message.references].sort((a, b) => (a.rank ?? UNRANKED) - (b.rank ?? UNRANKED));
+  const cards = new Map<string, SourceDocumentCard>();
+  for (const reference of sorted) {
+    for (const { documentId, blockId } of referenceLocations(reference)) {
+      const title = nodes
+        ? nodes.find((node) => node.id === makeRawId(documentId))?.label
+        : documentId;
+      if (!title) continue;
+      const card = cards.get(documentId) ?? { key: `source-${documentId}`, documentId, title, meta: reference.text || "근거 원본", highlights: [] };
+      const isNewBlock = blockId !== null && !card.highlights.some((item) => item.block_id === blockId);
+      cards.set(documentId, isNewBlock
+        ? { ...card, highlights: [...card.highlights, { block_id: blockId, rank: reference.rank ?? 0 }] }
+        : card);
+    }
   }
-
-  const seenPageIds = new Set<string>();
-  return message.references
-    .map((reference) => ({
-      reference,
-      pageId: reference.source_document_id
-        ? findSourceNodeByDocumentId(nodes, reference.source_document_id)?.id ?? null
-        : null
-    }))
-    .filter(({ pageId }) => {
-      if (!pageId || seenPageIds.has(pageId)) return false;
-      seenPageIds.add(pageId);
-      return true;
-    })
-    .slice(0, MAX_RESULT_CARDS)
-    .map(({ reference, pageId }) => ({
-      key: `reference-${reference.id}`,
-      pageId: pageId as string,
-      pageType: "source",
-      title: formatWikiPageTitle(pageId as string, nodes, reference.source_document_id || "근거"),
-      meta: formatReferenceMeta(reference)
-    }));
+  return [...cards.values()];
 }
 
 export function sourceTitle(nodes: GraphNode[] | undefined, documentId: string) {

@@ -1,4 +1,3 @@
-export { SettingsModal } from "./ui/SettingsModal";
-export { useNotificationToggles, type NotificationKey } from "./model/useNotificationToggles";
+export { SettingsModal, type SettingsSection } from "./ui/SettingsModal";
 export { SkillCreateWizard } from "./ui/panels/SkillCreateWizard";
 export { SkillSearchModal } from "./ui/panels/SkillSearchModal";

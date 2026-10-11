@@ -5,9 +5,9 @@ import { createChatSession, deleteChatSession, fetchChatSessions } from "@/entit
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
-import { emptyChatIcon, fruitionLogo, SvgIcon } from "@/shared/ui/SvgIcon";
+import { emptyChatIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
-import { AgentChevronIcon, AgentMoreIcon, AgentSideboxIcon } from "./AgentIcons";
+import { AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
 /** 채팅 패널 헤더(Figma 1540:19113 GNB): 대화 제목 탭(제목 + 셰브론 = 세션 목록 드롭다운) + 패널 숨기기·옵션 버튼 */
@@ -134,7 +134,7 @@ export function AgentHeader({
       </div>
       <div className={styles["agent-header-actions"]}>
         <button type="button" className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
-          <AgentSideboxIcon />
+          <SvgIcon src={sidebarToggleIcon} className={styles["panel-toggle-icon"]} />
         </button>
         <div className={styles["agent-header-menu"]} ref={menuRef}>
           <button

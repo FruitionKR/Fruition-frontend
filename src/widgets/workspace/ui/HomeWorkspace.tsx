@@ -534,6 +534,7 @@ export function HomeWorkspace() {
     setSkillRun({ skill, targetItemId: null, errorMessage: null });
   }
 
+  /** 스킬은 문서 하나에만 실행한다(agent turn이 요청마다 문서 하나만 받는다). 다른 문서를 누르면 바꿔 고른다. */
   function pickSkillTarget(itemId: string) {
     setSkillRun((current) => current && {
       ...current,
@@ -657,7 +658,13 @@ export function HomeWorkspace() {
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
-          if (target) upload.createMarkdownFile(target.projectId, target.folderId);
+          if (target) void upload.createMarkdownFile(target.projectId, target.folderId);
+        }}
+        onCreateNote={(projectId) => {
+          // 최상위에 새 노트를 만들고, 업로드가 끝나면 바로 편집 화면으로 연다. 실패는 트리 행이 실패 상태로 보여 준다.
+          void upload.createMarkdownFile(projectId, null).then((created) => {
+            if (created) openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
+          });
         }}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
@@ -763,7 +770,6 @@ export function HomeWorkspace() {
         <div className={cx("agent-panel-host", !isAgentPanelShown && "is-hidden")}>
         <AgentPanel
           onClose={closeAgentPanel}
-          onOpenWikiPage={(pageId, title, pageType) => openSelectedPreview(selection.openWikiPagePreview(pageId, title, pageType))}
           onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}

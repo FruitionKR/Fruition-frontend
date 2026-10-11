@@ -29,8 +29,10 @@ test("읽기 모드 링크는 다크에서 어두운 기본 파란색 대신 밝
   );
   assert.match(
     markdownStyles,
-    /@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{[^}]*--markdown-link:\s*#8ab4e8;/s
+    /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*--markdown-link:\s*#8ab4e8;/s
   );
+  // 설정에서 다크를 고르면 OS가 라이트여도 같은 링크 색을 쓴다.
+  assert.match(markdownStyles, /:root\[data-theme="dark"\]\s*\{[^}]*--markdown-link:\s*#8ab4e8;/s);
 });
 
 test("원문 읽기 모드의 굵은 글씨는 뒤따르는 콜론과 본문을 같은 줄에 둔다", () => {

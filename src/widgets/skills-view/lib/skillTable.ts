@@ -3,9 +3,6 @@ import type { SkillResponse } from "@/entities/skill/model/skill";
 /** 스킬 화면 상단 탭 (Figma 1482:10605): 전체 / 팀 / 개인 = 저장범위 필터 */
 export type SkillTab = "all" | "team" | "personal";
 
-/** 사용 상태 필터 (설정 모달 스킬 패널에서 옮겨 온 "상태" 필터) */
-export type SkillStateFilter = "all" | "enabled" | "disabled";
-
 /** 정렬은 커맨드명과 저장범위로만 한다 */
 export type SkillSortKey = "command" | "scope";
 export type SkillSort = { key: SkillSortKey; direction: "asc" | "desc" } | null;
@@ -23,9 +20,9 @@ export function skillDescription(skill: SkillResponse): string {
   return (skill.enabled_version ?? skill.latest_version)?.description ?? "";
 }
 
-/** 사용 스위치를 눌렀을 때 보낼 요청. 게시 버전이 남아 있어도 disabled면 OFF이므로 활성화한다. */
-export function skillToggleAction(skill: SkillResponse): "enable" | "disable" {
-  return isSkillEnabled(skill) ? "disable" : "enable";
+/** 스킬은 항상 사용 상태로 둔다. 꺼져 있는데 게시할 버전이 있으면 켜야 한다. */
+export function needsSkillEnable(skill: SkillResponse): boolean {
+  return !isSkillEnabled(skill) && skill.latest_version != null;
 }
 
 /** personal이 아니면 워크스페이스 공용(팀)이다. */
@@ -36,11 +33,6 @@ export function isPersonalSkill(skill: SkillResponse): boolean {
 export function filterSkillsByTab(skills: readonly SkillResponse[], tab: SkillTab): SkillResponse[] {
   if (tab === "all") return [...skills];
   return skills.filter((skill) => isPersonalSkill(skill) === (tab === "personal"));
-}
-
-export function filterSkillsByState(skills: readonly SkillResponse[], filter: SkillStateFilter): SkillResponse[] {
-  if (filter === "all") return [...skills];
-  return skills.filter((skill) => isSkillEnabled(skill) === (filter === "enabled"));
 }
 
 // 오름차순 기준값. 저장범위는 개인 → 팀 순서다.

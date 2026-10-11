@@ -80,6 +80,24 @@ button.nav-row:disabled {
   background: var(--color-surface-strong);
 }
 
+/* 로그아웃: 메뉴 맨 아래 구분선 뒤, 위험 동작이라 danger 색 */
+.nav-footer {
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.nav-row.is-danger,
+.nav-row.is-danger .nav-icon {
+  color: var(--color-danger);
+}
+
+button.nav-row.is-danger:hover,
+button.nav-row.is-danger:focus-visible {
+  background: var(--color-danger-weak);
+}
+
 .nav-avatar {
   width: 24px;
   height: 24px;

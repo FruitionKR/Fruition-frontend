@@ -27,9 +27,14 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .agent-panel {
+  :root:not([data-theme="light"]) .agent-panel {
     --agent-selecting-overlay: rgb(65 65 65 / 60%);
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .agent-panel {
+  --agent-selecting-overlay: rgb(65 65 65 / 60%);
 }
 
 /* 폭 조절 핸들: 패널 왼쪽 가장자리 6px 히트 영역. 사이드바 핸들과 같이 커서만 바뀌고 hover/드래그 강조선은 그리지 않는다. */

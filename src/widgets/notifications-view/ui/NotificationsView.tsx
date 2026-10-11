@@ -4,15 +4,12 @@ import { useEffect, useId, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { formatNotificationTime, type NotificationCategory, type NotificationItem } from "../lib/notificationFeed";
 import type { NotificationFeed } from "../model/useNotificationFeed";
-import { NotificationSettings } from "./NotificationSettings";
 import styles from "./NotificationsView.module.css";
 
-type NotificationTab = NotificationCategory | "settings";
-
-const TABS: { id: NotificationTab; label: string }[] = [
+// 알림 설정은 설정 모달에서만 바꾼다. 알림 화면에는 설정 탭을 두지 않는다.
+const TABS: { id: NotificationCategory; label: string }[] = [
   { id: "workspace", label: "워크스페이스 알림" },
-  { id: "task", label: "작업 알림" },
-  { id: "settings", label: "알림 설정" }
+  { id: "task", label: "작업 알림" }
 ];
 
 const EMPTY_MESSAGES: Record<NotificationCategory, string> = {
@@ -93,7 +90,7 @@ function NotificationRow({
 }
 
 /**
- * 알림 화면 (Figma 1486:3011 목록 / 1540:21203 알림 설정). 레일 알림 종으로 연다.
+ * 알림 화면 (Figma 1486:3011 목록). 레일 알림 종으로 연다.
  * 시안 상단 탭 바(GNB)는 웹에서는 쓰지 않아 뺐다.
  */
 export function NotificationsView({
@@ -104,7 +101,7 @@ export function NotificationsView({
   /** 작업 알림을 펼쳐 "로그에서 자세히 보기"를 누르면 로그 화면에서 그 작업을 연다 */
   onOpenOperation: (operationId: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<NotificationTab>("workspace");
+  const [activeTab, setActiveTab] = useState<NotificationCategory>("workspace");
   const [now, setNow] = useState(() => Date.now());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const tabIdPrefix = useId();
@@ -120,7 +117,7 @@ export function NotificationsView({
   }
 
   const panelId = `${tabIdPrefix}-panel`;
-  const list = activeTab === "settings" ? null : feed[activeTab];
+  const list = feed[activeTab];
 
   return (
     <section className={styles.notifications} aria-labelledby={`${tabIdPrefix}-title`}>
@@ -143,6 +140,13 @@ export function NotificationsView({
                 onClick={() => setActiveTab(tab.id)}
               >
                 {tab.label}
+                {/* 레일 알림 종의 노란 점과 같은 표시. 이 탭에 안 읽은 알림이 있을 때만 보인다. */}
+                {feed[tab.id].hasUnread && (
+                  <>
+                    <span className={styles["tab-badge"]} aria-hidden />
+                    <span className={styles["sr-only"]}>안 읽은 알림 있음</span>
+                  </>
+                )}
               </button>
             ))}
           </div>
@@ -158,14 +162,12 @@ export function NotificationsView({
       </header>
 
       <div id={panelId} role="tabpanel" aria-labelledby={`${tabIdPrefix}-tab-${activeTab}`} className={styles.panel}>
-        {list === null ? (
-          <NotificationSettings />
-        ) : list.errorMessage ? (
+        {list.errorMessage ? (
           <p className={styles.message} role="alert">{list.errorMessage}</p>
         ) : list.isLoading ? (
           <p className={styles.message} role="status">알림을 불러오는 중입니다.</p>
         ) : list.items.length === 0 ? (
-          <p className={styles.message}>{EMPTY_MESSAGES[activeTab as NotificationCategory]}</p>
+          <p className={styles.message}>{EMPTY_MESSAGES[activeTab]}</p>
         ) : (
           <ul className={styles.list}>
             {list.items.map((item) => (

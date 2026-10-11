@@ -13,7 +13,6 @@ import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import type { WorkspaceResponse } from "@/entities/workspace";
-import { cx } from "@/shared/lib/classNames";
 import { SidebarWorkspaceChevronIcon } from "./SidebarIcons";
 import { canLeaveWorkspace, getWorkspaceMenuRole, type WorkspaceMenuRole } from "../model/workspaceMenu";
 import styles from "./DocumentSidebar.module.css";
@@ -56,10 +55,9 @@ const ACTION_COPY: Record<WorkspaceAction, { title: string; description: (name: 
 /**
  * 사이드바 상단 바 왼쪽 워크스페이스 전환 버튼 (Figma 1527:16277: 28px 첫 글자 상자 + 이름 + 셰브론).
  * 누르면 아래로 워크스페이스 전환 메뉴를 연다. 진행 중 작업 팝오버는 WikiWorkButton으로 옮겼다.
- * variant="rail": 접힌 레일 맨 아래 36px 이니셜 상자 (Figma 1540:17970). 메뉴는 레일 오른쪽으로 연다.
+ * 사이드바를 접으면 보이지 않는다(Figma 1540:18686: 접힌 레일에는 워크스페이스 버튼이 없다).
  */
-export function SidebarWorkspaceHeader({ variant = "topbar" }: { variant?: "topbar" | "rail" }) {
-  const isRail = variant === "rail";
+export function SidebarWorkspaceHeader() {
   const selectedWorkspace = useSelectedWorkspace();
   const name = selectedWorkspace?.name ?? "워크스페이스";
   const [isOpen, setIsOpen] = useState(false);
@@ -156,11 +154,11 @@ export function SidebarWorkspaceHeader({ variant = "topbar" }: { variant?: "topb
   const pendingCopy = pendingAction ? ACTION_COPY[pendingAction.action] : null;
 
   return (
-    <div className={cx(styles["sidebar-workspace"], isRail && styles["is-rail"])} ref={rootRef}>
+    <div className={styles["sidebar-workspace"]} ref={rootRef}>
       {isCreating && <LoadingOverlay message="워크스페이스 생성 중…" />}
       {runningAction && <LoadingOverlay message={ACTION_COPY[runningAction].pending} />}
-      {/* 상단 바는 말풍선을 아래로, 레일은 오른쪽으로 띄운다. 드롭다운이 열려 있으면 숨긴다. */}
-      <Tooltip content="워크스페이스 전환" placement={isRail ? "right" : "bottom"} disabled={isOpen} describe={false}>
+      {/* 말풍선은 아래로 띄우고, 드롭다운이 열려 있으면 숨긴다. */}
+      <Tooltip content="워크스페이스 전환" placement="bottom" disabled={isOpen} describe={false}>
         <button
           type="button"
           className={styles["sidebar-workspace-trigger"]}
@@ -172,12 +170,10 @@ export function SidebarWorkspaceHeader({ variant = "topbar" }: { variant?: "topb
           }}
         >
           <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} />
-          {!isRail && (
-            <span className={styles["sidebar-workspace-label"]}>
-              <span className={styles["sidebar-workspace-name"]}>{name}</span>
-              <SidebarWorkspaceChevronIcon className={styles["sidebar-workspace-chevron"]} />
-            </span>
-          )}
+          <span className={styles["sidebar-workspace-label"]}>
+            <span className={styles["sidebar-workspace-name"]}>{name}</span>
+            <SidebarWorkspaceChevronIcon className={styles["sidebar-workspace-chevron"]} />
+          </span>
         </button>
       </Tooltip>
 

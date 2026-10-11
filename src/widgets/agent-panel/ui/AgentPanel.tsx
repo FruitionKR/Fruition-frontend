@@ -47,7 +47,6 @@ const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string 
 
 export function AgentPanel({
   onClose,
-  onOpenWikiPage,
   onOpenSourceBlocks,
   onCreateMarkdownDocument,
   markdownEditContext,
@@ -57,7 +56,6 @@ export function AgentPanel({
   wikiEvidenceNotice
 }: {
   onClose: () => void;
-  onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft) => Promise<void>;
   markdownEditContext?: ActiveMarkdownEditContext | null;
@@ -464,7 +462,6 @@ export function AgentPanel({
         chatLoadErrorMessage={chatLoadErrorMessage}
         animatedMessageId={animatedMessageId}
         queryStages={queryStages}
-        onOpenWikiPage={onOpenWikiPage}
         onOpenSourceBlocks={onOpenSourceBlocks}
         isPairSelectionMode={isPairSelectionMode}
         pairSelectionKind={pairSelectionKind}

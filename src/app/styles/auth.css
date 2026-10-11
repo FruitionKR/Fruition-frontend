@@ -36,7 +36,7 @@
 /* 라이트(Figma UXUI 인증 화면): 흰색 + 파랑 강조. 값은 base.css 라이트 토큰과 같으므로 토큰을 참조한다.
    다크는 위 기본값(기존 인증 화면 색)을 그대로 쓴다. */
 @media (prefers-color-scheme: light) {
-  .auth-screen--login {
+  :root:not([data-theme="dark"]) .auth-screen--login {
     --auth-primary: var(--color-primary);
     --auth-on-primary: var(--color-on-primary);
     --auth-accent: var(--color-primary);
@@ -56,6 +56,28 @@
     --auth-prompt: var(--color-body);
     --auth-prompt-disabled: var(--color-muted);
   }
+}
+
+/* 설정에서 라이트 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="light"] .auth-screen--login {
+  --auth-primary: var(--color-primary);
+  --auth-on-primary: var(--color-on-primary);
+  --auth-accent: var(--color-primary);
+  --auth-bg: var(--color-canvas);
+  --auth-ink: var(--color-foreground);
+  --auth-input-bg: var(--color-canvas);
+  --auth-input-border: var(--color-border);
+  --auth-placeholder: var(--color-placeholder);
+  --auth-icon: var(--color-muted);
+  --auth-timer: var(--color-muted);
+  --auth-error-bg: var(--color-danger-weak);
+  --auth-error-ink: var(--color-foreground);
+  --auth-link: var(--color-body);
+  --auth-link-divider: var(--color-muted);
+  --auth-divider: var(--color-placeholder);
+  --auth-caption: var(--color-body);
+  --auth-prompt: var(--color-body);
+  --auth-prompt-disabled: var(--color-muted);
 }
 
 .auth-shell {

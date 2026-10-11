@@ -109,7 +109,9 @@ export function useNotificationFeed(isViewActive: boolean) {
   );
 
   const allItems = useMemo(() => [...workspaceItems, ...taskItems], [taskItems, workspaceItems]);
-  const hasUnread = allItems.some(isUnread);
+  const hasUnreadWorkspace = workspaceItems.some(isUnread);
+  const hasUnreadTask = taskItems.some(isUnread);
+  const hasUnread = hasUnreadWorkspace || hasUnreadTask;
 
   const markRead = useCallback((id: string) => {
     updateReadState((current) => markNotificationRead(current, id));
@@ -122,11 +124,13 @@ export function useNotificationFeed(isViewActive: boolean) {
   return {
     workspace: {
       items: workspaceItems,
+      hasUnread: hasUnreadWorkspace,
       isLoading: membersQuery.isPending && Boolean(workspaceId),
       errorMessage: membersQuery.error ? getErrorMessage(membersQuery.error, "멤버 목록을 불러오지 못했습니다.") : null
     },
     task: {
       items: taskItems,
+      hasUnread: hasUnreadTask,
       isLoading: tasksQuery.isPending && Boolean(workspaceId),
       errorMessage: tasksQuery.error ? getErrorMessage(tasksQuery.error, "작업 알림을 불러오지 못했습니다.") : null
     },

@@ -11,9 +11,14 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .settings {
+  :root:not([data-theme="light"]) .settings {
     --settings-field-bg: #181818;
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .settings {
+  --settings-field-bg: #181818;
 }
 
 .settings-inner {

@@ -21,7 +21,7 @@ export function SidebarChevronIcon({ className }: IconProps) {
   );
 }
 
-/** + (Figma PlusOutline). FILE 제목 16px, 새 페이지 추가 20px 두 크기가 같은 비율이라 size로 맞춘다. */
+/** + (Figma PlusOutline). 16px·20px(새 노트 추가) 두 크기가 같은 비율이라 size로 맞춘다. */
 export function SidebarPlusIcon({ className, size = 16 }: IconProps & { size?: 16 | 20 }) {
   return (
     <svg aria-hidden className={className} width={size} height={size} viewBox="0 0 20 20" fill="none">
@@ -49,12 +49,3 @@ export function SidebarWorkspaceChevronIcon({ className }: IconProps) {
   );
 }
 
-/** 사이드바 접기 (Figma 1527:16285 icon). Figma 에셋의 바깥 stroke 여백까지 포함한 크기다. */
-export function SidebarCollapseIcon({ className }: IconProps) {
-  return (
-    <svg aria-hidden className={className} width="14.4909" height="13.4" viewBox="0 0 14.4909 13.4" fill="none">
-      <rect x="0.7" y="0.7" width="13.0909" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M8.28827 0.700548L8.28827 3.15577C8.28831 3.32936 8.3573 3.49581 8.48005 3.61854L10.0601 5.19861C10.1829 5.32133 10.2519 5.48779 10.2519 5.66137L10.2519 7.73759C10.2519 7.91117 10.1829 8.07763 10.0601 8.20036L8.48005 9.78043C8.3573 9.90315 8.28831 10.0696 8.28827 10.2432L8.28827 12.6997" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}

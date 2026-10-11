@@ -11,6 +11,12 @@
   color: var(--color-foreground);
 }
 
+/* 알림 화면의 버튼은 hover·클릭 때 배경 상자를 띄우지 않는다(공통 hover 오버레이·모바일 탭 강조 끔). */
+.notifications button {
+  --button-hover-overlay: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Hero block (Figma 1486:3174): 위 48 · 좌우 40, 제목과 탭 사이 24 */
 .hero {
   display: flex;
@@ -78,8 +84,17 @@
   transition: color 150ms ease-out, border-color 150ms ease-out;
 }
 
-.tab:hover {
-  color: var(--color-body);
+/* 안 읽은 알림 점: 레일 알림 종 배지(RailBellIcon)와 같은 6px 주황 점·캔버스 테두리·그림자 */
+.tab-badge {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  margin-bottom: 10px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 50%;
+  background: var(--color-notification-dot);
+  filter: drop-shadow(0 1px 2px var(--color-notification-dot-shadow));
 }
 
 .tab.is-active {
@@ -109,10 +124,6 @@
   white-space: nowrap;
   cursor: pointer;
   transition: opacity 150ms ease-out;
-}
-
-.read-all:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-primary-weak));
 }
 
 .read-all:disabled {
@@ -153,10 +164,6 @@
   text-align: left;
   cursor: pointer;
   transition: background-color 150ms ease-out;
-}
-
-.row-button:hover {
-  background: var(--color-hover-overlay);
 }
 
 .row-icon {
@@ -306,10 +313,6 @@
   cursor: pointer;
 }
 
-.detail-link:hover {
-  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-primary-weak));
-}
-
 .detail-link:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
@@ -333,52 +336,6 @@
   color: var(--color-danger);
 }
 
-/* 알림 설정 (Figma 1540:21375): 좌우 48 · 위아래 16, 행 간격 12 */
-.settings {
-  margin: 0;
-  padding: 16px 48px;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.setting-row {
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 0;
-}
-
-.setting-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.setting-text strong {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.28px;
-  color: var(--color-body);
-}
-
-.setting-text span {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: -0.24px;
-  color: var(--color-muted);
-}
-
-.setting-text .setting-error {
-  color: var(--color-danger);
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -388,14 +345,15 @@
   white-space: nowrap;
 }
 
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .tab,
-  .read-all,
-  .row-button {
+  :root:not([data-reduce-motion="false"]) .tab,
+  :root:not([data-reduce-motion="false"]) .read-all,
+  :root:not([data-reduce-motion="false"]) .row-button {
     transition: none;
   }
 
-  .row-detail-inner {
+  :root:not([data-reduce-motion="false"]) .row-detail-inner {
     animation: none;
   }
 }

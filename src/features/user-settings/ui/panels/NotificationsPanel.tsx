@@ -13,7 +13,7 @@ const NOTIFICATION_ROWS: { key: NotificationKey; label: string; description: str
   { key: "browser", label: "브라우저 알림", description: "탭이 백그라운드일 때 브라우저 알림으로도 보냅니다." }
 ];
 
-/** 알림 설정 패널 (Figma 963:8257). 토글 규칙은 알림 화면 설정 탭과 같은 useNotificationToggles를 쓴다. */
+/** 알림 설정 패널 (Figma 963:8257). 알림 설정은 이 패널에서만 바꾼다. */
 export function NotificationsPanel() {
   const { checkedValues, browserMessage, toggleNotification } = useNotificationToggles();
 

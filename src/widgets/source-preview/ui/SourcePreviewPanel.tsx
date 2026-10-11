@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { useUserPreferences } from "@/entities/user";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl } from "@/entities/document";
@@ -127,7 +128,11 @@ export function SourcePreviewPanel({
   const isPdfFile = isPdfOrOther && hasPdfExtension(title);
   const isTextFile = isPdfOrOther && hasTextExtension(title);
   const visibleTitle = isMarkdownFile ? getMarkdownDocumentTitle(title) : title;
-  const saveStatusLabel = SAVE_STATUS_LABELS[noteSaveStatus];
+  // 자동 저장을 끄면 저장 전 편집분이 남으므로 "저장 안 됨"을 보여 준다(켜져 있으면 곧 저장 중으로 바뀌어 표시하지 않는다).
+  const { preferences } = useUserPreferences();
+  const saveStatusLabel = noteSaveStatus === "dirty" && !preferences.autoSave
+    ? "저장 안 됨 · Cmd/Ctrl+S"
+    : SAVE_STATUS_LABELS[noteSaveStatus];
   const editableNote = useMemo(() => {
     if (rawMarkdown === null || !documentId) return null;
     const split = splitEditableNoteMarkdown(rawMarkdown) ?? {

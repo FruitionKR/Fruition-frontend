@@ -32,6 +32,7 @@ import { $prose } from "@milkdown/utils";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
 import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/externalResources";
 import { publishNotice } from "@/features/document-notifications";
+import { useUserPreferences } from "@/entities/user";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { configureMathEditor } from "../model/mathEditor";
@@ -91,12 +92,14 @@ export function NoteEditor({
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
+  const { preferences } = useUserPreferences();
   const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
     documentId,
     marker,
     initialVersion,
     onDetachedSaveComplete,
-    onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved)
+    onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved),
+    autoSave: preferences.autoSave
   });
   // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
   const editLock = useEditLock({

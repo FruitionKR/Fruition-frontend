@@ -91,6 +91,12 @@
   line-height: 0;
 }
 
+/* 접기 아이콘 (workspace/sidebar_toggle.svg 15×14) */
+.sidebar-collapse-icon {
+  width: 15px;
+  height: 14px;
+}
+
 .sidebar-collapse:not(:disabled):hover,
 .sidebar-collapse:focus-visible {
   --button-hover-overlay: none;
@@ -399,24 +405,6 @@
   outline-offset: 1px;
 }
 
-/* 접힌 레일 맨 아래 워크스페이스 이니셜 상자 (Figma 1540:17970): 36px, 16px 글자 */
-.sidebar-workspace.is-rail .sidebar-workspace-trigger {
-  height: 36px;
-}
-
-.sidebar-workspace.is-rail .sidebar-workspace-mark {
-  width: 36px;
-  height: 36px;
-  font-size: 16px;
-}
-
-/* 레일에서는 전환 메뉴를 상자 오른쪽에 아래 끝을 맞춰 연다. */
-.sidebar-workspace.is-rail .workspace-dropdown {
-  top: auto;
-  bottom: 0;
-  left: calc(100% + 8px);
-}
-
 /* 워크스페이스 버튼 아래로 열리는 전환 드롭다운 (Figma 500:6597) */
 .workspace-dropdown {
   position: absolute;
@@ -588,62 +576,6 @@
   font-size: 12px;
 }
 
-/* 프로필 버튼 오른쪽 위로 열리는 이름·설정·로그아웃 메뉴 */
-.profile-menu {
-  position: absolute;
-  bottom: 0;
-  left: calc(100% + 8px);
-  z-index: 30;
-  width: 160px;
-  padding: 5px;
-  background: var(--color-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px var(--color-shadow);
-}
-
-.profile-menu-user {
-  display: grid;
-  gap: 2px;
-  margin-bottom: 4px;
-  padding: 6px 9px 8px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.profile-menu-user strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-foreground);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.profile-menu-user small {
-  color: var(--color-status-success);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.profile-menu button {
-  width: 100%;
-  height: 31px;
-  padding: 0 9px;
-  color: var(--color-foreground);
-  background: transparent;
-  border-radius: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.profile-menu button:hover,
-.profile-menu button:focus-visible {
-  --button-hover-overlay: none;
-  background: var(--color-surface);
-}
-
 /* --- 루트 트리 --- */
 .tree-root {
   position: relative;
@@ -676,31 +608,6 @@
   text-transform: uppercase;
 }
 
-.tree-root-add {
-  width: 20px;
-  height: 20px;
-  margin-right: -2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--color-muted);
-  background: transparent;
-  border-radius: 5px;
-}
-
-.tree-root-add:hover,
-.tree-root-add:focus-visible {
-  --button-hover-overlay: none;
-  color: var(--color-body);
-  background: var(--color-surface);
-}
-
-.tree-root-add:focus-visible {
-  outline: 2px solid var(--color-primary-default);
-  outline-offset: 1px;
-}
-
 .tree-root-empty {
   margin: 0;
   padding: 12px 10px;
@@ -709,7 +616,7 @@
   line-height: 1.5;
 }
 
-/* 새 페이지 추가 (Figma 1486:4480): 좌우 10, 상하 12, + 20px */
+/* 새 노트 추가 (Figma 1486:4480 새 페이지 추가 자리): 좌우 10, 상하 12, + 20px */
 .tree-add-page {
   width: 100%;
   display: flex;
@@ -925,7 +832,7 @@
   background: var(--color-surface);
 }
 
-/* 폴더 행 우측 + 버튼: 평소엔 숨기고 행 hover·키보드 포커스 시 나타난다 */
+/* 폴더 행 우측 + 버튼: 평소엔 숨기고 행 hover·키보드 포커스 시 + 아이콘만 나타난다(배경 상자 없음) */
 .tree-row-action {
   position: absolute;
   top: 50%;
@@ -937,15 +844,16 @@
   justify-content: center;
   padding: 0;
   color: var(--color-muted);
-  background: var(--color-surface);
+  background: transparent;
   border-radius: 5px;
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 120ms ease;
 }
 
+/* 마우스로 누른 뒤 남는 포커스로는 보이지 않게 :focus-within 대신 키보드 포커스(:focus-visible)만 본다 */
 .tree-row-wrap:hover > .tree-row-action,
-.tree-row-wrap:focus-within > .tree-row-action {
+.tree-row-wrap:has(:focus-visible) > .tree-row-action {
   opacity: 1;
 }
 
@@ -953,7 +861,7 @@
 .tree-row-action:focus-visible {
   --button-hover-overlay: none;
   color: var(--color-body);
-  background: var(--color-surface-strong);
+  background: transparent;
 }
 
 .tree-row-action:focus-visible {

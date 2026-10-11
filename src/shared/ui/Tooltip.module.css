@@ -134,8 +134,9 @@
   }
 }
 
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .tooltip {
+  :root:not([data-reduce-motion="false"]) .tooltip {
     animation: none;
   }
 }

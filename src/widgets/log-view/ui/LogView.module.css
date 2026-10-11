@@ -8,6 +8,12 @@
   color: var(--color-foreground);
 }
 
+/* 로그 화면의 버튼은 hover·클릭 때 배경 상자를 띄우지 않는다(공통 hover 오버레이·모바일 탭 강조 끔). */
+.logs button {
+  --button-hover-overlay: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Hero block: 문서 제목과 같은 위 48px·좌우 40px 여백 */
 .logs-hero {
   display: flex;
@@ -72,12 +78,6 @@
   white-space: nowrap;
 }
 
-.tab:hover,
-.tab:focus-visible {
-  --button-hover-overlay: none;
-  color: var(--color-body);
-}
-
 .tab.is-active {
   color: var(--color-body);
   border-bottom-color: var(--color-muted);
@@ -99,12 +99,6 @@
   font-weight: 500;
   line-height: 1.4;
   white-space: nowrap;
-}
-
-.rollback-button:hover:not(:disabled),
-.rollback-button:focus-visible {
-  --button-hover-overlay: none;
-  background: var(--color-surface);
 }
 
 .rollback-button:disabled {
@@ -149,12 +143,6 @@
   border: 0;
   border-radius: 12px;
   text-align: left;
-}
-
-.group-header:hover,
-.group-header:focus-visible {
-  --button-hover-overlay: none;
-  background: var(--color-surface-strong);
 }
 
 .group-title {
@@ -274,6 +262,7 @@
 }
 
 .row-meta {
+  margin-top: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -290,6 +279,23 @@
   align-items: center;
   gap: 6px;
   color: var(--color-foreground);
+}
+
+/* 작업자 (Figma 1485:1725): 흰 1px 테두리의 20px 회색 원, 이름과 6px 간격 */
+.row-worker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.12px;
+}
+
+.row-worker-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  background: var(--color-border);
+  border: 1px solid var(--color-canvas);
+  border-radius: 9999px;
 }
 
 .row-status {

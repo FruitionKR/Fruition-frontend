@@ -29,7 +29,7 @@ export type NotificationReadState = {
 /** 개별 읽음 기록 상한. 오래된 것부터 버린다(전체 읽음 시각보다 오래된 알림은 어차피 읽음이다). */
 export const MAX_READ_IDS = 200;
 
-// 알림 설정 탭 항목 이름과 맞춘다 (Figma 1540:21375).
+// 작업 알림 제목에 쓰는 작업 종류 이름.
 const TASK_LABELS: Record<OperationType, string> = {
   ingest: "문서 처리",
   lint: "위키 다듬기",

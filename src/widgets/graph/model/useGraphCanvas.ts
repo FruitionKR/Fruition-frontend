@@ -192,13 +192,18 @@ export function useGraphCanvas({
     preloadRawNodeIcon(() => drawGraphRef.current());
   }, []);
 
-  // OS 색 모드가 바뀌면 팔레트가 달라지므로 시뮬레이션이 멈춰 있어도 다시 그린다.
+  // OS 색 모드나 고른 테마(html[data-theme])가 바뀌면 팔레트가 달라지므로 시뮬레이션이 멈춰 있어도 다시 그린다.
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mediaQuery = window.matchMedia(DARK_SCHEME_QUERY);
     const redraw = () => drawGraphRef.current();
     mediaQuery.addEventListener("change", redraw);
-    return () => mediaQuery.removeEventListener("change", redraw);
+    const themeObserver = new MutationObserver(redraw);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => {
+      mediaQuery.removeEventListener("change", redraw);
+      themeObserver.disconnect();
+    };
   }, []);
 
   useEffect(() => {

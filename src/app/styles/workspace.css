@@ -80,8 +80,9 @@
   }
 }
 
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .workspace > section {
+  :root:not([data-reduce-motion="false"]) .workspace > section {
     animation: none;
   }
 }
@@ -143,10 +144,18 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .workspace-api-error {
+  :root:not([data-theme="light"]) .workspace-api-error {
     --api-error-fg: #ffd0cc;
     --api-error-bg: #321917;
     --api-error-border: #7a3530;
     --api-error-button-bg: #71302c;
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .workspace-api-error {
+  --api-error-fg: #ffd0cc;
+  --api-error-bg: #321917;
+  --api-error-border: #7a3530;
+  --api-error-button-bg: #71302c;
 }

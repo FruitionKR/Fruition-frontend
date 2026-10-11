@@ -21,7 +21,7 @@ function browserPermissionMessage(permission: BrowserPermission) {
 }
 
 /**
- * 알림 설정 토글 (설정 모달 알림 패널·알림 화면 설정 탭 공용).
+ * 알림 설정 토글 (설정 모달 알림 패널).
  * 값은 사용자 설정(preferences.notifications)이고, 브라우저 알림은 켤 때 권한 승인이 선행돼야 한다.
  */
 export function useNotificationToggles() {

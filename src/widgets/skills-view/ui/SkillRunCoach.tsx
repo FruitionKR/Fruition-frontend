@@ -33,11 +33,7 @@ export function SkillRunCoach({
           <h2 id={titleId}>
             <em>실행할 문서</em>를 선택해주세요.
           </h2>
-          <p>
-            문서 스킬은 고칠 문서(또는 새 문서를 둘 위치)를
-            <br />
-            폴더 정리 스킬은 정리할 폴더를 고릅니다.
-          </p>
+          <p>스킬은 한 번에 문서 하나에 실행합니다.</p>
           {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
         </div>
         <div className={styles.actions}>

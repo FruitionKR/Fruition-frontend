@@ -388,6 +388,12 @@
   border-radius: 4px;
 }
 
+/* 패널 숨기기 아이콘 (workspace/sidebar_toggle.svg 15×14, 왼쪽 사이드바 접기와 같은 자산) */
+.panel-toggle-icon {
+  width: 15px;
+  height: 14px;
+}
+
 .panel-action:hover {
   --button-hover-overlay: none;
   background: var(--color-hover-overlay);

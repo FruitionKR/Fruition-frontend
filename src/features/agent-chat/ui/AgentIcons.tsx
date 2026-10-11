@@ -15,16 +15,6 @@ export function AgentChevronIcon({ className, isWide = false, strokeWidth = 1.4 
   );
 }
 
-/** 패널 숨기기 (Figma 1540:19121 사이드박스, 14×13 · 선 1.4 · radius 3) */
-export function AgentSideboxIcon() {
-  return (
-    <svg aria-hidden width="15.4" height="14.4" viewBox="0 0 15.4 14.4" fill="none">
-      <rect x="0.7" y="0.7" width="14" height="13" rx="3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8.7 0.7L8.7 3.36C8.7 3.548 8.77 3.728 8.895 3.861L10.505 5.573C10.63 5.706 10.7 5.887 10.7 6.075V8.324C10.7 8.512 10.63 8.692 10.505 8.825L8.895 10.537C8.77 10.67 8.7 10.851 8.7 11.039L8.7 13.7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 /** 옵션 ⋯ (Figma 1540:19125: 지름 1.6 점 + 선 1.4 = 지름 3 점 3개, 폭 14.2) */
 export function AgentMoreIcon() {
   return (

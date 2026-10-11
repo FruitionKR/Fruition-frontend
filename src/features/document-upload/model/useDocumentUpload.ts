@@ -44,11 +44,12 @@ export function useDocumentUpload({
     dropUploadFiles(target.projectId, target.folderId, files);
   }
 
-  function dropUploadFiles(projectId: string, folderId: string | null, files: File[]) {
+  /** 업로드가 끝나면 파일별 서버 응답(실패면 null)으로 풀린다. */
+  function dropUploadFiles(projectId: string, folderId: string | null, files: File[]): Promise<(DocumentItemResponse | null)[]> {
     const uploadFiles = files.filter(isSupportedUploadFile);
     setFileDropTarget(null);
     if (uploadFiles.length < files.length) setHasRejectedFiles(true);
-    if (uploadFiles.length === 0) return;
+    if (uploadFiles.length === 0) return Promise.resolve([]);
 
     // 파일과 업로드 항목을 쌍으로 묶어 인덱스 기반 병렬 배열 접근을 피한다.
     const uploads = uploadFiles.map((file) => ({
@@ -67,8 +68,8 @@ export function useDocumentUpload({
       return { ...project, items: appendItemsToFolder(project.items, folderId, uploadItems) };
     }));
 
-    uploads.forEach(({ file, item }) => {
-      void uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }))
+    return Promise.all(uploads.map(({ file, item }) =>
+      uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }))
         .then((response) => {
           setDocuments((current) => {
             const withoutCurrent = current.filter((document) => document.id !== response.id);
@@ -79,6 +80,7 @@ export function useDocumentUpload({
             return { ...project, items: applyUploadedDocument(project.items, item.id, response) };
           }));
           void refreshBackendData();
+          return response;
         })
         .catch((error: Error) => {
           setProjects((current) => current.map((project) => {
@@ -87,16 +89,19 @@ export function useDocumentUpload({
           }));
           // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
           void refreshBackendData().catch(() => {});
-        });
-    });
+          return null;
+        })
+    ));
   }
 
-  function createMarkdownFile(projectId: string, folderId: string | null) {
+  /** 새 노트를 업로드한다. 만들어진 문서(실패면 null)로 풀린다. */
+  async function createMarkdownFile(projectId: string, folderId: string | null): Promise<DocumentItemResponse | null> {
     const noteId = createClientId("note");
     // 본문은 비워 두고 편집기 placeholder로 안내한다. 제목은 파일 이름 input이 맡는다.
     const markdown = `<!-- fruition-note: ${noteId} -->\n`;
     const file = new File([markdown], availableDocumentName(projects, "새 노트.md", { projectId, folderId }), { type: "text/markdown" });
-    dropUploadFiles(projectId, folderId, [file]);
+    const [created] = await dropUploadFiles(projectId, folderId, [file]);
+    return created ?? null;
   }
 
   return {

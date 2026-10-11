@@ -1,33 +1,3 @@
-import type { ChatMessageReferenceResponse } from "@/entities/chat/model/chat";
-import type { GraphNode } from "@/entities/wiki/model/wiki";
-
-/** 첫 글자만 대문자로 바꾼다. */
-export function capitalize(value: string): string {
-  return value.slice(0, 1).toUpperCase() + value.slice(1);
-}
-
-/**
- * wiki page id로 표시용 제목을 만든다.
- * 그래프 노드 라벨이 있으면 우선 사용하고, 없으면 slug를 Title Case로 변환한다.
- */
-export function formatWikiPageTitle(
-  pageId: string | undefined,
-  nodes: GraphNode[] | undefined,
-  fallback = "근거"
-): string {
-  if (!pageId) return fallback;
-  if (nodes) {
-    const node = nodes.find((n) => n.id === pageId);
-    if (node?.label) return node.label;
-  }
-  const [, slug = pageId] = pageId.split(":");
-  return slug
-    .split("-")
-    .filter(Boolean)
-    .map(capitalize)
-    .join(" ");
-}
-
 // 답변에 새어 나오는 내부 블록 참조. B번호 부분은 백엔드 계약
 // (pipeline query/application/source_references.py의 `(?:[A-Za-z0-9_.-]+:)?B\d{4}`)과 동일하게
 // 접두사(원본 문서명)를 임의·생략 가능으로 두고, 실제 누출 사례인 `session_…:uuid` 형태를 더해 매칭한다.
@@ -66,12 +36,4 @@ export function formatAnswerMarkdown(content: string): string {
     const formatted = line.replace(SENTENCE_END, (_, cites: string) => `.${cites}\n\n`);
     return LINE_SENTENCE_END.test(formatted) && isPlainTextLine(lines[index + 1]) ? `${formatted}\n` : formatted;
   }).join("\n");
-}
-
-/** citation 근거의 block id와 본문을 합쳐 메타 문자열을 만든다. */
-export function formatReferenceMeta(reference: ChatMessageReferenceResponse): string {
-  const blockLabel = reference.source_block_ids?.length ? reference.source_block_ids.join(", ") : null;
-  const description = reference.text || "";
-
-  return [blockLabel, description].filter(Boolean).join(" · ") || "관련 근거";
 }

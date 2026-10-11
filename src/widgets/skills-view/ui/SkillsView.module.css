@@ -341,51 +341,6 @@
   color: color-mix(in srgb, var(--color-primary) 80%, black);
 }
 
-/* 꺼진 스위치: 설정 모달 스킬 패널과 같은 회색 트랙 + 흰 공 */
-.is-off[aria-checked="false"] { background: var(--color-placeholder); }
-.is-off[aria-checked="false"] span { background: #fff; }
-
-/* 상태 필터 (설정 모달 스킬 패널의 "상태" 드롭다운) */
-.filter-wrap {
-  position: relative;
-}
-
-.filter {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.filter:hover,
-.filter[aria-expanded="true"] {
-  background: var(--color-hover-overlay);
-  color: var(--color-body);
-}
-
-.filter.is-filtered {
-  color: var(--color-primary);
-}
-
-.filter:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.menu .is-selected {
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
 .more-button {
   width: 28px;
   height: 28px;
@@ -537,11 +492,12 @@
 .delete-dialog h2 { margin: 0 0 12px; font-size: 18px; }
 .delete-dialog p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; }
 
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .tab,
-  .icon-button,
-  .create-button,
-  .check {
+  :root:not([data-reduce-motion="false"]) .tab,
+  :root:not([data-reduce-motion="false"]) .icon-button,
+  :root:not([data-reduce-motion="false"]) .create-button,
+  :root:not([data-reduce-motion="false"]) .check {
     transition: none;
   }
 }

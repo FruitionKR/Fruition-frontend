@@ -1,22 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteSkill,
-  disableSkill,
   enableSkill,
   fetchSkills,
   updateSkill,
   type SkillResponse
 } from "@/entities/skill";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { skillToggleAction } from "../lib/skillTable";
+import { needsSkillEnable } from "../lib/skillTable";
 
 export type SkillDraft = { description: string; instructionsMarkdown: string };
 
 /**
- * 스킬 목록·사용 켜기/끄기·정의 수정·삭제. 스킬 만들기 위저드의 중복 커맨드 검사와
+ * 스킬 목록·정의 수정·삭제. 스킬은 항상 사용 상태로 두므로 꺼진 스킬은 불러오는 대로 켠다. 스킬 만들기 위저드의 중복 커맨드 검사와
  * 같은 쿼리 키(["skills", workspaceId])를 쓴다.
  */
 export function useSkillCatalog(workspaceId: string | null) {
@@ -36,15 +35,22 @@ export function useSkillCatalog(workspaceId: string | null) {
     );
   }
 
-  const toggleMutation = useMutation({
-    mutationFn: (skill: SkillResponse) =>
-      skillToggleAction(skill) === "disable" ? disableSkill(workspaceId ?? "", skill.id) : enableSkill(workspaceId ?? "", skill.id),
-    onSuccess: (updated) => {
-      setActionError(null);
-      replaceSkill(updated);
-    },
-    onError: (error: unknown) => setActionError(getErrorMessage(error, "스킬 사용 여부를 변경하지 못했습니다."))
-  });
+  // 켜기를 시도한 스킬 id. 실패해도 같은 스킬을 목록을 받을 때마다 다시 요청하지 않는다.
+  const enableAttemptedIds = useRef(new Set<string>());
+  useEffect(() => {
+    if (workspaceId == null) return;
+    const targets = (listQuery.data ?? []).filter(
+      (skill) => needsSkillEnable(skill) && !enableAttemptedIds.current.has(skill.id)
+    );
+    for (const skill of targets) {
+      enableAttemptedIds.current.add(skill.id);
+      enableSkill(workspaceId, skill.id)
+        .then(replaceSkill)
+        .catch((error: unknown) => setActionError(getErrorMessage(error, "스킬을 사용 상태로 바꾸지 못했습니다.")));
+    }
+    // replaceSkill은 queryKey로만 결정되어 목록·워크스페이스가 바뀔 때만 다시 본다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listQuery.data, workspaceId]);
 
   const updateMutation = useMutation({
     mutationFn: ({ skill, draft }: { skill: SkillResponse; draft: SkillDraft }) =>
@@ -69,7 +75,6 @@ export function useSkillCatalog(workspaceId: string | null) {
     isLoading: listQuery.isLoading,
     loadError: listQuery.error ? getErrorMessage(listQuery.error, "스킬 목록을 불러오지 못했습니다.") : null,
     actionError,
-    toggleMutation,
     updateMutation,
     deleteMutation,
     refresh: () => queryClient.invalidateQueries({ queryKey })

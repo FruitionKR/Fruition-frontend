@@ -115,9 +115,10 @@
   outline-offset: 2px;
 }
 
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .cancel,
-  .next {
+  :root:not([data-reduce-motion="false"]) .cancel,
+  :root:not([data-reduce-motion="false"]) .next {
     transition: none;
   }
 }

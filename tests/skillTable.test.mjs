@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  filterSkillsByState,
   filterSkillsByTab,
   isSkillEnabled,
+  needsSkillEnable,
   nextSkillSort,
   skillCommand,
   skillDescription,
-  skillToggleAction,
   sortSkills
 } from "../src/widgets/skills-view/lib/skillTable.ts";
 
@@ -40,16 +39,11 @@ test("enabled 상태라도 게시된 버전이 없으면 사용 중이 아니다
   assert.equal(isSkillEnabled(skill({ status: "disabled" })), false);
 });
 
-test("게시 버전이 남아 있어도 disabled 스킬은 OFF이고 스위치를 누르면 활성화한다", () => {
-  assert.equal(skillToggleAction(skill({ status: "disabled" })), "enable");
-  assert.equal(skillToggleAction(skill({})), "disable");
-});
-
-test("상태 필터는 사용 중 / 사용 안 함으로 거른다", () => {
-  const skills = [skill({ id: "on" }), skill({ id: "off", status: "disabled" })];
-  assert.deepEqual(filterSkillsByState(skills, "all").map((item) => item.id), ["on", "off"]);
-  assert.deepEqual(filterSkillsByState(skills, "enabled").map((item) => item.id), ["on"]);
-  assert.deepEqual(filterSkillsByState(skills, "disabled").map((item) => item.id), ["off"]);
+test("꺼진 스킬은 켤 버전이 있을 때만 자동으로 켠다", () => {
+  assert.equal(needsSkillEnable(skill({})), false);
+  assert.equal(needsSkillEnable(skill({ status: "disabled" })), true);
+  assert.equal(needsSkillEnable(skill({ enabled_version: null })), true);
+  assert.equal(needsSkillEnable(skill({ status: "disabled", enabled_version: null, latest_version: null })), false);
 });
 
 test("커맨드는 slash + slug, 설명은 게시 버전을 우선한다", () => {

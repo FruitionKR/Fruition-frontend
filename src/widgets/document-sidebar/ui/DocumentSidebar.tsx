@@ -11,7 +11,8 @@ import { RootTree } from "./RootTree";
 import { SidebarMenuRow } from "./SidebarMenuRow";
 import { SidebarProfile } from "./SidebarProfile";
 import { SidebarWorkspaceHeader } from "./SidebarWorkspaceHeader";
-import { SidebarCollapseIcon, SidebarPlusIcon, SidebarSearchIcon } from "./SidebarIcons";
+import { sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { SidebarPlusIcon, SidebarSearchIcon } from "./SidebarIcons";
 import { WikiWorkButton } from "./WikiWorkButton";
 import { DocumentSearch } from "@/features/document-search/ui/DocumentSearch";
 import type { SelectableTreeItem, TreeInteractionProps } from "../model/types";
@@ -66,6 +67,7 @@ export function DocumentSidebar({
   onCancelEditing,
   onRenameContextTarget,
   onAddMarkdownFromContext,
+  onCreateNote,
   onUploadFromContext,
   onConvertContextTarget,
   onDeleteContextTarget,
@@ -144,6 +146,8 @@ export function DocumentSidebar({
   onCancelEditing: () => void;
   onRenameContextTarget: () => void;
   onAddMarkdownFromContext: () => void;
+  /** 사이드바 맨 아래 "새 노트 추가": 최상위에 새 노트를 만들고 바로 연다 */
+  onCreateNote: (projectId: string) => void;
   onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
@@ -205,43 +209,26 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 위키 편입 선택 모드와 함께 감싼다.
   const projectTree = (
     <>
-      {/* FILE 제목 (Figma 1486:4167). 문서가 많아 빈 영역이 없어도 최상위에 만들 수 있도록 홈 뷰에는 + 버튼을 둔다. */}
+      {/* FILE 제목 (Figma 1486:4167). 최상위 생성은 아래 새 노트 추가와 빈 영역 우클릭 메뉴가 맡는다. */}
       {rootProject && (
         <div className={styles["tree-root-header"]}>
           <span>File</span>
-          {activeView === "home" && rootProject && (
-            <button
-              type="button"
-              className={styles["tree-root-add"]}
-              aria-label="최상위에 추가"
-              title="최상위에 추가"
-              aria-haspopup="menu"
-              data-folder-menu-trigger=""
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenFolderMenuAt(rootProject.id, null, event.currentTarget);
-              }}
-            >
-              <SidebarPlusIcon />
-            </button>
-          )}
         </div>
       )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
-      {/* 새 페이지 추가 (Figma 1486:4480): 최상위 생성 메뉴(새 폴더·새 노트·파일 업로드)를 연다. */}
+      {/* 새 노트 추가 (Figma 1486:4480 자리): 최상위에 새 노트를 바로 만들고 연다.
+          우클릭은 sidebar-content로 올라가 최상위 생성 메뉴(새 폴더·파일 업로드)를 연다. */}
       {activeView === "home" && rootProject && (
         <button
           type="button"
           className={styles["tree-add-page"]}
-          aria-haspopup="menu"
-          data-folder-menu-trigger=""
           onClick={(event) => {
             event.stopPropagation();
-            onOpenFolderMenuAt(rootProject.id, null, event.currentTarget);
+            onCreateNote(rootProject.id);
           }}
         >
           <SidebarPlusIcon size={20} />
-          새 페이지 추가
+          새 노트 추가
         </button>
       )}
       {contextMenu && (
@@ -317,8 +304,6 @@ export function DocumentSidebar({
             <>
               <RailDivider />
               <SidebarProfile />
-              {/* 접힌 상태에서는 워크스페이스 전환을 레일 맨 아래 이니셜 상자로 옮긴다 (Figma 1540:17970). */}
-              {isCollapsed && <SidebarWorkspaceHeader variant="rail" />}
             </>
           )}
         />
@@ -415,7 +400,7 @@ function SidebarToggleButton({ label, onToggle }: { label: string; onToggle?: ()
           onToggle?.();
         }}
       >
-        <SidebarCollapseIcon />
+        <SvgIcon src={sidebarToggleIcon} className={styles["sidebar-collapse-icon"]} />
       </button>
     </Tooltip>
   );

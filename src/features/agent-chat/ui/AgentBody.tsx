@@ -45,7 +45,6 @@ export function AgentBody({
   chatLoadErrorMessage,
   animatedMessageId,
   queryStages = [],
-  onOpenWikiPage,
   onOpenSourceBlocks,
   isPairSelectionMode,
   pairSelectionKind = "range",
@@ -68,7 +67,6 @@ export function AgentBody({
   chatLoadErrorMessage: string | null;
   animatedMessageId: string | null;
   queryStages?: QueryStageEvent[];
-  onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   isPairSelectionMode: boolean;
   pairSelectionKind?: ChatPairSelectionKind;
@@ -232,7 +230,6 @@ export function AgentBody({
                   isAnimated={message.id === animatedMessageId}
                   visibleAnswerStage={visibleAnswerStage}
                   nodes={nodes}
-                  onOpenWikiPage={onOpenWikiPage}
                   onOpenSourceBlocks={onOpenSourceBlocks}
                 />
               )

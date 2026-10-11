@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   fetchOperationLogDetail,
   fetchRestorePreview,
@@ -18,8 +19,10 @@ import {
 } from "@/entities/operation-log";
 import addIcon from "@/shared/assets/svg/log/add.svg";
 import deleteIcon from "@/shared/assets/svg/log/delete.svg";
+import { fetchMembers } from "@/entities/workspace/api/members";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
+import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import { formatRelativeTime } from "@/shared/lib/time";
@@ -210,6 +213,18 @@ export function LogView({
   const [locallyRestoredOperationIds, setLocallyRestoredOperationIds] = useState<ReadonlySet<string>>(new Set());
   // 선택이 바뀌면 이전 작업의 응답을 버린다. 늦게 온 응답이 다른 작업을 덮어쓰지 않게 한다.
   const requestIdRef = useRef(0);
+  // 작업자 이름은 멤버 목록에서 찾는다. 멤버 관리 패널·알림 화면과 같은 캐시를 쓴다.
+  const workspaceId = getSelectedWorkspaceId();
+  const membersQuery = useQuery({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => fetchMembers(workspaceId!),
+    enabled: Boolean(workspaceId),
+    retry: false
+  });
+  const memberNames = useMemo(
+    () => new Map((membersQuery.data ?? []).map((member) => [member.user_id, member.display_name || member.email])),
+    [membersQuery.data]
+  );
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
@@ -433,7 +448,15 @@ export function LogView({
                             </span>
                             <span className={styles["row-meta"]}>
                               <span className={styles["row-meta-info"]}>
-                                <span>변경 {item.changed_resource_count}건</span>
+                                {/* 작업자 (Figma 1485:1725): 프로필 원 + 이름. 응답에 작업자가 없으면 변경 건수를 둔다. */}
+                                {item.user_id ? (
+                                  <span className={styles["row-worker"]}>
+                                    <span className={styles["row-worker-icon"]} aria-hidden />
+                                    {memberNames.get(item.user_id) ?? "알 수 없는 작업자"}
+                                  </span>
+                                ) : (
+                                  <span>변경 {item.changed_resource_count}건</span>
+                                )}
                                 {rowStatusLabel && (
                                   <span className={cx(styles["row-status"], item.status === "failed" && styles["is-failed"])}>
                                     {rowStatusLabel}

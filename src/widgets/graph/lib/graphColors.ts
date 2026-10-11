@@ -1,3 +1,5 @@
+import { isDarkTheme } from "@/shared/lib/theme";
+
 /**
  * 그래프 캔버스 색상 팔레트.
  * canvas에는 CSS 변수가 직접 먹지 않으므로 테마별 hex를 둔다. 값은 base.css 토큰과 맞춘다.
@@ -82,10 +84,9 @@ const DARK_GRAPH_PALETTE: GraphPalette = {
 
 export const DARK_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
-/** OS 색 모드(prefers-color-scheme)에 맞는 그래프 팔레트를 고른다. 렌더 프레임마다 호출된다. */
+/** 화면 테마(고른 테마, 없으면 OS 색 모드)에 맞는 그래프 팔레트를 고른다. 렌더 프레임마다 호출된다. */
 export function getGraphPalette(): GraphPalette {
-  if (typeof window === "undefined" || !window.matchMedia) return LIGHT_GRAPH_PALETTE;
-  return window.matchMedia(DARK_SCHEME_QUERY).matches ? DARK_GRAPH_PALETTE : LIGHT_GRAPH_PALETTE;
+  return isDarkTheme() ? DARK_GRAPH_PALETTE : LIGHT_GRAPH_PALETTE;
 }
 
 /** "#rrggbb" hex를 [r, g, b] 정수 배열로 변환한다. */

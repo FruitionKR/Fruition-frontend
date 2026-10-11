@@ -13,7 +13,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --markdown-citation-1: #21b273;
     --markdown-citation-2: #f59e0a;
     --markdown-citation-3: #7ee787;
@@ -22,6 +22,17 @@
     --markdown-link: #8ab4e8;
     --markdown-code-foreground: #d0d7de;
   }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] {
+  --markdown-citation-1: #21b273;
+  --markdown-citation-2: #f59e0a;
+  --markdown-citation-3: #7ee787;
+  --markdown-citation-4: #ff9b72;
+  --markdown-citation-5: #d2a8ff;
+  --markdown-link: #8ab4e8;
+  --markdown-code-foreground: #d0d7de;
 }
 
 /* 문서 본문 타이포그래피 (Figma 1406:10314): foreground, Medium 14px, 행간 1.4.

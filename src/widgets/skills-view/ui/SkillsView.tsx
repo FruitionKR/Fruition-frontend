@@ -8,19 +8,15 @@ import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
-import { Switch } from "@/shared/ui/Switch";
 import {
-  filterSkillsByState,
   filterSkillsByTab,
   isPersonalSkill,
-  isSkillEnabled,
   nextSkillSort,
   skillCommand,
   skillDescription,
   sortSkills,
   type SkillSort,
   type SkillSortKey,
-  type SkillStateFilter,
   type SkillTab
 } from "../lib/skillTable";
 import { useSkillCatalog, type SkillDraft } from "../model/useSkillCatalog";
@@ -33,18 +29,12 @@ const TABS: { id: SkillTab; label: string }[] = [
   { id: "personal", label: "개인 스킬" }
 ];
 
-const STATE_FILTERS: { id: SkillStateFilter; label: string }[] = [
-  { id: "all", label: "전체" },
-  { id: "enabled", label: "사용 중" },
-  { id: "disabled", label: "사용 안 함" }
-];
-
 /** sortKey가 있는 열(커맨드·저장범위)만 머리글을 눌러 정렬한다 */
 const COLUMNS: { label: string; className: string; sortKey?: SkillSortKey }[] = [
   { label: "커맨드", className: "col-command", sortKey: "command" },
   { label: "설명", className: "col-description" },
   { label: "저장범위", className: "col-scope", sortKey: "scope" },
-  { label: "사용", className: "col-state" }
+  { label: "사용 상태", className: "col-state" }
 ];
 
 /** Figma check(20×20): 테두리 상자 + 체크 표시. 실제 입력은 시각적으로 숨긴 checkbox다. */
@@ -102,13 +92,10 @@ function ColumnHeader({ column, sort, onSort, children }: {
 export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) => void }) {
   const workspaceId = getSelectedWorkspaceId();
   const catalog = useSkillCatalog(workspaceId);
-  const { toggleMutation, updateMutation, deleteMutation } = catalog;
+  const { updateMutation, deleteMutation } = catalog;
   const idPrefix = useId();
 
   const [activeTab, setActiveTab] = useState<SkillTab>("all");
-  const [stateFilter, setStateFilter] = useState<SkillStateFilter>("all");
-  const [isStateMenuOpen, setIsStateMenuOpen] = useState(false);
-  const stateMenuRef = useDismissableMenu(isStateMenuOpen, () => setIsStateMenuOpen(false));
   const [sort, setSort] = useState<SkillSort>(null);
   const [searchText, setSearchText] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -132,11 +119,11 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
 
   const visibleSkills = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
-    const inTab = filterSkillsByState(filterSkillsByTab(catalog.skills, activeTab), stateFilter).filter((skill) =>
+    const inTab = filterSkillsByTab(catalog.skills, activeTab).filter((skill) =>
       keyword.length === 0 || `${skill.slug} ${skillDescription(skill)}`.toLowerCase().includes(keyword)
     );
     return sortSkills(inTab, sort);
-  }, [catalog.skills, activeTab, stateFilter, searchText, sort]);
+  }, [catalog.skills, activeTab, searchText, sort]);
 
   const isAllSelected = visibleSkills.length > 0 && visibleSkills.every((skill) => selectedIds.has(skill.id));
 
@@ -191,40 +178,6 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
             ))}
           </div>
           <div className={styles.actions}>
-            {/* 상태 필터 (설정 모달 스킬 패널에서 옮겨 옴). 시안에 없어 탭 줄 도구와 같은 톤으로 둔다. */}
-            <div className={styles["filter-wrap"]} ref={stateMenuRef}>
-              <button
-                type="button"
-                className={cx(styles.filter, stateFilter !== "all" && styles["is-filtered"])}
-                aria-haspopup="listbox"
-                aria-expanded={isStateMenuOpen}
-                onClick={() => setIsStateMenuOpen((open) => !open)}
-              >
-                {stateFilter === "all" ? "상태" : `상태 : ${STATE_FILTERS.find((option) => option.id === stateFilter)?.label}`}
-                <svg aria-hidden width="10" height="6" viewBox="0 0 10 6" fill="none">
-                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {isStateMenuOpen && (
-                <div className={styles.menu} role="listbox" aria-label="상태 선택">
-                  {STATE_FILTERS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="option"
-                      aria-selected={stateFilter === option.id}
-                      className={cx(stateFilter === option.id && styles["is-selected"])}
-                      onClick={() => {
-                        setStateFilter(option.id);
-                        setIsStateMenuOpen(false);
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
             {searchText && (
               <button type="button" className={styles["search-chip"]} aria-label="스킬 검색 해제" onClick={() => setSearchText("")}>
                 검색 : {searchText}
@@ -273,7 +226,6 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
 
           {visibleSkills.map((skill) => {
             const command = skillCommand(skill);
-            const isEnabled = isSkillEnabled(skill);
             const isEditing = editingId === skill.id;
             const isMenuOpen = openMenuId === skill.id;
             return (
@@ -300,18 +252,9 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
                   <div className={cx(styles.cell, styles["col-scope"])} role="cell">
                     <span className={styles.scope}>{isPersonalSkill(skill) ? "개인" : "팀"}</span>
                   </div>
-                  {/* 사용: 실행(Figma 1482:10981) + 사용 스위치(설정 모달 스킬 패널에서 옮겨 옴) */}
+                  {/* 사용 상태: 실행(Figma 1482:10981). 스킬은 항상 사용 상태다. */}
                   <div className={cx(styles.cell, styles["col-state"])} role="cell">
-                    <Switch
-                      checked={isEnabled}
-                      label={`${command} 사용`}
-                      offClassName={styles["is-off"]}
-                      disabled={toggleMutation.isPending}
-                      onClick={() => toggleMutation.mutate(skill)}
-                    />
-                    {isEnabled && (
-                      <button type="button" className={styles.run} onClick={() => onRunSkill(skill)}>실행</button>
-                    )}
+                    <button type="button" className={styles.run} onClick={() => onRunSkill(skill)}>실행</button>
                   </div>
                   <div className={styles["col-more"]} role="cell" ref={isMenuOpen ? menuRef : undefined}>
                     <button
