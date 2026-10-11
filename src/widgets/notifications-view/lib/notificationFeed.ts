@@ -139,12 +139,15 @@ export function markNotificationRead(state: NotificationReadState, id: string): 
   return { ...state, readIds: [...state.readIds, id].slice(-MAX_READ_IDS) };
 }
 
-/** 서버 시각이 브라우저 시계보다 앞서도 지금 보이는 알림이 모두 읽음이 되도록 가장 늦은 알림 시각까지 올린다. */
+/**
+ * 지금 보이는 알림을 모두 읽음으로 하는 상태. 기준 시각을 가장 늦은 알림 시각(서버 시각)까지 올린다.
+ * floor는 그보다 내려가지 않을 하한(이전 기준 시각 등)이다. 브라우저 시각을 넣으면 시계가 빠를 때 새 알림이 묻힌다.
+ */
 export function markAllNotificationsRead(
   items: readonly Pick<NotificationItem, "occurredAt">[],
-  now: number
+  floor: number
 ): NotificationReadState {
-  const latest = items.reduce((max, item) => Math.max(max, item.occurredAt), now);
+  const latest = items.reduce((max, item) => Math.max(max, item.occurredAt), floor);
   return { lastReadAt: latest, readIds: [] };
 }
 

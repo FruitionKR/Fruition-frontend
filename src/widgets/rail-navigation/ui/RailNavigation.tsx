@@ -109,7 +109,7 @@ export function RailNavigation({
               key={id}
               label={label}
               isActive={isActive(activeView)}
-              aria-pressed={isActive(activeView)}
+              aria-current={isActive(activeView) ? "page" : undefined}
               onClick={(event) => {
                 event.stopPropagation();
                 onViewChange(id);
@@ -123,7 +123,7 @@ export function RailNavigation({
             label="알림"
             tooltipHint={hasUnreadNotifications ? "안 읽은 알림이 있습니다" : undefined}
             isActive={activeView === "notifications"}
-            aria-pressed={activeView === "notifications"}
+            aria-current={activeView === "notifications" ? "page" : undefined}
             onClick={(event) => {
               event.stopPropagation();
               onViewChange("notifications");

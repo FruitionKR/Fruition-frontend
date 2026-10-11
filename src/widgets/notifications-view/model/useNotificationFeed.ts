@@ -46,7 +46,7 @@ function writeStoredState(key: string, state: NotificationReadState) {
  * 알림 목록(워크스페이스·작업)과 읽음 상태.
  * 백엔드에 알림 피드·읽음 API가 없어 작업 로그·멤버 목록으로 목록을 만들고,
  * 읽음은 사용자·워크스페이스별 localStorage에 "마지막으로 모두 읽은 시각 + 개별 읽은 id"로 둔다.
- * 처음 쓰는 브라우저는 지금을 기준점으로 삼아 과거 이력 전체가 안 읽음으로 뜨지 않게 한다.
+ * 처음 쓰는 브라우저는 받은 목록의 가장 최근 시각을 기준점으로 삼아 과거 이력 전체가 안 읽음으로 뜨지 않게 한다.
  */
 export function useNotificationFeed(isViewActive: boolean) {
   const { data: me } = useMe();
@@ -75,31 +75,38 @@ export function useNotificationFeed(isViewActive: boolean) {
     [membersQuery.data, me?.id]
   );
 
-  const [readState, setReadState] = useState<NotificationReadState | null>(null);
+  const allItems = useMemo(() => [...workspaceItems, ...taskItems], [taskItems, workspaceItems]);
 
-  // 사용자·워크스페이스가 정해지면 저장된 읽음 상태를 읽고, 없으면 지금을 기준점으로 저장한다.
+  // 읽음 상태를 저장 키와 함께 둔다. 워크스페이스를 바꾼 직후 한 렌더 동안 이전 워크스페이스 상태가 섞이지 않게 한다.
+  const [stored, setStored] = useState<{ key: string; state: NotificationReadState | null } | null>(null);
+  const readState = stored && stored.key === storageKey ? stored.state : null;
+  const isFeedSettled = !tasksQuery.isPending && !membersQuery.isPending;
+
+  // 사용자·워크스페이스가 정해지면 저장된 읽음 상태를 읽는다.
   useEffect(() => {
-    if (!storageKey) {
-      setReadState(null);
-      return;
-    }
-    const stored = readStoredState(storageKey);
-    if (stored) {
-      setReadState(stored);
-      return;
-    }
-    const baseline: NotificationReadState = { lastReadAt: Date.now(), readIds: [] };
-    writeStoredState(storageKey, baseline);
-    setReadState(baseline);
+    setStored(storageKey ? { key: storageKey, state: readStoredState(storageKey) } : null);
   }, [storageKey]);
+
+  // 처음 쓰는 브라우저는 목록을 받은 뒤 그 가장 최근 알림 시각을 기준점으로 저장해, 과거 이력이 안 읽음으로 뜨지 않게 한다.
+  // 알림 시각은 서버 값이라 기준점도 서버 시각으로 잡는다(브라우저 시계가 빠르면 새 알림이 처음부터 읽음이 된다).
+  // 목록을 못 받은 쪽이 있으면 그 이력은 알 수 없으니 지금을 기준점에 더한다.
+  useEffect(() => {
+    if (!storageKey || stored?.key !== storageKey || stored.state || !isFeedSettled) return;
+    if (readStoredState(storageKey)) return;
+    const hasFailedFeed = Boolean(tasksQuery.error || membersQuery.error);
+    const baseline = markAllNotificationsRead(allItems, hasFailedFeed ? Date.now() : 0);
+    writeStoredState(storageKey, baseline);
+    setStored({ key: storageKey, state: baseline });
+  }, [allItems, isFeedSettled, membersQuery.error, storageKey, stored, tasksQuery.error]);
 
   const updateReadState = useCallback((update: (current: NotificationReadState) => NotificationReadState) => {
     if (!storageKey) return;
-    setReadState((current) => {
-      if (!current) return current;
-      const next = update(current);
-      if (next !== current) writeStoredState(storageKey, next);
-      return next;
+    setStored((current) => {
+      if (!current || current.key !== storageKey || !current.state) return current;
+      const next = update(current.state);
+      if (next === current.state) return current;
+      writeStoredState(storageKey, next);
+      return { key: storageKey, state: next };
     });
   }, [storageKey]);
 
@@ -108,7 +115,6 @@ export function useNotificationFeed(isViewActive: boolean) {
     [readState]
   );
 
-  const allItems = useMemo(() => [...workspaceItems, ...taskItems], [taskItems, workspaceItems]);
   const hasUnreadWorkspace = workspaceItems.some(isUnread);
   const hasUnreadTask = taskItems.some(isUnread);
   const hasUnread = hasUnreadWorkspace || hasUnreadTask;
@@ -118,7 +124,8 @@ export function useNotificationFeed(isViewActive: boolean) {
   }, [updateReadState]);
 
   const markAllRead = useCallback(() => {
-    updateReadState(() => markAllNotificationsRead(allItems, Date.now()));
+    // 서버 시각 기준으로 올린다. 브라우저 시각을 쓰면 시계가 빠를 때 그 사이 새 알림이 읽음으로 묻힌다.
+    updateReadState((current) => markAllNotificationsRead(allItems, current.lastReadAt));
   }, [allItems, updateReadState]);
 
   return {

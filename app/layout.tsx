@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import "katex/dist/katex.min.css";
 import { Providers } from "@/app/providers";
 import "@/app/styles/globals.css";
+import { readCspNonce } from "@/shared/lib/contentSecurityPolicy";
 import { THEME_INIT_SCRIPT } from "@/shared/lib/theme";
 
 // CSP nonce가 요청마다 달라 미리 만든 HTML로는 스크립트가 막힌다. 모든 화면을 요청 때 렌더링한다(이슈 #77).
@@ -19,7 +20,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // middleware가 요청 헤더의 CSP에 넣은 nonce. 인라인 테마 스크립트도 이 nonce로만 실행된다.
-  const nonce = (await headers()).get("content-security-policy")?.match(/'nonce-([^']+)'/)?.[1];
+  const nonce = readCspNonce((await headers()).get("content-security-policy"));
   return (
     // 테마 스크립트가 hydration 전에 data-theme을 붙이므로 그 속성 차이는 경고하지 않는다.
     <html lang="ko" suppressHydrationWarning>

@@ -57,11 +57,11 @@ export async function fetchWorkspaceIcon(workspaceId: string): Promise<Blob> {
 }
 
 /**
- * 워크스페이스 저장 용량과 플랜별 파일 크기 제한을 조회한다.
- * 백엔드가 아직 이 API를 제공하지 않으면(404) null을 돌려주고, 업로드 전 검사를 건너뛴다.
+ * 워크스페이스 플랜·저장 용량·사용량을 조회한다.
+ * 백엔드가 아직 이 API를 제공하지 않으면(404) null을 돌려준다.
  */
-export async function fetchWorkspaceStorage(workspaceId: string): Promise<WorkspaceStorageResponse | null> {
-  const response = await apiFetch(workspacePath(workspaceId, "storage"), { cache: "no-store" });
+export async function fetchWorkspaceStorage(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceStorageResponse | null> {
+  const response = await apiFetch(workspacePath(workspaceId, "storage"), { cache: "no-store", signal });
   if (response.status === 404) return null;
   return parseJsonOrThrow<WorkspaceStorageResponse>(response, "저장 용량을 불러오지 못했습니다.");
 }

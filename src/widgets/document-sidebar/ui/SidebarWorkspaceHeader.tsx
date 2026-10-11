@@ -149,8 +149,11 @@ export function SidebarWorkspaceHeader() {
         return;
       }
       setWorkspaces((current) => current.filter((item) => item.id !== workspace.id));
-      // 삭제·탈퇴로 소유 수가 줄었을 수 있다. 다시 막혀야 하면 서버가 생성을 거절하고 그 안내를 보여 준다.
-      setIsCreateLimitReached(false);
+      // 무료 소유 수는 삭제·탈퇴한 워크스페이스의 역할·플랜에 따라 달라 서버 값으로 다시 맞춘다.
+      // 다시 받지 못하면 지금 상태를 둔다. 메뉴를 다시 열면 새로 받고, 어긋나도 서버가 생성을 거절한다.
+      fetchWorkspaces()
+        .then((response) => setIsCreateLimitReached(isFreeWorkspaceLimitReached(response.free_workspace_count, response.free_workspace_limit)))
+        .catch(() => {});
     } catch (error: unknown) {
       setIsOpen(true);
       setLoadErrorMessage(getErrorMessage(error, ACTION_COPY[action].failed));

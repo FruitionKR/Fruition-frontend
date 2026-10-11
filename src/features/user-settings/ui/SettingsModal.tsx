@@ -146,6 +146,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
             <button
               type="button"
               className={`${styles["nav-row"]} ${activeSection === "profile" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "profile" ? "page" : undefined}
               aria-label={`프로필 설정 (${name})`}
               onClick={() => setActiveSection("profile")}
             >
@@ -155,6 +156,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
             <button
               type="button"
               className={`${styles["nav-row"]} ${activeSection === "account" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "account" ? "page" : undefined}
               onClick={() => setActiveSection("account")}
             >
               <AccountIcon className={styles["nav-icon"]} />
@@ -163,6 +165,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
             <button
               type="button"
               className={`${styles["nav-row"]} ${activeSection === "notifications" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "notifications" ? "page" : undefined}
               onClick={() => setActiveSection("notifications")}
             >
               <SvgIcon src={bellIcon} className={styles["nav-icon"]} />
@@ -174,6 +177,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
             <button
               type="button"
               className={`${styles["nav-row"]} ${activeSection === "preferences" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "preferences" ? "page" : undefined}
               onClick={() => setActiveSection("preferences")}
             >
               <SvgIcon src={settingIcon} className={styles["nav-icon"]} />
@@ -182,6 +186,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
             <button
               type="button"
               className={`${styles["nav-row"]} ${activeSection === "general" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "general" ? "page" : undefined}
               onClick={() => setActiveSection("general")}
             >
               <WorkspaceIcon className={styles["nav-icon"]} />
@@ -190,6 +195,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
             <button
               type="button"
               className={`${styles["nav-row"]} ${activeSection === "members" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "members" ? "page" : undefined}
               onClick={() => setActiveSection("members")}
             >
               <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />

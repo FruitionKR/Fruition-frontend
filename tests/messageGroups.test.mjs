@@ -61,6 +61,14 @@ test("한 근거가 여러 문서를 가리키면(source_refs) 각 원본을 모
   ]);
 });
 
+test("그래프를 아직 받지 못했으면 문서 id가 제목으로 보이지 않게 찾은 자료를 미룬다", () => {
+  const cards = buildSourceDocumentCards({
+    id: "a", role: "assistant", content: "",
+    references: [{ id: 1, reference_type: "evidence", rank: 1, source_document_id: "doc-1", source_block_ids: ["B1"] }]
+  }, undefined);
+  assert.deepEqual(cards, []);
+});
+
 test("근거가 없으면 찾은 자료도 없다", () => {
   assert.deepEqual(buildSourceDocumentCards({ id: "a", role: "assistant", content: "", references: [] }, nodes), []);
 });

@@ -28,15 +28,15 @@ function referenceLocations(reference: ChatMessageReferenceResponse): { document
  * "찾은 자료": 답변 근거(references)로 쓰인 원본 문서를 rank 순서로 하나씩 모은다.
  * related_pages는 위키(concept 등) 페이지라 원본이 아니므로 쓰지 않는다.
  * 그래프에 raw 노드가 없는 문서(삭제됨 등)는 열 수 없어 뺀다.
+ * 그래프를 아직 받지 못했으면 제목을 알 수 없어(문서 id가 그대로 보인다) 받은 뒤에 보여 준다.
  */
 export function buildSourceDocumentCards(message: ChatMessageResponse, nodes: GraphNode[] | undefined): SourceDocumentCard[] {
+  if (!nodes) return [];
   const sorted = [...message.references].sort((a, b) => (a.rank ?? UNRANKED) - (b.rank ?? UNRANKED));
   const cards = new Map<string, SourceDocumentCard>();
   for (const reference of sorted) {
     for (const { documentId, blockId } of referenceLocations(reference)) {
-      const title = nodes
-        ? nodes.find((node) => node.id === makeRawId(documentId))?.label
-        : documentId;
+      const title = nodes.find((node) => node.id === makeRawId(documentId))?.label;
       if (!title) continue;
       const card = cards.get(documentId) ?? { key: `source-${documentId}`, documentId, title, meta: reference.text || "근거 원본", highlights: [] };
       const isNewBlock = blockId !== null && !card.highlights.some((item) => item.block_id === blockId);

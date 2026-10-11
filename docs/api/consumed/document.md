@@ -33,7 +33,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | `src/entities/workspace/api/workspace.ts` `fetchWorkspaceStorage` | `workspacePath(workspaceId, "storage")` | `cache: no-store` | `used_bytes`, `limit_bytes` | **백엔드 미구현(요구사항)**. 404면 `null`을 돌려주고 업로드 전 검사를 건너뛴다. 업로드 직전(`src/features/document-upload/model/useDocumentUpload.ts`)에만 부른다. 직접 전송 정규식에 없어 rewrite를 경유한다 |
+| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | `src/entities/workspace/api/workspace.ts` `fetchWorkspaceStorage` | `workspacePath(workspaceId, "storage")` | `cache: no-store` | `used_bytes`, `limit_bytes` | **백엔드 미구현(요구사항)**. 404면 `null`을 돌려준다. 업로드 직전(`src/features/document-upload/model/useDocumentUpload.ts`)에만 부르며, 404·오류·3초 초과면 사전 검사를 건너뛰고 서버 판단에 맡긴다. 404는 탭 단위로 기억해 다시 묻지 않고, 새 노트 만들기에서는 부르지 않는다. 직접 전송 정규식에 없어 rewrite를 경유한다 |
 
 업로드 실패의 `error.code`가 `STORAGE_QUOTA_EXCEEDED`면 서버 message 대신
 `describeLimitError`(`src/entities/workspace/model/limits.ts`)의 정해 둔 문구를 보여 준다.

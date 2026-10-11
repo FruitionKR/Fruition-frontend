@@ -271,6 +271,8 @@ export function useNoteAutosave({
     function handleBeforeUnload(event: BeforeUnloadEvent) {
       if (autoSaveRef.current || !scheduledSaveRef.current) return;
       event.preventDefault();
+      // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
+      event.returnValue = "";
     }
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
