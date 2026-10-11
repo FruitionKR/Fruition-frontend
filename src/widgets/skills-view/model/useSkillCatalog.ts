@@ -9,6 +9,7 @@ import {
   updateSkill,
   type SkillResponse
 } from "@/entities/skill";
+import { skillUpdateRequest } from "@/features/user-settings";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { needsSkillEnable } from "../lib/skillTable";
 
@@ -54,10 +55,7 @@ export function useSkillCatalog(workspaceId: string | null) {
 
   const updateMutation = useMutation({
     mutationFn: ({ skill, draft }: { skill: SkillResponse; draft: SkillDraft }) =>
-      updateSkill(workspaceId ?? "", skill.id, {
-        description: draft.description,
-        instructions_markdown: draft.instructionsMarkdown
-      }),
+      updateSkill(workspaceId ?? "", skill.id, skillUpdateRequest(skill, draft)),
     // PATCH 응답은 SkillResponse가 아니어서 목록을 다시 받는다.
     onSuccess: () => queryClient.invalidateQueries({ queryKey })
   });

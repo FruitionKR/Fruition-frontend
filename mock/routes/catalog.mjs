@@ -174,8 +174,12 @@ export function registerCatalogRoutes(router) {
     const skill = findSkill(ctx, workspace);
     if (!skill) return;
     const body = await ctx.body();
+    // 실제 백엔드처럼 세 필드를 모두 필수로 검증한다(SkillUpdateRequest @NotBlank).
+    if (!["name", "description", "instructions_markdown"].every((key) => typeof body[key] === "string" && body[key].trim())) {
+      return error(ctx, 400, "요청 값이 올바르지 않습니다.");
+    }
     const base = skill.latest_version ?? skill.enabled_version;
-    const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name ?? base.name, description: body.description ?? base.description, instructions_markdown: body.instructions_markdown ?? base.instructions_markdown };
+    const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown };
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;
     ctx.json(200, toAuthoringResult(skill, version));
