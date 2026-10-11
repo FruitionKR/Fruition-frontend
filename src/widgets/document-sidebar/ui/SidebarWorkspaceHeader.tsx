@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSelectedWorkspace } from "@/entities/workspace/model/useWorkspaceName";
 import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
-import { createWorkspace, deleteWorkspace, fetchWorkspaces } from "@/entities/workspace";
+import { createWorkspace, deleteWorkspace, describeLimitError, fetchWorkspaces, isFreeWorkspaceLimitReached } from "@/entities/workspace";
 import { fetchMembers, removeMember } from "@/entities/workspace/api/members";
 import { useMe } from "@/entities/user";
 import { clearSelectedWorkspaceId, getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/auth";
@@ -25,6 +25,9 @@ function switchWorkspace(workspaceId: string) {
 
 // 행 옵션 메뉴 너비. 채팅 세션 메뉴(.chat-session-menu-list)와 같다.
 const ROW_MENU_WIDTH = 132;
+
+// 무료 워크스페이스 소유 한도에 닿았을 때 새 워크스페이스 버튼의 안내
+const FREE_WORKSPACE_LIMIT_HINT = "무료 워크스페이스를 더 만들 수 없습니다. 사용하지 않는 워크스페이스를 삭제해 주세요.";
 
 type WorkspaceAction = "leave" | "delete";
 
@@ -64,6 +67,7 @@ export function SidebarWorkspaceHeader() {
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreateLimitReached, setIsCreateLimitReached] = useState(false);
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const [pendingAction, setPendingAction] = useState<{ workspace: WorkspaceResponse; action: WorkspaceAction } | null>(null);
   const [runningAction, setRunningAction] = useState<WorkspaceAction | null>(null);
@@ -84,6 +88,7 @@ export function SidebarWorkspaceHeader() {
       .then((response) => {
         if (cancelled) return;
         setWorkspaces(response.workspaces ?? []);
+        setIsCreateLimitReached(isFreeWorkspaceLimitReached(response.free_workspace_count, response.free_workspace_limit));
         setLoadErrorMessage(null);
       })
       .catch((error: unknown) => {
@@ -102,7 +107,7 @@ export function SidebarWorkspaceHeader() {
       const workspace = await createWorkspace("새 워크스페이스");
       switchWorkspace(workspace.id);
     } catch (error: unknown) {
-      setLoadErrorMessage(getErrorMessage(error, "워크스페이스 생성에 실패했습니다."));
+      setLoadErrorMessage(describeLimitError(error) ?? getErrorMessage(error, "워크스페이스 생성에 실패했습니다."));
       setIsCreating(false);
     }
   }
@@ -144,6 +149,8 @@ export function SidebarWorkspaceHeader() {
         return;
       }
       setWorkspaces((current) => current.filter((item) => item.id !== workspace.id));
+      // 삭제·탈퇴로 소유 수가 줄었을 수 있다. 다시 막혀야 하면 서버가 생성을 거절하고 그 안내를 보여 준다.
+      setIsCreateLimitReached(false);
     } catch (error: unknown) {
       setIsOpen(true);
       setLoadErrorMessage(getErrorMessage(error, ACTION_COPY[action].failed));
@@ -214,7 +221,8 @@ export function SidebarWorkspaceHeader() {
             type="button"
             className={styles["workspace-dropdown-new"]}
             onClick={handleCreateWorkspace}
-            disabled={isCreating}
+            disabled={isCreating || isCreateLimitReached}
+            title={isCreateLimitReached ? FREE_WORKSPACE_LIMIT_HINT : undefined}
           >
             <Plus size={12} />새 워크스페이스
           </button>

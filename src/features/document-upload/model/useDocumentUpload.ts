@@ -1,6 +1,8 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
 import { uploadDocumentFile } from "@/entities/document/api/document";
+import { checkStorageQuota, describeLimitError, fetchWorkspaceStorage } from "@/entities/workspace";
+import { getWorkspaceId } from "@/shared/api/client";
 import {
   appendItemsToFolder,
   availableDocumentName,
@@ -13,6 +15,16 @@ import {
 } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
+
+/**
+ * 업로드 전에 워크스페이스 남은 용량을 검사해 파일별 거절 문구(통과면 null)를 돌려준다.
+ * 빠른 안내용 검사라서 용량을 조회하지 못하면 검사를 건너뛰고 서버 검사에 맡긴다.
+ */
+async function loadUploadRejections(files: File[]): Promise<(string | null)[]> {
+  const storage = await fetchWorkspaceStorage(getWorkspaceId()).catch(() => null);
+  if (!storage) return files.map(() => null);
+  return checkStorageQuota(files.map((file) => file.size), storage);
+}
 
 export function useDocumentUpload({
   projects,
@@ -68,8 +80,12 @@ export function useDocumentUpload({
       return { ...project, items: appendItemsToFolder(project.items, folderId, uploadItems) };
     }));
 
-    return Promise.all(uploads.map(({ file, item }) =>
-      uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }))
+    return loadUploadRejections(uploadFiles).then((rejections) => Promise.all(uploads.map(({ file, item }, index) => {
+      const rejection = rejections[index];
+      const upload = rejection
+        ? Promise.reject(new Error(rejection))
+        : uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }));
+      return upload
         .then((response) => {
           setDocuments((current) => {
             const withoutCurrent = current.filter((document) => document.id !== response.id);
@@ -85,13 +101,13 @@ export function useDocumentUpload({
         .catch((error: Error) => {
           setProjects((current) => current.map((project) => {
             if (!findTreeItem(project.items, item.id)) return project;
-            return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", error.message) };
+            return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", describeLimitError(error) ?? error.message) };
           }));
           // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
           void refreshBackendData().catch(() => {});
           return null;
-        })
-    ));
+        });
+    })));
   }
 
   /** 새 노트를 업로드한다. 만들어진 문서(실패면 null)로 풀린다. */
