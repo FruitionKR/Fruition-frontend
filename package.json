@@ -25,6 +25,7 @@
     "test:panel-resize": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/panelResize.test.mjs",
     "test:workspace-location": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/workspaceLocation.test.mjs",
     "test:failed-documents-notice": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/failedDocumentsNotice.test.mjs",
+    "test:note-autosave": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/noteAutosave.test.mjs",
     "test:errors": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/errors.test.mjs",
     "test:auth-storage": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/authStorage.test.mjs",
     "test:settings-api": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/settingsApi.test.mjs",
