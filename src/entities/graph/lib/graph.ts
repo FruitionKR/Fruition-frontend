@@ -1,5 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { GraphLink, GraphNode, WikiGraphResponse } from "@/entities/wiki/model/wiki";
+import { withPathSuffix } from "./documentLabels";
 
 // 노드 ID 접두사 상수 (raw 노드만 프론트에서 합성한다. source/concept 노드는 백엔드 wiki page ID를 그대로 쓴다)
 export const NODE_PREFIX = {
@@ -52,23 +53,34 @@ export function linkKey(nodeAId: string, nodeBId: string) {
   return nodeAId < nodeBId ? `${nodeAId}:${nodeBId}` : `${nodeBId}:${nodeAId}`;
 }
 
-export function buildGraphFromBackend(documents: DocumentItemResponse[], graph: WikiGraphResponse) {
+/**
+ * @param pathSuffixes 같은 이름의 문서를 구분하는 문서 ID → 폴더 경로(buildDocumentPathSuffixes). 원본·소스 노드 라벨에 붙인다.
+ */
+export function buildGraphFromBackend(
+  documents: DocumentItemResponse[],
+  graph: WikiGraphResponse,
+  pathSuffixes: ReadonlyMap<string, string> = new Map()
+) {
   const documentById = new Map(documents.map((document) => [document.id, document]));
   const rawNodes: GraphNode[] = documents.map((document) => ({
     id: makeRawId(document.id),
-    label: document.filename,
+    label: withPathSuffix(document.filename, pathSuffixes.get(document.id)),
     kind: "raw" as const,
     documentId: document.id
   }));
   // source/concept 노드는 백엔드에 실제로 생성된 wiki page만 표시한다.
   const sourceNodes: GraphNode[] = (graph.nodes ?? [])
     .filter((node) => node.page_type === "source")
-    .map((node) => ({
-      id: node.id,
-      label: node.title || documentById.get(node.source_document?.id ?? "")?.filename || node.slug || node.id,
-      kind: "source" as const,
-      documentId: node.source_document?.id
-    }));
+    .map((node) => {
+      const documentId = node.source_document?.id;
+      const title = node.title || documentById.get(documentId ?? "")?.filename || node.slug || node.id;
+      return {
+        id: node.id,
+        label: withPathSuffix(title, documentId ? pathSuffixes.get(documentId) : undefined),
+        kind: "source" as const,
+        documentId
+      };
+    });
   const conceptNodes: GraphNode[] = (graph.nodes ?? [])
     .filter((node) => node.page_type !== "source")
     .map((node) => ({

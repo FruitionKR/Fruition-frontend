@@ -11,6 +11,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
@@ -57,6 +58,7 @@ export function SourcePreviewPanel({
   documentStatus,
   documentConversion = null,
   parentLabel = "문서",
+  titleSuffix,
   editedAt = null,
   isAgentPanelOpen,
   onOpenAgentPanel,
@@ -80,6 +82,8 @@ export function SourcePreviewPanel({
   /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
   documentConversion?: DocumentConversionView | null;
   parentLabel?: string;
+  /** 같은 이름의 문서를 구분하는 폴더 경로. 그래프 노드 라벨과 같은 `이름 · 폴더/경로` 형식으로 보여준다. */
+  titleSuffix?: string;
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
   onOpenAgentPanel?: () => void;
@@ -440,7 +444,7 @@ export function SourcePreviewPanel({
         <nav aria-label="문서 위치">
           <span>{parentLabel}</span>
           <span aria-hidden="true">/</span>
-          <strong>{title}</strong>
+          <strong>{withPathSuffix(title, titleSuffix)}</strong>
         </nav>
         <div className={styles["source-preview-actions"]}>
           {saveStatusLabel && (
