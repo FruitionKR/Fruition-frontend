@@ -5,3 +5,4 @@ export * from "./emailVerification";
 export * from "./account";
 export * from "./sessions";
 export * from "./oauthAccounts";
+export * from "./consent";

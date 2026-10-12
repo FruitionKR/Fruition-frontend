@@ -12,6 +12,7 @@ import {
   OAUTH_LINK_SUCCESS_MESSAGE,
   oauthAccountErrorMessage,
   parseOAuthLinkCallback,
+  parseOAuthSignupToken,
   saveOAuthLinkResult,
   useMe,
   type OAuthLinkCallback,
@@ -21,9 +22,11 @@ import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
+import { OAuthSignupConsentForm } from "@/views/auth/ui/OAuthSignupConsentForm";
 import { useServerWake, type AccessCodeResult } from "@/views/login/model/useServerWake";
 
 const INVALID_CREDENTIALS_MESSAGE = "가입하지 않은 아이디거나, 잘못된 비밀번호입니다.";
+const ACCOUNT_DELETED_MESSAGE = "회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.";
 const SERVER_PREPARING_MESSAGE = "서버가 아직 준비 중이에요. 준비가 끝나면 다시 로그인해 주세요.";
 const ACCESS_CODE_ERROR_ID = "login-access-code-error";
 const ACCESS_CODE_MESSAGES: Record<Exclude<AccessCodeResult, "ok"> | "empty", string> = {
@@ -59,6 +62,10 @@ function LoginPageContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  // 소셜 신규 가입: 계정이 아직 없고 동의를 받아야 만들어진다. 콜백 query에서 한 번 읽어 상태로 들고 간다.
+  const [signupToken, setSignupToken] = useState<string | null>(null);
+  // 탈퇴 직후 로그인 화면으로 돌아오면 완료 안내를 보여 준다. query는 처리하며 주소에서 지운다.
+  const [isAccountDeleted] = useState(() => searchParams.get("deleted") === "1");
   const [accessCode, setAccessCode] = useState("");
   const [accessCodeError, setAccessCodeError] = useState<string | null>(null);
   const {
@@ -72,10 +79,12 @@ function LoginPageContent() {
   } = useServerWake();
   // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 돌아갈 화면을 먼저 가져가지 않게 처음 값을 유지한다.
   const [isOAuthLinkCallback] = useState(() => parseOAuthLinkCallback(searchParams) !== null);
-  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error")) || isOAuthLinkCallback;
+  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error") || parseOAuthSignupToken(searchParams))
+    || isOAuthLinkCallback;
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
-  // OAuth 콜백(code/error, 연동의 link_code/link)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
-  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken });
+  // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
+  // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
+  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken && !signupToken && !isAccountDeleted });
 
   useEffect(() => {
     if (isAlreadySignedIn) router.replace(takeAfterLoginPath());
@@ -89,6 +98,21 @@ function LoginPageContent() {
     }
 
     if (hasHandledOAuth.current) return;
+
+    if (isAccountDeleted) {
+      hasHandledOAuth.current = true;
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
+    // 소셜 계정으로 처음 들어온 사용자. 계정을 만들기 전에 동의 화면을 거친다.
+    const pendingSignupToken = parseOAuthSignupToken(searchParams);
+    if (pendingSignupToken) {
+      hasHandledOAuth.current = true;
+      window.history.replaceState({}, "", window.location.pathname);
+      setSignupToken(pendingSignupToken);
+      return;
+    }
 
     // 설정에서 시작한 소셜 계정 연동의 콜백. 로그인한 채로 확정한 뒤 연동을 시작한 화면으로 돌아간다.
     const linkCallback = parseOAuthLinkCallback(searchParams);
@@ -131,7 +155,7 @@ function LoginPageContent() {
         setErrorMessage("간편 로그인에 실패했습니다.");
         setIsSubmitting(false);
       });
-  }, [queryClient, router, searchParams]);
+  }, [isAccountDeleted, queryClient, router, searchParams]);
 
   // 칸을 벗어나면 바로 확인해, 이메일·비밀번호를 입력하는 동안 서버 기동이 시작되게 한다.
   async function handleAccessCodeBlur() {
@@ -190,6 +214,16 @@ function LoginPageContent() {
     </AuthScreen>
   );
 
+  if (signupToken) return (
+    <AuthScreen shellModifier="verification" title="회원가입">
+      <OAuthSignupConsentForm
+        signupToken={signupToken}
+        onMfaRequired={(token) => { setSignupToken(null); setMfaToken(token); }}
+        onRestart={() => setSignupToken(null)}
+      />
+    </AuthScreen>
+  );
+
   return (
     <AuthScreen extra={<SocialLoginButtons disabled={isAccessCodeVisible && !isAccessCodeVerified} />} shellModifier="login" title="로그인">
       <form className="auth-form" method="post" onSubmit={handleLogin}>
@@ -240,6 +274,7 @@ function LoginPageContent() {
           </div>
         </div>
         <AuthSubmitButton disabled={isSubmitting}>로그인</AuthSubmitButton>
+        {isAccountDeleted ? <p className="auth-prompt auth-prompt--wrap" role="status">{ACCOUNT_DELETED_MESSAGE}</p> : null}
         {isPreparing ? <p className="auth-prompt auth-prompt--wrap" role="status">서버를 준비하고 있어요. 수 분 걸릴 수 있어요.</p> : null}
         {isWakeTimedOut ? <p className="auth-prompt auth-prompt--wrap" role="status">서버 준비가 늦어지고 있어요. 잠시 후 다시 시도해 주세요.</p> : null}
       </form>

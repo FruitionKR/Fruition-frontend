@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { checkEmailAvailability, requestEmailVerification, signupOAuthHint } from "@/entities/user";
+import {
+  checkEmailAvailability,
+  EMPTY_CONSENT,
+  isConsentComplete,
+  requestEmailVerification,
+  signupOAuthHint,
+  type ConsentChoices
+} from "@/entities/user";
+import { ConsentForm } from "@/features/legal-consent";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
@@ -14,6 +22,7 @@ export default function SignupPage() {
   const [nickname, setNickname] = useState(signupDraft?.nickname ?? "");
   const [email, setEmail] = useState(signupDraft?.email ?? "");
   const [password, setPassword] = useState(signupDraft?.password ?? "");
+  const [consent, setConsent] = useState<ConsentChoices>(signupDraft?.consent ?? EMPTY_CONSENT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // 같은 이메일의 소셜 가입 계정 안내. 한 번 보여 준 이메일은 다시 제출하면 가입을 이어 간다.
@@ -30,6 +39,11 @@ export default function SignupPage() {
 
     if (password.length < 8) {
       setErrorMessage("비밀번호는 8자 이상 입력해주세요.");
+      return;
+    }
+    // 버튼이 꺼져 있어도 Enter 제출은 들어올 수 있다. 필수 동의 없이는 인증 요청을 시작하지 않는다.
+    if (!isConsentComplete(consent)) {
+      setErrorMessage("만 18세 이상 확인과 이용약관 동의는 필수입니다.");
       return;
     }
 
@@ -61,6 +75,7 @@ export default function SignupPage() {
       nickname: nickname.trim(),
       email: normalizedEmail,
       password,
+      consent,
       verificationId: "",
       expiresAt: 0,
       verificationRequestId
@@ -95,11 +110,13 @@ export default function SignupPage() {
             <AuthField label="닉네임" name="nickname" onChange={(event) => setNickname(event.target.value)} placeholder="name" value={nickname} />
             <AuthField autoComplete="email" label="이메일" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="example@email.com" type="email" value={email} />
             <AuthField autoComplete="new-password" label="비밀번호" name="password" onChange={(event) => setPassword(event.target.value)} placeholder="password" type="password" value={password} />
+            <ConsentForm disabled={isSubmitting} idPrefix="signup-consent" onChange={setConsent} value={consent} />
           </div>
           {visibleError ? <AuthError>{visibleError}</AuthError> : null}
           {visibleOAuthHint ? <p className="auth-prompt auth-prompt--wrap" role="status">{visibleOAuthHint}</p> : null}
         </div>
-        <AuthSubmitButton disabled={isSubmitting}>인증 요청</AuthSubmitButton>
+        {/* 필수 동의(만 18세·이용약관)를 모두 체크해야 가입을 시작할 수 있다. */}
+        <AuthSubmitButton disabled={isSubmitting || !isConsentComplete(consent)}>인증 요청</AuthSubmitButton>
       </form>
       <p className="auth-prompt">이미 아이디가 있으신가요?<button onClick={() => router.push("/login")} type="button">로그인하기</button></p>
     </AuthScreen>
