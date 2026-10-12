@@ -3,9 +3,14 @@ import { ApiError } from "@/shared/lib/errors";
 
 type DocumentAccessFields = { can_edit?: boolean; can_delete?: boolean } | null | undefined;
 
-/** 읽기 전용 안내 문구. 저장 상태 자리의 배지 설명과 편집기 위 안내에 같이 쓴다. */
-export const READ_ONLY_DOCUMENT_MESSAGE =
-  "이 문서는 보기 권한만 있어 읽기 전용으로 열었습니다. 편집하려면 문서 소유자나 워크스페이스 OWNER에게 편집 권한을 요청해 주세요.";
+/** 읽기 전용 안내 첫 줄(상태). 편집기 위 안내에서 두 줄로 나눠 보여준다. */
+export const READ_ONLY_DOCUMENT_TITLE = "이 문서는 보기 권한만 있어 읽기 전용으로 열었습니다.";
+
+/** 읽기 전용 안내 둘째 줄(편집 권한을 받는 방법). */
+export const READ_ONLY_DOCUMENT_HINT = "편집하려면 문서 소유자나 워크스페이스 OWNER에게 편집 권한을 요청해 주세요.";
+
+/** 읽기 전용 안내 전체. 저장 상태 자리의 배지 title처럼 한 문자열이 필요한 곳에 쓴다(줄바꿈으로 두 줄). */
+export const READ_ONLY_DOCUMENT_MESSAGE = `${READ_ONLY_DOCUMENT_TITLE}\n${READ_ONLY_DOCUMENT_HINT}`;
 
 /** 권한을 바꿀 수 없을 때(403 DOCUMENT_WRITE_FORBIDDEN) 보여줄 문구 */
 export const PERMISSION_FORBIDDEN_MESSAGE =

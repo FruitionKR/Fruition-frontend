@@ -11,7 +11,7 @@ import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult
 import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
-import { READ_ONLY_DOCUMENT_MESSAGE } from "@/entities/document/lib/documentAccess";
+import { READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_MESSAGE, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
@@ -532,7 +532,10 @@ export function SourcePreviewPanel({
         )}
         {isReadOnlyNote && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && (
           <>
-            <p className={styles["source-preview-readonly-notice"]} role="status">{READ_ONLY_DOCUMENT_MESSAGE}</p>
+            <p className={styles["source-preview-readonly-notice"]} role="status">
+              <span>{READ_ONLY_DOCUMENT_TITLE}</span>
+              <span>{READ_ONLY_DOCUMENT_HINT}</span>
+            </p>
             <MarkdownViewer markdown={editableNote.body} />
           </>
         )}

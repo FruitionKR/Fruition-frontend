@@ -10,6 +10,9 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const {
   PERMISSION_FORBIDDEN_MESSAGE,
+  READ_ONLY_DOCUMENT_HINT,
+  READ_ONLY_DOCUMENT_MESSAGE,
+  READ_ONLY_DOCUMENT_TITLE,
   canDeleteDocument,
   describePermissionError,
   isDocumentReadOnly,
@@ -48,6 +51,12 @@ test("문서·폴더 권한은 PUT .../permission에 {access}로 보내고, 403�
     ["/api/workspaces/ws_test/folders/folder_1/permission", "PUT", { access: null }]
   ]);
   assert.equal(describePermissionError(error), PERMISSION_FORBIDDEN_MESSAGE);
+});
+
+test("읽기 전용 안내는 상태 문장과 권한 요청 안내 두 줄로 나뉜다", () => {
+  assert.equal(READ_ONLY_DOCUMENT_TITLE, "이 문서는 보기 권한만 있어 읽기 전용으로 열었습니다.");
+  assert.equal(READ_ONLY_DOCUMENT_HINT, "편집하려면 문서 소유자나 워크스페이스 OWNER에게 편집 권한을 요청해 주세요.");
+  assert.equal(READ_ONLY_DOCUMENT_MESSAGE, `${READ_ONLY_DOCUMENT_TITLE}\n${READ_ONLY_DOCUMENT_HINT}`);
 });
 
 test("can_edit가 false인 문서만 읽기 전용이다", () => {
