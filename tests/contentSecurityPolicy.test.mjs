@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith(".") && isAppModule && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});
-const { buildContentSecurityPolicy, buildImageOnlyPolicy, CSP_REPORT_PATH } = await import("../src/shared/lib/contentSecurityPolicy.ts");
+const { buildContentSecurityPolicy, buildImageOnlyPolicy, CSP_REPORT_PATH, readCspNonce } = await import("../src/shared/lib/contentSecurityPolicy.ts");
 const { createLogLimiter, readCappedText, summarizeCspReports } = await import("../app/csp-report/cspReport.ts");
 const { POST } = await import("../app/csp-report/route.ts");
 const { middleware, config: middlewareConfig } = await import("../middleware.ts");
@@ -206,4 +206,10 @@ test("CSP 보고 요약은 알려진 키워드를 남기고 지나치게 긴 오
   assert.ok(summary.blocked.length <= 200);
   assert.ok(summary.blocked.startsWith("https://aaaa"));
   assert.doesNotMatch(summary.blocked, /secret/);
+});
+
+test("layout의 테마 스크립트가 쓰는 nonce를 실제로 만든 CSP에서 그대로 꺼낸다", () => {
+  const nonce = btoa(crypto.randomUUID());
+  assert.equal(readCspNonce(buildContentSecurityPolicy({ nonce })), nonce);
+  assert.equal(readCspNonce(null), undefined);
 });

@@ -2,7 +2,6 @@ import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY
 import type { Simulation, SimulationLinkDatum } from "d3-force";
 import type { GraphLink, GraphNode, NodePosition, NodePositionMap } from "@/entities/wiki";
 import { GRAPH_CENTER, GRAPH_HEIGHT, GRAPH_PHYSICS, GRAPH_WIDTH } from "@/entities/graph/lib/graph";
-import { clampGraphPosition } from "./graphGeometry";
 
 export const FIXED_NODE_SIZE = 14;
 
@@ -108,7 +107,7 @@ export function createGraphSimulation({
 }
 
 /**
- * simulation을 한 tick 진행하고 노드를 그래프 영역 안으로 clamp한다.
+ * simulation을 한 tick 진행한다. 고정 상자 clamp는 두지 않고 center/origin 힘으로 레이아웃이 흩어지지 않게 한다.
  * 이미 settle됐으면(alpha < alphaMin) false를 반환한다.
  */
 export function tickGraphSimulation(graphSimulation: GraphSimulation, isDragging: boolean): boolean {
@@ -117,13 +116,6 @@ export function tickGraphSimulation(graphSimulation: GraphSimulation, isDragging
   if (simulation.alpha() < simulation.alphaMin()) return false;
 
   simulation.tick();
-
-  for (const node of simulation.nodes()) {
-    const clamped = clampSimPosition(node);
-    node.x = clamped.x;
-    node.y = clamped.y;
-  }
-
   return true;
 }
 
@@ -138,14 +130,6 @@ export function simulationPositions(graphSimulation: GraphSimulation): NodePosit
   return Object.fromEntries(
     graphSimulation.simulation.nodes().map((node) => [node.id, { x: node.x, y: node.y }])
   );
-}
-
-export function clampSimPosition(node: GraphSimNode): NodePosition {
-  return clampGraphPosition({
-    position: { x: node.x, y: node.y },
-    node: { id: node.id, label: "", kind: node.kind },
-    nodeSize: FIXED_NODE_SIZE
-  });
 }
 
 export function createSourceCenteredNodePositions(nodes: GraphNode[], links: GraphLink[]) {

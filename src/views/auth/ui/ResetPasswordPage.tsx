@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { resetPasswordWithVerification } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
@@ -34,8 +35,9 @@ export default function ResetPasswordPage() {
       setErrorMessage("비밀번호가 일치하지 않습니다.");
       return;
     }
-    if (password.length < 8) {
-      setErrorMessage("비밀번호는 8자 이상 입력해주세요.");
+    const passwordError = getPasswordPolicyError(password);
+    if (passwordError) {
+      setErrorMessage(passwordError);
       return;
     }
 
@@ -67,7 +69,7 @@ export default function ResetPasswordPage() {
         </div>
         <AuthSubmitButton disabled={isSubmitting}>확인</AuthSubmitButton>
       </form>
-      <p className="auth-prompt">로그인으로 돌아가시겠어요?<button onClick={() => router.push("/login")} type="button">로그인하기</button></p>
+      <p className="auth-prompt">이미 아이디가 있으신가요?<button onClick={() => router.push("/login")} type="button">로그인하기</button></p>
     </AuthScreen>
   );
 }

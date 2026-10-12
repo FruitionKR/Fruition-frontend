@@ -8,7 +8,6 @@ import { renameWorkspace } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
-import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./WorkspacePanel.module.css";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
@@ -22,8 +21,6 @@ const providerIcons: Record<string, SvgAsset> = {
 
 interface WorkspacePanelProps {
   wsName: string;
-  isAutoSaveOn: boolean;
-  onToggleAutoSave: () => void;
   aiModels: AiModel[];
   aiModelSelection: AiModelSelection | null;
   aiModelError: string | null;
@@ -35,8 +32,6 @@ interface WorkspacePanelProps {
 /** 워크스페이스 설정 패널 (Figma 771:18800). */
 export function WorkspacePanel({
   wsName,
-  isAutoSaveOn,
-  onToggleAutoSave,
   aiModels,
   aiModelSelection,
   aiModelError,
@@ -138,13 +133,6 @@ export function WorkspacePanel({
           <span className={styles["section-line"]} />
         </div>
         <WorkspaceIconSettings />
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>자동 저장</strong>
-            <small>편집한 내용을 자동으로 저장합니다.</small>
-          </div>
-          <Switch checked={isAutoSaveOn} label="자동 저장" onClick={onToggleAutoSave} />
-        </div>
       </div>
 
       <div className={styles.section}>

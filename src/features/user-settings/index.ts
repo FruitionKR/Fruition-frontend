@@ -1,1 +1,4 @@
-export { SettingsModal } from "./ui/SettingsModal";
+export { SettingsModal, type SettingsSection } from "./ui/SettingsModal";
+export { SkillCreateWizard } from "./ui/panels/SkillCreateWizard";
+export { SkillSearchModal } from "./ui/panels/SkillSearchModal";
+export { skillUpdateRequest } from "./lib/skillAuthoring";

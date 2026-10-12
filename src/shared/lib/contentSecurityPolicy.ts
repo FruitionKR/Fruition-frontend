@@ -61,6 +61,11 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: Cont
   return directives.map((directive) => directive.join(" ")).join("; ");
 }
 
+/** CSP 헤더 값에서 script nonce를 꺼낸다. 없으면 undefined다(dev처럼 nonce 없는 img-src 전용 CSP만 붙는 경우). */
+export function readCspNonce(policy: string | null | undefined): string | undefined {
+  return policy?.match(/'nonce-([^']+)'/)?.[1];
+}
+
 /**
  * 개발 서버용 이미지 정책. HMR이 eval·websocket을 써서 전체 CSP는 붙일 수 없지만,
  * 외부 이미지 차단은 개발 중에도 똑같이 동작해야 새로 넣은 <img>의 유출 경로를 바로 알아차린다(이슈 #77).

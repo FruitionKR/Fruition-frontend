@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay);
 }
 
 .modal {
@@ -15,11 +15,27 @@
   gap: 40px;
   width: min(464px, calc(100vw - 48px));
   padding: 28px 32px 36px;
-  color: var(--ink);
-  background: var(--bg, #0a0a0a);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 12px var(--color-shadow);
+  /* 모달 고유 색: 강조색 위 체크 표시와 흐린 다음 버튼. 다크는 기존 값을 유지한다. */
+  --check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --next-dim-bg: var(--color-primary-default);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .modal {
+    --check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%230a0a0a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    --next-dim-bg: #664a00;
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .modal {
+  --check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%230a0a0a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --next-dim-bg: #664a00;
 }
 
 .title-block {
@@ -54,7 +70,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
 }
 
@@ -66,7 +82,7 @@
 
 .subtitle {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
@@ -97,9 +113,9 @@
 .field input {
   width: 100%;
   padding: 8px 12px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -108,11 +124,11 @@
 }
 
 .field input::placeholder {
-  color: var(--subdued, #8a8a8a);
+  color: var(--color-muted);
 }
 
 .field input:focus-visible {
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
 
@@ -122,7 +138,7 @@
 
 .hint {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -130,7 +146,7 @@
 .resend {
   align-self: flex-start;
   padding: 0;
-  color: var(--muted);
+  color: var(--color-body);
   background: transparent;
   font-size: 12px;
   text-decoration: underline;
@@ -144,7 +160,7 @@
 
 .error {
   margin: 0;
-  color: #ffb3b3;
+  color: var(--color-danger);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -160,7 +176,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 0;
-  color: #c4c4c4;
+  color: var(--color-body);
   background: transparent;
   border-radius: 6px;
   font-size: 14px;
@@ -180,8 +196,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  color: var(--bg, #0a0a0a);
-  background: var(--yellow);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
@@ -197,7 +213,7 @@
 .btn-back:focus-visible,
 .btn-next:focus-visible,
 .close:focus-visible {
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -220,7 +236,7 @@
 .field-timer {
   position: absolute;
   right: 12px;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.16px;
@@ -247,7 +263,7 @@
 }
 
 .field-toggle:focus-visible {
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -265,7 +281,7 @@
 /* --- 다단계 인증 모달 --- */
 .step-label {
   margin: 0 0 12px;
-  color: var(--yellow);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -298,6 +314,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* QR 코드는 인식을 위해 두 테마 모두 흰 바탕을 유지한다. */
   background: #fff;
   border-radius: 12px;
   overflow: hidden;
@@ -305,7 +322,7 @@
 
 .field-desc {
   margin: 0;
-  color: var(--subdued, #8a8a8a);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
@@ -319,7 +336,7 @@
 }
 
 .field input[readonly] {
-  color: #fff;
+  color: var(--color-foreground);
   font-weight: 600;
   letter-spacing: 0.14px;
 }
@@ -350,7 +367,7 @@
 .icon-button:hover,
 .icon-button:focus-visible {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface-strong);
 }
 
 .icon-button :global(.svg-icon) {
@@ -361,7 +378,7 @@
 .recovery-box {
   width: 100%;
   padding: 16px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
 }
 
@@ -372,7 +389,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   letter-spacing: -0.28px;
   line-height: 1.2;
@@ -383,7 +400,7 @@
   align-items: center;
   gap: 12px;
   margin-top: 24px;
-  color: #fff;
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
@@ -396,30 +413,30 @@
   height: 20px;
   margin: 0;
   flex: 0 0 auto;
-  border: 1px solid var(--muted);
+  border: 1px solid var(--color-body);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
 }
 
 .check-row input:checked {
-  border-color: var(--yellow);
-  background: var(--yellow) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%230a0a0a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 20px no-repeat;
+  border-color: var(--color-primary);
+  background: var(--color-primary) var(--check-mark) center / 20px no-repeat;
 }
 
 .check-row input:focus-visible {
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
 .btn-next.is-dim:disabled {
-  background: #664a00;
+  background: var(--next-dim-bg);
   opacity: 1;
 }
 
 .status {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
   line-height: 1.4;
 }
