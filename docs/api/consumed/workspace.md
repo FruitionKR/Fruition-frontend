@@ -13,8 +13,8 @@ access-svc가 받는 워크스페이스 자체 CRUD·아이콘·멤버십·초�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces` | 내가 속한 워크스페이스 목록 | `src/entities/workspace/api/workspace.ts` `fetchWorkspaces` | 리터럴 | `cache: no-store` | `WorkspaceListResponse` 전체 | 워크스페이스 선택 화면(`src/views/workspaces/ui`)의 진입 호출 |
-| `POST /api/workspaces` | 워크스페이스 생성 | `src/entities/workspace/api/workspace.ts` `createWorkspace` | 리터럴 | `{ name }` | `WorkspaceResponse` | `ERROR_MESSAGES.workspaceCreateFailed` |
+| `GET /api/workspaces` | 내가 속한 워크스페이스 목록 | `src/entities/workspace/api/workspace.ts` `fetchWorkspaces` | 리터럴 | `cache: no-store` | `WorkspaceListResponse` 전체 (`free_workspace_count`, `free_workspace_limit` 포함) | 워크스페이스 선택 화면(`src/views/workspaces/ui`)의 진입 호출. 사이드바 워크스페이스 메뉴는 무료 소유 한도에 닿으면 새 워크스페이스 버튼을 막는다. 두 필드는 **백엔드 미구현(요구사항)**이라 없으면 막지 않는다 |
+| `POST /api/workspaces` | 워크스페이스 생성 | `src/entities/workspace/api/workspace.ts` `createWorkspace` | 리터럴 | `{ name }` | `WorkspaceResponse` | `ERROR_MESSAGES.workspaceCreateFailed`. 409 `WORKSPACE_LIMIT_EXCEEDED`는 `describeLimitError`의 정해 둔 문구로 안내한다 |
 | `PATCH /api/workspaces/{workspace_id}` | 워크스페이스 이름 변경 | `src/entities/workspace/api/workspace.ts` `renameWorkspace` | 템플릿 결합 (`` `/api/workspaces/${workspaceId}` ``) | `{ name }` | `WorkspaceResponse` | 이 저장소에서 `workspacePath`를 쓰지 않는 유일한 워크스페이스 경로다. 따라서 `workspaceId`가 `encodeURIComponent` 처리되지 않는다 |
 
 ## 아이콘

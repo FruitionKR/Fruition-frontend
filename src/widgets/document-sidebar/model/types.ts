@@ -14,6 +14,8 @@ export type TreeInteractionProps = {
   selectedItemId: string | null;
   /** Cmd/Ctrl+클릭으로 고른 이동 대상 항목 id */
   selectedItemIds: ReadonlySet<string>;
+  /** 스킬 실행 대상 고르기 중: 행을 눌러도 열지 않고 onToggleSelectItem으로 고른다 */
+  isPickingTarget?: boolean;
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
@@ -34,6 +36,8 @@ export type TreeInteractionProps = {
   /** 폴더 행·트리 상단 + 버튼으로 버튼 아래에 생성 메뉴를 연다(itemId가 null이면 최상위, 같은 대상이면 닫는다) */
   onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement) => void;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
+  /** 문서 행 가운데 클릭: 그 문서를 새 브라우저 탭으로 연다 */
+  onOpenInNewTab: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
   onCommitEditing: () => void;
   onCancelEditing: () => void;

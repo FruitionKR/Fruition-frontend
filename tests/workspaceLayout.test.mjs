@@ -8,6 +8,10 @@ const sidebarProfilePath = new URL(
   "../src/widgets/document-sidebar/ui/SidebarProfile.tsx",
   import.meta.url
 );
+const settingsModalPath = new URL(
+  "../src/features/user-settings/ui/SettingsModal.tsx",
+  import.meta.url
+);
 const documentSidebarPath = new URL(
   "../src/widgets/document-sidebar/ui/DocumentSidebar.tsx",
   import.meta.url
@@ -46,19 +50,24 @@ test("그래프에서 패널을 닫으면 접힘으로 본다(그래프가 우�
   assert.equal(isAgentPanelVisible("graph", false), false);
 });
 
-test("프로필 메뉴는 설정과 로그아웃만 제공한다", async () => {
-  const source = await readFile(sidebarProfilePath, "utf8");
+test("레일 프로필은 메뉴 없이 프로필 설정을 바로 열고, 로그아웃은 설정 메뉴에 있다", async () => {
+  const [source, modalSource] = await Promise.all([
+    readFile(sidebarProfilePath, "utf8"),
+    readFile(settingsModalPath, "utf8")
+  ]);
 
   assert.doesNotMatch(source, /Wiki 관리/);
   assert.doesNotMatch(source, /NotificationsPanel/);
   assert.doesNotMatch(source, /isNotificationsOpen/);
-
-  // profile-menu 블록 안의 menuitem 텍스트를 추출해 목록 전체를 정확히 비교한다.
-  const menuBlock = source.match(/profile-menu[\s\S]*?\{isSettingsOpen/)?.[0] ?? "";
-  const menuItems = [...menuBlock.matchAll(/role="menuitem"[\s\S]*?>\s*([^<>{}]+?)\s*<\/button>/g)].map(
-    (match) => match[1]
-  );
-  assert.deepEqual(menuItems, ["설정", "로그아웃"]);
+  // 프로필은 팝업 메뉴를 두지 않는다.
+  assert.doesNotMatch(source, /role="menu"/);
+  // 톱니는 기본 설정, 프로필은 프로필 설정을 연다. 소셜 연동에서 돌아오면 계정 설정을 연다.
+  assert.match(source, /setSettingsSection\("preferences"\)/);
+  assert.match(source, /setSettingsSection\("profile"\)/);
+  assert.match(source, /setSettingsSection\("account"\)/);
+  // 로그아웃은 설정 모달 메뉴에서 한다.
+  assert.match(modalSource, /signOut\(\{ callLogout: true \}\)/);
+  assert.match(modalSource, /<span>로그아웃<\/span>/);
 });
 
 test("프로필은 Wiki 관리에만 필요했던 프로젝트 목록을 받지 않는다", async () => {

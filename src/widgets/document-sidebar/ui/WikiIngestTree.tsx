@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { Project, TreeItem } from "@/entities/tree";
-import { arrowIcon, checkOnIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { SidebarCheckOnIcon, SidebarChevronIcon } from "./SidebarIcons";
 import { fileDisplay } from "./TreeNode";
 import {
   collectFolderMarkdownIds,
@@ -11,9 +11,9 @@ import {
 } from "../model/wikiIngestSelection";
 import styles from "./DocumentSidebar.module.css";
 
-// 선택 행 들여쓰기: Figma 기준 6px + depth당 18px (pl 24 / 42)
-const INGEST_ROW_BASE_PADDING_PX = 6;
-const INGEST_ROW_INDENT_PER_DEPTH_PX = 18;
+// 선택 행 들여쓰기: 문서 트리(TreeNode)와 같은 10px + depth당 22px
+const INGEST_ROW_BASE_PADDING_PX = 10;
+const INGEST_ROW_INDENT_PER_DEPTH_PX = 22;
 
 const NO_FOLDER_MARKDOWN_REASON = "이 폴더에는 선택할 수 있는 Markdown 문서가 없어요";
 
@@ -126,7 +126,7 @@ function IngestRow({
             state === "mixed" && styles["is-mixed"]
           )}
         >
-          {state === "checked" && <SvgIcon src={checkOnIcon} />}
+          {state === "checked" && <SidebarCheckOnIcon />}
         </button>
         {isFolder && (
           <button
@@ -139,7 +139,7 @@ function IngestRow({
               onToggleOpen(item.id);
             }}
           >
-            <SvgIcon src={arrowIcon} className={cx(styles["tree-arrow"], isOpen && styles["is-open"])} />
+            <SidebarChevronIcon className={cx(styles["tree-arrow"], isOpen && styles["is-open"])} />
           </button>
         )}
         <span className={styles["ingest-label"]}>{display.name}</span>

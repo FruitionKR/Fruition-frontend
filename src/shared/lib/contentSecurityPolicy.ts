@@ -58,3 +58,8 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: Cont
   ];
   return directives.map((directive) => directive.join(" ")).join("; ");
 }
+
+/** CSP 헤더 값에서 script nonce를 꺼낸다. 없으면 undefined다(dev처럼 CSP를 붙이지 않는 경우). */
+export function readCspNonce(policy: string | null | undefined): string | undefined {
+  return policy?.match(/'nonce-([^']+)'/)?.[1];
+}

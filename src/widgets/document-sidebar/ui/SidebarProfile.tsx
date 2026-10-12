@@ -1,90 +1,65 @@
-import { useEffect, useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
-import { hasOAuthLinkResult, useMe, useSignOut } from "@/entities/user";
-import { SettingsModal, takeSettingsResume, type SettingsResume } from "@/features/user-settings";
-import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
-import { SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
-import styles from "./DocumentSidebar.module.css";
+import { useEffect, useState } from "react";
+import { hasOAuthLinkResult, useMe } from "@/entities/user";
+import { SettingsModal, takeSettingsResume, type SettingsResume, type SettingsSection } from "@/features/user-settings";
+import { RailButton } from "@/widgets/rail-navigation/ui/RailNavigation";
+import { RailSettingIcon, RailUserIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 
-/** 사이드바 하단 프로필 푸터 (Figma 747:6648): 점 세 개 버튼 클릭 시 설정/로그아웃 메뉴를 연다. */
+/**
+ * 레일 하단 설정·프로필 버튼 (Figma 1540:17964 setting, 1540:17968 profile).
+ * 톱니는 기본 설정을, 프로필은 프로필 설정을 바로 연다. 로그아웃은 설정 메뉴 맨 아래에 있다.
+ */
 export function SidebarProfile() {
-  const { signOut } = useSignOut();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // 열린 설정 화면. null이면 닫혀 있다.
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   // 돌아와서 다시 열 설정 위치(탈퇴 확인·멤버 관리). 한 번 쓰고 나면 다음 열기부터는 기본 위치다.
   const [settingsResume, setSettingsResume] = useState<SettingsResume | null>(null);
-  const rootRef = useRef<HTMLElement | null>(null);
 
   // 설정에서 시작한 소셜 계정 연동·재로그인·워크스페이스 전환을 마치고 돌아오면 설정을 떠났던 자리로 다시 연다.
   useEffect(() => {
     const resume = takeSettingsResume();
-    if (resume) setSettingsResume(resume);
-    if (resume || hasOAuthLinkResult()) setIsSettingsOpen(true);
+    if (resume) {
+      setSettingsResume(resume);
+      setSettingsSection("account");
+      return;
+    }
+    if (hasOAuthLinkResult()) setSettingsSection("account");
   }, []);
 
   function closeSettings() {
-    setIsSettingsOpen(false);
+    setSettingsSection(null);
     setSettingsResume(null);
   }
 
   // 표시용 데이터라 실패 시 fallback 이름을 유지한다.
   const { data: me } = useMe();
-  const displayName = me ? me.display_name || me.email : null;
-
-  useDismissOnOutside(rootRef, isMenuOpen, () => setIsMenuOpen(false));
-
-  const name = displayName ?? "사용자";
+  const name = (me ? me.display_name || me.email : null) ?? "사용자";
 
   return (
-    <footer className={styles["sidebar-profile"]} ref={rootRef}>
-      <div className={styles["sidebar-profile-row"]}>
-        {/* 프로필 이미지·이름을 누르면 메뉴를 거치지 않고 사용자 설정을 바로 연다. */}
-        <button
-          type="button"
-          className={styles["sidebar-profile-user"]}
-          aria-label="사용자 설정 열기"
-          onClick={() => {
-            setIsMenuOpen(false);
-            setIsSettingsOpen(true);
-          }}
-        >
-          <SvgIcon src={userCircleIcon} className={styles["sidebar-profile-avatar"]} />
-          <span className={styles["sidebar-profile-info"]}>
-            <strong>{name}</strong>
-            <small>온라인</small>
-          </span>
-        </button>
-        <button
-          type="button"
-          className={styles["sidebar-profile-toggle"]}
-          aria-label="프로필 메뉴"
-          aria-expanded={isMenuOpen}
-          onClick={() => setIsMenuOpen((open) => !open)}
-        >
-          {/* 채팅 옵션(AgentHeader)과 같은 점 세 개 아이콘 */}
-          <MoreHorizontal size={16} aria-hidden />
-        </button>
-      </div>
+    <>
+      <RailButton
+        label="설정"
+        onClick={(event) => {
+          event.stopPropagation();
+          setSettingsSection("preferences");
+        }}
+      >
+        <RailSettingIcon />
+      </RailButton>
 
-      {isMenuOpen && (
-        <div className={styles["profile-menu"]} role="menu" aria-label="프로필 메뉴">
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setIsMenuOpen(false);
-              setIsSettingsOpen(true);
-            }}
-          >
-            설정
-          </button>
-          <button type="button" role="menuitem" onClick={() => void signOut({ callLogout: true })}>
-            로그아웃
-          </button>
-        </div>
+      <RailButton
+        label={`프로필 설정 (${name})`}
+        tooltip={name}
+        onClick={(event) => {
+          event.stopPropagation();
+          setSettingsSection("profile");
+        }}
+      >
+        <RailUserIcon />
+      </RailButton>
+
+      {settingsSection && (
+        <SettingsModal key={settingsSection} initialSection={settingsSection} resume={settingsResume} onClose={closeSettings} />
       )}
-
-      {isSettingsOpen && <SettingsModal resume={settingsResume} onClose={closeSettings} />}
-    </footer>
+    </>
   );
 }

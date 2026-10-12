@@ -32,7 +32,8 @@ export function useNoteAutosave({
   marker,
   initialVersion,
   onDetachedSaveComplete,
-  onAttachmentsSaved
+  onAttachmentsSaved,
+  autoSave = true
 }: {
   documentId: string;
   marker: string;
@@ -40,6 +41,11 @@ export function useNoteAutosave({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 이미지 placeholder가 서버 관리 경로로 치환됐을 때. 편집기 본문의 placeholder를 바꿔 넣는 데 쓴다. */
   onAttachmentsSaved?: (saved: SavedAttachment[]) => void;
+  /**
+   * 기본 설정의 자동 저장. 끄면 입력 중에는 저장하지 않고 "저장 안 됨"으로 남긴다.
+   * Cmd/Ctrl+S(saveNow), 다른 문서로 이동(언마운트), AI 편집 적용은 그대로 저장한다.
+   */
+  autoSave?: boolean;
 }) {
   const [status, setStatus] = useState<NoteSaveStatus>("saved");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,6 +71,8 @@ export function useNoteAutosave({
   const flushSaveRef = useRef<(candidate: PendingNoteSave) => Promise<boolean>>(async () => false);
   const onDetachedSaveCompleteRef = useRef(onDetachedSaveComplete);
   onDetachedSaveCompleteRef.current = onDetachedSaveComplete;
+  const autoSaveRef = useRef(autoSave);
+  autoSaveRef.current = autoSave;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -240,6 +248,36 @@ export function useNoteAutosave({
     }
   }
 
+  /** 디바운스 뒤 예약된 편집분을 저장한다. */
+  function scheduleFlush() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      const scheduled = scheduledSaveRef.current;
+      scheduledSaveRef.current = null;
+      if (scheduled) void trackedFlushSave(scheduled);
+    }, AUTOSAVE_DELAY_MS);
+  }
+
+  // 자동 저장을 다시 켜면 그동안 쌓인 편집분을 바로 이어서 저장한다.
+  useEffect(() => {
+    if (autoSave && scheduledSaveRef.current && !timerRef.current) scheduleFlush();
+    // scheduleFlush는 ref만 다루므로 autoSave가 바뀔 때만 다시 확인한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSave]);
+
+  // 자동 저장을 끈 채 저장하지 않은 편집분이 있으면 탭을 닫기 전에 브라우저가 묻는다.
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (autoSaveRef.current || !scheduledSaveRef.current) return;
+      event.preventDefault();
+      // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   function queueSave(body: string, source?: "agent", applyOperationId?: string) {
     if (isSaveBlocked()) return;
     // 새 저장이 밀린 AI 편집분을 그대로 싣고 가므로 예약된 재시도는 버린다.
@@ -264,12 +302,11 @@ export function useNoteAutosave({
       return;
     }
     scheduledSaveRef.current = candidate;
-    timerRef.current = setTimeout(() => {
+    if (!autoSaveRef.current) {
       timerRef.current = null;
-      const scheduled = scheduledSaveRef.current;
-      scheduledSaveRef.current = null;
-      if (scheduled) void trackedFlushSave(scheduled);
-    }, AUTOSAVE_DELAY_MS);
+      return;
+    }
+    scheduleFlush();
   }
 
   /** 디바운스를 건너뛰고 즉시 저장한다 (Cmd/Ctrl+S). 성공 여부를 반환한다. */

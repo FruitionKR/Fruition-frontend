@@ -4,9 +4,9 @@
   min-width: 0;
   width: 180px;
   padding: 6px 8px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 13px;
 }
@@ -30,9 +30,9 @@
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
@@ -41,7 +41,7 @@
 }
 
 .filter-accent {
-  color: var(--yellow);
+  color: var(--color-primary);
 }
 
 /* 필터 드롭다운 */
@@ -58,15 +58,15 @@
   flex-direction: column;
   min-width: 120px;
   padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 12px var(--color-shadow);
 }
 
 .filter-option {
   padding: 6px 8px;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   border-radius: 4px;
   font-size: 14px;
@@ -78,11 +78,11 @@
 .filter-option:hover,
 .filter-option:focus-visible {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface-strong);
 }
 
 .filter-option.is-selected {
-  color: var(--yellow);
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -93,7 +93,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
 }
 
@@ -107,9 +107,9 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  color: var(--bg);
-  background: var(--yellow);
-  border: 1px solid var(--line);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
@@ -140,14 +140,14 @@
   align-items: center;
   gap: 24px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-foreground);
   font-size: 14px;
 }
 
 .row-head {
   height: 40px;
-  color: #c4c4c4;
+  color: var(--color-body);
   font-weight: 500;
   letter-spacing: -0.28px;
 }
@@ -163,7 +163,7 @@
 .checkbox {
   width: 20px;
   height: 20px;
-  border: 1px solid #a7a7a7;
+  border: 1px solid var(--color-body);
   border-radius: 4px;
 }
 
@@ -185,7 +185,7 @@
   width: 22px;
   height: 22px;
   flex: 0 0 auto;
-  color: var(--muted);
+  color: var(--color-body);
 }
 
 .profile-text {
@@ -197,14 +197,14 @@
 }
 
 .profile-name {
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
 }
 
 .profile-email {
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
@@ -216,8 +216,8 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
 }
 
@@ -225,7 +225,7 @@
   appearance: none;
   width: 86px;
   padding: 6px 22px 6px 6px;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   border: none;
   font-family: inherit;
@@ -241,7 +241,7 @@
 }
 
 .role-chip:focus-within {
-  border-color: var(--soft);
+  border-color: var(--color-surface-strong);
 }
 
 .role-chip .chev-icon {
@@ -263,7 +263,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--muted);
+  color: var(--color-body);
   background: transparent;
   border-radius: 4px;
 }
@@ -282,10 +282,10 @@
   flex-direction: column;
   min-width: 140px;
   padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 12px var(--color-shadow);
 }
 
 /* 드롭다운 셰브론 아이콘 (shared/assets/svg/setting_scroll.svg) */
@@ -297,5 +297,19 @@
 
 /* 활성 필터의 셰브론은 라벨과 같은 노란색으로 맞춘다. */
 .filter-btn:has(.filter-accent) .chev-icon {
-  color: var(--yellow);
+  color: var(--color-primary);
+}
+
+/* 떠 있는 메뉴·대화상자: 라이트는 흰 바탕, 다크는 기존 패널색을 유지한다. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .filter-menu,
+  :root:not([data-theme="light"]) .more-menu {
+    background: var(--color-surface);
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .filter-menu,
+:root[data-theme="dark"] .more-menu {
+  background: var(--color-surface);
 }

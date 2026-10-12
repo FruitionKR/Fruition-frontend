@@ -5,6 +5,22 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  /* 배지 고유 색. 라이트는 Figma 성공색, 다크는 기존 형광 초록을 유지한다. */
+  --safety-pass: var(--color-status-success);
+  --safety-loading-fg: var(--color-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge {
+    --safety-pass: #00de5a;
+    --safety-loading-fg: #6d6d6d;
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .badge {
+  --safety-pass: #00de5a;
+  --safety-loading-fg: #6d6d6d;
 }
 
 .ring {
@@ -12,7 +28,7 @@
 }
 
 /* 검토 중 스피너 — Figma 1033:8398 Ring Arc 원본 재현:
-   conic-gradient(from 90deg, 투명 → #00de5a 349.6deg → 투명)를 링 모양으로 마스킹하고
+   conic-gradient(from 90deg, 투명 → 통과색 349.6deg → 투명)를 링 모양으로 마스킹하고
    타임라인 5.42s 동안 3회전 후 잠시 멈추는 loop (times [0, 0.018, 0.686, 1], linear) */
 .ring-box {
   display: flex;
@@ -28,9 +44,9 @@
   border-radius: 50%;
   background: conic-gradient(
     from 90deg,
-    rgba(166, 166, 166, 0) 0deg,
-    #00de5a 349.6deg,
-    rgba(255, 255, 255, 0) 360deg
+    transparent 0deg,
+    var(--safety-pass) 349.6deg,
+    transparent 360deg
   );
   -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5.4px), #000 calc(100% - 5.3px));
   mask: radial-gradient(closest-side, transparent calc(100% - 5.4px), #000 calc(100% - 5.3px));
@@ -49,6 +65,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  /* SVG stroke는 currentColor로 이 색을 따른다 */
+  color: var(--safety-pass);
 }
 
 .outline-circle {
@@ -90,14 +108,14 @@ html[data-reduce-motion="true"] .gradient-arc {
 }
 
 .text-loading {
-  color: #6d6d6d;
+  color: var(--safety-loading-fg);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
 }
 
 .text-complete {
-  color: #00de5a;
+  color: var(--safety-pass);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;

@@ -5,18 +5,18 @@
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(circle at 50% 42%, rgba(230, 168, 0, 0.08), transparent 34%),
-    #0a0a0a;
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 34%),
+    var(--color-canvas);
   color: var(--ink);
 }
 
 .error-card {
   width: min(100%, 480px);
   padding: 42px 40px 38px;
-  border: 1px solid #333;
+  border: 1px solid var(--color-border);
   border-radius: 20px;
-  background: rgba(24, 24, 24, 0.94);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  background: var(--color-surface);
+  box-shadow: 0 24px 80px var(--color-shadow);
   text-align: center;
 }
 
@@ -26,10 +26,10 @@
   margin: 0 auto 22px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(230, 168, 0, 0.32);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 32%, transparent);
   border-radius: 18px;
   color: var(--yellow);
-  background: rgba(230, 168, 0, 0.1);
+  background: var(--color-primary-weak);
 }
 
 .error-eyebrow {
@@ -42,7 +42,7 @@
 
 .error-card h1 {
   margin: 0;
-  color: #f2f2f2;
+  color: var(--color-foreground);
   font-size: clamp(24px, 4vw, 30px);
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -51,7 +51,7 @@
 
 .error-description {
   margin: 16px auto 0;
-  color: #aaa;
+  color: var(--color-body);
   font-size: 14px;
   line-height: 1.7;
 }
@@ -59,10 +59,10 @@
 .error-detail {
   margin: 22px 0 0;
   padding: 12px 14px;
-  border: 1px solid rgba(240, 68, 82, 0.24);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
   border-radius: 9px;
-  color: #ffb7bd;
-  background: rgba(240, 68, 82, 0.08);
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -87,26 +87,20 @@
 }
 
 .retry-button {
-  color: #111;
+  color: var(--color-on-primary);
   background: var(--yellow);
 }
 
-.retry-button:hover {
-  --button-hover-overlay: none;
-  background: #f3bd22;
-}
-
 .login-button {
-  border: 1px solid #444;
-  color: #ccc;
-  background: #202020;
+  border: 1px solid var(--color-border);
+  color: var(--color-body);
+  background: var(--color-canvas);
 }
 
+/* 배경은 base.css 공통 hover 오버레이가 덧칠한다. */
 .login-button:hover {
-  --button-hover-overlay: none;
-  border-color: #666;
-  color: #fff;
-  background: #262626;
+  border-color: var(--color-muted);
+  color: var(--color-foreground);
 }
 
 .error-actions button:focus-visible {
@@ -120,7 +114,7 @@
   bottom: 24px;
   left: 24px;
   margin: 0;
-  color: #6e6e6e;
+  color: var(--color-muted);
   font-size: 11px;
   text-align: center;
 }

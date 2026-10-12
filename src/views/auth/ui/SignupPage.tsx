@@ -7,11 +7,12 @@ import {
   EMPTY_CONSENT,
   isConsentComplete,
   requestEmailVerification,
-  signupOAuthHint,
+  signupOAuthConflictMessage,
   type ConsentChoices
 } from "@/entities/user";
 import { ConsentForm } from "@/features/legal-consent";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 import { AuthScreen } from "@/shared/ui/AuthScreen";
@@ -25,9 +26,6 @@ export default function SignupPage() {
   const [consent, setConsent] = useState<ConsentChoices>(signupDraft?.consent ?? EMPTY_CONSENT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // 같은 이메일의 소셜 가입 계정 안내. 한 번 보여 준 이메일은 다시 제출하면 가입을 이어 간다.
-  const [oauthHint, setOAuthHint] = useState<{ email: string; message: string } | null>(null);
-  const visibleOAuthHint = oauthHint?.email === email.trim().toLowerCase() ? oauthHint.message : null;
   const draftError = signupDraft?.email === email.trim().toLowerCase()
     ? signupDraft.verificationRequestError ?? null
     : null;
@@ -37,8 +35,9 @@ export default function SignupPage() {
     event.preventDefault();
     if (isSubmitting) return;
 
-    if (password.length < 8) {
-      setErrorMessage("비밀번호는 8자 이상 입력해주세요.");
+    const passwordError = getPasswordPolicyError(password);
+    if (passwordError) {
+      setErrorMessage(passwordError);
       return;
     }
     // 버튼이 꺼져 있어도 Enter 제출은 들어올 수 있다. 필수 동의 없이는 인증 요청을 시작하지 않는다.
@@ -58,9 +57,10 @@ export default function SignupPage() {
         setIsSubmitting(false);
         return;
       }
-      const hint = signupOAuthHint(availability.oauth_providers ?? []);
-      if (hint && oauthHint?.email !== normalizedEmail) {
-        setOAuthHint({ email: normalizedEmail, message: hint });
+      // 서버는 소셜 가입 이메일도 available로 돌려주므로, 인증 메일을 보내기 전에 여기서 막는다.
+      const oauthConflict = signupOAuthConflictMessage(availability.oauth_providers ?? []);
+      if (oauthConflict) {
+        setErrorMessage(oauthConflict);
         setIsSubmitting(false);
         return;
       }
@@ -113,7 +113,6 @@ export default function SignupPage() {
             <ConsentForm disabled={isSubmitting} idPrefix="signup-consent" onChange={setConsent} value={consent} />
           </div>
           {visibleError ? <AuthError>{visibleError}</AuthError> : null}
-          {visibleOAuthHint ? <p className="auth-prompt auth-prompt--wrap" role="status">{visibleOAuthHint}</p> : null}
         </div>
         {/* 필수 동의(만 18세·이용약관)를 모두 체크해야 가입을 시작할 수 있다. */}
         <AuthSubmitButton disabled={isSubmitting || !isConsentComplete(consent)}>인증 요청</AuthSubmitButton>

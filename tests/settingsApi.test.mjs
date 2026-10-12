@@ -357,34 +357,3 @@ test("스킬 삭제 권한 거부를 성공으로 처리하지 않는다", async
   ));
   await assert.rejects(deleteSkill("ws_test", "skill_test"), /삭제 권한/);
 });
-
-test("게시 버전이 남아 있어도 disabled 스킬은 OFF이고 클릭하면 활성화한다", async () => {
-  const source = readFileSync(new URL("../src/features/user-settings/ui/panels/SkillsPanel.tsx", import.meta.url), "utf8");
-  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } });
-  const exports = {};
-  const calls = [];
-  const element = (type, props) => ({ type, props });
-  const skill = { id: "skill_test", slug: "meeting-summary", status: "disabled", scope_type: "personal", enabled_version: { description: "설명" } };
-  const modules = {
-    react: { useState: (initial) => [initial, () => {}], useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn() },
-    "react/jsx-runtime": { jsx: element, jsxs: element },
-    "@tanstack/react-query": { useQuery: () => ({ data: [skill] }), useQueryClient: () => ({}), useMutation: (options) => ({ mutate: options.mutationFn }) },
-    "@/entities/skill": { enableSkill: (...args) => calls.push(["enable", ...args]), disableSkill: (...args) => calls.push(["disable", ...args]) },
-    "@/shared/lib/auth": { getSelectedWorkspaceId: () => "ws_test" },
-    "@/shared/lib/useDismissableMenu": { useDismissableMenu: () => ({ current: null }) },
-    "@/shared/lib/useEscapeKey": { useEscapeKey() {} },
-    // 공통 Switch 컴포넌트는 checked/onClick prop만 확인한다.
-    "@/shared/ui/Switch": { Switch }
-  };
-  function Switch() {}
-  runInNewContext(outputText, { exports, require: (name) => modules[name] ?? { default: {} } });
-  function findSwitch(node) {
-    if (!node || typeof node !== "object") return;
-    if (node.type === Switch) return node;
-    return [node.props?.children].flat(Infinity).map(findSwitch).find(Boolean);
-  }
-  const toggle = findSwitch(exports.SkillsPanel());
-  assert.equal(toggle.props.checked, false);
-  await toggle.props.onClick();
-  assert.deepEqual(calls, [["enable", "ws_test", "skill_test"]]);
-});

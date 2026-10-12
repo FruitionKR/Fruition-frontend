@@ -10,25 +10,17 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  color: #f0f0f0;
-  background: #0a0a0a;
-  border-right: 1px solid #4f4f4f;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border-right: 1px solid var(--color-border);
   border-left: 0;
   font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
-:global(.workspace.is-sidebar-collapsed) .source-preview-panel {
-  left: 0;
-}
-
-/* 홈 메인 문서 뷰: 사이드바와 에이전트 패널 사이 남은 영역 전체를 채운다 */
+/* 홈 메인 문서 뷰: 사이드바와 에이전트 패널 사이 남은 영역 전체를 채운다(패널이 닫히면 --agent-panel-width가 0) */
 .source-preview-panel.is-main {
-  right: 360px;
+  right: var(--agent-panel-width, 360px);
   width: auto;
-}
-
-:global(.workspace.is-agent-collapsed) .source-preview-panel.is-main {
-  right: 0;
 }
 
 .source-preview-resize-handle {
@@ -53,122 +45,37 @@
   background: transparent;
 }
 
-.source-preview-topbar {
-  flex: 0 0 auto;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 12px 24px;
-}
-
-.source-preview-topbar nav,
+/* 저장 상태: 콘텐츠 우상단에 떠 있다. 제목이 위 48px에서 시작하므로 그 위 여백(12~40px)에 들어가
+   제목 줄과 겹치지 않는다. 스크롤 영역 밖(패널 기준)이라 본문을 내려도 저장 실패 표시가 계속 보이고,
+   본문이 아래로 지나갈 때 글자와 섞이지 않게 canvas 배경을 깐다. 오른쪽 16px은 본문 스크롤바(8px)를 비켜 간다. */
 .source-preview-actions {
-  min-width: 0;
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 6;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #f0f0f0;
+  gap: 12px;
+  color: var(--color-muted);
+  background: var(--color-canvas);
+  border-radius: 4px;
   font-size: 12px;
   white-space: nowrap;
 }
 
-.source-preview-topbar nav {
-  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
-  font-weight: 400;
-}
-
-/* 문서 경로와 이름은 강조 없이 동일한 굵기로 표시한다. */
-.source-preview-topbar nav > span:first-child {
-  font-weight: 400;
-}
-
-.source-preview-topbar nav strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-}
-
-.source-preview-actions {
-  flex: 0 0 auto;
-  gap: 16px;
-  color: #8a8a8a;
-}
-
-.source-preview-actions > span {
+.source-preview-save-status {
   font-weight: 500;
 }
 
-.source-preview-actions button {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  color: #8a8a8a;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.source-preview-actions button:hover,
-.source-preview-actions button:focus-visible {
-  --button-hover-overlay: none;
-  color: #f0f0f0;
-  background: #1e1e1e;
-}
-
-/* 우측 아이콘 탭 그룹 (Figma GNB: 사이드박스 + ⋯ 두 버튼이 붙어 있음) */
-.source-preview-tab {
-  display: flex;
-  align-items: center;
-}
-
-.source-preview-tab-icon {
-  width: 16px;
-  height: 16px;
-}
-
-.source-preview-save-status.is-dirty,
 .source-preview-save-status.is-saving {
-  color: var(--yellow);
+  color: var(--color-primary);
 }
 
 .source-preview-save-status.is-error,
 .source-preview-save-status.is-conflict,
 .source-preview-save-status.is-lock-lost,
 .source-preview-save-status.is-session-expired {
-  color: #ff8f87;
-}
-
-.source-preview-options {
-  position: relative;
-}
-
-.source-preview-options-menu {
-  position: absolute;
-  top: 34px;
-  right: 0;
-  z-index: 8;
-  min-width: 180px;
-  padding: 5px;
-  background: #1e1e1e;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
-}
-
-.source-preview-actions .source-preview-options-menu button {
-  width: 100%;
-  height: auto;
-  justify-content: flex-start;
-  padding: 8px 10px;
-  color: #e7e7e7;
-  font-size: 12px;
-  white-space: nowrap;
+  color: var(--color-danger);
 }
 
 .source-preview-document {
@@ -182,12 +89,36 @@
   padding: 0;
 }
 
-/* PDF는 편집 chrome 없이 뷰어가 콘텐츠 영역 전체를 채운다. */
+/* PDF는 편집 chrome 없이 파일명 줄 아래를 뷰어가 채운다. */
 .source-preview-document.is-pdf {
   padding-top: 0;
   align-items: stretch;
 }
 
+/* PDF 파일명 줄: 제목 바가 없어 내장 뷰어만으로는 어떤 파일인지 안 보이므로 얇게 둔다.
+   45px(사이드바 상단 바·채팅 헤더와 같은 높이), 14px SemiBold foreground, 하단 구분선. 좁으면 말줄임한다. */
+.source-preview-file-bar {
+  flex: 0 0 45px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.source-preview-file-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 브라우저 내장 PDF 뷰어(인쇄·다운로드·회전 등 브라우저 툴바 포함)가 영역 전체를 채운다. */
 .source-preview-pdf-frame {
   width: 100%;
   flex: 1 1 auto;
@@ -195,7 +126,8 @@
   border: 0;
 }
 
-/* 문서 제목 (Figma 426:2202): 36px SemiBold, gray/050, 행간 1.4. 본문과 구분선으로 나누고 본문까지 24px.
+/* 문서 제목 (Figma 1527:16428): 32px Bold, foreground, 행간 1.4, 자간 -2%. 본문과 구분선으로 나누고 본문까지 32px.
+   시안의 "프로젝트 문서/회의록" 탭(1527:16429)은 데이터가 없어 두지 않고 구분선만 남긴다.
    Markdown 문서는 같은 자리에서 이름을 바로 고치는 input이라 h2와 동일하게 보이게 맞춘다. */
 .source-preview-heading {
   width: 100%;
@@ -203,9 +135,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-bottom: 16px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--line);
+  padding-bottom: 24px;
+  margin-bottom: 32px;
+  border-bottom: 1.2px solid var(--color-border);
 }
 
 .source-preview-heading h2,
@@ -214,20 +146,23 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  color: #f9fafb;
+  color: var(--color-foreground);
+  /* 본문 편집기와 같은 커서 색 */
+  caret-color: var(--color-primary);
   background: transparent;
   border: 0;
   border-radius: 4px;
   outline: 0;
   font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
-  font-size: 36px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.64px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 .source-preview-title-input::placeholder {
-  color: var(--subdued);
+  color: var(--color-placeholder);
 }
 
 /* 편집 가능 표시는 색이 아니라 커서로만 준다 (시안은 단일 색). 포커스 밑줄은 제목·본문 구분선과 겹쳐 두지 않는다. */
@@ -238,8 +173,8 @@
 .source-preview-heading > span {
   width: fit-content;
   padding: 4px 9px;
-  color: #0a0a0a;
-  background: var(--yellow);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
@@ -256,28 +191,28 @@
 }
 
 .source-preview-document-controls > span {
-  color: #ff8f87;
+  color: var(--color-danger);
   font-size: 11px;
 }
 
 .source-preview-content {
-  /* Figma 1246:9026: 본문 여백은 상하 80px, 좌우 40px.
+  /* Figma 1527:16427: 본문 여백은 위 48px, 좌우 40px(본문 폭 873-80=793). 아래는 채팅 버튼에 가리지 않게 80px.
      스크롤 영역 안에 여백을 두어 제목부터 문서 끝까지 함께 스크롤한다. */
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 80px 40px;
-  color: #f0f0f0;
-  font-size: 16px;
+  padding: 48px 40px 80px;
+  color: var(--color-foreground);
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
   scrollbar-width: thin;
-  scrollbar-color: var(--line, #4f4f4f) transparent;
+  scrollbar-color: var(--color-border) transparent;
 }
 
-/* 편집기 스크롤바 다크 처리. FSD 모듈화로 전역 base.css 규칙이 해시 class에 안 붙어 직접 지정한다. */
+/* 편집기 스크롤바 색. FSD 모듈화로 전역 base.css 규칙이 해시 class에 안 붙어 직접 지정한다. */
 .source-preview-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -287,8 +222,8 @@
 }
 
 .source-preview-content::-webkit-scrollbar-thumb {
-  background: var(--line, #4f4f4f);
-  border: 2px solid #0a0a0a;
+  background: var(--color-border);
+  border: 2px solid var(--color-canvas);
   border-radius: 999px;
 }
 
@@ -300,9 +235,14 @@
   overflow-wrap: anywhere;
 }
 
-/* 문서 본문 문단은 시안(Figma 1292:5455)대로 행간으로만 이어진다. 편집 모드(NoteEditor.module.css)와 같은 값 */
+/* 문서 본문 문단·목록 항목은 행간에 2px만 더 띄워 잇는다. 편집 모드(NoteEditor.module.css)와 같은 값.
+   체크리스트 항목 간격은 markdown.css가 더 넓게 준다 */
 .source-preview-content :global(.markdown-viewer) p {
-  margin: 0;
+  margin: 0 0 2px;
+}
+
+.source-preview-content :global(.markdown-viewer) li + li {
+  margin-top: 2px;
 }
 
 /* 오류·요약 등 뷰어 밖의 단독 문단은 다음 블록과 간격을 둔다 */
@@ -321,7 +261,7 @@
 
 /* TXT 원본 본문. 패널 배경 그대로, 본문 서체 유지 */
 .source-preview-plain-text {
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   font-size: 14px;
   line-height: 1.7;
@@ -341,45 +281,16 @@
   gap: 8px;
   margin-top: 18px;
   padding-top: 16px;
-  border-top: 1px solid #4f4f4f;
+  border-top: 1px solid var(--color-border);
 }
 
 .source-preview-meta span {
-  color: #a7a7a7;
+  color: var(--color-body);
   font-size: 12px;
 }
 
 /* --- responsive (기존 responsive.css의 source-preview 소유분) --- */
-/* is-main의 right는 agent-panel 반응형 폭(360/330/300)과 항상 일치해야 한다 */
-@media (max-width: 1300px) {
-  .source-preview-panel {
-    left: var(--sidebar-width, 320px);
-  }
-
-  .source-preview-panel.is-main {
-    right: 330px;
-  }
-}
-
-@media (max-width: 1080px) {
-  .source-preview-panel {
-    left: var(--sidebar-width, 320px);
-  }
-
-  .source-preview-panel.is-main {
-    right: 300px;
-  }
-}
-
 @media (max-width: 720px) {
-  .source-preview-topbar {
-    padding-inline: 16px;
-  }
-
-  .source-preview-actions > span {
-    display: none;
-  }
-
   .source-preview-heading,
   .source-preview-document-controls {
     padding-inline: 20px;
@@ -387,6 +298,6 @@
 
   .source-preview-heading h2,
   .source-preview-title-input {
-    font-size: 32px;
+    font-size: 28px;
   }
 }
