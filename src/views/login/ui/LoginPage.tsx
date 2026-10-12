@@ -18,6 +18,7 @@ import {
   type OAuthLinkResult
 } from "@/entities/user";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
+import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
@@ -26,6 +27,7 @@ import { useServerWake, type AccessCodeResult } from "@/views/login/model/useSer
 const INVALID_CREDENTIALS_MESSAGE = "가입하지 않은 아이디거나, 잘못된 비밀번호입니다.";
 const SERVER_PREPARING_MESSAGE = "서버가 아직 준비 중이에요. 준비가 끝나면 다시 로그인해 주세요.";
 const ACCESS_CODE_ERROR_ID = "login-access-code-error";
+const PASSWORD_HANGUL_WARNING_ID = "login-password-hangul-warning";
 const ACCESS_CODE_MESSAGES: Record<Exclude<AccessCodeResult, "ok"> | "empty", string> = {
   empty: "접근 코드를 입력해 주세요.",
   invalid: "접근 코드가 올바르지 않습니다.",
@@ -229,6 +231,7 @@ function LoginPageContent() {
           <div className="auth-field-with-error">
             <AuthField
               autoComplete="current-password"
+              describedBy={hasHangul(password) ? PASSWORD_HANGUL_WARNING_ID : undefined}
               label="비밀번호"
               name="password"
               onChange={(event) => setPassword(event.target.value)}
@@ -236,6 +239,12 @@ function LoginPageContent() {
               type="password"
               value={password}
             />
+            {/* 한글 비밀번호도 허용되므로 막지 않고 한/영 전환 실수만 알린다. */}
+            {hasHangul(password) ? (
+              <p className="auth-prompt auth-prompt--wrap auth-prompt--warning" id={PASSWORD_HANGUL_WARNING_ID} role="status">
+                한글이 입력되었습니다. 한/영 키를 확인해 주세요.
+              </p>
+            ) : null}
             {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
           </div>
         </div>

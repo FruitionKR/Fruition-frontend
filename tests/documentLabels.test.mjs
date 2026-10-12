@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 const { buildDocumentPathSuffixes, withPathSuffix, ROOT_FOLDER_LABEL } = await import("../src/entities/graph/lib/documentLabels.ts");
 const { buildGraphFromBackend } = await import("../src/entities/graph/lib/graph.ts");
-const { buildRelatedPageCards } = await import("../src/features/agent-chat/lib/relatedPageCards.ts");
+const { buildSourceDocumentCards } = await import("../src/features/agent-chat/lib/relatedPageCards.ts");
 
 const md = (id, filename, extra = {}) => ({
   id, filename, mime_type: "text/markdown", document_role: "EDITABLE", status: "completed", ...extra
@@ -50,7 +50,7 @@ test("PDF 원본과 변환본은 이름이 같아도 겹침으로 세지 않는�
   assert.equal(buildDocumentPathSuffixes([pdf, converted], [{ items: [] }]).size, 0);
 });
 
-test("그래프의 원본·소스 노드 라벨과 관련 페이지 카드 제목이 같은 접미사를 쓴다", () => {
+test("그래프의 원본·소스 노드 라벨과 찾은 자료 카드 제목이 같은 접미사를 쓴다", () => {
   const graph = { nodes: [
     { id: "src-a", title: "회의록", page_type: "source", source_document: { id: "doc-a" } },
     { id: "src-b", title: "회의록", page_type: "source", source_document: { id: "doc-b" } },
@@ -68,6 +68,7 @@ test("그래프의 원본·소스 노드 라벨과 관련 페이지 카드 제�
   // 접미사를 넘기지 않으면 이전과 같은 라벨이다.
   assert.equal(buildGraphFromBackend(documents, graph).nodes.find((node) => node.id === "src-b")?.label, "회의록");
 
-  const message = { related_pages: [{ wiki_page_id: "src-b", page_type: "source", title: "회의록", role: "근거" }], references: [] };
-  assert.equal(buildRelatedPageCards(message, nodes)[0].title, "회의록 · 2026/1월");
+  // 새 디자인의 "찾은 자료" 카드는 원본(raw) 노드 라벨을 제목으로 쓰므로 같은 접미사가 붙는다.
+  const message = { related_pages: [], references: [{ source_document_id: "doc-b", rank: 1, text: "근거" }] };
+  assert.equal(buildSourceDocumentCards(message, nodes)[0].title, "회의록.md · 2026/1월");
 });

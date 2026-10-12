@@ -27,11 +27,6 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
 
 ## 인접 도메인: Wiki Schema
 
-`src/entities/schema/api/schema.ts`는 `origin/main` 기준으로 **backend를 호출하지 않는다.**
-`localStorage` 키 `fruition.wiki_schema.mock.v1`에 저장하는 클라이언트 목업이며
-파일 첫 주석이 "wiki-schema Java 프록시가 아직 없으므로 클라이언트 목업으로 화면을 구동한다"고
-명시한다. 보안 분류도 `ISSUE_RULES` 정규식으로 모방한다.
-
-따라서 document-svc의 `wiki-schema/**` 4개 경로는 미호출이다. 다른 분기에서 배선이
-**진행 중**이므로 이 문서는 `origin/main` 상태만 기록한다. [uncalled.md](../uncalled.md) 참조.
-UI(`src/features/schema-manage/ui`)는 존재하지만 목업 데이터로 동작한다.
+스킬 화면은 `wiki-schema/**`를 호출하지 않는다. 앱 어디에서도 렌더링되지 않던
+`localStorage` 목업(`src/entities/schema`, `src/features/schema-manage`)은 제거했다.
+document-svc의 `wiki-schema/**` 4개 경로는 미호출이다. [uncalled.md](../uncalled.md) 참조.

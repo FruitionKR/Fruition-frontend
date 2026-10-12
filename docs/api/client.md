@@ -58,7 +58,7 @@
 `usesDocumentTransport(path)` — `src/shared/api/documentTransport.ts`
 
 ```
-/^\/api\/workspaces\/[^/]+\/(?:documents|document-tree|folders|agent|chat|wiki-schema|skills)(?:\/|$)/
+/^\/api\/workspaces\/[^/]+\/(?:documents|document-tree|folders|agent|chat|skills)(?:\/|$)/
 ```
 
 이 정규식에 맞는 경로만 `GET /api/document-transport`(이 저장소가 제공, [served.md](served.md))가

@@ -1,5 +1,6 @@
 // access-svc(8081) 워크스페이스·아이콘·멤버·초대 라우트.
 import { state, now, id, error, requireWorkspace } from "../state.mjs";
+import { FREE_WORKSPACE_LIMIT, freeWorkspaceCount, storageOf } from "../lib/limits.mjs";
 
 function toWorkspace(workspace) {
   const { id: wid, name, icon_emoji, icon_url, created_at, updated_at } = workspace;
@@ -31,12 +32,15 @@ export function registerWorkspaceRoutes(router) {
   router.get("/api/workspaces", (ctx) => {
     const memberships = state.members.filter((member) => member.user_id === ctx.user.id).map((member) => member.workspace_id);
     const workspaces = state.workspaces.filter((workspace) => memberships.includes(workspace.id) && !workspace.deleted_at).map(toWorkspace);
-    ctx.json(200, { workspaces });
+    ctx.json(200, { workspaces, free_workspace_count: freeWorkspaceCount(ctx.user.id), free_workspace_limit: FREE_WORKSPACE_LIMIT });
   });
 
   router.post("/api/workspaces", async (ctx) => {
     const { name } = await ctx.body();
     if (typeof name !== "string" || !name.trim()) return error(ctx, 400, "워크스페이스 이름을 입력해주세요.");
+    if (freeWorkspaceCount(ctx.user.id) >= FREE_WORKSPACE_LIMIT) {
+      return error(ctx, 409, "무료 워크스페이스는 더 만들 수 없습니다.", "WORKSPACE_LIMIT_EXCEEDED");
+    }
     const timestamp = now();
     const workspace = {
       id: id("ws"), name: name.trim(), icon_emoji: null, icon_url: null, icon_image: null, owner_id: ctx.user.id,
@@ -48,6 +52,12 @@ export function registerWorkspaceRoutes(router) {
     state.members.push({ workspace_id: workspace.id, user_id: ctx.user.id, role: "OWNER", joined_at: timestamp });
     state.chatSessions.push({ id: id("chat"), workspace_id: workspace.id, title: null, created_at: timestamp, last_message_at: timestamp });
     ctx.json(201, toWorkspace(workspace));
+  });
+
+  router.get("/api/workspaces/:wid/storage", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    ctx.json(200, storageOf(workspace));
   });
 
   router.patch("/api/workspaces/:wid", async (ctx) => {

@@ -27,8 +27,8 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  color: var(--ink);
-  background: var(--soft);
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
   border-radius: 100px;
   font-size: 12px;
   font-weight: 500;

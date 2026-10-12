@@ -2,11 +2,12 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { confirmEmailVerification, requestEmailVerification } from "@/entities/user";
+import { requestEmailVerification } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
+import { confirmVerificationCode } from "@/views/auth/lib/confirmVerificationCode";
 import { useDevelopmentVerificationCode } from "@/views/auth/lib/useDevelopmentVerificationCode";
 import { useExpiryCountdown } from "@/views/auth/lib/useExpiryCountdown";
 import { useVerificationResend } from "@/views/auth/lib/useVerificationResend";
@@ -39,7 +40,7 @@ function ForgotPasswordPageContent() {
     purpose: "password_reset",
     setErrorMessage,
     onSuccess: ({ verificationId, expiresAt }) => {
-      // 응답 도착 시점의 초안에만 병합한다. 이전으로 돌아가 초안이 지워졌으면 되살리지 않는다.
+      // 응답 도착 시점의 초안에만 병합한다. 이메일을 고쳐 초안이 지워졌으면 되살리지 않는다.
       setPasswordResetDraft((current) =>
         current ? { ...current, verificationId, expiresAt } : current
       );
@@ -52,6 +53,12 @@ function ForgotPasswordPageContent() {
     setVerificationCode("");
     setIsCodeStep(false);
     setErrorMessage(null);
+  }
+
+  // 인증번호 발송 뒤 이메일을 고치면 기존 인증을 버리고 새 이메일로 다시 요청하게 한다.
+  function handleEmailChange(nextEmail: string) {
+    setEmail(nextEmail);
+    if (isCodeStep) restartVerification();
   }
 
   async function requestVerification() {
@@ -88,10 +95,7 @@ function ForgotPasswordPageContent() {
     setIsSubmitting(true);
 
     try {
-      const confirmation = await confirmEmailVerification(
-        passwordResetDraft.verificationId,
-        code.trim()
-      );
+      const confirmation = await confirmVerificationCode(passwordResetDraft.verificationId, code);
       setPasswordResetDraft({
         ...passwordResetDraft,
         verificationToken: confirmation.verification_token
@@ -134,42 +138,35 @@ function ForgotPasswordPageContent() {
               autoComplete="email"
               label="이메일 인증"
               name="email"
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => handleEmailChange(event.target.value)}
               placeholder="example@email.com"
-              readOnly={isCodeStep || isRequestingVerification}
+              readOnly={isSubmitting}
               type="email"
               value={email}
             />
-            {isCodeStep ? (
-              <AuthField
-                label="인증번호"
-                name="verificationCode"
-                onChange={(event) => setVerificationCode(event.target.value)}
-                placeholder="code"
-                timer={countdown.label}
-                value={verificationCode}
-              />
-            ) : null}
+            {/* Figma 시안처럼 인증번호 칸을 처음부터 두고, 발송 전에는 입력과 타이머를 막는다. */}
+            <AuthField
+              label="인증번호"
+              name="verificationCode"
+              onChange={(event) => setVerificationCode(event.target.value)}
+              placeholder="code"
+              readOnly={!isCodeStep}
+              timer={isCodeStep ? countdown.label : undefined}
+              value={verificationCode}
+            />
           </div>
           {isRequestingVerification ? <p className="auth-prompt" role="status">인증번호를 발송하고 있습니다.</p> : null}
           {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
         </div>
         <AuthSubmitButton disabled={isSubmitting}>
-          {isRequestingVerification ? "발송 중" : isCodeStep ? "인증 확인" : "인증 요청"}
+          {isRequestingVerification ? "발송 중" : "인증 요청"}
         </AuthSubmitButton>
       </form>
-      {isCodeStep ? (
-        <>
-          <ResendCodePrompt
-            disabled={!countdown.isExpired || isResending}
-            isResending={isResending}
-            onResend={handleVerificationResend}
-          />
-          <p className="auth-prompt">이메일을 다시 입력하시겠어요?<button onClick={restartVerification} type="button">이전으로</button></p>
-        </>
-      ) : (
-        <p className="auth-prompt">로그인으로 돌아가시겠어요?<button onClick={() => router.push("/login")} type="button">로그인하기</button></p>
-      )}
+      <ResendCodePrompt
+        disabled={!isCodeStep || !countdown.canResend || isResending}
+        isResending={isResending}
+        onResend={handleVerificationResend}
+      />
     </AuthScreen>
   );
 }

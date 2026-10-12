@@ -1,8 +1,7 @@
-import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { chatCheckIcon, rawPageIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import { buildStatusSteps, type StatusStep } from "../lib/agentData";
+import { AgentChevronIcon, AgentStepCheckIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
 export function StatusList({
@@ -23,12 +22,12 @@ export function StatusList({
   return (
     <div className={styles["status-list"]}>
       <button type="button" aria-expanded={isExpanded} onClick={() => setIsExpanded((current) => !current)}>
-        {title} <ChevronDown size={14} className={isExpanded ? undefined : styles["is-collapsed"]} />
+        <span>{title}</span><AgentChevronIcon className={isExpanded ? undefined : styles["is-collapsed"]} />
       </button>
       {isExpanded && <div className={styles["status-steps"]}>
         {resolvedSteps.map(([label, state], index) => (
           <div className={cx(styles["status-row"], styles[state])} key={`${title}-${index}-${label}`}>
-            <span>{state === "done" && <SvgIcon src={chatCheckIcon} />}{state === "pending" && <SvgIcon src={rawPageIcon} />}</span>
+            <span>{state === "done" && <AgentStepCheckIcon />}</span>
             <p>{label}</p>
           </div>
         ))}

@@ -1,5 +1,4 @@
-import { Check, ChevronDown, Mic, Square } from "lucide-react";
-import { sendIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { Check, Square } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
@@ -7,6 +6,7 @@ import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import { appendDictation } from "../lib/dictation";
 import { useDictation } from "../model/useDictation";
+import { AgentChevronIcon, AgentSendIcon, AgentWaveMark } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
 export type AiModelCatalogStatus = "loading" | "ready" | "empty" | "error";
@@ -192,7 +192,7 @@ export function AgentComposer({
                 <span>웹 서칭</span>
               </span>
             )}
-            <ChevronDown size={8} className={cx(isModelListOpen && styles["is-open"])} />
+            <AgentChevronIcon isWide className={cx(isModelListOpen && styles["is-open"])} />
           </button>
           {isModelListOpen && (
             <div className={styles["composer-model-list"]}>
@@ -268,7 +268,8 @@ export function AgentComposer({
             </div>
           )}
         </div>
-        <div className={styles["composer-submit-group"]}>
+        {/* Figma 1436:17328: 파란 파형 마크(#147 음성 받아쓰기 버튼) + 회색 원형 전송 버튼 */}
+        <div className={styles["composer-buttons"]}>
           <button
             type="button"
             className={cx(styles["composer-mic"], isRecording && styles["is-recording"])}
@@ -277,7 +278,7 @@ export function AgentComposer({
             disabled={isLoading || isTranscribing}
             onClick={() => (isRecording ? dictation.stop() : void dictation.start())}
           >
-            {isRecording ? <Square size={12} aria-hidden /> : <Mic size={14} aria-hidden />}
+            {isRecording ? <Square size={12} aria-hidden /> : <AgentWaveMark size="small" />}
           </button>
           <button
             type="submit"
@@ -285,7 +286,7 @@ export function AgentComposer({
             aria-label="전송"
             disabled={isLoading || !canSubmit || value.trim().length === 0}
           >
-            <SvgIcon src={sendIcon} />
+            <AgentSendIcon />
           </button>
         </div>
       </div>
