@@ -25,11 +25,20 @@ export class ApiError extends Error {
   }
 }
 
+/** 크레딧 부족 거절(402 INSUFFICIENT_CREDIT) 안내. 결제가 없어 충전 대신 문의를 안내한다(#153). */
+export const INSUFFICIENT_CREDIT_MESSAGE = "크레딧이 부족합니다. 관리자에게 문의해 주세요.";
+
+/** 서버가 크레딧 부족으로 AI 작업을 시작하지 않은 거절(document #122). 입력·파일은 지우지 않고 다시 시도할 수 있게 둔다. */
+export function isInsufficientCreditError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 402 && error.code === "INSUFFICIENT_CREDIT";
+}
+
 /**
  * unknown 에러에서 사람이 읽을 메시지를 안전하게 추출합니다.
  * Error가 아니면 fallback 문구를 반환합니다.
  */
 export function getErrorMessage(error: unknown, fallback: string): string {
+  if (isInsufficientCreditError(error)) return INSUFFICIENT_CREDIT_MESSAGE;
   if (isErrorMessage(error, "agent_not_configured")) {
     return "서버 설정으로 인해 AI 작업 기능을 사용할 수 없습니다. 관리자에게 문의해 주세요.";
   }

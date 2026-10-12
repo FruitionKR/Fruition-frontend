@@ -124,6 +124,22 @@ test("SSE가 끊긴 뒤 run이 failed로 끝나면 실패로 알리고 더 폴�
   assert.equal(statusCalls, 1);
 });
 
+test("질의 요청이 402 INSUFFICIENT_CREDIT로 거절되면 크레딧 부족 안내로 알리고 스트림을 열지 않는다(#153)", async (t) => {
+  setup(t);
+  const { getErrorMessage, isInsufficientCreditError } = await import("../src/shared/lib/errors.ts");
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    return Response.json({ error: { code: "INSUFFICIENT_CREDIT", message: "크레딧이 부족해 작업을 시작하지 않았습니다." } }, { status: 402 });
+  });
+  await assert.rejects(runQueryStream("질문", model, { onStage() {} }), (error) => {
+    assert.equal(isInsufficientCreditError(error), true);
+    assert.equal(getErrorMessage(error, "질의에 실패했습니다."), "크레딧이 부족합니다. 관리자에게 문의해 주세요.");
+    return true;
+  });
+  assert.equal(calls, 1);
+});
+
 test("SSE 연결 종료 후 상태 조회가 cancelled이면 실패 알림으로 바꾸지 않는다", async (t) => {
   setup(t);
   t.mock.method(globalThis, "fetch", async (path, init) => {

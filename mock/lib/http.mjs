@@ -31,6 +31,7 @@ export function createRouter(state) {
           if (!match) continue;
           route.keys.forEach((key, index) => { ctx.params[key] = decodeURIComponent(match[index + 1]); });
           if (!route.open && !authenticate(ctx)) return;
+          if (rejectForInsufficientCredit(ctx)) return;
           await route.handler(ctx);
           if (!res.writableEnded && !ctx.streaming) ctx.json(200, {});
           return;
@@ -45,6 +46,25 @@ export function createRouter(state) {
     }
   };
   return api;
+}
+
+/** 크레딧 사전 확인을 거치는 AI 작업 시작 경로(document #122). MOCK_INSUFFICIENT_CREDIT=1이면 402로 거절한다(#153). */
+const AI_ENTRY_PATHS = [
+  /\/chat\/sessions\/[^/]+\/query\/runs$/,
+  /\/agent\/turn$/,
+  /\/agent\/runs\/[^/]+\/(approve|revise)$/,
+  /\/documents\/[^/]+\/(ingest|convert-markdown)$/,
+  /\/wiki\/maintenance\/lint$/,
+  /\/skills\/author(\/publish)?$/,
+  /\/skills\/[^/]+$/
+];
+
+function rejectForInsufficientCredit(ctx) {
+  if (!["1", "true"].includes(process.env.MOCK_INSUFFICIENT_CREDIT ?? "")) return false;
+  if (!["POST", "PATCH"].includes(ctx.req.method)) return false;
+  if (!AI_ENTRY_PATHS.some((pattern) => pattern.test(ctx.url.pathname))) return false;
+  ctx.json(402, { error: { code: "INSUFFICIENT_CREDIT", message: "크레딧이 부족해 작업을 시작하지 않았습니다." } });
+  return true;
 }
 
 function authenticate(ctx) {
