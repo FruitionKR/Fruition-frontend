@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
+import { registerEditConflict } from "../api/editConflict";
+import { describeConflictRegistration } from "./editConflict";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
 import { isSessionExpired } from "@/shared/lib/auth";
@@ -60,6 +62,8 @@ export function useNoteAutosave({
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
   // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)·lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
   const saveBlockRef = useRef<NoteSaveBlock | null>(null);
+  // 이 편집 세션의 충돌 등록 ID. 같은 ID 재전송은 서버가 기존 충돌을 돌려주므로 재시도해도 중복되지 않는다.
+  const clientConflictIdRef = useRef(crypto.randomUUID());
   const agentRetryRequiredRef = useRef(false);
   const agentRetryApplyOperationIdRef = useRef<string | undefined>(undefined);
   const agentRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -148,11 +152,13 @@ export function useNoteAutosave({
       setStatus("saving");
       setErrorMessage(null);
     }
+    // 충돌 등록은 저장하려던 본문을 그대로 올리므로 try 바깥에서도 읽을 수 있게 둔다.
+    let markdownToSave = saveCandidate.markdown;
     try {
       if (saveCandidate.source === "agent") {
         agentRetryApplyOperationIdRef.current = saveCandidate.applyOperationId;
       }
-      const markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
+      markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
       const attachments = pendingImages.collect(markdownToSave);
       if (attachments.length > MAX_IMAGES_PER_SAVE) {
         throw new Error(`한 번에 저장할 수 있는 새 이미지는 ${MAX_IMAGES_PER_SAVE}개까지입니다.`);
@@ -190,6 +196,15 @@ export function useNoteAutosave({
         saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
+        // 내 본문을 버리지 않고 충돌로 등록해 OWNER가 고르게 한다. 등록 결과에 따라 안내 문구를 바꾼다.
+        const registered = await registerEditConflict(documentId, {
+          markdown: markdownToSave,
+          base_revision: versionRef.current,
+          client_conflict_id: clientConflictIdRef.current
+        }).then(() => true, () => false);
+        if (mountedRef.current) setErrorMessage(describeConflictRegistration(registered));
+        else onDetachedSaveCompleteRef.current?.({ success: false, error: new Error(describeConflictRegistration(registered)) });
+        return false;
       } else if (isWriteForbiddenError(error)) {
         // 편집 중 권한이 "보기만"으로 바뀌면 이후 저장은 모두 403이다. 저장된 척하지 않고 멈춘다.
         saveBlockRef.current = "lock-lost";

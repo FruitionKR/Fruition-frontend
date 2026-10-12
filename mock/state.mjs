@@ -26,6 +26,9 @@ export const state = {
   lintRuns: new Map(),
   // 문서 id → { holder_user_id, holder_display_name, expires_at }
   editLocks: new Map(),
+  // 편집 충돌(document_edit_conflicts)과 앱 안 알림
+  editConflicts: [],
+  notifications: [],
   skills: [],
   aiModels: []
 };
@@ -120,6 +123,16 @@ export function requireDocumentDelete(ctx, doc) {
   if (documentAccess(doc, ctx.user.id).can_delete) return true;
   error(ctx, 403, "문서 소유자와 워크스페이스 OWNER만 삭제·복구할 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
   return false;
+}
+
+/**
+ * 앱 안 알림을 만든다. audience=user는 recipient_user_id 한 명에게, workspace_owners는 조회 시점 OWNER에게 보인다.
+ * 읽음은 사용자별로 따로 기록한다(read_by).
+ */
+export function addNotification(workspaceId, { type, payload, audience = "user", recipientUserId = null }) {
+  const notification = { id: id("ntf"), workspace_id: workspaceId, type, payload, audience, recipient_user_id: recipientUserId, read_by: new Set(), created_at: now() };
+  state.notifications.push(notification);
+  return notification;
 }
 
 export const SKILL_REFERENCE_ORIGIN = "skill_reference";

@@ -4,7 +4,9 @@ import { useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
 import { Switch } from "@/shared/ui/Switch";
+import { useWorkspaceRole } from "@/entities/workspace";
 import { AccessCodeSection } from "./AccessCodeSection";
+import { EditConflictSection } from "./EditConflictSection";
 import styles from "./SettingsPanel.module.css";
 
 function SettingRow({
@@ -49,6 +51,8 @@ function SettingSwitch({
 export function SettingsPanel() {
   const { preferences, updatePreferences, resetPreferences } = useUserPreferences();
   const [browserNotificationMessage, setBrowserNotificationMessage] = useState<string | null>(null);
+  // 편집 충돌 해결은 OWNER만 할 수 있어(GET .../conflicts가 403) 역할을 확인한 뒤 보여준다.
+  const { isOwner } = useWorkspaceRole();
 
   function updateEditor(update: (editor: UserPreferences["editor"]) => UserPreferences["editor"]) {
     updatePreferences((current) => ({ ...current, editor: update(current.editor) }));
@@ -106,6 +110,8 @@ export function SettingsPanel() {
         </header>
 
         <AccessCodeSection />
+
+        {isOwner && <EditConflictSection />}
 
         <section className={styles["settings-section"]}>
           <h3>화면과 접근성</h3>
