@@ -448,7 +448,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 13px;
   line-height: 1.5;
   word-break: keep-all;
@@ -459,7 +459,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
 .provider-row {
@@ -470,7 +470,7 @@
 
 .btn-next.is-danger {
   color: #fff;
-  background: #c0392b;
+  background: var(--color-danger);
 }
 
 /* --- 멤버 초대 모달 --- */
