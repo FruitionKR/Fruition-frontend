@@ -54,7 +54,7 @@ export function TrashModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CenteredModal ariaLabel="휴지통" onClose={onClose}>
+    <CenteredModal ariaLabel="휴지통" className={styles.box} onClose={onClose}>
       <div className={modalStyles["modal-header"]}>
         <h2 className={styles.title}>휴지통</h2>
         <button type="button" className={modalStyles["modal-close"]} aria-label="휴지통 닫기" onClick={onClose}>
