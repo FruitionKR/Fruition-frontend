@@ -2,11 +2,22 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { select } from "d3-selection";
 import { zoom, ZoomTransform } from "d3-zoom";
 import type { ZoomBehavior } from "d3-zoom";
+import type { GraphRect } from "../lib/graphGeometry";
 import type { GraphCache, GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
 import { GRAPH_CENTER, GRAPH_ZOOM, linkKey } from "@/entities/graph/lib/graph";
 import { readStoredGraphCache, writeStoredGraphCache } from "./graphCache";
 import { drawGraphFrame, preloadRawNodeIcon } from "../lib/graphDrawing";
-import { canvasToGraphPosition, clampGraphPan, clampGraphPosition, clampGraphZoom, graphToCanvasPosition } from "../lib/graphGeometry";
+import { DARK_SCHEME_QUERY } from "../lib/graphColors";
+import {
+  canvasToGraphPosition,
+  canvasViewport,
+  clampGraphPan,
+  clampGraphPosition,
+  clampGraphZoom,
+  graphNodeBounds,
+  graphToCanvasPosition,
+  resizeGraphPan
+} from "../lib/graphGeometry";
 import {
   FIXED_NODE_SIZE,
   createGraphSimulation,
@@ -15,7 +26,9 @@ import {
   tickGraphSimulation
 } from "../lib/graphPhysics";
 import type { GraphSimNode, GraphSimulation } from "../lib/graphPhysics";
+import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { useGraphAnimation } from "./useGraphAnimation";
+import { useGraphIngestProgress } from "./useGraphIngestProgress";
 import { useGraphPointer } from "./useGraphPointer";
 
 const HOVER_SMOOTHING_MS = 320;
@@ -23,13 +36,22 @@ const HOVER_SETTLE_THRESHOLD = 0.002;
 const GRAPH_CACHE_DEBOUNCE_MS = 700;
 /** graph cache signature의 레이아웃 버전 prefix */
 const GRAPH_LAYOUT_VERSION = "d3-layout-v1";
+const NO_INGEST_PROGRESS_INPUTS: readonly GraphIngestProgressInput[] = [];
 
-export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNodePreview, onClearNodeFocus }: {
+export function useGraphCanvas({
+  nodes = [],
+  links = [],
+  focusedNodeId,
+  onOpenNodePreview,
+  onClearNodeFocus,
+  ingestProgressInputs = NO_INGEST_PROGRESS_INPUTS
+}: {
   nodes: GraphNode[];
   links: GraphLink[];
   focusedNodeId: string | null;
   onOpenNodePreview: (node: GraphNode) => void;
   onClearNodeFocus?: () => void;
+  ingestProgressInputs?: readonly GraphIngestProgressInput[];
 }) {
   const graphSignature = useMemo(
     () => {
@@ -92,6 +114,10 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
   const requestAnimationRef = useRef<() => void>(() => {});
   const drawGraphRef = useRef<() => void>(() => {});
   const hitTestNodeRef = useRef<(clientX: number, clientY: number) => GraphNode | null>(() => null);
+  const currentNodeBoundsRef = useRef<() => GraphRect | null>(() => null);
+  const currentNodePositionsRef = useRef<() => NodePosition[]>(() => []);
+  // 생성 중 노드 진행률은 매 프레임 바뀌므로 React 상태가 아니라 ref로 그리기에 전달한다.
+  const ingestProgressRef = useGraphIngestProgress({ inputs: ingestProgressInputs, drawGraphRef });
 
   function getSimNode(nodeId: string): GraphSimNode | null {
     return simulationRef.current?.nodeById.get(nodeId) ?? null;
@@ -166,6 +192,20 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
     preloadRawNodeIcon(() => drawGraphRef.current());
   }, []);
 
+  // OS 색 모드나 고른 테마(html[data-theme])가 바뀌면 팔레트가 달라지므로 시뮬레이션이 멈춰 있어도 다시 그린다.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia(DARK_SCHEME_QUERY);
+    const redraw = () => drawGraphRef.current();
+    mediaQuery.addEventListener("change", redraw);
+    const themeObserver = new MutationObserver(redraw);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => {
+      mediaQuery.removeEventListener("change", redraw);
+      themeObserver.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     externalFocusedNodeIdRef.current = focusedNodeId;
   }, [focusedNodeId]);
@@ -222,7 +262,7 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
         const canvasEl = canvasRef.current;
         if (!canvasEl) return transform;
         const pan = transformToPan(transform, canvasEl);
-        const clamped = clampGraphPan({ canvas: canvasEl, pan, zoom: transform.k });
+        const clamped = clampGraphPan({ viewport: canvasViewport(canvasEl), pan, zoom: transform.k, bounds: currentNodeBoundsRef.current() });
         if (clamped.x === pan.x && clamped.y === pan.y) return transform;
         return panToTransform(clamped, transform.k, canvasEl);
       })
@@ -241,10 +281,28 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
     selection.call(behavior);
     selection.call(behavior.transform, panToTransform(graphPanRef.current, graphZoomRef.current, canvas));
 
+    let previousViewport = canvasViewport(canvas);
     const observer = new ResizeObserver(() => {
       const behaviorNow = zoomBehaviorRef.current;
       const canvasNow = canvasRef.current;
       if (!behaviorNow || !canvasNow) return;
+      const viewport = canvasViewport(canvasNow);
+      if (viewport.width <= 0 || viewport.height <= 0) return;
+      // 사이드바·패널 펼침으로 캔버스가 바뀌면 노드는 두고 pan만 옮겨 노드가 다시 보이게 한다.
+      // 노드 드래그 중에는 포인터 아래 노드가 튀지 않도록 기존 pan 제한만 적용한다.
+      if (
+        !draggingNodeIdRef.current &&
+        (viewport.width !== previousViewport.width || viewport.height !== previousViewport.height)
+      ) {
+        graphPanRef.current = resizeGraphPan({
+          previousViewport,
+          viewport,
+          pan: graphPanRef.current,
+          zoom: graphZoomRef.current,
+          positions: currentNodePositionsRef.current()
+        });
+      }
+      previousViewport = viewport;
       // 리사이즈 후 constrain을 다시 적용해 pan 범위를 보정한다.
       select(canvasNow).call(
         behaviorNow.transform,
@@ -362,7 +420,8 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
       nodeHoverAmounts: nodeHoverAmountsRef.current,
       graphToCanvas,
       nodeSize,
-      isRawSourceLink
+      isRawSourceLink,
+      getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId)
     });
   }
 
@@ -370,6 +429,8 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
   useLayoutEffect(() => {
     drawGraphRef.current = drawGraph;
     hitTestNodeRef.current = hitTestNode;
+    currentNodeBoundsRef.current = currentNodeBounds;
+    currentNodePositionsRef.current = currentNodePositions;
   });
 
   function advanceHoverAnimation(deltaMs: number) {
@@ -407,15 +468,33 @@ export function useGraphCanvas({ nodes = [], links = [], focusedNodeId, onOpenNo
 
   advanceHoverAnimationRef.current = advanceHoverAnimation;
 
+  /** pan 제한 기준: 현재 노드들의 실제 분포(bbox). 고정 GRAPH_WIDTH 상자가 아니다. */
+  function currentNodeBounds() {
+    return graphNodeBounds(currentNodePositions());
+  }
+
+  function currentNodePositions() {
+    return nodes.map((node) => getNodePosition(node.id));
+  }
+
   function clampPan(nextPan: NodePosition, nextZoom = graphZoomRef.current) {
     const canvas = canvasRef.current;
     if (!canvas) return nextPan;
-    return clampGraphPan({ canvas, pan: nextPan, zoom: nextZoom });
+    return clampGraphPan({ viewport: canvasViewport(canvas), pan: nextPan, zoom: nextZoom, bounds: currentNodeBounds() });
   }
 
+  /** 노드 드래그 위치 제한: 현재 화면에 보이는 캔버스 영역 안(노드 반지름만큼 안쪽). */
   function clampPosition(position: NodePosition, nodeId?: string) {
-    const node = nodes.find((candidate) => candidate.id === nodeId);
-    return clampGraphPosition({ position, node, nodeSize: node ? FIXED_NODE_SIZE : 0 });
+    const canvas = canvasRef.current;
+    if (!canvas) return position;
+    const node = nodeId ? nodeById.get(nodeId) : undefined;
+    return clampGraphPosition({
+      position,
+      viewport: canvasViewport(canvas),
+      pan: graphPanRef.current,
+      zoom: graphZoomRef.current,
+      nodeRadius: node ? nodeSize(node) / 2 : 0
+    });
   }
 
   function tickGraph(): boolean {

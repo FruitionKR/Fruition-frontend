@@ -49,7 +49,7 @@
 
 | 경로 | 상태 |
 |---|---|
-| `GET /api/workspaces/{workspace_id}/wiki-schema/active` | wiki-schema 배선 진행 중. 현재는 `src/entities/schema/api/schema.ts`의 `localStorage` 목업 |
+| `GET /api/workspaces/{workspace_id}/wiki-schema/active` | 호출 없음. 쓰이지 않던 목업 UI(`entities/schema`, `features/schema-manage`)는 제거됨 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/drafts` | 같음 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/preview` | 같음 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/{schema_id}/activate` | 같음 |

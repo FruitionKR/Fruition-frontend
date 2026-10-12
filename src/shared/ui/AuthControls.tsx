@@ -73,11 +73,13 @@ export function AuthField({
             onClick={() => setIsPasswordRevealed((revealed) => !revealed)}
             type="button"
           >
-            <Image
-              alt=""
+            {/* 테마별 아이콘 색을 CSS 토큰으로 바꾸기 위해 SVG를 mask로 그린다. */}
+            <span
               aria-hidden
               className="auth-password-icon"
-              src={isPasswordRevealed ? passwordVisibleIcon : passwordHiddenIcon}
+              style={{
+                maskImage: `url(${(isPasswordRevealed ? passwordVisibleIcon : passwordHiddenIcon).src})`
+              }}
             />
           </button>
         ) : null}

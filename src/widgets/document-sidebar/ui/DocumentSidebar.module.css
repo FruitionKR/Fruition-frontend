@@ -1,26 +1,34 @@
-/* document-sidebar 위젯 스타일 (기존 app/styles/document-sidebar/{shell,chrome,project-section,tree-row,context-menu}.css 병합).
+/* document-sidebar 위젯 스타일 (Figma 1486:4339: 레일 53px + 문서 사이드바).
+   색은 base.css --color-* 토큰만 써서 라이트(시안)/다크(OS 설정)에서 같은 레이아웃을 유지한다.
    search.css는 실제 소비처인 features/document-search로 분리(DocumentSearch.module.css). */
 
 /* --- shell --- */
+/* 레일과 문서 패널을 한 덩어리로 둔다. --sidebar-width는 레일을 포함한 전체 폭이다. */
 .sidebar {
+  /* 이동·드롭 대상 강조색: 주 색 토큰에서 파생해 테마를 따른다 */
+  --sidebar-accent-soft: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  --sidebar-accent-line: color-mix(in srgb, var(--color-primary) 60%, transparent);
+
   position: absolute;
   inset: 0 auto 0 0;
   z-index: 7;
-  width: var(--sidebar-width, 320px);
+  /* 사이드바 자체 폭. 좁은 화면에서는 콘텐츠 여백(--sidebar-width, 레일 폭)보다 넓게 겹쳐 연다. */
+  width: var(--sidebar-self-width, var(--sidebar-width, 320px));
   display: flex;
   flex-direction: column;
   padding: 0;
-  overflow: hidden;
-  background: #1e1e1e;
-  border-right: 1px solid #4f4f4f;
+  background: var(--color-canvas);
+  border-right: 1px solid var(--color-border);
 }
 
-:global(.workspace.has-source-preview) .sidebar {
-  border-top-right-radius: 0;
+/* 좁은 화면에서 펼친 사이드바: 채팅 패널(9)과 바깥 닫기 영역(10) 위에 겹친다 */
+.sidebar.is-overlay:not(.is-collapsed) {
+  z-index: 11;
+  box-shadow: 0 8px 24px var(--color-shadow);
 }
 
 .sidebar.is-file-drop-target {
-  box-shadow: inset 0 0 0 1px rgba(255, 193, 23, 0.52);
+  box-shadow: inset 0 0 0 1px var(--sidebar-accent-line);
 }
 
 .sidebar.is-file-drop-target::after {
@@ -31,11 +39,11 @@
   z-index: 8;
   transform: translate(-50%, -50%);
   padding: 6px 10px;
-  color: #7d5d00;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(255, 193, 23, 0.58);
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
+  border: 1px solid var(--sidebar-accent-line);
   border-radius: 999px;
-  box-shadow: 0 5px 14px rgba(35, 47, 66, 0.1);
+  box-shadow: 0 5px 14px var(--color-shadow);
   font-size: 11px;
   font-weight: 800;
   pointer-events: none;
@@ -44,7 +52,7 @@
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
-  left: calc(var(--sidebar-width, 320px) - 3px);
+  left: calc(var(--sidebar-self-width, var(--sidebar-width, 320px)) - 3px);
   bottom: 0;
   z-index: 9;
   width: 6px;
@@ -59,6 +67,82 @@
   background-image: none;
 }
 
+.sidebar-resize-handle:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}
+
+/* 상단 바 (Figma 1527:16276): 레일과 문서 패널 위를 가로지르는 45px 줄. 상하 8 + 28px 버튼 + 아래 선 1 */
+.sidebar-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 사이드바 접기 (Figma 1527:16284): 28px, 아이콘은 muted */
+.sidebar-collapse {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 4px;
+  line-height: 0;
+}
+
+/* 접기 아이콘 (workspace/sidebar_toggle.svg 15×14) */
+.sidebar-collapse-icon {
+  width: 15px;
+  height: 14px;
+}
+
+.sidebar-collapse:not(:disabled):hover,
+.sidebar-collapse:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-body);
+  background: var(--color-surface);
+}
+
+.sidebar-collapse:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: 1px;
+}
+
+.sidebar-collapse:disabled {
+  cursor: default;
+}
+
+/* 접힌 상태 (Figma 1539:16566): 상단 바(펼치기 버튼) + 레일만 남긴다. 문서 패널은 상태 유지를 위해 마운트한 채 숨긴다. */
+.sidebar.is-collapsed .sidebar-panel {
+  display: none;
+}
+
+/* 상단 바 아래 레일 + 문서 패널 줄 (Figma 1527:16288) */
+.sidebar-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+}
+
+/* 문서 패널 (Figma 1486:4396): 상하 16/24, 좌우 8, 묶음 간격 12 */
+.sidebar-panel {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 8px 24px;
+  overflow: hidden;
+}
+
 .sidebar-content {
   min-height: 0;
   flex: 1;
@@ -66,6 +150,7 @@
   overflow-y: auto;
   scrollbar-gutter: auto;
   scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 .upload-picker {
@@ -73,58 +158,116 @@
 }
 
 /* --- chrome --- */
-/* 사이드바 상단 워크스페이스 헤더 */
-.sidebar-workspace {
-  position: relative;
-  height: 48px;
+/* 검색·세그먼트 묶음 (Figma 1486:4397): 좌우 10, 간격 16 */
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 10px;
+}
+
+/* 통합 검색 (Figma 1486:4398): 입력창 모양의 버튼 */
+.sidebar-search {
+  width: 100%;
+  height: 40px;
   display: flex;
   align-items: center;
-  padding: 12px 22px 12px 24px;
-  border-bottom: 1px solid var(--line);
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--color-placeholder);
+  background: var(--color-canvas);
+  border: 1.4px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-/* 헤더 오른쪽 진행 중 작업 목록 버튼 (Figma 1131:7034) */
-.wiki-work-trigger-hint {
-  margin-left: auto;
+.sidebar-search:hover,
+.sidebar-search:focus-visible {
+  --button-hover-overlay: none;
+  border-color: var(--color-surface-strong);
 }
 
-.wiki-work-trigger {
-  width: 24px;
-  height: 24px;
+.sidebar-search:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: 1px;
+}
+
+.sidebar-search-icon {
   flex: 0 0 auto;
+  color: var(--color-body);
+}
+
+/* 문서/그래프 세그먼트 (Figma 1486:4403) */
+.sidebar-segment {
+  height: 36px;
+  display: flex;
+  align-items: stretch;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.sidebar-segment-item {
+  min-width: 0;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  color: var(--color-muted);
   background: transparent;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: normal;
+  white-space: nowrap;
 }
 
-.wiki-work-trigger:hover,
-.wiki-work-trigger:focus-visible {
+.sidebar-segment-item:hover,
+.sidebar-segment-item:focus-visible {
   --button-hover-overlay: none;
-  background: var(--soft);
+  color: var(--color-body);
 }
 
-.wiki-work-icon {
-  width: 24px;
-  height: 24px;
+.sidebar-segment-item:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
 }
 
-/* 목록 버튼 아래 오른쪽 정렬로 열리는 진행 중 작업 팝오버 (Figma 1131:6591) */
+.sidebar-segment-item.is-active {
+  color: var(--color-body);
+  background: var(--color-canvas);
+  filter: drop-shadow(0 0 2px var(--color-shadow));
+  font-weight: 700;
+}
+
+/* 레일 버튼 옆으로 여는 팝오버의 기준 상자 */
+.rail-popover-anchor {
+  position: relative;
+  display: flex;
+}
+
+/* 레일 진행 중 작업 버튼 오른쪽으로 열리는 팝오버 (Figma 1131:6591) */
 .wiki-work-popover {
   position: absolute;
-  top: calc(100% + 1px);
-  right: 22px;
+  top: 0;
+  left: calc(100% + 8px);
   z-index: 12;
   width: 240px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px 12px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
+  box-shadow: 0 8px 24px var(--color-shadow);
 }
 
 .wiki-work-section {
@@ -136,7 +279,7 @@
 .wiki-work-title {
   margin: 0;
   padding: 4px 0;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -156,7 +299,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -178,62 +321,74 @@
 .wiki-work-empty {
   margin: 0;
   padding: 4px 0;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
 
+/* 상단 바 워크스페이스 전환 버튼 (Figma 1527:16277): 28px 상자 + 12px + 이름·셰브론(2px) */
+.sidebar-workspace {
+  position: relative;
+  min-width: 0;
+  display: flex;
+}
+
 .sidebar-workspace-trigger {
   min-width: 0;
+  height: 28px;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 0;
-  color: var(--ink);
+  color: var(--color-body);
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .sidebar-workspace-mark {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: var(--bg);
-  border: 1px solid var(--soft);
-  border-radius: 6px;
-  font-size: 12px;
+  overflow: hidden;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1.6px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 600;
+  line-height: normal;
 }
 
-/* 워크스페이스 이름 (Figma 1131:8268): 12px SemiBold. 서체는 body 전역 Pretendard를 상속한다 */
-.sidebar-workspace-name {
+/* 이름과 셰브론은 2px 간격 (Figma 1527:16280). 이름이 길면 말줄임한다. */
+.sidebar-workspace-label {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
+  gap: 2px;
 }
 
-.sidebar-workspace-name span {
+.sidebar-workspace-name {
+  min-width: 0;
   overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sidebar-workspace-toggle {
-  width: 24px;
-  height: 24px;
-  padding: 3px;
-  border-radius: 6px;
-  transition: transform 120ms ease;
+.sidebar-workspace-chevron {
+  flex: 0 0 auto;
+  transition: transform var(--duration-fast, 150ms) ease;
+}
+
+.sidebar-workspace-trigger[aria-expanded="true"] .sidebar-workspace-chevron {
+  transform: rotate(180deg);
 }
 
 .sidebar-workspace-trigger:hover,
@@ -242,35 +397,36 @@
 }
 
 .sidebar-workspace-trigger:hover,
+.sidebar-workspace-trigger[aria-expanded="true"] {
+  color: var(--color-foreground);
+}
+
+.sidebar-workspace-trigger:hover .sidebar-workspace-mark,
+.sidebar-workspace-trigger[aria-expanded="true"] .sidebar-workspace-mark {
+  border-color: var(--color-surface-strong);
+  background: var(--color-surface-strong);
+}
+
 .sidebar-workspace-trigger:focus-visible {
-  background: var(--soft);
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: 1px;
 }
 
-.sidebar-workspace-toggle.is-open {
-  transform: rotate(180deg);
-}
-
-.sidebar-workspace-trigger:focus-visible {
-  outline: 2px solid var(--line);
-  outline-offset: 4px;
-  border-radius: 4px;
-}
-
-/* 클릭 시 열리는 워크스페이스 전환 드롭다운 (Figma 500:6597) */
+/* 워크스페이스 버튼 아래로 열리는 전환 드롭다운 (Figma 500:6597) */
 .workspace-dropdown {
   position: absolute;
   top: calc(100% + 8px);
-  left: 24px;
+  left: 0;
   z-index: 12;
-  min-width: 200px;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  box-shadow: 0 0 6px rgba(63, 63, 63, 0.8);
+  box-shadow: 0 8px 24px var(--color-shadow);
 }
 
 .workspace-dropdown-list {
@@ -291,7 +447,7 @@
 /* 채팅 세션 행과 같이 hover·포커스 시 행 전체에 배경 블럭 하나만 칠한다. */
 .workspace-dropdown-row:hover,
 .workspace-dropdown-row:has(:focus-visible) {
-  background: var(--soft);
+  background: var(--color-surface);
 }
 
 .workspace-dropdown-item {
@@ -313,7 +469,7 @@
   flex: 0 0 auto;
   padding: 2px;
   border-radius: 6px;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   cursor: pointer;
   opacity: 0;
@@ -328,7 +484,7 @@
 .workspace-dropdown-more:not(:disabled):hover,
 .workspace-dropdown-more:focus-visible {
   --button-hover-overlay: none;
-  background: var(--line-soft);
+  background: var(--color-surface-strong);
 }
 
 /* 로그인 정보를 불러오는 동안에는 역할을 판별할 수 없어 옵션을 막는다. */
@@ -346,15 +502,15 @@
   min-width: 132px;
   padding: 4px;
   border-radius: 8px;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px var(--color-shadow);
 }
 
 .workspace-dropdown-menu-list button {
   padding: 8px 10px;
   border-radius: 6px;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   font-size: 12px;
   text-align: left;
@@ -364,11 +520,11 @@
 .workspace-dropdown-menu-list button:hover,
 .workspace-dropdown-menu-list button:focus-visible {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface);
 }
 
 .workspace-dropdown-menu-list button.is-danger {
-  color: #f04452;
+  color: var(--color-danger);
 }
 
 .workspace-dropdown-menu-list button:disabled {
@@ -383,9 +539,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: var(--bg);
-  border: 1px solid var(--soft);
+  overflow: hidden;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -395,14 +552,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 12px;
   font-weight: 600;
-}
-
-.workspace-dropdown-item:hover .workspace-dropdown-label,
-.workspace-dropdown-item:focus-visible .workspace-dropdown-label {
-  color: #fff;
 }
 
 .workspace-dropdown-new {
@@ -411,7 +563,7 @@
   gap: 8px;
   width: 100%;
   padding: 10px 8px;
-  color: var(--subdued);
+  color: var(--color-muted);
   background: transparent;
   border-radius: 8px;
   font-size: 12px;
@@ -421,340 +573,101 @@
 .workspace-dropdown-new:hover,
 .workspace-dropdown-new:focus-visible {
   --button-hover-overlay: none;
-  color: var(--yellow);
-  background: var(--soft);
+  color: var(--color-primary);
+  background: var(--color-surface);
 }
 
 .workspace-dropdown-error {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
-}
-
-/* 가로 아이콘 메뉴 줄 */
-.sidebar-menu {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 20px 16px 16px 16px;
-}
-
-.sidebar-menu-item {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  padding: 0;
-  color: var(--muted);
-  background: transparent;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 0;
-}
-
-.sidebar-menu-item span {
-  line-height: 1;
-}
-
-.sidebar-menu-item:hover,
-.sidebar-menu-item:focus-visible {
-  --button-hover-overlay: none;
-  color: var(--ink);
-}
-
-.sidebar-menu-item:focus-visible {
-  outline: 2px solid var(--line);
-  outline-offset: 2px;
-}
-
-.sidebar-menu-item.is-active {
-  color: var(--ink);
-  background: var(--soft);
-}
-
-.sidebar-menu-item.is-active {
-  width: auto;
-  gap: 0;
-  padding: 0 12px 0 2px;
-  border: 0.5px solid var(--line);
-  border-radius: 100px;
-}
-
-.sidebar-menu-icon {
-  width: 36px;
-  height: 36px;
-}
-
-/* select 자산은 아트가 뷰박스를 꽉 채운다. 36 캔버스 아트와 시각 크기를 맞추기 위한 인셋 */
-.sidebar-menu-item.is-active .sidebar-menu-icon {
-  padding: 9px;
-}
-
-.sidebar-menu-item.is-active .sidebar-home-icon {
-  padding: 10px;
-}
-
-/* 검색 토글 열림 상태 (Figma 시안엔 없음 — 기존 활성 배경 규칙 준용) */
-.sidebar-menu-item.is-open {
-  color: var(--ink);
-  background: var(--soft);
-}
-
-/* 채팅 시작 버튼 (Figma 1246:7328): 좌측 12px, 우측·하단 16px */
-.sidebar-chat-start-hint {
-  display: flex;
-  margin: 10px 16px 16px 12px;
-}
-
-.sidebar-chat-start-hint .sidebar-chat-start {
-  flex: 1 1 0;
-  margin: 0;
-}
-
-.sidebar-chat-start {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 10px 16px 16px 12px;
-  padding: 14px 12px;
-  color: var(--ink);
-  background: var(--soft);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: normal;
-  flex-shrink: 0;
-}
-
-.sidebar-chat-start:hover,
-.sidebar-chat-start:focus-visible {
-  --button-hover-overlay: none;
-  background: #3f3f3f;
-  border-color: #5a5a5a;
-}
-
-.sidebar-chat-start-icon {
-  position: relative;
-  width: 12px;
-  height: 10.667px;
-  flex: 0 0 12px;
-}
-
-.sidebar-chat-start-icon :global(.svg-icon) {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 14px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-}
-
-/* 프로필 푸터 (Figma 747:6648: h-60, UserCircle 22px, 온라인 회색, 우측 화살표) */
-.sidebar-profile {
-  position: relative;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  padding: 10px 8px;
-  border-top: 1px solid var(--line);
-}
-
-.sidebar-profile-row {
-  min-width: 0;
-  flex: 1;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  border-radius: 12px;
-}
-
-.sidebar-profile-user {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  /* 하이라이트 여백만큼 당겨 아바타 위치를 유지한다 */
-  margin: 0 4px 0 -6px;
-  padding: 6px;
-  color: inherit;
-  background: transparent;
-  border-radius: 8px;
-  text-align: left;
-}
-
-.sidebar-profile-user:hover,
-.sidebar-profile-user:focus-visible {
-  --button-hover-overlay: none;
-  background: var(--soft);
-}
-
-.sidebar-profile-user:active {
-  background: #3d3d3d;
-}
-
-.sidebar-profile-avatar {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  color: #d7d7d7;
-}
-
-.sidebar-profile-info {
-  min-width: 0;
-  display: grid;
-}
-
-.sidebar-profile-info strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.sidebar-profile-info small {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.sidebar-profile-toggle {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--muted);
-  background: transparent;
-  border-radius: 6px;
-}
-
-.sidebar-profile-toggle:hover,
-.sidebar-profile-toggle:focus-visible,
-.sidebar-profile-toggle[aria-expanded="true"] {
-  --button-hover-overlay: none;
-  color: var(--ink);
-  background: var(--soft);
-}
-
-/* 프로필 메뉴 버튼 클릭 시 위로 열리는 설정/로그아웃 메뉴 */
-.profile-menu {
-  position: absolute;
-  right: 8px;
-  bottom: calc(100% + 4px);
-  z-index: 30;
-  width: 132px;
-  padding: 5px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.38);
-}
-
-.profile-menu button {
-  width: 100%;
-  height: 31px;
-  padding: 0 9px;
-  color: var(--ink);
-  background: transparent;
-  border-radius: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.profile-menu button:hover,
-.profile-menu button:focus-visible {
-  --button-hover-overlay: none;
-  background: var(--soft);
 }
 
 /* --- 루트 트리 --- */
 .tree-root {
   position: relative;
   min-height: 120px;
-  padding: 0 16px;
 }
 
 /* 여백에 항목을 끌어다 놓으면 루트로 이동한다 */
 .tree-root.is-tree-drop-target::after {
   content: "";
   position: absolute;
-  inset: 0 16px;
-  border: 1px dashed rgba(255, 193, 23, 0.52);
-  border-radius: 6px;
+  inset: 0;
+  border: 1px dashed var(--sidebar-accent-line);
+  border-radius: 8px;
   pointer-events: none;
 }
 
-/* 트리 상단: 최상위 생성 메뉴를 여는 + 버튼 */
+/* FILE 제목 행 (Figma 1486:4167): h28, 좌 10 우 8, 12px SemiBold 대문자 */
 .tree-root-header {
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 16px 4px 24px;
-  color: var(--subdued);
+  gap: 10px;
+  padding: 6px 8px 6px 10px;
+  color: var(--color-muted);
   font-size: 12px;
-  line-height: 1.4;
-}
-
-.tree-root-add {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--subdued);
-  background: transparent;
-  border-radius: 5px;
-}
-
-.tree-root-add:hover,
-.tree-root-add:focus-visible {
-  --button-hover-overlay: none;
-  color: #f0f0f0;
-  background: #454545;
-}
-
-.tree-root-add:focus-visible {
-  outline: 2px solid rgba(90, 118, 160, 0.28);
-  outline-offset: 1px;
+  font-weight: 600;
+  letter-spacing: -0.12px;
+  line-height: normal;
+  text-transform: uppercase;
 }
 
 .tree-root-empty {
   margin: 0;
-  padding: 12px 8px;
-  color: var(--subdued);
+  padding: 12px 10px;
+  color: var(--color-muted);
   font-size: 12px;
   line-height: 1.5;
 }
 
+/* 새 노트 추가 (Figma 1486:4480 새 페이지 추가 자리): 좌우 10, 상하 12, + 20px */
+.tree-add-page {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.14px;
+  line-height: normal;
+  text-align: left;
+}
+
+.tree-add-page:hover,
+.tree-add-page:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-body);
+  background: var(--color-surface);
+}
+
+.tree-add-page:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}
+
+/* 폴더 셰브론: 접힘은 오른쪽(-90도), 펼침은 아래 (Figma arrow 16px) */
 .tree-arrow {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  transform: rotate(-90deg);
   transform-origin: center;
   transition: transform 120ms ease, opacity 120ms ease;
 }
 
 .tree-arrow.is-open {
-  transform: rotate(90deg);
+  transform: none;
 }
 
 
-/* --- tree-row --- */
+/* --- tree-row (Figma 1486:4411 list): h37, 좌 10 우 10, 간격 12, 14px Medium --- */
 .tree-row {
   position: relative;
   width: 100%;
@@ -762,34 +675,27 @@
   height: 37px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-right: 8px;
-  color: #f0f0f0;
+  gap: 12px;
+  padding-right: 10px;
+  color: var(--color-foreground);
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  letter-spacing: -0.28px;
+  letter-spacing: -0.14px;
+  line-height: normal;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
 }
 
-.tree-row.is-folder {
-  font-weight: 600;
-}
-
-/* 중첩 행은 Figma 기준 33px */
-.tree-row.is-nested {
-  height: 33px;
-}
-
-/* Cmd/Ctrl+클릭으로 고른 항목: 이동 대상임을 노란 블록으로 표시 (Figma 1027:7161) */
+/* Cmd/Ctrl+클릭으로 고른 항목: 이동 대상임을 주 색 블록으로 표시 (Figma 1027:7161) */
 .tree-row.is-selected,
 .tree-row.is-selected:hover,
 .tree-row.is-selected:focus-visible {
   --button-hover-overlay: none;
-  background: rgba(102, 74, 0, 0.8);
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
 }
 
 .tree-row.is-dragging {
@@ -798,7 +704,7 @@
 
 /* 업로드 중 자리표시 행: 흐리게, 클릭 불가 */
 .tree-row.is-uploading {
-  color: #8a8a8a;
+  color: var(--color-muted);
   cursor: progress;
 }
 
@@ -807,8 +713,9 @@
   width: 8px;
   height: 8px;
   flex: 0 0 8px;
-  border: 1.5px solid #4a4a4a;
-  border-top-color: var(--yellow);
+  margin: 0 4px;
+  border: 1.5px solid var(--color-border);
+  border-top-color: var(--color-primary);
   border-radius: 999px;
   animation: global(spin) 1s linear infinite;
 }
@@ -820,7 +727,7 @@
   left: 8px;
   right: 8px;
   height: 2px;
-  background: var(--yellow);
+  background: var(--color-primary);
   border-radius: 999px;
 }
 
@@ -833,19 +740,19 @@
 }
 
 .tree-row.is-drop-inside {
-  background: rgba(255, 193, 23, 0.22);
-  outline: 1px solid rgba(255, 193, 23, 0.68);
+  background: var(--sidebar-accent-soft);
+  outline: 1px solid var(--sidebar-accent-line);
 }
 
 /* 폴더 행 + 자식 행 묶음. 폴더 안으로 넣는 드롭이면 블록 전체를 한 상자로 강조한다 */
 .tree-group {
   position: relative;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .tree-group.is-drop-inside {
-  background: rgba(255, 193, 23, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(255, 193, 23, 0.68);
+  background: var(--sidebar-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--sidebar-accent-line);
 }
 
 /* 블록이 강조되면 폴더 행 자체의 상자는 겹치지 않게 끈다 */
@@ -856,8 +763,8 @@
 }
 
 .tree-row.is-file-drop-target {
-  background: rgba(255, 193, 23, 0.18);
-  outline: 1px solid rgba(255, 193, 23, 0.58);
+  background: var(--sidebar-accent-soft);
+  outline: 1px solid var(--sidebar-accent-line);
 }
 
 .tree-row > span:not(.tree-folder-slot):not(.tree-upload-spinner) {
@@ -870,22 +777,23 @@
 .tree-drop-hint {
   flex: 0 0 auto;
   padding: 2px 6px;
-  color: #7d5d00;
-  background: rgba(255, 193, 23, 0.32);
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
   border-radius: 999px;
   font-size: 9px;
   font-weight: 800;
   line-height: 1.2;
 }
 
-/* 파일 행 우측 타입 배지 (PDF/TXT 등) */
+/* 파일 행 우측 타입 배지 (Figma 1486:4445 PDF/TXT): 12px Medium */
 .tree-type-badge {
   flex: 0 0 auto;
   margin-left: auto;
-  color: #8a8a8a;
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
+  line-height: 1.2;
 }
 
 .tree-edit-input {
@@ -893,9 +801,9 @@
   width: 100%;
   height: 24px;
   padding: 0 7px;
-  color: #f0f0f0;
-  background: #0a0a0a;
-  border: 1px solid #4f4f4f;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 5px;
   outline: 0;
   font-size: 14px;
@@ -903,20 +811,21 @@
 }
 
 .tree-edit-input:focus {
-  border-color: var(--yellow);
-  box-shadow: 0 0 0 2px rgba(255, 193, 23, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--sidebar-accent-soft);
 }
 
+/* hover·열린 문서 행은 surface 블록 (Figma 1486:4411 / 1486:4440) */
 .tree-row:hover,
 .tree-row:focus-visible,
 .tree-row.is-active {
   --button-hover-overlay: none;
-  background: #323232;
+  background: var(--color-surface);
 }
 
 .tree-row:focus-visible {
-  outline: 2px solid rgba(90, 118, 160, 0.28);
-  outline-offset: 1px;
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
 }
 
 /* 행 버튼과 폴더 + 버튼을 형제로 감싼다. 자식 행은 바깥이라 부모 +가 뜨지 않는다 */
@@ -927,42 +836,43 @@
 /* + 버튼에 올려도 행 hover 배경을 유지한다 */
 .tree-row-wrap:hover > .tree-row:not(.is-selected) {
   --button-hover-overlay: none;
-  background: #323232;
+  background: var(--color-surface);
 }
 
-/* 폴더 행 우측 + 버튼: 평소엔 숨기고 행 hover·키보드 포커스 시 나타난다 */
+/* 폴더 행 우측 + 버튼: 평소엔 숨기고 행 hover·키보드 포커스 시 + 아이콘만 나타난다(배경 상자 없음) */
 .tree-row-action {
   position: absolute;
   top: 50%;
-  right: 8px;
+  right: 6px;
   width: 24px;
   height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--subdued);
-  background: #323232;
+  color: var(--color-muted);
+  background: transparent;
   border-radius: 5px;
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 120ms ease;
 }
 
+/* 마우스로 누른 뒤 남는 포커스로는 보이지 않게 :focus-within 대신 키보드 포커스(:focus-visible)만 본다 */
 .tree-row-wrap:hover > .tree-row-action,
-.tree-row-wrap:focus-within > .tree-row-action {
+.tree-row-wrap:has(:focus-visible) > .tree-row-action {
   opacity: 1;
 }
 
 .tree-row-action:hover,
 .tree-row-action:focus-visible {
   --button-hover-overlay: none;
-  color: #f0f0f0;
-  background: #454545;
+  color: var(--color-body);
+  background: transparent;
 }
 
 .tree-row-action:focus-visible {
-  outline: 2px solid rgba(90, 118, 160, 0.28);
+  outline: 2px solid var(--color-primary-default);
   outline-offset: 1px;
 }
 
@@ -974,33 +884,35 @@
 .tree-row svg,
 .tree-asset {
   flex: 0 0 auto;
-  color: var(--subdued);
+  color: var(--color-muted);
 }
 
 .tree-asset {
   width: 8px;
   height: 8px;
+  margin: 0 4px;
 }
 
+/* 셰브론(폴더)·빈 자리(파일)가 같은 16px 칸을 차지해 이름 시작점을 맞춘다 */
 .tree-folder-slot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .tree-asset.raw {
-  color: #c4c4c4;
+  color: var(--color-graph-raw);
 }
 
 .tree-asset.source {
-  color: var(--source-page);
+  color: var(--color-graph-source);
 }
 
 .tree-asset.concept {
-  color: var(--concept-page);
+  color: var(--color-graph-concept);
 }
 
 /* --- context-menu --- */
@@ -1010,10 +922,10 @@
   min-width: 132px;
   width: max-content;
   padding: 5px;
-  background: #1e1e1e;
-  border: 1px solid #4f4f4f;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 8px 24px var(--color-shadow);
 }
 
 .folder-context-menu button {
@@ -1021,7 +933,7 @@
   height: 31px;
   padding: 0 9px;
   white-space: nowrap;
-  color: #f0f0f0;
+  color: var(--color-foreground);
   background: transparent;
   border-radius: 5px;
   font-size: 12px;
@@ -1032,17 +944,17 @@
 .folder-context-menu button:hover,
 .folder-context-menu button:focus-visible {
   --button-hover-overlay: none;
-  background: #323232;
+  background: var(--color-surface);
 }
 
 .folder-context-menu button:disabled {
-  color: #7a7a7a;
+  color: var(--color-subtle);
   background: transparent;
   cursor: default;
 }
 
 .folder-context-menu button.danger {
-  color: #c2372f;
+  color: var(--color-danger);
 }
 
 /* 권한 설정 다이얼로그(컨텍스트 메뉴 → 권한 설정). modal-card 안에 라디오 목록을 둔다. */
@@ -1060,19 +972,19 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   cursor: pointer;
 }
 
 .permission-option:has(input:checked) {
-  border-color: var(--yellow);
-  background: var(--soft);
+  border-color: var(--color-primary);
+  background: var(--color-primary-weak);
 }
 
 .permission-option input {
   margin: 3px 0 0;
-  accent-color: var(--yellow);
+  accent-color: var(--color-primary);
 }
 
 .permission-option span {
@@ -1084,17 +996,17 @@
 
 .permission-option strong {
   font-size: 13px;
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
 .permission-option small {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--color-muted);
 }
 
 .permission-error {
   margin: 12px 0 0 !important;
-  color: #ff8f87 !important;
+  color: var(--color-danger) !important;
   font-size: 12px !important;
 }
 
@@ -1107,7 +1019,7 @@
   white-space: nowrap;
 }
 
-/* 그래프 뷰: 문서 트리 위에 하단 [위키 편입][Lint] pill을 고정 (Figma 1027:8099) */
+/* 그래프 뷰: 위키 편입 선택 모드에서만 하단 [위키 편입 (n)][취소] pill을 고정한다 */
 .graph-panel {
   min-height: 100%;
   display: flex;
@@ -1124,8 +1036,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 16px;
-  background: var(--panel);
+  padding: 16px 0 0;
+  background: var(--color-canvas);
 }
 
 /* 위키 편입 pill 래퍼가 남는 폭을 차지하고, 안쪽 버튼은 꽉 채운다 */
@@ -1145,9 +1057,9 @@
   justify-content: center;
   gap: 8px;
   padding: 14px 12px;
-  color: var(--ink);
-  background: var(--soft);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
@@ -1160,16 +1072,18 @@
   padding: 14px 0;
 }
 
-.graph-pill :global(.svg-icon) {
+.graph-pill :global(.svg-icon),
+.graph-pill-icon {
   width: 16px;
   height: 16px;
+  flex: 0 0 auto;
 }
 
 .graph-pill:hover:not(:disabled),
 .graph-pill:focus-visible:not(:disabled) {
   --button-hover-overlay: none;
-  background: #3f3f3f;
-  border-color: #5a5a5a;
+  background: var(--color-surface-strong);
+  border-color: var(--color-surface-strong);
 }
 
 .graph-pill:disabled {
@@ -1177,8 +1091,8 @@
   cursor: default;
 }
 
-/* Lint 진행 중 새로고침 아이콘 회전 (reduced-motion은 base.css 전역 규칙이 끈다) */
-.graph-pill.is-spinning :global(.svg-icon) {
+/* 레일 위키 최신화 진행 중 새로고침 아이콘 회전 (reduced-motion은 base.css 전역 규칙이 끈다) */
+.is-spinning > svg {
   animation: global(spin) 1s linear infinite;
 }
 
@@ -1191,8 +1105,8 @@
 .ingest-tree {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px 16px 0;
+  gap: 0;
+  padding: 0;
 }
 
 .ingest-title {
@@ -1200,8 +1114,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 6px;
-  color: #8a8a8a;
+  padding: 6px 8px 6px 10px;
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -1211,7 +1125,7 @@
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--line);
+  background: var(--color-border);
 }
 
 .ingest-row {
@@ -1219,28 +1133,17 @@
   height: 37px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 6px;
-  color: var(--ink);
+  gap: 12px;
+  padding: 10px 10px 10px 10px;
+  color: var(--color-foreground);
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  letter-spacing: -0.28px;
+  letter-spacing: -0.14px;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
-}
-
-.ingest-row.is-folder {
-  font-weight: 600;
-}
-
-/* 중첩 행은 Figma 기준 33px */
-.ingest-row.is-nested {
-  height: 33px;
-  padding-top: 8px;
-  padding-bottom: 8px;
 }
 
 .ingest-row {
@@ -1250,31 +1153,31 @@
 .ingest-row:hover:not(.is-disabled),
 .ingest-row:focus-within:not(.is-disabled) {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface);
 }
 
 /* 편입할 수 없는 파일·Markdown이 없는 폴더는 회색으로 두고 선택을 막는다 */
 .ingest-row.is-disabled {
-  color: var(--subdued);
+  color: var(--color-muted);
   cursor: default;
 }
 
 .ingest-row.is-disabled .ingest-check {
-  border-color: var(--line);
+  border-color: var(--color-border);
 }
 
 /* 폴더 화살표는 Figma대로 hover·포커스 때 드러나고, 접힌 폴더는 항상 보인다. 누르면 펼침/접힘만 바꾼다. */
 .ingest-folder-toggle {
   display: none;
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--color-muted);
 }
 
 .ingest-row.is-folder:hover .ingest-folder-toggle,
@@ -1291,7 +1194,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--muted);
+  border: 1px solid var(--color-subtle);
   border-radius: 4px;
   background: transparent;
   color: inherit;
@@ -1311,7 +1214,7 @@
   width: 10px;
   height: 2px;
   border-radius: 1px;
-  background: var(--ink);
+  background: var(--color-foreground);
 }
 
 .ingest-label {
@@ -1319,120 +1222,4 @@
   flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* 로그 뷰에서 문서 트리 대신 놓이는 최신순 작업 목록 */
-.log-entries {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 0 16px 16px;
-  overflow-y: auto;
-}
-
-.log-date-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.log-date-heading {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px;
-  color: var(--subdued);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.log-date-divider {
-  height: 1px;
-  flex: 1;
-  background: var(--line);
-}
-
-/* Figma 로그 목록: 제목·시각 한 줄, 문서와 작업 요약 한 줄 */
-.log-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "label   time"
-    "summary summary";
-  align-items: center;
-  min-height: 50px;
-  gap: 4px 8px;
-  padding: 8px;
-  color: var(--muted);
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  text-align: left;
-}
-
-.log-entry-label {
-  grid-area: label;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 16px;
-  white-space: nowrap;
-}
-
-.log-entry-time {
-  grid-area: time;
-  color: var(--subdued);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.log-entry-summary {
-  grid-area: summary;
-  overflow: hidden;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.log-entry:hover,
-.log-entry:focus-visible {
-  --button-hover-overlay: none;
-  color: var(--ink);
-  background: var(--soft);
-}
-
-.log-entry.is-active {
-  color: var(--ink);
-  background: var(--soft);
-}
-
-.log-entries-message {
-  margin: 0;
-  padding: 12px 16px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.log-entries-more {
-  margin-top: 8px;
-  padding: 8px;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.log-entries-more:hover:not(:disabled),
-.log-entries-more:focus-visible {
-  --button-hover-overlay: none;
-  color: var(--ink);
-  background: var(--soft);
 }

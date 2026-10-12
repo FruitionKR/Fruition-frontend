@@ -12,6 +12,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { getSelectedWorkspaceId, isPublicAuthPath } from "@/shared/lib/auth";
+import { applyThemePreference } from "@/shared/lib/theme";
 import { fetchMe } from "../api/auth";
 import {
   DEFAULT_USER_PREFERENCES,
@@ -130,6 +131,12 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.reduceMotion = String(reduceMotion);
     document.documentElement.dataset.documentFont = preferences.documentFont;
   }, [preferences.documentFont, reduceMotion]);
+
+  // 사용자 설정을 읽은 뒤에만 테마를 적용한다. 로그인 화면에서는 첫 화면 스크립트가 붙인 마지막 테마를 그대로 둔다.
+  useEffect(() => {
+    if (!storageKey) return;
+    applyThemePreference(preferences.theme);
+  }, [preferences.theme, storageKey]);
 
   const updatePreferences = useCallback(
     (update: (current: UserPreferences) => UserPreferences) => {

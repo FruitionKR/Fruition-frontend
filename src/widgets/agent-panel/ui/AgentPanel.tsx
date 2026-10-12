@@ -47,21 +47,22 @@ const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string 
 
 export function AgentPanel({
   onClose,
-  onOpenWikiPage,
   onOpenSourceBlocks,
   onCreateMarkdownDocument,
   markdownEditContext,
   onDocumentExported,
   nodes,
+  composerDraft,
   wikiEvidenceNotice
 }: {
   onClose: () => void;
-  onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft) => Promise<void>;
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   nodes?: GraphNode[];
+  /** 입력창에 채울 문장(스킬 실행의 "/slug "). id가 바뀔 때마다 한 번 채운다 */
+  composerDraft?: { id: number; text: string } | null;
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
   wikiEvidenceNotice?: {
     message: string;
@@ -72,6 +73,9 @@ export function AgentPanel({
   } | null;
 }) {
   const [composerValue, setComposerValue] = useState("");
+  useEffect(() => {
+    if (composerDraft) setComposerValue(composerDraft.text);
+  }, [composerDraft]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
@@ -458,7 +462,6 @@ export function AgentPanel({
         chatLoadErrorMessage={chatLoadErrorMessage}
         animatedMessageId={animatedMessageId}
         queryStages={queryStages}
-        onOpenWikiPage={onOpenWikiPage}
         onOpenSourceBlocks={onOpenSourceBlocks}
         isPairSelectionMode={isPairSelectionMode}
         pairSelectionKind={pairSelectionKind}

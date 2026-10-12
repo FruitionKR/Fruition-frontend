@@ -8,7 +8,7 @@ export type EmailVerificationResponse = {
 
 export type EmailAvailabilityResponse = {
   available: boolean;
-  /** 같은 이메일로 소셜 가입한 계정의 provider(이름순). 가입을 막지 않는 안내용이다. */
+  /** 같은 이메일로 소셜 가입한 계정의 provider(이름순). 비어 있지 않으면 프론트가 이메일 가입을 막는다. */
   oauth_providers?: string[];
 };
 

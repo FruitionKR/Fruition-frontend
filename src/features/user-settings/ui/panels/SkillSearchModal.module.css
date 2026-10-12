@@ -6,7 +6,7 @@
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--color-border);
   padding-top: 16px;
 }
 
@@ -29,7 +29,7 @@
 .search-result:hover,
 .search-result:focus-visible {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface-strong);
 }
 
 /* 고를 수 없는 항목(선택 개수 초과) */
@@ -38,7 +38,7 @@
 }
 
 .search-result:disabled .search-result-label {
-  color: var(--muted);
+  color: var(--color-body);
 }
 
 .search-result-title {
@@ -52,14 +52,14 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  color: var(--muted);
+  color: var(--color-body);
 }
 
 .search-result-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
@@ -71,7 +71,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 40%;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
@@ -80,14 +80,14 @@
 .search-empty {
   margin: 0;
   padding: 8px 6px;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
 }
 
 .search-more {
   margin: 4px 0 0;
   padding: 8px 6px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-body);
   font-size: 11px;
 }

@@ -83,3 +83,10 @@ test("작업 제안 알림은 기본으로 켜고, 저장된 끔 값을 유지�
   assert.equal(normalizeUserPreferences({ notifications: { lint: false } }).notifications.suggest, true);
   assert.equal(normalizeUserPreferences({ notifications: { suggest: false } }).notifications.suggest, false);
 });
+
+test("화면 테마는 기본 OS에 맞춤이고 system·light·dark만 받아들인다", () => {
+  assert.equal(normalizeUserPreferences(null).theme, "system");
+  assert.equal(normalizeUserPreferences({ theme: "dark" }).theme, "dark");
+  assert.equal(normalizeUserPreferences({ theme: "light" }).theme, "light");
+  assert.equal(normalizeUserPreferences({ theme: "sepia" }).theme, "system");
+});

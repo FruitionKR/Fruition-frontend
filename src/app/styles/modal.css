@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay);
 }
 
 .modal-card {
@@ -17,14 +17,14 @@
   border-radius: 16px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px var(--color-shadow);
 }
 
 .modal-card .modal-icon {
   width: 28px;
   height: 28px;
   margin-bottom: 14px;
-  color: #f04452;
+  color: var(--color-danger);
 }
 
 .modal-card h2 {
@@ -54,7 +54,7 @@
 
 .modal-confirm-button:hover {
   --button-hover-overlay: none;
-  background: var(--line-soft);
+  background: var(--color-surface-strong);
 }
 
 /* 삭제 확인 등 취소/실행 2버튼 액션 줄 */
@@ -80,7 +80,7 @@
 
 .modal-cancel-button:hover {
   --button-hover-overlay: none;
-  background: var(--line-soft);
+  background: var(--color-surface-strong);
 }
 
 /* 단독 사용용 confirm 버튼을 취소/실행 2버튼 줄에 넣을 때 정렬 보정 */
@@ -90,7 +90,7 @@
 }
 
 .modal-delete-button {
-  background: #f04452;
+  background: var(--color-danger);
   color: #fff;
 }
 

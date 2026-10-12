@@ -2,6 +2,7 @@ import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension, isDocumentConverting, isMarkdownDocument } from "@/entities/document/lib/documentKind";
 import { normalizeTreeName } from "@/entities/tree/lib/names";
 import { ApiError } from "@/shared/lib/errors";
+import { describeLimitError } from "@/entities/workspace/model/limits";
 
 /** 표시용 문서 이름. macOS에서 올린 한글 파일명은 NFD(자모 분리)로 저장될 수 있어 NFC로 맞춘다. */
 export function documentDisplayName(document: Pick<DocumentItemResponse, "filename">): string {
@@ -66,6 +67,9 @@ export function skillReferenceFileError(file: Pick<File, "name">): string | null
 /** 참고 문서 업로드 실패를 사유별 안내로 바꾼다. */
 export function describeSkillReferenceUploadError(error: unknown): string {
   if (error instanceof ApiError) {
+    // 용량 초과도 413이라 code로 먼저 가른다. 남은 413은 document-svc의 Markdown 본문 5MB 한도다.
+    const limitMessage = describeLimitError(error);
+    if (limitMessage) return limitMessage;
     if (error.status === 413) return "Markdown 파일은 5MB 이하만 참고 문서로 올릴 수 있습니다.";
     if (error.status === 415) return "Markdown(.md)이나 텍스트(.txt) 파일만 참고 문서로 올릴 수 있습니다.";
     if (error.code === "DUPLICATE_NAME") return "같은 이름의 참고 문서가 이미 있습니다. 파일 이름을 바꿔 다시 올려 주세요.";

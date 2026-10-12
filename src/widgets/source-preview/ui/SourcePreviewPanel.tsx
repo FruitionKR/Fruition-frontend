@@ -1,12 +1,10 @@
-import { MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { resolveEditorMode, useUserPreferences } from "@/entities/user";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { useUserPreferences } from "@/entities/user";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
-import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
-import { fetchDocumentBlocks, fetchDocumentOriginal, reflectDocumentToWiki } from "@/entities/document";
+import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
@@ -27,15 +25,14 @@ import {
   type MarkdownLoad
 } from "../lib/sourceHighlightState";
 import { cx } from "@/shared/lib/classNames";
-import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import styles from "./SourcePreviewPanel.module.css";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
-import type { DocumentRole, SourceBlockHighlight } from "@/entities/document";
+import type { SourceBlockHighlight } from "@/entities/document";
 import type { DocumentStatus, NoteSaveStatus } from "@/entities/tree";
 import type { WikiPageDetailResponse } from "@/entities/wiki";
 
+// 정상 흐름(변경됨→저장됨)은 표시하지 않고, 저장 중이거나 사용자가 알아야 할 실패만 콘텐츠 우상단에 띄운다.
 const SAVE_STATUS_LABELS: Partial<Record<NoteSaveStatus, string>> = {
-  dirty: "변경됨",
   saving: "저장 중",
   error: "저장 실패",
   conflict: "저장 충돌",
@@ -54,14 +51,10 @@ export function SourcePreviewPanel({
   onMarkdownEditContextChange,
   onRenameDocument,
   onRefreshDocuments,
-  documentRole,
   documentStatus,
   documentConversion = null,
   readOnly = false,
-  parentLabel = "문서",
-  editedAt = null,
-  isAgentPanelOpen,
-  onOpenAgentPanel,
+  titleHint,
   fillMain = false
 }: {
   title: string;
@@ -73,24 +66,19 @@ export function SourcePreviewPanel({
   onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onMarkdownEditContextChange?: (context: ActiveMarkdownEditContext | null) => void;
   onRenameDocument?: (documentId: string, filename: string) => Promise<void>;
-  /** 저장·위키 반영 직후 백엔드 문서 목록을 다시 받아 알림·트리를 갱신한다. */
+  /** 저장 직후 백엔드 문서 목록을 다시 받아 알림·트리를 갱신한다. */
   onRefreshDocuments?: () => void;
-  /** 위키 반영 분기용 문서 역할. 문서 목록에서 아직 못 찾았으면 undefined. */
-  documentRole?: DocumentRole;
   /** 열린 문서의 처리 상태. processing→completed 전이 시 본문을 다시 불러온다. */
   documentStatus?: DocumentStatus;
   /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
   documentConversion?: DocumentConversionView | null;
-  /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경·위키 편입을 막는다. */
+  /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경을 막는다. */
   readOnly?: boolean;
-  parentLabel?: string;
-  editedAt?: string | null;
-  isAgentPanelOpen: boolean;
-  onOpenAgentPanel?: () => void;
+  /** 제목 hover 설명(상위 폴더 경로 등). 없으면 제목을 쓴다 */
+  titleHint?: string;
   /** 홈에서 문서가 메인 영역을 채울 때: 고정폭/리사이즈 대신 남은 영역을 채운다 */
   fillMain?: boolean;
 }) {
-  const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
   const documentConverting = documentConversion !== null;
   const conversionRevision = documentConversion?.revision;
   const [page, setPage] = useState<WikiPageDetailResponse | null>(null);
@@ -110,8 +98,6 @@ export function SourcePreviewPanel({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const skipNextTitleCommitRef = useRef(false);
-  const [sourceMode, setSourceMode] = useState(false);
-  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   // 변환·분석이 끝난 문서의 본문·버전을 다시 불러오기 위한 카운터
   const [documentReloadCount, setDocumentReloadCount] = useState(0);
   // 현재 화면에 본문이 올라와 있는 문서. 같은 문서 재조회인지 판별해 깜빡임을 막는다.
@@ -136,20 +122,21 @@ export function SourcePreviewPanel({
   }, [documentId, documentStatus, documentConverting, conversionRevision]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const contentRef = useRef<HTMLDivElement>(null);
-  const optionsRef = useRef<HTMLDivElement | null>(null);
-  const preferencesRef = useRef(preferences);
-  preferencesRef.current = preferences;
   const resolvedPageType = (page?.page_type || pageType || "source").toLowerCase();
   const pageTypeLabel = resolvedPageType === "concept" ? "Concept" : "Source";
   const sourceDocuments = page?.source_documents ?? [];
   const selectedBlockHighlights = useMemo(() => sourceBlockHighlights ?? [], [sourceBlockHighlights]);
   const isMarkdownFile = !pageId && !!documentId && hasMarkdownExtension(title);
   const isPdfOrOther = !pageId && !!documentId && !isMarkdownFile;
-  // PDF는 편집 불가 문서라 제목·본문 chrome 없이 뷰어가 콘텐츠 영역 전체를 채운다.
+  // PDF는 편집 불가 문서라 제목·본문 chrome 없이 얇은 파일명 줄 아래를 뷰어가 채운다.
   const isPdfFile = isPdfOrOther && hasPdfExtension(title);
   const isTextFile = isPdfOrOther && hasTextExtension(title);
   const visibleTitle = isMarkdownFile ? getMarkdownDocumentTitle(title) : title;
-  const saveStatusLabel = SAVE_STATUS_LABELS[noteSaveStatus];
+  // 자동 저장을 끄면 저장 전 편집분이 남으므로 "저장 안 됨"을 보여 준다(켜져 있으면 곧 저장 중으로 바뀌어 표시하지 않는다).
+  const { preferences } = useUserPreferences();
+  const saveStatusLabel = noteSaveStatus === "dirty" && !preferences.autoSave
+    ? "저장 안 됨 · Cmd/Ctrl+S"
+    : SAVE_STATUS_LABELS[noteSaveStatus];
   // 읽기 전용 노트: 저장 상태 대신 배지를 보여주고 편집기를 열지 않는다.
   const isReadOnlyNote = isMarkdownFile && readOnly;
   const editableNote = useMemo(() => {
@@ -160,12 +147,6 @@ export function SourcePreviewPanel({
     };
     return { ...split, body: stripPageComments(split.body) };
   }, [documentId, rawMarkdown]);
-  const lastEditedLabel = useMemo(() => {
-    if (!editedAt) return "마지막 편집";
-    const date = new Date(editedAt);
-    if (Number.isNaN(date.getTime())) return "마지막 편집";
-    return `${new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(date)} 마지막 편집`;
-  }, [editedAt]);
 
   useEffect(() => {
     setTitleInput(getMarkdownDocumentTitle(title));
@@ -186,22 +167,13 @@ export function SourcePreviewPanel({
     return () => document.removeEventListener("keydown", handleSaveKey);
   }, [documentId, isMarkdownFile]);
 
-  useEffect(() => {
-    if (!preferencesReady) return;
-    setSourceMode(resolveEditorMode(preferencesRef.current) === "markdown");
-  }, [documentId, preferencesReady]);
-
   // 저장 상태는 문서가 바뀔 때만 되돌린다.
-  // preferencesReady는 경로가 바뀔 때마다 다시 false→true가 되므로, 같이 묶으면 저장 중이거나 실패한 상태를 덮어쓴다.
   useEffect(() => {
-    setIsOptionsOpen(false);
     noteSaveRef.current = null;
     noteSaveStatusRef.current = "saved";
     setNoteSaveStatus("saved");
     setNoteSaveError(null);
   }, [documentId]);
-
-  useDismissOnOutside(optionsRef, isOptionsOpen, () => setIsOptionsOpen(false));
 
   const handleMarkdownEditContextChange = useCallback((context: ActiveMarkdownEditContext | null) => {
     onMarkdownEditContextChange?.(context);
@@ -322,6 +294,16 @@ export function SourcePreviewPanel({
         return;
       }
 
+      // PDF는 브라우저 내장 뷰어(iframe)로 연다. 임시 읽기 URL이 있으면 그대로 쓰고(다운로드 파일명 유지),
+      // 없으면 인증 프록시로 받은 원본을 blob URL로 넘긴다.
+      if (isPdfFile) {
+        // 임시 URL 조회가 실패해도(엔드포인트 미지원 등) 프록시 원본으로 계속 연다.
+        const url = await fetchDocumentReadUrl(documentId).catch(() => null);
+        if (url) {
+          if (!ignore) setRawDocumentUrl(url);
+          return;
+        }
+      }
       const blob = await fetchDocumentOriginal(documentId);
       if (!isPdfFile && (isTextFile || blob.type.startsWith("text/"))) {
         const text = await blob.text();
@@ -442,12 +424,9 @@ export function SourcePreviewPanel({
       aria-label="원본문서 미리보기"
       onClick={(event) => event.stopPropagation()}
     >
-      <header className={styles["source-preview-topbar"]}>
-        <nav aria-label="문서 위치">
-          <span>{parentLabel}</span>
-          <span aria-hidden="true">/</span>
-          <strong>{title}</strong>
-        </nav>
+      {/* 콘텐츠 상단 제목 바 대신, 저장 상태를 콘텐츠 우상단에 작게 띄운다.
+          제목(위 48px)보다 위쪽 여백에 놓여 제목 줄과 겹치지 않는다. PDF는 아래 파일명 줄이 이 자리를 맡는다. */}
+      {!isPdfFile && (
         <div className={styles["source-preview-actions"]}>
           {isReadOnlyNote && (
             <span className={styles["source-preview-readonly-badge"]} title={READ_ONLY_DOCUMENT_MESSAGE}>읽기 전용</span>
@@ -455,87 +434,22 @@ export function SourcePreviewPanel({
           {!isReadOnlyNote && saveStatusLabel && (
             <span
               className={cx(styles["source-preview-save-status"], styles[`is-${noteSaveStatus}`])}
-              role={noteSaveStatus === "saving" || noteSaveStatus === "dirty" ? "status" : "alert"}
+              role={noteSaveStatus === "saving" ? "status" : "alert"}
               title={noteSaveError ?? undefined}
             >
               {saveStatusLabel}
             </span>
           )}
-          <span>{lastEditedLabel}</span>
-          <div className={styles["source-preview-tab"]}>
-          {!isAgentPanelOpen && (
-            <button type="button" aria-label="AI 사이드바 열기" onClick={onOpenAgentPanel}>
-              <SvgIcon src={sideboxIcon} className={styles["source-preview-tab-icon"]} />
-            </button>
-          )}
-          {/* PDF 원본은 ingest·편집 대상이 아니라 문서 옵션(위키에 반영 등)을 숨긴다. */}
-          {!isPdfFile && (
-          <div className={styles["source-preview-options"]} ref={optionsRef}>
-            <button
-              type="button"
-              aria-label="문서 옵션"
-              aria-expanded={isOptionsOpen}
-              onClick={() => setIsOptionsOpen((open) => !open)}
-            >
-              <MoreHorizontal size={16} />
-            </button>
-            {isOptionsOpen && !pageId && documentId && (
-              <div className={styles["source-preview-options-menu"]}>
-                <button
-                  type="button"
-                  // 위키 편입(ingest)은 편집 권한이 필요하다. 보기 권한만 있으면 서버가 403으로 거절한다.
-                  disabled={isReadOnlyNote}
-                  title={isReadOnlyNote ? "보기 권한만 있는 문서는 위키에 편입할 수 없습니다." : undefined}
-                  onClick={() => {
-                    setIsOptionsOpen(false);
-                    reflectDocumentToWiki(documentId, documentRole)
-                      .then(() => {
-                        // 원본 문서면 변환 결과가 새 markdown 문서로 생기므로 목록을 다시 받는다
-                        onRefreshDocuments?.();
-                        publishNotice({
-                          kind: "completed",
-                          title: "위키 편입 요청",
-                          message: `"${visibleTitle}" 문서 처리를 시작했습니다.`
-                        });
-                      })
-                      .catch((error: unknown) => {
-                        publishNotice({
-                          kind: "failed",
-                          title: "위키 편입 실패",
-                          message: getErrorMessage(error, "위키 편입 요청에 실패했습니다.")
-                        });
-                      });
-                  }}
-                >
-                  위키 편입
-                </button>
-                {isMarkdownFile && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextMode = sourceMode ? "wysiwyg" : "markdown";
-                      setSourceMode(nextMode === "markdown");
-                      updatePreferences((current) => ({
-                        ...current,
-                        editor: { ...current.editor, lastMode: nextMode }
-                      }));
-                      setIsOptionsOpen(false);
-                    }}
-                  >
-                    {sourceMode ? "자동 미리보기로 전환" : "Markdown 원문 보기"}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          )}
-          </div>
         </div>
-      </header>
+      )}
       <div className={cx(styles["source-preview-document"], isPdfFile && styles["is-pdf"])}>
         {(isLoading || isBlocksLoading) && <DocumentLoading>{pageId ? "본문을 불러오는 중입니다." : "문서를 불러오는 중입니다."}</DocumentLoading>}
         {isPdfFile ? (
           <>
+            {/* 제목 바가 없으므로 PDF 뷰어 위에 파일명 줄을 둔다. */}
+            <header className={styles["source-preview-file-bar"]}>
+              <span title={titleHint ?? visibleTitle}>{visibleTitle}</span>
+            </header>
             {errorMessage && <p>{errorMessage}</p>}
             {!isLoading && !errorMessage && rawDocumentUrl && (
               <iframe
@@ -553,11 +467,11 @@ export function SourcePreviewPanel({
             <input
               className={styles["source-preview-title-input"]}
               aria-label="문서 이름"
+              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : titleHint}
               placeholder="제목을 입력하세요"
               value={titleInput}
               disabled={isRenaming}
               readOnly={readOnly}
-              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : undefined}
               spellCheck={false}
               onChange={(event) => {
                 skipNextTitleCommitRef.current = false;
@@ -581,7 +495,7 @@ export function SourcePreviewPanel({
               }}
             />
           ) : (
-            <h2>{visibleTitle}</h2>
+            <h2 title={titleHint}>{visibleTitle}</h2>
           )}
           {!fillMain && <span>{pageId ? pageTypeLabel : editableNote ? "Note" : "Raw"}</span>}
         </header>
@@ -629,7 +543,6 @@ export function SourcePreviewPanel({
             marker={editableNote.marker}
             initialBody={editableNote.body}
             initialVersion={noteContentVersion}
-            sourceMode={sourceMode}
             onMarkdownEditContextChange={handleMarkdownEditContextChange}
             onSaveStatusChange={handleSaveStatusChange}
             onDetachedSaveComplete={handleDetachedSaveComplete}

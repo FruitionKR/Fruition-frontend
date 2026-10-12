@@ -37,7 +37,7 @@ backend 서비스 문서는 API를 **제공하는** 쪽 기준으로 각 API마�
 | 제공하는 Next.js route handler | 3개 파일 / 5개 핸들러 |
 | 소비하는 document-svc `/api/**` | 87개 중 **52개 호출 / 35개 미호출** (+ 공동 편집 릴리스 신규 경로 8개 호출) |
 | 소비하는 access-svc `/api/**` | 29개 중 **26개 호출 / 3개 미호출** |
-| `apiFetch` 호출 지점 | 24개 파일 / 90곳 |
+| `apiFetch` 호출 지점 | 24개 파일 / 91곳 |
 | 인증 헤더 없는 raw `fetch` 호출 지점 | 5개 파일 / 11곳 |
 
 `/internal/**` (document-svc 9개, access-svc 3개)는 서비스 간 경로이며 이 저장소는 호출하지 않는다.

@@ -1,4 +1,4 @@
-import type { OperationLogItem } from "./types";
+import type { OperationLogItem, OperationType } from "./types";
 
 export type OperationLogDateGroup = {
   dateKey: string;
@@ -45,6 +45,25 @@ export function filterVisibleOperationLogs(items: OperationLogItem[]): Operation
       item.changed_resource_count === 0
     )
   );
+}
+
+/** 로그 화면 유형 탭. 유형을 고르지 않으면(전체) 목록을 그대로 돌려준다. */
+export function filterOperationLogsByType(
+  items: OperationLogItem[],
+  type: OperationType | null
+): OperationLogItem[] {
+  return type ? items.filter((item) => item.operation_type === type) : items;
+}
+
+/** 로그 행 앞머리 시각. Figma "Sep 23, 9:52 AM"을 한국어 표기("9월 23일 오전 9:52")로 쓴다. */
+export function formatOperationLogDateTime(iso: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone
+  }).format(new Date(iso));
 }
 
 /** 목록과 상세 헤더가 같은 문서·작업 설명을 사용한다. */
