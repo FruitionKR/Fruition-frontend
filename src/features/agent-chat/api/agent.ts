@@ -8,10 +8,11 @@ export const AGENT_TURN_ROLLBACK_FAILED_MESSAGE = "요청이 취소됐지만 변
 /** run 응답이 종료 상태면 결과를 반환하고, 실패·취소·복구 실패면 던지고, 진행 중이면 null을 반환한다. */
 function toTerminalResult(run: AgentTurnRunResponse): AgentTurnResponse | null {
   if (run.status === "completed" && run.result) return run as AgentTurnResponse;
-  if (run.status === "failed") throw new Error(run.error || ERROR_MESSAGES.agentTurnFailed);
+  // error는 내부 코드(provider_unavailable 등)이고 화면 문구는 error_message에 온다(document #119, #152).
+  if (run.status === "failed") throw new Error(run.error_message || ERROR_MESSAGES.agentTurnFailed);
   // SSE가 끊긴 뒤 조회한 취소 종결 상태는 연결 종료 안내가 아니라 취소·복구 실패로 구분한다(#141).
   if (run.status === "cancelled") throw new Error(AGENT_TURN_CANCELLED_MESSAGE);
-  if (run.status === "rollback_failed") throw new Error(AGENT_TURN_ROLLBACK_FAILED_MESSAGE);
+  if (run.status === "rollback_failed") throw new Error(run.error_message || AGENT_TURN_ROLLBACK_FAILED_MESSAGE);
   return null;
 }
 
@@ -50,5 +51,8 @@ export async function requestAgentTurn(
 type AgentTurnRunResponse = Omit<AgentTurnResponse, "status" | "result"> & {
   status: string;
   result: AgentTurnResponse["result"] | null;
+  /** 실패 코드. 화면에 그대로 보여 주지 않는다. */
   error?: string | null;
+  /** 서버가 코드를 바꾼 한국어 문구(document #119 이후). */
+  error_message?: string | null;
 };

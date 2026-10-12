@@ -119,7 +119,7 @@ export async function runQueryStream(
     const status = await parseJsonOrThrow<QueryRunStatusResponse>(statusResponse, ERROR_MESSAGES.queryFailed);
     if (status.status === "cancelled") throw new QueryCancelledError();
     if (status.result) return status.result;
-    if (!QUERY_RUN_ACTIVE_STATUSES.has(status.status)) throw new Error(ERROR_MESSAGES.queryFailed);
+    if (!QUERY_RUN_ACTIVE_STATUSES.has(status.status)) throw new Error(status.error_message || ERROR_MESSAGES.queryFailed);
     await new Promise((resolve) => setTimeout(resolve, QUERY_RUN_POLL_INTERVAL_MS));
     handlers.signal?.throwIfAborted();
   }
@@ -128,10 +128,12 @@ export async function runQueryStream(
 const QUERY_RUN_POLL_INTERVAL_MS = 1000;
 const QUERY_RUN_ACTIVE_STATUSES = new Set(["queued", "pending", "running", "cancel_requested", "rolling_back"]);
 
-/** GET /api/query/runs/{id} 응답. */
+/** GET /api/query/runs/{id} 응답. error_message는 한국어 문구, error_code는 실패 코드(document #119 이후). */
 export type QueryRunStatusResponse = {
   status: string;
   result: QueryResponse | null;
+  error_message?: string | null;
+  error_code?: string | null;
 };
 
 export async function fetchWikiPage(pageId: string): Promise<WikiPageDetailResponse> {
