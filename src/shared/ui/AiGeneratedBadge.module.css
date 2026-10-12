@@ -7,14 +7,14 @@
   white-space: nowrap;
 }
 
-/* 어두운 글자 + 밝은 호박색 배경: 다크(#0a0a0a)·라이트(#fff) 어디서나 같은 대비(약 10:1)로 읽힌다. */
+/* 문서 패널의 페이지 유형 라벨과 같은 강조색 토큰. 라이트(파랑 바탕·흰 글자)·다크(노랑 바탕·검은 글자) 모두 토큰이 대비를 보장한다. */
 .label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 3px 7px;
-  color: #1a1200;
-  background: #ffd766;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;

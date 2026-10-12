@@ -964,7 +964,7 @@
 /* 생성형 AI 사전 고지(이슈 #131). 입력창 곁에 늘 보이는 한 줄 */
 .composer-ai-notice {
   margin: 0;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -975,8 +975,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  color: #1a1200;
-  background: #ffd766;
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.5;
@@ -990,8 +990,8 @@
 .composer-ai-first-notice button {
   flex: 0 0 auto;
   padding: 6px 12px;
-  color: #ffd766;
-  background: #1a1200;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
