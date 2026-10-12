@@ -12,6 +12,7 @@ import type { SkillResponse } from "@/entities/skill";
 import { LogView } from "@/widgets/log-view";
 import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-view";
 import { SettingsPanel, useAccessGate } from "@/features/settings";
+import { SettingsContent, SettingsNav } from "@/features/user-settings";
 import {
   DocumentProcessingNotifications,
   fetchWikiMaintenanceStatus,
@@ -37,6 +38,7 @@ import { getSelectionLocation, useTreeSelection, type TreeSelectionState } from 
 import {
   buildWorkspaceHref,
   formatWorkspaceDocumentTitle,
+  getSettingsSection,
   getWorkspaceLocationKey,
   getWorkspaceLocationView,
   isDocumentLocation,
@@ -83,7 +85,8 @@ const SOURCE_PREVIEW_MAX_FLOOR = 360;
 const RESIZE_SAFETY_MARGIN = 120;
 
 export function HomeWorkspace() {
-  const [isHomeAgentPanelOpen, setIsHomeAgentPanelOpen] = useState(true);
+  // 홈·그래프 모두 채팅 패널은 닫힌 채 시작하고, 우하단 런처 버튼으로 연다.
+  const [isHomeAgentPanelOpen, setIsHomeAgentPanelOpen] = useState(false);
   const [isGraphAgentPanelOpen, setIsGraphAgentPanelOpen] = useState(false);
   // 화면 상태는 URL(/home?doc=… · ?page=… · ?view=graph 등)에서 파생한다. 쿼리만 바뀌므로 이 컴포넌트는 리마운트되지 않는다.
   const router = useRouter();
@@ -178,6 +181,8 @@ export function HomeWorkspace() {
   const selection = useTreeSelection(projectTree.projects, graphData.nodes);
   const isHomeView = activeView === "home";
   const isGraphView = activeView === "graph";
+  const isSettingsView = activeView === "settings";
+  const settingsSection = getSettingsSection(location);
   // 패널이 실제로 화면에 있는지. 렌더 조건·그래프 우측 여백·알림 위치가 모두 이 값을 기준으로 한다.
   const isAgentPanelShown = isAgentPanelVisible(
     activeView,
@@ -653,6 +658,10 @@ export function HomeWorkspace() {
           onLint: () => void handleGraphLint()
         }}
         onViewChange={handleViewChange}
+        onOpenSettings={(section) => navigate({ kind: "view", view: "settings", section })}
+        settingsNav={isSettingsView && !isAccessLocked ? (
+          <SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />
+        ) : undefined}
         hasUnreadNotifications={notificationFeed.hasUnread}
         isCollapsed={isSidebarCollapsed}
         isOverlay={isCompactLayout}
@@ -847,8 +856,9 @@ export function HomeWorkspace() {
               navigate({ kind: "view", view: "logs" });
             }}
           />
-        ) : activeView === "settings" ? (
-          <SettingsPanel />
+        ) : isSettingsView ? (
+          // 접근 코드가 잠겨 있으면 개인 설정(접근 코드) 화면만, 아니면 설정 화면(Figma 1540:22452)
+          isAccessLocked ? <SettingsPanel /> : <SettingsContent section={settingsSection} />
         ) : (
           <section className="blank-view" aria-label={`${railItems.find((item) => item.id === activeView)?.label ?? ""} 빈 화면`} />
         )
@@ -863,7 +873,8 @@ export function HomeWorkspace() {
         />
       )}
 
-      <DocumentProcessingNotifications documents={documents} />
+      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. */}
+      {(isHomeView || isGraphView) && <DocumentProcessingNotifications documents={documents} />}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
       {projectTree.deleteConfirm && (
         <DeleteConfirmModal

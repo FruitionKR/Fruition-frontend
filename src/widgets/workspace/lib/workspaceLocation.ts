@@ -1,5 +1,10 @@
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 
+/** 설정 화면의 항목. 레일 톱니는 디스플레이, 프로필은 사용자 설정으로 연다. */
+export type SettingsSection = "profile" | "account" | "notifications" | "preferences" | "general" | "members";
+export const SETTINGS_SECTIONS: readonly SettingsSection[] = ["profile", "account", "notifications", "preferences", "general", "members"];
+export const DEFAULT_SETTINGS_SECTION: SettingsSection = "profile";
+
 /** /home URL의 view 파라미터로 여는 화면. 홈(문서) 화면은 view 없이 문서 파라미터로 나타낸다. */
 export type WorkspaceView = Exclude<RailView, "home">;
 
@@ -7,14 +12,14 @@ export type WorkspaceView = Exclude<RailView, "home">;
  * /home URL이 가리키는 화면. 워크스페이스 화면 상태(문서 선택·화면 전환)의 단일 기준이다.
  * - home: 파라미터 없음. 첫 노트를 연다.
  * - page/document/tree: 위키 페이지(source/concept)·문서·문서 id가 없는 트리 항목을 홈 화면에서 연다.
- * - view: 그래프·로그·규칙·알림·설정 화면
+ * - view: 그래프·로그·규칙·알림·설정 화면. 설정은 section으로 열 항목을 가리킨다(없으면 사용자 설정).
  */
 export type WorkspaceLocation =
   | { kind: "home" }
   | { kind: "page"; pageId: string }
   | { kind: "document"; documentId: string }
   | { kind: "tree"; treeItemId: string }
-  | { kind: "view"; view: WorkspaceView };
+  | { kind: "view"; view: WorkspaceView; section?: SettingsSection };
 
 export const WORKSPACE_HOME_LOCATION: WorkspaceLocation = { kind: "home" };
 
@@ -33,11 +38,18 @@ function isWorkspaceView(value: string): value is WorkspaceView {
   return (WORKSPACE_VIEWS as readonly string[]).includes(value);
 }
 
+export function isSettingsSection(value: string): value is SettingsSection {
+  return (SETTINGS_SECTIONS as readonly string[]).includes(value);
+}
+
 /** URL 검색 파라미터를 화면 위치로 읽는다. 여러 개면 화면 → 위키 페이지 → 문서 → 트리 항목 순으로 고른다. */
 export function parseWorkspaceLocation(params: SearchParamsLike | null): WorkspaceLocation {
   if (!params) return WORKSPACE_HOME_LOCATION;
   const view = readParam(params, "view");
-  if (view && isWorkspaceView(view)) return { kind: "view", view };
+  if (view && isWorkspaceView(view)) {
+    const section = view === "settings" ? readParam(params, "section") : null;
+    return section && isSettingsSection(section) ? { kind: "view", view, section } : { kind: "view", view };
+  }
   const pageId = readParam(params, "page");
   if (pageId) return { kind: "page", pageId };
   const documentId = readParam(params, "doc");
@@ -47,27 +59,32 @@ export function parseWorkspaceLocation(params: SearchParamsLike | null): Workspa
   return WORKSPACE_HOME_LOCATION;
 }
 
-function toSearchParam(location: WorkspaceLocation): [name: string, value: string] | null {
+function toSearchParams(location: WorkspaceLocation): [name: string, value: string][] {
   switch (location.kind) {
-    case "home": return null;
-    case "page": return ["page", location.pageId];
-    case "document": return ["doc", location.documentId];
-    case "tree": return ["tree", location.treeItemId];
-    case "view": return ["view", location.view];
+    case "home": return [];
+    case "page": return [["page", location.pageId]];
+    case "document": return [["doc", location.documentId]];
+    case "tree": return [["tree", location.treeItemId]];
+    case "view": return location.section ? [["view", location.view], ["section", location.section]] : [["view", location.view]];
   }
 }
 
 export function buildWorkspaceHref(location: WorkspaceLocation): string {
-  const param = toSearchParam(location);
-  if (!param) return WORKSPACE_PATH;
-  return `${WORKSPACE_PATH}?${new URLSearchParams([param]).toString()}`;
+  const params = toSearchParams(location);
+  if (params.length === 0) return WORKSPACE_PATH;
+  return `${WORKSPACE_PATH}?${new URLSearchParams(params).toString()}`;
 }
 
 /** 같은 대상인지 비교하는 키. 선택 상태와 URL이 이미 맞는지 볼 때 쓴다. */
 export function getWorkspaceLocationKey(location: WorkspaceLocation): string {
-  const param = toSearchParam(location);
-  if (!param) return location.kind;
-  return `${location.kind}:${param[1]}`;
+  const params = toSearchParams(location);
+  if (params.length === 0) return location.kind;
+  return `${location.kind}:${params.map(([, value]) => value).join(":")}`;
+}
+
+/** 설정 화면에서 연 항목. 설정 화면이 아니거나 section이 없으면 기본 항목이다. */
+export function getSettingsSection(location: WorkspaceLocation): SettingsSection {
+  return location.kind === "view" && location.view === "settings" && location.section ? location.section : DEFAULT_SETTINGS_SECTION;
 }
 
 /** 선택한 대상의 위치. 위키 페이지 → 문서 → 트리 항목 순으로 정하고, 대상이 없으면 null. */
