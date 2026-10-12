@@ -3,21 +3,21 @@
 .settings-section {
   margin-bottom: 16px;
   padding: 20px 24px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--color-border);
   border-radius: 14px;
-  background: var(--panel);
+  background: var(--color-canvas);
 }
 
 .settings-section h3 {
   margin: 0 0 16px;
   font-size: 14px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
 .settings-section-description {
   margin: -8px 0 10px;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
 }
 
@@ -34,12 +34,12 @@
 
 .settings-label span {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--color-body);
 }
 
 .settings-message {
   margin: 12px 0 0;
-  color: #ffb3b3;
+  color: var(--color-danger);
   font-size: 12px;
 }
 
@@ -52,7 +52,7 @@
 
 .settings-list-item {
   padding: 12px 0;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .settings-list-item:last-child {
@@ -88,15 +88,15 @@
 
 .settings-list-empty {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 12px;
 }
 
 .settings-small-button {
   padding: 6px 10px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   font-size: 12px;
   white-space: nowrap;
@@ -105,12 +105,12 @@
 
 .settings-small-button:hover {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface);
 }
 
 .settings-small-button.is-primary {
-  color: var(--yellow);
-  border-color: var(--yellow);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .settings-small-button:disabled {
@@ -119,7 +119,7 @@
 }
 
 .settings-small-button:focus-visible {
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -132,7 +132,7 @@
 
 .settings-compare p {
   margin: 0 0 6px;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -143,8 +143,8 @@
   padding: 10px 12px;
   overflow: auto;
   border-radius: 8px;
-  background: #181818;
-  color: var(--ink);
+  background: var(--color-surface-strong);
+  color: var(--color-foreground);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;

@@ -88,7 +88,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/notifications` | 알림 목록 | `src/features/document-notifications/api/notifications.ts` `fetchNotifications` | `workspacePath(getWorkspaceId(), "notifications")` + `URLSearchParams`(`unread_only`, `limit`, `before`, `before_id`) | `cache: no-store` | `notifications[]`(`id`, `type`, `payload`, `read`, `created_at`) | 우하단 카드(`useServerNotifications`, `unread_only=true` 30초 폴링, 첫 폴링은 카드로 띄우지 않음)와 설정 알림 목록(`limit=50`)이 쓴다. `type`별 문구는 `describeNotification` |
+| `GET /api/workspaces/{workspace_id}/notifications` | 알림 목록 | `src/features/document-notifications/api/notifications.ts` `fetchNotifications` | `workspacePath(getWorkspaceId(), "notifications")` + `URLSearchParams`(`unread_only`, `limit`, `before`, `before_id`) | `cache: no-store` | `notifications[]`(`id`, `type`, `payload`, `read`, `created_at`) | 우하단 카드(`useServerNotifications`, `unread_only=true` 30초 폴링, 첫 폴링은 카드로 띄우지 않음)와 레일 알림 화면 워크스페이스 탭(`useNotificationFeed`, `limit=50`, 보는 중 5초·그 외 30초 폴링)이 쓴다. `type`별 문구는 `describeNotification` |
 | `POST /api/workspaces/{workspace_id}/notifications/{notification_id}/read` | 읽음 처리 | 같은 파일 `markNotificationRead` | `workspacePath(getWorkspaceId(), "notifications", notificationId, "read")` | 본문 없음 | - (`throwIfNotOk`) | 성공 시 목록 캐시를 `markRead`로 갱신한다 |
 | `POST /api/workspaces/{workspace_id}/notifications/read-all` | 모두 읽음 | 같은 파일 `markAllNotificationsRead` | `workspacePath(getWorkspaceId(), "notifications", "read-all")` | 본문 없음 | - (`throwIfNotOk`) | - |
 
@@ -117,4 +117,5 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 - 원본 미리보기: `src/widgets/source-preview/ui`
 - 검색(클라이언트 필터): `src/features/document-search/model/useDocumentSearch.ts`, `src/features/document-search/ui`
 - 권한 설정 다이얼로그: `src/widgets/document-sidebar/ui/PermissionDialog.tsx`
-- 편집 충돌·알림·휴지통 목록: `src/features/settings/ui/EditConflictSection.tsx`, `NotificationSection.tsx`, `TrashSection.tsx`
+- 편집 충돌·휴지통 목록(설정 > 문서 관리): `src/features/user-settings/ui/panels/collab/EditConflictSection.tsx`, `TrashSection.tsx`
+- 서버 알림 목록·읽음 처리(레일 알림 화면 워크스페이스 탭): `src/widgets/notifications-view/model/useNotificationFeed.ts`, `lib/serverNotificationItems.ts`

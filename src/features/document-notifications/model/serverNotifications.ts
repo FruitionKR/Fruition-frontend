@@ -19,7 +19,7 @@ export function describeNotification(notification: AppNotification): { title: st
     const author = text(payload.author_user_id);
     return {
       title: "편집 충돌 등록",
-      message: `「${name}」에 ${author ? `${author}님의 ` : ""}편집 충돌이 등록되었습니다. 설정 > 편집 충돌에서 어느 본문을 남길지 골라 주세요.`
+      message: `「${name}」에 ${author ? `${author}님의 ` : ""}편집 충돌이 등록되었습니다. 설정 > 문서 관리의 편집 충돌에서 어느 본문을 남길지 골라 주세요.`
     };
   }
   if (type === "edit_conflict_resolved") {
