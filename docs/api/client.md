@@ -100,7 +100,7 @@ multipart 업로드 등록은 재시도에서도 **같은 키**를 재사용해 
   FastAPI 형식을 모두 받아들인다.
 - `throwIfNotOk(response, fallback)` — 본문이 필요 없는 요청.
 - `parseJsonOrThrow<T>(response, fallback)` — JSON 본문이 필요한 요청.
-- `ERROR_MESSAGES` — 사용자에게 보이는 한국어 기본 메시지 상수(27개).
+- `ERROR_MESSAGES` — 사용자에게 보이는 한국어 기본 메시지 상수(28개).
 
 HTTP 상태 코드별 분기는 backend 명세가 소유하고, 이 저장소는 위 세 헬퍼로 묶어 처리한다.
 예외적으로 상태 코드를 직접 보는 지점은 `404`(노트 draft 없음 → `null`),

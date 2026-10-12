@@ -1418,6 +1418,44 @@
 }
 
 /* 전송: 24px 흰 원 + 검은 화살표 */
+/* 전송 버튼 왼쪽의 마이크(음성 받아쓰기). 모델 선택 트리거와 같은 muted → ink 톤을 따른다. */
+.composer-submit-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-mic {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.composer-mic:hover:not(:disabled),
+.composer-mic:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--ink);
+  background: var(--soft);
+}
+
+.composer-mic.is-recording {
+  color: var(--bg);
+  background: var(--yellow);
+}
+
+.composer-mic:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .composer-send {
   width: 24px;
   height: 24px;
