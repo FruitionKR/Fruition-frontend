@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { hasOAuthLinkResult, useMe, useSignOut } from "@/entities/user";
-import { SettingsModal } from "@/features/user-settings";
+import { SettingsModal, takeSettingsResume, type SettingsResume } from "@/features/user-settings";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import { SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import styles from "./DocumentSidebar.module.css";
@@ -11,12 +11,21 @@ export function SidebarProfile() {
   const { signOut } = useSignOut();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // 돌아와서 다시 열 설정 위치(탈퇴 확인·멤버 관리). 한 번 쓰고 나면 다음 열기부터는 기본 위치다.
+  const [settingsResume, setSettingsResume] = useState<SettingsResume | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
 
-  // 설정에서 시작한 소셜 계정 연동을 마치고 돌아오면 결과를 보여 줄 설정(계정)을 다시 연다.
+  // 설정에서 시작한 소셜 계정 연동·재로그인·워크스페이스 전환을 마치고 돌아오면 설정을 떠났던 자리로 다시 연다.
   useEffect(() => {
-    if (hasOAuthLinkResult()) setIsSettingsOpen(true);
+    const resume = takeSettingsResume();
+    if (resume) setSettingsResume(resume);
+    if (resume || hasOAuthLinkResult()) setIsSettingsOpen(true);
   }, []);
+
+  function closeSettings() {
+    setIsSettingsOpen(false);
+    setSettingsResume(null);
+  }
 
   // 표시용 데이터라 실패 시 fallback 이름을 유지한다.
   const { data: me } = useMe();
@@ -75,7 +84,7 @@ export function SidebarProfile() {
         </div>
       )}
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      {isSettingsOpen && <SettingsModal resume={settingsResume} onClose={closeSettings} />}
     </footer>
   );
 }

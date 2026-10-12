@@ -12,6 +12,7 @@ import {
 } from "@/entities/ai";
 import { useMe, useUserPreferences } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useWorkspaceName";
+import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
@@ -23,6 +24,7 @@ import {
   SvgIcon,
   userCircleOutlineIcon
 } from "@/shared/ui/SvgIcon";
+import { saveSettingsResume, type SettingsResume } from "../lib/settingsResume";
 import { AccountPanel } from "./panels/AccountPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
@@ -33,10 +35,28 @@ import styles from "./SettingsModal.module.css";
 type SettingsSection = "account" | "notifications" | "general" | "members" | "skills";
 
 /** 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800 / 981:10091). */
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+export function SettingsModal({
+  resume = null,
+  onClose
+}: {
+  /** 오리진을 벗어났다 돌아온 뒤 다시 열 위치(멤버 관리, 탈퇴 확인). */
+  resume?: SettingsResume | null;
+  onClose: () => void;
+}) {
   const workspaceName = useWorkspaceName();
   const { preferences, updatePreferences } = useUserPreferences();
-  const [activeSection, setActiveSection] = useState<SettingsSection>("account");
+  const [activeSection, setActiveSection] = useState<SettingsSection>(resume === "members" ? "members" : "account");
+
+  /** 탈퇴가 막힌 워크스페이스의 멤버 관리로 간다. 다른 워크스페이스면 전환 후 새로 그려 멤버 관리를 다시 연다. */
+  function openMembers(workspaceId: string) {
+    if (workspaceId === getSelectedWorkspaceId()) {
+      setActiveSection("members");
+      return;
+    }
+    setSelectedWorkspaceId(workspaceId);
+    saveSettingsResume("members");
+    window.location.reload();
+  }
   const { data: me } = useMe();
   const [aiModels, setAiModels] = useState<AiModel[]>([]);
   const [aiModelSelection, setAiModelSelection] = useState<AiModelSelection | null>(null);
@@ -153,7 +173,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         </nav>
 
         <div className={styles.content} data-section={activeSection}>
-          {activeSection === "account" && <AccountPanel />}
+          {activeSection === "account" && (
+            <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
+          )}
           {activeSection === "notifications" && (
             <NotificationsPanel
               notifications={preferences.notifications}

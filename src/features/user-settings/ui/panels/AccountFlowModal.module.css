@@ -424,6 +424,38 @@
   line-height: 1.4;
 }
 
+/* --- 회원 탈퇴 모달 --- */
+.notice-list {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.notice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+}
+
+.provider-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.btn-next.is-danger {
+  color: #fff;
+  background: #c0392b;
+}
+
 /* --- 멤버 초대 모달 --- */
 .field-role {
   align-self: flex-start;

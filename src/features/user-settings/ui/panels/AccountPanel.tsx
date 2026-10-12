@@ -19,6 +19,7 @@ import {
   type OAuthProvider
 } from "@/entities/user";
 import { setAfterLoginPath } from "@/shared/lib/auth";
+import { AccountDeleteModal } from "./AccountDeleteModal";
 import { EmailChangeModal } from "./EmailChangeModal";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
@@ -28,7 +29,14 @@ import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
 
 /** 계정 설정 패널 (Figma 1127:5275). */
-export function AccountPanel() {
+export function AccountPanel({
+  resumeAccountDelete = false,
+  onOpenMembers
+}: {
+  /** 소셜 재로그인에서 돌아와 탈퇴 확인 단계를 바로 다시 열 때 */
+  resumeAccountDelete?: boolean;
+  onOpenMembers: (workspaceId: string) => void;
+}) {
   const { data: me, error: loadError } = useMe();
   const queryClient = useQueryClient();
   const { signOut } = useSignOut();
@@ -44,6 +52,7 @@ export function AccountPanel() {
   const [emailSaved, setEmailSaved] = useState(false);
   const [oauthPending, setOAuthPending] = useState<OAuthProvider | null>(null);
   const [oauthResult, setOAuthResult] = useState<OAuthLinkResult | null>(null);
+  const [showDelete, setShowDelete] = useState(resumeAccountDelete);
   const linkedProviders = me?.oauth_providers ?? [];
 
   // 연동 콜백이 남긴 결과를 한 번만 읽어 이 섹션에 보여 준다.
@@ -225,6 +234,31 @@ export function AccountPanel() {
         </div>
         {me && <MfaPanel />}
         {me && <SessionsPanel />}
+      </div>
+
+      {/* 설정을 연 뒤 한 번 클릭으로 탈퇴 화면에 닿아야 한다(다크패턴 방지 가이드라인). */}
+      <div className={styles.section}>
+        <div className={styles["section-header"]}>
+          <span>회원 탈퇴</span>
+          <span className={styles["section-line"]} />
+        </div>
+        <div className={styles.row}>
+          <div className={styles["row-title"]}>
+            <strong>회원 탈퇴</strong>
+            <small>계정과 혼자 쓰던 워크스페이스를 삭제합니다.</small>
+          </div>
+          <button type="button" className={styles.btn} disabled={!me} onClick={() => setShowDelete(true)}>
+            회원 탈퇴
+          </button>
+        </div>
+        {showDelete && me && (
+          <AccountDeleteModal
+            me={me}
+            initialStep={resumeAccountDelete ? "confirm" : "notice"}
+            onOpenMembers={onOpenMembers}
+            onClose={() => setShowDelete(false)}
+          />
+        )}
       </div>
     </div>
   );
