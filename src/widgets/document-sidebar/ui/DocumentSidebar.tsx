@@ -43,6 +43,7 @@ export function DocumentSidebar({
   onViewChange,
   hasUnreadNotifications = false,
   isCollapsed = false,
+  isOverlay = false,
   onCollapseSidebar,
   onExpandSidebar,
   onAddProject,
@@ -113,6 +114,8 @@ export function DocumentSidebar({
    */
   /** 레일만 남긴 접힌 상태 (Figma 1539:16566). 상단 바는 펼치기 버튼만, 문서 패널은 숨긴다(마운트는 유지). */
   isCollapsed?: boolean;
+  /** 좁은 화면: 펼치면 콘텐츠를 밀지 않고 위에 겹친다. 폭은 고정이라 폭 조절 핸들을 두지 않는다. */
+  isOverlay?: boolean;
   /** 상단 바 사이드바 접기 (Figma 1527:16284). 없으면 버튼을 비활성으로 둔다. */
   onCollapseSidebar?: () => void;
   /** 접힌 레일 맨 위 펼치기 (Figma 1540:17915) */
@@ -253,7 +256,7 @@ export function DocumentSidebar({
   return (
     <>
     <aside
-      className={cx(styles.sidebar, isCollapsed && styles["is-collapsed"], isSidebarFileDropTarget && styles["is-file-drop-target"])}
+      className={cx(styles.sidebar, isCollapsed && styles["is-collapsed"], isOverlay && styles["is-overlay"], isSidebarFileDropTarget && styles["is-file-drop-target"])}
       onDragOver={rootProject ? handleDragOver : undefined}
       onDragLeave={rootProject ? handleDragLeave : undefined}
       onDrop={rootProject ? handleDrop : undefined}
@@ -369,6 +372,7 @@ export function DocumentSidebar({
       </div>
     </aside>
       {/* 폭 조절 핸들: 최소 폭 미만으로 끌면 접히고, 접힌 레일 가장자리를 끌어 다시 펼친다. ←/→ 16px, Enter 접기/펼치기 */}
+      {!isOverlay && (
       <div
         role="separator"
         tabIndex={0}
@@ -382,6 +386,7 @@ export function DocumentSidebar({
         onPointerDown={resizeHandle.onPointerDown}
         onKeyDown={resizeHandle.onKeyDown}
       />
+      )}
     </>
   );
 }

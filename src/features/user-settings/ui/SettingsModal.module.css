@@ -138,20 +138,6 @@ button.nav-row.is-danger:focus-visible {
   padding: 24px clamp(24px, 6vw, 116px) 24px 0;
 }
 
-/* 알림은 여백 때문에 스크롤되지 않도록 하고, 내용이 넘칠 때만 스크롤한다. */
-.content[data-section="notifications"] {
-  padding-block: 24px;
-}
-
-.content[data-section="notifications"] .detail {
-  padding-block: 0;
-  gap: 24px;
-}
-
-.content[data-section="notifications"] .section {
-  gap: 8px;
-}
-
 .title {
   display: flex;
   flex-direction: column;

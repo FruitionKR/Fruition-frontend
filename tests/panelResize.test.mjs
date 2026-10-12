@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   AGENT_PANEL_BASE_WIDTH,
   AGENT_PANEL_LIMITS,
+  COMPACT_LAYOUT_MIN_WIDTH,
   DEFAULT_AGENT_PANEL_STATE,
   DEFAULT_SIDEBAR_STATE,
   PANEL_KEYBOARD_STEP,
@@ -16,6 +17,7 @@ import {
   createPanelLimits,
   expandPanel,
   getAgentPanelMaxWidth,
+  getCompactAgentPanelWidth,
   getSidebarVisibleWidth,
   normalizePanelState,
   parseStoredPanelState,
@@ -137,3 +139,18 @@ test("창이 좁아 최대 폭이 줄면 그 안으로 맞추되 최소 폭은 �
   assert.equal(clampPanelWidth(100, limits), 216);
 });
 
+
+// --- 좁은 화면(패널을 콘텐츠 위에 겹쳐 연다) ---
+
+test("기본 사이드바·가장 좁은 채팅 패널·콘텐츠 최소 폭을 나란히 둘 수 없는 996px 미만이 좁은 화면이다", () => {
+  assert.equal(COMPACT_LAYOUT_MIN_WIDTH, 300 + 216 + 480);
+  assert.equal(getCompactAgentPanelWidth(1440), null);
+  assert.equal(getCompactAgentPanelWidth(996), null);
+});
+
+test("좁은 화면의 채팅 패널은 기본 폭으로 겹쳐 열고, 레일은 가리지 않는다", () => {
+  assert.equal(getCompactAgentPanelWidth(995), 360);
+  assert.equal(getCompactAgentPanelWidth(768), 360);
+  assert.equal(getCompactAgentPanelWidth(390), 390 - 54);
+  assert.equal(getCompactAgentPanelWidth(40), 0);
+});

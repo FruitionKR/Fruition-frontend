@@ -215,7 +215,7 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
           </div>
         </nav>
 
-        <div className={styles.content} data-section={activeSection}>
+        <div className={styles.content}>
           {activeSection === "profile" && <ProfilePanel />}
           {activeSection === "account" && <AccountPanel />}
           {activeSection === "notifications" && <NotificationsPanel />}

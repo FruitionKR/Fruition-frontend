@@ -2,7 +2,7 @@
    에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓는다. */
 .notice-stack {
   position: fixed;
-  right: calc(var(--agent-panel-width, 360px) + 24px);
+  right: calc(var(--agent-panel-self-width, var(--agent-panel-width, 360px)) + 24px);
   bottom: 24px;
   z-index: 50;
   display: grid;

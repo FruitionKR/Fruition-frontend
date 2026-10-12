@@ -48,6 +48,19 @@ export function getAgentPanelMaxWidth(viewportWidth: number, sidebarWidth: numbe
   return Math.max(AGENT_PANEL_LIMITS.min, Math.min(AGENT_PANEL_LIMITS.max, available));
 }
 
+// --- 좁은 화면 ---
+/**
+ * 이 폭부터 기본 사이드바·가장 좁은 채팅 패널·콘텐츠 최소 폭을 나란히 둘 수 있다.
+ * 더 좁으면 콘텐츠는 레일 오른쪽을 모두 쓰고, 사이드바·채팅 패널은 콘텐츠 위에 겹쳐 연다.
+ */
+export const COMPACT_LAYOUT_MIN_WIDTH = SIDEBAR_BASE_WIDTH + AGENT_PANEL_LIMITS.min + AGENT_PANEL_MIN_CONTENT_WIDTH;
+
+/** 좁은 화면이면 겹쳐 여는 채팅 패널 폭(기본 폭, 레일은 가리지 않음), 넓은 화면이면 null */
+export function getCompactAgentPanelWidth(viewportWidth: number): number | null {
+  if (viewportWidth >= COMPACT_LAYOUT_MIN_WIDTH) return null;
+  return Math.max(0, Math.min(AGENT_PANEL_BASE_WIDTH, Math.floor(viewportWidth - SIDEBAR_RAIL_WIDTH)));
+}
+
 // --- 공통 규칙 ---
 export function clampPanelWidth(width: number, limits: PanelLimits): number {
   return Math.min(limits.max, Math.max(limits.min, Math.round(width)));

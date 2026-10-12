@@ -67,7 +67,8 @@ import { useOperationLogFeed } from "../model/useOperationLogFeed";
 import { useResizeHandle } from "../model/useResizeHandle";
 import { useSidebarLayout } from "../model/useSidebarLayout";
 import { useAgentPanelLayout } from "../model/useAgentPanelLayout";
-import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
+import { useCompactLayout } from "../model/useCompactLayout";
+import { AGENT_PANEL_LIMITS, SIDEBAR_BASE_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel, isAgentPanelVisible } from "../lib/workspaceLayout";
 import type { DocumentItemResponse, SourceBlockHighlight } from "@/entities/document";
 import type { TreeItem } from "@/entities/tree";
@@ -116,12 +117,29 @@ export function HomeWorkspace() {
   // 채팅 입력창에 채울 스킬 커맨드. 패널이 열린 뒤 한 번 채운다.
   const [agentComposerDraft, setAgentComposerDraft] = useState<{ id: number; text: string } | null>(null);
   const sidebarLayout = useSidebarLayout();
+  // 좁은 화면이면 겹쳐 여는 채팅 패널 폭(넓은 화면이면 null). 좁은 화면에서는 두 패널이 콘텐츠를 밀지 않고 위에 겹친다.
+  const compactAgentPanelWidth = useCompactLayout();
+  const isCompactLayout = compactAgentPanelWidth !== null;
+  // 좁은 화면에서 겹쳐 연 사이드바. 넓은 화면의 접힘 상태(저장 값)는 건드리지 않고, 다른 화면·문서로 이동하면 닫는다.
+  const [isCompactSidebarOpen, setIsCompactSidebarOpen] = useState(false);
+  const isSidebarCollapsed = isCompactLayout ? !isCompactSidebarOpen : sidebarLayout.isCollapsed;
+  useEffect(() => {
+    setIsCompactSidebarOpen(false);
+  }, [locationKey, isCompactLayout]);
+  // 좁은 화면이 되면 채팅 패널이 문서를 덮지 않게 닫아 둔다. 런처 버튼으로 다시 연다.
+  useEffect(() => {
+    if (!isCompactLayout) return;
+    setIsHomeAgentPanelOpen(false);
+    setIsGraphAgentPanelOpen(false);
+  }, [isCompactLayout]);
+  // 콘텐츠 왼쪽 여백. 좁은 화면에서는 레일만 피한다.
+  const contentLeft = isCompactLayout ? SIDEBAR_RAIL_WIDTH : sidebarLayout.visibleWidth;
   const sourcePreviewResize = useResizeHandle(
     SOURCE_PREVIEW_DEFAULT_WIDTH,
     SOURCE_PREVIEW_MIN_WIDTH,
     () => Math.max(
       SOURCE_PREVIEW_MAX_FLOOR,
-      window.innerWidth - sidebarLayout.visibleWidth - agentPanelLayout.visibleWidth - RESIZE_SAFETY_MARGIN
+      window.innerWidth - contentLeft - contentRight - RESIZE_SAFETY_MARGIN
     )
   );
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
@@ -170,6 +188,9 @@ export function HomeWorkspace() {
     sidebarWidth: sidebarLayout.visibleWidth,
     onCollapse: closeAgentPanel
   });
+  // 콘텐츠 오른쪽 여백과 채팅 패널 자체 폭. 좁은 화면에서는 패널이 콘텐츠 위에 겹치므로 콘텐츠는 오른쪽 끝까지 쓴다.
+  const contentRight = isCompactLayout ? 0 : agentPanelLayout.visibleWidth;
+  const agentPanelSelfWidth = isAgentPanelShown && isCompactLayout ? compactAgentPanelWidth : agentPanelLayout.visibleWidth;
   const hasSourcePreview = Boolean(selection.selectedDocumentTitle);
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
   const isDocumentMain = isHomeView && hasSourcePreview;
@@ -530,7 +551,7 @@ export function HomeWorkspace() {
 
   function startSkillRun(skill: SkillResponse) {
     // 대상은 사이드바 문서 패널에서 고르므로 접혀 있으면 편다.
-    if (sidebarLayout.isCollapsed) sidebarLayout.expand();
+    expandSidebar();
     setSkillRun({ skill, targetItemId: null, errorMessage: null });
   }
 
@@ -560,6 +581,16 @@ export function HomeWorkspace() {
     openDocument(selection.selectTreeGraphNode(item));
   }
 
+  function expandSidebar() {
+    if (isCompactLayout) setIsCompactSidebarOpen(true);
+    else if (sidebarLayout.isCollapsed) sidebarLayout.expand();
+  }
+
+  function collapseSidebar() {
+    if (isCompactLayout) setIsCompactSidebarOpen(false);
+    else sidebarLayout.collapse();
+  }
+
   /** 현재 뷰(홈/그래프)의 채팅 패널을 닫는다. 헤더 숨기기 버튼과 폭 조절 핸들 접기가 함께 쓴다. */
   function closeAgentPanel() {
     if (isGraphView) setIsGraphAgentPanelOpen(false);
@@ -577,14 +608,17 @@ export function HomeWorkspace() {
     <main
       className={cx(
         "workspace",
-        sidebarLayout.isCollapsed && "is-sidebar-collapsed",
+        isSidebarCollapsed && "is-sidebar-collapsed",
+        isCompactLayout && "is-compact-layout",
         hasSourcePreview && "has-source-preview",
         isDocumentMain && "is-document-main",
         (sidebarLayout.isDragging || agentPanelLayout.isDragging) && "is-panel-resizing"
       )}
       style={{
-        "--sidebar-width": `${sidebarLayout.visibleWidth}px`,
-        "--agent-panel-width": `${agentPanelLayout.visibleWidth}px`,
+        "--sidebar-width": `${contentLeft}px`,
+        "--sidebar-self-width": `${isCompactLayout ? (isCompactSidebarOpen ? SIDEBAR_BASE_WIDTH : SIDEBAR_RAIL_WIDTH) : sidebarLayout.visibleWidth}px`,
+        "--agent-panel-width": `${contentRight}px`,
+        "--agent-panel-self-width": `${agentPanelSelfWidth}px`,
         "--source-preview-width": `${sourcePreviewResize.width}px`
       } as CSSProperties}
       {...workspaceBackgroundClick}
@@ -620,9 +654,10 @@ export function HomeWorkspace() {
         }}
         onViewChange={handleViewChange}
         hasUnreadNotifications={notificationFeed.hasUnread}
-        isCollapsed={sidebarLayout.isCollapsed}
-        onCollapseSidebar={sidebarLayout.collapse}
-        onExpandSidebar={sidebarLayout.expand}
+        isCollapsed={isSidebarCollapsed}
+        isOverlay={isCompactLayout}
+        onCollapseSidebar={collapseSidebar}
+        onExpandSidebar={expandSidebar}
         onAddProject={() => {
           // 폴더 안에 만들면 새 항목이 보이도록 대상 폴더를 펼친다.
           const folderId = findContextFolderId(projectTree.projects, projectTree.contextMenu);
@@ -675,6 +710,11 @@ export function HomeWorkspace() {
         onDeleteContextTarget={projectTree.deleteContextTarget}
         onCloseContextMenu={projectTree.closeContextMenu}
       />
+
+      {/* 좁은 화면에서 겹쳐 연 사이드바 바깥을 누르면 닫는다. 스킬 대상을 고르는 동안에는 안내의 확인 버튼을 가리지 않게 두지 않는다. */}
+      {isCompactLayout && isCompactSidebarOpen && !skillRun && (
+        <button type="button" tabIndex={-1} className="compact-sidebar-backdrop" aria-label="사이드바 닫기" onClick={collapseSidebar} />
+      )}
 
       {isHomeView && apiError && (
         <div className="workspace-api-error" role="alert">
@@ -748,7 +788,7 @@ export function HomeWorkspace() {
       )}
 
       {/* 채팅 패널 폭 조절 핸들: 왼쪽으로 끌면 넓어지고, 최소 폭 미만이면 패널을 닫는다. ←/→ 16px, Enter 닫기 */}
-      {isAgentPanelShown && (
+      {isAgentPanelShown && !isCompactLayout && (
         <div
           role="separator"
           tabIndex={0}

@@ -103,6 +103,17 @@
   background: var(--color-canvas);
 }
 
+/* 좁은 화면에서 겹쳐 연 사이드바(11) 바깥. 채팅 패널(9) 위를 덮어 바깥을 누르면 사이드바를 닫는다. */
+.compact-sidebar-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: default;
+}
+
 /* 사이드바·채팅 패널 핸들을 끄는 동안 문서 iframe(PDF 내장 뷰어 등)이 포인터 이벤트를 가로채지 않게 한다.
    pointer capture가 있어도 브라우저에 따라 iframe 위에서 이벤트가 끊길 수 있어 함께 막는다. */
 .workspace.is-panel-resizing iframe {
@@ -121,7 +132,7 @@
   position: fixed;
   top: 16px;
   left: calc(var(--sidebar-width, 320px) + 16px);
-  right: calc(var(--agent-panel-width, 360px) + 16px);
+  right: calc(var(--agent-panel-self-width, var(--agent-panel-width, 360px)) + 16px);
   z-index: 30;
   display: flex;
   align-items: center;
