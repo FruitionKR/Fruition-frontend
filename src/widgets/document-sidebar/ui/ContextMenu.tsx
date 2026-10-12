@@ -12,7 +12,9 @@ export function ContextMenu({
   convertTarget,
   canRenameTarget,
   canDeleteTarget = true,
+  canSetPermissionTarget = false,
   onRenameContextTarget,
+  onSetPermissionContextTarget,
   onAddProject,
   onAddMarkdownFromContext,
   onUploadFromContext,
@@ -31,7 +33,10 @@ export function ContextMenu({
   canRenameTarget: boolean;
   /** 서버 can_delete=false(문서 소유자·OWNER가 아님)면 삭제 메뉴를 비활성화한다. */
   canDeleteTarget?: boolean;
+  /** 문서·폴더 항목이면 공동 편집 권한 설정 메뉴를 보인다(권한 판정은 서버가 한다). */
+  canSetPermissionTarget?: boolean;
   onRenameContextTarget: () => void;
+  onSetPermissionContextTarget?: () => void;
   onAddProject: () => void;
   onAddMarkdownFromContext: () => void;
   onUploadFromContext: () => void;
@@ -65,6 +70,9 @@ export function ContextMenu({
       )}
       {canRenameTarget && (
         <button type="button" onClick={onRenameContextTarget}>이름 변경</button>
+      )}
+      {canSetPermissionTarget && onSetPermissionContextTarget && (
+        <button type="button" onClick={onSetPermissionContextTarget}>권한 설정</button>
       )}
       {convertTarget && (
         <button type="button" disabled={convertTarget.isDisabled} onClick={onConvertContextTarget}>

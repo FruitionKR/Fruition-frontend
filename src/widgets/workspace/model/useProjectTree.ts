@@ -2,6 +2,9 @@ import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStat
 import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
 import { canDeleteDocument } from "@/entities/document/lib/documentAccess";
+import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
+import type { DocumentPermission } from "@/entities/document/model/document";
+import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
@@ -81,6 +84,7 @@ export function useProjectTree({
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmTarget | null>(null);
   const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
+  const [permissionTarget, setPermissionTarget] = useState<PermissionDialogTarget | null>(null);
   // Cmd/Ctrl+클릭으로 고른 이동 대상. Escape나 일반 클릭으로 해제한다.
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const editingCancelRef = useRef(false);
@@ -263,6 +267,31 @@ export function useProjectTree({
     && contextMenuItem?.mimeType !== "application/pdf" && contextMenuItem?.canEdit !== false;
   // 삭제는 문서 소유자·OWNER만 할 수 있다(can_delete). 폴더는 서버가 판정하므로 그대로 둔다.
   const canDeleteContextTarget = canDeleteDocument(contextMenuItem ? { can_delete: contextMenuItem.canDelete } : null);
+  // 권한 설정은 문서·폴더 항목에서만. 누가 바꿀 수 있는지는 서버가 판정한다(403이면 다이얼로그가 안내).
+  const canSetPermissionContextTarget = Boolean(contextMenuItem && !isWikiItem(contextMenuItem) && contextMenuItem.status !== "uploading");
+
+  /** 컨텍스트 메뉴 → 권한 설정: 대상을 스냅샷해 다이얼로그를 연다. */
+  function openPermissionContextTarget() {
+    if (!contextMenuItem) return;
+    setPermissionTarget({
+      kind: isFileItem(contextMenuItem) ? "document" : "folder",
+      id: contextMenuItem.documentId ?? contextMenuItem.id,
+      label: contextMenuItem.label,
+      permission: contextMenuItem.permission ?? null
+    });
+    setContextMenu(null);
+  }
+
+  /** 다이얼로그 저장: 실패는 다이얼로그가 보여주도록 그대로 던지고, 성공·실패 모두 트리를 다시 받는다. */
+  async function applyPermission(access: DocumentPermission | null) {
+    if (!permissionTarget) return;
+    try {
+      if (permissionTarget.kind === "document") await setDocumentPermission(permissionTarget.id, access);
+      else await setFolderPermission(permissionTarget.id, access);
+    } finally {
+      await refreshRef.current().catch(() => {});
+    }
+  }
 
   const convertContextTarget = contextMenuItem?.documentId && contextMenuItem.mimeType === "application/pdf"
     ? {
@@ -412,6 +441,11 @@ export function useProjectTree({
     takeFolderTargetFromContext,
     canRenameContextTarget,
     canDeleteContextTarget,
+    canSetPermissionContextTarget,
+    openPermissionContextTarget,
+    permissionTarget,
+    closePermissionDialog: () => setPermissionTarget(null),
+    applyPermission,
     canCreateInContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,

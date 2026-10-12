@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/serverTree";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
+import { PermissionDialog } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { Graph } from "@/widgets/graph/ui/Graph";
 import { SchemaWorkspace } from "@/features/schema-manage/ui/SchemaWorkspace";
 import { LogView } from "@/widgets/log-view";
@@ -469,6 +470,7 @@ export function HomeWorkspace() {
         convertContextTarget={projectTree.convertContextTarget}
         canRenameContextTarget={projectTree.canRenameContextTarget}
         canDeleteContextTarget={projectTree.canDeleteContextTarget}
+        canSetPermissionContextTarget={projectTree.canSetPermissionContextTarget}
         canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
@@ -516,6 +518,7 @@ export function HomeWorkspace() {
         onCommitEditing={projectTree.commitEditing}
         onCancelEditing={projectTree.cancelEditing}
         onRenameContextTarget={projectTree.renameContextTarget}
+        onSetPermissionContextTarget={projectTree.openPermissionContextTarget}
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
@@ -645,6 +648,13 @@ export function HomeWorkspace() {
           target={projectTree.deleteConfirm}
           onConfirm={projectTree.confirmDelete}
           onCancel={projectTree.cancelDelete}
+        />
+      )}
+      {projectTree.permissionTarget && (
+        <PermissionDialog
+          target={projectTree.permissionTarget}
+          onSave={projectTree.applyPermission}
+          onClose={projectTree.closePermissionDialog}
         />
       )}
       {projectTree.mergeConfirm && (

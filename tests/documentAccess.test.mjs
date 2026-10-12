@@ -15,6 +15,37 @@ const {
 const { canDragTreeItem } = await import("../src/entities/tree/lib/guards.ts");
 const { projectsFromServerTree } = await import("../src/entities/tree/lib/serverTree.ts");
 const { ApiError } = await import("../src/shared/lib/errors.ts");
+const { setDocumentPermission, setFolderPermission } = await import("../src/entities/document/api/permission.ts");
+const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+
+/** 권한 API는 선택된 워크스페이스와 access token을 쓴다. */
+function workspaceEnv(t) {
+  const original = globalThis.window;
+  globalThis.window = Object.assign(new EventTarget(), {
+    localStorage: { getItem: (key) => (key === "fruition.workspace_id" ? "ws_test" : null), setItem() {}, removeItem() {} }
+  });
+  t.after(() => { globalThis.window = original; });
+  saveAccessToken("test-access");
+}
+
+test("문서·폴더 권한은 PUT .../permission에 {access}로 보내고, 403은 DOCUMENT_WRITE_FORBIDDEN 코드를 보존한다", async (t) => {
+  workspaceEnv(t);
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    calls.push([path, init.method, JSON.parse(init.body)]);
+    if (path.includes("/folders/")) return Response.json({ error: { message: "no", code: "DOCUMENT_WRITE_FORBIDDEN" } }, { status: 403 });
+    return Response.json({ access: "view" });
+  });
+
+  assert.deepEqual(await setDocumentPermission("doc_1", "view"), { access: "view" });
+  const error = await setFolderPermission("folder_1", null).then(() => null, (caught) => caught);
+
+  assert.deepEqual(calls, [
+    ["/api/workspaces/ws_test/documents/doc_1/permission", "PUT", { access: "view" }],
+    ["/api/workspaces/ws_test/folders/folder_1/permission", "PUT", { access: null }]
+  ]);
+  assert.equal(describePermissionError(error), PERMISSION_FORBIDDEN_MESSAGE);
+});
 
 test("can_edit가 false인 문서만 읽기 전용이다", () => {
   assert.equal(isDocumentReadOnly({ can_edit: false }), true);
