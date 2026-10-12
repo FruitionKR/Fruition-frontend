@@ -90,7 +90,13 @@ export function AccountPanel() {
   }
 
   const saveName = useCallback(async () => {
-    if (!me || nameRequestPending.current || composingName || nicknameDraft === null || !nickname.trim() || nickname.trim() === me.display_name) return;
+    if (!me || nameRequestPending.current || composingName || nicknameDraft === null) return;
+    if (!nickname.trim()) {
+      setNameSaved(false);
+      setNameError("닉네임을 입력해 주세요. 공백만으로는 저장할 수 없습니다.");
+      return;
+    }
+    if (nickname.trim() === me.display_name) return;
     nameRequestPending.current = true;
     setSavingName(true);
     setNameError(null);
@@ -134,10 +140,11 @@ export function AccountPanel() {
         <div className={styles.field}>
           <label htmlFor="account-nickname">닉네임</label>
           <input id="account-nickname" type="text" value={nickname} maxLength={255} required
+            aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "account-nickname-error" : undefined}
             disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
             onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
             onBlur={() => void saveName()} />
-          {(nameError || loadError) && <small className={styles["model-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
+          {(nameError || loadError) && <small id="account-nickname-error" className={styles["model-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
           {savingName ? <small role="status">저장 중…</small> : nameSaved && nicknameDraft === null && <small role="status">닉네임을 변경했습니다.</small>}
         </div>
       </div>
