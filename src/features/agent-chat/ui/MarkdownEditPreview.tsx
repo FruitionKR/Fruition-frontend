@@ -1,3 +1,4 @@
+import { AiGeneratedBadge } from "@/shared/ui/AiGeneratedBadge";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import type { MarkdownEditPreview as MarkdownEditPreviewData } from "../lib/markdownAgent";
 import styles from "./AgentChat.module.css";
@@ -29,6 +30,7 @@ export function MarkdownEditPreview({
     <section className={styles["markdown-edit-preview"]} aria-label="AI Markdown 편집 제안">
       <header>
         <div>
+          <AiGeneratedBadge />
           <strong>{preview.summary}</strong>
           <details className={styles["markdown-edit-details"]}>
             <summary>

@@ -1,0 +1,49 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 어두운 글자 + 밝은 호박색 배경: 다크(#0a0a0a)·라이트(#fff) 어디서나 같은 대비(약 10:1)로 읽힌다. */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  color: #1a1200;
+  background: #ffd766;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.history {
+  padding: 2px 6px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.history:hover,
+.history:focus-visible {
+  --button-hover-overlay: none;
+  opacity: 1;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

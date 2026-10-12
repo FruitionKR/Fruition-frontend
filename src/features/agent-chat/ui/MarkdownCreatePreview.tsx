@@ -1,3 +1,4 @@
+import { AiGeneratedBadge } from "@/shared/ui/AiGeneratedBadge";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import type { GeneratedMarkdownDraft } from "../lib/markdownAgent";
 import styles from "./AgentChat.module.css";
@@ -20,7 +21,7 @@ export function MarkdownCreatePreview({
   return (
     <section className={styles["markdown-create-preview"]} aria-label="AI Markdown 문서 초안">
       <header>
-        <span>새 문서 초안</span>
+        <span>새 문서 초안 <AiGeneratedBadge /></span>
         <strong>{draft.title}</strong>
         <p>{draft.summary}</p>
       </header>

@@ -878,6 +878,12 @@
   line-height: 1.6;
 }
 
+/* 답변 본문 위 AI 생성물 라벨(이슈 #131) */
+.answer-ai-badge {
+  display: inline-flex;
+  margin-bottom: 8px;
+}
+
 .agent-answer :global(.markdown-viewer) {
   color: #e2e2e2;
   font-size: 12px;
@@ -946,6 +952,42 @@
 
 .composer-cancelled {
   color: #c53b3b;
+}
+
+/* 생성형 AI 사전 고지(이슈 #131). 입력창 곁에 늘 보이는 한 줄 */
+.composer-ai-notice {
+  margin: 0;
+  color: var(--subdued);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* 첫 사용 시 한 번 확인하는 안내. 확인하면 localStorage에 기록한다 */
+.composer-ai-first-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #1a1200;
+  background: #ffd766;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.composer-ai-first-notice p {
+  margin: 0;
+  flex: 1;
+}
+
+.composer-ai-first-notice button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  color: #ffd766;
+  background: #1a1200;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .agent-answer p,

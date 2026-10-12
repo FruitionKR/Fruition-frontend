@@ -552,6 +552,7 @@ export function HomeWorkspace() {
             editedAt={selectedDocumentEditedAt}
             isAgentPanelOpen={isHomeAgentPanelOpen}
             onOpenAgentPanel={() => setIsHomeAgentPanelOpen(true)}
+            onOpenAiHistory={() => handleViewChange("logs")}
             fillMain
           />
         ) : (

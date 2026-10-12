@@ -5,6 +5,7 @@ import { resolveEditorMode, useUserPreferences } from "@/entities/user";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { AiGeneratedBadge } from "@/shared/ui/AiGeneratedBadge";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { fetchDocumentBlocks, fetchDocumentOriginal, reflectDocumentToWiki } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
@@ -60,6 +61,7 @@ export function SourcePreviewPanel({
   editedAt = null,
   isAgentPanelOpen,
   onOpenAgentPanel,
+  onOpenAiHistory,
   fillMain = false
 }: {
   title: string;
@@ -83,6 +85,8 @@ export function SourcePreviewPanel({
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
   onOpenAgentPanel?: () => void;
+  /** 위키 페이지의 AI 생성물 라벨에서 AI 변경 이력(로그 화면)으로 이동한다(이슈 #131) */
+  onOpenAiHistory?: () => void;
   /** 홈에서 문서가 메인 영역을 채울 때: 고정폭/리사이즈 대신 남은 영역을 채운다 */
   fillMain?: boolean;
 }) {
@@ -570,6 +574,8 @@ export function SourcePreviewPanel({
             <h2>{visibleTitle}</h2>
           )}
           {!fillMain && <span>{pageId ? pageTypeLabel : editableNote ? "Note" : "Raw"}</span>}
+          {/* 위키 페이지는 AI가 원본에서 생성한 본문이라 라벨을 붙인다. 노트·원본은 사용자 문서다. */}
+          {pageId && <AiGeneratedBadge onOpenHistory={onOpenAiHistory} />}
         </header>
         {isMarkdownFile && renameError && (
           <div className={styles["source-preview-document-controls"]}>
