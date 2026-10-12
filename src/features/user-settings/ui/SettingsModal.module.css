@@ -315,6 +315,34 @@ button.nav-row:disabled {
   cursor: default;
 }
 
+.ws-emoji-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ws-emoji {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ws-emoji:hover:not(:disabled),
+.ws-emoji[aria-pressed="true"] {
+  border-color: var(--ink);
+}
+
+.ws-emoji:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .ws-icon {
   flex: 1;
   align-self: stretch;
