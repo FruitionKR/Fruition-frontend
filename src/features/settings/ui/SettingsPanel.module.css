@@ -205,6 +205,15 @@
   gap: 16px;
 }
 
+/* 섹션 제목 줄에 버튼(모두 읽음 등)을 같이 둘 때 제목의 아래 여백을 줄 단위로 옮긴다 */
+.settings-list-row > h3 {
+  margin-bottom: 0;
+}
+
+.settings-section > .settings-list-row {
+  margin-bottom: 16px;
+}
+
 .settings-list-actions {
   display: flex;
   flex: 0 0 auto;

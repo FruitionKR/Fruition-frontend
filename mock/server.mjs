@@ -13,6 +13,7 @@ import { registerQueryRoutes } from "./routes/query.mjs";
 import { registerAgentRoutes } from "./routes/agent.mjs";
 import { registerCatalogRoutes } from "./routes/catalog.mjs";
 import { registerFolderRoutes } from "./routes/folders.mjs";
+import { registerNotificationRoutes } from "./routes/notifications.mjs";
 
 const ACCESS_PORT = Number(process.env.MOCK_ACCESS_PORT ?? 8081);
 const DOCUMENT_PORT = Number(process.env.MOCK_DOCUMENT_PORT ?? 8080);
@@ -32,6 +33,7 @@ registerQueryRoutes(router);
 registerAgentRoutes(router);
 registerCatalogRoutes(router);
 registerFolderRoutes(router);
+registerNotificationRoutes(router);
 
 const servers = await Promise.all([listen(router, ACCESS_PORT), listen(router, DOCUMENT_PORT)]);
 

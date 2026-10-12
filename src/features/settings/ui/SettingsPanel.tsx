@@ -7,6 +7,7 @@ import { Switch } from "@/shared/ui/Switch";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { AccessCodeSection } from "./AccessCodeSection";
 import { EditConflictSection } from "./EditConflictSection";
+import { NotificationSection } from "./NotificationSection";
 import styles from "./SettingsPanel.module.css";
 
 function SettingRow({
@@ -111,6 +112,7 @@ export function SettingsPanel() {
 
         <AccessCodeSection />
 
+        <NotificationSection />
         {isOwner && <EditConflictSection />}
 
         <section className={styles["settings-section"]}>
