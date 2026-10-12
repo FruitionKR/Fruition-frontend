@@ -97,7 +97,7 @@ export function AccountPanel({
         <div className={styles["title-row"]}>
           <h2>계정 설정</h2>
         </div>
-        <p>로그인 정보와 연결된 계정, 보안을 관리합니다.</p>
+        <p>개인 계정 설정을 관리합니다.</p>
       </div>
       {loadError && <small className={styles["model-error"]} role="alert">{getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
 
@@ -177,28 +177,19 @@ export function AccountPanel({
       </div>
 
       </>
+      {/* 피그마 1540:22452 "계정 관리". 설정을 연 뒤 한 번 클릭으로 탈퇴 화면에 닿아야 한다(다크패턴 방지 가이드라인). */}
       <div className={styles.section}>
         <div className={styles["section-header"]}>
-          <span>계정 보안</span>
-          <span className={styles["section-line"]} />
-        </div>
-        {me && <MfaPanel />}
-        {me && <SessionsPanel />}
-      </div>
-
-      {/* 설정을 연 뒤 한 번 클릭으로 탈퇴 화면에 닿아야 한다(다크패턴 방지 가이드라인). */}
-      <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>회원 탈퇴</span>
+          <span>계정 관리</span>
           <span className={styles["section-line"]} />
         </div>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>회원 탈퇴</strong>
-            <small>계정과 혼자 쓰던 워크스페이스를 삭제합니다.</small>
+            <strong>내 계정 삭제</strong>
+            <small>계정을 영구적으로 삭제합니다. 더 이상 내 페이지나 소속된 워크스페이스에 접근할 수 없게 됩니다.</small>
           </div>
-          <button type="button" className={styles.btn} disabled={!me} onClick={() => setShowDelete(true)}>
-            회원 탈퇴
+          <button type="button" className={`${styles.btn} ${styles["btn-danger"]}`} disabled={!me} onClick={() => setShowDelete(true)}>
+            내 계정 삭제
           </button>
         </div>
         {showDelete && me && (
@@ -209,6 +200,15 @@ export function AccountPanel({
             onClose={() => setShowDelete(false)}
           />
         )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles["section-header"]}>
+          <span>계정 보안</span>
+          <span className={styles["section-line"]} />
+        </div>
+        {me && <MfaPanel />}
+        {me && <SessionsPanel />}
       </div>
     </div>
   );

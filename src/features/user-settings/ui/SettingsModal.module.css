@@ -300,6 +300,13 @@ button.nav-row.is-danger:focus-visible {
   opacity: 0.6;
 }
 
+/* 내 계정 삭제처럼 되돌릴 수 없는 동작 */
+.btn.btn-danger {
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+  border-color: var(--color-danger-weak);
+}
+
 /* 워크스페이스 아이콘 */
 .ws-icon-outline {
   width: 80px;
