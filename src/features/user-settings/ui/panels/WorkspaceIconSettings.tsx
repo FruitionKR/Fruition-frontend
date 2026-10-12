@@ -7,10 +7,8 @@ import { updateWorkspaceIcon, uploadWorkspaceIcon, useSelectedWorkspace, type Wo
 import { fetchMembers } from "@/entities/workspace/api/members";
 import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { emojiPickerHint, pickEmoji } from "../../lib/workspaceEmoji";
 import styles from "../SettingsModal.module.css";
-
-/** 안내 문구의 "이모티콘 선택"에 대응하는 프리셋. PUT /icon(icon_emoji)으로 저장한다. */
-const EMOJI_PRESETS = ["📁", "📚", "💡", "🚀", "🧪", "🎨", "🌱", "⭐"];
 
 export function WorkspaceIconSettings() {
   const workspace = useSelectedWorkspace();
@@ -26,6 +24,17 @@ export function WorkspaceIconSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const pickerHint = emojiPickerHint(typeof navigator === "undefined" ? "" : navigator.platform);
+
+  /** OS 이모티콘 선택기로 넣은 값 중 이모티콘 한 글자만 PUT /icon(icon_emoji)으로 저장한다. */
+  function saveEmoji(value: string) {
+    const emoji = pickEmoji(value);
+    if (!emoji) {
+      if (value.trim()) setError("이모티콘만 넣을 수 있습니다.");
+      return;
+    }
+    void apply(() => updateWorkspaceIcon(workspace!.id, emoji));
+  }
 
   async function save(file: File) {
     if (file.size === 0 || file.size > 1024 * 1024) {
@@ -64,15 +73,14 @@ export function WorkspaceIconSettings() {
     </button>
     <input ref={fileInput} type="file" hidden accept="image/png,image/jpeg,image/webp,image/gif" disabled={!isOwner || busy}
       onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void save(file); }} />
-    <div className={styles["ws-emoji-row"]} role="group" aria-label="워크스페이스 아이콘 이모티콘 선택">
-      {EMOJI_PRESETS.map((emoji) => (
-        <button key={emoji} type="button" className={styles["ws-emoji"]} aria-label={`이모티콘 ${emoji}`}
-          aria-pressed={!workspace?.icon_url && workspace?.icon_emoji === emoji}
-          disabled={!isOwner || busy} onClick={() => void apply(() => updateWorkspaceIcon(workspace!.id, emoji))}>
-          {emoji}
-        </button>
-      ))}
-    </div>
+    <label className={styles["ws-emoji-field"]}>
+      <span>이모티콘</span>
+      <input type="text" className={styles["ws-emoji"]} autoComplete="off" spellCheck={false}
+        placeholder={workspace?.icon_url ? "" : workspace?.icon_emoji ?? "🙂"} aria-label="워크스페이스 아이콘 이모티콘"
+        aria-describedby="ws-emoji-hint" disabled={!isOwner || busy}
+        onChange={(event) => { const value = event.target.value; event.target.value = ""; saveEmoji(value); }} />
+      <small id="ws-emoji-hint">{pickerHint}로 OS 이모티콘 선택기를 열어 넣으세요.</small>
+    </label>
     {!isOwner && <small>아이콘 변경은 워크스페이스 OWNER만 할 수 있습니다.</small>}
     {busy && <small role="status">아이콘 저장 중…</small>}
     {saved && <small role="status">아이콘을 변경했습니다.</small>}

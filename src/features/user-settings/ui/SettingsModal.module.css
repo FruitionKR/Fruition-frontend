@@ -315,31 +315,33 @@ button.nav-row:disabled {
   cursor: default;
 }
 
-.ws-emoji-row {
+.ws-emoji-field {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .ws-emoji {
-  width: 36px;
+  width: 44px;
   height: 36px;
   padding: 0;
   font-size: 20px;
   line-height: 1;
+  text-align: center;
+  color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  cursor: pointer;
 }
 
-.ws-emoji:hover:not(:disabled),
-.ws-emoji[aria-pressed="true"] {
+.ws-emoji:focus-visible {
   border-color: var(--ink);
+  outline: none;
 }
 
 .ws-emoji:disabled {
-  cursor: default;
   opacity: 0.6;
 }
 
