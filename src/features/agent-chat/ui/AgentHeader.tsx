@@ -1,15 +1,16 @@
-import { MoreHorizontal, MoreVertical, Plus, Search } from "lucide-react";
+import { MoreVertical, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createChatSession, deleteChatSession, fetchChatSessions } from "@/entities/chat/api/chat";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
-import { chatScrollIcon, emptyChatIcon, fruitionLogo, sideboxIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { emptyChatIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
+import { AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
-/** 채팅 패널 헤더: 세션 제목 + 세션 목록 드롭다운 + 패널 닫기 버튼 */
+/** 채팅 패널 헤더(Figma 1540:19113 GNB): 대화 제목 탭(제목 + 셰브론 = 세션 목록 드롭다운) + 패널 숨기기·옵션 버튼 */
 export function AgentHeader({
   sessionTitle,
   onClose,
@@ -116,46 +117,53 @@ export function AgentHeader({
 
   return (
     <div className={styles["agent-header"]} ref={rootRef}>
-      <button
-        type="button"
-        className={styles["agent-session-title"]}
-        aria-expanded={isListOpen}
-        disabled={isInteractionLocked}
-        onClick={() => setIsListOpen((open) => !open)}
-      >
-        <span>{sessionTitle}</span>
-        <SvgIcon src={chatScrollIcon} className={styles["agent-session-chevron"]} />
-      </button>
-      <button className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
-        <SvgIcon src={sideboxIcon} />
-      </button>
-      <div className={styles["agent-header-menu"]} ref={menuRef}>
+      {/* 대화 탭(Figma 1540:19114): 제목과 오른쪽 셰브론 전체가 세션 목록 드롭다운을 연다. 새 채팅은 ⋯ 메뉴·목록 하단에서 시작한다. */}
+      <div className={styles["agent-session-tab"]}>
         <button
           type="button"
-          className={styles["panel-action"]}
-          aria-label="채팅 옵션"
-          aria-expanded={isMenuOpen}
+          className={styles["agent-session-title"]}
+          aria-expanded={isListOpen}
+          aria-haspopup="true"
+          title={sessionTitle}
           disabled={isInteractionLocked}
-          onClick={() => setIsMenuOpen((open) => !open)}
+          onClick={() => setIsListOpen((open) => !open)}
         >
-          <MoreHorizontal size={16} />
+          <span>{sessionTitle}</span>
+          <AgentChevronIcon isWide strokeWidth={1.6} className={cx(styles["agent-session-chevron"], isListOpen && styles["is-open"])} />
         </button>
-        {isMenuOpen && (
-          <div className={styles["agent-header-menu-list"]} role="menu">
-            <button type="button" role="menuitem" onClick={startNewChat}>새 채팅</button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={!canStartWikiExport}
-              onClick={() => {
-                setIsMenuOpen(false);
-                onStartWikiExport();
-              }}
-            >
-              채팅을 문서로 편입
-            </button>
-          </div>
-        )}
+      </div>
+      <div className={styles["agent-header-actions"]}>
+        <button type="button" className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
+          <SvgIcon src={sidebarToggleIcon} className={styles["panel-toggle-icon"]} />
+        </button>
+        <div className={styles["agent-header-menu"]} ref={menuRef}>
+          <button
+            type="button"
+            className={styles["panel-action"]}
+            aria-label="채팅 옵션"
+            aria-expanded={isMenuOpen}
+            disabled={isInteractionLocked}
+            onClick={() => setIsMenuOpen((open) => !open)}
+          >
+            <AgentMoreIcon />
+          </button>
+          {isMenuOpen && (
+            <div className={styles["agent-header-menu-list"]} role="menu">
+              <button type="button" role="menuitem" onClick={startNewChat}>새 채팅</button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!canStartWikiExport}
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onStartWikiExport();
+                }}
+              >
+                채팅을 문서로 편입
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {isListOpen && (

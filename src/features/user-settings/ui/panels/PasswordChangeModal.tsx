@@ -10,7 +10,7 @@ import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { useExpiryCountdown } from "@/views/auth/lib/useExpiryCountdown";
-import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "../../lib/passwordPolicy";
+import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "@/shared/lib/passwordPolicy";
 import styles from "./AccountFlowModal.module.css";
 import { FlowModal } from "./FlowModal";
 

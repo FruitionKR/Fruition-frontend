@@ -1,4 +1,3 @@
-import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AiGeneratedBadge } from "@/shared/ui/AiGeneratedBadge";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
@@ -6,11 +5,12 @@ import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
 import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
+import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { resolveChatTurnPresentation } from "../lib/markdownAgent";
 import { formatAnswerMarkdown } from "../lib/agentFormatters";
 import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
-import { buildRelatedPageCards, sourceTitle } from "../lib/relatedPageCards";
+import { buildSourceDocumentCards, sourceTitle } from "../lib/relatedPageCards";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
@@ -27,14 +27,12 @@ export function AssistantThread({
   isAnimated,
   visibleAnswerStage,
   nodes,
-  onOpenWikiPage,
   onOpenSourceBlocks
 }: {
   message: ChatMessageResponse;
   isAnimated: boolean;
   visibleAnswerStage: number;
   nodes?: GraphNode[];
-  onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
 }) {
   const presentation = resolveChatTurnPresentation(message.action);
@@ -42,7 +40,7 @@ export function AssistantThread({
   const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
-  const resultCards = buildRelatedPageCards(message, nodes);
+  const resultCards = buildSourceDocumentCards(message, nodes);
   const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
   // 본문의 숫자 괄호는 모두 이 rank일 때만 citation이 된다(숫자 배열 오인 방지).
   const citableRanks = useMemo(
@@ -77,15 +75,12 @@ export function AssistantThread({
         <div className={cx(styles.results, isAnimated && styles["agent-stage"])}>
           <p>찾은 자료 {resultCards.length}건</p>
           {resultCards.map((card) => (
+            // 근거로 쓰인 원본 문서. 누르면 원본을 열고 근거 block을 강조한다.
             <AgentResultCard
               key={card.key}
               title={card.title}
               meta={card.meta}
-              pageType={card.pageType}
-              // raw 외 wiki page(source/concept·미지 타입)는 내부 구성(블록 참조 등)이 그대로 노출되므로 미리보기를 열지 않는다.
-              onClick={card.pageType.toLowerCase() === "raw"
-                ? () => onOpenWikiPage(card.pageId, card.title, card.pageType)
-                : undefined}
+              onClick={() => onOpenSourceBlocks(card.documentId, card.title, card.highlights)}
             />
           ))}
         </div>
@@ -108,7 +103,7 @@ export function AssistantThread({
               onClick={() => setIsAnswerExpanded((current) => !current)}
             >
               <span>실행 중 발견 사항</span>
-              <ChevronDown size={8} className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
+              <AgentChevronIcon isWide className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
             </button>
           )}
           {isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer

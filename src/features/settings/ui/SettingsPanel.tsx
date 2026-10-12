@@ -51,10 +51,6 @@ export function SettingsPanel() {
   const { preferences, updatePreferences, resetPreferences } = useUserPreferences();
   const [browserNotificationMessage, setBrowserNotificationMessage] = useState<string | null>(null);
 
-  function updateEditor(update: (editor: UserPreferences["editor"]) => UserPreferences["editor"]) {
-    updatePreferences((current) => ({ ...current, editor: update(current.editor) }));
-  }
-
   function updateGraphKind(kind: keyof UserPreferences["graph"]["visibleKinds"], visible: boolean) {
     updatePreferences((current) => {
       const visibleKinds = { ...current.graph.visibleKinds, [kind]: visible };
@@ -144,60 +140,6 @@ export function SettingsPanel() {
               <option value="serif">Serif</option>
             </select>
           </SettingRow>
-        </section>
-
-        <section className={styles["settings-section"]}>
-          <h3>편집기</h3>
-          <SettingRow
-            title="기본 편집 모드"
-            description="WYSIWYG는 결과를 바로 편집하고, Markdown은 원문 문법을 편집합니다."
-          >
-            <select
-              aria-label="기본 편집 모드"
-              value={preferences.editor.defaultMode}
-              onChange={(event) => updateEditor((editor) => ({
-                ...editor,
-                defaultMode: event.target.value as UserPreferences["editor"]["defaultMode"]
-              }))}
-            >
-              <option value="last">마지막 사용 모드</option>
-              <option value="wysiwyg">WYSIWYG</option>
-              <option value="markdown">Markdown</option>
-            </select>
-          </SettingRow>
-          <div className={styles["settings-subsection"]}>
-            <p>Markdown 표시</p>
-            <SettingRow title="줄 바꿈" description="긴 줄을 편집기 폭에 맞춰 다음 줄에 표시합니다.">
-              <SettingSwitch
-                checked={preferences.editor.markdown.lineWrapping}
-                label="Markdown 줄 바꿈"
-                onChange={(lineWrapping) => updateEditor((editor) => ({
-                  ...editor,
-                  markdown: { ...editor.markdown, lineWrapping }
-                }))}
-              />
-            </SettingRow>
-            <SettingRow title="줄 번호" description="원문 왼쪽에 행 번호를 표시합니다.">
-              <SettingSwitch
-                checked={preferences.editor.markdown.lineNumbers}
-                label="Markdown 줄 번호"
-                onChange={(lineNumbers) => updateEditor((editor) => ({
-                  ...editor,
-                  markdown: { ...editor.markdown, lineNumbers }
-                }))}
-              />
-            </SettingRow>
-            <SettingRow title="현재 줄 강조" description="커서가 있는 줄의 배경을 구분합니다.">
-              <SettingSwitch
-                checked={preferences.editor.markdown.highlightActiveLine}
-                label="Markdown 현재 줄 강조"
-                onChange={(highlightActiveLine) => updateEditor((editor) => ({
-                  ...editor,
-                  markdown: { ...editor.markdown, highlightActiveLine }
-                }))}
-              />
-            </SettingRow>
-          </div>
         </section>
 
         <section className={styles["settings-section"]}>

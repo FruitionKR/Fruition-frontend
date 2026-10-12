@@ -1,11 +1,11 @@
-import { Check, ChevronDown } from "lucide-react";
-import { sendIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { Check } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
 import { acknowledgeAiNotice, AI_FIRST_USE_NOTICE_MESSAGE, AI_NOTICE_MESSAGE, hasAcknowledgedAiNotice } from "@/shared/lib/aiNotice";
 import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
+import { AgentChevronIcon, AgentSendIcon, AgentWaveMark } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
 export type AiModelCatalogStatus = "loading" | "ready" | "empty" | "error";
@@ -198,7 +198,7 @@ export function AgentComposer({
                 <span>웹 서칭</span>
               </span>
             )}
-            <ChevronDown size={8} className={cx(isModelListOpen && styles["is-open"])} />
+            <AgentChevronIcon isWide className={cx(isModelListOpen && styles["is-open"])} />
           </button>
           {isModelListOpen && (
             <div className={styles["composer-model-list"]}>
@@ -274,14 +274,18 @@ export function AgentComposer({
             </div>
           )}
         </div>
-        <button
-          type="submit"
-          className={styles["composer-send"]}
-          aria-label="전송"
-          disabled={isLoading || !canSubmit || value.trim().length === 0}
-        >
-          <SvgIcon src={sendIcon} />
-        </button>
+        {/* Figma 1436:17328: 파란 파형 마크(음성 입력 기능은 아직 없어 장식으로만 둔다) + 회색 원형 전송 버튼 */}
+        <div className={styles["composer-buttons"]}>
+          <AgentWaveMark size="small" />
+          <button
+            type="submit"
+            className={styles["composer-send"]}
+            aria-label="전송"
+            disabled={isLoading || !canSubmit || value.trim().length === 0}
+          >
+            <AgentSendIcon />
+          </button>
+        </div>
       </div>
     </form>
   );
