@@ -167,7 +167,10 @@ export function seed() {
     document({ id: "doc_todo", filename: "할 일.md", markdown: TODO_MD, status: "uploaded", uploaded_at: minutesAgo(5) }),
     document({ id: "doc_meeting", filename: "주간 회의.txt", mime_type: "text/plain", document_role: "ORIGINAL", content: Buffer.from(MEETING_TXT, "utf8"), status: "uploaded", uploaded_at: minutesAgo(4) }),
     // 보기 권한만 건 문서: MEMBER(jihyun@fruition.local / member1234)로 로그인하면 읽기 전용으로 열린다.
-    document({ id: "doc_rules", filename: "팀 규칙.md", markdown: "# 팀 규칙\n\n- 문서 권한은 OWNER가 관리합니다.\n- 이 문서는 보기 전용입니다.\n", status: "uploaded", uploaded_at: minutesAgo(40), permission: "view" })
+    document({ id: "doc_rules", filename: "팀 규칙.md", markdown: "# 팀 규칙\n\n- 문서 권한은 OWNER가 관리합니다.\n- 이 문서는 보기 전용입니다.\n", status: "uploaded", uploaded_at: minutesAgo(40), permission: "view" }),
+    // 휴지통 예시: 3일 전 삭제(27일 뒤 영구 삭제)와 보관 기간이 지난 문서(목록에서 빠지고 복구는 409).
+    document({ id: "doc_trashed", filename: "지난 분기 회고.md", markdown: "# 지난 분기 회고\n\n정리 끝.\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 40), deleted_at: minutesAgo(60 * 24 * 3), deleted_by: USER_ID }),
+    document({ id: "doc_expired", filename: "오래된 메모.md", markdown: "# 오래된 메모\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 90), deleted_at: minutesAgo(60 * 24 * 45), deleted_by: USER_ID })
   );
   // 미해결 편집 충돌 예시: 김지현이 '할 일.md'를 revision 1 기준으로 고쳤는데 서버는 이미 2다. OWNER 설정 화면에서 해결한다.
   const todoDoc = state.documents.find((doc) => doc.id === "doc_todo");

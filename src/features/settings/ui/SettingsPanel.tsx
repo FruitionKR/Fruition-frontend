@@ -8,6 +8,7 @@ import { useWorkspaceRole } from "@/entities/workspace";
 import { AccessCodeSection } from "./AccessCodeSection";
 import { EditConflictSection } from "./EditConflictSection";
 import { NotificationSection } from "./NotificationSection";
+import { TrashSection } from "./TrashSection";
 import styles from "./SettingsPanel.module.css";
 
 function SettingRow({
@@ -114,6 +115,7 @@ export function SettingsPanel() {
 
         <NotificationSection />
         {isOwner && <EditConflictSection />}
+        <TrashSection />
 
         <section className={styles["settings-section"]}>
           <h3>화면과 접근성</h3>

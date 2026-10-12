@@ -42,6 +42,12 @@ function isTextDocument(doc) {
   return doc.document_role === "EDITABLE" || doc.mime_type.startsWith("text/");
 }
 
+// 휴지통 보관 기간(app.document-trash.retention 기본 30일). 지나면 목록에서 빠지고 복구는 409다.
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+function purgeAt(doc) {
+  return new Date(Date.parse(doc.deleted_at) + TRASH_RETENTION_MS).toISOString();
+}
+
 /** 본문 저장 409: 서버 현재 revision을 error.current_revision으로 알려 클라이언트가 충돌을 등록할 수 있게 한다. */
 function versionConflict(ctx, doc) {
   ctx.json(409, { error: { message: "다른 편집 내용이 먼저 저장되었습니다.", code: "DOCUMENT_VERSION_CONFLICT", current_revision: doc.edit_revision } });
@@ -136,6 +142,40 @@ export function registerDocumentRoutes(router) {
     ctx.json(201, toDocumentItem(doc));
   });
 
+  // 휴지통: 보관 기간(30일)이 지나지 않은 삭제 문서를 삭제 시각 역순으로. :id 라우트보다 먼저 등록해야 한다.
+  router.get("/api/workspaces/:wid/documents/trash", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const nowMs = Date.now();
+    const documents = state.documents
+      .filter((doc) => doc.workspace_id === workspace.id && doc.deleted_at && Date.parse(purgeAt(doc)) > nowMs)
+      .sort((a, b) => b.deleted_at.localeCompare(a.deleted_at))
+      .map((doc) => ({
+        id: doc.id, display_name: doc.filename.replace(/\.[^.]+$/, ""), filename: doc.filename, document_role: doc.document_role,
+        current_version: doc.current_version, deleted_at: doc.deleted_at, deleted_by: doc.deleted_by ?? doc.owner_user_id ?? null,
+        purge_at: purgeAt(doc), source_document_id: doc.source_document_id ?? null
+      }));
+    ctx.json(200, { documents });
+  });
+
+  // 복구: 소유자·OWNER만. 보관 기간이 지났으면 409 TRASH_RETENTION_EXPIRED.
+  router.post("/api/workspaces/:wid/documents/:id/restore", async (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = state.documents.find((item) => item.workspace_id === workspace.id && item.id === ctx.params.id && item.deleted_at);
+    if (!doc) return error(ctx, 404, "삭제된 문서를 찾을 수 없습니다.");
+    if (!requireDocumentDelete(ctx, doc)) return;
+    const { base_version } = await ctx.body();
+    if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다.");
+    if (Date.parse(purgeAt(doc)) <= Date.now()) return error(ctx, 409, "휴지통 보관 기간이 지났습니다.", "TRASH_RETENTION_EXPIRED");
+    const deletedAt = doc.deleted_at;
+    doc.deleted_at = null;
+    doc.folder_id = null;
+    doc.current_version += 1;
+    if (doc.document_role === "EDITABLE" && doc.status === "completed") doc.needs_reingest = true;
+    ctx.json(200, { id: doc.id, current_version: doc.current_version, deleted: false, deleted_at: deletedAt, sort_order: doc.sort_order ?? 0 });
+  });
+
   router.get("/api/workspaces/:wid/documents/:id", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
@@ -153,6 +193,7 @@ export function registerDocumentRoutes(router) {
     const { base_version } = await ctx.body();
     if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     doc.deleted_at = now();
+    doc.deleted_by = ctx.user.id;
     ctx.json(204);
   });
 
