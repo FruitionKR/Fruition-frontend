@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
+import { LegalFooter } from "@/shared/ui/LegalFooter";
 import { Switch } from "@/shared/ui/Switch";
 import { AccessCodeSection } from "./AccessCodeSection";
 import styles from "./SettingsPanel.module.css";
@@ -255,6 +256,7 @@ export function SettingsPanel() {
             <p className={styles["settings-message"]} role="status">{browserNotificationMessage}</p>
           )}
         </section>
+        <LegalFooter compact />
       </div>
     </section>
   );

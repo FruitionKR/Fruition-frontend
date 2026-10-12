@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LegalFooter } from "./LegalFooter";
 
 type AuthScreenProps = {
   title: string;
@@ -18,6 +19,7 @@ export function AuthScreen({ title, shellModifier, children, extra }: AuthScreen
           <h1 className="auth-title" id="auth-title">{title}</h1>
           <div className="auth-main-section">{children}</div>
           {extra}
+          <LegalFooter compact />
         </div>
       </section>
     </main>
