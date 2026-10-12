@@ -110,7 +110,7 @@ export function HomeWorkspace() {
   const [pdfIngestConfirmation, setPdfIngestConfirmation] = useState<DocumentItemResponse[] | null>(null);
   const graphIngestRunningRef = useRef(false);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
-  // 알림 목록·읽음 상태. 다른 화면에서도 레일 알림 종의 안 읽음 점을 위해 돌린다.
+  // 알림 목록·읽음 상태. 알림 화면 탭의 안 읽음 표시에 쓴다.
   const notificationFeed = useNotificationFeed(activeView === "notifications");
   // 스킬 "실행": 사이드바에서 대상 문서를 고르는 중인 스킬과 고른 트리 항목 (Figma 1527:15924)
   const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; targetItemId: string | null; errorMessage: string | null } | null>(null);
@@ -653,7 +653,6 @@ export function HomeWorkspace() {
           onLint: () => void handleGraphLint()
         }}
         onViewChange={handleViewChange}
-        hasUnreadNotifications={notificationFeed.hasUnread}
         isCollapsed={isSidebarCollapsed}
         isOverlay={isCompactLayout}
         onCollapseSidebar={collapseSidebar}
