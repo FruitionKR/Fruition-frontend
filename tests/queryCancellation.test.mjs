@@ -94,6 +94,36 @@ for (const terminal of ["query.cancelled", "query.completed", "query.failed"]) {
   });
 }
 
+test("SSE가 종결 이벤트 없이 끊겨도 run이 running이면 실패로 표시하지 않고 완료까지 폴링한다(#143)", async (t) => {
+  setup(t);
+  t.mock.method(globalThis, "setTimeout", (callback) => { callback(); return 0; });
+  const statuses = ["running", "running", "completed"];
+  let statusCalls = 0;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init.method === "POST") return Response.json({ request_id: run.requestId, status: "queued" });
+    if (path.endsWith("/events")) return events(`event: query.log\ndata: {"stage":"search","message":"검색 중","sequence":1}\n\n`);
+    statusCalls++;
+    const status = statuses.shift();
+    return Response.json({ status, result: status === "completed" ? { answer: "답변" } : null });
+  });
+  assert.equal((await runQueryStream("질문", model, { onStage() {} })).answer, "답변");
+  assert.equal(statusCalls, 3);
+});
+
+test("SSE가 끊긴 뒤 run이 failed로 끝나면 실패로 알리고 더 폴링하지 않는다(#143)", async (t) => {
+  setup(t);
+  t.mock.method(globalThis, "setTimeout", (callback) => { callback(); return 0; });
+  let statusCalls = 0;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init.method === "POST") return Response.json({ request_id: run.requestId });
+    if (path.endsWith("/events")) return events(": heartbeat\n\n");
+    statusCalls++;
+    return Response.json({ status: "failed", result: null });
+  });
+  await assert.rejects(runQueryStream("질문", model, { onStage() {} }), /질의에 실패/);
+  assert.equal(statusCalls, 1);
+});
+
 test("SSE 연결 종료 후 상태 조회가 cancelled이면 실패 알림으로 바꾸지 않는다", async (t) => {
   setup(t);
   t.mock.method(globalThis, "fetch", async (path, init) => {
