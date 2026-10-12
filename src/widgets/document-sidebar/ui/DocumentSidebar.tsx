@@ -32,6 +32,7 @@ export function DocumentSidebar({
   contextMenu,
   convertContextTarget,
   canRenameContextTarget,
+  canDeleteContextTarget = true,
   canCreateInContextTarget,
   uploadInputRef,
   activeView,
@@ -80,6 +81,8 @@ export function DocumentSidebar({
   convertContextTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameContextTarget: boolean;
+  /** 서버 can_delete=false면 삭제 메뉴를 비활성화한다. */
+  canDeleteContextTarget?: boolean;
   /** 파일 메뉴에서는 생성 항목(새 폴더·새 노트·파일 업로드)을 숨긴다. */
   canCreateInContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
@@ -191,6 +194,7 @@ export function DocumentSidebar({
           canCreateInTarget={canCreateInContextTarget}
           convertTarget={convertContextTarget}
           canRenameTarget={canRenameContextTarget}
+          canDeleteTarget={canDeleteContextTarget}
           onRenameContextTarget={onRenameContextTarget}
           onAddProject={onAddProject}
           onAddMarkdownFromContext={onAddMarkdownFromContext}

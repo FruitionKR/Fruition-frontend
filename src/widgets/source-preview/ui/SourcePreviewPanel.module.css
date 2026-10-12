@@ -144,6 +144,27 @@
   color: #ff8f87;
 }
 
+/* 보기 권한만 있는 노트: 저장 상태 자리에 읽기 전용 배지를 둔다 */
+.source-preview-readonly-badge {
+  padding: 2px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 편집기 자리에 보여주는 읽기 전용 사유. NoteEditor의 잠금 안내(.note-editor-readonly-notice)와 같은 톤 */
+.source-preview-readonly-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .source-preview-options {
   position: relative;
 }

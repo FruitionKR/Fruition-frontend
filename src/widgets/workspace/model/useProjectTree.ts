@@ -1,6 +1,7 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
+import { canDeleteDocument } from "@/entities/document/lib/documentAccess";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
 import { publishNotice } from "@/features/document-notifications";
@@ -229,8 +230,8 @@ export function useProjectTree({
       setEditing({ projectId: contextMenu.projectId, itemId: null, label: project.title });
     } else {
       const item = findTreeItem(project.items, contextMenu.itemId);
-      // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다.
-      if (!item || item.generated || item.mimeType === "application/pdf") return;
+      // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다. 보기 권한만 있는 문서도 같다.
+      if (!item || item.generated || item.mimeType === "application/pdf" || item.canEdit === false) return;
       setEditing({ projectId: contextMenu.projectId, itemId: contextMenu.itemId, label: item.label });
     }
     setContextMenu(null);
@@ -257,7 +258,11 @@ export function useProjectTree({
   // PDF 원본은 편집 불가 문서라 컨텍스트 메뉴에서 이름 변경을 숨긴다.
   // 파일(노트·PDF) 메뉴에서는 새 폴더·새 노트·파일 업로드를 숨긴다. 생성은 폴더·빈 영역에서만 한다.
   const canCreateInContextTarget = !contextMenuItem || !isFileItem(contextMenuItem);
-  const canRenameContextTarget = !(contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) && contextMenuItem?.mimeType !== "application/pdf";
+  // 보기 권한만 있는 문서(can_edit=false)는 이름 변경에도 편집 권한이 필요해 메뉴를 숨긴다.
+  const canRenameContextTarget = !(contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null)
+    && contextMenuItem?.mimeType !== "application/pdf" && contextMenuItem?.canEdit !== false;
+  // 삭제는 문서 소유자·OWNER만 할 수 있다(can_delete). 폴더는 서버가 판정하므로 그대로 둔다.
+  const canDeleteContextTarget = canDeleteDocument(contextMenuItem ? { can_delete: contextMenuItem.canDelete } : null);
 
   const convertContextTarget = contextMenuItem?.documentId && contextMenuItem.mimeType === "application/pdf"
     ? {
@@ -406,6 +411,7 @@ export function useProjectTree({
     renameContextTarget,
     takeFolderTargetFromContext,
     canRenameContextTarget,
+    canDeleteContextTarget,
     canCreateInContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,

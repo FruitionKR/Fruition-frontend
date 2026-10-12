@@ -116,6 +116,8 @@ function document(partial) {
     updated_at: uploadedAt,
     current_version: 1,
     edit_revision: 1,
+    owner_user_id: USER_ID,
+    permission: null,
     versions: [{ version: 1, content_hash: hash(content.toString("utf8")), created_by: USER_ID, created_at: uploadedAt, markdown }],
     ...partial,
     markdown,
@@ -163,7 +165,9 @@ export function seed() {
     document({ id: "doc_notes", filename: "회의 노트 초안.md", markdown: NOTES_MD, status: "processing", processing_state: "running", processing_stage: "concept_extraction", processing_started_at: minutesAgo(1), uploaded_at: minutesAgo(3) }),
     document({ id: "doc_failed", filename: "깨진 문서.md", markdown: "# 제목만 있는 문서\n", status: "failed", processing_state: "failed", error_message: "LLM 응답 파싱에 실패했습니다.", uploaded_at: minutesAgo(50) }),
     document({ id: "doc_todo", filename: "할 일.md", markdown: TODO_MD, status: "uploaded", uploaded_at: minutesAgo(5) }),
-    document({ id: "doc_meeting", filename: "주간 회의.txt", mime_type: "text/plain", document_role: "ORIGINAL", content: Buffer.from(MEETING_TXT, "utf8"), status: "uploaded", uploaded_at: minutesAgo(4) })
+    document({ id: "doc_meeting", filename: "주간 회의.txt", mime_type: "text/plain", document_role: "ORIGINAL", content: Buffer.from(MEETING_TXT, "utf8"), status: "uploaded", uploaded_at: minutesAgo(4) }),
+    // 보기 권한만 건 문서: MEMBER(jihyun@fruition.local / member1234)로 로그인하면 읽기 전용으로 열린다.
+    document({ id: "doc_rules", filename: "팀 규칙.md", markdown: "# 팀 규칙\n\n- 문서 권한은 OWNER가 관리합니다.\n- 이 문서는 보기 전용입니다.\n", status: "uploaded", uploaded_at: minutesAgo(40), permission: "view" })
   );
   // ingest가 끝난 Markdown 문서는 현재 본문 그대로 block 스냅샷을 가진다(stale 아님).
   state.documents

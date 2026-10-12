@@ -13,6 +13,7 @@ import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult
 import { getErrorMessage } from "@/shared/lib/errors";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
+import { READ_ONLY_DOCUMENT_MESSAGE } from "@/entities/document/lib/documentAccess";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
@@ -56,6 +57,7 @@ export function SourcePreviewPanel({
   documentRole,
   documentStatus,
   documentConversion = null,
+  readOnly = false,
   parentLabel = "문서",
   editedAt = null,
   isAgentPanelOpen,
@@ -79,6 +81,8 @@ export function SourcePreviewPanel({
   documentStatus?: DocumentStatus;
   /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
   documentConversion?: DocumentConversionView | null;
+  /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경·위키 편입을 막는다. */
+  readOnly?: boolean;
   parentLabel?: string;
   editedAt?: string | null;
   isAgentPanelOpen: boolean;
@@ -146,6 +150,8 @@ export function SourcePreviewPanel({
   const isTextFile = isPdfOrOther && hasTextExtension(title);
   const visibleTitle = isMarkdownFile ? getMarkdownDocumentTitle(title) : title;
   const saveStatusLabel = SAVE_STATUS_LABELS[noteSaveStatus];
+  // 읽기 전용 노트: 저장 상태 대신 배지를 보여주고 편집기를 열지 않는다.
+  const isReadOnlyNote = isMarkdownFile && readOnly;
   const editableNote = useMemo(() => {
     if (rawMarkdown === null || !documentId) return null;
     const split = splitEditableNoteMarkdown(rawMarkdown) ?? {
@@ -222,7 +228,7 @@ export function SourcePreviewPanel({
   }, [onRefreshDocuments]);
 
   async function commitTitle() {
-    if (!isMarkdownFile || !documentId || !onRenameDocument || isRenaming) return;
+    if (!isMarkdownFile || readOnly || !documentId || !onRenameDocument || isRenaming) return;
     const nextFilename = buildMarkdownDocumentFilename(titleInput, title);
     if (nextFilename === title) {
       setTitleInput(getMarkdownDocumentTitle(title));
@@ -443,7 +449,10 @@ export function SourcePreviewPanel({
           <strong>{title}</strong>
         </nav>
         <div className={styles["source-preview-actions"]}>
-          {saveStatusLabel && (
+          {isReadOnlyNote && (
+            <span className={styles["source-preview-readonly-badge"]} title={READ_ONLY_DOCUMENT_MESSAGE}>읽기 전용</span>
+          )}
+          {!isReadOnlyNote && saveStatusLabel && (
             <span
               className={cx(styles["source-preview-save-status"], styles[`is-${noteSaveStatus}`])}
               role={noteSaveStatus === "saving" || noteSaveStatus === "dirty" ? "status" : "alert"}
@@ -474,6 +483,9 @@ export function SourcePreviewPanel({
               <div className={styles["source-preview-options-menu"]}>
                 <button
                   type="button"
+                  // 위키 편입(ingest)은 편집 권한이 필요하다. 보기 권한만 있으면 서버가 403으로 거절한다.
+                  disabled={isReadOnlyNote}
+                  title={isReadOnlyNote ? "보기 권한만 있는 문서는 위키에 편입할 수 없습니다." : undefined}
                   onClick={() => {
                     setIsOptionsOpen(false);
                     reflectDocumentToWiki(documentId, documentRole)
@@ -544,6 +556,8 @@ export function SourcePreviewPanel({
               placeholder="제목을 입력하세요"
               value={titleInput}
               disabled={isRenaming}
+              readOnly={readOnly}
+              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : undefined}
               spellCheck={false}
               onChange={(event) => {
                 skipNextTitleCommitRef.current = false;
@@ -602,7 +616,13 @@ export function SourcePreviewPanel({
             <MarkdownViewer markdown={rawMarkdown} />
           </>
         )}
-        {isMarkdownFile && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+        {isReadOnlyNote && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && (
+          <>
+            <p className={styles["source-preview-readonly-notice"]} role="status">{READ_ONLY_DOCUMENT_MESSAGE}</p>
+            <MarkdownViewer markdown={editableNote.body} />
+          </>
+        )}
+        {isMarkdownFile && !readOnly && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
           <DynamicNoteEditor
             key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
             documentId={documentId}

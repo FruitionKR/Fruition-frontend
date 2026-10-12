@@ -38,6 +38,7 @@ import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest"
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
+import { isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { reflectDocumentToWiki, subscribeConvertStarted, uploadDocumentFile } from "@/entities/document";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getErrorMessage } from "@/shared/lib/errors";
@@ -196,6 +197,11 @@ export function HomeWorkspace() {
     if (!selection.selectedDocumentId) return undefined;
     return documents.find((item) => item.id === selection.selectedDocumentId)?.status;
   }, [documents, selection.selectedDocumentId]);
+  // 서버 can_edit=false인 문서만 읽기 전용이다. 목록에서 아직 못 찾았거나 구 서버 응답이면 편집 가능으로 본다.
+  const isSelectedDocumentReadOnly = useMemo(
+    () => isDocumentReadOnly(documents.find((item) => item.id === selection.selectedDocumentId)),
+    [documents, selection.selectedDocumentId]
+  );
   const selectedDocumentConversion = useMemo(
     () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
@@ -462,6 +468,7 @@ export function HomeWorkspace() {
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
         canRenameContextTarget={projectTree.canRenameContextTarget}
+        canDeleteContextTarget={projectTree.canDeleteContextTarget}
         canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
@@ -547,6 +554,7 @@ export function HomeWorkspace() {
             onRefreshDocuments={() => void refreshBackendData()}
             documentRole={selectedDocumentRole}
             documentStatus={selectedDocumentStatus}
+            readOnly={isSelectedDocumentReadOnly}
             documentConversion={selectedDocumentConversion}
             parentLabel={selectedDocumentParentLabel}
             editedAt={selectedDocumentEditedAt}

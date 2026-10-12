@@ -74,6 +74,54 @@ export function toDocumentItem(doc) {
   return item;
 }
 
+/** 워크스페이스 안 사용자의 역할. 멤버가 아니면 null. */
+export function memberRole(workspaceId, userId) {
+  return state.members.find((member) => member.workspace_id === workspaceId && member.user_id === userId)?.role ?? null;
+}
+
+/** 문서에 적용되는 권한: 문서 자기 설정 → 가장 가까운 상위 폴더 설정 → 기본값 edit. */
+export function effectivePermission(doc) {
+  if (doc.permission) return doc.permission;
+  let folderId = doc.folder_id ?? null;
+  while (folderId) {
+    const folder = state.folders.find((item) => item.id === folderId && item.workspace_id === doc.workspace_id);
+    if (!folder) break;
+    if (folder.permission) return folder.permission;
+    folderId = folder.parent_folder_id ?? null;
+  }
+  return "edit";
+}
+
+/** 서버 DocumentAccessPolicy 흉내: 소유자·OWNER는 항상 편집·삭제, 그 외 멤버는 적용 권한이 edit일 때만 편집. */
+export function documentAccess(doc, userId) {
+  const isPrivileged = doc.owner_user_id === userId || memberRole(doc.workspace_id, userId) === "OWNER";
+  return {
+    can_edit: isPrivileged || effectivePermission(doc) === "edit",
+    can_delete: isPrivileged,
+    permission: doc.permission ?? null,
+    updated_by: doc.updated_by ?? doc.owner_user_id ?? null
+  };
+}
+
+/** 목록·트리·상세 응답용: 문서 요약에 호출자 기준 권한 필드를 붙인다. */
+export function toDocumentItemFor(doc, userId) {
+  return { ...toDocumentItem(doc), ...documentAccess(doc, userId) };
+}
+
+/** 편집 권한이 없으면 403 DOCUMENT_WRITE_FORBIDDEN을 보내고 false를 돌려준다. */
+export function requireDocumentEdit(ctx, doc) {
+  if (documentAccess(doc, ctx.user.id).can_edit) return true;
+  error(ctx, 403, "이 문서를 편집할 권한이 없습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+  return false;
+}
+
+/** 삭제·복구는 문서 소유자와 OWNER만. */
+export function requireDocumentDelete(ctx, doc) {
+  if (documentAccess(doc, ctx.user.id).can_delete) return true;
+  error(ctx, 403, "문서 소유자와 워크스페이스 OWNER만 삭제·복구할 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+  return false;
+}
+
 export const SKILL_REFERENCE_ORIGIN = "skill_reference";
 
 /** 스킬 참고 문서. 문서 트리·기본 목록·위키 편입에서 빠진다. */

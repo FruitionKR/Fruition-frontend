@@ -14,6 +14,10 @@ import {
   type PendingNoteSave
 } from "./pendingSave";
 import { trackPendingDocumentSave } from "./pendingDocumentSave";
+import { isWriteForbiddenError } from "@/entities/document/lib/documentAccess";
+
+/** 저장 403(DOCUMENT_WRITE_FORBIDDEN): 편집 중 권한이 바뀐 경우다. 서버 원문 대신 할 일을 안내한다. */
+const WRITE_FORBIDDEN_SAVE_MESSAGE = "이 문서의 편집 권한이 없어 저장하지 못했습니다. 본문을 복사해 두고 소유자나 OWNER에게 편집 권한을 요청해 주세요.";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
 export type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
@@ -186,6 +190,11 @@ export function useNoteAutosave({
         saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
+      } else if (isWriteForbiddenError(error)) {
+        // 편집 중 권한이 "보기만"으로 바뀌면 이후 저장은 모두 403이다. 저장된 척하지 않고 멈춘다.
+        saveBlockRef.current = "lock-lost";
+        cancelAgentRetry();
+        if (mountedRef.current) setStatus("lock-lost");
       } else if (error instanceof SessionExpiredError) {
         // 세션이 끝난 뒤의 저장은 몇 번을 보내도 실패한다. 저장된 척하지 않고 입력을 멈춘다.
         saveBlockRef.current = "session-expired";
@@ -201,7 +210,7 @@ export function useNoteAutosave({
         if (mountedRef.current) setStatus("error");
       }
       if (mountedRef.current) {
-        setErrorMessage(getErrorMessage(error, "노트를 저장하지 못했습니다."));
+        setErrorMessage(isWriteForbiddenError(error) ? WRITE_FORBIDDEN_SAVE_MESSAGE : getErrorMessage(error, "노트를 저장하지 못했습니다."));
       } else {
         onDetachedSaveCompleteRef.current?.({ success: false, error });
       }

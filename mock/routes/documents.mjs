@@ -1,5 +1,5 @@
 // document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·ingest·변환·편집 잠금.
-import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep } from "../state.mjs";
+import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 
@@ -50,6 +50,7 @@ function saveVersion(doc, markdown, createdBy) {
   doc.content = buffer;
   doc.byte_size = buffer.length;
   doc.updated_at = now();
+  doc.updated_by = createdBy;
   if (doc.status === "completed") doc.needs_reingest = true;
   const contentHash = hash(markdown);
   doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown });
@@ -86,7 +87,7 @@ export function registerDocumentRoutes(router) {
     if (origin !== null && origin !== SKILL_REFERENCE_ORIGIN) return error(ctx, 400, "허용하지 않는 origin입니다.", "INVALID_DOCUMENT_ORIGIN");
     const documents = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && isSkillReference(doc) === (origin !== null));
     if (origin !== null) documents.sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
-    ctx.json(200, { documents: documents.map(toDocumentItem) });
+    ctx.json(200, { documents: documents.map((doc) => toDocumentItemFor(doc, ctx.user.id)) });
   });
 
   router.post("/api/workspaces/:wid/documents", async (ctx) => {
@@ -117,6 +118,7 @@ export function registerDocumentRoutes(router) {
       ...(isReference ? { origin: SKILL_REFERENCE_ORIGIN } : {}),
       source_uri: `mock://uploads/${filename}`, uploaded_at: timestamp, updated_at: timestamp,
       document_role: isMarkdown ? "EDITABLE" : "ORIGINAL", markdown: text, content: file.buffer,
+      owner_user_id: ctx.user.id, permission: null,
       current_version: 1, edit_revision: 1,
       versions: [{ version: 1, content_hash: hash(file.buffer.toString("utf8")), created_by: ctx.user.id, created_at: timestamp, markdown: text }]
     };
@@ -129,7 +131,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
-    ctx.json(200, { ...toDocumentItem(doc), markdown: isMarkdownDocument(doc) ? doc.markdown : null, current_version: doc.current_version, edit_revision: doc.edit_revision, updated_at: doc.updated_at });
+    ctx.json(200, { ...toDocumentItemFor(doc, ctx.user.id), markdown: isMarkdownDocument(doc) ? doc.markdown : null, current_version: doc.current_version, edit_revision: doc.edit_revision, updated_at: doc.updated_at });
   });
 
   router.delete("/api/workspaces/:wid/documents/:id", async (ctx) => {
@@ -137,6 +139,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
+    if (!requireDocumentDelete(ctx, doc)) return;
     const { base_version } = await ctx.body();
     if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     doc.deleted_at = now();
@@ -148,6 +151,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
+    if (!requireDocumentEdit(ctx, doc)) return;
     const { display_name, base_version } = await ctx.body();
     if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다.");
     if (typeof display_name !== "string" || !display_name.trim()) return error(ctx, 400, "문서 이름을 입력해주세요.");
@@ -155,7 +159,22 @@ export function registerDocumentRoutes(router) {
     const extension = extensionIndex > 0 ? doc.filename.slice(extensionIndex) : "";
     doc.filename = `${display_name.trim()}${extension}`;
     doc.updated_at = now();
-    ctx.json(200, toDocumentItem(doc));
+    ctx.json(200, toDocumentItemFor(doc, ctx.user.id));
+  });
+
+  // 문서 권한 설정: 문서 소유자·OWNER만. null이면 설정을 지워 상위 폴더·기본값을 따른다.
+  router.put("/api/workspaces/:wid/documents/:id/permission", async (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    if (doc.owner_user_id !== ctx.user.id && memberRole(workspace.id, ctx.user.id) !== "OWNER") {
+      return error(ctx, 403, "문서 권한은 문서 소유자와 워크스페이스 OWNER만 바꿀 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+    }
+    const { access } = await ctx.body();
+    if (access !== null && access !== "edit" && access !== "view") return error(ctx, 400, "access는 edit, view 또는 null이어야 합니다.");
+    doc.permission = access;
+    ctx.json(200, { access });
   });
 
   router.get("/api/workspaces/:wid/documents/:id/original", (ctx) => {
@@ -189,6 +208,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
+    if (!requireDocumentEdit(ctx, doc)) return;
     const body = await ctx.body();
     // 이미지 포함 저장: metadata JSON + attachment_<uuid> file part. placeholder를 관리 경로로 치환해 돌려준다.
     if (typeof body.metadata === "string") {
