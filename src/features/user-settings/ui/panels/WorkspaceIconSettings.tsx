@@ -30,7 +30,10 @@ export function WorkspaceIconSettings() {
   function saveEmoji(value: string) {
     const emoji = pickEmoji(value);
     if (!emoji) {
-      if (value.trim()) setError("이모티콘만 넣을 수 있습니다.");
+      if (value.trim()) {
+        setSaved(false);
+        setError("이모티콘만 넣을 수 있습니다.");
+      }
       return;
     }
     void apply(() => updateWorkspaceIcon(workspace!.id, emoji));

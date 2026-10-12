@@ -323,7 +323,9 @@ button.nav-row:disabled {
   color: var(--muted);
 }
 
-.ws-emoji {
+/* .field input의 min(400px, 100%)보다 우선하도록 지정자를 올린다 */
+.ws-emoji-field .ws-emoji {
+  flex: 0 0 auto;
   width: 44px;
   height: 36px;
   padding: 0;
@@ -336,12 +338,12 @@ button.nav-row:disabled {
   border-radius: 8px;
 }
 
-.ws-emoji:focus-visible {
+.ws-emoji-field .ws-emoji:focus-visible {
   border-color: var(--ink);
   outline: none;
 }
 
-.ws-emoji:disabled {
+.ws-emoji-field .ws-emoji:disabled {
   opacity: 0.6;
 }
 
