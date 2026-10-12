@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   appendLogPage,
   collectRestoredOperationIds,
+  filterOperationLogsByType,
   filterVisibleOperationLogs,
+  formatOperationLogDateTime,
   formatOperationLogDescription,
   groupOperationLogsByDate,
   mergeRefreshedLogPage,
@@ -157,4 +159,20 @@ test("실행 시작 시각으로 경과 분을 표시한다", () => {
     formatElapsedMinutes("2026-08-19T00:00:00Z", Date.parse("2026-08-19T00:05:30Z")),
     "5분째 실행 중"
   );
+});
+
+test("로그 화면 탭은 작업 유형으로 거르고, 유형이 없으면 전체를 그대로 돌려준다", () => {
+  const items = [log("op1", "ingest"), log("op2", "document_edit"), log("op3", "ingest")];
+
+  assert.deepEqual(
+    filterOperationLogsByType(items, "ingest").map((item) => item.operation_id),
+    ["op1", "op3"]
+  );
+  assert.deepEqual(filterOperationLogsByType(items, "restore"), []);
+  assert.equal(filterOperationLogsByType(items, null), items);
+});
+
+test("로그 행 시각은 사용자 시간대의 월·일·시각으로 표시한다", () => {
+  assert.equal(formatOperationLogDateTime("2026-08-02T15:30:00Z", "Asia/Seoul"), "8월 3일 오전 12:30");
+  assert.equal(formatOperationLogDateTime("2026-09-23T00:52:00Z", "Asia/Seoul"), "9월 23일 오전 9:52");
 });

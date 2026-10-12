@@ -22,7 +22,7 @@
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 2px 6px var(--color-shadow);
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
@@ -50,8 +50,9 @@
   to { opacity: 1; }
 }
 
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
-  .hover-hint-bubble {
+  :root:not([data-reduce-motion="false"]) .hover-hint-bubble {
     animation: none;
   }
 }

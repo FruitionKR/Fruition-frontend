@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay);
 }
 
 .modal {
@@ -15,10 +15,10 @@
   display: flex;
   align-items: stretch;
   overflow: hidden;
-  background: var(--bg);
-  border: 1px solid var(--line);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 12px var(--color-shadow);
 }
 
 /* --- 좌측 내비 --- */
@@ -29,7 +29,7 @@
   flex-direction: column;
   gap: 20px;
   padding: 12px;
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--color-border);
 }
 
 .nav-group {
@@ -43,7 +43,7 @@
   display: flex;
   align-items: center;
   padding: 8px;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -55,7 +55,7 @@
   align-items: center;
   gap: 12px;
   padding: 4px 6px;
-  color: var(--ink);
+  color: var(--color-foreground);
   background: transparent;
   border-radius: 6px;
   font-size: 14px;
@@ -67,7 +67,7 @@
 button.nav-row:hover,
 button.nav-row:focus-visible {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface-strong);
 }
 
 button.nav-row:disabled {
@@ -77,7 +77,25 @@ button.nav-row:disabled {
 }
 
 .nav-row.is-active {
-  background: var(--soft);
+  background: var(--color-surface-strong);
+}
+
+/* 로그아웃: 메뉴 맨 아래 구분선 뒤, 위험 동작이라 danger 색 */
+.nav-footer {
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.nav-row.is-danger,
+.nav-row.is-danger .nav-icon {
+  color: var(--color-danger);
+}
+
+button.nav-row.is-danger:hover,
+button.nav-row.is-danger:focus-visible {
+  background: var(--color-danger-weak);
 }
 
 .nav-avatar {
@@ -87,8 +105,8 @@ button.nav-row:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: var(--panel);
+  color: var(--color-foreground);
+  background: var(--color-surface);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -98,7 +116,7 @@ button.nav-row:disabled {
   width: 24px;
   height: 24px;
   flex: 0 0 auto;
-  color: var(--muted);
+  color: var(--color-body);
 }
 
 /* --- 우측 콘텐츠 --- */
@@ -120,20 +138,6 @@ button.nav-row:disabled {
   padding: 24px clamp(24px, 6vw, 116px) 24px 0;
 }
 
-/* 알림은 여백 때문에 스크롤되지 않도록 하고, 내용이 넘칠 때만 스크롤한다. */
-.content[data-section="notifications"] {
-  padding-block: 24px;
-}
-
-.content[data-section="notifications"] .detail {
-  padding-block: 0;
-  gap: 24px;
-}
-
-.content[data-section="notifications"] .section {
-  gap: 8px;
-}
-
 .title {
   display: flex;
   flex-direction: column;
@@ -142,7 +146,7 @@ button.nav-row:disabled {
 
 /* .title > p보다 우선하도록 클래스 2개 지정자로 둔다. */
 .title > .title-note {
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
 }
 
@@ -154,7 +158,7 @@ button.nav-row:disabled {
 
 .title-row h2 {
   margin: 0;
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 28px;
   font-weight: 600;
   line-height: 1.4;
@@ -162,9 +166,9 @@ button.nav-row:disabled {
 
 .preview-label {
   padding: 2px 6px;
-  color: #e2e2e2;
-  background: var(--soft);
-  border: 1px solid var(--subdued);
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-muted);
   border-radius: 100px;
   font-size: 12px;
   font-weight: 500;
@@ -172,7 +176,7 @@ button.nav-row:disabled {
 
 .title > p {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
@@ -189,7 +193,7 @@ button.nav-row:disabled {
   align-items: center;
   gap: 12px;
   padding: 8px 0;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -198,7 +202,7 @@ button.nav-row:disabled {
 .section-line {
   flex: 1;
   height: 1px;
-  background: var(--line-soft);
+  background: var(--color-surface-strong);
 }
 
 /* 라벨 + 입력 필드 */
@@ -211,7 +215,7 @@ button.nav-row:disabled {
 
 .field label,
 .field-label {
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
@@ -220,7 +224,7 @@ button.nav-row:disabled {
 
 .field small {
   margin-top: -6px;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
@@ -229,9 +233,9 @@ button.nav-row:disabled {
 .field input {
   width: min(400px, 100%);
   padding: 8px 12px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -239,7 +243,7 @@ button.nav-row:disabled {
 
 .field input:focus-visible {
   outline: none;
-  border-color: var(--soft);
+  border-color: var(--color-surface-strong);
 }
 
 /* 제목/설명 + 우측 액션 행 */
@@ -260,29 +264,29 @@ button.nav-row:disabled {
 }
 
 .row-title strong {
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
 }
 
 .row-title small {
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
 }
 
 .row-title .row-error {
-  color: #ff7a7a;
+  color: var(--color-danger);
 }
 
 .btn {
   flex: 0 0 auto;
   padding: 6px 8px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
@@ -306,7 +310,7 @@ button.nav-row:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--line);
+  border: 2px solid var(--color-border);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -353,9 +357,9 @@ button.nav-row:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: var(--panel);
-  border: 8px solid var(--soft);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 8px solid var(--color-surface-strong);
   border-radius: 10px;
   font-size: 40px;
   font-weight: 500;
@@ -383,9 +387,9 @@ button.nav-row:disabled {
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
@@ -395,8 +399,8 @@ button.nav-row:disabled {
 .provider-button:focus-visible,
 .provider-button.is-selected {
   --button-hover-overlay: none;
-  border-color: var(--yellow);
-  background: var(--soft);
+  border-color: var(--color-primary);
+  background: var(--color-surface-strong);
 }
 
 .provider-button:disabled {
@@ -411,14 +415,14 @@ button.nav-row:disabled {
 
 .provider-readonly {
   max-width: 260px;
-  color: var(--muted);
+  color: var(--color-body);
   font-size: 11px;
   text-align: right;
 }
 
 .model-error {
   max-width: 260px;
-  color: #ff7a7a;
+  color: var(--color-danger);
   font-size: 11px;
   text-align: right;
 }
@@ -431,14 +435,14 @@ button.nav-row:disabled {
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--muted);
+  color: var(--color-body);
   background: transparent;
 }
 
 .close:hover,
 .close:focus-visible {
   --button-hover-overlay: none;
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
 /* plus 아이콘을 45도 돌려 X로 사용 */
@@ -462,7 +466,7 @@ button.nav-row:disabled {
     flex-direction: row;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .nav-group {

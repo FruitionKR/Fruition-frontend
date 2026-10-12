@@ -1,86 +1,38 @@
 import { cx } from "@/shared/lib/classNames";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
-import {
-  collectionIcon,
-  graphSelectIcon,
-  homeIcon,
-  homeSelectIcon,
-  logSelectIcon,
-  menuSearchIcon,
-  shareIcon,
-  SvgIcon,
-  type SvgAsset
-} from "@/shared/ui/SvgIcon";
-import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
-// Figma 747:5861 — 홈/그래프/로그/검색. 활성 항목은 select 아이콘으로 렌더한다.
-const menuItems: { id: RailView; label: string; icon: SvgAsset; selectIcon: SvgAsset }[] = [
-  { id: "home", label: "홈", icon: homeIcon, selectIcon: homeSelectIcon },
-  { id: "graph", label: "그래프", icon: shareIcon, selectIcon: graphSelectIcon },
-  { id: "logs", label: "로그", icon: collectionIcon, selectIcon: logSelectIcon }
+// Figma 1486:4403 — 사이드바 상단 문서/그래프 세그먼트. 홈 레일 아래 두 화면을 전환한다.
+const segments: { id: RailView; label: string; hint: string }[] = [
+  { id: "home", label: "문서", hint: "문서를 열어 읽고 편집하는 홈 화면으로 이동합니다." },
+  { id: "graph", label: "그래프", hint: "위키 그래프를 보고 문서를 편입·최신화합니다." }
 ];
 
-
-// 2초 hover 시 보여줄 버튼 설명
-const MENU_HINTS: Record<RailView, string> = {
-  home: "문서를 열어 읽고 편집하는 홈 화면으로 이동합니다.",
-  graph: "위키 그래프를 보고 문서를 편입·최신화합니다.",
-  logs: "AI 작업 기록을 시간순으로 확인합니다.",
-  rules: "스키마 규칙을 관리합니다.",
-  settings: "개인 설정을 변경합니다."
-};
-
-/** 사이드바 가로 아이콘 메뉴 줄. 활성 항목만 라벨이 있는 pill로 표시한다. */
+/** 문서/그래프 전환 세그먼트. 로그·스킬 등 다른 화면에서는 어느 쪽도 선택되지 않는다. */
 export function SidebarMenuRow({
   activeView,
-  isSearchOpen,
-  onViewChange,
-  onToggleSearch
+  onViewChange
 }: {
   activeView: RailView;
-  isSearchOpen: boolean;
   onViewChange: (view: RailView) => void;
-  onToggleSearch: () => void;
 }) {
   return (
-    <nav className={styles["sidebar-menu"]} aria-label="워크스페이스 메뉴">
-      {menuItems.map((item) => (
-        <HoverHint key={item.id} placement="bottom" text={MENU_HINTS[item.id]}>
+    <div className={styles["sidebar-segment"]} role="group" aria-label="문서 화면 전환">
+      {segments.map((segment) => (
         <button
+          key={segment.id}
           type="button"
-          className={cx(styles["sidebar-menu-item"], activeView === item.id && styles["is-active"])}
-          aria-label={item.label}
-          aria-pressed={activeView === item.id}
+          className={cx(styles["sidebar-segment-item"], activeView === segment.id && styles["is-active"])}
+          aria-pressed={activeView === segment.id}
+          title={segment.hint}
           onClick={(event) => {
             event.stopPropagation();
-            onViewChange(item.id);
+            onViewChange(segment.id);
           }}
         >
-          <SvgIcon
-            src={activeView === item.id ? item.selectIcon : item.icon}
-            className={cx(styles["sidebar-menu-icon"], item.id === "home" && styles["sidebar-home-icon"])}
-          />
-          {activeView === item.id && <span>{item.label}</span>}
+          {segment.label}
         </button>
-        </HoverHint>
       ))}
-      {activeView === "home" && (
-        <HoverHint placement="bottom" text="문서 이름으로 검색합니다.">
-        <button
-          type="button"
-          className={cx(styles["sidebar-menu-item"], isSearchOpen && styles["is-open"])}
-          aria-label="문서 검색"
-          aria-expanded={isSearchOpen}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSearch();
-          }}
-        >
-          <SvgIcon src={menuSearchIcon} className={styles["sidebar-menu-icon"]} />
-        </button>
-        </HoverHint>
-      )}
-    </nav>
+    </div>
   );
 }

@@ -45,7 +45,6 @@ export function AgentBody({
   chatLoadErrorMessage,
   animatedMessageId,
   queryStages = [],
-  onOpenWikiPage,
   onOpenSourceBlocks,
   isPairSelectionMode,
   pairSelectionKind = "range",
@@ -68,7 +67,6 @@ export function AgentBody({
   chatLoadErrorMessage: string | null;
   animatedMessageId: string | null;
   queryStages?: QueryStageEvent[];
-  onOpenWikiPage: (pageId: string, title: string, pageType: string) => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   isPairSelectionMode: boolean;
   pairSelectionKind?: ChatPairSelectionKind;
@@ -155,14 +153,22 @@ export function AgentBody({
   const selectedRangeEnd = isIndividualSelection ? null : selectedPairIds.at(-1) ?? null;
   // SSE로 받은 실제 진행 단계를 상태 목록으로 표시한다. 마지막 단계는 아직 진행 중이면 active로 둔다.
   const stageSteps = buildProgressSteps(queryStages, isLoading);
+  // 아직 받은 단계가 없으면 상태 목록 대신 타이핑 표시(Figma 1436:17311)를 보여 준다.
   const pendingStatusThread = (
     <div className={styles["agent-thread"]}>
-      <StatusList
-        title={isCancelling ? "질의 취소 중" : SEARCH_STATUS_TITLE}
-        isLoading={isLoading}
-        hasResponse={false}
-        steps={isCancelling ? [["변경 복구 확인", "active"]] : stageSteps.length > 0 ? stageSteps : [["질문의 의도를 파악하고 있어요.", "active"]]}
-      />
+      {isCancelling || stageSteps.length > 0 ? (
+        <StatusList
+          title={isCancelling ? "질의 취소 중" : SEARCH_STATUS_TITLE}
+          isLoading={isLoading}
+          hasResponse={false}
+          steps={isCancelling ? [["변경 복구 확인", "active"]] : stageSteps}
+        />
+      ) : (
+        <div className={styles.typing} role="status">
+          <span aria-hidden><i /><i /><i /></span>
+          <p>답변을 작성하고 있어요…</p>
+        </div>
+      )}
     </div>
   );
 
@@ -224,7 +230,6 @@ export function AgentBody({
                   isAnimated={message.id === animatedMessageId}
                   visibleAnswerStage={visibleAnswerStage}
                   nodes={nodes}
-                  onOpenWikiPage={onOpenWikiPage}
                   onOpenSourceBlocks={onOpenSourceBlocks}
                 />
               )

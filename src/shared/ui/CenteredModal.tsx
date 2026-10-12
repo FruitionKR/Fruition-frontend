@@ -1,14 +1,16 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
 import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { useModalFocus } from "@/shared/lib/useModalFocus";
 import styles from "./CenteredModal.module.css";
 
 /**
  * 중앙 정렬 모달 공통 셸. overlay 클릭·Escape로 닫히고, 내부 클릭은 전파를 막는다.
+ * 열려 있는 동안 Tab 포커스를 모달 안에 가두고, 닫히면 연 버튼으로 포커스를 돌려준다.
  * 사이드바(z-index 스태킹 컨텍스트) 내부에 렌더되면 편집기 등에 가려지므로 body로 portal한다.
  */
 export function CenteredModal({
@@ -25,10 +27,13 @@ export function CenteredModal({
 }) {
   useEscapeKey(true, onClose);
   const backdropClick = useBackdropClick(onClose);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useModalFocus(boxRef);
 
   return createPortal(
     <div className={styles["modal-overlay"]} {...backdropClick}>
       <div
+        ref={boxRef}
         className={cx(styles["modal-box"], className)}
         role="dialog"
         aria-modal="true"

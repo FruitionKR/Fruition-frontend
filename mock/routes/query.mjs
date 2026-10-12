@@ -3,6 +3,7 @@ import { state, id, sleep, error, requireWorkspace, upsertMessage } from "../sta
 
 const STAGE_DELAY_MS = 700;
 const CANCEL_STEP_DELAY_MS = 1_000;
+const MAX_EVIDENCE = 4;
 const STAGES = [
   ["routing", "질문 의도를 분류하는 중"],
   ["retrieval", "위키 그래프에서 관련 페이지를 찾는 중"],
@@ -36,20 +37,51 @@ function findRelatedPages(workspaceId, question) {
   }));
 }
 
-function buildAnswer(workspace, question, related, allowWebSearch) {
-  const sourceDocs = related
-    .map(({ page }) => page.source_document_id && state.documents.find((doc) => doc.id === page.source_document_id && !doc.deleted_at))
+/** 근거 문장으로 쓸 block: 제목이 아닌 첫 block. 스냅샷이 없으면 고를 block이 없다. */
+function evidenceBlock(doc) {
+  const blocks = doc.source_snapshot?.blocks ?? [];
+  return blocks.find((block) => block.block_type !== "heading" && block.text) ?? blocks[0] ?? null;
+}
+
+/**
+ * 관련 위키 페이지마다 그 원본 문서에서 근거 하나씩 만든다(AI evidence_selector와 같은 모양).
+ * rank는 1부터, source_refs에 (문서, block) 쌍을 담고 대표 문서는 legacy source_document_id·source_block_ids로도 준다.
+ */
+/** 페이지의 원본 문서 id. source 페이지는 자기 원본, concept 페이지는 그 개념을 [[제목]]으로 링크한 source 페이지들의 원본이다. */
+function pageSourceDocumentIds(page) {
+  if (page.source_document_id) return [page.source_document_id];
+  return state.wikiPages
+    .filter((source) => source.workspace_id === page.workspace_id && source.page_type === "source" && source.source_document_id
+      && (source.markdown ?? "").includes(`[[${page.title}]]`))
+    .map((source) => source.source_document_id);
+}
+
+function buildEvidence(workspace, related) {
+  const relatedDocs = related
+    .flatMap(({ page }) => pageSourceDocumentIds(page))
+    .map((documentId) => state.documents.find((doc) => doc.id === documentId && !doc.deleted_at))
     .filter(Boolean);
-  const evidenceDoc = sourceDocs[0] ?? state.documents.find((doc) => doc.workspace_id === workspace.id && doc.markdown && !doc.deleted_at);
-  const evidence = evidenceDoc
-    ? [{ rank: 1, source_document_id: evidenceDoc.id, source_block_ids: ["B0002", "B0003"], text: (evidenceDoc.markdown ?? "").split("\n").filter((line) => line && !line.startsWith("#"))[0] ?? evidenceDoc.filename }]
-    : [];
+  const fallbackDoc = state.documents.find((doc) => doc.workspace_id === workspace.id && doc.source_snapshot && !doc.deleted_at);
+  const docs = [...new Map((relatedDocs.length ? relatedDocs : [fallbackDoc].filter(Boolean)).map((doc) => [doc.id, doc])).values()];
+  return docs.slice(0, MAX_EVIDENCE).flatMap((doc) => {
+    const block = evidenceBlock(doc);
+    return block ? [{ source_document_id: doc.id, source_block_ids: [block.block_id], source_refs: [{ source_document_id: doc.id, source_block_id: block.block_id }], text: block.text }] : [];
+  }).map((item, index) => ({ rank: index + 1, ...item }));
+}
+
+function buildAnswer(workspace, question, related, allowWebSearch) {
+  const evidence = buildEvidence(workspace, related);
+  // 페이지마다 그 페이지 원본에서 나온 근거 번호를 붙인다.
+  const citation = (index) => {
+    const documentIds = new Set(pageSourceDocumentIds(related[index].page));
+    return evidence.filter((item) => documentIds.has(item.source_document_id)).map((item) => `[${item.rank}]`).join("");
+  };
   const primary = related[0]?.page;
   const lines = [
     `"${question}"에 대해 워크스페이스 위키를 기준으로 정리했습니다.`,
     "",
-    primary ? `**${primary.title}** — ${primary.summary ?? ""}${evidence.length ? "[1]" : ""}` : "관련 위키 페이지를 찾지 못해 일반적인 설명을 드립니다.",
-    ...related.slice(1).map(({ page }) => `- ${page.title}: ${page.summary ?? ""}`),
+    primary ? `**${primary.title}** — ${primary.summary ?? ""}${citation(0)}` : "관련 위키 페이지를 찾지 못해 일반적인 설명을 드립니다.",
+    ...related.slice(1).map(({ page }, index) => `- ${page.title}: ${page.summary ?? ""}${citation(index + 1)}`),
     "",
     allowWebSearch ? "웹 검색 허용 옵션이 켜져 있어 외부 자료도 참고했습니다 (mock)." : "이 답변은 mock 서버가 생성한 예시입니다."
   ];

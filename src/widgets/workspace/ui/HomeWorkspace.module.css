@@ -1,0 +1,9 @@
+/* 없는 문서 안내: 콘텐츠 제목 바가 없어져 빈 화면 본문 자리(문서 제목과 같은 위 48px·좌 40px)에 문구로 둔다. */
+.blank-view-message {
+  margin: 0;
+  padding: 48px 40px 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
