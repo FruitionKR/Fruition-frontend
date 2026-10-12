@@ -134,7 +134,7 @@ test("질의 요청이 402 INSUFFICIENT_CREDIT로 거절되면 크레딧 부족 
   });
   await assert.rejects(runQueryStream("질문", model, { onStage() {} }), (error) => {
     assert.equal(isInsufficientCreditError(error), true);
-    assert.equal(getErrorMessage(error, "질의에 실패했습니다."), "크레딧이 부족합니다. 관리자에게 문의해 주세요.");
+    assert.equal(getErrorMessage(error, "질의에 실패했습니다."), "크레딧이 부족합니다.");
     return true;
   });
   assert.equal(calls, 1);
