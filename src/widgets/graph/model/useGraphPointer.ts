@@ -78,6 +78,7 @@ export function useGraphPointer({
     const deltaY = nextPosition.y - draggedSimNode.y;
 
     // 드래그 노드로부터의 그래프 거리에 따라 주변 노드도 함께 끌려온다.
+    // 주변 노드는 화면 밖에 있을 수 있으므로 화면 영역으로 clamp하지 않는다(순간 이동 방지).
     const distances = getGraphDistances(links, node.id);
     nodes.forEach((candidate) => {
       if (candidate.id === node.id) return;
@@ -85,12 +86,8 @@ export function useGraphPointer({
       if (influence <= 0) return;
       const simNode = getSimNode(candidate.id);
       if (!simNode) return;
-      const moved = clampPosition(
-        { x: simNode.x + deltaX * influence, y: simNode.y + deltaY * influence },
-        candidate.id
-      );
-      simNode.x = moved.x;
-      simNode.y = moved.y;
+      simNode.x += deltaX * influence;
+      simNode.y += deltaY * influence;
     });
 
     draggedSimNode.x = nextPosition.x;

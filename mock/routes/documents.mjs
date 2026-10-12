@@ -2,6 +2,7 @@
 import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
+import { uploadRejection } from "../lib/limits.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
 // 편집기 이미지 첨부 계약: 본문의 attachment://<uuid> placeholder와 attachment_<uuid> file part
@@ -102,6 +103,8 @@ export function registerDocumentRoutes(router) {
     const extension = requestedName.split(".").pop()?.toLowerCase() ?? "";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
     if (isReference && extension === "pdf") return error(ctx, 415, "스킬 참고 문서는 Markdown·txt만 올릴 수 있습니다.", "UNSUPPORTED_FILE_TYPE");
+    const rejection = uploadRejection(workspace, file.buffer.length);
+    if (rejection) return error(ctx, rejection.status, rejection.message, rejection.code);
     // 서버처럼 참고 문서 txt는 .md 이름의 편집 가능 Markdown으로 저장한다.
     if (isReference && extension === "txt") requestedName = requestedName.replace(/\.txt$/i, ".md");
     const mime = isReference ? "text/markdown" : MIME_BY_EXTENSION[extension];

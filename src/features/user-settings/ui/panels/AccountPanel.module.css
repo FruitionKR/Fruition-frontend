@@ -19,14 +19,14 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--subdued);
+  color: var(--color-muted);
   background: transparent;
 }
 
 .sessions-refresh:hover:not(:disabled),
 .sessions-refresh:focus-visible {
   --button-hover-overlay: none;
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
 .sessions-refresh:disabled {
@@ -44,8 +44,8 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  color: var(--ink);
-  background: var(--soft);
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
   border-radius: 100px;
   font-size: 14px;
   font-weight: 500;
@@ -58,7 +58,7 @@
 .sessions-count-arrow {
   width: 8px;
   height: 8px;
-  color: var(--muted);
+  color: var(--color-body);
   transform: rotate(-90deg);
 }
 
@@ -84,7 +84,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .device-row > :last-child {
@@ -94,8 +94,8 @@
 .device-head {
   height: 40px;
   padding: 10px 12px;
-  color: #c4c4c4;
-  border-top: 1px solid var(--line);
+  color: var(--color-body);
+  border-top: 1px solid var(--color-border);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
@@ -124,7 +124,7 @@
 }
 
 .device-name {
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
@@ -134,7 +134,7 @@
 }
 
 .device-current {
-  color: var(--yellow);
+  color: var(--color-primary);
   font-size: 12px;
   font-style: normal;
   font-weight: 700;
@@ -142,7 +142,7 @@
 }
 
 .device-cell {
-  color: var(--ink);
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
@@ -153,11 +153,11 @@
 }
 
 .device-cell-muted {
-  color: var(--subdued);
+  color: var(--color-muted);
 }
 
 .device-empty {
   padding: 12px;
-  color: var(--subdued);
+  color: var(--color-muted);
   font-size: 12px;
 }

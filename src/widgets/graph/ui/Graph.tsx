@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useUserPreferences } from "@/entities/user";
 import { DEFAULT_USER_PREFERENCES } from "@/entities/user/model/preferences";
 import type { GraphFilterKind, GraphLink, GraphNode } from "@/entities/wiki";
+import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { GraphCanvas } from "./GraphCanvas";
 import { GraphFilterChips } from "./GraphFilterChips";
 import styles from "./Graph.module.css";
@@ -18,7 +19,8 @@ export function Graph({
   onOpenNodePreview,
   onClearNodeFocus,
   loading = false,
-  errorMessage = null
+  errorMessage = null,
+  ingestProgressInputs
 }: {
   nodes: GraphNode[];
   links: GraphLink[];
@@ -28,6 +30,8 @@ export function Graph({
   onClearNodeFocus?: () => void;
   loading?: boolean;
   errorMessage?: string | null;
+  /** 위키 편입 중·실패 문서(selectGraphIngestProgressInputs). 생성 중 진행률 링을 그린다. */
+  ingestProgressInputs?: readonly GraphIngestProgressInput[];
 }) {
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
   const [filtersReady, setFiltersReady] = useState(false);
@@ -87,6 +91,7 @@ export function Graph({
         onClearNodeFocus={onClearNodeFocus}
         loading={loading}
         errorMessage={errorMessage}
+        ingestProgressInputs={ingestProgressInputs}
       />
     </section>
   );

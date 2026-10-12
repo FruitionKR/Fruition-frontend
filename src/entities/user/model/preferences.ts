@@ -1,9 +1,13 @@
+import type { ThemePreference } from "@/shared/lib/theme";
+
 export type MotionPreference = "system" | "reduced" | "full";
 export type DocumentFontPreference = "system-sans" | "readable-sans" | "serif";
 export type EditorDefaultMode = "last" | "wysiwyg" | "markdown";
 export type EditorMode = Exclude<EditorDefaultMode, "last">;
 
 export type UserPreferences = {
+  // 화면 테마. system이면 OS 설정을 따른다.
+  theme: ThemePreference;
   motion: MotionPreference;
   documentFont: DocumentFontPreference;
   // 채팅 composer에서 마지막으로 고른 AI 모델. 카탈로그와 대조 후에만 사용한다.
@@ -41,6 +45,7 @@ export type UserPreferences = {
 };
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  theme: "system",
   motion: "system",
   // 문서 시안(Figma 1292:5455)은 Pretendard 기준이라 기본값을 Readable Sans로 둔다
   documentFont: "readable-sans",
@@ -115,6 +120,7 @@ export function normalizeUserPreferences(value: unknown): UserPreferences {
   }
 
   return {
+    theme: enumValue(value.theme, ["system", "light", "dark"], DEFAULT_USER_PREFERENCES.theme),
     motion: enumValue(value.motion, ["system", "reduced", "full"], DEFAULT_USER_PREFERENCES.motion),
     documentFont: enumValue(
       value.documentFont,

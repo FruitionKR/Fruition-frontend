@@ -18,6 +18,7 @@ import homeSelectIcon from "@/shared/assets/svg/navigation/home_select.svg";
 import logSelectIcon from "@/shared/assets/svg/navigation/log_select.svg";
 import rawPageIcon from "@/shared/assets/svg/graph/raw.svg";
 import sideboxIcon from "@/shared/assets/svg/workspace/sidebox.svg";
+import sidebarToggleIcon from "@/shared/assets/svg/workspace/sidebar_toggle.svg";
 import sourceIcon from "@/shared/assets/svg/document/source.svg";
 import sourcePageIcon from "@/shared/assets/svg/graph/source_page.svg";
 import shareIcon from "@/shared/assets/svg/navigation/menu_graph.svg";
@@ -92,6 +93,7 @@ export {
   lightningIcon,
   rawPageIcon,
   sideboxIcon,
+  sidebarToggleIcon,
   sourceIcon,
   sourcePageIcon,
   settingIcon,
