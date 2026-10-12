@@ -3,7 +3,10 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 
 registerHooks({ resolve(specifier, context, next) {
-  return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
+  if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  // 소스 안의 확장자 없는 상대 import(예: graph.ts → ./documentLabels)도 .ts로 해석한다.
+  if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
+  return next(specifier, context);
 } });
 const {
   PERMISSION_FORBIDDEN_MESSAGE,
