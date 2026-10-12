@@ -170,8 +170,7 @@
   cursor: text;
 }
 
-/* 페이지 유형 라벨(클래스 없는 span). AI 생성물 배지(AiGeneratedBadge, 클래스 있음)는 자체 스타일을 쓴다. */
-.source-preview-heading > span:not([class]) {
+.source-preview-heading > span {
   width: fit-content;
   padding: 4px 9px;
   color: var(--color-on-primary);

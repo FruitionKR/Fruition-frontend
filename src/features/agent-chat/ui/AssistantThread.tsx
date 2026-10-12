@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { AiGeneratedBadge } from "@/shared/ui/AiGeneratedBadge";
 import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
@@ -91,10 +90,6 @@ export function AssistantThread({
           className={cx(styles["agent-answer"], isAnimated && styles["agent-stage"])}
           aria-label={isSearchAnswer ? "실행 중 발견 사항" : "답변"}
         >
-          {/* 완료된 답변에만 AI 생성물 라벨을 붙인다. 진행 중·실패 상태는 상태 목록이 설명한다. */}
-          {message.status === "completed" && !isWorkspacePlan && (
-            <AiGeneratedBadge className={styles["answer-ai-badge"]} />
-          )}
           {isSearchAnswer && (
             <button
               type="button"

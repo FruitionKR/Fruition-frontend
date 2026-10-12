@@ -12,6 +12,8 @@ import type { SkillResponse } from "@/entities/skill";
 import { LogView } from "@/widgets/log-view";
 import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-view";
 import { SettingsPanel, useAccessGate } from "@/features/settings";
+import { useMe } from "@/entities/user";
+import { AiNoticeDialog } from "@/features/agent-chat/ui/AiNoticeDialog";
 import {
   DocumentProcessingNotifications,
   fetchWikiMaintenanceStatus,
@@ -98,6 +100,7 @@ export function HomeWorkspace() {
   }, [router]);
   // 접근 코드 미입력 상태면 설정 화면에 고정한다. API는 middleware가 403으로 막는다.
   const { isLocked: isAccessLocked } = useAccessGate();
+  const { data: me } = useMe();
   useEffect(() => {
     if (isAccessLocked && activeView !== "settings") navigate({ kind: "view", view: "settings" }, "replace");
   }, [isAccessLocked, activeView, navigate]);
@@ -740,7 +743,6 @@ export function HomeWorkspace() {
             documentStatus={selectedDocumentStatus}
             documentConversion={selectedDocumentConversion}
             titleHint={`${selectedDocumentParentLabel} / ${selectedDocumentLabel}`}
-            onOpenAiHistory={() => handleViewChange("logs")}
             fillMain
           />
         ) : (
@@ -865,6 +867,7 @@ export function HomeWorkspace() {
       )}
 
       <DocumentProcessingNotifications documents={documents} />
+      {me && <AiNoticeDialog userId={me.id} />}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
       {projectTree.deleteConfirm && (
         <DeleteConfirmModal

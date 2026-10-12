@@ -21,7 +21,6 @@ import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
 import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import { menuSearchIcon, questionMarkIcon, settingScrollIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import { AiGeneratedBadge } from "@/shared/ui/AiGeneratedBadge";
 import styles from "./SkillCreateWizard.module.css";
 
 const NAME_MAX = 63;
@@ -508,11 +507,7 @@ export function SkillCreateWizard({
           )}
 
           <div className={styles.field}>
-            <span className={styles["field-label-row"]}>
-              <span className={styles["field-label"]}>스킬 내용 설정</span>
-              {/* AI 초안이 채워진 상태(instructions_markdown)에만 AI 생성물 라벨을 붙인다(이슈 #131) */}
-              {draft.instructions_markdown != null && <AiGeneratedBadge />}
-            </span>
+            <span className={styles["field-label"]}>스킬 내용 설정</span>
             <div className={styles["code-editor"]}>
               <div className={styles.gutter} aria-hidden>
                 {Array.from({ length: instructionLines }, (_, i) => (
@@ -604,10 +599,7 @@ export function SkillCreateWizard({
           </div>
 
           <div className={styles.field}>
-            <span className={styles["field-label-row"]}>
-              <span className={styles["field-label"]}>스킬 내용</span>
-              <AiGeneratedBadge />
-            </span>
+            <span className={styles["field-label"]}>스킬 내용</span>
             <textarea
               className={styles.textarea}
               rows={8}

@@ -2,7 +2,6 @@ import { Check } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
-import { acknowledgeAiNotice, AI_FIRST_USE_NOTICE_MESSAGE, AI_NOTICE_MESSAGE, hasAcknowledgedAiNotice } from "@/shared/lib/aiNotice";
 import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import { AgentChevronIcon, AgentSendIcon, AgentWaveMark } from "./AgentIcons";
@@ -68,18 +67,6 @@ export function AgentComposer({
   }
 
   useDismissOnOutside(modelListRef, isModelListOpen, closeModelList);
-
-  // 생성형 AI 첫 사용 안내(이슈 #131). 서버 렌더와 어긋나지 않게 마운트 뒤 localStorage를 읽어 아직 확인 전이면 보인다.
-  const [isFirstUseNoticeVisible, setIsFirstUseNoticeVisible] = useState(false);
-  useEffect(() => {
-    if (!hasAcknowledgedAiNotice(window.localStorage)) setIsFirstUseNoticeVisible(true);
-  }, []);
-
-  function acknowledgeFirstUseNotice() {
-    // 저장이 실패해도(사생활 모드) 이번 세션에서는 닫는다. 다음 방문에 다시 보일 뿐이다.
-    acknowledgeAiNotice(window.localStorage);
-    setIsFirstUseNoticeVisible(false);
-  }
 
   useEffect(() => {
     if (isLoading) setIsModelListOpen(false);
@@ -157,12 +144,6 @@ export function AgentComposer({
 
   return (
     <form className={styles.composer} onSubmit={submitComposer}>
-      {isFirstUseNoticeVisible && (
-        <div className={styles["composer-ai-first-notice"]} role="note">
-          <p>{AI_FIRST_USE_NOTICE_MESSAGE}</p>
-          <button type="button" onClick={acknowledgeFirstUseNotice}>확인</button>
-        </div>
-      )}
       <textarea
         value={value}
         placeholder={placeholder}
@@ -179,7 +160,6 @@ export function AgentComposer({
           {statusMessage ?? "입력창에서 Esc를 누르면 질문을 취소합니다."}
         </p>
       )}
-      <p className={styles["composer-ai-notice"]}>{AI_NOTICE_MESSAGE}</p>
       <div className={styles["composer-actions"]}>
         <div className={styles["composer-model"]} ref={modelListRef}>
           <button
