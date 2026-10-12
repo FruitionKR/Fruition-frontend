@@ -2,11 +2,13 @@
 // 본문은 저장소의 content/legal/<slug>/<시행일>.md 에 두고, 시행일(YYYY-MM-DD)이 곧 버전 식별자다.
 // 같은 디렉터리의 <시행일>.changes.md 는 그 버전이 이전 버전에서 무엇을 바꿨는지 비교한 표(선택)다.
 
+import { LEGAL_TERMS_VERSION, PRIVACY_PATH, TERMS_PATH } from "@/shared/config/legal";
+
 /**
- * 현재 시행 중인 약관 버전. access-svc `app.legal.terms-version`(env LEGAL_TERMS_VERSION, 기본 2026-10-01)과
- * 같은 값이어야 가입 동의(#128)가 서버 검증을 통과한다. 새 버전을 시행하면 Markdown 파일을 추가하고 이 값을 함께 올린다.
+ * 현재 시행 중인 약관 버전은 가입 동의(#128)와 같은 값을 써야 하므로 shared/config/legal.ts 한 곳에 둔다.
+ * 새 버전을 시행하면 Markdown 파일을 추가하고 그 값을 함께 올린다.
  */
-export const LEGAL_TERMS_VERSION = "2026-10-01";
+export { LEGAL_TERMS_VERSION };
 /** 현재 시행 중인 개인정보 처리방침 버전. access-svc `app.legal.privacy-version`과 같은 값이어야 한다. */
 export const LEGAL_PRIVACY_VERSION = "2026-10-01";
 
@@ -21,8 +23,8 @@ export type LegalDocumentMeta = {
 };
 
 export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocumentMeta> = {
-  terms: { slug: "terms", path: "/terms", title: "이용약관", currentVersion: LEGAL_TERMS_VERSION },
-  privacy: { slug: "privacy", path: "/privacy", title: "개인정보 처리방침", currentVersion: LEGAL_PRIVACY_VERSION }
+  terms: { slug: "terms", path: TERMS_PATH, title: "이용약관", currentVersion: LEGAL_TERMS_VERSION },
+  privacy: { slug: "privacy", path: PRIVACY_PATH, title: "개인정보 처리방침", currentVersion: LEGAL_PRIVACY_VERSION }
 };
 
 /**

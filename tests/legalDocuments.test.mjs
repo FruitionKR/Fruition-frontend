@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import {
+
+registerHooks({ resolve(specifier, context, next) {
+  return next(specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href : specifier, context);
+} });
+const {
   LEGAL_PRIVACY_VERSION,
   LEGAL_TERMS_VERSION,
   isLegalVersion,
   listLegalVersions,
   previousLegalVersion,
   resolveLegalVersion
-} from "../src/entities/legal/model/legalDocuments.ts";
+} = await import("../src/entities/legal/model/legalDocuments.ts");
 
 const FILES = ["2026-10-01.md", "2027-01-15.md", "2027-01-15.changes.md", "README.md", "2026-12-01.changes.md"];
 
