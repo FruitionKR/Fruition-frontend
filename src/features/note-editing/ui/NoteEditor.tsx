@@ -106,7 +106,8 @@ export function NoteEditor({
     marker,
     initialVersion,
     onDetachedSaveComplete,
-    onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved)
+    onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved),
+    autoSave: preferences.autoSave
   });
   // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
   const editLock = useEditLock({
