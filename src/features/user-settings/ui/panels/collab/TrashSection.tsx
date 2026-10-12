@@ -6,7 +6,7 @@ import { fetchTrashDocuments, restoreTrashDocument } from "@/entities/document/a
 import { describePurge, describeRestoreError, isRetentionExpired } from "@/entities/document/lib/trashRetention";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import styles from "./SettingsPanel.module.css";
+import styles from "./CollabSections.module.css";
 
 const TRASH_QUERY_KEY = (workspaceId: string | null) => ["document-trash", workspaceId] as const;
 

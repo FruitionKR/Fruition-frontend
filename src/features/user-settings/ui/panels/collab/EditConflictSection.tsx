@@ -6,7 +6,7 @@ import { fetchEditConflicts, resolveEditConflict, type EditConflictEntry } from 
 import { buildResolveRequest, describeResolveError, type ConflictChoice } from "@/features/note-editing/model/editConflict";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import styles from "./SettingsPanel.module.css";
+import styles from "./CollabSections.module.css";
 
 export const EDIT_CONFLICTS_QUERY_KEY = (workspaceId: string | null) => ["edit-conflicts", workspaceId] as const;
 

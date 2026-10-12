@@ -13,7 +13,7 @@ import {
 import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { cx } from "@/shared/lib/classNames";
-import styles from "./SettingsPanel.module.css";
+import styles from "./CollabSections.module.css";
 
 const PAGE_LIMIT = 50;
 const NOTIFICATIONS_QUERY_KEY = (workspaceId: string | null) => ["app-notifications", workspaceId] as const;

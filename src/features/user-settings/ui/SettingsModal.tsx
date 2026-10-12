@@ -17,6 +17,7 @@ import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import {
   bellIcon,
+  fileIcon,
   lightningIcon,
   plusIcon,
   settingIcon,
@@ -24,13 +25,14 @@ import {
   userCircleOutlineIcon
 } from "@/shared/ui/SvgIcon";
 import { AccountPanel } from "./panels/AccountPanel";
+import { DocumentsPanel } from "./panels/DocumentsPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
 import { SkillsPanel } from "./panels/SkillsPanel";
 import { WorkspacePanel } from "./panels/WorkspacePanel";
 import styles from "./SettingsModal.module.css";
 
-type SettingsSection = "account" | "notifications" | "general" | "members" | "skills";
+type SettingsSection = "account" | "notifications" | "general" | "members" | "documents" | "skills";
 
 /** 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800 / 981:10091). */
 export function SettingsModal({ onClose }: { onClose: () => void }) {
@@ -143,6 +145,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </button>
             <button
               type="button"
+              className={`${styles["nav-row"]} ${activeSection === "documents" ? styles["is-active"] : ""}`}
+              onClick={() => setActiveSection("documents")}
+            >
+              <SvgIcon src={fileIcon} className={styles["nav-icon"]} />
+              <span>문서 관리</span>
+            </button>
+            <button
+              type="button"
               className={`${styles["nav-row"]} ${activeSection === "skills" ? styles["is-active"] : ""}`}
               onClick={() => setActiveSection("skills")}
             >
@@ -176,6 +186,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             />
           )}
           {activeSection === "members" && <MembersPanel />}
+          {activeSection === "documents" && <DocumentsPanel />}
           {activeSection === "skills" && <SkillsPanel />}
           <button type="button" className={styles.close} aria-label="설정 닫기" onClick={onClose}>
             <SvgIcon src={plusIcon} className={styles["close-icon"]} />

@@ -1,0 +1,163 @@
+/* 편집 충돌·알림·휴지통 섹션 (features/settings의 SettingsPanel.module.css에서 옮김). 설정 모달 안에서 쓴다. */
+
+.settings-section {
+  margin-bottom: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.settings-section h3 {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.settings-section-description {
+  margin: -8px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-label p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-label span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings-message {
+  margin: 12px 0 0;
+  color: #ffb3b3;
+  font-size: 12px;
+}
+
+/* 편집 충돌·알림·휴지통 같은 서버 목록 섹션 */
+.settings-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-list-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.settings-list-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.settings-list-item.is-read {
+  opacity: 0.6;
+}
+
+.settings-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* 섹션 제목 줄에 버튼(모두 읽음 등)을 같이 둘 때 제목의 아래 여백을 줄 단위로 옮긴다 */
+.settings-list-row > h3 {
+  margin-bottom: 0;
+}
+
+.settings-section > .settings-list-row {
+  margin-bottom: 16px;
+}
+
+.settings-list-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.settings-list-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-small-button {
+  padding: 6px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings-small-button:hover {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.settings-small-button.is-primary {
+  color: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.settings-small-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-small-button:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+
+.settings-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.settings-compare p {
+  margin: 0 0 6px;
+  color: var(--subdued);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-compare pre {
+  max-height: 240px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #181818;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 720px) {
+  .settings-list-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .settings-compare {
+    grid-template-columns: 1fr;
+  }
+}
