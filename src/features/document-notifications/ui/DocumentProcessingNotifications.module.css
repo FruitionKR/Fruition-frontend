@@ -1,9 +1,9 @@
 /* 알림 카드 (Figma 1246:7338 bottom_up): 콘텐츠 영역 우하단에서 올라오는 320px 카드.
-   에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓는다. */
+   에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓고, 패널이 닫혔을 때의 채팅 런처(48px) 위에 둔다. */
 .notice-stack {
   position: fixed;
   right: calc(var(--agent-panel-self-width, var(--agent-panel-width, 360px)) + 24px);
-  bottom: 24px;
+  bottom: 88px;
   z-index: 50;
   display: grid;
   width: min(320px, calc(100vw - 48px));
