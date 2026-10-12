@@ -8,9 +8,9 @@ import type { TreeInteractionProps } from "../model/types";
 import { useTreeNodeDragDrop } from "../lib/useTreeNodeDragDrop";
 import styles from "./DocumentSidebar.module.css";
 
-// 트리 행 들여쓰기: 기본 패딩 + depth당 증가 폭 (px)
-const TREE_ROW_BASE_PADDING_PX = 8;
-const TREE_ROW_INDENT_PER_DEPTH_PX = 18;
+// 트리 행 들여쓰기 (Figma 1486:4410): 기본 10px + depth당 22px (pl 10 / 32)
+const TREE_ROW_BASE_PADDING_PX = 10;
+const TREE_ROW_INDENT_PER_DEPTH_PX = 22;
 
 // mime type → 시안의 우측 파일 타입 배지 문구
 const MIME_TYPE_BADGES: [pattern: string, label: string][] = [
@@ -71,6 +71,7 @@ export function TreeNode({
   const display = fileDisplay(item);
   // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
   const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
+  const canOpenInNewTab = !isEditing && !isUploading && Boolean(item.graphNodeId || item.documentId);
   const {
     canDrag,
     handleDragStart,
@@ -95,7 +96,8 @@ export function TreeNode({
         type="button"
         className={cx(
           styles["tree-row"],
-          item.active && styles["is-active"],
+          // 지금 열린 문서(URL 대상)의 행을 강조한다.
+          (item.active || interaction.selectedItemId === item.id) && styles["is-active"],
           isUploading && styles["is-uploading"],
           isSelected && styles["is-selected"],
           (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
@@ -119,9 +121,25 @@ export function TreeNode({
           if (isUploading) return event.preventDefault();
           interaction.onContextMenuItem(event, projectId, item.id);
         }}
+        // 가운데 클릭: 문서를 새 브라우저 탭으로 연다. mousedown 기본 동작(자동 스크롤)은 막는다.
+        onMouseDown={(event) => {
+          if (event.button === 1 && canOpenInNewTab) event.preventDefault();
+        }}
+        onAuxClick={(event) => {
+          if (event.button !== 1 || !canOpenInNewTab) return;
+          event.preventDefault();
+          event.stopPropagation();
+          interaction.onOpenInNewTab(item);
+        }}
         onClick={(event) => {
           event.stopPropagation();
           if (isUploading || isEditing) return;
+          // 스킬 실행 대상 고르기: 문서 행은 고르고, 폴더 행은 펼치기만 한다.
+          if (interaction.isPickingTarget) {
+            if (isFolder) onToggle(item.id);
+            else if (item.documentId) interaction.onToggleSelectItem(item.id);
+            return;
+          }
           // Cmd/Ctrl+클릭: 열지 않고 이동 대상으로 고른다. 위키 노드는 이동 대상이 아니다.
           if ((event.metaKey || event.ctrlKey) && item.type !== "wiki") {
             interaction.onToggleSelectItem(item.id);

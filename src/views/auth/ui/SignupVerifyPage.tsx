@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { confirmEmailVerification, loginWithEmail, signupWithEmail } from "@/entities/user";
+import { loginWithEmail, signupWithEmail } from "@/entities/user";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
+import { confirmVerificationCode } from "@/views/auth/lib/confirmVerificationCode";
 import { useDevelopmentVerificationCode } from "@/views/auth/lib/useDevelopmentVerificationCode";
 import { useExpiryCountdown } from "@/views/auth/lib/useExpiryCountdown";
 import { useVerificationResend } from "@/views/auth/lib/useVerificationResend";
@@ -58,10 +59,7 @@ export default function SignupVerificationPage() {
     setIsSubmitting(true);
 
     try {
-      const confirmation = await confirmEmailVerification(
-        draft.verificationId,
-        code.trim()
-      );
+      const confirmation = await confirmVerificationCode(draft.verificationId, code);
       await signupWithEmail(
         draft.email,
         draft.password,
@@ -116,15 +114,14 @@ export default function SignupVerificationPage() {
           {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
         </div>
         <AuthSubmitButton disabled={isSubmitting || !draft.verificationId}>
-          {isRequestingVerification ? "발송 중" : "인증 확인"}
+          {isRequestingVerification ? "발송 중" : "인증 요청"}
         </AuthSubmitButton>
       </form>
       <ResendCodePrompt
-        disabled={!countdown.isExpired || isResending}
+        disabled={!countdown.canResend || isResending}
         isResending={isResending}
         onResend={handleVerificationResend}
       />
-      <p className="auth-prompt">이메일을 다시 입력하시겠어요?<button onClick={() => router.push("/signup")} type="button">이전으로</button></p>
     </AuthScreen>
   );
 }

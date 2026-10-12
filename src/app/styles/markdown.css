@@ -1,21 +1,55 @@
 /* Markdown 렌더 공용 어휘. MarkdownViewer가 붙이는 클래스라 전역으로 유지한다.
    (기존 source-preview.css의 markdown-* 규칙 + agent-panel/answer.css의 markdown-citation 규칙 통합) */
 
-/* 문서 본문 타이포그래피 (Figma 1292:5455): gray/050, Medium 14px, 행간 1.8.
+/* 토큰에 없는 색(근거 순위 색 등)은 로컬 변수로 두고 다크 모드에서 기존 다크 디자인 값으로 바꾼다. */
+:root {
+  --markdown-citation-1: var(--color-danger);
+  --markdown-citation-2: var(--color-primary);
+  --markdown-citation-3: var(--color-status-success);
+  --markdown-citation-4: var(--color-status-warning);
+  --markdown-citation-5: #8b5cf6;
+  --markdown-link: var(--color-primary);
+  --markdown-code-foreground: var(--color-foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --markdown-citation-1: #21b273;
+    --markdown-citation-2: #f59e0a;
+    --markdown-citation-3: #7ee787;
+    --markdown-citation-4: #ff9b72;
+    --markdown-citation-5: #d2a8ff;
+    --markdown-link: #8ab4e8;
+    --markdown-code-foreground: #d0d7de;
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] {
+  --markdown-citation-1: #21b273;
+  --markdown-citation-2: #f59e0a;
+  --markdown-citation-3: #7ee787;
+  --markdown-citation-4: #ff9b72;
+  --markdown-citation-5: #d2a8ff;
+  --markdown-link: #8ab4e8;
+  --markdown-code-foreground: #d0d7de;
+}
+
+/* 문서 본문 타이포그래피 (Figma 1406:10314): foreground, Medium 14px, 행간 1.4.
    제목·문단·목록 간격도 같은 시안 기준이며 편집 모드(NoteEditor.module.css)와 값을 맞춘다. */
 .markdown-viewer {
-  color: #f9fafb;
+  color: var(--color-foreground);
   font-family: var(--document-font-family);
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.8;
+  line-height: 1.4;
 }
 
 .markdown-viewer h1,
 .markdown-viewer h2,
 .markdown-viewer h3 {
-  color: #f9fafb;
-  line-height: 1.8;
+  color: var(--color-foreground);
+  line-height: 1.4;
 }
 
 /* 본문 첫 블록의 제목만 위 여백을 없앤다.
@@ -27,19 +61,20 @@
   margin-top: 0;
 }
 
-/* 본문 h1: 28px SemiBold, 아래 블록과 20px. 문서 제목(36px)보다 작게 둬 제목과 구분한다 */
+/* 본문 h1 (Figma 1406:10313): 24px Bold, 자간 -1%, 위 블록과 32px·본문과 8px. 문서 제목(32px)보다 작다 */
 .markdown-viewer h1 {
-  margin: 0 0 20px;
-  font-size: 28px;
-  font-weight: 600;
+  margin: 32px 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.24px;
   line-height: 1.4;
 }
 
-/* 섹션 제목: 20px Medium, 위 블록과 20px·본문과 8px */
+/* 섹션 제목: 20px SemiBold, 위 블록과 24px·본문과 8px */
 .markdown-viewer h2 {
-  margin: 20px 0 8px;
+  margin: 24px 0 8px;
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* 소제목: 16px SemiBold, 섹션 사이 24px·본문과 4px. 섹션 제목 바로 아래면 8px */
@@ -53,8 +88,17 @@
   margin-top: 8px;
 }
 
+/* h4~h6 (Figma 1406:10310 "프로젝트 정의" 같은 항목 제목): SemiBold, body 색 */
+.markdown-viewer h4,
+.markdown-viewer h5,
+.markdown-viewer h6 {
+  color: var(--color-body);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 /* 채팅 답변·미리보기 등 공용 소비자는 문단 사이 8px를 유지한다.
-   문서 패널(SourcePreviewPanel)만 시안대로 행간(1.8)으로만 잇는다. */
+   문서 패널(SourcePreviewPanel)만 시안대로 행간(1.4)으로만 잇는다. */
 .markdown-viewer p {
   margin: 0 0 8px;
 }
@@ -69,19 +113,25 @@
   margin: 0;
 }
 
-/* 인용/안내 블록: 노란 배경·좌측 2.4px 선 (Figma 1292:5457 notice) */
+/* 체크리스트 항목 사이: 체크박스끼리 붙어 보이지 않게 띄운다 (편집 모드와 같은 값) */
+.markdown-viewer li.task-list-item + li.task-list-item {
+  margin-top: 6px;
+}
+
+/* 인용/안내 블록 (Figma 1406:10302 notice): primary-weak 배경·좌측 3px primary 선, 행간 1.8 */
 .markdown-viewer blockquote {
   margin: 0;
   padding: 12px 24px;
-  background: rgba(255, 193, 23, 0.16);
-  border-left: 2.4px solid var(--yellow);
-  border-radius: 6px;
+  background: var(--color-primary-weak);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0;
+  line-height: 1.8;
 }
 
 .markdown-viewer code {
   padding: 2px 5px;
-  color: #f0f0f0;
-  background: #323232;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
   border-radius: 5px;
   font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Consolas, monospace;
   font-size: 0.92em;
@@ -91,9 +141,9 @@
 .markdown-frontmatter pre {
   margin: 0 0 16px;
   overflow-x: auto;
-  color: #d0d7de;
-  background: #0a0a0a;
-  border: 1px solid var(--line-soft);
+  color: var(--markdown-code-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Consolas, monospace;
   font-size: 12px;
@@ -121,47 +171,47 @@
 
 .markdown-frontmatter {
   margin: 0 0 18px;
-  color: #a7a7a7;
+  color: var(--color-body);
 }
 
 .markdown-frontmatter summary {
   width: fit-content;
   margin-bottom: 8px;
   cursor: pointer;
-  color: #a7a7a7;
+  color: var(--color-body);
   font-size: 12px;
 }
 
 .markdown-viewer hr {
   height: 1px;
   margin: 24px 0;
-  background: #4f4f4f;
+  background: var(--color-border);
   border: 0;
 }
 
 .markdown-viewer table {
   width: 100%;
   margin: 0 0 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-border);
   border-collapse: collapse;
 }
 
 .markdown-viewer th,
 .markdown-viewer td {
   padding: 8px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-border);
   text-align: left;
 }
 
 .markdown-viewer th {
-  color: #f0f0f0;
-  background: #242424;
+  color: var(--color-foreground);
+  background: var(--color-surface);
   font-weight: 600;
 }
 
 .markdown-viewer a,
 .markdown-wikilink {
-  color: #8ab4e8;
+  color: var(--markdown-link);
 }
 
 /* AI 본문의 외부 링크는 누를 수 없는 글자로 둔다(이슈 #77). 링크처럼 보이지 않게 본문 색을 유지한다. */
@@ -174,23 +224,23 @@
 .markdown-image-missing {
   display: inline-block;
   padding: 6px 10px;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--color-border);
   border-radius: 6px;
-  color: #9a9a9a;
+  color: var(--color-muted);
   font-size: 13px;
   line-height: 1.5;
 }
 
-/* 원문 근거 강조 (Figma 1132:10762 notice): 노란 배경 16%·좌측 3px 선·좌우 24px, 14px Medium 행간 1.8.
+/* 원문 근거 강조 (Figma 1406:10302 notice): primary-weak 배경·좌측 3px primary 선·좌우 24px, 14px Medium 행간 1.8.
    각 근거 줄 끝에 순위 [n]을 순위 색으로 붙인다. 연속된 근거 블록은 한 상자로 이어져 보이도록
    블록 사이 여백 없이 붙이고, 상자 위·아래 12px 여백은 이어진 묶음의 첫 블록과 마지막 블록에만 준다. */
 .markdown-source-block.is-highlighted {
   position: relative;
   margin: 0;
   padding: 0 24px;
-  color: #f9fafb;
-  background: rgba(255, 193, 23, 0.16);
-  border-left: 3px solid var(--yellow);
+  color: var(--color-foreground);
+  background: var(--color-primary-weak);
+  border-left: 3px solid var(--color-primary);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.8;
@@ -250,32 +300,33 @@
 }
 
 .markdown-citation:focus-visible {
-  outline: 2px solid #f0f0f0;
+  outline: 2px solid var(--color-foreground);
   outline-offset: 2px;
   border-radius: 3px;
 }
 
+/* 순위 1·2는 Figma(1406:10305 danger, 1406:10308 primary) 색. 3~5는 시안이 없어 라이트에서 읽히는 색을 쓰고,
+   다크는 모두 기존 색을 유지한다(:root 로컬 변수). */
 .citation-rank-1 {
-  --citation-color: #21b273;
-  --citation-bg-soft: rgba(33, 178, 115, 0.14);
+  --citation-color: var(--markdown-citation-1);
 }
 
 .citation-rank-2 {
-  --citation-color: #f59e0a;
-  --citation-bg-soft: rgba(245, 158, 10, 0.14);
+  --citation-color: var(--markdown-citation-2);
 }
 
 .citation-rank-3 {
-  --citation-color: #7ee787;
-  --citation-bg-soft: rgba(126, 231, 135, 0.14);
+  --citation-color: var(--markdown-citation-3);
 }
 
 .citation-rank-4 {
-  --citation-color: #ff9b72;
-  --citation-bg-soft: rgba(255, 155, 114, 0.14);
+  --citation-color: var(--markdown-citation-4);
 }
 
 .citation-rank-5 {
-  --citation-color: #d2a8ff;
-  --citation-bg-soft: rgba(210, 168, 255, 0.14);
+  --citation-color: var(--markdown-citation-5);
+}
+
+:is(.citation-rank-1, .citation-rank-2, .citation-rank-3, .citation-rank-4, .citation-rank-5) {
+  --citation-bg-soft: color-mix(in srgb, var(--citation-color) 14%, transparent);
 }

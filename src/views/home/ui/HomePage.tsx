@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { HomeWorkspace } from "@/widgets/workspace";
@@ -50,5 +50,10 @@ export default function HomePage() {
   if (!hasWorkspace || !isSuccess || (workspaceList == null && !isWorkspaceListError) || isStaleWorkspace) {
     return <LoadingOverlay message="워크스페이스 불러오는 중…" />;
   }
-  return <HomeWorkspace />;
+  // HomeWorkspace는 useSearchParams로 URL(?doc=·?view=graph 등)을 읽으므로 Suspense 경계 안에 둔다.
+  return (
+    <Suspense fallback={<LoadingOverlay message="워크스페이스 불러오는 중…" />}>
+      <HomeWorkspace />
+    </Suspense>
+  );
 }

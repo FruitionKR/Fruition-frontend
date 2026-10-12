@@ -39,11 +39,11 @@ export function oauthAccountErrorMessage(error: unknown, fallback: string): stri
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/** 이메일 가입 시 같은 이메일의 소셜 가입 계정이 있으면 기존 계정 연동을 안내한다. 가입은 막지 않는다. */
-export function signupOAuthHint(providers: readonly string[]): string | null {
+/** 같은 이메일의 소셜 가입 계정이 있으면 이메일 가입을 막고 그 소셜 로그인으로 안내한다. 없으면 null. */
+export function signupOAuthConflictMessage(providers: readonly string[]): string | null {
   if (providers.length === 0) return null;
   const names = providers.map(oauthProviderName).join(", ");
-  return `이 이메일은 ${names}로 가입된 계정이 있습니다. 기존 계정으로 로그인한 뒤 설정에서 연동하세요. 새 계정을 만들려면 인증 요청을 한 번 더 눌러 주세요.`;
+  return `이미 ${names}로 가입된 이메일입니다. 로그인 화면에서 ${names}로 로그인해 주세요.`;
 }
 
 /** 연동 콜백에서 설정 화면으로 돌아갈 때 결과를 넘기는 sessionStorage 항목. */

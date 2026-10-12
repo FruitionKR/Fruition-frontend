@@ -10,14 +10,13 @@ import {
   type AiModel,
   type AiModelSelection
 } from "@/entities/ai";
-import { useMe, useUserPreferences } from "@/entities/user";
+import { useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useWorkspaceName";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
 import {
   bellIcon,
-  lightningIcon,
   plusIcon,
   settingIcon,
   SvgIcon,
@@ -26,17 +25,54 @@ import {
 import { AccountPanel } from "./panels/AccountPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
-import { SkillsPanel } from "./panels/SkillsPanel";
+import { PreferencesPanel } from "./panels/PreferencesPanel";
+import { ProfilePanel } from "./panels/ProfilePanel";
 import { WorkspacePanel } from "./panels/WorkspacePanel";
 import styles from "./SettingsModal.module.css";
 
-type SettingsSection = "account" | "notifications" | "general" | "members" | "skills";
+export type SettingsSection = "profile" | "account" | "notifications" | "preferences" | "general" | "members";
 
-/** 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800 / 981:10091). */
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+/** 계정 설정 아이콘: 자물쇠 (24×24, 메뉴 아이콘과 같은 크기). */
+function AccountIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="10.5" width="14" height="9.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8.5 10.5V7.75C8.5 5.68 10.07 4 12 4C13.93 4 15.5 5.68 15.5 7.75V10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 14.25V16.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** 워크스페이스 설정 아이콘: 네 칸 격자 (24×24). 톱니는 개인 기본 설정에 쓴다. */
+function WorkspaceIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect x="4.5" y="4.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="13.5" y="4.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="4.5" y="13.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="13.5" y="13.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+/** 로그아웃 아이콘: 문틀 + 바깥으로 나가는 화살표 (24×24, 메뉴 아이콘과 같은 크기). */
+function LogoutIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M14 4H6.8C6.36 4 6 4.36 6 4.8V19.2C6 19.64 6.36 20 6.8 20H14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M11 12H20M20 12L16.8 8.8M20 12L16.8 15.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800). 스킬은 레일 "스킬" 화면으로 옮겼다.
+ * initialSection: 레일 프로필은 프로필 설정, 톱니는 기본 설정으로 연다.
+ */
+export function SettingsModal({ onClose, initialSection = "profile" }: { onClose: () => void; initialSection?: SettingsSection }) {
   const workspaceName = useWorkspaceName();
-  const { preferences, updatePreferences } = useUserPreferences();
-  const [activeSection, setActiveSection] = useState<SettingsSection>("account");
+  const { signOut } = useSignOut();
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const { data: me } = useMe();
   const [aiModels, setAiModels] = useState<AiModel[]>([]);
   const [aiModelSelection, setAiModelSelection] = useState<AiModelSelection | null>(null);
@@ -106,17 +142,30 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <nav className={styles.nav} aria-label="설정 메뉴">
           <div className={styles["nav-group"]}>
             <p className={styles["nav-label"]}>계정</p>
+            {/* 프로필 설정: 메뉴 줄 자체가 프로필 사진(이니셜)과 닉네임을 보여 준다 */}
             <button
               type="button"
-              className={`${styles["nav-row"]} ${activeSection === "account" ? styles["is-active"] : ""}`}
-              onClick={() => setActiveSection("account")}
+              className={`${styles["nav-row"]} ${activeSection === "profile" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "profile" ? "page" : undefined}
+              aria-label={`프로필 설정 (${name})`}
+              onClick={() => setActiveSection("profile")}
             >
               <span className={styles["nav-avatar"]} aria-hidden>{name.charAt(0)}</span>
               <span>{name}</span>
             </button>
             <button
               type="button"
+              className={`${styles["nav-row"]} ${activeSection === "account" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "account" ? "page" : undefined}
+              onClick={() => setActiveSection("account")}
+            >
+              <AccountIcon className={styles["nav-icon"]} />
+              <span>계정 설정</span>
+            </button>
+            <button
+              type="button"
               className={`${styles["nav-row"]} ${activeSection === "notifications" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "notifications" ? "page" : undefined}
               onClick={() => setActiveSection("notifications")}
             >
               <SvgIcon src={bellIcon} className={styles["nav-icon"]} />
@@ -127,46 +176,53 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <p className={styles["nav-label"]}>설정</p>
             <button
               type="button"
-              className={`${styles["nav-row"]} ${activeSection === "general" ? styles["is-active"] : ""}`}
-              onClick={() => setActiveSection("general")}
+              className={`${styles["nav-row"]} ${activeSection === "preferences" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "preferences" ? "page" : undefined}
+              onClick={() => setActiveSection("preferences")}
             >
               <SvgIcon src={settingIcon} className={styles["nav-icon"]} />
               <span>기본 설정</span>
             </button>
             <button
               type="button"
+              className={`${styles["nav-row"]} ${activeSection === "general" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "general" ? "page" : undefined}
+              onClick={() => setActiveSection("general")}
+            >
+              <WorkspaceIcon className={styles["nav-icon"]} />
+              <span>워크스페이스 설정</span>
+            </button>
+            <button
+              type="button"
               className={`${styles["nav-row"]} ${activeSection === "members" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "members" ? "page" : undefined}
               onClick={() => setActiveSection("members")}
             >
               <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />
               <span>멤버 관리</span>
             </button>
+          </div>
+          {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}
+          <div className={styles["nav-footer"]}>
             <button
               type="button"
-              className={`${styles["nav-row"]} ${activeSection === "skills" ? styles["is-active"] : ""}`}
-              onClick={() => setActiveSection("skills")}
+              className={`${styles["nav-row"]} ${styles["is-danger"]}`}
+              onClick={() => void signOut({ callLogout: true })}
             >
-              <SvgIcon src={lightningIcon} className={styles["nav-icon"]} />
-              <span>스킬</span>
+              <LogoutIcon className={styles["nav-icon"]} />
+              <span>로그아웃</span>
             </button>
           </div>
         </nav>
 
-        <div className={styles.content} data-section={activeSection}>
+        <div className={styles.content}>
+          {activeSection === "profile" && <ProfilePanel />}
           {activeSection === "account" && <AccountPanel />}
-          {activeSection === "notifications" && (
-            <NotificationsPanel
-              notifications={preferences.notifications}
-              updatePreferences={updatePreferences}
-            />
-          )}
+          {activeSection === "notifications" && <NotificationsPanel />}
+          {activeSection === "preferences" && <PreferencesPanel />}
           {activeSection === "general" && (
             <WorkspacePanel
               wsName={wsName}
-              isAutoSaveOn={preferences.autoSave}
-              onToggleAutoSave={() =>
-                updatePreferences((current) => ({ ...current, autoSave: !current.autoSave }))
-              }
               aiModels={aiModels}
               aiModelSelection={aiModelSelection}
               aiModelError={aiModelError}
@@ -176,7 +232,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             />
           )}
           {activeSection === "members" && <MembersPanel />}
-          {activeSection === "skills" && <SkillsPanel />}
           <button type="button" className={styles.close} aria-label="설정 닫기" onClick={onClose}>
             <SvgIcon src={plusIcon} className={styles["close-icon"]} />
           </button>

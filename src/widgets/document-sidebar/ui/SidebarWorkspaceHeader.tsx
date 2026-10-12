@@ -1,10 +1,9 @@
 import { MoreVertical, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { listIcon, SvgIcon, toggleIcon } from "@/shared/ui/SvgIcon";
 import { useSelectedWorkspace } from "@/entities/workspace/model/useWorkspaceName";
 import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
-import { createWorkspace, deleteWorkspace, fetchWorkspaces } from "@/entities/workspace";
+import { createWorkspace, deleteWorkspace, describeLimitError, fetchWorkspaces, isFreeWorkspaceLimitReached } from "@/entities/workspace";
 import { fetchMembers, removeMember } from "@/entities/workspace/api/members";
 import { useMe } from "@/entities/user";
 import { clearSelectedWorkspaceId, getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/auth";
@@ -12,12 +11,10 @@ import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import type { WorkspaceResponse } from "@/entities/workspace";
-import { cx } from "@/shared/lib/classNames";
+import { SidebarWorkspaceChevronIcon } from "./SidebarIcons";
 import { canLeaveWorkspace, getWorkspaceMenuRole, type WorkspaceMenuRole } from "../model/workspaceMenu";
-import type { DocumentItemResponse } from "@/entities/document/model/document";
-import { WikiWorkPopover } from "./WikiWorkPopover";
-import { HoverHint } from "@/shared/ui/HoverHint";
 import styles from "./DocumentSidebar.module.css";
 
 /** 선택한 워크스페이스로 전환하고 화면을 새로 그린다 */
@@ -28,6 +25,9 @@ function switchWorkspace(workspaceId: string) {
 
 // 행 옵션 메뉴 너비. 채팅 세션 메뉴(.chat-session-menu-list)와 같다.
 const ROW_MENU_WIDTH = 132;
+
+// 무료 워크스페이스 소유 한도에 닿았을 때 새 워크스페이스 버튼의 안내
+const FREE_WORKSPACE_LIMIT_HINT = "무료 워크스페이스를 더 만들 수 없습니다. 사용하지 않는 워크스페이스를 삭제해 주세요.";
 
 type WorkspaceAction = "leave" | "delete";
 
@@ -56,18 +56,18 @@ const ACTION_COPY: Record<WorkspaceAction, { title: string; description: (name: 
 };
 
 /**
- * 사이드바 상단 워크스페이스 헤더 (Figma 1131:7125).
- * 이름을 클릭하면 워크스페이스 전환 메뉴, 오른쪽 목록 버튼을 클릭하면 진행 중 작업 팝오버를 연다.
- * 두 메뉴는 동시에 열리지 않는다.
+ * 사이드바 상단 바 왼쪽 워크스페이스 전환 버튼 (Figma 1527:16277: 28px 첫 글자 상자 + 이름 + 셰브론).
+ * 누르면 아래로 워크스페이스 전환 메뉴를 연다. 진행 중 작업 팝오버는 WikiWorkButton으로 옮겼다.
+ * 사이드바를 접으면 보이지 않는다(Figma 1540:18686: 접힌 레일에는 워크스페이스 버튼이 없다).
  */
-export function SidebarWorkspaceHeader({ documents = [] }: { documents?: DocumentItemResponse[] }) {
+export function SidebarWorkspaceHeader() {
   const selectedWorkspace = useSelectedWorkspace();
   const name = selectedWorkspace?.name ?? "워크스페이스";
   const [isOpen, setIsOpen] = useState(false);
-  const [isWorkOpen, setIsWorkOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreateLimitReached, setIsCreateLimitReached] = useState(false);
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const [pendingAction, setPendingAction] = useState<{ workspace: WorkspaceResponse; action: WorkspaceAction } | null>(null);
   const [runningAction, setRunningAction] = useState<WorkspaceAction | null>(null);
@@ -75,7 +75,6 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useDismissOnOutside(rootRef, isOpen, () => setIsOpen(false));
-  useDismissOnOutside(rootRef, isWorkOpen, () => setIsWorkOpen(false));
 
   useEffect(() => {
     if (!isOpen) setRowMenu(null);
@@ -89,6 +88,7 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
       .then((response) => {
         if (cancelled) return;
         setWorkspaces(response.workspaces ?? []);
+        setIsCreateLimitReached(isFreeWorkspaceLimitReached(response.free_workspace_count, response.free_workspace_limit));
         setLoadErrorMessage(null);
       })
       .catch((error: unknown) => {
@@ -107,7 +107,7 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
       const workspace = await createWorkspace("새 워크스페이스");
       switchWorkspace(workspace.id);
     } catch (error: unknown) {
-      setLoadErrorMessage(getErrorMessage(error, "워크스페이스 생성에 실패했습니다."));
+      setLoadErrorMessage(describeLimitError(error) ?? getErrorMessage(error, "워크스페이스 생성에 실패했습니다."));
       setIsCreating(false);
     }
   }
@@ -149,6 +149,11 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
         return;
       }
       setWorkspaces((current) => current.filter((item) => item.id !== workspace.id));
+      // 무료 소유 수는 삭제·탈퇴한 워크스페이스의 역할·플랜에 따라 달라 서버 값으로 다시 맞춘다.
+      // 다시 받지 못하면 지금 상태를 둔다. 메뉴를 다시 열면 새로 받고, 어긋나도 서버가 생성을 거절한다.
+      fetchWorkspaces()
+        .then((response) => setIsCreateLimitReached(isFreeWorkspaceLimitReached(response.free_workspace_count, response.free_workspace_limit)))
+        .catch(() => {});
     } catch (error: unknown) {
       setIsOpen(true);
       setLoadErrorMessage(getErrorMessage(error, ACTION_COPY[action].failed));
@@ -162,38 +167,25 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
     <div className={styles["sidebar-workspace"]} ref={rootRef}>
       {isCreating && <LoadingOverlay message="워크스페이스 생성 중…" />}
       {runningAction && <LoadingOverlay message={ACTION_COPY[runningAction].pending} />}
-      <button
-        type="button"
-        className={styles["sidebar-workspace-trigger"]}
-        aria-label="워크스페이스 전환"
-        aria-expanded={isOpen}
-        onClick={() => {
-          setIsWorkOpen(false);
-          setIsOpen((open) => !open);
-        }}
-      >
-        <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} />
-        <span className={styles["sidebar-workspace-name"]}>
-          <span>{name}</span>
-          <SvgIcon src={toggleIcon} className={cx(styles["sidebar-workspace-toggle"], isOpen && styles["is-open"])} />
-        </span>
-      </button>
-
-      <HoverHint placement="bottom" align="end" className={styles["wiki-work-trigger-hint"]} text="진행 중인 AI 작업(위키 편입·위키 최신화·PDF→MD 변환)을 확인합니다.">
-      <button
-        type="button"
-        className={styles["wiki-work-trigger"]}
-        aria-label="진행 중인 작업"
-        aria-expanded={isWorkOpen}
-        onClick={() => {
-          setIsOpen(false);
-          setIsWorkOpen((open) => !open);
-        }}
-      >
-        <SvgIcon src={listIcon} className={styles["wiki-work-icon"]} />
-      </button>
-      </HoverHint>
-      {isWorkOpen && <WikiWorkPopover documents={documents} />}
+      {/* 말풍선은 아래로 띄우고, 드롭다운이 열려 있으면 숨긴다. */}
+      <Tooltip content="워크스페이스 전환" placement="bottom" disabled={isOpen} describe={false}>
+        <button
+          type="button"
+          className={styles["sidebar-workspace-trigger"]}
+          aria-label={`워크스페이스 전환 (${name})`}
+          aria-expanded={isOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsOpen((open) => !open);
+          }}
+        >
+          <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} />
+          <span className={styles["sidebar-workspace-label"]}>
+            <span className={styles["sidebar-workspace-name"]}>{name}</span>
+            <SidebarWorkspaceChevronIcon className={styles["sidebar-workspace-chevron"]} />
+          </span>
+        </button>
+      </Tooltip>
 
       {isOpen && (
         <div className={styles["workspace-dropdown"]}>
@@ -232,7 +224,8 @@ export function SidebarWorkspaceHeader({ documents = [] }: { documents?: Documen
             type="button"
             className={styles["workspace-dropdown-new"]}
             onClick={handleCreateWorkspace}
-            disabled={isCreating}
+            disabled={isCreating || isCreateLimitReached}
+            title={isCreateLimitReached ? FREE_WORKSPACE_LIMIT_HINT : undefined}
           >
             <Plus size={12} />새 워크스페이스
           </button>

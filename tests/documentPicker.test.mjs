@@ -79,6 +79,7 @@ test("참고 문서 업로드는 PDF를 막고 Markdown·txt만 받는다", () =
 test("참고 문서 업로드 실패는 413·415·이름 충돌·origin 오류를 구분해 안내한다", () => {
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 415, "UNSUPPORTED_FILE_TYPE")), /\.md.*\.txt/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "MARKDOWN_CONTENT_TOO_LARGE")), /5MB/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "STORAGE_QUOTA_EXCEEDED")), /저장 공간이 부족합니다/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 409, "DUPLICATE_NAME")), /같은 이름/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 409)), /처리 중/);
   assert.match(describeSkillReferenceUploadError(new ApiError("x", 400, "INVALID_DOCUMENT_ORIGIN")), /올릴 수 없는/);

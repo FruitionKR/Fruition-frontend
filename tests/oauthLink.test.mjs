@@ -6,7 +6,7 @@ const {
   parseOAuthLinkCallback,
   saveOAuthLinkResult,
   hasOAuthLinkResult,
-  signupOAuthHint,
+  signupOAuthConflictMessage,
   takeOAuthLinkResult
 } = await import("../src/entities/user/model/oauthLink.ts");
 
@@ -38,10 +38,10 @@ test("연동·해제 실패는 서버 error.code로 안내하고, 모르는 code
   assert.equal(oauthAccountErrorMessage("not an error", "fb"), "fb");
 });
 
-test("소셜 가입 이메일이면 provider 이름으로 기존 계정 연동을 안내하고, 없으면 안내하지 않는다", () => {
-  assert.equal(signupOAuthHint([]), null);
-  assert.match(signupOAuthHint(["google"]), /^이 이메일은 Google로 가입된 계정이 있습니다\. 기존 계정으로 로그인한 뒤 설정에서 연동하세요\./);
-  assert.match(signupOAuthHint(["google", "kakao"]), /Google, 카카오로 가입된/);
+test("소셜 가입 이메일이면 가입을 막고 그 소셜 로그인으로 안내하며, 없으면 막지 않는다", () => {
+  assert.equal(signupOAuthConflictMessage([]), null);
+  assert.equal(signupOAuthConflictMessage(["google"]), "이미 Google로 가입된 이메일입니다. 로그인 화면에서 Google로 로그인해 주세요.");
+  assert.match(signupOAuthConflictMessage(["google", "kakao"]), /^이미 Google, 카카오로 가입된/);
 });
 
 test("연동 결과는 한 번만 읽히고, 형식이 틀린 값은 버린다", () => {
