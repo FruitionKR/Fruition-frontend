@@ -2,6 +2,7 @@
 import { state, id, sleep, error, requireWorkspace, upsertMessage } from "../state.mjs";
 
 const STAGE_DELAY_MS = 700;
+const CANCEL_STEP_DELAY_MS = 1_000;
 const MAX_EVIDENCE = 4;
 const STAGES = [
   ["routing", "질문 의도를 분류하는 중"],
@@ -87,6 +88,11 @@ function buildAnswer(workspace, question, related, allowWebSearch) {
   return { answer: lines.join("\n"), evidence };
 }
 
+/** AI 작업 상태 응답. 실제 서버는 error_code가 없으면 빈 문자열을 준다. */
+function toTaskStatus(run) {
+  return { id: run.id, status: run.status, error_code: run.error_code ?? "" };
+}
+
 export function createQueryRun(workspace, session, question, options) {
   const run = { id: id("query"), workspace_id: workspace.id, session_id: session.id, status: "queued", error_code: null, result: null, question, options, sequence: 0 };
   state.queryRuns.set(run.id, run);
@@ -124,7 +130,7 @@ export function registerQueryRoutes(router) {
     for (const [stage, message] of STAGES) {
       await sleep(STAGE_DELAY_MS);
       if (stream.closed()) return;
-      if (run.status === "cancel_requested" || run.status === "cancelled") {
+      if (run.status !== "running") {
         stream.send("query.cancelled", { request_id: run.id });
         return stream.close();
       }
@@ -142,16 +148,25 @@ export function registerQueryRoutes(router) {
     ctx.json(200, { request_id: run.id, status: run.status, result: run.result });
   });
 
+  /**
+   * 실제 AiTaskCancellationService처럼 200 + { id, status, error_code }를 돌려준다.
+   * completed도 cancel_requested로 바꿔 rolling_back을 거쳐 cancelled로 복구한다.
+   */
   router.post("/api/workspaces/:wid/ai/tasks/:id/cancel", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
     const run = state.queryRuns.get(ctx.params.id) ?? state.agentTurns.get(ctx.params.id);
     if (!run) return error(ctx, 404, "작업을 찾을 수 없습니다.");
-    if (run.status !== "completed" && run.status !== "cancelled") {
+    if (run.status !== "cancelled" && run.status !== "rolling_back") {
       run.status = "cancel_requested";
-      setTimeout(() => { if (run.status === "cancel_requested") run.status = "cancelled"; }, 1000);
+      run.error_code = null;
+      setTimeout(() => {
+        if (run.status !== "cancel_requested") return;
+        run.status = "rolling_back";
+        setTimeout(() => { if (run.status === "rolling_back") run.status = "cancelled"; }, CANCEL_STEP_DELAY_MS);
+      }, CANCEL_STEP_DELAY_MS);
     }
-    ctx.json(202, { task_id: run.id, status: run.status, error_code: run.error_code ?? null });
+    ctx.json(200, toTaskStatus(run));
   });
 
   router.get("/api/workspaces/:wid/ai/tasks/:id", (ctx) => {
@@ -159,6 +174,6 @@ export function registerQueryRoutes(router) {
     if (!workspace) return;
     const run = state.queryRuns.get(ctx.params.id) ?? state.agentTurns.get(ctx.params.id);
     if (!run) return error(ctx, 404, "작업을 찾을 수 없습니다.");
-    ctx.json(200, { task_id: run.id, status: run.status, error_code: run.error_code ?? null });
+    ctx.json(200, toTaskStatus(run));
   });
 }

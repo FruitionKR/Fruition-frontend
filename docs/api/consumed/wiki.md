@@ -23,7 +23,7 @@ rewrite를 경유하고, `chat/**`은 정규식에 있어 직접 전송 대상�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki` | 채팅 내용을 원문 문서로 저장 | `src/features/wiki-export/api/export.ts` `exportChatWiki` | `workspacePath(workspaceId, "chat", "sessions", sessionId, "wiki")` | `{ selection_mode, pair_ids }`. `pairIds`가 비면 `full`+`[]`, 있으면 `partial`+선택 ID | `exportDocumentId`, `status` | 세션 ID는 `getSessionContext()`(`src/entities/chat/api/chat.ts`)가 캐시·조회·생성 순으로 확보한다. 저장만 하고 ingest는 별도 요청이다 |
+| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki` | 채팅 내용을 원문 문서로 저장 | `src/features/wiki-export/api/export.ts` `exportChatWiki` | `workspacePath(workspaceId, "chat", "sessions", sessionId, "wiki")` | `{ pair_ids }`. 비어 있으면 400이라 세션 전체도 모든 pair id를 담아 보낸다 | `exportDocumentId`, `status` | 세션 ID는 `getSessionContext()`(`src/entities/chat/api/chat.ts`)가 캐시·조회·생성 순으로 확보한다. 저장만 하고 ingest는 별도 요청이다 |
 
 내보낸 문서의 Wiki 편입은 문서 계열 경로
 (`documents/{document_id}/ingest` 또는 `convert-markdown`)로 이어진다. [document.md](document.md) 참조.
