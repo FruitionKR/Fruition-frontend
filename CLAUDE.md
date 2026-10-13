@@ -2,7 +2,7 @@
 
 ## 작업 범위
 
-- 이 디렉터리에서는 프론트엔드 코드만 수정한다.
+- 이 디렉터리에서는 프론트엔드 코드만 수정한다. 실행 가능한 Next.js 프로젝트는 `web/` 아래에 있고, npm 명령은 `web/`에서 실행한다.
 - 전체 프로젝트 완성은 프론트엔드 코드 변경으로 달성한다.
 - 백엔드, 인프라, AI/LLM pipeline 코드는 직접 수정하지 않는다.
 
@@ -25,13 +25,13 @@
 **Never run `npm run build` while the dev server is running. Use `tsc --noEmit` for verification during development.**
 
 - dev 서버(`next dev`, :3000)가 떠 있는 동안 같은 디렉터리에서 `npm run build`를 실행하지 않는다. 프로덕션 빌드가 `.next`를 덮어써 dev 산출물과 섞이면 CSS/청크가 어긋나 화면에 스타일이 적용되지 않는다.
-- 개발 중 코드 검증은 `npx tsc --noEmit`으로 한다.
+- 개발 중 코드 검증은 `web/`에서 `npx tsc --noEmit`으로 한다.
 - 프로덕션 빌드 검증이 꼭 필요하면 먼저 이 저장소에서 실행한 dev 서버를 종료하고 빌드한 뒤 `npm run dev`로 재기동한다.
 - `.next`가 이미 섞여 스타일이 깨진 경우: dev 서버 종료 → `rm -rf .next` → 재기동 → 브라우저 강력 새로고침.
 
 ## 허용되는 변경
 
-- `app`, `src/shared/assets/svg`, `package.json`, `next.config.mjs` 등 프론트엔드 실행과 화면 구현에 필요한 파일 수정
+- `web/app`, `web/src/shared/assets/svg`, `web/package.json`, `web/next.config.mjs` 등 프론트엔드 실행과 화면 구현에 필요한 파일 수정
 - 백엔드 API 호출을 위한 프론트엔드 fetch/client 코드 작성
 - 백엔드 응답을 화면 상태와 UI 컴포넌트에 맞게 변환하는 코드 작성
 - 프론트엔드 레이아웃, 스타일, 인터랙션, 접근성 개선

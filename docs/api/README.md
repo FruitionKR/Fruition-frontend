@@ -68,7 +68,7 @@ rewrite를 우회해 document-svc 오리진으로 직접 전송된다. 판정 �
 
 | 문서 | 내용 |
 |---|---|
-| [client.md](client.md) | `src/shared/api` 전송 계층 계약 |
+| [client.md](client.md) | `web/src/shared/api` 전송 계층 계약 |
 | [served.md](served.md) | 이 저장소가 제공하는 route handler와 middleware |
 | [consumed/README.md](consumed/README.md) | 소비 API 도메인 목차 |
 | [uncalled.md](uncalled.md) | 미호출 backend API와 의도적 비사용·실제 공백 분류 |
@@ -79,7 +79,7 @@ rewrite를 우회해 document-svc 오리진으로 직접 전송된다. 판정 �
 - Next.js route handler와 `middleware.ts`는 **전수 추적하지 않았다**. 두 route handler 파일과
   middleware 파일 자체는 읽었지만, 서버 측에서 route handler를 경유해 backend로 나가는 경로를
   전부 쫓지는 않았다. 그런 경로가 있다면 이 문서의 소비 목록에서 빠질 수 있다.
-- `mock/`은 `npm run mock` / `npm run dev:mock` 전용 개발 도구다. `src/`·`app/`의 어떤 모듈도
-  `mock/`을 import하지 않으므로 배선이 아니라 개발 도구로만 기록한다.
+- `web/mock/`은 `npm run mock` / `npm run dev:mock` 전용 개발 도구다. `web/src/`·`web/app/`의 어떤 모듈도
+  `web/mock/`을 import하지 않으므로 배선이 아니라 개발 도구로만 기록한다.
 - 어떤 backend API가 존재한다는 사실만으로 대응 UI가 있다고 기술하지 않았다. UI 유무는
   호출 모듈을 실제로 확인한 범위에서만 적는다.

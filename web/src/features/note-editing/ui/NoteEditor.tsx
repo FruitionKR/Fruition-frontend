@@ -1,0 +1,657 @@
+"use client";
+
+import "@milkdown/crepe/theme/common/style.css";
+// 라이트 frame 테마를 기본으로 두고, 색 변수는 NoteEditor.module.css에서 앱 토큰으로 덮어 다크 모드도 맞춘다.
+import "@milkdown/crepe/theme/frame.css";
+
+import { useCallback, useEffect, useRef } from "react";
+import { Crepe, CrepeFeature } from "@milkdown/crepe";
+import { TableNodeView } from "@milkdown/kit/component/table-block";
+import { editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
+import type { KeymapItem } from "@milkdown/core";
+import { closeHistory, history as prosemirrorHistory } from "@milkdown/prose/history";
+import { listItemSchema } from "@milkdown/kit/preset/commonmark";
+import { Slice } from "@milkdown/prose/model";
+import { liftListItem } from "@milkdown/prose/schema-list";
+import { TextSelection } from "@milkdown/prose/state";
+import { CellSelection } from "@milkdown/prose/tables";
+import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownEditContext";
+import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import type { NoteSaveStatus } from "@/entities/tree/model/tree";
+import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
+import { useEditLock } from "../model/useEditLock";
+import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
+import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/strikethroughInputRule";
+import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/headingInputRules";
+import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
+import { uploadConfig } from "@milkdown/kit/plugin/upload";
+import { preserveImageAlt } from "../model/preserveImageAltPlugin";
+import { refitImageBlocks } from "../model/imageBlockHeight";
+import { ALLOW_EXTERNAL_IMAGES_META, blockedImagePlaceholderUrl, createExternalImageGuard, createExternalImagePasteHandler } from "../model/externalImageGuard";
+import { $prose } from "@milkdown/utils";
+import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
+import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
+import { publishNotice } from "@/features/document-notifications";
+import { useUserPreferences } from "@/entities/user";
+import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
+import { DocumentLoading } from "@/shared/ui/DocumentLoading";
+import { configureMathEditor } from "../model/mathEditorConfig";
+import styles from "./NoteEditor.module.css";
+
+/** Backspace로 리스트 항목의 첫 문단 맨 앞을 지우면 문단을 리스트 밖으로 빼낸다 (Shift+Tab과 동일).
+ *  commonmark 기본 동작은 joinBackward라 문단이 list_item 안에 남아,
+ *  '-'를 지운 뒤에도 캐럿이 들여쓰기된 자리에 계속 머무른다. */
+const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, view) => {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  const { $from } = selection;
+  // 리스트 항목의 첫 블록 맨 앞일 때만 처리하고, 나머지는 기본 Backspace에 넘긴다
+  if ($from.parentOffset !== 0 || $from.index(-1) !== 0) return false;
+  const listItemType = listItemSchema.type(ctx);
+  if ($from.node(-1).type !== listItemType) return false;
+  return liftListItem(listItemType)(state, dispatch, view);
+};
+
+// 링크 입력처럼 글자마다 막히는 경로에서 알림 카드가 쌓이지 않게 한다.
+// 안내 문구마다 따로 세어, 종류가 다른 차단은 3초 안이어도 알린다.
+/** 빈 본문 안내 문구(Figma 426:2202). WYSIWYG·소스 모드가 같은 문구를 쓴다. */
+const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하거나 내용을 입력하세요";
+
+/** root 아래 DOM 변경을 감시하고 정리 함수를 돌려준다. 편집기 DOM 보정 effect들이 함께 쓴다. */
+function observeMutations(root: HTMLElement, options: MutationObserverInit, onMutate: () => void): () => void {
+  const observer = new MutationObserver(onMutate);
+  observer.observe(root, options);
+  return () => observer.disconnect();
+}
+
+const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
+const lastExternalImageNoticeAt = new Map<string, number>();
+
+function notifyExternalImageBlocked(message: string = EXTERNAL_IMAGE_BLOCKED_MESSAGE) {
+  const now = Date.now();
+  if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
+  lastExternalImageNoticeAt.set(message, now);
+  publishNotice({ kind: "failed", title: "외부 이미지 차단", message });
+}
+
+const externalImageGuard = $prose(() => createExternalImageGuard(() => notifyExternalImageBlocked()));
+
+
+export function NoteEditor({
+  documentId,
+  marker,
+  initialBody,
+  initialVersion,
+  onMarkdownEditContextChange,
+  onSaveStatusChange,
+  onDetachedSaveComplete,
+  onRegisterSave
+}: {
+  documentId: string;
+  marker: string;
+  initialBody: string;
+  initialVersion: number;
+  onMarkdownEditContextChange?: (context: ActiveMarkdownEditContext | null) => void;
+  onSaveStatusChange?: (status: NoteSaveStatus, errorMessage: string | null) => void;
+  onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
+  /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
+  onRegisterSave?: (save: () => Promise<boolean>) => void;
+}) {
+  // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
+  const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
+  const { preferences } = useUserPreferences();
+  const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
+    documentId,
+    marker,
+    initialVersion,
+    onDetachedSaveComplete,
+    onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved),
+    autoSave: preferences.autoSave
+  });
+  // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
+  const editLock = useEditLock({
+    documentId,
+    onLockLost: (message) => {
+      reportSaveBlock("lock-lost", message);
+      // 저장 상태 표시만으로는 놓치기 쉬운 상황이라 알림으로도 알린다.
+      publishNotice({ kind: "failed", title: "편집 권한 상실", message });
+    }
+  });
+  // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
+  const canEdit = editLock.phase === "granted" || editLock.phase === "lost";
+  const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
+  const crepeRef = useRef<Crepe | null>(null);
+  const bodyRef = useRef(initialBody);
+  const queueSaveRef = useRef(queueSave);
+  const publishMarkdownEditContextRef = useRef<(
+    markdownValue: string,
+    from?: number,
+    to?: number,
+    wholeDocument?: boolean
+  ) => void>(() => {});
+  const programmaticBodyRef = useRef<string | null>(null);
+  const saveNowRef = useRef(saveNow);
+  queueSaveRef.current = queueSave;
+  saveNowRef.current = saveNow;
+
+  useEffect(() => {
+    onRegisterSave?.(() => saveNowRef.current(bodyRef.current));
+  }, [onRegisterSave]);
+
+  /** 본문 전체를 프로그램적으로 바꾼다. 사용자 편집으로 저장되지 않게 반향을 표시하고 undo 히스토리에서 제외한다. */
+  const replaceEditorMarkdown = useCallback((nextMarkdown: string) => {
+    bodyRef.current = nextMarkdown;
+    programmaticBodyRef.current = nextMarkdown;
+    // 전체 문서 교체를 undo 히스토리에서 제외한다.
+    // (기본 replaceAll은 통째 트랜잭션이라 cmd+z 한 번에 문서 전체가 되돌려짐)
+    crepeRef.current?.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const parser = ctx.get(parserCtx);
+      const doc = parser(nextMarkdown);
+      if (!doc) return;
+      // 편집기는 목록·빈 항목 등을 정규화한다. 이 반향은 사용자 편집으로 저장하지 않는다.
+      programmaticBodyRef.current = ctx.get(serializerCtx)(doc);
+      const { state } = view;
+      const { from, to } = state.selection;
+      const tr = state.tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0));
+      // 전체 교체는 위치 매핑이 무의미하므로 캐럿을 같은 자리(범위 밖이면 가장 가까운 자리)로 되돌린다.
+      // 이미지 placeholder → 관리 경로 치환은 노드 크기가 같아 위치가 그대로고, AI 편집도 문서 끝으로 튀지 않는다.
+      const size = tr.doc.content.size;
+      tr.setSelection(TextSelection.between(tr.doc.resolve(Math.min(from, size)), tr.doc.resolve(Math.min(to, size))));
+      tr.setMeta("addToHistory", false);
+      // AI 편집 적용 등 프로그램 교체다. 외부 이미지가 들어 있어도 화면엔 자리 표시만 나온다.
+      tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
+      view.dispatch(tr);
+    });
+  }, []);
+
+  const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
+    if (bodyRef.current !== expectedMarkdown) return false;
+    replaceEditorMarkdown(nextMarkdown);
+    queueSaveRef.current(nextMarkdown, "agent", applyOperationId);
+    return true;
+  }, [replaceEditorMarkdown]);
+
+  // 서버가 이미지 placeholder를 관리 경로로 바꿔 주면 편집기 본문에도 반영한다.
+  // 문서를 다시 파싱하지 않고 이미지 노드의 src만 제자리에서 바꾸므로 캐럿·입력 중인 내용이 흔들리지 않는다.
+  onAttachmentsSavedRef.current = (saved) => {
+    const paths = new Map(saved.map((entry) => [entry.attachment_id.toLowerCase(), entry.content_path]));
+    const crepe = crepeRef.current;
+    if (!crepe) {
+      // 편집기가 아직 준비되지 않았으면 본문 문자열만 바꾼다.
+      const next = substituteAttachmentPaths(bodyRef.current, paths);
+      if (next !== bodyRef.current) replaceEditorMarkdown(next);
+      return;
+    }
+    crepe.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const tr = view.state.tr;
+      view.state.doc.descendants((node, pos) => {
+        const src = typeof node.attrs.src === "string" ? node.attrs.src : null;
+        if (!src) return;
+        const next = substituteAttachmentPaths(src, paths);
+        if (next !== src) tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: next });
+      });
+      if (!tr.docChanged) return;
+      tr.setMeta("addToHistory", false);
+      // 이 변경은 서버 상태와 같으므로 사용자 편집으로 저장하지 않는다.
+      const nextBody = ctx.get(serializerCtx)(tr.doc);
+      bodyRef.current = nextBody;
+      programmaticBodyRef.current = nextBody;
+      view.dispatch(tr);
+    });
+  };
+
+  const publishMarkdownEditContext = useCallback((
+    markdownValue: string,
+    from = 0,
+    to = 0,
+    wholeDocument = false
+  ) => {
+    onMarkdownEditContextChange?.({
+      documentId,
+      baseVersion: contentVersion,
+      editorSnapshot: wholeDocument
+        ? {
+            markdown: markdownValue,
+            target: {
+              type: "whole_document",
+              startLine: 1,
+              endLine: markdownValue.split("\n").length
+            }
+          }
+        : buildMarkdownEditorSnapshot(markdownValue, from, to),
+      applyMarkdown
+    });
+  }, [applyMarkdown, contentVersion, documentId, onMarkdownEditContextChange]);
+  publishMarkdownEditContextRef.current = publishMarkdownEditContext;
+
+  useEffect(() => {
+    onSaveStatusChange?.(status, errorMessage);
+  }, [errorMessage, onSaveStatusChange, status]);
+
+  useEffect(() => {
+    publishMarkdownEditContext(bodyRef.current, 0, 0, true);
+  }, [publishMarkdownEditContext]);
+
+  useEffect(() => () => onMarkdownEditContextChange?.(null), [onMarkdownEditContextChange]);
+
+  // 아래 편집기 DOM 보정 effect들은 root가 있을 때만 연결한다. root는 편집 권한을 받을 때(canEdit)
+  // 렌더되므로, canEdit·documentId는 다시 연결할 시점을 알리려고 의존성에만 둔다.
+  // 표 행/열 추가 핸들을 오른쪽·아래쪽 바깥 경계에서만 노출한다.
+  // (위젯이 placement를 DOM에 남기지 않아 좌표로 판별한다)
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    const EDGE_TOLERANCE_PX = 8;
+
+    return observeMutations(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] }, () => {
+      root.querySelectorAll<HTMLElement>(".milkdown-table-block").forEach((block) => {
+        const table = block.querySelector<HTMLElement>("table.children");
+        if (!table) return;
+        const tableRect = table.getBoundingClientRect();
+
+        const yHandle = block.querySelector<HTMLElement>('[data-role="y-line-drag-handle"]');
+        if (yHandle?.dataset.show === "true"
+          && yHandle.dataset.displayType === "tool"
+          && yHandle.getBoundingClientRect().left < tableRect.right - EDGE_TOLERANCE_PX) {
+          yHandle.dataset.show = "false";
+        }
+
+        const xHandle = block.querySelector<HTMLElement>('[data-role="x-line-drag-handle"]');
+        if (xHandle?.dataset.show === "true"
+          && xHandle.dataset.displayType === "tool"
+          && xHandle.getBoundingClientRect().top < tableRect.bottom - EDGE_TOLERANCE_PX) {
+          xHandle.dataset.show = "false";
+        }
+      });
+    });
+  }, [canEdit, documentId]);
+
+  // 편집기 폭이 바뀌면(채팅창 열고 닫기 등) 이미지 블록 높이를 새 폭으로 다시 계산한다(이슈 #63).
+  // 높이를 바꾸면 root 높이도 바뀌어 다시 불리므로 폭이 같을 때는 무시한다.
+  // 편집 권한 확인 중에는 root가 없으므로 canEdit이 바뀌면 다시 연결한다.
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    let lastWidth = -1;
+    let frame = 0;
+    // data-origin이 없는 이미지(폭 0일 때 로드)는 DOM에 ratio가 없어 노드 attr에서 읽는다.
+    const readRatio = (host: Element) => {
+      try {
+        return crepeRef.current?.editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const node = view.state.doc.nodeAt(view.posAtDOM(host, 0));
+          return node?.type.name === "image-block" ? Number(node.attrs.ratio) : undefined;
+        });
+      } catch {
+        // 편집기가 이미 정리됐으면 기본 ratio(1)로 계산한다.
+        return undefined;
+      }
+    };
+
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      // 1px 미만의 소수점 흔들림은 무시한다(높이 재계산 → 폭 미세 변화 → 재계산 반복 방지).
+      if (Math.abs(width - lastWidth) < 1) return;
+      lastWidth = width;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => refitImageBlocks(root, readRatio));
+    });
+    observer.observe(root);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [canEdit, documentId]);
+
+  // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
+  // (Crepe가 버튼에 라벨·식별 속성을 넣지 않아 렌더 순서로 매핑한다: 볼드→기울임→취소선→코드→[수식]→링크)
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    const LABELS_WITH_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "수식", "링크"];
+    const LABELS_WITHOUT_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "링크"];
+
+    return observeMutations(root, { subtree: true, childList: true }, () => {
+      root.querySelectorAll<HTMLElement>(".milkdown-toolbar").forEach((toolbar) => {
+        const items = toolbar.querySelectorAll<HTMLButtonElement>(".toolbar-item");
+        const labels = items.length === LABELS_WITH_LATEX.length ? LABELS_WITH_LATEX : LABELS_WITHOUT_LATEX;
+        items.forEach((item, index) => {
+          const label = labels[index];
+          if (!label || item.dataset.tooltip === label) return;
+          item.dataset.tooltip = label;
+          item.setAttribute("aria-label", label);
+        });
+      });
+    });
+  }, [canEdit, documentId]);
+
+  // 이미지 블록의 링크 입력칸은 글자를 받는 즉시 <img src={입력값}> 미리보기를 그려 외부 주소를 요청한다.
+  // Crepe 컴포넌트(Vue)가 입력 요소에 단 리스너보다 먼저 capture 단계에서 막고 입력값을 비운다(이슈 #77).
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    const onInput = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || !target.matches(".image-edit .link-input-area")) return;
+      if (!target.value || isAllowedImageSource(target.value)) return;
+      event.stopPropagation();
+      target.value = "";
+      notifyExternalImageBlocked();
+    };
+    root.addEventListener("input", onInput, true);
+    return () => root.removeEventListener("input", onInput, true);
+  }, [canEdit, documentId]);
+
+  // '/' 슬래시 메뉴가 화면 밖으로 넘어가지 않게 표시 위치를 viewport 안으로 보정한다.
+  // (Crepe는 flip만 적용하고 shift 미들웨어를 노출하지 않아 가장자리에서 잘림)
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    const VIEWPORT_MARGIN_PX = 8;
+
+    return observeMutations(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] }, () => {
+      const menu = root.querySelector<HTMLElement>(".milkdown-slash-menu");
+      if (!menu || menu.dataset.show !== "true") return;
+      const rect = menu.getBoundingClientRect();
+      let deltaX = 0;
+      let deltaY = 0;
+      if (rect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
+        deltaX = window.innerWidth - VIEWPORT_MARGIN_PX - rect.right;
+      }
+      if (rect.left + deltaX < VIEWPORT_MARGIN_PX) deltaX = VIEWPORT_MARGIN_PX - rect.left;
+      if (rect.bottom > window.innerHeight - VIEWPORT_MARGIN_PX) {
+        deltaY = window.innerHeight - VIEWPORT_MARGIN_PX - rect.bottom;
+      }
+      if (rect.top + deltaY < VIEWPORT_MARGIN_PX) deltaY = VIEWPORT_MARGIN_PX - rect.top;
+      if (deltaX === 0 && deltaY === 0) return;
+      menu.style.left = `${parseFloat(menu.style.left || "0") + deltaX}px`;
+      menu.style.top = `${parseFloat(menu.style.top || "0") + deltaY}px`;
+    });
+  }, [canEdit, documentId]);
+
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+
+    let isDisposed = false;
+    // Crepe의 create/destroy가 비동기라 root를 공유하면 이전 인스턴스 DOM이 남은 채
+    // 다음 인스턴스가 붙어 편집기 높이가 잠깐 두 배가 된다(문서 전환·StrictMode 재실행).
+    // 인스턴스마다 전용 host를 두고 정리 때 동기로 떼어내 겹침을 없앤다.
+    const host = document.createElement("div");
+    root.appendChild(host);
+
+    // 이 편집기가 잡은 관리 이미지 참조. 정리 때 한꺼번에 놓아 object URL이 새지 않게 한다.
+    const acquiredAssetPaths = new Set<string>();
+    const acquireManagedAsset = (path: string) => {
+      // 같은 경로는 편집기당 한 번만 참조를 잡는다. 미리 받기와 이미지 블록 렌더가 겹쳐도 release 횟수와 맞는다.
+      if (acquiredAssetPaths.has(path)) {
+        const inFlight = peekAssetObjectUrl(path);
+        if (inFlight) return inFlight;
+      }
+      acquiredAssetPaths.add(path);
+      return acquireAssetObjectUrl(path);
+    };
+
+    const crepe = new Crepe({
+      root: host,
+      defaultValue: bodyRef.current,
+      features: {
+        [CrepeFeature.AI]: false,
+        [CrepeFeature.TopBar]: false
+      },
+      featureConfigs: {
+        // 이미지: 붙여넣기·드롭·'/' 메뉴 모두 onUpload를 거친다. 저장 전에는 attachment:// placeholder + object URL로 보여주고,
+        // 저장 시 파일을 함께 보내 서버 관리 경로로 치환한다(이슈 #18).
+        [CrepeFeature.ImageBlock]: {
+          // maxWidth/maxHeight를 지정하면 refitImageBlocks(model/imageBlockHeight.ts)에도 같은 값을 넘겨야 한다.
+          // 붙여넣기·드롭은 아래 uploader 래퍼가 먼저 걸러 여기엔 유효한 파일만 온다.
+          // '/' 메뉴·업로드 버튼 경로만 여기서 검사하며, 던지면 Crepe가 빈 노드를 남기므로 안내 후 거부한다.
+          onUpload: async (file) => {
+            const problem = validateImageFile(file);
+            if (problem) {
+              publishNotice({ kind: "failed", title: "이미지 첨부 실패", message: problem });
+              return Promise.reject(new Error(problem));
+            }
+            return pendingImages.register(file);
+          },
+          // 저장 전 placeholder는 로컬 미리보기, 저장된 관리 경로는 인증 fetch로 받는다.
+          // 이미 받아 둔 경로는 동기로 돌려줘야 이미지 블록이 첫 렌더에서 원본 경로(401)를 요청하지 않는다.
+          // 외부 주소·관리 경로가 아닌 src는 요청하지 않고 자리 표시 그림을 돌려준다(이슈 #77). 노드 src는 그대로라 본문은 바뀌지 않는다.
+          // 빈 src는 그대로 둬야 이미지 블록이 업로드 입력칸을 보여준다.
+          proxyDomURL: (url) => {
+            const pending = pendingImages.resolve(url);
+            if (pending) return pending;
+            if (!url) return url;
+            const source = classifyImageSource(url);
+            if (source.kind === "external") return blockedImagePlaceholderUrl(source.host);
+            if (source.kind === "unsupported") return blockedImagePlaceholderUrl(null);
+            if (source.kind === "inline") return url;
+            const cached = getCachedAssetObjectUrl(url);
+            if (cached) {
+              // 동기로 돌려주되 이 편집기의 참조도 잡아 둔다. 안 잡으면 다른 사용처가 놓을 때 표시 중인 URL이 revoke된다.
+              void acquireManagedAsset(url).catch(() => undefined);
+              return cached;
+            }
+            return acquireManagedAsset(url).catch(() => url);
+          },
+          inlineUploadButton: "이미지 선택",
+          inlineUploadPlaceholderText: "이미지 파일을 선택해 올려 주세요",
+          blockUploadButton: "이미지 선택",
+          blockUploadPlaceholderText: "이미지 파일을 선택해 올려 주세요",
+          blockConfirmButton: "확인",
+          blockCaptionPlaceholderText: "캡션 입력"
+        },
+        // '/' 슬래시 메뉴 한글화
+        [CrepeFeature.BlockEdit]: {
+          // 문서 편집에서는 블록 이동 핸들을 표시하지 않고 '/' 입력 메뉴만 유지한다.
+          blockHandle: { shouldShow: () => false },
+          buildMenu: (builder) => {
+            const math = builder.getGroup("advanced").group.items.find((item) => item.key === "math");
+            if (math) math.onRun = insertMathFromSlash;
+          },
+          textGroup: {
+            label: "텍스트",
+            text: { label: "본문" },
+            h1: { label: "제목 1" },
+            h2: { label: "제목 2" },
+            h3: { label: "제목 3" },
+            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/headingInputRules.ts).
+            h4: null,
+            h5: null,
+            h6: null,
+            quote: { label: "인용" },
+            divider: { label: "구분선" }
+          },
+          listGroup: {
+            label: "목록",
+            bulletList: { label: "글머리 기호 목록" },
+            orderedList: { label: "번호 목록" },
+            taskList: { label: "체크리스트" }
+          },
+          advancedGroup: {
+            label: "고급",
+            image: { label: "이미지" },
+            codeBlock: { label: "코드 블록" },
+            table: { label: "표" },
+            math: { label: "수식" }
+          }
+        },
+        // 문서 전체가 비었을 때만 보여 준다(새 노트 본문은 비어 있다). 데코레이션이라 저장되는 마크다운에는 들어가지 않는다.
+        [CrepeFeature.Placeholder]: {
+          text: NOTE_BODY_PLACEHOLDER,
+          mode: "doc"
+        }
+      }
+    }).on((listener) => {
+      listener.markdownUpdated((_ctx, nextBody, previousBody) => {
+        if (isDisposed || nextBody === previousBody) return;
+        if (programmaticBodyRef.current === nextBody) {
+          programmaticBodyRef.current = null;
+          return;
+        }
+        programmaticBodyRef.current = null;
+        bodyRef.current = nextBody;
+          publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
+        queueSaveRef.current(nextBody);
+      });
+    });
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(cappedHeadingInputRule).use(externalImageGuard).config((ctx) => {
+      // direct prop이라 Milkdown clipboard plugin의 handlePaste보다 먼저 실행된다.
+      const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), () => notifyExternalImageBlocked());
+      ctx.update(editorViewOptionsCtx, (previous) => ({
+        ...previous,
+        handlePaste: (view, event, slice) => guardPaste(view, event, slice) || (previous.handlePaste?.(view, event, slice) ?? false)
+      }));
+      configureMarkdownMath(ctx);
+      configureStrikethrough(ctx);
+      disableSmallHeadingShortcuts(ctx);
+      preserveImageAlt(ctx);
+      // 붙여넣기·드롭 묶음에서 넣을 수 없는 이미지만 빼고 나머지는 그대로 올린다.
+      // Crepe 기본 uploader는 한 장이 실패하면 묶음 전체를 버리고 로딩 표시를 지우지 않는다.
+      ctx.update(uploadConfig.key, (previous) => ({
+        ...previous,
+        uploader: (files, schema, uploaderCtx, insertPos) => {
+          const { accepted, rejected } = partitionImageFiles(files);
+          if (rejected.length > 0) {
+            publishNotice({
+              kind: "failed",
+              title: "이미지 첨부 실패",
+              message: rejected.length === 1 ? rejected[0].reason : `${rejected.length}개 이미지를 넣을 수 없습니다. ${rejected[0].reason}`
+            });
+          }
+          if (accepted.length === 0) return Promise.resolve([]);
+          const transfer = new DataTransfer();
+          accepted.forEach((file) => transfer.items.add(file));
+          return previous.uploader(transfer.files, schema, uploaderCtx, insertPos);
+        }
+      }));
+      configureMathEditor(ctx);
+      disableBlockHandle(ctx);
+      // commonmark 기본 Backspace(priority 50)보다 먼저 실행시킨다
+      ctx.get(keymapCtx).add({ key: "Backspace", priority: 100, onRun: liftListItemOnBackspace });
+    });
+    crepeRef.current = crepe;
+    // 본문에 이미 있는 관리 이미지는 편집기를 만들기 전에 받아 둔다. 그래야 이미지 블록 첫 렌더에서
+    // proxyDomURL이 동기로 object URL을 돌려줘 원본 경로(401) 요청이 나가지 않는다.
+    // 이 동안 편집기 영역이 비어 보이므로 오래 기다리지 않는다. 느린 망에서는 원본 경로 요청 한 번(401)을 감수한다.
+    const PREFETCH_CAP_MS = 1_000;
+    const prefetchAssets = Promise.race([
+      Promise.allSettled(extractManagedAssetPaths(bodyRef.current).map((path) => acquireManagedAsset(path))),
+      new Promise<void>((resolve) => setTimeout(resolve, PREFETCH_CAP_MS))
+    ]);
+    // 미리 받기 도중 정리됐으면(StrictMode 이중 실행·빠른 문서 전환) 만들지 않는다. 만들면 캐시가 비어 원본 경로(401)를 요청한다.
+    const ready = prefetchAssets.then(() => (isDisposed ? crepe.editor : crepe.create()));
+    // 입력 하나가 되돌리기 한 단계가 되도록 history의 그룹 병합을 사실상 끈다.
+    // editor.config로 historyProviderConfig를 넣으면 plugin이 만들어질 때 이미 읽힌 뒤라
+    // 반영되지 않으므로, 생성이 끝난 뒤 ProseMirror state에서 plugin을 교체한다.
+    // newGroupDelay는 0을 쓸 수 없다 — prosemirror-history가 `config.newGroupDelay || 500`으로
+    // 읽어 falsy인 0을 기본값 500으로 되돌린다. 1이 실질적인 최소값이다.
+    void ready.then(() => {
+      if (isDisposed) return;
+      crepe.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        // 선택 장식만 바뀔 때 표 DOM을 재생성하면 누르고 있던 드래그 핸들이 사라진다.
+        view.setProps({
+          nodeViews: {
+            ...view.props.nodeViews,
+            table: (node, editorView, getPos) => {
+              const tableView = new TableNodeView(ctx, node, editorView, getPos);
+              const update = tableView.update.bind(tableView);
+              tableView.update = (nextNode) => nextNode.eq(tableView.node) || update(nextNode);
+              return tableView;
+            }
+          }
+        });
+        const plugins = view.state.plugins.map((plugin) =>
+          (plugin as unknown as { key?: string }).key?.startsWith("history$")
+            ? prosemirrorHistory({ newGroupDelay: 1 })
+            : plugin
+        );
+        view.updateState(view.state.reconfigure({ plugins }));
+        // 변경마다 되돌리기 그룹을 끊어 입력 하나가 한 단계가 되게 한다.
+        // 단, IME 조합 중에는 끊지 않는다. 조합 중간으로 되감으면 문서와 OS IME의 조합 버퍼가
+        // 어긋나 IME가 남은 자모를 다시 합성해 버린다('되'로 되돌렸는데 화면엔 '된'이 되는 증상).
+        const original = view.dispatch.bind(view);
+        view.dispatch = (tr) => {
+          if (tr.docChanged && !view.composing) closeHistory(tr);
+          original(tr);
+        };
+      });
+    });
+
+    return () => {
+      isDisposed = true;
+      acquiredAssetPaths.forEach((path) => releaseAssetObjectUrl(path));
+      acquiredAssetPaths.clear();
+      if (crepeRef.current === crepe) crepeRef.current = null;
+      // 이전 편집기는 즉시 숨기되 Milkdown 내부 destroy가 끝날 때까지 DOM에 유지한다.
+      // 먼저 떼면 내부 컴포넌트가 parentNode.removeChild를 호출할 때 부모가 null일 수 있다.
+      host.hidden = true;
+      void ready
+        .catch(() => {})
+        .then(() => crepe.destroy())
+        .catch(() => {})
+        .finally(() => host.remove());
+    };
+  }, [canEdit, documentId]);
+
+  if (!canEdit) {
+    return (
+      <div className={styles["note-editor-shell"]}>
+        {editLock.phase === "acquiring" ? (
+          <DocumentLoading>편집 권한을 확인하는 중입니다.</DocumentLoading>
+        ) : (
+          <>
+            <p className={styles["note-editor-readonly-notice"]} role="alert">
+              {editLock.message} 읽기 전용으로 열었습니다.
+            </p>
+            <MarkdownViewer markdown={initialBody} />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles["note-editor-shell"]}>
+        <div
+          ref={wysiwygRootRef}
+          className={styles["note-wysiwyg-editor"]}
+          onMouseDownCapture={(event) => {
+            if (event.target instanceof Element && event.target.closest(".milkdown-table-block .cell-handle")) {
+              // 본문 mousedown 처리가 방금 만든 셀 선택을 커서 선택으로 바꾸지 않게 한다.
+              event.stopPropagation();
+            }
+          }}
+          onPointerDownCapture={(event) => {
+            if (event.button !== 0 || !(event.target instanceof Element)) return;
+            if (event.target.closest("button")) return;
+            const handle = event.target.closest<HTMLElement>(
+              '.milkdown-table-block .cell-handle[data-role="row-drag-handle"], .milkdown-table-block .cell-handle[data-role="col-drag-handle"]'
+            );
+            const table = handle?.closest(".milkdown-table-block")?.querySelector<HTMLTableElement>("table.children");
+            if (!handle || !table) return;
+            const isRow = handle.dataset.role === "row-drag-handle";
+            const handleRect = handle.getBoundingClientRect();
+            const center = isRow ? (handleRect.top + handleRect.bottom) / 2 : (handleRect.left + handleRect.right) / 2;
+            const candidates = isRow ? Array.from(table.rows) : Array.from(table.rows[0]?.cells ?? []);
+            const target = candidates.find((element) => {
+              const rect = element.getBoundingClientRect();
+              return isRow ? rect.top <= center && center < rect.bottom : rect.left <= center && center < rect.right;
+            });
+            const cell = target instanceof HTMLTableRowElement ? target.cells[0] : target;
+            if (!cell) return;
+            // dragstart 전에 실제 셀 선택을 확정한다. 합성 click은 호출하지 않는다.
+            crepeRef.current?.editor.action((ctx) => {
+              const view = ctx.get(editorViewCtx);
+              const $cell = view.state.doc.resolve(view.posAtDOM(cell, 0) - 1);
+              const selection = isRow ? CellSelection.rowSelection($cell) : CellSelection.colSelection($cell);
+              view.dispatch(view.state.tr.setSelection(selection));
+            });
+          }}
+        />
+    </div>
+  );
+}

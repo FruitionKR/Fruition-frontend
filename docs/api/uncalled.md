@@ -30,10 +30,10 @@
 
 | 경로 | 근거 |
 |---|---|
-| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/query` | 동기 Query. 이 저장소는 비동기 `query/runs` + SSE `GET /api/query/runs/{request_id}/events` 조합을 쓴다(`src/entities/wiki/api/wiki.ts` `runQueryStream`, 함수 주석에 흐름이 명시되어 있다). 질의 중 단계 표시와 취소(`ai/tasks/{id}/cancel`)가 필요해 선택한 설계이며 **공백이 아니다** |
+| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/query` | 동기 Query. 이 저장소는 비동기 `query/runs` + SSE `GET /api/query/runs/{request_id}/events` 조합을 쓴다(`web/src/entities/wiki/api/wiki.ts` `runQueryStream`, 함수 주석에 흐름이 명시되어 있다). 질의 중 단계 표시와 취소(`ai/tasks/{id}/cancel`)가 필요해 선택한 설계이며 **공백이 아니다** |
 | `GET /api/workspaces/{workspace_id}/navigation` | 트리는 `document-tree`를 한 번 받아 쓴다 |
-| `GET /api/workspaces/{workspace_id}/navigation/search` | `src/features/document-search/model/useDocumentSearch.ts`가 이미 받아 둔 트리를 `allItems.filter(...)`로 **클라이언트에서 필터링**한다. 서버 검색을 부르지 않는 것이 현재 설계다 |
-| `GET /api/workspaces/{workspace_id}/navigation/breadcrumb` | 경로 표시도 받아 둔 트리에서 계산한다(`src/entities/tree/model/serverTree.ts` `findServerParent` 등) |
+| `GET /api/workspaces/{workspace_id}/navigation/search` | `web/src/features/document-search/model/useDocumentSearch.ts`가 이미 받아 둔 트리를 `allItems.filter(...)`로 **클라이언트에서 필터링**한다. 서버 검색을 부르지 않는 것이 현재 설계다 |
+| `GET /api/workspaces/{workspace_id}/navigation/breadcrumb` | 경로 표시도 받아 둔 트리에서 계산한다(`web/src/entities/tree/model/serverTree.ts` `findServerParent` 등) |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions` | 문서 버전 기록 화면을 제거했다. 버전은 본문 저장 시 서버가 계속 만든다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 같은 이유(과거 버전 읽기 전용 열람 제거) |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/diff` | 같은 이유(버전 간 비교 제거) |
@@ -59,7 +59,7 @@
 ### UI 없음 — 음성·회의
 
 이 저장소에 회의 UI가 없다. `MediaRecorder`·`getUserMedia`는 채팅 입력창 음성 받아쓰기
-(`src/features/agent-chat/model/useDictation.ts`, [ai-agent.md](consumed/ai-agent.md#음성-입력))에만
+(`web/src/features/agent-chat/model/useDictation.ts`, [ai-agent.md](consumed/ai-agent.md#음성-입력))에만
 쓰이고 `WebSocket`은 나타나지 않는다. 따라서 아래 8개 경로는 대응 화면 자체가 없다.
 이 문서는 그 사실만 기록하고 내용은 다루지 않는다.
 
@@ -83,7 +83,7 @@ UI 필요 여부를 단정하지 않는다.
 |---|---|
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/cancel` | `decideAgentPlan`의 `decision` 타입이 `"approve" \| "reject"`로만 선언되어 이 segment가 만들어질 수 없다 |
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/revise` | 같은 이유 |
-| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki/preview` | 내보내기는 미리보기 없이 `.../wiki`를 바로 호출한다(`src/features/wiki-export/api/export.ts`) |
+| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki/preview` | 내보내기는 미리보기 없이 `.../wiki`를 바로 호출한다(`web/src/features/wiki-export/api/export.ts`) |
 | `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다. 문서 휴지통 목록(`GET .../documents/trash`)에는 폴더가 오지 않아 복구 대상을 고를 화면이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/markdown` | Markdown 문서 전용 목록. 이 저장소는 `documents` 전체 목록만 쓴다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
@@ -137,7 +137,7 @@ access-svc에는 워크스페이스 삭제(`DELETE /api/workspaces/{workspace_id
 - Next.js route handler와 `middleware.ts`를 **전수 추적하지 않았다.** 서버 측에서 route
   handler를 경유해 backend로 나가는 경로가 있다면 이 저장소가 실제로는 호출하는데
   "미호출"로 분류될 수 있다. 현재 확인된 route handler 2개
-  (`app/api/document-transport/route.ts`, `app/access/verify/route.ts`)는 모두 환경 변수와
+  (`web/app/api/document-transport/route.ts`, `web/app/access/verify/route.ts`)는 모두 환경 변수와
   쿠키만 보고 backend를 호출하지 않는다.
-- `mock/`에 라우트가 존재한다는 사실은 프로덕션 배선의 근거가 아니다. `src/`·`app/`의 어떤
-  모듈도 `mock/`을 import하지 않는다.
+- `web/mock/`에 라우트가 존재한다는 사실은 프로덕션 배선의 근거가 아니다. `web/src/`·`web/app/`의 어떤
+  모듈도 `web/mock/`을 import하지 않는다.
