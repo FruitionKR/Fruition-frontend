@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { buildContentSecurityPolicy } from "./contentSecurityPolicy";
+import { buildContentSecurityPolicy, buildImageOnlyPolicy } from "./contentSecurityPolicy";
 
 /**
  * 화면 요청에 nonce CSP를 붙인다. 루트 middleware.ts에서 호출한다.
@@ -7,8 +7,12 @@ import { buildContentSecurityPolicy } from "./contentSecurityPolicy";
  * nonce가 요청마다 달라야 해서 화면은 모두 동적 렌더링한다(app/layout.tsx).
  */
 export function applyContentSecurityPolicy(request: NextRequest): NextResponse {
-  // dev는 HMR이 eval·websocket을 쓰므로 붙이지 않는다.
-  if (process.env.NODE_ENV !== "production") return NextResponse.next();
+  // dev는 HMR이 eval·websocket을 쓰므로 전체 정책은 붙이지 않고, 외부 이미지 차단(img-src)만 같게 둔다.
+  if (process.env.NODE_ENV !== "production") {
+    const response = NextResponse.next();
+    response.headers.set("Content-Security-Policy", buildImageOnlyPolicy());
+    return response;
+  }
 
   const nonce = btoa(crypto.randomUUID());
   const policy = buildContentSecurityPolicy({

@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith(".") && isAppModule && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});
-const { buildContentSecurityPolicy, CSP_REPORT_PATH, readCspNonce } = await import("../src/shared/lib/contentSecurityPolicy.ts");
+const { buildContentSecurityPolicy, buildImageOnlyPolicy, CSP_REPORT_PATH, readCspNonce } = await import("../src/shared/lib/contentSecurityPolicy.ts");
 const { createLogLimiter, readCappedText, summarizeCspReports } = await import("../app/csp-report/cspReport.ts");
 const { POST } = await import("../app/csp-report/route.ts");
 const { middleware, config: middlewareConfig } = await import("../middleware.ts");
@@ -101,10 +101,16 @@ test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·화면 �
   assert.equal(api.headers.get("Content-Security-Policy"), null);
 });
 
-test("개발 서버(HMR eval·websocket)에는 CSP를 붙이지 않는다", async (t) => {
+test("개발 서버(HMR eval·websocket)에는 외부 이미지 차단(img-src)만 붙인다", async (t) => {
   withNodeEnv(t, "development");
   const response = await middleware(new NextRequest("http://localhost/login"));
-  assert.equal(response.headers.get("Content-Security-Policy"), null);
+  const policy = directives(response.headers.get("Content-Security-Policy"));
+  // production과 같은 이미지 출처만 허용하고, HMR이 쓰는 script·connect는 제한하지 않는다
+  assert.deepEqual(policy, { "img-src": ["'self'", "data:", "blob:"], "report-uri": [CSP_REPORT_PATH] });
+  assert.deepEqual(policy["img-src"], directives(buildContentSecurityPolicy({ nonce: "abc" }))["img-src"]);
+  assert.equal(buildImageOnlyPolicy(), response.headers.get("Content-Security-Policy"));
+  // nonce가 없으므로 Next에 넘기는 요청 헤더에는 넣지 않는다
+  assert.equal(response.headers.get("x-middleware-request-content-security-policy"), null);
 });
 
 test("두 보고 형식에서 지시어와 차단 오리진만 남긴다", () => {
