@@ -30,6 +30,8 @@ const { ManagedImage } = load("../src/shared/ui/markdown/ManagedImage.tsx", {
   "@/shared/lib/externalResources": externalResources
 });
 const { MarkdownViewer } = load("../src/shared/ui/MarkdownViewer.tsx", {
+  // KaTeX 스타일은 번들러가 처리하는 부수효과 임포트라 Node에서는 비운다
+  "katex/dist/katex.min.css": {},
   "@/shared/lib/remarkClosedMath": closedMath,
   "@/shared/lib/classNames": classNames,
   "@/shared/lib/markdownSegments": segments,

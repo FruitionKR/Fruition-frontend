@@ -33,7 +33,7 @@ import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUr
 import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { useUserPreferences } from "@/entities/user";
-import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { configureMathEditor } from "../model/mathEditor";
 import styles from "./NoteEditor.module.css";

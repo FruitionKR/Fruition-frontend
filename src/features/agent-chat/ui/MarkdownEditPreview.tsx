@@ -1,4 +1,4 @@
-import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
 import type { MarkdownEditPreview as MarkdownEditPreviewData } from "../lib/markdownAgent";
 import styles from "./AgentChat.module.css";
 

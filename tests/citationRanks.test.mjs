@@ -20,6 +20,8 @@ const output = ts.transpileModule(readFileSync(new URL("../src/shared/ui/Markdow
 }).outputText;
 const exports = {};
 const aliases = {
+  // KaTeX 스타일은 번들러가 처리하는 부수효과 임포트라 Node에서는 비운다
+  "katex/dist/katex.min.css": {},
   "@/shared/lib/remarkClosedMath": closedMath,
   "@/shared/lib/classNames": classNames,
   "@/shared/lib/markdownSegments": segments,

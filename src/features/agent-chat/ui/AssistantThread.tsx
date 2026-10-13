@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MarkdownViewer } from "@/shared/ui/MarkdownViewer";
+import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
 import { isWorkspacePlanAction } from "../lib/agentPlan";

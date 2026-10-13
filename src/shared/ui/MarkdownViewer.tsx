@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
+import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
