@@ -116,6 +116,8 @@ function document(partial) {
     updated_at: uploadedAt,
     current_version: 1,
     edit_revision: 1,
+    owner_user_id: USER_ID,
+    permission: null,
     versions: [{ version: 1, content_hash: hash(content.toString("utf8")), created_by: USER_ID, created_at: uploadedAt, markdown }],
     ...partial,
     markdown,
@@ -163,8 +165,28 @@ export function seed() {
     document({ id: "doc_notes", filename: "회의 노트 초안.md", markdown: NOTES_MD, status: "processing", processing_state: "running", processing_stage: "concept_extraction", processing_started_at: minutesAgo(1), uploaded_at: minutesAgo(3) }),
     document({ id: "doc_failed", filename: "깨진 문서.md", markdown: "# 제목만 있는 문서\n", status: "failed", processing_state: "failed", error_message: "LLM 응답 파싱에 실패했습니다.", uploaded_at: minutesAgo(50) }),
     document({ id: "doc_todo", filename: "할 일.md", markdown: TODO_MD, status: "uploaded", uploaded_at: minutesAgo(5) }),
-    document({ id: "doc_meeting", filename: "주간 회의.txt", mime_type: "text/plain", document_role: "ORIGINAL", content: Buffer.from(MEETING_TXT, "utf8"), status: "uploaded", uploaded_at: minutesAgo(4) })
+    document({ id: "doc_meeting", filename: "주간 회의.txt", mime_type: "text/plain", document_role: "ORIGINAL", content: Buffer.from(MEETING_TXT, "utf8"), status: "uploaded", uploaded_at: minutesAgo(4) }),
+    // 보기 권한만 건 문서: MEMBER(jihyun@fruition.local / member1234)로 로그인하면 읽기 전용으로 열린다.
+    document({ id: "doc_rules", filename: "팀 규칙.md", markdown: "# 팀 규칙\n\n- 문서 권한은 OWNER가 관리합니다.\n- 이 문서는 보기 전용입니다.\n", status: "uploaded", uploaded_at: minutesAgo(40), permission: "view" }),
+    // 휴지통 예시: 3일 전 삭제(27일 뒤 영구 삭제)와 보관 기간이 지난 문서(목록에서 빠지고 복구는 409).
+    document({ id: "doc_trashed", filename: "지난 분기 회고.md", markdown: "# 지난 분기 회고\n\n정리 끝.\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 40), deleted_at: minutesAgo(60 * 24 * 3), deleted_by: USER_ID }),
+    document({ id: "doc_expired", filename: "오래된 메모.md", markdown: "# 오래된 메모\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 90), deleted_at: minutesAgo(60 * 24 * 45), deleted_by: USER_ID })
   );
+  // 미해결 편집 충돌 예시: 김지현이 '할 일.md'를 revision 1 기준으로 고쳤는데 서버는 이미 2다. OWNER 설정 화면에서 해결한다.
+  const todoDoc = state.documents.find((doc) => doc.id === "doc_todo");
+  todoDoc.current_version = 2;
+  todoDoc.edit_revision = 2;
+  todoDoc.updated_by = USER_ID;
+  state.editConflicts.push({
+    id: "conflict_todo", workspace_id: WORKSPACE_ID, document_id: "doc_todo", client_conflict_id: "seed-conflict-1", base_revision: 1,
+    markdown: `${TODO_MD}\n- [ ] 김지현: 충돌 본에서 추가한 항목\n`, author_user_id: MEMBER_ID,
+    status: "open", resolution: null, resolved_by: null, resolved_revision: null, created_at: minutesAgo(12), resolved_at: null
+  });
+  state.notifications.push({
+    id: "ntf_conflict_todo", workspace_id: WORKSPACE_ID, type: "edit_conflict_registered", audience: "workspace_owners", recipient_user_id: null, read_by: new Set(), created_at: minutesAgo(12),
+    payload: { conflict_id: "conflict_todo", document_id: "doc_todo", document_name: "할 일.md", author_user_id: MEMBER_ID }
+  });
+
   // ingest가 끝난 Markdown 문서는 현재 본문 그대로 block 스냅샷을 가진다(stale 아님).
   state.documents
     .filter((doc) => doc.status === "completed" && doc.markdown && !doc.source_snapshot)

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionExpiryGate, UserPreferencesProvider } from "@/entities/user";
+import { ReconsentGate } from "@/features/legal-consent";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -20,7 +21,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionExpiryGate>
-        <UserPreferencesProvider>{children}</UserPreferencesProvider>
+        <UserPreferencesProvider>
+          <ReconsentGate>{children}</ReconsentGate>
+        </UserPreferencesProvider>
       </SessionExpiryGate>
     </QueryClientProvider>
   );

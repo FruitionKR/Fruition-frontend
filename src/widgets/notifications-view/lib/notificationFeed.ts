@@ -18,6 +18,8 @@ export type NotificationItem = {
   details: string[];
   /** 작업 알림이면 로그 화면에서 열 작업 id */
   operationId?: string;
+  /** 서버가 읽음 상태를 가진 알림(앱 안 알림). 있으면 브라우저 읽음 기록 대신 이 값으로 읽음을 판단한다 */
+  serverRead?: boolean;
 };
 
 /** "마지막으로 모두 읽은 시각" 이후의 알림 중 개별로 읽은 id만 따로 기억한다. 백엔드에 읽음 상태가 없어 브라우저에 둔다. */
@@ -121,14 +123,15 @@ export function buildWorkspaceNotifications(
 }
 
 export function isNotificationUnread(
-  item: Pick<NotificationItem, "id" | "occurredAt">,
+  item: Pick<NotificationItem, "id" | "occurredAt" | "serverRead">,
   state: NotificationReadState
 ): boolean {
+  if (item.serverRead !== undefined) return !item.serverRead;
   return item.occurredAt > state.lastReadAt && !state.readIds.includes(item.id);
 }
 
 export function countUnreadNotifications(
-  items: readonly Pick<NotificationItem, "id" | "occurredAt">[],
+  items: readonly Pick<NotificationItem, "id" | "occurredAt" | "serverRead">[],
   state: NotificationReadState
 ): number {
   return items.filter((item) => isNotificationUnread(item, state)).length;

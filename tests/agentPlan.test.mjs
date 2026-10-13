@@ -51,6 +51,33 @@ test("계획 준비 중에는 폴링하고 누락된 실행 ID는 오류로 알�
   await assert.rejects(fetchAgentPlanRun("ws_test", "turn-1"), /계획 정보를 찾을 수 없습니다/);
 });
 
+test("turn이 취소 중이면 폴링을 이어 가고, 취소됨·복구 실패면 폴링을 멈추고 라벨을 보여 준다(#141)", async (t) => {
+  let turnStatus = "cancel_requested";
+  t.mock.method(globalThis, "fetch", async (path) => {
+    assert.equal(path, "/api/workspaces/ws_test/agent/turn/turn-1");
+    return Response.json({ status: turnStatus, result: null, error_code: turnStatus === "rollback_failed" ? "rollback_conflict" : null });
+  });
+  for (const status of ["cancel_requested", "rolling_back"]) {
+    turnStatus = status;
+    const run = await fetchAgentPlanRun("ws_test", "turn-1");
+    assert.equal(run.status, status);
+    assert.equal(run.plan, null);
+    assert.equal(shouldPollAgentPlan(run.status), true);
+  }
+  assert.equal(agentPlanStatusLabel("cancel_requested"), "취소 요청 중");
+  assert.equal(agentPlanStatusLabel("rolling_back"), "변경 복구 중");
+  turnStatus = "rollback_failed";
+  const failed = await fetchAgentPlanRun("ws_test", "turn-1");
+  assert.deepEqual(failed, { id: "turn-1", status: "rollback_failed", plan: null, error_code: "rollback_conflict" });
+  assert.equal(shouldPollAgentPlan(failed.status), false);
+  assert.equal(agentPlanStatusLabel(failed.status), "변경 복구 실패");
+  turnStatus = "cancelled";
+  const cancelled = await fetchAgentPlanRun("ws_test", "turn-1");
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(shouldPollAgentPlan(cancelled.status), false);
+  assert.equal(agentPlanStatusLabel(cancelled.status), "취소됨");
+});
+
 test("승인 대기를 완료와 구분하고 종료·충돌 상태에서는 승인하지 않는다", () => {
   assert.equal(agentPlanStatusLabel("awaiting_approval"), "승인 대기");
   assert.equal(canApproveAgentPlan({ status: "awaiting_approval", plan }), true);

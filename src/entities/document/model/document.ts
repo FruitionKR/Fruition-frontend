@@ -3,6 +3,9 @@ import type { DocumentProcessingState, DocumentStatus } from "@/entities/tree/mo
 /** 백엔드 DocumentRole. EDITABLE은 편집 가능 Markdown, ORIGINAL은 업로드 원본(PDF 등)이다. */
 export type DocumentRole = "EDITABLE" | "ORIGINAL";
 
+/** 문서·폴더에 직접 건 공동 편집 권한. null은 상위 폴더·기본값(edit)을 따른다. */
+export type DocumentPermission = "edit" | "view";
+
 /** 스킬 참고 문서 origin. 문서 트리·기본 목록·검색·위키 편입에서 빠지고 전용 조회로만 보인다. Markdown·txt만 받는다. */
 export const SKILL_REFERENCE_ORIGIN = "skill_reference";
 
@@ -32,6 +35,14 @@ export type DocumentItemResponse = DocumentUploadResponse & {
   processing_stage?: string;
   /** 마지막 ingest 이후 편집본이 바뀌어 재분석이 필요한지 */
   needs_reingest?: boolean;
+  /** 본문 저장·이름 변경·이동·버전 복원 가능 여부. false면 읽기 전용으로 연다. 구 서버 응답은 생략된다. */
+  can_edit?: boolean;
+  /** 삭제·휴지통 복구 가능 여부(문서 소유자·워크스페이스 OWNER만 true). */
+  can_delete?: boolean;
+  /** 이 문서에 직접 건 권한. null이면 상위 폴더·기본값을 따른다. */
+  permission?: DocumentPermission | null;
+  /** 마지막으로 본문을 저장한 사용자 ID */
+  updated_by?: string | null;
 };
 
 export type DocumentListResponse = {

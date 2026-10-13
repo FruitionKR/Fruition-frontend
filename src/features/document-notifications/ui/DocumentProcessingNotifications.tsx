@@ -4,9 +4,10 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { useDocumentProcessingNotifications } from "../model/useDocumentProcessingNotifications";
 import { useOperationNotifications } from "../model/useOperationNotifications";
 import { usePendingWorkNotifications } from "../model/usePendingWorkNotifications";
+import { useServerNotifications } from "../model/useServerNotifications";
 import styles from "./DocumentProcessingNotifications.module.css";
 
-/** 우하단 알림 카드 스택 (Figma 1246:7338). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 버스 발행 알림. */
+/** 우하단 알림 카드 스택 (Figma 1246:7338). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 서버 앱 안 알림 + 버스 발행 알림. */
 export function DocumentProcessingNotifications({
   documents
 }: {
@@ -15,6 +16,7 @@ export function DocumentProcessingNotifications({
   const { notices, dismissNotice } = useDocumentProcessingNotifications(documents);
   useOperationNotifications();
   usePendingWorkNotifications(documents);
+  useServerNotifications();
 
   if (notices.length === 0) return null;
 

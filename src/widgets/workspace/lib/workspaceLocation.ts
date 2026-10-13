@@ -1,8 +1,8 @@
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 
 /** 설정 화면의 항목. 레일 톱니는 디스플레이, 프로필은 사용자 설정으로 연다. */
-export type SettingsSection = "profile" | "account" | "notifications" | "preferences" | "general" | "members";
-export const SETTINGS_SECTIONS: readonly SettingsSection[] = ["profile", "account", "notifications", "preferences", "general", "members"];
+export type SettingsSection = "profile" | "account" | "notifications" | "preferences" | "general" | "members" | "documents";
+export const SETTINGS_SECTIONS: readonly SettingsSection[] = ["profile", "account", "notifications", "preferences", "general", "members", "documents"];
 export const DEFAULT_SETTINGS_SECTION: SettingsSection = "profile";
 
 /** /home URL의 view 파라미터로 여는 화면. 홈(문서) 화면은 view 없이 문서 파라미터로 나타낸다. */

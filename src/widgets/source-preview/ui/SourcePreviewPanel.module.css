@@ -78,6 +78,33 @@
   color: var(--color-danger);
 }
 
+/* 보기 권한만 있는 노트: 저장 상태 자리에 읽기 전용 배지를 둔다 */
+.source-preview-readonly-badge {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 편집기 자리에 보여주는 읽기 전용 사유. NoteEditor의 잠금 안내(.note-editor-readonly-notice)와 같은 톤 */
+.source-preview-readonly-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* 상태 문장과 권한 요청 안내를 줄을 나눠 보여준다 */
+.source-preview-readonly-notice > span {
+  display: block;
+}
+
 .source-preview-document {
   position: relative;
   flex: 1 1 auto;
@@ -178,6 +205,21 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
+}
+
+/* 같은 이름 문서를 구분하는 폴더 경로(#150). 제목과 한 줄에 두되 보조 정보라 작고 흐리게 */
+.source-preview-heading > .source-preview-title-suffix {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-preview-document-controls {

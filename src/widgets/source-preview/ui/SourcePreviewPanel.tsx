@@ -9,8 +9,10 @@ import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
+import { READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_MESSAGE, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
@@ -52,7 +54,9 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentStatus,
   documentConversion = null,
+  readOnly = false,
   titleHint,
+  titleSuffix,
   fillMain = false
 }: {
   title: string;
@@ -70,8 +74,12 @@ export function SourcePreviewPanel({
   documentStatus?: DocumentStatus;
   /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
   documentConversion?: DocumentConversionView | null;
+  /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경을 막는다. */
+  readOnly?: boolean;
   /** 제목 hover 설명(상위 폴더 경로 등). 없으면 제목을 쓴다 */
   titleHint?: string;
+  /** 같은 이름의 문서를 구분하는 폴더 경로(#150). 그래프 노드 라벨과 같은 `이름 · 폴더/경로` 형식으로 보여준다. */
+  titleSuffix?: string;
   /** 홈에서 문서가 메인 영역을 채울 때: 고정폭/리사이즈 대신 남은 영역을 채운다 */
   fillMain?: boolean;
 }) {
@@ -133,6 +141,8 @@ export function SourcePreviewPanel({
   const saveStatusLabel = noteSaveStatus === "dirty" && !preferences.autoSave
     ? "저장 안 됨 · Cmd/Ctrl+S"
     : SAVE_STATUS_LABELS[noteSaveStatus];
+  // 읽기 전용 노트: 저장 상태 대신 배지를 보여주고 편집기를 열지 않는다.
+  const isReadOnlyNote = isMarkdownFile && readOnly;
   const editableNote = useMemo(() => {
     if (rawMarkdown === null || !documentId) return null;
     const split = splitEditableNoteMarkdown(rawMarkdown) ?? {
@@ -194,7 +204,7 @@ export function SourcePreviewPanel({
   }, [onRefreshDocuments]);
 
   async function commitTitle() {
-    if (!isMarkdownFile || !documentId || !onRenameDocument || isRenaming) return;
+    if (!isMarkdownFile || readOnly || !documentId || !onRenameDocument || isRenaming) return;
     const nextFilename = buildMarkdownDocumentFilename(titleInput, title);
     if (nextFilename === title) {
       setTitleInput(getMarkdownDocumentTitle(title));
@@ -422,7 +432,10 @@ export function SourcePreviewPanel({
           제목(위 48px)보다 위쪽 여백에 놓여 제목 줄과 겹치지 않는다. PDF는 아래 파일명 줄이 이 자리를 맡는다. */}
       {!isPdfFile && (
         <div className={styles["source-preview-actions"]}>
-          {saveStatusLabel && (
+          {isReadOnlyNote && (
+            <span className={styles["source-preview-readonly-badge"]} title={READ_ONLY_DOCUMENT_MESSAGE}>읽기 전용</span>
+          )}
+          {!isReadOnlyNote && saveStatusLabel && (
             <span
               className={cx(styles["source-preview-save-status"], styles[`is-${noteSaveStatus}`])}
               role={noteSaveStatus === "saving" ? "status" : "alert"}
@@ -439,7 +452,7 @@ export function SourcePreviewPanel({
           <>
             {/* 제목 바가 없으므로 PDF 뷰어 위에 파일명 줄을 둔다. */}
             <header className={styles["source-preview-file-bar"]}>
-              <span title={titleHint ?? visibleTitle}>{visibleTitle}</span>
+              <span title={titleHint ?? visibleTitle}>{withPathSuffix(visibleTitle, titleSuffix)}</span>
             </header>
             {errorMessage && <p>{errorMessage}</p>}
             {!isLoading && !errorMessage && rawDocumentUrl && (
@@ -458,10 +471,11 @@ export function SourcePreviewPanel({
             <input
               className={styles["source-preview-title-input"]}
               aria-label="문서 이름"
-              title={titleHint}
+              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : titleHint}
               placeholder="제목을 입력하세요"
               value={titleInput}
               disabled={isRenaming}
+              readOnly={readOnly}
               spellCheck={false}
               onChange={(event) => {
                 skipNextTitleCommitRef.current = false;
@@ -485,7 +499,11 @@ export function SourcePreviewPanel({
               }}
             />
           ) : (
-            <h2 title={titleHint}>{visibleTitle}</h2>
+            <h2 title={titleHint}>{withPathSuffix(visibleTitle, titleSuffix)}</h2>
+          )}
+          {/* 이름을 고치는 입력칸에는 경로를 섞을 수 없어 Markdown은 접미사를 옆에 따로 둔다. */}
+          {isMarkdownFile && titleSuffix && (
+            <span className={styles["source-preview-title-suffix"]} title={titleHint}>· {titleSuffix}</span>
           )}
           {!fillMain && <span>{pageId ? pageTypeLabel : editableNote ? "Note" : "Raw"}</span>}
         </header>
@@ -520,7 +538,16 @@ export function SourcePreviewPanel({
             <MarkdownViewer markdown={rawMarkdown} />
           </>
         )}
-        {isMarkdownFile && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+        {isReadOnlyNote && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && (
+          <>
+            <p className={styles["source-preview-readonly-notice"]} role="status">
+              <span>{READ_ONLY_DOCUMENT_TITLE}</span>
+              <span>{READ_ONLY_DOCUMENT_HINT}</span>
+            </p>
+            <MarkdownViewer markdown={editableNote.body} />
+          </>
+        )}
+        {isMarkdownFile && !readOnly && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
           <DynamicNoteEditor
             key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
             documentId={documentId}

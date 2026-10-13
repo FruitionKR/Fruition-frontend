@@ -11,11 +11,14 @@ import {
 } from "@/entities/ai";
 import { useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useWorkspaceName";
+import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { cx } from "@/shared/lib/classNames";
 import { bellIcon, settingIcon, SvgIcon, userCircleOutlineIcon } from "@/shared/ui/SvgIcon";
 import type { SettingsSection } from "@/widgets/workspace/lib/workspaceLocation";
+import { saveSettingsResume, type SettingsResume } from "../lib/settingsResume";
 import { AccountPanel } from "./panels/AccountPanel";
+import { DocumentsPanel } from "./panels/DocumentsPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
 import { PreferencesPanel } from "./panels/PreferencesPanel";
@@ -54,6 +57,17 @@ function DisplayIcon({ className }: { className?: string }) {
     <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
       <rect x="4.05" y="5.9" width="15.9" height="12" rx="2.1" stroke="currentColor" strokeWidth="1.6" />
       <path d="M2.5 17.2H21.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** 문서 관리 아이콘: 접힌 모서리가 있는 문서 (24×24). */
+function DocumentsIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M7 3.8H13.6L18.5 8.7V19.2C18.5 19.75 18.05 20.2 17.5 20.2H7C6.45 20.2 6 19.75 6 19.2V4.8C6 4.25 6.45 3.8 7 3.8Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M13.6 3.8V8.7H18.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 12.5H15.5M9 15.75H15.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -97,7 +111,7 @@ function NavRow({
 
 /**
  * 설정 화면의 왼쪽 메뉴 (Figma 1540:22452 SNB). 사이드바의 문서 트리 자리에 들어간다.
- * 계정: 사용자 설정·계정 보안·알림 설정 / 설정: 워크스페이스 설정·디스플레이·멤버 관리. 로그아웃은 맨 아래.
+ * 계정: 사용자 설정·계정 보안·알림 설정 / 설정: 워크스페이스 설정·디스플레이·멤버 관리·문서 관리. 로그아웃은 맨 아래.
  */
 export function SettingsNav({
   activeSection,
@@ -142,6 +156,10 @@ export function SettingsNav({
           <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />
           <span>멤버 관리</span>
         </NavRow>
+        <NavRow section="documents" activeSection={activeSection} onSelect={onSelect}>
+          <DocumentsIcon className={styles["nav-icon"]} />
+          <span>문서 관리</span>
+        </NavRow>
       </div>
       {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}
       <div className={styles["nav-footer"]}>
@@ -158,9 +176,32 @@ export function SettingsNav({
   );
 }
 
-/** 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다. */
-export function SettingsContent({ section }: { section: SettingsSection }) {
+/**
+ * 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다.
+ * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계를 다시 연다(account-delete).
+ */
+export function SettingsContent({
+  section,
+  resume = null,
+  onOpenSection
+}: {
+  section: SettingsSection;
+  /** 오리진을 벗어났다 돌아온 뒤 다시 열 위치. HomeWorkspace가 section도 그에 맞춰 연다. */
+  resume?: SettingsResume | null;
+  onOpenSection: (section: SettingsSection) => void;
+}) {
   const workspaceName = useWorkspaceName();
+
+  /** 탈퇴가 막힌 워크스페이스의 멤버 관리로 간다. 다른 워크스페이스면 전환 후 새로 그려 멤버 관리를 다시 연다. */
+  function openMembers(workspaceId: string) {
+    if (workspaceId === getSelectedWorkspaceId()) {
+      onOpenSection("members");
+      return;
+    }
+    setSelectedWorkspaceId(workspaceId);
+    saveSettingsResume("members");
+    window.location.reload();
+  }
   const [aiModels, setAiModels] = useState<AiModel[]>([]);
   const [aiModelSelection, setAiModelSelection] = useState<AiModelSelection | null>(null);
   const [aiModelError, setAiModelError] = useState<string | null>(null);
@@ -216,7 +257,9 @@ export function SettingsContent({ section }: { section: SettingsSection }) {
     <section className={styles.view} aria-label="설정">
       <div className={styles.content}>
         {section === "profile" && <ProfilePanel />}
-        {section === "account" && <AccountPanel />}
+        {section === "account" && (
+          <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
+        )}
         {section === "notifications" && <NotificationsPanel />}
         {section === "preferences" && <PreferencesPanel />}
         {section === "general" && (
@@ -231,6 +274,7 @@ export function SettingsContent({ section }: { section: SettingsSection }) {
           />
         )}
         {section === "members" && <MembersPanel />}
+        {section === "documents" && <DocumentsPanel />}
       </div>
     </section>
   );

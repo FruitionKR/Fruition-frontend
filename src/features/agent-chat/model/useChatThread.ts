@@ -5,7 +5,7 @@ import type { AiModelSelection } from "@/entities/ai";
 import { cancelQueryRun, QueryCancelledError, runQueryStream, type QueryRun, type QueryStageEvent } from "@/entities/wiki/api/wiki";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchMessagesForRequest } from "../lib/chatMessagesRequest";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/errors";
 import { usePageVisible } from "@/shared/lib/usePageVisible";
 import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
@@ -157,8 +157,9 @@ export function useChatThread(activeSessionId?: string | null) {
       .finally(() => { request.cancellation = null; });
   }
 
-  async function submitQuery(question: string, selection: AiModelSelection, allowWebSearch = false) {
-    if (!question || activeQueryRef.current || isLoading) return;
+  /** 크레딧 부족으로 서버가 질의를 시작하지 않았으면 true를 돌려준다. 호출부가 입력을 지우지 않고 되돌린다(#153). */
+  async function submitQuery(question: string, selection: AiModelSelection, allowWebSearch = false): Promise<boolean> {
+    if (!question || activeQueryRef.current || isLoading) return false;
     const request: ActiveQueryRequest = {
       run: null, controller: new AbortController(), cancelRequested: false, cancellation: null
     };
@@ -176,6 +177,7 @@ export function useChatThread(activeSessionId?: string | null) {
     );
 
     let querySucceeded = false;
+    let insufficientCredit = false;
     let queryRelatedPages: QueryRelatedPageResponse[] = [];
     let querySessionId: string | null = null;
     const shortQuestion = question.length > 30 ? `${question.slice(0, 30)}…` : question;
@@ -195,19 +197,20 @@ export function useChatThread(activeSessionId?: string | null) {
           }
         }
       });
-      if (activeQueryRef.current !== request || request.cancelRequested) return;
+      if (activeQueryRef.current !== request || request.cancelRequested) return false;
       querySucceeded = true;
       queryRelatedPages = queryResponse.related_pages ?? [];
       if (queryNotifications) {
         publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
       }
     } catch (error) {
-      if (activeQueryRef.current !== request) return;
+      if (activeQueryRef.current !== request) return false;
       if (error instanceof QueryCancelledError) {
         await finishCancelledQuery(request);
-        return;
+        return false;
       }
-      if (request.cancelRequested && request.run) return;
+      if (request.cancelRequested && request.run) return false;
+      insufficientCredit = isInsufficientCreditError(error);
       setQueryErrorMessage(getErrorMessage(error, "질의에 실패했습니다."));
       setActiveTurn(null);
       setQueryStatusMessage(null);
@@ -223,7 +226,7 @@ export function useChatThread(activeSessionId?: string | null) {
       }
     }
 
-    if (!querySucceeded) return;
+    if (!querySucceeded) return insufficientCredit;
     await refreshMessages().then(async (nextMessages) => {
       // 무효화된 refresh거나 다른 세션으로 전환된 뒤라면 이 질의의 turn을 화면에 남기지 않는다.
       if (nextMessages === null) return;
@@ -238,6 +241,7 @@ export function useChatThread(activeSessionId?: string | null) {
       setChatLoadErrorMessage(getErrorMessage(error, "채팅 기록을 불러오지 못했습니다."));
       setActiveTurn(null);
     });
+    return false;
   }
 
   return {

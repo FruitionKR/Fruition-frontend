@@ -26,6 +26,9 @@ export const state = {
   lintRuns: new Map(),
   // 문서 id → { holder_user_id, holder_display_name, expires_at }
   editLocks: new Map(),
+  // 편집 충돌(document_edit_conflicts)과 앱 안 알림
+  editConflicts: [],
+  notifications: [],
   skills: [],
   aiModels: []
 };
@@ -72,6 +75,64 @@ export function toDocumentItem(doc) {
     if (doc[key] !== undefined && doc[key] !== null) item[key] = doc[key];
   }
   return item;
+}
+
+/** 워크스페이스 안 사용자의 역할. 멤버가 아니면 null. */
+export function memberRole(workspaceId, userId) {
+  return state.members.find((member) => member.workspace_id === workspaceId && member.user_id === userId)?.role ?? null;
+}
+
+/** 문서에 적용되는 권한: 문서 자기 설정 → 가장 가까운 상위 폴더 설정 → 기본값 edit. */
+export function effectivePermission(doc) {
+  if (doc.permission) return doc.permission;
+  let folderId = doc.folder_id ?? null;
+  while (folderId) {
+    const folder = state.folders.find((item) => item.id === folderId && item.workspace_id === doc.workspace_id);
+    if (!folder) break;
+    if (folder.permission) return folder.permission;
+    folderId = folder.parent_folder_id ?? null;
+  }
+  return "edit";
+}
+
+/** 서버 DocumentAccessPolicy 흉내: 소유자·OWNER는 항상 편집·삭제, 그 외 멤버는 적용 권한이 edit일 때만 편집. */
+export function documentAccess(doc, userId) {
+  const isPrivileged = doc.owner_user_id === userId || memberRole(doc.workspace_id, userId) === "OWNER";
+  return {
+    can_edit: isPrivileged || effectivePermission(doc) === "edit",
+    can_delete: isPrivileged,
+    permission: doc.permission ?? null,
+    updated_by: doc.updated_by ?? doc.owner_user_id ?? null
+  };
+}
+
+/** 목록·트리·상세 응답용: 문서 요약에 호출자 기준 권한 필드를 붙인다. */
+export function toDocumentItemFor(doc, userId) {
+  return { ...toDocumentItem(doc), ...documentAccess(doc, userId) };
+}
+
+/** 편집 권한이 없으면 403 DOCUMENT_WRITE_FORBIDDEN을 보내고 false를 돌려준다. */
+export function requireDocumentEdit(ctx, doc) {
+  if (documentAccess(doc, ctx.user.id).can_edit) return true;
+  error(ctx, 403, "이 문서를 편집할 권한이 없습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+  return false;
+}
+
+/** 삭제·복구는 문서 소유자와 OWNER만. */
+export function requireDocumentDelete(ctx, doc) {
+  if (documentAccess(doc, ctx.user.id).can_delete) return true;
+  error(ctx, 403, "문서 소유자와 워크스페이스 OWNER만 삭제·복구할 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+  return false;
+}
+
+/**
+ * 앱 안 알림을 만든다. audience=user는 recipient_user_id 한 명에게, workspace_owners는 조회 시점 OWNER에게 보인다.
+ * 읽음은 사용자별로 따로 기록한다(read_by).
+ */
+export function addNotification(workspaceId, { type, payload, audience = "user", recipientUserId = null }) {
+  const notification = { id: id("ntf"), workspace_id: workspaceId, type, payload, audience, recipient_user_id: recipientUserId, read_by: new Set(), created_at: now() };
+  state.notifications.push(notification);
+  return notification;
 }
 
 export const SKILL_REFERENCE_ORIGIN = "skill_reference";

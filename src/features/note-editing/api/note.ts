@@ -1,8 +1,19 @@
-import { apiFetch, parseErrorResponse, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { apiFetch, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import type { NoteContentResponse } from "@/entities/document/model/document";
 import type { PendingImage, SavedAttachment } from "../model/imageAttachments";
+// 확장자 없는 상대 경로를 풀지 않는 테스트 로더(tests/documentTransport.test.mjs)도 지나가도록 별칭 경로로 가져온다.
+import { parseVersionConflict } from "@/features/note-editing/model/editConflict";
 
-export class NoteContentConflictError extends Error {}
+/** 저장 409(DOCUMENT_VERSION_CONFLICT). currentRevision은 서버 현재 revision(error.current_revision)이며 구 서버는 null이다. */
+export class NoteContentConflictError extends Error {
+  readonly currentRevision: number | null;
+
+  constructor(message: string, currentRevision: number | null = null) {
+    super(message);
+    this.name = "NoteContentConflictError";
+    this.currentRevision = currentRevision;
+  }
+}
 
 type DocumentDetailContentResponse = {
   id: string;
@@ -79,7 +90,8 @@ export async function saveNoteDraft(
     }
   );
   if (response.status === 409) {
-    throw new NoteContentConflictError(await parseErrorResponse(response, "다른 편집 내용이 먼저 저장되었습니다."));
+    const conflict = parseVersionConflict(await response.json().catch(() => null));
+    throw new NoteContentConflictError(conflict.message ?? "다른 편집 내용이 먼저 저장되었습니다.", conflict.currentRevision);
   }
   const saved = await parseJsonOrThrow<DocumentContentSaveResponse>(
     response,

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
+import { registerEditConflict } from "../api/editConflict";
+import { describeConflictRegistration } from "./editConflict";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
 import { isSessionExpired } from "@/shared/lib/auth";
@@ -14,6 +16,10 @@ import {
   type PendingNoteSave
 } from "./pendingSave";
 import { trackPendingDocumentSave } from "./pendingDocumentSave";
+import { isWriteForbiddenError } from "@/entities/document/lib/documentAccess";
+
+/** 저장 403(DOCUMENT_WRITE_FORBIDDEN): 편집 중 권한이 바뀐 경우다. 서버 원문 대신 할 일을 안내한다. */
+const WRITE_FORBIDDEN_SAVE_MESSAGE = "이 문서의 편집 권한이 없어 저장하지 못했습니다. 본문을 복사해 두고 소유자나 OWNER에게 편집 권한을 요청해 주세요.";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
 export type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
@@ -62,6 +68,8 @@ export function useNoteAutosave({
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
   // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)·lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
   const saveBlockRef = useRef<NoteSaveBlock | null>(null);
+  // 이 편집 세션의 충돌 등록 ID. 같은 ID 재전송은 서버가 기존 충돌을 돌려주므로 재시도해도 중복되지 않는다.
+  const clientConflictIdRef = useRef(crypto.randomUUID());
   const agentRetryRequiredRef = useRef(false);
   const agentRetryApplyOperationIdRef = useRef<string | undefined>(undefined);
   const agentRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,11 +160,13 @@ export function useNoteAutosave({
       setStatus("saving");
       setErrorMessage(null);
     }
+    // 충돌 등록은 저장하려던 본문을 그대로 올리므로 try 바깥에서도 읽을 수 있게 둔다.
+    let markdownToSave = saveCandidate.markdown;
     try {
       if (saveCandidate.source === "agent") {
         agentRetryApplyOperationIdRef.current = saveCandidate.applyOperationId;
       }
-      const markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
+      markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
       const attachments = pendingImages.collect(markdownToSave);
       if (attachments.length > MAX_IMAGES_PER_SAVE) {
         throw new Error(`한 번에 저장할 수 있는 새 이미지는 ${MAX_IMAGES_PER_SAVE}개까지입니다.`);
@@ -194,6 +204,24 @@ export function useNoteAutosave({
         saveBlockRef.current = "conflict";
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
+        // 내 본문을 버리지 않고 충돌로 등록해 OWNER가 고르게 한다. 등록 결과에 따라 안내 문구를 바꾼다.
+        // 응답을 기다리는 동안 더 고친 본문(pending)이 있으면 그쪽이 최신이므로 그것을 올린다. 충돌 뒤에는 pending을 버리기 때문이다.
+        const latestMarkdown = pendingSaveRef.current
+          ? substituteAttachmentPaths(pendingSaveRef.current.markdown, savedAttachmentPathsRef.current)
+          : markdownToSave;
+        const registered = await registerEditConflict(documentId, {
+          markdown: latestMarkdown,
+          base_revision: versionRef.current,
+          client_conflict_id: clientConflictIdRef.current
+        }).then(() => true, () => false);
+        if (mountedRef.current) setErrorMessage(describeConflictRegistration(registered));
+        else onDetachedSaveCompleteRef.current?.({ success: false, error: new Error(describeConflictRegistration(registered)) });
+        return false;
+      } else if (isWriteForbiddenError(error)) {
+        // 편집 중 권한이 "보기만"으로 바뀌면 이후 저장은 모두 403이다. 저장된 척하지 않고 멈춘다.
+        saveBlockRef.current = "lock-lost";
+        cancelAgentRetry();
+        if (mountedRef.current) setStatus("lock-lost");
       } else if (error instanceof SessionExpiredError) {
         // 세션이 끝난 뒤의 저장은 몇 번을 보내도 실패한다. 저장된 척하지 않고 입력을 멈춘다.
         saveBlockRef.current = "session-expired";
@@ -209,7 +237,7 @@ export function useNoteAutosave({
         if (mountedRef.current) setStatus("error");
       }
       if (mountedRef.current) {
-        setErrorMessage(getErrorMessage(error, "노트를 저장하지 못했습니다."));
+        setErrorMessage(isWriteForbiddenError(error) ? WRITE_FORBIDDEN_SAVE_MESSAGE : getErrorMessage(error, "노트를 저장하지 못했습니다."));
       } else {
         onDetachedSaveCompleteRef.current?.({ success: false, error });
       }

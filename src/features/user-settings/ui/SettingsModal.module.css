@@ -288,6 +288,13 @@ button.nav-row.is-danger:focus-visible {
   opacity: 0.6;
 }
 
+/* 내 계정 삭제처럼 되돌릴 수 없는 동작 */
+.btn.btn-danger {
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+  border-color: var(--color-danger-weak);
+}
+
 /* 워크스페이스 아이콘 */
 .ws-icon-outline {
   width: 80px;
@@ -305,6 +312,38 @@ button.nav-row.is-danger:focus-visible {
 
 .ws-icon-outline:disabled {
   cursor: default;
+}
+
+.ws-emoji-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* .field input의 min(400px, 100%)보다 우선하도록 지정자를 올린다 */
+.ws-emoji-field .ws-emoji {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 36px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  text-align: center;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.ws-emoji-field .ws-emoji:focus-visible {
+  border-color: var(--ink);
+  outline: none;
+}
+
+.ws-emoji-field .ws-emoji:disabled {
+  opacity: 0.6;
 }
 
 .ws-icon {

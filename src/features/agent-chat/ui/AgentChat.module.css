@@ -1382,12 +1382,42 @@ button.result-link:focus-visible {
   outline-offset: 2px;
 }
 
-/* 우하단: 파형 마크 + 전송 (Figma 1436:17328, 28px 원 두 개, gap 8) */
+/* 우하단: 파형 마크(음성 받아쓰기) + 전송 (Figma 1436:17328, 28px 원 두 개, gap 8) */
 .composer-buttons {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
+}
+
+/* 음성 받아쓰기(#147): 시안의 파형 마크를 그대로 버튼으로 쓴다. 녹음 중에는 정지 사각형으로 바뀐다. */
+.composer-mic {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-on-primary);
+  background: transparent;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.composer-mic:hover:not(:disabled),
+.composer-mic:focus-visible {
+  --button-hover-overlay: none;
+  filter: brightness(0.92);
+}
+
+.composer-mic.is-recording {
+  background: var(--color-danger);
+}
+
+.composer-mic:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* 전송: 입력 전에는 회색 원(Figma), 보낼 수 있으면 진한 원으로 바뀐다. */

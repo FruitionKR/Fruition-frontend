@@ -83,14 +83,11 @@ export function RailNavigation({
   isCollapsed = false,
   activeView,
   onViewChange,
-  hasUnreadNotifications = false,
   tools,
   footer
 }: {
   isCollapsed?: boolean;
   activeView: RailView;
-  /** 안 읽은 알림이 있으면 알림 종에 주황 점을 띄운다 (Figma 1486:4958) */
-  hasUnreadNotifications?: boolean;
   onViewChange: (view: RailView) => void;
   /** 진행 중 작업, 그래프 위키 액션처럼 화면마다 달라지는 도구 묶음 */
   tools?: ReactNode;
@@ -118,10 +115,9 @@ export function RailNavigation({
               <Icon />
             </RailButton>
           ))}
-          {/* 알림 (Figma 1486:4958): 안 읽음 여부를 점으로 보여 줘 다른 화면 이동 버튼과 따로 그린다. */}
+          {/* 알림 (Figma 1486:4958). 안 읽음 점은 알림 화면 탭에서만 보여 준다. */}
           <RailButton
             label="알림"
-            tooltipHint={hasUnreadNotifications ? "안 읽은 알림이 있습니다" : undefined}
             isActive={activeView === "notifications"}
             aria-current={activeView === "notifications" ? "page" : undefined}
             onClick={(event) => {
@@ -129,7 +125,7 @@ export function RailNavigation({
               onViewChange("notifications");
             }}
           >
-            <RailBellIcon hasBadge={hasUnreadNotifications} badgeClassName={styles["rail-badge"]} />
+            <RailBellIcon />
           </RailButton>
         </RailGroup>
         {tools && (
