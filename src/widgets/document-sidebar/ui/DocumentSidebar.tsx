@@ -1,9 +1,10 @@
-import { useEffect, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { RailDivider, RailGroup, RailNavigation, type RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
+import type { SettingsSection } from "@/widgets/workspace/lib/workspaceLocation";
 import { ContextMenu } from "./ContextMenu";
 import { GraphRailActions } from "./GraphRailActions";
 import { GraphSidebarActions } from "./GraphSidebarActions";
@@ -43,6 +44,8 @@ export function DocumentSidebar({
   documents,
   graphActions,
   onViewChange,
+  onOpenSettings,
+  settingsNav,
   isCollapsed = false,
   isOverlay = false,
   onCollapseSidebar,
@@ -112,6 +115,10 @@ export function DocumentSidebar({
   };
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
   onViewChange: (view: RailView) => void;
+  /** 레일 톱니·프로필에서 설정 화면의 항목을 연다 */
+  onOpenSettings: (section: SettingsSection) => void;
+  /** 설정 화면(Figma 1540:22452)에서 문서 트리 대신 보여줄 설정 메뉴 */
+  settingsNav?: ReactNode;
   /**
    * 레일 "채팅 시작" 버튼은 새 시안(Figma 1527:16327)에 없어 뺐다. 채팅은 콘텐츠 우하단 플로팅 버튼으로 연다.
    * HomeWorkspace가 아직 넘기므로 타입만 남겨 둔다(사용하지 않음).
@@ -313,7 +320,7 @@ export function DocumentSidebar({
           footer={(
             <>
               <RailDivider />
-              <SidebarProfile />
+              <SidebarProfile isActive={activeView === "settings"} onOpenSettings={onOpenSettings} />
             </>
           )}
         />
@@ -334,7 +341,7 @@ export function DocumentSidebar({
               <SidebarSearchIcon className={styles["sidebar-search-icon"]} />
               <span>통합 검색</span>
             </button>
-            <SidebarMenuRow activeView={activeView} onViewChange={onViewChange} />
+            {!settingsNav && <SidebarMenuRow activeView={activeView} onViewChange={onViewChange} />}
           </div>
           {isSearchOpen && (
             <DocumentSearch
@@ -353,6 +360,7 @@ export function DocumentSidebar({
             onChange={onUploadPickerChange}
           />
 
+          {settingsNav ?? (
           <div
             className={styles["sidebar-content"]}
             onContextMenu={(event) => {
@@ -375,6 +383,7 @@ export function DocumentSidebar({
               />
             ) : projectTree}
           </div>
+          )}
         </div>
       </div>
     </aside>

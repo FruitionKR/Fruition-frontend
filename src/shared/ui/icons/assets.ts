@@ -5,6 +5,7 @@ import chatScrollIcon from "@/shared/assets/svg/agent/chat_scroll.svg";
 import sendIcon from "@/shared/assets/svg/agent/send.svg";
 import emptyChatIcon from "@/shared/assets/svg/agent/empty_chat.svg";
 import chatCheckIcon from "@/shared/assets/svg/agent/chat_check.svg";
+import chatLauncherIcon from "@/shared/assets/svg/agent/chat_launcher.svg";
 import claudeIcon from "@/shared/assets/svg/llm/claude.svg";
 import geminiIcon from "@/shared/assets/svg/llm/gemini.svg";
 import gptIcon from "@/shared/assets/svg/llm/gpt.svg";
@@ -61,6 +62,7 @@ export type SvgAsset =
 
 export {
   sendIcon,
+  chatLauncherIcon,
   arrowIcon,
   checkOnIcon,
   ingestIcon,

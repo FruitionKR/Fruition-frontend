@@ -1491,11 +1491,15 @@ button.result-link:focus-visible {
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: transparent;
   border-radius: 9999px;
   box-shadow: 0 4px 12px var(--color-shadow);
   transition: transform 160ms ease;
+}
+
+.agent-launcher-icon {
+  width: 48px;
+  height: 48px;
 }
 
 .agent-launcher:hover {
