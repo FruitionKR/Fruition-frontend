@@ -23,28 +23,6 @@
   width: auto;
 }
 
-.source-preview-resize-handle {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
-  width: 8px;
-  padding: 0;
-  cursor: col-resize;
-  background: transparent;
-}
-
-.source-preview-resize-handle::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  background: transparent;
-}
-
 /* 저장 상태: 콘텐츠 우상단에 떠 있다. 제목이 위 48px에서 시작하므로 그 위 여백(12~40px)에 들어가
    제목 줄과 겹치지 않는다. 스크롤 영역 밖(패널 기준)이라 본문을 내려도 저장 실패 표시가 계속 보이고,
    본문이 아래로 지나갈 때 글자와 섞이지 않게 canvas 배경을 깐다. 오른쪽 16px은 본문 스크롤바(8px)를 비켜 간다. */

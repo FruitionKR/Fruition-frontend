@@ -45,8 +45,6 @@ export function SourcePreviewPanel({
   pageType,
   documentId,
   sourceBlockHighlights,
-  width,
-  onResizeStart,
   onMarkdownEditContextChange,
   onRenameDocument,
   onRefreshDocuments,
@@ -60,8 +58,6 @@ export function SourcePreviewPanel({
   pageType: string | null;
   documentId?: string | null;
   sourceBlockHighlights?: SourceBlockHighlight[];
-  width: number;
-  onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onMarkdownEditContextChange?: (context: ActiveMarkdownEditContext | null) => void;
   onRenameDocument?: (documentId: string, filename: string) => Promise<void>;
   /** 저장 직후 백엔드 문서 목록을 다시 받아 알림·트리를 갱신한다. */
@@ -418,7 +414,6 @@ export function SourcePreviewPanel({
   return (
     <section
       className={cx(styles["source-preview-panel"], fillMain && styles["is-main"])}
-      style={fillMain ? undefined : { width }}
       aria-label="원본문서 미리보기"
       onClick={(event) => event.stopPropagation()}
     >
@@ -566,14 +561,6 @@ export function SourcePreviewPanel({
         </div>
         )}
       </div>
-      {!fillMain && (
-        <button
-          type="button"
-          className={styles["source-preview-resize-handle"]}
-          aria-label="원본문서 패널 폭 조절"
-          onPointerDown={onResizeStart}
-        />
-      )}
     </section>
   );
 }

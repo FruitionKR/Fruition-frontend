@@ -64,10 +64,10 @@ import { createClientId, findTreeItem } from "@/entities/tree";
 import { getMarkdownDocumentTitle } from "@/entities/document/lib/note";
 import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
 import { useOperationLogFeed } from "../model/useOperationLogFeed";
-import { useResizeHandle } from "../model/useResizeHandle";
 import { useSidebarLayout } from "../model/useSidebarLayout";
 import { useAgentPanelLayout } from "../model/useAgentPanelLayout";
 import { useCompactLayout } from "../model/useCompactLayout";
+import { writePanelWidths } from "../model/panelWidthPreview";
 import { AGENT_PANEL_LIMITS, SIDEBAR_BASE_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel, isAgentPanelVisible } from "../lib/workspaceLayout";
 import type { DocumentItemResponse, SourceBlockHighlight } from "@/entities/document";
@@ -77,10 +77,6 @@ import type { GraphNode } from "@/entities/wiki";
 import type { ChatWikiExportResponse } from "@/features/wiki-export";
 import styles from "./HomeWorkspace.module.css";
 
-const SOURCE_PREVIEW_DEFAULT_WIDTH = 400;
-const SOURCE_PREVIEW_MIN_WIDTH = 300;
-const SOURCE_PREVIEW_MAX_FLOOR = 360;
-const RESIZE_SAFETY_MARGIN = 120;
 
 export function HomeWorkspace() {
   const [isHomeAgentPanelOpen, setIsHomeAgentPanelOpen] = useState(true);
@@ -134,14 +130,6 @@ export function HomeWorkspace() {
   }, [isCompactLayout]);
   // 콘텐츠 왼쪽 여백. 좁은 화면에서는 레일만 피한다.
   const contentLeft = isCompactLayout ? SIDEBAR_RAIL_WIDTH : sidebarLayout.visibleWidth;
-  const sourcePreviewResize = useResizeHandle(
-    SOURCE_PREVIEW_DEFAULT_WIDTH,
-    SOURCE_PREVIEW_MIN_WIDTH,
-    () => Math.max(
-      SOURCE_PREVIEW_MAX_FLOOR,
-      window.innerWidth - contentLeft - contentRight - RESIZE_SAFETY_MARGIN
-    )
-  );
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
   const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
@@ -532,16 +520,28 @@ export function HomeWorkspace() {
     }
   }
 
+  // 드래그 중 폭은 React 상태 대신 main의 CSS 변수로 바로 그린다(아래 style과 같은 변수·같은 계산).
+  // 좁은 화면에서는 두 패널이 콘텐츠를 밀지 않고 겹치므로 핸들도 없고 미리 그릴 것도 없다.
+  const workspaceRef = useRef<HTMLElement>(null);
+  function previewSidebarWidth(width: number) {
+    if (!isCompactLayout) writePanelWidths(workspaceRef.current, { "--sidebar-width": width, "--sidebar-self-width": width });
+  }
+  function previewAgentPanelWidth(width: number) {
+    if (!isCompactLayout) writePanelWidths(workspaceRef.current, { "--agent-panel-width": width, "--agent-panel-self-width": width });
+  }
+
   function handleResizePointerMove(event: ReactPointerEvent<HTMLElement>) {
-    if (sidebarLayout.update(event)) return;
-    if (agentPanelLayout.update(event)) return;
-    sourcePreviewResize.update(event);
+    const sidebarWidth = sidebarLayout.update(event);
+    if (sidebarWidth !== null) return previewSidebarWidth(sidebarWidth);
+    const agentPanelWidth = agentPanelLayout.update(event);
+    if (agentPanelWidth !== null) previewAgentPanelWidth(agentPanelWidth);
   }
 
   function handleResizePointerEnd(event: ReactPointerEvent<HTMLElement>) {
-    if (sidebarLayout.stop(event)) return;
-    if (agentPanelLayout.stop(event)) return;
-    sourcePreviewResize.stop(event);
+    const sidebarWidth = sidebarLayout.stop(event);
+    if (sidebarWidth !== null) return previewSidebarWidth(sidebarWidth);
+    const agentPanelWidth = agentPanelLayout.stop(event);
+    if (agentPanelWidth !== null) previewAgentPanelWidth(agentPanelWidth);
   }
 
   // 스킬 화면을 벗어나면(레일·검색 결과 이동 등) 대상 고르기를 끝낸다.
@@ -606,6 +606,7 @@ export function HomeWorkspace() {
 
   return (
     <main
+      ref={workspaceRef}
       className={cx(
         "workspace",
         isSidebarCollapsed && "is-sidebar-collapsed",
@@ -618,8 +619,7 @@ export function HomeWorkspace() {
         "--sidebar-width": `${contentLeft}px`,
         "--sidebar-self-width": `${isCompactLayout ? (isCompactSidebarOpen ? SIDEBAR_BASE_WIDTH : SIDEBAR_RAIL_WIDTH) : sidebarLayout.visibleWidth}px`,
         "--agent-panel-width": `${contentRight}px`,
-        "--agent-panel-self-width": `${agentPanelSelfWidth}px`,
-        "--source-preview-width": `${sourcePreviewResize.width}px`
+        "--agent-panel-self-width": `${agentPanelSelfWidth}px`
       } as CSSProperties}
       {...workspaceBackgroundClick}
       onPointerMove={handleResizePointerMove}
@@ -732,8 +732,6 @@ export function HomeWorkspace() {
             pageType={selection.selectedPreviewTarget?.pageType ?? null}
             documentId={selection.selectedDocumentId}
             sourceBlockHighlights={selection.selectedPreviewTarget?.sourceBlockHighlights ?? []}
-            width={sourcePreviewResize.width}
-            onResizeStart={sourcePreviewResize.start}
             onMarkdownEditContextChange={setMarkdownEditContext}
             onRenameDocument={projectTree.renameDocumentById}
             onRefreshDocuments={() => void refreshBackendData()}
