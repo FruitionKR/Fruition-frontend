@@ -1,4 +1,5 @@
 import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
+import type { ConsentBody } from "@/entities/user/model/consent";
 
 export type EmailVerificationResponse = {
   verification_id: string;
@@ -60,7 +61,8 @@ export async function signupWithEmail(
   email: string,
   password: string,
   displayName: string,
-  verificationToken: string
+  verificationToken: string,
+  consent: ConsentBody
 ): Promise<void> {
   const response = await fetch("/api/auth/signup", {
     method: "POST",
@@ -69,7 +71,8 @@ export async function signupWithEmail(
       email,
       password,
       display_name: displayName,
-      verification_token: verificationToken
+      verification_token: verificationToken,
+      ...consent
     })
   });
 

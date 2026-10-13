@@ -16,15 +16,15 @@
 
 | 서비스 | 전체 `/api/**` | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 52 | 35 |
+| document-svc | 87 | 53 | 34 |
 | access-svc | 29 | 26 | 3 |
 
-미호출 35개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 7, 미배선 14.
+미호출 34개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 6, 미배선 14.
 (문서 휴지통 조회·문서 복구는 설정 화면 휴지통 섹션에 배선되어 빠졌다. [consumed/document.md](consumed/document.md#휴지통))
 
 ---
 
-## document-svc 미호출 37개
+## document-svc 미호출 36개
 
 ### 의도적 비사용
 
@@ -58,8 +58,9 @@
 
 ### UI 없음 — 음성·회의
 
-이 저장소에 음성·회의 UI가 **전혀 없다.** `MediaRecorder`, `getUserMedia`, `WebSocket`
-어느 것도 `src/`·`app/`에 나타나지 않는다. 따라서 아래 9개 경로는 대응 화면 자체가 없다.
+이 저장소에 회의 UI가 없다. `MediaRecorder`·`getUserMedia`는 채팅 입력창 음성 받아쓰기
+(`src/features/agent-chat/model/useDictation.ts`, [ai-agent.md](consumed/ai-agent.md#음성-입력))에만
+쓰이고 `WebSocket`은 나타나지 않는다. 따라서 아래 8개 경로는 대응 화면 자체가 없다.
 이 문서는 그 사실만 기록하고 내용은 다루지 않는다.
 
 | 경로 |
@@ -72,7 +73,6 @@
 | `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/apply` |
 | `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording` |
 | `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording-url` |
-| `/api/workspaces/{workspace_id}/speech/transcriptions` |
 
 ### 미배선 (실제 공백 후보)
 

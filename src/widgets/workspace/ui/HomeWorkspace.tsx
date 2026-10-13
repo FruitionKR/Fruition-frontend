@@ -49,6 +49,7 @@ import {
 import { useTreeOpenState } from "../model/useTreeOpenState";
 import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend, makeRawId, rawNodeIdToDocumentId } from "@/entities/graph/lib/graph";
+import { buildDocumentPathSuffixes } from "@/entities/graph/lib/documentLabels";
 import { filterGraphProjects, isGraphIngestEligible, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
@@ -112,7 +113,7 @@ export function HomeWorkspace() {
   const [pdfIngestConfirmation, setPdfIngestConfirmation] = useState<DocumentItemResponse[] | null>(null);
   const graphIngestRunningRef = useRef(false);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
-  // 알림 목록·읽음 상태. 다른 화면에서도 레일 알림 종의 안 읽음 점을 위해 돌린다.
+  // 알림 목록·읽음 상태. 알림 화면 탭의 안 읽음 표시에 쓴다.
   const notificationFeed = useNotificationFeed(activeView === "notifications");
   // 스킬 "실행": 사이드바에서 대상 문서를 고르는 중인 스킬과 고른 트리 항목 (Figma 1527:15924)
   const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; targetItemId: string | null; errorMessage: string | null } | null>(null);
@@ -175,7 +176,15 @@ export function HomeWorkspace() {
     setFileDropTarget: projectTree.setFileDropTarget,
     refreshBackendData
   });
-  const graphData = useMemo(() => buildGraphFromBackend(graphDocuments, wikiGraph), [graphDocuments, wikiGraph]);
+  // 같은 이름의 Markdown 문서는 폴더 경로로 구분한다(#150). 그래프 라벨과 미리보기 제목이 같은 접미사를 쓴다.
+  const documentPathSuffixes = useMemo(
+    () => buildDocumentPathSuffixes(graphDocuments, projectTree.projects),
+    [graphDocuments, projectTree.projects]
+  );
+  const graphData = useMemo(
+    () => buildGraphFromBackend(graphDocuments, wikiGraph, documentPathSuffixes),
+    [graphDocuments, wikiGraph, documentPathSuffixes]
+  );
   const graphIngestProgressInputs = useMemo(() => selectGraphIngestProgressInputs(graphDocuments), [graphDocuments]);
   const selection = useTreeSelection(projectTree.projects, graphData.nodes);
   const isHomeView = activeView === "home";
@@ -662,7 +671,6 @@ export function HomeWorkspace() {
           onLint: () => void handleGraphLint()
         }}
         onViewChange={handleViewChange}
-        hasUnreadNotifications={notificationFeed.hasUnread}
         isCollapsed={isSidebarCollapsed}
         isOverlay={isCompactLayout}
         onCollapseSidebar={collapseSidebar}
@@ -751,6 +759,7 @@ export function HomeWorkspace() {
             readOnly={isSelectedDocumentReadOnly}
             documentConversion={selectedDocumentConversion}
             titleHint={`${selectedDocumentParentLabel} / ${selectedDocumentLabel}`}
+            titleSuffix={selection.selectedDocumentId ? documentPathSuffixes.get(selection.selectedDocumentId) : undefined}
             fillMain
           />
         ) : (

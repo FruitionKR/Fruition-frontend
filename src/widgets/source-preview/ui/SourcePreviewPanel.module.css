@@ -207,6 +207,21 @@
   font-weight: 700;
 }
 
+/* 같은 이름 문서를 구분하는 폴더 경로(#150). 제목과 한 줄에 두되 보조 정보라 작고 흐리게 */
+.source-preview-heading > .source-preview-title-suffix {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .source-preview-document-controls {
   width: 100%;
   flex: 0 0 auto;

@@ -43,7 +43,6 @@ export function DocumentSidebar({
   documents,
   graphActions,
   onViewChange,
-  hasUnreadNotifications = false,
   isCollapsed = false,
   isOverlay = false,
   onCollapseSidebar,
@@ -113,8 +112,6 @@ export function DocumentSidebar({
   };
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
   onViewChange: (view: RailView) => void;
-  /** 레일 알림 종의 안 읽음 점 */
-  hasUnreadNotifications?: boolean;
   /**
    * 레일 "채팅 시작" 버튼은 새 시안(Figma 1527:16327)에 없어 뺐다. 채팅은 콘텐츠 우하단 플로팅 버튼으로 연다.
    * HomeWorkspace가 아직 넘기므로 타입만 남겨 둔다(사용하지 않음).
@@ -290,7 +287,6 @@ export function DocumentSidebar({
           isCollapsed={isCollapsed}
           activeView={activeView}
           onViewChange={onViewChange}
-          hasUnreadNotifications={hasUnreadNotifications}
           tools={(
             <>
               <RailGroup>
