@@ -487,3 +487,25 @@ test("로그인 전에 시작한 /me가 로그인 뒤 refresh 거절로 끝나�
   assert.equal(notified, 0, "로그인 직후 /workspaces에 늦은 만료 안내가 따라오지 않는다");
   assert.equal(isSessionExpired(), false);
 });
+
+test("회원 탈퇴의 본인 확인 실패(401 + code)는 재발급·재전송 없이 응답을 그대로 돌려주고 세션 만료로 보지 않는다", async (t) => {
+  workspaceEnv(t);
+  for (const code of ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"]) {
+    const calls = [];
+    t.mock.method(globalThis, "fetch", async (path, init) => {
+      calls.push(`${init?.method ?? "GET"} ${path}`);
+      if (path === "/api/auth/refresh") return Response.json({ access_token: "fresh" });
+      return Response.json({ error: { code, message: "확인 실패" } }, { status: 401 });
+    });
+    let notified = 0;
+    setSessionExpiredHandler(() => {
+      notified++;
+    });
+
+    const response = await apiFetch("/api/auth/me", { method: "DELETE", body: "{}" });
+
+    assert.equal(response.status, 401, `${code}: 호출부가 응답을 읽어 입력 오류를 안내할 수 있다`);
+    assert.deepEqual(calls, ["DELETE /api/auth/me"], `${code}: 탈퇴 요청을 refresh 뒤 다시 보내지 않는다`);
+    assert.equal(notified, 0, `${code}: 본인 확인 실패로 로그아웃시키지 않는다`);
+  }
+});

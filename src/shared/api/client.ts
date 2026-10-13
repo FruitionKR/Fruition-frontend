@@ -127,7 +127,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   if (response.status !== 401) return response;
   // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
   // 다만 본문이 비어 있거나 code가 없어도 세션 만료로 단정하지 않는다(아래 재발급 성공 분기).
-  if (await isCredentialRejection(path, response)) return response;
+  if (await isCredentialRejection(path, init?.method, response)) return response;
   // 로그인·회원가입 등 인증 요청 자체의 401은 재발급 대상이 아니지만, /me는 보호된 요청이다.
   const canRefresh = path === "/api/auth/me" || path.startsWith("/api/auth/me/") || !path.startsWith("/api/auth/");
   // 재발급 대상이 아닌 요청의 401은 요청 자체가 거절된 것이다. 호출부가 응답을 읽어 안내한다.
@@ -143,7 +143,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     if (retried.status !== 401) return retried;
     // 비밀번호·MFA 확인 요청의 401은 세션이 살아 있어도 입력이 틀리면 온다.
     // 본문이 비어 있거나 code가 없어도 호출부가 입력 오류로 안내하게 응답을 넘긴다.
-    if (credentialRejectionCode(path)) return retried;
+    if (credentialRejectionCodes(path, init?.method).length > 0) return retried;
   }
   // 호출부마다 처리하면 대부분 놓치므로, 세션 만료는 한 곳에서 재인증으로 이어 붙인다.
   notifySessionExpired();
@@ -151,17 +151,23 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 }
 
 /** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */
-async function isCredentialRejection(path: string, response: Response): Promise<boolean> {
-  const expectedCode = credentialRejectionCode(path);
-  if (!expectedCode) return false;
+async function isCredentialRejection(path: string, method: string | undefined, response: Response): Promise<boolean> {
+  const expectedCodes = credentialRejectionCodes(path, method);
+  if (expectedCodes.length === 0) return false;
   const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
-  return body?.error?.code === expectedCode;
+  const code = body?.error?.code;
+  return typeof code === "string" && expectedCodes.includes(code);
 }
 
-/** 입력한 비밀번호·MFA 코드를 확인하는 요청이면, 서버가 불일치를 알리는 code. */
-function credentialRejectionCode(path: string): string | null {
-  return path === "/api/auth/me/password" ? "INVALID_CREDENTIALS"
-    : path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate" ? "INVALID_MFA_CODE" : null;
+/** 입력한 비밀번호·MFA 코드를 확인하는 요청이면, 서버가 불일치를 알리는 code 목록. 아니면 빈 배열. */
+function credentialRejectionCodes(path: string, method: string | undefined): string[] {
+  if (path === "/api/auth/me/password") return ["INVALID_CREDENTIALS"];
+  if (path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate") return ["INVALID_MFA_CODE"];
+  // 회원 탈퇴의 본인 확인 실패. 소셜 계정의 REAUTHENTICATION_REQUIRED는 refresh로 받은 토큰으로 재시도해도 같은 결과다.
+  if (path === "/api/auth/me" && method?.toUpperCase() === "DELETE") {
+    return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"];
+  }
+  return [];
 }
 
 /** 응답이 실패(!ok)면 에러 메시지를 추출해 던진다. 본문이 필요 없는 요청에서 사용한다. */

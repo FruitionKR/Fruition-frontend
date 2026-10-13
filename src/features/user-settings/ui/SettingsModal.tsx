@@ -12,6 +12,7 @@ import {
 } from "@/entities/ai";
 import { useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useWorkspaceName";
+import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/auth";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
@@ -22,6 +23,7 @@ import {
   SvgIcon,
   userCircleOutlineIcon
 } from "@/shared/ui/SvgIcon";
+import { saveSettingsResume, type SettingsResume } from "../lib/settingsResume";
 import { AccountPanel } from "./panels/AccountPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
@@ -68,11 +70,34 @@ function LogoutIcon({ className }: { className?: string }) {
 /**
  * 설정 모달 (Figma 963:8660 / 963:8257 / 771:18800). 스킬은 레일 "스킬" 화면으로 옮겼다.
  * initialSection: 레일 프로필은 프로필 설정, 톱니는 기본 설정으로 연다.
+ * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 멤버 관리나 탈퇴 확인 단계를 다시 연다.
  */
-export function SettingsModal({ onClose, initialSection = "profile" }: { onClose: () => void; initialSection?: SettingsSection }) {
+export function SettingsModal({
+  onClose,
+  initialSection = "profile",
+  resume = null
+}: {
+  onClose: () => void;
+  initialSection?: SettingsSection;
+  /** 오리진을 벗어났다 돌아온 뒤 다시 열 위치(멤버 관리, 탈퇴 확인). initialSection보다 우선한다. */
+  resume?: SettingsResume | null;
+}) {
   const workspaceName = useWorkspaceName();
   const { signOut } = useSignOut();
-  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
+  const [activeSection, setActiveSection] = useState<SettingsSection>(
+    resume === "members" ? "members" : resume === "account-delete" ? "account" : initialSection
+  );
+
+  /** 탈퇴가 막힌 워크스페이스의 멤버 관리로 간다. 다른 워크스페이스면 전환 후 새로 그려 멤버 관리를 다시 연다. */
+  function openMembers(workspaceId: string) {
+    if (workspaceId === getSelectedWorkspaceId()) {
+      setActiveSection("members");
+      return;
+    }
+    setSelectedWorkspaceId(workspaceId);
+    saveSettingsResume("members");
+    window.location.reload();
+  }
   const { data: me } = useMe();
   const [aiModels, setAiModels] = useState<AiModel[]>([]);
   const [aiModelSelection, setAiModelSelection] = useState<AiModelSelection | null>(null);
@@ -217,7 +242,9 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
 
         <div className={styles.content}>
           {activeSection === "profile" && <ProfilePanel />}
-          {activeSection === "account" && <AccountPanel />}
+          {activeSection === "account" && (
+            <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
+          )}
           {activeSection === "notifications" && <NotificationsPanel />}
           {activeSection === "preferences" && <PreferencesPanel />}
           {activeSection === "general" && (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { hasOAuthLinkResult, useMe } from "@/entities/user";
-import { SettingsModal, type SettingsSection } from "@/features/user-settings";
+import { SettingsModal, takeSettingsResume, type SettingsResume, type SettingsSection } from "@/features/user-settings";
 import { RailButton } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { RailSettingIcon, RailUserIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 
@@ -11,11 +11,24 @@ import { RailSettingIcon, RailUserIcon } from "@/widgets/rail-navigation/ui/Rail
 export function SidebarProfile() {
   // 열린 설정 화면. null이면 닫혀 있다.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
+  // 돌아와서 다시 열 설정 위치(탈퇴 확인·멤버 관리). 한 번 쓰고 나면 다음 열기부터는 기본 위치다.
+  const [settingsResume, setSettingsResume] = useState<SettingsResume | null>(null);
 
-  // 설정에서 시작한 소셜 계정 연동을 마치고 돌아오면 결과를 보여 줄 설정(계정)을 다시 연다.
+  // 설정에서 시작한 소셜 계정 연동·재로그인·워크스페이스 전환을 마치고 돌아오면 설정을 떠났던 자리로 다시 연다.
   useEffect(() => {
+    const resume = takeSettingsResume();
+    if (resume) {
+      setSettingsResume(resume);
+      setSettingsSection("account");
+      return;
+    }
     if (hasOAuthLinkResult()) setSettingsSection("account");
   }, []);
+
+  function closeSettings() {
+    setSettingsSection(null);
+    setSettingsResume(null);
+  }
 
   // 표시용 데이터라 실패 시 fallback 이름을 유지한다.
   const { data: me } = useMe();
@@ -45,7 +58,7 @@ export function SidebarProfile() {
       </RailButton>
 
       {settingsSection && (
-        <SettingsModal key={settingsSection} initialSection={settingsSection} onClose={() => setSettingsSection(null)} />
+        <SettingsModal key={settingsSection} initialSection={settingsSection} resume={settingsResume} onClose={closeSettings} />
       )}
     </>
   );

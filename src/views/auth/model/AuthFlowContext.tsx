@@ -1,11 +1,14 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState, type SetStateAction } from "react";
+import type { ConsentChoices } from "@/entities/user";
 
 type SignupDraft = {
   nickname: string;
   email: string;
   password: string;
+  /** 가입 화면에서 받은 동의. 인증번호 확인 뒤 가입 요청에 함께 보낸다. */
+  consent: ConsentChoices;
   verificationId: string;
   expiresAt: number;
   verificationRequestId?: string;

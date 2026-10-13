@@ -27,6 +27,7 @@
   --auth-caption: #a7a7a7;
   --auth-prompt: #c4c4c4;
   --auth-prompt-disabled: #c4c4c4;
+  --auth-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%230a0a0a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   min-height: 100dvh;
   padding: 0;
   background: var(--auth-bg);
@@ -55,6 +56,7 @@
     --auth-caption: var(--color-body);
     --auth-prompt: var(--color-body);
     --auth-prompt-disabled: var(--color-muted);
+    --auth-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 }
 
@@ -78,6 +80,7 @@
   --auth-caption: var(--color-body);
   --auth-prompt: var(--color-body);
   --auth-prompt-disabled: var(--color-muted);
+  --auth-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .auth-shell {
@@ -406,6 +409,112 @@
 .auth-prompt button:disabled {
   color: var(--auth-prompt-disabled);
   cursor: not-allowed;
+}
+
+/* 가입·재동의 동의 항목. 로그인 화면 입력칸과 같은 --auth-* 토큰을 써 라이트·다크 테마를 함께 따른다. */
+.auth-consent {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 0;
+  color: var(--auth-ink);
+}
+
+.auth-consent-legend {
+  margin-bottom: 4px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.14px;
+}
+
+.auth-consent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.auth-consent-item input {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+  background: var(--auth-input-bg);
+  border: 1px solid var(--auth-input-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.auth-consent-item input:checked {
+  border-color: var(--auth-accent);
+  background: var(--auth-accent) var(--auth-check-mark) center / 20px no-repeat;
+}
+
+.auth-consent-item input:focus-visible {
+  outline: 2px solid var(--auth-accent);
+  outline-offset: 2px;
+}
+
+.auth-consent-item input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.auth-consent-item label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.14px;
+  cursor: pointer;
+}
+
+.auth-consent-tag {
+  padding: 1px 6px;
+  color: var(--auth-caption);
+  border: 1px solid var(--auth-input-border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.auth-consent-tag--required {
+  color: var(--auth-accent);
+  border-color: var(--auth-accent);
+}
+
+.auth-consent a,
+.auth-consent-note a {
+  color: var(--auth-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-consent-note {
+  margin: 4px 0 0;
+  color: var(--auth-caption);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+/* 재동의 화면은 보호된 화면 위를 덮는다. 설정 모달(60)·세션 만료 안내보다 위에 둔다. */
+.auth-consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow-y: auto;
 }
 
 @media (max-width: 480px) {

@@ -80,13 +80,16 @@ function authenticate(ctx) {
     ctx.json(401, { error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다." } });
     return false;
   }
+  // 회원 탈퇴 재인증처럼 토큰이 직접 로그인으로 받은 것인지(authTime) 봐야 하는 라우트가 있다.
+  ctx.session = session;
   return true;
 }
 
-export function issueAccessToken(state, userId) {
+/** authTime: 직접 로그인(비밀번호·OAuth 교환·MFA)으로 받은 토큰에만 넣는다. refresh로 받은 토큰에는 없다. */
+export function issueAccessToken(state, userId, { authTime = null } = {}) {
   const payload = Buffer.from(JSON.stringify({ sub: userId, exp: Date.now() + TOKEN_TTL_MS })).toString("base64url");
   const token = `mock.${payload}.${crypto.randomUUID().slice(0, 8)}`;
-  state.tokens.set(token, { userId, expiresAt: Date.now() + TOKEN_TTL_MS });
+  state.tokens.set(token, { userId, expiresAt: Date.now() + TOKEN_TTL_MS, authTime });
   return token;
 }
 

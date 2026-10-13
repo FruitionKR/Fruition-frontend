@@ -10,7 +10,7 @@
 
 | 도메인 | 호출 수 | 서비스 | 주 모듈 |
 |---|---:|---|---|
-| [인증·계정](auth-account.md) | 21 | access-svc | `src/entities/user/api` |
+| [인증·계정](auth-account.md) | 25 | access-svc | `src/entities/user/api` |
 | [워크스페이스](workspace.md) | 12 | access-svc | `src/entities/workspace/api` |
 | [문서·트리](document.md) | 22 | document-svc | `src/entities/document/api`, `src/entities/tree/api`, `src/features/note-editing` |
 | [Wiki](wiki.md) | 7 | document-svc | `src/entities/wiki/api`, `src/features/wiki-export`, `src/features/document-notifications` |
@@ -25,7 +25,7 @@
 | 서비스 | `/api/**` 전체 | 호출 | 미호출 |
 |---|---:|---:|---:|
 | document-svc | 87 | 51 | 36 |
-| access-svc | 29 | 26 | 3 |
+| access-svc | 32 | 29 | 3 |
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.
 
