@@ -23,9 +23,8 @@ import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/sh
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
 import { useServerWake, type AccessCodeResult } from "@/views/login/model/useServerWake";
+import { getLoginErrorMessage } from "@/views/login/lib/loginErrorMessage";
 
-const INVALID_CREDENTIALS_MESSAGE = "가입하지 않은 아이디거나, 잘못된 비밀번호입니다.";
-const SERVER_PREPARING_MESSAGE = "서버가 아직 준비 중이에요. 준비가 끝나면 다시 로그인해 주세요.";
 const ACCESS_CODE_ERROR_ID = "login-access-code-error";
 const PASSWORD_HANGUL_WARNING_ID = "login-password-hangul-warning";
 const ACCESS_CODE_MESSAGES: Record<Exclude<AccessCodeResult, "ok"> | "empty", string> = {
@@ -174,11 +173,11 @@ function LoginPageContent() {
       saveAccessToken(tokens.access_token);
       queryClient.clear();
       router.replace(takeAfterLoginPath());
-    } catch {
+    } catch (error: unknown) {
       isLoginRequestInFlight.current = false;
       // 서버 준비 중의 실패는 자격 증명 문제가 아니다. 자동 재전송하지 않고 사용자가 다시 누르게 한다.
       // 제출 시점 렌더의 값이 아니라 요청이 끝난 지금의 상태로 판단한다.
-      setErrorMessage(isServerUnready() ? SERVER_PREPARING_MESSAGE : INVALID_CREDENTIALS_MESSAGE);
+      setErrorMessage(getLoginErrorMessage(error, isServerUnready()));
       setIsSubmitting(false);
     }
   }
