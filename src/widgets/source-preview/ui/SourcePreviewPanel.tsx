@@ -117,6 +117,10 @@ export function SourcePreviewPanel({
     }
   }, [documentId, documentStatus, documentConverting, conversionRevision]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // MarkdownViewer가 memo라 identity를 고정한다. ref만 쓰므로 의존성이 없다.
+  const registerBlockRef = useCallback((blockId: string, node: HTMLDivElement | null) => {
+    blockRefs.current[blockId] = node;
+  }, []);
   const contentRef = useRef<HTMLDivElement>(null);
   const resolvedPageType = (page?.page_type || pageType || "source").toLowerCase();
   const pageTypeLabel = resolvedPageType === "concept" ? "Concept" : "Source";
@@ -506,9 +510,7 @@ export function SourcePreviewPanel({
               markdown={rawMarkdown}
               highlightedBlocks={selectedBlockHighlights}
               highlightRanges={highlightRanges}
-              onBlockRef={(blockId, node) => {
-                blockRefs.current[blockId] = node;
-              }}
+              onBlockRef={registerBlockRef}
             />
           </>
         )}

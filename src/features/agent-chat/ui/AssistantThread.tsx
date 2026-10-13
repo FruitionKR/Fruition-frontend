@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
@@ -50,13 +50,14 @@ export function AssistantThread({
     () => buildCitationReferenceByRank(message.references, citationRankMap),
     [message.references, citationRankMap]
   );
-  const canOpenCitation = (rank: number) => citationReferenceByRank.has(rank);
-  const openCitation = (rank: number) => {
+  // MarkdownViewer가 memo라 콜백 identity를 고정해야 폴링 리렌더마다 본문을 다시 그리지 않는다.
+  const canOpenCitation = useCallback((rank: number) => citationReferenceByRank.has(rank), [citationReferenceByRank]);
+  const openCitation = useCallback((rank: number) => {
     const reference = citationReferenceByRank.get(rank);
     if (!reference?.source_document_id || !reference.source_block_ids?.length) return;
     const highlights = [...new Set(reference.source_block_ids)].map((blockId) => ({ block_id: blockId, rank }));
     onOpenSourceBlocks(reference.source_document_id, sourceTitle(nodes, reference.source_document_id), highlights);
-  };
+  }, [citationReferenceByRank, nodes, onOpenSourceBlocks]);
 
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>

@@ -13,6 +13,8 @@ import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ing
 import { usePageVisible } from "@/shared/lib/usePageVisible";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
+// 로딩 중 렌더마다 새 []를 돌려주면 documents에 묶인 memo·effect가 매번 무효화된다.
+const EMPTY_DOCUMENTS: DocumentItemResponse[] = [];
 type DocumentData = Pick<BackendData, "documents" | "tree">;
 
 function hasProcessingDocuments(data: DocumentData | undefined) {
@@ -79,7 +81,7 @@ export function useBackendData({
   );
 
   return {
-    documents: backendData?.documents ?? [],
+    documents: backendData?.documents ?? EMPTY_DOCUMENTS,
     /** 문서 목록을 서버에서 마지막으로 받은 시각. 응답 내용이 같아도 갱신된다. */
     documentsUpdatedAt: query.dataUpdatedAt,
     setDocuments,

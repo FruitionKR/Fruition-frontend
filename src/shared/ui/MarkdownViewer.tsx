@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { createContext, memo, useCallback, useContext, useMemo } from "react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
@@ -53,7 +53,74 @@ function createMarkdownLink(linkPolicy: MarkdownLinkPolicy) {
 const DEFAULT_LINK = createMarkdownLink("default");
 const INERT_EXTERNAL_LINK = createMarkdownLink("inert-external");
 
-export function MarkdownViewer({
+/**
+ * 인용·소스 블록 렌더러가 읽는 호출부 콜백. 컴포넌트 타입을 모듈 수준에 고정하고 콜백만 context로
+ * 넘기므로, 호출부가 새 클로저를 넘겨도 react-markdown 트리(KaTeX·이미지 포함)가 리마운트되지 않는다.
+ */
+type MarkdownViewerCallbacks = {
+  onCitationClick?: (rank: number) => void;
+  canClickCitation?: (rank: number) => boolean;
+  highlightedRankOf: (blockId: string) => number | undefined;
+  registerBlockRef: (blockId: string, element: HTMLDivElement | null) => void;
+};
+
+const MarkdownViewerContext = createContext<MarkdownViewerCallbacks>({
+  highlightedRankOf: () => undefined,
+  registerBlockRef: () => {}
+});
+
+function CitationRef({ rank, children }: { rank?: number; children?: ReactNode }) {
+  const { onCitationClick, canClickCitation } = useContext(MarkdownViewerContext);
+  const citationRank = Number(rank);
+  if (!Number.isFinite(citationRank) || !onCitationClick || (canClickCitation && !canClickCitation(citationRank))) {
+    return <>{children}</>;
+  }
+  return (
+    <button
+      type="button"
+      className={`markdown-citation ${rankColorClass(citationRank)}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onCitationClick(citationRank);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SourceBlock({ node, children }: { node?: Element; children?: ReactNode }) {
+  const { highlightedRankOf, registerBlockRef } = useContext(MarkdownViewerContext);
+  const blockId = String(node?.properties?.dataBlockId ?? "");
+  const highlightedRank = highlightedRankOf(blockId);
+
+  return (
+    <div
+      className={cx(
+        "markdown-source-block",
+        highlightedRank && "is-highlighted",
+        highlightedRank && rankColorClass(highlightedRank)
+      )}
+      data-block-id={blockId}
+      data-citation-rank={highlightedRank}
+      ref={(element) => registerBlockRef(blockId, element)}
+    >
+      {children}
+    </div>
+  );
+}
+
+function CodeBlock({ children }: { children?: ReactNode }) {
+  return <pre className="markdown-codeblock">{children}</pre>;
+}
+
+// 링크 정책별 컴포넌트 맵. 렌더마다 객체가 바뀌면 react-markdown이 트리를 다시 만들므로 모듈 상수로 둔다.
+const COMPONENTS_BY_LINK_POLICY: Record<MarkdownLinkPolicy, Components> = {
+  default: { pre: CodeBlock, img: ManagedImage, a: DEFAULT_LINK, "citation-ref": CitationRef, "source-block": SourceBlock } as Components,
+  "inert-external": { pre: CodeBlock, img: ManagedImage, a: INERT_EXTERNAL_LINK, "citation-ref": CitationRef, "source-block": SourceBlock } as Components
+};
+
+function MarkdownViewerContent({
   markdown,
   linkPolicy = "default",
   onCitationClick,
@@ -125,54 +192,10 @@ export function MarkdownViewer({
     [onBlockRef]
   );
 
-  const components = useMemo(() => {
-    function CitationRef({ rank, children }: { rank?: number; children?: ReactNode }) {
-      const citationRank = Number(rank);
-      if (!Number.isFinite(citationRank) || !onCitationClick || (canClickCitation && !canClickCitation(citationRank))) {
-        return <>{children}</>;
-      }
-      return (
-        <button
-          type="button"
-          className={`markdown-citation ${rankColorClass(citationRank)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onCitationClick(citationRank);
-          }}
-        >
-          {children}
-        </button>
-      );
-    }
-
-    function SourceBlock({ node, children }: { node?: Element; children?: ReactNode }) {
-      const blockId = String(node?.properties?.dataBlockId ?? "");
-      const highlightedRank = highlightedRankOf(blockId);
-
-      return (
-        <div
-          className={cx(
-            "markdown-source-block",
-            highlightedRank && "is-highlighted",
-            highlightedRank && rankColorClass(highlightedRank)
-          )}
-          data-block-id={blockId}
-          data-citation-rank={highlightedRank}
-          ref={(element) => registerBlockRef(blockId, element)}
-        >
-          {children}
-        </div>
-      );
-    }
-
-    return {
-      pre: ({ children }: { children?: ReactNode }) => <pre className="markdown-codeblock">{children}</pre>,
-      img: ManagedImage,
-      a: linkPolicy === "inert-external" ? INERT_EXTERNAL_LINK : DEFAULT_LINK,
-      "citation-ref": CitationRef,
-      "source-block": SourceBlock
-    } as Components;
-  }, [canClickCitation, highlightedRankOf, linkPolicy, onCitationClick, registerBlockRef]);
+  const callbacks = useMemo<MarkdownViewerCallbacks>(
+    () => ({ onCitationClick, canClickCitation, highlightedRankOf, registerBlockRef }),
+    [canClickCitation, highlightedRankOf, onCitationClick, registerBlockRef]
+  );
 
   return (
     <div className="markdown-viewer">
@@ -203,14 +226,19 @@ export function MarkdownViewer({
         })}
       {/* 에디터가 빈 줄 보존용으로 써넣는 <br /> 같은 원본 HTML이 글자로 보이지 않게
           렌더 단계에서만 버린다. 저장된 markdown은 그대로 둔다. */}
-      <ReactMarkdown
-        skipHtml
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={components}
-      >
-        {bodyMarkdown}
-      </ReactMarkdown>
+      <MarkdownViewerContext.Provider value={callbacks}>
+        <ReactMarkdown
+          skipHtml
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={rehypePlugins}
+          components={COMPONENTS_BY_LINK_POLICY[linkPolicy]}
+        >
+          {bodyMarkdown}
+        </ReactMarkdown>
+      </MarkdownViewerContext.Provider>
     </div>
   );
 }
+
+/** props가 같으면 다시 그리지 않는다. 호출부는 콜백을 useCallback으로 고정해야 효과가 있다. */
+export const MarkdownViewer = memo(MarkdownViewerContent);
