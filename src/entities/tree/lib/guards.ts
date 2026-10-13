@@ -22,6 +22,8 @@ export function isWikiItem(item: TreeItem) {
 
 export function canDragTreeItem(item: TreeItem) {
   if (isWikiItem(item) && item.wikiKind) return true;
+  // 보기 권한만 있는 문서는 이동(위치 변경)에도 편집 권한이 필요해 끌 수 없다.
+  if (item.canEdit === false) return false;
   return !item.generated && !isWikiItem(item);
 }
 

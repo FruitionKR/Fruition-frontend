@@ -25,6 +25,7 @@ import {
 } from "@/shared/ui/SvgIcon";
 import { saveSettingsResume, type SettingsResume } from "../lib/settingsResume";
 import { AccountPanel } from "./panels/AccountPanel";
+import { DocumentsPanel } from "./panels/DocumentsPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
 import { PreferencesPanel } from "./panels/PreferencesPanel";
@@ -32,7 +33,7 @@ import { ProfilePanel } from "./panels/ProfilePanel";
 import { WorkspacePanel } from "./panels/WorkspacePanel";
 import styles from "./SettingsModal.module.css";
 
-export type SettingsSection = "profile" | "account" | "notifications" | "preferences" | "general" | "members";
+export type SettingsSection = "profile" | "account" | "notifications" | "preferences" | "general" | "members" | "documents";
 
 /** 계정 설정 아이콘: 자물쇠 (24×24, 메뉴 아이콘과 같은 크기). */
 function AccountIcon({ className }: { className?: string }) {
@@ -53,6 +54,17 @@ function WorkspaceIcon({ className }: { className?: string }) {
       <rect x="13.5" y="4.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
       <rect x="4.5" y="13.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
       <rect x="13.5" y="13.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+/** 문서 관리 아이콘: 접힌 모서리가 있는 문서 (24×24). */
+function DocumentsIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M7 3.8H13.6L18.5 8.7V19.2C18.5 19.75 18.05 20.2 17.5 20.2H7C6.45 20.2 6 19.75 6 19.2V4.8C6 4.25 6.45 3.8 7 3.8Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M13.6 3.8V8.7H18.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 12.5H15.5M9 15.75H15.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -226,6 +238,15 @@ export function SettingsModal({
               <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />
               <span>멤버 관리</span>
             </button>
+            <button
+              type="button"
+              className={`${styles["nav-row"]} ${activeSection === "documents" ? styles["is-active"] : ""}`}
+              aria-current={activeSection === "documents" ? "page" : undefined}
+              onClick={() => setActiveSection("documents")}
+            >
+              <DocumentsIcon className={styles["nav-icon"]} />
+              <span>문서 관리</span>
+            </button>
           </div>
           {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}
           <div className={styles["nav-footer"]}>
@@ -259,6 +280,7 @@ export function SettingsModal({
             />
           )}
           {activeSection === "members" && <MembersPanel />}
+          {activeSection === "documents" && <DocumentsPanel />}
           <button type="button" className={styles.close} aria-label="설정 닫기" onClick={onClose}>
             <SvgIcon src={plusIcon} className={styles["close-icon"]} />
           </button>

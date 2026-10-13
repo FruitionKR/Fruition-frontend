@@ -16,10 +16,11 @@
 
 | 서비스 | 전체 `/api/**` | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 51 | 36 |
+| document-svc | 87 | 53 | 34 |
 | access-svc | 29 | 26 | 3 |
 
-미호출 36개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 8, 미배선 14.
+미호출 34개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 6, 미배선 14.
+(문서 휴지통 조회·문서 복구는 설정 화면 휴지통 섹션에 배선되어 빠졌다. [consumed/document.md](consumed/document.md#휴지통))
 
 ---
 
@@ -83,9 +84,7 @@ UI 필요 여부를 단정하지 않는다.
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/cancel` | `decideAgentPlan`의 `decision` 타입이 `"approve" \| "reject"`로만 선언되어 이 segment가 만들어질 수 없다 |
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/revise` | 같은 이유 |
 | `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki/preview` | 내보내기는 미리보기 없이 `.../wiki`를 바로 호출한다(`src/features/wiki-export/api/export.ts`) |
-| `GET /api/workspaces/{workspace_id}/documents/trash` | 휴지통 조회 호출이 없다. `src/`에 `trash` 문자열 자체가 없다 |
-| `POST /api/workspaces/{workspace_id}/documents/{document_id}/restore` | 문서 복구 호출이 없다. 삭제는 소프트 삭제인데 복구 경로가 배선되지 않았다 |
-| `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다 |
+| `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다. 문서 휴지통 목록(`GET .../documents/trash`)에는 폴더가 오지 않아 복구 대상을 고를 화면이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/markdown` | Markdown 문서 전용 목록. 이 저장소는 `documents` 전체 목록만 쓴다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/export` | 문서 내보내기 호출이 없다 |

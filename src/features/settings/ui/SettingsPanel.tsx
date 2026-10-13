@@ -49,6 +49,7 @@ function SettingSwitch({
 export function SettingsPanel() {
   const { preferences, updatePreferences, resetPreferences } = useUserPreferences();
   const [browserNotificationMessage, setBrowserNotificationMessage] = useState<string | null>(null);
+  // 편집 충돌 해결은 OWNER만 할 수 있어(GET .../conflicts가 403) 역할을 확인한 뒤 보여준다.
 
   function updateGraphKind(kind: keyof UserPreferences["graph"]["visibleKinds"], visible: boolean) {
     updatePreferences((current) => {

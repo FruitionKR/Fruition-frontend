@@ -12,7 +12,7 @@
 |---|---:|---|---|
 | [인증·계정](auth-account.md) | 25 | access-svc | `src/entities/user/api` |
 | [워크스페이스](workspace.md) | 12 | access-svc | `src/entities/workspace/api` |
-| [문서·트리](document.md) | 22 | document-svc | `src/entities/document/api`, `src/entities/tree/api`, `src/features/note-editing` |
+| [문서·트리](document.md) | 31 | document-svc | `src/entities/document/api`, `src/entities/tree/api`, `src/features/note-editing`, `src/features/document-notifications/api/notifications.ts` |
 | [Wiki](wiki.md) | 7 | document-svc | `src/entities/wiki/api`, `src/features/wiki-export`, `src/features/document-notifications` |
 | [AI·Agent·Query](ai-agent.md) | 19 | document-svc | `src/entities/ai/api`, `src/entities/chat/api`, `src/entities/operation-log/api`, `src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `src/entities/skill/api` |
@@ -24,14 +24,15 @@
 
 | 서비스 | `/api/**` 전체 | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 51 | 36 |
+| document-svc | 87 | 53 | 34 |
 | access-svc | 32 | 29 | 3 |
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.
+공동 편집 릴리스에서 추가된 권한 2·편집 충돌 3·알림 3 경로는 87개 기준 집계 밖이며 [document.md](document.md)에만 적었다.
 
 ## 경로 미해석
 
-없다. 82개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
+없다. 91개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
 다음 세 곳은 변수를 호출자까지 따라가야 해석되므로 근거를 남긴다.
 
 | 호출 지점 | 변수 | 호출자 추적 결과 |

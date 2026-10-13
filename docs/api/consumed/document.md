@@ -6,8 +6,8 @@ document-svc의 문서·폴더·본문 API다. 이 경로군은 전부 직접 �
 (`documents|document-tree|folders`)에 걸리므로 `BACKEND_URL`이 설정된 배포에서는 rewrite를
 우회해 document-svc 오리진으로 직접 나간다. 관리 이미지(`assets`)만 예외로 rewrite를 경유한다.
 
-- 호출 지점: 22
-- 호출 경로: 18
+- 호출 지점: 31
+- 호출 경로: 28 (권한 2·편집 충돌 3·알림 3은 공동 편집 릴리스(Fruition-document#85)에서 추가된 경로라 `/api/**` 87개 기준 집계에는 없다)
 
 ## 목록·트리
 
@@ -66,6 +66,39 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | `DELETE /api/workspaces/{workspace_id}/folders/{folder_id}` | 폴더 삭제 | `src/entities/tree/api/folders.ts` `deleteFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id)` (빈 `suffix`) | `{ base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. DELETE에 본문을 보내는 계약이다 |
 | `PATCH /api/workspaces/{workspace_id}/folders/{folder_id}/position` | 폴더 이동·순서 변경 | `src/entities/tree/api/folders.ts` `moveFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id, "position")` | `{ parent_folder_id, position, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()` |
 
+## 공동 편집 권한
+
+목록·트리·상세 응답의 `can_edit`·`can_delete`·`permission`·`updated_by`(`DocumentItemResponse`)로 화면이 읽기 전용 여부를 정한다.
+`can_edit === false`만 읽기 전용이고, 필드가 없는 구 응답은 편집 가능으로 본다(`src/entities/document/lib/documentAccess.ts`).
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `PUT /api/workspaces/{workspace_id}/documents/{document_id}/permission` | 문서 권한 설정 | `src/entities/document/api/permission.ts` `setDocumentPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "documents", documentId, "permission")` | `{ access: "edit" \| "view" \| null }` | `access` | 문서 소유자·OWNER만. `403 DOCUMENT_WRITE_FORBIDDEN`은 `describePermissionError`가 역할 안내 문구로 바꾼다 |
+| `PUT /api/workspaces/{workspace_id}/folders/{folder_id}/permission` | 폴더 권한 설정 | `src/entities/document/api/permission.ts` `setFolderPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "folders", folderId, "permission")` | `{ access }` | `access` | OWNER만. 폴더 안 문서·하위 폴더가 따른다. 트리 응답에 폴더 권한이 없어 다이얼로그는 `null`(상위 따름)에서 시작한다 |
+
+## 편집 충돌
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `POST /api/workspaces/{workspace_id}/documents/{document_id}/conflicts` | 저장 409 뒤 내 본문을 충돌로 등록 | `src/features/note-editing/api/editConflict.ts` `registerEditConflict` | `workspacePath(getWorkspaceId(), "documents", documentId, "conflicts")` | `{ markdown, base_revision, client_conflict_id }` | - (성공 여부만) | `useNoteAutosave`가 `PUT .../content` 409(`error.current_revision` → `NoteContentConflictError.currentRevision`) 직후 호출한다. `client_conflict_id`는 편집 세션마다 하나라 재전송이 중복 등록되지 않는다 |
+| `GET /api/workspaces/{workspace_id}/conflicts` | OWNER용 미해결 충돌 목록 | `src/features/note-editing/api/editConflict.ts` `fetchEditConflicts` | `workspacePath(getWorkspaceId(), "conflicts")` | `cache: no-store` | `conflicts[].conflict`(`id`, `base_revision`, `markdown`, `author_user_id`, `created_at`), `document_name`, `server`(`markdown`, `revision`, `updated_by`) | 설정 화면 편집 충돌 섹션(`src/features/settings/ui/EditConflictSection.tsx`). `useWorkspaceRole`로 OWNER일 때만 조회한다 |
+| `POST /api/workspaces/{workspace_id}/conflicts/{conflict_id}/resolve` | 충돌 해결 | `src/features/note-editing/api/editConflict.ts` `resolveEditConflict` | `workspacePath(getWorkspaceId(), "conflicts", conflictId, "resolve")` | `{ choice }` 또는 `{ choice, base_revision }`(`conflict`), `{ choice, base_revision, markdown }`(`merged`) — `buildResolveRequest` | - (목록 재조회) | 화면은 `server`·`conflict`만 보낸다(합치기 편집기 없음). `409 CONFLICT_ALREADY_RESOLVED`·`409 DOCUMENT_VERSION_CONFLICT`·`423`은 `describeResolveError`가 분기한다 |
+
+## 앱 안 알림
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `GET /api/workspaces/{workspace_id}/notifications` | 알림 목록 | `src/features/document-notifications/api/notifications.ts` `fetchNotifications` | `workspacePath(getWorkspaceId(), "notifications")` + `URLSearchParams`(`unread_only`, `limit`, `before`, `before_id`) | `cache: no-store` | `notifications[]`(`id`, `type`, `payload`, `read`, `created_at`) | 우하단 카드(`useServerNotifications`, `unread_only=true` 30초 폴링, 첫 폴링은 카드로 띄우지 않음)와 레일 알림 화면 워크스페이스 탭(`useNotificationFeed`, `limit=50`, 보는 중 5초·그 외 30초 폴링)이 쓴다. `type`별 문구는 `describeNotification` |
+| `POST /api/workspaces/{workspace_id}/notifications/{notification_id}/read` | 읽음 처리 | 같은 파일 `markNotificationRead` | `workspacePath(getWorkspaceId(), "notifications", notificationId, "read")` | 본문 없음 | - (`throwIfNotOk`) | 성공 시 목록 캐시를 `markRead`로 갱신한다 |
+| `POST /api/workspaces/{workspace_id}/notifications/read-all` | 모두 읽음 | 같은 파일 `markAllNotificationsRead` | `workspacePath(getWorkspaceId(), "notifications", "read-all")` | 본문 없음 | - (`throwIfNotOk`) | - |
+
+## 휴지통
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `GET /api/workspaces/{workspace_id}/documents/trash` | 삭제 문서 목록 | `src/entities/document/api/trash.ts` `fetchTrashDocuments` | `workspacePath(getWorkspaceId(), "documents", "trash")` | `cache: no-store` | `documents[]`(`id`, `filename`, `display_name`, `current_version`, `deleted_at`, `purge_at`) | 설정 화면 휴지통 섹션. `purge_at`으로 "N일 뒤 영구 삭제"를 보여주고(`src/entities/document/lib/trashRetention.ts`), 지난 항목은 복구 버튼을 막는다 |
+| `POST /api/workspaces/{workspace_id}/documents/{document_id}/restore` | 삭제 문서 복구 | `src/entities/document/api/trash.ts` `restoreTrashDocument` | `workspacePath(getWorkspaceId(), "documents", documentId, "restore")` | `{ base_version }` (목록의 `current_version`) | - (목록·트리 재조회) | `idempotentJsonHeaders()`. `409 TRASH_RETENTION_EXPIRED`·`409 WORKSPACE_TRASH_EXPIRED`는 `describeRestoreError`가 보관 기간 문구로 바꾼다. 워크스페이스 휴지통 화면은 아직 없다 |
+
 ## Wiki 편입 진입점
 
 문서를 Wiki로 반영하는 두 경로는 문서 종류에 따라 갈린다
@@ -83,3 +116,6 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 - 노트 편집기: `src/features/note-editing/ui`
 - 원본 미리보기: `src/widgets/source-preview/ui`
 - 검색(클라이언트 필터): `src/features/document-search/model/useDocumentSearch.ts`, `src/features/document-search/ui`
+- 권한 설정 다이얼로그: `src/widgets/document-sidebar/ui/PermissionDialog.tsx`
+- 편집 충돌·휴지통 목록(설정 > 문서 관리): `src/features/user-settings/ui/panels/collab/EditConflictSection.tsx`, `TrashSection.tsx`
+- 서버 알림 목록·읽음 처리(레일 알림 화면 워크스페이스 탭): `src/widgets/notifications-view/model/useNotificationFeed.ts`, `lib/serverNotificationItems.ts`

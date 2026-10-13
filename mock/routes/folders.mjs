@@ -1,6 +1,6 @@
 // document-svc(8080) 폴더 라우트: 문서 트리, 폴더 생성·이름 변경·삭제·이동, 문서 이동.
 // 실제 백엔드처럼 base_version 낙관적 잠금을 검사하고 변경마다 current_version을 올린다.
-import { state, now, id, error, requireWorkspace, findDocument, toDocumentItem, isSkillReference } from "../state.mjs";
+import { state, now, id, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, memberRole } from "../state.mjs";
 
 function liveFolders(workspaceId) {
   return state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at);
@@ -17,14 +17,14 @@ function findFolder(workspaceId, folderId) {
 
 const bySortThenName = (a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "ko");
 
-/** 폴더·문서를 parent 기준으로 중첩한 트리 응답. */
-function buildTree(workspaceId, parentId = null) {
+/** 폴더·문서를 parent 기준으로 중첩한 트리 응답. 문서 항목은 호출자 기준 can_edit·can_delete를 싣는다. */
+function buildTree(workspaceId, userId, parentId = null) {
   const folders = liveFolders(workspaceId)
     .filter((folder) => folder.parent_folder_id === parentId)
-    .map((folder) => ({ type: "folder", id: folder.id, name: folder.name, sort_order: folder.sort_order, current_version: folder.current_version, children: buildTree(workspaceId, folder.id) }));
+    .map((folder) => ({ type: "folder", id: folder.id, name: folder.name, sort_order: folder.sort_order, current_version: folder.current_version, children: buildTree(workspaceId, userId, folder.id) }));
   const documents = liveDocuments(workspaceId)
     .filter((doc) => (doc.folder_id ?? null) === parentId)
-    .map((doc) => ({ type: "document", id: doc.id, name: doc.filename, sort_order: doc.sort_order ?? 0, current_version: doc.current_version, document: toDocumentItem(doc) }));
+    .map((doc) => ({ type: "document", id: doc.id, name: doc.filename, sort_order: doc.sort_order ?? 0, current_version: doc.current_version, document: toDocumentItemFor(doc, userId) }));
   return [...folders, ...documents].sort(bySortThenName);
 }
 
@@ -72,7 +72,7 @@ export function registerFolderRoutes(router) {
   router.get("/api/workspaces/:wid/document-tree", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    ctx.json(200, { items: buildTree(workspace.id) });
+    ctx.json(200, { items: buildTree(workspace.id, ctx.user.id) });
   });
 
   router.post("/api/workspaces/:wid/folders", async (ctx) => {
@@ -130,6 +130,7 @@ export function registerFolderRoutes(router) {
     if (!workspace) return;
     const doc = findDocument(workspace.id, ctx.params.id);
     if (!doc || isSkillReference(doc)) return error(ctx, 404, "문서를 찾을 수 없습니다.");
+    if (!requireDocumentEdit(ctx, doc)) return;
     const { folder_id: folderId = null, position, base_version } = await ctx.body();
     if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     if (!requireParent(ctx, workspace, folderId)) return;
@@ -137,6 +138,19 @@ export function registerFolderRoutes(router) {
     doc.sort_order = typeof position === "number" ? position : nextSortOrder(workspace.id, folderId);
     doc.current_version += 1;
     doc.updated_at = now();
-    ctx.json(200, toDocumentItem(doc));
+    ctx.json(200, toDocumentItemFor(doc, ctx.user.id));
+  });
+
+  // 폴더 권한 설정: OWNER만. 폴더 안 문서와 하위 폴더가 따른다. null이면 설정을 지운다.
+  router.put("/api/workspaces/:wid/folders/:id/permission", async (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const folder = requireFolder(ctx, workspace);
+    if (!folder) return;
+    if (memberRole(workspace.id, ctx.user.id) !== "OWNER") return error(ctx, 403, "폴더 권한은 워크스페이스 OWNER만 바꿀 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+    const { access } = await ctx.body();
+    if (access !== null && access !== "edit" && access !== "view") return error(ctx, 400, "access는 edit, view 또는 null이어야 합니다.");
+    folder.permission = access;
+    ctx.json(200, { access });
   });
 }
