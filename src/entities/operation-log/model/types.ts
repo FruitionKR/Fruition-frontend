@@ -36,7 +36,7 @@ export interface OperationLogListResponse {
   next_cursor: string | null;
 }
 
-export interface DiffLine {
+interface DiffLine {
   type: "CONTEXT" | "DELETE" | "ADD";
   old_line: number | null;
   new_line: number | null;

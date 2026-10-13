@@ -1,6 +1,6 @@
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 
-export type ChatMessagesLoadResult = { messages?: ChatMessageResponse[] | null };
+type ChatMessagesLoadResult = { messages?: ChatMessageResponse[] | null };
 
 /**
  * 요청 토큰이 최신일 때만 메시지 목록을 돌려준다.

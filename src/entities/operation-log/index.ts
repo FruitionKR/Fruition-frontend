@@ -4,8 +4,6 @@ export {
   fetchRestorePreview,
   restoreOperation
 } from "./api/operationLog";
-export { buildOperationLogQuery } from "./model/operationLogQuery";
-export type { OperationLogQuery } from "./model/operationLogQuery";
 export {
   appendLogPage,
   collectRestoredOperationIds,
@@ -22,9 +20,6 @@ export type {
   OperationChange,
   OperationLogDetail,
   OperationLogItem,
-  OperationLogListResponse,
   OperationStatus,
-  OperationType,
-  RestoreExecuteResponse,
-  RestorePreviewResponse
+  OperationType
 } from "./model/types";

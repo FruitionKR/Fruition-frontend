@@ -1,6 +1,6 @@
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 
-export type ChatMessageGroup = {
+type ChatMessageGroup = {
   key: string;
   pairId: string | null;
   messages: ChatMessageResponse[];

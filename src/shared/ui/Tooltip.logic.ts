@@ -9,7 +9,7 @@ export const TOOLTIP_WARM_WINDOW_MS = 300;
 /** 트리거와 말풍선 사이 간격 */
 export const TOOLTIP_GAP_PX = 8;
 /** 화면 가장자리 여백 */
-export const TOOLTIP_VIEWPORT_MARGIN_PX = 8;
+const TOOLTIP_VIEWPORT_MARGIN_PX = 8;
 /** 꼬리가 말풍선 모서리(radius 8px)에 걸리지 않도록 두는 최소 거리 */
 const ARROW_EDGE_PX = 10;
 

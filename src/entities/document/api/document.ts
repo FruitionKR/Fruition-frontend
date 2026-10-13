@@ -3,7 +3,7 @@ import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serv
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
 import { hasPdfExtension } from "@/entities/document/lib/documentKind";
 import { publishConvertStarted } from "@/entities/document/model/convertEvents";
-import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
+import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentListResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
@@ -46,28 +46,19 @@ async function withUniqueDocumentName<T>(
   }
 }
 
-export async function fetchDocuments() {
-  const workspaceId = getWorkspaceId();
-  const response = await apiFetch(workspacePath(workspaceId, "documents"), { cache: "no-store" });
-  const data = await parseJsonOrThrow<{ documents: DocumentItemResponse[] }>(
-    response,
-    ERROR_MESSAGES.documentsLoadFailed
-  );
+async function fetchDocumentList(query = ""): Promise<DocumentItemResponse[]> {
+  const response = await apiFetch(`${workspacePath(getWorkspaceId(), "documents")}${query}`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<DocumentListResponse>(response, ERROR_MESSAGES.documentsLoadFailed);
   return data.documents ?? [];
+}
+
+export async function fetchDocuments() {
+  return fetchDocumentList();
 }
 
 /** 스킬 참고 문서 목록. 서버가 최근 업로드 순으로 준다. 기본 목록(fetchDocuments)에는 나오지 않는다. */
 export async function fetchSkillReferenceDocuments() {
-  const workspaceId = getWorkspaceId();
-  const response = await apiFetch(
-    `${workspacePath(workspaceId, "documents")}?origin=${SKILL_REFERENCE_ORIGIN}`,
-    { cache: "no-store" }
-  );
-  const data = await parseJsonOrThrow<{ documents: DocumentItemResponse[] }>(
-    response,
-    ERROR_MESSAGES.documentsLoadFailed
-  );
-  return data.documents ?? [];
+  return fetchDocumentList(`?origin=${SKILL_REFERENCE_ORIGIN}`);
 }
 
 /**

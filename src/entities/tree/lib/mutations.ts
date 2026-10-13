@@ -10,7 +10,7 @@ function itemContainsId(item: TreeItem, itemId: string): boolean {
   return item.children?.some((child) => itemContainsId(child, itemId)) ?? false;
 }
 
-export function removeTreeItem(items: TreeItem[], itemId: string): { items: TreeItem[]; removed: TreeItem | null } {
+function removeTreeItem(items: TreeItem[], itemId: string): { items: TreeItem[]; removed: TreeItem | null } {
   let removed: TreeItem | null = null;
   const nextItems: TreeItem[] = [];
 
@@ -68,7 +68,7 @@ function insertTreeItem(items: TreeItem[], movedItem: TreeItem, target: DropTarg
   });
 }
 
-export function moveTreeItem(items: TreeItem[], itemId: string, target: DropTarget): TreeItem[] {
+function moveTreeItem(items: TreeItem[], itemId: string, target: DropTarget): TreeItem[] {
   const result = removeTreeItem(items, itemId);
   if (!result.removed) return items;
   if (target.targetId === null) return [...result.items, result.removed];
@@ -76,7 +76,7 @@ export function moveTreeItem(items: TreeItem[], itemId: string, target: DropTarg
   return insertTreeItem(result.items, result.removed, target);
 }
 
-export function mergeTreeItemsIntoFolder(items: TreeItem[], draggedId: string, targetId: string, folderName?: string): TreeItem[] {
+function mergeTreeItemsIntoFolder(items: TreeItem[], draggedId: string, targetId: string, folderName?: string): TreeItem[] {
   const draggedItem = findTreeItem(items, draggedId);
   const targetItem = findTreeItem(items, targetId);
   if (!draggedItem || !targetItem || !isFileItem(draggedItem) || !isFileItem(targetItem)) return items;
@@ -151,22 +151,6 @@ export function moveProjectTreeItem(
     if (project.id === sourceProjectId) return { ...project, items: sourceResult.items };
     if (project.id === target.projectId) return { ...project, items: nextTargetItems };
     return project;
-  });
-}
-
-export function updateTreeItemLabel(items: TreeItem[], itemId: string, label: string): TreeItem[] {
-  return mapTreeItemById(items, itemId, (item) => ({ ...item, label, customLabel: true }));
-}
-
-export function updateDocumentItemLabel(items: TreeItem[], documentId: string, label: string): TreeItem[] {
-  return items.map((item) => {
-    const nextItem = item.documentId === documentId
-      ? { ...item, label, customLabel: false }
-      : item;
-    if (nextItem.children?.length) {
-      return { ...nextItem, children: updateDocumentItemLabel(nextItem.children, documentId, label) };
-    }
-    return nextItem;
   });
 }
 

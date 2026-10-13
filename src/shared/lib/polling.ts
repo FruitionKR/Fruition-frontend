@@ -1,5 +1,5 @@
 /** ms만큼 대기하는 Promise를 반환한다. */
-export function sleep(ms: number): Promise<void> {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

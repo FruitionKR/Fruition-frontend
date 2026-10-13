@@ -26,7 +26,7 @@ export type AgentPlanRun = {
   plan: AgentPlan | null;
 };
 
-export type PlanTreeItem = {
+type PlanTreeItem = {
   id: string;
   name: string;
   type?: "folder" | "document";

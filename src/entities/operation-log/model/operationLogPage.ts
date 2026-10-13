@@ -1,6 +1,6 @@
 import type { OperationLogItem, OperationType } from "./types";
 
-export type OperationLogDateGroup = {
+type OperationLogDateGroup = {
   dateKey: string;
   label: string;
   items: OperationLogItem[];

@@ -9,8 +9,8 @@ const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-
 const ATTACHMENT_PATTERN = new RegExp(`${ATTACHMENT_SCHEME}(${UUID})`, "g");
 
 // 백엔드 검증기와 같은 제한 (REQ-002). 여기서 먼저 걸러 왕복을 줄인다.
-export const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_IMAGES_PER_SAVE = 20;
 
 export type PendingImage = { id: string; file: File; objectUrl: string };

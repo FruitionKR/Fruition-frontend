@@ -1,7 +1,7 @@
 /** 화면 테마 설정. system이면 OS 설정(prefers-color-scheme)을 따른다. */
 export type ThemePreference = "system" | "light" | "dark";
 
-export const THEME_PREFERENCES: readonly ThemePreference[] = ["system", "light", "dark"];
+const THEME_PREFERENCES: readonly ThemePreference[] = ["system", "light", "dark"];
 
 /**
  * 마지막으로 고른 테마. 사용자별 설정은 /me를 받은 뒤에야 읽을 수 있어,

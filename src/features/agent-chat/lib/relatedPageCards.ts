@@ -3,7 +3,7 @@ import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entiti
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 
-export type SourceDocumentCard = {
+type SourceDocumentCard = {
   key: string;
   documentId: string;
   title: string;

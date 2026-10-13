@@ -1,5 +1,5 @@
 // 화면 서버의 접근 코드 게이트(/access/verify) 호출. 설정 화면과 로그인 화면이 함께 쓴다.
-export type AccessGateStatus = { enabled: boolean; unlocked: boolean };
+type AccessGateStatus = { enabled: boolean; unlocked: boolean };
 
 /** 접근 코드 확인 결과. rate-limited는 서버가 실패 횟수 초과로 잠시 막은 경우다(429). */
 export type AccessCodeSubmitResult = "ok" | "invalid" | "rate-limited";

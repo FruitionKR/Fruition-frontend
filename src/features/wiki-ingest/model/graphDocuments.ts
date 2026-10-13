@@ -4,7 +4,7 @@ import { filterTreeItems } from "@/entities/tree/lib/queries";
 import { isDocumentConverting, isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
 import { getWikiReflectState, isWikiReflectEligible } from "./wikiReflectState";
 
-export function isFailedPdfConversion(document: DocumentItemResponse): boolean {
+function isFailedPdfConversion(document: DocumentItemResponse): boolean {
   return document.status === "failed" && document.pipeline_run_id?.startsWith("convert:") === true;
 }
 

@@ -7,7 +7,7 @@
  */
 export const PART_UPLOAD_IDLE_TIMEOUT_MS = 60_000;
 
-export type PartUploadResult = { status: number; ok: boolean };
+type PartUploadResult = { status: number; ok: boolean };
 
 /**
  * 조각 하나를 PUT하면서 전송이 멈춘 시간만 제한한다.

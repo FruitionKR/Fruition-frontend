@@ -3,7 +3,7 @@ import type { EditorView } from "@milkdown/prose/view";
 import { NodeSelection, TextSelection } from "@milkdown/prose/state";
 
 /** 수식 입력에는 중첩 ProseMirror 대신 일반 textarea를 사용한다. */
-export function createMathEditor(view: EditorView) {
+function createMathEditor(view: EditorView) {
   const root = document.createElement("div");
   root.className = "note-math-editor";
   root.setAttribute("role", "dialog");

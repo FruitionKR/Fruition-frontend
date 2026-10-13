@@ -1,18 +1,18 @@
 import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
 
-export type EmailVerificationResponse = {
+type EmailVerificationResponse = {
   verification_id: string;
   expires_in: number;
   retry_after: number;
 };
 
-export type EmailAvailabilityResponse = {
+type EmailAvailabilityResponse = {
   available: boolean;
   /** 같은 이메일로 소셜 가입한 계정의 provider(이름순). 비어 있지 않으면 프론트가 이메일 가입을 막는다. */
   oauth_providers?: string[];
 };
 
-export type VerificationConfirmResponse = {
+type VerificationConfirmResponse = {
   verification_token: string;
   expires_in: number;
 };

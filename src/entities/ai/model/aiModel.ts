@@ -47,7 +47,7 @@ export function getProviderLabel(provider: string): string {
   return PROVIDER_LABELS[provider] ?? provider;
 }
 
-export type AiModelGroup = { provider: string; models: AiModel[] };
+type AiModelGroup = { provider: string; models: AiModel[] };
 
 /** 카탈로그를 provider별로 묶는다. provider와 모델 순서는 카탈로그(백엔드) 순서를 그대로 따른다. */
 export function groupAiModelsByProvider(models: AiModel[]): AiModelGroup[] {

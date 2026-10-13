@@ -4,7 +4,7 @@ import type { OperationLogItem } from "@/entities/operation-log/model/types";
 import { OPERATION_TYPE_LABELS } from "@/entities/operation-log/model/operationType";
 
 /** 사이드바 진행 작업 팝오버에 그릴 한 줄 */
-export interface WikiWorkRow {
+interface WikiWorkRow {
   key: string;
   label: string;
   /** 로컬 시각 HH:MM. 시작 시각이 없으면 --:-- */
@@ -12,15 +12,15 @@ export interface WikiWorkRow {
 }
 
 /** 팝오버에서 나눠 보여주는 AI 작업 종류 */
-export type WikiWorkKind = "ingest" | "lint" | "convert" | "restore";
+type WikiWorkKind = "ingest" | "lint" | "convert" | "restore";
 
-export interface WikiWorkSection {
+interface WikiWorkSection {
   kind: WikiWorkKind;
   title: string;
   rows: WikiWorkRow[];
 }
 
-export const WIKI_WORK_TITLES: Record<WikiWorkKind, string> = {
+const WIKI_WORK_TITLES: Record<WikiWorkKind, string> = {
   ingest: OPERATION_TYPE_LABELS.ingest,
   lint: "위키 최신화",
   convert: "PDF → MD 변환",

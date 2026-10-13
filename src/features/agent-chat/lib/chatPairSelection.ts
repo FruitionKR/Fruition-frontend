@@ -18,7 +18,7 @@ type ChatPairMessage = {
   action?: string;
 };
 
-export type ChatExportPairClassification = {
+type ChatExportPairClassification = {
   selectablePairIds: string[];
   excludedPairIds: string[];
 };

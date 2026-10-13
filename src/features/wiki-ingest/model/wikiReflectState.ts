@@ -8,7 +8,7 @@ import type { DocumentItemResponse } from "@/entities/document/model/document";
  * - retry: 직전 반영이 실패해 다시 시도할 수 있다.
  * - up-to-date: 최신 내용이 이미 반영돼 있다.
  */
-export type WikiReflectState = "processing" | "changed" | "not-included" | "retry" | "up-to-date";
+type WikiReflectState = "processing" | "changed" | "not-included" | "retry" | "up-to-date";
 
 const WIKI_REFLECT_LABELS: Partial<Record<WikiReflectState, string>> = {
   changed: "수정됨",
@@ -66,7 +66,7 @@ export function getWikiReflectLabel(document: DocumentItemResponse): string | nu
   return WIKI_REFLECT_LABELS[getWikiReflectState(document)] ?? null;
 }
 
-export type ChatEvidenceNotice = {
+type ChatEvidenceNotice = {
   message: string;
   /** 편입을 요청하는 버튼 문구. 편입이 진행 중이면 누를 것이 없어 null이다. */
   actionLabel: string | null;

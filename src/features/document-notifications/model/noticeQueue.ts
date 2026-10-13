@@ -1,6 +1,6 @@
 // 알림 카드 스택의 개수 제한 정책. 새 카드를 넣었을 때 어떤 카드를 밀어낼지 정한다.
 
-export type QueuedNotice = {
+type QueuedNotice = {
   id: string;
   action?: unknown;
   /** 퇴장 애니메이션 중. 개수 계산에서 빠진다. */

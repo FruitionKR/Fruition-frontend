@@ -8,7 +8,7 @@ import { getWikiReflectState } from "./wikiReflectState";
  * - failed: 변환이 실패해 편입하지 못한다.
  * - missing: placeholder가 목록에서 사라져(삭제 등) 더 기다릴 대상이 없다.
  */
-export type PdfIngestTaskStep = "waiting" | "ready" | "failed" | "missing";
+type PdfIngestTaskStep = "waiting" | "ready" | "failed" | "missing";
 
 /**
  * placeholder가 목록에 없는 채로 지나간 문서 목록 갱신 횟수 기준.

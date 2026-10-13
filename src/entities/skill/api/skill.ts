@@ -48,11 +48,6 @@ export async function enableSkill(workspaceId: string, skillId: string): Promise
   return parseJsonOrThrow<SkillResponse>(response, "스킬을 활성화하지 못했습니다.");
 }
 
-export async function disableSkill(workspaceId: string, skillId: string): Promise<SkillResponse> {
-  const response = await apiFetch(workspacePath(workspaceId, "skills", skillId, "disable"), { method: "POST" });
-  return parseJsonOrThrow<SkillResponse>(response, "스킬을 비활성화하지 못했습니다.");
-}
-
 export async function deleteSkill(workspaceId: string, skillId: string): Promise<void> {
   const response = await apiFetch(workspacePath(workspaceId, "skills", skillId), {
     method: "DELETE"

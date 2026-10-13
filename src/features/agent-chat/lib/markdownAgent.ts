@@ -13,7 +13,7 @@ export type AgentTurnRequest = {
   editorSnapshot: MarkdownEditorSnapshot;
 };
 
-export type AgentTurnRequestContext = {
+type AgentTurnRequestContext = {
   sessionId: string;
   selectedModel: AiModelSelection;
   selectedPairIds: string[];
@@ -96,7 +96,7 @@ export type MarkdownEditPreview = {
   diffLines: MarkdownDiffLine[];
 };
 
-export type ChatTurnPresentation =
+type ChatTurnPresentation =
   | { kind: "query"; grounded: boolean }
   | { kind: "document-command"; action: DocumentCommandAction };
 

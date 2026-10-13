@@ -1,7 +1,7 @@
 import { apiFetch, parseJsonOrThrow } from "@/shared/api/client";
 import type { WorkspaceRole } from "./members";
 
-export type InvitationPreview = {
+type InvitationPreview = {
   workspace_id: string;
   workspace_name: string;
   email: string;

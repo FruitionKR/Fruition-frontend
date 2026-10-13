@@ -5,7 +5,7 @@ import { SessionExpiredError } from "@/shared/lib/errors";
 import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
 import { HEARTBEAT_RETRY_MS, resolveHeartbeatDelayMs, resolveHeartbeatFailure, resolveLockElapsedMs, resolveLockRemainingMs, type LockClockAnchor } from "./editLockSchedule";
 
-export type EditLockPhase =
+type EditLockPhase =
   /** 진입 직후. 잠금을 받기 전까지는 편집기를 열지 않는다. */
   | "acquiring"
   /** 잠금 보유. 편집·저장 가능. */
@@ -17,7 +17,7 @@ export type EditLockPhase =
   /** 403·404·네트워크 등으로 잠금을 확인하지 못함. */
   | "error";
 
-export type EditLockState = {
+type EditLockState = {
   phase: EditLockPhase;
   /** phase가 granted가 아니면 사용자에게 보여줄 안내 문구. */
   message: string | null;

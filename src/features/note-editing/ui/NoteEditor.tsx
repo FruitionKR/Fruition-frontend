@@ -57,6 +57,13 @@ const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, 
 /** 빈 본문 안내 문구(Figma 426:2202). WYSIWYG·소스 모드가 같은 문구를 쓴다. */
 const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하거나 내용을 입력하세요";
 
+/** root 아래 DOM 변경을 감시하고 정리 함수를 돌려준다. 편집기 DOM 보정 effect들이 함께 쓴다. */
+function observeMutations(root: HTMLElement, options: MutationObserverInit, onMutate: () => void): () => void {
+  const observer = new MutationObserver(onMutate);
+  observer.observe(root, options);
+  return () => observer.disconnect();
+}
+
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
 const lastExternalImageNoticeAt = new Map<string, number>();
 
@@ -238,7 +245,7 @@ export function NoteEditor({
     if (!root) return;
     const EDGE_TOLERANCE_PX = 8;
 
-    const observer = new MutationObserver(() => {
+    return observeMutations(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] }, () => {
       root.querySelectorAll<HTMLElement>(".milkdown-table-block").forEach((block) => {
         const table = block.querySelector<HTMLElement>("table.children");
         if (!table) return;
@@ -259,8 +266,6 @@ export function NoteEditor({
         }
       });
     });
-    observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
-    return () => observer.disconnect();
   }, [canEdit, documentId]);
 
   // 편집기 폭이 바뀌면(채팅창 열고 닫기 등) 이미지 블록 높이를 새 폭으로 다시 계산한다(이슈 #63).
@@ -308,7 +313,7 @@ export function NoteEditor({
     const LABELS_WITH_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "수식", "링크"];
     const LABELS_WITHOUT_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "링크"];
 
-    const observer = new MutationObserver(() => {
+    return observeMutations(root, { subtree: true, childList: true }, () => {
       root.querySelectorAll<HTMLElement>(".milkdown-toolbar").forEach((toolbar) => {
         const items = toolbar.querySelectorAll<HTMLButtonElement>(".toolbar-item");
         const labels = items.length === LABELS_WITH_LATEX.length ? LABELS_WITH_LATEX : LABELS_WITHOUT_LATEX;
@@ -320,8 +325,6 @@ export function NoteEditor({
         });
       });
     });
-    observer.observe(root, { subtree: true, childList: true });
-    return () => observer.disconnect();
   }, [canEdit, documentId]);
 
   // 이미지 블록의 링크 입력칸은 글자를 받는 즉시 <img src={입력값}> 미리보기를 그려 외부 주소를 요청한다.
@@ -348,7 +351,7 @@ export function NoteEditor({
     if (!root) return;
     const VIEWPORT_MARGIN_PX = 8;
 
-    const observer = new MutationObserver(() => {
+    return observeMutations(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] }, () => {
       const menu = root.querySelector<HTMLElement>(".milkdown-slash-menu");
       if (!menu || menu.dataset.show !== "true") return;
       const rect = menu.getBoundingClientRect();
@@ -366,8 +369,6 @@ export function NoteEditor({
       menu.style.left = `${parseFloat(menu.style.left || "0") + deltaX}px`;
       menu.style.top = `${parseFloat(menu.style.top || "0") + deltaY}px`;
     });
-    observer.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-show", "style"] });
-    return () => observer.disconnect();
   }, [canEdit, documentId]);
 
   useEffect(() => {

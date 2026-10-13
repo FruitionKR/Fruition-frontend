@@ -5,7 +5,7 @@ export type AuthTokensResponse = {
   mfa_required?: false;
 };
 
-export type LoginResponse = AuthTokensResponse | { mfa_required: true; mfa_token: string };
+type LoginResponse = AuthTokensResponse | { mfa_required: true; mfa_token: string };
 
 export async function logout(): Promise<void> {
   await fetch("/api/auth/logout", { method: "POST" });

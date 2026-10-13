@@ -6,7 +6,7 @@ export function stripPageComments(markdown: string): string {
   return markdown.replace(PAGE_COMMENT_PATTERN, "");
 }
 
-export type EditableNoteMarkdown = {
+type EditableNoteMarkdown = {
   marker: string;
   body: string;
 };

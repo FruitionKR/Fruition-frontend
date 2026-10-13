@@ -8,10 +8,10 @@
 export type EscapePriority = "layer" | "fallback";
 
 /** 리렌더로 핸들러가 바뀌어도 스택 순서를 유지하도록 ref처럼 최신 핸들러를 담는다. */
-export type EscapeHandlerRef = { readonly current: (() => void) | null };
+type EscapeHandlerRef = { readonly current: (() => void) | null };
 
 /** handleEscapeKeyDown이 읽는 KeyboardEvent의 최소 형태. */
-export type EscapeKeyEventLike = {
+type EscapeKeyEventLike = {
   key: string;
   isComposing: boolean;
   target: unknown;
@@ -21,7 +21,7 @@ export type EscapeKeyEventLike = {
 
 type Entry = { handler: EscapeHandlerRef; priority: EscapePriority };
 
-export type EscapeLayerStack = {
+type EscapeLayerStack = {
   /** 레이어를 맨 위에 올리고, 제거 함수를 돌려준다. */
   push(handler: EscapeHandlerRef, priority?: EscapePriority): () => void;
   /** Escape keydown을 처리했으면 true. */

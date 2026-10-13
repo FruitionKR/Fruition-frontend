@@ -66,7 +66,7 @@ function isHistoryTransaction(tr: Transaction, state: EditorState): boolean {
  * 기존 외부 이미지를 지우며 다른 외부 이미지를 넣는 교체(선택 영역 드롭, src 속성 변경)도 잡는다.
  * 같은 src를 옮기거나 지우는 것, undo/redo, 프로그램 교체(AI 편집 적용)는 허용한다.
  */
-export function addsExternalImage(tr: Transaction, state: EditorState): boolean {
+function addsExternalImage(tr: Transaction, state: EditorState): boolean {
   if (!tr.docChanged || tr.getMeta(ALLOW_EXTERNAL_IMAGES_META) || isHistoryTransaction(tr, state)) return false;
   if (!tr.steps.some(stepMayInsertExternalImage)) return false;
   const before = countExternalImageSources(state.doc);

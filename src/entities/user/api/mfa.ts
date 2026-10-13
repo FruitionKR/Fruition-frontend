@@ -10,7 +10,7 @@ export async function loginWithMfa(mfaToken: string, code: string): Promise<Auth
   return parseJsonOrThrow<AuthTokensResponse>(response, "다단계 인증에 실패했습니다.");
 }
 
-export type MfaStatus = { enabled: boolean; activated_at: string | null; remaining_recovery_codes: number };
+type MfaStatus = { enabled: boolean; activated_at: string | null; remaining_recovery_codes: number };
 export type MfaRegistration = { secret: string; otpauth_uri: string; recovery_codes: string[] };
 export const MFA_QUERY_KEY = ["mfa-status"] as const;
 

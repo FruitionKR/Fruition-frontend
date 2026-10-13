@@ -24,7 +24,7 @@ export function resolveHeartbeatDelayMs(expiresAt: string | undefined, nowMs: nu
 export const HEARTBEAT_RETRY_MS = 5_000;
 
 /** expires_at을 밀리초로 바꾼다. 없거나 깨져 있으면 null. */
-export function parseLockExpiryMs(expiresAt: string | undefined): number | null {
+function parseLockExpiryMs(expiresAt: string | undefined): number | null {
   if (!expiresAt) return null;
   const expiresMs = Date.parse(expiresAt);
   return Number.isNaN(expiresMs) ? null : expiresMs;
@@ -56,7 +56,7 @@ export function resolveLockElapsedMs(anchor: LockClockAnchor, monoNowMs: number,
   return Math.max(monoNowMs - anchor.monoMs, wallNowMs - anchor.wallMs);
 }
 
-export type HeartbeatFailureAction = "retry" | "reacquire" | "terminal";
+type HeartbeatFailureAction = "retry" | "reacquire" | "terminal";
 
 /**
  * heartbeat 실패를 재시도할지, 재획득할지, 잠금 상실로 끝낼지 정한다.

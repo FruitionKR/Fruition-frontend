@@ -1,7 +1,7 @@
 import type { DocumentItemResponse } from "@/entities/document";
 import type { NoticePayload } from "./noticeBus";
 
-export type FailedDocumentSummary = Pick<DocumentItemResponse, "filename" | "error_message">;
+type FailedDocumentSummary = Pick<DocumentItemResponse, "filename" | "error_message">;
 
 // 요약 메시지에 나열하는 파일명 상한. 넘치는 문서는 "외 N개"로 줄인다.
 const MAX_LISTED_FILENAMES = 3;

@@ -17,7 +17,7 @@ import { cx } from "@/shared/lib/classNames";
 import styles from "./AgentChat.module.css";
 
 // 답변 공개 단계: 1=상태 목록만, 2=결과 카드까지, 3=답변 본문까지 표시
-export const STAGE_RESULTS = 2;
+const STAGE_RESULTS = 2;
 export const STAGE_ANSWER = 3;
 
 /** assistant 메시지 하나를 상태 목록·결과 카드·답변 본문 순서로 렌더링한다. */

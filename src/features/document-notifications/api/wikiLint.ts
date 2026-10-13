@@ -5,7 +5,7 @@ import { pollUntil } from "@/shared/lib/polling";
  * Lint 요청. dryRun이면 실제 변경 없이 바뀔 페이지 수만 계산한다.
  * (backend는 dry_run을 명시적으로 false로 주지 않으면 dry-run으로 처리한다)
  */
-export type WikiMaintenanceStatus = {
+type WikiMaintenanceStatus = {
   needs_lint: boolean;
   last_lint_at?: string;
   last_wiki_change_at?: string;

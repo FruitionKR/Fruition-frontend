@@ -12,7 +12,7 @@ import { publishNotice, subscribeNotices, type NoticePayload } from "./noticeBus
 import { enqueueNotice } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
 
-export type DocumentProcessingNotice = NoticePayload & { id: string; leaving?: boolean };
+type DocumentProcessingNotice = NoticePayload & { id: string; leaving?: boolean };
 
 const NOTICE_DURATION_MS = 6000;
 const MAX_VISIBLE_NOTICES = 2;

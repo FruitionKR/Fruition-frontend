@@ -68,8 +68,3 @@ export function releaseAssetObjectUrl(path: string): void {
   URL.revokeObjectURL(entry.url);
   if (entries.get(path) === entry) entries.delete(path);
 }
-
-/** 하위 호환: 참조 계수 없이 받기만 한다(탭 수명 동안 유지). 새 코드는 acquire/release를 쓴다. */
-export function fetchAssetObjectUrl(path: string): Promise<string> {
-  return acquireAssetObjectUrl(path);
-}

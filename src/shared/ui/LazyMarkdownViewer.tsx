@@ -2,8 +2,6 @@
 
 import dynamic from "next/dynamic";
 
-export type { MarkdownLinkPolicy } from "./MarkdownViewer";
-
 /**
  * react-markdown·KaTeX를 묶은 MarkdownViewer를 처음 그릴 때 받는다.
  * 채팅 답변·소스 프리뷰·노트 미리보기가 모두 이 모듈을 쓰므로 청크는 하나만 생긴다.

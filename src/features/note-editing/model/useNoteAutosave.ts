@@ -16,7 +16,7 @@ import {
 import { trackPendingDocumentSave } from "./pendingDocumentSave";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
-export type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
+type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
 
 export type DetachedNoteSaveResult =
   | { success: true }
