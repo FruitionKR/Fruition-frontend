@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { documentDisplayName, filterPickerDocuments } = await import("../src/features/user-settings/lib/documentPicker.ts");
+const { documentDisplayName, filterPickerDocuments } = await import("../src/features/skill-authoring/lib/referenceDocumentPicker.ts");
 
 const nfdName = "회의록 양식.pdf".normalize("NFD");
 
@@ -29,7 +29,7 @@ test("표시 이름은 NFC로 맞춘다", () => {
   assert.equal(documentDisplayName({ filename: nfdName }), "회의록 양식.pdf".normalize("NFC"));
 });
 
-const { pickerDocuments } = await import("../src/features/user-settings/lib/documentPicker.ts");
+const { pickerDocuments } = await import("../src/features/skill-authoring/lib/referenceDocumentPicker.ts");
 
 const md = (overrides) => ({ id: "md", filename: "a.md", mime_type: "text/markdown", document_role: "EDITABLE", status: "completed", ...overrides });
 const pdf = (overrides) => ({ id: "pdf", filename: "원본.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", status: "completed", ...overrides });
@@ -57,8 +57,8 @@ test("변환 중이거나 변환에 실패한 Markdown은 빼고, 편입만 실�
   );
 });
 
-const { orderPickerDocuments, skillReferenceFileError, describeSkillReferenceUploadError } = await import("../src/features/user-settings/lib/documentPicker.ts");
-const { ApiError } = await import("../src/shared/lib/errors.ts");
+const { orderPickerDocuments, skillReferenceFileError, describeSkillReferenceUploadError } = await import("../src/features/skill-authoring/lib/referenceDocumentPicker.ts");
+const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 
 test("피커 순서는 고정(선택·방금 올린) 문서 → 참고 문서 → 그 밖의 문서 최근 업로드 순이고 중복은 한 번만 넣는다", () => {
   const old = md({ id: "old", uploaded_at: "2026-01-01T00:00:00Z" });

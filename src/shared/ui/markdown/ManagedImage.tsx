@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
 import { acquireAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
-import { classifyImageSource } from "@/shared/lib/externalResources";
+import { classifyImageSource } from "@/shared/lib/markdown/externalResources";
 
 /**
  * Markdown 이미지. 워크스페이스 관리 이미지(/api/workspaces/…/assets/…/content)는

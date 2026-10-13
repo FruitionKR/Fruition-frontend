@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
-import { rankColorClass, remarkCustomTokens } from "../src/shared/lib/remarkCustomTokens.ts";
+import { rankColorClass, remarkCustomTokens } from "../src/shared/lib/markdown/remarkCustomTokens.ts";
 
 const parse = (markdown, options) => unified().use(remarkParse).use(remarkCustomTokens, options).run(unified().use(remarkParse).parse(markdown));
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createEscapeLayerStack } from "../src/shared/lib/escapeLayerStack.ts";
+import { createEscapeLayerStack } from "../src/shared/hooks/escapeLayerStack.ts";
 
 function escapeEvent({ key = "Escape", isComposing = false, target = null } = {}) {
   const event = {

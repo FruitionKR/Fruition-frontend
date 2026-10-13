@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
+import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
 import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
-import { resolveChatTurnPresentation } from "../lib/markdownAgent";
-import { formatAnswerMarkdown } from "../lib/agentFormatters";
+import { resolveChatTurnPresentation } from "../lib/agentTurn";
+import { formatAnswerMarkdown } from "../lib/answerMarkdown";
 import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
 import { buildSourceDocumentCards, sourceTitle } from "../lib/relatedPageCards";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";

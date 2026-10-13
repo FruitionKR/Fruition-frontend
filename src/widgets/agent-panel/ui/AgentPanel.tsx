@@ -11,8 +11,8 @@ import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { fetchCurrentChatSessionId } from "@/entities/chat";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { getErrorMessage } from "@/shared/lib/errors";
-import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/markdownAgent";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import {

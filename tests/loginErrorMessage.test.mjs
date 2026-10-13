@@ -9,7 +9,7 @@ registerHooks({
   }
 });
 
-const { ApiError } = await import("../src/shared/lib/errors.ts");
+const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 const {
   INVALID_CREDENTIALS_MESSAGE,
   LOGIN_NETWORK_ERROR_MESSAGE,
@@ -17,7 +17,7 @@ const {
   SERVER_PREPARING_MESSAGE,
   TOO_MANY_LOGIN_ATTEMPTS_MESSAGE,
   getLoginErrorMessage
-} = await import("../src/views/login/lib/loginErrorMessage.ts");
+} = await import("../src/views/auth/lib/loginErrorMessage.ts");
 
 test("서버가 준비 중이면 원인과 관계없이 준비 중 문구를 쓴다", () => {
   assert.equal(getLoginErrorMessage(new ApiError("x", 401), true), SERVER_PREPARING_MESSAGE);

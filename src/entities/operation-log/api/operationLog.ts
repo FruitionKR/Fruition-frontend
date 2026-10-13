@@ -4,7 +4,7 @@ import type {
   OperationLogListResponse,
   RestoreExecuteResponse,
   RestorePreviewResponse
-} from "../model/types";
+} from "../model/operationLog";
 import { buildOperationLogQuery, type OperationLogQuery } from "../model/operationLogQuery";
 
 /** AI 작업 로그 목록. 최신순, cursor 페이지네이션. */

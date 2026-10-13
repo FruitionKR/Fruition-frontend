@@ -6,9 +6,9 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
-const { projectsFromServerTree, ROOT_DOCUMENTS_PROJECT_ID } = await import("../src/entities/tree/lib/serverTree.ts");
-const { createFolder, renameFolder, moveFolder, moveDocument, deleteFolder } = await import("../src/entities/tree/api/folders.ts");
-const { folderNames, serverFolderId } = await import("../src/entities/tree/lib/names.ts");
+const { projectsFromServerTree, ROOT_DOCUMENTS_PROJECT_ID } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
+const { createFolder, renameFolder, moveFolder, moveDocument, deleteFolder } = await import("../src/entities/tree/api/documentTree.ts");
+const { folderNames, serverFolderId } = await import("../src/entities/tree/lib/treeNames.ts");
 const folder = (id, name, children = []) => ({ type: "folder", id, name, current_version: 7, children });
 const doc = (id, name) => ({ type: "document", id, name, current_version: 3, document: { id, filename: name, mime_type: "text/markdown", status: "uploaded" } });
 

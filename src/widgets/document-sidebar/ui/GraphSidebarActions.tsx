@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { cx } from "@/shared/lib/classNames";
-import { useEscapeLayer } from "@/shared/lib/useEscapeLayer";
+import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
 import { getGraphIngestBlockReason } from "@/features/wiki-ingest/model/graphDocuments";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { Project } from "@/entities/tree";

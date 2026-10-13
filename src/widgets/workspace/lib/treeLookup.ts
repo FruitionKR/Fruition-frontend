@@ -1,4 +1,4 @@
-import { findTreeItemByDocumentId } from "@/entities/tree/lib/queries";
+import { findTreeItemByDocumentId } from "@/entities/tree/lib/treeQueries";
 import type { TreeItem } from "@/entities/tree/model/tree";
 
 export function findParentLabel(items: TreeItem[], itemId: string, parentLabel: string): string | null {

@@ -11,8 +11,8 @@ import {
   type ReactNode
 } from "react";
 import { usePathname } from "next/navigation";
-import { getSelectedWorkspaceId, isPublicAuthPath } from "@/shared/lib/auth";
-import { applyThemePreference } from "@/shared/lib/theme";
+import { getSelectedWorkspaceId, isPublicAuthPath } from "@/shared/lib/authSessionStorage";
+import { applyThemePreference } from "@/shared/lib/themePreference";
 import { fetchMe } from "../api/auth";
 import {
   DEFAULT_USER_PREFERENCES,

@@ -7,8 +7,8 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   return nextResolve(specifier, context);
 }});
 const { requestAgentTurn } = await import("../src/features/agent-chat/api/agent.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
-const { readRunEvents } = await import("../src/shared/lib/runEvents.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
+const { readRunEvents } = await import("../src/shared/lib/runEventStream.ts");
 
 const encoder = new TextEncoder();
 const frame = (event, data) => `event: ${event}\r\ndata: ${JSON.stringify(data)}\r\n\r\n`;

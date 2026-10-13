@@ -117,6 +117,6 @@ HTTP 상태 코드별 분기는 backend 명세가 소유하고, 이 저장소는
 
 Authorization 헤더가 필요해 `EventSource`를 쓸 수 없다. `Accept: text/event-stream`을 붙인
 `apiFetch`로 응답 본문 스트림을 직접 읽고, 공통 파서 `readRunEvents`
-(`src/shared/lib/runEvents.ts`)가 단계 이벤트와 종료 상태를 해석한다. 종료 후에는 상태 조회
+(`src/shared/lib/runEventStream.ts`)가 단계 이벤트와 종료 상태를 해석한다. 종료 후에는 상태 조회
 API를 한 번 더 불러 최종 결과를 확정한다. 이 패턴을 쓰는 호출은 두 곳이다
 ([ai-agent.md](consumed/ai-agent.md)).

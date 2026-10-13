@@ -1,5 +1,5 @@
-import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
-import type { GeneratedMarkdownDraft } from "../lib/markdownAgent";
+import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
+import type { GeneratedMarkdownDraft } from "../lib/agentTurn";
 import styles from "./AgentChat.module.css";
 
 export function MarkdownCreatePreview({

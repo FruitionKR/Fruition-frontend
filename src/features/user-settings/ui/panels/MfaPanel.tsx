@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMfaStatus, registerMfa, MFA_QUERY_KEY, type MfaRegistration } from "@/entities/user";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
-import { MfaDisableModal, MfaSetupModal } from "./MfaModals";
+import { MfaSetupModal } from "../modals/MfaSetupModal";
+import { MfaDisableModal } from "../modals/MfaDisableModal";
 
 /** 다단계 인증 스위치 행. 켜면 등록 모달, 끄면 해제 모달을 연다. */
 export function MfaPanel() {

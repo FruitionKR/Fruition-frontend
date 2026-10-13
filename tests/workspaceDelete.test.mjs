@@ -14,7 +14,7 @@ registerHooks({
 });
 
 const { deleteWorkspace } = await import("../src/entities/workspace/api/workspace.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
 const { state } = await import("../mock/state.mjs");
 const { registerWorkspaceRoutes } = await import("../mock/routes/workspaces.mjs");

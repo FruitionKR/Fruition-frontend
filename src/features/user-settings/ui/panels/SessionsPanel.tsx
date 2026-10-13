@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSessions, revokeSession, SESSIONS_QUERY_KEY, useSignOut, type LoginSession } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { computerIcon, phoneIcon, retryIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";

@@ -1,5 +1,5 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
-import { pollUntil } from "@/shared/lib/polling";
+import { pollUntil } from "@/shared/lib/pollUntil";
 
 /**
  * Lint 요청. dryRun이면 실제 변경 없이 바뀔 페이지 수만 계산한다.

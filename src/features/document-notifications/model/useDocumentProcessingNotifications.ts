@@ -5,7 +5,7 @@ import { useUserPreferences } from "@/entities/user";
 import type { DocumentItemResponse } from "@/entities/document";
 import { createClientId, type DocumentStatus } from "@/entities/tree";
 import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
-import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, subscribeNotices, type NoticePayload } from "./noticeBus";

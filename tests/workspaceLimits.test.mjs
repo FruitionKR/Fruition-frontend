@@ -7,8 +7,8 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { checkStorageQuota, describeLimitError, isFreeWorkspaceLimitReached } = await import("../src/entities/workspace/model/limits.ts");
-const { ApiError } = await import("../src/shared/lib/errors.ts");
+const { checkStorageQuota, describeLimitError, isFreeWorkspaceLimitReached } = await import("../src/entities/workspace/model/workspaceLimits.ts");
+const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;

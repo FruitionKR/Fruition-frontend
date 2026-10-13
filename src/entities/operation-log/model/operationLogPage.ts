@@ -1,4 +1,4 @@
-import type { OperationLogItem, OperationType } from "./types";
+import type { OperationLogItem, OperationType } from "./operationLog";
 
 type OperationLogDateGroup = {
   dateKey: string;

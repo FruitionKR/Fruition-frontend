@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { NoteContentConflictError, saveNoteDraft } from "../api/note";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
-import { composeEditableNoteMarkdown } from "@/entities/document/lib/note";
-import { isSessionExpired } from "@/shared/lib/auth";
-import { getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
+import { composeEditableNoteMarkdown } from "@/entities/document/lib/noteMarkdown";
+import { isSessionExpired } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage, SessionExpiredError } from "@/shared/lib/apiErrors";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import {
   applyRequiredAgentSource,
@@ -12,8 +12,8 @@ import {
   recoverPendingNoteSaveAfterAgentFailure,
   selectDetachedSaveCandidate,
   type PendingNoteSave
-} from "./pendingSave";
-import { trackPendingDocumentSave } from "./pendingDocumentSave";
+} from "./pendingNoteSaveMerge";
+import { trackPendingDocumentSave } from "./pendingDocumentSaveTracker";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
 type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";

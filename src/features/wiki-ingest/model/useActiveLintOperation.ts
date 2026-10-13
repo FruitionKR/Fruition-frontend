@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchOperationLogs, type OperationLogItem } from "@/entities/operation-log";
-import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "./wikiWorkPolling";
 
 const ACTIVE_LINT_QUERY_KEY = ["activeLintOperation"] as const;

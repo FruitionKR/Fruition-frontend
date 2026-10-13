@@ -3,7 +3,7 @@ import test from "node:test";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
-import { DOUBLE_TILDE_STRIKETHROUGH_PATTERN } from "../src/features/note-editing/model/markdownStrikethrough.ts";
+import { DOUBLE_TILDE_STRIKETHROUGH_PATTERN } from "../src/features/note-editing/model/strikethroughInputRule.ts";
 
 test("에디터 입력 규칙은 ~~만 취소선으로 인식한다", () => {
   assert.equal(DOUBLE_TILDE_STRIKETHROUGH_PATTERN.test("5~7초 정도, 3~4개~"), false);

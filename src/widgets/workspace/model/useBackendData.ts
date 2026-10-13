@@ -2,15 +2,15 @@ import { useCallback, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentDataQueryKey, fetchDocumentData, fetchWikiGraph } from "@/entities/wiki";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { projectsFromServerTree } from "@/entities/tree/lib/serverTree";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { projectsFromServerTree } from "@/entities/tree/lib/projectsFromServerTree";
 import type { DocumentItemResponse } from "@/entities/document";
 import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
 import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
-import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { usePageVisible } from "@/shared/hooks/usePageVisible";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 // 로딩 중 렌더마다 새 []를 돌려주면 documents에 묶인 memo·effect가 매번 무효화된다.

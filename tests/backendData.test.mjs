@@ -18,7 +18,7 @@ const {
   HIDDEN_ACTIVE_WIKI_WORK_POLL_INTERVAL_MS,
   IDLE_WIKI_WORK_POLL_INTERVAL_MS
 } = await import("../src/features/wiki-ingest/model/wikiWorkPolling.ts");
-const { ROOT_DOCUMENTS_PROJECT_ID } = await import("../src/entities/tree/lib/serverTree.ts");
+const { ROOT_DOCUMENTS_PROJECT_ID } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
 
 function doc(id, status = "completed") {
   return {

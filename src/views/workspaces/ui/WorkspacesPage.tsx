@@ -6,8 +6,8 @@ import { LogIn, RefreshCw, WifiOff } from "lucide-react";
 import { clearSessionCache } from "@/entities/chat";
 import { fetchMe, useSignOut } from "@/entities/user";
 import { createWorkspace, fetchWorkspaces } from "@/entities/workspace";
-import { setSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
+import { setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage, SessionExpiredError } from "@/shared/lib/apiErrors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import styles from "./WorkspacesPage.module.css";
 

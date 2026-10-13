@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { AiModelCatalogStatus } from "@/features/agent-chat/ui/AgentComposer";
 import { fetchAiModels, resolveInitialModel, type AiModel } from "@/entities/ai";
 import { useUserPreferences } from "@/entities/user";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 
 /** 채팅에 쓸 AI 모델 카탈로그·선택과 웹 검색 설정. 선택은 사용자 설정에 저장한다. */
 export function useAiModelSelection() {

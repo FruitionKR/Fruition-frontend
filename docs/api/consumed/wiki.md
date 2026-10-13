@@ -34,7 +34,7 @@ rewrite를 경유하고, `chat/**`은 정규식에 있어 직접 전송 대상�
 |---|---|---|---|---|---|---|
 | `GET /api/workspaces/{workspace_id}/wiki/maintenance/status` | Lint 필요 여부 확인 | `src/features/document-notifications/api/wikiLint.ts` `fetchWikiMaintenanceStatus` | `workspacePath(getWorkspaceId(), "wiki", "maintenance", "status")` | `cache: no-store` | `needs_lint`, `last_lint_at`, `last_wiki_change_at` | 알림 배지의 근거 |
 | `POST /api/workspaces/{workspace_id}/wiki/maintenance/lint` | Lint 실행 또는 dry-run | `src/features/document-notifications/api/wikiLint.ts` `requestWikiLint` | `workspacePath(getWorkspaceId(), "wiki", "maintenance", "lint")` | `{ dry_run }` | `run_id` | backend는 `dry_run: false`를 명시하지 않으면 dry-run으로 처리한다. 이 저장소는 항상 명시한다 |
-| `GET /api/workspaces/{workspace_id}/wiki/maintenance/runs/{run_id}` | Lint run 상태 폴링 | `src/features/document-notifications/api/wikiLint.ts` `requestWikiLint` 내부 | `workspacePath(getWorkspaceId(), "wiki", "maintenance", "runs", queued.run_id)` | `cache: no-store` | `status`, `error`, `manifest.task_result.changed_pages` | SSE가 아닌 **폴링**(`pollUntil`, `src/shared/lib/polling.ts`). run 레코드 생성 지연을 고려해 `404`를 "계속 폴링"으로 해석한다. `succeeded`면 `changed_pages.length`를 센다 |
+| `GET /api/workspaces/{workspace_id}/wiki/maintenance/runs/{run_id}` | Lint run 상태 폴링 | `src/features/document-notifications/api/wikiLint.ts` `requestWikiLint` 내부 | `workspacePath(getWorkspaceId(), "wiki", "maintenance", "runs", queued.run_id)` | `cache: no-store` | `status`, `error`, `manifest.task_result.changed_pages` | SSE가 아닌 **폴링**(`pollUntil`, `src/shared/lib/pollUntil.ts`). run 레코드 생성 지연을 고려해 `404`를 "계속 폴링"으로 해석한다. `succeeded`면 `changed_pages.length`를 센다 |
 
 ## UI 위치
 

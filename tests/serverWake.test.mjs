@@ -16,7 +16,7 @@ registerHooks({
 });
 
 const { render } = await import("./reactHookShim.mjs");
-const { useServerWake } = await import("../src/views/login/model/useServerWake.ts");
+const { useServerWake } = await import("../src/views/auth/model/useServerWake.ts");
 
 // setImmediate는 가짜 타이머 대상이 아니라 대기 중인 fetch 체인을 끝까지 흘려보낼 수 있다.
 const flush = async () => {

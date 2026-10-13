@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyThemePreference, isDarkTheme, parseThemePreference, resolveDataTheme, THEME_INIT_SCRIPT, THEME_STORAGE_KEY } from "../src/shared/lib/theme.ts";
+import { applyThemePreference, isDarkTheme, parseThemePreference, resolveDataTheme, THEME_INIT_SCRIPT, THEME_STORAGE_KEY } from "../src/shared/lib/themePreference.ts";
 
 test("저장된 테마 문자열은 system·light·dark만 통과시키고 나머지는 system이다", () => {
   assert.equal(parseThemePreference("dark"), "dark");

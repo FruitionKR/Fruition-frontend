@@ -1,6 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isDocumentConverting } from "@/entities/document/lib/documentKind";
-import type { OperationLogItem } from "@/entities/operation-log/model/types";
+import type { OperationLogItem } from "@/entities/operation-log/model/operationLog";
 import { OPERATION_TYPE_LABELS } from "@/entities/operation-log/model/operationType";
 
 /** 사이드바 진행 작업 팝오버에 그릴 한 줄 */

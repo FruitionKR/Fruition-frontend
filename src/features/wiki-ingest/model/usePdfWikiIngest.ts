@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { convertDocumentToMarkdown, reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPdfIngestTaskStep } from "./pdfIngestTask";
 
 type PendingIngest = { documentId: string; filename: string };

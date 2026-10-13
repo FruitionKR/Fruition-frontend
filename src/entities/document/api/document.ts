@@ -1,8 +1,8 @@
-import { fetchDocumentTree } from "@/entities/tree/api/folders";
+import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serverTree";
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
 import { hasPdfExtension } from "@/entities/document/lib/documentKind";
-import { publishConvertStarted } from "@/entities/document/model/convertEvents";
+import { publishConvertStarted } from "@/entities/document/model/documentConvertEvents";
 import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentListResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";

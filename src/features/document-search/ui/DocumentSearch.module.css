@@ -1,4 +1,4 @@
-/* 중앙 검색 모달 본문. 셸(overlay·박스·헤더·닫기)은 shared/ui/CenteredModal.module.css를 쓴다. */
+/* 중앙 검색 모달 본문. 셸(overlay·박스·헤더·닫기)은 shared/ui/modal/CenteredModal.module.css를 쓴다. */
 .search-body {
   min-height: 0;
   flex: 1;

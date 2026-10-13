@@ -22,4 +22,4 @@ export type {
   OperationLogItem,
   OperationStatus,
   OperationType
-} from "./model/types";
+} from "./model/operationLog";

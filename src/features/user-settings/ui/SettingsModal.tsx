@@ -11,10 +11,10 @@ import {
   type AiModelSelection
 } from "@/entities/ai";
 import { useMe, useSignOut } from "@/entities/user";
-import { useWorkspaceName } from "@/entities/workspace/model/useWorkspaceName";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { useBackdropClick } from "@/shared/lib/useBackdropClick";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { useWorkspaceName } from "@/entities/workspace/model/useSelectedWorkspace";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import {
   bellIcon,
   plusIcon,

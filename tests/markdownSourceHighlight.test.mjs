@@ -7,26 +7,26 @@ import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as classNames from "../src/shared/lib/classNames.ts";
-import * as segments from "../src/shared/lib/markdownSegments.ts";
-import * as closedMath from "../src/shared/lib/remarkClosedMath.ts";
-import * as sourceBlocks from "../src/shared/lib/markdownSourceBlocks.ts";
-import * as customTokens from "../src/shared/lib/remarkCustomTokens.ts";
-import * as externalResources from "../src/shared/lib/externalResources.ts";
+import * as segments from "../src/shared/lib/markdown/markdownSegments.ts";
+import * as closedMath from "../src/shared/lib/markdown/remarkClosedMath.ts";
+import * as sourceBlocks from "../src/shared/lib/markdown/markdownSourceBlocks.ts";
+import * as customTokens from "../src/shared/lib/markdown/remarkCustomTokens.ts";
+import * as externalResources from "../src/shared/lib/markdown/externalResources.ts";
 
 const require = createRequire(import.meta.url);
-const output = ts.transpileModule(readFileSync(new URL("../src/shared/ui/MarkdownViewer.tsx", import.meta.url), "utf8"), {
+const output = ts.transpileModule(readFileSync(new URL("../src/shared/ui/markdown/MarkdownViewer.tsx", import.meta.url), "utf8"), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true }
 }).outputText;
 const exports = {};
 const aliases = {
   // KaTeX 스타일은 번들러가 처리하는 부수효과 임포트라 Node에서는 비운다
   "katex/dist/katex.min.css": {},
-  "@/shared/lib/remarkClosedMath": closedMath,
+  "@/shared/lib/markdown/remarkClosedMath": closedMath,
   "@/shared/lib/classNames": classNames,
-  "@/shared/lib/markdownSegments": segments,
-  "@/shared/lib/markdownSourceBlocks": sourceBlocks,
-  "@/shared/lib/remarkCustomTokens": customTokens,
-  "@/shared/lib/externalResources": externalResources,
+  "@/shared/lib/markdown/markdownSegments": segments,
+  "@/shared/lib/markdown/markdownSourceBlocks": sourceBlocks,
+  "@/shared/lib/markdown/remarkCustomTokens": customTokens,
+  "@/shared/lib/markdown/externalResources": externalResources,
   "@/shared/ui/markdown/ManagedImage": { ManagedImage: (props) => React.createElement("img", props) }
 };
 runInNewContext(output, { exports, require: (id) => aliases[id] ?? require(id) });

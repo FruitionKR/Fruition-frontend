@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
+import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { useUserPreferences } from "@/entities/user";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
@@ -8,8 +8,8 @@ import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl } from
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";

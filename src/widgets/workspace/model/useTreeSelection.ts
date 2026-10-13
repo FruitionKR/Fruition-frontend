@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { findSourceNodeByDocumentId, makeRawId, rawNodeIdToDocumentId } from "@/entities/graph/lib/graph";
+import { findSourceNodeByDocumentId, makeRawId, rawNodeIdToDocumentId } from "@/entities/graph/lib/graphBuilder";
 import { findTreeItem, findTreeItemByGraphNodeId } from "@/entities/tree";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { Project } from "@/entities/tree";
 import type { GraphNode } from "@/entities/wiki";
 import { toDocumentLocation, type WorkspaceLocation } from "../lib/workspaceLocation";
-import { focusGraphNode } from "./focusGraphNode";
+import { focusGraphNode } from "../lib/focusGraphNode";
 
 export type PreviewTarget = {
   pageId: string | null;

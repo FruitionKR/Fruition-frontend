@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
 import { changeMemberRole, fetchMembers, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
 import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
-import { InviteMemberModal } from "./InviteMemberModal";
+import { InviteMemberModal } from "../modals/InviteMemberModal";
 import styles from "./MembersPanel.module.css";
-import { PanelTitle } from "./PanelTitle";
+import { SettingsPanelTitle } from "../SettingsPanelTitle";
 
 // 권한 필터 순서. 빈 값은 전체.
 const ROLE_FILTERS = ["", "OWNER", "MEMBER"] as const;
@@ -88,7 +88,7 @@ export function MembersPanel() {
 
   return (
     <div className={modalStyles.detail}>
-      <PanelTitle title="멤버 관리" description="워크스페이스에 있는 사람과 역할을 관리합니다." />
+      <SettingsPanelTitle title="멤버 관리" description="워크스페이스에 있는 사람과 역할을 관리합니다." />
       <div className={styles.toolbar}>
         <div className={styles["filter-wrap"]} ref={filterMenuRef}>
           <button

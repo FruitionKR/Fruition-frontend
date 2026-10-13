@@ -5,12 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { getProviderLabel, isSameSelection, type AiModel, type AiModelSelection } from "@/entities/ai";
 import { renameWorkspace } from "@/entities/workspace";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
 import styles from "../SettingsModal.module.css";
-import { PanelTitle } from "./PanelTitle";
-import { SectionHeader } from "./SectionHeader";
+import { SettingsPanelTitle } from "../SettingsPanelTitle";
+import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import panelStyles from "./WorkspacePanel.module.css";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
 
@@ -91,10 +91,10 @@ export function WorkspacePanel({
 
   return (
     <div className={styles.detail}>
-      <PanelTitle title="워크스페이스 설정" description="워크스페이스 설정입니다." />
+      <SettingsPanelTitle title="워크스페이스 설정" description="워크스페이스 설정입니다." />
 
       <div className={styles.section}>
-        <SectionHeader>워크스페이스 이름</SectionHeader>
+        <SettingsSectionHeader>워크스페이스 이름</SettingsSectionHeader>
         <div className={styles.field}>
           <label htmlFor="workspace-name">워크스페이스 이름</label>
           <small>워크스페이스 이름은 최대 65자까지 입력할 수 있습니다.</small>
@@ -122,12 +122,12 @@ export function WorkspacePanel({
       </div>
 
       <div className={styles.section}>
-        <SectionHeader>워크스페이스 아이콘</SectionHeader>
+        <SettingsSectionHeader>워크스페이스 아이콘</SettingsSectionHeader>
         <WorkspaceIconSettings />
       </div>
 
       <div className={styles.section}>
-        <SectionHeader>AI 모델</SectionHeader>
+        <SettingsSectionHeader>AI 모델</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>LLM Provider</strong>

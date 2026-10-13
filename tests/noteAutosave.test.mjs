@@ -17,7 +17,7 @@ registerHooks({
 });
 
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { render } = await import("./reactHookShim.mjs");
 
 const DOCUMENT_ID = "doc_autosave";

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Providers } from "@/app/providers";
 import "@/app/styles/globals.css";
-import { readCspNonce } from "@/shared/lib/contentSecurityPolicy";
-import { THEME_INIT_SCRIPT } from "@/shared/lib/theme";
+import { readCspNonce } from "@/shared/lib/security/contentSecurityPolicy";
+import { THEME_INIT_SCRIPT } from "@/shared/lib/themePreference";
 
 // CSP nonce가 요청마다 달라 미리 만든 HTML로는 스크립트가 막힌다. 모든 화면을 요청 때 렌더링한다(이슈 #77).
 export const dynamic = "force-dynamic";

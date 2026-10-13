@@ -21,7 +21,7 @@ registerHooks({
 const { changePassword, updateDisplayName, requestEmailVerification, confirmEmailVerification, changeEmail, fetchSessions, revokeSession } = await import("../src/entities/user/api/auth.ts");
 const { updateWorkspaceIcon, uploadWorkspaceIcon, fetchWorkspaceIcon } = await import("../src/entities/workspace/api/workspace.ts");
 const { fetchMembers, changeMemberRole, inviteMember, removeMember } = await import("../src/entities/workspace/api/members.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { fetchInvitation, acceptInvitation } = await import("../src/entities/workspace/api/invitations.ts");
 const { loginWithEmail, exchangeOAuthCode, loginWithMfa, fetchMfaStatus, registerMfa, activateMfa, disableMfa } = await import("../src/entities/user/api/auth.ts");
 
@@ -113,7 +113,7 @@ test("초대 확인은 공개 조회, 수락은 인증 요청으로 처리한다
 });
 
 test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 계정을 사용한다", async (t) => {
-  const auth = await import("../src/shared/lib/auth.ts");
+  const auth = await import("../src/shared/lib/authSessionStorage.ts");
   const originalWindow = globalThis.window;
   const selected = [];
   const navigated = [];
@@ -142,10 +142,10 @@ test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 
     react: { useState: (initial) => [initial, () => {}] },
     "react/jsx-runtime": { jsx: element, jsxs: element },
     "@tanstack/react-query": { useQuery: () => ({ data: { email: "invited@example.test" } }), useQueryClient: () => queryClient },
-    "@/shared/lib/auth": auth,
+    "@/shared/lib/authSessionStorage": auth,
     "@/entities/workspace/api/invitations": { acceptInvitation, fetchInvitation },
     "@/entities/user": { useSignOut: () => ({ signOut: async () => {} }) },
-    "@/shared/lib/errors": {},
+    "@/shared/lib/apiErrors": {},
     "@/views/workspaces/ui/WorkspacesPage.module.css": { default: {} }
   };
   runInNewContext(outputText, { exports, require: (name) => modules[name], window: globalThis.window });

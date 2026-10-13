@@ -4,8 +4,8 @@ import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
 import { TreeNodeIcon } from "./TreeNodeIcon";
-import type { TreeInteractionProps } from "../model/types";
-import { useTreeNodeDragDrop } from "../lib/useTreeNodeDragDrop";
+import type { TreeInteractionProps } from "../model/treeInteraction";
+import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
 import styles from "./DocumentSidebar.module.css";
 
 // 트리 행 들여쓰기 (Figma 1486:4410): 기본 10px + depth당 22px (pl 10 / 32)

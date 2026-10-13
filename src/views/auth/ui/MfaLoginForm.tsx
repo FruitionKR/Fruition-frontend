@@ -4,9 +4,9 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { loginWithMfa } from "@/entities/user";
-import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
+import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 
 export function MfaLoginForm({ token, onCancel }: { token: string; onCancel: () => void }) {
   const router = useRouter();

@@ -5,7 +5,7 @@ import { isGraphIngestEligible } from "@/features/wiki-ingest/model/graphDocumen
 import type { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { reflectDocumentToWiki, type DocumentItemResponse } from "@/entities/document";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 
 /** 그래프 사이드바·채팅 안내의 위키 액션(편입 요청·Lint)과 PDF 변환 확인 모달 상태. */
 export function useGraphWikiActions({

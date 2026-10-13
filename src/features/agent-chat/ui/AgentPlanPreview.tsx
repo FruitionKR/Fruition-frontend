@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getWorkspaceId } from "@/shared/api/client";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
 import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan, type PlanPreviewNode } from "../lib/agentPlan";

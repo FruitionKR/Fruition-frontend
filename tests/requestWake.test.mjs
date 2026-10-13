@@ -23,7 +23,7 @@ registerHooks({
 const { NextRequest } = await import("next/server");
 const { fake } = await import("./fakeAwsSdk.mjs");
 const { GET, POST } = await import("../app/wake/route.ts");
-const { ACCESS_COOKIE, hashAccessCode } = await import("../src/shared/lib/accessCode.ts");
+const { ACCESS_COOKIE, hashAccessCode } = await import("../src/shared/lib/security/accessCode.ts");
 
 const WAKE_ENV = {
   ACCESS_CODE: "secret",

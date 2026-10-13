@@ -1,4 +1,4 @@
-import { isDarkTheme } from "@/shared/lib/theme";
+import { isDarkTheme } from "@/shared/lib/themePreference";
 
 /**
  * 그래프 캔버스 색상 팔레트.

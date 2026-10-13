@@ -6,7 +6,7 @@ import { useMe } from "@/entities/user";
 import { uploadWorkspaceIcon, useSelectedWorkspace, type WorkspaceListResponse, type WorkspaceResponse } from "@/entities/workspace";
 import { fetchMembers } from "@/entities/workspace/api/members";
 import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import styles from "../SettingsModal.module.css";
 
 export function WorkspaceIconSettings() {

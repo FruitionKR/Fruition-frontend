@@ -6,7 +6,7 @@ import { advance, browserEnv, createResolver, render, setPageVisible } from "./a
 registerHooks({ resolve: createResolver() });
 
 const { useOperationLogFeed } = await import("../src/widgets/workspace/model/useOperationLogFeed.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 
 const LOGS_PATH = "/api/workspaces/ws_test/ai-operation-logs";
 const POLL_MS = 5_000;

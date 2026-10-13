@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 }});
 const { GET: transportRoute } = await import("../app/api/document-transport/route.ts");
 const { apiFetch } = await import("../src/shared/api/client.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { uploadDocumentFile } = await import("../src/entities/document/api/document.ts");
 const { saveNoteDraft, NoteContentConflictError } = await import("../src/features/note-editing/api/note.ts");
 function browser(t) {

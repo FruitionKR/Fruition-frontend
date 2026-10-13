@@ -1,5 +1,5 @@
 import type { GraphCache, GraphNode, NodePosition, NodePositionMap } from "@/entities/wiki";
-import { GRAPH_CACHE_KEY } from "@/entities/graph/lib/graph";
+import { GRAPH_CACHE_KEY } from "@/entities/graph/lib/graphBuilder";
 
 export function readStoredGraphCache({
   signature,

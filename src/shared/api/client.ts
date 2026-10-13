@@ -1,12 +1,12 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
-import { ApiError, SessionExpiredError } from "@/shared/lib/errors";
+import { ApiError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
   notifySessionExpired,
   saveAccessToken,
   withAuthRefreshLock
-} from "@/shared/lib/auth";
+} from "@/shared/lib/authSessionStorage";
 
 // 공통 에러 메시지 상수
 export const ERROR_MESSAGES = {

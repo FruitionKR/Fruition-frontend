@@ -15,9 +15,9 @@ import { sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { SidebarPlusIcon, SidebarSearchIcon } from "./SidebarIcons";
 import { WikiWorkButton } from "./WikiWorkButton";
 import { DocumentSearch } from "@/features/document-search/ui/DocumentSearch";
-import type { SelectableTreeItem, TreeInteractionProps } from "../model/types";
+import type { SelectableTreeItem, TreeInteractionProps } from "../model/treeInteraction";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
-import { useFileDropZone } from "../lib/useFileDropZone";
+import { useFileDropZone } from "../model/useFileDropZone";
 import styles from "./DocumentSidebar.module.css";
 
 export function DocumentSidebar({

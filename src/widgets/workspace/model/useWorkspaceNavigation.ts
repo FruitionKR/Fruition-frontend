@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAccessGate } from "@/features/settings";
+import { useAccessGate } from "@/features/access-code-settings";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
-import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/types";
-import { makeRawId, rawNodeIdToDocumentId } from "@/entities/graph/lib/graph";
+import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/treeInteraction";
+import { makeRawId, rawNodeIdToDocumentId } from "@/entities/graph/lib/graphBuilder";
 import {
   buildWorkspaceHref,
   getWorkspaceLocationKey,

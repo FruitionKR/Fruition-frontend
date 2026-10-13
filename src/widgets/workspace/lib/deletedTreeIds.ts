@@ -1,4 +1,4 @@
-import { findTreeItem } from "@/entities/tree/lib/queries";
+import { findTreeItem } from "@/entities/tree/lib/treeQueries";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
 
 /** 삭제로 함께 사라지는 트리 항목·문서 id. 폴더를 지우면 하위 항목이 모두 포함된다. */

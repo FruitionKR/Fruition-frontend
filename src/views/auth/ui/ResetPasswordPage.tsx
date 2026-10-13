@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { resetPasswordWithVerification } from "@/entities/user";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
-import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
-import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
+import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
+import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
 import { LoginLinkPrompt } from "@/views/auth/ui/LoginLinkPrompt";
 
 export default function ResetPasswordPage() {

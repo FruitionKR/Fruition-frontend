@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getErrorMessage, isErrorMessage } from "../src/shared/lib/errors.ts";
+import { getErrorMessage, isErrorMessage } from "../src/shared/lib/apiErrors.ts";
 
 test("AI 설정 오류와 분류 오류를 사용자 입력 오류로 안내하지 않는다", () => {
   assert.equal(getErrorMessage(new Error("agent_not_configured"), "실패"),

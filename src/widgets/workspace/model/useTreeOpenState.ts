@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import {
   addTreeOpenIds,
   parseTreeOpenIds,

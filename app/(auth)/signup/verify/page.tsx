@@ -1,1 +1,1 @@
-export { SignupVerifyPage as default } from "@/views/auth";
+export { SignupVerificationPage as default } from "@/views/auth";

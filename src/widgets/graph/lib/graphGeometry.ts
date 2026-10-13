@@ -1,5 +1,5 @@
 import type { NodePosition } from "@/entities/wiki";
-import { GRAPH_CENTER, GRAPH_HEIGHT, GRAPH_WIDTH, GRAPH_ZOOM } from "@/entities/graph/lib/graph";
+import { GRAPH_CENTER, GRAPH_HEIGHT, GRAPH_WIDTH, GRAPH_ZOOM } from "@/entities/graph/lib/graphBuilder";
 
 const GRAPH_VIEW_PADDING = 80;
 /** pan 제한: 노드 분포(bbox)가 화면에 최소 이만큼(px)은 남아 있게 한다. */

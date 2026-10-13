@@ -14,7 +14,7 @@ registerHooks({
 
 const { uploadPdfMultipart } = await import("../src/entities/document/api/multipartUpload.ts");
 const { PART_UPLOAD_IDLE_TIMEOUT_MS } = await import("../src/entities/document/api/partUpload.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 
 const ENDPOINT = "/api/workspaces/ws_test/documents/upload";
 

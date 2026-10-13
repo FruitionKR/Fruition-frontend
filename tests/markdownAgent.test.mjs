@@ -7,7 +7,7 @@ import {
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
   validateMarkdownEditApplication
-} from "../src/features/agent-chat/lib/markdownAgent.ts";
+} from "../src/features/agent-chat/lib/agentTurn.ts";
 
 test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", () => {
   assert.deepEqual(resolveChatTurnPresentation("chat_answer"), { kind: "query", grounded: true });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { HEADING_INPUT_PATTERN, MAX_EDITOR_HEADING_LEVEL, resolveHeadingInputLevel } from "../src/features/note-editing/model/markdownHeading.ts";
+import { HEADING_INPUT_PATTERN, MAX_EDITOR_HEADING_LEVEL, resolveHeadingInputLevel } from "../src/features/note-editing/model/headingInputRules.ts";
 
 test("제목 입력 규칙은 h3보다 작은 제목을 만들지 않는다", () => {
   assert.equal(MAX_EDITOR_HEADING_LEVEL, 3);
@@ -23,7 +23,7 @@ test("바꿔 끼우는 commonmark 기본 제목 규칙의 패턴이 그대로다
   // 패턴이 바뀌면 기본 규칙이 걸러지지 않아 h5/h6가 다시 만들어진다.
   const [preset, source] = await Promise.all([
     readFile(new URL("../node_modules/@milkdown/preset-commonmark/lib/index.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/features/note-editing/model/markdownHeading.ts", import.meta.url), "utf8")
+    readFile(new URL("../src/features/note-editing/model/headingInputRules.ts", import.meta.url), "utf8")
   ]);
   assert.match(preset, /textblockTypeInputRule\(\/\^\(\?<hashes>#\+\)\\s\$\//);
   assert.match(source, /COMMONMARK_HEADING_PATTERN_SOURCE = "\^\(\?<hashes>#\+\)\\\\s\$"/);

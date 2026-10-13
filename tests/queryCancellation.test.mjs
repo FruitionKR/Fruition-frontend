@@ -13,7 +13,7 @@ registerHooks({
 
 const { cancelQueryRun, QueryCancelledError, runQueryStream } = await import("../src/entities/wiki/api/wiki.ts");
 const { setActiveChatSession } = await import("../src/entities/chat/api/chat.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const run = { workspaceId: "ws_test", requestId: "query_test" };
 const model = { provider: "gemini", model: "test-model" };
 

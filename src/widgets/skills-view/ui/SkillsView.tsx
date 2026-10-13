@@ -2,12 +2,13 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SkillResponse } from "@/entities/skill";
-import { SkillCreateWizard, SkillSearchModal } from "@/features/user-settings";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
+import { SkillCreateWizard } from "@/features/skill-authoring";
+import { SkillSearchModal } from "./SkillSearchModal";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { useDismissableMenu } from "@/shared/lib/useDismissableMenu";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import {
   filterSkillsByTab,
   isPersonalSkill,

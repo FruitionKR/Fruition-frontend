@@ -17,16 +17,16 @@ import {
   type OAuthLinkResult,
   type OAuthProvider
 } from "@/entities/user";
-import { setAfterLoginPath } from "@/shared/lib/auth";
-import { EmailChangeModal } from "./EmailChangeModal";
-import { PasswordChangeModal } from "./PasswordChangeModal";
+import { setAfterLoginPath } from "@/shared/lib/authSessionStorage";
+import { EmailChangeModal } from "../modals/EmailChangeModal";
+import { PasswordChangeModal } from "../modals/PasswordChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
 import { MfaPanel } from "./MfaPanel";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
-import { PanelTitle } from "./PanelTitle";
-import { SectionHeader } from "./SectionHeader";
+import { SettingsPanelTitle } from "../SettingsPanelTitle";
+import { SettingsSectionHeader } from "../SettingsSectionHeader";
 
 /** 계정 설정 패널 (Figma 1127:5275). 닉네임·프로필 사진은 프로필 설정 패널로 나눴다. */
 export function AccountPanel() {
@@ -86,11 +86,11 @@ export function AccountPanel() {
   return (
     <div className={styles.detail}>
       <>
-      <PanelTitle title="계정 설정" description="로그인 정보와 연결된 계정, 보안을 관리합니다." />
+      <SettingsPanelTitle title="계정 설정" description="로그인 정보와 연결된 계정, 보안을 관리합니다." />
       {loadError && <small className={styles["model-error"]} role="alert">{getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
 
       <div className={styles.section}>
-        <SectionHeader>계정 정보</SectionHeader>
+        <SettingsSectionHeader>계정 정보</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>이메일</strong>
@@ -133,7 +133,7 @@ export function AccountPanel() {
       </div>
 
       <div className={styles.section}>
-        <SectionHeader>연결된 계정</SectionHeader>
+        <SettingsSectionHeader>연결된 계정</SettingsSectionHeader>
         {OAUTH_PROVIDER_OPTIONS.map(({ provider, name }) => {
           const isLinked = linkedProviders.includes(provider);
           return (
@@ -160,7 +160,7 @@ export function AccountPanel() {
 
       </>
       <div className={styles.section}>
-        <SectionHeader>계정 보안</SectionHeader>
+        <SettingsSectionHeader>계정 보안</SettingsSectionHeader>
         {me && <MfaPanel />}
         {me && <SessionsPanel />}
       </div>

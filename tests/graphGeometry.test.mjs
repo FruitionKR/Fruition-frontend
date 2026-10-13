@@ -18,7 +18,7 @@ const {
   resizeGraphPan,
   viewportWorldScale
 } = await import("../src/widgets/graph/lib/graphGeometry.ts");
-const { GRAPH_CENTER } = await import("../src/entities/graph/lib/graph.ts");
+const { GRAPH_CENTER } = await import("../src/entities/graph/lib/graphBuilder.ts");
 
 const viewport = { width: 1000, height: 700 };
 

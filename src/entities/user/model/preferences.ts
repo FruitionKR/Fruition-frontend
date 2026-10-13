@@ -1,4 +1,4 @@
-import type { ThemePreference } from "@/shared/lib/theme";
+import type { ThemePreference } from "@/shared/lib/themePreference";
 
 export type MotionPreference = "system" | "reduced" | "full";
 export type DocumentFontPreference = "system-sans" | "readable-sans" | "serif";

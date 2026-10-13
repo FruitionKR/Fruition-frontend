@@ -4,7 +4,7 @@ import { useActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLi
 import { useActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { selectActiveIngestDocuments } from "@/features/wiki-ingest/model/wikiReflectState";
 import { buildWikiWorkSections } from "@/features/wiki-ingest/model/wikiWorkList";
-import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
+import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import { RailButton } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { RailWorkIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { WikiWorkPopover } from "./WikiWorkPopover";

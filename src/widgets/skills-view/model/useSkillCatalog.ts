@@ -9,8 +9,8 @@ import {
   updateSkill,
   type SkillResponse
 } from "@/entities/skill";
-import { skillUpdateRequest } from "@/features/user-settings";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { skillUpdateRequest } from "@/features/skill-authoring";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { needsSkillEnable } from "../lib/skillTable";
 
 export type SkillDraft = { description: string; instructionsMarkdown: string };

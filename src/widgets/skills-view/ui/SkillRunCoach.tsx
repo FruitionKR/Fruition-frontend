@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { useEscapeKey } from "@/shared/lib/useEscapeKey";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { SkillCoachArrow } from "./SkillIcons";
 import styles from "./SkillRunCoach.module.css";
 

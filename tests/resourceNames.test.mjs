@@ -9,8 +9,8 @@ registerHooks({
     return nextResolve(specifier, context);
   }
 });
-const { folderNames, availableFolderName, availableDocumentName, normalizeTreeName } = await import("../src/entities/tree/lib/names.ts");
-const { moveProjectTreeItem, applyUploadedDocument } = await import("../src/entities/tree/lib/mutations.ts");
+const { folderNames, availableFolderName, availableDocumentName, normalizeTreeName } = await import("../src/entities/tree/lib/treeNames.ts");
+const { moveProjectTreeItem, applyUploadedDocument } = await import("../src/entities/tree/lib/treeMutations.ts");
 const { renameDocument, uploadDocumentFile, DocumentNameConflictError } = await import("../src/entities/document/api/document.ts");
 const projects = [
   { id: "a", title: "자료", items: [{ id: "folder", label: "운영", type: "folder", children: [] }] },

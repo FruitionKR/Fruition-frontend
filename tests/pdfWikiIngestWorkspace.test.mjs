@@ -38,7 +38,7 @@ function memoryStorage() {
 globalThis.window = { localStorage: memoryStorage(), sessionStorage: memoryStorage() };
 
 const { render } = await import("./reactHookShim.mjs");
-const { setSelectedWorkspaceId } = await import("../src/shared/lib/auth.ts");
+const { setSelectedWorkspaceId } = await import("../src/shared/lib/authSessionStorage.ts");
 const { usePdfWikiIngest } = await import("../src/features/wiki-ingest/model/usePdfWikiIngest.ts");
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

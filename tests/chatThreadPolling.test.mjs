@@ -11,7 +11,7 @@ registerHooks({
   })
 });
 const { useChatThread } = await import("../src/features/agent-chat/model/useChatThread.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { ERROR_MESSAGES } = await import("../src/shared/api/client.ts");
 
 const POLL_MS = 1_000;

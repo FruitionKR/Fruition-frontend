@@ -1,5 +1,5 @@
 import type { TreeItem } from "@/entities/tree";
-import { collectTreeItems } from "@/entities/tree/lib/queries";
+import { collectTreeItems } from "@/entities/tree/lib/treeQueries";
 import { isMarkdownTreeItem } from "@/entities/document/lib/documentKind";
 
 export { isMarkdownTreeItem };

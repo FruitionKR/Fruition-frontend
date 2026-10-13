@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useUserPreferences } from "@/entities/user";
 import { reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { fetchWikiMaintenanceStatus, requestWikiLint } from "../api/wikiLint";
 import { publishNotice } from "./noticeBus";
 

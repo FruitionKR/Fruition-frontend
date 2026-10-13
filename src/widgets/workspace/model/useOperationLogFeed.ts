@@ -10,8 +10,8 @@ import {
   pickSelectedOperationId,
   type OperationLogItem
 } from "@/entities/operation-log";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { usePageVisible } from "@/shared/hooks/usePageVisible";
 
 /** 사이드바 목록 한 페이지 크기. 백엔드 기본은 20, 최대는 100이다. */
 const PAGE_SIZE = 30;

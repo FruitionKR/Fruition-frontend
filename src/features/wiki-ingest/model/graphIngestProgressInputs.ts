@@ -1,6 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isDocumentConverting } from "@/entities/document/lib/documentKind";
-import { makeRawId } from "@/entities/graph/lib/graph";
+import { makeRawId } from "@/entities/graph/lib/graphBuilder";
 import { getWikiReflectState } from "./wikiReflectState";
 
 /**

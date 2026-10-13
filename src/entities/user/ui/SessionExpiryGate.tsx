@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { isPublicAuthPath, setSessionExpiredHandler } from "@/shared/lib/auth";
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { isPublicAuthPath, setSessionExpiredHandler } from "@/shared/lib/authSessionStorage";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { useSignOut } from "../model/useSignOut";
 
 /**

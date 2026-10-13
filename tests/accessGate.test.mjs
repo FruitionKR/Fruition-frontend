@@ -16,8 +16,8 @@ registerHooks({
 
 const { NextRequest } = await import("next/server");
 
-const { handleAccessGate } = await import("../src/shared/lib/accessGate.ts");
-const { ACCESS_COOKIE, hashAccessCode, isSameAccessToken } = await import("../src/shared/lib/accessCode.ts");
+const { handleAccessGate } = await import("../src/shared/lib/security/accessGateMiddleware.ts");
+const { ACCESS_COOKIE, hashAccessCode, isSameAccessToken } = await import("../src/shared/lib/security/accessCode.ts");
 
 function withAccessCode(t, code) {
   const original = process.env.ACCESS_CODE;

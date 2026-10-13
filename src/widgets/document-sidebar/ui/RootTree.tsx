@@ -3,7 +3,7 @@ import { cx } from "@/shared/lib/classNames";
 import { hasDroppedFiles } from "@/entities/tree";
 import type { Project } from "@/entities/tree";
 import { SidebarTree } from "./SidebarTree";
-import type { TreeInteractionProps } from "../model/types";
+import type { TreeInteractionProps } from "../model/treeInteraction";
 import styles from "./DocumentSidebar.module.css";
 
 /** 루트 문서·폴더를 한 트리로 보여준다. 빈 여백에 항목을 끌어다 놓으면 루트로 이동한다. */

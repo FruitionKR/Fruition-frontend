@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { ACCESS_COOKIE, ACCESS_COOKIE_MAX_AGE, getAccessCode, hashAccessCode, isSameAccessToken } from "@/shared/lib/accessCode";
+import { ACCESS_COOKIE, ACCESS_COOKIE_MAX_AGE, getAccessCode, hashAccessCode, isSameAccessToken } from "@/shared/lib/security/accessCode";
 import { getBlockedMs, getClientKey, recordFailure, resetFailures } from "./attemptLimiter";
 
 const TOO_MANY_ATTEMPTS_MESSAGE = "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해 주세요.";

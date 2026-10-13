@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/shared/api/client";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { SessionExpiredError } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { SessionExpiredError } from "@/shared/lib/apiErrors";
 import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
 import { HEARTBEAT_RETRY_MS, resolveHeartbeatDelayMs, resolveHeartbeatFailure, resolveLockElapsedMs, resolveLockRemainingMs, type LockClockAnchor } from "./editLockSchedule";
 

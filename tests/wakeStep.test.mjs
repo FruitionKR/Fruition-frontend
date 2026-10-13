@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { decideWakeStep, isReadyStatus } = await import("../src/views/login/model/wakeStep.ts");
+const { decideWakeStep, isReadyStatus } = await import("../src/views/auth/model/wakeStep.ts");
 
 test("절전 중이면 안내를 띄우고 기동을 다시 요청한다", () => {
   assert.equal(decideWakeStep("asleep", false), "request-wake");

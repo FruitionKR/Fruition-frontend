@@ -1,6 +1,6 @@
 import { apiFetch, idempotencyKey, parseJsonOrThrow, throwIfNotOk, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import type { WorkspaceListResponse, WorkspaceResponse } from "@/entities/workspace/model/workspace";
-import type { WorkspaceStorageResponse } from "@/entities/workspace/model/limits";
+import type { WorkspaceStorageResponse } from "@/entities/workspace/model/workspaceLimits";
 
 export async function fetchWorkspaces(): Promise<WorkspaceListResponse> {
   const response = await apiFetch("/api/workspaces", { cache: "no-store" });

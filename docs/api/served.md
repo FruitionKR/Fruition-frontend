@@ -176,7 +176,7 @@ curl -s http://localhost:3000/access/verify
 ### 10. 구현 파일
 
 - 핸들러: `app/access/verify/route.ts` (`GET`)
-- 헬퍼: `src/shared/lib/accessCode.ts` (`ACCESS_COOKIE`, `getAccessCode`, `hashAccessCode`)
+- 헬퍼: `src/shared/lib/security/accessCode.ts` (`ACCESS_COOKIE`, `getAccessCode`, `hashAccessCode`)
 
 ---
 
@@ -265,7 +265,7 @@ Set-Cookie: fruition_access=<sha256>; Path=/; HttpOnly; SameSite=Lax
 
 - 핸들러: `app/access/verify/route.ts` (`POST`, 상수 시간 비교 `isSameCode`)
 - 시도 제한: `app/access/verify/attemptLimiter.ts` (서버 전용)
-- 헬퍼: `src/shared/lib/accessCode.ts`
+- 헬퍼: `src/shared/lib/security/accessCode.ts`
 - 게이트: `middleware.ts`
 - 호출 측: `src/shared/api/accessGate.ts` (`submitAccessCode` → `"ok" | "invalid" | "rate-limited"`)
 
@@ -346,8 +346,8 @@ Cache-Control: no-store
 
 - 핸들러: `app/wake/route.ts` (`POST`, `export const dynamic = "force-dynamic"`)
 - AWS 호출·중복 방지: `app/wake/requestWake.ts` (`requestWake`). 서버 전용이라 `app/wake/` 밖에서 import하지 않는다.
-- 접근 코드 판정: `src/shared/lib/accessCode.ts` (`hasVerifiedAccessCode`)
-- 호출 측: `src/views/login/model/useServerWake.ts` (로그인 화면 진입 시·제출 직전, 응답 무시. `GET /access/verify`가 `enabled: false`면 부르지 않는다)
+- 접근 코드 판정: `src/shared/lib/security/accessCode.ts` (`hasVerifiedAccessCode`)
+- 호출 측: `src/views/auth/model/useServerWake.ts` (로그인 화면 진입 시·제출 직전, 응답 무시. `GET /access/verify`가 `enabled: false`면 부르지 않는다)
 - 플랫폼 라우팅: ALB가 `/wake`를 화면으로 보내야 한다(플랫폼 `test_aws_frontend_routing.py`의 화면 경로)
 
 ---
@@ -420,7 +420,7 @@ curl -s http://localhost:3000/wake
 
 - 핸들러: `app/wake/route.ts` (`GET`)
 - DynamoDB 조회: `app/wake/requestWake.ts` (`readWakePhase`)
-- 호출 측: `src/views/login/model/useServerWake.ts` (안내 중 10초 간격 확인, 최대 15분), 판단 `src/views/login/model/wakeStep.ts`
+- 호출 측: `src/views/auth/model/useServerWake.ts` (안내 중 10초 간격 확인, 최대 15분), 판단 `src/views/auth/model/wakeStep.ts`
 
 ---
 
@@ -496,7 +496,7 @@ Cache-Control: no-store
 
 - 핸들러: `app/csp-report/route.ts` (`export const dynamic = "force-dynamic"`)
 - 요약·상한: `app/csp-report/cspReport.ts` (`summarizeCspReports`, `readCappedText`, `createLogLimiter`)
-- 정책 문자열: `src/shared/lib/contentSecurityPolicy.ts` (`buildContentSecurityPolicy`), 헤더 부착: `middleware.ts` → `src/shared/lib/contentSecurityHeaders.ts` (production만, 요청마다 nonce)
+- 정책 문자열: `src/shared/lib/security/contentSecurityPolicy.ts` (`buildContentSecurityPolicy`), 헤더 부착: `middleware.ts` → `src/shared/lib/security/contentSecurityHeaders.ts` (production만, 요청마다 nonce)
 
 ---
 

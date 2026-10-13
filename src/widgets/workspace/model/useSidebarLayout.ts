@@ -12,7 +12,7 @@ import {
   resolvePanelKeyStep,
   type PanelState
 } from "../lib/panelResize";
-import { readStoredPanel, writeStoredPanel } from "./panelStorage";
+import { readStoredPanel, writeStoredPanel } from "../lib/panelStateStorage";
 import { usePointerDrag } from "./usePointerDrag";
 
 /**

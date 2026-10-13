@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDocumentCommandSteps, buildStatusSteps } from "../src/features/agent-chat/lib/agentData.ts";
+import { buildDocumentCommandSteps, buildStatusSteps } from "../src/features/agent-chat/lib/statusSteps.ts";
 
 test("일반 Query는 Wiki 검색과 근거 답변 단계를 유지한다", () => {
   assert.deepEqual(buildStatusSteps(false, true), [

@@ -22,10 +22,10 @@ import deleteIcon from "@/shared/assets/svg/log/delete.svg";
 import { fetchMembers } from "@/entities/workspace/api/members";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import { formatRelativeTime } from "@/shared/lib/time";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
+import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { retryIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./LogView.module.css";
 

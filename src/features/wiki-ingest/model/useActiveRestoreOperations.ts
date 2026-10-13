@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchOperationLogs, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
-import { usePageVisible } from "@/shared/lib/usePageVisible";
+import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "./wikiWorkPolling";
 
 const ACTIVE_RESTORE_QUERY_KEY = ["activeRestoreOperations"] as const;

@@ -1,5 +1,5 @@
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
-import type { UserMeResponse } from "@/entities/user/model/auth";
+import type { UserMeResponse } from "@/entities/user/model/user";
 
 /** 로그인한 사용자 정보를 가져온다. */
 export async function fetchMe(): Promise<UserMeResponse> {

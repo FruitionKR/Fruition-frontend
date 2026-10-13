@@ -32,7 +32,7 @@ registerHooks({
 const { createSerialQueue } = await import("../src/shared/lib/serialQueue.ts");
 const { useProjectTree } = await import("../src/widgets/workspace/model/useProjectTree.ts");
 const { subscribeNotices } = await import("../src/features/document-notifications/model/noticeBus.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { render } = await import("./reactHookShim.mjs");
 
 test("직렬 큐는 진행 중인 작업이 있어도 다음 작업을 버리지 않고 순서대로 실행한다", async () => {

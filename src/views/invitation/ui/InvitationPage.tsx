@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSignOut } from "@/entities/user";
 import { acceptInvitation, fetchInvitation } from "@/entities/workspace/api/invitations";
-import { clearAuth, setAfterLoginPath, setSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { clearAuth, setAfterLoginPath, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import styles from "@/views/workspaces/ui/WorkspacesPage.module.css";
 
 export default function InvitationPage({ token }: { token: string }) {

@@ -11,7 +11,7 @@ registerHooks({
 });
 const { fetchSkillReferenceDocuments, uploadSkillReferenceDocument } = await import("../src/entities/document/api/document.ts");
 const { usesDocumentTransport } = await import("../src/shared/api/documentTransport.ts");
-const { ApiError } = await import("../src/shared/lib/errors.ts");
+const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 
 function selectWorkspace(t) {
   const previous = globalThis.window;

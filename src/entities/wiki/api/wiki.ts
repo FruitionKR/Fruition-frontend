@@ -1,5 +1,5 @@
-import { fetchDocumentTree } from "@/entities/tree/api/folders";
-import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEvents";
+import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
+import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { getSessionContext } from "@/entities/chat/api/chat";
 import type { AiModelSelection } from "@/entities/ai";

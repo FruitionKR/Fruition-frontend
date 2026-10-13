@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { wrapFocusIndex } = await import("../src/shared/lib/useModalFocus.ts");
+const { wrapFocusIndex } = await import("../src/shared/hooks/useModalFocus.ts");
 
 test("모달 마지막 요소에서 Tab을 누르면 처음으로 돌아간다", () => {
   assert.equal(wrapFocusIndex(2, 3, false), 0);

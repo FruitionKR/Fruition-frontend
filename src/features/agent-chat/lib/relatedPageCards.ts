@@ -1,4 +1,4 @@
-import { findSourceNodeByDocumentId, makeRawId } from "@/entities/graph/lib/graph";
+import { findSourceNodeByDocumentId, makeRawId } from "@/entities/graph/lib/graphBuilder";
 import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import type { GraphNode } from "@/entities/wiki/model/wiki";

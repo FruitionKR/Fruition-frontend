@@ -1,5 +1,5 @@
 import { confirmEmailVerification } from "@/entities/user";
-import { ApiError } from "@/shared/lib/errors";
+import { ApiError } from "@/shared/lib/apiErrors";
 
 const INVALID_VERIFICATION_CODE_MESSAGE = "잘못된 인증번호입니다. 다시 확인해주세요.";
 

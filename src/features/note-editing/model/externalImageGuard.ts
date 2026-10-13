@@ -1,7 +1,7 @@
 import { Fragment, Slice, type Node as ProseNode } from "@milkdown/prose/model";
 import { Plugin, PluginKey, type EditorState, type Transaction } from "@milkdown/prose/state";
 import type { EditorView } from "@milkdown/prose/view";
-import { classifyImageSource } from "@/shared/lib/externalResources";
+import { classifyImageSource } from "@/shared/lib/markdown/externalResources";
 
 /**
  * 편집기에 외부 이미지가 새로 들어오지 못하게 막는다(이슈 #77).

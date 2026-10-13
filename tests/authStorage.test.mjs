@@ -9,7 +9,7 @@ import {
   setAfterLoginPath,
   takeAfterLoginPath,
   withAuthRefreshLock
-} from "../src/shared/lib/auth.ts";
+} from "../src/shared/lib/authSessionStorage.ts";
 
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));

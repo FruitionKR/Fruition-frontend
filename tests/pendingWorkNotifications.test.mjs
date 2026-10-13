@@ -15,7 +15,7 @@ const { usePendingWorkNotifications } = await import(
 );
 const { subscribeNotices } = await import("../src/features/document-notifications/model/noticeBus.ts");
 const { reflectCalls, setReflectFailure } = await import("./fakeDocumentEntity.mjs");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 
 const PROMPT_DEBOUNCE_MS = 3_000;
 const STALL_MS = 60_000;

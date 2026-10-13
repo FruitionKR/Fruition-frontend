@@ -37,7 +37,7 @@
 | 호출 지점 | 변수 | 호출자 추적 결과 |
 |---|---|---|
 | `src/entities/document/api/multipartUpload.ts` `uploadPdfMultipart(endpoint, ...)` | `endpoint` | 유일한 호출자가 `src/entities/document/api/document.ts:64`의 `uploadDocumentFile`이고 `workspacePath(workspaceId, "documents", "uploads")`를 넘긴다. 따라서 `endpoint` = `/api/workspaces/{workspace_id}/documents/uploads`, 파생 경로는 `/parts`·`/complete`·`/abort` |
-| `src/entities/tree/api/folders.ts` `mutateTreeItem(id, type, method, suffix, ...)` | `type`, `suffix` | 네 개 래퍼가 전부 같은 파일 안에 있다. `renameFolder`→`folders/{id}`, `deleteFolder`→`folders/{id}`, `moveFolder`→`folders/{id}/position`, `moveDocument`→`documents/{id}/position` |
+| `src/entities/tree/api/documentTree.ts` `mutateTreeItem(id, type, method, suffix, ...)` | `type`, `suffix` | 네 개 래퍼가 전부 같은 파일 안에 있다. `renameFolder`→`folders/{id}`, `deleteFolder`→`folders/{id}`, `moveFolder`→`folders/{id}/position`, `moveDocument`→`documents/{id}/position` |
 | `src/shared/api/assets.ts` `acquireAssetObjectUrl(path)` | `path` | 문서 본문에서 `MANAGED_ASSET_PATH_IN_TEXT` 정규식으로 추출한 값이며 형태가 `/api/workspaces/{workspace_id}/assets/{asset_id}/content`로 고정된다 |
 
 리터럴 검색만으로는 `documents/uploads/parts`·`complete`·`abort`,

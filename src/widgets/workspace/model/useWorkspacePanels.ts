@@ -3,9 +3,9 @@ import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { useSidebarLayout } from "./useSidebarLayout";
 import { useAgentPanelLayout } from "./useAgentPanelLayout";
 import { useCompactLayout } from "./useCompactLayout";
-import { writePanelWidths } from "./panelWidthPreview";
+import { writePanelWidths } from "../lib/panelWidthCssVars";
 import { SIDEBAR_BASE_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
-import { isAgentPanelVisible } from "../lib/workspaceLayout";
+import { isAgentPanelVisible } from "../lib/agentPanelVisibility";
 
 /**
  * 사이드바·채팅 패널의 열림/폭/좁은 화면 겹침을 한곳에서 조합한다.

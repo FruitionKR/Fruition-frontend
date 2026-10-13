@@ -6,7 +6,7 @@ import {
   countExternalMarkdownImages,
   isAllowedImageSource,
   isManagedAssetPath
-} from "../src/shared/lib/externalResources.ts";
+} from "../src/shared/lib/markdown/externalResources.ts";
 
 const MANAGED = "/api/workspaces/ws_1/assets/asset_1/content";
 

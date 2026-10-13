@@ -1,12 +1,12 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
-import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/folders";
-import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
+import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/documentTree";
+import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import { publishNotice } from "@/features/document-notifications";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
-import { useEscapeLayer } from "@/shared/lib/useEscapeLayer";
+import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
 import { resolveTreeMove } from "../lib/treeMoveRules";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {

@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchOperationLogs } from "@/entities/operation-log";
 import { useMe } from "@/entities/user";
 import { fetchMembers } from "@/entities/workspace/api/members";
-import { getSelectedWorkspaceId } from "@/shared/lib/auth";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import {
   buildTaskNotifications,
   buildWorkspaceNotifications,

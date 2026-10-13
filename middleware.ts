@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
-import { handleAccessGate } from "@/shared/lib/accessGate";
-import { applyContentSecurityPolicy } from "@/shared/lib/contentSecurityHeaders";
+import { handleAccessGate } from "@/shared/lib/security/accessGateMiddleware";
+import { applyContentSecurityPolicy } from "@/shared/lib/security/contentSecurityHeaders";
 
 // Next.js는 라우팅 app/과 같은 위치(프로젝트 루트)의 middleware.ts만 인식한다.
-// 그래서 이 파일은 루트에 두고, 게이트 로직은 src/shared/lib/accessGate.ts에 둔다.
+// 그래서 이 파일은 루트에 두고, 게이트 로직은 src/shared/lib/security/accessGateMiddleware.ts에 둔다.
 export function middleware(request: NextRequest) {
   if (/^\/api(\/|$)/.test(request.nextUrl.pathname)) return handleAccessGate(request);
   return applyContentSecurityPolicy(request);

@@ -1,7 +1,7 @@
 import { apiFetch, throwIfNotOk } from "@/shared/api/client";
 
 // 관리 이미지 경로 판별은 외부 이미지 분류와 같은 기준을 쓰도록 externalResources에 둔다.
-export { isManagedAssetPath } from "@/shared/lib/externalResources";
+export { isManagedAssetPath } from "@/shared/lib/markdown/externalResources";
 
 // isManagedAssetPath와 같은 ID 문자만 받고, 뒤에 쿼리·조각 등이 붙은 경로는 뽑지 않는다.
 // 앞도 Markdown·HTML에서 주소가 시작하는 자리(줄 처음·공백·괄호·꺾쇠·따옴표·=)만 받아,

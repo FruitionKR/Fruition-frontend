@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
-import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
+import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import { AgentChevronIcon, AgentSendIcon, AgentWaveMark } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 

@@ -7,11 +7,11 @@ import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as classNames from "../src/shared/lib/classNames.ts";
-import * as segments from "../src/shared/lib/markdownSegments.ts";
-import * as closedMath from "../src/shared/lib/remarkClosedMath.ts";
-import * as sourceBlocks from "../src/shared/lib/markdownSourceBlocks.ts";
-import * as customTokens from "../src/shared/lib/remarkCustomTokens.ts";
-import * as externalResources from "../src/shared/lib/externalResources.ts";
+import * as segments from "../src/shared/lib/markdown/markdownSegments.ts";
+import * as closedMath from "../src/shared/lib/markdown/remarkClosedMath.ts";
+import * as sourceBlocks from "../src/shared/lib/markdown/markdownSourceBlocks.ts";
+import * as customTokens from "../src/shared/lib/markdown/remarkCustomTokens.ts";
+import * as externalResources from "../src/shared/lib/markdown/externalResources.ts";
 
 // 실제 MarkdownViewer와 ManagedImage를 함께 렌더해 외부 주소의 <img>·링크가 만들어지지 않는지 본다(이슈 #77).
 const require = createRequire(import.meta.url);
@@ -27,17 +27,17 @@ function load(path, aliases) {
 const assets = { acquireAssetObjectUrl: () => new Promise(() => {}), releaseAssetObjectUrl() {} };
 const { ManagedImage } = load("../src/shared/ui/markdown/ManagedImage.tsx", {
   "@/shared/api/assets": assets,
-  "@/shared/lib/externalResources": externalResources
+  "@/shared/lib/markdown/externalResources": externalResources
 });
-const { MarkdownViewer } = load("../src/shared/ui/MarkdownViewer.tsx", {
+const { MarkdownViewer } = load("../src/shared/ui/markdown/MarkdownViewer.tsx", {
   // KaTeX 스타일은 번들러가 처리하는 부수효과 임포트라 Node에서는 비운다
   "katex/dist/katex.min.css": {},
-  "@/shared/lib/remarkClosedMath": closedMath,
+  "@/shared/lib/markdown/remarkClosedMath": closedMath,
   "@/shared/lib/classNames": classNames,
-  "@/shared/lib/markdownSegments": segments,
-  "@/shared/lib/markdownSourceBlocks": sourceBlocks,
-  "@/shared/lib/remarkCustomTokens": customTokens,
-  "@/shared/lib/externalResources": externalResources,
+  "@/shared/lib/markdown/markdownSegments": segments,
+  "@/shared/lib/markdown/markdownSourceBlocks": sourceBlocks,
+  "@/shared/lib/markdown/remarkCustomTokens": customTokens,
+  "@/shared/lib/markdown/externalResources": externalResources,
   "@/shared/ui/markdown/ManagedImage": { ManagedImage }
 });
 

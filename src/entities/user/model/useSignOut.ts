@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearSessionCache } from "@/entities/chat";
 import { logout } from "@/entities/user/api/auth";
-import { clearAuth } from "@/shared/lib/auth";
+import { clearAuth } from "@/shared/lib/authSessionStorage";
 
 /**
  * 세션 종료 공통 절차: (선택) 서버 로그아웃 → 채팅 캐시 정리 → 인증 상태 정리 → 로그인 화면 이동.

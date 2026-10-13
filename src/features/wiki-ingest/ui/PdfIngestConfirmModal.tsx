@@ -1,4 +1,4 @@
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 
 /** 위키 편입 선택에 변환 전 PDF가 섞였을 때 변환 후 편입을 확인한다. ESC·바깥 클릭은 AlertModal이 취소로 처리한다. */
 export function PdfIngestConfirmModal({ pdfCount, onConfirm, onCancel }: {

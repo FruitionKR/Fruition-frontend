@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/serverTree";
+import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree";
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
@@ -9,15 +9,15 @@ import { Graph } from "@/widgets/graph/ui/Graph";
 import { SkillRunCoach, SkillsView } from "@/widgets/skills-view";
 import { LogView } from "@/widgets/log-view";
 import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-view";
-import { SettingsPanel } from "@/features/settings";
+import { AccessCodeSettingsPanel } from "@/features/access-code-settings";
 import { DocumentProcessingNotifications } from "@/features/document-notifications";
 import { railItems } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
-import { DeleteConfirmModal } from "@/shared/ui/DeleteConfirmModal";
-import { MergeConfirmModal } from "@/shared/ui/MergeConfirmModal";
+import { DeleteConfirmModal } from "@/shared/ui/modal/DeleteConfirmModal";
+import { MergeConfirmModal } from "@/shared/ui/modal/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
-import { useBackdropClick } from "@/shared/lib/useBackdropClick";
+import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useProjectTree } from "../model/useProjectTree";
@@ -31,7 +31,7 @@ import {
 } from "../lib/workspaceLocation";
 import { useTreeOpenState } from "../model/useTreeOpenState";
 import { findContextFolderId } from "../lib/treeOpenState";
-import { buildGraphFromBackend } from "@/entities/graph/lib/graph";
+import { buildGraphFromBackend } from "@/entities/graph/lib/graphBuilder";
 import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
@@ -40,11 +40,11 @@ import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfir
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { uploadDocumentFile } from "@/entities/document";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
-import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/markdownAgent";
-import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/markdownAgent";
+import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
+import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import { createClientId, findTreeItem } from "@/entities/tree";
-import { getMarkdownDocumentTitle } from "@/entities/document/lib/note";
+import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
 import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
 import { useOperationLogFeed } from "../model/useOperationLogFeed";
 import { useWorkspaceNavigation } from "../model/useWorkspaceNavigation";
@@ -54,7 +54,7 @@ import { useGraphWikiActions } from "../model/useGraphWikiActions";
 import { useSkillRun } from "../model/useSkillRun";
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
-import { canShowAgentPanel } from "../lib/workspaceLayout";
+import { canShowAgentPanel } from "../lib/agentPanelVisibility";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -525,7 +525,7 @@ export function HomeWorkspace() {
             }}
           />
         ) : activeView === "settings" ? (
-          <SettingsPanel />
+          <AccessCodeSettingsPanel />
         ) : (
           <section className="blank-view" aria-label={`${railItems.find((item) => item.id === activeView)?.label ?? ""} 빈 화면`} />
         )

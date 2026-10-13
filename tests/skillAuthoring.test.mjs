@@ -13,8 +13,8 @@ registerHooks({
 });
 
 const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/client.ts");
-const { ApiError, SessionExpiredError } = await import("../src/shared/lib/errors.ts");
-const { describeSkillAuthorError, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/user-settings/lib/skillAuthoring.ts");
+const { ApiError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
+const { describeSkillAuthorError, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 

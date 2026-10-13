@@ -17,11 +17,11 @@ registerHooks({
 });
 
 const { ERROR_MESSAGES, apiFetch } = await import("../src/shared/api/client.ts");
-const { clearAuth, isSessionExpired, saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/auth.ts");
+const { clearAuth, isSessionExpired, saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/authSessionStorage.ts");
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { HEARTBEAT_RETRY_MS } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
-const { SessionExpiredError } = await import("../src/shared/lib/errors.ts");
+const { SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
 const { render } = await import("./reactHookShim.mjs");
 
 const DOCUMENT_ID = "doc_session_expiry";

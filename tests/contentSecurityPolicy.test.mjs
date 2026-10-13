@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith(".") && isAppModule && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});
-const { buildContentSecurityPolicy, CSP_REPORT_PATH, readCspNonce } = await import("../src/shared/lib/contentSecurityPolicy.ts");
+const { buildContentSecurityPolicy, CSP_REPORT_PATH, readCspNonce } = await import("../src/shared/lib/security/contentSecurityPolicy.ts");
 const { createLogLimiter, readCappedText, summarizeCspReports } = await import("../app/csp-report/cspReport.ts");
 const { POST } = await import("../app/csp-report/route.ts");
 const { middleware, config: middlewareConfig } = await import("../middleware.ts");

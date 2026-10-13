@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cx } from "@/shared/lib/classNames";
-import { buildStatusSteps, type StatusStep } from "../lib/agentData";
+import { buildStatusSteps, type StatusStep } from "../lib/statusSteps";
 import { AgentChevronIcon, AgentStepCheckIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 

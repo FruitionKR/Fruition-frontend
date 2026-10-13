@@ -1,6 +1,6 @@
 import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
-import type { RelatedPageBase } from "@/shared/types/shared";
+import type { RelatedPageBase } from "@/shared/types/relatedPage";
 
 export type WikiGraphNodeResponse = {
   id: string;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/types";
+import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/treeInteraction";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
 
 // 모달에 최대로 노출할 결과 수

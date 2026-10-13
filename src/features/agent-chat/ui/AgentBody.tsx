@@ -10,7 +10,7 @@ import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import { cx } from "@/shared/lib/classNames";
-import { useSmoothScroll } from "../lib/useSmoothScroll";
+import { useSmoothScroll } from "../model/useSmoothScroll";
 import styles from "./AgentChat.module.css";
 
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";

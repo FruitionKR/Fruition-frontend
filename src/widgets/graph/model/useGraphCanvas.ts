@@ -4,7 +4,7 @@ import { zoom, ZoomTransform } from "d3-zoom";
 import type { ZoomBehavior } from "d3-zoom";
 import type { GraphRect } from "../lib/graphGeometry";
 import type { GraphCache, GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
-import { GRAPH_CENTER, GRAPH_ZOOM, linkKey } from "@/entities/graph/lib/graph";
+import { GRAPH_CENTER, GRAPH_ZOOM, linkKey } from "@/entities/graph/lib/graphBuilder";
 import { readStoredGraphCache, writeStoredGraphCache } from "./graphCache";
 import { drawGraphFrame, preloadRawNodeIcon } from "../lib/graphDrawing";
 import { DARK_SCHEME_QUERY } from "../lib/graphColors";

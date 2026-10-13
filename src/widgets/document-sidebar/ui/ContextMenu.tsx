@@ -1,8 +1,8 @@
-import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/serverTree";
+import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import type { ContextMenuState } from "@/entities/tree";
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { useDismissOnOutside } from "@/shared/lib/useDismissOnOutside";
+import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import styles from "./DocumentSidebar.module.css";
 
 export function ContextMenu({

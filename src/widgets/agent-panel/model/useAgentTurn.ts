@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RunStageEvent } from "@/shared/lib/runEvents";
+import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import type { AiModel } from "@/entities/ai";
 import { requestAgentTurn } from "@/features/agent-chat";
 import {
@@ -7,10 +7,10 @@ import {
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
   validateMarkdownEditApplication
-} from "@/features/agent-chat/lib/markdownAgent";
-import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/markdownAgent";
+} from "@/features/agent-chat/lib/agentTurn";
+import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 
 /**
  * 노트를 열어 둔 채 보내는 문서 명령(agent turn): 요청·진행 단계·응답과

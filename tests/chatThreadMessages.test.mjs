@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchMessagesForRequest } from "../src/features/agent-chat/lib/chatMessagesRequest.ts";
+import { fetchMessagesForRequest } from "../src/features/agent-chat/lib/chatMessagesForRequest.ts";
 
 const MESSAGES = [
   { id: "m1", role: "user", content: "A 세션 질문", status: "completed" },

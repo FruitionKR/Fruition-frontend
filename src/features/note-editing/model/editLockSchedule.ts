@@ -1,5 +1,5 @@
 import { ERROR_MESSAGES } from "@/shared/api/client";
-import { SessionExpiredError } from "@/shared/lib/errors";
+import { SessionExpiredError } from "@/shared/lib/apiErrors";
 import type { EditLockResponse } from "../api/editLock";
 
 /** 만료가 임박해도 초당 요청으로 번지지 않게 하는 하한. */

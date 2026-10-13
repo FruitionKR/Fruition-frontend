@@ -1,4 +1,4 @@
-import type { OperationLogItem } from "../../../entities/operation-log/model/types";
+import type { OperationLogItem } from "../../../entities/operation-log/model/operationLog";
 
 export function formatElapsedMinutes(startedAt: string, now = Date.now()): string {
   const elapsedMinutes = Math.max(0, Math.floor((now - Date.parse(startedAt)) / 60_000));

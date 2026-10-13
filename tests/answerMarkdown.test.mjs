@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatAnswerMarkdown } from "../src/features/agent-chat/lib/agentFormatters.ts";
+import { formatAnswerMarkdown } from "../src/features/agent-chat/lib/answerMarkdown.ts";
 
 test("리스트 항목의 citation은 같은 항목 문장 끝에 남는다", () => {
   const input = "- 문서는 S3에 저장됩니다. [1]\n- 메타데이터는 DB가 관리합니다. [2]";

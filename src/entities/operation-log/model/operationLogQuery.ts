@@ -1,4 +1,4 @@
-import type { OperationStatus, OperationType } from "./types";
+import type { OperationStatus, OperationType } from "./operationLog";
 
 export type OperationLogQuery = {
   cursor?: string;

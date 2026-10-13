@@ -1,5 +1,5 @@
 import type { QueryMessageSummary } from "@/entities/wiki/model/wiki";
-import type { RelatedPageBase } from "@/shared/types/shared";
+import type { RelatedPageBase } from "@/shared/types/relatedPage";
 
 export type ChatSessionResponse = {
   id: string;
@@ -29,7 +29,7 @@ export type ChatMessageRelatedPageResponse = RelatedPageBase & {
 
 export type ChatMessageResponse = QueryMessageSummary & {
   run_id?: string;
-  progress?: import("@/shared/lib/runEvents").RunStageEvent[];
+  progress?: import("@/shared/lib/runEventStream").RunStageEvent[];
   action?: string;
   related_pages?: ChatMessageRelatedPageResponse[];
   references: ChatMessageReferenceResponse[];

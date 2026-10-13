@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HomeWorkspace } from "@/widgets/workspace";
 import { useMe, useSignOut } from "@/entities/user";
 import { fetchWorkspaces } from "@/entities/workspace";
-import { clearSelectedWorkspaceId, getSelectedWorkspaceId } from "@/shared/lib/auth";
+import { clearSelectedWorkspaceId, getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 
 export default function HomePage() {

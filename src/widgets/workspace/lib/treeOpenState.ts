@@ -1,4 +1,4 @@
-import { findTreeItem } from "@/entities/tree/lib/queries";
+import { findTreeItem } from "@/entities/tree/lib/treeQueries";
 import type { ContextMenuState, Project } from "@/entities/tree/model/tree";
 
 /** 사이드바 폴더 펼침 상태를 워크스페이스별로 같은 탭 안에서 유지하는 sessionStorage 키 */

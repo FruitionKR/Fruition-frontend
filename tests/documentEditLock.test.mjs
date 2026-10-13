@@ -36,10 +36,10 @@ const {
   resolveLockRemainingMs
 } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
-const { SessionExpiredError } = await import("../src/shared/lib/errors.ts");
+const { SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { ERROR_MESSAGES } = await import("../src/shared/api/client.ts");
-const { saveAccessToken } = await import("../src/shared/lib/auth.ts");
+const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { render } = await import("./reactHookShim.mjs");
 
 const DOCUMENT_ID = "doc_edit_lock";

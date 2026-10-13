@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { canShowAgentPanel, isAgentPanelVisible } from "../src/widgets/workspace/lib/workspaceLayout.ts";
-import { focusGraphNode } from "../src/widgets/workspace/model/focusGraphNode.ts";
+import { canShowAgentPanel, isAgentPanelVisible } from "../src/widgets/workspace/lib/agentPanelVisibility.ts";
+import { focusGraphNode } from "../src/widgets/workspace/lib/focusGraphNode.ts";
 
 const sidebarProfilePath = new URL(
   "../src/widgets/document-sidebar/ui/SidebarProfile.tsx",

@@ -2,13 +2,13 @@
 
 import type { ReactNode } from "react";
 import { useUserPreferences, type DocumentFontPreference, type MotionPreference, type UserPreferences } from "@/entities/user";
-import type { ThemePreference } from "@/shared/lib/theme";
+import type { ThemePreference } from "@/shared/lib/themePreference";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
-import { PanelTitle } from "./PanelTitle";
+import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import panelStyles from "./PreferencesPanel.module.css";
-import { SectionHeader } from "./SectionHeader";
+import { SettingsSectionHeader } from "../SettingsSectionHeader";
 
 type Choice<T extends string> = { value: T; label: string; description: string; preview?: ReactNode };
 
@@ -92,25 +92,25 @@ export function PreferencesPanel() {
 
   return (
     <div className={styles.detail}>
-      <PanelTitle title="기본 설정" description="이 계정에서 보는 화면과 편집·채팅 방식을 설정합니다." />
+      <SettingsPanelTitle title="기본 설정" description="이 계정에서 보는 화면과 편집·채팅 방식을 설정합니다." />
 
       <div className={styles.section}>
-        <SectionHeader id="preferences-theme-label">화면 테마</SectionHeader>
+        <SettingsSectionHeader id="preferences-theme-label">화면 테마</SettingsSectionHeader>
         <ChoiceCards labelId="preferences-theme-label" choices={THEME_CHOICES} value={preferences.theme} onSelect={(theme) => update("theme", theme)} />
       </div>
 
       <div className={styles.section}>
-        <SectionHeader id="preferences-font-label">문서 글꼴</SectionHeader>
+        <SettingsSectionHeader id="preferences-font-label">문서 글꼴</SettingsSectionHeader>
         <ChoiceCards labelId="preferences-font-label" choices={FONT_CHOICES} value={preferences.documentFont} onSelect={(font) => update("documentFont", font)} />
       </div>
 
       <div className={styles.section}>
-        <SectionHeader id="preferences-motion-label">애니메이션</SectionHeader>
+        <SettingsSectionHeader id="preferences-motion-label">애니메이션</SettingsSectionHeader>
         <ChoiceCards labelId="preferences-motion-label" choices={MOTION_CHOICES} value={preferences.motion} onSelect={(motion) => update("motion", motion)} />
       </div>
 
       <div className={styles.section}>
-        <SectionHeader>편집과 채팅</SectionHeader>
+        <SettingsSectionHeader>편집과 채팅</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>자동 저장</strong>

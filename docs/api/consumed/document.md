@@ -14,7 +14,7 @@ document-svc의 문서·폴더·본문 API다. 이 경로군은 전부 직접 �
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `GET /api/workspaces/{workspace_id}/documents` | 문서 평면 목록 | `src/entities/document/api/document.ts` `fetchDocuments` / `src/entities/wiki/api/wiki.ts` `fetchDocumentData` | `workspacePath(workspaceId, "documents")` | `cache: no-store` | `documents[]` | 두 모듈이 같은 경로를 각자 호출한다 |
-| `GET /api/workspaces/{workspace_id}/document-tree` | 폴더·문서 트리 | `src/entities/tree/api/folders.ts` `fetchDocumentTree` / `src/features/agent-chat/api/agentPlan.ts` `fetchPlanTree` | `workspacePath(workspaceId, "document-tree")` | `cache: no-store` | `items[]` (`id`, `name`, `type`, `children`, `current_version`) | 낙관적 잠금용 `current_version`과 이름 중복 검사의 근거 데이터다. `src/features/document-search`는 이 트리를 받아 **클라이언트에서 필터링**하며 backend 검색 API를 쓰지 않는다 |
+| `GET /api/workspaces/{workspace_id}/document-tree` | 폴더·문서 트리 | `src/entities/tree/api/documentTree.ts` `fetchDocumentTree` / `src/features/agent-chat/api/agentPlan.ts` `fetchPlanTree` | `workspacePath(workspaceId, "document-tree")` | `cache: no-store` | `items[]` (`id`, `name`, `type`, `children`, `current_version`) | 낙관적 잠금용 `current_version`과 이름 중복 검사의 근거 데이터다. `src/features/document-search`는 이 트리를 받아 **클라이언트에서 필터링**하며 backend 검색 API를 쓰지 않는다 |
 
 ## 업로드
 
@@ -36,7 +36,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | `src/entities/workspace/api/workspace.ts` `fetchWorkspaceStorage` | `workspacePath(workspaceId, "storage")` | `cache: no-store` | `used_bytes`, `limit_bytes` | **백엔드 미구현(요구사항)**. 404면 `null`을 돌려준다. 업로드 직전(`src/features/document-upload/model/useDocumentUpload.ts`)에만 부르며, 404·오류·3초 초과면 사전 검사를 건너뛰고 서버 판단에 맡긴다. 404는 탭 단위로 기억해 다시 묻지 않고, 새 노트 만들기에서는 부르지 않는다. 직접 전송 정규식에 없어 rewrite를 경유한다 |
 
 업로드 실패의 `error.code`가 `STORAGE_QUOTA_EXCEEDED`면 서버 message 대신
-`describeLimitError`(`src/entities/workspace/model/limits.ts`)의 정해 둔 문구를 보여 준다.
+`describeLimitError`(`src/entities/workspace/model/workspaceLimits.ts`)의 정해 둔 문구를 보여 준다.
 
 ## 문서 상세·조작
 
@@ -45,7 +45,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}` | 문서 상세 조회 | `src/entities/document/api/document.ts` (`deleteDocument`, `renameDocument`) / `src/features/note-editing/api/note.ts` `fetchNoteDraft` | `workspacePath(workspaceId, "documents", documentId)` | `cache: no-store` | `current_version`, `filename`, `markdown`, `edit_revision`, `updated_at`, `id` | 삭제·이름 변경이 `base_version`을 얻기 위해 먼저 부른다. 노트 편집기는 `404`를 `null`(편집본 없음)로 해석한다 |
 | `DELETE /api/workspaces/{workspace_id}/documents/{document_id}` | 문서 소프트 삭제 | `src/entities/document/api/document.ts` `deleteDocument` | `workspacePath(workspaceId, "documents", documentId)` | `{ base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. 직전 상세 조회의 `current_version`이 유한한 수가 아니면 요청하지 않고 실패시킨다 |
 | `PATCH /api/workspaces/{workspace_id}/documents/{document_id}/rename` | 표시명 변경 | `src/entities/document/api/document.ts` `renameDocument` | `workspacePath(workspaceId, "documents", documentId, "rename")` | `{ display_name, base_version }` | - (`throwIfNotOk`) | 확장자를 떼어 `display_name`을 만들고, 같은 폴더 내 이름 중복은 트리 조회로 **서버 호출 전에** `DocumentNameConflictError`로 막는다 |
-| `PATCH /api/workspaces/{workspace_id}/documents/{document_id}/position` | 문서 이동·순서 변경 | `src/entities/tree/api/folders.ts` `moveDocument` (`mutateTreeItem`) | `workspacePath(workspaceId, "documents", id, "position")` (`...suffix` 전개) | `{ folder_id, position, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. 트리에서 항목 타입이 `document`가 아니면 호출하지 않는다 |
+| `PATCH /api/workspaces/{workspace_id}/documents/{document_id}/position` | 문서 이동·순서 변경 | `src/entities/tree/api/documentTree.ts` `moveDocument` (`mutateTreeItem`) | `workspacePath(workspaceId, "documents", id, "position")` (`...suffix` 전개) | `{ folder_id, position, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. 트리에서 항목 타입이 `document`가 아니면 호출하지 않는다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/original` | 원본 파일 조회 | `src/entities/document/api/document.ts` `fetchDocumentOriginal` | `workspacePath(workspaceId, "documents", documentId, "original")` | `cache: no-store` | 응답 `Blob` | Bearer가 필요해 iframe/`<embed>` 직접 지정이 불가해 Blob으로 받는다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/original-url` | 원본 presigned 조회 URL | `src/entities/document/api/document.ts` `fetchDocumentReadUrl` | `workspacePath(getWorkspaceId(), "documents", documentId, "original-url")` | `cache: no-store` | `url` (`null` 가능) | 원본 뷰어(`src/widgets/source-preview/ui`)가 Blob 대신 쓸 수 있는 경로 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/blocks` | 근거 하이라이트용 원본 block 목록 | `src/entities/document/api/document.ts` `fetchDocumentBlocks` | `workspacePath(getWorkspaceId(), "documents", documentId, "blocks")` | `cache: no-store` | `is_stale`, `blocks[].block_id`, `blocks[].line_start`, `blocks[].line_end`, `blocks[].text` | 원본 미리보기가 근거 하이라이트를 열 때만 부른다(react-query `["document-blocks", documentId]`). block ID는 영구 ID라 본문을 다시 잘라 순번을 매기지 않는다. `is_stale === false`면 서버 줄 범위를 쓰고, 그 외(`true`·`null`·필드 없는 구 응답·범위 `null`)는 정규화 `text`를 현재 본문에서 줄 경계 기준으로 찾는다(`src/entities/document/lib/sourceBlockRanges.ts`). 못 찾은 근거는 하이라이트하지 않고 안내만 띄운다 |
@@ -61,10 +61,10 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `POST /api/workspaces/{workspace_id}/folders` | 폴더 생성 | `src/entities/tree/api/folders.ts` `createFolder` | `workspacePath(getWorkspaceId(), "folders")` | `{ name, parent_folder_id }` | `FolderResponse` | - |
-| `PATCH /api/workspaces/{workspace_id}/folders/{folder_id}` | 폴더 이름 변경 | `src/entities/tree/api/folders.ts` `renameFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id)` (빈 `suffix`) | `{ name, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()` |
-| `DELETE /api/workspaces/{workspace_id}/folders/{folder_id}` | 폴더 삭제 | `src/entities/tree/api/folders.ts` `deleteFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id)` (빈 `suffix`) | `{ base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. DELETE에 본문을 보내는 계약이다 |
-| `PATCH /api/workspaces/{workspace_id}/folders/{folder_id}/position` | 폴더 이동·순서 변경 | `src/entities/tree/api/folders.ts` `moveFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id, "position")` | `{ parent_folder_id, position, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()` |
+| `POST /api/workspaces/{workspace_id}/folders` | 폴더 생성 | `src/entities/tree/api/documentTree.ts` `createFolder` | `workspacePath(getWorkspaceId(), "folders")` | `{ name, parent_folder_id }` | `FolderResponse` | - |
+| `PATCH /api/workspaces/{workspace_id}/folders/{folder_id}` | 폴더 이름 변경 | `src/entities/tree/api/documentTree.ts` `renameFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id)` (빈 `suffix`) | `{ name, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()` |
+| `DELETE /api/workspaces/{workspace_id}/folders/{folder_id}` | 폴더 삭제 | `src/entities/tree/api/documentTree.ts` `deleteFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id)` (빈 `suffix`) | `{ base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()`. DELETE에 본문을 보내는 계약이다 |
+| `PATCH /api/workspaces/{workspace_id}/folders/{folder_id}/position` | 폴더 이동·순서 변경 | `src/entities/tree/api/documentTree.ts` `moveFolder` (`mutateTreeItem`) | `workspacePath(workspaceId, "folders", id, "position")` | `{ parent_folder_id, position, base_version }` | - (`throwIfNotOk`) | `idempotentJsonHeaders()` |
 
 ## Wiki 편입 진입점
 

@@ -1,5 +1,5 @@
-import type { RunStageEvent } from "@/shared/lib/runEvents";
-import type { StatusStep } from "./agentData";
+import type { RunStageEvent } from "@/shared/lib/runEventStream";
+import type { StatusStep } from "./statusSteps";
 
 const LABELS: Record<string, string> = {
   "agent.routing": "질문의 의도를 파악하고 있어요.",

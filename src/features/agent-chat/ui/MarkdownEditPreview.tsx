@@ -1,5 +1,5 @@
-import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
-import type { MarkdownEditPreview as MarkdownEditPreviewData } from "../lib/markdownAgent";
+import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
+import type { MarkdownEditPreview as MarkdownEditPreviewData } from "../lib/agentTurn";
 import styles from "./AgentChat.module.css";
 
 const DIFF_MARKERS = {

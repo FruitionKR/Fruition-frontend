@@ -1,11 +1,11 @@
 "use client";
 
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { formatRelativeTime } from "@/shared/lib/time";
-import { CenteredModal } from "@/shared/ui/CenteredModal";
-import { SearchModalHeader } from "@/shared/ui/SearchModalHeader";
+import { formatRelativeTime } from "@/shared/lib/relativeTime";
+import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
+import { SearchModalHeader } from "@/shared/ui/modal/SearchModalHeader";
 import { fileIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/types";
+import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/treeInteraction";
 import type { Project } from "@/entities/tree/model/tree";
 import { useDocumentSearch, type SearchHit } from "../model/useDocumentSearch";
 import styles from "./DocumentSearch.module.css";

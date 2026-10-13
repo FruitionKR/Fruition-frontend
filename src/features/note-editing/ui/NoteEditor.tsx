@@ -20,22 +20,22 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
 import { useEditLock } from "../model/useEditLock";
-import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/markdownMath";
-import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/markdownStrikethrough";
-import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/markdownHeading";
+import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
+import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/strikethroughInputRule";
+import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/headingInputRules";
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
-import { preserveImageAlt } from "../model/imageAlt";
+import { preserveImageAlt } from "../model/preserveImageAltPlugin";
 import { refitImageBlocks } from "../model/imageBlockHeight";
 import { ALLOW_EXTERNAL_IMAGES_META, blockedImagePlaceholderUrl, createExternalImageGuard, createExternalImagePasteHandler } from "../model/externalImageGuard";
 import { $prose } from "@milkdown/utils";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
-import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/externalResources";
+import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { useUserPreferences } from "@/entities/user";
-import { MarkdownViewer } from "@/shared/ui/LazyMarkdownViewer";
+import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
-import { configureMathEditor } from "../model/mathEditor";
+import { configureMathEditor } from "../model/mathEditorConfig";
 import styles from "./NoteEditor.module.css";
 
 /** Backspace로 리스트 항목의 첫 문단 맨 앞을 지우면 문단을 리스트 밖으로 빼낸다 (Shift+Tab과 동일).
@@ -457,7 +457,7 @@ export function NoteEditor({
             h1: { label: "제목 1" },
             h2: { label: "제목 2" },
             h3: { label: "제목 3" },
-            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/markdownHeading.ts).
+            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/headingInputRules.ts).
             h4: null,
             h5: null,
             h6: null,

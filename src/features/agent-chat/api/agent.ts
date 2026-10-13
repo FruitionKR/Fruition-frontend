@@ -1,6 +1,6 @@
 import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
-import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEvents";
-import type { AgentTurnRequest, AgentTurnResponse } from "../lib/markdownAgent";
+import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
+import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
 
 /** run 응답이 종료 상태면 결과를 반환하고, 실패면 던지고, 진행 중이면 null을 반환한다. */
 function toTerminalResult(run: AgentTurnRunResponse): AgentTurnResponse | null {

@@ -4,7 +4,7 @@ import { registerHooks } from "node:module";
 import { Schema } from "@milkdown/prose/model";
 import { EditorState, TextSelection } from "@milkdown/prose/state";
 registerHooks({ resolve(s, c, next) { return next(s.endsWith('/remarkClosedMath') ? s + '.ts' : s, c); } });
-const { createCompletedMathPlugin } = await import('../src/features/note-editing/model/markdownMath.ts');
+const { createCompletedMathPlugin } = await import('../src/features/note-editing/model/mathInputRules.ts');
 const schema = new Schema({ nodes: {
   doc: { content: 'block+' }, paragraph: { group: 'block', content: 'inline*' },
   text: { group: 'inline' }, hardbreak: { group: 'inline', inline: true },

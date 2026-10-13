@@ -1,4 +1,4 @@
-import type { SourceBlockRange } from "@/shared/lib/markdownSourceBlocks";
+import type { SourceBlockRange } from "@/shared/lib/markdown/markdownSourceBlocks";
 import type { DocumentBlocksResponse, DocumentSourceBlock } from "@/entities/document/model/document";
 
 export type ResolvedSourceBlockRanges = {

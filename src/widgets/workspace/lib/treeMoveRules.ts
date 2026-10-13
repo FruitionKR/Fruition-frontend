@@ -1,7 +1,7 @@
-import { isFileItem, isWikiItem } from "@/entities/tree/lib/guards";
-import { findItemLocation, folderItems, normalizeTreeName, serverFolderId } from "@/entities/tree/lib/names";
-import { findTreeItem } from "@/entities/tree/lib/queries";
-import type { FolderLocation } from "@/entities/tree/lib/names";
+import { isFileItem, isWikiItem } from "@/entities/tree/lib/treeGuards";
+import { findItemLocation, folderItems, normalizeTreeName, serverFolderId } from "@/entities/tree/lib/treeNames";
+import { findTreeItem } from "@/entities/tree/lib/treeQueries";
+import type { FolderLocation } from "@/entities/tree/lib/treeNames";
 import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 
 type DraggedTreeItem = { projectId: string; itemId: string };

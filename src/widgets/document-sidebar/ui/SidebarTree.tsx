@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { TreeNode } from "./TreeNode";
-import type { TreeInteractionProps } from "../model/types";
+import type { TreeInteractionProps } from "../model/treeInteraction";
 
 export function SidebarTree({
   items,

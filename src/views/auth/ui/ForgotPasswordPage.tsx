@@ -3,14 +3,14 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { requestEmailVerification } from "@/entities/user";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
-import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
-import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
+import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
+import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
 import { confirmVerificationCode } from "@/views/auth/lib/confirmVerificationCode";
-import { useDevelopmentVerificationCode } from "@/views/auth/lib/useDevelopmentVerificationCode";
-import { useExpiryCountdown } from "@/views/auth/lib/useExpiryCountdown";
-import { useVerificationResend } from "@/views/auth/lib/useVerificationResend";
+import { useDevelopmentVerificationCode } from "@/views/auth/model/useDevelopmentVerificationCode";
+import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
+import { useVerificationResend } from "@/views/auth/model/useVerificationResend";
 import { ResendCodePrompt } from "@/views/auth/ui/ResendCodePrompt";
 
 export default function ForgotPasswordPage() {

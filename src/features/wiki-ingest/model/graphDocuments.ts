@@ -1,6 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
-import { filterTreeItems } from "@/entities/tree/lib/queries";
+import { filterTreeItems } from "@/entities/tree/lib/treeQueries";
 import { isDocumentConverting, isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
 import { getWikiReflectState, isWikiReflectEligible } from "./wikiReflectState";
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ACCESS_COOKIE, hasVerifiedAccessCode } from "@/shared/lib/accessCode";
+import { ACCESS_COOKIE, hasVerifiedAccessCode } from "@/shared/lib/security/accessCode";
 import { readWakePhase, requestWake } from "./requestWake";
 
 // /api 밖이라 접근 코드 middleware·WAF 규칙을 거치지 않는다. 봇 방문으로 서버가 깨지 않도록 직접 쿠키를 확인한다.
