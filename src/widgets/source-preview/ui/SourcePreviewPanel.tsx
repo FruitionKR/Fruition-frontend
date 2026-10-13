@@ -9,6 +9,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
 import { getErrorMessage } from "@/shared/lib/errors";
+import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/note";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
@@ -53,6 +54,7 @@ export function SourcePreviewPanel({
   documentStatus,
   documentConversion = null,
   titleHint,
+  titleSuffix,
   fillMain = false
 }: {
   title: string;
@@ -72,6 +74,8 @@ export function SourcePreviewPanel({
   documentConversion?: DocumentConversionView | null;
   /** 제목 hover 설명(상위 폴더 경로 등). 없으면 제목을 쓴다 */
   titleHint?: string;
+  /** 같은 이름의 문서를 구분하는 폴더 경로(#150). 그래프 노드 라벨과 같은 `이름 · 폴더/경로` 형식으로 보여준다. */
+  titleSuffix?: string;
   /** 홈에서 문서가 메인 영역을 채울 때: 고정폭/리사이즈 대신 남은 영역을 채운다 */
   fillMain?: boolean;
 }) {
@@ -439,7 +443,7 @@ export function SourcePreviewPanel({
           <>
             {/* 제목 바가 없으므로 PDF 뷰어 위에 파일명 줄을 둔다. */}
             <header className={styles["source-preview-file-bar"]}>
-              <span title={titleHint ?? visibleTitle}>{visibleTitle}</span>
+              <span title={titleHint ?? visibleTitle}>{withPathSuffix(visibleTitle, titleSuffix)}</span>
             </header>
             {errorMessage && <p>{errorMessage}</p>}
             {!isLoading && !errorMessage && rawDocumentUrl && (
@@ -485,7 +489,11 @@ export function SourcePreviewPanel({
               }}
             />
           ) : (
-            <h2 title={titleHint}>{visibleTitle}</h2>
+            <h2 title={titleHint}>{withPathSuffix(visibleTitle, titleSuffix)}</h2>
+          )}
+          {/* 이름을 고치는 입력칸에는 경로를 섞을 수 없어 Markdown은 접미사를 옆에 따로 둔다. */}
+          {isMarkdownFile && titleSuffix && (
+            <span className={styles["source-preview-title-suffix"]} title={titleHint}>· {titleSuffix}</span>
           )}
           {!fillMain && <span>{pageId ? pageTypeLabel : editableNote ? "Note" : "Raw"}</span>}
         </header>

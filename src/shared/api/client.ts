@@ -32,6 +32,7 @@ export const ERROR_MESSAGES = {
   queryFailed: "질의에 실패했습니다.",
   aiModelsLoadFailed: "AI 모델 목록을 불러오지 못했습니다.",
   agentTurnFailed: "AI 편집 요청에 실패했습니다.",
+  speechTranscribeFailed: "음성을 텍스트로 바꾸지 못했습니다.",
   chatLoadFailed: "채팅 기록을 불러오지 못했습니다.",
   chatSessionFailed: "채팅 세션을 준비하지 못했습니다.",
   documentsLoadFailed: "문서 목록을 불러오지 못했습니다.",
