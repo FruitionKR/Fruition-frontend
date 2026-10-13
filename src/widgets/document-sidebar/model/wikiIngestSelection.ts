@@ -35,7 +35,7 @@ export function collectFolderMarkdownIds(items: TreeItem[], reasons: IngestBlock
   );
 }
 
-export type SelectionState = "checked" | "mixed" | "unchecked";
+type SelectionState = "checked" | "mixed" | "unchecked";
 
 /** 대상 id가 모두 선택되면 checked, 일부만 선택되면 mixed(indeterminate). 대상이 없으면 unchecked. */
 export function getSelectionState(selected: ReadonlySet<string>, ids: string[]): SelectionState {

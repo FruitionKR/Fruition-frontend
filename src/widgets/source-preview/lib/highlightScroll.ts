@@ -1,4 +1,4 @@
-export type HighlightedMarkdownState = {
+type HighlightedMarkdownState = {
   isMarkdownFile: boolean;
   isLoading: boolean;
   errorMessage: string | null;

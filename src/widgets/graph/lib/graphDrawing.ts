@@ -247,7 +247,7 @@ function computeLinkedHoverAmounts({
 // 라벨 서체 (Figma: Pretendard Medium — source 14px, concept 12px, raw 10px)
 const LABEL_FONT_FAMILY = "\"Fruition Chat Pretendard\", Pretendard, Inter, sans-serif";
 
-export function drawNodeLabel(context: CanvasRenderingContext2D, palette: GraphPalette, node: GraphNode, x: number, y: number) {
+function drawNodeLabel(context: CanvasRenderingContext2D, palette: GraphPalette, node: GraphNode, x: number, y: number) {
   const labelY = node.kind === "source" ? y + 24 : node.kind === "raw" ? y + 15 : y + 20;
   context.font = node.kind === "source"
     ? `500 14px ${LABEL_FONT_FAMILY}`

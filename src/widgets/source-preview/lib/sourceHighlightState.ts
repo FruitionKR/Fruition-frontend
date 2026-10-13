@@ -11,7 +11,7 @@ export const HIGHLIGHT_NOTICES = {
 export type MarkdownLoad = { documentId: string; loadId: number };
 
 /** 근거 block 응답과 그 응답을 요청한 본문 로드 */
-export type LoadedSourceBlocks = MarkdownLoad & { response: DocumentBlocksResponse };
+type LoadedSourceBlocks = MarkdownLoad & { response: DocumentBlocksResponse };
 
 /**
  * 본문 로드 ID를 매기는 순번을 만든다. 문서를 바꿔도 1부터 다시 세지 않는다.
@@ -75,7 +75,7 @@ export function selectSourceBlocksForLoad(
   return { data: loaded.response, isPlaceholderData: loaded.loadId !== load.loadId };
 }
 
-export type SourceBlocksQueryState = {
+type SourceBlocksQueryState = {
   isEnabled: boolean;
   isPending: boolean;
   isError: boolean;
@@ -84,7 +84,7 @@ export type SourceBlocksQueryState = {
   data: DocumentBlocksResponse | undefined;
 };
 
-export type SourceHighlightStatus = {
+type SourceHighlightStatus = {
   /** block 조회가 끝나야 하이라이트 블록을 그릴 수 있으므로 본문 로딩과 함께 본다. */
   isLoading: boolean;
   notice: string | null;

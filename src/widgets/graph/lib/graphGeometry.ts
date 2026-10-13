@@ -9,7 +9,7 @@ export const GRAPH_PAN_MIN_VISIBLE = 80;
 export const GRAPH_RESIZE_PADDING = { x: 72, y: 36 } as const;
 
 /** 캔버스 CSS 픽셀 크기 */
-export type GraphViewport = { width: number; height: number };
+type GraphViewport = { width: number; height: number };
 
 /** 그래프 좌표계의 축 정렬 사각형 */
 export type GraphRect = { minX: number; minY: number; maxX: number; maxY: number };
@@ -37,7 +37,7 @@ export function viewportWorldScale(viewport: GraphViewport, zoom: number) {
   return Math.max(0.1, Math.min(fitWidth, fitHeight, 1)) * zoom;
 }
 
-export function canvasWorldScale(canvas: HTMLCanvasElement, zoom: number) {
+function canvasWorldScale(canvas: HTMLCanvasElement, zoom: number) {
   return viewportWorldScale(canvasViewport(canvas), zoom);
 }
 

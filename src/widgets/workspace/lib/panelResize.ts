@@ -2,14 +2,14 @@
 // 기본 폭을 100%로 보고 60% 미만으로 줄이면 접고, 140%까지 넓힌다. React 없이 테스트하는 순수 함수만 둔다.
 
 /** 이 비율(60%) 미만으로 줄이면 접는다. */
-export const PANEL_COLLAPSE_RATIO = 0.6;
+const PANEL_COLLAPSE_RATIO = 0.6;
 /** 최대 폭 비율(140%) */
-export const PANEL_MAX_RATIO = 1.4;
+const PANEL_MAX_RATIO = 1.4;
 /** 리사이즈 핸들 키보드 한 번 이동 폭 */
 export const PANEL_KEYBOARD_STEP = 16;
 
 /** 펼쳤을 때 허용하는 폭 범위(px) */
-export type PanelLimits = { min: number; max: number };
+type PanelLimits = { min: number; max: number };
 
 /** width는 펼쳤을 때의 폭이다. 접혀 있을 때는 의미가 없다(펼치기 버튼은 항상 기본 폭으로 펼친다). */
 export type PanelState = { isCollapsed: boolean; width: number };
@@ -38,7 +38,7 @@ export function getSidebarVisibleWidth(state: PanelState): number {
 export const AGENT_PANEL_BASE_WIDTH = 360;
 export const AGENT_PANEL_LIMITS = createPanelLimits(AGENT_PANEL_BASE_WIDTH);
 /** 사이드바와 채팅 패널 사이 콘텐츠 영역에 남길 최소 폭 */
-export const AGENT_PANEL_MIN_CONTENT_WIDTH = 480;
+const AGENT_PANEL_MIN_CONTENT_WIDTH = 480;
 /** 채팅 패널 열림 여부는 HomeWorkspace가 뷰별로 갖고, 여기서는 폭만 쓴다. 다시 열면 항상 이 폭이다. */
 export const DEFAULT_AGENT_PANEL_STATE: PanelState = { isCollapsed: false, width: AGENT_PANEL_BASE_WIDTH };
 

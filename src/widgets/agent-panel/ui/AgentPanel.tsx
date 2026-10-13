@@ -29,9 +29,6 @@ import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
-// AgentBody 등이 이 파일에서 ActiveAgentTurn을 import하므로 re-export 유지
-export type { ActiveAgentTurn } from "@/features/agent-chat/model/useChatThread";
-
 const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
   { kind: "range", label: "범위 선택" },
   { kind: "individual", label: "개별 선택" }

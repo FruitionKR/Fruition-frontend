@@ -4,10 +4,10 @@ import { findTreeItem } from "@/entities/tree/lib/queries";
 import type { FolderLocation } from "@/entities/tree/lib/names";
 import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 
-export type DraggedTreeItem = { projectId: string; itemId: string };
+type DraggedTreeItem = { projectId: string; itemId: string };
 
 /** 드래그 앤 드롭 결과를 분류한 순수 규칙 결과. 실제 부수효과(모달·서버 호출)는 호출자가 수행한다. */
-export type TreeMoveResolution =
+type TreeMoveResolution =
   | { kind: "invalid" }
   | { kind: "conflict" }
   /** 폴더를 자기 자신이나 하위 폴더 안으로 옮기려는 경우 */

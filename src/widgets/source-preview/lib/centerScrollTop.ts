@@ -1,5 +1,5 @@
-export type ScrollBox = { top: number; scrollTop: number; scrollHeight: number; clientHeight: number };
-export type BlockBox = { top: number; height: number };
+type ScrollBox = { top: number; scrollTop: number; scrollHeight: number; clientHeight: number };
+type BlockBox = { top: number; height: number };
 
 /**
  * 블록을 스크롤 컨테이너 가운데에 두는 scrollTop을 계산한다.
