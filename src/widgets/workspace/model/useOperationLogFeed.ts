@@ -23,7 +23,8 @@ const LOG_POLL_INTERVAL_MS = 5_000;
  */
 export function useOperationLogFeed(isActive: boolean) {
   const [items, setItems] = useState<OperationLogItem[]>([]);
-  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  // 사용자가 고른(또는 복구 후 지정된) 작업. 화면에 보이는 선택은 목록과 함께 파생해 폴링이 선택을 되돌리지 않게 한다.
+  const [chosenOperationId, setChosenOperationId] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadMoreErrorMessage, setLoadMoreErrorMessage] = useState<string | null>(null);
@@ -55,24 +56,13 @@ export function useOperationLogFeed(isActive: boolean) {
       const response = await fetchOperationLogs({ size: PAGE_SIZE });
       if (requestIdRef.current !== requestId) return;
       if (silent) {
-        setItems((previous) => {
-          // 원본 응답으로 먼저 병합해 숨김 전환된 기존 항목까지 갱신한 뒤 필터링한다.
-          const merged = filterVisibleOperationLogs(mergeRefreshedLogPage(previous, response.logs));
-          setSelectedOperationId((current) => pickSelectedOperationId(
-            merged,
-            preferredOperationId ?? current
-          ));
-          return merged;
-        });
+        // 원본 응답으로 먼저 병합해 숨김 전환된 기존 항목까지 갱신한 뒤 필터링한다.
+        setItems((previous) => filterVisibleOperationLogs(mergeRefreshedLogPage(previous, response.logs)));
       } else {
-        const visibleLogs = filterVisibleOperationLogs(response.logs);
-        setItems(visibleLogs);
+        setItems(filterVisibleOperationLogs(response.logs));
         setNextCursor(response.next_cursor);
-        setSelectedOperationId((current) => pickSelectedOperationId(
-          visibleLogs,
-          preferredOperationId ?? current
-        ));
       }
+      if (preferredOperationId) setChosenOperationId(preferredOperationId);
     } catch (error: unknown) {
       if (requestIdRef.current === requestId && !silent) {
         setErrorMessage(getErrorMessage(error, "로그를 불러오지 못했습니다."));
@@ -118,7 +108,7 @@ export function useOperationLogFeed(isActive: boolean) {
   }, [isActive, isPageVisible, refresh]);
 
   const selectOperation = useCallback((operationId: string) => {
-    setSelectedOperationId(operationId);
+    setChosenOperationId(operationId);
   }, []);
 
   const loadMore = useCallback(async () => {
@@ -141,6 +131,7 @@ export function useOperationLogFeed(isActive: boolean) {
   }, [isLoadingMore, nextCursor]);
 
   const restoredOperationIds = useMemo(() => collectRestoredOperationIds(items), [items]);
+  const selectedOperationId = pickSelectedOperationId(items, chosenOperationId);
 
   return {
     items,
