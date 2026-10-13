@@ -15,7 +15,7 @@ import { useUserPreferences } from "@/entities/user";
 import { requestAgentTurn } from "@/features/agent-chat";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { getErrorMessage } from "@/shared/lib/errors";
+import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/errors";
 import {
   buildAgentTurnRequest,
   prepareMarkdownEditPreview,
@@ -233,6 +233,8 @@ export function AgentPanel({
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
+        // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
+        if (isInsufficientCreditError(error)) setComposerValue((current) => current || question);
       })
       .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
   }, [allowWebSearch, refreshMessages]);
@@ -249,7 +251,10 @@ export function AgentPanel({
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
-    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch);
+    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch).then((insufficientCredit) => {
+      // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
+      if (insufficientCredit) setComposerValue((current) => current || question);
+    });
   }
 
   function handleWebSearchChange(enabled: boolean) {

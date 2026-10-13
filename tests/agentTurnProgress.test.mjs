@@ -50,6 +50,35 @@ test("Agent는 최종 응답 전에 실제 단계를 전달하고 편집 원문�
   assert.deepEqual(calls, ["/api/workspaces/ws_test/agent/turn", "/api/workspaces/ws_test/agent/turn/agent_1/events", "/api/workspaces/ws_test/agent/turn/agent_1"]);
 });
 
+for (const [status, pattern] of [["cancelled", /취소되었습니다/], ["rollback_failed", /변경 복구에 실패/]]) {
+  test(`SSE가 끊긴 뒤 조회한 ${status}는 연결 종료 안내가 아니라 취소·복구 실패로 알린다(#141)`, async (t) => {
+    globalThis.window = { localStorage: { getItem: () => "ws_test", removeItem() {} } };
+    t.after(() => { delete globalThis.window; });
+    saveAccessToken("agent-test-access");
+    t.mock.method(globalThis, "fetch", async (path, init) => {
+      if (init.method === "POST") return Response.json({ requestId: "agent_1", status: "queued" });
+      if (path.endsWith("/events")) return new Response(": heartbeat\n\n");
+      return Response.json({ requestId: "agent_1", status, result: null, error: "rollback_conflict" });
+    });
+    await assert.rejects(requestAgentTurn({ message: "정리해줘" }, { signal: new AbortController().signal, onStage() {} }), pattern);
+  });
+}
+
+test("에이전트 실패는 error 코드가 아니라 error_message를 보여 주고, 없으면 기본 문구로 안내한다(#152)", async (t) => {
+  globalThis.window = { localStorage: { getItem: () => "ws_test", removeItem() {} } };
+  t.after(() => { delete globalThis.window; });
+  saveAccessToken("agent-test-access");
+  let body = { requestId: "agent_1", status: "failed", result: null, error: "provider_unavailable", error_message: "AI 서비스에 일시적인 장애가 있습니다." };
+  t.mock.method(globalThis, "fetch", async () => Response.json(body));
+  const options = () => ({ signal: new AbortController().signal, onStage() {} });
+  await assert.rejects(requestAgentTurn({ message: "정리해줘" }, options()), /일시적인 장애/);
+  body = { requestId: "agent_1", status: "failed", result: null, error: "provider_unavailable" };
+  await assert.rejects(requestAgentTurn({ message: "정리해줘" }, options()), (error) => {
+    assert.equal(error.message, "AI 편집 요청에 실패했습니다.");
+    return true;
+  });
+});
+
 for (const event of ["query.failed", "query.cancelled"]) {
   test(`진행 스트림은 ${event}를 성공으로 표시하지 않는다`, async () => {
     const pending = readRunEvents(new Response(frame(event, { error: "처리 실패" })), () => {}, "오류");
