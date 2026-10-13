@@ -118,7 +118,7 @@ function IngestRow({
           role="checkbox"
           aria-checked={state === "mixed" ? "mixed" : state === "checked"}
           aria-label={item.label}
-          aria-description={reason ?? undefined}
+          title={reason ?? undefined}
           disabled={isDisabled}
           className={cx(
             styles["ingest-check"],
