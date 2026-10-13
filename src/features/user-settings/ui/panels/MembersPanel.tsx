@@ -11,6 +11,7 @@ import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon, userCircleIcon } 
 import modalStyles from "../SettingsModal.module.css";
 import { InviteMemberModal } from "./InviteMemberModal";
 import styles from "./MembersPanel.module.css";
+import { PanelTitle } from "./PanelTitle";
 
 // 권한 필터 순서. 빈 값은 전체.
 const ROLE_FILTERS = ["", "OWNER", "MEMBER"] as const;
@@ -87,10 +88,7 @@ export function MembersPanel() {
 
   return (
     <div className={modalStyles.detail}>
-      <div className={modalStyles.title}>
-        <div className={modalStyles["title-row"]}><h2>멤버 관리</h2></div>
-        <p>워크스페이스에 있는 사람과 역할을 관리합니다.</p>
-      </div>
+      <PanelTitle title="멤버 관리" description="워크스페이스에 있는 사람과 역할을 관리합니다." />
       <div className={styles.toolbar}>
         <div className={styles["filter-wrap"]} ref={filterMenuRef}>
           <button

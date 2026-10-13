@@ -1,7 +1,7 @@
 import type { SkillAuthoringResult, SkillResponse, SkillUpdateRequest } from "@/entities/skill/model/skill";
 import { ApiError, getErrorMessage, SessionExpiredError } from "@/shared/lib/errors";
 
-export type SkillAuthorErrorNotice = { title: string; description: string };
+type SkillAuthorErrorNotice = { title: string; description: string };
 
 const REJECTED_TITLE = "스킬 검토 요청이 거부되었습니다.";
 const UNAVAILABLE_TITLE = "스킬 검토를 완료하지 못했습니다.";

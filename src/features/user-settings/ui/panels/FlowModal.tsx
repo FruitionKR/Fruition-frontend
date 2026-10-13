@@ -1,11 +1,16 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { cx } from "@/shared/lib/classNames";
 import { useBackdropClick } from "@/shared/lib/useBackdropClick";
 import { useEscapeKey } from "@/shared/lib/useEscapeKey";
-import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { plusIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
+
+/** 이메일 인증번호·인증 앱 코드 자릿수. */
+export const CODE_LENGTH = 6;
 
 /** 계정 흐름 모달 공통 셸: 제목·부제·닫기 버튼. */
 export function FlowModal({
@@ -61,5 +66,70 @@ export function FlowModal({
       </form>
     </div>,
     document.body
+  );
+}
+
+/** 입력 칸 아래 오류 문구. 없으면 그리지 않는다. */
+export function FlowError({ error }: { error: string | null }) {
+  if (!error) return null;
+  return <p className={styles.error} role="alert">{error}</p>;
+}
+
+/** 6자리 숫자 코드 입력. 라벨·안내는 호출부가 감싼다. */
+export function VerificationCodeInput({
+  id,
+  value,
+  disabled,
+  onChange
+}: {
+  id: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      id={id}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      pattern="[0-9]{6}"
+      maxLength={CODE_LENGTH}
+      placeholder="XXXXXX"
+      autoFocus
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+/** 푸터의 '이전' 버튼. */
+export function FlowBackButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={styles["btn-back"]} disabled={disabled} onClick={onClick}>
+      <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+    </button>
+  );
+}
+
+/** 푸터의 제출 버튼. showChevron이 false면(처리 중·마지막 단계) 화살표를 숨긴다. */
+export function FlowNextButton({
+  disabled,
+  showChevron,
+  className,
+  autoFocus,
+  children
+}: {
+  disabled: boolean;
+  showChevron: boolean;
+  className?: string;
+  autoFocus?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button type="submit" className={cx(styles["btn-next"], className)} disabled={disabled} autoFocus={autoFocus}>
+      {children}
+      {showChevron && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
+    </button>
   );
 }

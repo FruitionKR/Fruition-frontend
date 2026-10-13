@@ -1,7 +1,7 @@
 import { confirmEmailVerification } from "@/entities/user";
 import { ApiError } from "@/shared/lib/errors";
 
-export const INVALID_VERIFICATION_CODE_MESSAGE = "잘못된 인증번호입니다. 다시 확인해주세요.";
+const INVALID_VERIFICATION_CODE_MESSAGE = "잘못된 인증번호입니다. 다시 확인해주세요.";
 
 // 인증번호 검증. 서버가 400으로 거절하면(틀린 코드) Figma 시안의 안내 문구로 바꿔 던진다.
 export async function confirmVerificationCode(verificationId: string, code: string) {

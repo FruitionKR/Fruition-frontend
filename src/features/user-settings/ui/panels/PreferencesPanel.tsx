@@ -6,7 +6,9 @@ import type { ThemePreference } from "@/shared/lib/theme";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
+import { PanelTitle } from "./PanelTitle";
 import panelStyles from "./PreferencesPanel.module.css";
+import { SectionHeader } from "./SectionHeader";
 
 type Choice<T extends string> = { value: T; label: string; description: string; preview?: ReactNode };
 
@@ -80,15 +82,6 @@ function ChoiceCards<T extends string>({ labelId, choices, value, onSelect }: {
   );
 }
 
-function SectionHeader({ id, children }: { id?: string; children: ReactNode }) {
-  return (
-    <div className={styles["section-header"]}>
-      <span id={id}>{children}</span>
-      <span className={styles["section-line"]} />
-    </div>
-  );
-}
-
 /** 기본 설정 패널: 이 계정에만 적용되는 화면·편집·채팅 설정. 워크스페이스 공용 설정은 워크스페이스 설정에 있다. */
 export function PreferencesPanel() {
   const { preferences, updatePreferences } = useUserPreferences();
@@ -99,12 +92,7 @@ export function PreferencesPanel() {
 
   return (
     <div className={styles.detail}>
-      <div className={styles.title}>
-        <div className={styles["title-row"]}>
-          <h2>기본 설정</h2>
-        </div>
-        <p>이 계정에서 보는 화면과 편집·채팅 방식을 설정합니다.</p>
-      </div>
+      <PanelTitle title="기본 설정" description="이 계정에서 보는 화면과 편집·채팅 방식을 설정합니다." />
 
       <div className={styles.section}>
         <SectionHeader id="preferences-theme-label">화면 테마</SectionHeader>

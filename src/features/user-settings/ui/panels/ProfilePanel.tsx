@@ -5,7 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ME_QUERY_KEY, updateDisplayName, useMe } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/errors";
 import styles from "../SettingsModal.module.css";
+import { PanelTitle } from "./PanelTitle";
 import panelStyles from "./ProfilePanel.module.css";
+import { SectionHeader } from "./SectionHeader";
 
 /** 프로필 설정 패널: 다른 멤버에게 보이는 사진과 닉네임. 이메일·비밀번호·보안은 계정 설정 패널에 있다. */
 export function ProfilePanel() {
@@ -51,18 +53,10 @@ export function ProfilePanel() {
 
   return (
     <div className={styles.detail}>
-      <div className={styles.title}>
-        <div className={styles["title-row"]}>
-          <h2>프로필 설정</h2>
-        </div>
-        <p>워크스페이스 멤버에게 보이는 프로필을 관리합니다.</p>
-      </div>
+      <PanelTitle title="프로필 설정" description="워크스페이스 멤버에게 보이는 프로필을 관리합니다." />
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>프로필 사진</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>프로필 사진</SectionHeader>
         <div className={panelStyles.photo}>
           <span className={panelStyles.avatar} aria-hidden>{avatarName.charAt(0)}</span>
           <small className={panelStyles["photo-note"]}>닉네임의 첫 글자로 표시됩니다. 사진 업로드는 아직 지원하지 않습니다.</small>
@@ -70,10 +64,7 @@ export function ProfilePanel() {
       </div>
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>닉네임</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>닉네임</SectionHeader>
         <div className={styles.field}>
           <label htmlFor="profile-nickname">닉네임</label>
           <input id="profile-nickname" type="text" value={nickname} maxLength={255} required

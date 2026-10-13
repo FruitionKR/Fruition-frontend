@@ -1,16 +1,12 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { changeEmail, confirmEmailVerification, requestEmailVerification, ME_QUERY_KEY, SESSIONS_QUERY_KEY } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
-import { FlowModal } from "./FlowModal";
-
-const CODE_LENGTH = 6;
+import { CODE_LENGTH, FlowBackButton, FlowError, FlowModal, FlowNextButton, VerificationCodeInput } from "./FlowModal";
 
 /**
  * 이메일 변경 2단계 모달.
@@ -108,23 +104,12 @@ export function EmailChangeModal({ onSaved, onClose }: { onSaved: () => void; on
       {isCodeStep ? (
         <div className={styles.field}>
           <label htmlFor="email-change-code">인증번호 6자리</label>
-          <input
-            id="email-change-code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]+"
-            maxLength={CODE_LENGTH}
-            placeholder="XXXXXX"
-            autoFocus
-            value={code}
-            disabled={busy || Boolean(token)}
-            onChange={(event) => setCode(event.target.value)}
-          />
+          <VerificationCodeInput id="email-change-code" value={code} disabled={busy || Boolean(token)} onChange={setCode} />
           <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
           <button type="button" className={styles.resend} disabled={busy || retrySeconds > 0} onClick={() => void sendCode()}>
             {retrySeconds > 0 ? `${retrySeconds}초 후 재전송 가능` : "인증번호 재전송"}
           </button>
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       ) : (
         <div className={styles.field}>
@@ -141,20 +126,15 @@ export function EmailChangeModal({ onSaved, onClose }: { onSaved: () => void; on
             onChange={(event) => setEmail(event.target.value)}
           />
           <p className={styles.hint}>이메일을 변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       )}
 
       <div className={cx(styles.footer, !isCodeStep && styles["is-end"])}>
-        {isCodeStep && (
-          <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
-            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
-          </button>
-        )}
-        <button type="submit" className={styles["btn-next"]} disabled={!canSubmit}>
+        {isCodeStep && <FlowBackButton disabled={busy} onClick={handleBack} />}
+        <FlowNextButton disabled={!canSubmit} showChevron={!busy}>
           {busy ? "처리 중…" : isCodeStep ? "인증하기" : retrySeconds > 0 ? `${retrySeconds}초 후 가능` : "변경하기"}
-          {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-        </button>
+        </FlowNextButton>
       </div>
     </FlowModal>
   );

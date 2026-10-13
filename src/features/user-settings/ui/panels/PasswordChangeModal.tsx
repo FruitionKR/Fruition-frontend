@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useState, type FormEvent } from "react";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
@@ -8,13 +7,10 @@ import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.
 import { confirmEmailVerification, requestEmailVerification, resetPasswordWithVerification } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { useExpiryCountdown } from "@/views/auth/lib/useExpiryCountdown";
 import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "@/shared/lib/passwordPolicy";
 import styles from "./AccountFlowModal.module.css";
-import { FlowModal } from "./FlowModal";
-
-const CODE_LENGTH = 6;
+import { CODE_LENGTH, FlowBackButton, FlowError, FlowModal, FlowNextButton, VerificationCodeInput } from "./FlowModal";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -205,25 +201,14 @@ export function PasswordChangeModal({
             disabled={busy}
             onChange={(event) => setEmail(event.target.value)}
           />
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       )}
       {step === "code" && (
         <div className={styles.field}>
           <label htmlFor="password-change-code">인증번호 6자리</label>
           <div className={styles["field-control"]}>
-            <input
-              id="password-change-code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]+"
-              maxLength={CODE_LENGTH}
-              placeholder="XXXXXX"
-              autoFocus
-              value={code}
-              disabled={busy}
-              onChange={(event) => setCode(event.target.value)}
-            />
+            <VerificationCodeInput id="password-change-code" value={code} disabled={busy} onChange={setCode} />
             <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>
           </div>
           {countdown.isExpired ? (
@@ -233,7 +218,7 @@ export function PasswordChangeModal({
           ) : (
             <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
           )}
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       )}
       {step === "password" && (
@@ -241,27 +226,21 @@ export function PasswordChangeModal({
           <PasswordField id="password-change-new" label="새 비밀번호" value={newPassword} disabled={busy} onChange={setNewPassword} />
           <PasswordField id="password-change-confirm" label="새 비밀번호 확인" value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
           <p className={styles.hint}>변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       )}
 
       <div className={cx(styles.footer, (step === "email" || step === "done") && styles["is-end"])}>
-        {(step === "code" || step === "password") && (
-          <button type="button" className={styles["btn-back"]} disabled={busy} onClick={handleBack}>
-            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
-          </button>
-        )}
+        {(step === "code" || step === "password") && <FlowBackButton disabled={busy} onClick={handleBack} />}
         {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다. */}
-        <button
+        <FlowNextButton
           key={step === "done" ? "done" : "next"}
-          type="submit"
-          className={styles["btn-next"]}
           disabled={!canSubmit}
+          showChevron={!busy && step !== "done"}
           autoFocus={step === "done"}
         >
           {submitLabel}
-          {!busy && step !== "done" && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-        </button>
+        </FlowNextButton>
       </div>
     </FlowModal>
   );

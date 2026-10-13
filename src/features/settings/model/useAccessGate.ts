@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchAccessGateStatus, submitAccessCode, type AccessCodeSubmitResult } from "@/shared/api/accessGate";
 
-export const ACCESS_GATE_QUERY_KEY = ["access-gate"] as const;
+const ACCESS_GATE_QUERY_KEY = ["access-gate"] as const;
 
 // isLocked: 게이트가 켜져 있고 아직 코드를 입력하지 않은 상태. 상태 조회 전에는 잠그지 않는다.
 export function useAccessGate() {

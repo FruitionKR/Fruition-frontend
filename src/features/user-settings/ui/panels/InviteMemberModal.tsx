@@ -1,13 +1,12 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { inviteMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
 import { settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
-import { FlowModal } from "./FlowModal";
+import { FlowError, FlowModal, FlowNextButton } from "./FlowModal";
 import membersStyles from "./MembersPanel.module.css";
 
 /** 멤버 초대 모달. 성공하면 onInvited로 안내 문구를 넘기고 닫힌다. 실패하면 모달 안에 오류를 보여준다. */
@@ -79,15 +78,14 @@ export function InviteMemberModal({
             </select>
             <SvgIcon src={settingScrollIcon} className={membersStyles["chev-icon"]} />
           </span>
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       </div>
 
       <div className={cx(styles.footer, styles["is-end"])}>
-        <button type="submit" className={styles["btn-next"]} disabled={busy || email.trim().length === 0}>
+        <FlowNextButton disabled={busy || email.trim().length === 0} showChevron={!busy}>
           {busy ? "전송 중…" : "초대 보내기"}
-          {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-        </button>
+        </FlowNextButton>
       </div>
     </FlowModal>
   );

@@ -9,6 +9,8 @@ import { getErrorMessage } from "@/shared/lib/errors";
 import { getSelectedWorkspaceId } from "@/shared/lib/auth";
 import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
 import styles from "../SettingsModal.module.css";
+import { PanelTitle } from "./PanelTitle";
+import { SectionHeader } from "./SectionHeader";
 import panelStyles from "./WorkspacePanel.module.css";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
 
@@ -89,18 +91,10 @@ export function WorkspacePanel({
 
   return (
     <div className={styles.detail}>
-      <div className={styles.title}>
-        <div className={styles["title-row"]}>
-          <h2>워크스페이스 설정</h2>
-        </div>
-        <p>워크스페이스 설정입니다.</p>
-      </div>
+      <PanelTitle title="워크스페이스 설정" description="워크스페이스 설정입니다." />
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>워크스페이스 이름</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>워크스페이스 이름</SectionHeader>
         <div className={styles.field}>
           <label htmlFor="workspace-name">워크스페이스 이름</label>
           <small>워크스페이스 이름은 최대 65자까지 입력할 수 있습니다.</small>
@@ -128,18 +122,12 @@ export function WorkspacePanel({
       </div>
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>워크스페이스 아이콘</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>워크스페이스 아이콘</SectionHeader>
         <WorkspaceIconSettings />
       </div>
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>AI 모델</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>AI 모델</SectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>LLM Provider</strong>

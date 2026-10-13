@@ -8,7 +8,7 @@ export type WakePhase = "asleep" | "sleeping" | "waking" | "awake" | "unknown";
  * - probe: 노드는 떴으니 앱 응답을 확인하고, 실패하면 다시 확인
  * - stop: 확인 종료
  */
-export type WakeStep = "request-wake" | "wait" | "probe" | "stop";
+type WakeStep = "request-wake" | "wait" | "probe" | "stop";
 
 export function decideWakeStep(phase: WakePhase, isNoticeShown: boolean): WakeStep {
   if (phase === "asleep") return "request-wake";

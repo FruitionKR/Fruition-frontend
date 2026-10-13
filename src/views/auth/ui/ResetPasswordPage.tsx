@@ -8,6 +8,7 @@ import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/AuthScreen";
+import { LoginLinkPrompt } from "@/views/auth/ui/LoginLinkPrompt";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -69,7 +70,7 @@ export default function ResetPasswordPage() {
         </div>
         <AuthSubmitButton disabled={isSubmitting}>확인</AuthSubmitButton>
       </form>
-      <p className="auth-prompt">이미 아이디가 있으신가요?<button onClick={() => router.push("/login")} type="button">로그인하기</button></p>
+      <LoginLinkPrompt />
     </AuthScreen>
   );
 }

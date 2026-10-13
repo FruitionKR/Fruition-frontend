@@ -1,16 +1,13 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { activateMfa, disableMfa, type MfaRegistration } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/errors";
-import { copyIcon, downloadIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { copyIcon, downloadIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
-import { FlowModal } from "./FlowModal";
-
-const CODE_LENGTH = 6;
+import { CODE_LENGTH, FlowBackButton, FlowError, FlowModal, FlowNextButton, VerificationCodeInput } from "./FlowModal";
 
 type SetupStep = "connect" | "verify" | "recovery";
 
@@ -118,19 +115,8 @@ export function MfaSetupModal({
             <label htmlFor="mfa-code">코드 6자리</label>
             <p className={styles["field-desc"]}>방금 사용한 코드라면 다음 코드가 표시된 뒤 입력해 주세요.</p>
           </div>
-          <input
-            id="mfa-code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={CODE_LENGTH}
-            placeholder="XXXXXX"
-            autoFocus
-            value={code}
-            disabled={busy}
-            onChange={(event) => setCode(event.target.value)}
-          />
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <VerificationCodeInput id="mfa-code" value={code} disabled={busy} onChange={setCode} />
+          <FlowError error={error} />
         </div>
       )}
       {step === "recovery" && (
@@ -156,24 +142,18 @@ export function MfaSetupModal({
             복구 코드를 안전한 곳에 보관했습니다.
           </label>
           {message && <p className={styles.status} role="status">{message}</p>}
-          {error && <p className={styles.error} role="alert">{error}</p>}
+          <FlowError error={error} />
         </div>
       )}
 
       <div className={cx(styles.footer, step !== "verify" && styles["is-end"])}>
-        {step === "verify" && (
-          <button type="button" className={styles["btn-back"]} disabled={busy} onClick={() => { setError(null); setStep("connect"); }}>
-            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
-          </button>
-        )}
-        <button
-          type="submit"
-          className={styles["btn-next"]}
+        {step === "verify" && <FlowBackButton disabled={busy} onClick={() => { setError(null); setStep("connect"); }} />}
+        <FlowNextButton
           disabled={busy || (step === "verify" && code.trim().length !== CODE_LENGTH) || (step === "recovery" && !codesSaved)}
+          showChevron={!busy && step !== "recovery"}
         >
           {busy ? "확인 중…" : step === "connect" ? "다음으로" : step === "verify" ? "인증하기" : "설정 완료"}
-          {!busy && step !== "recovery" && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-        </button>
+        </FlowNextButton>
       </div>
     </FlowModal>
   );
@@ -224,13 +204,12 @@ export function MfaDisableModal({ onDisabled, onClose }: { onDisabled: () => voi
           disabled={busy}
           onChange={(event) => setCode(event.target.value)}
         />
-        {error && <p className={styles.error} role="alert">{error}</p>}
+        <FlowError error={error} />
       </div>
       <div className={cx(styles.footer, styles["is-end"])}>
-        <button type="submit" className={cx(styles["btn-next"], styles["is-dim"])} disabled={busy || !code.trim()}>
+        <FlowNextButton className={styles["is-dim"]} disabled={busy || !code.trim()} showChevron={!busy}>
           {busy ? "확인 중…" : "다단계 인증 해제"}
-          {!busy && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
-        </button>
+        </FlowNextButton>
       </div>
     </FlowModal>
   );

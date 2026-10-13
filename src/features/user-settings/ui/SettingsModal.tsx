@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   fetchAiModels,
@@ -62,6 +62,31 @@ function LogoutIcon({ className }: { className?: string }) {
       <path d="M14 4H6.8C6.36 4 6 4.36 6 4.8V19.2C6 19.64 6.36 20 6.8 20H14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       <path d="M11 12H20M20 12L16.8 8.8M20 12L16.8 15.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/** 설정 메뉴 한 줄. 활성 섹션은 강조하고 aria-current로 알린다. */
+function NavRow({
+  isActive,
+  ariaLabel,
+  onClick,
+  children
+}: {
+  isActive: boolean;
+  ariaLabel?: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles["nav-row"]} ${isActive ? styles["is-active"] : ""}`}
+      aria-current={isActive ? "page" : undefined}
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -143,64 +168,33 @@ export function SettingsModal({ onClose, initialSection = "profile" }: { onClose
           <div className={styles["nav-group"]}>
             <p className={styles["nav-label"]}>계정</p>
             {/* 프로필 설정: 메뉴 줄 자체가 프로필 사진(이니셜)과 닉네임을 보여 준다 */}
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "profile" ? styles["is-active"] : ""}`}
-              aria-current={activeSection === "profile" ? "page" : undefined}
-              aria-label={`프로필 설정 (${name})`}
-              onClick={() => setActiveSection("profile")}
-            >
+            <NavRow isActive={activeSection === "profile"} ariaLabel={`프로필 설정 (${name})`} onClick={() => setActiveSection("profile")}>
               <span className={styles["nav-avatar"]} aria-hidden>{name.charAt(0)}</span>
               <span>{name}</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "account" ? styles["is-active"] : ""}`}
-              aria-current={activeSection === "account" ? "page" : undefined}
-              onClick={() => setActiveSection("account")}
-            >
+            </NavRow>
+            <NavRow isActive={activeSection === "account"} onClick={() => setActiveSection("account")}>
               <AccountIcon className={styles["nav-icon"]} />
               <span>계정 설정</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "notifications" ? styles["is-active"] : ""}`}
-              aria-current={activeSection === "notifications" ? "page" : undefined}
-              onClick={() => setActiveSection("notifications")}
-            >
+            </NavRow>
+            <NavRow isActive={activeSection === "notifications"} onClick={() => setActiveSection("notifications")}>
               <SvgIcon src={bellIcon} className={styles["nav-icon"]} />
               <span>알림</span>
-            </button>
+            </NavRow>
           </div>
           <div className={styles["nav-group"]}>
             <p className={styles["nav-label"]}>설정</p>
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "preferences" ? styles["is-active"] : ""}`}
-              aria-current={activeSection === "preferences" ? "page" : undefined}
-              onClick={() => setActiveSection("preferences")}
-            >
+            <NavRow isActive={activeSection === "preferences"} onClick={() => setActiveSection("preferences")}>
               <SvgIcon src={settingIcon} className={styles["nav-icon"]} />
               <span>기본 설정</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "general" ? styles["is-active"] : ""}`}
-              aria-current={activeSection === "general" ? "page" : undefined}
-              onClick={() => setActiveSection("general")}
-            >
+            </NavRow>
+            <NavRow isActive={activeSection === "general"} onClick={() => setActiveSection("general")}>
               <WorkspaceIcon className={styles["nav-icon"]} />
               <span>워크스페이스 설정</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles["nav-row"]} ${activeSection === "members" ? styles["is-active"] : ""}`}
-              aria-current={activeSection === "members" ? "page" : undefined}
-              onClick={() => setActiveSection("members")}
-            >
+            </NavRow>
+            <NavRow isActive={activeSection === "members"} onClick={() => setActiveSection("members")}>
               <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />
               <span>멤버 관리</span>
-            </button>
+            </NavRow>
           </div>
           {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}
           <div className={styles["nav-footer"]}>

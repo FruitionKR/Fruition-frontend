@@ -1,6 +1,8 @@
 import { useNotificationToggles, type NotificationKey } from "../../model/useNotificationToggles";
 import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
+import { PanelTitle } from "./PanelTitle";
+import { SectionHeader } from "./SectionHeader";
 
 /** 알림 항목 정의 (Figma 963:8257). */
 const NOTIFICATION_ROWS: { key: NotificationKey; label: string; description: string }[] = [
@@ -19,20 +21,13 @@ export function NotificationsPanel() {
 
   return (
     <div className={styles.detail}>
-      <div className={styles.title}>
-        <div className={styles["title-row"]}>
-          <h2>알림</h2>
-        </div>
-        <p>워크스페이스의 알림 권한을 관리합니다.</p>
+      <PanelTitle title="알림" description="워크스페이스의 알림 권한을 관리합니다.">
         {/* Discord와 동일하게 알림 출력 설정은 기기(브라우저)별로 저장된다. 계정 동기화는 서버 저장 API가 필요하다. */}
         <p className={styles["title-note"]}>알림 설정은 이 기기에만 저장됩니다.</p>
-      </div>
+      </PanelTitle>
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>알림 설정</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>알림 설정</SectionHeader>
         {NOTIFICATION_ROWS.map(({ key, label, description }) => (
           <div key={key} className={styles.row}>
             <div className={styles["row-title"]}>

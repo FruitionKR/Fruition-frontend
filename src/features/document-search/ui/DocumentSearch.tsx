@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { formatRelativeTime } from "@/shared/lib/time";
 import { CenteredModal } from "@/shared/ui/CenteredModal";
-import modalStyles from "@/shared/ui/CenteredModal.module.css";
-import { fileIcon, plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { SearchModalHeader } from "@/shared/ui/SearchModalHeader";
+import { fileIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/types";
 import type { Project } from "@/entities/tree/model/tree";
 import { useDocumentSearch, type SearchHit } from "../model/useDocumentSearch";
@@ -21,11 +21,6 @@ export function DocumentSearch({
   onClose: () => void;
 }) {
   const { query, setQuery, normalizedQuery, results, overflowCount } = useDocumentSearch(projects);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   function handleSelect(event: ReactMouseEvent<HTMLButtonElement>, item: SearchHit) {
     event.stopPropagation();
@@ -35,18 +30,7 @@ export function DocumentSearch({
 
   return (
     <CenteredModal ariaLabel="채팅 및 프로젝트 검색" onClose={onClose}>
-      <div className={modalStyles["modal-header"]}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="채팅 및 프로젝트 검색"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <button type="button" className={modalStyles["modal-close"]} aria-label="검색 닫기" onClick={onClose}>
-          <SvgIcon src={plusIcon} className={modalStyles["modal-close-icon"]} />
-        </button>
-      </div>
+      <SearchModalHeader placeholder="채팅 및 프로젝트 검색" value={query} onChange={setQuery} onClose={onClose} />
       <div className={styles["search-body"]}>
         <div className={styles["search-results"]} role="group" aria-label="문서 검색 결과">
           {results.length > 0 ? (

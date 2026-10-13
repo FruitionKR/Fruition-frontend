@@ -25,6 +25,8 @@ import { MfaPanel } from "./MfaPanel";
 import { getErrorMessage } from "@/shared/lib/errors";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
+import { PanelTitle } from "./PanelTitle";
+import { SectionHeader } from "./SectionHeader";
 
 /** 계정 설정 패널 (Figma 1127:5275). 닉네임·프로필 사진은 프로필 설정 패널로 나눴다. */
 export function AccountPanel() {
@@ -84,19 +86,11 @@ export function AccountPanel() {
   return (
     <div className={styles.detail}>
       <>
-      <div className={styles.title}>
-        <div className={styles["title-row"]}>
-          <h2>계정 설정</h2>
-        </div>
-        <p>로그인 정보와 연결된 계정, 보안을 관리합니다.</p>
-      </div>
+      <PanelTitle title="계정 설정" description="로그인 정보와 연결된 계정, 보안을 관리합니다." />
       {loadError && <small className={styles["model-error"]} role="alert">{getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>계정 정보</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>계정 정보</SectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>이메일</strong>
@@ -139,10 +133,7 @@ export function AccountPanel() {
       </div>
 
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>연결된 계정</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>연결된 계정</SectionHeader>
         {OAUTH_PROVIDER_OPTIONS.map(({ provider, name }) => {
           const isLinked = linkedProviders.includes(provider);
           return (
@@ -169,10 +160,7 @@ export function AccountPanel() {
 
       </>
       <div className={styles.section}>
-        <div className={styles["section-header"]}>
-          <span>계정 보안</span>
-          <span className={styles["section-line"]} />
-        </div>
+        <SectionHeader>계정 보안</SectionHeader>
         {me && <MfaPanel />}
         {me && <SessionsPanel />}
       </div>
