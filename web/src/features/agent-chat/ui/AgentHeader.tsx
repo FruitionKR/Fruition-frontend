@@ -5,7 +5,7 @@ import { createChatSession, deleteChatSession, fetchChatSessions } from "@/entit
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
-import { emptyChatIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chatBubbleIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import { AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
@@ -202,7 +202,7 @@ export function AgentHeader({
                   >
                     {isActive
                       ? <SvgIcon src={fruitionLogo} className={styles["chat-session-logo"]} />
-                      : <SvgIcon src={emptyChatIcon} className={styles["chat-session-icon"]} />}
+                      : <SvgIcon src={chatBubbleIcon} className={styles["chat-session-icon"]} />}
                     <span>{session.title ?? fallbackTitle}</span>
                   </button>
                   <div className={styles["chat-session-menu"]}>

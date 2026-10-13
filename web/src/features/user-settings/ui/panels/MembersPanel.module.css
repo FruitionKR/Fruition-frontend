@@ -288,7 +288,7 @@
   box-shadow: 0 2px 12px var(--color-shadow);
 }
 
-/* 드롭다운 셰브론 아이콘 (shared/assets/svg/setting_scroll.svg) */
+/* 드롭다운 셰브론 아이콘 (shared/assets/svg/navigation/chevron-down-small.svg) */
 .chev-icon {
   width: 10px;
   height: 5px;

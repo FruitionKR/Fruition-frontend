@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSessions, revokeSession, SESSIONS_QUERY_KEY, useSignOut, type LoginSession } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
-import { computerIcon, phoneIcon, retryIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { computerIcon, phoneIcon, retryIcon, chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "../SettingsModal.module.css";
 import panelStyles from "./AccountPanel.module.css";
 
@@ -78,7 +78,7 @@ export function SessionsPanel() {
         <button type="button" className={panelStyles["sessions-count"]} aria-expanded={isOpen} aria-controls="account-device-list"
           onClick={() => setIsOpen((open) => !open)}>
           {isPending ? "불러오는 중…" : `${sessions?.length ?? 0}개 기기 로그인 중`}
-          <SvgIcon src={settingScrollIcon} className={panelStyles["sessions-count-arrow"]} />
+          <SvgIcon src={chevronDownSmallIcon} className={panelStyles["sessions-count-arrow"]} />
         </button>
       </div>
     </div>

@@ -20,7 +20,7 @@ import { fetchWorkspaces, useWorkspaceName } from "@/entities/workspace";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { menuSearchIcon, questionMarkIcon, settingScrollIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { menuSearchIcon, questionMarkIcon, chevronDownSmallIcon, chevronLeftSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./SkillCreateWizard.module.css";
 
 const NAME_MAX = 63;
@@ -344,7 +344,7 @@ export function SkillCreateWizard({
                 onClick={() => setScopeMenuOpen(!scopeMenuOpen)}
               >
                 {SCOPE_LABELS[scopeType]}
-                <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
+                <SvgIcon src={chevronDownSmallIcon} className={styles["chev-icon"]} />
               </button>
               {scopeMenuOpen && (
                 <div className={styles["scope-menu"]} role="listbox" aria-label="저장 범위 선택">
@@ -530,7 +530,7 @@ export function SkillCreateWizard({
 
         <div className={styles.footer}>
           <button type="button" className={styles["btn-ghost"]} onClick={() => setStep(1)}>
-            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+            <SvgIcon src={chevronLeftSmallIcon} className={styles["back-icon"]} /> 이전
           </button>
           <div className={styles["footer-group"]}>
             <button
@@ -634,7 +634,7 @@ export function SkillCreateWizard({
                     onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
                   >
                     {targetWorkspaceLabel ?? "워크스페이스 선택"} (팀)
-                    <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
+                    <SvgIcon src={chevronDownSmallIcon} className={styles["chev-icon"]} />
                   </button>
                   {workspaceMenuOpen && (
                     <div className={styles["scope-menu"]} role="listbox" aria-label="게시할 워크스페이스 선택">
@@ -680,7 +680,7 @@ export function SkillCreateWizard({
 
         <div className={styles.footer}>
           <button type="button" className={styles["btn-ghost"]} onClick={() => setStep(skippedStep2 ? 1 : 2)}>
-            <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+            <SvgIcon src={chevronLeftSmallIcon} className={styles["back-icon"]} /> 이전
           </button>
           <div className={styles["footer-group"]}>
             <button

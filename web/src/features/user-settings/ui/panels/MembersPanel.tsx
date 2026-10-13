@@ -7,7 +7,7 @@ import { changeMemberRole, fetchMembers, removeMember, type WorkspaceMember, typ
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
-import { menuSearchIcon, moreIcon, settingScrollIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
+import { menuSearchIcon, moreIcon, chevronDownSmallIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
 import { InviteMemberModal } from "../modals/InviteMemberModal";
 import styles from "./MembersPanel.module.css";
@@ -98,7 +98,7 @@ export function MembersPanel() {
             onClick={() => setFilterOpen(!filterOpen)}
           >
             {filter ? <span className={styles["filter-accent"]}>권한 : {filter}</span> : "권한"}
-            <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
+            <SvgIcon src={chevronDownSmallIcon} className={styles["chev-icon"]} />
           </button>
           {filterOpen && (
             <div className={styles["filter-menu"]} role="listbox" aria-label="권한 필터">
@@ -194,7 +194,7 @@ export function MembersPanel() {
                     <select className={styles["role-select"]} aria-label={(member.display_name || member.email) + " 권한"} value={member.role} disabled={!isOwner || busy || lastOwner} title={lastOwner ? "마지막 OWNER의 권한은 변경할 수 없습니다." : undefined} onChange={(event) => void changeRole(member, event.target.value as WorkspaceRole)}>
                       <option value="OWNER">OWNER</option><option value="MEMBER">MEMBER</option>
                     </select>
-                    <SvgIcon src={settingScrollIcon} className={styles["chev-icon"]} />
+                    <SvgIcon src={chevronDownSmallIcon} className={styles["chev-icon"]} />
                   </span>
                 </span>
               </div>

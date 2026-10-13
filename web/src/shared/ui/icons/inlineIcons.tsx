@@ -3,7 +3,7 @@ import type { SvgAsset } from "./assets";
 import {
   bellIcon,
   collectionIcon,
-  emptyChatIcon,
+  chatBubbleIcon,
   graphSelectIcon,
   homeIcon,
   homeSelectIcon,
@@ -12,9 +12,9 @@ import {
   menuSearchIcon,
   plusIcon,
   settingIcon,
-  settingScrollIcon,
+  chevronDownSmallIcon,
   shareIcon,
-  skillBackIcon,
+  chevronLeftSmallIcon,
   userCircleIcon,
   moreIcon,
   retryIcon,
@@ -48,17 +48,17 @@ export const inlineIconRenderers = new Map<SvgAsset, InlineIconRenderer>([
       <circle cx="18.2499" cy="18.2504" r="3.1" {...STROKE_ROUND} strokeWidth="1.5" />
     </>
   ))],
-  // 사이드바·채팅 패널 접기 (shared/assets/svg/workspace/sidebar_toggle.svg 원본): 정수 15×14 캔버스라 아래 선이 잘리지 않는다
+  // 사이드바·채팅 패널 접기 (shared/assets/svg/workspace/sidebar-toggle.svg 원본): 정수 15×14 캔버스라 아래 선이 잘리지 않는다
   [sidebarToggleIcon, svgIcon("0 0 15 14", (
     <>
       <rect x="0.700195" y="0.700195" width="13.0909" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
       <path d="M8.28858 0.70056L8.28857 3.15579C8.28861 3.32937 8.3576 3.49583 8.48036 3.61855L10.0604 5.19862C10.1832 5.32134 10.2522 5.4878 10.2522 5.66138L10.2522 7.7376C10.2522 7.91119 10.1832 8.07764 10.0604 8.20037L8.48036 9.78044C8.3576 9.90316 8.28861 10.0696 8.28857 10.2432L8.28857 12.6997" {...STROKE_ROUND} strokeWidth="1.4" />
     </>
   ), { width: 15, height: 14 })],
-  // 드롭다운 셰브론 (shared/assets/svg/navigation/setting_scroll.svg 원본): 배경색에 따라 currentColor로 색 상속
-  [settingScrollIcon, svgIcon("0 0 10 5", <path d="M8.65039 0.650391L5.21608 4.08471C4.90366 4.39712 4.39713 4.39713 4.08471 4.08471L0.650391 0.650391" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />)],
-  // 뒤로 가기 셰브론 (shared/assets/svg/navigation/skill_back.svg 원본): currentColor로 색 상속
-  [skillBackIcon, svgIcon("0 0 5 10", <path d="M4.31836 0.650391L0.884045 4.08471C0.571625 4.39712 0.571625 4.90366 0.884044 5.21608L4.31836 8.65039" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />)],
+  // 드롭다운 셰브론 (shared/assets/svg/navigation/chevron-down-small.svg 원본): 배경색에 따라 currentColor로 색 상속
+  [chevronDownSmallIcon, svgIcon("0 0 10 5", <path d="M8.65039 0.650391L5.21608 4.08471C4.90366 4.39712 4.39713 4.39713 4.08471 4.08471L0.650391 0.650391" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />)],
+  // 뒤로 가기 셰브론 (shared/assets/svg/navigation/chevron-left-small.svg 원본): currentColor로 색 상속
+  [chevronLeftSmallIcon, svgIcon("0 0 5 10", <path d="M4.31836 0.650391L0.884045 4.08471C0.571625 4.39712 0.571625 4.90366 0.884044 5.21608L4.31836 8.65039" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />)],
   // 행 우측 더보기 점 세 개 (Figma folder/tab 415:647): currentColor로 색 상속
   [moreIcon, svgIcon("0 0 28 28", (
     <>
@@ -85,7 +85,7 @@ export const inlineIconRenderers = new Map<SvgAsset, InlineIconRenderer>([
       <path d="M10 18.5a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </>
   ))],
-  [emptyChatIcon, svgIcon("0 0 16 16", <path d="M8 2.2C4.6 2.2 1.9 4.5 1.9 7.4C1.9 8.9 2.6 10.2 3.8 11.1L3.2 13.6L5.9 12.2C6.6 12.4 7.3 12.5 8 12.5C11.4 12.5 14.1 10.2 14.1 7.4C14.1 4.5 11.4 2.2 8 2.2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />)],
+  [chatBubbleIcon, svgIcon("0 0 16 16", <path d="M8 2.2C4.6 2.2 1.9 4.5 1.9 7.4C1.9 8.9 2.6 10.2 3.8 11.1L3.2 13.6L5.9 12.2C6.6 12.4 7.3 12.5 8 12.5C11.4 12.5 14.1 10.2 14.1 7.4C14.1 4.5 11.4 2.2 8 2.2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />)],
   [userCircleIcon, svgIcon("0 0 28 28", (
     <>
       <path fillRule="evenodd" clipRule="evenodd" d="M27.7667 13.8833C27.7667 17.5654 26.304 21.0967 23.7003 23.7003C21.0967 26.304 17.5654 27.7667 13.8833 27.7667C10.2012 27.7667 6.66996 26.304 4.06633 23.7003C1.4627 21.0967 0 17.5654 0 13.8833C0 10.2012 1.4627 6.66996 4.06633 4.06633C6.66996 1.4627 10.2012 0 13.8833 0C17.5654 0 21.0967 1.4627 23.7003 4.06633C26.304 6.66996 27.7667 10.2012 27.7667 13.8833Z" fill="currentColor" opacity="0.55" />

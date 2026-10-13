@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { plusIcon, skillBackIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { plusIcon, chevronLeftSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
 
 /** 이메일 인증번호·인증 앱 코드 자릿수. */
@@ -107,7 +107,7 @@ export function VerificationCodeInput({
 export function FlowBackButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
     <button type="button" className={styles["btn-back"]} disabled={disabled} onClick={onClick}>
-      <SvgIcon src={skillBackIcon} className={styles["back-icon"]} /> 이전
+      <SvgIcon src={chevronLeftSmallIcon} className={styles["back-icon"]} /> 이전
     </button>
   );
 }

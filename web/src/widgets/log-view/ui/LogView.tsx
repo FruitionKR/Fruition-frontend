@@ -17,8 +17,8 @@ import {
   type OperationLogItem,
   type OperationType
 } from "@/entities/operation-log";
-import addIcon from "@/shared/assets/svg/log/add.svg";
-import deleteIcon from "@/shared/assets/svg/log/delete.svg";
+import addIcon from "@/shared/assets/svg/log/diff-added.svg";
+import deleteIcon from "@/shared/assets/svg/log/diff-removed.svg";
 import { fetchMembers } from "@/entities/workspace/api/members";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
@@ -26,7 +26,7 @@ import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
-import { retryIcon, settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { retryIcon, chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./LogView.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -413,7 +413,7 @@ export function LogView({
                     <span className={styles["group-count"]}>{group.items.length}</span>
                   </span>
                   <SvgIcon
-                    src={settingScrollIcon}
+                    src={chevronDownSmallIcon}
                     className={cx(styles["group-chevron"], isCollapsed && styles["is-collapsed"])}
                   />
                 </button>

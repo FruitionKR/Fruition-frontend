@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { inviteMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
-import { settingScrollIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import styles from "./AccountFlowModal.module.css";
 import { FlowError, AccountFlowModal, FlowNextButton } from "./AccountFlowModal";
 import membersStyles from "../panels/MembersPanel.module.css";
@@ -76,7 +76,7 @@ export function InviteMemberModal({
               <option value="MEMBER">MEMBER</option>
               <option value="OWNER">OWNER</option>
             </select>
-            <SvgIcon src={settingScrollIcon} className={membersStyles["chev-icon"]} />
+            <SvgIcon src={chevronDownSmallIcon} className={membersStyles["chev-icon"]} />
           </span>
           <FlowError error={error} />
         </div>
