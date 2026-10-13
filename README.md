@@ -11,8 +11,9 @@ Fruition의 Next.js 웹 프론트엔드입니다. 이 저장소는 화면·API �
 Node.js 24를 사용합니다.
 
 ```bash
+cd web
 npm ci
-cp .env.example .env.local
+cp ../.env.example .env.local
 npm run dev
 ```
 
@@ -23,6 +24,7 @@ npm run dev
 실제 백엔드 없이 화면 전체를 써 보려면 mock API 서버와 함께 실행합니다. `.env.local`은 필요 없습니다.
 
 ```bash
+cd web
 npm ci
 npm run dev:mock
 ```
@@ -37,6 +39,7 @@ npm run dev:mock
 ### 검증
 
 ```bash
+cd web
 npm test
 npm run build
 ```
@@ -45,9 +48,9 @@ npm run build
 
 ### AWS 배포
 
-main CI가 성공하면 플랫폼 저장소의 이미지 게시 workflow가 루트 `Dockerfile`로 이미지를 빌드합니다. 이 이미지는 `SAME_ORIGIN_API=true`로 빌드되어 Next가 API를 중계하지 않고, ALB가 같은 호스트에서 `/api/*`·`/oauth2/*`를 access-svc·document-svc로, 나머지를 이 화면으로 나눕니다. 운영 Pod에는 `ACCESS_CODE`만 주입합니다. `/api/*` 접근 코드 검사는 ALB 앞의 AWS WAF가 같은 규칙으로 수행합니다.
+main CI가 성공하면 플랫폼 저장소의 이미지 게시 workflow가 `web/Dockerfile`로 이미지를 빌드합니다. 이 이미지는 `SAME_ORIGIN_API=true`로 빌드되어 Next가 API를 중계하지 않고, ALB가 같은 호스트에서 `/api/*`·`/oauth2/*`를 access-svc·document-svc로, 나머지를 이 화면으로 나눕니다. 운영 Pod에는 `ACCESS_CODE`만 주입합니다. `/api/*` 접근 코드 검사는 ALB 앞의 AWS WAF가 같은 규칙으로 수행합니다.
 
-로컬에서 이미지를 확인하려면 `docker build -t fruition-frontend .` 후 `docker run -p 3000:3000 fruition-frontend`로 실행하고 `/healthz`를 확인합니다.
+로컬에서 이미지를 확인하려면 `docker build -t fruition-frontend web` 후 `docker run -p 3000:3000 fruition-frontend`로 실행하고 `/healthz`를 확인합니다.
 
 자세한 구조·실행법은 [문서 안내](docs/README.md)를 참고하세요.
 
@@ -60,8 +63,9 @@ Fruition's Next.js web frontend. This repository owns the UI, API calls, UI test
 Use Node.js 24.
 
 ```bash
+cd web
 npm ci
-cp .env.example .env.local
+cp ../.env.example .env.local
 npm run dev
 ```
 
@@ -72,6 +76,7 @@ Authentication, document, and AI features require running Access and Document AP
 To use the whole UI without the real backends, start the app together with the mock API server. No `.env.local` is needed.
 
 ```bash
+cd web
 npm ci
 npm run dev:mock
 ```
@@ -86,6 +91,7 @@ npm run dev:mock
 ### Validation
 
 ```bash
+cd web
 npm test
 npm run build
 ```
@@ -94,9 +100,9 @@ Do not run the development server and production build in the same checkout at t
 
 ### AWS deployment
 
-After main CI succeeds, the platform repository's image publish workflow builds the root `Dockerfile`. The image is built with `SAME_ORIGIN_API=true`, so Next does not proxy the API; the ALB splits `/api/*` and `/oauth2/*` to access-svc and document-svc on the same host and sends everything else to this UI. Only `ACCESS_CODE` is injected into the production pod. The `/api/*` access-code check is enforced by AWS WAF in front of the ALB with the same rules.
+After main CI succeeds, the platform repository's image publish workflow builds `web/Dockerfile`. The image is built with `SAME_ORIGIN_API=true`, so Next does not proxy the API; the ALB splits `/api/*` and `/oauth2/*` to access-svc and document-svc on the same host and sends everything else to this UI. Only `ACCESS_CODE` is injected into the production pod. The `/api/*` access-code check is enforced by AWS WAF in front of the ALB with the same rules.
 
-To check the image locally, run `docker build -t fruition-frontend .`, then `docker run -p 3000:3000 fruition-frontend`, and open `/healthz`.
+To check the image locally, run `docker build -t fruition-frontend web`, then `docker run -p 3000:3000 fruition-frontend`, and open `/healthz`.
 
 See the [documentation index](docs/README.md) for architecture and execution details.
 
