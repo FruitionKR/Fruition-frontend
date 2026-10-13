@@ -124,3 +124,32 @@ test("충돌 등록까지 실패하면 본문을 복사해 두라고 안내한�
   assert.equal(hook.result.status, "conflict");
   assert.equal(hook.result.errorMessage, CONFLICT_REGISTRATION_FAILED_MESSAGE);
 });
+
+test("저장 중에 더 고친 본문이 있으면 409 충돌 등록에 그 최신 본문을 올린다", async (t) => {
+  workspaceEnv(t);
+  let conflictBody = null;
+  let releaseContent;
+  const contentResponse = new Promise((resolve) => { releaseContent = resolve; });
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path.endsWith("/content")) {
+      await contentResponse;
+      return Response.json({ error: { code: "DOCUMENT_VERSION_CONFLICT", current_revision: 2 } }, { status: 409 });
+    }
+    if (path.endsWith("/conflicts")) {
+      conflictBody = JSON.parse(init.body);
+      return Response.json({ id: "conflict_1", status: "open" }, { status: 201 });
+    }
+    throw new Error(`unexpected ${path}`);
+  });
+
+  const hook = render(() => useNoteAutosave({ documentId: "doc_1", marker: "<!-- fruition-note: doc_1 -->", initialVersion: 1 }));
+  const first = hook.result.saveNow("첫 본문");
+  // 첫 저장이 서버 응답을 기다리는 동안 사용자가 더 고친다. 이 본문은 pending으로 합쳐진다.
+  const second = hook.result.saveNow("첫 본문\n\n더 고친 본문");
+  releaseContent();
+  await Promise.all([first, second]);
+  await flush();
+
+  assert.ok(conflictBody);
+  assert.match(conflictBody.markdown, /더 고친 본문/);
+});

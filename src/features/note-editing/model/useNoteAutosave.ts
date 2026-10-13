@@ -205,8 +205,12 @@ export function useNoteAutosave({
         cancelAgentRetry();
         if (mountedRef.current) setStatus("conflict");
         // 내 본문을 버리지 않고 충돌로 등록해 OWNER가 고르게 한다. 등록 결과에 따라 안내 문구를 바꾼다.
+        // 응답을 기다리는 동안 더 고친 본문(pending)이 있으면 그쪽이 최신이므로 그것을 올린다. 충돌 뒤에는 pending을 버리기 때문이다.
+        const latestMarkdown = pendingSaveRef.current
+          ? substituteAttachmentPaths(pendingSaveRef.current.markdown, savedAttachmentPathsRef.current)
+          : markdownToSave;
         const registered = await registerEditConflict(documentId, {
-          markdown: markdownToSave,
+          markdown: latestMarkdown,
           base_revision: versionRef.current,
           client_conflict_id: clientConflictIdRef.current
         }).then(() => true, () => false);
