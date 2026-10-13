@@ -1,28 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RunStageEvent } from "@/shared/lib/runEvents";
+import { useEffect, useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
-import { AgentComposer, type AiModelCatalogStatus } from "@/features/agent-chat/ui/AgentComposer";
+import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
 import { AgentHeader } from "@/features/agent-chat/ui/AgentHeader";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
-import { fetchAiModels, resolveInitialModel, type AiModel } from "@/entities/ai";
 import { fetchCurrentChatSessionId } from "@/entities/chat";
-import { useUserPreferences } from "@/entities/user";
-import { requestAgentTurn } from "@/features/agent-chat";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
 import { getErrorMessage } from "@/shared/lib/errors";
-import {
-  buildAgentTurnRequest,
-  prepareMarkdownEditPreview,
-  resolveChatTurnPresentation,
-  validateMarkdownEditApplication
-} from "@/features/agent-chat/lib/markdownAgent";
-import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/markdownAgent";
+import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/markdownAgent";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import {
@@ -35,6 +25,8 @@ import {
 } from "@/features/agent-chat/lib/chatPairSelection";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
+import { useAgentTurn } from "../model/useAgentTurn";
+import { useAiModelSelection } from "../model/useAiModelSelection";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
 // AgentBody 등이 이 파일에서 ActiveAgentTurn을 import하므로 re-export 유지
@@ -81,23 +73,21 @@ export function AgentPanel({
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
   const [pairSelection, setPairSelection] = useState<ChatPairRangeSelection>(EMPTY_CHAT_PAIR_RANGE_SELECTION);
   const [pairSelectionKind, setPairSelectionKind] = useState<ChatPairSelectionKind>("range");
-  const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
-  const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
-  const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
-  const [isAgentTurnLoading, setIsAgentTurnLoading] = useState(false);
-  const [agentStages, setAgentStages] = useState<RunStageEvent[]>([]);
-  const agentRequestRef = useRef<AbortController | null>(null);
-  useEffect(() => () => agentRequestRef.current?.abort(), []);
-  const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
-  const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSessionTitle, setActiveSessionTitle] = useState<string | null>(null);
-  const [aiModels, setAiModels] = useState<AiModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState<AiModel | null>(null);
-  const [aiModelCatalogStatus, setAiModelCatalogStatus] = useState<AiModelCatalogStatus>("loading");
-  const [aiModelsErrorMessage, setAiModelsErrorMessage] = useState<string | null>(null);
-  const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
-  const allowWebSearch = preferences.webSearch;
+  // 마운트 시 현재 활성 세션을 확보해 헤더 강조·메시지 로드의 기준으로 삼는다.
+  useEffect(() => {
+    fetchCurrentChatSessionId().then(setActiveSessionId).catch(() => undefined);
+  }, []);
+  const {
+    aiModels,
+    selectedModel,
+    aiModelCatalogStatus,
+    aiModelsErrorMessage,
+    allowWebSearch,
+    handleWebSearchChange,
+    handleModelChange
+  } = useAiModelSelection();
   const {
     messages,
     queryErrorMessage,
@@ -113,38 +103,22 @@ export function AgentPanel({
     submitQuery,
     cancelQuery
   } = useChatThread(activeSessionId);
-  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
     () => classifyChatExportPairs(messages),
     [messages]
   );
   const selectedPairIds = pairSelection.selectedPairIds;
-  // 마운트 시 현재 활성 세션을 확보해 헤더 강조·메시지 로드의 기준으로 삼는다.
-  useEffect(() => {
-    fetchCurrentChatSessionId().then(setActiveSessionId).catch(() => undefined);
-  }, []);
-  // 선택 가능한 모델은 백엔드 카탈로그가 정한다. 프론트에 목록을 고정하지 않는다.
-  useEffect(() => {
-    fetchAiModels()
-      .then((models) => {
-        setAiModels(models);
-        if (models.length === 0) {
-          setAiModelCatalogStatus("empty");
-          setAiModelsErrorMessage("사용 가능한 AI 모델이 없습니다.");
-          return;
-        }
-        setAiModelCatalogStatus("ready");
-      })
-      .catch((error: unknown) => {
-        setAiModelCatalogStatus("error");
-        setAiModelsErrorMessage(getErrorMessage(error, "AI 모델 목록을 불러오지 못했습니다."));
-      });
-  }, []);
-  // 카탈로그와 저장된 설정이 모두 준비된 뒤 초기 선택을 확정한다.
-  useEffect(() => {
-    if (!preferencesReady || aiModels.length === 0 || selectedModel) return;
-    setSelectedModel(resolveInitialModel(aiModels, preferences.aiModel));
-  }, [aiModels, preferences.aiModel, preferencesReady, selectedModel]);
+  const agentTurn = useAgentTurn({
+    markdownEditContext,
+    activeSessionId,
+    selectedModel,
+    selectedPairIds,
+    allowWebSearch,
+    refreshMessages,
+    onCreateMarkdownDocument
+  });
+  const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState } = agentTurn;
+  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   const sessionTitle = activeSessionTitle ?? "새 채팅";
   const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
   useEffect(() => {
@@ -170,72 +144,6 @@ export function AgentPanel({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [activeSessionId, completedReplies]);
   const composerPlaceholder = "AI 에이전트에게 무엇이든 물어보세요.";
-  const editPreviewState = useMemo<{
-    preview: MarkdownEditPreviewData | null;
-    validationError: string | null;
-  } | null>(() => {
-    if (!agentTurnRequest || !agentTurnResponse || agentTurnResponse.result.action !== "markdown_edit") return null;
-    try {
-      const preview = prepareMarkdownEditPreview(agentTurnRequest, agentTurnResponse);
-      if (!markdownEditContext) {
-        return { preview, validationError: "편집 중인 문서를 다시 열고 재생성해주세요." };
-      }
-      try {
-        validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
-        return { preview, validationError: null };
-      } catch (error) {
-        return { preview, validationError: getErrorMessage(error, "편집 결과를 적용할 수 없습니다.") };
-      }
-    } catch (error) {
-      return { preview: null, validationError: getErrorMessage(error, "편집 응답 계약이 올바르지 않습니다.") };
-    }
-  }, [agentTurnRequest, agentTurnResponse, markdownEditContext]);
-  const editPreviewErrorMessage = editPreviewState && !editPreviewState.preview
-    ? `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`
-    : null;
-
-  const submitAgentTurn = useCallback((
-    question: string,
-    context: ActiveMarkdownEditContext,
-    sessionId: string,
-    model: AiModel,
-    conversationPairIds: string[]
-  ) => {
-    const request = buildAgentTurnRequest(question, context, {
-      sessionId,
-      selectedModel: { provider: model.provider, model: model.model },
-      selectedPairIds: conversationPairIds,
-      allowWebSearch
-    });
-    setAgentTurnRequest(request);
-    setAgentTurnResponse(null);
-    setAgentTurnErrorMessage(null);
-    setMarkdownCreateErrorMessage(null);
-    setIsAgentTurnLoading(true);
-    setAgentStages([]);
-    agentRequestRef.current?.abort();
-    const controller = new AbortController();
-    agentRequestRef.current = controller;
-    requestAgentTurn(request, {
-      signal: controller.signal,
-      onStage: (stage) => {
-        if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
-      }
-    })
-      .then(async (response) => {
-        if (controller.signal.aborted) return;
-        await refreshMessages({ animateLatest: true });
-        if (controller.signal.aborted) return;
-        setAgentTurnResponse(
-          resolveChatTurnPresentation(response.result.action).kind === "document-command" ? response : null
-        );
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
-      })
-      .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
-  }, [allowWebSearch, refreshMessages]);
 
   function handleSubmit() {
     const question = composerValue.trim();
@@ -243,95 +151,13 @@ export function AgentPanel({
     if (markdownEditContext) {
       if (!activeSessionId || !selectedModel) return;
       setComposerValue("");
-      submitAgentTurn(question, markdownEditContext, activeSessionId, selectedModel, selectedPairIds);
+      agentTurn.submitAgentTurn(question, markdownEditContext, activeSessionId, selectedModel, selectedPairIds);
       return;
     }
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
     void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch);
-  }
-
-  function handleWebSearchChange(enabled: boolean) {
-    updatePreferences((current) => ({ ...current, webSearch: enabled }));
-  }
-
-  function handleModelChange(model: AiModel) {
-    setSelectedModel(model);
-    updatePreferences((current) => ({
-      ...current,
-      aiModel: { provider: model.provider, model: model.model }
-    }));
-  }
-
-  function dismissAgentTurnResult() {
-    setAgentTurnRequest(null);
-    setAgentTurnResponse(null);
-    setAgentTurnErrorMessage(null);
-    setMarkdownCreateErrorMessage(null);
-  }
-
-  function regenerateAgentTurn() {
-    if (!agentTurnRequest || !markdownEditContext || !activeSessionId || !selectedModel) {
-      setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
-      return;
-    }
-    submitAgentTurn(agentTurnRequest.message, markdownEditContext, activeSessionId, selectedModel, selectedPairIds);
-  }
-
-  function applyMarkdownEdit() {
-    if (!agentTurnRequest || !agentTurnResponse || !markdownEditContext || !editPreviewState?.preview) return;
-    try {
-      validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
-      const applied = markdownEditContext.applyMarkdown(
-        agentTurnRequest.editorSnapshot.markdown,
-        editPreviewState.preview.nextMarkdown,
-        agentTurnResponse.apply_operation_id
-      );
-      if (!applied) throw new Error("적용 직전에 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
-      setAgentTurnRequest(null);
-      setAgentTurnResponse(null);
-      setAgentTurnErrorMessage(null);
-    } catch (error) {
-      setAgentTurnErrorMessage(getErrorMessage(error, "편집 결과를 적용하지 못했습니다."));
-    }
-  }
-
-  function openMarkdownEditAsNewDocument() {
-    if (!editPreviewState?.preview) return;
-    const preview = editPreviewState.preview;
-    const draft: GeneratedMarkdownDraft = {
-      title: preview.summary.trim() || "AI 편집안",
-      summary: preview.summary,
-      markdown: preview.nextMarkdown
-    };
-    setIsCreatingMarkdown(true);
-    setAgentTurnErrorMessage(null);
-    onCreateMarkdownDocument(draft)
-      .then(() => {
-        setAgentTurnRequest(null);
-        setAgentTurnResponse(null);
-      })
-      .catch((error: unknown) => {
-        setAgentTurnErrorMessage(getErrorMessage(error, "편집안을 새 Markdown 문서로 만들지 못했습니다."));
-      })
-      .finally(() => setIsCreatingMarkdown(false));
-  }
-
-  function createMarkdownDocument() {
-    const draft = agentTurnResponse?.result.generated_markdown;
-    if (!draft) return;
-    setIsCreatingMarkdown(true);
-    setMarkdownCreateErrorMessage(null);
-    onCreateMarkdownDocument(draft)
-      .then(() => {
-        setAgentTurnRequest(null);
-        setAgentTurnResponse(null);
-      })
-      .catch((error: unknown) => {
-        setMarkdownCreateErrorMessage(getErrorMessage(error, "새 Markdown 문서를 만들지 못했습니다."));
-      })
-      .finally(() => setIsCreatingMarkdown(false));
   }
 
   function startPairSelection() {
@@ -404,10 +230,10 @@ export function AgentPanel({
         <MarkdownCreatePreview
           draft={agentTurnResponse.result.generated_markdown}
           isSubmitting={isCreatingMarkdown}
-          errorMessage={markdownCreateErrorMessage}
-          onCancel={dismissAgentTurnResult}
-          onRegenerate={regenerateAgentTurn}
-          onCreate={createMarkdownDocument}
+          errorMessage={agentTurn.markdownCreateErrorMessage}
+          onCancel={agentTurn.dismissAgentTurnResult}
+          onRegenerate={agentTurn.regenerateAgentTurn}
+          onCreate={agentTurn.createMarkdownDocument}
         />
       )}
       {editPreviewState?.preview && (
@@ -415,10 +241,10 @@ export function AgentPanel({
           preview={editPreviewState.preview}
           validationError={editPreviewState.validationError}
           isLoading={isAgentTurnLoading || isCreatingMarkdown}
-          onApply={applyMarkdownEdit}
-          onCancel={dismissAgentTurnResult}
-          onOpenAsNewDocument={openMarkdownEditAsNewDocument}
-          onRegenerate={regenerateAgentTurn}
+          onApply={agentTurn.applyMarkdownEdit}
+          onCancel={agentTurn.dismissAgentTurnResult}
+          onOpenAsNewDocument={agentTurn.openMarkdownEditAsNewDocument}
+          onRegenerate={agentTurn.regenerateAgentTurn}
         />
       )}
     </>
@@ -449,13 +275,13 @@ export function AgentPanel({
         isLoading={isLoading}
         isCancelling={isCancelling}
         isDocumentCommandLoading={isAgentTurnLoading}
-        documentCommandStages={agentStages}
+        documentCommandStages={agentTurn.agentStages}
         documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
         activeSessionId={activeSessionId}
         activeTurn={activeTurn}
         queryErrorMessage={
-          agentTurnErrorMessage
-          ?? editPreviewErrorMessage
+          agentTurn.agentTurnErrorMessage
+          ?? agentTurn.editPreviewErrorMessage
           ?? (markdownEditContext ? null : aiModelsErrorMessage)
           ?? queryErrorMessage
         }
