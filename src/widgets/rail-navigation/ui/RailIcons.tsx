@@ -100,18 +100,12 @@ export function RailUserIcon({ className }: IconProps) {
   );
 }
 
-/**
- * 알림 종 (Figma 1486:4958 BellOutline 24×24). 안 읽은 알림이 있으면 오른쪽 위 주황 점을 그린다.
- * 점의 흰 테두리는 canvas 토큰, 그림자는 rail-badge 클래스(CSS drop-shadow)로 옮겼다.
- */
-export function RailBellIcon({ className, hasBadge = false, badgeClassName }: IconProps & { hasBadge?: boolean; badgeClassName?: string }) {
+/** 알림 종 (Figma 1486:4958 BellOutline 24×24) */
+export function RailBellIcon({ className }: IconProps) {
   return (
     <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
       <path d="M18.595 15.5948C18.4063 15.4061 18.2567 15.1821 18.1546 14.9355C18.0525 14.689 18 14.4247 18 14.1578V10.9998C18.0002 9.75878 17.6156 8.54819 16.8992 7.53473C16.1829 6.52128 15.17 5.75481 14 5.34084C14 5.34084 13.0919 5.02522 11.9382 5.02522C10.7845 5.02522 10 5.34084 10 5.34084C7.67 6.16484 6 8.38784 6 10.9998V14.1588C6 14.6968 5.786 15.2138 5.405 15.5948C4.88652 16.1133 5.25373 16.9998 5.98697 16.9998H18.013C18.7463 16.9998 19.1135 16.1133 18.595 15.5948Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M14.8349 17.9814C14.6877 18.4065 14.4454 18.7971 14.1213 19.1212C13.5587 19.6838 12.7956 19.9999 12 19.9999C11.2044 19.9999 10.4413 19.6838 9.87868 19.1212C9.55458 18.7971 9.3123 18.4065 9.16512 17.9814C8.98442 17.4595 9.44772 16.9998 10 16.9998H14C14.5523 16.9998 15.0156 17.4595 14.8349 17.9814Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      {hasBadge && (
-        <rect className={badgeClassName} x="15" y="2.02539" width="6" height="6" rx="3" fill="var(--color-notification-dot)" stroke="var(--color-canvas)" />
-      )}
     </svg>
   );
 }
