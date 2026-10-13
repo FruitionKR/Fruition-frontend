@@ -29,8 +29,8 @@ function withAccessCode(t, code) {
   });
 }
 
-function request(path, cookie) {
-  return new NextRequest(`http://localhost${path}`, cookie ? { headers: { cookie } } : undefined);
+function request(path, cookie, method = "GET") {
+  return new NextRequest(`http://localhost${path}`, { method, ...(cookie ? { headers: { cookie } } : {}) });
 }
 
 test("ACCESS_CODE가 없으면 게이트를 통과시킨다", async (t) => {
@@ -50,6 +50,48 @@ test("로그인·워크스페이스 선택 경로는 접근 코드 없이 열어
   for (const path of ["/api/auth/login", "/api/invitations/abc", "/api/workspaces", "/api/workspaces/ws"]) {
     assert.equal((await handleAccessGate(request(path))).status, 200, path);
   }
+});
+
+test("열어 둔 경로라도 쓰기 메서드는 접근 코드 없이 통과시키지 않는다", async (t) => {
+  withAccessCode(t, "secret");
+  const blocked = [
+    ["/api/workspaces/ws", "DELETE"],
+    ["/api/workspaces/ws", "PATCH"],
+    ["/api/auth/me", "PATCH"],
+    ["/api/auth/me/password", "PUT"],
+    ["/api/auth/me/mfa", "POST"],
+    ["/api/auth/me/oauth-accounts/kakao/link", "POST"],
+    ["/api/auth/me/sessions/s1", "DELETE"],
+    ["/api/invitations/abc", "DELETE"]
+  ];
+  for (const [path, method] of blocked) {
+    assert.equal((await handleAccessGate(request(path, undefined, method))).status, 403, `${method} ${path}`);
+  }
+});
+
+test("로그인 전 흐름에 필요한 쓰기 요청은 접근 코드 없이 열어 둔다", async (t) => {
+  withAccessCode(t, "secret");
+  const open = [
+    ["/api/auth/login", "POST"],
+    ["/api/auth/refresh", "POST"],
+    ["/api/auth/logout", "POST"],
+    ["/api/auth/signup", "POST"],
+    ["/api/auth/oauth/exchange", "POST"],
+    ["/api/invitations/abc/accept", "POST"],
+    ["/api/workspaces", "POST"],
+    ["/api/auth/me", "HEAD"],
+    ["/api/auth/me/sessions", "GET"],
+    ["/api/workspaces/ws", "HEAD"]
+  ];
+  for (const [path, method] of open) {
+    assert.equal((await handleAccessGate(request(path, undefined, method))).status, 200, `${method} ${path}`);
+  }
+});
+
+test("쓰기 메서드라도 올바른 접근 코드 쿠키가 있으면 통과시킨다", async (t) => {
+  withAccessCode(t, "secret");
+  const cookie = `${ACCESS_COOKIE}=${await hashAccessCode("secret")}`;
+  assert.equal((await handleAccessGate(request("/api/workspaces/ws", cookie, "DELETE"))).status, 200);
 });
 
 test("올바른 접근 코드 쿠키가 있으면 통과시킨다", async (t) => {

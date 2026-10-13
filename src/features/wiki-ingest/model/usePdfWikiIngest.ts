@@ -17,6 +17,8 @@ export function usePdfWikiIngest(
   refresh: () => Promise<void>,
   documentsUpdatedAt: number
 ) {
+  // 매 렌더에 다시 읽어 워크스페이스가 바뀌면 그 워크스페이스의 대기 목록으로 갈아탄다.
+  const workspaceId = getSelectedWorkspaceId();
   const [pending, setPending] = useState<PendingIngest[]>([]);
   const pendingRef = useRef<PendingIngest[]>([]);
   const storageKeyRef = useRef<string | null>(null);
@@ -25,7 +27,9 @@ export function usePdfWikiIngest(
   const missingSnapshotsRef = useRef(new Map<string, number>());
   const lastDocumentsUpdatedAtRef = useRef(documentsUpdatedAt);
 
-  const updatePending = useCallback((update: (current: PendingIngest[]) => PendingIngest[]) => {
+  // storageKey는 요청을 시작한 워크스페이스의 키다. 그사이 워크스페이스가 바뀌었으면 바뀐 쪽 목록을 건드리지 않는다.
+  const updatePending = useCallback((update: (current: PendingIngest[]) => PendingIngest[], storageKey = storageKeyRef.current) => {
+    if (storageKey !== storageKeyRef.current) return;
     const next = update(pendingRef.current);
     pendingRef.current = next;
     setPending(next);
@@ -37,11 +41,18 @@ export function usePdfWikiIngest(
   }, []);
 
   useEffect(() => {
-    const workspaceId = getSelectedWorkspaceId();
-    if (!workspaceId) return;
-    storageKeyRef.current = `fruition.pdf-wiki-ingest.${workspaceId}`;
+    // 이전 워크스페이스에서 진행 중이던 작업은 결과를 섞지 않도록 추적을 끊는다.
+    runningRef.current.clear();
+    missingSnapshotsRef.current.clear();
+    if (pendingRef.current.length > 0) {
+      pendingRef.current = [];
+      setPending([]);
+    }
+    const storageKey = workspaceId ? `fruition.pdf-wiki-ingest.${workspaceId}` : null;
+    storageKeyRef.current = storageKey;
+    if (!storageKey) return;
     try {
-      const stored: unknown = JSON.parse(window.sessionStorage.getItem(storageKeyRef.current) ?? "[]");
+      const stored: unknown = JSON.parse(window.sessionStorage.getItem(storageKey) ?? "[]");
       if (!Array.isArray(stored)) return;
       const tasks = stored.filter((task): task is PendingIngest =>
         task !== null && typeof task === "object"
@@ -52,14 +63,15 @@ export function usePdfWikiIngest(
     } catch {
       // 유효한 대기 목록이 없으면 자동으로 새 작업을 만들지 않는다.
     }
-  }, []);
+  }, [workspaceId]);
 
   const startPdfIngest = useCallback(async (document: DocumentItemResponse) => {
+    const storageKey = storageKeyRef.current;
     const converted = await convertDocumentToMarkdown(document.id, { openWhenReady: false });
     updatePending((current) => [
       ...current.filter((task) => task.documentId !== converted.id),
       { documentId: converted.id, filename: document.filename }
-    ]);
+    ], storageKey);
   }, [updatePending]);
 
   useEffect(() => {
@@ -73,6 +85,7 @@ export function usePdfWikiIngest(
       const step = getPdfIngestTaskStep(document, missingSnapshots);
       if (step === "waiting") continue;
       runningRef.current.add(task.documentId);
+      const storageKey = storageKeyRef.current;
       void (async () => {
         try {
           // waiting이 아닌데 문서가 없으면 placeholder가 목록에서 사라진(missing) 경우다.
@@ -91,10 +104,13 @@ export function usePdfWikiIngest(
         } catch (error) {
           publishNotice({ kind: "failed", title: "PDF 위키 편입 실패", message: `${task.filename}: ${getErrorMessage(error, "위키 편입에 실패했습니다.")}` });
         } finally {
-          updatePending((current) => current.filter((item) => item.documentId !== task.documentId));
-          runningRef.current.delete(task.documentId);
-          missingSnapshotsRef.current.delete(task.documentId);
-          await refresh().catch(() => {});
+          // 워크스페이스가 바뀌었으면 바뀐 쪽 목록·화면을 갱신하지 않는다.
+          if (storageKey === storageKeyRef.current) {
+            updatePending((current) => current.filter((item) => item.documentId !== task.documentId), storageKey);
+            runningRef.current.delete(task.documentId);
+            missingSnapshotsRef.current.delete(task.documentId);
+            await refresh().catch(() => {});
+          }
         }
       })();
     }

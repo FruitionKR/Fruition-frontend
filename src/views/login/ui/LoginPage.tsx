@@ -96,11 +96,16 @@ function LoginPageContent() {
     if (linkCallback) {
       hasHandledOAuth.current = true;
       window.history.replaceState({}, "", window.location.pathname);
-      void finishOAuthLink(linkCallback).then((result) => {
-        saveOAuthLinkResult(result);
-        void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-        router.replace(takeAfterLoginPath());
-      });
+      finishOAuthLink(linkCallback)
+        .then((result) => {
+          saveOAuthLinkResult(result);
+          void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+          router.replace(takeAfterLoginPath());
+        })
+        // finishOAuthLink는 연동 실패를 결과로 돌려주므로, 여기 오는 건 결과 저장(sessionStorage) 등 후처리 실패다.
+        .catch((error: unknown) => {
+          setErrorMessage(oauthAccountErrorMessage(error, "소셜 계정 연동 결과를 처리하지 못했습니다. 설정 > 계정에서 연동 상태를 확인해 주세요."));
+        });
       return;
     }
 
