@@ -124,6 +124,16 @@ test("SSE가 끊긴 뒤 run이 failed로 끝나면 실패로 알리고 더 폴�
   assert.equal(statusCalls, 1);
 });
 
+test("run이 failed면 document QueryRunStatusResponse의 error 문구를 그대로 보여 준다(#152)", async (t) => {
+  setup(t);
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init.method === "POST") return Response.json({ request_id: run.requestId });
+    if (path.endsWith("/events")) return events(": heartbeat\n\n");
+    return Response.json({ status: "failed", error: "AI 서비스에 연결하지 못했습니다.", error_code: "provider_unavailable" });
+  });
+  await assert.rejects(runQueryStream("질문", model, { onStage() {} }), /AI 서비스에 연결하지 못했습니다\./);
+});
+
 test("질의 요청이 402 INSUFFICIENT_CREDIT로 거절되면 크레딧 부족 안내로 알리고 스트림을 열지 않는다(#153)", async (t) => {
   setup(t);
   const { getErrorMessage, isInsufficientCreditError } = await import("../src/shared/lib/errors.ts");
