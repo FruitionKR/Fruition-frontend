@@ -18,6 +18,7 @@ import {
   type OAuthProvider
 } from "@/entities/user";
 import { setAfterLoginPath } from "@/shared/lib/authSessionStorage";
+import { AccountDeleteModal } from "../modals/AccountDeleteModal";
 import { EmailChangeModal } from "../modals/EmailChangeModal";
 import { PasswordChangeModal } from "../modals/PasswordChangeModal";
 import { SessionsPanel } from "./SessionsPanel";
@@ -29,7 +30,14 @@ import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
 
 /** 계정 설정 패널 (Figma 1127:5275). 닉네임·프로필 사진은 프로필 설정 패널로 나눴다. */
-export function AccountPanel() {
+export function AccountPanel({
+  resumeAccountDelete = false,
+  onOpenMembers
+}: {
+  /** 소셜 재로그인에서 돌아와 탈퇴 확인 단계를 바로 다시 열 때 */
+  resumeAccountDelete?: boolean;
+  onOpenMembers: (workspaceId: string) => void;
+}) {
   const { data: me, error: loadError } = useMe();
   const queryClient = useQueryClient();
   const { signOut } = useSignOut();
@@ -38,6 +46,7 @@ export function AccountPanel() {
   const [emailSaved, setEmailSaved] = useState(false);
   const [oauthPending, setOAuthPending] = useState<OAuthProvider | null>(null);
   const [oauthResult, setOAuthResult] = useState<OAuthLinkResult | null>(null);
+  const [showDelete, setShowDelete] = useState(resumeAccountDelete);
   const linkedProviders = me?.oauth_providers ?? [];
 
   // 연동 콜백이 남긴 결과를 한 번만 읽어 이 섹션에 보여 준다.
@@ -86,7 +95,7 @@ export function AccountPanel() {
   return (
     <div className={styles.detail}>
       <>
-      <SettingsPanelTitle title="계정 설정" description="로그인 정보와 연결된 계정, 보안을 관리합니다." />
+      <SettingsPanelTitle title="계정 설정" description="개인 계정 설정을 관리합니다." />
       {loadError && <small className={styles["model-error"]} role="alert">{getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
 
       <div className={styles.section}>
@@ -159,6 +168,31 @@ export function AccountPanel() {
       </div>
 
       </>
+      {/* 피그마 1540:22452 "계정 관리". 설정을 연 뒤 한 번 클릭으로 탈퇴 화면에 닿아야 한다(다크패턴 방지 가이드라인). */}
+      <div className={styles.section}>
+        <div className={styles["section-header"]}>
+          <span>계정 관리</span>
+          <span className={styles["section-line"]} />
+        </div>
+        <div className={styles.row}>
+          <div className={styles["row-title"]}>
+            <strong>내 계정 삭제</strong>
+            <small>계정을 영구적으로 삭제합니다. 더 이상 내 페이지나 소속된 워크스페이스에 접근할 수 없게 됩니다.</small>
+          </div>
+          <button type="button" className={`${styles.btn} ${styles["btn-danger"]}`} disabled={!me} onClick={() => setShowDelete(true)}>
+            내 계정 삭제
+          </button>
+        </div>
+        {showDelete && me && (
+          <AccountDeleteModal
+            me={me}
+            initialStep={resumeAccountDelete ? "confirm" : "notice"}
+            onOpenMembers={onOpenMembers}
+            onClose={() => setShowDelete(false)}
+          />
+        )}
+      </div>
+
       <div className={styles.section}>
         <SettingsSectionHeader>계정 보안</SettingsSectionHeader>
         {me && <MfaPanel />}

@@ -2,10 +2,17 @@ import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspa
 import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
 import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
 
-/** run 응답이 종료 상태면 결과를 반환하고, 실패면 던지고, 진행 중이면 null을 반환한다. */
+export const AGENT_TURN_CANCELLED_MESSAGE = "요청이 취소되었습니다.";
+export const AGENT_TURN_ROLLBACK_FAILED_MESSAGE = "요청이 취소됐지만 변경 복구에 실패했습니다. 문서 내용을 확인해 주세요.";
+
+/** run 응답이 종료 상태면 결과를 반환하고, 실패·취소·복구 실패면 던지고, 진행 중이면 null을 반환한다. */
 function toTerminalResult(run: AgentTurnRunResponse): AgentTurnResponse | null {
   if (run.status === "completed" && run.result) return run as AgentTurnResponse;
-  if (run.status === "failed") throw new Error(run.error || ERROR_MESSAGES.agentTurnFailed);
+  // error는 내부 코드(provider_unavailable 등)이고 화면 문구는 error_message에 온다(document #119, #152).
+  if (run.status === "failed") throw new Error(run.error_message || ERROR_MESSAGES.agentTurnFailed);
+  // SSE가 끊긴 뒤 조회한 취소 종결 상태는 연결 종료 안내가 아니라 취소·복구 실패로 구분한다(#141).
+  if (run.status === "cancelled") throw new Error(AGENT_TURN_CANCELLED_MESSAGE);
+  if (run.status === "rollback_failed") throw new Error(run.error_message || AGENT_TURN_ROLLBACK_FAILED_MESSAGE);
   return null;
 }
 
@@ -33,7 +40,7 @@ export async function requestAgentTurn(
     throw new Error(await parseErrorResponse(events, ERROR_MESSAGES.agentTurnFailed));
   }
   const terminal = await readRunEvents(events, handlers.onStage, ERROR_MESSAGES.agentTurnFailed);
-  if (terminal === "cancelled") throw new Error("요청이 취소되었습니다.");
+  if (terminal === "cancelled") throw new Error(AGENT_TURN_CANCELLED_MESSAGE);
   const statusResponse = await apiFetch(path, { cache: "no-store", signal });
   const status = await parseJsonOrThrow<AgentTurnRunResponse>(statusResponse, ERROR_MESSAGES.agentTurnFailed);
   const result = toTerminalResult(status);
@@ -44,5 +51,8 @@ export async function requestAgentTurn(
 type AgentTurnRunResponse = Omit<AgentTurnResponse, "status" | "result"> & {
   status: string;
   result: AgentTurnResponse["result"] | null;
+  /** 실패 코드. 화면에 그대로 보여 주지 않는다. */
   error?: string | null;
+  /** 서버가 코드를 바꾼 한국어 문구(document #119 이후). */
+  error_message?: string | null;
 };

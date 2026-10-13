@@ -3,9 +3,11 @@ import { parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
 export type AuthTokensResponse = {
   access_token: string;
   mfa_required?: false;
+  /** 이용약관 재동의가 필요하면 true. 화면은 GET /api/auth/me의 같은 값으로 재동의 화면을 띄운다. */
+  consent_required?: boolean;
 };
 
-type LoginResponse = AuthTokensResponse | { mfa_required: true; mfa_token: string };
+export type LoginResponse = AuthTokensResponse | { mfa_required: true; mfa_token: string };
 
 export async function logout(): Promise<void> {
   await fetch("/api/auth/logout", { method: "POST" });

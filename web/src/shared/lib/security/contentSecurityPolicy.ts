@@ -5,6 +5,9 @@ export const CSP_REPORT_PATH = "/csp-report";
 // PDF 직접 업로드(S3 multipart PUT). CSP_S3_ORIGIN에 실제 버킷 오리진을 주면 그 오리진으로 좁힌다.
 const DEFAULT_S3_ORIGIN = "https://*.amazonaws.com";
 
+// 외부 이미지 차단의 핵심. 관리 이미지는 인증 fetch → blob:, 편집기 자리 표시는 data:로 그린다.
+const IMAGE_SOURCES = ["'self'", "data:", "blob:"];
+
 type ContentSecurityPolicyOptions = {
   /** 요청마다 새로 만든 값 */
   nonce: string;
@@ -43,8 +46,7 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: Cont
     ["script-src", "'self'", `'nonce-${nonce}'`, "'strict-dynamic'"],
     // KaTeX·편집기가 style 속성을 쓰므로 스타일은 인라인을 허용한다.
     ["style-src", "'self'", "'unsafe-inline'"],
-    // 외부 이미지 차단의 핵심. 관리 이미지는 인증 fetch → blob:, 편집기 자리 표시는 data:로 그린다.
-    ["img-src", "'self'", "data:", "blob:"],
+    ["img-src", ...IMAGE_SOURCES],
     // KaTeX·Pretendard 폰트는 Next가 같은 출처(/_next/static, /fonts)로 서비스한다.
     ["font-src", "'self'", "data:"],
     ["connect-src", "'self'", ...(backendOrigin ? [backendOrigin] : []), s3],
@@ -59,7 +61,15 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: Cont
   return directives.map((directive) => directive.join(" ")).join("; ");
 }
 
-/** CSP 헤더 값에서 script nonce를 꺼낸다. 없으면 undefined다(dev처럼 CSP를 붙이지 않는 경우). */
+/** CSP 헤더 값에서 script nonce를 꺼낸다. 없으면 undefined다(dev처럼 nonce 없는 img-src 전용 CSP만 붙는 경우). */
 export function readCspNonce(policy: string | null | undefined): string | undefined {
   return policy?.match(/'nonce-([^']+)'/)?.[1];
+}
+
+/**
+ * 개발 서버용 이미지 정책. HMR이 eval·websocket을 써서 전체 CSP는 붙일 수 없지만,
+ * 외부 이미지 차단은 개발 중에도 똑같이 동작해야 새로 넣은 <img>의 유출 경로를 바로 알아차린다(이슈 #77).
+ */
+export function buildImageOnlyPolicy(): string {
+  return `img-src ${IMAGE_SOURCES.join(" ")}; report-uri ${CSP_REPORT_PATH}`;
 }

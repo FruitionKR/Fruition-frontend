@@ -1,9 +1,10 @@
-import { useEffect, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { RailDivider, RailGroup, RailNavigation, type RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
+import type { SettingsSection } from "@/widgets/workspace/lib/workspaceLocation";
 import { ContextMenu } from "./ContextMenu";
 import { GraphRailActions } from "./GraphRailActions";
 import { GraphSidebarActions } from "./GraphSidebarActions";
@@ -35,13 +36,16 @@ export function DocumentSidebar({
   contextMenu,
   convertContextTarget,
   canRenameContextTarget,
+  canDeleteContextTarget = true,
+  canSetPermissionContextTarget = false,
   canCreateInContextTarget,
   uploadInputRef,
   activeView,
   documents,
   graphActions,
   onViewChange,
-  hasUnreadNotifications = false,
+  onOpenSettings,
+  settingsNav,
   isCollapsed = false,
   isOverlay = false,
   onCollapseSidebar,
@@ -67,6 +71,7 @@ export function DocumentSidebar({
   onCommitEditing,
   onCancelEditing,
   onRenameContextTarget,
+  onSetPermissionContextTarget,
   onAddMarkdownFromContext,
   onCreateNote,
   onUploadFromContext,
@@ -90,6 +95,10 @@ export function DocumentSidebar({
   convertContextTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameContextTarget: boolean;
+  /** 서버 can_delete=false면 삭제 메뉴를 비활성화한다. */
+  canDeleteContextTarget?: boolean;
+  /** 문서·폴더 항목 메뉴에 공동 편집 권한 설정을 보인다. */
+  canSetPermissionContextTarget?: boolean;
   /** 파일 메뉴에서는 생성 항목(새 폴더·새 노트·파일 업로드)을 숨긴다. */
   canCreateInContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
@@ -106,8 +115,10 @@ export function DocumentSidebar({
   };
   /** 로그 뷰에서 문서 트리 대신 보여줄 최신순 작업 목록. */
   onViewChange: (view: RailView) => void;
-  /** 레일 알림 종의 안 읽음 점 */
-  hasUnreadNotifications?: boolean;
+  /** 레일 톱니·프로필에서 설정 화면의 항목을 연다 */
+  onOpenSettings: (section: SettingsSection) => void;
+  /** 설정 화면(Figma 1540:22452)에서 문서 트리 대신 보여줄 설정 메뉴 */
+  settingsNav?: ReactNode;
   /**
    * 레일 "채팅 시작" 버튼은 새 시안(Figma 1527:16327)에 없어 뺐다. 채팅은 콘텐츠 우하단 플로팅 버튼으로 연다.
    * HomeWorkspace가 아직 넘기므로 타입만 남겨 둔다(사용하지 않음).
@@ -148,6 +159,7 @@ export function DocumentSidebar({
   onCommitEditing: () => void;
   onCancelEditing: () => void;
   onRenameContextTarget: () => void;
+  onSetPermissionContextTarget?: () => void;
   onAddMarkdownFromContext: () => void;
   /** 사이드바 맨 아래 "새 노트 추가": 최상위에 새 노트를 만들고 바로 연다 */
   onCreateNote: (projectId: string) => void;
@@ -241,7 +253,10 @@ export function DocumentSidebar({
           canCreateInTarget={canCreateInContextTarget}
           convertTarget={convertContextTarget}
           canRenameTarget={canRenameContextTarget}
+          canDeleteTarget={canDeleteContextTarget}
+          canSetPermissionTarget={canSetPermissionContextTarget}
           onRenameContextTarget={onRenameContextTarget}
+          onSetPermissionContextTarget={onSetPermissionContextTarget}
           onAddProject={onAddProject}
           onAddMarkdownFromContext={onAddMarkdownFromContext}
           onUploadFromContext={onUploadFromContext}
@@ -279,7 +294,6 @@ export function DocumentSidebar({
           isCollapsed={isCollapsed}
           activeView={activeView}
           onViewChange={onViewChange}
-          hasUnreadNotifications={hasUnreadNotifications}
           tools={(
             <>
               <RailGroup>
@@ -306,7 +320,7 @@ export function DocumentSidebar({
           footer={(
             <>
               <RailDivider />
-              <SidebarProfile />
+              <SidebarProfile isActive={activeView === "settings"} onOpenSettings={onOpenSettings} />
             </>
           )}
         />
@@ -327,7 +341,7 @@ export function DocumentSidebar({
               <SidebarSearchIcon className={styles["sidebar-search-icon"]} />
               <span>통합 검색</span>
             </button>
-            <SidebarMenuRow activeView={activeView} onViewChange={onViewChange} />
+            {!settingsNav && <SidebarMenuRow activeView={activeView} onViewChange={onViewChange} />}
           </div>
           {isSearchOpen && (
             <DocumentSearch
@@ -346,6 +360,7 @@ export function DocumentSidebar({
             onChange={onUploadPickerChange}
           />
 
+          {settingsNav ?? (
           <div
             className={styles["sidebar-content"]}
             onContextMenu={(event) => {
@@ -368,6 +383,7 @@ export function DocumentSidebar({
               />
             ) : projectTree}
           </div>
+          )}
         </div>
       </div>
     </aside>

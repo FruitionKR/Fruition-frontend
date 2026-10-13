@@ -46,7 +46,10 @@ export async function requestWikiLint(
       if (polled.status === 404) return null;
       const run = await parseJsonOrThrow<{
         status: string;
+        /** 한국어 문구(document #119 이후). 그 전에는 원문이 온다. */
         error?: string;
+        /** 실패 코드(document #119 이후). */
+        error_code?: string;
         manifest?: { task_result?: { changed_pages?: unknown[] } };
       }>(polled, "Lint 상태를 불러오지 못했습니다.");
       if (run.status === "succeeded") {

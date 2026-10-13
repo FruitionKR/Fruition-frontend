@@ -19,7 +19,8 @@ export function projectsFromServerTree(items: ServerTreeItem[], previous: Projec
           currentVersion: item.current_version, status: doc?.status, mimeType: doc?.mime_type,
           processingState: doc?.processing_state, processingStage: doc?.processing_stage,
           errorMessage: doc?.error_message, sourceUri: doc?.source_uri, byteSize: doc?.byte_size,
-          uploadedAt: doc?.uploaded_at, updatedAt: doc?.updated_at };
+          uploadedAt: doc?.uploaded_at, updatedAt: doc?.updated_at,
+          canEdit: doc?.can_edit, canDelete: doc?.can_delete, permission: doc?.permission };
   };
   const projects: Project[] = [
     { id: ROOT_DOCUMENTS_PROJECT_ID, folderId: null, title: ROOT_DOCUMENTS_TITLE, items: items.map(mapItem).sort(byName) }

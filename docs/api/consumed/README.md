@@ -10,11 +10,11 @@
 
 | 도메인 | 호출 수 | 서비스 | 주 모듈 |
 |---|---:|---|---|
-| [인증·계정](auth-account.md) | 21 | access-svc | `web/src/entities/user/api` |
+| [인증·계정](auth-account.md) | 25 | access-svc | `web/src/entities/user/api` |
 | [워크스페이스](workspace.md) | 12 | access-svc | `web/src/entities/workspace/api` |
-| [문서·트리](document.md) | 22 | document-svc | `web/src/entities/document/api`, `web/src/entities/tree/api`, `web/src/features/note-editing` |
+| [문서·트리](document.md) | 31 | document-svc | `web/src/entities/document/api`, `web/src/entities/tree/api`, `web/src/features/note-editing`, `web/src/features/document-notifications/api/notifications.ts` |
 | [Wiki](wiki.md) | 7 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
-| [AI·Agent·Query](ai-agent.md) | 18 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
+| [AI·Agent·Query](ai-agent.md) | 19 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `web/src/entities/skill/api` |
 
 "호출 수"는 코드상의 호출 지점 수이고, 아래 집계의 "경로 수"는 서로 다른 backend 경로 수다.
@@ -24,14 +24,15 @@
 
 | 서비스 | `/api/**` 전체 | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 50 | 37 |
-| access-svc | 29 | 26 | 3 |
+| document-svc | 87 | 53 | 34 |
+| access-svc | 32 | 29 | 3 |
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.
+공동 편집 릴리스에서 추가된 권한 2·편집 충돌 3·알림 3 경로는 87개 기준 집계 밖이며 [document.md](document.md)에만 적었다.
 
 ## 경로 미해석
 
-없다. 81개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
+없다. 91개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
 다음 세 곳은 변수를 호출자까지 따라가야 해석되므로 근거를 남긴다.
 
 | 호출 지점 | 변수 | 호출자 추적 결과 |

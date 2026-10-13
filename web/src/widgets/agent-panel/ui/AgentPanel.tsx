@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
@@ -62,6 +62,9 @@ export function AgentPanel({
   } | null;
 }) {
   const [composerValue, setComposerValue] = useState("");
+  const restoreComposerQuestion = useCallback((question: string) => {
+    setComposerValue((current) => current || question);
+  }, []);
   useEffect(() => {
     if (composerDraft) setComposerValue(composerDraft.text);
   }, [composerDraft]);
@@ -112,7 +115,9 @@ export function AgentPanel({
     selectedPairIds,
     allowWebSearch,
     refreshMessages,
-    onCreateMarkdownDocument
+    onCreateMarkdownDocument,
+    // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
+    onInsufficientCredit: restoreComposerQuestion
   });
   const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState } = agentTurn;
   const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
@@ -154,7 +159,10 @@ export function AgentPanel({
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
-    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch);
+    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch).then((insufficientCredit) => {
+      // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
+      if (insufficientCredit) setComposerValue((current) => current || question);
+    });
   }
 
   function startPairSelection() {

@@ -11,7 +11,10 @@ export function ContextMenu({
   canCreateInTarget,
   convertTarget,
   canRenameTarget,
+  canDeleteTarget = true,
+  canSetPermissionTarget = false,
   onRenameContextTarget,
+  onSetPermissionContextTarget,
   onAddProject,
   onAddMarkdownFromContext,
   onUploadFromContext,
@@ -28,7 +31,12 @@ export function ContextMenu({
   convertTarget: { isDisabled: boolean } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameTarget: boolean;
+  /** 서버 can_delete=false(문서 소유자·OWNER가 아님)면 삭제 메뉴를 비활성화한다. */
+  canDeleteTarget?: boolean;
+  /** 문서·폴더 항목이면 공동 편집 권한 설정 메뉴를 보인다(권한 판정은 서버가 한다). */
+  canSetPermissionTarget?: boolean;
   onRenameContextTarget: () => void;
+  onSetPermissionContextTarget?: () => void;
   onAddProject: () => void;
   onAddMarkdownFromContext: () => void;
   onUploadFromContext: () => void;
@@ -63,13 +71,24 @@ export function ContextMenu({
       {canRenameTarget && (
         <button type="button" onClick={onRenameContextTarget}>이름 변경</button>
       )}
+      {canSetPermissionTarget && onSetPermissionContextTarget && (
+        <button type="button" onClick={onSetPermissionContextTarget}>권한 설정</button>
+      )}
       {convertTarget && (
         <button type="button" disabled={convertTarget.isDisabled} onClick={onConvertContextTarget}>
           Markdown으로 변환
         </button>
       )}
       {!(contextMenu.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) && (
-        <button type="button" className={styles.danger} onClick={onDeleteContextTarget}>삭제</button>
+        <button
+          type="button"
+          className={styles.danger}
+          disabled={!canDeleteTarget}
+          title={canDeleteTarget ? undefined : "문서 소유자와 워크스페이스 OWNER만 삭제할 수 있습니다."}
+          onClick={onDeleteContextTarget}
+        >
+          삭제
+        </button>
       )}
     </div>,
     document.body

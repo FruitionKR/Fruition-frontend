@@ -1,5 +1,5 @@
 import type { SkillAuthoringResult, SkillResponse, SkillUpdateRequest } from "@/entities/skill/model/skill";
-import { ApiError, getErrorMessage, SessionExpiredError } from "@/shared/lib/apiErrors";
+import { ApiError, getErrorMessage, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
 
 type SkillAuthorErrorNotice = { title: string; description: string };
 
@@ -18,6 +18,7 @@ const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTI
  * 사유 code(의도 불명확·지침 오류)가 오면 화면용 한국어인 서버 message를 그대로 보여 준다.
  * 불가능한 작업(SKILL_INTENT_UNSUPPORTED)은 서버 message 대신 정해 둔 문구로 안내한다.
  * 참고 문서 한 개가 너무 긴 경우(413 REFERENCE_DOCUMENT_TOO_LARGE)는 AI의 내부 용어가 섞인 message 대신 정해 둔 문구로 안내한다.
+ * 크레딧 부족(402 INSUFFICIENT_CREDIT)은 공통 문의 안내로 보여 준다(#153).
  * 사유 없는 거절(SKILL_REQUEST_REJECTED)과 알 수 없는 400은 중립 문구로 안내한다.
  * AI 서버 장애·5xx·타임아웃·네트워크 오류는 다시 시도하면 풀릴 수 있어 재시도 문구로 구분한다.
  */
@@ -28,6 +29,9 @@ export function describeSkillAuthorError(error: unknown): SkillAuthorErrorNotice
   if (!(error instanceof ApiError)) {
     // fetch 실패(TypeError)·중단(AbortError)처럼 응답을 받지 못한 경우다.
     return { title: UNAVAILABLE_TITLE, description: UNAVAILABLE_DESCRIPTION };
+  }
+  if (isInsufficientCreditError(error)) {
+    return { title: UNAVAILABLE_TITLE, description: INSUFFICIENT_CREDIT_MESSAGE };
   }
   if (error.code === "SKILL_AI_UNAVAILABLE" || error.status >= 500 || error.status === 408) {
     return { title: UNAVAILABLE_TITLE, description: UNAVAILABLE_DESCRIPTION };

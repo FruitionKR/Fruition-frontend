@@ -10,7 +10,7 @@ import {
 } from "@/features/agent-chat/lib/agentTurn";
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 
 /**
  * 노트를 열어 둔 채 보내는 문서 명령(agent turn): 요청·진행 단계·응답과
@@ -23,7 +23,8 @@ export function useAgentTurn({
   selectedPairIds,
   allowWebSearch,
   refreshMessages,
-  onCreateMarkdownDocument
+  onCreateMarkdownDocument,
+  onInsufficientCredit
 }: {
   markdownEditContext: ActiveMarkdownEditContext | null | undefined;
   activeSessionId: string | null;
@@ -33,6 +34,8 @@ export function useAgentTurn({
   /** 응답이 오면 대화 목록을 다시 받아 새 문답을 이어 붙인다. */
   refreshMessages: (options: { animateLatest: boolean }) => Promise<unknown>;
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft) => Promise<void>;
+  /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
+  onInsufficientCredit?: (question: string) => void;
 }) {
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
@@ -107,9 +110,10 @@ export function useAgentTurn({
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
+        if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
       })
       .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
-  }, [allowWebSearch, refreshMessages]);
+  }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
 
   function dismissAgentTurnResult() {
     setAgentTurnRequest(null);

@@ -113,12 +113,28 @@ export async function runQueryStream(
   const terminal = await readRunEvents(eventsResponse, handlers.onStage, ERROR_MESSAGES.queryFailed);
   if (terminal === "cancelled") throw new QueryCancelledError();
 
-  const statusResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}`, { cache: "no-store", signal: handlers.signal });
-  const status = await parseJsonOrThrow<{ status: string; result: QueryResponse | null }>(statusResponse, ERROR_MESSAGES.queryFailed);
-  if (status.status === "cancelled") throw new QueryCancelledError();
-  if (!status.result) throw new Error(ERROR_MESSAGES.queryFailed);
-  return status.result;
+  // SSE가 종결 이벤트 없이 끊겨도 서버는 계속 처리한다. run이 끝날 때까지 상태를 폴링해 실패로 단정하지 않는다(#143).
+  while (true) {
+    const statusResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}`, { cache: "no-store", signal: handlers.signal });
+    const status = await parseJsonOrThrow<QueryRunStatusResponse>(statusResponse, ERROR_MESSAGES.queryFailed);
+    if (status.status === "cancelled") throw new QueryCancelledError();
+    if (status.result) return status.result;
+    if (!QUERY_RUN_ACTIVE_STATUSES.has(status.status)) throw new Error(status.error || ERROR_MESSAGES.queryFailed);
+    await new Promise((resolve) => setTimeout(resolve, QUERY_RUN_POLL_INTERVAL_MS));
+    handlers.signal?.throwIfAborted();
+  }
 }
+
+const QUERY_RUN_POLL_INTERVAL_MS = 1000;
+const QUERY_RUN_ACTIVE_STATUSES = new Set(["queued", "pending", "running", "cancel_requested", "rolling_back"]);
+
+/** GET /api/query/runs/{id} 응답(document QueryRunStatusResponse). error는 실패 사유 문구(document #119 이후 한국어), error_code는 실패 코드. */
+export type QueryRunStatusResponse = {
+  status: string;
+  result: QueryResponse | null;
+  error?: string | null;
+  error_code?: string | null;
+};
 
 export async function fetchWikiPage(pageId: string): Promise<WikiPageDetailResponse> {
   const workspaceId = getWorkspaceId();

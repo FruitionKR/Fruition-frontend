@@ -44,6 +44,13 @@ test("parseJsonOrThrow는 기존 메시지를 유지한 ApiError를 던진다", 
   );
 });
 
+test("크레딧 부족(402 INSUFFICIENT_CREDIT)은 거절이 아니라 공통 문의 안내로 보여 준다(#153)", async () => {
+  const error = await parseApiError(jsonResponse(402, { error: { code: "INSUFFICIENT_CREDIT", message: "크레딧이 부족해 작업을 시작하지 않았습니다." } }), "실패");
+  const notice = describeSkillAuthorError(error);
+  assert.equal(notice.title, "스킬 검토를 완료하지 못했습니다.");
+  assert.equal(notice.description, "크레딧이 부족합니다.");
+});
+
 test("거절(400·SKILL_REQUEST_REJECTED)은 위험 표현이 아니라 중립 문구로 안내한다", () => {
   for (const error of [new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), new ApiError("bad", 400)]) {
     const notice = describeSkillAuthorError(error);

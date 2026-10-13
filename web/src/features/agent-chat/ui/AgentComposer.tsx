@@ -1,9 +1,11 @@
-import { Check } from "lucide-react";
+import { Check, Square } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
+import { appendDictation } from "../lib/dictation";
+import { useDictation } from "../model/useDictation";
 import { AgentChevronIcon, AgentSendIcon, AgentWaveMark } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
@@ -53,6 +55,10 @@ export function AgentComposer({
   const modelListRef = useRef<HTMLDivElement | null>(null);
   const modelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const modelListId = useId();
+  // 받아쓴 텍스트는 입력창에 채우기만 한다. 전송은 사용자가 확인한 뒤 직접 한다.
+  const dictation = useDictation((text) => onChange(appendDictation(value, text)));
+  const isRecording = dictation.status === "recording";
+  const isTranscribing = dictation.status === "transcribing";
   const selectedKey = selectedModel ? modelKey(selectedModel) : null;
   const modelGroups = groupAiModelsByProvider(filterAiModels(models, modelQuery));
   // 키보드 이동 순서는 화면에 보이는 묶음 순서와 같아야 한다.
@@ -160,6 +166,14 @@ export function AgentComposer({
           {statusMessage ?? "입력창에서 Esc를 누르면 질문을 취소합니다."}
         </p>
       )}
+      {dictation.message && (
+        <p
+          className={cx(styles["composer-status"], dictation.status === "idle" && styles["composer-cancelled"])}
+          role={dictation.status === "idle" ? "alert" : "status"}
+        >
+          {dictation.message}
+        </p>
+      )}
       <div className={styles["composer-actions"]}>
         <div className={styles["composer-model"]} ref={modelListRef}>
           <button
@@ -254,9 +268,18 @@ export function AgentComposer({
             </div>
           )}
         </div>
-        {/* Figma 1436:17328: 파란 파형 마크(음성 입력 기능은 아직 없어 장식으로만 둔다) + 회색 원형 전송 버튼 */}
+        {/* Figma 1436:17328: 파란 파형 마크(#147 음성 받아쓰기 버튼) + 회색 원형 전송 버튼 */}
         <div className={styles["composer-buttons"]}>
-          <AgentWaveMark size="small" />
+          <button
+            type="button"
+            className={cx(styles["composer-mic"], isRecording && styles["is-recording"])}
+            aria-label={isRecording ? "녹음 멈추기" : "음성으로 입력"}
+            aria-pressed={isRecording}
+            disabled={isLoading || isTranscribing}
+            onClick={() => (isRecording ? dictation.stop() : void dictation.start())}
+          >
+            {isRecording ? <Square size={12} aria-hidden /> : <AgentWaveMark size="small" />}
+          </button>
           <button
             type="submit"
             className={styles["composer-send"]}

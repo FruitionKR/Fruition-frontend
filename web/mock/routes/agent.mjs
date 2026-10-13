@@ -1,7 +1,14 @@
 // document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
-import { state, id, hash, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now } from "../state.mjs";
+import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now } from "../state.mjs";
 
 const TURN_DELAY_MS = 1_500;
+const TURN_STAGE_DELAY_MS = 500;
+// 실제 AgentTurnController의 SSE(query.log → query.completed)를 흉내 낸다. 단계 이름은 설명용이다.
+const TURN_STAGES = [
+  ["intake", "요청을 확인하는 중"],
+  ["routing", "처리 유형을 정하는 중"],
+  ["drafting", "편집안을 작성하는 중"]
+];
 const EDIT_PATTERN = /(편집|수정|바꿔|고쳐|다듬|추가해|이어|rewrite|edit|improve)/i;
 const ORGANIZE_PATTERN = /(폴더|정리|organize|folder)/i;
 const CREATE_PATTERN = /(새 문서|문서 만들|문서를 만들|작성해|create document)/i;
@@ -88,6 +95,36 @@ export function registerAgentRoutes(router) {
     const turn = state.agentTurns.get(ctx.params.id);
     if (!turn) return error(ctx, 404, "turn을 찾을 수 없습니다.");
     ctx.json(200, toTurn(turn));
+  });
+
+  /** turn 진행 단계 SSE. 실제 서버와 같이 query.log를 보내고 query.completed·query.cancelled로 끝낸다. */
+  router.get("/api/workspaces/:wid/agent/turn/:id/events", async (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const turn = state.agentTurns.get(ctx.params.id);
+    if (!turn) return error(ctx, 404, "turn을 찾을 수 없습니다.");
+    const stream = ctx.sse();
+    const isTerminal = () => turn.status === "completed" || turn.status === "cancelled";
+    const isCancelling = () => turn.status === "cancel_requested" || turn.status === "rolling_back" || turn.status === "cancelled";
+    const finish = () => {
+      stream.send(turn.status === "completed" ? "query.completed" : "query.cancelled", { request_id: turn.id });
+      stream.close();
+    };
+    if (isTerminal()) return finish();
+    let sequence = 0;
+    for (const [stage, message] of TURN_STAGES) {
+      await sleep(TURN_STAGE_DELAY_MS);
+      if (stream.closed()) return;
+      if (isCancelling()) break;
+      sequence += 1;
+      stream.send("query.log", { stage, message, sequence });
+    }
+    // 처리 또는 취소 복구(rolling_back)가 끝날 때까지 기다린 뒤 종료 이벤트를 보낸다.
+    while (!isTerminal()) {
+      await sleep(TURN_STAGE_DELAY_MS);
+      if (stream.closed()) return;
+    }
+    finish();
   });
 
   router.get("/api/workspaces/:wid/agent/runs/:id", (ctx) => {

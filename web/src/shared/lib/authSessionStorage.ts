@@ -61,6 +61,28 @@ export function clearAuth() {
   window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
 }
 
+type KeyedStorage = Pick<Storage, "length" | "key" | "removeItem">;
+
+/**
+ * 회원 탈퇴 뒤 브라우저에 남는 사용자 흔적을 지운다.
+ * 설정·트리 열림 상태·최근 문서 등 `fruition.` 접두어 키를 localStorage·sessionStorage에서 모두 제거한다.
+ */
+export function clearFruitionStorage(storages: KeyedStorage[] = defaultStorages()) {
+  for (const storage of storages) {
+    const keys: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key?.startsWith("fruition.")) keys.push(key);
+    }
+    keys.forEach((key) => storage.removeItem(key));
+  }
+}
+
+function defaultStorages(): KeyedStorage[] {
+  if (typeof window === "undefined") return [];
+  return [window.localStorage, window.sessionStorage];
+}
+
 export function isPublicAuthPath(pathname: string): boolean {
   return PUBLIC_AUTH_PATHS.has(pathname) || /^\/invitations\/[^/]+$/.test(pathname);
 }

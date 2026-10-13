@@ -1,5 +1,6 @@
 import type { StaticImageData } from "next/image";
 import chatBubbleIcon from "@/shared/assets/svg/agent/chat-bubble.svg";
+import chatLauncherIcon from "@/shared/assets/svg/agent/chat-launcher.svg";
 import claudeIcon from "@/shared/assets/svg/llm/claude.svg";
 import geminiIcon from "@/shared/assets/svg/llm/gemini.svg";
 import gptIcon from "@/shared/assets/svg/llm/gpt.svg";
@@ -54,6 +55,7 @@ export {
   questionMarkIcon,
   bellIcon,
   chatBubbleIcon,
+  chatLauncherIcon,
   graphSelectIcon,
   homeSelectIcon,
   logSelectIcon,

@@ -2,12 +2,18 @@
 
 [API 배선 문서](../README.md) / [소비 API](README.md)
 
-document-svc의 AI 모델 설정, 채팅 세션, 비동기 Query, Markdown Agent, AI 작업 로그다.
+document-svc의 AI 모델 설정, 채팅 세션, 비동기 Query, Markdown Agent, AI 작업 로그, 채팅 음성 입력이다.
 `agent/**`과 `chat/**`은 직접 전송 정규식에 포함되고, `ai-models`·`ai-model-settings`·
-`ai-operation-logs`·`ai/tasks`·`query/runs`는 포함되지 않아 rewrite를 경유한다.
+`ai-operation-logs`·`ai/tasks`·`query/runs`·`speech`는 포함되지 않아 rewrite를 경유한다.
 
-- 호출 지점: 18
-- 호출 경로: 16
+- 호출 지점: 19
+- 호출 경로: 17
+
+## 음성 입력
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `POST /api/workspaces/{workspace_id}/speech/transcriptions` | 채팅 입력창 마이크 녹음을 텍스트로 전사 | `web/src/features/agent-chat/api/speech.ts` `transcribeSpeech` | `workspacePath(getWorkspaceId(), "speech", "transcriptions")` | 오디오 `Blob` bytes 그대로(multipart 아님). `Content-Type`은 `MediaRecorder`가 고른 `audio/webm;codecs=opus`·`audio/webm`·`audio/mp4`·`audio/mpeg`·`audio/wav` | `text` | `web/src/features/agent-chat/model/useDictation.ts`가 `MediaRecorder`로 녹음하고 60초에 자동 종료한다. 24 MiB 초과는 요청 전에 막는다. `text`가 빈 문자열(무음)이면 "인식된 음성이 없습니다"만 안내한다. 결과는 입력창에 채우기만 하고 자동 전송하지 않는다. 실패 문구는 `parseApiError`가 서버 `error.message`(402 포함)를 그대로 쓴다 |
 
 ## 모델 설정
 

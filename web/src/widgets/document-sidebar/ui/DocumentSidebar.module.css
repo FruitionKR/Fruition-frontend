@@ -957,6 +957,68 @@
   color: var(--color-danger);
 }
 
+/* 권한 설정 다이얼로그(컨텍스트 메뉴 → 권한 설정). modal-card 안에 라디오 목록을 둔다. */
+.permission-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.permission-option:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-weak);
+}
+
+.permission-option input {
+  margin: 3px 0 0;
+  accent-color: var(--color-primary);
+}
+
+.permission-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.permission-option strong {
+  font-size: 13px;
+  color: var(--color-foreground);
+}
+
+.permission-option small {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.permission-error {
+  margin: 12px 0 0 !important;
+  color: var(--color-danger) !important;
+  font-size: 12px !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* 그래프 뷰: 위키 편입 선택 모드에서만 하단 [위키 편입 (n)][취소] pill을 고정한다 */
 .graph-panel {
   min-height: 100%;

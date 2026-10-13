@@ -82,6 +82,7 @@ export function useWorkspaceNavigation() {
     location,
     locationKey,
     activeView,
+    isAccessLocked,
     navigate,
     openDocument,
     openTreeItemInNewTab,

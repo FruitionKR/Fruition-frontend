@@ -4,6 +4,7 @@ import {
   buildWorkspaceHref,
   formatWorkspaceDocumentTitle,
   getWorkspaceLocationKey,
+  getSettingsSection,
   getWorkspaceLocationView,
   isDocumentLocation,
   parseWorkspaceLocation,
@@ -26,6 +27,9 @@ test("문서·트리 항목·위키 페이지·화면 파라미터를 읽는다"
   assert.deepEqual(parseWorkspaceLocation(params("view=skills")), { kind: "view", view: "skills" });
   assert.deepEqual(parseWorkspaceLocation(params("view=settings")), { kind: "view", view: "settings" });
   assert.deepEqual(parseWorkspaceLocation(params("view=notifications")), { kind: "view", view: "notifications" });
+  assert.deepEqual(parseWorkspaceLocation(params("view=settings&section=account")), { kind: "view", view: "settings", section: "account" });
+  assert.deepEqual(parseWorkspaceLocation(params("view=settings&section=unknown")), { kind: "view", view: "settings" });
+  assert.deepEqual(parseWorkspaceLocation(params("view=graph&section=account")), { kind: "view", view: "graph" });
 });
 
 test("여러 파라미터가 있으면 화면 → 위키 페이지 → 문서 → 트리 항목 순으로 고른다", () => {
@@ -48,6 +52,7 @@ test("위치를 /home URL로 만든다", () => {
   assert.equal(buildWorkspaceHref({ kind: "page", pageId: "p1" }), "/home?page=p1");
   assert.equal(buildWorkspaceHref({ kind: "view", view: "graph" }), "/home?view=graph");
   assert.equal(buildWorkspaceHref({ kind: "view", view: "notifications" }), "/home?view=notifications");
+  assert.equal(buildWorkspaceHref({ kind: "view", view: "settings", section: "members" }), "/home?view=settings&section=members");
 });
 
 test("id의 특수 문자는 인코딩하고 다시 읽으면 같은 위치가 된다", () => {
@@ -63,6 +68,10 @@ test("위치 키는 같은 대상끼리 같고 종류가 다르면 다르다", (
   assert.equal(getWorkspaceLocationKey({ kind: "tree", treeItemId: "x" }), "tree:x");
   assert.equal(getWorkspaceLocationKey({ kind: "page", pageId: "x" }), "page:x");
   assert.equal(getWorkspaceLocationKey({ kind: "view", view: "graph" }), "view:graph");
+  assert.equal(getWorkspaceLocationKey({ kind: "view", view: "settings", section: "members" }), "view:settings:members");
+  assert.equal(getSettingsSection({ kind: "view", view: "settings", section: "members" }), "members");
+  assert.equal(getSettingsSection({ kind: "view", view: "settings" }), "profile");
+  assert.equal(getSettingsSection({ kind: "home" }), "profile");
 });
 
 test("선택 대상은 위키 페이지 → 문서 → 트리 항목 순으로 위치가 된다", () => {

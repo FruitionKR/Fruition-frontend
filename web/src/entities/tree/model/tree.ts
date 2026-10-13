@@ -16,6 +16,12 @@ export type TreeItem = {
   sourceUri?: string;
   uploadedAt?: string;
   updatedAt?: string;
+  /** 서버 can_edit. false면 이름 변경·이동을 막는다. 없으면 편집 가능으로 본다. */
+  canEdit?: boolean;
+  /** 서버 can_delete. false면 삭제 메뉴를 비활성화한다. */
+  canDelete?: boolean;
+  /** 문서에 직접 건 권한(edit·view). null은 상위 폴더·기본값을 따른다. */
+  permission?: "edit" | "view" | null;
   graphNodeId?: string;
   active?: boolean;
   children?: TreeItem[];

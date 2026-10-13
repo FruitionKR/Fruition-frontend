@@ -5,11 +5,13 @@ import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
+import { PermissionDialog } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { Graph } from "@/widgets/graph/ui/Graph";
 import { SkillRunCoach, SkillsView } from "@/widgets/skills-view";
 import { LogView } from "@/widgets/log-view";
 import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-view";
 import { AccessCodeSettingsPanel } from "@/features/access-code-settings";
+import { SettingsContent, SettingsNav, takeSettingsResume, type SettingsResume } from "@/features/user-settings";
 import { DocumentProcessingNotifications } from "@/features/document-notifications";
 import { railItems } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
@@ -24,6 +26,7 @@ import { useProjectTree } from "../model/useProjectTree";
 import type { DeletedTreeIds } from "../lib/deletedTreeIds";
 import { getSelectionLocation, useTreeSelection, type TreeSelectionState } from "../model/useTreeSelection";
 import {
+  getSettingsSection,
   getWorkspaceLocationKey,
   isDocumentLocation,
   WORKSPACE_HOME_LOCATION,
@@ -32,12 +35,14 @@ import {
 import { useTreeOpenState } from "../model/useTreeOpenState";
 import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graphBuilder";
+import { buildDocumentPathSuffixes } from "@/entities/graph/lib/documentLabels";
 import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
+import { isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { uploadDocumentFile } from "@/entities/document";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
@@ -61,11 +66,25 @@ import styles from "./HomeWorkspace.module.css";
 
 
 export function HomeWorkspace() {
-  const { location, locationKey, activeView, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
+  const { location, locationKey, activeView, isAccessLocked, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
     useWorkspaceNavigation();
+  // 설정에서 시작한 소셜 재로그인·워크스페이스 전환을 마치고 돌아오면 설정 화면을 떠났던 자리(탈퇴 확인·멤버 관리)로 다시 연다.
+  // 한 번 쓰고 나면 다음 열기부터는 기본 위치다.
+  const [settingsResume, setSettingsResume] = useState<SettingsResume | null>(null);
+  useEffect(() => {
+    const resume = takeSettingsResume();
+    if (!resume) return;
+    setSettingsResume(resume);
+    navigate({ kind: "view", view: "settings", section: resume === "members" ? "members" : "account" }, "replace");
+    // 마운트 때 한 번만 확인한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (activeView !== "settings") setSettingsResume(null);
+  }, [activeView]);
   const [markdownEditContext, setMarkdownEditContext] = useState<ActiveMarkdownEditContext | null>(null);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
-  // 알림 목록·읽음 상태. 다른 화면에서도 레일 알림 종의 안 읽음 점을 위해 돌린다.
+  // 알림 목록·읽음 상태. 알림 화면 탭의 안 읽음 표시에 쓴다.
   const notificationFeed = useNotificationFeed(activeView === "notifications");
   const panels = useWorkspacePanels({ activeView, locationKey });
   const { sidebarLayout, agentPanelLayout, isCompactLayout, isAgentPanelShown } = panels;
@@ -102,11 +121,21 @@ export function HomeWorkspace() {
     setFileDropTarget: projectTree.setFileDropTarget,
     refreshBackendData
   });
-  const graphData = useMemo(() => buildGraphFromBackend(graphDocuments, wikiGraph), [graphDocuments, wikiGraph]);
+  // 같은 이름의 Markdown 문서는 폴더 경로로 구분한다(#150). 그래프 라벨과 미리보기 제목이 같은 접미사를 쓴다.
+  const documentPathSuffixes = useMemo(
+    () => buildDocumentPathSuffixes(graphDocuments, projectTree.projects),
+    [graphDocuments, projectTree.projects]
+  );
+  const graphData = useMemo(
+    () => buildGraphFromBackend(graphDocuments, wikiGraph, documentPathSuffixes),
+    [graphDocuments, wikiGraph, documentPathSuffixes]
+  );
   const graphIngestProgressInputs = useMemo(() => selectGraphIngestProgressInputs(graphDocuments), [graphDocuments]);
   const selection = useTreeSelection(projectTree.projects, graphData.nodes);
   const isHomeView = activeView === "home";
   const isGraphView = activeView === "graph";
+  const isSettingsView = activeView === "settings";
+  const settingsSection = getSettingsSection(location);
   const hasSourcePreview = Boolean(selection.selectedDocumentTitle);
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
   const isDocumentMain = isHomeView && hasSourcePreview;
@@ -132,6 +161,11 @@ export function HomeWorkspace() {
     if (!selection.selectedDocumentId) return undefined;
     return documents.find((item) => item.id === selection.selectedDocumentId)?.status;
   }, [documents, selection.selectedDocumentId]);
+  // 서버 can_edit=false인 문서만 읽기 전용이다. 목록에서 아직 못 찾았거나 구 서버 응답이면 편집 가능으로 본다.
+  const isSelectedDocumentReadOnly = useMemo(
+    () => isDocumentReadOnly(documents.find((item) => item.id === selection.selectedDocumentId)),
+    [documents, selection.selectedDocumentId]
+  );
   const selectedDocumentConversion = useMemo(
     () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
@@ -330,6 +364,8 @@ export function HomeWorkspace() {
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
         canRenameContextTarget={projectTree.canRenameContextTarget}
+        canDeleteContextTarget={projectTree.canDeleteContextTarget}
+        canSetPermissionContextTarget={projectTree.canSetPermissionContextTarget}
         canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
@@ -342,7 +378,10 @@ export function HomeWorkspace() {
           onLint: () => void wikiActions.handleGraphLint()
         }}
         onViewChange={handleViewChange}
-        hasUnreadNotifications={notificationFeed.hasUnread}
+        onOpenSettings={(section) => navigate({ kind: "view", view: "settings", section })}
+        settingsNav={isSettingsView && !isAccessLocked ? (
+          <SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />
+        ) : undefined}
         isCollapsed={panels.isSidebarCollapsed}
         isOverlay={isCompactLayout}
         onCollapseSidebar={panels.collapseSidebar}
@@ -379,6 +418,7 @@ export function HomeWorkspace() {
         onCommitEditing={projectTree.commitEditing}
         onCancelEditing={projectTree.cancelEditing}
         onRenameContextTarget={projectTree.renameContextTarget}
+        onSetPermissionContextTarget={projectTree.openPermissionContextTarget}
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
@@ -425,8 +465,10 @@ export function HomeWorkspace() {
             onRenameDocument={projectTree.renameDocumentById}
             onRefreshDocuments={() => void refreshBackendData()}
             documentStatus={selectedDocumentStatus}
+            readOnly={isSelectedDocumentReadOnly}
             documentConversion={selectedDocumentConversion}
             titleHint={`${selectedDocumentParentLabel} / ${selectedDocumentLabel}`}
+            titleSuffix={selection.selectedDocumentId ? documentPathSuffixes.get(selection.selectedDocumentId) : undefined}
             fillMain
           />
         ) : (
@@ -524,8 +566,15 @@ export function HomeWorkspace() {
               navigate({ kind: "view", view: "logs" });
             }}
           />
-        ) : activeView === "settings" ? (
-          <AccessCodeSettingsPanel />
+        ) : isSettingsView ? (
+          // 접근 코드가 잠겨 있으면 개인 설정(접근 코드) 화면만, 아니면 설정 화면(Figma 1540:22452)
+          isAccessLocked ? <AccessCodeSettingsPanel /> : (
+            <SettingsContent
+              section={settingsSection}
+              resume={settingsResume}
+              onOpenSection={(section) => navigate({ kind: "view", view: "settings", section })}
+            />
+          )
         ) : (
           <section className="blank-view" aria-label={`${railItems.find((item) => item.id === activeView)?.label ?? ""} 빈 화면`} />
         )
@@ -540,13 +589,21 @@ export function HomeWorkspace() {
         />
       )}
 
-      <DocumentProcessingNotifications documents={documents} />
+      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. */}
+      {(isHomeView || isGraphView) && <DocumentProcessingNotifications documents={documents} />}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
       {projectTree.deleteConfirm && (
         <DeleteConfirmModal
           target={projectTree.deleteConfirm}
           onConfirm={projectTree.confirmDelete}
           onCancel={projectTree.cancelDelete}
+        />
+      )}
+      {projectTree.permissionTarget && (
+        <PermissionDialog
+          target={projectTree.permissionTarget}
+          onSave={projectTree.applyPermission}
+          onClose={projectTree.closePermissionDialog}
         />
       )}
       {projectTree.mergeConfirm && (

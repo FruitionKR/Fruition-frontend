@@ -1,12 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchOperationLogs } from "@/entities/operation-log";
 import { useMe } from "@/entities/user";
 import { fetchMembers } from "@/entities/workspace/api/members";
+import {
+  fetchNotifications,
+  markAllNotificationsRead as markAllServerNotificationsRead,
+  markNotificationRead as markServerNotificationRead,
+  markRead as markServerRead,
+  publishNotice,
+  type AppNotification
+} from "@/features/document-notifications";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { buildServerNotifications, parseServerNotificationId } from "../lib/serverNotificationItems";
 import {
   buildTaskNotifications,
   buildWorkspaceNotifications,
@@ -25,6 +34,8 @@ const TASK_PAGE_SIZE = 30;
 const TASK_POLL_ACTIVE_MS = 5_000;
 const TASK_POLL_IDLE_MS = 30_000;
 const MEMBER_POLL_MS = 60_000;
+/** 서버 앱 안 알림(편집 충돌 등록·해결) 최근 개수. 1~100 */
+const SERVER_NOTIFICATION_LIMIT = 50;
 
 function readStoredState(key: string): NotificationReadState | null {
   try {
@@ -44,14 +55,17 @@ function writeStoredState(key: string, state: NotificationReadState) {
 
 /**
  * 알림 목록(워크스페이스·작업)과 읽음 상태.
- * 백엔드에 알림 피드·읽음 API가 없어 작업 로그·멤버 목록으로 목록을 만들고,
+ * 작업 로그·멤버 참여에는 알림 피드·읽음 API가 없어 그 목록으로 알림을 만들고,
  * 읽음은 사용자·워크스페이스별 localStorage에 "마지막으로 모두 읽은 시각 + 개별 읽은 id"로 둔다.
  * 처음 쓰는 브라우저는 받은 목록의 가장 최근 시각을 기준점으로 삼아 과거 이력 전체가 안 읽음으로 뜨지 않게 한다.
+ * 서버 앱 안 알림(편집 충돌 등록·해결)은 워크스페이스 탭에 함께 보여 주되, 읽음 상태는 서버 값을 쓰고 읽음 처리도 서버로 보낸다.
  */
 export function useNotificationFeed(isViewActive: boolean) {
   const { data: me } = useMe();
+  const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const storageKey = me?.id && workspaceId ? readStateStorageKey(me.id, workspaceId) : null;
+  const serverQueryKey = useMemo(() => ["app-notifications", workspaceId] as const, [workspaceId]);
 
   const tasksQuery = useQuery({
     queryKey: ["notification-operation-logs", workspaceId],
@@ -69,13 +83,28 @@ export function useNotificationFeed(isViewActive: boolean) {
     retry: false
   });
 
+  // 서버 앱 안 알림. 구 서버(404)·일시 실패는 멤버 알림까지 가리지 않도록 오류를 탭에 띄우지 않고 다음 폴링을 기다린다.
+  const serverQuery = useQuery({
+    queryKey: serverQueryKey,
+    queryFn: () => fetchNotifications({ limit: SERVER_NOTIFICATION_LIMIT }),
+    enabled: Boolean(workspaceId),
+    refetchInterval: isViewActive ? TASK_POLL_ACTIVE_MS : TASK_POLL_IDLE_MS,
+    retry: false
+  });
+
   const taskItems = useMemo(() => buildTaskNotifications(tasksQuery.data?.logs ?? []), [tasksQuery.data]);
-  const workspaceItems = useMemo(
+  // 브라우저 읽음 기록을 쓰는 알림(멤버 참여). 서버 알림은 읽음을 서버가 가지므로 기준점 계산에 넣지 않는다.
+  const memberItems = useMemo(
     () => buildWorkspaceNotifications(membersQuery.data ?? [], me?.id ?? null),
     [membersQuery.data, me?.id]
   );
+  const serverItems = useMemo(() => buildServerNotifications(serverQuery.data ?? []), [serverQuery.data]);
+  const workspaceItems = useMemo(
+    () => [...memberItems, ...serverItems].sort((a, b) => b.occurredAt - a.occurredAt),
+    [memberItems, serverItems]
+  );
 
-  const allItems = useMemo(() => [...workspaceItems, ...taskItems], [taskItems, workspaceItems]);
+  const allItems = useMemo(() => [...memberItems, ...taskItems], [memberItems, taskItems]);
 
   // 읽음 상태를 저장 키와 함께 둔다. 워크스페이스를 바꾼 직후 한 렌더 동안 이전 워크스페이스 상태가 섞이지 않게 한다.
   const [stored, setStored] = useState<{ key: string; state: NotificationReadState | null } | null>(null);
@@ -110,8 +139,11 @@ export function useNotificationFeed(isViewActive: boolean) {
     });
   }, [storageKey]);
 
+  // 서버 알림은 브라우저 읽음 기록을 아직 못 읽었어도 서버 값으로 바로 판단한다.
   const isUnread = useCallback(
-    (item: NotificationItem) => (readState ? isNotificationUnread(item, readState) : false),
+    (item: NotificationItem) => (
+      item.serverRead !== undefined || readState ? isNotificationUnread(item, readState ?? { lastReadAt: 0, readIds: [] }) : false
+    ),
     [readState]
   );
 
@@ -119,14 +151,31 @@ export function useNotificationFeed(isViewActive: boolean) {
   const hasUnreadTask = taskItems.some(isUnread);
   const hasUnread = hasUnreadWorkspace || hasUnreadTask;
 
+  /** 서버 알림 읽음 처리. 성공하면 캐시만 갱신하고, 실패하면 목록은 그대로 두고 카드로 알린다. */
+  const readOnServer = useCallback(async (ids: string[] | null) => {
+    try {
+      if (ids) await Promise.all(ids.map((id) => markServerNotificationRead(id)));
+      else await markAllServerNotificationsRead();
+      queryClient.setQueryData<AppNotification[]>(serverQueryKey, (current) => markServerRead(current ?? [], ids));
+    } catch (error) {
+      publishNotice({ kind: "failed", title: "알림 읽음 처리 실패", message: getErrorMessage(error, "알림을 읽음 처리하지 못했습니다.") });
+    }
+  }, [queryClient, serverQueryKey]);
+
   const markRead = useCallback((id: string) => {
+    const serverId = parseServerNotificationId(id);
+    if (serverId) {
+      if (serverItems.some((item) => item.id === id && item.serverRead === false)) void readOnServer([serverId]);
+      return;
+    }
     updateReadState((current) => markNotificationRead(current, id));
-  }, [updateReadState]);
+  }, [readOnServer, serverItems, updateReadState]);
 
   const markAllRead = useCallback(() => {
     // 서버 시각 기준으로 올린다. 브라우저 시각을 쓰면 시계가 빠를 때 그 사이 새 알림이 읽음으로 묻힌다.
     updateReadState((current) => markAllNotificationsRead(allItems, current.lastReadAt));
-  }, [allItems, updateReadState]);
+    if (serverItems.some((item) => item.serverRead === false)) void readOnServer(null);
+  }, [allItems, readOnServer, serverItems, updateReadState]);
 
   return {
     workspace: {

@@ -76,9 +76,10 @@ export function registerChatRoutes(router) {
     if (!workspace) return;
     const session = requireSession(ctx, workspace);
     if (!session) return;
-    const { selection_mode, pair_ids } = await ctx.body();
-    const messages = state.chatMessages.filter((message) => message.session_id === session.id
-      && (selection_mode !== "partial" || (pair_ids ?? []).includes(message.pair_id)));
+    // 실제 ChatWikiExportRequest는 pair_ids만 받고, 비어 있으면 400이다(세션 전체도 모든 pair id를 담아 보낸다).
+    const { pair_ids } = await ctx.body();
+    if (!Array.isArray(pair_ids) || pair_ids.length === 0) return error(ctx, 400, "내보낼 문답(pair_ids)을 지정해야 합니다.");
+    const messages = state.chatMessages.filter((message) => message.session_id === session.id && pair_ids.includes(message.pair_id));
     if (messages.length === 0) return error(ctx, 400, "편입할 문답이 없습니다.");
     const body = messages.map((message) => `## ${message.role === "user" ? "질문" : "답변"}\n\n${message.content}\n`).join("\n");
     const markdown = `<!-- fruition-note: chat-export ${session.id} -->\n# ${session.title ?? "채팅 내보내기"}\n\n${body}`;
