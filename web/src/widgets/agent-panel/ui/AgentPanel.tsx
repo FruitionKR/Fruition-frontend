@@ -45,6 +45,7 @@ export function AgentPanel({
   composerDraft,
   wikiEvidenceNotice,
   onMeetingNotesSaved,
+  onMeetingActiveChange,
   isShown = true
 }: {
   onClose: () => void;
@@ -65,6 +66,8 @@ export function AgentPanel({
   } | null;
   /** 회의록을 문서로 저장했다(#148). 문서 목록을 새로 받고 그 문서를 연다. */
   onMeetingNotesSaved?: (documentId: string) => Promise<void> | void;
+  /** 회의 화면이 열려 있는지(#148). 열려 있는 동안 화면은 패널을 닫아도 마운트해 두어 회의·회의록을 잃지 않는다. */
+  onMeetingActiveChange?: (isActive: boolean) => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -75,6 +78,16 @@ export function AgentPanel({
     onDocumentSaved: onMeetingNotesSaved
   });
   const isMeetingViewOpen = meeting.phase !== "idle";
+  useEffect(() => {
+    onMeetingActiveChange?.(isMeetingViewOpen);
+  }, [isMeetingViewOpen, onMeetingActiveChange]);
+  // 패널이 화면에서 사라지면(숨기기·패널 없는 화면) 보이지 않는 채 마이크·과금이 이어지지 않도록 받아쓰기를 정상 종료한다.
+  // 남은 구간을 저장하고 회의록을 이어서 만들므로 패널을 다시 열면 결과가 보인다.
+  const isMeetingCapturing = isCapturingPhase(meeting.phase);
+  const stopMeeting = meeting.stop;
+  useEffect(() => {
+    if (!isShown && isMeetingCapturing) stopMeeting();
+  }, [isMeetingCapturing, isShown, stopMeeting]);
   const isChatVisible = activeView === "chat" && !isMeetingViewOpen;
   const [composerValue, setComposerValue] = useState("");
   const restoreComposerQuestion = useCallback((question: string) => {
