@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { hasOAuthLinkResult, useMe } from "@/entities/user";
+import { UserAvatar, hasOAuthLinkResult, useMe } from "@/entities/user";
 import { RailButton } from "@/widgets/rail-navigation/ui/RailNavigation";
+import railStyles from "@/widgets/rail-navigation/ui/RailNavigation.module.css";
 import { RailSettingIcon, RailUserIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import type { SettingsSection } from "@/widgets/workspace/lib/workspaceLocation";
 
@@ -49,7 +50,8 @@ export function SidebarProfile({
           onOpenSettings("profile");
         }}
       >
-        <RailUserIcon />
+        {/* 프로필 사진이 있으면 사진, 없으면 기본 사용자 아이콘 */}
+        {me?.avatar_url ? <UserAvatar avatarUrl={me.avatar_url} name={name} className={railStyles["rail-avatar"]} /> : <RailUserIcon />}
       </RailButton>
     </>
   );

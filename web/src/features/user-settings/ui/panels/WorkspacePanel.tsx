@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { getProviderLabel, isSameSelection, type AiModel, type AiModelSelection } from "@/entities/ai";
-import { renameWorkspace } from "@/entities/workspace";
+import { renameWorkspace, updateWorkspaceAutoIngest, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
+import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
@@ -50,6 +51,29 @@ export function WorkspacePanel({
   const [nameInput, setNameInput] = useState(wsName);
   const [isNameSaving, setIsNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+
+  // 업로드 자동 편입 설정(access #32). 워크스페이스 목록 응답의 값을 보여 주고, OWNER만 바꾼다.
+  const workspace = useSelectedWorkspace();
+  const { isOwner } = useWorkspaceRole();
+  const autoIngestOnUpload = workspace?.auto_ingest_on_upload === true;
+  const [isAutoIngestSaving, setIsAutoIngestSaving] = useState(false);
+  const [autoIngestError, setAutoIngestError] = useState<string | null>(null);
+
+  async function toggleAutoIngest() {
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId || !isOwner || isAutoIngestSaving) return;
+    setIsAutoIngestSaving(true);
+    setAutoIngestError(null);
+    try {
+      await updateWorkspaceAutoIngest(workspaceId, !autoIngestOnUpload);
+      // useSelectedWorkspace가 새 설정값을 읽도록 목록 캐시를 무효화한다.
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    } catch (error: unknown) {
+      setAutoIngestError(getErrorMessage(error, "자동 편입 설정을 변경하지 못했습니다."));
+    } finally {
+      setIsAutoIngestSaving(false);
+    }
+  }
 
   // 워크스페이스 목록이 늦게 로드되면 초기값을 따라잡는다(사용자가 편집 중이 아닐 때만).
   useEffect(() => {
@@ -124,6 +148,32 @@ export function WorkspacePanel({
       <div className={styles.section}>
         <SettingsSectionHeader>워크스페이스 아이콘</SettingsSectionHeader>
         <WorkspaceIconSettings />
+      </div>
+
+      <div className={styles.section}>
+        <SettingsSectionHeader>위키 자동 편입</SettingsSectionHeader>
+        <div className={styles.row}>
+          <div className={styles["row-title"]}>
+            <strong>업로드한 문서를 자동으로 위키에 편입</strong>
+            <small>
+              문서를 올리면 변환 뒤 바로 팀 위키에 편입합니다. 편입은 LLM 비용이 들고,
+              멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버가 올린 문서에만 적용됩니다.
+            </small>
+            {!isOwner && <small className={styles["provider-readonly"]}>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
+            {autoIngestError && (
+              <small className={styles["model-error"]} role="alert">
+                {autoIngestError}
+              </small>
+            )}
+          </div>
+          <Switch
+            checked={autoIngestOnUpload}
+            label="업로드한 문서를 자동으로 위키에 편입"
+            // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 isAutoIngestSaving 검사가 막는다.
+            disabled={!isOwner || !workspace}
+            onClick={() => void toggleAutoIngest()}
+          />
+        </div>
       </div>
 
       <div className={styles.section}>

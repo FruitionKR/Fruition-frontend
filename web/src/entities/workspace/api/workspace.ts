@@ -16,6 +16,16 @@ export async function renameWorkspace(workspaceId: string, name: string): Promis
   return parseJsonOrThrow<WorkspaceResponse>(response, "워크스페이스 이름을 변경하지 못했습니다.");
 }
 
+/** 업로드 자동 편입 설정을 바꾼다. OWNER만 가능하고, 그 외에는 이름 변경과 같은 규칙으로 404다. */
+export async function updateWorkspaceAutoIngest(workspaceId: string, enabled: boolean): Promise<WorkspaceResponse> {
+  const response = await apiFetch(workspacePath(workspaceId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auto_ingest_on_upload: enabled })
+  });
+  return parseJsonOrThrow<WorkspaceResponse>(response, "자동 편입 설정을 변경하지 못했습니다.");
+}
+
 /** 워크스페이스를 삭제한다. OWNER만 가능하다. */
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
   const response = await apiFetch(workspacePath(workspaceId), {

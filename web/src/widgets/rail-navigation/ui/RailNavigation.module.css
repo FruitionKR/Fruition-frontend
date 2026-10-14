@@ -74,6 +74,21 @@
   flex: 0 0 auto;
 }
 
+/* 프로필 버튼의 사진. 기본 사용자 아이콘(24.6px)과 같은 자리·크기다. */
+.rail-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .rail-button:hover,
 .rail-button:focus-visible,
 .rail-button.is-active,

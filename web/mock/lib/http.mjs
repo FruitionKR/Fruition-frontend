@@ -57,7 +57,8 @@ const AI_ENTRY_PATHS = [
   /\/wiki\/maintenance\/lint$/,
   /\/wiki\/pages\/[^/]+\/content$/,
   /\/skills\/author(\/publish)?$/,
-  /\/skills\/[^/]+$/
+  /\/skills\/[^/]+$/,
+  /\/speech\/synthesis$/
 ];
 
 function rejectForInsufficientCredit(ctx) {
@@ -139,9 +140,9 @@ function createContext(req, res, url, state, port) {
       res.end(body);
       log(ctx);
     },
-    bytes(status, buffer, contentType) {
+    bytes(status, buffer, contentType, headers = {}) {
       ctx.status = status;
-      res.writeHead(status, { "Content-Type": contentType, "Content-Length": buffer.length });
+      res.writeHead(status, { "Content-Type": contentType, "Content-Length": buffer.length, ...headers });
       res.end(buffer);
       log(ctx);
     },
@@ -154,6 +155,20 @@ function createContext(req, res, url, state, port) {
     setCookie(name, value, maxAgeSeconds) {
       const parts = [`${name}=${value}`, "Path=/", "HttpOnly", "SameSite=Lax", `Max-Age=${maxAgeSeconds}`];
       res.setHeader("Set-Cookie", parts.join("; "));
+    },
+    /** NDJSON 스트림을 연다. 반환된 send(data)로 JSON 한 줄을 보내고 close()로 닫는다. */
+    ndjson() {
+      ctx.streaming = true;
+      ctx.status = 200;
+      res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" });
+      log(ctx);
+      return {
+        send(data) {
+          if (!res.writableEnded) res.write(`${JSON.stringify(data)}\n`);
+        },
+        close() { if (!res.writableEnded) res.end(); },
+        closed: () => res.writableEnded || res.destroyed
+      };
     },
     /** SSE 스트림을 연다. 반환된 send(event, data)/close()로 프레임을 보낸다. */
     sse() {

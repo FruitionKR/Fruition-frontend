@@ -1,3 +1,4 @@
+import { Loader2, Square, Volume2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
@@ -11,6 +12,7 @@ import { formatAnswerMarkdown } from "../lib/answerMarkdown";
 import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
 import { buildSourceDocumentCards, sourceTitle } from "../lib/relatedPageCards";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
+import type { SpeechPlaybackState } from "../model/useSpeechPlayback";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import { cx } from "@/shared/lib/classNames";
@@ -26,19 +28,30 @@ export function AssistantThread({
   isAnimated,
   visibleAnswerStage,
   nodes,
-  onOpenSourceBlocks
+  onOpenSourceBlocks,
+  speechPlayback = null,
+  speechErrorMessage = null,
+  onToggleSpeech
 }: {
   message: ChatMessageResponse;
   isAnimated: boolean;
   visibleAnswerStage: number;
   nodes?: GraphNode[];
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
+  /** 지금 듣고 있는 답변(#149). 이 메시지가 아니면 버튼은 "듣기" 상태다. */
+  speechPlayback?: SpeechPlaybackState;
+  /** 이 메시지의 음성 재생 실패 안내. */
+  speechErrorMessage?: string | null;
+  onToggleSpeech?: (messageId: string) => void;
 }) {
   const presentation = resolveChatTurnPresentation(message.action);
   const isWorkspacePlan = isWorkspacePlanAction(message.action);
   const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
+  // 완료된 답변만 서버가 음성으로 만든다(진행 중·실패는 409). 계획 패널은 읽을 본문이 없다.
+  const canListen = Boolean(onToggleSpeech) && message.status === "completed" && !isWorkspacePlan;
+  const speechStatus = speechPlayback?.messageId === message.id ? speechPlayback.status : null;
   const resultCards = buildSourceDocumentCards(message, nodes);
   const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
   // 본문의 숫자 괄호는 모두 이 rank일 때만 citation이 된다(숫자 배열 오인 방지).
@@ -110,6 +123,26 @@ export function AssistantThread({
             citationRankMap={citationRankMap}
             citableRanks={citableRanks}
           />}
+          {canListen && (
+            <div className={styles["answer-actions"]}>
+              <button
+                type="button"
+                className={cx(styles["answer-listen"], speechStatus && styles["is-active"])}
+                aria-label={speechStatus ? "음성 멈추기" : "답변 듣기"}
+                aria-pressed={speechStatus !== null}
+                aria-busy={speechStatus === "loading" || undefined}
+                onClick={() => onToggleSpeech?.(message.id)}
+              >
+                {speechStatus === "loading"
+                  ? <Loader2 size={14} aria-hidden className={styles["is-spinning"]} />
+                  : speechStatus === "playing"
+                    ? <Square size={11} aria-hidden />
+                    : <Volume2 size={14} aria-hidden />}
+                <span>{speechStatus === "loading" ? "음성 준비 중" : speechStatus === "playing" ? "멈추기" : "듣기"}</span>
+              </button>
+            </div>
+          )}
+          {speechErrorMessage && <p className={styles["speech-error"]} role="alert">{speechErrorMessage}</p>}
         </section>
       )}
     </div>

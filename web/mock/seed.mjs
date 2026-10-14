@@ -145,7 +145,7 @@ export function seed() {
   );
   state.members.push(
     { workspace_id: WORKSPACE_ID, user_id: USER_ID, role: "OWNER", joined_at: minutesAgo(60 * 24 * 30) },
-    { workspace_id: WORKSPACE_ID, user_id: MEMBER_ID, role: "MEMBER", joined_at: minutesAgo(60 * 24 * 15) },
+    { workspace_id: WORKSPACE_ID, user_id: MEMBER_ID, role: "MEMBER", permissions: ["wiki.ingest"], joined_at: minutesAgo(60 * 24 * 15) },
     { workspace_id: "ws_research", user_id: USER_ID, role: "OWNER", joined_at: minutesAgo(60 * 24 * 10) }
   );
 
