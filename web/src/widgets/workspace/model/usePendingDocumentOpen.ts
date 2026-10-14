@@ -64,9 +64,14 @@ export function usePendingDocumentOpen({
   }, [documents, pendingConvertDocumentIds, projects, selection]);
 
   async function handleChatDocumentExported(response: ChatWikiExportResponse) {
-    setPendingExportDocumentId(response.exportDocumentId);
+    await openSavedDocument(response.exportDocumentId);
+  }
+
+  /** 채팅 패널이 서버에 만든·고친 문서(채팅 편입 결과, 회의록 저장 #148)를 목록을 새로 받은 뒤 연다. */
+  async function openSavedDocument(documentId: string) {
+    setPendingExportDocumentId(documentId);
     await refreshBackendData({ throwOnError: true });
   }
 
-  return { handleChatDocumentExported };
+  return { handleChatDocumentExported, openSavedDocument };
 }
