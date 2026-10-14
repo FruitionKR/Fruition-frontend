@@ -162,7 +162,7 @@ function OperationDetailBody({
 }) {
   if (errorMessage) return <p className={styles["detail-notice"]} role="alert">{errorMessage}</p>;
   if (!detail) return <p className={styles["detail-notice"]}>로그 불러오는 중…</p>;
-  const isWikiOperation = detail.operation_type === "ingest" || detail.operation_type === "lint";
+  const isWikiOperation = detail.operation_type === "ingest" || detail.operation_type === "lint" || detail.operation_type === "wiki_edit";
   if (detail.changes.length === 0) {
     return (
       <p className={styles["detail-notice"]}>
@@ -251,8 +251,10 @@ export function LogView({
   const description = detail
     ? formatOperationLogDescription(detail, documentTitle)
     : "";
+  // 위키 직접 편집(wiki_edit)은 서버가 되돌리기를 지원하지 않는다(400, document #130).
   const canRestore = detail != null
     && detail.operation_type !== "restore"
+    && detail.operation_type !== "wiki_edit"
     && (detail.status === "succeeded" || detail.status === "partially_succeeded")
     && !restoredOperationIds.has(detail.operation_id)
     && !locallyRestoredOperationIds.has(detail.operation_id);

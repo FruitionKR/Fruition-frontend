@@ -92,8 +92,25 @@ export type WikiPageDetailResponse = {
   markdown_uri?: string;
   markdown?: string;
   status: string;
+  /** 이 페이지의 현재 revision(document #84). 버전 이력이 없으면 키가 빠지며 저장 시 0으로 본다. */
+  revision?: number;
+  updated_at?: string;
   source_documents: WikiPageSourceDocument[];
   related_pages: WikiPageRelatedPage[];
+};
+
+/** PUT /wiki/pages/{id}/content 요청(document #130). revision_write_id는 같은 저장의 재시도에 그대로 쓴다. */
+export type WikiPageContentSaveRequest = {
+  markdown: string;
+  base_revision: number;
+  revision_write_id: string;
+};
+
+export type WikiPageContentSaveResponse = {
+  page_id: string;
+  revision: number;
+  updated_at: string;
+  markdown: string;
 };
 
 export type GraphNode = {

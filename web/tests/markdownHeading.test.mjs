@@ -30,8 +30,13 @@ test("바꿔 끼우는 commonmark 기본 제목 규칙의 패턴이 그대로다
 });
 
 test("슬래시 메뉴에서 제목 4·5·6을 뺀다", async () => {
-  const source = await readFile(new URL("../src/features/note-editing/ui/NoteEditor.tsx", import.meta.url), "utf8");
-  assert.match(source, /h4: null,\s*h5: null,\s*h6: null,/);
-  assert.match(source, /\.use\(cappedHeadingInputRule\)/);
-  assert.match(source, /disableSmallHeadingShortcuts\(ctx\)/);
+  // 메뉴 라벨은 노트·위키 페이지 편집기가 함께 쓰는 slashMenuLabels.ts에 있다.
+  const labels = await readFile(new URL("../src/features/note-editing/model/slashMenuLabels.ts", import.meta.url), "utf8");
+  assert.match(labels, /h4: null,\s*h5: null,\s*h6: null,/);
+  for (const editor of ["../src/features/note-editing/ui/NoteEditor.tsx", "../src/features/wiki-page-editing/ui/WikiPageEditor.tsx"]) {
+    const source = await readFile(new URL(editor, import.meta.url), "utf8");
+    assert.match(source, /\.\.\.SLASH_MENU_LABELS/);
+    assert.match(source, /\.use\(cappedHeadingInputRule\)/);
+    assert.match(source, /disableSmallHeadingShortcuts\(ctx\)/);
+  }
 });

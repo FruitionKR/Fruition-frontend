@@ -1,0 +1,96 @@
+/* 위키 페이지 본문의 보기/편집 전환. 저장 상태 줄은 source-preview의 controls 줄과 같은 자리를 쓴다. */
+
+.wiki-page-actions {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -12px 0 18px;
+}
+
+.wiki-page-actions > button {
+  padding: 5px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.wiki-page-actions > button:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+}
+
+.wiki-page-actions > button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.wiki-page-actions > button:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+
+.wiki-page-actions > button.is-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.wiki-page-actions > button.is-primary:hover:not(:disabled) {
+  background: var(--color-primary-default, var(--color-primary));
+}
+
+.wiki-page-actions > button.is-primary:disabled {
+  opacity: 0.6;
+  color: var(--color-on-primary);
+}
+
+.wiki-page-status {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+/* 권한이 없을 때 비활성 버튼 옆에 이유를 둔다 */
+.wiki-page-hint {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+/* 저장 실패·충돌 안내. 노트 편집기의 잠금 안내와 같은 톤 */
+.wiki-page-notice {
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-danger-weak);
+  color: var(--color-danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* 충돌 비교: 최신 서버 본문을 접어서 보여 준다. 내 편집은 아래 편집기에 그대로 남는다 */
+.wiki-page-latest {
+  width: 100%;
+  margin: 0 0 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.wiki-page-latest > summary {
+  padding: 8px 12px;
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wiki-page-latest > div {
+  padding: 0 16px 8px;
+  border-top: 1px solid var(--color-border);
+}

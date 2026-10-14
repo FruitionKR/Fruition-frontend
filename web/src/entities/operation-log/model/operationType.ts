@@ -5,7 +5,8 @@ export const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
   document_edit: "AI 편집 반영",
   ingest: "위키 편입",
   lint: "Lint",
-  restore: "롤백"
+  restore: "롤백",
+  wiki_edit: "위키 직접 편집"
 };
 
 /** Ingest는 작업 종류 대신 시작 시점의 문서 이름을 제목으로 쓴다. */
