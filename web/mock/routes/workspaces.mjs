@@ -2,9 +2,12 @@
 import { state, now, id, error, requireWorkspace, avatarUrlOf } from "../state.mjs";
 import { FREE_WORKSPACE_LIMIT, freeWorkspaceCount, storageOf } from "../lib/limits.mjs";
 
+// access #32: 멤버 권한 항목. OWNER는 항상 전부, MEMBER는 OWNER가 부여한 항목만.
+const WORKSPACE_PERMISSIONS = ["wiki.ingest", "wiki.lint", "skill.author", "wiki.restore", "document.convert"];
+
 function toWorkspace(workspace) {
   const { id: wid, name, icon_emoji, icon_url, created_at, updated_at } = workspace;
-  return { id: wid, name, icon_emoji, icon_url, created_at, updated_at };
+  return { id: wid, name, icon_emoji, icon_url, auto_ingest_on_upload: workspace.auto_ingest_on_upload === true, created_at, updated_at };
 }
 
 function toMember(member) {
@@ -16,6 +19,7 @@ function toMember(member) {
     avatar_url: avatarUrlOf(user),
     provider: user?.provider ?? "email",
     role: member.role,
+    permissions: member.role === "OWNER" ? [...WORKSPACE_PERMISSIONS] : [...(member.permissions ?? [])].sort(),
     joined_at: member.joined_at
   };
 }
@@ -45,7 +49,7 @@ export function registerWorkspaceRoutes(router) {
     const timestamp = now();
     const workspace = {
       id: id("ws"), name: name.trim(), icon_emoji: null, icon_url: null, icon_image: null, owner_id: ctx.user.id,
-      created_at: timestamp, updated_at: timestamp,
+      auto_ingest_on_upload: false, created_at: timestamp, updated_at: timestamp,
       ai_model_settings: { ...state.aiModels[0] },
       maintenance: { needs_lint: false, last_lint_at: null, last_wiki_change_at: null }
     };
@@ -64,8 +68,15 @@ export function registerWorkspaceRoutes(router) {
   router.patch("/api/workspaces/:wid", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    const { name } = await ctx.body();
-    if (typeof name === "string" && name.trim()) workspace.name = name.trim();
+    const { name, auto_ingest_on_upload } = await ctx.body();
+    const hasName = typeof name === "string" && name.trim();
+    const hasAutoIngest = typeof auto_ingest_on_upload === "boolean";
+    if (!hasName && !hasAutoIngest) return error(ctx, 400, "요청 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    // access는 소유자가 아니면 이름 변경과 같은 규칙으로 404를 준다.
+    const caller = state.members.find((item) => item.workspace_id === workspace.id && item.user_id === ctx.user.id);
+    if (caller?.role !== "OWNER") return error(ctx, 404, "워크스페이스를 찾을 수 없습니다.", "WORKSPACE_NOT_FOUND");
+    if (hasName) workspace.name = name.trim();
+    if (hasAutoIngest) workspace.auto_ingest_on_upload = auto_ingest_on_upload;
     workspace.updated_at = now();
     ctx.json(200, toWorkspace(workspace));
   });
@@ -121,9 +132,21 @@ export function registerWorkspaceRoutes(router) {
     if (!workspace || !requireOwner(ctx, workspace)) return;
     const member = state.members.find((item) => item.workspace_id === workspace.id && item.user_id === ctx.params.uid);
     if (!member) return error(ctx, 404, "멤버를 찾을 수 없습니다.");
-    const { role } = await ctx.body();
-    if (role !== "OWNER" && role !== "MEMBER") return error(ctx, 400, "역할 값이 올바르지 않습니다.");
-    member.role = role;
+    const { role, permissions } = await ctx.body();
+    const hasRole = role !== undefined;
+    const hasPermissions = permissions !== undefined;
+    if (!hasRole && !hasPermissions) return error(ctx, 400, "요청 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    if (hasRole && role !== "OWNER" && role !== "MEMBER") return error(ctx, 400, "역할 값이 올바르지 않습니다.", "INVALID_REQUEST");
+    if (hasPermissions) {
+      const isValid = Array.isArray(permissions)
+        && permissions.every((item) => WORKSPACE_PERMISSIONS.includes(item))
+        && new Set(permissions).size === permissions.length;
+      if (!isValid) return error(ctx, 400, "알 수 없거나 중복된 권한 항목입니다.", "INVALID_REQUEST");
+      // 결과 역할이 OWNER면 권한은 항상 전부라 바꿀 수 없다.
+      if ((hasRole ? role : member.role) === "OWNER") return error(ctx, 400, "OWNER의 권한 항목은 바꿀 수 없습니다.", "OWNER_PERMISSIONS_FIXED");
+    }
+    if (hasRole) member.role = role;
+    if (hasPermissions) member.permissions = [...permissions];
     ctx.json(200, toMember(member));
   });
 
