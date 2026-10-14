@@ -74,6 +74,14 @@
   outline-offset: 3px;
 }
 
+/* 하단 약관·운영자 정보(이슈 #130)는 히어로와 같은 폭으로 맞춘다. */
+.landing-page :global(.legal-footer) {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-bottom: 32px;
+  color: #94a3b8;
+}
+
 @media (max-width: 640px) {
   .landing-page {
     padding: 0 24px;
