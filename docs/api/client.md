@@ -3,11 +3,11 @@
 [API 배선 문서](README.md)
 
 소비 API 표의 "경로 생성"·"비고" 열이 가리키는 공통 규칙을 한곳에 모았다. 구현은
-`src/shared/api/client.ts`, `src/shared/api/documentTransport.ts`, `src/shared/api/assets.ts`다.
+`web/src/shared/api/client.ts`, `web/src/shared/api/documentTransport.ts`, `web/src/shared/api/assets.ts`다.
 
 ## apiFetch
 
-`apiFetch(path, init)` — `src/shared/api/client.ts`
+`apiFetch(path, init)` — `web/src/shared/api/client.ts`
 
 1. `usesDocumentTransport(path)`가 참이고 브라우저 환경이면 `getDocumentTransport()`로 받은
    오리진을 경로 앞에 붙이고 `credentials: "omit"`으로 바꾼다.
@@ -55,7 +55,7 @@
 
 ## 직접 전송 경로
 
-`usesDocumentTransport(path)` — `src/shared/api/documentTransport.ts`
+`usesDocumentTransport(path)` — `web/src/shared/api/documentTransport.ts`
 
 ```
 /^\/api\/workspaces\/[^/]+\/(?:documents|document-tree|folders|agent|chat|skills)(?:\/|$)/
@@ -90,8 +90,8 @@ multipart 업로드 등록은 재시도에서도 **같은 키**를 재사용해 
 | 편집기 상태의 `content_version` | 본문 저장 |
 
 `409`를 전용 오류 타입으로 바꾸는 지점: `NoteContentConflictError`
-(`src/features/note-editing/api/note.ts`),
-`DocumentNameConflictError`(`src/entities/document/api/document.ts`, 서버 호출 전 클라이언트 선점 검사).
+(`web/src/features/note-editing/api/note.ts`),
+`DocumentNameConflictError`(`web/src/entities/document/api/document.ts`, 서버 호출 전 클라이언트 선점 검사).
 
 ## 오류 처리
 
@@ -100,7 +100,7 @@ multipart 업로드 등록은 재시도에서도 **같은 키**를 재사용해 
   FastAPI 형식을 모두 받아들인다.
 - `throwIfNotOk(response, fallback)` — 본문이 필요 없는 요청.
 - `parseJsonOrThrow<T>(response, fallback)` — JSON 본문이 필요한 요청.
-- `ERROR_MESSAGES` — 사용자에게 보이는 한국어 기본 메시지 상수(27개).
+- `ERROR_MESSAGES` — 사용자에게 보이는 한국어 기본 메시지 상수(28개).
 
 HTTP 상태 코드별 분기는 backend 명세가 소유하고, 이 저장소는 위 세 헬퍼로 묶어 처리한다.
 예외적으로 상태 코드를 직접 보는 지점은 `404`(노트 draft 없음 → `null`),
@@ -108,7 +108,7 @@ HTTP 상태 코드별 분기는 backend 명세가 소유하고, 이 저장소는
 
 ## 관리 이미지
 
-`src/shared/api/assets.ts`는 `/api/workspaces/{workspace_id}/assets/{asset_id}/content` 형태의
+`web/src/shared/api/assets.ts`는 `/api/workspaces/{workspace_id}/assets/{asset_id}/content` 형태의
 경로만 `apiFetch`로 받아 object URL로 바꾼다. 일반 `<img src>`는 Bearer를 붙일 수 없어 `401`이
 되기 때문이다. 경로는 backend가 본문 저장 응답에서 치환해 돌려주는 값이며, 이 저장소는
 `MANAGED_ASSET_PATH` 정규식으로 판정만 한다. acquire/release 참조 계수로 object URL을 revoke한다.
@@ -117,6 +117,6 @@ HTTP 상태 코드별 분기는 backend 명세가 소유하고, 이 저장소는
 
 Authorization 헤더가 필요해 `EventSource`를 쓸 수 없다. `Accept: text/event-stream`을 붙인
 `apiFetch`로 응답 본문 스트림을 직접 읽고, 공통 파서 `readRunEvents`
-(`src/shared/lib/runEvents.ts`)가 단계 이벤트와 종료 상태를 해석한다. 종료 후에는 상태 조회
+(`web/src/shared/lib/runEventStream.ts`)가 단계 이벤트와 종료 상태를 해석한다. 종료 후에는 상태 조회
 API를 한 번 더 불러 최종 결과를 확정한다. 이 패턴을 쓰는 호출은 두 곳이다
 ([ai-agent.md](consumed/ai-agent.md)).

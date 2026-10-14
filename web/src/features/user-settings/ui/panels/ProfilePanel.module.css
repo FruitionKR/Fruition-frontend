@@ -1,0 +1,82 @@
+/* 프로필 설정 패널 전용 스타일. 행·필드·섹션은 SettingsModal.module.css를 쓴다. */
+
+/* 프로필 사진: 64px 사진·이니셜 상자 + 안내·버튼. 설정 메뉴의 24px 아바타(.nav-avatar)를 키운 모양이다. */
+.photo {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+/* 상자 자체가 파일 선택 버튼이다(워크스페이스 아이콘 설정과 같다). */
+.avatar-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.avatar-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.avatar-button:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: 2px;
+}
+
+.photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.photo-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.photo-button {
+  padding: 6px 12px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photo-button:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.photo-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.photo-note {
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
