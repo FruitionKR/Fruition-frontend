@@ -100,6 +100,22 @@ export async function saveSyncContent(
   return { revision: saved.current_version, updatedAt: saved.updated_at };
 }
 
+/**
+ * 저장이 버전 충돌로 막힌 본문을 서버에 충돌로 등록해 OWNER가 고르게 한다(document#76).
+ * 같은 client_conflict_id로 다시 보내면 서버가 기존 충돌을 돌려준다.
+ */
+export async function registerSyncConflict(
+  workspaceId: string,
+  documentId: string,
+  conflict: { markdown: string; baseRevision: number; clientConflictId: string }
+): Promise<{ id: string }> {
+  const response = await apiFetch(
+    workspacePath(workspaceId, "documents", documentId, "conflicts"),
+    jsonInit("POST", { markdown: conflict.markdown, base_revision: conflict.baseRevision, client_conflict_id: conflict.clientConflictId })
+  );
+  return parseJsonOrThrow<{ id: string }>(response, FAILED);
+}
+
 /** 큰 PDF는 웹과 같이 direct multipart로 올린다. 이 경로는 단계별 키를 스스로 만든다. */
 export async function uploadSyncFile(
   workspaceId: string,

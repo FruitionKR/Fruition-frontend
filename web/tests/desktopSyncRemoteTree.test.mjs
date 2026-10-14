@@ -37,6 +37,23 @@ test("편집 문서인데 편집할 수 없거나, 저장이 거절된 문서는
   assert.deepEqual(readonly, { d_pdf: false, d_md: true, d_chat: true });
 });
 
+test("서버가 can_edit을 주면 저장 거절 기록보다 그 값을 따른다", () => {
+  const items = [
+    doc("d_edit", "편집.md", { can_edit: true, can_delete: false }),
+    doc("d_view", "보기.md", { can_edit: false, can_delete: false }),
+    doc("d_pdf", "논문.pdf", { document_role: "ORIGINAL", editable: false, can_edit: true, can_delete: false }),
+    doc("d_own_pdf", "내 논문.pdf", { document_role: "ORIGINAL", editable: false, can_edit: true, can_delete: true })
+  ];
+  const { files } = indexRemoteTree(items, new Set(["d_edit"]));
+  const flags = Object.fromEntries(files.map((file) => [file.documentId, [file.readonly, file.undeletable]]));
+  assert.deepEqual(flags, {
+    d_edit: [false, true],
+    d_view: [true, true],
+    d_pdf: [true, true],
+    d_own_pdf: [false, false]
+  });
+});
+
 test("폴더 경로와 문서별 버전·상위 폴더를 찾을 수 있다", () => {
   const { folders, documents } = indexRemoteTree(tree, new Set());
   assert.deepEqual(folders.get("자료/회의록"), { id: "f_2", currentVersion: 1 });

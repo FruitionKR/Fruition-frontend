@@ -10,6 +10,8 @@ export type RemoteFile = {
   updatedAt: string;
   /** 앱이 올릴 수 없는 문서(편집 권한 없음·채팅 문서 등). 로컬 변경은 올리지 않는다. */
   readonly: boolean;
+  /** 서버에서 지울 수 없는 문서(문서 소유자·OWNER가 아님). 로컬에서 지우면 서버에서 지우지 않고 다시 내려받는다. */
+  undeletable?: boolean;
 };
 
 /** 지난번 동기화가 끝났을 때 양쪽의 상태. */
@@ -106,8 +108,9 @@ export function planSync(input: PlanInput): SyncAction[] {
       }
       const moved = findMoved(record);
       if (moved) usedLocal.add(moved.path);
-      if (remote.readonly) {
+      if (remote.readonly || (remote.undeletable && !moved)) {
         // 읽기 전용 문서는 로컬 삭제·이동을 서버에 반영하지 않고 원래 자리에 되돌린다. 옮긴 사본은 올리지 않는다.
+        // 지울 수 없는 문서를 로컬에서 지웠으면 서버 휴지통으로 보내지 않고 다시 내려받는다.
         const localPath = toLocalPath(remote.path, record.localPath);
         writeTo(localPath, { type: "download", documentId: record.documentId, localPath });
         if (moved) actions.push({ type: "readonly", documentId: record.documentId, localPath: moved.path });
