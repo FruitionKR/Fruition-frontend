@@ -169,7 +169,8 @@ export function WorkspacePanel({
           <Switch
             checked={autoIngestOnUpload}
             label="업로드한 문서를 자동으로 위키에 편입"
-            disabled={!isOwner || !workspace || isAutoIngestSaving}
+            // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 isAutoIngestSaving 검사가 막는다.
+            disabled={!isOwner || !workspace}
             onClick={() => void toggleAutoIngest()}
           />
         </div>

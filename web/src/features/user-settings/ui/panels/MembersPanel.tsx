@@ -243,7 +243,10 @@ export function MembersPanel() {
                       role="switch"
                       aria-checked={checked}
                       className={`${styles["perm-chip"]} ${checked ? styles["is-on"] : ""}`}
-                      disabled={!isOwner || busy || isMemberOwner}
+                      // 저장 중에는 disabled 대신 aria-disabled로 막는다. disabled로 바꾸면 누른 칩의 포커스가 body로 빠져
+                      // 키보드 사용자가 매번 처음부터 다시 Tab해야 한다. 중복 요청은 togglePermission의 busy 검사가 막는다.
+                      disabled={!isOwner || isMemberOwner}
+                      aria-disabled={busy || undefined}
                       title={isMemberOwner ? "OWNER는 모든 권한을 가집니다." : item.description}
                       onClick={() => void togglePermission(member, item.value)}
                     >
