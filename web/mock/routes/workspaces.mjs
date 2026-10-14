@@ -1,5 +1,5 @@
 // access-svc(8081) 워크스페이스·아이콘·멤버·초대 라우트.
-import { state, now, id, error, requireWorkspace } from "../state.mjs";
+import { state, now, id, error, requireWorkspace, avatarUrlOf } from "../state.mjs";
 import { FREE_WORKSPACE_LIMIT, freeWorkspaceCount, storageOf } from "../lib/limits.mjs";
 
 function toWorkspace(workspace) {
@@ -13,6 +13,7 @@ function toMember(member) {
     user_id: member.user_id,
     email: user?.email ?? "",
     display_name: user?.display_name ?? null,
+    avatar_url: avatarUrlOf(user),
     provider: user?.provider ?? "email",
     role: member.role,
     joined_at: member.joined_at

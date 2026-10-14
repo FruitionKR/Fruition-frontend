@@ -138,9 +138,9 @@ function createContext(req, res, url, state, port) {
       res.end(body);
       log(ctx);
     },
-    bytes(status, buffer, contentType) {
+    bytes(status, buffer, contentType, headers = {}) {
       ctx.status = status;
-      res.writeHead(status, { "Content-Type": contentType, "Content-Length": buffer.length });
+      res.writeHead(status, { "Content-Type": contentType, "Content-Length": buffer.length, ...headers });
       res.end(buffer);
       log(ctx);
     },

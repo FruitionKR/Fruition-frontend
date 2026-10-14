@@ -7,4 +7,6 @@ export * from "./model/preferences";
 export * from "./model/useMe";
 export * from "./model/useSignOut";
 export * from "./ui/SessionExpiryGate";
+export * from "./ui/UserAvatar";
+export * from "./lib/avatarFile";
 export * from "./model/UserPreferencesProvider";

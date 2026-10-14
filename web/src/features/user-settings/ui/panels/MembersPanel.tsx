@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMe } from "@/entities/user";
+import { UserAvatar, useMe } from "@/entities/user";
 import { changeMemberRole, fetchMembers, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
-import { menuSearchIcon, moreIcon, chevronDownSmallIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
+import { menuSearchIcon, moreIcon, chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
 import { InviteMemberModal } from "../modals/InviteMemberModal";
 import styles from "./MembersPanel.module.css";
@@ -183,7 +183,7 @@ export function MembersPanel() {
               <span className={styles.checkbox} aria-hidden />
               <div className={styles["row-main"]}>
                 <div className={styles.profile}>
-                  <SvgIcon src={userCircleIcon} className={styles["profile-icon"]} />
+                  <UserAvatar avatarUrl={member.avatar_url} name={member.display_name || member.email} className={styles["profile-icon"]} />
                   <div className={styles["profile-text"]}>
                     <span className={styles["profile-name"]}>{member.display_name || "사용자"}</span>
                     <span className={styles["profile-email"]}>{member.email}</span>

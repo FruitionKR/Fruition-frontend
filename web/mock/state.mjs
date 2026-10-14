@@ -39,6 +39,11 @@ export const id = (prefix) => `${prefix}_${randomUUID().slice(0, 8)}`;
 export const hash = (text) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 프로필 사진 조회 경로. 사진이 없으면 null. ?v=는 이미지 SHA-256이라 사진을 바꾸면 URL도 바뀐다. */
+export function avatarUrlOf(user) {
+  return user?.avatar ? `/api/users/${user.id}/avatar?v=${user.avatar.hash}` : null;
+}
+
 export function error(ctx, status, message, code) {
   ctx.json(status, { error: { message, ...(code ? { code } : {}) } });
 }
