@@ -3,9 +3,14 @@ import test from "node:test";
 
 const {
   oauthAccountErrorMessage,
+  oauthCallbackErrorMessage,
+  parseOAuthCallbackError,
   parseOAuthLinkCallback,
+  registeredEmailErrorMessage,
+  registeredEmailLoginMessage,
   saveOAuthLinkResult,
   hasOAuthLinkResult,
+  signupAvailabilityMessage,
   signupOAuthConflictMessage,
   takeOAuthLinkResult
 } = await import("../src/entities/user/model/oauthLink.ts");
@@ -38,10 +43,54 @@ test("연동·해제 실패는 서버 error.code로 안내하고, 모르는 code
   assert.equal(oauthAccountErrorMessage("not an error", "fb"), "fb");
 });
 
-test("소셜 가입 이메일이면 가입을 막고 그 소셜 로그인으로 안내하며, 없으면 막지 않는다", () => {
+test("소셜 가입 이메일이면 가입을 막고 그 소셜 로그인 뒤 설정에서 연동하도록 안내하며, 없으면 막지 않는다", () => {
   assert.equal(signupOAuthConflictMessage([]), null);
-  assert.equal(signupOAuthConflictMessage(["google"]), "이미 Google로 가입된 이메일입니다. 로그인 화면에서 Google로 로그인해 주세요.");
+  assert.equal(signupOAuthConflictMessage(["google"]), "이미 Google로 가입된 이메일입니다. Google로 로그인한 뒤 설정 > 계정 보안에서 연동해 주세요.");
   assert.match(signupOAuthConflictMessage(["google", "kakao"]), /^이미 Google, 카카오로 가입된/);
+});
+
+test("가입 화면 분기: oauth_providers가 있으면 available과 무관하게 소셜 로그인 안내가 먼저, 다음이 이메일 중복, 가입 가능이면 null", () => {
+  assert.match(signupAvailabilityMessage({ available: false, oauth_providers: ["kakao"] }), /^이미 카카오로 가입된 이메일입니다\. 카카오로 로그인한 뒤/);
+  // 예전 서버처럼 소셜 가입 이메일을 available=true로 돌려줘도 소셜 안내를 탄다.
+  assert.match(signupAvailabilityMessage({ available: true, oauth_providers: ["naver"] }), /네이버로 로그인한 뒤/);
+  assert.equal(signupAvailabilityMessage({ available: false, oauth_providers: [] }), "이미 가입된 이메일입니다.");
+  assert.equal(signupAvailabilityMessage({ available: false }), "이미 가입된 이메일입니다.");
+  assert.equal(signupAvailabilityMessage({ available: true, oauth_providers: [] }), null);
+  assert.equal(signupAvailabilityMessage({ available: true }), null);
+});
+
+test("같은 이메일의 계정 안내: local이 있으면 이메일 로그인, 아니면 그 소셜 로그인 뒤 설정 > 계정 보안에서 연동", () => {
+  assert.equal(registeredEmailLoginMessage([]), null);
+  assert.equal(registeredEmailLoginMessage(["local"]), "이미 이메일로 가입된 이메일입니다. 이메일과 비밀번호로 로그인한 뒤 설정 > 계정 보안에서 연동해 주세요.");
+  assert.match(registeredEmailLoginMessage(["local", "google"]), /^이미 이메일로 가입된 이메일입니다\. 이메일과 비밀번호로 로그인한 뒤/);
+  assert.equal(registeredEmailLoginMessage(["google"]), "이미 Google로 가입된 이메일입니다. Google로 로그인한 뒤 설정 > 계정 보안에서 연동해 주세요.");
+});
+
+test("409 EMAIL_REGISTERED_WITH_OAUTH·EMAIL_REGISTERED만 providers로 안내하고, 다른 오류는 null", () => {
+  const withCode = (code, providers) => Object.assign(new Error("server"), { code, providers });
+  assert.match(registeredEmailErrorMessage(withCode("EMAIL_REGISTERED_WITH_OAUTH", ["google"])), /Google로 로그인한 뒤/);
+  assert.match(registeredEmailErrorMessage(withCode("EMAIL_REGISTERED", ["local", "kakao"])), /이메일과 비밀번호로 로그인한 뒤/);
+  // providers가 비어 와도 두 번째 가입 대신 로그인·연동을 안내한다.
+  assert.match(registeredEmailErrorMessage(withCode("EMAIL_REGISTERED", [])), /^이미 가입된 이메일입니다\. 기존 방법으로 로그인한 뒤/);
+  assert.equal(registeredEmailErrorMessage(withCode("DUPLICATE_EMAIL", undefined)), null);
+  assert.equal(registeredEmailErrorMessage(new Error("plain")), null);
+  assert.equal(registeredEmailErrorMessage(null), null);
+});
+
+test("OAuth 콜백 파라미터: error=email_registered는 providers(쉼표 구분)를 읽고, 다른 error는 failed, error가 없으면 null", () => {
+  assert.deepEqual(parseOAuthCallbackError(new URLSearchParams("error=email_registered&providers=local,google")), { kind: "email_registered", providers: ["local", "google"] });
+  assert.deepEqual(parseOAuthCallbackError(new URLSearchParams("error=email_registered&providers=kakao")), { kind: "email_registered", providers: ["kakao"] });
+  assert.deepEqual(parseOAuthCallbackError(new URLSearchParams("error=email_registered&providers=")), { kind: "email_registered", providers: [] });
+  assert.deepEqual(parseOAuthCallbackError(new URLSearchParams("error=email_registered")), { kind: "email_registered", providers: [] });
+  assert.deepEqual(parseOAuthCallbackError(new URLSearchParams("error=oauth_failed")), { kind: "failed" });
+  assert.equal(parseOAuthCallbackError(new URLSearchParams("code=xyz")), null);
+  assert.equal(parseOAuthCallbackError(new URLSearchParams("signup_token=abc")), null);
+  assert.equal(parseOAuthCallbackError(new URLSearchParams("link=failed")), null);
+
+  assert.match(oauthCallbackErrorMessage({ kind: "email_registered", providers: ["local", "google"] }), /이메일과 비밀번호로 로그인한 뒤/);
+  assert.match(oauthCallbackErrorMessage({ kind: "email_registered", providers: ["google"] }), /Google로 로그인한 뒤/);
+  assert.match(oauthCallbackErrorMessage({ kind: "email_registered", providers: [] }), /기존 방법으로 로그인한 뒤/);
+  assert.equal(oauthCallbackErrorMessage({ kind: "failed" }), "간편 로그인에 실패했습니다.");
 });
 
 test("연동 결과는 한 번만 읽히고, 형식이 틀린 값은 버린다", () => {

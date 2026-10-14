@@ -7,6 +7,8 @@ const {
   consentErrorMessage,
   EMPTY_CONSENT,
   isConsentComplete,
+  isSignupEmailRegistered,
+  isSignupTokenConsumed,
   isSignupTokenInvalid,
   needsReconsent,
   parseOAuthSignupToken
@@ -42,6 +44,17 @@ test("동의 실패는 서버 error.code로 안내하고, 모르는 code는 서�
   assert.equal(consentErrorMessage(null, "fb"), "fb");
   assert.equal(isSignupTokenInvalid(withCode("INVALID_SIGNUP_TOKEN")), true);
   assert.equal(isSignupTokenInvalid(withCode("CONSENT_REQUIRED")), false);
+});
+
+test("동의 409 EMAIL_REGISTERED는 토큰이 소비된 실패라 재시도 없이 로그인 화면으로 보낸다", () => {
+  const registered = Object.assign(new Error("server"), { code: "EMAIL_REGISTERED", providers: ["local"] });
+  assert.equal(isSignupEmailRegistered(registered), true);
+  assert.equal(isSignupTokenConsumed(registered), true);
+  assert.equal(isSignupTokenConsumed(withCode("INVALID_SIGNUP_TOKEN")), true);
+  // CONSENT_REQUIRED는 토큰이 남아 동의만 고쳐 다시 보낼 수 있다.
+  assert.equal(isSignupEmailRegistered(withCode("CONSENT_REQUIRED")), false);
+  assert.equal(isSignupTokenConsumed(withCode("CONSENT_REQUIRED")), false);
+  assert.equal(isSignupEmailRegistered(null), false);
 });
 
 test("OAuth 콜백 query에서 signup_token만 읽고, 기존 회원 로그인(code)·실패(error)는 null", () => {

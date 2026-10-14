@@ -6,8 +6,9 @@ import {
   checkEmailAvailability,
   EMPTY_CONSENT,
   isConsentComplete,
+  registeredEmailErrorMessage,
   requestEmailVerification,
-  signupOAuthConflictMessage,
+  signupAvailabilityMessage,
   type ConsentChoices
 } from "@/entities/user";
 import { ConsentForm } from "@/features/legal-consent";
@@ -52,16 +53,11 @@ export default function SignupPage() {
 
     const normalizedEmail = email.trim().toLowerCase();
     try {
-      const availability = await checkEmailAvailability(normalizedEmail);
-      if (!availability.available) {
-        setErrorMessage("이미 가입된 이메일입니다.");
-        setIsSubmitting(false);
-        return;
-      }
-      // 서버는 소셜 가입 이메일도 available로 돌려주므로, 인증 메일을 보내기 전에 여기서 막는다.
-      const oauthConflict = signupOAuthConflictMessage(availability.oauth_providers ?? []);
-      if (oauthConflict) {
-        setErrorMessage(oauthConflict);
+      // 소셜 가입 계정이 있으면 available=false와 함께 oauth_providers가 와서 인증 요청이 409로 거절된다.
+      // 인증 메일을 보내기 전에 그 소셜 로그인 뒤 연동하도록 먼저 안내한다(access #31).
+      const blockedMessage = signupAvailabilityMessage(await checkEmailAvailability(normalizedEmail));
+      if (blockedMessage) {
+        setErrorMessage(blockedMessage);
         setIsSubmitting(false);
         return;
       }
@@ -94,9 +90,10 @@ export default function SignupPage() {
       });
     } catch (error: unknown) {
       if (!isCurrentSignupVerificationRequest(verificationRequestId)) return;
+      // 409 EMAIL_REGISTERED_WITH_OAUTH(중복 확인과 요청 사이에 소셜 가입이 끝난 경우)도 같은 로그인·연동 안내로 돌아간다.
       setSignupDraft({
         ...pendingDraft,
-        verificationRequestError: getErrorMessage(error, "인증번호 요청에 실패했습니다.")
+        verificationRequestError: registeredEmailErrorMessage(error) ?? getErrorMessage(error, "인증번호 요청에 실패했습니다.")
       });
       setIsSubmitting(false);
       router.replace("/signup");

@@ -6,6 +6,7 @@ import {
   getOAuthLinkAuthorizationUrl,
   ME_QUERY_KEY,
   OAUTH_PROVIDER_OPTIONS,
+  OAUTH_UNLINK_GUIDE,
   oauthAccountErrorMessage,
   oauthProviderName,
   SESSIONS_QUERY_KEY,
@@ -143,6 +144,8 @@ export function AccountPanel({
 
       <div className={styles.section}>
         <SettingsSectionHeader>연결된 계정</SettingsSectionHeader>
+        {/* 해제한 소셜 계정으로 다시 로그인해도 두 번째 계정이 생기지 않고 이메일 로그인·재연동으로 안내된다(access #31). */}
+        <small>{OAUTH_UNLINK_GUIDE}</small>
         {OAUTH_PROVIDER_OPTIONS.map(({ provider, name }) => {
           const isLinked = linkedProviders.includes(provider);
           return (

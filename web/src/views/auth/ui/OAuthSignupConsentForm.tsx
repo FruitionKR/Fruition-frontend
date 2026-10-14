@@ -9,7 +9,9 @@ import {
   consentErrorMessage,
   EMPTY_CONSENT,
   isConsentComplete,
-  isSignupTokenInvalid,
+  isSignupEmailRegistered,
+  isSignupTokenConsumed,
+  registeredEmailErrorMessage,
   type ConsentChoices
 } from "@/entities/user";
 import { ConsentForm } from "@/features/legal-consent";
@@ -20,6 +22,7 @@ import { AuthError, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 /**
  * 소셜 신규 가입 동의 단계. OAuth 콜백의 signup_token(10분, 1회용)으로 동의를 보내 계정을 만들고 로그인한다.
  * 다른 탭이 먼저 가입을 끝낸 계정이 MFA를 켰으면 MFA 단계로 넘긴다.
+ * 그사이 같은 이메일로 다른 가입이 끝나 409 EMAIL_REGISTERED가 오면 토큰이 소비됐으므로 재시도 없이 로그인 화면으로 보낸다(access #31).
  */
 export function OAuthSignupConsentForm({
   signupToken,
@@ -28,7 +31,7 @@ export function OAuthSignupConsentForm({
 }: {
   signupToken: string;
   onMfaRequired: (mfaToken: string) => void;
-  /** 토큰이 만료·사용돼 소셜 로그인부터 다시 해야 할 때 */
+  /** 토큰이 만료·사용됐거나 같은 이메일의 계정이 있어 로그인 화면으로 돌아갈 때 */
   onRestart: () => void;
 }) {
   const router = useRouter();
@@ -37,6 +40,7 @@ export function OAuthSignupConsentForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isTokenInvalid, setIsTokenInvalid] = useState(false);
+  const [isEmailRegistered, setIsEmailRegistered] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -54,8 +58,9 @@ export function OAuthSignupConsentForm({
       queryClient.clear();
       router.replace(takeAfterLoginPath());
     } catch (cause: unknown) {
-      setError(consentErrorMessage(cause, "회원가입에 실패했습니다."));
-      setIsTokenInvalid(isSignupTokenInvalid(cause));
+      setError(registeredEmailErrorMessage(cause) ?? consentErrorMessage(cause, "회원가입에 실패했습니다."));
+      setIsTokenInvalid(isSignupTokenConsumed(cause));
+      setIsEmailRegistered(isSignupEmailRegistered(cause));
       setBusy(false);
     }
   }
@@ -69,6 +74,6 @@ export function OAuthSignupConsentForm({
       </div>
       <AuthSubmitButton disabled={busy || isTokenInvalid || !isConsentComplete(choices)}>{busy ? "가입 중…" : "동의하고 가입"}</AuthSubmitButton>
     </form>
-    <p className="auth-prompt"><button disabled={busy} onClick={onRestart} type="button">로그인부터 다시 시작</button></p>
+    <p className="auth-prompt"><button disabled={busy} onClick={onRestart} type="button">{isEmailRegistered ? "로그인 화면으로" : "로그인부터 다시 시작"}</button></p>
   </>;
 }

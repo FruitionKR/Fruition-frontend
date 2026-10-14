@@ -52,6 +52,19 @@ export function isSignupTokenInvalid(error: unknown): boolean {
   return errorCode(error) === "INVALID_SIGNUP_TOKEN";
 }
 
+/**
+ * 동의 화면에 머무는 사이 같은 이메일로 다른 가입이 끝나 거절된 409 EMAIL_REGISTERED인지.
+ * 토큰이 소비되므로 다시 보낼 수 없고, 기존 계정으로 로그인한 뒤 설정에서 연동한다.
+ */
+export function isSignupEmailRegistered(error: unknown): boolean {
+  return errorCode(error) === "EMAIL_REGISTERED";
+}
+
+/** 토큰이 소비돼 이 동의 화면에서는 더 진행할 수 없는 실패(만료·사용됨, 같은 이메일의 계정 있음). */
+export function isSignupTokenConsumed(error: unknown): boolean {
+  return isSignupTokenInvalid(error) || isSignupEmailRegistered(error);
+}
+
 /** OAuth 콜백 주소에 붙어 온 소셜 신규 가입 토큰. 기존 회원 로그인(code)·실패(error)면 null이다. */
 export function parseOAuthSignupToken(params: Pick<URLSearchParams, "get">): string | null {
   return params.get("signup_token") || null;

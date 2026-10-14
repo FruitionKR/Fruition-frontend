@@ -16,8 +16,44 @@ const OAUTH_PROVIDERS = new Set(["google", "kakao", "naver"]);
 // 연동 시작 토큰·콜백 code → { userId, provider }. 실제 서버처럼 1회용이다.
 const oauthLinkTokens = new Map();
 const oauthLinkCodes = new Map();
-// 소셜 신규 가입 토큰 → { provider, expiresAt }. 10분, 1회용.
+// 소셜 신규 가입 토큰 → { provider, email, expiresAt }. 10분, 1회용.
 const oauthSignupTokens = new Map();
+// mock에는 provider별 소셜 계정이 하나뿐이다. 그 소셜 계정의 이메일(연동·가입 때 정해짐). 없으면 provider 기본 이메일.
+const oauthIdentityEmails = new Map();
+
+function oauthIdentityEmail(provider) {
+  return oauthIdentityEmails.get(provider) ?? `${provider}.user@fruition.local`;
+}
+
+/** 같은 이메일의 계정들이 가진 로그인 수단. 이메일 가입은 "local", 소셜은 provider 이름(이름순). */
+function loginProvidersOf(users) {
+  const providers = new Set();
+  for (const user of users) {
+    if (user.provider === "email") providers.add("local");
+    for (const provider of linkedProviders(user)) providers.add(provider);
+  }
+  return [...providers].sort();
+}
+
+function usersWithEmail(email) {
+  return state.users.filter((user) => user.email === String(email ?? "").toLowerCase());
+}
+
+/** 같은 이메일의 계정이 있어 가입을 거절하는 409. 이메일 가입 계정이면 DUPLICATE_EMAIL, 소셜 가입 계정만 있으면 EMAIL_REGISTERED_WITH_OAUTH(access #31). */
+function rejectRegisteredEmail(ctx, email) {
+  const sameEmail = usersWithEmail(email);
+  if (sameEmail.length === 0) return false;
+  if (sameEmail.some((user) => user.provider === "email")) {
+    error(ctx, 409, "이미 가입된 이메일입니다.", "DUPLICATE_EMAIL");
+    return true;
+  }
+  const oauth_providers = loginProvidersOf(sameEmail);
+  ctx.json(409, {
+    error: { code: "EMAIL_REGISTERED_WITH_OAUTH", message: `이미 소셜 계정(${oauth_providers.join(", ")})으로 가입된 이메일입니다. 그 계정으로 로그인한 뒤 설정에서 연동하세요.` },
+    oauth_providers
+  });
+  return true;
+}
 
 /** 로그인 수단으로 연결된 소셜 provider. 소셜로 가입한 사용자는 가입 provider가 처음부터 연결돼 있다. */
 function linkedProviders(user) {
@@ -115,8 +151,14 @@ export function registerAuthRoutes(router) {
     // 그 provider로 연결된 사용자가 없으면 처음 들어온 소셜 계정이다. 계정을 만들지 않고 signup_token으로 돌려보낸다.
     // 시드에서는 Google이 김지현에 연결돼 있어 Google은 기존 회원 로그인, 카카오·네이버는 신규 가입 흐름이다.
     if (!state.users.some((user) => linkedProviders(user).includes(provider))) {
+      // 같은 이메일의 계정이 이미 있으면(연동을 해제한 소셜 계정으로 다시 로그인한 경우 등) 두 번째 계정을 만들지 않는다(access #31).
+      const email = oauthIdentityEmail(provider);
+      const registered = usersWithEmail(email);
+      if (registered.length > 0) {
+        return ctx.redirect(`http://localhost:3000/login?error=email_registered&providers=${loginProvidersOf(registered).join(",")}`);
+      }
       const signupToken = id("signup");
-      oauthSignupTokens.set(signupToken, { provider, expiresAt: Date.now() + SIGNUP_TOKEN_TTL_MS });
+      oauthSignupTokens.set(signupToken, { provider, email, expiresAt: Date.now() + SIGNUP_TOKEN_TTL_MS });
       return ctx.redirect(`http://localhost:3000/login?signup_token=${signupToken}`);
     }
     ctx.redirect(`http://localhost:3000/login?code=mock-${provider}`);
@@ -145,8 +187,18 @@ export function registerAuthRoutes(router) {
     // 다른 탭이 먼저 가입을 끝냈으면 그 계정으로 로그인한다(MFA를 켰으면 mfa_required).
     const existing = state.users.find((item) => linkedProviders(item).includes(pending.provider));
     if (existing) return issueTokensOrMfa(ctx, existing);
-    const user = newUser({ email: `${pending.provider}.user@fruition.local`, password: null, display_name: `${pending.provider} 사용자`, provider: pending.provider, consent });
+    // 동의 화면에 머무는 사이 같은 이메일로 다른 가입이 끝났으면 토큰은 소비된 채 409로 거절한다(access #31).
+    const registered = usersWithEmail(pending.email);
+    if (registered.length > 0) {
+      const providers = loginProvidersOf(registered);
+      return ctx.json(409, {
+        error: { code: "EMAIL_REGISTERED", message: `이미 가입된 이메일입니다(${providers.join(", ")}). 기존 계정으로 로그인한 뒤 설정에서 연동하세요.` },
+        providers
+      });
+    }
+    const user = newUser({ email: pending.email, password: null, display_name: `${pending.provider} 사용자`, provider: pending.provider, consent });
     state.users.push(user);
+    oauthIdentityEmails.set(pending.provider, user.email);
     ctx.json(200, startSession(ctx, user));
   }, { open: true });
 
@@ -169,15 +221,17 @@ export function registerAuthRoutes(router) {
 
   router.post("/api/auth/email-availability", async (ctx) => {
     const { email } = await ctx.body();
-    // 실제 서버처럼 일반 가입(email) 계정만 중복으로 보고, 소셜 가입 계정은 안내용 provider로만 알린다.
-    const sameEmail = state.users.filter((user) => user.email === String(email ?? "").toLowerCase());
-    const available = !sameEmail.some((user) => user.provider === "email");
-    const oauth_providers = [...new Set(sameEmail.map((user) => user.provider).filter((provider) => OAUTH_PROVIDERS.has(provider)))].sort();
-    ctx.json(200, { available, oauth_providers });
+    // 실제 서버처럼 같은 이메일의 계정이 하나라도 있으면(이메일 가입이든 소셜 가입이든) available=false.
+    // 소셜 가입 계정은 oauth_providers로 알려 그 소셜 로그인 뒤 연동을 안내하게 한다(access #31).
+    const sameEmail = usersWithEmail(email);
+    const oauth_providers = [...new Set(sameEmail.flatMap((user) => linkedProviders(user)))].sort();
+    ctx.json(200, { available: sameEmail.length === 0, oauth_providers });
   }, { open: true });
 
   router.post("/api/auth/email-verifications", async (ctx) => {
     const { email, purpose } = await ctx.body();
+    // 가입 목적이면 같은 이메일의 계정이 있을 때 인증번호를 만들지 않고 409로 거절한다. password_reset은 존재 여부를 노출하지 않는다.
+    if (purpose === "signup" && rejectRegisteredEmail(ctx, email)) return;
     const verificationId = id("verify");
     state.verifications.set(verificationId, { email, purpose });
     console.log(`[mock] 이메일 인증번호(${purpose}) ${email}: 아무 6자리 숫자나 입력하면 됩니다 (개발 코드 9700도 허용)`);
@@ -198,7 +252,7 @@ export function registerAuthRoutes(router) {
     const { email, password, display_name, verification_token } = body;
     if (!state.verificationTokens.has(verification_token)) return error(ctx, 400, "이메일 인증이 필요합니다.");
     const normalized = String(email ?? "").toLowerCase();
-    if (state.users.some((user) => user.email === normalized && user.provider === "email")) return error(ctx, 409, "이미 가입된 이메일입니다.");
+    if (rejectRegisteredEmail(ctx, normalized)) return;
     // 동의가 빠지거나 약관 버전이 다르면 거절한다. 인증 토큰은 소비하지 않아 동의만 고쳐 다시 보낼 수 있다.
     const consent = parseConsent(body);
     if (!consent) return consentRequiredError(ctx);
@@ -308,6 +362,8 @@ export function registerAuthRoutes(router) {
     const takenByOther = state.users.some((user) => user !== ctx.user && linkedProviders(user).includes(pending.provider));
     if (takenByOther) return error(ctx, 409, "이미 다른 계정에 연결된 소셜 계정입니다.", "OAUTH_ACCOUNT_ALREADY_LINKED");
     providers.push(pending.provider);
+    // 연동한 소셜 계정은 이 사용자의 이메일을 쓴다. 해제 뒤 다시 로그인하면 같은 이메일의 계정이 있어 가입이 거절된다.
+    oauthIdentityEmails.set(pending.provider, ctx.user.email);
     ctx.json(204);
   });
 
