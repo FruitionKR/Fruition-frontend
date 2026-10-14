@@ -919,6 +919,50 @@
   transform: rotate(-90deg);
 }
 
+/* 답변 듣기(#149): 받아쓰기 버튼(.composer-mic)과 같은 둥근 소형 버튼. 재생 중에는 정지 사각형으로 바뀐다. */
+.answer-actions {
+  display: flex;
+  margin-top: 8px;
+}
+
+.answer-listen {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.answer-listen:hover,
+.answer-listen:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+}
+
+.answer-listen.is-active {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.answer-listen .is-spinning {
+  animation: global(spin) 1s linear infinite;
+}
+
+.speech-error {
+  margin: 6px 0 0;
+  color: var(--color-danger);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .agent-answer :global(.markdown-viewer) h1,
 .agent-answer :global(.markdown-viewer) h2,
 .agent-answer :global(.markdown-viewer) h3 {

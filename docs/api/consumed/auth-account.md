@@ -5,8 +5,8 @@
 access-svc의 `/api/auth/**`를 호출한다. 이 경로군은 `next.config.mjs` rewrite로 access-svc에
 전달되며, 직접 전송 정규식에 포함되지 않으므로 항상 동일 출처 rewrite를 경유한다.
 
-- 호출 지점: 25 (`apiFetch` 15, raw `fetch` 10)
-- 호출 경로: 20 — access-svc `/api/auth/**` 전체
+- 호출 지점: 28 (`apiFetch` 18, raw `fetch` 10)
+- 호출 경로: 23 — access-svc `/api/auth/**` 전체와 `/api/users/{user_id}/avatar`
 
 로그인·회원가입처럼 아직 토큰이 없는 요청은 Bearer를 붙일 필요가 없어 raw `fetch`를 쓴다.
 `/api/auth/me**`는 보호된 요청이므로 `apiFetch`를 쓴다.
@@ -44,6 +44,16 @@ access-svc의 `/api/auth/**`를 호출한다. 이 경로군은 `next.config.mjs`
 | `PUT /api/auth/me/password` | 비밀번호 변경 | `web/src/entities/user/api/account.ts` `changePassword` | 리터럴 | JSON | - | `401` + `INVALID_CREDENTIALS`는 재발급하지 않고 그대로 올린다 |
 | `PUT /api/auth/me/email` | 이메일 변경 | `web/src/entities/user/api/account.ts` `changeEmail` | 리터럴 | JSON (인증 토큰 포함) | - | `apiFetch` |
 
+## 프로필 사진
+
+`/api/users/**`는 `next.config.mjs` rewrite(`/api/users/:uid/avatar`)로 access-svc에 전달된다(access #25).
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `PUT /api/auth/me/avatar` | 프로필 사진 업로드·교체 | `web/src/entities/user/api/account.ts` `uploadAvatar` | 리터럴 | `FormData` `file` (PNG·JPEG·WebP·GIF, 1MB 이하) | `MeResponse` 전체(`avatar_url`) | `apiFetch`. `web/src/entities/user/lib/avatarFile.ts` `validateAvatarFile`이 형식·1MB를 보내기 전에 거른다. 서버는 매직 바이트로 다시 판별해 `400 UNSUPPORTED_USER_AVATAR`·`413 USER_AVATAR_TOO_LARGE`를 돌려주며 `avatarUploadErrorMessage`가 안내 문구로 바꾼다. 성공하면 응답으로 `me` 캐시를 바로 바꾸고 `workspace-members`를 다시 읽는다 |
+| `DELETE /api/auth/me/avatar` | 프로필 사진 삭제 | `web/src/entities/user/api/account.ts` `deleteAvatar` | 리터럴 | 본문 없음 | `MeResponse` 전체(`avatar_url: null`) | `apiFetch`. 사진이 없어도 200(멱등) |
+| `GET /api/users/{user_id}/avatar` | 프로필 사진 이미지 조회 | `web/src/entities/user/api/account.ts` `fetchUserAvatar` | `avatar_url` 값을 그대로 사용(`?v=` 이미지 SHA-256 포함) | `cache: no-store` | 응답 `Blob` | `apiFetch`. Bearer가 필요해 `<img src>`로 못 쓰고 `web/src/entities/user/ui/UserAvatar.tsx`가 Blob → object URL로 보여 준다. react-query 키가 `avatar_url`이라 사진을 바꾸면 새 URL로 다시 받는다. 본인이 아니고 같이 쓰는 워크스페이스가 없으면 `404 USER_NOT_FOUND`, 사진이 없으면 `404 USER_AVATAR_NOT_FOUND` → 이니셜 상자로 돌아간다 |
+
 ## MFA
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
@@ -65,3 +75,4 @@ access-svc의 `/api/auth/**`를 호출한다. 이 경로군은 `next.config.mjs`
 - 로그인·회원가입: `web/src/views/auth/ui`, `web/src/views/auth`
 - 가입 동의·재동의: `web/src/features/legal-consent`(동의 항목 `ConsentForm`, 재동의 `ReconsentGate`), 소셜 신규 가입 `web/src/views/auth/ui/OAuthSignupConsentForm.tsx`
 - 계정·MFA·기기 설정·회원 탈퇴: `web/src/features/user-settings/ui/panels`
+- 프로필 사진 업로드·삭제: `web/src/features/user-settings/ui/panels/ProfilePanel.tsx`. 표시는 레일 프로필 버튼(`SidebarProfile`)·설정 메뉴 "사용자 설정" 행(`SettingsNav`)·멤버 관리 목록(`MembersPanel`)이 `UserAvatar`를 쓴다

@@ -42,7 +42,8 @@ export function AgentPanel({
   onDocumentExported,
   nodes,
   composerDraft,
-  wikiEvidenceNotice
+  wikiEvidenceNotice,
+  isShown = true
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
@@ -60,6 +61,8 @@ export function AgentPanel({
     isIngesting: boolean;
     onIngest: () => void;
   } | null;
+  /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
+  isShown?: boolean;
 }) {
   const [composerValue, setComposerValue] = useState("");
   const restoreComposerQuestion = useCallback((question: string) => {
@@ -283,6 +286,7 @@ export function AgentPanel({
         documentCommandStages={agentTurn.agentStages}
         documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
         activeSessionId={activeSessionId}
+        isShown={isShown}
         activeTurn={activeTurn}
         queryErrorMessage={
           agentTurn.agentTurnErrorMessage

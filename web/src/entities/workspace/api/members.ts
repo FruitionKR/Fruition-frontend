@@ -6,6 +6,8 @@ export type WorkspaceMember = {
   user_id: string;
   email: string;
   display_name: string | null;
+  /** 프로필 사진 조회 경로. 사진이 없으면 null. */
+  avatar_url?: string | null;
   provider: string;
   role: WorkspaceRole;
   /** 부여된 권한 항목(정렬됨). OWNER는 항상 다섯 개 전부다(access #32). */

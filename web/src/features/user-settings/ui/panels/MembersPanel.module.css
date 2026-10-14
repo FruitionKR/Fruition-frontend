@@ -226,11 +226,20 @@
   min-width: 0;
 }
 
+/* 멤버 프로필 사진. 없으면 이름 첫 글자 상자(설정 메뉴 .nav-avatar와 같은 모양). */
 .profile-icon {
   width: 22px;
   height: 22px;
   flex: 0 0 auto;
-  color: var(--color-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .profile-text {

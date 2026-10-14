@@ -10,11 +10,11 @@
 
 | 도메인 | 호출 수 | 서비스 | 주 모듈 |
 |---|---:|---|---|
-| [인증·계정](auth-account.md) | 25 | access-svc | `web/src/entities/user/api` |
+| [인증·계정](auth-account.md) | 28 | access-svc | `web/src/entities/user/api` |
 | [워크스페이스](workspace.md) | 14 | access-svc | `web/src/entities/workspace/api` |
 | [문서·트리](document.md) | 31 | document-svc | `web/src/entities/document/api`, `web/src/entities/tree/api`, `web/src/features/note-editing`, `web/src/features/document-notifications/api/notifications.ts` |
 | [Wiki](wiki.md) | 7 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
-| [AI·Agent·Query](ai-agent.md) | 19 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
+| [AI·Agent·Query](ai-agent.md) | 20 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `web/src/entities/skill/api` |
 
 "호출 수"는 코드상의 호출 지점 수이고, 아래 집계의 "경로 수"는 서로 다른 backend 경로 수다.
@@ -32,7 +32,7 @@
 
 ## 경로 미해석
 
-없다. 91개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
+없다. 92개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
 다음 세 곳은 변수를 호출자까지 따라가야 해석되므로 근거를 남긴다.
 
 | 호출 지점 | 변수 | 호출자 추적 결과 |

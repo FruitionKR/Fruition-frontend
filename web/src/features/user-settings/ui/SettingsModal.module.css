@@ -87,6 +87,7 @@ button.nav-row.is-danger:focus-visible {
   color: var(--color-foreground);
   background: var(--color-surface);
   border-radius: 6px;
+  overflow: hidden;
   font-size: 12px;
   font-weight: 600;
 }
