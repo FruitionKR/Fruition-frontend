@@ -2,18 +2,19 @@
 
 [API 배선 문서](../README.md) / [소비 API](README.md)
 
-document-svc의 AI 모델 설정, 채팅 세션, 비동기 Query, Markdown Agent, AI 작업 로그, 채팅 음성 입력이다.
+document-svc의 AI 모델 설정, 채팅 세션, 비동기 Query, Markdown Agent, AI 작업 로그, 채팅 음성 입력·답변 듣기다.
 `agent/**`과 `chat/**`은 직접 전송 정규식에 포함되고, `ai-models`·`ai-model-settings`·
 `ai-operation-logs`·`ai/tasks`·`query/runs`·`speech`는 포함되지 않아 rewrite를 경유한다.
 
-- 호출 지점: 19
-- 호출 경로: 17
+- 호출 지점: 20
+- 호출 경로: 18
 
-## 음성 입력
+## 음성 입력·답변 듣기
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `POST /api/workspaces/{workspace_id}/speech/transcriptions` | 채팅 입력창 마이크 녹음을 텍스트로 전사 | `web/src/features/agent-chat/api/speech.ts` `transcribeSpeech` | `workspacePath(getWorkspaceId(), "speech", "transcriptions")` | 오디오 `Blob` bytes 그대로(multipart 아님). `Content-Type`은 `MediaRecorder`가 고른 `audio/webm;codecs=opus`·`audio/webm`·`audio/mp4`·`audio/mpeg`·`audio/wav` | `text` | `web/src/features/agent-chat/model/useDictation.ts`가 `MediaRecorder`로 녹음하고 60초에 자동 종료한다. 24 MiB 초과는 요청 전에 막는다. `text`가 빈 문자열(무음)이면 "인식된 음성이 없습니다"만 안내한다. 결과는 입력창에 채우기만 하고 자동 전송하지 않는다. 실패 문구는 `parseApiError`가 서버 `error.message`(402 포함)를 그대로 쓴다 |
+| `POST /api/workspaces/{workspace_id}/speech/synthesis` | 완료된 assistant 답변을 음성으로 스트리밍(#149) | `web/src/features/agent-chat/api/speech.ts` `streamSpeechSynthesis` | `workspacePath(getWorkspaceId(), "speech", "synthesis")` | `{ message_id }` JSON, `cache: no-store`, `AbortSignal` | `application/x-ndjson` 이벤트 스트림: `audio.delta`(base64 PCM16 LE mono 24kHz), `done`, `error.code` | `web/src/features/agent-chat/model/useSpeechPlayback.ts`가 한 번에 하나만 재생한다. `lib/speechPlayback.ts`가 줄 단위 JSON을 파싱하고 조각 경계의 남는 1바이트를 다음 조각 앞에 붙여 `AudioContext` 버퍼로 이어 재생한다. 멈춤·다른 답변 재생·세션 전환·언마운트는 `AbortController`로 요청을 끊어 서버 합성을 멈춘다. 스트림 시작 전 오류(400·402·404·409·422)는 `parseApiError` 문구(402는 크레딧 부족 안내), 스트림 `error.code`는 `describeTtsStreamError`, 연결 실패는 재시도 안내다. 다시 들으면 서버가 30일 저장본을 같은 형식으로 보낸다 |
 
 ## 모델 설정
 

@@ -11,6 +11,7 @@ import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import { cx } from "@/shared/lib/classNames";
 import { useSmoothScroll } from "../model/useSmoothScroll";
+import { useSpeechPlayback } from "../model/useSpeechPlayback";
 import styles from "./AgentChat.module.css";
 
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
@@ -84,6 +85,8 @@ export function AgentBody({
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledInitialMessagesRef = useRef(false);
   const { scrollToPosition } = useSmoothScroll(bodyRef);
+  // 답변 듣기(#149)는 한 번에 하나만 재생하므로 메시지 목록 위에서 상태를 가진다. 세션이 바뀌면 멈춘다.
+  const speech = useSpeechPlayback(activeSessionId);
 
   useEffect(() => {
     hasScrolledInitialMessagesRef.current = false;
@@ -231,6 +234,9 @@ export function AgentBody({
                   visibleAnswerStage={visibleAnswerStage}
                   nodes={nodes}
                   onOpenSourceBlocks={onOpenSourceBlocks}
+                  speechPlayback={speech.playback}
+                  speechErrorMessage={speech.error?.messageId === message.id ? speech.error.message : null}
+                  onToggleSpeech={speech.toggle}
                 />
               )
               ))}
