@@ -1,0 +1,437 @@
+/* 로그 화면 (Figma 1436:16438). rail "로그" 뷰. 상단 탭 바(GNB)는 웹이라 두지 않는다. */
+.logs {
+  position: absolute;
+  inset: 0 0 0 var(--sidebar-width, 320px);
+  z-index: 1;
+  overflow: auto;
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+}
+
+/* 로그 화면의 버튼은 hover·클릭 때 배경 상자를 띄우지 않는다(공통 hover 오버레이·모바일 탭 강조 끔). */
+.logs button {
+  --button-hover-overlay: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hero block: 문서 제목과 같은 위 48px·좌우 40px 여백 */
+.logs-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 48px 40px 0;
+}
+
+.logs-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logs-title h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.64px;
+  line-height: 1.4;
+}
+
+.logs-title p {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.tabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 60px;
+  border-bottom: 1.2px solid var(--color-border);
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.tab {
+  flex: 0 0 auto;
+  height: 100%;
+  padding: 0 8px;
+  color: var(--color-muted);
+  background: none;
+  border: 0;
+  /* 활성 밑줄 자리를 늘 비워 두어 탭 전환 때 글자가 움직이지 않게 한다 */
+  border-bottom: 3px solid transparent;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.16px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.tab.is-active {
+  color: var(--color-body);
+  border-bottom-color: var(--color-muted);
+  font-weight: 700;
+}
+
+.rollback-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  color: var(--color-body);
+  background: none;
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.rollback-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Figma retry 에셋은 좌우 반전 상태로 놓여 있다 */
+.rollback-icon {
+  width: 14px;
+  height: 16px;
+  transform: scaleX(-1);
+}
+
+.logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 12px 40px 40px;
+}
+
+.logs-message {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--color-body);
+  font-size: 13px;
+}
+
+/* 날짜 그룹 헤더 (Figma "03 분석 과정 4"): 회색 바 + 개수 + 접기 셰브론 */
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  line-height: 1.4;
+}
+
+.group-count {
+  color: var(--color-muted);
+}
+
+.group-chevron {
+  width: 10px;
+  height: 5px;
+  margin-right: 3px;
+  color: var(--color-muted);
+  transition: transform 150ms ease;
+}
+
+.group-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.rows {
+  margin: 0;
+  padding: 12px 0;
+  list-style: none;
+}
+
+/* 작업 행: 위아래 1px 구분선, 선택 행은 연한 강조 배경 + 오른쪽 점 */
+.row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:first-child {
+  border-top: 1px solid var(--color-border);
+}
+
+.row.is-selected {
+  background: var(--color-primary-weak);
+}
+
+.row-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  color: var(--color-body);
+  background: none;
+  border: 0;
+  text-align: left;
+}
+
+.row-title-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.row-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  line-height: 1.4;
+}
+
+.row-date {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.row-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 10px;
+  background: var(--color-placeholder);
+}
+
+.row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  background: var(--color-primary);
+  border-radius: 50%;
+}
+
+.row-description {
+  width: 100%;
+  margin-top: -4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 1.4;
+}
+
+.row-meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 1.4;
+}
+
+.row-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-foreground);
+}
+
+/* 작업자 (Figma 1485:1725): 흰 1px 테두리의 20px 회색 원, 이름과 6px 간격 */
+.row-worker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.12px;
+}
+
+.row-worker-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  background: var(--color-border);
+  border: 1px solid var(--color-canvas);
+  border-radius: 9999px;
+}
+
+.row-status {
+  padding: 1px 6px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.row-status.is-failed {
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+}
+
+.row-time {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+/* 선택 행 아래 펼친 변경 상세 */
+.row-detail {
+  --log-pad-x: 16px;
+  --log-gutter: 48px;
+
+  margin: 0 16px 12px;
+  padding-top: 8px;
+  overflow: hidden;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.detail-notice {
+  margin: 0;
+  padding: 4px var(--log-pad-x) 12px;
+  color: var(--color-body);
+  font-size: 12px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+/* 변경 리소스 1건 */
+.change {
+  display: flex;
+  flex-direction: column;
+}
+
+.change-heading {
+  margin: 0;
+  padding: 10px var(--log-pad-x);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+}
+
+.change-notice {
+  margin: 0;
+  padding: 0 var(--log-pad-x) 4px;
+  color: var(--color-body);
+  font-size: 12px;
+}
+
+.wiki-titles {
+  margin: 0;
+  padding: 0 var(--log-pad-x) 8px calc(var(--log-pad-x) + 20px);
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.hunk {
+  display: flex;
+  flex-direction: column;
+}
+
+.hunk + .hunk {
+  margin-top: 8px;
+}
+
+/* Figma diff 행: 단일 줄번호 gutter + +/- 아이콘과 본문 */
+.diff-line {
+  display: grid;
+  grid-template-columns: var(--log-gutter) minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 22px;
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: -0.28px;
+}
+
+.diff-gutter {
+  display: flex;
+  align-items: center;
+  padding: 2px 12px 2px var(--log-pad-x);
+  color: var(--color-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.diff-content {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px var(--log-pad-x) 2px 8px;
+  color: var(--color-foreground);
+  font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.diff-line.is-add .diff-gutter {
+  background: color-mix(in srgb, var(--color-status-success) 30%, transparent);
+}
+
+.diff-line.is-add .diff-content {
+  background: color-mix(in srgb, var(--color-status-success) 14%, transparent);
+}
+
+.diff-line.is-delete .diff-gutter {
+  background: color-mix(in srgb, var(--color-danger) 30%, transparent);
+}
+
+.diff-line.is-delete .diff-content {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}

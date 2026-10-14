@@ -1,0 +1,2102 @@
+/* agent-chat 슬라이스 통합 스타일. 기존 app/styles/agent-panel.css + agent-panel/{shell,
+   conversation,status,answer,results,composer,markdown-edit}.css + responsive.css의 agent-panel 소유분을 병합했다.
+   .agent-panel 은 source-preview 위젯의 :has 크로스 상태가 참조하는 레이아웃 앵커라 :global 로 유지한다.
+   .svg-icon(공용 아이콘)과 .markdown-viewer(공용 콘텐츠 어휘)도 :global 로 참조한다.
+   색은 base.css의 --color-* 토큰만 쓴다(라이트 = Figma 시안, 다크 = 같은 레이아웃에 색만 바뀜).
+   토큰에 없는 패널 전용 색(--agent-*)은 agent-panel-shell.css의 .agent-panel에 정의한다. */
+
+/* --- shell --- */
+/* .agent-panel 자기 레이아웃(순수 전역 셀렉터)은 app 레이어 전역 agent-panel-shell.css로 분리했다. */
+
+/* Figma 1571:28010 GNB: 40px, 회색 바탕 + 왼쪽 120px 흰 대화 탭 + 오른쪽 "채팅 | 작업" 탭·아이콘 버튼 */
+.agent-header {
+  position: relative;
+  height: 40px;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+:global(.agent-panel.is-chat-selecting) .agent-header {
+  pointer-events: none;
+  background: var(--agent-selecting-overlay);
+}
+
+/* 대화 제목 탭 (Figma 1571:28011 tog): 120px, 왼쪽 12 · 오른쪽 10, 제목 SemiBold 12 + 16px 셰브론(선 1.6) */
+.agent-session-tab {
+  width: 120px;
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: stretch;
+  background: var(--color-canvas);
+  border-right: 1px solid var(--color-border);
+  /* 탭 아래 경계선을 덮어 탭이 본문과 이어져 보이게 한다. */
+  margin-bottom: -1px;
+}
+
+/* 탭 전체가 세션 목록 토글이다(제목 + 셰브론). */
+.agent-session-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 10px 0 12px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: normal;
+  text-align: left;
+}
+
+.agent-session-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-session-title:not(:disabled):hover span,
+.agent-session-title:focus-visible span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.agent-session-title:not(:disabled):hover {
+  --button-hover-overlay: none;
+}
+
+.agent-session-title:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}
+
+.agent-session-title:disabled {
+  cursor: default;
+}
+
+.agent-session-chevron {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transition: transform 120ms ease;
+}
+
+.agent-session-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* 오른쪽 묶음 (Figma 1571:28015: 좌우 8 · 위아래 6, gap 4, 오른쪽 정렬) */
+.agent-header-actions {
+  min-width: 0;
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+/* "채팅 | 작업" 보기 탭 (Figma 1571:28016·28018: 44px, 위아래 4, 반경 8, SemiBold 12/1.4).
+   고른 탭은 흰 바탕 + 2px 그림자, 글자 #4e5968 / 나머지는 바탕 없이 #8b95a1 */
+.agent-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agent-view-tab {
+  width: 44px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.agent-view-tab:hover {
+  --button-hover-overlay: none;
+  color: var(--color-body);
+}
+
+.agent-view-tab.is-selected {
+  color: var(--color-body);
+  background: var(--color-canvas);
+  filter: drop-shadow(0 0 2px var(--agent-tab-shadow));
+}
+
+.agent-view-tab:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}
+
+/* 헤더 보기 탭이 고르는 본문(패널 그리드의 1fr 칸). 채팅 대화·회의록 화면·작업 탭 중 하나가 칸을 채운다. */
+.agent-view-panel {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.agent-view-slot {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.agent-view-slot[hidden] {
+  display: none;
+}
+
+/* "작업" 탭 빈 상태. 시안이 없어 회의록 화면의 진행 문구와 같은 글자 크기·색을 쓴다. */
+.agent-work-empty {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 22px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.agent-work-empty p {
+  margin: 0;
+}
+
+.agent-work-empty p:first-child {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+/* 헤더 우측 ⋯ 메뉴 (새 채팅 등) */
+.agent-header-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-header-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 12;
+  width: max-content;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px var(--color-shadow);
+}
+
+.agent-header-menu-list button {
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.agent-header-menu-list button:hover,
+.agent-header-menu-list button:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.agent-header-menu-list button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: transparent;
+}
+
+/* 헤더 아래 겹쳐 뜨는 채팅 세션 드롭다운 */
+.chat-session-dropdown {
+  position: absolute;
+  top: 44px;
+  left: 12px;
+  z-index: 12;
+  width: 240px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+  padding: 12px 12px 16px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px var(--color-shadow);
+}
+
+.chat-session-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border-radius: 8px;
+}
+
+.chat-session-search svg {
+  flex: 0 0 auto;
+}
+
+.chat-session-search input {
+  min-width: 0;
+  width: 100%;
+  color: var(--color-foreground);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+}
+
+.chat-session-search input::placeholder {
+  color: var(--color-placeholder);
+}
+
+/* 세션 목록 아래 새 채팅 버튼 (워크스페이스 드롭다운 .workspace-dropdown-new와 같은 모양) */
+.chat-session-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex: 0 0 auto;
+  padding: 10px 8px;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-session-new:hover,
+.chat-session-new:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.chat-session-new:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chat-session-new svg {
+  flex: 0 0 auto;
+}
+
+.chat-session-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.chat-session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.chat-session-item span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-session-item svg {
+  flex: 0 0 auto;
+  color: var(--color-body);
+}
+
+/* 현재 채팅은 Fruition 로고로만 구분하고, 배경은 hover·포커스일 때만 칠한다. */
+.chat-session-item:hover,
+.chat-session-item:has(:focus-visible) {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+/* 세션 선택 버튼(행 전체를 채운다) */
+.chat-session-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  /* 배경은 행(.chat-session-item)이 칠하므로 전역 버튼 오버레이를 겹치지 않는다. */
+  --button-hover-overlay: none;
+}
+
+/* 현재 사용 중 채널 표시용 Fruition 로고 */
+.chat-session-logo {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+/* 비활성 세션 행의 채팅 말풍선 아이콘 */
+.chat-session-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+/* 세션 옵션(삭제/원본 문서로 생성) 메뉴 */
+.chat-session-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.chat-session-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 6px;
+  color: var(--color-foreground);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+/* 옵션 버튼은 행 hover·포커스·메뉴 열림일 때만 보인다. */
+.chat-session-item:hover .chat-session-more,
+.chat-session-item:has(:focus-visible) .chat-session-more,
+.chat-session-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.chat-session-more:hover,
+.chat-session-more:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface-strong);
+}
+
+.chat-session-menu-list {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px var(--color-shadow);
+}
+
+.chat-session-menu-list button {
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--color-foreground);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-session-menu-list button:hover,
+.chat-session-menu-list button:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.chat-session-menu-list button.is-danger {
+  color: var(--color-danger);
+}
+
+.chat-session-empty,
+.chat-session-error {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.chat-session-error {
+  color: var(--color-danger);
+}
+
+.panel-action {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Figma 아이콘 선 색 #8B95A1 = --color-muted */
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 4px;
+}
+
+/* 패널 숨기기 아이콘 (workspace/sidebar_toggle.svg 15×14, 왼쪽 사이드바 접기와 같은 자산) */
+.panel-toggle-icon {
+  width: 15px;
+  height: 14px;
+}
+
+.panel-action:hover {
+  --button-hover-overlay: none;
+  background: var(--color-hover-overlay);
+}
+
+.panel-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Figma 1436:17275: 좌우 22px, 위 24px. 대화가 짧으면 입력창 바로 위(아래쪽)에 붙는다. */
+.agent-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 22px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* base.css의 전역 셀렉터는 CSS 모듈 해시 클래스와 매칭되지 않아
+     기본 스크롤바가 노출되므로 모듈 안에서 직접 지정한다. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* 남는 높이를 위쪽에서 채워 대화를 아래로 붙인다(justify-content: flex-end는 스크롤 시작점이 잘린다). */
+.agent-body::before {
+  content: "";
+  flex: 1 0 0;
+}
+
+.agent-body > * {
+  flex: 0 0 auto;
+}
+
+.agent-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.agent-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-body::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border: 2px solid var(--color-canvas);
+  border-radius: 999px;
+}
+
+/* --- conversation --- */
+.chat-pair {
+  position: relative;
+  min-width: 0;
+}
+
+.chat-pair-content {
+  min-width: 0;
+}
+
+.chat-selection-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.chat-pair + .chat-pair {
+  margin-top: 24px;
+}
+
+.agent-body.is-pair-selecting {
+  padding-inline: 12px;
+}
+
+.is-pair-selecting .chat-pair {
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.is-pair-selecting .chat-pair.is-selection-candidate {
+  border-color: var(--color-subtle);
+  cursor: pointer;
+}
+
+.is-pair-selecting .chat-pair.is-selection-candidate:hover {
+  border-color: var(--color-primary);
+}
+
+.chat-pair-selection-label {
+  margin-bottom: 10px;
+  color: var(--color-body);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.is-selected .chat-pair-selection-label {
+  color: var(--color-primary);
+}
+
+.is-pair-selecting .chat-pair.is-excluded {
+  background: var(--agent-selecting-overlay);
+  cursor: not-allowed;
+}
+
+.is-pair-selecting .chat-pair.is-excluded .chat-pair-content {
+  opacity: 0.35;
+}
+
+.is-pair-selecting .chat-pair.is-selected {
+  opacity: 1;
+  background: var(--color-canvas);
+  border-right: 1.2px dashed var(--color-primary);
+  border-left: 1.2px dashed var(--color-primary);
+}
+
+.is-pair-selecting .chat-pair.is-selected + .chat-pair.is-selected {
+  margin-top: 0;
+  padding-top: 24px;
+}
+
+.is-pair-selecting .chat-pair.is-range-start {
+  padding-top: 12px;
+  border-top: 1.2px dashed var(--color-primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.is-pair-selecting .chat-pair.is-range-end {
+  padding-bottom: 12px;
+  border-bottom: 1.2px dashed var(--color-primary);
+  border-radius: 0 0 2px 2px;
+}
+
+.is-pair-selecting .chat-pair.is-range-start.is-range-end {
+  border-radius: 2px;
+}
+
+/* 개별 선택: 떨어진 문답을 각각 체크박스로 표시한다. */
+.is-individual-selecting .chat-pair.is-selected {
+  border: 1.2px dashed var(--color-primary);
+  border-radius: 6px;
+}
+
+.is-individual-selecting .chat-pair.is-selected + .chat-pair.is-selected {
+  margin-top: 24px;
+  padding-top: 12px;
+}
+
+.chat-pair-checkbox {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 1px solid var(--color-subtle);
+  border-radius: 2px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.is-selected .chat-pair-checkbox {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.chat-selection-overlay:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -3px;
+}
+
+/* Figma 1436:17278 사용자 말풍선: 회색 바탕, 14px, 오른쪽 아래만 각진 16px 라운드 */
+.question-bubble {
+  width: fit-content;
+  max-width: 100%;
+  margin: 4px 0 4px auto;
+  padding: 12px 16px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border-radius: 16px 16px 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+  white-space: pre-wrap;
+}
+
+.agent-thread {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.agent-thread.is-document-command {
+  gap: 8px;
+}
+
+.agent-thread.is-document-command .status-list {
+  padding-bottom: 0;
+}
+
+.agent-thread.is-document-command .agent-answer {
+  padding-top: 0;
+}
+
+.agent-thread:first-child {
+  margin-top: 0;
+}
+
+.agent-thread + .question-bubble,
+.question-bubble + .question-bubble {
+  margin-top: 20px;
+}
+
+/* Figma 840:52459 — 채팅 부분 편입 범위 선택 하단 제어부 */
+.chat-selection-actions {
+  position: relative;
+  min-height: 61px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 16px 22px;
+  background: var(--agent-selecting-overlay);
+}
+
+.chat-selection-toolbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-selection-kind {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.chat-selection-kind-option {
+  height: 25px;
+  padding: 0 10px;
+  color: var(--color-body);
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-selection-kind-option:hover:not(:disabled) {
+  color: var(--color-foreground);
+}
+
+.chat-selection-kind-option[aria-pressed="true"] {
+  color: var(--color-primary);
+  background: var(--color-canvas);
+  font-weight: 600;
+}
+
+.chat-selection-kind-option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.chat-selection-kind-option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chat-selection-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.chat-selection-buttons button {
+  height: 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.chat-selection-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chat-selection-reset {
+  width: 20px;
+  padding: 0;
+  color: var(--color-body);
+  background: transparent;
+}
+
+.chat-selection-cancel,
+.chat-selection-confirm {
+  width: 45px;
+  padding: 6px 0;
+  white-space: nowrap;
+}
+
+.chat-selection-cancel {
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  font-weight: 500;
+}
+
+.chat-selection-confirm {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  font-weight: 600;
+}
+
+.chat-selection-error {
+  width: 100%;
+  margin: 8px 0 0;
+  color: var(--color-danger);
+  font-size: 11px;
+  text-align: right;
+}
+
+.agent-thread .status-list,
+.agent-thread .results,
+.agent-thread .agent-answer {
+  margin-top: 0;
+}
+
+
+.agent-stage {
+  animation: agent-stage-rise 560ms cubic-bezier(0.2, 0.72, 0.16, 1) both;
+}
+
+@keyframes agent-stage-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- status --- */
+/* Figma 1436:17281 "서치 명령 실행 중": 제목 + 단계 목록(완료 체크 / 진행 중 / 대기 점선 원 + 세로 점선 레일) */
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 12px 0;
+}
+
+.status-list + .status-list {
+  margin-top: 0;
+}
+
+.status-list button {
+  display: flex;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: normal;
+}
+
+.status-list button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-list button svg {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.status-list button svg.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.status-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  min-height: 14px;
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: normal;
+  font-weight: 400;
+}
+
+.status-row span {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-on-primary);
+  background: var(--color-canvas);
+  border: 0.8px dashed var(--color-muted);
+  border-radius: 100px;
+}
+
+/* 단계 사이 세로 점선 레일 (Figma rail: 1px, 4px 선 / 2px 간격) */
+.status-row:not(:last-child) span::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 11px;
+  width: 1px;
+  height: 12px;
+  background: repeating-linear-gradient(to bottom, var(--color-placeholder) 0 4px, transparent 4px 6px);
+  transform: translateX(-50%);
+}
+
+.status-row.done span {
+  border: 0;
+  background: var(--color-primary);
+}
+
+.status-row.active span {
+  border: 1px solid var(--color-primary);
+  background: var(--color-canvas);
+}
+
+.status-row.done span svg {
+  position: relative;
+  z-index: 1;
+}
+
+.status-row.active p,
+.status-row.pending p {
+  color: var(--color-foreground);
+  font-weight: 500;
+}
+
+.status-row p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- answer --- */
+/* Figma 1436:17307 "실행 중 발견 사항": 접힘 제목 + 12px 본문 */
+.agent-answer {
+  margin-top: 0;
+  padding: 8px 0;
+  color: var(--color-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.agent-answer :global(.markdown-viewer) {
+  color: var(--color-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  font-family: inherit;
+  font-weight: 400;
+  letter-spacing: -0.12px;
+}
+
+.answer-section-title {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  margin-bottom: 12px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: normal;
+}
+
+.answer-section-title svg {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.answer-section-title svg.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+/* 답변 듣기(#149): 받아쓰기 버튼(.composer-mic)과 같은 둥근 소형 버튼. 재생 중에는 정지 사각형으로 바뀐다. */
+.answer-actions {
+  display: flex;
+  margin-top: 8px;
+}
+
+.answer-listen {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.answer-listen:hover,
+.answer-listen:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+}
+
+.answer-listen.is-active {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.answer-listen .is-spinning {
+  animation: global(spin) 1s linear infinite;
+}
+
+.speech-error {
+  margin: 6px 0 0;
+  color: var(--color-danger);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.agent-answer :global(.markdown-viewer) h1,
+.agent-answer :global(.markdown-viewer) h2,
+.agent-answer :global(.markdown-viewer) h3 {
+  color: var(--color-foreground);
+}
+
+.agent-answer :global(.markdown-viewer) h1 {
+  font-size: 18px;
+}
+
+.agent-answer :global(.markdown-viewer) h2 {
+  font-size: 15px;
+}
+
+.agent-answer :global(.markdown-viewer) h3 {
+  font-size: 13px;
+}
+
+.agent-answer :global(.markdown-viewer) p {
+  margin: 0;
+}
+
+.agent-answer :global(.markdown-viewer) p:last-child {
+  margin-bottom: 0;
+}
+
+.composer-status {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.composer-cancelled {
+  color: var(--color-danger);
+}
+
+.agent-answer p,
+.query-error {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.query-error {
+  margin-top: 16px;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* --- results --- */
+/* Figma 1436:17303 "찾은 자료 N건": 회색 라벨 + 밑줄 제목 링크 */
+.results {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 31px;
+}
+
+.results > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: normal;
+}
+
+.result-link {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  color: var(--color-foreground);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: normal;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-position: from-font;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.result-link:hover,
+button.result-link:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-primary);
+}
+
+/* Figma 1436:17311 타이핑 표시: ●●● + "답변을 작성하고 있어요…" */
+.typing {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: normal;
+}
+
+.typing p {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.typing > span {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.typing i {
+  width: 6px;
+  height: 6px;
+  background: var(--color-muted);
+  border-radius: 50%;
+  animation: typing-blink 1.2s ease-in-out infinite;
+}
+
+.typing i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-blink {
+  0%,
+  100% {
+    background: var(--color-muted);
+  }
+
+  40% {
+    background: var(--color-body);
+  }
+}
+
+/* --- composer --- */
+.composer-region {
+  min-width: 0;
+}
+
+:global(.agent-panel.is-chat-selecting) .composer-region {
+  background: var(--agent-selecting-overlay);
+}
+
+/* 열린 노트가 답변 근거(위키)에 없다는 안내. Figma 시안 없음: 앱 색 토큰을 따라 라이트·다크 모두 맞춘다. */
+.wiki-evidence-notice {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 22px 0;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.wiki-evidence-notice p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.wiki-evidence-notice button {
+  flex: none;
+  height: 29px;
+  padding: 0 10px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wiki-evidence-notice button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.wiki-evidence-notice button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+:global(.agent-panel.is-chat-selecting) .composer {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+/* 채팅 입력 카드 (Figma 1436:17317): 148px, 옅은 회색 바탕 + 1.2px 테두리, radius 16 */
+.composer {
+  min-width: 0;
+  min-height: 148px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 22px 24px;
+  padding: 16px 16px 12px;
+  background: color-mix(in srgb, var(--color-surface) 24%, transparent);
+  border: 1.2px solid var(--color-border);
+  border-radius: 16px;
+}
+
+.composer:focus-within {
+  border-color: var(--color-subtle);
+}
+
+.composer textarea {
+  min-width: 0;
+  width: 100%;
+  flex: 1 1 auto;
+  border: 0;
+  outline: 0;
+  resize: none;
+  color: var(--color-foreground);
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: normal;
+  display: block;
+  padding: 0;
+  margin: 0;
+  font-weight: 500;
+}
+
+.composer textarea::placeholder {
+  color: var(--color-muted);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 모델 선택: "Claude · 웹 서칭" + 셰브론 */
+.composer-model {
+  position: relative;
+  min-width: 0;
+}
+
+.composer-model-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.composer-model-trigger:hover,
+.composer-model-trigger:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-body);
+}
+
+/* 트리거의 "· 웹 서칭" 보조 라벨 */
+.composer-model-extra {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.composer-model-trigger svg {
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+.composer-model-trigger svg.is-open {
+  transform: rotate(180deg);
+}
+
+/* 위로 열리는 모델 목록 */
+.composer-model-list {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 12;
+  width: max-content;
+  min-width: 100%;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 6px var(--color-shadow);
+}
+
+.composer-model-list > [role="listbox"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 모델 검색 입력: 목록 맨 위 */
+.composer-model-search {
+  width: 100%;
+  min-width: 180px;
+  padding: 4px 8px;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-model-search::placeholder {
+  color: var(--muted);
+}
+
+/* 모델이 수십 개여도 composer 위로 너무 길게 뻗지 않게 스크롤한다. */
+.composer-model-options {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.composer-model-options [role="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composer-model-options [role="group"] + [role="group"] {
+  margin-top: 6px;
+}
+
+/* provider 묶음 제목 */
+.composer-model-group-label {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-model-empty {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.composer-model-option {
+  width: 100%;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 2px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.composer-model-option svg {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+}
+
+.composer-model-option:hover,
+.composer-model-option:focus-visible,
+.composer-model-option.is-active {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+/* 웹 서칭 토글 행: 구분선 아래 */
+.composer-web-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.composer-web-search-label {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+
+.composer-web-search-label span:first-child {
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-web-search-label span:last-child {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.4;
+}
+
+.composer-switch {
+  position: relative;
+  width: 24px;
+  height: 14px;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 100px;
+  background: var(--color-surface-strong);
+  cursor: pointer;
+}
+
+.composer-switch span {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--agent-switch-knob);
+  box-shadow: 0 1.5px 9px var(--color-shadow);
+  transition: transform 120ms ease;
+}
+
+.composer-switch.is-on {
+  background: var(--color-primary);
+}
+
+.composer-switch.is-on span {
+  transform: translateX(10px);
+}
+
+.composer-switch:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 우하단: 파형 마크(음성 받아쓰기) + 전송 (Figma 1436:17328, 28px 원 두 개, gap 8) */
+.composer-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 음성 받아쓰기(#147): 시안의 파형 마크를 그대로 버튼으로 쓴다. 녹음 중에는 정지 사각형으로 바뀐다. */
+.composer-mic {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-on-primary);
+  background: transparent;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.composer-mic:hover:not(:disabled),
+.composer-mic:focus-visible {
+  --button-hover-overlay: none;
+  filter: brightness(0.92);
+}
+
+.composer-mic.is-recording {
+  background: var(--color-danger);
+}
+
+.composer-mic:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 회의 받아쓰는 중(#148, Figma 1540:22974): 같은 파란 파형 버튼이 막대가 움직이며 멈춤 버튼이 된다. */
+.composer-mic.is-meeting-recording .wave-mark i {
+  animation: meeting-wave 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.composer-mic.is-meeting-recording .wave-mark i:nth-child(2) { animation-delay: 0.15s; }
+.composer-mic.is-meeting-recording .wave-mark i:nth-child(3) { animation-delay: 0.3s; }
+.composer-mic.is-meeting-recording .wave-mark i:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes meeting-wave {
+  0%,
+  100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-mic.is-meeting-recording .wave-mark i {
+    animation: none;
+  }
+}
+
+/* 파형 버튼 메뉴: 음성으로 입력(#147) · 회의 받아쓰기(#148). 헤더 ⋯ 메뉴와 같은 모양으로 버튼 위에 뜬다. */
+.composer-voice {
+  position: relative;
+  display: flex;
+}
+
+.composer-voice-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 12;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px var(--color-shadow);
+}
+
+.composer-voice-menu button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.composer-voice-menu button span + span {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.composer-voice-menu button:hover:not(:disabled),
+.composer-voice-menu button:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.composer-voice-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 전송: 입력 전에는 회색 원(Figma), 보낼 수 있으면 진한 원으로 바뀐다. */
+.composer-send {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-canvas);
+  background: var(--color-foreground);
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.composer-send:hover:not(:disabled),
+.composer-send:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-body);
+}
+
+.composer-send:disabled {
+  background: var(--color-placeholder);
+  cursor: default;
+}
+
+/* Fruition AI 파형 마크: 원형 primary 바탕 + 둥근 막대 4개 */
+.wave-mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 9999px;
+}
+
+.wave-mark i {
+  display: block;
+  background: currentColor;
+  border-radius: 9999px;
+}
+
+/* 입력창 28px: 막대 2px, 높이 6/4/5/7, 간격 1.4 */
+.wave-mark.is-small {
+  width: 28px;
+  height: 28px;
+  gap: 1.4px;
+}
+
+.wave-mark.is-small i {
+  width: 2px;
+}
+
+.wave-mark.is-small i:nth-child(1) { height: 6px; }
+.wave-mark.is-small i:nth-child(2) { height: 4px; }
+.wave-mark.is-small i:nth-child(3) { height: 5px; }
+.wave-mark.is-small i:nth-child(4) { height: 7px; }
+
+/* 패널이 닫혔을 때 콘텐츠 우하단 플로팅 열기 버튼 (Figma 1426:15877: 오른쪽 32px, 아래 24px) */
+.agent-launcher {
+  position: absolute;
+  right: 32px;
+  bottom: 24px;
+  z-index: 9;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 9999px;
+  box-shadow: 0 4px 12px var(--color-shadow);
+  transition: transform 160ms ease;
+}
+
+.agent-launcher-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.agent-launcher:hover {
+  --button-hover-overlay: none;
+  transform: translateY(-2px);
+}
+
+.agent-launcher:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+/* --- markdown-edit --- */
+.markdown-edit-preview,
+.markdown-create-preview {
+  margin: 0 0 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+}
+
+.markdown-edit-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 20px 16px;
+  border-radius: 16px;
+}
+
+
+.markdown-edit-preview header div {
+  display: grid;
+  gap: 12px;
+}
+
+.markdown-edit-preview header strong {
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.markdown-edit-details {
+  display: grid;
+  gap: 12px;
+}
+
+.markdown-edit-details summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.markdown-edit-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.markdown-edit-details summary p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+
+.markdown-edit-details-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.markdown-edit-diff {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-canvas);
+}
+
+.markdown-edit-diff code {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 22px;
+  padding: 2px 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.markdown-edit-diff code.is-delete {
+  background: var(--color-danger-weak);
+  color: var(--color-danger);
+}
+
+.markdown-edit-diff code.is-insert {
+  background: var(--color-primary-weak);
+  color: var(--color-primary-weak-foreground);
+}
+
+.markdown-edit-rendered-preview,
+.markdown-create-rendered-preview {
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+  font-size: 12px;
+}
+
+.markdown-edit-rendered-preview {
+  max-height: 180px;
+}
+
+.markdown-edit-rendered-preview > div {
+  margin: 0;
+}
+
+.markdown-edit-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
+.markdown-edit-preview footer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.markdown-edit-preview footer button,
+.markdown-create-preview footer button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.markdown-edit-preview footer button:hover:not(:disabled),
+.markdown-create-preview footer button:hover:not(:disabled) {
+  --button-hover-overlay: none;
+  background: var(--color-border);
+}
+
+.markdown-edit-preview footer button.is-primary,
+.markdown-create-preview footer button.is-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.markdown-edit-preview footer button.is-primary:hover:not(:disabled),
+.markdown-create-preview footer button.is-primary:hover:not(:disabled) {
+  --button-hover-overlay: none;
+  background: var(--color-primary);
+  filter: brightness(1.05);
+}
+
+.markdown-edit-preview footer button:disabled,
+.markdown-create-preview footer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.markdown-edit-preview footer button {
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 6px 18px;
+  border-radius: 6px;
+}
+
+.markdown-create-preview {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+}
+
+.markdown-create-preview header {
+  display: grid;
+  gap: 4px;
+}
+
+.markdown-create-preview header span,
+.markdown-create-preview header p {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 11px;
+}
+
+.markdown-create-rendered-preview {
+  max-height: 260px;
+}
+
+.markdown-create-preview footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.markdown-create-preview footer button {
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+
+/* agent-panel 반응형 폭(순수 전역)도 agent-panel-shell.css로 분리 */
+.plan-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-body);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.plan-preview header,
+.plan-preview footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plan-preview header span,
+.plan-preview small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.plan-preview p {
+  margin: 0;
+}
+
+.plan-preview ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.plan-preview li p {
+  margin-top: 4px;
+  color: var(--color-muted);
+}
+
+.plan-preview footer {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.plan-preview button {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-body);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.plan-preview button.is-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.plan-preview button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.plan-preview [role="alert"] {
+  color: var(--color-danger);
+}
+
+.plan-counts {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.plan-tree-region {
+  max-height: 420px;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.plan-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-tree summary,
+.plan-tree-file {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding-right: 8px;
+  border-radius: 6px;
+  color: var(--color-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -0.28px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.plan-tree summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  height: 28px;
+  color: var(--color-primary);
+}
+
+.plan-tree summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-tree summary:hover,
+.plan-tree summary:focus-visible,
+.plan-tree-file:hover {
+  background: var(--color-primary-weak);
+}
+
+.plan-tree summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.plan-tree-slot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plan-tree-slot svg {
+  width: 8px;
+  height: 8px;
+  transition: transform 120ms ease;
+}
+
+.plan-tree details[open] > summary .plan-tree-slot svg {
+  transform: rotate(90deg);
+}
+
+.plan-tree-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-tree small {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  color: var(--color-muted);
+}
+
+.plan-tree summary small {
+  color: var(--color-primary);
+  opacity: 0.65;
+}
+
+.plan-details > summary {
+  cursor: pointer;
+  color: var(--color-body);
+}
+
+.plan-details[open] > p {
+  margin: 12px 0;
+}

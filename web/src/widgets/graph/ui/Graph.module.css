@@ -1,0 +1,142 @@
+/* graph 위젯 스타일 (기존 app/styles/graph/{stage,filters,lines,nodes}.css + responsive.css graph 소유분 병합) */
+
+/* --- stage --- */
+/* 우측은 agent-panel 자리(--agent-panel-width, 패널이 닫히면 0이라 끝까지 채운다). */
+.graph-stage {
+  position: absolute;
+  inset: 0 var(--agent-panel-width, 360px) 0 var(--sidebar-width, 320px);
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+
+:global(.workspace.has-source-preview) .graph-stage {
+  left: var(--sidebar-width, 320px);
+}
+
+/* 캔버스는 그래프 영역 전체를 채운다. 범례 칩(.filter-chips, z-index 4)은 그 위에 떠 있다. */
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.graph-canvas:active {
+  cursor: grabbing;
+}
+
+.graph-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.graph-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 14px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.graph-empty.is-error {
+  max-width: min(520px, calc(100% - 48px));
+  border-radius: 8px;
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+  border-color: var(--color-danger-weak);
+  text-align: center;
+  white-space: normal;
+}
+
+/* --- filters (Figma legend 1406:13564) --- */
+.filter-chips {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  left: auto;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.filter-chips .filter-chip {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: normal;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.filter-chips .filter-chip:hover {
+  --button-hover-overlay: none;
+  background: var(--color-surface-strong);
+}
+
+.filter-chips .filter-chip:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 필터에서 끈 종류: 흐리게 표시해 토글 상태를 드러낸다. */
+.filter-chips .filter-chip.is-inactive {
+  opacity: 0.4;
+}
+
+.chip-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.chip-dot.raw {
+  background: var(--color-graph-raw);
+}
+
+.chip-dot.source {
+  background: var(--color-graph-source);
+}
+
+.chip-dot.concept {
+  background: var(--color-graph-concept);
+}
+
+.chip-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chip-label {
+  font-weight: 500;
+}
+
+.chip-count {
+  color: var(--color-foreground);
+  font-weight: 600;
+}

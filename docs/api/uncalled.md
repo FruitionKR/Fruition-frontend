@@ -16,23 +16,24 @@
 
 | 서비스 | 전체 `/api/**` | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 50 | 37 |
+| document-svc | 87 | 53 | 34 |
 | access-svc | 29 | 26 | 3 |
 
-미호출 37개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 9, 미배선 14.
+미호출 34개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 6, 미배선 14.
+(문서 휴지통 조회·문서 복구는 설정 화면 휴지통 섹션에 배선되어 빠졌다. [consumed/document.md](consumed/document.md#휴지통))
 
 ---
 
-## document-svc 미호출 37개
+## document-svc 미호출 36개
 
 ### 의도적 비사용
 
 | 경로 | 근거 |
 |---|---|
-| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/query` | 동기 Query. 이 저장소는 비동기 `query/runs` + SSE `GET /api/query/runs/{request_id}/events` 조합을 쓴다(`src/entities/wiki/api/wiki.ts` `runQueryStream`, 함수 주석에 흐름이 명시되어 있다). 질의 중 단계 표시와 취소(`ai/tasks/{id}/cancel`)가 필요해 선택한 설계이며 **공백이 아니다** |
+| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/query` | 동기 Query. 이 저장소는 비동기 `query/runs` + SSE `GET /api/query/runs/{request_id}/events` 조합을 쓴다(`web/src/entities/wiki/api/wiki.ts` `runQueryStream`, 함수 주석에 흐름이 명시되어 있다). 질의 중 단계 표시와 취소(`ai/tasks/{id}/cancel`)가 필요해 선택한 설계이며 **공백이 아니다** |
 | `GET /api/workspaces/{workspace_id}/navigation` | 트리는 `document-tree`를 한 번 받아 쓴다 |
-| `GET /api/workspaces/{workspace_id}/navigation/search` | `src/features/document-search/model/useDocumentSearch.ts`가 이미 받아 둔 트리를 `allItems.filter(...)`로 **클라이언트에서 필터링**한다. 서버 검색을 부르지 않는 것이 현재 설계다 |
-| `GET /api/workspaces/{workspace_id}/navigation/breadcrumb` | 경로 표시도 받아 둔 트리에서 계산한다(`src/entities/tree/model/serverTree.ts` `findServerParent` 등) |
+| `GET /api/workspaces/{workspace_id}/navigation/search` | `web/src/features/document-search/model/useDocumentSearch.ts`가 이미 받아 둔 트리를 `allItems.filter(...)`로 **클라이언트에서 필터링**한다. 서버 검색을 부르지 않는 것이 현재 설계다 |
+| `GET /api/workspaces/{workspace_id}/navigation/breadcrumb` | 경로 표시도 받아 둔 트리에서 계산한다(`web/src/entities/tree/model/serverTree.ts` `findServerParent` 등) |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions` | 문서 버전 기록 화면을 제거했다. 버전은 본문 저장 시 서버가 계속 만든다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/versions/{version}` | 같은 이유(과거 버전 읽기 전용 열람 제거) |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/diff` | 같은 이유(버전 간 비교 제거) |
@@ -48,30 +49,25 @@
 
 | 경로 | 상태 |
 |---|---|
-| `GET /api/workspaces/{workspace_id}/wiki-schema/active` | wiki-schema 배선 진행 중. 현재는 `src/entities/schema/api/schema.ts`의 `localStorage` 목업 |
+| `GET /api/workspaces/{workspace_id}/wiki-schema/active` | 호출 없음. 쓰이지 않던 목업 UI(`entities/schema`, `features/schema-manage`)는 제거됨 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/drafts` | 같음 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/preview` | 같음 |
 | `POST /api/workspaces/{workspace_id}/wiki-schema/{schema_id}/activate` | 같음 |
 | `POST·DELETE /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock` | 호출 없음. `main` 기준으로는 배선 여부를 확인할 수 없다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock/heartbeat` | 같음 |
 
-### UI 없음 — 음성·회의
+### UI 없음 — 녹음 파일 회의
 
-이 저장소에 음성·회의 UI가 **전혀 없다.** `MediaRecorder`, `getUserMedia`, `WebSocket`
-어느 것도 `src/`·`app/`에 나타나지 않는다. 따라서 아래 9개 경로는 대응 화면 자체가 없다.
-이 문서는 그 사실만 기록하고 내용은 다루지 않는다.
+회의 실시간 받아쓰기와 회의록 초안·저장은 채팅 패널 회의록 화면(#148)이 호출한다([meeting.md](consumed/meeting.md)).
+녹음 파일을 올려 전사하는 화면은 시안이 없어 아직 없다. 따라서 아래 경로는 대응 화면이 없다.
 
-| 경로 |
-|---|
-| `/api/workspaces/{workspace_id}/meetings` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/live-tickets` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/append-preview` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/apply` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording-url` |
-| `/api/workspaces/{workspace_id}/speech/transcriptions` |
+| 경로 | 확인한 것 |
+|---|---|
+| `POST /api/workspaces/{workspace_id}/meetings/{meeting_id}/recording/uploads` (+`/parts`·`/complete`·`/abort`) | 녹음 파일 직접 업로드(S3 multipart, 500 MiB·3시간). 업로드 화면이 없다 |
+| `POST /api/workspaces/{workspace_id}/meetings/{meeting_id}/transcription/cancel` | 녹음 파일 전사 취소. 업로드 화면이 없다 |
+| `GET /api/workspaces/{workspace_id}/meetings/{meeting_id}/recording-url` | 녹음 재생 주소. 실시간 회의는 원본을 올리지 않아 재생할 녹음이 없다 |
+| `GET /api/workspaces/{workspace_id}/meetings/{meeting_id}` | 회의 조회. 새로고침 뒤 진행 중이던 회의를 다시 여는 화면이 없다(회의 목록 API도 없다) |
+| `DELETE /api/workspaces/{workspace_id}/meetings/{meeting_id}` | 회의 삭제. 회의 목록이 없어 지울 회의를 고를 화면이 없다 |
 
 ### 미배선 (실제 공백 후보)
 
@@ -82,10 +78,8 @@ UI 필요 여부를 단정하지 않는다.
 |---|---|
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/cancel` | `decideAgentPlan`의 `decision` 타입이 `"approve" \| "reject"`로만 선언되어 이 segment가 만들어질 수 없다 |
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/revise` | 같은 이유 |
-| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki/preview` | 내보내기는 미리보기 없이 `.../wiki`를 바로 호출한다(`src/features/wiki-export/api/export.ts`) |
-| `GET /api/workspaces/{workspace_id}/documents/trash` | 휴지통 조회 호출이 없다. `src/`에 `trash` 문자열 자체가 없다 |
-| `POST /api/workspaces/{workspace_id}/documents/{document_id}/restore` | 문서 복구 호출이 없다. 삭제는 소프트 삭제인데 복구 경로가 배선되지 않았다 |
-| `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다 |
+| `POST /api/workspaces/{workspace_id}/chat/sessions/{session_id}/wiki/preview` | 내보내기는 미리보기 없이 `.../wiki`를 바로 호출한다(`web/src/features/wiki-export/api/export.ts`) |
+| `POST /api/workspaces/{workspace_id}/folders/{folder_id}/restore` | 폴더 복구 호출이 없다. 문서 휴지통 목록(`GET .../documents/trash`)에는 폴더가 오지 않아 복구 대상을 고를 화면이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/markdown` | Markdown 문서 전용 목록. 이 저장소는 `documents` 전체 목록만 쓴다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/export` | 문서 내보내기 호출이 없다 |
@@ -138,7 +132,7 @@ access-svc에는 워크스페이스 삭제(`DELETE /api/workspaces/{workspace_id
 - Next.js route handler와 `middleware.ts`를 **전수 추적하지 않았다.** 서버 측에서 route
   handler를 경유해 backend로 나가는 경로가 있다면 이 저장소가 실제로는 호출하는데
   "미호출"로 분류될 수 있다. 현재 확인된 route handler 2개
-  (`app/api/document-transport/route.ts`, `app/access/verify/route.ts`)는 모두 환경 변수와
+  (`web/app/api/document-transport/route.ts`, `web/app/access/verify/route.ts`)는 모두 환경 변수와
   쿠키만 보고 backend를 호출하지 않는다.
-- `mock/`에 라우트가 존재한다는 사실은 프로덕션 배선의 근거가 아니다. `src/`·`app/`의 어떤
-  모듈도 `mock/`을 import하지 않는다.
+- `web/mock/`에 라우트가 존재한다는 사실은 프로덕션 배선의 근거가 아니다. `web/src/`·`web/app/`의 어떤
+  모듈도 `web/mock/`을 import하지 않는다.

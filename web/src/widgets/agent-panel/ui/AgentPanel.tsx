@@ -1,0 +1,441 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
+import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
+import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
+import { isCapturingPhase, MeetingNotesView, useMeetingSession } from "@/features/meeting-dictation";
+import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
+import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
+import { useChatThread } from "@/features/agent-chat/model/useChatThread";
+import { fetchCurrentChatSessionId } from "@/entities/chat";
+import { publishNotice } from "@/features/document-notifications";
+import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
+import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
+import { fetchChatSessions } from "@/entities/chat/api/chat";
+import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import {
+  classifyChatExportPairs,
+  EMPTY_CHAT_PAIR_RANGE_SELECTION,
+  selectChatPairRange,
+  toggleChatPair,
+  type ChatPairRangeSelection,
+  type ChatPairSelectionKind
+} from "@/features/agent-chat/lib/chatPairSelection";
+import type { SourceBlockHighlight } from "@/entities/document";
+import type { GraphNode } from "@/entities/wiki";
+import { useAgentTurn } from "../model/useAgentTurn";
+import { useAiModelSelection } from "../model/useAiModelSelection";
+import styles from "@/features/agent-chat/ui/AgentChat.module.css";
+
+const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
+  { kind: "range", label: "범위 선택" },
+  { kind: "individual", label: "개별 선택" }
+];
+
+export function AgentPanel({
+  onClose,
+  onOpenSourceBlocks,
+  onCreateMarkdownDocument,
+  markdownEditContext,
+  onDocumentExported,
+  nodes,
+  composerDraft,
+  wikiEvidenceNotice,
+  onMeetingNotesSaved,
+  onMeetingActiveChange,
+  isShown = true
+}: {
+  onClose: () => void;
+  onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft) => Promise<void>;
+  markdownEditContext?: ActiveMarkdownEditContext | null;
+  onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
+  nodes?: GraphNode[];
+  /** 입력창에 채울 문장(스킬 실행의 "/slug "). id가 바뀔 때마다 한 번 채운다 */
+  composerDraft?: { id: number; text: string } | null;
+  /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
+  wikiEvidenceNotice?: {
+    message: string;
+    actionLabel: string | null;
+    isDisabled: boolean;
+    isIngesting: boolean;
+    onIngest: () => void;
+  } | null;
+  /** 회의록을 문서로 저장했다(#148). 문서 목록을 새로 받고 그 문서를 연다. */
+  onMeetingNotesSaved?: (documentId: string) => Promise<void> | void;
+  /** 회의 화면이 열려 있는지(#148). 열려 있는 동안 화면은 패널을 닫아도 마운트해 두어 회의·회의록을 잃지 않는다. */
+  onMeetingActiveChange?: (isActive: boolean) => void;
+  /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
+  isShown?: boolean;
+}) {
+  const [activeView, setActiveView] = useState<AgentPanelView>("chat");
+  // 회의록은 열린 Markdown 문서가 있으면 그 문서 끝에 추가할 수 있다(회의를 시작할 때의 문서로 고정된다).
+  const meeting = useMeetingSession({
+    documentId: markdownEditContext?.documentId ?? null,
+    onDocumentSaved: onMeetingNotesSaved
+  });
+  const isMeetingViewOpen = meeting.phase !== "idle";
+  useEffect(() => {
+    onMeetingActiveChange?.(isMeetingViewOpen);
+  }, [isMeetingViewOpen, onMeetingActiveChange]);
+  // 패널이 화면에서 사라지면(숨기기·패널 없는 화면) 보이지 않는 채 마이크·과금이 이어지지 않도록 받아쓰기를 정상 종료한다.
+  // 남은 구간을 저장하고 회의록을 이어서 만들므로 패널을 다시 열면 결과가 보인다.
+  const isMeetingCapturing = isCapturingPhase(meeting.phase);
+  const stopMeeting = meeting.stop;
+  useEffect(() => {
+    if (!isShown && isMeetingCapturing) stopMeeting();
+  }, [isMeetingCapturing, isShown, stopMeeting]);
+  const isChatVisible = activeView === "chat" && !isMeetingViewOpen;
+  const [composerValue, setComposerValue] = useState("");
+  const restoreComposerQuestion = useCallback((question: string) => {
+    setComposerValue((current) => current || question);
+  }, []);
+  useEffect(() => {
+    if (composerDraft) setComposerValue(composerDraft.text);
+  }, [composerDraft]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
+  const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
+  const [pairSelection, setPairSelection] = useState<ChatPairRangeSelection>(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+  const [pairSelectionKind, setPairSelectionKind] = useState<ChatPairSelectionKind>("range");
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionTitle, setActiveSessionTitle] = useState<string | null>(null);
+  // 마운트 시 현재 활성 세션을 확보해 헤더 강조·메시지 로드의 기준으로 삼는다.
+  useEffect(() => {
+    fetchCurrentChatSessionId().then(setActiveSessionId).catch(() => undefined);
+  }, []);
+  const {
+    aiModels,
+    selectedModel,
+    aiModelCatalogStatus,
+    aiModelsErrorMessage,
+    allowWebSearch,
+    handleWebSearchChange,
+    handleModelChange
+  } = useAiModelSelection();
+  const {
+    messages,
+    queryErrorMessage,
+    chatLoadErrorMessage,
+    animatedMessageId,
+    activeTurn,
+    isLoading,
+    isCancelling,
+    queryStatusMessage,
+    queryStages,
+    hasPendingMessages,
+    refreshMessages,
+    submitQuery,
+    cancelQuery
+  } = useChatThread(activeSessionId);
+  const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
+    () => classifyChatExportPairs(messages),
+    [messages]
+  );
+  const selectedPairIds = pairSelection.selectedPairIds;
+  const agentTurn = useAgentTurn({
+    markdownEditContext,
+    activeSessionId,
+    selectedModel,
+    selectedPairIds,
+    allowWebSearch,
+    refreshMessages,
+    onCreateMarkdownDocument,
+    // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
+    onInsufficientCredit: restoreComposerQuestion
+  });
+  const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState } = agentTurn;
+  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
+  const sessionTitle = activeSessionTitle ?? "새 채팅";
+  const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    async function loadTitle() {
+      attempts += 1;
+      try {
+        const response = await fetchChatSessions();
+        if (cancelled) return;
+        const title = response.sessions.find((session) => session.id === activeSessionId)?.title ?? null;
+        setActiveSessionTitle(title);
+        if (completedReplies > 0 && (!title || title === "새 채팅") && attempts < 30) {
+          timer = setTimeout(loadTitle, 2000);
+        }
+      } catch {
+        // 제목 조회 실패가 대화 표시를 막지는 않는다.
+      }
+    }
+    void loadTitle();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [activeSessionId, completedReplies]);
+  const composerPlaceholder = "AI 에이전트에게 무엇이든 물어보세요.";
+
+  function handleSubmit() {
+    const question = composerValue.trim();
+    if (!question || isSubmitting) return;
+    if (markdownEditContext) {
+      if (!activeSessionId || !selectedModel) return;
+      setComposerValue("");
+      agentTurn.submitAgentTurn(question, markdownEditContext, activeSessionId, selectedModel, selectedPairIds);
+      return;
+    }
+    // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
+    if (!selectedModel) return;
+    setComposerValue("");
+    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch).then((insufficientCredit) => {
+      // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
+      if (insufficientCredit) setComposerValue((current) => current || question);
+    });
+  }
+
+  function startPairSelection() {
+    if (isSubmitting || isExporting || exportPairIds.length === 0) return;
+    setExportErrorMessage(null);
+    setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+    setIsPairSelectionMode(true);
+  }
+
+  function selectPair(pairId: string) {
+    if (isExporting) return;
+    const select = pairSelectionKind === "individual" ? toggleChatPair : selectChatPairRange;
+    setPairSelection((current) => select(exportPairIds, current, pairId));
+  }
+
+  function changePairSelectionKind(kind: ChatPairSelectionKind) {
+    if (isExporting || kind === pairSelectionKind) return;
+    // 범위 선택과 개별 선택은 선택 규칙이 달라 모드를 바꾸면 선택을 처음부터 다시 한다.
+    setPairSelectionKind(kind);
+    setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+  }
+
+  function cancelPairSelection() {
+    setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+    setIsPairSelectionMode(false);
+  }
+
+  async function acceptExport() {
+    if (selectedPairIds.length === 0) return;
+    setExportErrorMessage(null);
+    setIsExporting(true);
+    try {
+      const response = await exportChatWiki(selectedPairIds);
+      setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+      setIsPairSelectionMode(false);
+      try {
+        await onDocumentExported?.(response);
+        publishNotice({
+          kind: "completed",
+          title: "채팅 편입 완료",
+          message: getChatExportSuccessMessage(response.status)
+        });
+      } catch (error: unknown) {
+        const detail = getErrorMessage(error, "워크스페이스 목록 갱신에 실패했습니다.");
+        const message = `문서는 저장했지만 워크스페이스 목록을 갱신하지 못했습니다. 페이지를 새로고침해 주세요. (${detail})`;
+        setExportErrorMessage(message);
+        publishNotice({ kind: "failed", title: "문서 목록 갱신 실패", message });
+      }
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "채팅을 문서로 편입하지 못했습니다.");
+      setExportErrorMessage(message);
+      publishNotice({
+        kind: "failed",
+        title: "채팅 편입 실패",
+        message: `${message} 처리 결과가 불확실할 수 있으니 문서 목록을 확인해 주세요.`
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  // 문서 명령 제안은 대화 흐름 안에 이어 붙인다. 편입 선택 모드에서는 대화가 선택 UI로 바뀌므로 내보내지 않는다.
+  const hasDocumentCommandPreview = !isPairSelectionMode && Boolean(
+    (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
+    || editPreviewState?.preview
+  );
+  const documentCommandPreview = hasDocumentCommandPreview ? (
+    <>
+      {agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown && (
+        <MarkdownCreatePreview
+          draft={agentTurnResponse.result.generated_markdown}
+          isSubmitting={isCreatingMarkdown}
+          errorMessage={agentTurn.markdownCreateErrorMessage}
+          onCancel={agentTurn.dismissAgentTurnResult}
+          onRegenerate={agentTurn.regenerateAgentTurn}
+          onCreate={agentTurn.createMarkdownDocument}
+        />
+      )}
+      {editPreviewState?.preview && (
+        <MarkdownEditPreview
+          preview={editPreviewState.preview}
+          validationError={editPreviewState.validationError}
+          isLoading={isAgentTurnLoading || isCreatingMarkdown}
+          onApply={agentTurn.applyMarkdownEdit}
+          onCancel={agentTurn.dismissAgentTurnResult}
+          onOpenAsNewDocument={agentTurn.openMarkdownEditAsNewDocument}
+          onRegenerate={agentTurn.regenerateAgentTurn}
+        />
+      )}
+    </>
+  ) : null;
+
+  return (
+    <aside
+      className={`agent-panel${isPairSelectionMode ? " is-chat-selecting" : ""}`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <AgentHeader
+        activeView={activeView}
+        onViewChange={setActiveView}
+        sessionTitle={sessionTitle}
+        onClose={onClose}
+        activeSessionId={activeSessionId}
+        isInteractionLocked={isSubmitting || isExporting}
+        canStartWikiExport={exportPairIds.length > 0 && !isSubmitting && !isExporting}
+        onStartWikiExport={startPairSelection}
+        onSelectSession={(sessionId, title) => {
+          setActiveSessionId(sessionId);
+          setActiveSessionTitle(title);
+          // 이전 세션에서 고른 부분 편입 선택이 새 세션으로 새어나가지 않도록 초기화한다.
+          setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
+          setIsPairSelectionMode(false);
+        }}
+      />
+      <div
+        className={styles["agent-view-panel"]}
+        role="tabpanel"
+        id={AGENT_PANEL_VIEW_IDS[activeView]}
+        aria-labelledby={`${AGENT_PANEL_VIEW_IDS[activeView]}-tab`}
+      >
+        {activeView === "work" ? (
+          // "작업" 탭 본문은 시안이 없다(#148). 진행 중인 위키 작업은 사이드바 작업 버튼, 지난 작업은 로그 화면에 있다.
+          <div className={styles["agent-work-empty"]}>
+            <p>작업 목록은 아직 준비 중이에요.</p>
+            <p>위키 편입·정리 진행 상황은 사이드바 작업 버튼에서, 지난 작업은 로그 화면에서 볼 수 있어요.</p>
+          </div>
+        ) : isMeetingViewOpen ? (
+          <MeetingNotesView session={meeting} />
+        ) : null}
+        {/* 대화는 다른 보기로 바꿔도 마운트해 두어 스크롤 위치·진행 상태를 잃지 않는다. */}
+        <div className={styles["agent-view-slot"]} hidden={!isChatVisible}>
+          <AgentBody
+            messages={messages}
+            isLoading={isLoading}
+            isCancelling={isCancelling}
+            isDocumentCommandLoading={isAgentTurnLoading}
+            documentCommandStages={agentTurn.agentStages}
+            documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
+            activeSessionId={activeSessionId}
+            isShown={isShown && isChatVisible}
+            activeTurn={activeTurn}
+            queryErrorMessage={
+              agentTurn.agentTurnErrorMessage
+              ?? agentTurn.editPreviewErrorMessage
+              ?? (markdownEditContext ? null : aiModelsErrorMessage)
+              ?? queryErrorMessage
+            }
+            chatLoadErrorMessage={chatLoadErrorMessage}
+            animatedMessageId={animatedMessageId}
+            queryStages={queryStages}
+            onOpenSourceBlocks={onOpenSourceBlocks}
+            isPairSelectionMode={isPairSelectionMode}
+            pairSelectionKind={pairSelectionKind}
+            selectablePairIds={exportPairIds}
+            excludedPairIds={excludedPairIds}
+            selectedPairIds={selectedPairIds}
+            onSelectPair={selectPair}
+            nodes={nodes}
+            documentCommandPreview={documentCommandPreview}
+          />
+        </div>
+      </div>
+      {isPairSelectionMode ? (
+        <div className={styles["chat-selection-actions"]}>
+          <div className={styles["chat-selection-toolbar"]}>
+            <div className={styles["chat-selection-kind"]} role="group" aria-label="편입 문답 선택 방식">
+              {PAIR_SELECTION_KIND_OPTIONS.map(({ kind, label }) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={pairSelectionKind === kind}
+                  className={styles["chat-selection-kind-option"]}
+                  disabled={isExporting}
+                  onClick={() => changePairSelectionKind(kind)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className={styles["chat-selection-buttons"]}>
+              <button
+                type="button"
+                className={styles["chat-selection-reset"]}
+                aria-label="채팅 선택 다시 하기"
+                disabled={isExporting || selectedPairIds.length === 0}
+                onClick={() => setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION)}
+              >
+                <RotateCcw size={16} />
+              </button>
+              <button type="button" className={styles["chat-selection-cancel"]} disabled={isExporting} onClick={cancelPairSelection}>
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles["chat-selection-confirm"]}
+                aria-label={selectedPairIds.length > 0 ? `${selectedPairIds.length}개 문답 편입 확인` : "편입할 문답을 선택하세요"}
+                disabled={isExporting || selectedPairIds.length === 0}
+                onClick={() => void acceptExport()}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+          {exportErrorMessage && <p className={styles["chat-selection-error"]} role="alert">{exportErrorMessage}</p>}
+        </div>
+      ) : null}
+      <div className={styles["composer-region"]}>
+        {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
+        {wikiEvidenceNotice && !isPairSelectionMode && !isMeetingViewOpen && (
+          <div className={styles["wiki-evidence-notice"]}>
+            <p role="status">{wikiEvidenceNotice.message}</p>
+            {wikiEvidenceNotice.actionLabel && (
+              <button type="button" disabled={wikiEvidenceNotice.isDisabled} onClick={wikiEvidenceNotice.onIngest}>
+                {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : wikiEvidenceNotice.actionLabel}
+              </button>
+            )}
+          </div>
+        )}
+        <AgentComposer
+          value={composerValue}
+          isLoading={isSubmitting || isPairSelectionMode}
+          placeholder={composerPlaceholder}
+          models={aiModels}
+          selectedModel={selectedModel}
+          modelCatalogStatus={aiModelCatalogStatus}
+          // 회의 화면이 열려 있는 동안에는 질문을 보내지 않는다(답이 가려진 채팅에 쌓인다).
+          canSubmit={!isPairSelectionMode && !isMeetingViewOpen && activeSessionId !== null && selectedModel !== null}
+          onModelChange={handleModelChange}
+          allowWebSearch={allowWebSearch}
+          onWebSearchChange={handleWebSearchChange}
+          onChange={setComposerValue}
+          onSubmit={handleSubmit}
+          onCancel={isLoading ? cancelQuery : undefined}
+          isCancelling={isCancelling}
+          statusMessage={queryStatusMessage}
+          meetingControl={{
+            state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
+            onStart: () => {
+              setActiveView("chat");
+              void meeting.start();
+            },
+            onStop: meeting.stop
+          }}
+        />
+      </div>
+    </aside>
+  );
+}
