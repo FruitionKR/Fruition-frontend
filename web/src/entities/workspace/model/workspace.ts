@@ -3,6 +3,8 @@ export type WorkspaceResponse = {
   name: string;
   icon_emoji: string | null;
   icon_url: string | null;
+  /** 업로드한 문서를 변환 뒤 자동으로 위키에 편입할지. 업로더에게 wiki.ingest가 있을 때만 적용된다(access #32). */
+  auto_ingest_on_upload: boolean;
   created_at: string;
   updated_at: string;
 };

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
-import { changeMemberRole, fetchMembers, removeMember, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
+import { changeMemberRole, fetchMembers, removeMember, updateMemberPermissions, type WorkspaceMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { WORKSPACE_PERMISSIONS, workspacePermissionLabel, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
 import { menuSearchIcon, moreIcon, chevronDownSmallIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
 import modalStyles from "../SettingsModal.module.css";
@@ -43,7 +44,8 @@ export function MembersPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const isOwner = members.find((member) => member.user_id === me?.id)?.role === "OWNER";
+  const myMembership = members.find((member) => member.user_id === me?.id);
+  const isOwner = myMembership?.role === "OWNER";
   const ownerCount = members.filter((member) => member.role === "OWNER").length;
   // 로그인한 본인은 목록에서 제외하고, 워크스페이스에 추가한 사용자만 보여준다.
   const visibleMembers = members.filter((member) =>
@@ -63,6 +65,26 @@ export function MembersPanel() {
       setMessage("멤버 권한을 변경했습니다.");
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "멤버 권한을 변경하지 못했습니다."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 권한 항목 하나를 켜거나 끈다. 서버는 목록 전체를 교체하므로 현재 목록에서 더하거나 뺀 전체를 보낸다(access #32).
+  async function togglePermission(member: WorkspaceMember, permission: WorkspacePermission) {
+    if (!workspaceId || busy || !isOwner || member.role === "OWNER") return;
+    const next = member.permissions.includes(permission)
+      ? member.permissions.filter((item) => item !== permission)
+      : [...member.permissions, permission];
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await updateMemberPermissions(workspaceId, member.user_id, next);
+      queryClient.setQueryData<WorkspaceMember[]>(queryKey, (current) => current?.map((item) => item.user_id === updated.user_id ? updated : item));
+      setMessage("멤버 권한 항목을 변경했습니다.");
+    } catch (cause: unknown) {
+      setError(getErrorMessage(cause, "멤버 권한 항목을 변경하지 못했습니다."));
     } finally {
       setBusy(false);
     }
@@ -169,12 +191,23 @@ export function MembersPanel() {
       )}
       {(!workspaceId || error || loadError) && <p className={modalStyles["model-error"]} role="alert">{!workspaceId ? "워크스페이스를 선택해 주세요." : error || getErrorMessage(loadError, "멤버 목록을 불러오지 못했습니다.")}</p>}
       {message && <p role="status">{message}</p>}
+      {myMembership && (
+        <p className={styles["my-permissions"]}>
+          내 권한 항목:{" "}
+          {isOwner
+            ? "모든 권한 (OWNER)"
+            : myMembership.permissions.length > 0
+              ? myMembership.permissions.map(workspacePermissionLabel).join(", ")
+              : "없음. 필요한 권한은 워크스페이스 OWNER에게 요청하세요."}
+        </p>
+      )}
       {isPending && workspaceId && <p role="status">멤버를 불러오는 중…</p>}
       {!isPending && !loadError && visibleMembers.length === 0 && <p>표시할 멤버가 없습니다.</p>}
       <div className={styles.table}>
         <div className={styles.row + " " + styles["row-head"]}>
           <span className={styles.checkbox} aria-hidden />
           <div className={styles["row-main"]}><span>사용자</span><span className={styles["cell-role"]}>사용 권한</span></div>
+          <span className={styles["cell-permissions"]}>권한 항목</span>
         </div>
         {visibleMembers.map((member) => {
           const lastOwner = member.role === "OWNER" && ownerCount <= 1;
@@ -197,6 +230,27 @@ export function MembersPanel() {
                     <SvgIcon src={chevronDownSmallIcon} className={styles["chev-icon"]} />
                   </span>
                 </span>
+              </div>
+              <div className={styles["cell-permissions"]} role="group" aria-label={(member.display_name || member.email) + " 권한 항목"}>
+                {WORKSPACE_PERMISSIONS.map((item) => {
+                  // OWNER는 항상 전부 가지므로 켜진 채 잠근다(서버도 OWNER_PERMISSIONS_FIXED로 거절한다).
+                  const isMemberOwner = member.role === "OWNER";
+                  const checked = isMemberOwner || member.permissions.includes(item.value);
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      role="switch"
+                      aria-checked={checked}
+                      className={`${styles["perm-chip"]} ${checked ? styles["is-on"] : ""}`}
+                      disabled={!isOwner || busy || isMemberOwner}
+                      title={isMemberOwner ? "OWNER는 모든 권한을 가집니다." : item.description}
+                      onClick={() => void togglePermission(member, item.value)}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
               </div>
               {isOwner && (
                 <div className={styles["more-wrap"]} ref={openMenuId === member.user_id ? rowMenuRef : undefined}>
