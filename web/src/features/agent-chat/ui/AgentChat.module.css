@@ -8,10 +8,10 @@
 /* --- shell --- */
 /* .agent-panel 자기 레이아웃(순수 전역 셀렉터)은 app 레이어 전역 agent-panel-shell.css로 분리했다. */
 
-/* Figma 1527:16470 GNB: 45px, 회색 바탕 + 왼쪽 180px 흰 대화 탭 + 오른쪽 아이콘 버튼 */
+/* Figma 1571:28010 GNB: 40px, 회색 바탕 + 왼쪽 120px 흰 대화 탭 + 오른쪽 "채팅 | 작업" 탭·아이콘 버튼 */
 .agent-header {
   position: relative;
-  height: 45px;
+  height: 40px;
   min-height: 0;
   min-width: 0;
   display: flex;
@@ -25,9 +25,9 @@
   background: var(--agent-selecting-overlay);
 }
 
-/* 대화 제목 탭 (Figma 1540:19114): 180px, 왼쪽 16 · 오른쪽 12, 제목 SemiBold 14 + 16px 셰브론(선 1.6) */
+/* 대화 제목 탭 (Figma 1571:28011 tog): 120px, 왼쪽 12 · 오른쪽 10, 제목 SemiBold 12 + 16px 셰브론(선 1.6) */
 .agent-session-tab {
-  width: 180px;
+  width: 120px;
   min-width: 0;
   flex: 0 1 auto;
   display: flex;
@@ -46,11 +46,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  padding: 0 12px 0 16px;
+  padding: 0 10px 0 12px;
   color: var(--color-foreground);
   background: transparent;
   border-radius: 0;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   line-height: normal;
   text-align: left;
@@ -91,15 +91,98 @@
   transform: rotate(180deg);
 }
 
-/* 오른쪽 아이콘 버튼 묶음 (Figma 1436:17264: 28px 버튼, gap 2, 좌우 8) */
+/* 오른쪽 묶음 (Figma 1571:28015: 좌우 8 · 위아래 6, gap 4, 오른쪽 정렬) */
 .agent-header-actions {
   min-width: 0;
   flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
-  padding: 4px 8px;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+/* "채팅 | 작업" 보기 탭 (Figma 1571:28016·28018: 44px, 위아래 4, 반경 8, SemiBold 12/1.4).
+   고른 탭은 흰 바탕 + 2px 그림자, 글자 #4e5968 / 나머지는 바탕 없이 #8b95a1 */
+.agent-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agent-view-tab {
+  width: 44px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+  color: var(--color-muted);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.agent-view-tab:hover {
+  --button-hover-overlay: none;
+  color: var(--color-body);
+}
+
+.agent-view-tab.is-selected {
+  color: var(--color-body);
+  background: var(--color-canvas);
+  filter: drop-shadow(0 0 2px var(--agent-tab-shadow));
+}
+
+.agent-view-tab:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}
+
+/* 헤더 보기 탭이 고르는 본문(패널 그리드의 1fr 칸). 채팅 대화·회의록 화면·작업 탭 중 하나가 칸을 채운다. */
+.agent-view-panel {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.agent-view-slot {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.agent-view-slot[hidden] {
+  display: none;
+}
+
+/* "작업" 탭 빈 상태. 시안이 없어 회의록 화면의 진행 문구와 같은 글자 크기·색을 쓴다. */
+.agent-work-empty {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 22px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.agent-work-empty p {
+  margin: 0;
+}
+
+.agent-work-empty p:first-child {
+  color: var(--color-body);
+  font-weight: 600;
 }
 
 /* 헤더 우측 ⋯ 메뉴 (새 채팅 등) */
@@ -150,7 +233,7 @@
 /* 헤더 아래 겹쳐 뜨는 채팅 세션 드롭다운 */
 .chat-session-dropdown {
   position: absolute;
-  top: 49px;
+  top: 44px;
   left: 12px;
   z-index: 12;
   width: 240px;
@@ -1461,6 +1544,78 @@ button.result-link:focus-visible {
 
 .composer-mic:disabled {
   opacity: 0.4;
+  cursor: default;
+}
+
+/* 회의 받아쓰는 중(#148, Figma 1540:22974): 같은 파란 파형 버튼이 막대가 움직이며 멈춤 버튼이 된다. */
+.composer-mic.is-meeting-recording .wave-mark i {
+  animation: meeting-wave 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.composer-mic.is-meeting-recording .wave-mark i:nth-child(2) { animation-delay: 0.15s; }
+.composer-mic.is-meeting-recording .wave-mark i:nth-child(3) { animation-delay: 0.3s; }
+.composer-mic.is-meeting-recording .wave-mark i:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes meeting-wave {
+  0%,
+  100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-mic.is-meeting-recording .wave-mark i {
+    animation: none;
+  }
+}
+
+/* 파형 버튼 메뉴: 음성으로 입력(#147) · 회의 받아쓰기(#148). 헤더 ⋯ 메뉴와 같은 모양으로 버튼 위에 뜬다. */
+.composer-voice {
+  position: relative;
+  display: flex;
+}
+
+.composer-voice-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 12;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px var(--color-shadow);
+}
+
+.composer-voice-menu button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.composer-voice-menu button span + span {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.composer-voice-menu button:hover:not(:disabled),
+.composer-voice-menu button:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.composer-voice-menu button:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 

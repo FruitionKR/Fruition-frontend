@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
-import { AgentHeader } from "@/features/agent-chat/ui/AgentHeader";
+import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
+import { isCapturingPhase, MeetingNotesView, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
@@ -43,6 +44,7 @@ export function AgentPanel({
   nodes,
   composerDraft,
   wikiEvidenceNotice,
+  onMeetingNotesSaved,
   isShown = true
 }: {
   onClose: () => void;
@@ -61,9 +63,19 @@ export function AgentPanel({
     isIngesting: boolean;
     onIngest: () => void;
   } | null;
+  /** 회의록을 문서로 저장했다(#148). 문서 목록을 새로 받고 그 문서를 연다. */
+  onMeetingNotesSaved?: (documentId: string) => Promise<void> | void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
+  const [activeView, setActiveView] = useState<AgentPanelView>("chat");
+  // 회의록은 열린 Markdown 문서가 있으면 그 문서 끝에 추가할 수 있다(회의를 시작할 때의 문서로 고정된다).
+  const meeting = useMeetingSession({
+    documentId: markdownEditContext?.documentId ?? null,
+    onDocumentSaved: onMeetingNotesSaved
+  });
+  const isMeetingViewOpen = meeting.phase !== "idle";
+  const isChatVisible = activeView === "chat" && !isMeetingViewOpen;
   const [composerValue, setComposerValue] = useState("");
   const restoreComposerQuestion = useCallback((question: string) => {
     setComposerValue((current) => current || question);
@@ -264,6 +276,8 @@ export function AgentPanel({
       onClick={(event) => event.stopPropagation()}
     >
       <AgentHeader
+        activeView={activeView}
+        onViewChange={setActiveView}
         sessionTitle={sessionTitle}
         onClose={onClose}
         activeSessionId={activeSessionId}
@@ -278,35 +292,54 @@ export function AgentPanel({
           setIsPairSelectionMode(false);
         }}
       />
-      <AgentBody
-        messages={messages}
-        isLoading={isLoading}
-        isCancelling={isCancelling}
-        isDocumentCommandLoading={isAgentTurnLoading}
-        documentCommandStages={agentTurn.agentStages}
-        documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
-        activeSessionId={activeSessionId}
-        isShown={isShown}
-        activeTurn={activeTurn}
-        queryErrorMessage={
-          agentTurn.agentTurnErrorMessage
-          ?? agentTurn.editPreviewErrorMessage
-          ?? (markdownEditContext ? null : aiModelsErrorMessage)
-          ?? queryErrorMessage
-        }
-        chatLoadErrorMessage={chatLoadErrorMessage}
-        animatedMessageId={animatedMessageId}
-        queryStages={queryStages}
-        onOpenSourceBlocks={onOpenSourceBlocks}
-        isPairSelectionMode={isPairSelectionMode}
-        pairSelectionKind={pairSelectionKind}
-        selectablePairIds={exportPairIds}
-        excludedPairIds={excludedPairIds}
-        selectedPairIds={selectedPairIds}
-        onSelectPair={selectPair}
-        nodes={nodes}
-        documentCommandPreview={documentCommandPreview}
-      />
+      <div
+        className={styles["agent-view-panel"]}
+        role="tabpanel"
+        id={AGENT_PANEL_VIEW_IDS[activeView]}
+        aria-labelledby={`${AGENT_PANEL_VIEW_IDS[activeView]}-tab`}
+      >
+        {activeView === "work" ? (
+          // "작업" 탭 본문은 시안이 없다(#148). 진행 중인 위키 작업은 사이드바 작업 버튼, 지난 작업은 로그 화면에 있다.
+          <div className={styles["agent-work-empty"]}>
+            <p>작업 목록은 아직 준비 중이에요.</p>
+            <p>위키 편입·정리 진행 상황은 사이드바 작업 버튼에서, 지난 작업은 로그 화면에서 볼 수 있어요.</p>
+          </div>
+        ) : isMeetingViewOpen ? (
+          <MeetingNotesView session={meeting} />
+        ) : null}
+        {/* 대화는 다른 보기로 바꿔도 마운트해 두어 스크롤 위치·진행 상태를 잃지 않는다. */}
+        <div className={styles["agent-view-slot"]} hidden={!isChatVisible}>
+          <AgentBody
+            messages={messages}
+            isLoading={isLoading}
+            isCancelling={isCancelling}
+            isDocumentCommandLoading={isAgentTurnLoading}
+            documentCommandStages={agentTurn.agentStages}
+            documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
+            activeSessionId={activeSessionId}
+            isShown={isShown && isChatVisible}
+            activeTurn={activeTurn}
+            queryErrorMessage={
+              agentTurn.agentTurnErrorMessage
+              ?? agentTurn.editPreviewErrorMessage
+              ?? (markdownEditContext ? null : aiModelsErrorMessage)
+              ?? queryErrorMessage
+            }
+            chatLoadErrorMessage={chatLoadErrorMessage}
+            animatedMessageId={animatedMessageId}
+            queryStages={queryStages}
+            onOpenSourceBlocks={onOpenSourceBlocks}
+            isPairSelectionMode={isPairSelectionMode}
+            pairSelectionKind={pairSelectionKind}
+            selectablePairIds={exportPairIds}
+            excludedPairIds={excludedPairIds}
+            selectedPairIds={selectedPairIds}
+            onSelectPair={selectPair}
+            nodes={nodes}
+            documentCommandPreview={documentCommandPreview}
+          />
+        </div>
+      </div>
       {isPairSelectionMode ? (
         <div className={styles["chat-selection-actions"]}>
           <div className={styles["chat-selection-toolbar"]}>
@@ -352,7 +385,8 @@ export function AgentPanel({
         </div>
       ) : null}
       <div className={styles["composer-region"]}>
-        {wikiEvidenceNotice && !isPairSelectionMode && (
+        {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
+        {wikiEvidenceNotice && !isPairSelectionMode && !isMeetingViewOpen && (
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
             {wikiEvidenceNotice.actionLabel && (
@@ -369,7 +403,8 @@ export function AgentPanel({
           models={aiModels}
           selectedModel={selectedModel}
           modelCatalogStatus={aiModelCatalogStatus}
-          canSubmit={!isPairSelectionMode && activeSessionId !== null && selectedModel !== null}
+          // 회의 화면이 열려 있는 동안에는 질문을 보내지 않는다(답이 가려진 채팅에 쌓인다).
+          canSubmit={!isPairSelectionMode && !isMeetingViewOpen && activeSessionId !== null && selectedModel !== null}
           onModelChange={handleModelChange}
           allowWebSearch={allowWebSearch}
           onWebSearchChange={handleWebSearchChange}
@@ -378,6 +413,14 @@ export function AgentPanel({
           onCancel={isLoading ? cancelQuery : undefined}
           isCancelling={isCancelling}
           statusMessage={queryStatusMessage}
+          meetingControl={{
+            state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
+            onStart: () => {
+              setActiveView("chat");
+              void meeting.start();
+            },
+            onStop: meeting.stop
+          }}
         />
       </div>
     </aside>

@@ -140,7 +140,7 @@ export function HomeWorkspace() {
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
   const isDocumentMain = isHomeView && hasSourcePreview;
 
-  const { handleChatDocumentExported } = usePendingDocumentOpen({
+  const { handleChatDocumentExported, openSavedDocument } = usePendingDocumentOpen({
     documents,
     projects: projectTree.projects,
     selection,
@@ -534,6 +534,7 @@ export function HomeWorkspace() {
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
           onDocumentExported={handleChatDocumentExported}
+          onMeetingNotesSaved={openSavedDocument}
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
