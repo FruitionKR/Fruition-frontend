@@ -11,6 +11,7 @@ import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import { cx } from "@/shared/lib/classNames";
 import { useSmoothScroll } from "../model/useSmoothScroll";
+import { useSpeechPlayback } from "../model/useSpeechPlayback";
 import styles from "./AgentChat.module.css";
 
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
@@ -40,6 +41,7 @@ export function AgentBody({
   documentCommandQuestion,
   documentCommandStages = [],
   activeSessionId,
+  isShown = true,
   activeTurn,
   queryErrorMessage,
   chatLoadErrorMessage,
@@ -62,6 +64,8 @@ export function AgentBody({
   documentCommandQuestion: string | null;
   documentCommandStages?: QueryStageEvent[];
   activeSessionId: string | null;
+  /** 패널이 화면에 보이는지. 숨겨지면(마운트 유지) 답변 듣기를 멈춘다. */
+  isShown?: boolean;
   activeTurn: ActiveAgentTurn | null;
   queryErrorMessage: string | null;
   chatLoadErrorMessage: string | null;
@@ -84,6 +88,8 @@ export function AgentBody({
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledInitialMessagesRef = useRef(false);
   const { scrollToPosition } = useSmoothScroll(bodyRef);
+  // 답변 듣기(#149)는 한 번에 하나만 재생하므로 메시지 목록 위에서 상태를 가진다. 세션이 바뀌거나 패널이 숨겨지면 멈춘다.
+  const speech = useSpeechPlayback(activeSessionId, isShown);
 
   useEffect(() => {
     hasScrolledInitialMessagesRef.current = false;
@@ -231,6 +237,9 @@ export function AgentBody({
                   visibleAnswerStage={visibleAnswerStage}
                   nodes={nodes}
                   onOpenSourceBlocks={onOpenSourceBlocks}
+                  speechPlayback={speech.playback}
+                  speechErrorMessage={speech.error?.messageId === message.id ? speech.error.message : null}
+                  onToggleSpeech={speech.toggle}
                 />
               )
               ))}

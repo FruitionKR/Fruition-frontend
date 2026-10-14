@@ -528,6 +528,7 @@ export function HomeWorkspace() {
       {panels.isAgentPanelOpen && (
         <div className={cx("agent-panel-host", !isAgentPanelShown && "is-hidden")}>
         <AgentPanel
+          isShown={isAgentPanelShown}
           onClose={panels.closeAgentPanel}
           onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
