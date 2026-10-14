@@ -10,6 +10,7 @@ const NOTICE_TITLE = "생성형 AI 이용 안내";
 /**
  * 생성형 AI 사전 고지(이슈 #131). 사용자별로 첫 로그인 뒤 한 번만 보이고, 확인 버튼으로만 닫힌다.
  * 서버 렌더와 어긋나지 않게 마운트 뒤 localStorage를 읽어 아직 확인 전이면 연다.
+ * 아직 화면에 연결하지 않았다. 연결할 때 HomeWorkspace에서 useMe()의 사용자 ID로 `{me && <AiNoticeDialog userId={me.id} />}`를 마운트한다.
  */
 export function AiNoticeDialog({ userId }: { userId: string }) {
   const [isOpen, setIsOpen] = useState(false);
