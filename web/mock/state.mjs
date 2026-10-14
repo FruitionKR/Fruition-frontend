@@ -30,7 +30,10 @@ export const state = {
   editConflicts: [],
   notifications: [],
   skills: [],
-  aiModels: []
+  aiModels: [],
+  // 회의 받아쓰기(#148): 회의(구간·연결·회의록 초안 포함)와 WebSocket 일회용 ticket → { meetingId, expiresAt }
+  meetings: [],
+  meetingTickets: new Map()
 };
 
 export const now = () => new Date().toISOString();
