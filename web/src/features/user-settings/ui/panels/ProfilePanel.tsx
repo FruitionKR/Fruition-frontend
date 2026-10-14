@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ME_QUERY_KEY, updateDisplayName, useMe } from "@/entities/user";
+import {
+  AVATAR_ACCEPT, ME_QUERY_KEY, UserAvatar, avatarUploadErrorMessage, deleteAvatar, updateDisplayName, uploadAvatar, useMe,
+  validateAvatarFile, type UserMeResponse
+} from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
@@ -20,6 +23,10 @@ export function ProfilePanel() {
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(null);
 
   const saveName = useCallback(async () => {
     if (!me || nameRequestPending.current || composingName || nicknameDraft === null) return;
@@ -54,7 +61,35 @@ export function ProfilePanel() {
     return () => window.clearTimeout(timer);
   }, [saveName, savingName, nameError, composingName, nicknameDraft]);
 
-  // 사진 업로드 API가 아직 없어 설정 메뉴·멤버 목록과 같은 이름 첫 글자 상자로 보여 준다.
+  /** 사진 업로드·삭제 공통. 응답 MeResponse로 me 캐시를 바로 바꿔 레일·설정 메뉴가 같이 갱신되고, 멤버 목록은 다시 읽게 한다. */
+  async function applyPhoto(request: () => Promise<UserMeResponse>, done: string, fallback: string) {
+    if (!me || photoBusy) return;
+    setPhotoBusy(true);
+    setPhotoError(null);
+    setPhotoMessage(null);
+    try {
+      const updated = await request();
+      queryClient.setQueryData(ME_QUERY_KEY, updated);
+      void queryClient.invalidateQueries({ queryKey: ["workspace-members"] });
+      setPhotoMessage(done);
+    } catch (error: unknown) {
+      setPhotoError(avatarUploadErrorMessage(error, fallback));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function savePhoto(file: File) {
+    // 형식·1MB는 보내기 전에 거른다. 서버는 매직 바이트로 다시 판별해 400·413을 돌려줄 수 있다.
+    const problem = validateAvatarFile(file);
+    if (problem) {
+      setPhotoMessage(null);
+      setPhotoError(problem);
+      return;
+    }
+    void applyPhoto(() => uploadAvatar(file), "프로필 사진을 변경했습니다.", "프로필 사진을 올리지 못했습니다.");
+  }
+
   const avatarName = me?.display_name || me?.email || "사용자";
 
   return (
@@ -64,8 +99,29 @@ export function ProfilePanel() {
       <div className={styles.section}>
         <SettingsSectionHeader>프로필 사진</SettingsSectionHeader>
         <div className={panelStyles.photo}>
-          <span className={panelStyles.avatar} aria-hidden>{avatarName.charAt(0)}</span>
-          <small className={panelStyles["photo-note"]}>닉네임의 첫 글자로 표시됩니다. 사진 업로드는 아직 지원하지 않습니다.</small>
+          <button type="button" className={panelStyles["avatar-button"]} aria-label="프로필 사진 업로드"
+            disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
+            <UserAvatar avatarUrl={me?.avatar_url} name={avatarName} className={panelStyles.avatar} />
+          </button>
+          <input ref={photoInput} type="file" hidden accept={AVATAR_ACCEPT} disabled={!me || photoBusy}
+            onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) savePhoto(file); }} />
+          <div className={panelStyles["photo-actions"]}>
+            <small className={panelStyles["photo-note"]}>PNG·JPEG·WebP·GIF, 1MB 이하. 사진이 없으면 닉네임의 첫 글자로 표시됩니다.</small>
+            <div className={panelStyles["photo-buttons"]}>
+              <button type="button" className={panelStyles["photo-button"]} disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
+                사진 올리기
+              </button>
+              {me?.avatar_url && (
+                <button type="button" className={panelStyles["photo-button"]} disabled={photoBusy}
+                  onClick={() => void applyPhoto(deleteAvatar, "프로필 사진을 지웠습니다.", "프로필 사진을 지우지 못했습니다.")}>
+                  사진 삭제
+                </button>
+              )}
+            </div>
+            {photoBusy && <small role="status">사진 저장 중…</small>}
+            {photoMessage && <small role="status">{photoMessage}</small>}
+            {photoError && <small className={styles["model-error"]} role="alert">{photoError}</small>}
+          </div>
         </div>
       </div>
 

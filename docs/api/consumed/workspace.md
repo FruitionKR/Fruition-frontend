@@ -29,7 +29,7 @@ access-svc가 받는 워크스페이스 자체 CRUD·아이콘·멤버십·초�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/members` | 멤버 목록 | `web/src/entities/workspace/api/members.ts` `fetchMembers` | `workspacePath(workspaceId, "members")` | `cache: no-store` | `members[]` (`user_id`, `email`, `display_name`, `provider`, `role`, `joined_at`) | - |
+| `GET /api/workspaces/{workspace_id}/members` | 멤버 목록 | `web/src/entities/workspace/api/members.ts` `fetchMembers` | `workspacePath(workspaceId, "members")` | `cache: no-store` | `members[]` (`user_id`, `email`, `display_name`, `avatar_url`, `provider`, `role`, `joined_at`) | `avatar_url`은 `GET /api/users/{user_id}/avatar?v=…`이며 사진이 없으면 `null`. 멤버 관리 목록이 `UserAvatar`로 보여 준다([auth-account.md](auth-account.md) 프로필 사진) |
 | `PATCH /api/workspaces/{workspace_id}/members/{user_id}` | 멤버 역할 변경 | `web/src/entities/workspace/api/members.ts` `changeMemberRole` | `workspacePath(workspaceId, "members", userId)` | `{ role }` (`OWNER`/`MEMBER`) | `WorkspaceMember` | 역할 유니온은 프런트에서 `WorkspaceRole`로 고정 |
 | `DELETE /api/workspaces/{workspace_id}/members/{user_id}` | 멤버 제거 | `web/src/entities/workspace/api/members.ts` `removeMember` | `workspacePath(workspaceId, "members", userId)` | 본문 없음 | - (`throwIfNotOk`) | - |
 

@@ -1,7 +1,7 @@
 // access-svc(8081) 인증 라우트: 로그인·회원가입·토큰 재발급·MFA·계정 설정·세션.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { issueAccessToken } from "../lib/http.mjs";
-import { state, now, id, error } from "../state.mjs";
+import { state, now, id, error, avatarUrlOf } from "../state.mjs";
 
 const REFRESH_COOKIE = "refresh";
 const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 14;
@@ -68,7 +68,7 @@ function consentRequired(user) {
 
 function toMe(user) {
   return {
-    id: user.id, email: user.email, display_name: user.display_name, created_at: user.created_at,
+    id: user.id, email: user.email, display_name: user.display_name, avatar_url: avatarUrlOf(user), created_at: user.created_at,
     oauth_providers: [...linkedProviders(user)].sort(), consent_required: consentRequired(user)
   };
 }
@@ -325,6 +325,43 @@ export function registerAuthRoutes(router) {
     const { display_name } = await ctx.body();
     ctx.user.display_name = typeof display_name === "string" && display_name.trim() ? display_name.trim() : ctx.user.display_name;
     ctx.json(200, toMe(ctx.user));
+  });
+
+  // 프로필 사진: 서버처럼 매직 바이트로 형식을 판별하고 1MB를 넘으면 413이다.
+  const AVATAR_MAX_BYTES = 1024 * 1024;
+  function imageTypeOf(buffer) {
+    if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+    if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+    if (buffer.length >= 6 && ["GIF87a", "GIF89a"].includes(buffer.subarray(0, 6).toString("latin1"))) return "image/gif";
+    if (buffer.length >= 12 && buffer.subarray(0, 4).toString("latin1") === "RIFF" && buffer.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
+    return null;
+  }
+
+  router.put("/api/auth/me/avatar", async (ctx) => {
+    const { file } = await ctx.body();
+    if (!file?.buffer) return error(ctx, 400, "이미지 파일이 필요합니다.", "INVALID_REQUEST");
+    if (file.buffer.length > AVATAR_MAX_BYTES) return error(ctx, 413, "프로필 사진은 1MB 이하여야 합니다.", "USER_AVATAR_TOO_LARGE");
+    const type = imageTypeOf(file.buffer);
+    if (!type) return error(ctx, 400, "PNG·JPEG·WebP·GIF 이미지만 올릴 수 있습니다.", "UNSUPPORTED_USER_AVATAR");
+    ctx.user.avatar = { type, buffer: file.buffer, hash: createHash("sha256").update(file.buffer).digest("hex") };
+    ctx.json(200, toMe(ctx.user));
+  });
+
+  router.delete("/api/auth/me/avatar", (ctx) => {
+    ctx.user.avatar = null;
+    ctx.json(200, toMe(ctx.user));
+  });
+
+  // 본인이거나 워크스페이스를 하나라도 같이 쓰는 멤버만 본다. 아니면 404로 존재를 숨긴다.
+  router.get("/api/users/:uid/avatar", (ctx) => {
+    const target = state.users.find((user) => user.id === ctx.params.uid);
+    const shares = target && (target.id === ctx.user.id || state.members.some((mine) => mine.user_id === ctx.user.id &&
+      state.members.some((theirs) => theirs.user_id === target.id && theirs.workspace_id === mine.workspace_id)));
+    if (!shares) return error(ctx, 404, "사용자를 찾을 수 없습니다.", "USER_NOT_FOUND");
+    if (!target.avatar) return error(ctx, 404, "프로필 사진이 없습니다.", "USER_AVATAR_NOT_FOUND");
+    const headers = { ETag: `"${target.avatar.hash}"`, "Cache-Control": "no-cache, private" };
+    if (ctx.req.headers["if-none-match"] === headers.ETag) return ctx.bytes(304, Buffer.alloc(0), target.avatar.type, headers);
+    ctx.bytes(200, target.avatar.buffer, target.avatar.type, headers);
   });
 
   router.put("/api/auth/me/password", async (ctx) => {

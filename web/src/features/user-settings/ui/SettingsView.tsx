@@ -9,7 +9,7 @@ import {
   type AiModel,
   type AiModelSelection
 } from "@/entities/ai";
-import { useMe, useSignOut } from "@/entities/user";
+import { UserAvatar, useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useSelectedWorkspace";
 import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
@@ -128,9 +128,9 @@ export function SettingsNav({
     <nav className={styles.nav} aria-label="설정 메뉴">
       <div className={styles["nav-group"]}>
         <p className={styles["nav-label"]}>계정</p>
-        {/* 사용자 설정: 프로필 사진(이니셜)을 아이콘 자리에 보여 준다 */}
+        {/* 사용자 설정: 프로필 사진(없으면 이니셜)을 아이콘 자리에 보여 준다 */}
         <NavRow section="profile" activeSection={activeSection} onSelect={onSelect} label={`사용자 설정 (${name})`}>
-          <span className={styles["nav-avatar"]} aria-hidden>{name.charAt(0)}</span>
+          <UserAvatar avatarUrl={me?.avatar_url} name={name} className={styles["nav-avatar"]} />
           <span>사용자 설정</span>
         </NavRow>
         <NavRow section="account" activeSection={activeSection} onSelect={onSelect}>
