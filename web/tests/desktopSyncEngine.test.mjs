@@ -182,6 +182,30 @@ test("충돌 등록이 네트워크 오류면 되돌리지 않고 멈추고, 다
   assert.equal(folder.store.get("메모.md"), "서버 본문\n");
 });
 
+test("충돌을 등록한 뒤 서버 본으로 되돌리다 네트워크 오류가 나면, 다음 주기에 같은 충돌 id로 다시 보내 중복 등록하지 않는다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record()] });
+  let fetches = 0;
+  const api = fakeApi([docItem("doc_1", "메모.md", { updated_at: "t9" })]);
+  const fetchDocument = api.fetchSyncDocument;
+  // 첫 주기: 비교용 조회는 성공, 되돌리기(restore) 조회만 네트워크 오류
+  api.fetchSyncDocument = async (...args) => {
+    fetches += 1;
+    if (fetches === 2) throw new TypeError("Failed to fetch");
+    return fetchDocument(...args);
+  };
+  const first = await runSyncCycle(deps(folder, state, api));
+  assert.deepEqual(first.events.at(-1), { kind: "paused", reason: "retry" });
+  assert.equal(folder.store.get("메모.md"), "고친 본문\n");
+  let n = 100;
+  await runSyncCycle({ ...deps(folder, state, api), newKey: () => `key_${++n}` });
+  const ids = api.calls.filter(([name]) => name === "registerSyncConflict").map((call) => call[3].clientConflictId);
+  assert.equal(ids.length, 2);
+  assert.equal(ids[0], ids[1]);
+  assert.equal(folder.store.get("메모.md"), "서버 본문\n");
+  assert.deepEqual(state.current.pendingKeys, {});
+});
+
 test("서버가 충돌 등록을 받지 않으면 로컬 사본만 남기고 서버 본으로 되돌린다", async () => {
   const folder = fakeFolder({ "메모.md": "고친 본문\n" });
   const state = fakeState({ records: [record()] });

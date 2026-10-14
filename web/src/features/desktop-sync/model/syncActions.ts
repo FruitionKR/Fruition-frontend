@@ -236,24 +236,30 @@ async function keepLocalAside(context: ActionContext, documentId: string, localP
     ? { kind: "readonly", path: localPath, asidePath }
     : conflictId ? { kind: "conflict", path: localPath, asidePath, conflictId } : { kind: "conflict", path: localPath, asidePath });
   if (isStrayCopy) return local.trash(localPath);
-  return syncDown(context, documentId, localPath, "restore");
+  await syncDown(context, documentId, localPath, "restore");
+  // 되돌리기 전에 멈추면 다음 주기에 같은 충돌을 다시 등록하므로, 키는 되돌린 뒤에 지운다.
+  if (conflictId) await clearKey(context, conflictKeyName(documentId, read.hash));
+}
+
+function conflictKeyName(documentId: string, hash: string): string {
+  return `conflict:${documentId}:${hash}`;
 }
 
 /**
  * 로컬 본문을 마지막으로 맞춘 revision 기준의 충돌로 등록한다. 등록한 충돌 id를 돌려준다.
  * 기준 revision을 모르거나 서버가 받지 않으면(400·403·404·413) 등록하지 않고 로컬 사본만 남긴다.
+ * 등록에 성공하면 재전송 키는 호출부가 서버 본으로 되돌린 뒤 지운다.
  */
 async function registerConflict(context: ActionContext, record: EngineRecord, text: string, hash: string): Promise<string | undefined> {
   if (!record.editRevision) return undefined;
   const { api, workspaceId } = context.deps;
-  const keyName = `conflict:${record.documentId}:${hash}`;
+  const keyName = conflictKeyName(record.documentId, hash);
   try {
     const registered = await api.registerSyncConflict(workspaceId, record.documentId, {
       markdown: toServerContent(text, record.marker),
       baseRevision: record.editRevision,
       clientConflictId: await keyFor(context, keyName)
     });
-    await clearKey(context, keyName);
     return registered.id;
   } catch (error) {
     const kind = classifySyncError(error);
