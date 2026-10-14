@@ -69,6 +69,7 @@ export function AgentComposer({
   const modelListId = useId();
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const voiceMenuRef = useRef<HTMLDivElement | null>(null);
+  const waveButtonRef = useRef<HTMLButtonElement | null>(null);
   // 받아쓴 텍스트는 입력창에 채우기만 한다. 전송은 사용자가 확인한 뒤 직접 한다.
   const dictation = useDictation((text) => onChange(appendDictation(value, text)));
   const isRecording = dictation.status === "recording";
@@ -87,8 +88,16 @@ export function AgentComposer({
   }
 
   useDismissOnOutside(modelListRef, isModelListOpen, closeModelList);
-  useDismissOnOutside(voiceMenuRef, isVoiceMenuOpen, () => setIsVoiceMenuOpen(false));
+  /** 메뉴를 닫는다. 메뉴 안에 있던 포커스는 사라지는 대신 파형 버튼으로 돌려준다(Esc·항목 선택). */
+  function closeVoiceMenu() {
+    const hadFocus = voiceMenuRef.current?.contains(document.activeElement) ?? false;
+    setIsVoiceMenuOpen(false);
+    if (hadFocus) waveButtonRef.current?.focus();
+  }
+  useDismissOnOutside(voiceMenuRef, isVoiceMenuOpen, closeVoiceMenu);
   const isMeetingCapturing = meetingControl?.state === "capturing";
+  // 파형 버튼이 메뉴를 여는 상태. 이때는 토글(aria-pressed)이 아니라 메뉴 버튼으로 알린다.
+  const opensVoiceMenu = Boolean(meetingControl) && !isMeetingCapturing && !isRecording;
 
   function handleWaveClick() {
     if (isMeetingCapturing) {
@@ -315,9 +324,10 @@ export function AgentComposer({
                 isMeetingCapturing && styles["is-meeting-recording"]
               )}
               aria-label={isMeetingCapturing ? "회의 받아쓰기 멈추기" : isRecording ? "녹음 멈추기" : meetingControl ? "음성 입력·회의 받아쓰기" : "음성으로 입력"}
-              aria-pressed={isMeetingCapturing || isRecording}
-              aria-haspopup={meetingControl && !isMeetingCapturing && !isRecording ? "menu" : undefined}
-              aria-expanded={meetingControl && !isMeetingCapturing && !isRecording ? isVoiceMenuOpen : undefined}
+              ref={waveButtonRef}
+              aria-pressed={opensVoiceMenu ? undefined : isMeetingCapturing || isRecording}
+              aria-haspopup={opensVoiceMenu ? "menu" : undefined}
+              aria-expanded={opensVoiceMenu ? isVoiceMenuOpen : undefined}
               disabled={!isMeetingCapturing && (isLoading || isTranscribing)}
               onClick={handleWaveClick}
             >
@@ -329,7 +339,7 @@ export function AgentComposer({
                   type="button"
                   role="menuitem"
                   onClick={() => {
-                    setIsVoiceMenuOpen(false);
+                    closeVoiceMenu();
                     void dictation.start();
                   }}
                 >
@@ -341,7 +351,7 @@ export function AgentComposer({
                   role="menuitem"
                   disabled={meetingControl.state !== "idle"}
                   onClick={() => {
-                    setIsVoiceMenuOpen(false);
+                    closeVoiceMenu();
                     meetingControl.onStart();
                   }}
                 >
