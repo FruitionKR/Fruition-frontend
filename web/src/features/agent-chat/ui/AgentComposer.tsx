@@ -11,6 +11,16 @@ import styles from "./AgentChat.module.css";
 
 export type AiModelCatalogStatus = "loading" | "ready" | "empty" | "error";
 
+/**
+ * 회의 받아쓰기(#148)와 파형 버튼의 관계. idle: 파형 버튼이 음성 입력·회의 받아쓰기 메뉴를 연다.
+ * capturing: 회의를 받아쓰는 중이라 파형 버튼이 회의 받아쓰기를 멈춘다. busy: 회의 화면이 열려 있어 새 회의는 시작할 수 없다.
+ */
+export type ComposerMeetingControl = {
+  state: "idle" | "capturing" | "busy";
+  onStart: () => void;
+  onStop: () => void;
+};
+
 /** provider/model 쌍을 목록 key와 선택 비교에 쓰는 문자열로 만든다. */
 function modelKey(model: AiModel) {
   return `${model.provider}/${model.model}`;
@@ -31,7 +41,8 @@ export function AgentComposer({
   onSubmit,
   onCancel,
   isCancelling = false,
-  statusMessage
+  statusMessage,
+  meetingControl
 }: {
   value: string;
   isLoading: boolean;
@@ -48,6 +59,7 @@ export function AgentComposer({
   onCancel?: () => void;
   isCancelling?: boolean;
   statusMessage?: string | null;
+  meetingControl?: ComposerMeetingControl;
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
   const [modelQuery, setModelQuery] = useState("");
@@ -55,6 +67,9 @@ export function AgentComposer({
   const modelListRef = useRef<HTMLDivElement | null>(null);
   const modelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const modelListId = useId();
+  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
+  const voiceMenuRef = useRef<HTMLDivElement | null>(null);
+  const waveButtonRef = useRef<HTMLButtonElement | null>(null);
   // 받아쓴 텍스트는 입력창에 채우기만 한다. 전송은 사용자가 확인한 뒤 직접 한다.
   const dictation = useDictation((text) => onChange(appendDictation(value, text)));
   const isRecording = dictation.status === "recording";
@@ -73,9 +88,38 @@ export function AgentComposer({
   }
 
   useDismissOnOutside(modelListRef, isModelListOpen, closeModelList);
+  /** 메뉴를 닫는다. 메뉴 안에 있던 포커스는 사라지는 대신 파형 버튼으로 돌려준다(Esc·항목 선택). */
+  function closeVoiceMenu() {
+    const hadFocus = voiceMenuRef.current?.contains(document.activeElement) ?? false;
+    setIsVoiceMenuOpen(false);
+    if (hadFocus) waveButtonRef.current?.focus();
+  }
+  useDismissOnOutside(voiceMenuRef, isVoiceMenuOpen, closeVoiceMenu);
+  const isMeetingCapturing = meetingControl?.state === "capturing";
+  // 파형 버튼이 메뉴를 여는 상태. 이때는 토글(aria-pressed)이 아니라 메뉴 버튼으로 알린다.
+  const opensVoiceMenu = Boolean(meetingControl) && !isMeetingCapturing && !isRecording;
+
+  function handleWaveClick() {
+    if (isMeetingCapturing) {
+      meetingControl?.onStop();
+      return;
+    }
+    if (isRecording) {
+      dictation.stop();
+      return;
+    }
+    // 회의 받아쓰기를 쓸 수 없는 곳(meetingControl 없음)에서는 지금처럼 바로 음성 입력을 시작한다.
+    if (!meetingControl) {
+      void dictation.start();
+      return;
+    }
+    setIsVoiceMenuOpen((open) => !open);
+  }
 
   useEffect(() => {
-    if (isLoading) setIsModelListOpen(false);
+    if (!isLoading) return;
+    setIsModelListOpen(false);
+    setIsVoiceMenuOpen(false);
   }, [isLoading]);
 
   // 활성 항목이 스크롤 밖에 있으면 보이도록 맞춘다.
@@ -268,18 +312,55 @@ export function AgentComposer({
             </div>
           )}
         </div>
-        {/* Figma 1436:17328: 파란 파형 마크(#147 음성 받아쓰기 버튼) + 회색 원형 전송 버튼 */}
+        {/* Figma 1436:17328: 파란 파형 마크(#147 음성 받아쓰기 버튼) + 회색 원형 전송 버튼.
+            회의록 시안(1540:22903)도 같은 자리에 같은 버튼을 둔다. 파형 버튼이 음성 입력과 회의 받아쓰기를 함께 맡는다(#148). */}
         <div className={styles["composer-buttons"]}>
-          <button
-            type="button"
-            className={cx(styles["composer-mic"], isRecording && styles["is-recording"])}
-            aria-label={isRecording ? "녹음 멈추기" : "음성으로 입력"}
-            aria-pressed={isRecording}
-            disabled={isLoading || isTranscribing}
-            onClick={() => (isRecording ? dictation.stop() : void dictation.start())}
-          >
-            {isRecording ? <Square size={12} aria-hidden /> : <AgentWaveMark size="small" />}
-          </button>
+          <div className={styles["composer-voice"]} ref={voiceMenuRef}>
+            <button
+              type="button"
+              className={cx(
+                styles["composer-mic"],
+                isRecording && styles["is-recording"],
+                isMeetingCapturing && styles["is-meeting-recording"]
+              )}
+              aria-label={isMeetingCapturing ? "회의 받아쓰기 멈추기" : isRecording ? "녹음 멈추기" : meetingControl ? "음성 입력·회의 받아쓰기" : "음성으로 입력"}
+              ref={waveButtonRef}
+              aria-pressed={opensVoiceMenu ? undefined : isMeetingCapturing || isRecording}
+              aria-haspopup={opensVoiceMenu ? "menu" : undefined}
+              aria-expanded={opensVoiceMenu ? isVoiceMenuOpen : undefined}
+              disabled={!isMeetingCapturing && (isLoading || isTranscribing)}
+              onClick={handleWaveClick}
+            >
+              {isRecording ? <Square size={12} aria-hidden /> : <AgentWaveMark size="small" />}
+            </button>
+            {isVoiceMenuOpen && meetingControl && (
+              <div className={styles["composer-voice-menu"]} role="menu" aria-label="음성 기능">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeVoiceMenu();
+                    void dictation.start();
+                  }}
+                >
+                  <span>음성으로 입력</span>
+                  <span>말한 내용을 입력창에 채워요(최대 60초)</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={meetingControl.state !== "idle"}
+                  onClick={() => {
+                    closeVoiceMenu();
+                    meetingControl.onStart();
+                  }}
+                >
+                  <span>회의 받아쓰기</span>
+                  <span>{meetingControl.state === "idle" ? "회의를 받아쓰고 회의록을 만들어요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                </button>
+              </div>
+            )}
+          </div>
           <button
             type="submit"
             className={styles["composer-send"]}

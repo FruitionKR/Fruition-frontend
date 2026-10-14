@@ -1,18 +1,24 @@
 // 의존성 없는 최소 HTTP 라우터. 경로 패턴(:param) 매칭, 본문 파싱, JSON/SSE 응답 헬퍼를 제공한다.
 import http from "node:http";
+import { rejectUpgrade } from "./websocket.mjs";
 
 const TOKEN_TTL_MS = 30 * 60_000;
 
 export function createRouter(state) {
   const routes = [];
+  const upgrades = [];
 
-  function add(method, pattern, handler, options = {}) {
+  function compile(pattern) {
     const keys = [];
     const source = pattern.replace(/:([a-zA-Z]+)/g, (_, key) => {
       keys.push(key);
       return "([^/]+)";
     });
-    routes.push({ method, regex: new RegExp(`^${source}$`), keys, handler, open: Boolean(options.open) });
+    return { regex: new RegExp(`^${source}$`), keys };
+  }
+
+  function add(method, pattern, handler, options = {}) {
+    routes.push({ method, ...compile(pattern), handler, open: Boolean(options.open) });
   }
 
   const api = {
@@ -21,6 +27,21 @@ export function createRouter(state) {
     put: (p, h, o) => add("PUT", p, h, o),
     patch: (p, h, o) => add("PATCH", p, h, o),
     delete: (p, h, o) => add("DELETE", p, h, o),
+    /** WebSocket upgrade 경로. 인증은 핸들러가 ticket 등으로 직접 한다(브라우저 WebSocket은 헤더를 못 보낸다). */
+    ws: (p, h) => upgrades.push({ ...compile(p), handler: h }),
+    handleUpgrade(req, socket, head, port) {
+      const url = new URL(req.url, `http://localhost:${port}`);
+      for (const route of upgrades) {
+        const match = url.pathname.match(route.regex);
+        if (!match) continue;
+        const params = {};
+        route.keys.forEach((key, index) => { params[key] = decodeURIComponent(match[index + 1]); });
+        console.log(`[mock:${port}] WS ${url.pathname}`);
+        route.handler({ req, socket, head, url, params, query: url.searchParams, state });
+        return;
+      }
+      rejectUpgrade(socket, 404, "Not Found");
+    },
     async handle(req, res, port) {
       const url = new URL(req.url, `http://localhost:${port}`);
       const ctx = createContext(req, res, url, state, port);
@@ -208,6 +229,7 @@ function parseCookies(header) {
 export function listen(router, port) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => { void router.handle(req, res, port); });
+    server.on("upgrade", (req, socket, head) => router.handleUpgrade(req, socket, head, port));
     server.on("error", reject);
     server.listen(port, () => resolve(server));
   });

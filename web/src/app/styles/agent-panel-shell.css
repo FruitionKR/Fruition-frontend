@@ -4,6 +4,8 @@
   /* 공통 토큰에 없는 패널 전용 색. 다크 값은 기존 다크 디자인 색을 유지한다. */
   --agent-selecting-overlay: rgb(139 149 161 / 16%);
   --agent-switch-knob: #ffffff;
+  /* 헤더 보기 탭(채팅 | 작업)에서 고른 탭의 그림자 (Figma 1571:28016 drop-shadow 0 0 2px rgba(0,0,0,.04)) */
+  --agent-tab-shadow: rgb(0 0 0 / 4%);
 
   position: absolute;
   inset: 0 0 0 auto;
@@ -13,8 +15,8 @@
   width: var(--agent-panel-self-width, var(--agent-panel-width, 360px));
   min-width: 0;
   display: grid;
-  /* Figma 1527:16469: 45px GNB(사이드바 상단 바와 같은 높이) + 대화 영역 */
-  grid-template-rows: 45px 1fr auto auto;
+  /* Figma 1571:28010: 40px GNB + 대화 영역 */
+  grid-template-rows: 40px 1fr auto auto;
   overflow: hidden;
   font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   font-size: 12px;

@@ -56,23 +56,18 @@
 | `POST·DELETE /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock` | 호출 없음. `main` 기준으로는 배선 여부를 확인할 수 없다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock/heartbeat` | 같음 |
 
-### UI 없음 — 음성·회의
+### UI 없음 — 녹음 파일 회의
 
-이 저장소에 회의 UI가 없다. `MediaRecorder`·`getUserMedia`는 채팅 입력창 음성 받아쓰기
-(`web/src/features/agent-chat/model/useDictation.ts`, [ai-agent.md](consumed/ai-agent.md#음성-입력))에만
-쓰이고 `WebSocket`은 나타나지 않는다. 따라서 아래 8개 경로는 대응 화면 자체가 없다.
-이 문서는 그 사실만 기록하고 내용은 다루지 않는다.
+회의 실시간 받아쓰기와 회의록 초안·저장은 채팅 패널 회의록 화면(#148)이 호출한다([meeting.md](consumed/meeting.md)).
+녹음 파일을 올려 전사하는 화면은 시안이 없어 아직 없다. 따라서 아래 경로는 대응 화면이 없다.
 
-| 경로 |
-|---|
-| `/api/workspaces/{workspace_id}/meetings` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/live-tickets` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/append-preview` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/apply` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording-url` |
+| 경로 | 확인한 것 |
+|---|---|
+| `POST /api/workspaces/{workspace_id}/meetings/{meeting_id}/recording/uploads` (+`/parts`·`/complete`·`/abort`) | 녹음 파일 직접 업로드(S3 multipart, 500 MiB·3시간). 업로드 화면이 없다 |
+| `POST /api/workspaces/{workspace_id}/meetings/{meeting_id}/transcription/cancel` | 녹음 파일 전사 취소. 업로드 화면이 없다 |
+| `GET /api/workspaces/{workspace_id}/meetings/{meeting_id}/recording-url` | 녹음 재생 주소. 실시간 회의는 원본을 올리지 않아 재생할 녹음이 없다 |
+| `GET /api/workspaces/{workspace_id}/meetings/{meeting_id}` | 회의 조회. 새로고침 뒤 진행 중이던 회의를 다시 여는 화면이 없다(회의 목록 API도 없다) |
+| `DELETE /api/workspaces/{workspace_id}/meetings/{meeting_id}` | 회의 삭제. 회의 목록이 없어 지울 회의를 고를 화면이 없다 |
 
 ### 미배선 (실제 공백 후보)
 

@@ -17,6 +17,10 @@ test("회의록 생성 실패 코드를 문구로 바꾸고 겹친 요청(BUSY)�
     assert.notEqual(message, "회의록을 만들지 못했습니다.");
     assert.doesNotMatch(message, /MEETING_NOTES/);
   }
+  // 생성은 워크스페이스당 하나다. 다른 회의의 회의록이 만들어지는 중이어도 BUSY다(#148).
+  assert.match(describeMeetingNotesError("MEETING_NOTES_BUSY"), /워크스페이스에서 다른 회의록/);
+  // 크레딧 부족으로 실패한 초안 버전은 앱 공통 크레딧 부족 문구를 쓴다.
+  assert.equal(describeMeetingNotesError("INSUFFICIENT_CREDIT"), "크레딧이 부족합니다.");
   assert.equal(describeMeetingNotesError("MEETING_NOTES_FAILED"), "회의록을 만들지 못했습니다.");
   assert.equal(describeMeetingNotesError("something_else"), "회의록을 만들지 못했습니다.");
 });
