@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { cx } from "@/shared/lib/classNames";
@@ -35,7 +35,19 @@ export function WikiPageContent({
     onSaved?.();
   }, [onPageChange, onSaved, page]);
   const edit = useWikiPageEdit({ page, onSaved: handleSaved, onReplaced: onPageChange });
-  const { state } = edit;
+  const { state, isDirty } = edit;
+
+  // 저장하지 않은 편집이 있으면 탭을 닫거나 새로 고치기 전에 브라우저가 묻는다(노트 편집기와 같다).
+  useEffect(() => {
+    if (!isDirty) return;
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   if (state.mode === "view") {
     return (
@@ -54,7 +66,7 @@ export function WikiPageContent({
   const { conflict, isSaving, error } = state;
   const latest = conflict?.latest ?? null;
   const cancelEditing = () => {
-    if (edit.isDirty && !window.confirm(DISCARD_CONFIRM_MESSAGE)) return;
+    if (isDirty && !window.confirm(DISCARD_CONFIRM_MESSAGE)) return;
     edit.cancel();
   };
 
