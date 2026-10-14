@@ -14,7 +14,7 @@ registerHooks({
 const { checkRecordingFile, meetingNameFromFile, MEETING_RECORDING_MAX_BYTES, MEETING_RECORDING_FILE_MESSAGES } = await import("../src/entities/meeting/lib/recordingFile.ts");
 const { uploadMeetingRecording, fetchMeetingRecordingUrl, deleteMeeting, cancelMeetingTranscription } = await import("../src/entities/meeting/api/meetings.ts");
 const { describeMeetingRecordingError, describeMeetingTranscriptionFailure } = await import("../src/shared/lib/aiErrorCodes.ts");
-const { canDeleteMeetingInPhase, describeRecordingError, isMeetingBusyPhase, meetingProgressText, MEETING_TITLES } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+const { canDeleteMeetingInPhase, describeRecordingError, isMeetingBusyPhase, meetingProgressText, MEETING_TITLES, shouldConfirmLeavingPhase } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
 const { transcriptFromSegments, transcriptLines, hasFinalSegments } = await import("../src/features/meeting-dictation/lib/liveTranscript.ts");
 const { ApiError, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
@@ -64,6 +64,11 @@ test("녹음 파일 단계는 닫을 수 없고, 회의 삭제는 멈춘·완성
   assert.equal(meetingProgressText("uploading"), "녹음 파일을 올리고 있어요…");
   assert.match(meetingProgressText("transcribing"), /전사하고 있어요/);
   assert.equal(MEETING_TITLES.transcribing, "녹음 파일 전사 중");
+});
+
+test("올리는 중·전사 중에만 탭을 닫기 전에 확인을 받는다(떠나면 그 회의를 다시 열 수 없다)", () => {
+  for (const phase of ["uploading", "transcribing"]) assert.equal(shouldConfirmLeavingPhase(phase), true, phase);
+  for (const phase of ["idle", "stopped", "generating", "ready", "applied", "deleting", "recording"]) assert.equal(shouldConfirmLeavingPhase(phase), false, phase);
 });
 
 test("조회 API 전사 구간을 position 순 카드 줄로 바꾸고 확정 구간만 회의록 근거로 센다", () => {

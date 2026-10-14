@@ -47,6 +47,14 @@ export function isMeetingBusyPhase(phase: MeetingPhase): boolean {
     || phase === "saving" || phase === "uploading" || phase === "transcribing" || phase === "deleting";
 }
 
+/**
+ * 탭을 닫거나 새로고침하기 전에 확인을 받는 단계. 회의 목록 API가 없어 떠나면 진행 중인 녹음 파일 회의를 다시 열 수 없다
+ * (전사는 서버에서 이어져 크레딧을 쓰지만 결과를 볼 수 없다).
+ */
+export function shouldConfirmLeavingPhase(phase: MeetingPhase): boolean {
+  return phase === "uploading" || phase === "transcribing";
+}
+
 /** 회의를 지울 수 있는 단계. 전사·회의록 생성 중에는 먼저 취소한다(서버도 전사 중이면 409 MEETING_TRANSCRIBING). */
 export function canDeleteMeetingInPhase(phase: MeetingPhase): boolean {
   return phase === "stopped" || phase === "ready" || phase === "applied";

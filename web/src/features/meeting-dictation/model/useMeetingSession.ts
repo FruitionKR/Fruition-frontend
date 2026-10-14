@@ -32,6 +32,7 @@ import {
   describeRecordingError,
   isMeetingBusyPhase,
   MEETING_MESSAGES,
+  shouldConfirmLeavingPhase,
   type MeetingPhase
 } from "../lib/meetingNotesFlow";
 import { createLiveSession, type LiveSession, type LiveSocket, type LiveStopResult } from "./liveSession";
@@ -362,6 +363,19 @@ export function useMeetingSession({
   const cancelUpload = useCallback(() => {
     uploadAbortRef.current?.abort();
   }, []);
+
+  // 올리는 중·전사 중에 탭을 닫거나 새로고침하면 그 회의를 다시 열 수 없으므로 브라우저 확인을 받는다.
+  const confirmsLeaving = shouldConfirmLeavingPhase(phase);
+  useEffect(() => {
+    if (!confirmsLeaving) return;
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [confirmsLeaving]);
 
   // 녹음 파일 전사는 비동기다. transcribing이 끝날 때까지 회의를 조회한다.
   useEffect(() => {
