@@ -48,3 +48,16 @@ test("수정 시각이 없으면 문서 버전으로 변경을 판단한다", ()
   const { files } = indexRemoteTree([{ type: "document", id: "d_x", name: "x.md", sort_order: 0, current_version: 5 }], new Set());
   assert.equal(files[0].updatedAt, "v5");
 });
+
+test("서버가 허용하는 '..'·숨김 폴더나 숨김 파일명의 문서는 트리에서 뺀다", () => {
+  // 넣으면 숨김 폴더에 내려받은 뒤 다음 주기에 로컬 목록에서 빠져 delete-remote가 되고, ".."는 연결 폴더 밖에 쓰게 된다.
+  const items = [
+    folder("f_up", "..", [doc("d_up", "탈출.md")]),
+    folder("f_hidden", ".archive", [doc("d_hidden", "숨김.md")]),
+    doc("d_dot", ".notes.md"),
+    doc("d_ok", "메모.md")
+  ];
+  const { files, documents } = indexRemoteTree(items, new Set());
+  assert.deepEqual(files.map((file) => file.documentId), ["d_ok"]);
+  assert.deepEqual([...documents.keys()], ["d_ok"]);
+});

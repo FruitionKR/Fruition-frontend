@@ -77,6 +77,14 @@ test("숨김 파일과 숨김 폴더 안의 파일은 동기화하지 않는다"
   assert.equal(isSyncablePath("자료/.assets/image.md"), false);
 });
 
+test("'.'·'..'·빈 구간이 있는 경로는 연결 폴더 밖으로 나갈 수 있어 동기화하지 않는다", () => {
+  assert.equal(isSyncablePath("../메모.md"), false);
+  assert.equal(isSyncablePath("자료/../메모.md"), false);
+  assert.equal(isSyncablePath("./메모.md"), false);
+  assert.equal(isSyncablePath("/메모.md"), false);
+  assert.equal(isSyncablePath("자료//메모.md"), false);
+});
+
 test("409는 서버 code로 버전 충돌과 변환 중을 구분한다", () => {
   assert.equal(classifySyncError(new ApiError("충돌", 409, "DOCUMENT_VERSION_CONFLICT")), "version-conflict");
   assert.equal(classifySyncError(new ApiError("처리 중", 409, "DOCUMENT_ALREADY_PROCESSING")), "processing");

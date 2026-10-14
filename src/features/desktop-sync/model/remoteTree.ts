@@ -1,4 +1,5 @@
 import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
+import { isSyncablePath } from "@/features/desktop-sync/lib/syncNames";
 import type { RemoteFile } from "@/features/desktop-sync/model/planSync";
 
 export type RemoteTreeIndex = {
@@ -12,6 +13,8 @@ export type RemoteTreeIndex = {
 /**
  * 서버 문서 트리를 동기화 계획의 입력으로 펼친다.
  * readonlyIds는 저장이 403으로 거절된 문서처럼 앱이 올릴 수 없다고 알게 된 문서다.
+ * 서버는 폴더 이름에 "."·".."·숨김 이름을 허용하므로, 로컬에서 동기화 대상이 될 수 없는 경로의 문서는 트리에서 뺀다.
+ * 넣으면 숨김 폴더에 내려받은 뒤 다음 주기에 로컬 목록에서 빠져 서버 문서를 지우게 되고, ".."는 연결 폴더 밖에 쓰게 된다.
  */
 export function indexRemoteTree(items: ServerTreeItem[], readonlyIds: ReadonlySet<string>): RemoteTreeIndex {
   const index: RemoteTreeIndex = { files: [], folders: new Map(), documents: new Map() };
@@ -27,6 +30,7 @@ function visit(items: ServerTreeItem[], parentPath: string, folderId: string | n
       visit(item.children ?? [], path, item.id, readonlyIds, index);
       continue;
     }
+    if (!isSyncablePath(path)) continue;
     const document = item.document;
     // PDF 원본은 editable=false여도 소유자가 교체할 수 있다. 편집 문서인데 편집할 수 없을 때만(채팅 문서 등) 읽기 전용이다.
     const notEditable = document?.document_role === "EDITABLE" && document.editable === false;

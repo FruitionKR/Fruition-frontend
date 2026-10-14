@@ -17,11 +17,11 @@ export function toServerFilename(localName: string): string {
 
 /**
  * 연결 폴더 기준 상대 파일 경로가 동기화 대상인지. 끝이 "/"면 폴더로 본다.
- * 숨김 파일·폴더(.fruition, .assets 등)는 앱이 관리하므로 제외한다.
+ * 숨김 파일·폴더(.fruition, .assets 등)는 앱이 관리하므로 제외한다. 빈 구간("/a")과 "."·".."도 폴더 밖으로 나갈 수 있어 제외한다.
  */
 export function isSyncablePath(relativePath: string): boolean {
   const segments = relativePath.split("/");
   const filename = normalizeSyncName(segments[segments.length - 1]).toLowerCase();
-  if (!filename || segments.some((segment) => segment.startsWith("."))) return false;
+  if (!filename || segments.some((segment) => !segment || segment.startsWith("."))) return false;
   return SUPPORTED_UPLOAD_EXTENSIONS.some((extension) => filename.endsWith(extension));
 }
