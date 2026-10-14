@@ -36,7 +36,8 @@ const TASK_LABELS: Record<OperationType, string> = {
   ingest: "문서 처리",
   lint: "위키 다듬기",
   restore: "복구(롤백)",
-  document_edit: "AI 편집 반영"
+  document_edit: "AI 편집 반영",
+  wiki_edit: "위키 직접 편집"
 };
 
 const TERMINAL_STATUS_TEXT: Record<string, { label: string; sentence: string; tone: NotificationItem["tone"] }> = {

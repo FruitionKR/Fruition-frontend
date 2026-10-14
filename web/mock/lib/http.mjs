@@ -55,13 +55,14 @@ const AI_ENTRY_PATHS = [
   /\/agent\/runs\/[^/]+\/(approve|revise)$/,
   /\/documents\/[^/]+\/(ingest|convert-markdown)$/,
   /\/wiki\/maintenance\/lint$/,
+  /\/wiki\/pages\/[^/]+\/content$/,
   /\/skills\/author(\/publish)?$/,
   /\/skills\/[^/]+$/
 ];
 
 function rejectForInsufficientCredit(ctx) {
   if (!["1", "true"].includes(process.env.MOCK_INSUFFICIENT_CREDIT ?? "")) return false;
-  if (!["POST", "PATCH"].includes(ctx.req.method)) return false;
+  if (!["POST", "PATCH", "PUT"].includes(ctx.req.method)) return false;
   if (!AI_ENTRY_PATHS.some((pattern) => pattern.test(ctx.url.pathname))) return false;
   ctx.json(402, { error: { code: "INSUFFICIENT_CREDIT", message: "크레딧이 부족해 작업을 시작하지 않았습니다." } });
   return true;

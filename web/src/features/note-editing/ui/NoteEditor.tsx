@@ -23,6 +23,7 @@ import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/strikethroughInputRule";
 import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/headingInputRules";
+import { NOTE_BODY_PLACEHOLDER, SLASH_MENU_LABELS } from "../model/slashMenuLabels";
 import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/preserveImageAltPlugin";
@@ -54,8 +55,6 @@ const liftListItemOnBackspace: KeymapItem["onRun"] = (ctx) => (state, dispatch, 
 
 // 링크 입력처럼 글자마다 막히는 경로에서 알림 카드가 쌓이지 않게 한다.
 // 안내 문구마다 따로 세어, 종류가 다른 차단은 3초 안이어도 알린다.
-/** 빈 본문 안내 문구(Figma 426:2202). WYSIWYG·소스 모드가 같은 문구를 쓴다. */
-const NOTE_BODY_PLACEHOLDER = "'/'를 입력해 마크다운 기능을 사용하거나 내용을 입력하세요";
 
 /** root 아래 DOM 변경을 감시하고 정리 함수를 돌려준다. 편집기 DOM 보정 effect들이 함께 쓴다. */
 function observeMutations(root: HTMLElement, options: MutationObserverInit, onMutate: () => void): () => void {
@@ -451,32 +450,7 @@ export function NoteEditor({
             const math = builder.getGroup("advanced").group.items.find((item) => item.key === "math");
             if (math) math.onRun = insertMathFromSlash;
           },
-          textGroup: {
-            label: "텍스트",
-            text: { label: "본문" },
-            h1: { label: "제목 1" },
-            h2: { label: "제목 2" },
-            h3: { label: "제목 3" },
-            // 본문과 같거나 작은 h4~h6은 만들지 않는다(model/headingInputRules.ts).
-            h4: null,
-            h5: null,
-            h6: null,
-            quote: { label: "인용" },
-            divider: { label: "구분선" }
-          },
-          listGroup: {
-            label: "목록",
-            bulletList: { label: "글머리 기호 목록" },
-            orderedList: { label: "번호 목록" },
-            taskList: { label: "체크리스트" }
-          },
-          advancedGroup: {
-            label: "고급",
-            image: { label: "이미지" },
-            codeBlock: { label: "코드 블록" },
-            table: { label: "표" },
-            math: { label: "수식" }
-          }
+          ...SLASH_MENU_LABELS
         },
         // 문서 전체가 비었을 때만 보여 준다(새 노트 본문은 비어 있다). 데코레이션이라 저장되는 마크다운에는 들어가지 않는다.
         [CrepeFeature.Placeholder]: {

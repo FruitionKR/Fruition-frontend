@@ -1,9 +1,17 @@
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
-import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { apiFetch, parseJsonOrThrow, parseErrorResponse, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { ApiError } from "@/shared/lib/apiErrors";
 import { getSessionContext } from "@/entities/chat/api/chat";
 import type { AiModelSelection } from "@/entities/ai";
-import type { BackendData, QueryResponse, WikiGraphResponse, WikiPageDetailResponse } from "@/entities/wiki/model/wiki";
+import type {
+  BackendData,
+  QueryResponse,
+  WikiGraphResponse,
+  WikiPageContentSaveRequest,
+  WikiPageContentSaveResponse,
+  WikiPageDetailResponse
+} from "@/entities/wiki/model/wiki";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
 
@@ -31,9 +39,27 @@ export async function fetchDocumentData(): Promise<Pick<BackendData, "documents"
   return { documents: documentsFromTree(tree.items), tree: tree.items };
 }
 
+// 마지막으로 받은 그래프와 ETag(워크스페이스 위키 버전, document #131). 폴링은 이 값을 If-None-Match로 보내고
+// 304면 갖고 있던 그래프를 그대로 쓴다. 서버가 304면 AI 서비스를 부르지 않는다.
+let cachedWikiGraph: { workspaceId: string; etag: string; data: WikiGraphResponse } | null = null;
+
+/** 테스트·워크스페이스 전환용. 다음 조회는 조건 없이 받는다. */
+export function resetWikiGraphCache(): void {
+  cachedWikiGraph = null;
+}
+
 export async function fetchWikiGraph(): Promise<WikiGraphResponse> {
-  const response = await apiFetch(workspacePath(getWorkspaceId(), "wiki", "graph"), { cache: "no-store" });
-  return parseJsonOrThrow<WikiGraphResponse>(response, ERROR_MESSAGES.wikiGraphLoadFailed);
+  const workspaceId = getWorkspaceId();
+  const cached = cachedWikiGraph?.workspaceId === workspaceId ? cachedWikiGraph : null;
+  const response = await apiFetch(workspacePath(workspaceId, "wiki", "graph"), {
+    cache: "no-store",
+    ...(cached ? { headers: { "If-None-Match": cached.etag } } : {})
+  });
+  if (response.status === 304 && cached) return cached.data;
+  const data = await parseJsonOrThrow<WikiGraphResponse>(response, ERROR_MESSAGES.wikiGraphLoadFailed);
+  const etag = response.headers.get("ETag");
+  cachedWikiGraph = etag ? { workspaceId, etag, data } : null;
+  return data;
 }
 
 // SSE로 전달되는 질의 진행 단계 이벤트.
@@ -144,4 +170,39 @@ export async function fetchWikiPage(pageId: string): Promise<WikiPageDetailRespo
   );
 
   return parseJsonOrThrow<WikiPageDetailResponse>(response, ERROR_MESSAGES.wikiPageLoadFailed);
+}
+
+/** 본문 저장 409 WIKI_PAGE_VERSION_CONFLICT. currentRevision은 서버의 지금 revision(error.current_revision)이다. */
+export class WikiPageVersionConflictError extends ApiError {
+  readonly currentRevision: number | null;
+
+  constructor(message: string, currentRevision: number | null) {
+    super(message, 409, "WIKI_PAGE_VERSION_CONFLICT");
+    this.name = "WikiPageVersionConflictError";
+    this.currentRevision = currentRevision;
+  }
+}
+
+/**
+ * 사람이 고친 본문을 저장한다(document #130). base_revision이 현재 revision과 다르면 409 WIKI_PAGE_VERSION_CONFLICT,
+ * 같은 revision_write_id 재시도는 처음 결과를 돌려준다(503 뒤 재시도에 같은 ID를 쓴다).
+ */
+export async function saveWikiPageContent(pageId: string, request: WikiPageContentSaveRequest): Promise<WikiPageContentSaveResponse> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "wiki", "pages", pageId, "content"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (response.status === 409) {
+    const body = await response.clone().json().catch(() => null) as { error?: { code?: string; message?: string; current_revision?: unknown } } | null;
+    if (body?.error?.code === "WIKI_PAGE_VERSION_CONFLICT") {
+      const current = body.error.current_revision;
+      throw new WikiPageVersionConflictError(
+        body.error.message || ERROR_MESSAGES.wikiPageSaveFailed,
+        typeof current === "number" && Number.isFinite(current) ? current : null
+      );
+    }
+    throw await parseApiError(response, ERROR_MESSAGES.wikiPageSaveFailed);
+  }
+  return parseJsonOrThrow<WikiPageContentSaveResponse>(response, ERROR_MESSAGES.wikiPageSaveFailed);
 }

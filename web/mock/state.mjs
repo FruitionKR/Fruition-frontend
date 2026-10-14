@@ -170,6 +170,8 @@ export function addOperationLog(workspaceId, entry) {
 }
 
 export function touchWiki(workspace) {
+  // wiki/graph ETag("wiki-{버전}")의 근거. 위키가 바뀔 때마다 올린다(document #131).
+  workspace.wiki_version = (workspace.wiki_version ?? 0) + 1;
   workspace.maintenance.needs_lint = true;
   workspace.maintenance.last_wiki_change_at = now();
 }

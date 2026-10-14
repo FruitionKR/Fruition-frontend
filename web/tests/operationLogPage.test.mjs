@@ -92,7 +92,8 @@ test("작업 유형 라벨은 Figma 로그 화면의 한국어 명칭을 쓴다"
     document_edit: "AI 편집 반영",
     ingest: "위키 편입",
     lint: "Lint",
-    restore: "롤백"
+    restore: "롤백",
+    wiki_edit: "위키 직접 편집"
   });
 });
 

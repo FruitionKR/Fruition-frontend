@@ -1,6 +1,7 @@
 // AI 작업 로그 (document-svc /ai-operation-logs 응답 계약)
 
-export type OperationType = "document_edit" | "ingest" | "lint" | "restore";
+// wiki_edit은 사람이 위키 페이지 본문을 직접 고친 작업(document #130).
+export type OperationType = "document_edit" | "ingest" | "lint" | "restore" | "wiki_edit";
 
 /** document-svc OperationStatus 열거값. 목록 status 필터에 그대로 쓴다. */
 export type OperationStatus =

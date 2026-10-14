@@ -39,6 +39,7 @@ export const ERROR_MESSAGES = {
   wikiExportFailed: "위키 내보내기에 실패했습니다.",
   wikiGraphLoadFailed: "Wiki graph를 불러오지 못했습니다.",
   wikiPageLoadFailed: "Wiki page를 불러오지 못했습니다.",
+  wikiPageSaveFailed: "Wiki page를 저장하지 못했습니다.",
   workspaceLoadFailed: "워크스페이스를 불러오지 못했습니다.",
   meLoadFailed: "사용자 정보를 불러오지 못했습니다.",
   authRefreshUnavailable: "인증을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요."

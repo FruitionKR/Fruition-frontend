@@ -7,6 +7,8 @@ export type WorkspaceMember = {
   display_name: string | null;
   provider: string;
   role: WorkspaceRole;
+  /** 부여된 권한 항목(access #32). OWNER는 항상 전부, MEMBER는 받은 것만. 구 응답에는 없다. */
+  permissions?: string[];
   joined_at: string;
 };
 

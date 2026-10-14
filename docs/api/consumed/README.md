@@ -13,7 +13,7 @@
 | [인증·계정](auth-account.md) | 25 | access-svc | `web/src/entities/user/api` |
 | [워크스페이스](workspace.md) | 12 | access-svc | `web/src/entities/workspace/api` |
 | [문서·트리](document.md) | 31 | document-svc | `web/src/entities/document/api`, `web/src/entities/tree/api`, `web/src/features/note-editing`, `web/src/features/document-notifications/api/notifications.ts` |
-| [Wiki](wiki.md) | 7 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
+| [Wiki](wiki.md) | 8 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
 | [AI·Agent·Query](ai-agent.md) | 19 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `web/src/entities/skill/api` |
 
