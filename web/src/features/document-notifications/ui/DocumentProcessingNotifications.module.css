@@ -1,0 +1,162 @@
+/* 알림 카드 (Figma 1246:7338 bottom_up): 콘텐츠 영역 우하단에서 올라오는 320px 카드.
+   에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓고, 패널이 닫혔을 때의 채팅 런처(48px) 위에 둔다. */
+.notice-stack {
+  position: fixed;
+  right: calc(var(--agent-panel-self-width, var(--agent-panel-width, 360px)) + 24px);
+  bottom: 88px;
+  z-index: 50;
+  display: grid;
+  width: min(320px, calc(100vw - 48px));
+  gap: 10px;
+  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
+  /* 떠 있는 카드 배경: 라이트는 흰 카드, 다크는 기존 패널색 */
+  --notice-bg: var(--color-canvas);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .notice-stack {
+    --notice-bg: var(--color-surface);
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .notice-stack {
+  --notice-bg: var(--color-surface);
+}
+
+@media (max-width: 700px) {
+  .notice-stack {
+    right: 16px;
+    left: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 20px 16px;
+  color: var(--color-foreground);
+  background: var(--notice-bg);
+  /* Figma의 안쪽 stroke는 콘텐츠의 패딩과 너비에 더해지지 않는다. */
+  box-shadow: inset 0 0 0 1px var(--color-surface-strong);
+  border-radius: 16px;
+  overflow: hidden;
+  animation: notice-bottom-up 240ms ease-out;
+}
+
+@keyframes notice-bottom-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 닫히거나 밀려나는 카드 (NOTICE_EXIT_MS와 길이를 맞춘다) */
+.notice.is-leaving {
+  pointer-events: none;
+  animation: notice-leave 200ms ease-in forwards;
+}
+
+@keyframes notice-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+:global([data-reduce-motion="true"]) .notice {
+  animation: none;
+}
+
+.notice-title {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.notice-title strong {
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.notice-title p {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* 액션 카드: 취소 + 실행 2버튼 (Figma 1246:7338 취소/수락) */
+.notice-buttons {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+}
+
+.notice-buttons .notice-confirm {
+  flex: 1;
+}
+
+.notice-cancel,
+.notice-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 29px;
+  border: 0;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+
+.notice-cancel {
+  flex: 1;
+  padding: 6px 18px;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+  box-shadow: inset 0 0 0 1px var(--color-surface-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.notice-cancel:hover,
+.notice-cancel:focus-visible {
+  --button-hover-overlay: none;
+  background: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay)), var(--color-surface-strong);
+}
+
+.notice-confirm {
+  width: 100%;
+  padding: 6px 18px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.notice-confirm:hover,
+.notice-confirm:focus-visible {
+  --button-hover-overlay: none;
+  background: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay)), var(--color-primary);
+}

@@ -1,0 +1,48 @@
+import { useEffect, useMemo } from "react";
+import type { DropTarget, TreeItem } from "@/entities/tree";
+import { TreeNode } from "./TreeNode";
+import type { TreeInteractionProps } from "../model/treeInteraction";
+
+export function SidebarTree({
+  items,
+  projectId,
+  interaction
+}: {
+  items: TreeItem[];
+  projectId: string;
+  /** 트리 상호작용 상태·핸들러 묶음 */
+  interaction: TreeInteractionProps;
+}) {
+  const { openIds, onToggleOpen, onOpenMany } = interaction;
+  const generatedFolderIds = useMemo(
+    () => items.filter((item) => item.generated && item.children?.length).map((item) => item.id),
+    [items]
+  );
+
+  useEffect(() => {
+    if (generatedFolderIds.length === 0) return;
+    onOpenMany(generatedFolderIds);
+  }, [generatedFolderIds, onOpenMany]);
+
+  function handleDropItem(target: DropTarget) {
+    if (!interaction.draggedItemId) return;
+    interaction.onMoveItem(target);
+  }
+
+  return (
+    <>
+      {items.map((item) => (
+        <TreeNode
+          key={item.id}
+          item={item}
+          depth={0}
+          openIds={openIds}
+          onToggle={onToggleOpen}
+          projectId={projectId}
+          onDropItem={handleDropItem}
+          interaction={interaction}
+        />
+      ))}
+    </>
+  );
+}

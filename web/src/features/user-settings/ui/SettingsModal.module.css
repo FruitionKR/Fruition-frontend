@@ -1,0 +1,439 @@
+/* 설정 화면 (Figma 1540:22452): 사이드바 자리의 SNB 메뉴 + 메인 영역 본문. 패널 공통 스타일도 여기 있다. */
+
+/* --- 좌측 메뉴 (사이드바 패널 안, Figma 1577:3249 container) --- */
+.nav {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-label {
+  margin: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 메뉴 줄 (Figma 1577:3253 setting_hover): 10/8 패딩, 아이콘 24, 활성은 surface 배경 */
+.nav-row {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.14px;
+  text-align: left;
+}
+
+button.nav-row:hover,
+button.nav-row:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface-strong);
+}
+
+button.nav-row:disabled {
+  background: transparent;
+  opacity: 0.45;
+  cursor: default;
+}
+
+.nav-row.is-active {
+  background: var(--color-surface);
+}
+
+/* 로그아웃: 메뉴 맨 아래 구분선 뒤, 위험 동작이라 danger 색 */
+.nav-footer {
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.nav-row.is-danger,
+.nav-row.is-danger .nav-icon {
+  color: var(--color-danger);
+}
+
+button.nav-row.is-danger:hover,
+button.nav-row.is-danger:focus-visible {
+  background: var(--color-danger-weak);
+}
+
+.nav-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nav-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  color: var(--color-body);
+}
+
+/* --- 메인 본문 (Figma 1540:22548 container: pt 56, px 40, 폭 800 가운데) --- */
+.view {
+  position: absolute;
+  inset: 0 0 0 var(--sidebar-width, 320px);
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  overflow-y: auto;
+  background: var(--color-canvas);
+}
+
+.content {
+  width: 100%;
+  max-width: 880px;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 56px 40px 40px;
+}
+
+.detail {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* .title > p보다 우선하도록 클래스 2개 지정자로 둔다. */
+.title > .title-note {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-row h2 {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.preview-label {
+  padding: 2px 6px;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-muted);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.title > p {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--color-surface-strong);
+}
+
+/* 라벨 + 입력 필드 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.field label,
+.field-label {
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
+}
+
+.field small {
+  margin-top: -6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+}
+
+.field input {
+  width: min(400px, 100%);
+  padding: 8px 12px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.field input:focus-visible {
+  outline: none;
+  border-color: var(--color-surface-strong);
+}
+
+/* 제목/설명 + 우측 액션 행 */
+.row {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.row-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.row-title strong {
+  color: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+}
+
+.row-title small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+}
+
+.row-title .row-error {
+  color: var(--color-danger);
+}
+
+.btn {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* 내 계정 삭제처럼 되돌릴 수 없는 동작 */
+.btn.btn-danger {
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+  border-color: var(--color-danger-weak);
+}
+
+/* 워크스페이스 아이콘 */
+.ws-icon-outline {
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ws-icon-outline:disabled {
+  cursor: default;
+}
+
+.ws-emoji-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* .field input의 min(400px, 100%)보다 우선하도록 지정자를 올린다 */
+.ws-emoji-field .ws-emoji {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 36px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  text-align: center;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.ws-emoji-field .ws-emoji:focus-visible {
+  border-color: var(--ink);
+  outline: none;
+}
+
+.ws-emoji-field .ws-emoji:disabled {
+  opacity: 0.6;
+}
+
+.ws-icon {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 8px solid var(--color-surface-strong);
+  border-radius: 10px;
+  font-size: 40px;
+  font-weight: 500;
+}
+
+/* 스위치는 누를 때 손잡이가 살짝 늘어나고, 이동 끝에서 부드럽게 감속한다. */
+/* AI 모델 */
+.provider-setting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-button {
+  min-width: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.provider-button:hover,
+.provider-button:focus-visible,
+.provider-button.is-selected {
+  --button-hover-overlay: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface-strong);
+}
+
+.provider-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.provider-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.provider-readonly {
+  max-width: 260px;
+  color: var(--color-body);
+  font-size: 11px;
+  text-align: right;
+}
+
+.model-error {
+  max-width: 260px;
+  color: var(--color-danger);
+  font-size: 11px;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .content {
+    padding: 20px;
+  }
+
+  .detail {
+    padding: 0;
+  }
+
+  .provider-list {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}

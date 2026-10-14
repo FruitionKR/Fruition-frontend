@@ -1,0 +1,63 @@
+/* agent-panel 레이아웃 앵커. .agent-panel은 source-preview의 :has 등에서 참조하는 전역 클래스라
+   CSS Module(pure selector 규칙)에 둘 수 없어 app 레이어 전역으로 둔다. 내부 시각 클래스는 AgentChat.module.css. */
+.agent-panel {
+  /* 공통 토큰에 없는 패널 전용 색. 다크 값은 기존 다크 디자인 색을 유지한다. */
+  --agent-selecting-overlay: rgb(139 149 161 / 16%);
+  --agent-switch-knob: #ffffff;
+
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 9;
+  /* 폭은 HomeWorkspace가 main.workspace에 넣는 --agent-panel-self-width(기본 360, 216~504, 창 폭에 따라 축소)를 따른다.
+     넓은 화면에서는 콘텐츠 오른쪽 여백(--agent-panel-width)과 같고, 좁은 화면에서는 콘텐츠 위에 겹친다. */
+  width: var(--agent-panel-self-width, var(--agent-panel-width, 360px));
+  min-width: 0;
+  display: grid;
+  /* Figma 1527:16469: 45px GNB(사이드바 상단 바와 같은 높이) + 대화 영역 */
+  grid-template-rows: 45px 1fr auto auto;
+  overflow: hidden;
+  font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  /* Figma 1540:19198 chat 왼쪽 경계선 1.2px */
+  border-left: 1.2px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .agent-panel {
+    --agent-selecting-overlay: rgb(65 65 65 / 60%);
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .agent-panel {
+  --agent-selecting-overlay: rgb(65 65 65 / 60%);
+}
+
+/* 좁은 화면: 콘텐츠 위에 겹쳐 열리므로 경계를 그림자로 구분한다 */
+.workspace.is-compact-layout .agent-panel {
+  box-shadow: 0 8px 24px var(--color-shadow);
+}
+
+/* 폭 조절 핸들: 패널 왼쪽 가장자리 6px 히트 영역. 사이드바 핸들과 같이 커서만 바뀌고 hover/드래그 강조선은 그리지 않는다. */
+.agent-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  right: calc(var(--agent-panel-width, 360px) - 3px);
+  bottom: 0;
+  z-index: 10;
+  width: 6px;
+  padding: 0;
+  cursor: ew-resize;
+  background: transparent;
+  touch-action: none;
+}
+
+.agent-panel-resize-handle:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}

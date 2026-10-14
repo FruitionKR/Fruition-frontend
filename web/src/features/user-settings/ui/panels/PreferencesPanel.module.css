@@ -1,0 +1,138 @@
+/* 기본 설정 패널 전용 스타일. 제목·섹션·행은 SettingsModal.module.css를 쓴다. */
+
+/* 견본 색: 지금 보고 있는 테마와 상관없이 각 테마의 실제 canvas·surface·글자 색을 그대로 보여 준다(base.css 토큰 값). */
+.choices {
+  --swatch-light-canvas: #ffffff;
+  --swatch-light-surface: #e5e8eb;
+  --swatch-light-ink: #8b95a1;
+  --swatch-dark-canvas: #0a0a0a;
+  --swatch-dark-surface: #323232;
+  --swatch-dark-ink: #8a8a8a;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.choice {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  color: var(--color-foreground);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.choice:hover {
+  --button-hover-overlay: none;
+  background: var(--color-hover-overlay);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.choice.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.swatch {
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.swatch-bar,
+.swatch-line {
+  height: 8px;
+  border-radius: 4px;
+}
+
+.swatch-bar {
+  width: 55%;
+}
+
+.swatch-line.is-short {
+  width: 70%;
+}
+
+.swatch-light {
+  background: var(--swatch-light-canvas);
+}
+
+.swatch-light .swatch-bar { background: var(--swatch-light-ink); }
+.swatch-light .swatch-line { background: var(--swatch-light-surface); }
+
+.swatch-dark {
+  background: var(--swatch-dark-canvas);
+}
+
+.swatch-dark .swatch-bar { background: var(--swatch-dark-ink); }
+.swatch-dark .swatch-line { background: var(--swatch-dark-surface); }
+
+/* OS에 맞춤: 대각선으로 라이트·다크를 반씩 */
+.swatch-system {
+  background: linear-gradient(135deg, var(--swatch-light-canvas) 50%, var(--swatch-dark-canvas) 50%);
+}
+
+.swatch-system .swatch-bar { background: linear-gradient(135deg, var(--swatch-light-ink) 50%, var(--swatch-dark-ink) 50%); }
+.swatch-system .swatch-line { background: linear-gradient(135deg, var(--swatch-light-surface) 50%, var(--swatch-dark-surface) 50%); }
+
+/* 글꼴 견본: 고른 글꼴로 쓴 한글·영문. 견본 상자는 테마 견본과 같은 높이로 맞춘다. */
+.font-sample {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border-radius: 6px;
+  font-family: var(--document-font-family);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.choice-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+}
+
+.choice-text small {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion="false"]) .choice {
+    transition: none;
+  }
+}
