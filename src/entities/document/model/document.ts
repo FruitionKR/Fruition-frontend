@@ -17,6 +17,8 @@ export type DocumentUploadResponse = {
   source_uri: string;
   uploaded_at: string;
   document_role: DocumentRole;
+  /** 문서 종류상 본문을 편집할 수 있는지(EDITABLE·채팅 문서 아님). 현재 사용자의 권한은 아니다. */
+  editable?: boolean;
 };
 
 export type DocumentItemResponse = DocumentUploadResponse & {
