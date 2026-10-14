@@ -41,6 +41,7 @@ export function AgentBody({
   documentCommandQuestion,
   documentCommandStages = [],
   activeSessionId,
+  isShown = true,
   activeTurn,
   queryErrorMessage,
   chatLoadErrorMessage,
@@ -63,6 +64,8 @@ export function AgentBody({
   documentCommandQuestion: string | null;
   documentCommandStages?: QueryStageEvent[];
   activeSessionId: string | null;
+  /** 패널이 화면에 보이는지. 숨겨지면(마운트 유지) 답변 듣기를 멈춘다. */
+  isShown?: boolean;
   activeTurn: ActiveAgentTurn | null;
   queryErrorMessage: string | null;
   chatLoadErrorMessage: string | null;
@@ -85,8 +88,8 @@ export function AgentBody({
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledInitialMessagesRef = useRef(false);
   const { scrollToPosition } = useSmoothScroll(bodyRef);
-  // 답변 듣기(#149)는 한 번에 하나만 재생하므로 메시지 목록 위에서 상태를 가진다. 세션이 바뀌면 멈춘다.
-  const speech = useSpeechPlayback(activeSessionId);
+  // 답변 듣기(#149)는 한 번에 하나만 재생하므로 메시지 목록 위에서 상태를 가진다. 세션이 바뀌거나 패널이 숨겨지면 멈춘다.
+  const speech = useSpeechPlayback(activeSessionId, isShown);
 
   useEffect(() => {
     hasScrolledInitialMessagesRef.current = false;

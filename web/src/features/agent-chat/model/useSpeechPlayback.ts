@@ -40,9 +40,9 @@ function abortPlayback(active: ActivePlayback) {
 
 /**
  * 답변 듣기(#149). 한 번에 하나만 재생하며, 다른 답변을 재생하거나 멈추면 요청을 끊어 서버 합성도 멈춘다.
- * 받은 PCM 조각은 Web Audio 버퍼로 이어 붙여 끊김 없이 재생한다. 세션이 바뀌거나 언마운트되면 멈춘다.
+ * 받은 PCM 조각은 Web Audio 버퍼로 이어 붙여 끊김 없이 재생한다. 세션이 바뀌거나 언마운트되거나 패널이 숨겨지면 멈춘다.
  */
-export function useSpeechPlayback(activeSessionId: string | null) {
+export function useSpeechPlayback(activeSessionId: string | null, isVisible = true) {
   const [playback, setPlayback] = useState<SpeechPlaybackState>(null);
   const [error, setError] = useState<SpeechPlaybackError | null>(null);
   const activeRef = useRef<ActivePlayback | null>(null);
@@ -66,6 +66,11 @@ export function useSpeechPlayback(activeSessionId: string | null) {
     abortPlayback(active);
     setPlayback(null);
   }, []);
+
+  // 스킬·알림 화면으로 가면 패널은 마운트된 채 숨겨진다. 멈추기 버튼이 보이지 않으므로 재생도 멈춘다.
+  useEffect(() => {
+    if (!isVisible) stop();
+  }, [isVisible, stop]);
 
   function finish(active: ActivePlayback) {
     activeRef.current = null;

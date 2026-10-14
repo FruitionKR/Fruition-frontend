@@ -236,6 +236,25 @@ test("세션이 바뀌거나 언마운트되면 진행 중인 재생과 요청�
   assert.equal(calls[1].aborted, true);
 });
 
+test("패널이 숨겨지면(마운트 유지) 진행 중인 재생과 요청을 끊는다", async (t) => {
+  saveAccessToken("test-access");
+  const contexts = installFakeAudio(t);
+  const calls = installControlledStream(t);
+  let isVisible = true;
+  const hook = render(() => useSpeechPlayback("chat_1", isVisible));
+  hook.result.toggle("msg_2");
+  await flush();
+  calls[0].send({ type: "audio", delta: pcmBase64([1]) });
+  await flush();
+  isVisible = false;
+  hook.rerender();
+  assert.equal(calls[0].aborted, true);
+  assert.equal(contexts[0].sources[0].stopped, true);
+  assert.equal(contexts[0].closed, true);
+  hook.rerender();
+  assert.equal(hook.result.playback, null);
+});
+
 test("402·스트림 오류·연결 실패는 그 답변에 안내 문구를 붙이고 재생을 정리한다", async (t) => {
   saveAccessToken("test-access");
   const contexts = installFakeAudio(t);
