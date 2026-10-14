@@ -49,7 +49,7 @@ backend 서비스 문서와 **동일한 10개 항목**을 유지한다. 해당 �
 - 사용자 인증은 불필요하다. Bearer 토큰을 검사하지 않는다.
 - 단, `middleware.ts`의 접근 코드 게이트가 `/api/:path*`에 걸려 있고 이 경로는
   `OPEN_API_PATTERNS`에 없다. `ACCESS_CODE`가 설정된 배포에서는 해제 쿠키가 없으면 `403`이다.
-- 호출 측(`src/shared/api/documentTransport.ts`)이 본문 없는 이 요청으로 게이트를 먼저 확인한 뒤
+- 호출 측(`web/src/shared/api/documentTransport.ts`)이 본문 없는 이 요청으로 게이트를 먼저 확인한 뒤
   대용량 본문을 보내는 구조다.
 
 ### 4. Request body
@@ -106,8 +106,8 @@ Cache-Control: no-store
 
 ### 10. 구현 파일
 
-- 핸들러: `app/api/document-transport/route.ts` (`export const dynamic = "force-dynamic"`)
-- 호출 측: `src/shared/api/documentTransport.ts` (`getDocumentTransport`, `usesDocumentTransport`)
+- 핸들러: `web/app/api/document-transport/route.ts` (`export const dynamic = "force-dynamic"`)
+- 호출 측: `web/src/shared/api/documentTransport.ts` (`getDocumentTransport`, `usesDocumentTransport`)
 - 게이트: `middleware.ts`
 
 ---
@@ -175,8 +175,8 @@ curl -s http://localhost:3000/access/verify
 
 ### 10. 구현 파일
 
-- 핸들러: `app/access/verify/route.ts` (`GET`)
-- 헬퍼: `src/shared/lib/accessCode.ts` (`ACCESS_COOKIE`, `getAccessCode`, `hashAccessCode`)
+- 핸들러: `web/app/access/verify/route.ts` (`GET`)
+- 헬퍼: `web/src/shared/lib/security/accessCode.ts` (`ACCESS_COOKIE`, `getAccessCode`, `hashAccessCode`)
 
 ---
 
@@ -263,11 +263,11 @@ Set-Cookie: fruition_access=<sha256>; Path=/; HttpOnly; SameSite=Lax
 
 ### 10. 구현 파일
 
-- 핸들러: `app/access/verify/route.ts` (`POST`, 상수 시간 비교 `isSameCode`)
-- 시도 제한: `app/access/verify/attemptLimiter.ts` (서버 전용)
-- 헬퍼: `src/shared/lib/accessCode.ts`
+- 핸들러: `web/app/access/verify/route.ts` (`POST`, 상수 시간 비교 `isSameCode`)
+- 시도 제한: `web/app/access/verify/attemptLimiter.ts` (서버 전용)
+- 헬퍼: `web/src/shared/lib/security/accessCode.ts`
 - 게이트: `middleware.ts`
-- 호출 측: `src/shared/api/accessGate.ts` (`submitAccessCode` → `"ok" | "invalid" | "rate-limited"`)
+- 호출 측: `web/src/shared/api/accessGate.ts` (`submitAccessCode` → `"ok" | "invalid" | "rate-limited"`)
 
 ---
 
@@ -344,10 +344,10 @@ Cache-Control: no-store
 
 ### 10. 구현 파일
 
-- 핸들러: `app/wake/route.ts` (`POST`, `export const dynamic = "force-dynamic"`)
-- AWS 호출·중복 방지: `app/wake/requestWake.ts` (`requestWake`). 서버 전용이라 `app/wake/` 밖에서 import하지 않는다.
-- 접근 코드 판정: `src/shared/lib/accessCode.ts` (`hasVerifiedAccessCode`)
-- 호출 측: `src/views/login/model/useServerWake.ts` (로그인 화면 진입 시·제출 직전, 응답 무시. `GET /access/verify`가 `enabled: false`면 부르지 않는다)
+- 핸들러: `web/app/wake/route.ts` (`POST`, `export const dynamic = "force-dynamic"`)
+- AWS 호출·중복 방지: `web/app/wake/requestWake.ts` (`requestWake`). 서버 전용이라 `web/app/wake/` 밖에서 import하지 않는다.
+- 접근 코드 판정: `web/src/shared/lib/security/accessCode.ts` (`hasVerifiedAccessCode`)
+- 호출 측: `web/src/views/auth/model/useServerWake.ts` (로그인 화면 진입 시·제출 직전, 응답 무시. `GET /access/verify`가 `enabled: false`면 부르지 않는다)
 - 플랫폼 라우팅: ALB가 `/wake`를 화면으로 보내야 한다(플랫폼 `test_aws_frontend_routing.py`의 화면 경로)
 
 ---
@@ -418,9 +418,9 @@ curl -s http://localhost:3000/wake
 
 ### 10. 구현 파일
 
-- 핸들러: `app/wake/route.ts` (`GET`)
-- DynamoDB 조회: `app/wake/requestWake.ts` (`readWakePhase`)
-- 호출 측: `src/views/login/model/useServerWake.ts` (안내 중 10초 간격 확인, 최대 15분), 판단 `src/views/login/model/wakeStep.ts`
+- 핸들러: `web/app/wake/route.ts` (`GET`)
+- DynamoDB 조회: `web/app/wake/requestWake.ts` (`readWakePhase`)
+- 호출 측: `web/src/views/auth/model/useServerWake.ts` (안내 중 10초 간격 확인, 최대 15분), 판단 `web/src/views/auth/model/wakeStep.ts`
 
 ---
 
@@ -494,9 +494,9 @@ Cache-Control: no-store
 
 ### 10. 구현 파일
 
-- 핸들러: `app/csp-report/route.ts` (`export const dynamic = "force-dynamic"`)
-- 요약·상한: `app/csp-report/cspReport.ts` (`summarizeCspReports`, `readCappedText`, `createLogLimiter`)
-- 정책 문자열: `src/shared/lib/contentSecurityPolicy.ts` (`buildContentSecurityPolicy`), 헤더 부착: `middleware.ts` → `src/shared/lib/contentSecurityHeaders.ts` (production만, 요청마다 nonce)
+- 핸들러: `web/app/csp-report/route.ts` (`export const dynamic = "force-dynamic"`)
+- 요약·상한: `web/app/csp-report/cspReport.ts` (`summarizeCspReports`, `readCappedText`, `createLogLimiter`)
+- 정책 문자열: `web/src/shared/lib/security/contentSecurityPolicy.ts` (`buildContentSecurityPolicy`), 헤더 부착: `middleware.ts` → `web/src/shared/lib/security/contentSecurityHeaders.ts` (production만, 요청마다 nonce)
 
 ---
 
@@ -521,6 +521,6 @@ Cache-Control: no-store
 
 ## 개발용 mock 서버
 
-`mock/`은 `npm run mock`(`mock/server.mjs`)과 `npm run dev:mock`(`mock/dev.mjs`)으로만 실행되는
-개발 도구다. `src/`·`app/`의 어떤 모듈도 `mock/`을 import하지 않으므로 제공 API도 배선도 아니다.
-구성: `mock/routes/`, `mock/lib/`, `mock/pipeline.mjs`, `mock/seed.mjs`, `mock/state.mjs`.
+`web/mock/`은 `npm run mock`(`web/mock/server.mjs`)과 `npm run dev:mock`(`web/mock/dev.mjs`)으로만 실행되는
+개발 도구다. `web/src/`·`web/app/`의 어떤 모듈도 `web/mock/`을 import하지 않으므로 제공 API도 배선도 아니다.
+구성: `web/mock/routes/`, `web/mock/lib/`, `web/mock/pipeline.mjs`, `web/mock/seed.mjs`, `web/mock/state.mjs`.

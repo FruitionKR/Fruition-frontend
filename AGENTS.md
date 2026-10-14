@@ -2,7 +2,7 @@
 
 ## 작업 범위
 
-- 이 디렉터리에서는 프론트엔드 코드만 수정한다.
+- 이 디렉터리에서는 프론트엔드 코드만 수정한다. 실행 가능한 Next.js 프로젝트는 `web/` 아래에 있고, npm 명령은 `web/`에서 실행한다.
 - 전체 프로젝트 완성은 프론트엔드 코드 변경으로 달성한다.
 - 백엔드, 인프라, AI/LLM pipeline 코드는 직접 수정하지 않는다.
 
@@ -22,7 +22,7 @@
 
 ## 허용되는 변경
 
-- `app`, `src/shared/assets/svg`, `package.json`, `next.config.mjs` 등 프론트엔드 실행과 화면 구현에 필요한 파일 수정
+- `web/app`, `web/src/shared/assets/svg`, `web/package.json`, `web/next.config.mjs` 등 프론트엔드 실행과 화면 구현에 필요한 파일 수정
 - 백엔드 API 호출을 위한 프론트엔드 fetch/client 코드 작성
 - 백엔드 응답을 화면 상태와 UI 컴포넌트에 맞게 변환하는 코드 작성
 - 프론트엔드 레이아웃, 스타일, 인터랙션, 접근성 개선

@@ -1,0 +1,142 @@
+/* 빠른 설명 말풍선. 앱 글자색/바탕색을 뒤집은 반전 말풍선이라 다크에서는 밝은 말풍선·어두운 글자가 된다.
+   색은 base.css --color-* 토큰만 쓴다. */
+.tooltip-anchor {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+/* disabled 버튼은 마우스 이벤트를 삼키므로 래퍼가 받도록 한다 */
+.tooltip-anchor > :disabled {
+  pointer-events: none;
+}
+
+.tooltip {
+  --tooltip-from: translateX(-4px);
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 10px;
+  color: var(--color-canvas);
+  background: var(--color-foreground);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--color-shadow), 0 1px 2px var(--color-shadow);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+  text-align: left;
+  pointer-events: none;
+  animation: tooltip-in 120ms ease-out;
+}
+
+/* 크기를 재는 첫 렌더 동안은 그리지 않는다 */
+.tooltip.is-measuring {
+  top: 0;
+  left: 0;
+  visibility: hidden;
+}
+
+.tooltip.is-left {
+  --tooltip-from: translateX(4px);
+}
+
+.tooltip.is-top {
+  --tooltip-from: translateY(4px);
+}
+
+.tooltip.is-bottom {
+  --tooltip-from: translateY(-4px);
+}
+
+.tooltip-label {
+  position: relative;
+  z-index: 1;
+}
+
+.tooltip-hint {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+/* 단축키 키캡: 말풍선 글자색 테두리로 얇게 감싼다 */
+.tooltip-hint kbd {
+  display: inline-flex;
+  align-items: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+/* 트리거를 가리키는 6px 꼬리. 말풍선 가장자리에 걸친 회전 정사각형이다. */
+.tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  border-radius: 1px;
+}
+
+.tooltip.is-right .tooltip-arrow,
+.tooltip.is-left .tooltip-arrow {
+  top: var(--tooltip-arrow-offset, 50%);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.tooltip.is-right .tooltip-arrow {
+  left: -4px;
+}
+
+.tooltip.is-left .tooltip-arrow {
+  right: -4px;
+}
+
+.tooltip.is-top .tooltip-arrow,
+.tooltip.is-bottom .tooltip-arrow {
+  left: var(--tooltip-arrow-offset, 50%);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.tooltip.is-top .tooltip-arrow {
+  bottom: -4px;
+}
+
+.tooltip.is-bottom .tooltip-arrow {
+  top: -4px;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: var(--tooltip-from);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion="false"]) .tooltip {
+    animation: none;
+  }
+}

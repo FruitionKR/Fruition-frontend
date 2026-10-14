@@ -1,0 +1,172 @@
+
+.workspace {
+  position: relative;
+  width: 100vw;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+
+.topbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 10;
+  height: 65px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.workspace-mark {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.profile {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: var(--color-body);
+}
+
+.profile div {
+  display: grid;
+  gap: 1px;
+  text-align: right;
+}
+
+.profile strong {
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile span {
+  color: var(--color-body);
+  font-size: 10px;
+}
+
+/* 워크스페이스 빈 화면 (HomeWorkspace 렌더). 기존 rail.css에서 이동. */
+/* 화면 전환(레일·문서/그래프): 새로 그려지는 메인 화면을 짧게 페이드인해 뚝 끊겨 바뀌는 느낌을 줄인다.
+   opacity만 써서 레이아웃·고정 위치 요소에 영향이 없다. 한 화면 안에서 내용만 바뀔 때는 다시 재생되지 않는다. */
+.workspace > section {
+  animation: workspace-view-enter 160ms ease-out;
+}
+
+@keyframes workspace-view-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion="false"]) .workspace > section {
+    animation: none;
+  }
+}
+
+/* 패널이 없는 화면에서 열려 있던 채팅 패널을 숨겨 둔다(마운트 유지). 보일 때는 래퍼가 레이아웃에 끼지 않는다. */
+.agent-panel-host {
+  display: contents;
+}
+
+.agent-panel-host.is-hidden {
+  display: none;
+}
+
+.blank-view {
+  position: absolute;
+  inset: 0 0 0 var(--sidebar-width, 320px);
+  z-index: 1;
+  background: var(--color-canvas);
+}
+
+/* 좁은 화면에서 겹쳐 연 사이드바(11) 바깥. 채팅 패널(9) 위를 덮어 바깥을 누르면 사이드바를 닫는다. */
+.compact-sidebar-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: default;
+}
+
+/* 사이드바·채팅 패널 핸들을 끄는 동안 문서 iframe(PDF 내장 뷰어 등)이 포인터 이벤트를 가로채지 않게 한다.
+   pointer capture가 있어도 브라우저에 따라 iframe 위에서 이벤트가 끊길 수 있어 함께 막는다. */
+.workspace.is-panel-resizing iframe {
+  pointer-events: none;
+}
+
+/* 콘텐츠 영역 상단 배너. 좌우 inset은 --sidebar-width·--agent-panel-width(닫히면 0)를 따라간다. */
+.workspace-api-error {
+  /* 오류 배너 색: 라이트는 danger 토큰에서 파생, 다크는 기존 다크 배너 색을 유지한다 */
+  --api-error-fg: var(--color-danger);
+  --api-error-bg: var(--color-danger-weak);
+  --api-error-border: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  --api-error-button-fg: #ffffff;
+  --api-error-button-bg: var(--color-danger);
+
+  position: fixed;
+  top: 16px;
+  left: calc(var(--sidebar-width, 320px) + 16px);
+  right: calc(var(--agent-panel-self-width, var(--agent-panel-width, 360px)) + 16px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  color: var(--api-error-fg);
+  background: var(--api-error-bg);
+  border: 1px solid var(--api-error-border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.workspace-api-error button {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  color: var(--api-error-button-fg);
+  background: var(--api-error-button-bg);
+  border-radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .workspace-api-error {
+    --api-error-fg: #ffd0cc;
+    --api-error-bg: #321917;
+    --api-error-border: #7a3530;
+    --api-error-button-bg: #71302c;
+  }
+}
+
+/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
+:root[data-theme="dark"] .workspace-api-error {
+  --api-error-fg: #ffd0cc;
+  --api-error-bg: #321917;
+  --api-error-border: #7a3530;
+  --api-error-button-bg: #71302c;
+}

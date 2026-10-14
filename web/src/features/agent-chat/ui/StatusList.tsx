@@ -1,0 +1,37 @@
+import { useState } from "react";
+import { cx } from "@/shared/lib/classNames";
+import { buildStatusSteps, type StatusStep } from "../lib/statusSteps";
+import { AgentChevronIcon, AgentStepCheckIcon } from "./AgentIcons";
+import styles from "./AgentChat.module.css";
+
+export function StatusList({
+  title,
+  isLoading,
+  hasResponse,
+  steps
+}: {
+  title: string;
+  isLoading: boolean;
+  hasResponse: boolean;
+  steps?: StatusStep[];
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  // steps가 주어지면(SSE 실단계) 그대로 쓰고, 없으면 기존 고정 3단계로 폴백한다.
+  const resolvedSteps = steps ?? buildStatusSteps(isLoading, hasResponse);
+
+  return (
+    <div className={styles["status-list"]}>
+      <button type="button" aria-expanded={isExpanded} onClick={() => setIsExpanded((current) => !current)}>
+        <span>{title}</span><AgentChevronIcon className={isExpanded ? undefined : styles["is-collapsed"]} />
+      </button>
+      {isExpanded && <div className={styles["status-steps"]}>
+        {resolvedSteps.map(([label, state], index) => (
+          <div className={cx(styles["status-row"], styles[state])} key={`${title}-${index}-${label}`}>
+            <span>{state === "done" && <AgentStepCheckIcon />}</span>
+            <p>{label}</p>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}

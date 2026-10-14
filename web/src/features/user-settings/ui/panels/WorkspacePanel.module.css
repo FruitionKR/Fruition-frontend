@@ -1,0 +1,107 @@
+/* 워크스페이스 설정 패널 전용 스타일 (Figma 771:18800). */
+
+/* 이름 입력 + 저장 버튼 가로 배치 */
+.name-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* AI 모델 우측 영역: 현재 선택 pill + 변경 버튼 + 펼침 목록 */
+.model-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.model-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 현재 선택된 provider·model 표시 pill */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  white-space: nowrap;
+}
+
+.pill-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+/* 선택한 provider의 모델 목록: 모델이 수십 개여도 패널이 늘어나지 않도록 스크롤한다. */
+.model-list {
+  width: 260px;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.model-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  color: var(--ink);
+  background: transparent;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.model-option:hover,
+.model-option:focus-visible,
+.model-option.is-selected {
+  --button-hover-overlay: none;
+  background: var(--soft);
+}
+
+.model-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.model-option svg {
+  flex: 0 0 auto;
+  color: var(--yellow);
+}
+
+.model-option-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.model-option-text span {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.model-option-text small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
