@@ -25,6 +25,24 @@ export class ApiError extends Error {
   }
 }
 
+/** 같은 이메일의 계정이 이미 있어 가입이 거절된 409의 서버 code(access #31). */
+export const EMAIL_REGISTERED_ERROR_CODES = ["EMAIL_REGISTERED_WITH_OAUTH", "EMAIL_REGISTERED"] as const;
+
+/**
+ * 같은 이메일의 계정이 이미 있어 두 번째 가입을 막은 409.
+ * providers는 그 계정의 로그인 수단(이메일 가입은 "local", 소셜은 provider 이름)이라 화면이 "그 방법으로 로그인한 뒤 연동"을 안내한다.
+ * 인증번호 요청·이메일 가입은 EMAIL_REGISTERED_WITH_OAUTH(oauth_providers), 소셜 가입 동의는 EMAIL_REGISTERED(providers)로 온다.
+ */
+export class EmailRegisteredError extends ApiError {
+  readonly providers: readonly string[];
+
+  constructor(message: string, status: number, code: string, providers: readonly string[]) {
+    super(message, status, code);
+    this.name = "EmailRegisteredError";
+    this.providers = providers;
+  }
+}
+
 /** 크레딧 부족 거절(402 INSUFFICIENT_CREDIT) 안내. 결제가 없어 충전 대신 문의를 안내한다(#153). */
 export const INSUFFICIENT_CREDIT_MESSAGE = "크레딧이 부족합니다.";
 

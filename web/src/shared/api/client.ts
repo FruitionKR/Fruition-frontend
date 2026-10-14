@@ -1,5 +1,5 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
-import { ApiError, SessionExpiredError } from "@/shared/lib/apiErrors";
+import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -49,16 +49,27 @@ export async function parseErrorResponse(response: Response, fallback: string): 
   return (await parseApiError(response, fallback)).message;
 }
 
+function providerList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 /** 실패 응답을 ApiError로 바꾼다. 메시지와 함께 HTTP status와 서버 error.code를 보존한다. */
 export async function parseApiError(response: Response, fallback: string): Promise<ApiError> {
   try {
     const body = await response.json() as {
       error?: { message?: string; code?: string };
       detail?: string | { message?: string };
+      oauth_providers?: unknown;
+      providers?: unknown;
     } | undefined;
     const detailMessage = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
     const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
-    return new ApiError(body?.error?.message || detailMessage || fallback, response.status, code);
+    const message = body?.error?.message || detailMessage || fallback;
+    // 같은 이메일의 계정이 있어 가입을 막은 409는 로그인 수단 목록을 함께 보존해 화면이 그 방법으로 로그인하도록 안내한다.
+    if (code && (EMAIL_REGISTERED_ERROR_CODES as readonly string[]).includes(code)) {
+      return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
+    }
+    return new ApiError(message, response.status, code);
   } catch {
     return new ApiError(fallback, response.status);
   }

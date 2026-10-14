@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { buildConsentBody, consentErrorMessage, loginWithEmail, signupWithEmail } from "@/entities/user";
+import { buildConsentBody, consentErrorMessage, loginWithEmail, registeredEmailErrorMessage, signupWithEmail } from "@/entities/user";
 import { LEGAL_TERMS_VERSION } from "@/shared/config/legal";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
@@ -84,7 +84,8 @@ export default function SignupVerificationPage() {
       router.replace(takeAfterLoginPath());
     } catch (error: unknown) {
       // CONSENT_REQUIRED(약관 버전 불일치 등)는 동의만 고쳐 다시 보낼 수 있다. 인증 토큰은 소비되지 않는다.
-      setErrorMessage(consentErrorMessage(error, getErrorMessage(error, "회원가입에 실패했습니다.")));
+      // 409 EMAIL_REGISTERED_WITH_OAUTH는 같은 이메일의 소셜 계정으로 로그인한 뒤 연동하도록 안내한다(access #31).
+      setErrorMessage(registeredEmailErrorMessage(error) ?? consentErrorMessage(error, getErrorMessage(error, "회원가입에 실패했습니다.")));
       setIsSubmitting(false);
     }
   }
