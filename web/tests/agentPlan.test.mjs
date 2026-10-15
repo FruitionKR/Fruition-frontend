@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { agentPlanClarificationMessage, agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -139,4 +139,14 @@ test("계획 완료 갱신은 같은 화면에서 진행 중 → 종료 전이�
   assert.equal(isPlanRunSettled("succeeded", "succeeded"), false);
   assert.equal(isPlanRunSettled("executing", "verifying"), false);
   assert.equal(isPlanRunSettled("executing", undefined), false);
+});
+
+test("명확화 요청이면 AI가 되물은 질문을 보이고, 질문이 없으면 기본 안내를 쓴다", () => {
+  const question = "각 문서의 생성일 정보가 없어 날짜별로 폴더를 만들 수 없습니다.";
+  assert.equal(agentPlanClarificationMessage({ status: "clarification_required", clarification_question: question, plan: null }), question);
+  for (const clarification_question of [undefined, null, "", "   "]) {
+    assert.equal(agentPlanClarificationMessage({ status: "clarification_required", clarification_question, plan: null }), "원하는 정리 기준을 채팅에 더 구체적으로 알려주세요.");
+  }
+  assert.equal(agentPlanClarificationMessage({ status: "failed", clarification_question: question, plan: null }), null);
+  assert.equal(agentPlanClarificationMessage(undefined), null);
 });
