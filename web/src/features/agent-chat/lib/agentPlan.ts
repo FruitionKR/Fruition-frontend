@@ -23,6 +23,8 @@ export type AgentPlanRun = {
   id: string;
   status: string;
   error_code: string | null;
+  /** 계획을 세우지 못한 이유를 AI가 되묻는 문장. 명확화 요청이 아니거나 옛 AI 응답이면 비어 있다. */
+  clarification_question?: string | null;
   plan: AgentPlan | null;
 };
 
@@ -126,6 +128,14 @@ export function agentPlanStatusLabel(status: string | undefined): string {
     rollback_failed: "변경 복구 실패", cancelled: "취소됨"
   };
   return status ? labels[status] ?? "상태 확인 필요" : "계획 불러오는 중";
+}
+
+const DEFAULT_CLARIFICATION_MESSAGE = "원하는 정리 기준을 채팅에 더 구체적으로 알려주세요.";
+
+/** 명확화 요청일 때 카드에 보일 문장. AI가 되물은 질문이 있으면 그 문장을, 없으면 기본 안내를 쓴다. */
+export function agentPlanClarificationMessage(run: AgentPlanRun | null | undefined): string | null {
+  if (run?.status !== "clarification_required") return null;
+  return run.clarification_question?.trim().normalize("NFC") || DEFAULT_CLARIFICATION_MESSAGE;
 }
 
 export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boolean {
