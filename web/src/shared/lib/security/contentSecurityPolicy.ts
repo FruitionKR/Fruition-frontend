@@ -2,7 +2,7 @@
 
 export const CSP_REPORT_PATH = "/csp-report";
 
-// PDF 직접 업로드(S3 multipart PUT). CSP_S3_ORIGIN에 실제 버킷 오리진을 주면 그 오리진으로 좁힌다.
+// PDF·회의 녹음 직접 업로드(S3 multipart PUT)와 녹음 재생(presigned GET). CSP_S3_ORIGIN에 실제 버킷 오리진을 주면 그 오리진으로 좁힌다.
 const DEFAULT_S3_ORIGIN = "https://*.amazonaws.com";
 
 // 외부 이미지 차단의 핵심. 관리 이미지는 인증 fetch → blob:, 편집기 자리 표시는 data:로 그린다.
@@ -56,6 +56,8 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: Cont
     ["font-src", "'self'", "data:"],
     // 회의 실시간 받아쓰기 WebSocket(#148)은 rewrite를 거치지 않고 문서 API 오리진에 ws(s)로 붙는다. 같은 오리진은 'self'가 허용한다.
     ["connect-src", "'self'", ...(backendOrigin ? [backendOrigin, toWebSocketOrigin(backendOrigin)] : []), s3],
+    // 회의 녹음 재생(#148)은 <audio>가 recording-url의 S3 presigned GET 주소를 직접 연다. 지정하지 않으면 default-src 'self'로 막힌다.
+    ["media-src", "'self'", s3],
     // PDF 등 텍스트가 아닌 원본 보기 iframe은 인증 fetch로 받은 blob:이다(S3 URL을 직접 열지 않는다).
     ["frame-src", "'self'", "blob:"],
     ["object-src", "'none'"],

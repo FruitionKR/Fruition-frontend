@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
 import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
-import { isCapturingPhase, MeetingNotesView, useMeetingSession } from "@/features/meeting-dictation";
+import { isCapturingPhase, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
@@ -73,9 +73,18 @@ export function AgentPanel({
 }) {
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
   // 회의록은 열린 Markdown 문서가 있으면 그 문서 끝에 추가할 수 있다(회의를 시작할 때의 문서로 고정된다).
+  const panelRef = useRef<HTMLElement | null>(null);
+  const recordingInputRef = useRef<HTMLInputElement | null>(null);
+  const pickRecording = useCallback(() => recordingInputRef.current?.click(), []);
+  const handleMeetingDeleted = useCallback(() => {
+    publishNotice({ kind: "completed", title: "회의 삭제", message: "회의를 삭제했습니다. 문서로 저장한 회의록은 남아 있어요." });
+    // 회의 화면이 사라져 포커스가 body로 떨어지지 않게 입력창으로 옮긴다.
+    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
+  }, []);
   const meeting = useMeetingSession({
     documentId: markdownEditContext?.documentId ?? null,
-    onDocumentSaved: onMeetingNotesSaved
+    onDocumentSaved: onMeetingNotesSaved,
+    onMeetingDeleted: handleMeetingDeleted
   });
   const isMeetingViewOpen = meeting.phase !== "idle";
   useEffect(() => {
@@ -285,6 +294,7 @@ export function AgentPanel({
 
   return (
     <aside
+      ref={panelRef}
       className={`agent-panel${isPairSelectionMode ? " is-chat-selecting" : ""}`}
       onClick={(event) => event.stopPropagation()}
     >
@@ -318,7 +328,7 @@ export function AgentPanel({
             <p>위키 편입·정리 진행 상황은 사이드바 작업 버튼에서, 지난 작업은 로그 화면에서 볼 수 있어요.</p>
           </div>
         ) : isMeetingViewOpen ? (
-          <MeetingNotesView session={meeting} />
+          <MeetingNotesView session={meeting} onPickRecording={pickRecording} />
         ) : null}
         {/* 대화는 다른 보기로 바꿔도 마운트해 두어 스크롤 위치·진행 상태를 잃지 않는다. */}
         <div className={styles["agent-view-slot"]} hidden={!isChatVisible}>
@@ -432,9 +442,14 @@ export function AgentPanel({
               setActiveView("chat");
               void meeting.start();
             },
-            onStop: meeting.stop
+            onStop: meeting.stop,
+            onPickRecording: () => {
+              setActiveView("chat");
+              pickRecording();
+            }
           }}
         />
+        <RecordingFileInput ref={recordingInputRef} onSelect={(file) => void meeting.uploadRecording(file)} />
       </div>
     </aside>
   );

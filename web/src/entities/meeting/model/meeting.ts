@@ -31,11 +31,15 @@ export type MeetingResponse = {
   streams: MeetingStream[];
   /** 연결 중이 아니고, pending 구간이 없고, 모든 연결이 finished일 때만 true */
   transcript_complete: boolean;
+  /** 녹음 원본이 있는지. 있으면 recording-url로 재생한다. */
   has_recording?: boolean;
-  /** 녹음 파일 전사 실패 사유(한국어) */
+  /** 녹음 파일 전사 실패 사유(document가 만든 한국어 문구). 없으면 null */
   error?: string | null;
   created_at: string;
 };
+
+/** 녹음 원본 재생 주소(5분 유효 presigned GET) */
+export type MeetingRecordingUrlResponse = { url: string; expires_at: string };
 
 export type MeetingLiveTicketResponse = { ticket: string; expires_at: string };
 

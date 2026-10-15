@@ -14,11 +14,13 @@ export type AiModelCatalogStatus = "loading" | "ready" | "empty" | "error";
 /**
  * 회의 받아쓰기(#148)와 파형 버튼의 관계. idle: 파형 버튼이 음성 입력·회의 받아쓰기 메뉴를 연다.
  * capturing: 회의를 받아쓰는 중이라 파형 버튼이 회의 받아쓰기를 멈춘다. busy: 회의 화면이 열려 있어 새 회의는 시작할 수 없다.
+ * onPickRecording이 있으면 메뉴에 "녹음 파일로 전사"를 두고, 누르면 녹음 파일 선택 창을 연다(같은 클릭 안에서 불러야 열린다).
  */
 export type ComposerMeetingControl = {
   state: "idle" | "capturing" | "busy";
   onStart: () => void;
   onStop: () => void;
+  onPickRecording?: () => void;
 };
 
 /** provider/model 쌍을 목록 key와 선택 비교에 쓰는 문자열로 만든다. */
@@ -358,6 +360,20 @@ export function AgentComposer({
                   <span>회의 받아쓰기</span>
                   <span>{meetingControl.state === "idle" ? "회의를 받아쓰고 회의록을 만들어요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
                 </button>
+                {meetingControl.onPickRecording && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={meetingControl.state !== "idle"}
+                    onClick={() => {
+                      closeVoiceMenu();
+                      meetingControl.onPickRecording?.();
+                    }}
+                  >
+                    <span>녹음 파일로 전사</span>
+                    <span>{meetingControl.state === "idle" ? "WAV·MP3·M4A·WebM(500MB 이하)을 받아써요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
