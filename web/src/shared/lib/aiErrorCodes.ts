@@ -25,7 +25,8 @@ export type MeetingNotesErrorCode =
   | "MEETING_NOTES_INVALID"
   | "MEETING_NOTES_TIMEOUT"
   | "MEETING_NOTES_CANCELLED"
-  | "MEETING_NOTES_BUSY";
+  | "MEETING_NOTES_BUSY"
+  | "INSUFFICIENT_CREDIT";
 
 const MEETING_NOTES_ERROR_MESSAGES: Record<MeetingNotesErrorCode, string> = {
   MEETING_NOTES_INPUT_REJECTED: "회의 내용을 처리할 수 없는 형식입니다. 녹음이나 전사 내용을 확인해 주세요.",
@@ -34,7 +35,10 @@ const MEETING_NOTES_ERROR_MESSAGES: Record<MeetingNotesErrorCode, string> = {
   MEETING_NOTES_INVALID: "회의록 결과가 올바르지 않아 저장하지 못했습니다.",
   MEETING_NOTES_TIMEOUT: "회의록 생성이 지연돼 중단했습니다.",
   MEETING_NOTES_CANCELLED: "회의록 생성을 취소했습니다.",
-  MEETING_NOTES_BUSY: "이 회의의 회의록을 이미 만들고 있습니다. 끝난 뒤 다시 시도해 주세요."
+  // 생성은 워크스페이스당 하나라 다른 회의의 회의록이 만들어지는 중이어도 409다(document meetings.md).
+  MEETING_NOTES_BUSY: "이 워크스페이스에서 다른 회의록을 만들고 있습니다. 끝난 뒤 다시 시도해 주세요.",
+  // 실패한 초안 버전의 error_code로 온다. 문구는 앱 공통 크레딧 부족 안내(INSUFFICIENT_CREDIT_MESSAGE)와 같다.
+  INSUFFICIENT_CREDIT: "크레딧이 부족합니다."
 };
 
 export function describeMeetingNotesError(code: string | null | undefined): string {

@@ -15,6 +15,7 @@ import { registerCatalogRoutes } from "./routes/catalog.mjs";
 import { registerFolderRoutes } from "./routes/folders.mjs";
 import { registerNotificationRoutes } from "./routes/notifications.mjs";
 import { registerSpeechRoutes } from "./routes/speech.mjs";
+import { registerMeetingRoutes } from "./routes/meetings.mjs";
 
 const ACCESS_PORT = Number(process.env.MOCK_ACCESS_PORT ?? 8081);
 const DOCUMENT_PORT = Number(process.env.MOCK_DOCUMENT_PORT ?? 8080);
@@ -36,6 +37,7 @@ registerCatalogRoutes(router);
 registerFolderRoutes(router);
 registerNotificationRoutes(router);
 registerSpeechRoutes(router);
+registerMeetingRoutes(router);
 
 const servers = await Promise.all([listen(router, ACCESS_PORT), listen(router, DOCUMENT_PORT)]);
 

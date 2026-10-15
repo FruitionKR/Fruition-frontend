@@ -1,0 +1,33 @@
+/* 첫 로그인 뒤 한 번 보이는 생성형 AI 사전 고지 모달(이슈 #131). CenteredModal 셸의 고정 크기를 내용 크기로 덮어쓴다. */
+.dialog {
+  width: 440px;
+  height: auto;
+  gap: 16px;
+  padding: 28px 24px 24px;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.body {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.confirm {
+  align-self: stretch;
+  margin-top: 8px;
+  padding: 10px 0;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
