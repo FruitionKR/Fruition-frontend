@@ -10,7 +10,7 @@ export const PART_UPLOAD_IDLE_TIMEOUT_MS = 60_000;
 type PartUploadResult = { status: number; ok: boolean };
 
 /**
- * 조각 하나를 PUT하면서 전송이 멈춘 시간만 제한한다.
+ * 조각 하나를 PUT하면서 전송이 멈춘 시간만 제한한다. onProgress는 이 조각에서 지금까지 보낸 바이트 수를 받는다.
  *
  * fetch는 업로드 진행률을 볼 수 없어 XMLHttpRequest를 쓴다.
  * AbortSignal.any·AbortSignal.timeout은 Safari 17.4·Firefox 124 이후에만 있어
@@ -20,6 +20,7 @@ export function putPartWithIdleTimeout(
   url: string,
   body: Blob,
   signal: AbortSignal,
+  onProgress?: (loadedBytes: number) => void,
   idleTimeoutMs: number = PART_UPLOAD_IDLE_TIMEOUT_MS
 ): Promise<PartUploadResult> {
   return new Promise((resolve, reject) => {
@@ -55,7 +56,10 @@ export function putPartWithIdleTimeout(
     request.open("PUT", url, true);
     // S3 presigned URL은 쿠키를 쓰지 않는다(fetch의 credentials: "omit"과 같다).
     request.withCredentials = false;
-    request.upload.onprogress = restartIdleTimer;
+    request.upload.onprogress = (event?: ProgressEvent) => {
+      restartIdleTimer();
+      if (onProgress && typeof event?.loaded === "number") onProgress(Math.min(event.loaded, body.size));
+    };
     request.onload = () => {
       cleanUp();
       resolve({ status: request.status, ok: request.status >= 200 && request.status < 300 });

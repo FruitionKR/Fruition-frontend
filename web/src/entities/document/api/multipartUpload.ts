@@ -13,7 +13,7 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
 export type DirectMultipartOptions = {
   /** 중단하면 전송 중인 조각을 끊고 abort를 보낸 뒤 실패로 끝난다. */
   signal?: AbortSignal;
-  /** 조각 하나가 끝날 때마다 지금까지 올린 바이트 수를 알린다. */
+  /** 조각 안에서 바이트가 올라갈 때와 조각이 끝날 때 지금까지 올린 바이트 수를 알린다(재시도하면 그 조각만큼 줄 수 있다). */
   onProgress?: (uploadedBytes: number, totalBytes: number) => void;
 };
 
@@ -41,7 +41,15 @@ export async function uploadDirectMultipart<T>(
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
-  let uploadedBytes = 0;
+  // 조각 번호 → 그 조각에서 지금까지 보낸 바이트. 동시에 보내는 조각을 합해 진행률을 낸다.
+  // 서버 part_size가 64 MiB 이상이라 조각이 끝날 때만 세면 대부분의 녹음이 0%에서 100%로 바로 뛴다.
+  const sentByPart = new Map<number, number>();
+  const reportProgress = (partNumber: number, sent: number) => {
+    sentByPart.set(partNumber, sent);
+    let total = 0;
+    for (const bytes of sentByPart.values()) total += bytes;
+    onProgress?.(total, file.size);
+  };
   try {
     throwIfCancelled();
     if (!Number.isSafeInteger(upload.part_size) || upload.part_size < 1
@@ -75,10 +83,11 @@ export async function uploadDirectMultipart<T>(
               part = renewed[0];
             }
             // 진행이 멈춘 시간만 제한한다. 제한이 없으면 블랙홀이 된 조각에서 업로드 전체가 매달린다.
-            const response = await putPartWithIdleTimeout(part.url, body, controller.signal);
+            const partNumber = part.part_number;
+            const response = await putPartWithIdleTimeout(part.url, body, controller.signal,
+              onProgress ? (sent) => reportProgress(partNumber, sent) : undefined);
             if (response.ok) {
-              uploadedBytes += body.size;
-              onProgress?.(uploadedBytes, file.size);
+              reportProgress(partNumber, body.size);
               return;
             }
             if (response.status < 500 && response.status !== 429) {
@@ -87,6 +96,8 @@ export async function uploadDirectMultipart<T>(
           } catch (error) {
             if (attempt === 2 || controller.signal.aborted) throw error;
           }
+          // 실패한 시도에서 보낸 바이트는 다시 보낸다.
+          if (onProgress) reportProgress(part.part_number, 0);
           if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
         }
         throw new Error("파일 조각 전송에 실패했습니다.");

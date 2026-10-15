@@ -119,6 +119,10 @@ function installFakeXhr(t, onSend) {
       this.status = status;
       this.onload?.();
     }
+    /** 브라우저처럼 지금까지 보낸 바이트를 알린다. */
+    progress(loaded) {
+      this.upload.onprogress?.({ loaded, total: this.body.size, lengthComputable: true });
+    }
   }
   const original = globalThis.XMLHttpRequest;
   globalThis.XMLHttpRequest = FakeXhr;
@@ -159,6 +163,37 @@ test("녹음 업로드는 회의 녹음 경로로 content_type·size를 보내�
   assert.deepEqual(progress.at(-1), [10, 10]);
   assert.equal(progress.length, 3);
   assert.deepEqual(calls.at(-1), { path: `${BASE}/recording/uploads/complete`, body: { ticket: "tk" } });
+});
+
+test("조각 하나짜리 녹음도 조각 안에서 보낸 바이트만큼 진행을 알린다(동시에 보내는 조각은 합산한다)", async (t) => {
+  browserEnv(t);
+  const sending = [];
+  installFakeXhr(t, (request) => sending.push(request));
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path === `${BASE}/recording/uploads`) return Response.json({ ticket: "tk", part_size: 6, part_count: 2 });
+    if (path === `${BASE}/recording/uploads/parts`) {
+      const { first_part: first, count } = JSON.parse(init.body);
+      return Response.json({ parts: Array.from({ length: count }, (_, index) => ({ part_number: first + index, url: `https://s3.example/p${first + index}` })) });
+    }
+    if (path === `${BASE}/recording/uploads/complete`) return Response.json({ meeting_id: "mtg_1", status: "transcribing" }, { status: 202 });
+    throw new Error(`예상하지 못한 요청: ${path}`);
+  });
+  const progress = [];
+  const upload = uploadMeetingRecording("mtg_1", new Blob(["0123456789"]), "audio/mp4", {
+    onProgress: (sent, total) => progress.push([sent, total])
+  });
+  while (sending.length < 2) await new Promise((resolve) => setTimeout(resolve, 1));
+  const [first, second] = sending.sort((a, b) => a.url.localeCompare(b.url));
+  first.progress(3);
+  second.progress(2);
+  first.progress(6);
+  first.respond(200);
+  await new Promise((resolve) => setTimeout(resolve, 1));
+  second.progress(4);
+  second.respond(200);
+  await upload;
+
+  assert.deepEqual(progress, [[3, 10], [5, 10], [8, 10], [8, 10], [10, 10], [10, 10]]);
 });
 
 test("업로드를 중단하면 전송 중인 조각을 끊고 abort를 보낸 뒤 확정하지 않는다", async (t) => {
