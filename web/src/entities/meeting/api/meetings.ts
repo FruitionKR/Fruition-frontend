@@ -119,14 +119,22 @@ export async function fetchMeeting(meetingId: string): Promise<MeetingResponse> 
 /**
  * 녹음 원본을 S3에 직접 multipart로 올리고 확정한다. 녹음 파일 회의는 확정하면 전사를 시작한다(202, status=transcribing).
  * contentType은 checkRecordingFile이 정한 형식이다.
+ *
+ * complete는 끊지 않는다. 끊어도 서버가 이미 확정(전사 시작·크레딧 예약)했을 수 있어 결과를 알 수 없게 된다.
+ * 대신 complete 중에 취소했으면 202를 받자마자 전사를 취소해(서버는 취소 전까지 쓴 비용만 정산한다) 중단으로 끝낸다.
+ * 전사 취소가 실패하면 전사 중인 회의를 그대로 돌려준다(화면이 전사 취소를 다시 받는다).
  */
-export function uploadMeetingRecording(
+export async function uploadMeetingRecording(
   meetingId: string,
   file: Blob,
   contentType: string,
   options: DirectMultipartOptions = {}
 ): Promise<MeetingResponse> {
-  return uploadDirectMultipart<MeetingResponse>(meetingPath(meetingId, "recording", "uploads"), file, { content_type: contentType, size: file.size }, options);
+  const uploaded = await uploadDirectMultipart<MeetingResponse>(meetingPath(meetingId, "recording", "uploads"), file, { content_type: contentType, size: file.size }, options);
+  if (!options.signal?.aborted || uploaded.status !== "transcribing") return uploaded;
+  const cancelled = await cancelMeetingTranscription(meetingId).catch(() => null);
+  if (!cancelled) return uploaded;
+  throw new Error("파일 업로드가 중단되었습니다.");
 }
 
 /** 전사 중인 녹음 파일 회의를 취소한다. 회의는 failed가 되고 같은 원본을 다시 올릴 수 있다. */

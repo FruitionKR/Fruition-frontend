@@ -4,7 +4,8 @@
 //
 // 환경 변수: MOCK_MEETING_PART_SIZE(조각 크기, 기본 64 MiB), MOCK_MEETING_TRANSCRIBE_MS(전사 시간, 기본 6000),
 // MOCK_MEETING_TRANSCRIPTION_ERROR(전사 실패 문구로 failed), MOCK_MEETING_RECORDING_URL_TTL_MS(재생 주소 유효 시간, 기본 5분),
-// MOCK_INSUFFICIENT_CREDIT=1(녹음 파일 회의 업로드 시작이 402).
+// MOCK_INSUFFICIENT_CREDIT=1(녹음 파일 회의 업로드 시작이 402),
+// MOCK_MEETING_COMPLETE_DELAY_MS(확정 요청을 이만큼 붙잡은 뒤 확정한다. 확정 중 취소 확인용, 기본 0).
 import { randomUUID } from "node:crypto";
 import { error, requireWorkspace, state } from "../state.mjs";
 
@@ -29,6 +30,8 @@ const TRANSCRIPT = [
 const partSize = () => Math.max(1, Number(process.env.MOCK_MEETING_PART_SIZE ?? MIN_PART_SIZE));
 const transcribeMs = () => Number(process.env.MOCK_MEETING_TRANSCRIBE_MS ?? DEFAULT_TRANSCRIBE_MS);
 const urlTtlMs = () => Number(process.env.MOCK_MEETING_RECORDING_URL_TTL_MS ?? DEFAULT_URL_TTL_MS);
+const completeDelayMs = () => Number(process.env.MOCK_MEETING_COMPLETE_DELAY_MS ?? 0);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const later = (ms, fn) => (ms > 0 ? setTimeout(fn, ms).unref() : setImmediate(fn));
 
 // ticket → 진행 중인 업로드, token → 재생 주소. 테스트가 state를 비워도 동작하게 모듈에 둔다.
@@ -148,6 +151,7 @@ export function registerMeetingRecordingRoutes(router, { findOwnMeeting, toMeeti
     const meeting = own(ctx);
     if (!meeting) return;
     const body = await ctx.body();
+    if (completeDelayMs() > 0) await sleep(completeDelayMs());
     // 응답이 유실돼 다시 부른 확정은 현재 회의를 돌려준다.
     if (body.ticket && meeting.recording_ticket === body.ticket) return ctx.json(meeting.status === "transcribing" ? 202 : 200, toMeetingResponse(meeting));
     const upload = uploadFor(ctx, meeting, body.ticket);

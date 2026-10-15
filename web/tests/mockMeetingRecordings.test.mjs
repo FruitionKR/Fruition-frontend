@@ -180,3 +180,28 @@ test("전사가 실패하면 failed와 error 문구를 돌려준다", async (t) 
   });
   assert.match(failed.error, /3시간/);
 });
+
+test("느린 확정·느린 조회 옵션은 지연만 더하고 결과(조립한 원본·202·조회 응답)는 같다", async (t) => {
+  const mock = await startMock(t, {
+    MOCK_MEETING_PART_SIZE: "8",
+    MOCK_MEETING_COMPLETE_DELAY_MS: "80",
+    MOCK_MEETING_FETCH_DELAY_MS: "200",
+    MOCK_MEETING_TRANSCRIBE_MS: "60000"
+  });
+  const meeting = await createUploadMeeting(mock.api);
+  const startedAt = Date.now();
+  const completed = await uploadRecording(mock, meeting.meeting_id, Buffer.from("0123456789abcdef"), "audio/wav");
+  assert.equal(completed.status, 202);
+  assert.ok(Date.now() - startedAt >= 80, "확정이 지연되지 않았다");
+
+  // 겹친 조회는 같은 경계에서 함께 돌아온다.
+  const fetchedAt = await Promise.all([0, 20].map(async (offset) => {
+    await new Promise((resolve) => setTimeout(resolve, offset));
+    const response = await mock.api(`/meetings/${meeting.meeting_id}`);
+    assert.equal((await response.json()).status, "transcribing");
+    return Date.now();
+  }));
+  assert.ok(Math.abs(fetchedAt[0] - fetchedAt[1]) < 20, `겹친 조회가 따로 돌아왔다: ${fetchedAt}`);
+  const { url } = await (await mock.api(`/meetings/${meeting.meeting_id}/recording-url`)).json();
+  assert.equal(Buffer.from(await (await fetch(`${mock.origin}${url}`)).arrayBuffer()).toString(), "0123456789abcdef");
+});

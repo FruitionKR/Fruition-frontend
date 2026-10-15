@@ -350,6 +350,10 @@ export function useMeetingSession({
       });
       if (!isMountedRef.current) return;
       applyRecordingMeeting(uploaded);
+      // complete 중에 취소했는데 전사 취소까지 실패했다. 전사(과금)가 돌고 있음을 알리고 전사 취소를 받는다.
+      if (controller.signal.aborted && uploaded.status === "transcribing") {
+        setNotice({ text: MEETING_MESSAGES.uploadCancelTooLate, tone: "error" });
+      }
     } catch (error) {
       if (!isMountedRef.current) return;
       if (controller.signal.aborted) {

@@ -87,7 +87,8 @@ export const MEETING_MESSAGES = {
   alreadyApplied: "이 회의록은 이미 문서로 저장했습니다.",
   saved: "회의록을 문서로 저장했습니다.",
   emptyRecordingTranscript: "녹음에서 받아쓴 내용이 없어 회의록을 만들 수 없습니다.",
-  uploadCancelled: "녹음 파일 올리기를 취소했습니다."
+  uploadCancelled: "녹음 파일 올리기를 취소했습니다.",
+  uploadCancelTooLate: "올리기를 취소하기 전에 전사가 시작됐고 전사를 멈추지 못했어요. 전사 취소를 눌러 주세요."
 } as const;
 
 /** 녹음 파일 업로드·전사 취소·재생·삭제 오류 문구. 알려진 code는 화면 문구, 402·권한 등은 앱 공통 문구를 쓴다. */

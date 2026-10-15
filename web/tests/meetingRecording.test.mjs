@@ -217,6 +217,57 @@ test("업로드를 중단하면 전송 중인 조각을 끊고 abort를 보낸 �
   assert.ok(!paths.includes(`${BASE}/recording/uploads/complete`));
 });
 
+/** 조각 PUT은 바로 끝나고, complete 응답 직전에 beforeComplete를 부르는 회의 녹음 서버. */
+function recordingServer(t, { beforeComplete, cancel }) {
+  installFakeXhr(t, (request) => request.respond(200));
+  const paths = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    paths.push(path);
+    if (path === `${BASE}/recording/uploads`) return Response.json({ ticket: "tk", part_size: 4, part_count: 1 });
+    if (path === `${BASE}/recording/uploads/parts`) return Response.json({ parts: [{ part_number: 1, url: "https://s3.example/p1" }] });
+    if (path === `${BASE}/recording/uploads/complete`) {
+      beforeComplete();
+      return Response.json({ meeting_id: "mtg_1", status: "transcribing" }, { status: 202 });
+    }
+    if (path === `${BASE}/transcription/cancel`) return cancel();
+    if (path === `${BASE}/recording/uploads/abort`) return new Response(null, { status: 204 });
+    throw new Error(`예상하지 못한 요청: ${path}`);
+  });
+  return paths;
+}
+
+test("complete를 보내는 동안 올리기를 취소하면 202 뒤 이미 시작된 전사를 바로 취소하고 중단으로 끝낸다", async (t) => {
+  browserEnv(t);
+  const controller = new AbortController();
+  const paths = recordingServer(t, {
+    beforeComplete: () => controller.abort(),
+    cancel: () => Response.json({ meeting_id: "mtg_1", status: "failed", error: "전사를 취소했습니다. 녹음을 다시 올려 주세요." })
+  });
+
+  await assert.rejects(uploadMeetingRecording("mtg_1", new Blob(["abcd"]), "audio/wav", { signal: controller.signal }), /중단/);
+  assert.equal(paths.at(-1), `${BASE}/transcription/cancel`);
+});
+
+test("complete 뒤 전사 취소가 실패하면 전사 중인 회의를 돌려줘 화면이 전사 취소를 다시 받게 한다", async (t) => {
+  browserEnv(t);
+  const controller = new AbortController();
+  recordingServer(t, {
+    beforeComplete: () => controller.abort(),
+    cancel: () => Response.json({ error: { code: "INTERNAL", message: "x" } }, { status: 503 })
+  });
+
+  const result = await uploadMeetingRecording("mtg_1", new Blob(["abcd"]), "audio/wav", { signal: controller.signal });
+  assert.equal(result.status, "transcribing");
+});
+
+test("취소하지 않은 업로드는 complete 뒤 전사 취소를 보내지 않는다", async (t) => {
+  browserEnv(t);
+  const paths = recordingServer(t, { beforeComplete: () => {}, cancel: () => assert.fail("취소를 보내면 안 된다") });
+
+  assert.equal((await uploadMeetingRecording("mtg_1", new Blob(["abcd"]), "audio/wav", { signal: new AbortController().signal })).status, "transcribing");
+  assert.ok(!paths.includes(`${BASE}/transcription/cancel`));
+});
+
 test("재생 주소·전사 취소·삭제는 계약 경로를 부르고 실패는 code가 있는 ApiError로 던진다", async (t) => {
   browserEnv(t);
   const calls = [];
