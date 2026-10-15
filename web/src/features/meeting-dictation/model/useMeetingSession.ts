@@ -22,6 +22,7 @@ import {
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { describeMeetingNotesError, describeMeetingTranscriptionFailure } from "@/shared/lib/aiErrorCodes";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
+import { startSerialPolling } from "@/shared/lib/serialPolling";
 import { describeMicrophoneError } from "@/features/agent-chat/lib/dictation";
 import { buildLiveSocketUrl } from "../lib/liveProtocol";
 import { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, transcriptFromSegments, type LiveTranscript } from "../lib/liveTranscript";
@@ -300,6 +301,15 @@ export function useMeetingSession({
     void generateNotes(target);
   }, [generateNotes]);
 
+  // 전사 중인 회의의 끝(open·failed)을 한 번만 반영한다. 조회와 전사 취소(409 뒤 재조회)가 같은 끝을 따로 받아도
+  // 먼저 온 쪽만 회의록 생성으로 넘어간다. 값은 끝을 반영할 때마다 바뀌어 늦게 온 쪽을 버린다.
+  const transcriptionRunRef = useRef(0);
+  const settleTranscription = useCallback((run: number, target: MeetingResponse, options?: { cancelled?: boolean }) => {
+    if (transcriptionRunRef.current !== run) return;
+    transcriptionRunRef.current += 1;
+    applyRecordingMeeting(target, options);
+  }, [applyRecordingMeeting]);
+
   /**
    * 녹음 파일로 전사한다: 녹음 파일 회의 생성(upload) → S3 직접 multipart 업로드 → 확정하면 전사 시작(transcribing).
    * 실패·취소된 녹음 파일 회의를 보고 있으면 새 회의 대신 그 회의에 다시 올린다.
@@ -378,50 +388,57 @@ export function useMeetingSession({
   }, [confirmsLeaving]);
 
   // 녹음 파일 전사는 비동기다. transcribing이 끝날 때까지 회의를 조회한다.
+  // 앞 조회가 끝난 뒤에 다음을 예약한다. 겹치면 open을 두 번 받아 회의록 생성을 두 번 보내고 두 번째가 409 MEETING_NOTES_BUSY가 된다.
   useEffect(() => {
     if (phase !== "transcribing" || !meeting) return;
     let cancelled = false;
     const meetingId = meeting.meeting_id;
-    const timer = setInterval(async () => {
+    const run = transcriptionRunRef.current;
+    const stopPolling = startSerialPolling(async () => {
       try {
         const latest = await fetchMeeting(meetingId);
-        if (cancelled || latest.status === "transcribing") return;
-        applyRecordingMeeting(latest);
+        if (cancelled) return true;
+        if (latest.status === "transcribing") return false;
+        settleTranscription(run, latest);
+        return true;
       } catch (error) {
-        if (cancelled) return;
+        if (cancelled) return true;
         // 다른 탭에서 지웠으면 더 기다릴 회의가 없다. 그 밖의 일시적인 조회 실패는 다음 주기에 다시 묻는다.
         if (error instanceof ApiError && error.status === 404) {
           setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.loadFailed), tone: "error" });
           setMeeting(null);
           setPhase("stopped");
+          return true;
         }
+        return false;
       }
     }, TRANSCRIPTION_POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      stopPolling();
     };
-  }, [applyRecordingMeeting, meeting, phase]);
+  }, [meeting, phase, settleTranscription]);
 
   const cancelTranscription = useCallback(async () => {
     if (!meeting || phase !== "transcribing") return;
     const meetingId = meeting.meeting_id;
+    const run = transcriptionRunRef.current;
     try {
       const cancelled = await cancelMeetingTranscription(meetingId);
-      if (isMountedRef.current) applyRecordingMeeting(cancelled, { cancelled: true });
+      if (isMountedRef.current) settleTranscription(run, cancelled, { cancelled: true });
     } catch (error) {
       if (!isMountedRef.current) return;
       // 그사이 전사가 끝났으면(409 MEETING_NOT_TRANSCRIBING) 결과를 바로 보여 준다.
       if (error instanceof ApiError && error.code === "MEETING_NOT_TRANSCRIBING") {
         const latest = await fetchMeeting(meetingId).catch(() => null);
         if (latest && isMountedRef.current) {
-          applyRecordingMeeting(latest);
+          settleTranscription(run, latest);
           return;
         }
       }
       setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.transcriptionCancelFailed), tone: "error" });
     }
-  }, [applyRecordingMeeting, meeting, phase]);
+  }, [meeting, phase, settleTranscription]);
 
   const resetView = useCallback(() => {
     setPhase("idle");
