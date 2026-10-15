@@ -194,7 +194,9 @@ test("느린 확정·느린 조회 옵션은 지연만 더하고 결과(조립�
   assert.equal(completed.status, 202);
   assert.ok(Date.now() - startedAt >= 80, "확정이 지연되지 않았다");
 
-  // 겹친 조회는 같은 경계에서 함께 돌아온다.
+  // 겹친 조회는 같은 경계에서 함께 돌아온다. 경계 직전에 첫 조회를 보내면 둘째 조회가 다음 경계로
+  // 넘어가므로, 200ms 경계 직후에 시작해 두 조회가 같은 구간에 들어가게 한다.
+  await new Promise((resolve) => setTimeout(resolve, 200 - (Date.now() % 200) + 10));
   const fetchedAt = await Promise.all([0, 20].map(async (offset) => {
     await new Promise((resolve) => setTimeout(resolve, offset));
     const response = await mock.api(`/meetings/${meeting.meeting_id}`);
