@@ -93,6 +93,18 @@ test("읽기 전용 문서를 로컬에서 지우면 서버는 그대로 두고 
   ]);
 });
 
+test("지울 수 없는 문서를 로컬에서 지우면 서버에서 지우지 않고 다시 내려받는다", () => {
+  assert.deepEqual(planSync({ records: [record()], local: [], remote: [remote({ undeletable: true })] }), [
+    { type: "download", documentId: "doc_1", localPath: "자료/메모.md" }
+  ]);
+});
+
+test("지울 수 없어도 편집할 수 있는 문서를 로컬에서 옮기면 서버에서도 옮긴다", () => {
+  assert.deepEqual(planSync({ records: [record()], local: [local({ path: "다른/메모.md" })], remote: [remote({ undeletable: true })] }), [
+    { type: "move-remote", documentId: "doc_1", localPath: "다른/메모.md" }
+  ]);
+});
+
 test("양쪽에서 모두 지워졌으면 기록만 지운다", () => {
   assert.deepEqual(planSync({ records: [record()], local: [], remote: [] }), [
     { type: "forget", documentId: "doc_1" }

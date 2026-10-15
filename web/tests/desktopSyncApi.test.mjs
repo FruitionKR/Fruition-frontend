@@ -56,6 +56,15 @@ test("저장 실패는 서버 code를 담은 ApiError로 던진다", async (t) =
   );
 });
 
+test("충돌 등록은 본문·base_revision·client_conflict_id를 JSON으로 보낸다", async (t) => {
+  const calls = recordFetch(t, [Response.json({ id: "conflict_1", document_id: "doc_1", status: "OPEN" }, { status: 201 })]);
+  const result = await api.registerSyncConflict("ws_a", "doc_1", { markdown: "내 본문\n", baseRevision: 4, clientConflictId: "c_1" });
+  assert.equal(calls[0].path, "/api/workspaces/ws_a/documents/doc_1/conflicts");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { markdown: "내 본문\n", base_revision: 4, client_conflict_id: "c_1" });
+  assert.equal(result.id, "conflict_1");
+});
+
 test("파일 업로드는 넘겨받은 Idempotency-Key와 폴더로 보낸다", async (t) => {
   const calls = recordFetch(t, [Response.json({ id: "doc_2", filename: "메모.md" })]);
   const file = new File(["본문"], "메모.md", { type: "text/markdown" });

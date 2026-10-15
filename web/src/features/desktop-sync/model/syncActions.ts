@@ -214,24 +214,59 @@ async function asideIfCreated(context: ActionContext, localPath: string, read: (
 
 /**
  * 로컬 변경을 서버에 올릴 수 없을 때(충돌·읽기 전용) 로컬 내용을 사본으로 보존하고 서버 본으로 되돌린다.
+ * 편집 충돌이면 먼저 서버에 충돌로 등록해 OWNER가 고르게 한다. 등록이 일시적으로 실패하면 되돌리지 않고 멈춰
+ * 다음 주기에 같은 키로 다시 등록한다.
  * 읽기 전용 문서를 다른 경로로 옮긴 사본이면 사본만 보존하고 그 파일은 휴지통으로 옮긴다.
- * TODO(FruitionKR/Fruition-document#76): 충돌 등록 API가 생기면 충돌을 서버에 등록해 OWNER가 고르게 한다.
  */
 async function keepLocalAside(context: ActionContext, documentId: string, localPath: string, kind: "conflict" | "readonly"): Promise<void> {
   const { local } = context.deps;
   const record = context.getState().records.find((item) => item.documentId === documentId);
   const isStrayCopy = kind === "readonly" && record !== undefined && record.localPath !== localPath;
-  const content = hasPdfExtension(localPath) ? (await local.readFile(localPath)).file : (await local.readText(localPath)).text;
+  const read = hasPdfExtension(localPath) ? await local.readFile(localPath) : await local.readText(localPath);
+  const content = "text" in read ? read.text : read.file;
   if (!isStrayCopy && typeof content === "string") {
     const detail = await context.deps.api.fetchSyncDocument(context.deps.workspaceId, documentId);
     if (detail.markdown !== null && isSameContent(content, detail.markdown)) return syncDown(context, documentId, localPath, "pull");
   }
+  const conflictId = kind === "conflict" && typeof content === "string" && record
+    ? await registerConflict(context, record, content, read.hash)
+    : undefined;
   const asidePath = await local.saveAside(localPath, content);
-  context.events.push(kind === "conflict"
-    ? { kind: "conflict", path: localPath, asidePath }
-    : { kind: "readonly", path: localPath, asidePath });
+  context.events.push(kind === "readonly"
+    ? { kind: "readonly", path: localPath, asidePath }
+    : conflictId ? { kind: "conflict", path: localPath, asidePath, conflictId } : { kind: "conflict", path: localPath, asidePath });
   if (isStrayCopy) return local.trash(localPath);
-  return syncDown(context, documentId, localPath, "restore");
+  await syncDown(context, documentId, localPath, "restore");
+  // 되돌리기 전에 멈추면 다음 주기에 같은 충돌을 다시 등록하므로, 키는 되돌린 뒤에 지운다.
+  if (conflictId) await clearKey(context, conflictKeyName(documentId, read.hash));
+}
+
+function conflictKeyName(documentId: string, hash: string): string {
+  return `conflict:${documentId}:${hash}`;
+}
+
+/**
+ * 로컬 본문을 마지막으로 맞춘 revision 기준의 충돌로 등록한다. 등록한 충돌 id를 돌려준다.
+ * 기준 revision을 모르거나 서버가 받지 않으면(400·403·404·413) 등록하지 않고 로컬 사본만 남긴다.
+ * 등록에 성공하면 재전송 키는 호출부가 서버 본으로 되돌린 뒤 지운다.
+ */
+async function registerConflict(context: ActionContext, record: EngineRecord, text: string, hash: string): Promise<string | undefined> {
+  if (!record.editRevision) return undefined;
+  const { api, workspaceId } = context.deps;
+  const keyName = conflictKeyName(record.documentId, hash);
+  try {
+    const registered = await api.registerSyncConflict(workspaceId, record.documentId, {
+      markdown: toServerContent(text, record.marker),
+      baseRevision: record.editRevision,
+      clientConflictId: await keyFor(context, keyName)
+    });
+    return registered.id;
+  } catch (error) {
+    const kind = classifySyncError(error);
+    if (kind === "retry" || kind === "session-expired") throw error;
+    await clearKey(context, keyName);
+    return undefined;
+  }
 }
 
 async function push(context: ActionContext, documentId: string, localPath: string): Promise<void> {

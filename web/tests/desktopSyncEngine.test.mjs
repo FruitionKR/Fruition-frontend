@@ -59,6 +59,7 @@ function fakeApi(tree, overrides = {}) {
     moveSyncDocument: record("moveSyncDocument", undefined),
     renameSyncDocument: record("renameSyncDocument", undefined),
     deleteSyncDocument: record("deleteSyncDocument", undefined),
+    registerSyncConflict: record("registerSyncConflict", { id: "conflict_1" }),
     ...overrides
   };
 }
@@ -126,7 +127,116 @@ test("저장이 버전 충돌이면 로컬 내용을 사본으로 보존하고 �
   const result = await runSyncCycle(deps(folder, state, api));
   assert.deepEqual(folder.aside, [{ path: "메모.md", content: "고친 본문\n" }]);
   assert.equal(folder.store.get("메모.md"), "서버 본문\n");
+  assert.deepEqual(result.events, [{ kind: "conflict", path: "메모.md", asidePath: ".fruition/sync/conflicts/메모.md", conflictId: "conflict_1" }]);
+});
+
+test("저장이 버전 충돌이면 마커를 붙인 로컬 본문을 보관한 revision 기준의 충돌로 서버에 등록한다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record()] });
+  const api = fakeApi([docItem("doc_1", "메모.md")], {
+    saveSyncContent: async () => { throw new ApiError("충돌", 409, "DOCUMENT_VERSION_CONFLICT"); }
+  });
+  await runSyncCycle(deps(folder, state, api));
+  const registered = api.calls.filter(([name]) => name === "registerSyncConflict");
+  assert.equal(registered.length, 1);
+  assert.deepEqual(registered[0].slice(1, 3), ["ws_a", "doc_1"]);
+  assert.deepEqual(
+    { markdown: registered[0][3].markdown, baseRevision: registered[0][3].baseRevision },
+    { markdown: `${MARKER}\n고친 본문\n`, baseRevision: 5 }
+  );
+  assert.deepEqual(state.current.pendingKeys, {});
+});
+
+test("양쪽이 모두 바뀐 문서도 서버에 충돌로 등록한 뒤 서버 본으로 되돌린다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record()] });
+  const api = fakeApi([docItem("doc_1", "메모.md", { updated_at: "t9" })]);
+  const result = await runSyncCycle(deps(folder, state, api));
+  assert.equal(api.calls.filter(([name]) => name === "saveSyncContent").length, 0);
+  assert.equal(api.calls.filter(([name]) => name === "registerSyncConflict").length, 1);
+  assert.equal(folder.store.get("메모.md"), "서버 본문\n");
+  assert.equal(result.events[0].conflictId, "conflict_1");
+});
+
+test("충돌 등록이 네트워크 오류면 되돌리지 않고 멈추고, 다음 주기에 같은 충돌 id로 다시 등록한다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record()] });
+  let failRegister = true;
+  const api = fakeApi([docItem("doc_1", "메모.md", { updated_at: "t9" })], {
+    registerSyncConflict: async (ws, id, conflict) => {
+      api.calls.push(["registerSyncConflict", ws, id, conflict]);
+      if (failRegister) throw new TypeError("Failed to fetch");
+      return { id: "conflict_1" };
+    }
+  });
+  const first = await runSyncCycle(deps(folder, state, api));
+  assert.deepEqual(first.events, [{ kind: "paused", reason: "retry" }]);
+  assert.equal(folder.store.get("메모.md"), "고친 본문\n");
+  assert.deepEqual(folder.aside, []);
+  failRegister = false;
+  let n = 100;
+  await runSyncCycle({ ...deps(folder, state, api), newKey: () => `key_${++n}` });
+  const ids = api.calls.filter(([name]) => name === "registerSyncConflict").map((call) => call[3].clientConflictId);
+  assert.equal(ids.length, 2);
+  assert.equal(ids[0], ids[1]);
+  assert.equal(folder.store.get("메모.md"), "서버 본문\n");
+});
+
+test("충돌을 등록한 뒤 서버 본으로 되돌리다 네트워크 오류가 나면, 다음 주기에 같은 충돌 id로 다시 보내 중복 등록하지 않는다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record()] });
+  let fetches = 0;
+  const api = fakeApi([docItem("doc_1", "메모.md", { updated_at: "t9" })]);
+  const fetchDocument = api.fetchSyncDocument;
+  // 첫 주기: 비교용 조회는 성공, 되돌리기(restore) 조회만 네트워크 오류
+  api.fetchSyncDocument = async (...args) => {
+    fetches += 1;
+    if (fetches === 2) throw new TypeError("Failed to fetch");
+    return fetchDocument(...args);
+  };
+  const first = await runSyncCycle(deps(folder, state, api));
+  assert.deepEqual(first.events.at(-1), { kind: "paused", reason: "retry" });
+  assert.equal(folder.store.get("메모.md"), "고친 본문\n");
+  let n = 100;
+  await runSyncCycle({ ...deps(folder, state, api), newKey: () => `key_${++n}` });
+  const ids = api.calls.filter(([name]) => name === "registerSyncConflict").map((call) => call[3].clientConflictId);
+  assert.equal(ids.length, 2);
+  assert.equal(ids[0], ids[1]);
+  assert.equal(folder.store.get("메모.md"), "서버 본문\n");
+  assert.deepEqual(state.current.pendingKeys, {});
+});
+
+test("서버가 충돌 등록을 받지 않으면 로컬 사본만 남기고 서버 본으로 되돌린다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record()] });
+  const api = fakeApi([docItem("doc_1", "메모.md", { updated_at: "t9" })], {
+    registerSyncConflict: async () => { throw new ApiError("편집할 수 없음", 400, "INVALID_REQUEST"); }
+  });
+  const result = await runSyncCycle(deps(folder, state, api));
   assert.deepEqual(result.events, [{ kind: "conflict", path: "메모.md", asidePath: ".fruition/sync/conflicts/메모.md" }]);
+  assert.equal(folder.store.get("메모.md"), "서버 본문\n");
+  assert.deepEqual(state.current.pendingKeys, {});
+});
+
+test("기준 revision을 모르는 기록은 충돌을 등록하지 않고 로컬 사본만 남긴다", async () => {
+  const folder = fakeFolder({ "메모.md": "고친 본문\n" });
+  const state = fakeState({ records: [record({ editRevision: null })] });
+  const api = fakeApi([docItem("doc_1", "메모.md", { updated_at: "t9" })]);
+  await runSyncCycle(deps(folder, state, api));
+  assert.equal(api.calls.filter(([name]) => name === "registerSyncConflict").length, 0);
+  assert.deepEqual(folder.aside, [{ path: "메모.md", content: "고친 본문\n" }]);
+});
+
+test("지울 권한이 없는 문서를 로컬에서 지우면 서버 휴지통으로 보내지 않고 다시 내려받는다", async () => {
+  const folder = fakeFolder({ "다른.md": "x\n" });
+  const state = fakeState({ records: [record({ localHash: hashOf("서버 본문\n") })] });
+  const item = docItem("doc_1", "메모.md");
+  item.document.can_edit = true;
+  item.document.can_delete = false;
+  const api = fakeApi([item]);
+  await runSyncCycle(deps(folder, state, api));
+  assert.equal(api.calls.filter(([name]) => name === "deleteSyncDocument").length, 0);
+  assert.equal(folder.store.get("메모.md"), "서버 본문\n");
 });
 
 test("서버 내용이 로컬과 같으면 다시 쓰지 않고 기록만 갱신한다", async () => {

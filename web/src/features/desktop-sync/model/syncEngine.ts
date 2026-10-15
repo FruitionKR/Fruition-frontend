@@ -43,13 +43,14 @@ export type SyncStatePort = {
 
 export type SyncApi = Pick<
   typeof SyncApiModule,
-  | "fetchSyncDocument" | "fetchSyncOriginal" | "saveSyncContent" | "uploadSyncFile"
+  | "fetchSyncDocument" | "fetchSyncOriginal" | "saveSyncContent" | "uploadSyncFile" | "registerSyncConflict"
   | "createSyncFolder" | "moveSyncDocument" | "renameSyncDocument" | "deleteSyncDocument"
   | "fetchSyncWikiChangedAt" | "fetchSyncWikiGraph" | "fetchSyncWikiPage"
 > & { fetchTree(workspaceId: string): Promise<ServerTreeItem[]> };
 
 export type SyncEvent =
-  | { kind: "conflict"; path: string; asidePath: string }
+  /** conflictId는 서버에 충돌로 등록했을 때만 있다. 없으면 로컬 사본으로만 보존했다. */
+  | { kind: "conflict"; path: string; asidePath: string; conflictId?: string }
   | { kind: "readonly"; path: string; asidePath?: string }
   | { kind: "collision"; paths: string[] }
   | { kind: "waiting"; path: string }
