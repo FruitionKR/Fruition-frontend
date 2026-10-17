@@ -8,6 +8,9 @@ const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 14;
 const VERIFICATION_TTL_SECONDS = 300;
 // 서버 설정 LEGAL_TERMS_VERSION과 같은 역할. 프론트 상수(src/shared/config/legal.ts)와 맞춰 둔다.
 const LEGAL_TERMS_VERSION = process.env.MOCK_TERMS_VERSION ?? "2026-10-01";
+// 서버 설정 LEGAL_CONSENT_REQUIRED(app.legal.consent-required)와 같은 역할. false면 동의를 검사·기록하지 않고 consent_required=false다.
+// 프론트 NEXT_PUBLIC_LEGAL_PAGES_ENABLED와 짝을 맞춰 띄운다(꺼짐 ⇔ MOCK_LEGAL_CONSENT_REQUIRED=false).
+const LEGAL_CONSENT_REQUIRED = process.env.MOCK_LEGAL_CONSENT_REQUIRED !== "false";
 const SIGNUP_TOKEN_TTL_MS = 10 * 60_000;
 // 비밀번호가 없는 소셜 계정은 이 시간 안에 직접 로그인한 토큰으로만 탈퇴할 수 있다.
 const REAUTH_WINDOW_MS = 10 * 60_000;
@@ -63,7 +66,7 @@ function linkedProviders(user) {
 
 /** 가장 최근 동의의 이용약관 버전이 현재 버전과 다르면(동의 기록이 없는 기존 회원 포함) 재동의 대상이다. */
 function consentRequired(user) {
-  return user.consent?.terms_version !== LEGAL_TERMS_VERSION;
+  return LEGAL_CONSENT_REQUIRED && user.consent?.terms_version !== LEGAL_TERMS_VERSION;
 }
 
 function toMe(user) {
@@ -78,6 +81,13 @@ function parseConsent(body) {
   const { age_confirmed, terms_version, marketing_opt_in } = body ?? {};
   if (age_confirmed !== true || terms_version !== LEGAL_TERMS_VERSION) return null;
   return { terms_version, privacy_version: LEGAL_TERMS_VERSION, marketing_opt_in: marketing_opt_in === true, consented_at: now() };
+}
+
+/** 가입 요청의 동의. 동의를 요구하지 않는 설정이면 검사·기록 없이 통과한다(consent=null). */
+function readSignupConsent(body) {
+  if (!LEGAL_CONSENT_REQUIRED) return { ok: true, consent: null };
+  const consent = parseConsent(body);
+  return { ok: Boolean(consent), consent };
 }
 
 function consentRequiredError(ctx) {
@@ -181,8 +191,8 @@ export function registerAuthRoutes(router) {
       return error(ctx, 401, "가입 요청이 만료되었거나 이미 사용되었습니다.", "INVALID_SIGNUP_TOKEN");
     }
     // 동의가 빠졌으면 토큰은 소비하지 않아 고쳐서 다시 보낼 수 있다.
-    const consent = parseConsent(body);
-    if (!consent) return consentRequiredError(ctx);
+    const { ok: hasConsent, consent } = readSignupConsent(body);
+    if (!hasConsent) return consentRequiredError(ctx);
     oauthSignupTokens.delete(body.signup_token);
     // 다른 탭이 먼저 가입을 끝냈으면 그 계정으로 로그인한다(MFA를 켰으면 mfa_required).
     const existing = state.users.find((item) => linkedProviders(item).includes(pending.provider));
@@ -254,8 +264,8 @@ export function registerAuthRoutes(router) {
     const normalized = String(email ?? "").toLowerCase();
     if (rejectRegisteredEmail(ctx, normalized)) return;
     // 동의가 빠지거나 약관 버전이 다르면 거절한다. 인증 토큰은 소비하지 않아 동의만 고쳐 다시 보낼 수 있다.
-    const consent = parseConsent(body);
-    if (!consent) return consentRequiredError(ctx);
+    const { ok: hasConsent, consent } = readSignupConsent(body);
+    if (!hasConsent) return consentRequiredError(ctx);
     state.verificationTokens.delete(verification_token);
     state.users.push(newUser({ email: normalized, password, display_name: display_name || null, provider: "email", consent }));
     ctx.json(201, { ok: true });

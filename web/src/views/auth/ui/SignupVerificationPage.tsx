@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { buildConsentBody, consentErrorMessage, loginWithEmail, registeredEmailErrorMessage, signupWithEmail } from "@/entities/user";
-import { LEGAL_TERMS_VERSION } from "@/shared/config/legal";
+import { buildSignupConsentFields, consentErrorMessage, loginWithEmail, registeredEmailErrorMessage, signupWithEmail } from "@/entities/user";
+import { LEGAL_PAGES_ENABLED, LEGAL_TERMS_VERSION } from "@/shared/config/legal";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
@@ -56,7 +56,8 @@ export default function SignupVerificationPage() {
   async function completeVerification(code: string) {
     if (isSubmitting || !draft?.verificationId) return;
     // 가입 화면이 필수 동의 없이는 넘어오지 않지만, 초안이 바뀌었을 수 있어 요청 직전에 다시 확인한다.
-    const consent = buildConsentBody(draft.consent, LEGAL_TERMS_VERSION);
+    // 약관 공개 플래그가 꺼져 있으면 동의 필드를 아예 보내지 않는다(사용자 대신 동의 값을 만들지 않는다).
+    const consent = buildSignupConsentFields(LEGAL_PAGES_ENABLED, draft.consent, LEGAL_TERMS_VERSION);
     if (!consent) {
       setErrorMessage("약관 동의가 필요합니다. 가입 화면에서 다시 동의해 주세요.");
       return;
