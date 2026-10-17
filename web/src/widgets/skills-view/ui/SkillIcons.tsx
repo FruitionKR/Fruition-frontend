@@ -22,15 +22,6 @@ export function SkillSortIcon({ className }: IconProps) {
   );
 }
 
-/** 체크 표시 (Figma check 1482:10969의 Vector 222). 테두리 상자는 CSS가 그린다. */
-export function SkillCheckMark({ className }: IconProps) {
-  return (
-    <svg aria-hidden className={className} width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M5.45312 9.20794L9.19644 12.727L14.9986 7.27246" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /** 행 더보기 (Figma folder 1482:10956, 28×28) */
 export function SkillMoreIcon({ className }: IconProps) {
   return (
