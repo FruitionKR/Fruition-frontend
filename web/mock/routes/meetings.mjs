@@ -1,13 +1,16 @@
 // document-svc(8080) 회의 받아쓰기 라우트(#148, Fruition-document docs/api/meetings.md).
 // 회의 생성·조회·ticket·삭제, 실시간 받아쓰기 WebSocket, 회의록 초안(비동기)·취소·끝에 추가 미리보기·저장을 흉내 낸다.
-// 녹음 파일 업로드(recording/uploads*)·전사 취소·재생 주소는 화면이 아직 없어 두지 않는다.
+// 녹음 파일 업로드(recording/uploads*)·전사 취소·재생 주소는 meetingRecordings.mjs가 맡는다.
 //
 // 환경 변수: MOCK_MEETING_DELAY_MS(전사 조각 간격, 기본 150), MOCK_MEETING_NOTES_DELAY_MS(회의록 생성 시간, 기본 3000),
 // MOCK_MEETING_LIVE_ERROR(세 번째 구간에서 보낼 error code: insufficient_credit·transcript_limit·transcription_failed 등),
-// MOCK_INSUFFICIENT_CREDIT=1(회의록 초안이 INSUFFICIENT_CREDIT로 바로 실패).
+// MOCK_INSUFFICIENT_CREDIT=1(회의록 초안이 INSUFFICIENT_CREDIT로 바로 실패),
+// MOCK_MEETING_FETCH_DELAY_MS(회의 조회 응답을 다음 N ms 경계까지 붙잡는다. 멈췄던 서버가 밀린 조회에 한꺼번에 답하는 경우,
+// 즉 전사 조회가 주기보다 느려 겹친 조회가 함께 돌아오는 경우 확인용, 기본 0).
 import { randomUUID } from "node:crypto";
 import { error, findDocument, hash, id, isMarkdownDocument, now, requireDocumentEdit, requireWorkspace, state } from "../state.mjs";
 import { acceptWebSocket, rejectUpgrade } from "../lib/websocket.mjs";
+import { forgetMeetingRecording, registerMeetingRecordingRoutes } from "./meetingRecordings.mjs";
 
 const LIVE_SAMPLE_RATE = 24_000;
 const MAX_FRAME_BYTES = 48_000;
@@ -63,8 +66,8 @@ function toMeetingResponse(meeting) {
     status: meeting.status,
     streams: meeting.streams.map(({ stream_order, end_reason }) => ({ stream_order, end_reason })),
     transcript_complete: transcriptComplete(meeting),
-    has_recording: false,
-    error: null
+    has_recording: Boolean(meeting.recording),
+    error: meeting.error ?? null
   };
 }
 
@@ -115,6 +118,8 @@ function workspaceBusy(workspaceId) {
 }
 
 export function registerMeetingRoutes(router) {
+  registerMeetingRecordingRoutes(router, { findOwnMeeting, toMeetingResponse });
+
   router.post("/api/workspaces/:wid/meetings", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
@@ -139,9 +144,11 @@ export function registerMeetingRoutes(router) {
     ctx.json(201, toMeetingResponse(meeting));
   });
 
-  router.get("/api/workspaces/:wid/meetings/:mid", (ctx) => {
+  router.get("/api/workspaces/:wid/meetings/:mid", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
+    const fetchDelay = Number(process.env.MOCK_MEETING_FETCH_DELAY_MS ?? 0);
+    if (fetchDelay > 0) await new Promise((resolve) => setTimeout(resolve, fetchDelay - (Date.now() % fetchDelay)));
     const meeting = findOwnMeeting(ctx, workspace.id);
     if (meeting) ctx.json(200, toMeetingResponse(meeting));
   });
@@ -151,8 +158,10 @@ export function registerMeetingRoutes(router) {
     if (!workspace) return;
     const meeting = findOwnMeeting(ctx, workspace.id);
     if (!meeting) return;
+    if (meeting.status === "transcribing") return error(ctx, 409, "전사가 끝나거나 취소한 뒤 삭제해 주세요.", "MEETING_TRANSCRIBING");
     if (meeting.live_connected) return error(ctx, 409, "받아쓰기 연결 중에는 삭제할 수 없습니다.", "MEETING_LIVE_IN_USE");
     state.meetings = meetings().filter((item) => item !== meeting);
+    forgetMeetingRecording(meeting.meeting_id);
     ctx.json(204, null);
   });
 

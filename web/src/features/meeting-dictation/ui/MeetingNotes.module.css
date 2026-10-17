@@ -57,6 +57,74 @@
   outline-offset: 2px;
 }
 
+/* 시안 없음: 제목 줄 오른쪽 글자 버튼 묶음(삭제·닫기). 삭제는 위험 색으로 구분한다. */
+.meeting-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.meeting-close.is-danger:hover {
+  color: var(--color-danger);
+}
+
+/* 시안 없음: 녹음 재생. 카드와 같은 폭, 버튼은 회의 화면 후속 동작 버튼(.meeting-actions)과 같은 모양이다. */
+.meeting-recording {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.meeting-recording-audio {
+  width: 100%;
+  height: 36px;
+}
+
+.meeting-recording-load {
+  padding: 6px 12px;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.meeting-recording-load:hover:not(:disabled) {
+  --button-hover-overlay: none;
+  background: var(--color-border);
+}
+
+.meeting-recording-load:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.meeting-recording-load:focus-visible,
+.meeting-recording-retry:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: 2px;
+}
+
+.meeting-recording-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.meeting-recording-retry {
+  padding: 0;
+  color: var(--color-body);
+  background: transparent;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* "받아쓰는 중 ⌄" (Figma 1540:23002: Medium 12 muted + 16px 셰브론, gap 6). 카드를 접고 편다. */
 .meeting-title {
   display: inline-flex;

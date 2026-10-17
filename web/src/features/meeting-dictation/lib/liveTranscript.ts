@@ -1,3 +1,4 @@
+import type { MeetingSegment } from "@/entities/meeting/model/meeting";
 import type { LiveServerEvent } from "./liveProtocol";
 
 // 받아쓰는 중 카드에 쌓이는 전사. committed가 발화 순서(position)를 정하고, delta는 확정 전 임시 글,
@@ -37,4 +38,13 @@ export function transcriptLines(transcript: LiveTranscript): string[] {
 /** 확정(저장)된 구간이 하나라도 있는지. 없으면 회의록을 만들 수 없다(422 MEETING_TRANSCRIPT_EMPTY). */
 export function hasFinalSegments(transcript: LiveTranscript): boolean {
   return Object.values(transcript.segments).some((segment) => segment.isFinal && segment.text.trim().length > 0);
+}
+
+/** 조회 API의 전사 구간(녹음 파일 전사 결과)을 카드에 보일 전사로 바꾼다. 확정(completed) 구간만 회의록 근거가 된다. */
+export function transcriptFromSegments(segments: readonly MeetingSegment[]): LiveTranscript {
+  const entries = segments.map((segment) => [
+    segment.id,
+    { position: segment.position, text: segment.text ?? "", isFinal: segment.status === "completed" }
+  ] as const);
+  return { segments: Object.fromEntries(entries) };
 }

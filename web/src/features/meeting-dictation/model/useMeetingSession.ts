@@ -2,32 +2,46 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyMeetingNotes,
   cancelMeetingNotes,
+  cancelMeetingTranscription,
+  checkRecordingFile,
   createMeeting,
+  deleteMeeting,
+  fetchMeeting,
   fetchMeetingNotes,
   issueMeetingLiveTicket,
   MEETING_ERROR_MESSAGES,
+  meetingNameFromFile,
   previewMeetingNotesAppend,
   requestMeetingNotes,
+  uploadMeetingRecording,
   type MeetingAppendPreviewResponse,
   type MeetingNotesResponse,
-  type MeetingResponse
+  type MeetingResponse,
+  type MeetingSource
 } from "@/entities/meeting";
 import { getDocumentTransport } from "@/shared/api/documentTransport";
-import { describeMeetingNotesError } from "@/shared/lib/aiErrorCodes";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { describeMeetingNotesError, describeMeetingTranscriptionFailure } from "@/shared/lib/aiErrorCodes";
+import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
+import { startSerialPolling } from "@/shared/lib/serialPolling";
 import { describeMicrophoneError } from "@/features/agent-chat/lib/dictation";
 import { buildLiveSocketUrl } from "../lib/liveProtocol";
-import { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, type LiveTranscript } from "../lib/liveTranscript";
+import { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, transcriptFromSegments, type LiveTranscript } from "../lib/liveTranscript";
 import {
+  canDeleteMeetingInPhase,
   describeNotesRequestError,
   describeNotesSaveError,
+  describeRecordingError,
+  isMeetingBusyPhase,
   MEETING_MESSAGES,
+  shouldConfirmLeavingPhase,
   type MeetingPhase
 } from "../lib/meetingNotesFlow";
 import { createLiveSession, type LiveSession, type LiveSocket, type LiveStopResult } from "./liveSession";
 import { isMicrophoneCaptureSupported, startMicrophoneCapture, type MicrophoneCapture } from "./microphoneCapture";
 
 const NOTES_POLL_MS = 2_000;
+// 녹음 파일 전사는 몇 분 걸릴 수 있다. 결과는 회의 조회로 기다린다(document는 자동 시간 초과 전환이 없다).
+const TRANSCRIPTION_POLL_MS = 3_000;
 // finished 직후 서버가 받아쓰기 잠금을 늦게 풀면 회의록 요청이 409 MEETING_LIVE_IN_USE를 받는다. 잠시 뒤 다시 보낸다.
 const LIVE_RELEASE_RETRIES = 3;
 const LIVE_RELEASE_DELAY_MS = 1_500;
@@ -41,6 +55,11 @@ async function openLiveSocket(meetingId: string, ticket: string): Promise<LiveSo
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 녹음 파일 회의가 원본을 (다시) 받을 수 있는 상태. 올리기 전이거나 실패·취소된 뒤다. */
+function acceptsRecording(meeting: MeetingResponse | null): boolean {
+  return meeting?.source === "upload" && (meeting.status === "awaiting_upload" || meeting.status === "failed");
+}
+
 /**
  * 채팅 패널의 회의 받아쓰기(#148): 회의 생성 → 마이크·WebSocket 실시간 전사 → 멈추면 회의록 생성(비동기, 조회로 대기)
  * → 새 문서로 저장하거나 회의를 시작한 문서 끝에 추가(미리보기 → 저장).
@@ -48,10 +67,13 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export function useMeetingSession({
   documentId,
-  onDocumentSaved
+  onDocumentSaved,
+  onMeetingDeleted
 }: {
   documentId: string | null;
   onDocumentSaved?: (documentId: string) => Promise<void> | void;
+  /** 회의를 지워 회의 화면이 닫힌 뒤 부른다(안내·포커스 이동). */
+  onMeetingDeleted?: () => void;
 }) {
   const [phase, setPhase] = useState<MeetingPhase>("idle");
   const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
@@ -60,6 +82,12 @@ export function useMeetingSession({
   const [preview, setPreview] = useState<MeetingAppendPreviewResponse | null>(null);
   const [notice, setNotice] = useState<MeetingNotice | null>(null);
   const [canRequestPartial, setCanRequestPartial] = useState(false);
+  // 실시간 받아쓰기(live)인지 녹음 파일 전사(upload)인지. 회의를 만들기 전 실패에도 화면 문구를 맞추려고 따로 둔다.
+  const [source, setSource] = useState<MeetingSource>("live");
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  // 삭제가 실패하면 삭제 전 단계로 돌아간다.
+  const phaseBeforeDeleteRef = useRef<MeetingPhase>("stopped");
   const sessionRef = useRef<LiveSession | null>(null);
   // 시작 중(마이크 권한·회의 생성 대기)에 멈추거나 화면을 떠나면 값이 바뀌어 진행 중이던 시작을 버린다.
   const startAttemptRef = useRef(0);
@@ -69,6 +97,8 @@ export function useMeetingSession({
   const isMountedRef = useRef(true);
   const onDocumentSavedRef = useRef(onDocumentSaved);
   onDocumentSavedRef.current = onDocumentSaved;
+  const onMeetingDeletedRef = useRef(onMeetingDeleted);
+  onMeetingDeletedRef.current = onMeetingDeleted;
 
   const releaseCapture = useCallback(() => {
     microphoneRef.current?.stop();
@@ -83,6 +113,9 @@ export function useMeetingSession({
       sessionRef.current = null;
       microphoneRef.current?.stop();
       microphoneRef.current = null;
+      // 화면을 떠나면 올리던 녹음 파일도 끊는다. 회의는 awaiting_upload로 남는다.
+      uploadAbortRef.current?.abort();
+      uploadAbortRef.current = null;
     };
   }, []);
 
@@ -140,6 +173,7 @@ export function useMeetingSession({
       return;
     }
     setPhase("starting");
+    setSource("live");
     setNotice(null);
     setNotes(null);
     setPreview(null);
@@ -241,6 +275,208 @@ export function useMeetingSession({
     };
   }, [meeting, phase]);
 
+  /** 녹음 파일 회의의 서버 상태를 화면 단계로 옮긴다. 전사가 끝났으면(open) 받아쓰기를 멈춘 때처럼 바로 회의록을 만든다. */
+  const applyRecordingMeeting = useCallback((target: MeetingResponse, options: { cancelled?: boolean } = {}) => {
+    setMeeting(target);
+    if (target.status === "transcribing") {
+      setPhase("transcribing");
+      return;
+    }
+    if (target.status === "failed") {
+      setNotice({ text: describeMeetingTranscriptionFailure(target.error), tone: options.cancelled ? "info" : "error" });
+      setPhase("stopped");
+      return;
+    }
+    if (target.status !== "open") {
+      setPhase("stopped");
+      return;
+    }
+    const transcribed = transcriptFromSegments(target.segments);
+    setTranscript(transcribed);
+    if (!hasFinalSegments(transcribed)) {
+      setNotice({ text: MEETING_MESSAGES.emptyRecordingTranscript, tone: "info" });
+      setPhase("stopped");
+      return;
+    }
+    void generateNotes(target);
+  }, [generateNotes]);
+
+  // 전사 중인 회의의 끝(open·failed)을 한 번만 반영한다. 조회와 전사 취소(409 뒤 재조회)가 같은 끝을 따로 받아도
+  // 먼저 온 쪽만 회의록 생성으로 넘어간다. 값은 끝을 반영할 때마다 바뀌어 늦게 온 쪽을 버린다.
+  const transcriptionRunRef = useRef(0);
+  const settleTranscription = useCallback((run: number, target: MeetingResponse, options?: { cancelled?: boolean }) => {
+    if (transcriptionRunRef.current !== run) return;
+    transcriptionRunRef.current += 1;
+    applyRecordingMeeting(target, options);
+  }, [applyRecordingMeeting]);
+
+  /**
+   * 녹음 파일로 전사한다: 녹음 파일 회의 생성(upload) → S3 직접 multipart 업로드 → 확정하면 전사 시작(transcribing).
+   * 실패·취소된 녹음 파일 회의를 보고 있으면 새 회의 대신 그 회의에 다시 올린다.
+   */
+  const uploadRecording = useCallback(async (file: File) => {
+    const reusable = phase === "stopped" && acceptsRecording(meeting) ? meeting : null;
+    const startsFresh = phase === "idle" || (phase === "stopped" && source === "upload" && meeting === null);
+    if (!reusable && !startsFresh) return;
+    setSource("upload");
+    setNotes(null);
+    setPreview(null);
+    setCanRequestPartial(false);
+    setTranscript(EMPTY_TRANSCRIPT);
+    if (!reusable) setMeeting(null);
+    const checked = checkRecordingFile(file);
+    if (!checked.ok) {
+      setNotice({ text: checked.message, tone: "error" });
+      setPhase("stopped");
+      return;
+    }
+    setNotice(null);
+    setUploadPercent(0);
+    setPhase("uploading");
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
+    let target = reusable;
+    try {
+      if (!target) {
+        target = await createMeeting({ source: "upload", documentId, displayName: meetingNameFromFile(file.name) || undefined });
+        if (!isMountedRef.current) return;
+        setMeeting(target);
+      }
+      const uploaded = await uploadMeetingRecording(target.meeting_id, file, checked.contentType, {
+        signal: controller.signal,
+        onProgress: (sent, total) => {
+          if (isMountedRef.current) setUploadPercent(Math.min(100, Math.floor((sent / total) * 100)));
+        }
+      });
+      if (!isMountedRef.current) return;
+      applyRecordingMeeting(uploaded);
+      // complete 중에 취소했는데 전사 취소까지 실패했다. 전사(과금)가 돌고 있음을 알리고 전사 취소를 받는다.
+      if (controller.signal.aborted && uploaded.status === "transcribing") {
+        setNotice({ text: MEETING_MESSAGES.uploadCancelTooLate, tone: "error" });
+      }
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      if (controller.signal.aborted) {
+        // 사용자가 취소했다. 이번에 만든 빈 회의는 지워 남기지 않는다(실패한 회의에 다시 올리던 중이면 그 회의는 둔다).
+        if (target && !reusable) await deleteMeeting(target.meeting_id).catch(() => undefined);
+        if (!isMountedRef.current) return;
+        if (!reusable) setMeeting(null);
+        setNotice({ text: MEETING_MESSAGES.uploadCancelled, tone: "info" });
+        setPhase("stopped");
+        return;
+      }
+      setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.uploadFailed), tone: "error" });
+      setPhase("stopped");
+    } finally {
+      if (uploadAbortRef.current === controller) uploadAbortRef.current = null;
+      if (isMountedRef.current) setUploadPercent(null);
+    }
+  }, [applyRecordingMeeting, documentId, meeting, phase, source]);
+
+  /** 올리는 중인 녹음 파일 전송을 끊는다. 결과 정리는 uploadRecording이 한다. */
+  const cancelUpload = useCallback(() => {
+    uploadAbortRef.current?.abort();
+  }, []);
+
+  // 올리는 중·전사 중에 탭을 닫거나 새로고침하면 그 회의를 다시 열 수 없으므로 브라우저 확인을 받는다.
+  const confirmsLeaving = shouldConfirmLeavingPhase(phase);
+  useEffect(() => {
+    if (!confirmsLeaving) return;
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [confirmsLeaving]);
+
+  // 녹음 파일 전사는 비동기다. transcribing이 끝날 때까지 회의를 조회한다.
+  // 앞 조회가 끝난 뒤에 다음을 예약한다. 겹치면 open을 두 번 받아 회의록 생성을 두 번 보내고 두 번째가 409 MEETING_NOTES_BUSY가 된다.
+  useEffect(() => {
+    if (phase !== "transcribing" || !meeting) return;
+    let cancelled = false;
+    const meetingId = meeting.meeting_id;
+    const run = transcriptionRunRef.current;
+    const stopPolling = startSerialPolling(async () => {
+      try {
+        const latest = await fetchMeeting(meetingId);
+        if (cancelled) return true;
+        if (latest.status === "transcribing") return false;
+        settleTranscription(run, latest);
+        return true;
+      } catch (error) {
+        if (cancelled) return true;
+        // 다른 탭에서 지웠으면 더 기다릴 회의가 없다. 그 밖의 일시적인 조회 실패는 다음 주기에 다시 묻는다.
+        if (error instanceof ApiError && error.status === 404) {
+          setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.loadFailed), tone: "error" });
+          setMeeting(null);
+          setPhase("stopped");
+          return true;
+        }
+        return false;
+      }
+    }, TRANSCRIPTION_POLL_MS);
+    return () => {
+      cancelled = true;
+      stopPolling();
+    };
+  }, [meeting, phase, settleTranscription]);
+
+  const cancelTranscription = useCallback(async () => {
+    if (!meeting || phase !== "transcribing") return;
+    const meetingId = meeting.meeting_id;
+    const run = transcriptionRunRef.current;
+    try {
+      const cancelled = await cancelMeetingTranscription(meetingId);
+      if (isMountedRef.current) settleTranscription(run, cancelled, { cancelled: true });
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      // 그사이 전사가 끝났으면(409 MEETING_NOT_TRANSCRIBING) 결과를 바로 보여 준다.
+      if (error instanceof ApiError && error.code === "MEETING_NOT_TRANSCRIBING") {
+        const latest = await fetchMeeting(meetingId).catch(() => null);
+        if (latest && isMountedRef.current) {
+          settleTranscription(run, latest);
+          return;
+        }
+      }
+      setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.transcriptionCancelFailed), tone: "error" });
+    }
+  }, [meeting, phase, settleTranscription]);
+
+  const resetView = useCallback(() => {
+    setPhase("idle");
+    setMeeting(null);
+    setNotes(null);
+    setPreview(null);
+    setNotice(null);
+    setCanRequestPartial(false);
+    setTranscript(EMPTY_TRANSCRIPT);
+    setSource("live");
+  }, []);
+
+  /** 회의·전사·회의록 초안·녹음 원본을 지우고 회의 화면을 닫는다. 이미 문서로 저장한 회의록은 남는다. */
+  const deleteCurrentMeeting = useCallback(async () => {
+    if (!meeting || !canDeleteMeetingInPhase(phase)) return;
+    phaseBeforeDeleteRef.current = phase;
+    setPhase("deleting");
+    setNotice(null);
+    try {
+      await deleteMeeting(meeting.meeting_id);
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      // 이미 지워졌으면(404) 지운 것과 같다.
+      if (!(error instanceof ApiError && error.status === 404)) {
+        setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.deleteFailed), tone: "error" });
+        setPhase(phaseBeforeDeleteRef.current);
+        return;
+      }
+    }
+    if (!isMountedRef.current) return;
+    resetView();
+    onMeetingDeletedRef.current?.();
+  }, [meeting, phase, resetView]);
+
   const cancelNotes = useCallback(async () => {
     if (!meeting || phase !== "generating") return;
     try {
@@ -317,15 +553,9 @@ export function useMeetingSession({
 
   /** 회의 화면을 닫고 채팅으로 돌아간다. 회의·전사·초안은 서버에 남는다. */
   const close = useCallback(() => {
-    if (phase === "idle" || phase === "starting" || phase === "recording" || phase === "reconnecting" || phase === "finishing" || phase === "saving") return;
-    setPhase("idle");
-    setMeeting(null);
-    setNotes(null);
-    setPreview(null);
-    setNotice(null);
-    setCanRequestPartial(false);
-    setTranscript(EMPTY_TRANSCRIPT);
-  }, [phase]);
+    if (phase === "idle" || isMeetingBusyPhase(phase)) return;
+    resetView();
+  }, [phase, resetView]);
 
   return {
     phase,
@@ -335,9 +565,17 @@ export function useMeetingSession({
     preview,
     notice,
     canRequestPartial,
+    source,
+    uploadPercent,
     hasTranscript: hasFinalSegments(transcript),
+    /** 지금 녹음 파일을 고르면 받을 수 있는지(새 회의 또는 실패한 녹음 파일 회의에 다시 올리기) */
+    canUploadRecording: phase === "idle" || (phase === "stopped" && source === "upload" && (meeting === null || acceptsRecording(meeting))),
     start,
     stop,
+    uploadRecording,
+    cancelUpload,
+    cancelTranscription,
+    deleteMeeting: deleteCurrentMeeting,
     cancelNotes,
     saveAsNewDocument,
     previewAppend,

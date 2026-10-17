@@ -7,14 +7,51 @@ type PartUrl = { part_number: number; url: string };
 
 /** 본문을 메모리에 복제하지 않고 Blob.slice를 전송한다. 동시에 최대 3개, 실패한 조각만 최대 3회 재시도한다. */
 export async function uploadPdfMultipart(endpoint: string, file: File, folderId: string | null = null): Promise<DocumentUploadResponse> {
+  return uploadDirectMultipart<DocumentUploadResponse>(endpoint, file, { filename: file.name, size: file.size, folder_id: folderId });
+}
+
+export type DirectMultipartOptions = {
+  /** 중단하면 전송 중인 조각을 끊고 abort를 보낸 뒤 실패로 끝난다. */
+  signal?: AbortSignal;
+  /** 조각 안에서 바이트가 올라갈 때와 조각이 끝날 때 지금까지 올린 바이트 수를 알린다(재시도하면 그 조각만큼 줄 수 있다). */
+  onProgress?: (uploadedBytes: number, totalBytes: number) => void;
+};
+
+/**
+ * 브라우저→S3 직접 multipart 업로드(start → parts → 조각 PUT → complete, 실패하면 abort).
+ * 문서(documents/uploads)와 회의 녹음(meetings/{id}/recording/uploads)이 같은 절차·이름을 쓴다. startBody만 다르다.
+ */
+export async function uploadDirectMultipart<T>(
+  endpoint: string,
+  file: Blob,
+  startBody: Record<string, unknown>,
+  options: DirectMultipartOptions = {}
+): Promise<T> {
+  const { signal, onProgress } = options;
+  const throwIfCancelled = () => {
+    if (signal?.aborted) throw new Error("파일 업로드가 중단되었습니다.");
+  };
+  throwIfCancelled();
   const started = await apiFetch(endpoint, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename: file.name, size: file.size, folder_id: folderId })
+    body: JSON.stringify(startBody)
   });
   const upload = await parseJsonOrThrow<Start>(started, ERROR_MESSAGES.uploadFailed);
   const idempotencyKey = crypto.randomUUID();
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  signal?.addEventListener("abort", abortFromCaller, { once: true });
+  // 조각 번호 → 그 조각에서 지금까지 보낸 바이트. 동시에 보내는 조각을 합해 진행률을 낸다.
+  // 서버 part_size가 64 MiB 이상이라 조각이 끝날 때만 세면 대부분의 녹음이 0%에서 100%로 바로 뛴다.
+  const sentByPart = new Map<number, number>();
+  const reportProgress = (partNumber: number, sent: number) => {
+    sentByPart.set(partNumber, sent);
+    let total = 0;
+    for (const bytes of sentByPart.values()) total += bytes;
+    onProgress?.(total, file.size);
+  };
   try {
+    throwIfCancelled();
     if (!Number.isSafeInteger(upload.part_size) || upload.part_size < 1
         || !Number.isSafeInteger(upload.part_count) || upload.part_count < 1 || upload.part_count > 10000
         || upload.part_count !== Math.ceil(file.size / upload.part_size)) {
@@ -46,20 +83,28 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
               part = renewed[0];
             }
             // 진행이 멈춘 시간만 제한한다. 제한이 없으면 블랙홀이 된 조각에서 업로드 전체가 매달린다.
-            const response = await putPartWithIdleTimeout(part.url, body, controller.signal);
-            if (response.ok) return;
+            const partNumber = part.part_number;
+            const response = await putPartWithIdleTimeout(part.url, body, controller.signal,
+              onProgress ? (sent) => reportProgress(partNumber, sent) : undefined);
+            if (response.ok) {
+              reportProgress(partNumber, body.size);
+              return;
+            }
             if (response.status < 500 && response.status !== 429) {
               throw new Error(`파일 조각 전송 실패 (${response.status})`);
             }
           } catch (error) {
-            if (attempt === 2) throw error;
+            if (attempt === 2 || controller.signal.aborted) throw error;
           }
+          // 실패한 시도에서 보낸 바이트는 다시 보낸다.
+          if (onProgress) reportProgress(part.part_number, 0);
           if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
         }
         throw new Error("파일 조각 전송에 실패했습니다.");
       }));
       const failed = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
       if (failed) throw failed.reason;
+      throwIfCancelled();
     }
     // 등록 재시도에서도 같은 키를 사용해 중복 문서를 만들지 않는다.
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -70,7 +115,7 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
           body: JSON.stringify({ ticket: upload.ticket })
         });
         if (completed.status < 500 || attempt === 2) {
-          return await parseJsonOrThrow<DocumentUploadResponse>(completed, ERROR_MESSAGES.uploadFailed);
+          return await parseJsonOrThrow<T>(completed, ERROR_MESSAGES.uploadFailed);
         }
       } catch (error) {
         if (attempt === 2) throw error;
@@ -86,6 +131,9 @@ export async function uploadPdfMultipart(endpoint: string, file: File, folderId:
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticket: upload.ticket })
     }).catch(() => undefined);
+    throwIfCancelled();
     throw error;
+  } finally {
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
