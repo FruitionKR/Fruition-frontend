@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  filterAiModels,
   getProviderLabel,
+  getProviderMenuLabel,
   groupAiModelsByProvider,
   isSameSelection,
   resolveInitialModel
@@ -70,23 +70,13 @@ test("빈 카탈로그는 빈 그룹 목록이 된다", () => {
   assert.deepEqual(groupAiModelsByProvider([]), []);
 });
 
-test("검색어가 비어 있으면 전체 목록을 그대로 돌려준다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, "   "), MIXED_CATALOG);
-});
-
-test("표시 이름으로 대소문자 없이 검색한다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, " SONNET "), [MIXED_CATALOG[3]]);
-});
-
-test("model id로도 검색한다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, "gpt-5-m"), [MIXED_CATALOG[2]]);
-});
-
-test("일치하는 모델이 없으면 빈 목록을 돌려준다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, "llama"), []);
-});
-
 test("알려진 provider는 표시 라벨로, 모르는 provider는 id 그대로 보여 준다", () => {
   assert.equal(getProviderLabel("openai"), "OpenAI");
   assert.equal(getProviderLabel("mistral"), "mistral");
+});
+
+test("모델 메뉴의 provider 행은 openai를 Chat GPT로, 나머지는 표시 라벨로 보여 준다", () => {
+  assert.equal(getProviderMenuLabel("openai"), "Chat GPT");
+  assert.equal(getProviderMenuLabel("claude"), "Claude");
+  assert.equal(getProviderMenuLabel("mistral"), "mistral");
 });
