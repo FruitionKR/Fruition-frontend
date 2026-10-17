@@ -5,7 +5,7 @@ import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
 import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
-import { isCapturingPhase, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
+import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
@@ -87,6 +87,15 @@ export function AgentPanel({
     onMeetingDeleted: handleMeetingDeleted
   });
   const isMeetingViewOpen = meeting.phase !== "idle";
+  // 지난 회의 목록(진행 중인 회의 이어 보기). 목록에서 연 회의 화면을 닫으면 목록으로 돌아온다.
+  const [isMeetingListOpen, setIsMeetingListOpen] = useState(false);
+  const [meetingOpenError, setMeetingOpenError] = useState<string | null>(null);
+  const resumeMeeting = meeting.resume;
+  const openMeetingFromList = useCallback((meetingId: string) => {
+    setMeetingOpenError(null);
+    void resumeMeeting(meetingId).then(setMeetingOpenError);
+  }, [resumeMeeting]);
+  const isMeetingAreaOpen = isMeetingViewOpen || isMeetingListOpen;
   useEffect(() => {
     onMeetingActiveChange?.(isMeetingViewOpen);
   }, [isMeetingViewOpen, onMeetingActiveChange]);
@@ -97,7 +106,7 @@ export function AgentPanel({
   useEffect(() => {
     if (!isShown && isMeetingCapturing) stopMeeting();
   }, [isMeetingCapturing, isShown, stopMeeting]);
-  const isChatVisible = activeView === "chat" && !isMeetingViewOpen;
+  const isChatVisible = activeView === "chat" && !isMeetingAreaOpen;
   const [composerValue, setComposerValue] = useState("");
   const restoreComposerQuestion = useCallback((question: string) => {
     setComposerValue((current) => current || question);
@@ -329,6 +338,15 @@ export function AgentPanel({
           </div>
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />
+        ) : isMeetingListOpen ? (
+          <MeetingListView
+            onOpen={openMeetingFromList}
+            onClose={() => {
+              setIsMeetingListOpen(false);
+              setMeetingOpenError(null);
+            }}
+            openErrorMessage={meetingOpenError}
+          />
         ) : null}
         {/* 대화는 다른 보기로 바꿔도 마운트해 두어 스크롤 위치·진행 상태를 잃지 않는다. */}
         <div className={styles["agent-view-slot"]} hidden={!isChatVisible}>
@@ -409,7 +427,7 @@ export function AgentPanel({
       ) : null}
       <div className={styles["composer-region"]}>
         {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
-        {wikiEvidenceNotice && !isPairSelectionMode && !isMeetingViewOpen && (
+        {wikiEvidenceNotice && !isPairSelectionMode && !isMeetingAreaOpen && (
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
             {wikiEvidenceNotice.actionLabel && (
@@ -427,7 +445,7 @@ export function AgentPanel({
           selectedModel={selectedModel}
           modelCatalogStatus={aiModelCatalogStatus}
           // 회의 화면이 열려 있는 동안에는 질문을 보내지 않는다(답이 가려진 채팅에 쌓인다).
-          canSubmit={!isPairSelectionMode && !isMeetingViewOpen && activeSessionId !== null && selectedModel !== null}
+          canSubmit={!isPairSelectionMode && !isMeetingAreaOpen && activeSessionId !== null && selectedModel !== null}
           onModelChange={handleModelChange}
           allowWebSearch={allowWebSearch}
           onWebSearchChange={handleWebSearchChange}
@@ -440,12 +458,19 @@ export function AgentPanel({
             state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
             onStart: () => {
               setActiveView("chat");
+              setIsMeetingListOpen(false);
               void meeting.start();
             },
             onStop: meeting.stop,
             onPickRecording: () => {
               setActiveView("chat");
+              setIsMeetingListOpen(false);
               pickRecording();
+            },
+            onOpenMeetingList: () => {
+              setActiveView("chat");
+              setMeetingOpenError(null);
+              setIsMeetingListOpen(true);
             }
           }}
         />

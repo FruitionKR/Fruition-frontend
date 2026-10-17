@@ -18,7 +18,9 @@ export type MeetingPhase =
   // 녹음 파일 전사: 올리는 중 → 전사 중(조회로 대기) → 끝나면 stopped와 같은 흐름(회의록 만들기)
   | "uploading"
   | "transcribing"
-  | "deleting";
+  | "deleting"
+  // 회의 목록에서 고른 회의를 불러오는 중(진행 중인 회의 이어 보기)
+  | "opening";
 
 /** 마이크가 열려 있는(멈출 수 있는) 단계 */
 export function isCapturingPhase(phase: MeetingPhase): boolean {
@@ -38,21 +40,31 @@ export const MEETING_TITLES: Record<Exclude<MeetingPhase, "idle">, string> = {
   applied: "회의록 저장됨",
   uploading: "녹음 파일 올리는 중",
   transcribing: "녹음 파일 전사 중",
-  deleting: "회의 삭제 중"
+  deleting: "회의 삭제 중",
+  opening: "회의 불러오는 중"
 };
 
-/** 회의 화면을 닫을 수 없는 단계. 받아쓰기·업로드·전사·저장·삭제가 끝나거나 취소한 뒤 닫는다. */
+/**
+ * 회의 화면을 닫을 수 없는 단계. 받아쓰기·업로드·저장·삭제가 끝나거나 취소한 뒤 닫는다.
+ * 전사·회의록 생성은 서버에서 이어지고 회의 목록에서 다시 열 수 있어 닫아도 된다.
+ * 업로드는 이 탭이 조각을 보내는 중이라 닫으면 이어 갈 수 없어 "올리기 취소"로만 끝낸다.
+ */
 export function isMeetingBusyPhase(phase: MeetingPhase): boolean {
   return phase === "starting" || phase === "recording" || phase === "reconnecting" || phase === "finishing"
-    || phase === "saving" || phase === "uploading" || phase === "transcribing" || phase === "deleting";
+    || phase === "saving" || phase === "uploading" || phase === "deleting";
+}
+
+/** 회의 화면 제목 줄에 "닫기"를 두는 단계 */
+export function canCloseMeetingInPhase(phase: MeetingPhase): boolean {
+  return phase !== "idle" && !isMeetingBusyPhase(phase);
 }
 
 /**
- * 탭을 닫거나 새로고침하기 전에 확인을 받는 단계. 회의 목록 API가 없어 떠나면 진행 중인 녹음 파일 회의를 다시 열 수 없다
- * (전사는 서버에서 이어져 크레딧을 쓰지만 결과를 볼 수 없다).
+ * 탭을 닫거나 새로고침하기 전에 확인을 받는 단계. 녹음 파일 조각을 S3에 올리는 중에는 떠나면 업로드를 이어 갈 수 없다.
+ * 전사는 서버에서 이어지고 회의 목록에서 다시 열 수 있어 확인하지 않는다.
  */
 export function shouldConfirmLeavingPhase(phase: MeetingPhase): boolean {
-  return phase === "uploading" || phase === "transcribing";
+  return phase === "uploading";
 }
 
 /** 회의를 지울 수 있는 단계. 전사·회의록 생성 중에는 먼저 취소한다(서버도 전사 중이면 409 MEETING_TRANSCRIBING). */
@@ -66,6 +78,7 @@ export function meetingProgressText(phase: MeetingPhase, uploadPercent: number |
     case "uploading": return uploadPercent === null ? "녹음 파일을 올리고 있어요…" : `녹음 파일을 올리고 있어요… ${uploadPercent}%`;
     case "transcribing": return "녹음 파일을 전사하고 있어요. 긴 녹음은 몇 분 걸릴 수 있어요…";
     case "deleting": return "회의를 삭제하고 있어요…";
+    case "opening": return "회의를 불러오고 있어요…";
     case "starting": return "마이크와 받아쓰기 연결을 준비하고 있어요…";
     case "recording": return "받아쓰고 있어요…";
     case "reconnecting": return "연결이 끊겨 다시 연결하고 있어요…";

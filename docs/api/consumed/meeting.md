@@ -3,18 +3,19 @@
 [API 배선 문서](../README.md) / [소비 API](README.md)
 
 document-svc의 회의 실시간 받아쓰기·녹음 파일 전사·녹음 재생·회의 삭제와 회의록 초안 API다(#148, 계약은 Fruition-document `docs/api/meetings.md`).
-화면은 채팅 패널의 회의록 화면(Figma `1540:22903`)이고, 입력창 파형 버튼 메뉴의 "회의 받아쓰기"·"녹음 파일로 전사"로 시작한다.
-녹음 파일 전사·재생·삭제는 시안이 없어 같은 화면의 글자 버튼·진행 표시·확인 모달 패턴을 따른다.
+화면은 채팅 패널의 회의록 화면(Figma `1540:22903`)이고, 입력창 파형 버튼 메뉴의 "회의 받아쓰기"·"녹음 파일로 전사"로 시작하고, "지난 회의"로 만든 회의를 다시 연다.
+녹음 파일 전사·재생·삭제·지난 회의 목록은 시안이 없어 같은 화면의 글자 버튼·진행 표시·확인 모달 패턴을 따른다.
 `meetings/**`는 직접 전송 정규식에 **없어서** REST는 rewrite를 경유한다. WebSocket만 문서 API 오리진에 직접 붙는다.
 
-- 호출 지점: 16 (REST 15 + WebSocket 1)
-- 호출 경로: 15 + WebSocket 1
+- 호출 지점: 17 (REST 16 + WebSocket 1)
+- 호출 경로: 16 + WebSocket 1
 
 ## 회의와 실시간 받아쓰기
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `POST /api/workspaces/{workspace_id}/meetings` | 회의 생성(실시간 `live`·녹음 파일 `upload`) | `web/src/entities/meeting/api/meetings.ts` `createMeeting` | `workspacePath(getWorkspaceId(), "meetings")` | `Idempotency-Key`, `{ source: "live" \| "upload", document_id?, display_name? }` | `meeting_id`, `document_id` | 편집 중인 Markdown 문서가 있으면(`markdownEditContext.documentId`) `document_id`로 보내 회의록을 그 문서 끝에 추가할 수 있게 한다. 마이크 권한을 먼저 받은 뒤 만든다 |
+| `GET /api/workspaces/{workspace_id}/meetings` | 내가 만든 회의 목록(최근 생성 순, cursor 페이지) | `web/src/entities/meeting/api/meetings.ts` `fetchMeetings` ← `web/src/features/meeting-dictation/model/useMeetingList.ts`(`useInfiniteQuery`) | `workspacePath(getWorkspaceId(), "meetings")` + `buildMeetingListQuery`(`lib/meetingListQuery.ts`) | `cursor`, `limit=20`. `status`는 보내지 않는다(전부). 빈 `status=`는 만들지 않는다 | `items[].meeting_id·display_name·source·status·has_recording·has_notes·created_at`, `next_cursor` | 파형 버튼 메뉴 "지난 회의" → 목록(`ui/MeetingListView.tsx`, "더 보기"로 다음 페이지). 고르면 `GET …/meetings/{id}`와(끝난 회의면) `GET …/notes`로 상태에 맞는 화면을 연다(`lib/meetingResume.ts`): 전사 중은 진행 조회, 실패는 `error` 문구, 회의록 생성 중·완성·저장됨, 녹음이 있으면 재생. 이 목록 덕분에 전사·회의록 생성 중에도 회의 화면을 닫을 수 있고, 탭을 닫기 전 확인은 조각을 올리는 동안만 받는다 |
 | `POST /api/workspaces/{workspace_id}/meetings/{meeting_id}/live-tickets` | WebSocket용 60초 일회용 ticket | `web/src/entities/meeting/api/meetings.ts` `issueMeetingLiveTicket` | `workspacePath(getWorkspaceId(), "meetings", meetingId, "live-tickets")` | 없음 | `ticket` | 연결·재연결마다 새로 받는다. `409 MEETING_LIVE_IN_USE`는 다시 시도하지 않고 서버 문구로 끝낸다 |
 | `WS /api/meetings/{meeting_id}/live?ticket=` | 오디오 전송·전사 이벤트 수신 | `web/src/features/meeting-dictation/model/liveSession.ts` `createLiveSession`, `useMeetingSession.ts` `openLiveSocket` | `buildLiveSocketUrl(transport.origin, location.origin, …)` (`lib/liveProtocol.ts`) | 바이너리 PCM16 LE mono 24kHz(frame ≤ 48,000 bytes), `{"type":"commit"}`(2초 이후 쉼 또는 15초마다), `{"type":"finish"}` | `ready`, `committed`, `delta`, `completed`, `finished`, `error.code`, close `4409` | `getDocumentTransport().origin`(BACKEND_URL)이 있으면 그 오리진의 `ws(s)`로, 없으면 화면 오리진으로 붙는다(로컬은 Next rewrite가 upgrade를 중계한다). CSP `connect-src`에 BACKEND_URL의 ws(s) 오리진을 넣었다. `ready` 전 음성은 모아 두었다가(최대 30초) 보낸다. 끊기면 새 ticket으로 최대 3번 다시 붙고, 55분이 되면 `finish` 뒤 새 연결로 넘긴다. `insufficient_credit`·`transcript_limit`(10만 자)·`meeting_not_open`·4409는 다시 붙지 않고 안내한다. 마이크는 `getUserMedia` + `ScriptProcessor`(`model/microphoneCapture.ts`)로 받아 24kHz로 줄인다 |
 
