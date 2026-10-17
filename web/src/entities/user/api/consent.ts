@@ -1,9 +1,12 @@
 import { apiFetch, parseJsonOrThrow, throwIfNotOk, ERROR_MESSAGES } from "@/shared/api/client";
-import type { ConsentBody } from "@/entities/user/model/consent";
+import type { ConsentBody, SignupConsentFields } from "@/entities/user/model/consent";
 import type { LoginResponse } from "./login";
 
-/** 소셜 신규 가입자의 동의를 받아 계정을 만들고 로그인시킨다. 응답은 로그인 응답과 같다(MFA 포함). */
-export async function completeOAuthSignup(signupToken: string, consent: ConsentBody): Promise<LoginResponse> {
+/**
+ * 소셜 신규 가입자의 동의를 받아 계정을 만들고 로그인시킨다. 응답은 로그인 응답과 같다(MFA 포함).
+ * 동의 UI가 꺼져 있으면 consent는 빈 객체라 signup_token만 보낸다(서버 LEGAL_CONSENT_REQUIRED=false).
+ */
+export async function completeOAuthSignup(signupToken: string, consent: SignupConsentFields): Promise<LoginResponse> {
   const response = await fetch("/api/auth/oauth/signup/consent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

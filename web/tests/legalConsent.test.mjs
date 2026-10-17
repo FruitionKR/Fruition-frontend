@@ -4,9 +4,11 @@ import test from "node:test";
 const { LEGAL_TERMS_VERSION } = await import("../src/shared/config/legal.ts");
 const {
   buildConsentBody,
+  buildSignupConsentFields,
   consentErrorMessage,
   EMPTY_CONSENT,
   isConsentComplete,
+  isSignupConsentReady,
   isSignupEmailRegistered,
   isSignupTokenConsumed,
   isSignupTokenInvalid,
@@ -70,4 +72,19 @@ test("consent_required가 정확히 true일 때만 재동의 화면을 띄운다
   assert.equal(needsReconsent({}), false);
   assert.equal(needsReconsent(undefined), false);
   assert.equal(needsReconsent(null), false);
+});
+
+test("약관 공개 플래그가 꺼져 있으면 가입 동의 필드를 하나도 만들지 않고, 동의 없이 가입을 진행한다", () => {
+  for (const choices of [EMPTY_CONSENT, { ageConfirmed: true, termsAccepted: true, marketingOptIn: true }]) {
+    assert.deepEqual(buildSignupConsentFields(false, choices, LEGAL_TERMS_VERSION), {});
+    assert.equal(isSignupConsentReady(false, choices), true);
+  }
+});
+
+test("약관 공개 플래그가 켜져 있으면 지금처럼 사용자 선택으로 동의 본문을 만들고 필수가 빠지면 막는다", () => {
+  const complete = { ageConfirmed: true, termsAccepted: true, marketingOptIn: false };
+  assert.deepEqual(buildSignupConsentFields(true, complete, LEGAL_TERMS_VERSION), buildConsentBody(complete, LEGAL_TERMS_VERSION));
+  assert.equal(buildSignupConsentFields(true, EMPTY_CONSENT, LEGAL_TERMS_VERSION), null);
+  assert.equal(isSignupConsentReady(true, EMPTY_CONSENT), false);
+  assert.equal(isSignupConsentReady(true, complete), true);
 });
