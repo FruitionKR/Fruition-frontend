@@ -1,16 +1,27 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { fetchSkills, publishSkill } from "@/entities/skill";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchDocuments,
+  fetchSkillReferenceDocuments,
+  uploadSkillReferenceDocument,
+  type DocumentItemResponse
+} from "@/entities/document";
+import { authorSkill, fetchSkills, publishSkill } from "@/entities/skill";
+import { ReferenceDocumentPickerModal } from "./ReferenceDocumentPickerModal";
+import { documentDisplayName } from "../lib/referenceDocumentPicker";
 import { SideSheet } from "@/shared/ui/modal/SideSheet";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { chevronDownSmallIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { chevronDownSmallIcon, menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import { describeSkillAuthorError, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
+  applySkillDraft,
   INITIAL_SKILL_CREATE_FORM,
+  skillAuthorRequest,
+  type SkillAuthoringMode,
   isDocumentKind,
   SKILL_KIND_OPTIONS,
   SKILL_NAME_MAX,
@@ -24,6 +35,8 @@ import {
   type SkillTarget
 } from "../lib/skillCreateForm";
 import styles from "./SkillCreateSheet.module.css";
+
+const REFERENCE_DOC_MAX = 3;
 
 // 안전 검토 issue category 한글 라벨 (AI safety 검사 카테고리)
 const ISSUE_CATEGORY_LABELS: Record<string, string> = {
@@ -108,6 +121,7 @@ function SelectBox<T extends string>({
 /**
  * 스킬 만들기 시트 (Figma 1671:14199). 입력값을 그대로 POST /skills/author/publish로 게시한다.
  * 게시 API가 같은 안전 검토를 거쳐, 위험 표현이 있으면 저장하지 않고 status "blocked"와 issues를 돌려준다.
+ * 'AI로 작성·보강'은 실행 규칙(+참고 문서)을 POST /skills/author로 보내 받은 초안을 시트에 채운다.
  */
 export function SkillCreateSheet({
   workspaceId,
@@ -173,6 +187,69 @@ export function SkillCreateSheet({
   });
   const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error) : null;
 
+  // 참고 문서 (최대 3개). AI 작성 요청에만 쓰인다(게시 API는 참고 문서를 받지 않는다).
+  const [selectedDocs, setSelectedDocs] = useState<DocumentItemResponse[]>([]);
+  const [docPickerOpen, setDocPickerOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: documents } = useQuery({
+    queryKey: ["documents", workspaceId],
+    queryFn: fetchDocuments,
+    enabled: docPickerOpen
+  });
+  // 스킬 참고 문서는 기본 목록에 나오지 않아 따로 조회한다. 메인 트리 캐시와 키를 나눠 업로드가 트리에 섞이지 않게 한다.
+  const referenceDocumentsKey = ["skill-reference-documents", workspaceId];
+  const { data: referenceDocuments } = useQuery({
+    queryKey: referenceDocumentsKey,
+    queryFn: fetchSkillReferenceDocuments,
+    enabled: docPickerOpen
+  });
+
+  /** 피커에서 올린 참고 문서를 목록 맨 앞에 넣고 선택한다. */
+  async function uploadReferenceDocument(file: File): Promise<DocumentItemResponse> {
+    const uploaded = await uploadSkillReferenceDocument(file);
+    queryClient.setQueryData<DocumentItemResponse[]>(referenceDocumentsKey, (current = []) => [
+      uploaded,
+      ...current.filter((doc) => doc.id !== uploaded.id)
+    ]);
+    setSelectedDocs((current) =>
+      current.some((doc) => doc.id === uploaded.id) || current.length >= REFERENCE_DOC_MAX ? current : [uploaded, ...current]
+    );
+    return uploaded;
+  }
+
+  // AI 작성: enhance(보강, 기본) / preserve(원문 유지 재검토) / regenerate(차단 구간 제거 후 안전 재작성)
+  const [authorStatus, setAuthorStatus] = useState("");
+  const authorMutation = useMutation({
+    mutationFn: (mode: SkillAuthoringMode) =>
+      authorSkill(workspaceId, skillAuthorRequest(form, mode, selectedDocs.map((doc) => doc.id))),
+    onMutate: () => setAuthorStatus(""),
+    onSuccess: (result) => {
+      const outcome = skillAuthoringOutcome(result);
+      if (outcome === "clarify") {
+        // 초안 없이 되묻는 응답이다. 입력은 그대로 두고 질문을 알린다.
+        setQuestion(result.question?.trim() || "무엇을 할지 조금 더 구체적으로 적어 주세요.");
+        return;
+      }
+      setForm((current) => applySkillDraft(current, result));
+      if (outcome === "review") {
+        setIssues(result.issues?.length ? result.issues : ["안전 검토에서 위험한 표현이 발견되었습니다."]);
+        setAuthorStatus("안전 검토에서 고칠 부분이 발견되었습니다.");
+        return;
+      }
+      setIssues([]);
+      setAuthorStatus("AI가 작성한 실행 규칙을 채웠습니다. 확인 후 스킬을 만들어 주세요.");
+    }
+  });
+  const authorError = authorMutation.error != null ? describeSkillAuthorError(authorMutation.error) : null;
+  const isRulesEmpty = form.rules.trim() === "";
+
+  function runAuthor(mode: SkillAuthoringMode) {
+    // 실행 규칙이 AI 지시문이라, 비어 있으면 필드 오류를 보여 주고 보내지 않는다.
+    touch("rules");
+    if (!isRulesEmpty) authorMutation.mutate(mode);
+  }
+  const isBusy = authorMutation.isPending || publishMutation.isPending;
+
   function submit() {
     // 비활성 버튼은 클릭을 받지 못하므로 aria-disabled로 두고, 누르면 오류가 있는 필드를 모두 표시한다.
     setTouched(new Set<SkillCreateField>(["command", "description", "rules"]));
@@ -207,7 +284,7 @@ export function SkillCreateSheet({
           <button
             type="button"
             className={styles["submit-button"]}
-            disabled={publishMutation.isPending}
+            disabled={isBusy}
             aria-disabled={isBlocked}
             onClick={submit}
           >
@@ -311,7 +388,11 @@ export function SkillCreateSheet({
                 }
               />
             </div>
-            <SelectBox id={fieldId("scope")} value={form.scope} options={SKILL_SCOPE_OPTIONS} onChange={(scope) => update({ scope })} />
+            <div className={styles.menu}>
+              <SelectBox id={fieldId("scope")} value={form.scope} options={SKILL_SCOPE_OPTIONS} onChange={(scope) => update({ scope })} />
+              {/* 팀 스킬은 지금 있는 워크스페이스 한 곳에만 게시한다(publish를 호출한 워크스페이스에 귀속). */}
+              {form.scope === "team" && <p className={styles.hint}>팀: 현재 워크스페이스에서 사용됩니다.</p>}
+            </div>
           </div>
 
           {/* 커맨드명 → name */}
@@ -370,6 +451,41 @@ export function SkillCreateSheet({
               onBlur={() => touch("rules")}
             />
             {errorText("rules")}
+
+            {/* 참고 문서 + AI 작성: 실행 규칙을 AI 지시문으로 보내 초안을 받아 채운다 (POST /skills/author) */}
+            <div className={styles.assist}>
+              <div className={styles["assist-docs"]}>
+                <button
+                  type="button"
+                  className={styles["chip-neutral"]}
+                  aria-label={`참고 문서 선택 (${selectedDocs.length}/${REFERENCE_DOC_MAX})`}
+                  onClick={() => setDocPickerOpen(true)}
+                >
+                  <SvgIcon src={menuSearchIcon} className={styles["chip-icon"]} />
+                  참고 문서 {selectedDocs.length}/{REFERENCE_DOC_MAX}
+                </button>
+                {selectedDocs.map((doc) => (
+                  <span key={doc.id} className={styles["doc-chip"]}>
+                    <span className={styles["doc-chip-name"]}>{documentDisplayName(doc)}</span>
+                    <button
+                      type="button"
+                      className={styles["doc-chip-remove"]}
+                      aria-label={`${documentDisplayName(doc)} 선택 해제`}
+                      onClick={() => setSelectedDocs((current) => current.filter((item) => item.id !== doc.id))}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={() => runAuthor("enhance")}>
+                <span aria-hidden>✦</span>
+                {authorMutation.isPending ? "AI가 작성하는 중…" : "AI로 작성·보강"}
+              </button>
+            </div>
+            <p className={styles.hint} role="status" aria-live="polite">
+              {authorStatus || "적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요."}
+            </p>
           </div>
 
           {issues.length > 0 && (
@@ -380,6 +496,15 @@ export function SkillCreateSheet({
                   <li key={index}>{issueText(issue)}</li>
                 ))}
               </ul>
+              <div className={styles["issue-actions"]}>
+                <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={() => runAuthor("regenerate")}>
+                  <span aria-hidden>✦</span>
+                  AI로 안전하게 다시 만들기
+                </button>
+                <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={() => runAuthor("preserve")}>
+                  고친 내용 다시 검토
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -396,6 +521,38 @@ export function SkillCreateSheet({
             확인
           </button>
         </AlertModal>
+      )}
+
+      {authorError && (
+        <AlertModal
+          titleId={fieldId("author-error-title")}
+          title={authorError.title}
+          description={authorError.description}
+          onClose={() => authorMutation.reset()}
+        >
+          <button type="button" className="modal-confirm-button" onClick={() => authorMutation.reset()}>
+            확인
+          </button>
+        </AlertModal>
+      )}
+
+      {/* 참고 문서 선택 — 네비게이션 검색과 동일한 중앙 모달 */}
+      {docPickerOpen && (
+        <ReferenceDocumentPickerModal
+          documents={documents ?? []}
+          referenceDocuments={referenceDocuments ?? []}
+          selectedDocs={selectedDocs}
+          maxCount={REFERENCE_DOC_MAX}
+          onToggle={(doc) =>
+            setSelectedDocs((current) =>
+              current.some((item) => item.id === doc.id)
+                ? current.filter((item) => item.id !== doc.id)
+                : [...current, doc]
+            )
+          }
+          onUpload={uploadReferenceDocument}
+          onClose={() => setDocPickerOpen(false)}
+        />
       )}
 
       {question && (

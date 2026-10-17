@@ -77,3 +77,42 @@ test("필수값·커맨드 형식·중복 커맨드를 검증한다", () => {
   assert.match(validateSkillCreateForm(filledForm, ["research-summary"]).command, /이미 사용 중/);
   assert.match(validateSkillCreateForm({ ...filledForm, description: "가".repeat(501) }, []).description, /500자/);
 });
+
+const { applySkillDraft, kindFromCapabilities, skillAuthorRequest } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+
+test("AI 작성 요청은 실행 규칙을 지시문으로 보내고 유효한 이름·설명·참고 문서만 담는다", () => {
+  const request = skillAuthorRequest({ ...filledForm, scope: "team" }, "enhance", ["doc_1", "doc_2"]);
+  assert.deepEqual(request, {
+    instruction: filledForm.rules.trim(),
+    authoring_mode: "enhance",
+    scope_type: "team",
+    name: "research-summary",
+    description: "연구 문서의 개요를 핵심 문장 3개로 정리합니다.",
+    reference_document_ids: ["doc_1", "doc_2"]
+  });
+  const bare = skillAuthorRequest({ ...filledForm, command: "연구", description: "" }, "regenerate", []);
+  assert.equal(bare.authoring_mode, "regenerate");
+  assert.ok(!("name" in bare) && !("description" in bare) && !("reference_document_ids" in bare));
+});
+
+test("AI capability를 스킬 종류·결과 방식으로 되돌린다", () => {
+  assert.deepEqual(kindFromCapabilities(["document-create", "document-edit"]), { kind: "document", resultMode: "auto" });
+  assert.deepEqual(kindFromCapabilities(["document-edit"]), { kind: "document", resultMode: "edit" });
+  assert.equal(kindFromCapabilities(["folder-organize", "document-edit"]).kind, "folder");
+  assert.equal(kindFromCapabilities(["template"]).kind, "template");
+  assert.equal(kindFromCapabilities([]), null);
+});
+
+test("AI 초안은 실행 규칙을 바꾸고 이름·설명은 비어 있을 때만 채운다", () => {
+  const draft = { name: "meeting-notes", description: "회의록 요약", instructions_markdown: "# 회의록\n\n요약한다.", capabilities: ["document-edit"] };
+  const empty = applySkillDraft({ ...INITIAL_SKILL_CREATE_FORM, rules: "회의록 요약" }, draft);
+  assert.equal(empty.rules, draft.instructions_markdown);
+  assert.equal(empty.command, "meeting-notes");
+  assert.equal(empty.description, "회의록 요약");
+  assert.equal(empty.resultMode, "edit");
+  const kept = applySkillDraft(filledForm, draft);
+  assert.equal(kept.command, filledForm.command);
+  assert.equal(kept.description, filledForm.description);
+  // 차단 응답은 지침이 null이라 입력한 규칙을 유지한다.
+  assert.equal(applySkillDraft(filledForm, { ...draft, instructions_markdown: null }).rules, filledForm.rules);
+});

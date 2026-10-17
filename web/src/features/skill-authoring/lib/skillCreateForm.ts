@@ -1,4 +1,4 @@
-import type { SkillPublishRequest } from "@/entities/skill/model/skill";
+import type { SkillAuthoringRequest, SkillAuthoringResult, SkillPublishRequest } from "@/entities/skill/model/skill";
 
 /**
  * 스킬 만들기 시트(Figma 1671:14199) 입력값과 게시 요청 변환.
@@ -130,6 +130,62 @@ export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest 
     scope_type: form.scope,
     capabilities,
     allowed_tools: skillAllowedTools(capabilities)
+  };
+}
+
+export type SkillAuthoringMode = "enhance" | "preserve" | "regenerate";
+
+/**
+ * 시트 입력값 → POST /skills/author 요청. 실행 규칙을 AI 지시문으로 보낸다.
+ * 이름·설명은 서버 검증(패턴·500자)을 통과할 때만 보낸다. 잘못된 값을 보내면 400이 난다.
+ */
+export function skillAuthorRequest(
+  form: SkillCreateForm,
+  mode: SkillAuthoringMode,
+  referenceDocumentIds: readonly string[]
+): SkillAuthoringRequest {
+  const name = form.command.trim();
+  const description = form.description.trim();
+  return {
+    instruction: form.rules.trim(),
+    authoring_mode: mode,
+    scope_type: form.scope,
+    ...(SKILL_NAME_PATTERN.test(name) ? { name } : {}),
+    ...(description !== "" && description.length <= SKILL_DESCRIPTION_MAX ? { description } : {}),
+    ...(referenceDocumentIds.length > 0 ? { reference_document_ids: [...referenceDocumentIds] } : {})
+  };
+}
+
+/** AI가 고른 capability를 시트의 스킬 종류·결과 방식으로 되돌린다. 알 수 없으면 null(현재 선택 유지). */
+export function kindFromCapabilities(
+  capabilities: readonly string[]
+): Pick<SkillCreateForm, "kind" | "resultMode"> | null {
+  if (capabilities.includes("folder-organize")) return { kind: "folder", resultMode: "create" };
+  if (capabilities.includes("template")) return { kind: "template", resultMode: "create" };
+  const creates = capabilities.includes("document-create");
+  const edits = capabilities.includes("document-edit");
+  if (creates && edits) return { kind: "document", resultMode: "auto" };
+  if (creates) return { kind: "document", resultMode: "create" };
+  if (edits) return { kind: "document", resultMode: "edit" };
+  return null;
+}
+
+/**
+ * AI 초안을 시트에 채운다. 실행 규칙은 초안 지침으로 바꾸고(차단돼 지침이 없으면 유지),
+ * 커맨드명·설명은 비어 있을 때만 제안값으로 채운다. 스킬 종류·결과 방식은 AI가 고른 capability를 따른다.
+ */
+export function applySkillDraft(
+  form: SkillCreateForm,
+  draft: Pick<SkillAuthoringResult, "name" | "description" | "instructions_markdown" | "capabilities">
+): SkillCreateForm {
+  const suggestedName = (draft.name ?? "").trim();
+  const suggestedDescription = (draft.description ?? "").trim();
+  return {
+    ...form,
+    ...(kindFromCapabilities(draft.capabilities ?? []) ?? {}),
+    rules: draft.instructions_markdown?.trim() ? draft.instructions_markdown : form.rules,
+    command: form.command.trim() === "" && SKILL_NAME_PATTERN.test(suggestedName) ? suggestedName : form.command,
+    description: form.description.trim() === "" ? suggestedDescription.slice(0, SKILL_DESCRIPTION_MAX) : form.description
   };
 }
 
