@@ -1,20 +1,10 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  fetchDocuments,
-  fetchSkillReferenceDocuments,
-  uploadSkillReferenceDocument,
-  type DocumentItemResponse
-} from "@/entities/document";
+import { useId, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { authorSkill, fetchSkills, publishSkill } from "@/entities/skill";
-import { ReferenceDocumentPickerModal } from "./ReferenceDocumentPickerModal";
-import { documentDisplayName } from "../lib/referenceDocumentPicker";
 import { SideSheet } from "@/shared/ui/modal/SideSheet";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
-import { Tooltip } from "@/shared/ui/Tooltip";
-import { chevronDownSmallIcon, menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import { describeSkillAuthorError, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
@@ -34,89 +24,17 @@ import {
   type SkillCreateForm,
   type SkillTarget
 } from "../lib/skillCreateForm";
+import {
+  CheckMark,
+  HelpTip,
+  RESULT_HELP,
+  SCOPE_HELP,
+  SelectBox,
+  SkillAuthorAssist,
+  SkillSafetyIssues,
+  useReferenceDocuments
+} from "./SkillFormParts";
 import styles from "./SkillCreateSheet.module.css";
-
-const REFERENCE_DOC_MAX = 3;
-
-// 안전 검토 issue category 한글 라벨 (AI safety 검사 카테고리)
-const ISSUE_CATEGORY_LABELS: Record<string, string> = {
-  approval_bypass: "권한 우회 표현",
-  sensitive_info: "민감정보로 보이는 내용",
-  tool_policy: "허용되지 않은 도구 사용",
-  permission_escalation: "권한을 넓히려는 표현",
-  forbidden_tool: "허용되지 않은 도구 사용",
-  policy_weakening: "안전 정책을 약화하는 표현",
-  hidden_prompt: "숨겨진 지시",
-  role_override: "역할을 바꾸려는 표현",
-  instruction_override: "기존 지시를 무시하게 하는 표현",
-  credential: "인증 정보로 보이는 내용",
-  secret: "비밀 정보로 보이는 내용"
-};
-
-/** 게시 응답 issues 항목({category, text, reason, ...})을 표시용 텍스트로 변환한다. */
-function issueText(issue: unknown): string {
-  if (issue != null && typeof issue === "object") {
-    const record = issue as Record<string, unknown>;
-    const category = typeof record.category === "string" ? record.category : "";
-    const title = ISSUE_CATEGORY_LABELS[category] ?? String(record.reason ?? (category || "안전 검토 지적"));
-    return record.text ? `${title} — "${String(record.text)}"` : title;
-  }
-  return String(issue);
-}
-
-/** Figma check(20×20) 체크 표시. 테두리 상자는 CSS가 그린다. */
-function CheckMark() {
-  return (
-    <svg aria-hidden className={styles["check-mark"]} width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M5.45312 9.20794L9.19644 12.727L14.9986 7.27246" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** 라벨 옆 물음표 설명 */
-function HelpTip({ label, content }: { label: string; content: ReactNode }) {
-  return (
-    <Tooltip content={content} placement="top" describe={false}>
-      <button type="button" className={styles["help-button"]} aria-label={`${label} 설명`}>
-        <SvgIcon src={questionMarkIcon} className={styles["help-icon"]} />
-      </button>
-    </Tooltip>
-  );
-}
-
-/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. */
-function SelectBox<T extends string>({
-  id,
-  value,
-  options,
-  disabled,
-  onChange
-}: {
-  id: string;
-  value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
-  disabled?: boolean;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className={styles["select-wrap"]}>
-      <select
-        id={id}
-        className={styles.select}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value as T)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <SvgIcon src={chevronDownSmallIcon} className={styles["select-arrow"]} />
-    </div>
-  );
-}
 
 /**
  * 스킬 만들기 시트 (Figma 1671:14199). 입력값을 그대로 POST /skills/author/publish로 게시한다.
@@ -187,41 +105,13 @@ export function SkillCreateSheet({
   });
   const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error) : null;
 
-  // 참고 문서 (최대 3개). AI 작성 요청에만 쓰인다(게시 API는 참고 문서를 받지 않는다).
-  const [selectedDocs, setSelectedDocs] = useState<DocumentItemResponse[]>([]);
-  const [docPickerOpen, setDocPickerOpen] = useState(false);
-  const queryClient = useQueryClient();
-  const { data: documents } = useQuery({
-    queryKey: ["documents", workspaceId],
-    queryFn: fetchDocuments,
-    enabled: docPickerOpen
-  });
-  // 스킬 참고 문서는 기본 목록에 나오지 않아 따로 조회한다. 메인 트리 캐시와 키를 나눠 업로드가 트리에 섞이지 않게 한다.
-  const referenceDocumentsKey = ["skill-reference-documents", workspaceId];
-  const { data: referenceDocuments } = useQuery({
-    queryKey: referenceDocumentsKey,
-    queryFn: fetchSkillReferenceDocuments,
-    enabled: docPickerOpen
-  });
-
-  /** 피커에서 올린 참고 문서를 목록 맨 앞에 넣고 선택한다. */
-  async function uploadReferenceDocument(file: File): Promise<DocumentItemResponse> {
-    const uploaded = await uploadSkillReferenceDocument(file);
-    queryClient.setQueryData<DocumentItemResponse[]>(referenceDocumentsKey, (current = []) => [
-      uploaded,
-      ...current.filter((doc) => doc.id !== uploaded.id)
-    ]);
-    setSelectedDocs((current) =>
-      current.some((doc) => doc.id === uploaded.id) || current.length >= REFERENCE_DOC_MAX ? current : [uploaded, ...current]
-    );
-    return uploaded;
-  }
+  const referenceDocs = useReferenceDocuments(workspaceId);
 
   // AI 작성: enhance(보강, 기본) / preserve(원문 유지 재검토) / regenerate(차단 구간 제거 후 안전 재작성)
   const [authorStatus, setAuthorStatus] = useState("");
   const authorMutation = useMutation({
     mutationFn: (mode: SkillAuthoringMode) =>
-      authorSkill(workspaceId, skillAuthorRequest(form, mode, selectedDocs.map((doc) => doc.id))),
+      authorSkill(workspaceId, skillAuthorRequest(form, mode, referenceDocs.selectedDocIds)),
     onMutate: () => setAuthorStatus(""),
     onSuccess: (result) => {
       const outcome = skillAuthoringOutcome(result);
@@ -324,18 +214,7 @@ export function SkillCreateSheet({
           <div className={styles.field}>
             <div className={styles["label-row"]}>
               <label className={styles.label} htmlFor={fieldId("result")}>결과 방식</label>
-              <HelpTip
-                label="결과 방식"
-                content={
-                  <>
-                    새 문서로 만들기 - 결과를 새 문서로 저장합니다.
-                    <br />
-                    현재 문서 수정 - 실행한 문서를 바로 고칩니다.
-                    <br />
-                    상황에 맞게 - 요청에 따라 Agent가 고릅니다.
-                  </>
-                }
-              />
+              <HelpTip label="결과 방식" content={RESULT_HELP} />
             </div>
             <div className={styles.menu}>
               <SelectBox
@@ -377,16 +256,7 @@ export function SkillCreateSheet({
           <div className={styles.field}>
             <div className={styles["label-row"]}>
               <label className={styles.label} htmlFor={fieldId("scope")}>저장범위</label>
-              <HelpTip
-                label="저장범위"
-                content={
-                  <>
-                    개인 - 모든 워크스페이스에서 사용됩니다.
-                    <br />
-                    팀 - 현재 워크스페이스에서 사용됩니다.
-                  </>
-                }
-              />
+              <HelpTip label="저장범위" content={SCOPE_HELP} />
             </div>
             <div className={styles.menu}>
               <SelectBox id={fieldId("scope")} value={form.scope} options={SKILL_SCOPE_OPTIONS} onChange={(scope) => update({ scope })} />
@@ -453,60 +323,24 @@ export function SkillCreateSheet({
             {errorText("rules")}
 
             {/* 참고 문서 + AI 작성: 실행 규칙을 AI 지시문으로 보내 초안을 받아 채운다 (POST /skills/author) */}
-            <div className={styles.assist}>
-              <div className={styles["assist-docs"]}>
-                <button
-                  type="button"
-                  className={styles["chip-neutral"]}
-                  aria-label={`참고 문서 선택 (${selectedDocs.length}/${REFERENCE_DOC_MAX})`}
-                  onClick={() => setDocPickerOpen(true)}
-                >
-                  <SvgIcon src={menuSearchIcon} className={styles["chip-icon"]} />
-                  참고 문서 {selectedDocs.length}/{REFERENCE_DOC_MAX}
-                </button>
-                {selectedDocs.map((doc) => (
-                  <span key={doc.id} className={styles["doc-chip"]}>
-                    <span className={styles["doc-chip-name"]}>{documentDisplayName(doc)}</span>
-                    <button
-                      type="button"
-                      className={styles["doc-chip-remove"]}
-                      aria-label={`${documentDisplayName(doc)} 선택 해제`}
-                      onClick={() => setSelectedDocs((current) => current.filter((item) => item.id !== doc.id))}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={() => runAuthor("enhance")}>
-                <span aria-hidden>✦</span>
-                {authorMutation.isPending ? "AI가 작성하는 중…" : "AI로 작성·보강"}
-              </button>
-            </div>
-            <p className={styles.hint} role="status" aria-live="polite">
-              {authorStatus || "적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요."}
-            </p>
+            <SkillAuthorAssist
+              selectedDocs={referenceDocs.selectedDocs}
+              onOpenPicker={referenceDocs.openPicker}
+              onRemoveDoc={referenceDocs.removeDoc}
+              isBusy={isBusy}
+              isAuthoring={authorMutation.isPending}
+              status={authorStatus}
+              idleHint="적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요."
+              onAuthor={() => runAuthor("enhance")}
+            />
           </div>
 
-          {issues.length > 0 && (
-            <div className={styles.issues} role="alert">
-              <p className={styles["issues-title"]}>안전 검토에서 저장하지 못했습니다. 실행 규칙을 고쳐 주세요.</p>
-              <ul className={styles["issue-list"]}>
-                {issues.map((issue, index) => (
-                  <li key={index}>{issueText(issue)}</li>
-                ))}
-              </ul>
-              <div className={styles["issue-actions"]}>
-                <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={() => runAuthor("regenerate")}>
-                  <span aria-hidden>✦</span>
-                  AI로 안전하게 다시 만들기
-                </button>
-                <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={() => runAuthor("preserve")}>
-                  고친 내용 다시 검토
-                </button>
-              </div>
-            </div>
-          )}
+          <SkillSafetyIssues
+            issues={issues}
+            isBusy={isBusy}
+            onRegenerate={() => runAuthor("regenerate")}
+            onPreserve={() => runAuthor("preserve")}
+          />
         </div>
       </div>
 
@@ -537,23 +371,7 @@ export function SkillCreateSheet({
       )}
 
       {/* 참고 문서 선택 — 네비게이션 검색과 동일한 중앙 모달 */}
-      {docPickerOpen && (
-        <ReferenceDocumentPickerModal
-          documents={documents ?? []}
-          referenceDocuments={referenceDocuments ?? []}
-          selectedDocs={selectedDocs}
-          maxCount={REFERENCE_DOC_MAX}
-          onToggle={(doc) =>
-            setSelectedDocs((current) =>
-              current.some((item) => item.id === doc.id)
-                ? current.filter((item) => item.id !== doc.id)
-                : [...current, doc]
-            )
-          }
-          onUpload={uploadReferenceDocument}
-          onClose={() => setDocPickerOpen(false)}
-        />
-      )}
+      {referenceDocs.pickerModal}
 
       {question && (
         <AlertModal

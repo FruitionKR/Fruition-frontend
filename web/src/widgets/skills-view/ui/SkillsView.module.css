@@ -184,6 +184,16 @@
   color: var(--color-body);
 }
 
+/* 행 클릭 = 스킬 상세 시트 */
+.is-clickable {
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.is-clickable:hover {
+  background-image: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
+}
+
 .cell {
   flex: 0 0 auto;
   display: flex;
@@ -347,69 +357,6 @@
 
 .menu .is-danger {
   color: var(--color-danger);
-}
-
-/* 정의 수정 폼: 행 바로 아래 */
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 12px;
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-}
-
-.editor label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-muted);
-}
-
-.editor textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-canvas);
-  color: var(--color-foreground);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.primary-button,
-.secondary-button {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primary-button {
-  border: 0;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.primary-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.secondary-button {
-  border: 1px solid var(--color-placeholder);
-  background: transparent;
-  color: var(--color-body);
 }
 
 .message {

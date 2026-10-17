@@ -99,11 +99,12 @@ export function skillAllowedTools(capabilities: readonly SkillCapability[]): str
   return [...new Set(capabilities.flatMap((capability) => CAPABILITY_TOOLS[capability]))];
 }
 
-const TARGET_INSTRUCTION_LINES: Record<SkillTarget, string> = {
+export const TARGET_INSTRUCTION_LINES: Record<SkillTarget, string> = {
   "current-document": "- 현재 문서",
   selection: "- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)"
 };
-const AUTO_RESULT_INSTRUCTION = "- 새 문서로 만들지 현재 문서를 고칠지 대상이 애매하면 먼저 사용자에게 되묻는다.";
+export const TARGET_SECTION_HEADING = "## 실행 대상";
+export const AUTO_RESULT_INSTRUCTION = "- 새 문서로 만들지 현재 문서를 고칠지 대상이 애매하면 먼저 사용자에게 되묻는다.";
 
 /**
  * 실행 규칙 + 대상·결과 방식 안내를 instructions_markdown으로 합친다.
@@ -117,7 +118,7 @@ export function composeSkillInstructions(form: Pick<SkillCreateForm, "kind" | "r
   );
   if (form.resultMode === "auto") lines.push(AUTO_RESULT_INSTRUCTION);
   if (lines.length === 0) return rules;
-  return `${rules}\n\n## 실행 대상\n\n${lines.join("\n")}`;
+  return `${rules}\n\n${TARGET_SECTION_HEADING}\n\n${lines.join("\n")}`;
 }
 
 /** 시트 입력값 → POST /skills/author/publish 요청 */
