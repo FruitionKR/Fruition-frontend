@@ -47,6 +47,16 @@ export function getProviderLabel(provider: string): string {
   return PROVIDER_LABELS[provider] ?? provider;
 }
 
+// 채팅 모델 메뉴의 provider 행 이름 (Figma 1691:16178). 하위 메뉴 머리글은 getProviderLabel을 쓴다.
+const PROVIDER_MENU_LABELS: Record<string, string> = {
+  openai: "Chat GPT"
+};
+
+/** 채팅 모델 메뉴의 provider 행 이름. 따로 정한 이름이 없으면 getProviderLabel과 같다. */
+export function getProviderMenuLabel(provider: string): string {
+  return PROVIDER_MENU_LABELS[provider] ?? getProviderLabel(provider);
+}
+
 type AiModelGroup = { provider: string; models: AiModel[] };
 
 /** 카탈로그를 provider별로 묶는다. provider와 모델 순서는 카탈로그(백엔드) 순서를 그대로 따른다. */
@@ -56,14 +66,4 @@ export function groupAiModelsByProvider(models: AiModel[]): AiModelGroup[] {
     groups.set(model.provider, [...(groups.get(model.provider) ?? []), model]);
   }
   return Array.from(groups, ([provider, items]) => ({ provider, models: items }));
-}
-
-/** 모델 표시 이름 또는 model id에 검색어가 들어간 항목만 남긴다(대소문자·앞뒤 공백 무시). */
-export function filterAiModels(models: AiModel[], query: string): AiModel[] {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return models;
-  return models.filter(
-    (item) =>
-      item.display_name.toLowerCase().includes(normalized) || item.model.toLowerCase().includes(normalized)
-  );
 }

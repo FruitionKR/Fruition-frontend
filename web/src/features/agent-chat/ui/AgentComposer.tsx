@@ -1,6 +1,9 @@
-import { Check, Square } from "lucide-react";
+import Image from "next/image";
+import { Square } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { filterAiModels, getProviderLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
+import { getProviderLabel, getProviderMenuLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
+import modelMenuArrowIcon from "@/shared/assets/svg/agent/model-menu-arrow.svg";
+import modelMenuCheckIcon from "@/shared/assets/svg/agent/model-menu-check.svg";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
@@ -26,6 +29,17 @@ export type ComposerMeetingControl = {
 /** provider/model 쌍을 목록 key와 선택 비교에 쓰는 문자열로 만든다. */
 function modelKey(model: AiModel) {
   return `${model.provider}/${model.model}`;
+}
+
+/** 모델 메뉴와 트리거 사이 간격(Figma 1691:16168). 메뉴 오른쪽 끝은 입력 박스 오른쪽 끝에 맞춘다. */
+const MODEL_MENU_GAP = 8;
+
+/** container 안 버튼 중 지금 포커스에서 step만큼 옮긴 버튼에 포커스를 준다(양끝은 이어진다). */
+function moveFocus(container: HTMLElement | null, step: number) {
+  const buttons = Array.from(container?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+  if (buttons.length === 0) return;
+  const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  buttons[(index + step + buttons.length) % buttons.length]?.focus();
 }
 
 export function AgentComposer({
@@ -64,11 +78,16 @@ export function AgentComposer({
   meetingControl?: ComposerMeetingControl;
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
-  const [modelQuery, setModelQuery] = useState("");
-  const [activeModelIndex, setActiveModelIndex] = useState(0);
+  // 오른쪽 하위 메뉴에 모델을 보여 주는 provider. 메뉴를 열 때 선택된 모델의 provider로 맞춘다.
+  const [activeProvider, setActiveProvider] = useState<string | null>(null);
+  // 메뉴가 채팅 패널(overflow: hidden) 왼쪽 밖으로 펼쳐지므로 화면 기준(fixed) 좌표로 띄운다.
+  const [modelMenuPosition, setModelMenuPosition] = useState<{ right: number; bottom: number } | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const modelListRef = useRef<HTMLDivElement | null>(null);
+  const providerListRef = useRef<HTMLDivElement | null>(null);
+  const modelSubmenuRef = useRef<HTMLDivElement | null>(null);
   const modelTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const modelListId = useId();
+  const modelSubmenuId = useId();
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const voiceMenuRef = useRef<HTMLDivElement | null>(null);
   const waveButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -77,11 +96,8 @@ export function AgentComposer({
   const isRecording = dictation.status === "recording";
   const isTranscribing = dictation.status === "transcribing";
   const selectedKey = selectedModel ? modelKey(selectedModel) : null;
-  const modelGroups = groupAiModelsByProvider(filterAiModels(models, modelQuery));
-  // 키보드 이동 순서는 화면에 보이는 묶음 순서와 같아야 한다.
-  const visibleModels = modelGroups.flatMap((group) => group.models);
-  const activeModel = visibleModels[activeModelIndex] ?? null;
-  const activeOptionId = activeModel ? modelOptionId(activeModel) : undefined;
+  const modelGroups = groupAiModelsByProvider(models);
+  const activeGroup = modelGroups.find((group) => group.provider === activeProvider) ?? null;
 
   // ESC는 useDismissOnOutside가 ESC 레이어 스택으로 처리한다. 목록 안에 포커스가 있었으면 트리거로 돌려준다.
   function closeModelList() {
@@ -124,23 +140,60 @@ export function AgentComposer({
     setIsVoiceMenuOpen(false);
   }, [isLoading]);
 
-  // 활성 항목이 스크롤 밖에 있으면 보이도록 맞춘다.
+  // 메뉴를 열면 선택된 모델의 provider 행에 포커스를 준다.
   useEffect(() => {
-    if (!isModelListOpen || !activeOptionId) return;
-    document.getElementById(activeOptionId)?.scrollIntoView({ block: "nearest" });
-  }, [isModelListOpen, activeOptionId]);
+    if (!isModelListOpen) return;
+    providerListRef.current?.querySelector<HTMLButtonElement>("[aria-expanded='true']")?.focus();
+  }, [isModelListOpen]);
 
-  function modelOptionId(model: AiModel) {
-    return `${modelListId}-${modelKey(model)}`;
-  }
+  // fixed 좌표는 열 때 한 번 잡으므로 창 크기가 바뀌면 메뉴를 닫는다.
+  useEffect(() => {
+    if (!isModelListOpen) return;
+    const close = () => setIsModelListOpen(false);
+    window.addEventListener("resize", close);
+    return () => window.removeEventListener("resize", close);
+  }, [isModelListOpen]);
 
   function openModelList() {
-    setModelQuery("");
-    const selectedIndex = groupAiModelsByProvider(models)
-      .flatMap((group) => group.models)
-      .findIndex((model) => modelKey(model) === selectedKey);
-    setActiveModelIndex(Math.max(selectedIndex, 0));
+    const formRect = formRef.current?.getBoundingClientRect();
+    const triggerRect = modelTriggerRef.current?.getBoundingClientRect();
+    if (!formRect || !triggerRect) return;
+    setModelMenuPosition({
+      right: document.documentElement.clientWidth - formRect.right,
+      bottom: window.innerHeight - triggerRect.top + MODEL_MENU_GAP
+    });
+    setActiveProvider(selectedModel?.provider ?? modelGroups[0]?.provider ?? null);
     setIsModelListOpen(true);
+  }
+
+  /** provider 행에서 오른쪽 하위 메뉴로 들어간다. 선택된 모델이 있으면 그 모델에, 없으면 첫 모델에 포커스를 준다. */
+  function enterModelSubmenu(provider: string) {
+    setActiveProvider(provider);
+    // 하위 메뉴가 바뀐 provider로 다시 그려진 뒤에 포커스를 옮긴다.
+    requestAnimationFrame(() => {
+      const submenu = modelSubmenuRef.current;
+      (submenu?.querySelector<HTMLButtonElement>("[aria-selected='true']") ?? submenu?.querySelector<HTMLButtonElement>("button"))?.focus();
+    });
+  }
+
+  function handleProviderKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, provider: string) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveFocus(providerListRef.current, event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      enterModelSubmenu(provider);
+    }
+  }
+
+  function handleModelKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveFocus(modelSubmenuRef.current, event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      providerListRef.current?.querySelector<HTMLButtonElement>("[aria-expanded='true']")?.focus();
+    }
   }
 
   function chooseModel(model: AiModel) {
@@ -149,23 +202,6 @@ export function AgentComposer({
     // Safari는 클릭한 버튼에 포커스를 주지 않으므로 목록 안 포커스 여부와 관계없이 트리거로 돌려준다.
     const trigger = modelTriggerRef.current;
     if (trigger && !trigger.disabled) trigger.focus();
-  }
-
-  function handleModelSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.nativeEvent.isComposing) return;
-    const count = visibleModels.length;
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (count === 0) return;
-      const step = event.key === "ArrowDown" ? 1 : -1;
-      setActiveModelIndex((index) => (index + step + count) % count);
-      return;
-    }
-    if (event.key === "Enter") {
-      // 폼 안의 input이라 Enter가 질문 전송으로 이어지지 않게 막는다.
-      event.preventDefault();
-      if (activeModel) chooseModel(activeModel);
-    }
   }
 
   function submitComposer(event: FormEvent<HTMLFormElement>) {
@@ -195,7 +231,7 @@ export function AgentComposer({
       : "모델 불러오는 중";
 
   return (
-    <form className={styles.composer} onSubmit={submitComposer}>
+    <form className={styles.composer} ref={formRef} onSubmit={submitComposer}>
       <textarea
         value={value}
         placeholder={placeholder}
@@ -240,75 +276,80 @@ export function AgentComposer({
             )}
             <AgentChevronIcon isWide className={cx(isModelListOpen && styles["is-open"])} />
           </button>
-          {isModelListOpen && (
-            <div className={styles["composer-model-list"]}>
-              <input
-                type="search"
-                className={styles["composer-model-search"]}
-                placeholder="모델 검색"
-                role="combobox"
-                aria-label="모델 검색"
-                aria-expanded
-                aria-controls={modelListId}
-                aria-autocomplete="list"
-                aria-activedescendant={activeOptionId}
-                autoFocus
-                value={modelQuery}
-                onChange={(event) => {
-                  setModelQuery(event.target.value);
-                  setActiveModelIndex(0);
-                }}
-                onKeyDown={handleModelSearchKeyDown}
-              />
-              <div id={modelListId} role="listbox" aria-label="모델 목록" className={styles["composer-model-options"]}>
-                {modelGroups.length === 0 && <p className={styles["composer-model-empty"]}>검색 결과가 없습니다.</p>}
-                {modelGroups.map((group) => (
-                  <div key={group.provider} role="group" aria-label={getProviderLabel(group.provider)}>
-                    <p className={styles["composer-model-group-label"]} aria-hidden>
-                      {getProviderLabel(group.provider)}
-                    </p>
-                    {group.models.map((model) => {
-                      const isSelected = modelKey(model) === selectedKey;
-                      const isActive = model === activeModel;
-                      return (
-                        <button
-                          key={modelKey(model)}
-                          id={modelOptionId(model)}
-                          type="button"
-                          role="option"
-                          tabIndex={-1}
-                          aria-selected={isSelected}
-                          className={cx(
-                            styles["composer-model-option"],
-                            isSelected && styles["is-selected"],
-                            isActive && styles["is-active"]
-                          )}
-                          // 키보드 스크롤로 항목이 정지한 커서 아래로 와도 활성 항목을 빼앗지 않도록 실제 마우스 이동에만 반응한다.
-                          onMouseMove={() => {
-                            if (!isActive) setActiveModelIndex(visibleModels.indexOf(model));
-                          }}
-                          onClick={() => chooseModel(model)}
-                        >
-                          <span>{model.display_name}</span>
-                          {isSelected && <Check size={12} aria-hidden />}
-                        </button>
-                      );
-                    })}
+          {/* Figma 1691:16177: 왼쪽 provider 메뉴(1691:16178, 아래 웹 서칭) + 오른쪽 하위 메뉴(1691:16196, provider의 모델) */}
+          {isModelListOpen && modelMenuPosition && (
+            <div className={styles["composer-model-menu"]} style={modelMenuPosition}>
+              <div className={styles["composer-model-list"]}>
+                <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label="모델 제공사">
+                  {modelGroups.map((group) => {
+                    const isActive = group.provider === activeProvider;
+                    return (
+                      <button
+                        key={group.provider}
+                        type="button"
+                        className={cx(styles["composer-model-provider"], isActive && styles["is-active"])}
+                        aria-haspopup="listbox"
+                        aria-expanded={isActive}
+                        aria-controls={isActive ? modelSubmenuId : undefined}
+                        onMouseEnter={() => setActiveProvider(group.provider)}
+                        onFocus={() => setActiveProvider(group.provider)}
+                        onClick={() => enterModelSubmenu(group.provider)}
+                        onKeyDown={(event) => handleProviderKeyDown(event, group.provider)}
+                      >
+                        <span>{getProviderMenuLabel(group.provider)}</span>
+                        {isActive && <Image src={modelMenuArrowIcon} alt="" aria-hidden className={styles["composer-model-arrow"]} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {onWebSearchChange && (
+                  <div className={styles["composer-web-search"]}>
+                    <div className={styles["composer-web-search-label"]}>
+                      <span>웹 서칭</span>
+                      <span>필요시, 웹에서 정보를 추가 검색합니다.</span>
+                    </div>
+                    <Switch
+                      checked={allowWebSearch}
+                      label="웹 서칭"
+                      classNames={{ root: styles["composer-switch"], on: styles["is-on"] }}
+                      onClick={() => onWebSearchChange(!allowWebSearch)}
+                    />
                   </div>
-                ))}
+                )}
               </div>
-              {onWebSearchChange && (
-                <div className={styles["composer-web-search"]}>
-                  <div className={styles["composer-web-search-label"]}>
-                    <span>웹 서칭</span>
-                    <span>필요시, 웹에서 정보를 추가 검색합니다.</span>
+              {activeGroup && (
+                // 하위 메뉴는 높이 0 칸 안에서 아래로 넘쳐 그린다. 메뉴 높이는 왼쪽 메뉴로만 정해져 트리거 바로 위에 붙는다.
+                <div className={styles["composer-model-submenu-slot"]}>
+                  <div className={styles["composer-model-submenu"]}>
+                    <p className={styles["composer-model-group-label"]} aria-hidden>
+                      {getProviderLabel(activeGroup.provider)}
+                    </p>
+                    <div
+                      id={modelSubmenuId}
+                      ref={modelSubmenuRef}
+                      role="listbox"
+                      aria-label={`${getProviderLabel(activeGroup.provider)} 모델`}
+                      className={styles["composer-model-options"]}
+                    >
+                      {activeGroup.models.map((model) => {
+                        const isSelected = modelKey(model) === selectedKey;
+                        return (
+                          <button
+                            key={modelKey(model)}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            className={styles["composer-model-option"]}
+                            onClick={() => chooseModel(model)}
+                            onKeyDown={handleModelKeyDown}
+                          >
+                            <span>{model.display_name}</span>
+                            {isSelected && <Image src={modelMenuCheckIcon} alt="" aria-hidden />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <Switch
-                    checked={allowWebSearch}
-                    label="웹 서칭"
-                    classNames={{ root: styles["composer-switch"], on: styles["is-on"] }}
-                    onClick={() => onWebSearchChange(!allowWebSearch)}
-                  />
                 </div>
               )}
             </div>
