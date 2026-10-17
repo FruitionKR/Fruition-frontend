@@ -32,6 +32,9 @@ export function useModalFocus(containerRef: RefObject<HTMLElement | null>) {
     function handleKeyDown(event: KeyboardEvent) {
       const container = containerRef.current;
       if (event.key !== "Tab" || !container) return;
+      // 위에 겹쳐 연 다른 모달(시트 위 문서 선택 모달 등)에 포커스가 있으면 그 모달이 Tab을 관리한다.
+      const activeModal = document.activeElement?.closest("[aria-modal='true']");
+      if (activeModal && !container.contains(activeModal) && !activeModal.contains(container)) return;
       const focusables = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
       const currentIndex = focusables.indexOf(document.activeElement as HTMLElement);
       const nextIndex = wrapFocusIndex(currentIndex, focusables.length, event.shiftKey);

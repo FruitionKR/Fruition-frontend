@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SkillResponse } from "@/entities/skill";
-import { SkillCreateWizard } from "@/features/skill-authoring";
+import { SkillCreateSheet } from "@/features/skill-authoring";
 import { SkillSearchModal } from "./SkillSearchModal";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
@@ -307,7 +307,7 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
       </dialog>
 
       {isCreateOpen && workspaceId != null && (
-        <SkillCreateWizard workspaceId={workspaceId} onClose={() => setIsCreateOpen(false)} onPublished={() => void catalog.refresh()} />
+        <SkillCreateSheet workspaceId={workspaceId} onClose={() => setIsCreateOpen(false)} onPublished={() => void catalog.refresh()} />
       )}
       {isSearchOpen && (
         <SkillSearchModal
