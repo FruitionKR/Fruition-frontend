@@ -1,2 +1,2 @@
-export { SkillCreateWizard } from "./ui/SkillCreateWizard";
+export { SkillCreateSheet } from "./ui/SkillCreateSheet";
 export { skillUpdateRequest } from "./lib/skillAuthoring";
