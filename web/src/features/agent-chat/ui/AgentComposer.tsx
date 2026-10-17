@@ -24,6 +24,8 @@ export type ComposerMeetingControl = {
   onStart: () => void;
   onStop: () => void;
   onPickRecording?: () => void;
+  /** 있으면 메뉴에 "지난 회의"를 두고, 누르면 회의 목록(진행 중인 회의 이어 보기)을 연다. */
+  onOpenMeetingList?: () => void;
 };
 
 /** provider/model 쌍을 목록 key와 선택 비교에 쓰는 문자열로 만든다. */
@@ -413,6 +415,20 @@ export function AgentComposer({
                   >
                     <span>녹음 파일로 전사</span>
                     <span>{meetingControl.state === "idle" ? "WAV·MP3·M4A·WebM(500MB 이하)을 받아써요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                  </button>
+                )}
+                {meetingControl.onOpenMeetingList && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={meetingControl.state !== "idle"}
+                    onClick={() => {
+                      closeVoiceMenu();
+                      meetingControl.onOpenMeetingList?.();
+                    }}
+                  >
+                    <span>지난 회의</span>
+                    <span>{meetingControl.state === "idle" ? "전사 중이던 회의를 이어 보거나 회의록을 다시 열어요" : "열린 회의 화면을 닫은 뒤 볼 수 있어요"}</span>
                   </button>
                 )}
               </div>

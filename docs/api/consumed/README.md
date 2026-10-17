@@ -16,7 +16,7 @@
 | [Wiki](wiki.md) | 8 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
 | [AI·Agent·Query](ai-agent.md) | 20 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `web/src/entities/skill/api` |
-| [회의 받아쓰기](meeting.md) | 16 | document-svc | `web/src/entities/meeting/api`, `web/src/features/meeting-dictation` |
+| [회의 받아쓰기](meeting.md) | 17 | document-svc | `web/src/entities/meeting/api`, `web/src/features/meeting-dictation` |
 
 "호출 수"는 코드상의 호출 지점 수이고, 아래 집계의 "경로 수"는 서로 다른 backend 경로 수다.
 같은 경로를 여러 모듈에서 부르기 때문에 두 수는 다르다.
@@ -30,7 +30,7 @@
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.
 공동 편집 릴리스에서 추가된 권한 2·편집 충돌 3·알림 3 경로는 87개 기준 집계 밖이며 [document.md](document.md)에만 적었다.
-회의 받아쓰기(#148)의 REST 15 경로와 WebSocket 1개도 87개 기준 집계 밖이며 [meeting.md](meeting.md)에만 적었다.
+회의 받아쓰기(#148)의 REST 16 경로와 WebSocket 1개도 87개 기준 집계 밖이며 [meeting.md](meeting.md)에만 적었다.
 
 ## 경로 미해석
 

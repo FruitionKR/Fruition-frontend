@@ -326,3 +326,118 @@
   cursor: not-allowed;
   opacity: 0.5;
 }
+
+/* 시안 없음: 지난 회의 목록(진행 중인 회의 이어 보기). 회의록 화면의 제목 줄·카드 모양을 따르고, 목록은 위에서부터 쌓는다. */
+.meeting-list-title {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: normal;
+}
+
+.meeting-list-card {
+  gap: 8px;
+  padding: 8px;
+}
+
+.meeting-list-card > .meeting-card-empty {
+  margin: auto 8px;
+  text-align: center;
+}
+
+.meeting-list {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+
+.meeting-list-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 8px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.meeting-list-item:hover {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.meeting-list-item:focus-visible,
+.meeting-list-more:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: -2px;
+}
+
+.meeting-list-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meeting-list-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meeting-list-meta {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.meeting-list-badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.meeting-list-badge.is-progress {
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
+}
+
+.meeting-list-badge.is-error {
+  color: var(--color-danger);
+  background: var(--color-danger-weak);
+}
+
+.meeting-list-more {
+  align-self: center;
+  padding: 6px 12px;
+  color: var(--color-body);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.meeting-list-more:hover:not(:disabled) {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.meeting-list-more:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
