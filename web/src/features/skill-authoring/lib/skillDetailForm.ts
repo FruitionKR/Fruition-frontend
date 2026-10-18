@@ -18,8 +18,8 @@ import {
 
 /**
  * 스킬 상세 시트(Figma 1708:4059) 입력값.
- * 대상·결과 방식은 버전의 targets·result_mode에서 읽는다(ai#122). PATCH가 받는 값은 설명·지침·대상·결과 방식이다.
- * 결과 방식은 PATCH가 지침을 다시 분류한 capabilities와 맞아야 해, 저장범위·커맨드명·스킬 종류와 함께 읽기 전용으로 둔다.
+ * 대상·결과 방식은 버전의 targets·result_mode에서 읽는다(ai#122). 저장할 때는 설명·지침·대상만 보낸다.
+ * 결과 방식은 PATCH가 지침을 다시 분류한 capabilities와 맞아야 해, 저장범위·커맨드명·스킬 종류와 함께 읽기 전용으로 두고 보내지 않는다.
  */
 export interface SkillDetailForm {
   /** capabilities를 알 수 없으면 null(종류·결과 방식·대상을 표시하지 않는다) */
@@ -101,12 +101,17 @@ export function skillDetailForm(skill: SkillResponse): SkillDetailForm {
 
 export type SkillDetailDraft = { description: string; instructionsMarkdown: string } & SkillExecutionOptions;
 
-/** 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 문서 스킬이면 대상·결과 방식을 함께 보낸다. */
+/**
+ * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 문서 스킬이면 대상(targets)을 함께 보낸다.
+ * 결과 방식은 읽기 전용이라 보내지 않는다(생략하면 서버가 기존 값을 유지한다, ai#122).
+ * 명시해 보내면 서버가 지침을 다시 분류한 capabilities와 맞지 않을 때 400으로 저장이 실패한다.
+ */
 export function skillDetailDraft(form: SkillDetailForm): SkillDetailDraft {
+  const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
   return {
     description: form.description.trim(),
     instructionsMarkdown: form.rules.trim(),
-    ...(form.kind == null ? {} : skillExecutionOptions(form.kind, form.resultMode, form.targets))
+    ...(targets != null ? { targets } : {})
   };
 }
 

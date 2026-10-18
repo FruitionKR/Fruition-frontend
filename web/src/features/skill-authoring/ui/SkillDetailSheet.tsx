@@ -48,7 +48,7 @@ const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습
 
 /**
  * 스킬 상세 시트 (Figma 1708:4059). 목록 행 클릭·더보기 '수정'으로 연다.
- * 설명·실행 규칙·대상을 PATCH /skills/{id}로 저장하고(문서 스킬은 targets·result_mode 포함), 왼쪽 아래 '스킬 삭제'로 지운다.
+ * 설명·실행 규칙·대상을 PATCH /skills/{id}로 저장하고(문서 스킬은 targets 포함, result_mode는 생략해 유지), 왼쪽 아래 '스킬 삭제'로 지운다.
  * 저장범위·커맨드명은 수정 API가 받지 않고, 스킬 종류·결과 방식은 지침을 다시 분류한 capability와 맞아야 해 읽기 전용으로 보여 준다.
  */
 export function SkillDetailSheet({

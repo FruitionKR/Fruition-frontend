@@ -114,8 +114,7 @@ test("skillDetailForm은 이전 형식의 실행 대상 절이 있으면 그 대
   assert.deepEqual(skillDetailDraft(form), {
     description: "연구 문서의 개요를 정리합니다.",
     instructionsMarkdown: RULES,
-    targets: ["selection"],
-    result_mode: "edit"
+    targets: ["selection"]
   });
 });
 
@@ -135,13 +134,12 @@ test("skillDetailForm은 켜진 버전이 없으면 최신 버전을, capabiliti
   assert.equal(skillDetailForm(skill({ enabled_version: null, latest_version: null })).rules, "");
 });
 
-test("skillDetailDraft는 문서 스킬에 targets·result_mode를 담고 지침에 절을 붙이지 않는다", () => {
+test("skillDetailDraft는 문서 스킬에 targets만 담고(result_mode는 생략해 서버가 유지) 지침에 절을 붙이지 않는다", () => {
   const form = { ...skillDetailForm(skill()), description: "  새 설명 ", targets: ["current-document", "selection"] };
   assert.deepEqual(skillDetailDraft(form), {
     description: "새 설명",
     instructionsMarkdown: RULES,
-    targets: ["current_document", "selection"],
-    result_mode: "edit"
+    targets: ["current_document", "selection"]
   });
 });
 

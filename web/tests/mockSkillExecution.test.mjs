@@ -48,7 +48,13 @@ test("mock 게시·수정은 targets·result_mode를 저장하고 allowed_tools�
 
   // 생략하면 기존 값을 유지하고, []이면 기본값으로 되돌린다.
   const patch = { name: "exec-check", description: "점검", instructions_markdown: "고친 규칙" };
-  assert.deepEqual((await call("PATCH", `/${published.body.skill_id}`, patch)).body.targets, ["selection"]);
+  const kept = (await call("PATCH", `/${published.body.skill_id}`, patch)).body;
+  assert.deepEqual(kept.targets, ["selection"]);
+  assert.equal(kept.result_mode, "edit");
+  // 상세 시트처럼 targets만 보내면 result_mode는 그대로다.
+  const targetsOnly = (await call("PATCH", `/${published.body.skill_id}`, { ...patch, targets: ["current_document", "selection"] })).body;
+  assert.deepEqual(targetsOnly.targets, ["current_document", "selection"]);
+  assert.equal(targetsOnly.result_mode, "edit");
   assert.deepEqual((await call("PATCH", `/${published.body.skill_id}`, { ...patch, targets: [] })).body.targets, ["current_document"]);
 
   // capability와 맞지 않는 result_mode, 문서 Skill이 아닌데 보낸 targets는 거절한다.

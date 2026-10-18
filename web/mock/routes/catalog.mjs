@@ -55,10 +55,12 @@ function executionOptions(ctx, capabilities, body, fallback) {
     if (result_mode != null) return error(ctx, 400, "result_mode requires a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
     return { targets: [], result_mode: null };
   }
-  const mode = result_mode === undefined ? fallback.result_mode : result_mode;
-  if (mode != null && !(RESULT_MODE_CAPABILITIES[mode] ?? ["?"]).every((capability) => capabilities.includes(capability))) {
-    return error(ctx, 400, `result_mode ${mode} does not match capabilities.`, "SKILL_INSTRUCTION_INVALID");
+  const matches = (value) => value == null || (RESULT_MODE_CAPABILITIES[value] ?? ["?"]).every((capability) => capabilities.includes(capability));
+  if (result_mode !== undefined && !matches(result_mode)) {
+    return error(ctx, 400, `result_mode ${result_mode} does not match capabilities.`, "SKILL_INSTRUCTION_INVALID");
   }
+  // 생략해 이어받은 값이 capabilities와 맞지 않으면 거절하지 않고 버린다(ai#122).
+  const mode = result_mode !== undefined ? result_mode : matches(fallback.result_mode) ? fallback.result_mode : null;
   const chosen = targets === undefined ? fallback.targets : targets;
   const ordered = TARGET_ORDER.filter((target) => chosen.includes(target));
   return { targets: ordered.length > 0 ? ordered : ["current_document"], result_mode: mode ?? null };
