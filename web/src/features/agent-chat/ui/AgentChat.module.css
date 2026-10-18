@@ -1451,6 +1451,31 @@ button.result-link:focus-visible {
   background: var(--color-surface);
 }
 
+/* 잠긴 모델·provider (저가 모델 정책): Figma에 잠금 상태가 없어 기존 비활성 토큰(subtle)과 자물쇠 아이콘으로 표시한다. */
+.composer-model-provider-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-model-provider.is-locked,
+.composer-model-option.is-locked {
+  color: var(--color-subtle);
+}
+
+.composer-model-option.is-locked {
+  cursor: not-allowed;
+}
+
+.composer-model-option.is-locked:hover {
+  background: transparent;
+}
+
+.composer-model-lock {
+  flex: 0 0 auto;
+  color: var(--color-subtle);
+}
+
 /* 웹 서칭 토글 행: 구분선(1px border) 아래 12px, 라벨과 스위치 사이 40px */
 .composer-web-search {
   display: flex;

@@ -1,7 +1,17 @@
 import Image from "next/image";
-import { Square } from "lucide-react";
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { getProviderLabel, getProviderMenuLabel, groupAiModelsByProvider, type AiModel } from "@/entities/ai";
+import { Lock, Square } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  buildChatModelOptions,
+  getAiModelLockMessage,
+  getProviderLabel,
+  getProviderMenuLabel,
+  groupAiModelsByProvider,
+  isProviderLocked,
+  LOCKED_AI_MODELS,
+  type AiModel,
+  type AiModelOption
+} from "@/entities/ai";
 import modelMenuArrowIcon from "@/shared/assets/svg/agent/model-menu-arrow.svg";
 import modelMenuCheckIcon from "@/shared/assets/svg/agent/model-menu-check.svg";
 import { cx } from "@/shared/lib/classNames";
@@ -35,6 +45,13 @@ function modelKey(model: AiModel) {
 
 /** 모델 메뉴와 트리거 사이 간격(Figma 1691:16168). 메뉴 오른쪽 끝은 입력 박스 오른쪽 끝에 맞춘다. */
 const MODEL_MENU_GAP = 8;
+/** 하위 메뉴 모델 목록의 최대 높이(화면이 넉넉할 때). */
+const MODEL_OPTIONS_MAX_HEIGHT = 280;
+/** 화면이 아주 낮아도 모델 3줄은 보이게 한다. */
+const MODEL_OPTIONS_MIN_HEIGHT = 84;
+/** 하위 메뉴에서 모델 목록 밖 높이(머리글·간격·padding·테두리)와 화면 아래 여백. */
+const MODEL_SUBMENU_CHROME = 49;
+const MODEL_SUBMENU_VIEWPORT_MARGIN = 8;
 
 /** container 안 버튼 중 지금 포커스에서 step만큼 옮긴 버튼에 포커스를 준다(양끝은 이어진다). */
 function moveFocus(container: HTMLElement | null, step: number) {
@@ -84,6 +101,9 @@ export function AgentComposer({
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   // 메뉴가 채팅 패널(overflow: hidden) 왼쪽 밖으로 펼쳐지므로 화면 기준(fixed) 좌표로 띄운다.
   const [modelMenuPosition, setModelMenuPosition] = useState<{ right: number; bottom: number } | null>(null);
+  // 하위 메뉴는 아래로 길어지므로 화면 아래에서 잘리지 않게 모델 목록 높이를 줄인다(잠긴 모델까지 보여 주면 목록이 길다).
+  const [modelOptionsMaxHeight, setModelOptionsMaxHeight] = useState(MODEL_OPTIONS_MAX_HEIGHT);
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const modelListRef = useRef<HTMLDivElement | null>(null);
   const providerListRef = useRef<HTMLDivElement | null>(null);
@@ -98,7 +118,8 @@ export function AgentComposer({
   const isRecording = dictation.status === "recording";
   const isTranscribing = dictation.status === "transcribing";
   const selectedKey = selectedModel ? modelKey(selectedModel) : null;
-  const modelGroups = groupAiModelsByProvider(models);
+  // 카탈로그 모델은 고를 수 있고, 정책으로 빠진 모델은 잠금으로만 보여 준다.
+  const modelGroups = groupAiModelsByProvider(buildChatModelOptions(models, LOCKED_AI_MODELS));
   const activeGroup = modelGroups.find((group) => group.provider === activeProvider) ?? null;
 
   // ESC는 useDismissOnOutside가 ESC 레이어 스택으로 처리한다. 목록 안에 포커스가 있었으면 트리거로 돌려준다.
@@ -148,6 +169,13 @@ export function AgentComposer({
     providerListRef.current?.querySelector<HTMLButtonElement>("[aria-expanded='true']")?.focus();
   }, [isModelListOpen]);
 
+  useLayoutEffect(() => {
+    const menuTop = modelMenuRef.current?.getBoundingClientRect().top;
+    if (!isModelListOpen || menuTop === undefined) return;
+    const available = window.innerHeight - menuTop - MODEL_SUBMENU_CHROME - MODEL_SUBMENU_VIEWPORT_MARGIN;
+    setModelOptionsMaxHeight(Math.max(MODEL_OPTIONS_MIN_HEIGHT, Math.min(MODEL_OPTIONS_MAX_HEIGHT, available)));
+  }, [isModelListOpen, modelMenuPosition]);
+
   // fixed 좌표는 열 때 한 번 잡으므로 창 크기가 바뀌면 메뉴를 닫는다.
   useEffect(() => {
     if (!isModelListOpen) return;
@@ -174,7 +202,11 @@ export function AgentComposer({
     // 하위 메뉴가 바뀐 provider로 다시 그려진 뒤에 포커스를 옮긴다.
     requestAnimationFrame(() => {
       const submenu = modelSubmenuRef.current;
-      (submenu?.querySelector<HTMLButtonElement>("[aria-selected='true']") ?? submenu?.querySelector<HTMLButtonElement>("button"))?.focus();
+      (
+        submenu?.querySelector<HTMLButtonElement>("[aria-selected='true']") ??
+        submenu?.querySelector<HTMLButtonElement>("button:not([aria-disabled='true'])") ??
+        submenu?.querySelector<HTMLButtonElement>("button")
+      )?.focus();
     });
   }
 
@@ -198,7 +230,9 @@ export function AgentComposer({
     }
   }
 
-  function chooseModel(model: AiModel) {
+  function chooseModel(model: AiModelOption) {
+    // 잠긴 모델은 포커스는 받지만(스크린 리더가 읽도록) 클릭·Enter로 고를 수 없다.
+    if (model.lockReason) return;
     onModelChange(model);
     setIsModelListOpen(false);
     // Safari는 클릭한 버튼에 포커스를 주지 않으므로 목록 안 포커스 여부와 관계없이 트리거로 돌려준다.
@@ -280,16 +314,20 @@ export function AgentComposer({
           </button>
           {/* Figma 1691:16177: 왼쪽 provider 메뉴(1691:16178, 아래 웹 서칭) + 오른쪽 하위 메뉴(1691:16196, provider의 모델) */}
           {isModelListOpen && modelMenuPosition && (
-            <div className={styles["composer-model-menu"]} style={modelMenuPosition}>
+            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef}>
               <div className={styles["composer-model-list"]}>
                 <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label="모델 제공사">
                   {modelGroups.map((group) => {
                     const isActive = group.provider === activeProvider;
+                    const isLocked = isProviderLocked(group.models);
+                    const providerLabel = getProviderMenuLabel(group.provider);
                     return (
                       <button
                         key={group.provider}
                         type="button"
-                        className={cx(styles["composer-model-provider"], isActive && styles["is-active"])}
+                        className={cx(styles["composer-model-provider"], isActive && styles["is-active"], isLocked && styles["is-locked"])}
+                        aria-label={isLocked ? `${providerLabel}, ${getAiModelLockMessage("cost_policy")}` : undefined}
+                        title={isLocked ? getAiModelLockMessage("cost_policy") : undefined}
                         aria-haspopup="listbox"
                         aria-expanded={isActive}
                         aria-controls={isActive ? modelSubmenuId : undefined}
@@ -298,7 +336,10 @@ export function AgentComposer({
                         onClick={() => enterModelSubmenu(group.provider)}
                         onKeyDown={(event) => handleProviderKeyDown(event, group.provider)}
                       >
-                        <span>{getProviderMenuLabel(group.provider)}</span>
+                        <span className={styles["composer-model-provider-name"]}>
+                          {providerLabel}
+                          {isLocked && <Lock size={12} aria-hidden className={styles["composer-model-lock"]} />}
+                        </span>
                         {isActive && <Image src={modelMenuArrowIcon} alt="" aria-hidden className={styles["composer-model-arrow"]} />}
                       </button>
                     );
@@ -332,21 +373,27 @@ export function AgentComposer({
                       role="listbox"
                       aria-label={`${getProviderLabel(activeGroup.provider)} 모델`}
                       className={styles["composer-model-options"]}
+                      style={{ maxHeight: modelOptionsMaxHeight }}
                     >
                       {activeGroup.models.map((model) => {
                         const isSelected = modelKey(model) === selectedKey;
+                        const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
                         return (
                           <button
                             key={modelKey(model)}
                             type="button"
                             role="option"
                             aria-selected={isSelected}
-                            className={styles["composer-model-option"]}
+                            aria-disabled={lockMessage ? true : undefined}
+                            aria-label={lockMessage ? `${model.display_name}, ${lockMessage}` : undefined}
+                            title={lockMessage ?? undefined}
+                            className={cx(styles["composer-model-option"], lockMessage && styles["is-locked"])}
                             onClick={() => chooseModel(model)}
                             onKeyDown={handleModelKeyDown}
                           >
                             <span>{model.display_name}</span>
                             {isSelected && <Image src={modelMenuCheckIcon} alt="" aria-hidden />}
+                            {lockMessage && <Lock size={14} aria-hidden className={styles["composer-model-lock"]} />}
                           </button>
                         );
                       })}
