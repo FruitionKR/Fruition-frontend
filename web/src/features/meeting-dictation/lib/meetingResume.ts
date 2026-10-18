@@ -15,9 +15,20 @@ export const MEETING_RESUME_MESSAGES = {
   liveConnected: "다른 화면에서 이 회의를 받아쓰고 있어요. 받아쓰기를 멈춘 뒤 회의록을 만들 수 있어요."
 } as const;
 
-/** 최신 회의록 초안을 조회해야 하는지. 전사가 끝난(open) 회의만 회의록을 가질 수 있다. */
-export function shouldLoadNotesOnResume(meeting: Pick<MeetingResponse, "status">): boolean {
-  return meeting.status === "open";
+/**
+ * 최신 회의록 초안을 조회해야 하는지. 초안이 없는 회의를 조회하면 404라 브라우저 콘솔에 오류가 남으므로 있을 만할 때만 조회한다.
+ * - 전사가 끝난(open) 회의만 회의록을 가질 수 있다.
+ * - 목록의 has_notes(ready·applied 초안)가 true면 조회한다.
+ * - has_notes가 false여도 받아쓴 문장이 있으면 생성 중(generating)·실패(failed) 초안이 있을 수 있어 조회한다
+ *   (has_notes는 이 둘을 세지 않는다). 받아쓴 문장이 없으면 초안을 만들 수 없으므로(422) 조회하지 않는다.
+ */
+export function shouldLoadNotesOnResume(
+  meeting: Pick<MeetingResponse, "status" | "segments">,
+  listItem: Pick<MeetingListItem, "has_notes">
+): boolean {
+  if (meeting.status !== "open") return false;
+  if (listItem.has_notes) return true;
+  return hasFinalSegments(transcriptFromSegments(meeting.segments));
 }
 
 /**

@@ -45,8 +45,20 @@ test("다시 열기: 전사 중은 진행 표시(조회 대기), 실패는 서�
   assert.deepEqual(resumedMeetingView(meetingOf({ status: "awaiting_upload", source: "upload", segments: [] }), null), {
     phase: "stopped", notice: { text: MEETING_RESUME_MESSAGES.awaitingUpload, tone: "info" }
   });
-  for (const status of ["transcribing", "failed", "awaiting_upload"]) assert.equal(shouldLoadNotesOnResume({ status }), false, status);
-  assert.equal(shouldLoadNotesOnResume({ status: "open" }), true);
+  for (const status of ["transcribing", "failed", "awaiting_upload"]) {
+    assert.equal(shouldLoadNotesOnResume(meetingOf({ status }), { has_notes: true }), false, status);
+  }
+});
+
+test("다시 열기: 회의록 초안은 있을 만할 때만 조회한다(없는 초안 조회는 404라 콘솔 오류가 남는다)", () => {
+  // 목록이 ready·applied 초안이 있다고 하면 조회한다.
+  assert.equal(shouldLoadNotesOnResume(meetingOf(), { has_notes: true }), true);
+  // has_notes는 생성 중·실패 초안을 세지 않으므로, 받아쓴 문장이 있으면 그대로 조회해 생성 중·실패 화면을 놓치지 않는다.
+  assert.equal(shouldLoadNotesOnResume(meetingOf(), { has_notes: false }), true);
+  // 받아쓴 문장이 없으면 초안을 만들 수 없으니 조회하지 않는다.
+  assert.equal(shouldLoadNotesOnResume(meetingOf({ segments: [] }), { has_notes: false }), false);
+  const unfinishedOnly = meetingOf({ segments: [{ id: "s1_1", position: 1, status: "partial", text: "말하는 중" }] });
+  assert.equal(shouldLoadNotesOnResume(unfinishedOnly, { has_notes: false }), false);
 });
 
 test("다시 열기: 끝난 회의는 회의록 초안 상태대로(생성 중·회의록·저장됨) 열고, 없으면 받아쓴 내용으로 연다", () => {

@@ -25,6 +25,7 @@ import {
   type ChatPairSelectionKind
 } from "@/features/agent-chat/lib/chatPairSelection";
 import type { SourceBlockHighlight } from "@/entities/document";
+import type { MeetingListItem } from "@/entities/meeting";
 import type { GraphNode } from "@/entities/wiki";
 import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
@@ -91,9 +92,9 @@ export function AgentPanel({
   const [isMeetingListOpen, setIsMeetingListOpen] = useState(false);
   const [meetingOpenError, setMeetingOpenError] = useState<string | null>(null);
   const resumeMeeting = meeting.resume;
-  const openMeetingFromList = useCallback((meetingId: string) => {
+  const openMeetingFromList = useCallback((item: MeetingListItem) => {
     setMeetingOpenError(null);
-    void resumeMeeting(meetingId).then(setMeetingOpenError);
+    void resumeMeeting(item).then(setMeetingOpenError);
   }, [resumeMeeting]);
   const isMeetingAreaOpen = isMeetingViewOpen || isMeetingListOpen;
   useEffect(() => {

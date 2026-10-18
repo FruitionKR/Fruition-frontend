@@ -15,7 +15,7 @@ export function MeetingListView({
   onClose,
   openErrorMessage
 }: {
-  onOpen: (meetingId: string) => void;
+  onOpen: (item: MeetingListItem) => void;
   onClose: () => void;
   /** 고른 회의를 열지 못했을 때 문구 */
   openErrorMessage: string | null;
@@ -81,12 +81,12 @@ export function MeetingListView({
   );
 }
 
-function MeetingListRow({ item, onOpen }: { item: MeetingListItem; onOpen: (meetingId: string) => void }) {
+function MeetingListRow({ item, onOpen }: { item: MeetingListItem; onOpen: (item: MeetingListItem) => void }) {
   const badge = meetingListBadge(item);
   const details = [formatRelativeTime(item.created_at), item.source === "upload" ? "녹음 파일" : "실시간 받아쓰기"];
   if (item.has_recording) details.push("녹음 있음");
   return (
-    <button type="button" className={styles["meeting-list-item"]} onClick={() => onOpen(item.meeting_id)}>
+    <button type="button" className={styles["meeting-list-item"]} onClick={() => onOpen(item)}>
       <span className={styles["meeting-list-text"]}>
         <span className={styles["meeting-list-name"]}>{item.display_name}</span>
         <span className={styles["meeting-list-meta"]}>
