@@ -11,12 +11,12 @@
   color: var(--color-foreground);
 }
 
-/* Hero block (Figma 1482:10600): 위 48 · 좌우 40, 제목과 탭 사이 24 */
+/* Hero block (Figma 1567:25089): 위 56 · 좌우 40, 제목과 탭 사이 24 */
 .hero {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 48px 40px 0;
+  padding: 56px 40px 0;
 }
 
 .heading {
@@ -156,10 +156,8 @@
 .create-button:focus-visible,
 .search-chip:focus-visible,
 .sort-button:focus-visible,
-.command:focus-visible,
 .run:focus-visible,
-.more-button:focus-visible,
-.check:has(input:focus-visible) {
+.more-button:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
@@ -170,7 +168,7 @@
   padding: 0 40px 40px;
 }
 
-/* 행 (Figma 1482:10746): 안쪽 12, 열은 고정 폭(200/300/80/80/28)이고 남는 폭을 열 사이에 고르게 나눈다. */
+/* 행 (Figma 1708:4536): 안쪽 12, 열은 고정 폭(132/300/48/52/28)이고 남는 폭을 열 사이에 고르게 나눈다. */
 .row {
   display: flex;
   align-items: center;
@@ -186,6 +184,16 @@
   color: var(--color-body);
 }
 
+/* 행 클릭 = 스킬 상세 시트 */
+.is-clickable {
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.is-clickable:hover {
+  background-image: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
+}
+
 .cell {
   flex: 0 0 auto;
   display: flex;
@@ -194,8 +202,8 @@
 }
 
 .col-command {
-  width: 200px;
-  gap: 12px;
+  width: 132px;
+  gap: 6px;
 }
 
 .col-description {
@@ -203,13 +211,12 @@
 }
 
 .col-scope {
-  width: 80px;
+  width: 48px;
 }
 
-/* 사용: 스위치 + 실행. 시안 열 폭 80에 스위치가 더해져 넓힌다. */
+/* 사용 상태: 실행 링크 (Figma 1708:4542) */
 .col-state {
-  width: 96px;
-  gap: 12px;
+  width: 52px;
 }
 
 .col-more {
@@ -251,62 +258,12 @@
   flex: 0 0 auto;
 }
 
-/* check (Figma 1482:10969): 20×20, 1.4px 테두리 · radius 6 */
-.check {
-  position: relative;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  border: 1.4px solid var(--color-border);
-  border-radius: 6px;
-  color: var(--color-border);
-  cursor: pointer;
-  transition: background-color 150ms ease-out, border-color 150ms ease-out;
-}
-
-.check input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-
-.check-mark {
-  position: absolute;
-  inset: -1.4px;
-  pointer-events: none;
-}
-
-.check:has(input:checked) {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.check:has(input:disabled) {
-  opacity: 0.5;
-  cursor: default;
-}
-
+/* 커맨드 (Figma 1708:4537): 본문색 일반 텍스트, 열 폭을 넘으면 말줄임 */
 .command {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-body);
-  font: inherit;
-  text-align: left;
-  text-decoration: underline;
-  text-underline-position: from-font;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-}
-
-.command:hover {
-  color: var(--color-foreground);
 }
 
 .description {
@@ -402,69 +359,6 @@
   color: var(--color-danger);
 }
 
-/* 정의 수정 폼: 행 바로 아래 */
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 12px;
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-}
-
-.editor label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-muted);
-}
-
-.editor textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-canvas);
-  color: var(--color-foreground);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.primary-button,
-.secondary-button {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primary-button {
-  border: 0;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.primary-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.secondary-button {
-  border: 1px solid var(--color-placeholder);
-  background: transparent;
-  color: var(--color-body);
-}
-
 .message {
   margin: 0;
   padding: 24px 12px;
@@ -496,8 +390,7 @@
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduce-motion="false"]) .tab,
   :root:not([data-reduce-motion="false"]) .icon-button,
-  :root:not([data-reduce-motion="false"]) .create-button,
-  :root:not([data-reduce-motion="false"]) .check {
+  :root:not([data-reduce-motion="false"]) .create-button {
     transition: none;
   }
 }

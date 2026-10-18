@@ -7,13 +7,14 @@ import {
   enableSkill,
   fetchSkills,
   updateSkill,
+  type SkillExecutionOptions,
   type SkillResponse
 } from "@/entities/skill";
 import { skillUpdateRequest } from "@/features/skill-authoring";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { needsSkillEnable } from "../lib/skillTable";
 
-export type SkillDraft = { description: string; instructionsMarkdown: string };
+export type SkillDraft = { description: string; instructionsMarkdown: string } & SkillExecutionOptions;
 
 /**
  * 스킬 목록·정의 수정·삭제. 스킬은 항상 사용 상태로 두므로 꺼진 스킬은 불러오는 대로 켠다. 스킬 만들기 위저드의 중복 커맨드 검사와

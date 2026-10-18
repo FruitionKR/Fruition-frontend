@@ -38,6 +38,23 @@ export type MeetingResponse = {
   created_at: string;
 };
 
+/** 회의 목록 항목(GET .../meetings). 구간·연결 기록은 없어 GET .../meetings/{id}로 이어서 조회한다. */
+export type MeetingListItem = {
+  meeting_id: string;
+  display_name: string;
+  source: MeetingSource;
+  status: MeetingStatus;
+  has_recording: boolean;
+  /** 만들어졌거나(ready) 저장된(applied) 회의록 초안이 있는지. 생성 중(generating)은 false다. */
+  has_notes: boolean;
+  created_at: string;
+  /** 상태 변경·녹음 저장 시각. 받아쓰기·회의록으로는 바뀌지 않아 "마지막 활동 시각"이 아니다. */
+  updated_at: string;
+};
+
+/** 최근 생성 순. next_cursor가 null이면 마지막 페이지다. */
+export type MeetingListResponse = { items: MeetingListItem[]; next_cursor: string | null };
+
 /** 녹음 원본 재생 주소(5분 유효 presigned GET) */
 export type MeetingRecordingUrlResponse = { url: string; expires_at: string };
 

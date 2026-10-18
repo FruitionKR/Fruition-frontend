@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SkillResponse } from "@/entities/skill";
-import { SkillCreateWizard } from "@/features/skill-authoring";
+import { SkillCreateSheet, SkillDetailSheet } from "@/features/skill-authoring";
 import { SkillSearchModal } from "./SkillSearchModal";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
@@ -20,8 +20,8 @@ import {
   type SkillSortKey,
   type SkillTab
 } from "../lib/skillTable";
-import { useSkillCatalog, type SkillDraft } from "../model/useSkillCatalog";
-import { SkillCheckMark, SkillMoreIcon, SkillSearchIcon, SkillSortIcon } from "./SkillIcons";
+import { useSkillCatalog } from "../model/useSkillCatalog";
+import { SkillMoreIcon, SkillSearchIcon, SkillSortIcon } from "./SkillIcons";
 import styles from "./SkillsView.module.css";
 
 const TABS: { id: SkillTab; label: string }[] = [
@@ -30,40 +30,18 @@ const TABS: { id: SkillTab; label: string }[] = [
   { id: "personal", label: "개인 스킬" }
 ];
 
-/** sortKey가 있는 열(커맨드·저장범위)만 머리글을 눌러 정렬한다 */
+/** Figma 1708:4528: 정렬 아이콘은 커맨드 열에만 있다. 저장범위는 탭으로 거른다. */
 const COLUMNS: { label: string; className: string; sortKey?: SkillSortKey }[] = [
   { label: "커맨드", className: "col-command", sortKey: "command" },
   { label: "설명", className: "col-description" },
-  { label: "저장범위", className: "col-scope", sortKey: "scope" },
+  { label: "저장범위", className: "col-scope" },
   { label: "사용 상태", className: "col-state" }
 ];
 
-/** Figma check(20×20): 테두리 상자 + 체크 표시. 실제 입력은 시각적으로 숨긴 checkbox다. */
-function SkillCheckbox({ checked, label, disabled, onChange }: {
-  checked: boolean;
-  label: string;
-  disabled?: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className={styles.check}>
-      <input
-        type="checkbox"
-        aria-label={label}
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <SkillCheckMark className={styles["check-mark"]} />
-    </label>
-  );
-}
-
-function ColumnHeader({ column, sort, onSort, children }: {
+function ColumnHeader({ column, sort, onSort }: {
   column: (typeof COLUMNS)[number];
   sort: SkillSort;
   onSort: (key: SkillSortKey) => void;
-  children?: ReactNode;
 }) {
   const { sortKey } = column;
   const direction = sortKey && sort?.key === sortKey ? sort.direction : null;
@@ -73,7 +51,6 @@ function ColumnHeader({ column, sort, onSort, children }: {
       role="columnheader"
       aria-sort={sortKey ? (direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none") : undefined}
     >
-      {children}
       {sortKey ? (
         <button type="button" className={cx(styles["sort-button"], direction && styles["is-sorted"])} onClick={() => onSort(sortKey)}>
           {column.label}
@@ -88,7 +65,8 @@ function ColumnHeader({ column, sort, onSort, children }: {
 
 /**
  * 스킬 화면 (Figma 1482:9848). 레일 번개로 연다.
- * 탭 = 저장범위 필터, 열 머리글 = 정렬, 커맨드 = 정의 수정, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
+ * 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행 클릭·더보기 '수정' = 스킬 상세 시트(Figma 1708:4059),
+ * 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
  */
 export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) => void }) {
   const workspaceId = getSelectedWorkspaceId();
@@ -101,11 +79,9 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
   const [searchText, setSearchText] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<SkillDraft>({ description: "", instructionsMarkdown: "" });
+  const [detailSkillId, setDetailSkillId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
   const deleteDialogRef = useRef<HTMLDialogElement>(null);
 
@@ -126,29 +102,14 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
     return sortSkills(inTab, sort);
   }, [catalog.skills, activeTab, searchText, sort]);
 
-  const isAllSelected = visibleSkills.length > 0 && visibleSkills.every((skill) => selectedIds.has(skill.id));
+  // 시트는 목록 캐시의 최신 스킬을 본다. 목록에서 사라지면(삭제 등) 시트도 그리지 않는다.
+  const detailSkill = detailSkillId == null ? null : catalog.skills.find((skill) => skill.id === detailSkillId) ?? null;
 
-  function toggleSelected(skillId: string, checked: boolean) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (checked) next.add(skillId);
-      else next.delete(skillId);
-      return next;
-    });
-  }
-
-  function openEditor(skill: SkillResponse) {
-    const version = skill.enabled_version ?? skill.latest_version;
+  function openDetail(skill: SkillResponse) {
+    setOpenMenuId(null);
     updateMutation.reset();
-    setEditingId(skill.id);
-    setDraft({ description: version?.description ?? "", instructionsMarkdown: version?.instructions_markdown ?? "" });
-  }
-
-  function saveDraft(skill: SkillResponse) {
-    updateMutation.mutate({ skill, draft }, {
-      // 저장 중 다른 스킬 편집으로 바꿨을 수 있으니 저장한 스킬의 편집만 닫는다.
-      onSuccess: () => setEditingId((current) => (current === skill.id ? null : current))
-    });
+    deleteMutation.reset();
+    setDetailSkillId(skill.id);
   }
 
   const panelId = `${idPrefix}-panel`;
@@ -204,15 +165,7 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
         {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
         <div className={styles.table} role="table" aria-label="스킬 목록">
           <div className={cx(styles.row, styles["row-head"])} role="row">
-            <ColumnHeader column={COLUMNS[0]} sort={sort} onSort={(key) => setSort((current) => nextSkillSort(current, key))}>
-              <SkillCheckbox
-                checked={isAllSelected}
-                label="표시된 스킬 전체 선택"
-                disabled={visibleSkills.length === 0}
-                onChange={(checked) => setSelectedIds(checked ? new Set(visibleSkills.map((skill) => skill.id)) : new Set())}
-              />
-            </ColumnHeader>
-            {COLUMNS.slice(1).map((column) => (
+            {COLUMNS.map((column) => (
               <ColumnHeader key={column.label} column={column} sort={sort} onSort={(key) => setSort((current) => nextSkillSort(current, key))} />
             ))}
             <span className={styles["col-more"]} aria-hidden />
@@ -227,25 +180,14 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
 
           {visibleSkills.map((skill) => {
             const command = skillCommand(skill);
-            const isEditing = editingId === skill.id;
             const isMenuOpen = openMenuId === skill.id;
             return (
               <div key={skill.id} role="rowgroup">
-                <div className={styles.row} role="row">
-                  <div className={cx(styles.cell, styles["col-command"])} role="cell">
-                    <SkillCheckbox
-                      checked={selectedIds.has(skill.id)}
-                      label={`${command} 선택`}
-                      onChange={(checked) => toggleSelected(skill.id, checked)}
-                    />
-                    <button
-                      type="button"
-                      className={styles.command}
-                      aria-expanded={isEditing}
-                      onClick={() => (isEditing ? setEditingId(null) : openEditor(skill))}
-                    >
-                      {command}
-                    </button>
+                {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 더보기 '수정'으로 연다. */}
+                <div className={cx(styles.row, styles["is-clickable"])} role="row" onClick={() => openDetail(skill)}>
+                  {/* 커맨드 (Figma 1708:4537): 일반 텍스트 */}
+                  <div className={cx(styles.cell, styles["col-command"], styles.command)} role="cell" title={command}>
+                    {command}
                   </div>
                   <div className={cx(styles.cell, styles["col-description"], styles.description)} role="cell">
                     {skillDescription(skill)}
@@ -255,9 +197,17 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
                   </div>
                   {/* 사용 상태: 실행(Figma 1482:10981). 스킬은 항상 사용 상태다. */}
                   <div className={cx(styles.cell, styles["col-state"])} role="cell">
-                    <button type="button" className={styles.run} onClick={() => onRunSkill(skill)}>실행</button>
+                    <button type="button" className={styles.run} onClick={(event) => {
+                      event.stopPropagation();
+                      onRunSkill(skill);
+                    }}>실행</button>
                   </div>
-                  <div className={styles["col-more"]} role="cell" ref={isMenuOpen ? menuRef : undefined}>
+                  <div
+                    className={styles["col-more"]}
+                    role="cell"
+                    ref={isMenuOpen ? menuRef : undefined}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <button
                       type="button"
                       className={styles["more-button"]}
@@ -270,12 +220,8 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
                     </button>
                     {isMenuOpen && (
                       <div className={styles.menu} role="menu">
-                        <button type="button" role="menuitem" onClick={() => {
-                          setOpenMenuId(null);
-                          if (isEditing) setEditingId(null);
-                          else openEditor(skill);
-                        }}>
-                          {isEditing ? "수정 닫기" : "수정"}
+                        <button type="button" role="menuitem" onClick={() => openDetail(skill)}>
+                          수정
                         </button>
                         <button type="button" role="menuitem" className={styles["is-danger"]} onClick={() => {
                           setOpenMenuId(null);
@@ -288,41 +234,6 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
                     )}
                   </div>
                 </div>
-
-                {isEditing && (
-                  <div className={styles.editor}>
-                    <label htmlFor={`${idPrefix}-${skill.id}-description`}>설명</label>
-                    <textarea
-                      id={`${idPrefix}-${skill.id}-description`}
-                      rows={2}
-                      value={draft.description}
-                      onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-                    />
-                    <label htmlFor={`${idPrefix}-${skill.id}-instructions`}>실행 지침</label>
-                    <textarea
-                      id={`${idPrefix}-${skill.id}-instructions`}
-                      rows={6}
-                      value={draft.instructionsMarkdown}
-                      onChange={(event) => setDraft({ ...draft, instructionsMarkdown: event.target.value })}
-                    />
-                    {updateMutation.isError && (
-                      <p className={styles.error} role="alert">
-                        {getErrorMessage(updateMutation.error, "스킬 정의를 수정하지 못했습니다.")}
-                      </p>
-                    )}
-                    <div className={styles["editor-actions"]}>
-                      <button type="button" className={styles["secondary-button"]} onClick={() => setEditingId(null)}>취소</button>
-                      <button
-                        type="button"
-                        className={styles["primary-button"]}
-                        disabled={updateMutation.isPending}
-                        onClick={() => saveDraft(skill)}
-                      >
-                        {updateMutation.isPending ? "저장 중…" : "저장"}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -351,18 +262,24 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
             onClick={() => {
               if (!deleteTarget) return;
               deleteMutation.mutate(deleteTarget, {
-                onSuccess: () => {
-                  toggleSelected(deleteTarget.id, false);
-                  setEditingId((current) => (current === deleteTarget.id ? null : current));
-                  setDeleteTarget(null);
-                }
+                onSuccess: () => setDeleteTarget(null)
               });
             }}>{deleteMutation.isPending ? "삭제 중…" : "삭제"}</button>
         </div>
       </dialog>
 
       {isCreateOpen && workspaceId != null && (
-        <SkillCreateWizard workspaceId={workspaceId} onClose={() => setIsCreateOpen(false)} onPublished={() => void catalog.refresh()} />
+        <SkillCreateSheet workspaceId={workspaceId} onClose={() => setIsCreateOpen(false)} onPublished={() => void catalog.refresh()} />
+      )}
+      {detailSkill && workspaceId != null && (
+        <SkillDetailSheet
+          key={detailSkill.id}
+          workspaceId={workspaceId}
+          skill={detailSkill}
+          onClose={() => setDetailSkillId(null)}
+          onSubmit={(draft) => updateMutation.mutateAsync({ skill: detailSkill, draft })}
+          onDelete={() => deleteMutation.mutateAsync(detailSkill)}
+        />
       )}
       {isSearchOpen && (
         <SkillSearchModal

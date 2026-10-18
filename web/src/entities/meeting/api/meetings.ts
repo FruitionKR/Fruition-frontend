@@ -7,8 +7,10 @@ import {
   workspacePath
 } from "@/shared/api/client";
 import { uploadDirectMultipart, type DirectMultipartOptions } from "@/entities/document/api/multipartUpload";
+import { buildMeetingListQuery, type MeetingListQuery } from "../lib/meetingListQuery";
 import type {
   MeetingAppendPreviewResponse,
+  MeetingListResponse,
   MeetingLiveTicketResponse,
   MeetingNotesApplyRequest,
   MeetingNotesResponse,
@@ -28,6 +30,7 @@ export const MEETING_ERROR_MESSAGES = {
   previewFailed: "문서 끝에 추가할 내용을 미리 보지 못했습니다.",
   applyFailed: "회의록을 문서로 저장하지 못했습니다.",
   loadFailed: "회의 상태를 불러오지 못했습니다.",
+  listFailed: "회의 목록을 불러오지 못했습니다.",
   uploadFailed: "녹음 파일을 올리지 못했습니다.",
   transcriptionCancelFailed: "전사를 취소하지 못했습니다.",
   recordingUrlFailed: "녹음을 불러오지 못했습니다.",
@@ -108,6 +111,12 @@ export async function applyMeetingNotes(
     body: JSON.stringify(request)
   });
   return parseJsonOrThrow<MeetingNotesResponse>(response, MEETING_ERROR_MESSAGES.applyFailed);
+}
+
+/** 내가 만든 회의를 최근 생성 순으로 받는다(다른 사람의 회의는 없다). 새로고침 뒤 진행 중이던 회의를 다시 여는 데 쓴다. */
+export async function fetchMeetings(query: MeetingListQuery = {}): Promise<MeetingListResponse> {
+  const response = await apiFetch(`${workspacePath(getWorkspaceId(), "meetings")}${buildMeetingListQuery(query)}`, { cache: "no-store" });
+  return parseJsonOrThrow<MeetingListResponse>(response, MEETING_ERROR_MESSAGES.listFailed);
 }
 
 /** 회의 상태·전사 구간. 녹음 파일 전사(transcribing)가 끝났는지 이 조회로 기다린다. */

@@ -15,6 +15,7 @@ import {
   requestMeetingNotes,
   uploadMeetingRecording,
   type MeetingAppendPreviewResponse,
+  type MeetingListItem,
   type MeetingNotesResponse,
   type MeetingResponse,
   type MeetingSource
@@ -27,15 +28,16 @@ import { describeMicrophoneError } from "@/features/agent-chat/lib/dictation";
 import { buildLiveSocketUrl } from "../lib/liveProtocol";
 import { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, transcriptFromSegments, type LiveTranscript } from "../lib/liveTranscript";
 import {
+  canCloseMeetingInPhase,
   canDeleteMeetingInPhase,
   describeNotesRequestError,
   describeNotesSaveError,
   describeRecordingError,
-  isMeetingBusyPhase,
   MEETING_MESSAGES,
   shouldConfirmLeavingPhase,
   type MeetingPhase
 } from "../lib/meetingNotesFlow";
+import { resumedMeetingView, shouldLoadNotesOnResume } from "../lib/meetingResume";
 import { createLiveSession, type LiveSession, type LiveSocket, type LiveStopResult } from "./liveSession";
 import { isMicrophoneCaptureSupported, startMicrophoneCapture, type MicrophoneCapture } from "./microphoneCapture";
 
@@ -99,6 +101,8 @@ export function useMeetingSession({
   onDocumentSavedRef.current = onDocumentSaved;
   const onMeetingDeletedRef = useRef(onMeetingDeleted);
   onMeetingDeletedRef.current = onMeetingDeleted;
+  // 회의 화면을 닫거나 다른 회의를 열 때마다 바뀐다. 닫은 뒤 늦게 끝난 요청(회의록 생성·회의 불러오기)이 화면을 다시 열지 않게 한다.
+  const viewRunRef = useRef(0);
 
   const releaseCapture = useCallback(() => {
     microphoneRef.current?.stop();
@@ -125,10 +129,12 @@ export function useMeetingSession({
     setCanRequestPartial(false);
     // 같은 생성 요청의 재시도는 같은 키로 보낸다(같은 버전을 돌려받는다).
     const key = crypto.randomUUID();
+    const viewRun = viewRunRef.current;
+    const isAbandoned = () => !isMountedRef.current || viewRun !== viewRunRef.current;
     for (let attempt = 0; ; attempt += 1) {
       try {
         const response = await requestMeetingNotes(target.meeting_id, { allowPartial, key });
-        if (!isMountedRef.current) return;
+        if (isAbandoned()) return;
         setNotes(response);
         if (response.status === "ready") setPhase("ready");
         else if (response.status === "failed") {
@@ -137,10 +143,11 @@ export function useMeetingSession({
         }
         return;
       } catch (error) {
-        if (!isMountedRef.current) return;
+        if (isAbandoned()) return;
         const described = describeNotesRequestError(error);
         if (described.liveStillOpen && attempt < LIVE_RELEASE_RETRIES) {
           await wait(LIVE_RELEASE_DELAY_MS);
+          if (isAbandoned()) return;
           continue;
         }
         setCanRequestPartial(described.incomplete);
@@ -378,7 +385,8 @@ export function useMeetingSession({
     uploadAbortRef.current?.abort();
   }, []);
 
-  // 올리는 중·전사 중에 탭을 닫거나 새로고침하면 그 회의를 다시 열 수 없으므로 브라우저 확인을 받는다.
+  // 녹음 파일 조각을 올리는 중에 탭을 닫거나 새로고침하면 업로드를 이어 갈 수 없으므로 브라우저 확인을 받는다.
+  // 전사 중에는 묻지 않는다. 전사는 서버에서 이어지고 회의 목록에서 다시 열 수 있다.
   const confirmsLeaving = shouldConfirmLeavingPhase(phase);
   useEffect(() => {
     if (!confirmsLeaving) return;
@@ -445,6 +453,9 @@ export function useMeetingSession({
   }, [meeting, phase, settleTranscription]);
 
   const resetView = useCallback(() => {
+    viewRunRef.current += 1;
+    // 진행 중이던 전사 취소 응답이 닫은 화면을 다시 열지 않게 한다.
+    transcriptionRunRef.current += 1;
     setPhase("idle");
     setMeeting(null);
     setNotes(null);
@@ -479,12 +490,15 @@ export function useMeetingSession({
 
   const cancelNotes = useCallback(async () => {
     if (!meeting || phase !== "generating") return;
+    const viewRun = viewRunRef.current;
     try {
       const cancelled = await cancelMeetingNotes(meeting.meeting_id);
+      if (!isMountedRef.current || viewRun !== viewRunRef.current) return;
       setNotes(cancelled);
       setNotice({ text: MEETING_MESSAGES.notesCancelled, tone: "info" });
       setPhase("stopped");
     } catch (error) {
+      if (!isMountedRef.current || viewRun !== viewRunRef.current) return;
       // 이미 끝났으면(409 MEETING_NOTES_NOT_GENERATING) 다음 조회가 결과를 보여 준다.
       setNotice({ text: getErrorMessage(error, MEETING_ERROR_MESSAGES.notesCancelFailed), tone: "error" });
     }
@@ -551,11 +565,57 @@ export function useMeetingSession({
     void generateNotes(meeting, allowPartial);
   }, [generateNotes, meeting, phase]);
 
-  /** 회의 화면을 닫고 채팅으로 돌아간다. 회의·전사·초안은 서버에 남는다. */
+  /**
+   * 회의 화면을 닫고 채팅(또는 회의 목록)으로 돌아간다. 회의·전사·초안은 서버에 남는다.
+   * 전사·회의록 생성 중에도 닫을 수 있다. 서버에서 이어지고 회의 목록에서 다시 열면 진행 상태부터 보여 준다.
+   */
   const close = useCallback(() => {
-    if (phase === "idle" || isMeetingBusyPhase(phase)) return;
+    if (!canCloseMeetingInPhase(phase)) return;
     resetView();
   }, [phase, resetView]);
+
+  /**
+   * 회의 목록에서 고른 회의를 다시 연다(진행 중인 회의 이어 보기). 회의와 최신 회의록 초안을 받아
+   * 상태에 맞는 화면(전사 대기·실패 안내·받아쓴 내용·회의록 대기·회의록·저장됨)으로 연다. 녹음이 있으면 재생도 보인다.
+   * 불러오지 못하면 화면을 열지 않고 오류 문구를 돌려준다(목록이 보여 준다).
+   */
+  const resume = useCallback(async (item: Pick<MeetingListItem, "meeting_id" | "has_notes">): Promise<string | null> => {
+    const meetingId = item.meeting_id;
+    if (phase !== "idle") return null;
+    viewRunRef.current += 1;
+    const viewRun = viewRunRef.current;
+    const isAbandoned = () => !isMountedRef.current || viewRun !== viewRunRef.current;
+    setNotes(null);
+    setPreview(null);
+    setNotice(null);
+    setCanRequestPartial(false);
+    setTranscript(EMPTY_TRANSCRIPT);
+    setMeeting(null);
+    setPhase("opening");
+    try {
+      const target = await fetchMeeting(meetingId);
+      const latestNotes = shouldLoadNotesOnResume(target, item)
+        ? await fetchMeetingNotes(meetingId).catch((error: unknown) => {
+          // 회의록 초안이 아직 없으면 404다. 초안 없음으로 보고 나머지 오류는 그대로 올린다.
+          if (error instanceof ApiError && error.status === 404) return null;
+          throw error;
+        })
+        : null;
+      if (isAbandoned()) return null;
+      const view = resumedMeetingView(target, latestNotes);
+      setSource(target.source);
+      setMeeting(target);
+      setNotes(latestNotes);
+      setTranscript(transcriptFromSegments(target.segments));
+      setNotice(view.notice);
+      setPhase(view.phase);
+      return null;
+    } catch (error) {
+      if (isAbandoned()) return null;
+      setPhase("idle");
+      return describeRecordingError(error, MEETING_ERROR_MESSAGES.loadFailed);
+    }
+  }, [phase]);
 
   return {
     phase,
@@ -582,7 +642,8 @@ export function useMeetingSession({
     confirmAppend,
     cancelPreview,
     regenerate,
-    close
+    close,
+    resume
   };
 }
 

@@ -55,9 +55,9 @@ test("업로드·전사·재생·삭제 오류 code는 한국어 문구로, 크�
   assert.match(describeMeetingTranscriptionFailure(null), /다시 올려 주세요/);
 });
 
-test("녹음 파일 단계는 닫을 수 없고, 회의 삭제는 멈춘·완성·저장된 단계에서만 한다", () => {
-  for (const phase of ["uploading", "transcribing", "deleting", "recording", "saving"]) assert.equal(isMeetingBusyPhase(phase), true, phase);
-  for (const phase of ["stopped", "ready", "applied", "generating", "previewing"]) assert.equal(isMeetingBusyPhase(phase), false, phase);
+test("올리는 중은 닫을 수 없고(전사 중은 회의 목록에서 다시 열 수 있어 닫는다), 회의 삭제는 멈춘·완성·저장된 단계에서만 한다", () => {
+  for (const phase of ["uploading", "deleting", "recording", "saving"]) assert.equal(isMeetingBusyPhase(phase), true, phase);
+  for (const phase of ["stopped", "ready", "applied", "generating", "previewing", "transcribing"]) assert.equal(isMeetingBusyPhase(phase), false, phase);
   assert.deepEqual(["stopped", "ready", "applied"].filter(canDeleteMeetingInPhase), ["stopped", "ready", "applied"]);
   for (const phase of ["transcribing", "generating", "uploading", "saving", "recording"]) assert.equal(canDeleteMeetingInPhase(phase), false, phase);
   assert.equal(meetingProgressText("uploading", 42), "녹음 파일을 올리고 있어요… 42%");
@@ -66,9 +66,9 @@ test("녹음 파일 단계는 닫을 수 없고, 회의 삭제는 멈춘·완성
   assert.equal(MEETING_TITLES.transcribing, "녹음 파일 전사 중");
 });
 
-test("올리는 중·전사 중에만 탭을 닫기 전에 확인을 받는다(떠나면 그 회의를 다시 열 수 없다)", () => {
-  for (const phase of ["uploading", "transcribing"]) assert.equal(shouldConfirmLeavingPhase(phase), true, phase);
-  for (const phase of ["idle", "stopped", "generating", "ready", "applied", "deleting", "recording"]) assert.equal(shouldConfirmLeavingPhase(phase), false, phase);
+test("녹음 파일 조각을 올리는 중에만 탭을 닫기 전에 확인을 받는다(전사는 서버에서 이어지고 목록에서 다시 연다)", () => {
+  assert.equal(shouldConfirmLeavingPhase("uploading"), true);
+  for (const phase of ["transcribing", "idle", "stopped", "generating", "ready", "applied", "deleting", "recording"]) assert.equal(shouldConfirmLeavingPhase(phase), false, phase);
 });
 
 test("조회 API 전사 구간을 position 순 카드 줄로 바꾸고 확정 구간만 회의록 근거로 센다", () => {

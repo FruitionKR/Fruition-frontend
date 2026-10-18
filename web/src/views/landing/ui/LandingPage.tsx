@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMe } from "@/entities/user";
+import { LegalFooter } from "@/shared/ui/LegalFooter";
 import styles from "./LandingPage.module.css";
 
 export default function LandingPage() {
@@ -32,6 +33,7 @@ export default function LandingPage() {
           문서와 지식을 한곳에 모아 탐색하고, AI와 함께 더 빠르게 인사이트를 발견하세요.
         </p>
       </section>
+      <LegalFooter />
     </main>
   );
 }

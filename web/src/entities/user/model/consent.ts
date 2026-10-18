@@ -27,6 +27,31 @@ export function buildConsentBody(choices: ConsentChoices, termsVersion: string):
   return { age_confirmed: true, terms_version: termsVersion, marketing_opt_in: choices.marketingOptIn };
 }
 
+/** 동의 필드가 하나도 없는 본문. 동의 UI가 꺼져 있을 때 사용자가 하지 않은 동의를 대신 보내지 않으려고 쓴다. */
+export type NoConsentBody = Record<string, never>;
+
+/** 가입 요청에 붙일 동의 필드. */
+export type SignupConsentFields = ConsentBody | NoConsentBody;
+
+/**
+ * 동의 UI 사용 여부(LEGAL_PAGES_ENABLED)에 따라 가입 요청의 동의 필드를 정한다.
+ * 꺼져 있으면 서버(LEGAL_CONSENT_REQUIRED=false)도 동의를 받지 않으므로 동의 필드를 전혀 보내지 않는다.
+ * 켜져 있으면 지금처럼 사용자 선택으로 만들고, 필수 항목이 빠졌으면 null이다.
+ */
+export function buildSignupConsentFields(
+  consentEnabled: boolean,
+  choices: ConsentChoices,
+  termsVersion: string
+): SignupConsentFields | null {
+  if (!consentEnabled) return {};
+  return buildConsentBody(choices, termsVersion);
+}
+
+/** 가입을 진행해도 되는지. 동의 UI가 꺼져 있으면 동의를 묻지 않으므로 항상 진행한다. */
+export function isSignupConsentReady(consentEnabled: boolean, choices: ConsentChoices): boolean {
+  return !consentEnabled || isConsentComplete(choices);
+}
+
 export const CONSENT_REQUIRED_MESSAGE = "만 18세 이상 확인과 현재 이용약관 동의가 필요합니다. 항목을 다시 확인해 주세요.";
 export const INVALID_SIGNUP_TOKEN_MESSAGE = "가입 요청이 만료되었거나 이미 사용되었습니다. 소셜 로그인부터 다시 시작해 주세요.";
 

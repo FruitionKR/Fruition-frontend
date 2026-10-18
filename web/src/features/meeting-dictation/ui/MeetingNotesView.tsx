@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AgentChevronIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { cx } from "@/shared/lib/classNames";
 import { transcriptLines } from "../lib/liveTranscript";
-import { canDeleteMeetingInPhase, MEETING_TITLES, meetingProgressText } from "../lib/meetingNotesFlow";
+import { canCloseMeetingInPhase, canDeleteMeetingInPhase, MEETING_TITLES, meetingProgressText } from "../lib/meetingNotesFlow";
 import type { MeetingSessionState } from "../model/useMeetingSession";
 import { MeetingDeleteConfirm } from "./MeetingDeleteConfirm";
 import { MeetingRecordingPlayer } from "./MeetingRecordingPlayer";
@@ -39,8 +39,10 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
   const progressText = meetingProgressText(phase, session.uploadPercent);
   const meeting = session.meeting;
   const canDelete = Boolean(meeting) && canDeleteMeetingInPhase(phase);
+  const canClose = canCloseMeetingInPhase(phase);
   const showsPlayer = Boolean(meeting?.has_recording) && phase !== "uploading" && phase !== "deleting";
-  const emptyText = session.source === "upload"
+  // 회의를 불러오는 중에는 진행 표시만 보여 준다.
+  const emptyText = phase === "opening" ? "" : session.source === "upload"
     ? "녹음 파일을 전사하면 받아쓴 내용이 여기에 보여요."
     : "말씀을 시작하면 받아쓴 문장이 여기에 쌓여요.";
   const title = MEETING_TITLES[phase];
@@ -59,15 +61,16 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             <span>{title}</span>
             <AgentChevronIcon className={cx(styles["meeting-title-chevron"], isCollapsed && styles["is-collapsed"])} />
           </button>
-          {/* 시안에 없는 동작이라 제목 줄 오른쪽에 글자 버튼으로 둔다. 받아쓰는 중·저장 중에는 닫을 수 없다. */}
-          {(canDelete || phase === "stopped" || phase === "ready" || phase === "applied") && (
+          {/* 시안에 없는 동작이라 제목 줄 오른쪽에 글자 버튼으로 둔다. 받아쓰는 중·올리는 중·저장 중에는 닫을 수 없다.
+              전사·회의록 생성 중에는 닫아도 서버에서 이어지고, 회의 목록에서 다시 열 수 있다. */}
+          {(canDelete || canClose) && (
             <div className={styles["meeting-title-actions"]}>
               {canDelete && (
                 <button type="button" className={cx(styles["meeting-close"], styles["is-danger"])} onClick={() => setIsConfirmingDelete(true)}>
                   삭제
                 </button>
               )}
-              <button type="button" className={styles["meeting-close"]} onClick={session.close}>닫기</button>
+              {canClose && <button type="button" className={styles["meeting-close"]} onClick={session.close}>닫기</button>}
             </div>
           )}
         </div>

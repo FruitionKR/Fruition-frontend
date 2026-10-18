@@ -1,0 +1,245 @@
+/* 테스트 실행 카드 (Figma 1671:14585): 캡션 + 카드(radius 16, 안쪽 12·16·16) + 다시 테스트 칩 */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.caption {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 16px 16px;
+  border: 1px solid var(--color-surface);
+  border-radius: 16px;
+  /* Figma #fafbfb: 표면색을 캔버스에 옅게 섞어 다크 테마에서도 같은 위계를 유지한다 */
+  background: color-mix(in srgb, var(--color-surface) 40%, var(--color-canvas));
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+}
+
+.sub,
+.note,
+.section {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+}
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lines {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.line-field {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.line-field input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-canvas);
+  color: var(--color-body);
+  font: inherit;
+  font-size: 12px;
+}
+
+.line-field input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.line-dash {
+  padding-bottom: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.result:empty {
+  display: none;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.change {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 변경 전/후 상자 (Figma 1671:14822): 흰 바탕, 테두리 1, radius 8, 안쪽 8·10 */
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-canvas);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.before {
+  margin: 0;
+  color: var(--color-danger);
+  line-height: 1.5;
+  letter-spacing: -0.12px;
+  text-decoration: line-through;
+}
+
+.after {
+  margin: 0;
+  color: var(--color-primary);
+  line-height: 1.4;
+}
+
+.created {
+  color: var(--color-body);
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-danger-weak);
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.blocked-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.issue-list {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* 다시 테스트 칩 (Figma 1671:14608): 연한 파랑 바탕, radius 16, 안쪽 8·12·8·10, 아이콘 12 + 간격 4 */
+.run-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px 8px 10px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--color-primary-weak);
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  cursor: pointer;
+  transition: filter 150ms ease-out, transform 150ms ease-out;
+}
+
+.run-button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.run-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.run-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.run-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.run-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

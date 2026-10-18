@@ -1,5 +1,5 @@
 // document-svc(8080) 회의 받아쓰기 라우트(#148, Fruition-document docs/api/meetings.md).
-// 회의 생성·조회·ticket·삭제, 실시간 받아쓰기 WebSocket, 회의록 초안(비동기)·취소·끝에 추가 미리보기·저장을 흉내 낸다.
+// 회의 생성·목록·조회·ticket·삭제, 실시간 받아쓰기 WebSocket, 회의록 초안(비동기)·취소·끝에 추가 미리보기·저장을 흉내 낸다.
 // 녹음 파일 업로드(recording/uploads*)·전사 취소·재생 주소는 meetingRecordings.mjs가 맡는다.
 //
 // 환경 변수: MOCK_MEETING_DELAY_MS(전사 조각 간격, 기본 150), MOCK_MEETING_NOTES_DELAY_MS(회의록 생성 시간, 기본 3000),
@@ -68,6 +68,24 @@ function toMeetingResponse(meeting) {
     transcript_complete: transcriptComplete(meeting),
     has_recording: Boolean(meeting.recording),
     error: meeting.error ?? null
+  };
+}
+
+const LIST_STATUSES = new Set(["open", "awaiting_upload", "transcribing", "failed"]);
+const LIST_DEFAULT_LIMIT = 20;
+const LIST_MAX_LIMIT = 100;
+
+/** 회의 목록 항목. 구간·연결 기록은 넣지 않는다. has_notes는 ready·applied 초안이 있을 때만 true다. */
+function toMeetingListItem(meeting) {
+  return {
+    created_at: meeting.created_at,
+    display_name: meeting.display_name,
+    has_notes: meeting.notes.some((notes) => notes.status === "ready" || notes.status === "applied"),
+    has_recording: Boolean(meeting.recording),
+    meeting_id: meeting.meeting_id,
+    source: meeting.source,
+    status: meeting.status,
+    updated_at: meeting.updated_at ?? meeting.created_at
   };
 }
 
@@ -142,6 +160,26 @@ export function registerMeetingRoutes(router) {
     };
     meetings().push(meeting);
     ctx.json(201, toMeetingResponse(meeting));
+  });
+
+  // 내가 만든 회의 목록(최근 생성 순, cursor 페이지). status는 쉼표 목록이고 생략하거나 비우면 전부다.
+  router.get("/api/workspaces/:wid/meetings", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const statuses = (ctx.query.get("status") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+    if (statuses.some((status) => !LIST_STATUSES.has(status))) return error(ctx, 400, "허용하지 않는 status입니다.", "INVALID_MEETING");
+    const rawCursor = ctx.query.get("cursor");
+    const offset = rawCursor ? Number(rawCursor) : 0;
+    if (!Number.isInteger(offset) || offset < 0) return error(ctx, 400, "잘못된 cursor입니다.", "INVALID_MEETING");
+    const requested = Number(ctx.query.get("limit") ?? LIST_DEFAULT_LIMIT);
+    const limit = !Number.isFinite(requested) || requested < 1 ? LIST_DEFAULT_LIMIT : Math.min(Math.floor(requested), LIST_MAX_LIMIT);
+    const own = meetings()
+      .filter((meeting) => meeting.workspace_id === workspace.id && meeting.owner_user_id === ctx.user.id)
+      .filter((meeting) => statuses.length === 0 || statuses.includes(meeting.status))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.meeting_id.localeCompare(a.meeting_id));
+    const page = own.slice(offset, offset + limit);
+    const nextCursor = offset + limit < own.length ? String(offset + limit) : null;
+    ctx.json(200, { items: page.map(toMeetingListItem), next_cursor: nextCursor });
   });
 
   router.get("/api/workspaces/:wid/meetings/:mid", async (ctx) => {
