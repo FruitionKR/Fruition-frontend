@@ -34,7 +34,7 @@ const ISSUE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 /** 게시 응답 issues 항목({category, text, reason, ...})을 표시용 텍스트로 변환한다. */
-function issueText(issue: unknown): string {
+export function issueText(issue: unknown): string {
   if (issue != null && typeof issue === "object") {
     const record = issue as Record<string, unknown>;
     const category = typeof record.category === "string" ? record.category : "";
@@ -64,13 +64,14 @@ export function HelpTip({ label, content }: { label: string; content: ReactNode 
   );
 }
 
-/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. */
+/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. compact는 테스트 실행 카드의 작은 선택 상자(Figma 1671:14817)다. */
 export function SelectBox<T extends string>({
   id,
   value,
   options,
   disabled,
   describedBy,
+  compact,
   onChange
 }: {
   id: string;
@@ -78,13 +79,14 @@ export function SelectBox<T extends string>({
   options: ReadonlyArray<{ value: T; label: string }>;
   disabled?: boolean;
   describedBy?: string;
+  compact?: boolean;
   onChange: (value: T) => void;
 }) {
   return (
     <div className={styles["select-wrap"]}>
       <select
         id={id}
-        className={styles.select}
+        className={compact ? `${styles.select} ${styles["select-compact"]}` : styles.select}
         value={value}
         disabled={disabled}
         aria-describedby={describedBy}

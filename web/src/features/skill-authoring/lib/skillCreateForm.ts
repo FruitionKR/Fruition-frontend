@@ -1,8 +1,14 @@
-import type { SkillAuthoringRequest, SkillAuthoringResult, SkillPublishRequest } from "@/entities/skill/model/skill";
+import type {
+  SkillAuthoringRequest,
+  SkillAuthoringResult,
+  SkillExecutionOptions,
+  SkillPublishRequest,
+  SkillTargetValue
+} from "@/entities/skill/model/skill";
 
 /**
  * 스킬 만들기 시트(Figma 1671:14199) 입력값과 게시 요청 변환.
- * 시트의 선택값은 백엔드 SkillPublishRequest의 capabilities·allowed_tools·instructions_markdown으로 옮긴다.
+ * 스킬 종류·결과 방식은 capabilities로, 문서 스킬의 결과 방식·대상은 result_mode·targets로 보낸다.
  */
 
 export const SKILL_NAME_MAX = 63;
@@ -59,27 +65,6 @@ export const INITIAL_SKILL_CREATE_FORM: SkillCreateForm = {
   rules: ""
 };
 
-// AI 서버 capability별 canonical Tool 집합 (Fruition-ai pipeline/app/modules/skill/domain/policy.py CAPABILITY_TOOLS).
-// 게시 API가 allowed_tools를 필수로 받아, 사용자가 고른 capability의 Tool 합집합을 그대로 보낸다.
-const PLANNING_READ_TOOLS = ["list_root_items", "list_folder_children"];
-const DOCUMENT_READ_TOOLS = ["get_document_metadata", "get_document_content"];
-const CAPABILITY_TOOLS: Record<SkillCapability, readonly string[]> = {
-  "document-create": [...PLANNING_READ_TOOLS, ...DOCUMENT_READ_TOOLS, "create_document"],
-  "document-edit": [...PLANNING_READ_TOOLS, ...DOCUMENT_READ_TOOLS, "apply_document_edit"],
-  "folder-organize": [
-    ...PLANNING_READ_TOOLS,
-    "search_hierarchy",
-    "get_breadcrumb",
-    ...DOCUMENT_READ_TOOLS,
-    "create_folder",
-    "rename_folder",
-    "move_folder",
-    "move_document",
-    "rename_document"
-  ],
-  template: [...PLANNING_READ_TOOLS, ...DOCUMENT_READ_TOOLS, "create_document", "apply_document_edit"]
-};
-
 /** 결과 방식·대상은 문서 스킬에만 의미가 있다(폴더 정리·템플릿은 capability 하나로 정해진다). */
 export function isDocumentKind(kind: SkillKind): boolean {
   return kind === "document";
@@ -94,43 +79,41 @@ export function skillCapabilities(kind: SkillKind, resultMode: SkillResultMode):
   return ["document-create", "document-edit"];
 }
 
-/** capability들의 Tool 합집합(중복 제거, 서버가 중복을 거절한다). */
-export function skillAllowedTools(capabilities: readonly SkillCapability[]): string[] {
-  return [...new Set(capabilities.flatMap((capability) => CAPABILITY_TOOLS[capability]))];
-}
-
-export const TARGET_INSTRUCTION_LINES: Record<SkillTarget, string> = {
-  "current-document": "- 현재 문서",
-  selection: "- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)"
+const TARGET_VALUES: Record<SkillTarget, SkillTargetValue> = {
+  "current-document": "current_document",
+  selection: "selection"
 };
-export const TARGET_SECTION_HEADING = "## 실행 대상";
-export const AUTO_RESULT_INSTRUCTION = "- 새 문서로 만들지 현재 문서를 고칠지 대상이 애매하면 먼저 사용자에게 되묻는다.";
+
+/** 서버 targets 값 → 시트 대상. 모르는 값은 버리고 순서는 시트 옵션 순서로 맞춘다. */
+export function targetsFromValues(values: readonly string[]): SkillTarget[] {
+  return SKILL_TARGET_OPTIONS.map((option) => option.value).filter((target) => values.includes(TARGET_VALUES[target]));
+}
 
 /**
- * 실행 규칙 + 대상·결과 방식 안내를 instructions_markdown으로 합친다.
- * 대상은 백엔드에 별도 필드가 없어 Agent가 읽는 지침의 "실행 대상" 절로 남긴다.
+ * 시트의 결과 방식·대상 → 게시·수정 요청의 targets·result_mode (ai#122).
+ * 폴더 정리·템플릿 스킬은 두 필드를 보내면 서버가 400(invalid_targets/invalid_result_mode)으로 거절해 키를 뺀다.
  */
-export function composeSkillInstructions(form: Pick<SkillCreateForm, "kind" | "resultMode" | "targets" | "rules">): string {
-  const rules = form.rules.trim();
-  if (!isDocumentKind(form.kind)) return rules;
-  const lines = SKILL_TARGET_OPTIONS.filter((option) => form.targets.includes(option.value)).map(
-    (option) => TARGET_INSTRUCTION_LINES[option.value]
-  );
-  if (form.resultMode === "auto") lines.push(AUTO_RESULT_INSTRUCTION);
-  if (lines.length === 0) return rules;
-  return `${rules}\n\n${TARGET_SECTION_HEADING}\n\n${lines.join("\n")}`;
+export function skillExecutionOptions(
+  kind: SkillKind,
+  resultMode: SkillResultMode,
+  targets: readonly SkillTarget[]
+): SkillExecutionOptions {
+  if (!isDocumentKind(kind)) return {};
+  return {
+    targets: SKILL_TARGET_OPTIONS.filter((option) => targets.includes(option.value)).map((option) => TARGET_VALUES[option.value]),
+    result_mode: resultMode
+  };
 }
 
-/** 시트 입력값 → POST /skills/author/publish 요청 */
+/** 시트 입력값 → POST /skills/author/publish 요청. allowed_tools는 서버가 capabilities로 계산한다(ai#121). */
 export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest {
-  const capabilities = skillCapabilities(form.kind, form.resultMode);
   return {
     name: form.command.trim(),
     description: form.description.trim(),
-    instructions_markdown: composeSkillInstructions(form),
+    instructions_markdown: form.rules.trim(),
     scope_type: form.scope,
-    capabilities,
-    allowed_tools: skillAllowedTools(capabilities)
+    capabilities: skillCapabilities(form.kind, form.resultMode),
+    ...skillExecutionOptions(form.kind, form.resultMode, form.targets)
   };
 }
 
@@ -190,7 +173,9 @@ export function applySkillDraft(
   };
 }
 
-export type SkillCreateField = "command" | "description" | "rules";
+export type SkillCreateField = "command" | "description" | "rules" | "targets";
+
+export const TARGETS_REQUIRED_MESSAGE = "대상을 하나 이상 골라 주세요.";
 
 /** 필드별 오류 문구. 오류가 없으면 빈 객체다. */
 export function validateSkillCreateForm(
@@ -211,8 +196,9 @@ export function validateSkillCreateForm(
     errors.description = `설명은 ${SKILL_DESCRIPTION_MAX}자까지 쓸 수 있습니다.`;
   }
   if (form.rules.trim() === "") errors.rules = "실행 규칙을 입력해 주세요.";
-  else if (composeSkillInstructions(form).length > SKILL_INSTRUCTIONS_MAX) {
+  else if (form.rules.trim().length > SKILL_INSTRUCTIONS_MAX) {
     errors.rules = `실행 규칙은 ${SKILL_INSTRUCTIONS_MAX.toLocaleString("ko-KR")}자까지 쓸 수 있습니다.`;
   }
+  if (isDocumentKind(form.kind) && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_MESSAGE;
   return errors;
 }

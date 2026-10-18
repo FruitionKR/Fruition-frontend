@@ -144,3 +144,13 @@ test("스킬 수정 요청은 편집한 버전의 이름을 함께 보낸다(백
   assert.equal(skillUpdateRequest({ slug: "s", enabled_version: null, latest_version: version("latest-name") }, draft).name, "latest-name");
   assert.equal(skillUpdateRequest({ slug: "fallback-slug", enabled_version: null, latest_version: null }, draft).name, "fallback-slug");
 });
+
+test("스킬 수정 요청은 초안의 targets·result_mode를 담고, 없으면 키를 빼 서버가 기존 값을 유지하게 한다", () => {
+  const skill = { slug: "s", enabled_version: null, latest_version: null };
+  assert.deepEqual(
+    skillUpdateRequest(skill, { description: "d", instructionsMarkdown: "i", targets: ["selection"], result_mode: "edit" }),
+    { name: "s", description: "d", instructions_markdown: "i", targets: ["selection"], result_mode: "edit" }
+  );
+  const omitted = skillUpdateRequest(skill, { description: "d", instructionsMarkdown: "i" });
+  assert.ok(!("targets" in omitted) && !("result_mode" in omitted));
+});

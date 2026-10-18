@@ -265,7 +265,11 @@ export function seed() {
       latest_version: { id: "sv_1", name: "summarize", description: "선택한 문서를 3문단으로 요약한다.", status: "published", version: 1, allowed_tools: ["read_document"], capabilities: ["summarize"], instructions_markdown: "# summarize\n\n문서를 3문단 이내로 요약한다. 핵심 용어는 굵게 표시한다.\n" } },
     { id: "skill_meeting", workspace_id: WORKSPACE_ID, owner_user_id: MEMBER_ID, slug: "meeting-notes", scope_type: "workspace", status: "disabled",
       enabled_version: null,
-      latest_version: { id: "sv_2", name: "meeting-notes", description: "회의록에서 결정 사항과 액션 아이템을 추출한다.", status: "published", version: 2, allowed_tools: ["read_document", "create_document"], capabilities: ["extract"], instructions_markdown: "# meeting-notes\n\n결정 사항, 액션 아이템, 담당자를 표로 정리한다.\n" } }
+      latest_version: { id: "sv_2", name: "meeting-notes", description: "회의록에서 결정 사항과 액션 아이템을 추출한다.", status: "published", version: 2, allowed_tools: ["read_document", "create_document"], capabilities: ["extract"], instructions_markdown: "# meeting-notes\n\n결정 사항, 액션 아이템, 담당자를 표로 정리한다.\n" } },
+    // targets·result_mode 필드가 생기기 전 프론트가 대상을 지침 끝 "## 실행 대상" 절로 붙여 게시한 문서 Skill(ai#122 이전 행).
+    { id: "skill_legacy_polish", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "polish-selection", scope_type: "personal", status: "enabled",
+      enabled_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" },
+      latest_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" } }
   );
 
   state.aiModels.push(
