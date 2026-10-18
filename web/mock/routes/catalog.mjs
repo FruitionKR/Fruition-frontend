@@ -69,6 +69,8 @@ export function registerCatalogRoutes(router) {
     if (!isOwner(ctx, workspace)) return error(ctx, 403, "워크스페이스 OWNER만 변경할 수 있습니다.");
     const { ingest_lint } = await ctx.body();
     if (!state.aiModels.some((item) => item.provider === ingest_lint?.provider && item.model === ingest_lint?.model)) return error(ctx, 400, "지원하지 않는 provider/model 조합입니다.");
+    // 실제 백엔드처럼 워크스페이스 공용 모델에는 Claude를 저장할 수 없다.
+    if (ingest_lint.provider === "claude") return error(ctx, 400, "Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다.");
     workspace.ai_model_settings = { provider: ingest_lint.provider, model: ingest_lint.model };
     ctx.json(200, { ingest_lint: { ...workspace.ai_model_settings }, can_update: true });
   });

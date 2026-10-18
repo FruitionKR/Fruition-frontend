@@ -50,7 +50,8 @@ export function registerWorkspaceRoutes(router) {
     const workspace = {
       id: id("ws"), name: name.trim(), icon_emoji: null, icon_url: null, icon_image: null, owner_id: ctx.user.id,
       auto_ingest_on_upload: false, created_at: timestamp, updated_at: timestamp,
-      ai_model_settings: { ...state.aiModels[0] },
+      // 백엔드 워크스페이스 기본 모델과 같다.
+      ai_model_settings: { provider: "gemini", model: "gemini-3.5-flash-lite" },
       maintenance: { needs_lint: false, last_lint_at: null, last_wiki_change_at: null }
     };
     state.workspaces.push(workspace);

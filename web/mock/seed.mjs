@@ -140,8 +140,8 @@ export function seed() {
   );
 
   state.workspaces.push(
-    { id: WORKSPACE_ID, name: "Fruition 팀 위키", icon_emoji: "🍇", icon_url: null, icon_image: null, owner_id: USER_ID, created_at: minutesAgo(60 * 24 * 30), updated_at: minutesAgo(60 * 24 * 2), ai_model_settings: { provider: "openai", model: "gpt-5-nano" }, maintenance: { needs_lint: true, last_lint_at: minutesAgo(60 * 24), last_wiki_change_at: minutesAgo(90) } },
-    { id: "ws_research", name: "논문 리서치", icon_emoji: "📚", icon_url: null, icon_image: null, owner_id: USER_ID, created_at: minutesAgo(60 * 24 * 10), updated_at: minutesAgo(60 * 24 * 10), ai_model_settings: { provider: "gemini", model: "gemini-3.1-flash-lite" }, maintenance: { needs_lint: false, last_lint_at: null, last_wiki_change_at: null } }
+    { id: WORKSPACE_ID, name: "Fruition 팀 위키", icon_emoji: "🍇", icon_url: null, icon_image: null, owner_id: USER_ID, created_at: minutesAgo(60 * 24 * 30), updated_at: minutesAgo(60 * 24 * 2), ai_model_settings: { provider: "gemini", model: "gemini-3.5-flash-lite" }, maintenance: { needs_lint: true, last_lint_at: minutesAgo(60 * 24), last_wiki_change_at: minutesAgo(90) } },
+    { id: "ws_research", name: "논문 리서치", icon_emoji: "📚", icon_url: null, icon_image: null, owner_id: USER_ID, created_at: minutesAgo(60 * 24 * 10), updated_at: minutesAgo(60 * 24 * 10), ai_model_settings: { provider: "claude", model: "claude-sonnet-5" }, maintenance: { needs_lint: false, last_lint_at: null, last_wiki_change_at: null } }
   );
   state.members.push(
     { workspace_id: WORKSPACE_ID, user_id: USER_ID, role: "OWNER", joined_at: minutesAgo(60 * 24 * 30) },
@@ -269,44 +269,9 @@ export function seed() {
   );
 
   state.aiModels.push(
-    // 백엔드 AiModelCatalog(Fruition-document·access main)와 같은 목록·순서다. catalog[0] = gpt-5-nano가 기본값이다.
-    { provider: "openai", model: "gpt-5-nano", display_name: "GPT-5 nano" },
-    { provider: "openai", model: "gpt-6.1-sol", display_name: "GPT-6.1 Sol" },
-    { provider: "openai", model: "gpt-6-sol", display_name: "GPT-6 Sol" },
+    // 백엔드 AiModelCatalog(Fruition-document·access)와 같은 목록·순서다(저가 모델 정책, 3개). catalog[0] = gpt-6-luna가 채팅 기본값이다.
     { provider: "openai", model: "gpt-6-luna", display_name: "GPT-6 Luna" },
-    { provider: "openai", model: "gpt-6-astra", display_name: "GPT-6 Astra" },
-    { provider: "openai", model: "gpt-5.6-sol", display_name: "GPT-5.6 Sol" },
-    { provider: "openai", model: "gpt-5.6-terra", display_name: "GPT-5.6 Terra" },
-    { provider: "openai", model: "gpt-5.6-luna", display_name: "GPT-5.6 Luna" },
-    { provider: "openai", model: "gpt-5.5", display_name: "GPT-5.5" },
-    { provider: "openai", model: "gpt-5.4", display_name: "GPT-5.4" },
-    { provider: "openai", model: "gpt-5.4-mini", display_name: "GPT-5.4 Mini" },
-    { provider: "openai", model: "gpt-5.4-nano", display_name: "GPT-5.4 nano" },
-    { provider: "openai", model: "gpt-5", display_name: "GPT-5" },
-    { provider: "openai", model: "gpt-5-mini", display_name: "GPT-5 Mini" },
-    { provider: "openai", model: "gpt-4.1", display_name: "GPT-4.1" },
-    { provider: "openai", model: "gpt-4.1-mini", display_name: "GPT-4.1 Mini" },
-    { provider: "openai", model: "gpt-4.1-nano", display_name: "GPT-4.1 nano" },
-    { provider: "openai", model: "gpt-4o", display_name: "GPT-4o" },
-    { provider: "openai", model: "gpt-4o-mini", display_name: "GPT-4o Mini" },
-    { provider: "openai", model: "o3", display_name: "o3" },
-    { provider: "openai", model: "o4-mini", display_name: "o4-mini" },
-    { provider: "gemini", model: "gemini-3.1-flash-lite", display_name: "Gemini 3.1 Flash-Lite" },
-    { provider: "gemini", model: "gemini-3.8-flash", display_name: "Gemini 3.8 Flash" },
-    { provider: "gemini", model: "gemini-3.7-flash", display_name: "Gemini 3.7 Flash" },
-    { provider: "gemini", model: "gemini-3.6-flash", display_name: "Gemini 3.6 Flash" },
-    { provider: "gemini", model: "gemini-3.5-flash", display_name: "Gemini 3.5 Flash" },
     { provider: "gemini", model: "gemini-3.5-flash-lite", display_name: "Gemini 3.5 Flash-Lite" },
-    { provider: "gemini", model: "gemini-3.1-pro-preview", display_name: "Gemini 3.1 Pro preview" },
-    { provider: "gemini", model: "gemini-3-flash-preview", display_name: "Gemini 3 Flash preview" },
-    { provider: "claude", model: "claude-sonnet-5", display_name: "Claude Sonnet 5" },
-    { provider: "claude", model: "claude-opus-5-5", display_name: "Claude Opus 5.5" },
-    { provider: "claude", model: "claude-sonnet-5-5", display_name: "Claude Sonnet 5.5" },
-    { provider: "claude", model: "claude-fable-5-1", display_name: "Claude Fable 5.1" },
-    { provider: "claude", model: "claude-opus-5", display_name: "Claude Opus 5" },
-    { provider: "claude", model: "claude-fable-5", display_name: "Claude Fable 5" },
-    { provider: "claude", model: "claude-opus-4-8", display_name: "Claude Opus 4.8" },
-    { provider: "claude", model: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
     { provider: "claude", model: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
   );
 
