@@ -105,3 +105,32 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 잠긴 모델·provider (저가 모델 정책): Figma에 잠금 상태가 없어 기존 비활성 토큰과 자물쇠 아이콘으로 표시한다. */
+.provider-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.is-locked .provider-name,
+.model-option.is-locked {
+  color: var(--color-subtle);
+}
+
+.is-locked svg {
+  color: var(--color-subtle);
+}
+
+.model-option.is-locked {
+  cursor: not-allowed;
+}
+
+.model-option.is-locked:hover {
+  background: transparent;
+}
+
+/* 잠금 사유는 길 수 있어 줄바꿈해 모두 보여 준다. */
+.model-option.is-locked .model-option-text small {
+  white-space: normal;
+}

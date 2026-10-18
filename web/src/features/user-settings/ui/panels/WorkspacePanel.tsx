@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 import {
+  buildWorkspaceModelOptions,
   filterWorkspaceAiModels,
+  getAiModelLockMessage,
   getProviderLabel,
   hasWorkspaceExcludedModels,
+  isProviderLocked,
   isSameSelection,
+  LOCKED_AI_MODELS,
   resolveWorkspaceModelSelection,
   type AiModel,
   type AiModelSelection
@@ -109,21 +113,23 @@ export function WorkspacePanel({
     }
   }
 
-  // 워크스페이스 공용 모델에는 Claude를 쓸 수 없으므로 카탈로그에서 뺀 목록만 노출한다.
+  // 워크스페이스 공용 모델에는 Claude를 쓸 수 없으므로 선택 가능한 모델은 카탈로그에서 Claude를 뺀 목록이다.
   const workspaceModels = filterWorkspaceAiModels(aiModels);
+  // 화면에는 Claude·정책으로 빠진 모델도 잠금으로 함께 보여 준다.
+  const modelOptions = buildWorkspaceModelOptions(aiModels, LOCKED_AI_MODELS);
   const hasExcludedModels = hasWorkspaceExcludedModels(aiModels);
   // 저장값이 Claude이거나 카탈로그에서 빠졌으면 백엔드처럼 기본 모델로 대체해 보여 준다.
   const { selection: shownSelection, isFallback: isSelectionFallback } = resolveWorkspaceModelSelection(
     workspaceModels,
     aiModelSelection
   );
-  const providers = Array.from(new Set(workspaceModels.map((model) => model.provider)));
+  const providers = Array.from(new Set(modelOptions.map((model) => model.provider)));
   const selectedIcon = shownSelection ? providerIcons[shownSelection.provider] : undefined;
   // 표시 중인 provider가 목록에 없으면 첫 provider를 보여 준다(빈 목록 방지).
   const savedProvider =
     shownSelection && providers.includes(shownSelection.provider) ? shownSelection.provider : null;
   const activeProvider = viewingProvider ?? savedProvider ?? providers[0] ?? null;
-  const providerModels = workspaceModels.filter((model) => model.provider === activeProvider);
+  const providerModels = modelOptions.filter((model) => model.provider === activeProvider);
 
   return (
     <div className={styles.detail}>
@@ -233,17 +239,22 @@ export function WorkspacePanel({
                   {providers.map((provider) => {
                     const icon = providerIcons[provider];
                     const isActive = activeProvider === provider;
+                    // 모델이 모두 잠긴 provider(Claude)도 눌러서 잠긴 모델을 볼 수 있다. 자물쇠로 쓸 수 없음을 알린다.
+                    const isLocked = isProviderLocked(modelOptions.filter((model) => model.provider === provider));
                     return (
                       <button
                         key={provider}
                         type="button"
-                        className={`${styles["provider-button"]} ${isActive ? styles["is-selected"] : ""}`}
+                        className={`${styles["provider-button"]} ${isActive ? styles["is-selected"] : ""} ${isLocked ? panelStyles["is-locked"] : ""}`}
                         aria-pressed={isActive}
                         disabled={isAiModelSaving}
                         onClick={() => setViewingProvider(provider)}
                       >
                         {icon && <SvgIcon src={icon} className={styles["provider-icon"]} />}
-                        <span>{getProviderLabel(provider)}</span>
+                        <span className={panelStyles["provider-name"]}>
+                          {getProviderLabel(provider)}
+                          {isLocked && <Lock size={11} aria-label="사용 불가" role="img" />}
+                        </span>
                       </button>
                     );
                   })}
@@ -256,20 +267,27 @@ export function WorkspacePanel({
                   >
                     {providerModels.map((model) => {
                       const isSelected = isSameSelection(model, shownSelection);
+                      const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
                       return (
                         <button
                           key={model.model}
                           type="button"
-                          className={`${panelStyles["model-option"]} ${isSelected ? panelStyles["is-selected"] : ""}`}
+                          className={`${panelStyles["model-option"]} ${isSelected ? panelStyles["is-selected"] : ""} ${lockMessage ? panelStyles["is-locked"] : ""}`}
                           aria-pressed={isSelected}
+                          aria-disabled={lockMessage ? true : undefined}
+                          title={lockMessage ?? undefined}
                           disabled={isAiModelSaving}
-                          onClick={() => onSelectModel(model)}
+                          // 잠긴 모델은 포커스는 받지만 고를 수 없다.
+                          onClick={() => {
+                            if (!lockMessage) onSelectModel(model);
+                          }}
                         >
                           <span className={panelStyles["model-option-text"]}>
                             <span>{model.display_name}</span>
-                            <small>{model.model}</small>
+                            <small>{lockMessage ?? model.model}</small>
                           </span>
                           {isSelected && <Check size={12} aria-hidden />}
+                          {lockMessage && <Lock size={12} aria-hidden />}
                         </button>
                       );
                     })}
