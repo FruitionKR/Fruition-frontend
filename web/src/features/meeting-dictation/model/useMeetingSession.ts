@@ -15,6 +15,7 @@ import {
   requestMeetingNotes,
   uploadMeetingRecording,
   type MeetingAppendPreviewResponse,
+  type MeetingListItem,
   type MeetingNotesResponse,
   type MeetingResponse,
   type MeetingSource
@@ -578,7 +579,8 @@ export function useMeetingSession({
    * 상태에 맞는 화면(전사 대기·실패 안내·받아쓴 내용·회의록 대기·회의록·저장됨)으로 연다. 녹음이 있으면 재생도 보인다.
    * 불러오지 못하면 화면을 열지 않고 오류 문구를 돌려준다(목록이 보여 준다).
    */
-  const resume = useCallback(async (meetingId: string): Promise<string | null> => {
+  const resume = useCallback(async (item: Pick<MeetingListItem, "meeting_id" | "has_notes">): Promise<string | null> => {
+    const meetingId = item.meeting_id;
     if (phase !== "idle") return null;
     viewRunRef.current += 1;
     const viewRun = viewRunRef.current;
@@ -592,9 +594,9 @@ export function useMeetingSession({
     setPhase("opening");
     try {
       const target = await fetchMeeting(meetingId);
-      const latestNotes = shouldLoadNotesOnResume(target)
+      const latestNotes = shouldLoadNotesOnResume(target, item)
         ? await fetchMeetingNotes(meetingId).catch((error: unknown) => {
-          // 회의록 초안이 아직 없으면 404다.
+          // 회의록 초안이 아직 없으면 404다. 초안 없음으로 보고 나머지 오류는 그대로 올린다.
           if (error instanceof ApiError && error.status === 404) return null;
           throw error;
         })
