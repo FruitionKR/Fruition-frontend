@@ -14,10 +14,10 @@ registerHooks({
 
 const {
   INITIAL_SKILL_CREATE_FORM,
-  composeSkillInstructions,
-  skillAllowedTools,
   skillCapabilities,
+  skillExecutionOptions,
   skillPublishRequest,
+  targetsFromValues,
   validateSkillCreateForm
 } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 
@@ -37,40 +37,57 @@ test("스킬 종류·결과 방식을 capability로 바꾼다", () => {
   assert.deepEqual(skillCapabilities("template", "auto"), ["template"]);
 });
 
-test("allowed_tools는 capability Tool 합집합이고 중복이 없으며 계획용 읽기 Tool을 포함한다", () => {
-  const tools = skillAllowedTools(["document-create", "document-edit"]);
-  assert.equal(new Set(tools).size, tools.length);
-  for (const tool of ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"]) {
-    assert.ok(tools.includes(tool), tool);
-  }
-  assert.ok(!skillAllowedTools(["document-create"]).includes("apply_document_edit"));
-  assert.ok(skillAllowedTools(["folder-organize"]).includes("move_document"));
+test("문서 스킬의 대상·결과 방식을 targets·result_mode로 바꾼다", () => {
+  assert.deepEqual(skillExecutionOptions("document", "auto", ["selection", "current-document"]), {
+    targets: ["current_document", "selection"],
+    result_mode: "auto"
+  });
+  assert.deepEqual(skillExecutionOptions("document", "edit", ["selection"]), { targets: ["selection"], result_mode: "edit" });
+  // 폴더 정리·템플릿에 보내면 서버가 invalid_targets/invalid_result_mode로 거절한다.
+  assert.deepEqual(skillExecutionOptions("folder", "create", ["current-document"]), {});
+  assert.deepEqual(skillExecutionOptions("template", "create", ["current-document"]), {});
 });
 
-test("문서 스킬은 대상·'상황에 맞게'를 실행 대상 절로 지침에 덧붙인다", () => {
-  const composed = composeSkillInstructions({ ...filledForm, resultMode: "auto", targets: ["current-document", "selection"] });
-  assert.ok(composed.startsWith("'연구 개요' 섹션만 고친다.\n문체는 '~다'체로 맞춘다.\n\n## 실행 대상\n\n- 현재 문서\n"));
-  assert.match(composed, /선택한 부분/);
-  assert.match(composed, /되묻는다/);
+test("서버 targets 값을 시트 대상으로 되돌린다", () => {
+  assert.deepEqual(targetsFromValues(["selection", "current_document"]), ["current-document", "selection"]);
+  assert.deepEqual(targetsFromValues(["selection", "unknown"]), ["selection"]);
+  assert.deepEqual(targetsFromValues([]), []);
 });
 
-test("대상이 없거나 문서 스킬이 아니면 실행 규칙만 보낸다", () => {
-  assert.equal(composeSkillInstructions({ ...filledForm, targets: [] }), filledForm.rules.trim());
-  assert.equal(composeSkillInstructions({ ...filledForm, kind: "folder" }), filledForm.rules.trim());
-});
-
-test("게시 요청은 공백을 다듬고 고른 범위·권한을 담는다", () => {
+test("게시 요청은 공백을 다듬고 범위·capability·targets·result_mode를 담으며 allowed_tools는 뺀다", () => {
   const request = skillPublishRequest({ ...filledForm, scope: "team" });
-  assert.equal(request.name, "research-summary");
-  assert.equal(request.description, "연구 문서의 개요를 핵심 문장 3개로 정리합니다.");
-  assert.equal(request.scope_type, "team");
-  assert.deepEqual(request.capabilities, ["document-create"]);
-  assert.ok(request.allowed_tools.includes("create_document"));
-  assert.match(request.instructions_markdown, /## 실행 대상\n\n- 현재 문서$/);
+  assert.deepEqual(request, {
+    name: "research-summary",
+    description: "연구 문서의 개요를 핵심 문장 3개로 정리합니다.",
+    instructions_markdown: filledForm.rules.trim(),
+    scope_type: "team",
+    capabilities: ["document-create"],
+    targets: ["current_document"],
+    result_mode: "create"
+  });
+});
+
+test("'선택한 부분'만 고르면 targets가 selection 하나이고 지침에 실행 대상 절을 붙이지 않는다", () => {
+  const request = skillPublishRequest({ ...filledForm, resultMode: "edit", targets: ["selection"] });
+  assert.deepEqual(request.targets, ["selection"]);
+  assert.equal(request.result_mode, "edit");
+  assert.deepEqual(request.capabilities, ["document-edit"]);
+  assert.doesNotMatch(request.instructions_markdown, /실행 대상/);
+});
+
+test("폴더 정리·템플릿 게시 요청에는 targets·result_mode 키가 없다", () => {
+  for (const kind of ["folder", "template"]) {
+    const request = skillPublishRequest({ ...filledForm, kind });
+    assert.ok(!("targets" in request) && !("result_mode" in request), kind);
+    assert.ok(!("allowed_tools" in request), kind);
+  }
 });
 
 test("필수값·커맨드 형식·중복 커맨드를 검증한다", () => {
   assert.deepEqual(Object.keys(validateSkillCreateForm(INITIAL_SKILL_CREATE_FORM, [])).sort(), ["command", "description", "rules"]);
+  // 문서 스킬은 대상을 하나 이상 골라야 한다. 폴더 정리는 대상이 없다.
+  assert.match(validateSkillCreateForm({ ...filledForm, targets: [] }, []).targets, /대상/);
+  assert.deepEqual(validateSkillCreateForm({ ...filledForm, kind: "folder", targets: [] }, []), {});
   assert.deepEqual(validateSkillCreateForm(filledForm, []), {});
   assert.match(validateSkillCreateForm({ ...filledForm, command: "연구-요약" }, []).command, /영문 소문자/);
   assert.match(validateSkillCreateForm({ ...filledForm, command: "Research" }, []).command, /영문 소문자/);

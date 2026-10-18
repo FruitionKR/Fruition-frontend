@@ -11,6 +11,7 @@ import styles from "./SideSheet.module.css";
 /**
  * 오른쪽 시트 공통 셸 (Figma 1671:14199 스킬 만들기 · 1708:4061 스킬 상세).
  * 720px 패널 = 44px 제목 줄 + 스크롤 본문 + (선택) 하단 액션 줄.
+ * aside를 주면 Figma 1671:14198처럼 패널 오른쪽에 360px 보조 열(채팅 열 자리)을 붙인다. 좁은 화면에서는 패널 아래로 쌓는다.
  * 배경 클릭·Escape로 닫히고, 열려 있는 동안 Tab 포커스를 시트 안에 가두며, 닫히면 연 버튼으로 포커스를 돌려준다.
  */
 export function SideSheet({
@@ -18,6 +19,7 @@ export function SideSheet({
   onClose,
   footer,
   className,
+  aside,
   children
 }: {
   /** 제목 줄 문구. 대화상자 이름(aria-labelledby)으로도 쓴다. */
@@ -27,6 +29,8 @@ export function SideSheet({
   footer?: ReactNode;
   /** 시트 패널(.sheet)에 덧붙일 소비자 측 클래스 */
   className?: string;
+  /** 패널 오른쪽 보조 열 내용과 이름(aria-label) */
+  aside?: { label: string; content: ReactNode };
   children: ReactNode;
 }) {
   useEscapeKey(true, onClose);
@@ -40,24 +44,39 @@ export function SideSheet({
     sheetRef.current?.focus();
   }, []);
 
+  const panel = (
+    <>
+      <header className={styles["title-bar"]}>
+        <h2 id={titleId} className={styles.title}>
+          {title}
+        </h2>
+      </header>
+      <div className={styles.body}>{children}</div>
+      {footer != null && <footer className={styles.footer}>{footer}</footer>}
+    </>
+  );
+
   return createPortal(
     <div className={styles.overlay} {...backdropClick}>
       <div
         ref={sheetRef}
-        className={cx(styles.sheet, className)}
+        className={cx(styles.sheet, aside != null && styles["has-aside"], className)}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
-        <header className={styles["title-bar"]}>
-          <h2 id={titleId} className={styles.title}>
-            {title}
-          </h2>
-        </header>
-        <div className={styles.body}>{children}</div>
-        {footer != null && <footer className={styles.footer}>{footer}</footer>}
+        {aside == null ? (
+          panel
+        ) : (
+          <>
+            <div className={styles.panel}>{panel}</div>
+            <aside className={styles.aside} aria-label={aside.label}>
+              {aside.content}
+            </aside>
+          </>
+        )}
       </div>
     </div>,
     document.body

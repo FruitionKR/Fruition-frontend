@@ -26,6 +26,7 @@ import {
   skillDetailDraft,
   skillDetailForm,
   validateSkillDetailForm,
+  type SkillDetailDraft,
   type SkillDetailField,
   type SkillDetailForm
 } from "../lib/skillDetailForm";
@@ -42,15 +43,13 @@ import {
 import styles from "./SkillCreateSheet.module.css";
 import detailStyles from "./SkillDetailSheet.module.css";
 
-export type SkillDetailDraft = { description: string; instructionsMarkdown: string };
-
 const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
 
 /**
  * 스킬 상세 시트 (Figma 1708:4059). 목록 행 클릭·더보기 '수정'으로 연다.
- * 설명·실행 규칙(+대상)을 PATCH /skills/{id}로 저장하고, 왼쪽 아래 '스킬 삭제'로 지운다.
- * 저장범위·커맨드명·스킬 종류·결과 방식은 수정 API가 받지 않아 읽기 전용으로 보여 준다.
+ * 설명·실행 규칙·대상을 PATCH /skills/{id}로 저장하고(문서 스킬은 targets 포함, result_mode는 생략해 유지), 왼쪽 아래 '스킬 삭제'로 지운다.
+ * 저장범위·커맨드명은 수정 API가 받지 않고, 스킬 종류·결과 방식은 지침을 다시 분류한 capability와 맞아야 해 읽기 전용으로 보여 준다.
  */
 export function SkillDetailSheet({
   workspaceId,
@@ -146,7 +145,7 @@ export function SkillDetailSheet({
   }
 
   function submit() {
-    setTouched(new Set<SkillDetailField>(["description", "rules"]));
+    setTouched(new Set<SkillDetailField>(["description", "rules", "targets"]));
     if (!isBlocked) saveMutation.mutate();
   }
 
@@ -261,7 +260,7 @@ export function SkillDetailSheet({
             {errorText("description")}
           </div>
 
-          {/* 실행 규칙 → instructions_markdown ("실행 대상" 절은 아래 대상으로 분리해 보여 준다) */}
+          {/* 실행 규칙 → instructions_markdown (이전 형식의 "실행 대상" 절은 떼어 아래 대상으로 보여 준다) */}
           <div className={styles.field}>
             <label className={styles.label} htmlFor={fieldId("rules")}>실행 규칙</label>
             <textarea
@@ -315,8 +314,8 @@ export function SkillDetailSheet({
                 </div>
               </div>
 
-              {/* 대상 → 지침의 '실행 대상' 절 */}
-              <fieldset className={styles.field}>
+              {/* 대상 → targets */}
+              <fieldset className={styles.field} {...errorProps("targets")}>
                 <legend className={cx(styles.label, styles.legend)}>대상</legend>
                 <div className={styles.checks}>
                   {SKILL_TARGET_OPTIONS.map((option) => (
@@ -325,7 +324,10 @@ export function SkillDetailSheet({
                         <input
                           type="checkbox"
                           checked={form.targets.includes(option.value)}
-                          onChange={(event) => toggleTarget(option.value, event.target.checked)}
+                          onChange={(event) => {
+                            touch("targets");
+                            toggleTarget(option.value, event.target.checked);
+                          }}
                         />
                         <CheckMark />
                       </span>
@@ -333,6 +335,7 @@ export function SkillDetailSheet({
                     </label>
                   ))}
                 </div>
+                {errorText("targets")}
               </fieldset>
             </>
           )}

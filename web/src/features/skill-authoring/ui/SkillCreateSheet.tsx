@@ -34,12 +34,14 @@ import {
   SkillSafetyIssues,
   useReferenceDocuments
 } from "./SkillFormParts";
+import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillCreateSheet.module.css";
 
 /**
  * 스킬 만들기 시트 (Figma 1671:14199). 입력값을 그대로 POST /skills/author/publish로 게시한다.
  * 게시 API가 같은 안전 검토를 거쳐, 위험 표현이 있으면 저장하지 않고 status "blocked"와 issues를 돌려준다.
  * 'AI로 작성·보강'은 실행 규칙(+참고 문서)을 POST /skills/author로 보내 받은 초안을 시트에 채운다.
+ * 오른쪽 열의 '테스트 실행' 카드(Figma 1671:14585)는 지금 입력값을 문서 하나에 저장 없이 적용해 본다.
  */
 export function SkillCreateSheet({
   workspaceId,
@@ -142,7 +144,7 @@ export function SkillCreateSheet({
 
   function submit() {
     // 비활성 버튼은 클릭을 받지 못하므로 aria-disabled로 두고, 누르면 오류가 있는 필드를 모두 표시한다.
-    setTouched(new Set<SkillCreateField>(["command", "description", "rules"]));
+    setTouched(new Set<SkillCreateField>(["command", "description", "rules", "targets"]));
     if (!isBlocked) publishMutation.mutate();
   }
 
@@ -166,6 +168,7 @@ export function SkillCreateSheet({
     <SideSheet
       title="스킬 만들기"
       onClose={onClose}
+      aside={{ label: "테스트 실행", content: <SkillTestRunCard workspaceId={workspaceId} form={form} /> }}
       footer={
         <>
           <button type="button" className={styles["cancel-button"]} onClick={onClose}>
@@ -210,7 +213,7 @@ export function SkillCreateSheet({
             <SelectBox id={fieldId("kind")} value={form.kind} options={SKILL_KIND_OPTIONS} onChange={(kind) => update({ kind })} />
           </div>
 
-          {/* 결과 방식 → 문서 capability(새 문서 / 현재 문서 수정 / 둘 다) */}
+          {/* 결과 방식 → 문서 capability(새 문서 / 현재 문서 수정 / 둘 다) + result_mode */}
           <div className={styles.field}>
             <div className={styles["label-row"]}>
               <label className={styles.label} htmlFor={fieldId("result")}>결과 방식</label>
@@ -232,8 +235,8 @@ export function SkillCreateSheet({
             </div>
           </div>
 
-          {/* 대상 → 백엔드 필드가 없어 지침의 '실행 대상' 절로 합친다 */}
-          <fieldset className={styles.field} disabled={!isDocument}>
+          {/* 대상 → targets (문서 스킬만) */}
+          <fieldset className={styles.field} disabled={!isDocument} {...errorProps("targets")}>
             <legend className={cx(styles.label, styles.legend)}>대상</legend>
             <div className={styles.checks}>
               {SKILL_TARGET_OPTIONS.map((option) => (
@@ -242,7 +245,10 @@ export function SkillCreateSheet({
                     <input
                       type="checkbox"
                       checked={form.targets.includes(option.value)}
-                      onChange={(event) => toggleTarget(option.value, event.target.checked)}
+                      onChange={(event) => {
+                        touch("targets");
+                        toggleTarget(option.value, event.target.checked);
+                      }}
                     />
                     <CheckMark />
                   </span>
@@ -250,6 +256,7 @@ export function SkillCreateSheet({
                 </label>
               ))}
             </div>
+            {isDocument && errorText("targets")}
           </fieldset>
 
           {/* 저장범위 → scope_type */}
