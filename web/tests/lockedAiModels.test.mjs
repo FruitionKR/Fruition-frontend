@@ -18,6 +18,12 @@ const POLICY_CATALOG = [
 
 const key = (item) => `${item.provider}/${item.model}`;
 
+test("잠금 목록은 정책 이전 백엔드 카탈로그(28개)에서 허용 3개를 뺀 25개다", () => {
+  const counts = {};
+  for (const item of LOCKED_AI_MODELS) counts[item.provider] = (counts[item.provider] ?? 0) + 1;
+  assert.deepEqual(counts, { openai: 13, gemini: 4, claude: 8 });
+});
+
 test("잠금 목록에는 정책 카탈로그 모델이 없고 중복도 없다", () => {
   const keys = LOCKED_AI_MODELS.map(key);
   assert.equal(new Set(keys).size, keys.length);
