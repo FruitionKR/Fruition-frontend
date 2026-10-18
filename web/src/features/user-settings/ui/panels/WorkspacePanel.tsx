@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
-import { getProviderLabel, isSameSelection, type AiModel, type AiModelSelection } from "@/entities/ai";
+import {
+  filterWorkspaceAiModels,
+  getProviderLabel,
+  hasWorkspaceExcludedModels,
+  isSameSelection,
+  resolveWorkspaceModelSelection,
+  type AiModel,
+  type AiModelSelection
+} from "@/entities/ai";
 import { renameWorkspace, updateWorkspaceAutoIngest, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
@@ -101,17 +109,21 @@ export function WorkspacePanel({
     }
   }
 
-  // 카탈로그에 실제로 존재하는 provider만 노출한다.
-  const providers = Array.from(new Set(aiModels.map((model) => model.provider)));
-  const selectedIcon = aiModelSelection ? providerIcons[aiModelSelection.provider] : undefined;
-  // 저장된 provider가 카탈로그에 없으면 첫 provider를 보여 준다(빈 목록 방지).
+  // 워크스페이스 공용 모델에는 Claude를 쓸 수 없으므로 카탈로그에서 뺀 목록만 노출한다.
+  const workspaceModels = filterWorkspaceAiModels(aiModels);
+  const hasExcludedModels = hasWorkspaceExcludedModels(aiModels);
+  // 저장값이 Claude이거나 카탈로그에서 빠졌으면 백엔드처럼 기본 모델로 대체해 보여 준다.
+  const { selection: shownSelection, isFallback: isSelectionFallback } = resolveWorkspaceModelSelection(
+    workspaceModels,
+    aiModelSelection
+  );
+  const providers = Array.from(new Set(workspaceModels.map((model) => model.provider)));
+  const selectedIcon = shownSelection ? providerIcons[shownSelection.provider] : undefined;
+  // 표시 중인 provider가 목록에 없으면 첫 provider를 보여 준다(빈 목록 방지).
   const savedProvider =
-    aiModelSelection && providers.includes(aiModelSelection.provider) ? aiModelSelection.provider : null;
+    shownSelection && providers.includes(shownSelection.provider) ? shownSelection.provider : null;
   const activeProvider = viewingProvider ?? savedProvider ?? providers[0] ?? null;
-  const providerModels = aiModels.filter((model) => model.provider === activeProvider);
-  // 저장된 provider+model 조합이 카탈로그에 없으면 다시 고르도록 안내한다.
-  const isSavedModelMissing =
-    aiModels.length > 0 && aiModelSelection !== null && !aiModels.some((model) => isSameSelection(model, aiModelSelection));
+  const providerModels = workspaceModels.filter((model) => model.provider === activeProvider);
 
   return (
     <div className={styles.detail}>
@@ -182,13 +194,14 @@ export function WorkspacePanel({
           <div className={styles["row-title"]}>
             <strong>LLM Provider</strong>
             <small>위키 생성•편집에 사용하는 모델</small>
+            {hasExcludedModels && <small>Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다.</small>}
           </div>
           <div className={panelStyles["model-controls"]}>
             <div className={panelStyles["model-actions"]}>
-              {aiModelSelection && (
+              {shownSelection && (
                 <span className={panelStyles.pill}>
                   {selectedIcon && <SvgIcon src={selectedIcon} className={panelStyles["pill-icon"]} />}
-                  {getProviderLabel(aiModelSelection.provider)} • {aiModelSelection.model}
+                  {getProviderLabel(shownSelection.provider)} • {shownSelection.model}
                 </span>
               )}
               <button
@@ -206,16 +219,14 @@ export function WorkspacePanel({
                 Provider 변경은 워크스페이스 OWNER만 할 수 있습니다.
               </small>
             )}
-            {isSavedModelMissing && (
+            {isSelectionFallback && (
               <small className={styles["provider-readonly"]}>
-                {/* 모델은 OWNER만 바꿀 수 있으므로 그 외 사용자에게는 OWNER에게 요청하도록 안내한다. */}
-                저장된 모델을 더 이상 사용할 수 없습니다.{" "}
-                {canUpdateAiModel ? "모델을 다시 골라 주세요." : "워크스페이스 OWNER에게 모델 변경을 요청하세요."}
+                저장된 모델을 더 이상 사용할 수 없어 기본 모델로 처리합니다.
               </small>
             )}
             {isProviderListOpen && canUpdateAiModel && (
               <>
-                {aiModels.length === 0 && (
+                {workspaceModels.length === 0 && (
                   <small className={styles["provider-readonly"]}>사용할 수 있는 모델이 없습니다.</small>
                 )}
                 <div className={styles["provider-list"]}>
@@ -244,7 +255,7 @@ export function WorkspacePanel({
                     aria-label={`${getProviderLabel(activeProvider ?? "")} 모델`}
                   >
                     {providerModels.map((model) => {
-                      const isSelected = isSameSelection(model, aiModelSelection);
+                      const isSelected = isSameSelection(model, shownSelection);
                       return (
                         <button
                           key={model.model}

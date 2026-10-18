@@ -67,3 +67,35 @@ export function groupAiModelsByProvider(models: AiModel[]): AiModelGroup[] {
   }
   return Array.from(groups, ([provider, items]) => ({ provider, models: items }));
 }
+
+// 워크스페이스 공용 모델(ingest_lint)에는 Claude를 쓸 수 없다. 백엔드가 claude 저장을 400으로 거절한다.
+const WORKSPACE_EXCLUDED_PROVIDERS = new Set(["claude"]);
+
+/** 저장값을 쓸 수 없을 때 백엔드가 대신 쓰는 워크스페이스 기본 모델. */
+export const WORKSPACE_DEFAULT_MODEL: AiModelSelection = { provider: "gemini", model: "gemini-3.5-flash-lite" };
+
+/** 워크스페이스 모델 설정에서 고를 수 있는 모델만 남긴다(Claude 제외). */
+export function filterWorkspaceAiModels(catalog: AiModel[]): AiModel[] {
+  return catalog.filter((item) => !WORKSPACE_EXCLUDED_PROVIDERS.has(item.provider));
+}
+
+/** 카탈로그에 워크스페이스 설정에서 뺀 provider(Claude) 모델이 있는지 확인한다. */
+export function hasWorkspaceExcludedModels(catalog: AiModel[]): boolean {
+  return catalog.some((item) => WORKSPACE_EXCLUDED_PROVIDERS.has(item.provider));
+}
+
+/**
+ * 워크스페이스 설정 화면에 보여 줄 실제 적용 모델을 정한다.
+ * 저장값이 Claude이거나 카탈로그에서 빠졌으면 백엔드와 같은 기본 모델로 대체해 보여 준다.
+ * 카탈로그를 아직 받지 못했으면 Claude가 아닌 저장값은 그대로 둔다.
+ */
+export function resolveWorkspaceModelSelection(
+  workspaceModels: AiModel[],
+  saved: AiModelSelection | null
+): { selection: AiModelSelection | null; isFallback: boolean } {
+  if (!saved) return { selection: null, isFallback: false };
+  const isExcluded = WORKSPACE_EXCLUDED_PROVIDERS.has(saved.provider);
+  const isAvailable = workspaceModels.length === 0 || workspaceModels.some((item) => isSameSelection(item, saved));
+  if (!isExcluded && isAvailable) return { selection: saved, isFallback: false };
+  return { selection: WORKSPACE_DEFAULT_MODEL, isFallback: true };
+}
