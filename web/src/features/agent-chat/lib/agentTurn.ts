@@ -1,17 +1,29 @@
 import type { ActiveMarkdownEditContext, MarkdownEditorSnapshot } from "./markdownEditContext";
 import type { AiModelSelection } from "@/entities/ai";
 
+/** 작업 탭 요청 표시. 서버는 이 값이 있으면 문서 없이도 받고 채팅 답변 갈래를 고르지 않는다(document·ai 계약). */
+export const AGENT_TURN_TASK_MODE = "task";
+
 export type AgentTurnRequest = {
   session_id: string;
-  documentId: string;
-  baseVersion: number;
   message: string;
   provider: string;
   model: string;
   allow_web_search: boolean;
+  mode: typeof AGENT_TURN_TASK_MODE;
   conversationContext?: { selected_pair_ids: string[] };
-  editorSnapshot: MarkdownEditorSnapshot;
-};
+} & (
+  // 문서를 열지 않았거나 작업 대상에서 뺐으면 세 필드를 함께 생략한다(document AgentTurnRequest 계약).
+  | { documentId: string; baseVersion: number; editorSnapshot: MarkdownEditorSnapshot }
+  | { documentId?: undefined; baseVersion?: undefined; editorSnapshot?: undefined }
+);
+
+/** 문서를 대상으로 보낸 요청. 편집안 검토·적용은 이 요청에만 할 수 있다. */
+export type DocumentAgentTurnRequest = Extract<AgentTurnRequest, { documentId: string }>;
+
+export function isDocumentAgentTurnRequest(request: AgentTurnRequest): request is DocumentAgentTurnRequest {
+  return typeof request.documentId === "string" && request.editorSnapshot !== undefined;
+}
 
 type AgentTurnRequestContext = {
   sessionId: string;
@@ -117,25 +129,26 @@ export function resolveChatTurnPresentation(action: string | undefined): ChatTur
   return { kind: "query", grounded: !action || action === "chat_answer" };
 }
 
+/** 작업 탭 요청을 만든다. 열린 문서(context)가 없으면 문서 없이 보낸다(폴더 정리·폴더 스킬). */
 export function buildAgentTurnRequest(
   message: string,
-  context: ActiveMarkdownEditContext,
+  context: Pick<ActiveMarkdownEditContext, "documentId" | "baseVersion" | "editorSnapshot"> | null,
   requestContext: AgentTurnRequestContext
 ): AgentTurnRequest {
-  return {
+  const base = {
     session_id: requestContext.sessionId,
-    documentId: context.documentId,
-    baseVersion: context.baseVersion,
     message,
     provider: requestContext.selectedModel.provider,
     model: requestContext.selectedModel.model,
     allow_web_search: requestContext.allowWebSearch ?? false,
+    mode: AGENT_TURN_TASK_MODE,
     // 선택한 문답이 있을 때만 서버가 지원하는 pair ID 계약으로 전달한다.
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }
-      : {}),
-    editorSnapshot: context.editorSnapshot
-  };
+      : {})
+  } as const;
+  if (!context) return base;
+  return { ...base, documentId: context.documentId, baseVersion: context.baseVersion, editorSnapshot: context.editorSnapshot };
 }
 
 export function buildGeneratedMarkdownFilename(title: string): string {
@@ -150,7 +163,7 @@ export function buildGeneratedMarkdownFilename(title: string): string {
   return safeTitle.toLowerCase().endsWith(".md") ? safeTitle : `${safeTitle}.md`;
 }
 
-function targetsMatch(request: AgentTurnRequest, edit: AgentTurnEdit): boolean {
+function targetsMatch(request: DocumentAgentTurnRequest, edit: AgentTurnEdit): boolean {
   const requestTarget = request.editorSnapshot.target;
   return requestTarget.type === edit.requested_target.type
     && requestTarget.startLine === edit.requested_target.start_line
@@ -207,9 +220,13 @@ function lineDiff(before: string, after: string): MarkdownDiffLine[] {
 }
 
 export function prepareMarkdownEditPreview(
-  request: AgentTurnRequest,
+  anyRequest: AgentTurnRequest,
   response: AgentTurnResponse
 ): MarkdownEditPreview {
+  if (!isDocumentAgentTurnRequest(anyRequest)) {
+    throw new Error("문서를 열지 않은 요청에는 편집안을 적용할 수 없습니다. 문서를 열고 다시 요청해주세요.");
+  }
+  const request = anyRequest;
   if (response.documentId !== request.documentId) {
     throw new Error("응답 문서가 요청 문서와 일치하지 않습니다.");
   }
@@ -267,7 +284,7 @@ export function validateMarkdownEditApplication(
 ): void {
   prepareMarkdownEditPreview(request, response);
   if (currentContext.documentId !== request.documentId
-    || currentContext.editorSnapshot.markdown !== request.editorSnapshot.markdown) {
+    || currentContext.editorSnapshot.markdown !== request.editorSnapshot?.markdown) {
     throw new Error("요청 이후 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
   }
 }

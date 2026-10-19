@@ -540,6 +540,7 @@ export function HomeWorkspace() {
           onMeetingActiveChange={setHasOpenMeeting}
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
+          onManageSkills={() => handleViewChange("skills")}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             ...chatEvidenceNotice,
             // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.

@@ -55,3 +55,18 @@ export function AgentWaveMark({ size }: { size: "small" }) {
     </span>
   );
 }
+
+/**
+ * Figma에서 내려받은 단색 SVG 에셋을 모양(mask)으로만 쓰고 색은 currentColor로 칠한다.
+ * 에셋 색(라이트 테마 파랑)이 다크 테마 주 색(노랑)과 다르므로 테마 색을 따르게 한다.
+ */
+export function AgentAssetIcon({ src, size, className }: { src: { src: string }; size: number; className?: string }) {
+  const mask = `url(${src.src})`;
+  return (
+    <span
+      aria-hidden
+      className={cx(styles["asset-icon"], className)}
+      style={{ width: size, height: size, maskImage: mask, WebkitMaskImage: mask }}
+    />
+  );
+}

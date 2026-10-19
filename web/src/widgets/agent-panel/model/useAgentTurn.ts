@@ -13,8 +13,9 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 
 /**
- * 노트를 열어 둔 채 보내는 문서 명령(agent turn): 요청·진행 단계·응답과
+ * 작업 탭 요청(agent turn, mode=task): 요청·진행 단계·응답과
  * 그 결과로 보여 주는 편집 미리보기·적용·새 Markdown 문서 만들기.
+ * 열린 문서가 없거나 대상에서 빼면 문서 없이 보낸다(폴더 정리·폴더 스킬).
  */
 export function useAgentTurn({
   markdownEditContext,
@@ -46,6 +47,13 @@ export function useAgentTurn({
   useEffect(() => () => agentRequestRef.current?.abort(), []);
   const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
   const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
+  // 이 화면에서 작업 탭으로 보낸 turn ID. 서버가 채팅 답변으로 돌려줘도 작업 탭에 남긴다.
+  const [taskRunIds, setTaskRunIds] = useState<ReadonlySet<string>>(() => new Set());
+  // 편집안을 적용했거나 새 문서로 만든 turn ID. 작업 목록에서 "저장됨"으로 보인다.
+  const [appliedTurnIds, setAppliedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+  const markApplied = useCallback((turnId: string | undefined) => {
+    if (turnId) setAppliedTurnIds((current) => new Set([...current, turnId]));
+  }, []);
 
   const editPreviewState = useMemo<{
     preview: MarkdownEditPreviewData | null;
@@ -73,7 +81,7 @@ export function useAgentTurn({
 
   const submitAgentTurn = useCallback((
     question: string,
-    context: ActiveMarkdownEditContext,
+    context: ActiveMarkdownEditContext | null,
     sessionId: string,
     model: AiModel,
     conversationPairIds: string[]
@@ -95,6 +103,9 @@ export function useAgentTurn({
     agentRequestRef.current = controller;
     requestAgentTurn(request, {
       signal: controller.signal,
+      onAccepted: (requestId) => {
+        if (!controller.signal.aborted) setTaskRunIds((current) => new Set([...current, requestId]));
+      },
       onStage: (stage) => {
         if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
       }
@@ -109,7 +120,7 @@ export function useAgentTurn({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setAgentTurnErrorMessage(getErrorMessage(error, "AI 편집 요청에 실패했습니다."));
+        setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
       })
       .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
@@ -123,11 +134,12 @@ export function useAgentTurn({
   }
 
   function regenerateAgentTurn() {
-    if (!agentTurnRequest || !markdownEditContext || !activeSessionId || !selectedModel) {
+    const needsDocument = agentTurnRequest?.documentId !== undefined;
+    if (!agentTurnRequest || (needsDocument && !markdownEditContext) || !activeSessionId || !selectedModel) {
       setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
       return;
     }
-    submitAgentTurn(agentTurnRequest.message, markdownEditContext, activeSessionId, selectedModel, selectedPairIds);
+    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds);
   }
 
   function applyMarkdownEdit() {
@@ -135,11 +147,12 @@ export function useAgentTurn({
     try {
       validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
       const applied = markdownEditContext.applyMarkdown(
-        agentTurnRequest.editorSnapshot.markdown,
+        agentTurnRequest.editorSnapshot?.markdown ?? "",
         editPreviewState.preview.nextMarkdown,
         agentTurnResponse.apply_operation_id
       );
       if (!applied) throw new Error("적용 직전에 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
+      markApplied(agentTurnResponse.requestId);
       setAgentTurnRequest(null);
       setAgentTurnResponse(null);
       setAgentTurnErrorMessage(null);
@@ -160,6 +173,7 @@ export function useAgentTurn({
     setAgentTurnErrorMessage(null);
     onCreateMarkdownDocument(draft)
       .then(() => {
+        markApplied(agentTurnResponse?.requestId);
         setAgentTurnRequest(null);
         setAgentTurnResponse(null);
       })
@@ -176,6 +190,7 @@ export function useAgentTurn({
     setMarkdownCreateErrorMessage(null);
     onCreateMarkdownDocument(draft)
       .then(() => {
+        markApplied(agentTurnResponse?.requestId);
         setAgentTurnRequest(null);
         setAgentTurnResponse(null);
       })
@@ -195,6 +210,8 @@ export function useAgentTurn({
     markdownCreateErrorMessage,
     editPreviewState,
     editPreviewErrorMessage,
+    taskRunIds,
+    appliedTurnIds,
     submitAgentTurn,
     dismissAgentTurnResult,
     regenerateAgentTurn,

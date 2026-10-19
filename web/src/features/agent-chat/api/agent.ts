@@ -18,7 +18,12 @@ function toTerminalResult(run: AgentTurnRunResponse): AgentTurnResponse | null {
 
 export async function requestAgentTurn(
   request: AgentTurnRequest,
-  handlers: { onStage: (event: RunStageEvent) => void; signal: AbortSignal }
+  handlers: {
+    onStage: (event: RunStageEvent) => void;
+    signal: AbortSignal;
+    /** 서버가 turn을 받아 ID를 정했을 때. 화면은 이 ID로 세션 메시지를 작업 탭에 묶는다. */
+    onAccepted?: (requestId: string) => void;
+  }
 ): Promise<AgentTurnResponse> {
   const signal = AbortSignal.any([handlers.signal, AbortSignal.timeout(300_000)]);
   const workspaceId = getWorkspaceId();
@@ -29,6 +34,7 @@ export async function requestAgentTurn(
     body: JSON.stringify(request)
   });
   const run = await parseJsonOrThrow<AgentTurnRunResponse>(response, ERROR_MESSAGES.agentTurnFailed);
+  handlers.onAccepted?.(run.requestId);
   // 생성 응답이 이미 종료 상태면 첫 대기 없이 바로 반환한다.
   const initial = toTerminalResult(run);
   if (initial) return initial;
