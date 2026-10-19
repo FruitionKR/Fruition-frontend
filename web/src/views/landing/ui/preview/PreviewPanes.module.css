@@ -57,6 +57,10 @@
   border-left: 0;
 }
 
+.agent[data-width="hero"] {
+  flex: 0 0 340px;
+}
+
 .agent-header {
   display: flex;
   flex: 0 0 44px;

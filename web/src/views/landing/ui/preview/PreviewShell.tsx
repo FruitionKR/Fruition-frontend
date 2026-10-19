@@ -1,4 +1,5 @@
 import { cx } from "@/shared/lib/classNames";
+import { fileIcon, sourceIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import {
   SidebarChevronIcon,
   SidebarPlusIcon,
@@ -18,10 +19,13 @@ export interface TreeRow {
   readonly isActive?: boolean;
   /** 올리는 중·변환 중인 행 (실제 사이드바의 진행 표시) */
   readonly status?: string;
+  /** 위키 페이지 행: 출처 페이지·개념 페이지 아이콘 (실제 TreeNodeIcon과 같은 자산) */
+  readonly wiki?: "source" | "concept";
 }
 
 function TreeIcon({ row }: { row: TreeRow }) {
   if (row.status) return <span className={cx(styles["tree-slot"], styles["tree-spinner"])} />;
+  if (row.wiki) return <SvgIcon src={row.wiki === "source" ? sourceIcon : fileIcon} className={styles["tree-asset"]} />;
   if (row.kind === "file") return <span className={styles["tree-slot"]} />;
   return (
     <span className={styles["tree-slot"]}>

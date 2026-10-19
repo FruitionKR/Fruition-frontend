@@ -105,8 +105,7 @@ export function GraphPane() {
 const MEMBERS = [
   { name: "김지수", email: "jisoo@example.com", role: "OWNER" },
   { name: "박민수", email: "minsoo@example.com", role: "OWNER" },
-  { name: "이서연", email: "seoyeon@example.com", role: "MEMBER" },
-  { name: "최도윤", email: "doyoon@example.com", role: "MEMBER" }
+  { name: "이서연", email: "seoyeon@example.com", role: "MEMBER" }
 ] as const;
 
 /** 설정 › 멤버 관리 목록 조각 (Figma 1540:21567) */

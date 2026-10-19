@@ -1,17 +1,56 @@
-/* 랜딩 화면 조각(히어로 · 핵심 기능 · 기능 묶음 · 팀)의 배치. 색은 앱 토큰(--color-*)만 쓴다. */
+/* 랜딩 화면 조각(히어로 · 01~04장)의 배치. 색은 현재 테마의 앱 토큰(--color-*)만 쓴다. */
 
-/* ───── 히어로: 채팅 근거 답변 + 원문 미리보기 ───── */
+.app {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--color-canvas);
+}
+
+/* ───── 히어로: 문서 트리(위키) + 문서 + 채팅 ───── */
 .hero-frame {
-  --preview-w: 700;
-  --preview-h: 600;
+  --preview-w: 880;
+  --preview-h: 620;
 
   box-shadow: 0 30px 80px -40px var(--color-shadow), 0 2px 8px var(--color-shadow);
 }
 
-.hero-app {
+.wiki-link {
+  color: var(--color-primary-weak-foreground);
+  font-weight: 600;
+  background: var(--color-primary-weak);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+.doc-checks {
   display: flex;
-  width: 100%;
-  height: 100%;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  color: var(--color-body);
+  list-style: none;
+}
+
+.doc-checks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.doc-checks li::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1.4px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.doc-checks li[data-done]::before {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .source-list {
@@ -54,83 +93,18 @@
   border-radius: 5px;
 }
 
-.source-list li span {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  color: var(--color-on-primary);
-  font-size: 11px;
-  font-weight: 700;
-  background: var(--color-primary);
-  border-radius: 5px;
-}
-
-.source-pane {
-  display: flex;
-  flex: 0 0 300px;
-  flex-direction: column;
-  background: var(--color-canvas);
-  border-left: 1px solid var(--color-border);
-}
-
-.source-head {
-  display: flex;
-  flex: 0 0 44px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.source-page {
-  margin-left: auto;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.source-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px 18px;
-  color: var(--color-body);
-  font-size: 14px;
-  line-height: 1.75;
-}
-
-.source-heading {
-  color: var(--color-foreground);
-  font-weight: 700;
-}
-
-.source-body mark {
-  color: var(--color-foreground);
-  background: var(--color-primary-weak);
-  box-shadow: inset 0 -2px 0 var(--color-primary);
-}
-
-/* ───── 올리기 · 변환 ───── */
-.split-app {
-  position: relative;
-  display: flex;
-  width: 100%;
-  height: 100%;
-}
-
-.doc,
-.card-doc {
+/* ───── 문서 ───── */
+.doc {
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
   padding: 28px 32px;
+}
+
+.doc[data-size="compact"] {
+  padding: 28px 26px;
 }
 
 .doc-crumb {
@@ -235,15 +209,72 @@
   border-radius: 8px;
 }
 
-/* ───── 위키 · 그래프 / 팀 ───── */
-.graph-app {
+/* ───── 02: 위키 그래프 + 개념 페이지 ───── */
+.wiki-page {
   display: flex;
-  width: 100%;
-  height: 100%;
-  background: var(--color-canvas);
+  flex: 0 0 280px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 20px;
+  border-left: 1px solid var(--color-border);
 }
 
-/* ───── 근거 있는 답변: 참고 자료 인용 목록 ───── */
+.wiki-kind {
+  align-self: flex-start;
+  padding: 3px 8px;
+  color: var(--color-body);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-surface);
+  border-radius: 6px;
+}
+
+.wiki-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.wiki-section {
+  margin-top: 6px !important;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wiki-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  font-size: 13px;
+  list-style: none;
+}
+
+.wiki-sources li::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  background: var(--color-graph-source);
+  border-radius: 50%;
+}
+
+.wiki-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wiki-tags span {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+}
+
+/* ───── 03: 채팅 탭 인용 · 작업 탭 ───── */
 .quote-list {
   display: flex;
   flex-direction: column;
@@ -256,7 +287,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
 }
@@ -269,283 +300,141 @@
   font-weight: 600;
 }
 
-.quote-kind {
-  margin-left: auto;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-weight: 500;
-}
-
 .quote-text {
   color: var(--color-body);
-  font-size: 13px !important;
+  font-size: 12px !important;
 }
 
-/* ───── 팀(어두운 띠): 앱 다크 토큰을 이 조각에만 적용 ───── */
-.team-frame {
-  --color-canvas: #0a0a0a;
-  --color-surface: #1e1e1e;
-  --color-surface-strong: #323232;
-  --color-border: #4f4f4f;
-  --color-foreground: #f0f0f0;
-  --color-body: #a7a7a7;
-  --color-muted: #8a8a8a;
-  --color-placeholder: #6b6b6b;
-  --color-primary: #ffc117;
-  --color-on-primary: #0a0a0a;
-  --color-primary-weak: #2a2414;
-  --color-primary-weak-foreground: #ffd666;
-  --color-shadow: rgb(0 0 0 / 40%);
-
-  color-scheme: dark;
-}
-
-/* ───── 기능 묶음(벤토) ───── */
-.bento-frame {
-  border-radius: 10px;
-}
-
-.slash-menu {
+.task-body {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 20px 16px 10px;
-}
-
-.slash-menu ul {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  list-style: none;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: 0 4px 14px var(--color-shadow);
-}
-
-.slash-menu li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-}
-
-.slash-menu li[data-active] {
-  background: var(--color-surface);
-}
-
-.slash-command {
-  font-weight: 600;
-}
-
-.slash-desc {
-  flex: 1;
-  overflow: hidden;
-  color: var(--color-body);
-  font-size: 12px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.slash-scope {
-  padding: 2px 6px;
-  color: var(--color-body);
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--color-surface);
-  border-radius: 5px;
-}
-
-.slash-input {
-  display: flex;
-  align-items: center;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.caret {
-  width: 1.5px;
-  height: 18px;
-  margin-left: 1px;
-  background: var(--color-primary);
-}
-
-.dictation {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 18px 0;
-}
-
-.recording {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-body);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.recording-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--color-danger);
-  border-radius: 50%;
-}
-
-.wave {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.wave i {
-  width: 3px;
-  height: 10px;
-  background: var(--color-danger);
-  border-radius: 2px;
-}
-
-.wave i:nth-child(2n) {
-  height: 16px;
-}
-
-.wave i:nth-child(3n) {
-  height: 6px;
-}
-
-.transcript {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  list-style: none;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-}
-
-.transcript li {
-  display: flex;
-  gap: 10px;
-  color: var(--color-body);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.transcript strong {
-  flex: none;
-  color: var(--color-foreground);
-  font-weight: 600;
-}
-
-.lint,
-.history {
-  display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 100%;
-  height: 100%;
-  padding: 20px;
+  min-height: 0;
+  padding: 20px 18px 12px;
+  overflow: hidden;
 }
 
-.lint-head {
+.task-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.task-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.task-title {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+.task-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-chips span {
+  padding: 5px 10px;
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-primary-weak);
+  border-radius: 99px;
+}
+
+.task-done {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ───── 04: 멤버 관리 + 팀 스킬 ───── */
+.team-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--color-canvas);
+}
+
+.team-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 40px 28px;
+}
+
+.team-skills-head {
   font-size: 15px;
   font-weight: 700;
 }
 
-.lint-head span {
+.team-skills-head span {
   color: var(--color-primary-weak-foreground);
 }
 
-.lint ul,
-.history ul {
+.team-skills ul {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--color-border);
 }
 
-.lint li {
+.team-skills li {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-}
-
-.lint-text,
-.history-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.lint-text strong,
-.history-text strong {
-  color: var(--color-foreground);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.history li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 16px;
+  padding: 11px 12px;
   border-bottom: 1px solid var(--color-border);
 }
 
-.history-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  background: var(--color-primary);
-  border-radius: 50%;
+.team-skills strong {
+  font-weight: 600;
 }
 
-.history-dot[data-state="reverted"] {
-  background: var(--color-placeholder);
+.team-skills li span {
+  flex: 1;
+  color: var(--color-body);
+  font-size: 13px;
 }
 
-.history-time {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.history-action {
-  padding: 5px 10px;
+.team-skills em {
+  padding: 2px 8px;
   color: var(--color-body);
   font-size: 12px;
-  font-weight: 600;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  font-style: normal;
+  font-weight: 500;
+  background: var(--color-surface);
+  border-radius: 6px;
 }
 
-.history-done {
-  padding: 5px 10px;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-/* 좁은 화면: 히어로는 채팅 패널만 보여 글자가 너무 작아지지 않게 한다. */
+/* 좁은 화면: 히어로는 채팅 패널만 남겨 글자가 너무 작아지지 않게 한다. */
 @media (max-width: 640px) {
   .hero-frame {
     --preview-w: 380;
-    --preview-h: 600;
+    --preview-h: 560;
   }
 
-  .source-pane {
+  .hero-frame .app > :not(:last-child) {
     display: none;
+  }
+
+  .hero-frame .app > :last-child {
+    flex: 1;
+    border-left: 0;
   }
 }

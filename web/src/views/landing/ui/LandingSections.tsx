@@ -1,125 +1,135 @@
 import Link from "next/link";
 import { cx } from "@/shared/lib/classNames";
-import { LANDING_BENTO, LANDING_FEATURES, type LandingFeature } from "../model/landingContent";
-import { BentoPreview } from "./preview/BentoFragments";
-import { AnswerPreview, GraphPreview, UploadPreview } from "./preview/FeatureFragments";
+import { LANDING_CHAPTERS, LANDING_FAQ, type LandingChapter } from "../model/landingContent";
+import {
+  CapturePreview,
+  ChatTabPreview,
+  ConnectPreview,
+  TaskTabPreview,
+  TogetherPreview
+} from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
 
-const FLOW_INPUTS = ["PDF 문서", "회의 녹음", "메모 · Markdown", "채팅 기록"] as const;
-const FLOW_OUTPUTS = [
-  { label: "개념 페이지", kind: "concept" },
-  { label: "출처 페이지", kind: "source" },
-  { label: "지식 그래프", kind: "graph" },
-  { label: "근거 있는 답변", kind: "answer" }
-] as const;
-
-/** 흐름도: 여러 형태의 자료 → 위키 편입 → 위키·그래프·답변 */
-export function LandingFlow() {
+/** 장 목차: 01 모으고 쓰기 → 02 지식으로 연결 → 03 활용 → 04 팀으로 확장 */
+export function ChapterIndex() {
   return (
-    <section id="flow" className={sections["section"]} aria-labelledby="flow-title">
-      <header className={sections["section-head"]} data-align="center">
-        <h2 id="flow-title" className={styles["h2"]}>
-          자료가 들어오면, 위키가 알아서 자랍니다
-        </h2>
-        <p className={styles["lead"]}>형식이 달라도 괜찮아요. 위키에 편입되면 같은 언어로 정리되고 서로 이어집니다.</p>
-      </header>
-      <div className={sections["flow"]}>
-        <ul className={sections["flow-column"]} aria-label="올리는 자료">
-          {FLOW_INPUTS.map((input) => (
-            <li key={input} className={sections["flow-chip"]} data-kind="raw">
-              {input}
-            </li>
-          ))}
-        </ul>
-        <span className={sections["flow-arrow"]} aria-hidden="true" />
-        <div className={sections["flow-core"]}>
-          <p className={sections["flow-core-title"]}>위키 편입</p>
-          <p className={sections["flow-core-text"]}>핵심 개념을 뽑고 출처를 연결해 페이지로 정리합니다</p>
+    <nav className={sections["chapter-index"]} aria-label="장 목차">
+      <ol>
+        {LANDING_CHAPTERS.map((chapter) => (
+          <li key={chapter.id}>
+            <a href={`#${chapter.id}`}>
+              <span className={sections["chapter-index-number"]}>{chapter.index}</span>
+              {chapter.indexLabel}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function ChapterVisual({ id }: { id: LandingChapter["id"] }) {
+  switch (id) {
+    case "capture":
+      return <CapturePreview />;
+    case "connect":
+      return <ConnectPreview />;
+    case "discover":
+      return (
+        <div className={sections["tab-previews"]}>
+          <figure>
+            <ChatTabPreview />
+            <figcaption>
+              <strong>채팅 탭</strong> 질문하고 근거와 함께 답을 받습니다
+            </figcaption>
+          </figure>
+          <figure>
+            <TaskTabPreview />
+            <figcaption>
+              <strong>작업 탭</strong> 편집 · 정리 · 스킬 실행을 확인하고 승인합니다
+            </figcaption>
+          </figure>
         </div>
-        <span className={sections["flow-arrow"]} aria-hidden="true" />
-        <ul className={sections["flow-column"]} aria-label="만들어지는 지식">
-          {FLOW_OUTPUTS.map((output) => (
-            <li key={output.label} className={sections["flow-chip"]} data-kind={output.kind}>
-              {output.label}
-            </li>
+      );
+    case "together":
+      return <TogetherPreview />;
+  }
+}
+
+function ChapterSection({ chapter }: { chapter: LandingChapter }) {
+  const headingId = `${chapter.id}-title`;
+  return (
+    <section
+      id={chapter.id}
+      className={cx(sections["chapter"], chapter.visualSide === "left" && sections["is-visual-left"])}
+      aria-labelledby={headingId}
+    >
+      <div className={sections["chapter-copy"]}>
+        <p className={sections["chapter-name"]}>
+          <span className={sections["chapter-number"]}>{chapter.index}.</span>
+          {chapter.name}
+          <span className={sections["chapter-english"]}>({chapter.english})</span>
+        </p>
+        <h2 id={headingId} className={styles["h2"]}>
+          {chapter.headline}
+        </h2>
+        <p className={sections["chapter-note"]}>({chapter.headlineNote})</p>
+        <p className={styles["lead"]}>{chapter.body}</p>
+        <ul className={sections["chips"]} aria-label={`${chapter.name} 기능`}>
+          {chapter.chips.map((chip) => (
+            <li key={chip}>{chip}</li>
           ))}
         </ul>
+      </div>
+      <div className={sections["chapter-visual"]}>
+        <ChapterVisual id={chapter.id} />
       </div>
     </section>
   );
 }
 
-function FeaturePreview({ id }: { id: LandingFeature["id"] }) {
-  if (id === "capture") return <UploadPreview />;
-  if (id === "connect") return <GraphPreview />;
-  return <AnswerPreview />;
-}
-
-/** 핵심 기능 3개를 좌우 교차 배치로 */
-export function LandingFeatures() {
+export function LandingChapters() {
   return (
-    <div className={sections["features"]}>
-      {LANDING_FEATURES.map((feature, index) => (
-        <section
-          key={feature.id}
-          id={feature.id}
-          className={cx(sections["feature"], index % 2 === 1 && sections["is-reversed"])}
-          aria-labelledby={`${feature.id}-title`}
-        >
-          <div className={sections["feature-copy"]}>
-            <p className={styles["label"]}>{feature.label}</p>
-            <h2 id={`${feature.id}-title`} className={styles["h2"]}>
-              {feature.title[0]}
-              <br />
-              {feature.title[1]}
-            </h2>
-            <p className={styles["lead"]}>{feature.description}</p>
-            <ul className={sections["checklist"]}>
-              {feature.points.map((point) => (
-                <li key={point}>{point}</li>
-              ))}
-            </ul>
-          </div>
-          <div className={sections["feature-visual"]}>
-            <FeaturePreview id={feature.id} />
-          </div>
-        </section>
+    <div className={sections["chapters"]}>
+      {LANDING_CHAPTERS.map((chapter) => (
+        <ChapterSection key={chapter.id} chapter={chapter} />
       ))}
     </div>
   );
 }
 
-/** 그 밖의 기능 묶음(벤토)과 중간 안내 */
-export function LandingBento() {
+export function LandingFaq() {
   return (
-    <section id="more" className={sections["section"]} aria-labelledby="more-title">
-      <header className={sections["section-head"]}>
-        <h2 id="more-title" className={styles["h2"]}>
-          매일 쓰는 일도 함께 정리됩니다
-        </h2>
-        <p className={styles["lead"]}>문서를 고치고, 회의를 남기고, 위키를 다듬는 일까지 한 화면에서 이어집니다.</p>
-      </header>
-      <ul className={sections["bento"]}>
-        {LANDING_BENTO.map((item) => (
-          <li key={item.id} className={sections["bento-card"]} data-id={item.id}>
-            <div className={sections["bento-copy"]}>
-              <h3 className={styles["h3"]}>{item.title}</h3>
-              <p>{item.description}</p>
-            </div>
-            <div className={sections["bento-visual"]}>
-              <BentoPreview id={item.id} />
-            </div>
-          </li>
+    <section id="faq" className={sections["faq"]} aria-labelledby="faq-title">
+      <h2 id="faq-title" className={styles["h2"]}>
+        자주 묻는 질문
+      </h2>
+      <div className={sections["faq-list"]}>
+        {LANDING_FAQ.map((item) => (
+          <details key={item.question} className={sections["faq-item"]}>
+            <summary>
+              <span>{item.question}</span>
+              <span className={sections["faq-icon"]} aria-hidden="true" />
+            </summary>
+            <p>{item.answer}</p>
+          </details>
         ))}
-      </ul>
-      <div className={sections["inline-cta"]}>
-        <p>내 자료 하나로 바로 확인해 보세요.</p>
-        <Link className={styles["button-primary"]} href="/login">
-          시작하기
-          <span aria-hidden="true">→</span>
-        </Link>
       </div>
+    </section>
+  );
+}
+
+export function LandingStart() {
+  return (
+    <section id="start" className={sections["start"]} aria-labelledby="start-title">
+      <h2 id="start-title" className={styles["h2"]}>
+        지금 기록을 지식으로 바꿔 보세요
+      </h2>
+      <Link className={styles["button-primary"]} href="/login">
+        시작하기
+        <span aria-hidden="true">→</span>
+      </Link>
     </section>
   );
 }

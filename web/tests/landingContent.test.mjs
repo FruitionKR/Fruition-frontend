@@ -2,77 +2,72 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const { LANDING_BENTO, LANDING_FAQ, LANDING_FEATURES, LANDING_NAV, LANDING_USE_CASES, nextTabIndex } = await import(
-  "../src/views/landing/model/landingContent.ts"
-);
+const { LANDING_CHAPTERS, LANDING_FAQ, LANDING_NAV } = await import("../src/views/landing/model/landingContent.ts");
 
 const UI_DIR = new URL("../src/views/landing/ui/", import.meta.url);
 const read = (name) => readFileSync(new URL(name, UI_DIR), "utf8");
-const cssFiles = [
-  ...readdirSync(UI_DIR).filter((name) => name.endsWith(".css")),
+const listFiles = (extension) => [
+  ...readdirSync(UI_DIR).filter((name) => name.endsWith(extension)),
   ...readdirSync(new URL("preview/", UI_DIR))
-    .filter((name) => name.endsWith(".css"))
-    .map((name) => `preview/${name}`)
-];
-const tsxFiles = [
-  ...readdirSync(UI_DIR).filter((name) => name.endsWith(".tsx")),
-  ...readdirSync(new URL("preview/", UI_DIR))
-    .filter((name) => name.endsWith(".tsx"))
+    .filter((name) => name.endsWith(extension))
     .map((name) => `preview/${name}`)
 ];
 
-test("핵심 기능은 올리기 → 위키 → 근거 답변 순서이고 #capture 앵커로 시작한다", () => {
+test("장은 01 모으고 쓰기 → 02 지식으로 연결 → 03 활용 → 04 팀으로 확장 순서다", () => {
   assert.deepEqual(
-    LANDING_FEATURES.map((feature) => feature.id),
-    ["capture", "connect", "discover"]
+    LANDING_CHAPTERS.map((chapter) => [chapter.index, chapter.id, chapter.indexLabel]),
+    [
+      ["01", "capture", "모으고 쓰기"],
+      ["02", "connect", "지식으로 연결"],
+      ["03", "discover", "활용"],
+      ["04", "together", "팀으로 확장"]
+    ]
   );
-  assert.equal(LANDING_NAV[0].href, "#capture");
 });
 
-test("메뉴 앵커는 모두 랜딩의 섹션 id를 가리킨다", () => {
-  const source = tsxFiles.map(read).join("\n");
-  for (const item of LANDING_NAV) {
-    const id = item.href.slice(1);
-    const isFeature = LANDING_FEATURES.some((feature) => feature.id === id);
-    assert.ok(isFeature || source.includes(`id="${id}"`), `${item.href} 섹션이 없다`);
-  }
-});
-
-test("기능 묶음 5개 · 활용 사례 3개 · FAQ는 겹치지 않는다", () => {
+test("헤더 메뉴는 모으기·연결하기·활용하기·함께하기이고 각 장 앵커로 간다", () => {
   assert.deepEqual(
-    LANDING_BENTO.map((item) => item.id),
-    ["approve", "skills", "dictation", "lint", "history"]
+    LANDING_NAV.map((item) => [item.label, item.href]),
+    [
+      ["모으기", "#capture"],
+      ["연결하기", "#connect"],
+      ["활용하기", "#discover"],
+      ["함께하기", "#together"]
+    ]
   );
+});
+
+test("화면 조각은 01·03이 왼쪽, 02·04가 오른쪽이다", () => {
   assert.deepEqual(
-    LANDING_USE_CASES.map((useCase) => useCase.tab),
-    ["연구실", "스타트업", "학생"]
+    LANDING_CHAPTERS.map((chapter) => chapter.visualSide),
+    ["left", "right", "left", "right"]
   );
-  assert.equal(new Set(LANDING_FAQ.map((item) => item.question)).size, LANDING_FAQ.length);
 });
 
-test("문구에 영어 병기 괄호와 영어 대문자 꼬리표를 쓰지 않는다", () => {
-  const copy = JSON.stringify([LANDING_FEATURES, LANDING_BENTO, LANDING_USE_CASES, LANDING_FAQ]);
-  assert.doesNotMatch(copy, /\([A-Za-z][A-Za-z ]*\)/);
-  const pageSource = ["LandingPage.tsx", "LandingSections.tsx", "LandingClosing.tsx"].map(read).join("\n");
-  assert.doesNotMatch(pageSource, />[A-Z]{2,}(?: [A-Z&]{2,})+</);
+test("장 문구는 정해진 영어 부제와 괄호 병기 기능 이름을 그대로 쓴다", () => {
+  assert.deepEqual(
+    LANDING_CHAPTERS.map((chapter) => chapter.english),
+    ["CAPTURE & ORGANIZE", "CONNECT THE DOTS", "PUT KNOWLEDGE TO WORK", "BUILD TOGETHER"]
+  );
+  assert.ok(LANDING_CHAPTERS[1].chips.includes("지식 그래프(Graph)"));
+  assert.ok(LANDING_CHAPTERS[2].chips.includes("자연어 질의응답(Query)"));
 });
 
-test("탭 키보드 이동은 좌우 화살표로 순환하고 Home/End로 양 끝에 간다", () => {
-  assert.equal(nextTabIndex(0, "ArrowRight", 3), 1);
-  assert.equal(nextTabIndex(2, "ArrowRight", 3), 0);
-  assert.equal(nextTabIndex(0, "ArrowLeft", 3), 2);
-  assert.equal(nextTabIndex(1, "Home", 3), 0);
-  assert.equal(nextTabIndex(0, "End", 3), 2);
+test("충돌을 사람이 직접 해결한다는 문구를 쓰지 않는다(자동 병합)", () => {
+  const copy = JSON.stringify([LANDING_CHAPTERS, LANDING_FAQ]) + listFiles(".tsx").map(read).join("\n");
+  assert.doesNotMatch(copy, /충돌 기록|충돌을 확인|충돌 확인|합칩니다/);
+  assert.match(LANDING_CHAPTERS[3].body, /자동 병합·버전 기록/);
 });
 
-test("탭 이동과 관계없는 키나 빈 탭 목록에서는 현재 위치를 유지한다", () => {
-  assert.equal(nextTabIndex(1, "Enter", 3), 1);
-  assert.equal(nextTabIndex(0, "ArrowRight", 0), 0);
+test("팀 장은 테마를 따른다(강제 다크 띠·토큰 덮어쓰기 없음)", () => {
+  const css = listFiles(".css").map(read).join("\n");
+  assert.doesNotMatch(css, /\.team\s*\{/);
+  assert.doesNotMatch(css, /\.team-frame\s*\{/);
 });
 
 test("랜딩 애니메이션은 움직임 줄이기 설정에서 꺼지고 transform·opacity만 움직인다", () => {
   assert.match(read("LandingPage.module.css"), /@media \(prefers-reduced-motion: reduce\)/);
-  const css = cssFiles.map(read).join("\n");
+  const css = listFiles(".css").map(read).join("\n");
   const keyframes = css.match(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g) ?? [];
   assert.ok(keyframes.length > 0, "keyframes가 있어야 한다");
   for (const block of keyframes) {

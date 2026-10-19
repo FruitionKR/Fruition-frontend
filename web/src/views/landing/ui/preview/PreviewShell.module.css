@@ -111,6 +111,11 @@
   animation: global(spin) 900ms linear infinite;
 }
 
+.tree-asset {
+  width: 16px;
+  height: 16px;
+}
+
 .tree-arrow {
   transform: rotate(-90deg);
 }

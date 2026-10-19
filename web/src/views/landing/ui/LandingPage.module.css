@@ -211,8 +211,7 @@
 
 /* ───── 글자 단계 ───── */
 .h1,
-.h2,
-.h3 {
+.h2 {
   margin: 0;
   text-wrap: balance;
 }
@@ -231,12 +230,6 @@
   letter-spacing: -0.035em;
 }
 
-.h3 {
-  font-size: var(--lp-text-h3);
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: -0.025em;
-}
 
 .lead {
   margin: 0;
@@ -246,13 +239,6 @@
   text-wrap: pretty;
 }
 
-/* 영어 대문자 대신 짧은 한국어 꼬리표 */
-.label {
-  margin: 0;
-  color: var(--lp-accent-ink);
-  font-size: var(--lp-text-small);
-  font-weight: 700;
-}
 
 /* ───── 버튼 ───── */
 .button-primary,
@@ -317,7 +303,7 @@
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   align-items: center;
-  gap: clamp(32px, 4vw, 64px);
+  gap: clamp(32px, 3.5vw, 56px);
   max-width: var(--lp-wrap);
   margin: 0 auto;
   padding: clamp(40px, 4vw, 64px) var(--lp-gutter) 0;
@@ -343,7 +329,7 @@
 }
 
 .hero-lead {
-  max-width: 30em;
+  max-width: 32em;
   margin: 0;
   color: var(--lp-body);
   font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
@@ -456,6 +442,12 @@
 
   .hero-visual {
     max-width: 720px;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero-lead br {
+    display: none;
   }
 }
 
