@@ -215,3 +215,40 @@ export function folderOrganizeNotice(total: number, selected: number, createdFol
 export function canApplyFolderOrganizeSelection(selectedRows: number, operationIds: readonly string[] | null): boolean {
   return selectedRows > 0 && (operationIds === null || (operationIds.length > 0 && operationIds.length <= MAX_SELECTED_OPERATIONS));
 }
+
+export type FolderOrganizeApproval = {
+  selectedCount: number;
+  /** 선택에서 빠진 줄 수 */
+  excludedCount: number;
+  /** 빠진 줄 중 중복 의심(duplicate_name) 줄 수 */
+  duplicateExcludedCount: number;
+  /** 부분 승인으로 보낼 작업 id. null이면 계획 전체 승인. */
+  operationIds: string[] | null;
+  canApply: boolean;
+};
+
+/**
+ * 선택 해제한 줄로 승인 요청을 정한다. 미리보기의 "선택한 N개 적용"과 작업 탭 카드의 "수락"이 같은 결과를 보내도록
+ * 둘 다 이 함수를 쓴다. 선택을 바꾸지 않았으면 deselectedIds는 initialDeselectedRowIds(rows)다.
+ */
+export function folderOrganizeApproval(plan: AgentPlan, rows: FolderOrganizeRow[], deselectedIds: ReadonlySet<string>): FolderOrganizeApproval {
+  const selectedRowIds = new Set(rows.filter((row) => !deselectedIds.has(row.id)).map((row) => row.id));
+  const operationIds = folderOrganizeSelection(plan, rows, selectedRowIds);
+  return {
+    selectedCount: selectedRowIds.size,
+    excludedCount: rows.length - selectedRowIds.size,
+    duplicateExcludedCount: rows.filter((row) => row.duplicateWarning && !selectedRowIds.has(row.id)).length,
+    operationIds,
+    canApply: canApplyFolderOrganizeSelection(selectedRowIds.size, operationIds)
+  };
+}
+
+/** 작업 탭 카드 수락 버튼 옆 안내. 모두 적용하면 null. */
+export function folderOrganizeCardHint({ selectedCount, excludedCount, duplicateExcludedCount, operationIds, canApply }: FolderOrganizeApproval): string | null {
+  if (selectedCount === 0) return "적용할 항목이 없어요. 미리보기 탭에서 항목을 골라주세요.";
+  if (!canApply) return `일부만 적용할 때는 작업 ${MAX_SELECTED_OPERATIONS}개까지예요. 미리보기 탭에서 선택을 조정해주세요.`;
+  if (operationIds === null || excludedCount === 0) return null;
+  if (duplicateExcludedCount === excludedCount) return `중복 의심 ${excludedCount}개는 제외하고 적용해요.`;
+  if (duplicateExcludedCount > 0) return `${excludedCount}개(중복 의심 ${duplicateExcludedCount}개 포함)는 제외하고 적용해요.`;
+  return `${excludedCount}개는 제외하고 적용해요.`;
+}

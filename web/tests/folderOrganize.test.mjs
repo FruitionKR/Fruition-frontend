@@ -13,6 +13,8 @@ registerHooks({
 const {
   buildFolderOrganizeView,
   canApplyFolderOrganizeSelection,
+  folderOrganizeApproval,
+  folderOrganizeCardHint,
   folderOrganizeNotice,
   folderOrganizeSelection,
   initialDeselectedRowIds,
@@ -145,4 +147,31 @@ test("고르지 않아 건너뛴 작업(skipped·not_selected)만 있는 줄은 
   assert.equal(rows.find((row) => row.id === "doc-xlsx").excluded, true);
   assert.equal(rows.find((row) => row.id === "doc-pdf").excluded, false);
   assert.equal(rows.find((row) => row.id === "doc-md").excluded, false);
+});
+
+test("카드 수락은 미리보기 기본 선택처럼 중복 의심과 그에 기대는 작업을 빼고 보낸다", () => {
+  const plan = organizePlan();
+  const { rows } = buildFolderOrganizeView(plan, tree);
+  const approval = folderOrganizeApproval(plan, rows, initialDeselectedRowIds(rows));
+  assert.deepEqual(approval, { selectedCount: 1, excludedCount: 2, duplicateExcludedCount: 1, operationIds: ["op-1", "op-3", "op-4"], canApply: true });
+  assert.equal(folderOrganizeCardHint(approval), "2개(중복 의심 1개 포함)는 제외하고 적용해요.");
+  // 미리보기에서 바꾼 선택(의존 줄 다시 선택)을 그대로 쓴다.
+  const changed = folderOrganizeApproval(plan, rows, new Set(["doc-xlsx"]));
+  assert.deepEqual(changed.operationIds, ["op-1", "op-2", "op-3", "op-4", "op-7"]);
+  assert.equal(folderOrganizeCardHint(changed), "중복 의심 1개는 제외하고 적용해요.");
+});
+
+test("카드 수락: 모두 선택이면 전체 승인, 빈 선택·20개 초과는 미리보기로 안내한다", () => {
+  const plan = organizePlan();
+  const { rows } = buildFolderOrganizeView(plan, tree);
+  const all = folderOrganizeApproval(plan, rows, new Set());
+  assert.equal(all.operationIds, null);
+  assert.equal(all.canApply, true);
+  assert.equal(folderOrganizeCardHint(all), null);
+  const none = folderOrganizeApproval(plan, rows, new Set(rows.map((row) => row.id)));
+  assert.equal(none.canApply, false);
+  assert.equal(folderOrganizeCardHint(none), "적용할 항목이 없어요. 미리보기 탭에서 항목을 골라주세요.");
+  assert.equal(folderOrganizeCardHint({ ...all, operationIds: Array.from({ length: 21 }, (_, index) => `op-${index}`), canApply: false }),
+    "일부만 적용할 때는 작업 20개까지예요. 미리보기 탭에서 선택을 조정해주세요.");
+  assert.equal(folderOrganizeCardHint({ ...all, excludedCount: 1, operationIds: ["op-1"] }), "1개는 제외하고 적용해요.");
 });

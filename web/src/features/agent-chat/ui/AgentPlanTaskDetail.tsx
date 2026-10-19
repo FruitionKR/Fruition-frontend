@@ -7,6 +7,8 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
 import { agentPlanClarificationMessage, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isOperationNotSelected, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
+import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
@@ -77,7 +79,9 @@ export function AgentPlanTaskDetail({
   });
   const queryKey = ["agentPlan", workspaceId, turnId];
   const mutation = useMutation({
-    mutationFn: (decision: "approve" | "reject") => decideAgentPlan(workspaceId, run!.id, decision, plan!),
+    // operationIds: 폴더 정리 부분 승인으로 실행할 작업. null·생략이면 계획 전체.
+    mutationFn: ({ decision, operationIds }: { decision: "approve" | "reject"; operationIds?: readonly string[] | null }) =>
+      decideAgentPlan(workspaceId, run!.id, decision, plan!, decision === "approve" ? operationIds : null),
     onSuccess: (updated) => {
       // 승인 응답은 plan을 생략하므로 검토했던 목록은 다음 조회까지 유지한다.
       client.setQueryData(queryKey, { ...updated, plan: updated.plan ?? plan, request_summary: updated.request_summary ?? run?.request_summary });
@@ -89,7 +93,15 @@ export function AgentPlanTaskDetail({
   const operations = plan ? describePlanOperations(plan, tree.data ?? []) : [];
   const preview = plan ? buildPlanPreviewTree(plan, tree.data ?? []) : null;
   const canDecide = canApproveAgentPlan(run);
-  const ready = canDecide && Boolean(tree.data) && !runError && !tree.error;
+  // 폴더 정리 수락은 미리보기 탭과 같은 선택으로 적용한다: 미리보기에서 바꾼 선택, 없으면 AI 권장 기본 선택
+  // (suggested_selected false인 중복 의심·그에 기대는 작업 제외). 줄이 없는 계획은 지금처럼 전체 승인한다.
+  const [userDeselectedIds] = useFolderOrganizeDeselection(turnId, plan ? `${plan.id}:${plan.version}` : null);
+  const organizeRows = plan && action === "folder_organize" ? buildFolderOrganizeView(plan, tree.data ?? []).rows : [];
+  const approval = plan && organizeRows.length > 0
+    ? folderOrganizeApproval(plan, organizeRows, userDeselectedIds ?? initialDeselectedRowIds(organizeRows))
+    : null;
+  const approvalHint = approval && tree.data ? folderOrganizeCardHint(approval) : null;
+  const ready = canDecide && Boolean(tree.data) && !runError && !tree.error && (approval?.canApply ?? true);
   const clarificationMessage = agentPlanClarificationMessage(run);
   const busy = mutation.isPending || isRunFetching || tree.isFetching;
   const isFailed = run !== null && ["failed", "partial_failed", "conflicted", "rollback_failed"].includes(run.status);
@@ -128,6 +140,7 @@ export function AgentPlanTaskDetail({
           </button>
         </div>
       )}
+      {canDecide && approvalHint && <p className={cx(styles["task-card-meta"], styles["task-decision-hint"])} role="status">{approvalHint}</p>}
       {(canDecide || (error && turnId)) && (
         // 거절·수락 (Figma 1671:13230): 오른쪽 정렬, 빨강·주 색 바탕
         <div className={styles["task-decisions"]}>
@@ -137,7 +150,7 @@ export function AgentPlanTaskDetail({
             </button>
           )}
           {canDecide && <>
-            <button type="button" className={cx(styles["task-decision"], styles["is-danger"])} disabled={busy || Boolean(runError)} onClick={() => mutation.mutate("reject")}>
+            <button type="button" className={cx(styles["task-decision"], styles["is-danger"])} disabled={busy || Boolean(runError)} onClick={() => mutation.mutate({ decision: "reject" })}>
               <AgentAssetIcon src={taskRejectIcon} size={12} />
               거절
             </button>
@@ -146,7 +159,7 @@ export function AgentPlanTaskDetail({
               className={styles["task-decision"]}
               aria-label={action === "folder_organize" ? "수락하고 정리" : "수락하고 실행"}
               disabled={!ready || busy}
-              onClick={() => mutation.mutate("approve")}
+              onClick={() => mutation.mutate({ decision: "approve", operationIds: approval?.operationIds ?? null })}
             >
               <AgentAssetIcon src={taskAcceptIcon} size={12} />
               {mutation.isPending ? "처리 중" : "수락"}

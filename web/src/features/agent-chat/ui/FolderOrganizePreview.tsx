@@ -19,9 +19,8 @@ import { agentPlanStatusLabel, canApproveAgentPlan } from "../lib/agentPlan";
 import { describeTaskRequest } from "../lib/taskThread";
 import {
   buildFolderOrganizeView,
-  canApplyFolderOrganizeSelection,
+  folderOrganizeApproval,
   folderOrganizeNotice,
-  folderOrganizeSelection,
   initialDeselectedRowIds,
   MAX_SELECTED_OPERATIONS,
   parseSkillCommand,
@@ -30,6 +29,7 @@ import {
   type FolderOrganizeRow
 } from "../lib/folderOrganize";
 import { useAgentPlanRun } from "../model/useAgentPlanRun";
+import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import styles from "./FolderOrganize.module.css";
 
 type SortOrder = "plan" | "asc" | "desc";
@@ -61,24 +61,21 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
   // 작업 탭 카드와 같은 머리글(Figma 1656:11824 "문서 : /file-organize"). 스킬 없이 요청했으면 "폴더 정리"만 둔다.
   const { heading } = describeTaskRequest("folder_organize", (request.question ?? "").trim().normalize("NFC"));
   // 사용자가 바꾼 선택. 계획(id·version)이 바뀌면 다시 AI가 권장한 기본 선택(suggested_selected)에서 시작한다.
+  // 작업 탭 카드의 수락도 같은 선택을 쓰도록 turn별 저장소에 둔다.
   const planKey = plan ? `${plan.id}:${plan.version}` : null;
-  const [userDeselection, setUserDeselection] = useState<{ planKey: string; ids: ReadonlySet<string> } | null>(null);
+  const [userDeselectedIds, setDeselected] = useFolderOrganizeDeselection(request.turnId, planKey);
   const [sortOrder, setSortOrder] = useState<SortOrder>("plan");
-  const deselectedIds = userDeselection && userDeselection.planKey === planKey ? userDeselection.ids : initialDeselectedRowIds(rows);
-  const selectedRows = rows.filter((row) => !deselectedIds.has(row.id));
-  const selectedCount = selectedRows.length;
+  const deselectedIds = userDeselectedIds ?? initialDeselectedRowIds(rows);
+  const approval = plan ? folderOrganizeApproval(plan, rows, deselectedIds) : null;
+  const selectedCount = approval?.selectedCount ?? 0;
   const isAllSelected = rows.length > 0 && selectedCount === rows.length;
   const isAwaiting = canApproveAgentPlan(run);
-  const operationIds = plan ? folderOrganizeSelection(plan, rows, new Set(selectedRows.map((row) => row.id))) : null;
-  const isSelectionValid = canApplyFolderOrganizeSelection(selectedCount, operationIds);
+  const operationIds = approval?.operationIds ?? null;
+  const isSelectionValid = approval?.canApply ?? false;
   const canApply = ready && isSelectionValid;
-  const duplicateDeselected = rows.filter((row) => row.duplicateWarning && deselectedIds.has(row.id)).length;
+  const duplicateDeselected = approval?.duplicateExcludedCount ?? 0;
   const ruleText = run?.rule_summary?.trim().normalize("NFC") || rule;
   const description = ruleText ? `규칙: ${ruleText}` : plan?.summary.normalize("NFC") ?? "";
-
-  function setDeselected(ids: ReadonlySet<string>) {
-    if (planKey) setUserDeselection({ planKey, ids });
-  }
 
   function toggleRow(id: string) {
     const next = new Set(deselectedIds);

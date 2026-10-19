@@ -2533,6 +2533,11 @@ button.result-link:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.task-decision-hint {
+  margin: 0;
+  text-align: right;
+}
+
 .task-decisions {
   display: flex;
   flex-wrap: wrap;
