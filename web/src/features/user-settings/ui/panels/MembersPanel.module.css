@@ -319,16 +319,6 @@ img.profile-icon {
   letter-spacing: -0.28px;
 }
 
-.self-badge {
-  padding: 0 4px;
-  color: var(--color-primary);
-  background: var(--color-primary-weak);
-  border-radius: 4px;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 600;
-}
-
 .profile-email {
   overflow: hidden;
   color: var(--color-muted);

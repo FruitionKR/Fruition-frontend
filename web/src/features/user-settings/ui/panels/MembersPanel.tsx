@@ -16,7 +16,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import { WORKSPACE_PERMISSIONS, workspacePermissionLabel, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
-import { memberDisplayName, selectVisibleMembers, type MemberRoleFilter, type MemberSortDirection } from "../../lib/memberList";
+import { excludeMember, memberDisplayName, selectVisibleMembers, type MemberRoleFilter, type MemberSortDirection } from "../../lib/memberList";
 import modalStyles from "../SettingsModal.module.css";
 import { InviteMemberModal } from "../modals/InviteMemberModal";
 import styles from "./MembersPanel.module.css";
@@ -37,11 +37,11 @@ function RowCheck() {
 
 /**
  * 멤버 관리 (Figma 1540:21567, 초대 모달 1708:5341).
- * 총 인원 · 검색 · 권한 필터 · 멤버 초대하기 + 사용자/사용 권한 표. 본인도 목록에 보이지만 권한·더보기는 바꿀 수 없다.
+ * 총 인원 · 검색 · 권한 필터 · 멤버 초대하기 + 사용자/사용 권한 표. 본인은 표와 총 인원에서 빼고 초대한 다른 멤버만 보인다.
  * 권한 항목(위키 편입 등, access #32)은 시안 표에 열이 없어 행 끝 "…" 메뉴로 옮겼다.
  */
 export function MembersPanel() {
-  const { data: me } = useMe();
+  const { data: me, isPending: isMePending } = useMe();
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const queryKey = ["workspace-members", workspaceId];
@@ -68,7 +68,10 @@ export function MembersPanel() {
   const myMembership = members.find((member) => member.user_id === me?.id);
   const isOwner = myMembership?.role === "OWNER";
   const ownerCount = members.filter((member) => member.role === "OWNER").length;
-  const visibleMembers = selectVisibleMembers(members, { roleFilter: filter, search, sortDirection });
+  // 본인 판별(user_id) 전에는 본인이 섞여 보이지 않게 비워 두고 불러오는 중으로 둔다. 마지막 OWNER 판별(ownerCount)은 본인을 포함한 전체로 한다.
+  const otherMembers = me ? excludeMember(members, me.id) : [];
+  const isListPending = isPending || isMePending;
+  const visibleMembers = selectVisibleMembers(otherMembers, { roleFilter: filter, search, sortDirection });
 
   function replaceMember(updated: WorkspaceMember) {
     queryClient.setQueryData<WorkspaceMember[]>(queryKey, (current) => current?.map((item) => item.user_id === updated.user_id ? updated : item));
@@ -120,7 +123,7 @@ export function MembersPanel() {
       <div className={styles.list}>
         <div className={styles.toolbar}>
           <p className={styles.total}>
-            총 <strong>{members.length}</strong>명
+            총 <strong>{otherMembers.length}</strong>명
           </p>
           <div className={styles["toolbar-group"]}>
             {(searchOpen || search) && (
@@ -211,11 +214,12 @@ export function MembersPanel() {
             <span className={styles["cell-role"]}>사용 권한</span>
             <span className={styles["cell-more"]} aria-hidden />
           </div>
-          {isPending && workspaceId && <p className={styles.empty} role="status">멤버를 불러오는 중…</p>}
-          {!isPending && !loadError && visibleMembers.length === 0 && <p className={styles.empty}>표시할 멤버가 없습니다.</p>}
+          {isListPending && workspaceId && <p className={styles.empty} role="status">멤버를 불러오는 중…</p>}
+          {!isListPending && !loadError && visibleMembers.length === 0 && (
+            <p className={styles.empty}>{otherMembers.length === 0 ? "아직 초대한 멤버가 없습니다." : "표시할 멤버가 없습니다."}</p>
+          )}
           {visibleMembers.map((member) => {
             const name = memberDisplayName(member);
-            const isSelf = member.user_id === me?.id;
             const lastOwner = member.role === "OWNER" && ownerCount <= 1;
             const isMenuOpen = openMenuId === member.user_id;
             return (
@@ -227,7 +231,7 @@ export function MembersPanel() {
                       ? <UserAvatar avatarUrl={member.avatar_url} name={name} className={styles["profile-icon"]} />
                       : <Image src={memberAvatarIcon} alt="" aria-hidden className={styles["profile-icon"]} />}
                     <div className={styles["profile-text"]}>
-                      <span className={styles["profile-name"]}>{member.display_name || "사용자"}{isSelf && <em className={styles["self-badge"]}>나</em>}</span>
+                      <span className={styles["profile-name"]}>{member.display_name || "사용자"}</span>
                       <span className={styles["profile-email"]}>{member.email}</span>
                     </div>
                   </div>
@@ -235,7 +239,7 @@ export function MembersPanel() {
                 <span className={styles["cell-role"]}>
                   <span className={styles["role-chip"]}>
                     <select className={styles["role-select"]} aria-label={`${name} 권한`} value={member.role}
-                      disabled={!isOwner || busy || lastOwner || isSelf}
+                      disabled={!isOwner || busy || lastOwner}
                       title={lastOwner ? "마지막 OWNER의 권한은 변경할 수 없습니다." : undefined}
                       onChange={(event) => changeRole(member, event.target.value as WorkspaceRole)}>
                       <option value="OWNER">OWNER</option>
@@ -245,12 +249,10 @@ export function MembersPanel() {
                   </span>
                 </span>
                 <div className={styles["cell-more"]} ref={isMenuOpen ? rowMenuRef : undefined}>
-                  {!isSelf && (
-                    <button type="button" className={styles["more-btn"]} aria-label={`${name} 더보기`} aria-haspopup="menu"
-                      aria-expanded={isMenuOpen} onClick={() => setOpenMenuId(isMenuOpen ? null : member.user_id)}>
-                      <Image src={moreDotsIcon} alt="" aria-hidden />
-                    </button>
-                  )}
+                  <button type="button" className={styles["more-btn"]} aria-label={`${name} 더보기`} aria-haspopup="menu"
+                    aria-expanded={isMenuOpen} onClick={() => setOpenMenuId(isMenuOpen ? null : member.user_id)}>
+                    <Image src={moreDotsIcon} alt="" aria-hidden />
+                  </button>
                   {isMenuOpen && (
                     <div className={styles["more-menu"]} role="menu" aria-label={`${name} 메뉴`}>
                       <p className={styles["menu-label"]}>권한 항목</p>
