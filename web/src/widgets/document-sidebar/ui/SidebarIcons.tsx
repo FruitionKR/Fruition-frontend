@@ -21,11 +21,18 @@ export function SidebarChevronIcon({ className }: IconProps) {
   );
 }
 
-/** + (Figma PlusOutline). 16px·20px(새 노트 추가) 두 크기가 같은 비율이라 size로 맞춘다. */
+/** + (Figma PlusOutline). 16px은 FILE 제목 hover 패스(Figma 1540:17020), 20px은 새 노트 추가. */
 export function SidebarPlusIcon({ className, size = 16 }: IconProps & { size?: 16 | 20 }) {
+  if (size === 16) {
+    return (
+      <svg aria-hidden className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M7.9998 3.00005V8.00005M7.9998 8.00005V13M7.9998 8.00005H12.9998M7.9998 8.00005H2.9998" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
   return (
     <svg aria-hidden className={className} width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <path d="M10 4V10M10 10V16M10 10H16M10 10H4" stroke="currentColor" strokeWidth={size === 16 ? 2 : 1.6} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 4V10M10 10V16M10 10H16M10 10H4" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

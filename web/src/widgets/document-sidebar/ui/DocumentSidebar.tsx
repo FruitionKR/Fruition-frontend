@@ -223,10 +223,23 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 위키 편입 선택 모드와 함께 감싼다.
   const projectTree = (
     <>
-      {/* FILE 제목 (Figma 1486:4167). 최상위 생성은 아래 새 노트 추가와 빈 영역 우클릭 메뉴가 맡는다. */}
+      {/* FILE 제목 (Figma 1540:17028). 홈 뷰에서는 hover·포커스 시 배경과 +(최상위 새 노트)가 나타난다. */}
       {rootProject && (
-        <div className={styles["tree-root-header"]}>
+        <div className={cx(styles["tree-root-header"], activeView === "home" && styles["is-actionable"])}>
           <span>File</span>
+          {activeView === "home" && (
+            <button
+              type="button"
+              className={styles["tree-root-add"]}
+              aria-label="새 노트 추가"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCreateNote(rootProject.id);
+              }}
+            >
+              <SidebarPlusIcon size={16} />
+            </button>
+          )}
         </div>
       )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
