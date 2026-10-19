@@ -1,0 +1,551 @@
+/* 랜딩 화면 조각(히어로 · 핵심 기능 · 기능 묶음 · 팀)의 배치. 색은 앱 토큰(--color-*)만 쓴다. */
+
+/* ───── 히어로: 채팅 근거 답변 + 원문 미리보기 ───── */
+.hero-frame {
+  --preview-w: 700;
+  --preview-h: 600;
+
+  box-shadow: 0 30px 80px -40px var(--color-shadow), 0 2px 8px var(--color-shadow);
+}
+
+.hero-app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px !important;
+  padding: 0;
+  list-style: none;
+}
+
+.source-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.source-list li[data-active] {
+  color: var(--color-foreground);
+  background: var(--color-primary-weak);
+  border-color: var(--color-primary-default);
+}
+
+.source-number {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--color-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-primary);
+  border-radius: 5px;
+}
+
+.source-list li span {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--color-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-primary);
+  border-radius: 5px;
+}
+
+.source-pane {
+  display: flex;
+  flex: 0 0 300px;
+  flex-direction: column;
+  background: var(--color-canvas);
+  border-left: 1px solid var(--color-border);
+}
+
+.source-head {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.source-page {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.source-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 18px;
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.source-heading {
+  color: var(--color-foreground);
+  font-weight: 700;
+}
+
+.source-body mark {
+  color: var(--color-foreground);
+  background: var(--color-primary-weak);
+  box-shadow: inset 0 -2px 0 var(--color-primary);
+}
+
+/* ───── 올리기 · 변환 ───── */
+.split-app {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.doc,
+.card-doc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 28px 32px;
+}
+
+.doc-crumb {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.doc-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.doc-meta {
+  align-self: flex-start;
+  padding: 3px 8px;
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-primary-weak);
+  border-radius: 6px;
+}
+
+.doc-h2 {
+  margin-top: 6px !important;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.doc-text {
+  color: var(--color-body);
+  line-height: 1.75;
+}
+
+.doc-table {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.doc-table th,
+.doc-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+}
+
+.doc-table th {
+  color: var(--color-body);
+  font-weight: 600;
+  background: var(--color-surface);
+}
+
+/* 실제 앱의 알림 카드(위키 편입 안내)와 같은 모양 */
+.notice {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 300px;
+  padding: 18px 20px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px var(--color-shadow);
+}
+
+.notice-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.notice-text {
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.notice-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px !important;
+}
+
+.notice-actions > span {
+  justify-content: center;
+}
+
+.notice-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-surface-strong);
+  border-radius: 8px;
+}
+
+/* ───── 위키 · 그래프 / 팀 ───── */
+.graph-app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--color-canvas);
+}
+
+/* ───── 근거 있는 답변: 참고 자료 인용 목록 ───── */
+.quote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.quote-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.quote-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px !important;
+  font-weight: 600;
+}
+
+.quote-kind {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.quote-text {
+  color: var(--color-body);
+  font-size: 13px !important;
+}
+
+/* ───── 팀(어두운 띠): 앱 다크 토큰을 이 조각에만 적용 ───── */
+.team-frame {
+  --color-canvas: #0a0a0a;
+  --color-surface: #1e1e1e;
+  --color-surface-strong: #323232;
+  --color-border: #4f4f4f;
+  --color-foreground: #f0f0f0;
+  --color-body: #a7a7a7;
+  --color-muted: #8a8a8a;
+  --color-placeholder: #6b6b6b;
+  --color-primary: #ffc117;
+  --color-on-primary: #0a0a0a;
+  --color-primary-weak: #2a2414;
+  --color-primary-weak-foreground: #ffd666;
+  --color-shadow: rgb(0 0 0 / 40%);
+
+  color-scheme: dark;
+}
+
+/* ───── 기능 묶음(벤토) ───── */
+.bento-frame {
+  border-radius: 10px;
+}
+
+.slash-menu {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 20px 16px 10px;
+}
+
+.slash-menu ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px var(--color-shadow);
+}
+
+.slash-menu li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.slash-menu li[data-active] {
+  background: var(--color-surface);
+}
+
+.slash-command {
+  font-weight: 600;
+}
+
+.slash-desc {
+  flex: 1;
+  overflow: hidden;
+  color: var(--color-body);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.slash-scope {
+  padding: 2px 6px;
+  color: var(--color-body);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--color-surface);
+  border-radius: 5px;
+}
+
+.slash-input {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.caret {
+  width: 1.5px;
+  height: 18px;
+  margin-left: 1px;
+  background: var(--color-primary);
+}
+
+.dictation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 18px 0;
+}
+
+.recording {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--color-danger);
+  border-radius: 50%;
+}
+
+.wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.wave i {
+  width: 3px;
+  height: 10px;
+  background: var(--color-danger);
+  border-radius: 2px;
+}
+
+.wave i:nth-child(2n) {
+  height: 16px;
+}
+
+.wave i:nth-child(3n) {
+  height: 6px;
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.transcript li {
+  display: flex;
+  gap: 10px;
+  color: var(--color-body);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.transcript strong {
+  flex: none;
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.lint,
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+}
+
+.lint-head {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.lint-head span {
+  color: var(--color-primary-weak-foreground);
+}
+
+.lint ul,
+.history ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.lint li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.lint-text,
+.history-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.lint-text strong,
+.history-text strong {
+  color: var(--color-foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.history-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--color-primary);
+  border-radius: 50%;
+}
+
+.history-dot[data-state="reverted"] {
+  background: var(--color-placeholder);
+}
+
+.history-time {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.history-action {
+  padding: 5px 10px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.history-done {
+  padding: 5px 10px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+/* 좁은 화면: 히어로는 채팅 패널만 보여 글자가 너무 작아지지 않게 한다. */
+@media (max-width: 640px) {
+  .hero-frame {
+    --preview-w: 380;
+    --preview-h: 600;
+  }
+
+  .source-pane {
+    display: none;
+  }
+}

@@ -5,7 +5,7 @@ import base from "./Preview.module.css";
 import styles from "./PreviewPages.module.css";
 
 /*
- * 위키 그래프 · 스킬 · 멤버 관리 화면 미리보기. Figma 1406:13761(graph), 1482:9848(skill), 1540:21567(member)을 따르고,
+ * 위키 그래프 · 멤버 관리 화면 조각. Figma 1406:13761(graph), 1540:21567(member)을 따르고,
  * 그래프 범례는 실제 GraphFilterChips를, 색은 그래프 캔버스 팔레트(graphColors.ts)와 같은 값을 쓴다.
  */
 
@@ -19,48 +19,35 @@ interface GraphNode {
   readonly label: string;
 }
 
-// Figma 1406:13761 노드 배치를 그래프 영역(1000×700) 좌표로 옮겼다.
+type Link = readonly [string, string];
+
+// 제품 기획 워크스페이스 예시. 그래프 영역 760×480 좌표.
 const NODES: readonly GraphNode[] = [
-  { id: "hub", x: 520, y: 330, kind: "source", label: "통합 교육 효과 분석" },
-  { id: "peer", x: 330, y: 205, kind: "source", label: "또래 관계 종단 연구" },
-  { id: "report", x: 690, y: 190, kind: "source", label: "정서 발달 보고서" },
-  { id: "family", x: 340, y: 470, kind: "source", label: "가족 지원 프로그램" },
-  { id: "teacher", x: 700, y: 430, kind: "source", label: "교사 인식 설문" },
-  { id: "c1", x: 230, y: 215, kind: "concept", label: "또래 수용" },
-  { id: "c2", x: 400, y: 250, kind: "concept", label: "사회적 기술" },
-  { id: "c3", x: 300, y: 280, kind: "concept", label: "또래 매개 중재" },
-  { id: "c4", x: 430, y: 175, kind: "concept", label: "교육과정 수정" },
-  { id: "c5", x: 560, y: 245, kind: "concept", label: "개별화 교육계획" },
-  { id: "c6", x: 640, y: 150, kind: "concept", label: "자아 개념" },
-  { id: "c7", x: 770, y: 225, kind: "concept", label: "정서 조절" },
-  { id: "c8", x: 610, y: 315, kind: "concept", label: "정서 지원" },
-  { id: "c9", x: 800, y: 300, kind: "concept", label: "통합 환경" },
-  { id: "c10", x: 420, y: 395, kind: "concept", label: "사회성 발달" },
-  { id: "c11", x: 470, y: 450, kind: "concept", label: "소속감" },
-  { id: "c12", x: 560, y: 400, kind: "concept", label: "자기 효능감" },
-  { id: "c13", x: 260, y: 420, kind: "concept", label: "부모 참여" },
-  { id: "c14", x: 400, y: 525, kind: "concept", label: "양육 태도" },
-  { id: "c15", x: 780, y: 385, kind: "concept", label: "교사 효능감" },
-  { id: "c16", x: 620, y: 480, kind: "concept", label: "교사 연수" },
-  { id: "r1", x: 310, y: 120, kind: "raw", label: "또래관계_연구.pdf" },
-  { id: "r2", x: 735, y: 120, kind: "raw", label: "정서발달_보고서.pdf" },
-  { id: "r3", x: 500, y: 200, kind: "raw", label: "통합교육_효과분석.docx" },
-  { id: "r4", x: 235, y: 540, kind: "raw", label: "가족지원_프로그램.pdf" },
-  { id: "r5", x: 820, y: 470, kind: "raw", label: "교사인식_설문.docx" }
+  { id: "hub", x: 380, y: 230, kind: "source", label: "온보딩 개선 기획서" },
+  { id: "s1", x: 190, y: 120, kind: "source", label: "고객 인터뷰 정리" },
+  { id: "s2", x: 590, y: 110, kind: "source", label: "경쟁사 분석" },
+  { id: "s3", x: 200, y: 360, kind: "source", label: "3분기 회의록" },
+  { id: "s4", x: 590, y: 350, kind: "source", label: "사용성 테스트 결과" },
+  { id: "c1", x: 90, y: 180, kind: "concept", label: "가입 이탈" },
+  { id: "c2", x: 300, y: 80, kind: "concept", label: "첫 사용 경험" },
+  { id: "c3", x: 470, y: 160, kind: "concept", label: "가격 정책" },
+  { id: "c4", x: 690, y: 200, kind: "concept", label: "체험판 전환" },
+  { id: "c5", x: 270, y: 260, kind: "concept", label: "튜토리얼" },
+  { id: "c6", x: 500, y: 290, kind: "concept", label: "알림 설정" },
+  { id: "c7", x: 110, y: 300, kind: "concept", label: "고객 세그먼트" },
+  { id: "c8", x: 330, y: 420, kind: "concept", label: "출시 일정" },
+  { id: "c9", x: 690, y: 420, kind: "concept", label: "버튼 잘림 문제" },
+  { id: "r1", x: 140, y: 40, kind: "raw", label: "인터뷰_원본.pdf" },
+  { id: "r2", x: 680, y: 40, kind: "raw", label: "경쟁사_자료.pdf" },
+  { id: "r3", x: 90, y: 430, kind: "raw", label: "회의_녹음.m4a" }
 ];
 
-const EDGES: readonly (readonly [string, string])[] = [
-  ["hub", "peer"], ["hub", "report"], ["hub", "family"], ["hub", "teacher"],
-  ["hub", "c5"], ["hub", "c8"], ["hub", "c10"], ["hub", "c11"], ["hub", "c12"], ["hub", "c9"], ["hub", "c4"],
-  ["peer", "c1"], ["peer", "c2"], ["peer", "c3"], ["peer", "c10"],
-  ["report", "c6"], ["report", "c7"], ["report", "c9"],
-  ["family", "c13"], ["family", "c14"], ["family", "c10"], ["family", "c11"],
-  ["teacher", "c15"], ["teacher", "c16"], ["teacher", "c12"]
+const EDGES: readonly Link[] = [
+  ["hub", "s1"], ["hub", "s2"], ["hub", "s3"], ["hub", "s4"], ["hub", "c3"], ["hub", "c5"], ["hub", "c6"], ["hub", "c2"],
+  ["s1", "c1"], ["s1", "c2"], ["s1", "c7"], ["s2", "c3"], ["s2", "c4"], ["s3", "c8"], ["s3", "c7"], ["s4", "c9"], ["s4", "c6"], ["s4", "c4"]
 ];
 
-const RAW_EDGES: readonly (readonly [string, string])[] = [
-  ["r1", "peer"], ["r2", "report"], ["r3", "hub"], ["r4", "family"], ["r5", "teacher"]
-];
+const RAW_EDGES: readonly Link[] = [["r1", "s1"], ["r2", "s2"], ["r3", "s3"]];
 
 const RADIUS: Record<NodeKind, number> = { source: 7, concept: 6, raw: 4.5 };
 const byId = new Map(NODES.map((node) => [node.id, node]));
@@ -74,12 +61,11 @@ function Edge({ from, to, isRaw }: { from: string; to: string; isRaw?: boolean }
 
 export function GraphPane() {
   const hub = byId.get("hub");
-  // 히어로와 지식화 장에 그래프가 두 번 그려지므로 그라데이션 id를 겹치지 않게 만든다.
   const glowId = useId();
   return (
     <div className={styles["graph"]}>
-      <PreviewGraphChips raw={5} source={5} concept={16} />
-      <svg className={styles["graph-svg"]} viewBox="0 0 1000 640" width="1000" height="640">
+      <PreviewGraphChips raw={3} source={5} concept={9} />
+      <svg className={styles["graph-svg"]} viewBox="0 -10 760 490" width="760" height="490">
         <defs>
           <radialGradient id={glowId}>
             <stop offset="0%" className={styles["graph-glow-start"]} />
@@ -102,76 +88,16 @@ export function GraphPane() {
           </g>
         ))}
         <g className={styles["graph-progress"]}>
-          <circle cx={600} cy={560} r={16} className={styles["graph-progress-track"]} />
-          <circle cx={600} cy={560} r={16} className={styles["graph-progress-ring"]} pathLength={100} />
-          <text x={600} y={564} textAnchor="middle">58%</text>
-          <text x={600} y={598} textAnchor="middle" className={styles["graph-progress-label"]}>
-            학습지원 사례집
+          <circle cx={520} cy={420} r={16} className={styles["graph-progress-track"]} />
+          <circle cx={520} cy={420} r={16} className={styles["graph-progress-ring"]} pathLength={100} />
+          <text x={520} y={424} textAnchor="middle">
+            64%
+          </text>
+          <text x={520} y={458} textAnchor="middle" className={styles["graph-progress-label"]}>
+            가격 실험 결과 편입 중
           </text>
         </g>
       </svg>
-    </div>
-  );
-}
-
-const SKILLS = [
-  { command: "/meeting-summary", description: "회의 내용을 정해진 형식으로 정리합니다.", scope: "개인" },
-  { command: "/research-summary", description: "연구 자료의 핵심을 근거와 함께 요약합니다.", scope: "팀" },
-  { command: "/weekly-summary", description: "주간 업무 진행 상황을 요약합니다.", scope: "팀" },
-  { command: "/file-organize", description: "문서를 주제별 폴더로 정리합니다.", scope: "개인" },
-  { command: "/client-feedback", description: "고객 의견을 모아 개선점을 도출합니다.", scope: "팀" }
-] as const;
-
-export function SkillsPane() {
-  return (
-    <div className={styles["page"]}>
-      <header className={styles["page-title"]}>
-        <h1>스킬</h1>
-        <p>반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다.</p>
-      </header>
-      <div className={styles["page-tabs"]}>
-        <span className={styles["page-tab"]} data-active>
-          전체 스킬
-        </span>
-        <span className={styles["page-tab"]}>팀 스킬</span>
-        <span className={styles["page-tab"]}>개인 스킬</span>
-        <span className={styles["page-tools"]}>
-          <SkillSearchIcon />
-          <span className={base["button-primary"]} data-size="medium">
-            스킬 만들기
-          </span>
-        </span>
-      </div>
-      <table className={styles["table"]}>
-        <thead>
-          <tr>
-            <th>
-              커맨드 <SkillSortIcon />
-            </th>
-            <th>설명</th>
-            <th>저장범위</th>
-            <th>사용 상태</th>
-            <th aria-label="더보기" />
-          </tr>
-        </thead>
-        <tbody>
-          {SKILLS.map((skill) => (
-            <tr key={skill.command}>
-              <td>{skill.command}</td>
-              <td>{skill.description}</td>
-              <td>
-                <span className={styles["scope-chip"]}>{skill.scope}</span>
-              </td>
-              <td>
-                <span className={styles["run-link"]}>실행</span>
-              </td>
-              <td>
-                <SkillMoreIcon />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -180,13 +106,13 @@ const MEMBERS = [
   { name: "김지수", email: "jisoo@example.com", role: "OWNER" },
   { name: "박민수", email: "minsoo@example.com", role: "OWNER" },
   { name: "이서연", email: "seoyeon@example.com", role: "MEMBER" },
-  { name: "최도윤", email: "doyoon@example.com", role: "MEMBER" },
-  { name: "정하린", email: "harin@example.com", role: "MEMBER" }
+  { name: "최도윤", email: "doyoon@example.com", role: "MEMBER" }
 ] as const;
 
+/** 설정 › 멤버 관리 목록 조각 (Figma 1540:21567) */
 export function MembersPane() {
   return (
-    <div className={styles["page"]} data-width="narrow">
+    <div className={styles["page"]}>
       <header className={styles["page-title"]}>
         <h1>멤버 관리</h1>
         <p>워크스페이스에 있는 사람과 역할을 관리합니다.</p>

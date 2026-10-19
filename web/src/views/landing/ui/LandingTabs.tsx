@@ -2,19 +2,17 @@
 
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { nextTabIndex } from "../model/landingContent";
-import styles from "./AnswerDemo.module.css";
+import styles from "./LandingTabs.module.css";
 
-export interface AnswerDemoPanel {
+export interface LandingTabPanel {
   readonly key: string;
   readonly tab: string;
-  /** 미리보기는 장식이라 스크린리더에는 이 설명을 읽어 준다. */
-  readonly description: string;
-  /** 서버에서 그린 앱 화면 미리보기. 탭 전환만 클라이언트에서 한다. */
+  /** 서버에서 그린 패널 내용. 탭 전환만 클라이언트에서 한다. */
   readonly content: ReactNode;
 }
 
-/** 활용 장의 예시 화면 탭(근거 있는 답변 · AI 문서 편집 · AI 스킬). 화면은 고정 예시이며 AI를 호출하지 않는다. */
-export function AnswerDemo({ panels }: { panels: readonly AnswerDemoPanel[] }) {
+/** 랜딩의 탭(활용 사례). WAI-ARIA 탭 패턴: 좌우 화살표·Home·End로 이동하고 선택한 패널만 보인다. */
+export function LandingTabs({ label, idPrefix, panels }: { label: string; idPrefix: string; panels: readonly LandingTabPanel[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const active = panels[activeIndex];
@@ -30,8 +28,8 @@ export function AnswerDemo({ panels }: { panels: readonly AnswerDemoPanel[] }) {
   if (!active) return null;
 
   return (
-    <div className={styles["answer-demo"]}>
-      <div className={styles["answer-tabs"]} role="tablist" aria-label="AI 활용 예시" onKeyDown={handleKeyDown}>
+    <div className={styles["tabs"]}>
+      <div className={styles["tab-list"]} role="tablist" aria-label={label} onKeyDown={handleKeyDown}>
         {panels.map((panel, index) => {
           const isActive = index === activeIndex;
           return (
@@ -40,13 +38,13 @@ export function AnswerDemo({ panels }: { panels: readonly AnswerDemoPanel[] }) {
               ref={(node) => {
                 tabRefs.current[index] = node;
               }}
-              id={`answer-tab-${panel.key}`}
+              id={`${idPrefix}-tab-${panel.key}`}
               type="button"
               role="tab"
               aria-selected={isActive}
-              aria-controls={`answer-panel-${panel.key}`}
+              aria-controls={`${idPrefix}-panel-${panel.key}`}
               tabIndex={isActive ? 0 : -1}
-              className={styles["answer-tab"]}
+              className={styles["tab"]}
               onClick={() => setActiveIndex(index)}
             >
               {panel.tab}
@@ -56,12 +54,12 @@ export function AnswerDemo({ panels }: { panels: readonly AnswerDemoPanel[] }) {
       </div>
       <div
         key={active.key}
-        id={`answer-panel-${active.key}`}
+        id={`${idPrefix}-panel-${active.key}`}
         role="tabpanel"
-        aria-labelledby={`answer-tab-${active.key}`}
-        className={styles["answer-panel"]}
+        aria-labelledby={`${idPrefix}-tab-${active.key}`}
+        tabIndex={0}
+        className={styles["panel"]}
       >
-        <p className={styles["sr-only"]}>{active.description}</p>
         {active.content}
       </div>
     </div>

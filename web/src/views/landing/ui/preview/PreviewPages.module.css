@@ -161,11 +161,7 @@
   flex-direction: column;
   gap: 24px;
   min-width: 0;
-  padding: 56px 40px 0;
-}
-
-.page[data-width="narrow"] {
-  padding-inline: max(40px, calc((100% - 800px) / 2));
+  padding: 36px 40px 0;
 }
 
 .page-title {
@@ -187,29 +183,6 @@
   font-weight: 500;
 }
 
-.page-tabs {
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-  height: 60px;
-  border-bottom: 1.2px solid var(--color-border);
-}
-
-.page-tab {
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  color: var(--color-muted);
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.page-tab[data-active] {
-  color: var(--color-body);
-  font-weight: 700;
-  border-bottom: 3px solid var(--color-muted);
-}
-
 .page-tools {
   display: flex;
   align-items: center;
@@ -220,7 +193,7 @@
 
 .table {
   width: 100%;
-  margin-top: -24px;
+  margin-top: 0;
   border-collapse: collapse;
 }
 
@@ -252,32 +225,6 @@
   color: var(--color-muted);
 }
 
-.table[data-variant="members"] {
-  margin-top: 0;
-}
-
-.table[data-variant="members"] td:first-child,
-.table[data-variant="members"] th:first-child {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.scope-chip {
-  padding: 3px 8px;
-  color: var(--color-body);
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--color-surface);
-  border-radius: 6px;
-}
-
-.run-link {
-  color: var(--color-primary);
-  font-weight: 500;
-  text-decoration: underline;
-}
-
 .member-toolbar {
   display: flex;
   align-items: center;
@@ -307,6 +254,14 @@
   flex: none;
   border: 1.4px solid var(--color-border);
   border-radius: 6px;
+}
+
+/* 사용자 칸: 체크박스 · 아바타 · 이름을 한 줄로 */
+.table[data-variant="members"] td:first-child,
+.table[data-variant="members"] th:first-child {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .member-avatar {

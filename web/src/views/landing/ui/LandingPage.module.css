@@ -1,9 +1,8 @@
 /*
- * 랜딩 화면. 기능 소개 사이트의 구성(큰 히어로 → 장별 소개 → 흐름 → FAQ → 시작 CTA)과 시각 방향(넓은 여백,
- * 큰 굵은 제목, 얇은 선, 패널 위 제품 화면)을 따른다. 색은 아래 랜딩 토큰만 쓰고, 라이트·다크는 base.css와 같은 규칙
- * (OS 설정 또는 html[data-theme])으로 바뀐다. 바탕·포인트 색은 앱 토큰(--color-canvas, --color-primary 계열)을 그대로 써서
- * 라이트는 서비스 파랑(#3182f6), 다크는 서비스 노랑(#ffc117)이 포인트가 된다. 작은 글자의 포인트 색은 대비가 충분한
- * --color-primary-weak-foreground를 쓴다(WCAG AA).
+ * 랜딩 화면 공통: 토큰 · 헤더 · 글자 단계 · 버튼 · 히어로 · 하단. 섹션별 배치는 LandingSections.module.css.
+ * 바탕·포인트 색은 앱 토큰(--color-canvas, --color-primary 계열)을 그대로 써서 라이트는 서비스 파랑(#3182f6),
+ * 다크는 앱 다크 primary가 포인트가 된다. 작은 글자의 포인트 색은 대비가 충분한 --color-primary-weak-foreground를 쓴다.
+ * 라이트·다크는 base.css와 같은 규칙(OS 설정 또는 html[data-theme])으로 바뀐다.
  */
 .landing-page {
   --lp-bg: var(--color-canvas);
@@ -16,34 +15,34 @@
   --lp-muted: #5f6977;
   --lp-invert-bg: var(--color-foreground);
   --lp-invert-ink: var(--color-canvas);
-  /* 포인트: 버튼 바탕·포커스 링·장식은 --color-primary, 작은 글자는 대비가 높은 weak-foreground */
   --lp-accent: var(--color-primary);
   --lp-on-accent: var(--color-on-primary);
   --lp-accent-ink: var(--color-primary-weak-foreground);
   --lp-accent-weak: var(--color-primary-weak);
   --lp-glow: rgb(49 130 246 / 10%);
   --lp-header-bg: rgb(255 255 255 / 88%);
-  --lp-shadow: 0 30px 80px -40px rgb(25 31 40 / 35%);
 
-  --lp-wrap: 1064px;
+  --lp-wrap: 1200px;
   --lp-gutter: clamp(16px, 5vw, 64px);
-  --lp-section-gap: clamp(96px, 7vw + 48px, 168px);
+  --lp-section-gap: clamp(88px, 6vw + 48px, 160px);
   --lp-header-height: 72px;
-  --lp-radius-panel: 24px;
+  --lp-radius-panel: 20px;
   --lp-radius-control: 12px;
   --lp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --lp-duration: 900ms;
 
-  --lp-text-hero: clamp(2.5rem, 1.3rem + 5.4vw, 4.75rem);
-  --lp-text-section: clamp(1.85rem, 1.2rem + 2.6vw, 2.95rem);
-  --lp-text-lead: clamp(0.95rem, 0.9rem + 0.25vw, 1.0625rem);
+  /* 글자 단계: 제목1 64 · 제목2 40 · 제목3 24 · 본문 18 · 작은 글 15 (1440 기준) */
+  --lp-text-h1: clamp(2.375rem, 1.5rem + 2.9vw, 4rem);
+  --lp-text-h2: clamp(1.75rem, 1.25rem + 1.6vw, 2.5rem);
+  --lp-text-h3: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+  --lp-text-body: clamp(1rem, 0.95rem + 0.2vw, 1.125rem);
+  --lp-text-small: 0.9375rem;
 
   min-height: 100vh;
   overflow-x: clip;
-  /* 한글이 어절 중간에서 끊기지 않게 한다. */
   word-break: keep-all;
   overflow-wrap: break-word;
   color: var(--lp-ink);
+  font-size: var(--lp-text-body);
   background: var(--lp-bg);
 }
 
@@ -56,7 +55,6 @@
     --lp-muted: #8a8a8a;
     --lp-glow: rgb(255 193 23 / 7%);
     --lp-header-bg: rgb(10 10 10 / 90%);
-    --lp-shadow: 0 40px 100px -40px rgb(0 0 0 / 90%);
   }
 }
 
@@ -68,10 +66,8 @@
   --lp-muted: #8a8a8a;
   --lp-glow: rgb(255 193 23 / 7%);
   --lp-header-bg: rgb(10 10 10 / 90%);
-  --lp-shadow: 0 40px 100px -40px rgb(0 0 0 / 90%);
 }
 
-/* 앱은 100vh 고정 레이아웃이지만 랜딩은 문서처럼 스크롤한다. 앵커 이동은 고정 헤더 아래로 맞춘다. */
 .landing-page :is(section, nav)[id] {
   scroll-margin-top: calc(var(--lp-header-height) + 16px);
 }
@@ -84,7 +80,8 @@
 
 .landing-page a:focus-visible,
 .landing-page button:focus-visible,
-.landing-page summary:focus-visible {
+.landing-page summary:focus-visible,
+.landing-page [role="tabpanel"]:focus-visible {
   outline: 2px solid var(--lp-accent);
   outline-offset: 3px;
 }
@@ -120,7 +117,7 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 16px;
-  max-width: 1312px;
+  max-width: calc(var(--lp-wrap) + 2 * var(--lp-gutter));
   height: var(--lp-header-height);
   margin: 0 auto;
   padding: 0 var(--lp-gutter);
@@ -129,7 +126,7 @@
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   justify-self: start;
   color: var(--lp-ink);
   text-decoration: none;
@@ -152,16 +149,9 @@
   letter-spacing: -0.04em;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-self: end;
-}
-
 .header-nav ul {
   display: flex;
-  gap: clamp(16px, 3vw, 36px);
+  gap: clamp(16px, 2.6vw, 36px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -172,7 +162,7 @@
   display: block;
   padding: 8px 0;
   color: var(--lp-ink);
-  font-size: 0.9375rem;
+  font-size: var(--lp-text-small);
   font-weight: 600;
   text-decoration: none;
 }
@@ -194,12 +184,20 @@
   transform: scaleX(1);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-self: end;
+}
+
 .login-link {
   padding: 9px 16px;
   color: var(--lp-ink);
-  font-size: 0.875rem;
+  font-size: var(--lp-text-small);
   font-weight: 650;
   text-decoration: none;
+  white-space: nowrap;
   background: var(--lp-panel);
   border: 1px solid var(--lp-line);
   border-radius: var(--lp-radius-control);
@@ -211,49 +209,68 @@
   border-color: var(--lp-muted);
 }
 
-/* ───── 공통 타이포·버튼 ───── */
-.kicker {
+/* ───── 글자 단계 ───── */
+.h1,
+.h2,
+.h3 {
   margin: 0;
-  color: var(--lp-muted);
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.2em;
-}
-
-.section-title {
-  margin: 0;
-  font-size: var(--lp-text-section);
-  font-weight: 760;
-  line-height: 1.35;
-  letter-spacing: -0.045em;
   text-wrap: balance;
 }
 
-.section-lead {
-  margin: 0;
-  color: var(--lp-body);
-  font-size: var(--lp-text-lead);
-  line-height: 1.85;
+.h1 {
+  font-size: var(--lp-text-h1);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.04em;
 }
 
+.h2 {
+  font-size: var(--lp-text-h2);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+}
+
+.h3 {
+  font-size: var(--lp-text-h3);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+
+.lead {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body);
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+/* 영어 대문자 대신 짧은 한국어 꼬리표 */
+.label {
+  margin: 0;
+  color: var(--lp-accent-ink);
+  font-size: var(--lp-text-small);
+  font-weight: 700;
+}
+
+/* ───── 버튼 ───── */
 .button-primary,
 .button-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  min-height: 48px;
+  gap: 14px;
+  min-height: 52px;
   padding: 0 22px;
-  font-size: 1rem;
-  font-weight: 650;
   text-decoration: none;
+  white-space: nowrap;
   border-radius: var(--lp-radius-control);
-  transition: transform 180ms var(--lp-ease-out), background-color 180ms ease, opacity 180ms ease;
+  transition: transform 180ms var(--lp-ease-out), background-color 180ms ease;
 }
 
-/* 흰 글자와 #3182f6의 대비는 3.7:1이라, 버튼 글자를 큰 글자 기준(굵게 18.66px 이상, AA 3:1)으로 키운다. */
+/* 흰 글자와 #3182f6의 대비는 3.7:1이라, 버튼 글자를 큰 글자 기준(굵게 18.66px 이상, AA 3:1)으로 맞춘다. */
 .button-primary {
-  min-height: 52px;
   color: var(--lp-on-accent);
   font-size: 1.1875rem;
   font-weight: 700;
@@ -267,6 +284,12 @@
 
 .button-ghost {
   color: var(--lp-ink);
+  font-size: var(--lp-text-body);
+  font-weight: 650;
+}
+
+.button-ghost:hover {
+  background: var(--lp-panel);
 }
 
 .button-primary span,
@@ -288,198 +311,60 @@
   transform: scale(0.98);
 }
 
-.button-ghost:hover {
-  background: var(--lp-panel);
-}
-
-/* ───── 히어로 ───── */
+/* ───── 히어로: 왼쪽 문구 + 오른쪽 큰 실제 화면 ───── */
 .hero {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   align-items: center;
-  padding: clamp(64px, 6vw + 32px, 104px) var(--lp-gutter) 0;
-  text-align: center;
+  gap: clamp(32px, 4vw, 64px);
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: clamp(40px, 4vw, 64px) var(--lp-gutter) 0;
+  box-sizing: content-box;
   isolation: isolate;
 }
 
 .hero::before {
   content: "";
   position: absolute;
-  inset: 0 0 auto;
+  inset: -80px -20% auto 30%;
   z-index: -1;
   height: 720px;
-  background: radial-gradient(60% 50% at 50% 0%, var(--lp-glow), transparent 70%);
+  background: radial-gradient(50% 50% at 50% 40%, var(--lp-glow), transparent 70%);
   pointer-events: none;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 28px;
-  color: var(--lp-body);
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.2em;
-}
-
-.eyebrow-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--lp-accent);
-  border-radius: 50%;
-}
-
-.hero-title {
-  margin: 0;
-  font-size: var(--lp-text-hero);
-  font-weight: 820;
-  line-height: 1.24;
-  letter-spacing: -0.055em;
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
 }
 
 .hero-lead {
-  margin: 32px 0 0;
+  max-width: 30em;
+  margin: 0;
   color: var(--lp-body);
-  font-size: var(--lp-text-lead);
-  line-height: 1.85;
-  text-wrap: balance;
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  line-height: 1.7;
 }
 
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px 16px;
-  margin-top: 36px;
-}
-
-.pipeline {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  margin: 32px 0 0;
-  padding: 0;
-  color: var(--lp-muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  list-style: none;
-}
-
-.pipeline li + li::before {
-  content: "→";
-  margin-right: 22px;
-  letter-spacing: 0;
-}
-
-.hero-stage {
-  width: 100%;
-  max-width: var(--lp-wrap);
-  margin: 44px 0 0;
-  padding: clamp(20px, 4vw, 56px) clamp(12px, 4vw, 56px) 52px;
-  position: relative;
-  overflow: hidden;
-  background: var(--lp-panel);
-  border: 1px solid var(--lp-line);
-  border-radius: var(--lp-radius-panel);
-}
-
-.hero-stage figcaption {
-  position: absolute;
-  right: 20px;
-  bottom: 16px;
-  color: var(--lp-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-}
-
-/* 실제 앱 화면 미리보기. 글자가 읽히도록 기울이지 않고 그림자로만 띄운다. */
-.hero-tilt {
-  max-width: 980px;
-  margin: 0 auto;
-  box-shadow: var(--lp-shadow);
-  border-radius: 14px;
-}
-
-.hero-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-  max-width: var(--lp-wrap);
-  margin-top: 32px;
-  padding-top: 24px;
-  color: var(--lp-muted);
-  font-size: 0.8125rem;
-  border-top: 1px solid var(--lp-line);
-}
-
-/* ───── 장 목차 ───── */
-.chapter-index {
-  max-width: var(--lp-wrap);
-  margin: clamp(48px, 6vw, 88px) auto 0;
-  padding: 0 var(--lp-gutter);
-  box-sizing: content-box;
-}
-
-.chapter-index ol {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-bottom: 1px solid var(--lp-line);
-}
-
-.chapter-index li + li {
-  border-left: 1px solid var(--lp-line);
-}
-
-.chapter-index a {
-  display: flex;
-  align-items: baseline;
   gap: 12px;
-  height: 100%;
-  padding: 20px 16px;
-  color: var(--lp-ink);
-  font-size: 0.9375rem;
-  font-weight: 650;
-  text-decoration: none;
-  transition: background-color 160ms ease;
+  margin-top: 8px;
 }
 
-.chapter-index a:hover {
-  background: var(--lp-panel);
+.hero-visual {
+  margin: 0;
 }
 
-.chapter-index-number {
+.hero-visual figcaption {
+  margin-top: 14px;
   color: var(--lp-muted);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.chapter-index-label {
-  flex: 1;
-}
-
-.chapter-index-arrow {
-  color: var(--lp-muted);
-  transition: transform 180ms var(--lp-ease-out);
-}
-
-.chapter-index a:hover .chapter-index-arrow {
-  transform: translateY(3px);
-}
-
-/* 가운데 정렬 섹션 머리(FAQ 등) */
-.centered-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  text-align: center;
+  font-size: 0.875rem;
 }
 
 /* ───── 하단 ───── */
@@ -488,6 +373,7 @@
   margin: 0 auto;
   padding: 48px var(--lp-gutter) 40px;
   box-sizing: content-box;
+  border-top: 1px solid var(--lp-line);
 }
 
 .landing-footer {
@@ -502,7 +388,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 16px;
+  gap: 8px 14px;
 }
 
 .footer-brand .brand-word {
@@ -513,10 +399,9 @@
 .footer-copy {
   margin: 0;
   color: var(--lp-muted);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
-/* 약관·운영자 정보(이슈 #130)는 랜딩 폭에 맞춘다. */
 .landing-bottom :global(.legal-footer) {
   margin-top: 32px;
   color: var(--lp-muted);
@@ -526,7 +411,7 @@
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(20px);
   }
 
   to {
@@ -536,34 +421,22 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .eyebrow,
-  .hero-title,
-  .hero-lead,
-  .hero-actions,
-  .pipeline {
-    animation: rise-in var(--lp-duration) var(--lp-ease-out) both;
+  .hero-copy > *,
+  .hero-visual {
+    animation: rise-in 900ms var(--lp-ease-out) both;
   }
 
-  .hero-title {
+  .hero-copy > :nth-child(2) {
     animation-delay: 80ms;
   }
 
-  .hero-lead {
+  .hero-copy > :nth-child(3) {
     animation-delay: 160ms;
   }
 
-  .hero-actions {
-    animation-delay: 240ms;
+  .hero-visual {
+    animation-delay: 200ms;
   }
-
-  .pipeline {
-    animation-delay: 300ms;
-  }
-
-  .hero-tilt {
-    animation: rise-in 1200ms var(--lp-ease-out) 200ms both;
-  }
-
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -576,56 +449,22 @@
 }
 
 /* ───── 반응형 ───── */
-@media (max-width: 767px) {
-  .chapter-index ol {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 1023px) {
+  .hero {
+    grid-template-columns: 1fr;
   }
 
-  .chapter-index li:nth-child(3) {
-    border-left: 0;
-  }
-
-  .chapter-index li:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--lp-line);
-  }
-
-  .hero-meta {
-    font-size: 0.75rem;
+  .hero-visual {
+    max-width: 720px;
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 760px) {
   .header-inner {
     grid-template-columns: 1fr auto;
   }
 
   .header-nav {
-    display: none;
-  }
-
-  .brand-word {
-    font-size: 1.3rem;
-  }
-
-  .hero-lead br,
-  .section-lead br {
-    display: none;
-  }
-
-  .pipeline {
-    gap: 12px;
-  }
-
-  .pipeline li + li::before {
-    margin-right: 12px;
-  }
-
-  .chapter-index a {
-    padding: 16px 10px;
-    font-size: 0.875rem;
-  }
-
-  .hero-meta span:last-child {
     display: none;
   }
 }

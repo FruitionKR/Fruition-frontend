@@ -1,26 +1,26 @@
-/* 활용 장 예시 화면 탭. 색은 LandingPage.module.css의 --lp-* 토큰을 이어받는다. */
-.answer-demo {
+/* 랜딩 탭. 색은 LandingPage.module.css의 --lp-* 토큰을 이어받는다. */
+.tabs {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 24px;
+  align-items: flex-start;
+  gap: 28px;
 }
 
-.answer-tabs {
+.tab-list {
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  background: var(--lp-bg);
+  background: var(--lp-panel);
   border: 1px solid var(--lp-line);
   border-radius: 12px;
 }
 
-.answer-tab {
+.tab {
   --button-hover-overlay: none;
 
-  padding: 9px 16px;
+  padding: 10px 20px;
   color: var(--lp-body);
-  font-size: 0.8125rem;
+  font-size: 1rem;
   font-weight: 600;
   white-space: nowrap;
   background: transparent;
@@ -28,30 +28,23 @@
   transition: background-color 160ms ease, color 160ms ease;
 }
 
-.answer-tab:hover {
+.tab:hover {
   color: var(--lp-ink);
 }
 
-.answer-tab[aria-selected="true"] {
+.tab[aria-selected="true"] {
   color: var(--lp-accent-ink);
-  background: var(--lp-accent-weak);
+  background: var(--lp-bg);
+  box-shadow: 0 1px 3px var(--color-shadow);
 }
 
-.answer-panel {
+.panel {
   width: 100%;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  border-radius: var(--lp-radius-panel);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .answer-panel {
+  .panel {
     animation: panel-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 }
@@ -69,13 +62,12 @@
 }
 
 @media (max-width: 560px) {
-  .answer-tabs {
+  .tab-list {
     width: 100%;
   }
 
-  .answer-tab {
+  .tab {
     flex: 1;
-    padding: 9px 6px;
-    font-size: 0.75rem;
+    padding: 10px 6px;
   }
 }

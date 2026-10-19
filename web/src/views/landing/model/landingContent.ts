@@ -1,138 +1,135 @@
 /**
- * 랜딩 화면 문구와 구조. 기능 소개 사이트(디자인 참고용)의 흐름(기록 → 지식화 → 활용 → 협업)을 따르되,
- * 문구는 실제 제품 기능(문서 업로드·위키 편입·근거 있는 답변·스킬·회의 받아쓰기·워크스페이스 권한)에 맞춘다.
+ * 랜딩 화면 문구와 구조. 히어로 → 흐름도 → 핵심 기능 3개(좌우 교차) → 기능 묶음(벤토) → 팀(어두운 띠)
+ * → 활용 사례 탭 → FAQ → 마지막 안내 순서다. 문구는 실제 제품 기능(문서 업로드·PDF 변환·위키 편입·지식 그래프·
+ * 근거 있는 답변·승인 편집·스킬·회의 받아쓰기·위키 점검·작업 이력·워크스페이스 권한)에 맞추고, 영어 병기는 쓰지 않는다.
  */
 
-export type LandingChapterId = "capture" | "connect" | "discover" | "together";
+export interface LandingNavItem {
+  readonly href: `#${string}`;
+  readonly label: string;
+}
+
+export const LANDING_NAV: readonly LandingNavItem[] = [
+  { href: "#capture", label: "기능" },
+  { href: "#more", label: "더 많은 기능" },
+  { href: "#team", label: "팀" },
+  { href: "#use-cases", label: "활용 사례" }
+];
+
+export type LandingFeatureId = "capture" | "connect" | "discover";
 
 export interface LandingFeature {
-  readonly title: string;
+  readonly id: LandingFeatureId;
+  readonly label: string;
+  readonly title: readonly [string, string];
   readonly description: string;
+  readonly points: readonly string[];
 }
 
-export interface LandingChapter {
-  readonly id: LandingChapterId;
-  readonly index: string;
-  /** 상단 메뉴 이름 */
-  readonly navLabel: string;
-  /** 장 목차에 쓰는 짧은 이름 */
-  readonly indexLabel: string;
-  readonly kicker: string;
-  readonly title: string;
-  readonly subtitle: string;
-  readonly description: string;
-  readonly showcase: {
-    readonly kicker: string;
-    readonly title: readonly [string, string];
-    readonly caption: string;
-  };
-  readonly features: readonly LandingFeature[];
-}
-
-export const LANDING_CHAPTERS: readonly LandingChapter[] = [
+export const LANDING_FEATURES: readonly LandingFeature[] = [
   {
     id: "capture",
-    index: "01",
-    navLabel: "기록",
-    indexLabel: "모으고 쓰기",
-    kicker: "CAPTURE & ORGANIZE",
-    title: "흩어진 기록을 한곳에 모으고",
-    subtitle: "지식 작성 및 편집",
-    description:
-      "PDF·Markdown·TXT 문서를 올리고, PDF는 편집 가능한 Markdown으로 변환하세요. 아이디어부터 회의록까지 한곳에서 작성하고 폴더로 정리할 수 있습니다.",
-    showcase: {
-      kicker: "DOCUMENT WORKSPACE",
-      title: ["기록부터 편집까지,", "하나의 흐름으로."],
-      caption: "문서와 AI 에이전트를 같은 화면에서 만나보세요."
-    },
-    features: [
-      { title: "문서 업로드", description: "PDF·Markdown·TXT 문서를 한곳에 모으세요." },
-      { title: "PDF를 Markdown으로 변환", description: "PDF를 편집 가능한 Markdown 문서로 바꿔 이어서 다듬으세요." },
-      { title: "Markdown 편집", description: "아이디어부터 회의록까지 자유롭게 기록하세요." },
-      { title: "회의 받아쓰기와 AI 회의록", description: "회의를 녹음하거나 녹음 파일을 올려 AI 회의록으로 정리하세요." },
-      { title: "폴더 관리", description: "모든 자료를 폴더로 체계적으로 정리하세요." }
-    ]
+    label: "올리기 · 변환",
+    title: ["흩어진 자료를", "한곳에 올리세요"],
+    description: "PDF·Markdown·텍스트 문서를 끌어다 놓으면 폴더에 정리되고, PDF는 바로 고쳐 쓸 수 있는 Markdown 문서로 바뀝니다.",
+    points: ["PDF를 편집 가능한 Markdown으로 변환", "폴더로 정리하고 통합 검색", "변환이 끝나면 앱 안에서 알림"]
   },
   {
     id: "connect",
-    index: "02",
-    navLabel: "지식화",
-    indexLabel: "지식으로 연결하기",
-    kicker: "CONNECT THE DOTS",
-    title: "개별 기록을 연결된 지식으로 만들고",
-    subtitle: "LLM Wiki 기반 지식 관리",
-    description:
-      "문서와 채팅을 위키에 편입하면 개념과 출처 페이지로 정리됩니다. 지식 그래프로 맥락을 탐색하고, 품질 검사와 작업 이력으로 믿을 수 있는 지식을 유지하세요.",
-    showcase: {
-      kicker: "LLM WIKI",
-      title: ["문서의 내용이,", "연결된 지식이 됩니다."],
-      caption: "개념과 출처를 따라가며 다음 질문의 실마리를 찾으세요."
-    },
-    features: [
-      { title: "위키 편입(Ingest)", description: "문서와 채팅 기록을 개념·출처 페이지로 편입하세요." },
-      { title: "지식 그래프(Graph)", description: "문서 속 개념과 관계를 그래프로 살펴보세요." },
-      { title: "지식 품질 검사(Lint)", description: "끊긴 연결과 어긋난 내용을 찾아 지식을 깔끔하게 유지하세요." },
-      { title: "작업 이력과 롤백(History)", description: "AI 작업 이력을 확인하고, 필요하면 이전 상태로 되돌리세요." }
-    ]
+    label: "위키 · 그래프",
+    title: ["올린 문서가", "스스로 위키가 됩니다"],
+    description: "문서를 위키에 편입하면 핵심 개념과 출처가 페이지로 정리되고, 서로 어떻게 이어지는지 그래프로 보입니다.",
+    points: ["개념 페이지와 출처 페이지를 자동으로 정리", "자동 편입 또는 원하는 문서만 골라 편입", "그래프에서 맥락을 따라 탐색"]
   },
   {
     id: "discover",
-    index: "03",
-    navLabel: "활용",
-    indexLabel: "근거 있게 찾고 활용하기",
-    kicker: "PUT KNOWLEDGE TO WORK",
-    title: "필요한 순간, 지식을 찾아 활용하고",
-    subtitle: "AI로 지식 활용",
-    description:
-      "쌓아둔 지식에 질문하고 답변의 근거를 바로 확인하세요. AI 에이전트와 스킬을 쓰면 검색을 넘어 문서 편집과 새로운 결과물까지 이어집니다.",
-    showcase: {
-      kicker: "ASK WITH SOURCES",
-      title: ["답변마다", "근거가 따라옵니다."],
-      caption: "예시 질문과 응답입니다. 실제 AI를 호출하지 않습니다."
-    },
-    features: [
-      { title: "자연어 질의응답(Query)", description: "쌓아둔 지식에 질문하고 관련 정보를 빠르게 찾으세요." },
-      { title: "답변 근거 확인", description: "답변이 인용한 문서와 위키 페이지를 바로 열어보세요." },
-      { title: "AI 문서 편집(Edit)", description: "에이전트와 함께 문서를 고치고 새 콘텐츠로 발전시키세요." },
-      { title: "스킬 생성과 실행(Skill)", description: "반복하는 작업을 AI 스킬로 만들어 언제든 실행하세요." }
-    ]
-  },
-  {
-    id: "together",
-    index: "04",
-    navLabel: "협업",
-    indexLabel: "팀의 지식으로 확장하기",
-    kicker: "BUILD TOGETHER",
-    title: "개인의 기록을 팀의 지식으로 확장하세요",
-    subtitle: "협업",
-    description:
-      "팀원을 워크스페이스에 초대해 지식을 함께 쌓으세요. 역할별 권한과 편집 충돌 관리로 여러 사람이 안전하게 같은 지식을 다룰 수 있습니다.",
-    showcase: {
-      kicker: "SHARED WORKSPACE",
-      title: ["각자의 기록을,", "팀의 자산으로."],
-      caption: "예시 화면입니다."
-    },
-    features: [
-      { title: "팀 워크스페이스", description: "기록을 공유하고 팀의 지식을 함께 발전시키세요." },
-      { title: "멤버 초대", description: "초대 메일로 팀원을 불러 같은 워크스페이스에서 일하세요." },
-      { title: "권한 관리", description: "소유자와 멤버 역할로 접근 범위를 나누세요." },
-      { title: "안전한 공동 편집", description: "다른 사람과 편집이 겹치면 충돌 기록을 확인하고 안전하게 합치세요." },
-      { title: "팀 스킬 공유", description: "유용한 스킬을 팀과 공유하고 함께 쓰세요." }
-    ]
+    label: "근거 있는 답변",
+    title: ["답변마다", "출처가 따라옵니다"],
+    description: "쌓아 둔 위키에 질문하면 답변 문장마다 근거 번호가 붙고, 눌러서 원문을 바로 확인할 수 있습니다.",
+    points: ["답변 문장마다 근거 번호 표시", "참고한 문서와 위키 페이지를 한눈에", "원문을 열어 해당 부분 확인"]
   }
 ];
 
-export interface LandingFlowStep {
-  readonly index: string;
+export interface LandingBentoItem {
+  readonly id: "approve" | "skills" | "dictation" | "lint" | "history";
   readonly title: string;
-  readonly detail: string;
+  readonly description: string;
 }
 
-export const LANDING_FLOW: readonly LandingFlowStep[] = [
-  { index: "01", title: "모으고 쓰기", detail: "문서 · 파일 · 회의" },
-  { index: "02", title: "지식으로 연결하기", detail: "위키 편입 · 그래프" },
-  { index: "03", title: "찾고 활용하기", detail: "질의응답 · AI 편집 · 스킬" },
-  { index: "04", title: "팀의 지식으로 확장하기", detail: "워크스페이스 · 권한" }
+export const LANDING_BENTO: readonly LandingBentoItem[] = [
+  {
+    id: "approve",
+    title: "승인하고 반영하는 AI 편집",
+    description: "에이전트가 문서를 고치면 바뀐 부분이 제안으로 표시되고, 수락한 것만 반영됩니다."
+  },
+  {
+    id: "skills",
+    title: "슬래시로 부르는 스킬",
+    description: "반복하는 작업을 스킬로 만들어 두고 / 한 번으로 실행하세요. 팀과 공유할 수도 있습니다."
+  },
+  {
+    id: "dictation",
+    title: "회의 받아쓰기",
+    description: "회의를 녹음하거나 녹음 파일을 올리면 받아쓴 내용이 회의록 초안으로 정리됩니다."
+  },
+  {
+    id: "lint",
+    title: "위키 점검",
+    description: "위키 전체를 점검해 합치거나 다듬을 부분을 제안하고, 수락한 것만 반영합니다."
+  },
+  {
+    id: "history",
+    title: "작업 이력과 되돌리기",
+    description: "AI가 한 작업은 모두 기록되고, 필요하면 이전 상태로 되돌릴 수 있습니다."
+  }
+];
+
+export interface LandingTeamPoint {
+  readonly title: string;
+  readonly description: string;
+}
+
+export const LANDING_TEAM_POINTS: readonly LandingTeamPoint[] = [
+  { title: "팀 워크스페이스", description: "초대 메일로 팀원을 부르고 같은 문서와 위키를 함께 씁니다." },
+  { title: "역할별 권한", description: "소유자와 멤버 역할로 할 수 있는 일을 나눕니다." },
+  { title: "안전한 공동 편집", description: "편집이 겹치면 충돌 기록을 남기고, 확인한 뒤 합칩니다." },
+  { title: "계정 보안", description: "로그인된 기기를 확인하고, 쓰지 않는 기기는 바로 로그아웃합니다." }
+];
+
+export interface LandingUseCase {
+  readonly key: "lab" | "startup" | "student";
+  readonly tab: string;
+  readonly title: string;
+  readonly description: string;
+  readonly steps: readonly string[];
+  readonly question: string;
+}
+
+export const LANDING_USE_CASES: readonly LandingUseCase[] = [
+  {
+    key: "lab",
+    tab: "연구실",
+    title: "논문과 실험 노트를 연구실 위키로",
+    description: "선배가 남긴 자료와 새로 읽은 논문을 한곳에 모아, 누구나 같은 맥락에서 연구를 이어 갑니다.",
+    steps: ["논문 PDF와 실험 노트를 올린다", "개념별 위키 페이지로 정리된다", "출처를 확인하며 선행 연구를 정리한다"],
+    question: "우리 실험 조건과 비슷한 선행 연구를 출처와 함께 정리해 줘"
+  },
+  {
+    key: "startup",
+    tab: "스타트업",
+    title: "회의와 고객 인터뷰를 팀의 기억으로",
+    description: "매주 쌓이는 회의록과 인터뷰가 흩어지지 않고, 새로 온 팀원도 지난 결정을 근거와 함께 찾습니다.",
+    steps: ["회의를 받아쓰고 회의록으로 정리한다", "인터뷰 노트를 위키에 편입한다", "결정 배경을 출처와 함께 묻는다"],
+    question: "지난 분기에 가격 정책을 바꾼 이유가 뭐였지?"
+  },
+  {
+    key: "student",
+    tab: "학생",
+    title: "강의 자료를 시험 전 나만의 위키로",
+    description: "강의 슬라이드와 필기를 올려 두면 개념끼리 이어지고, 헷갈리는 부분은 원문을 근거로 다시 확인합니다.",
+    steps: ["강의 자료와 필기를 올린다", "개념 그래프로 단원 사이 연결을 본다", "헷갈리는 개념을 근거와 함께 묻는다"],
+    question: "3주차와 7주차 내용이 어떻게 이어지는지 설명해 줘"
+  }
 ];
 
 export interface LandingFaq {
@@ -142,36 +139,22 @@ export interface LandingFaq {
 
 export const LANDING_FAQ: readonly LandingFaq[] = [
   {
-    question: "문서 저장이나 일반 AI 채팅과 무엇이 다른가요?",
-    answer:
-      "Fruition은 올린 문서를 위키에 편입해 개념과 출처로 연결합니다. 질문하면 그 위키를 근거로 답하고, 어떤 문서를 인용했는지 함께 보여줍니다."
+    question: "일반 AI 채팅과 무엇이 다른가요?",
+    answer: "올린 문서를 위키로 정리해 두고, 그 위키를 근거로 답합니다. 답변마다 어떤 문서를 참고했는지 함께 보여 줍니다."
   },
   {
-    question: "어떤 자료로 시작할 수 있나요?",
-    answer:
-      "PDF·Markdown·TXT 문서를 올리거나 화면에서 바로 Markdown 문서를 쓸 수 있습니다. 회의는 녹음하거나 녹음 파일을 올려 회의록으로 남길 수 있습니다."
+    question: "어떤 자료를 올릴 수 있나요?",
+    answer: "PDF·Markdown·텍스트 문서를 올리거나 화면에서 바로 문서를 쓸 수 있습니다. 회의는 녹음하거나 녹음 파일을 올려 회의록으로 남깁니다."
   },
   {
-    question: "업로드한 문서는 바로 Wiki에 포함되나요?",
-    answer:
-      "워크스페이스 설정에 따라 자동으로 편입하거나, 원하는 문서만 골라 직접 편입할 수 있습니다. 편입 이후 수정한 문서는 다시 편입해 최신 상태로 맞춥니다."
+    question: "올린 문서는 바로 위키에 들어가나요?",
+    answer: "워크스페이스 설정에 따라 자동으로 편입하거나, 원하는 문서만 골라 편입할 수 있습니다."
   },
   {
-    question: "AI 답변의 근거도 확인할 수 있나요?",
-    answer: "네. 답변에 인용된 문서와 위키 페이지가 함께 표시되고, 눌러서 원문을 바로 열어볼 수 있습니다."
-  },
-  {
-    question: "혼자 사용하다가 팀과 함께 쓸 수 있나요?",
-    answer:
-      "워크스페이스에 팀원을 초대하면 같은 문서와 위키를 함께 씁니다. 소유자와 멤버 역할로 권한을 나누고, 편집 충돌은 확인 후 합칠 수 있습니다."
-  },
-  {
-    question: "지금 바로 사용해 볼 수 있나요?",
-    answer: "Fruition은 테스트 운영 중입니다. 운영 환경에 따라 접근 코드가 필요할 수 있고, 기능과 화면은 바뀔 수 있습니다."
+    question: "지금 바로 써 볼 수 있나요?",
+    answer: "테스트 운영 중입니다. 운영 환경에 따라 접근 코드가 필요할 수 있고, 기능과 화면은 바뀔 수 있습니다."
   }
 ];
-
-export type TabKey = "ArrowLeft" | "ArrowRight" | "Home" | "End";
 
 /** WAI-ARIA 탭 목록 키보드 이동. 좌우 화살표는 양 끝에서 반대쪽으로 넘어가고, 다른 키는 현재 위치를 유지한다. */
 export function nextTabIndex(current: number, key: string, count: number): number {
