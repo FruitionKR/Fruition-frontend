@@ -9,6 +9,7 @@ import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
 import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
+import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { describeTaskRequest, groupTaskEntries, resolveTaskStatus, taskKindLabel, type TaskMessageItem, type TaskStatusView } from "../lib/taskThread";
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
@@ -134,6 +135,8 @@ export function AgentTaskBody({
     }))
   });
   const runsByKey = new Map(planItems.map((item, index) => [item.key, runQueries[index]]));
+  // 새로 고침 뒤에도 적용한 편집안이 "저장됨"으로 남게 서버 버전 기록으로 다시 확인한다.
+  const serverAppliedTurnIds = useServerAppliedTurnIds(workspaceId, items, isShown);
 
   // 실행이 끝나는 전이를 볼 때만 문서·트리·그래프를 다시 받는다(#66).
   const runStatusSignature = runQueries.map((query) => query.data?.status ?? "").join("|");
@@ -145,7 +148,7 @@ export function AgentTaskBody({
     previousStatuses.current = statuses;
   }, [client, runStatusSignature]);
 
-  const entries: TaskEntry[] = items.map((item) => {
+  const entries: TaskEntry[] = items.map((item, index) => {
     const query = runsByKey.get(item.key);
     const run = query?.data ?? null;
     const status = resolveTaskStatus({
@@ -154,7 +157,8 @@ export function AgentTaskBody({
       runStatus: run?.status,
       operationCount: run?.plan?.operations.length ?? 0,
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
-      isApplied: item.turnId !== null && appliedTurnIds.has(item.turnId)
+      isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
+      hasLaterTask: index < items.length - 1 || Boolean(pendingTask)
     });
     const request = run?.request_summary?.trim().normalize("NFC") || item.request || "요청 내용 없음";
     return {

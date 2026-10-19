@@ -54,7 +54,21 @@ export async function requestAgentTurn(
   return result;
 }
 
-type AgentTurnRunResponse = Omit<AgentTurnResponse, "status" | "result"> & {
+/** 끝난 편집 turn의 대상 문서와 적용 ID. 새로 고침 뒤 버전 기록과 맞춰 적용 여부를 알아낸다. */
+export async function fetchAgentTurnApplyTarget(
+  workspaceId: string,
+  turnId: string,
+  signal?: AbortSignal
+): Promise<{ documentId: string | null; applyOperationId: string | null }> {
+  const response = await apiFetch(workspacePath(workspaceId, "agent", "turn", turnId), { cache: "no-store", signal });
+  const turn = await parseJsonOrThrow<{ documentId?: string | null; apply_operation_id?: string | null }>(
+    response,
+    ERROR_MESSAGES.agentTurnFailed
+  );
+  return { documentId: turn.documentId ?? null, applyOperationId: turn.apply_operation_id ?? null };
+}
+
+type AgentTurnRunResponse =Omit<AgentTurnResponse, "status" | "result"> & {
   status: string;
   result: AgentTurnResponse["result"] | null;
   /** 실패 코드. 화면에 그대로 보여 주지 않는다. */
