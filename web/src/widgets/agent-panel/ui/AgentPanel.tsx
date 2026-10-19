@@ -11,6 +11,8 @@ import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
+import { ProposalDecisionButtons, type InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
+import { countPendingProposals, countProposals, headingAtLine, proposalSourceLabel } from "@/features/agent-chat/lib/inlineEditReview";
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
@@ -60,6 +62,8 @@ export function AgentPanel({
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
   skillTestRunSlotRef,
+  openDocumentTitle = null,
+  onEditReviewChange,
   isShown = true
 }: {
   onClose: () => void;
@@ -96,6 +100,10 @@ export function AgentPanel({
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
   /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
   skillTestRunSlotRef?: (element: HTMLDivElement | null) => void;
+  /** 열린 문서 이름. 본문에 붙인 편집 제안 카드의 보조 설명에 쓴다(Figma 1610:9145). */
+  openDocumentTitle?: string | null;
+  /** 열린 문서 본문에 붙여 보여 줄 편집 제안(Figma 1571:27625). 없어지면 null. */
+  onEditReviewChange?: (review: InlineEditReviewState | null) => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -342,6 +350,42 @@ export function AgentPanel({
     }
   }
 
+  // 편집안이 열린 문서의 것이면 메인 본문에 제안으로 붙이고(Figma 1571:27625), 작업 탭 카드에는 거절·수락만 둔다.
+  // 두 곳의 버튼은 같은 결정을 쓴다. 문서가 바뀌었거나 다른 문서면 기존 미리보기 카드로 보여 준다.
+  const { reviewSegments, proposalDecisions } = agentTurn;
+  const reviewDocumentId = agentTurnRequest?.documentId ?? null;
+  const proposalCount = reviewSegments ? countProposals(reviewSegments) : 0;
+  const pendingProposalCount = reviewSegments ? countPendingProposals(reviewSegments, proposalDecisions) : 0;
+  const isInlineReview = Boolean(
+    reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
+    && reviewDocumentId && reviewDocumentId === openDocumentId
+  );
+  const isReviewBusy = isAgentTurnLoading || isCreatingMarkdown;
+  const decideProposalRef = useRef(agentTurn.decideProposal);
+  decideProposalRef.current = agentTurn.decideProposal;
+  const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "");
+  const inlineReview = useMemo<InlineEditReviewState | null>(() => (
+    isInlineReview && reviewSegments && reviewDocumentId ? {
+      documentId: reviewDocumentId,
+      sourceLabel: reviewSourceLabel,
+      segments: reviewSegments,
+      decisions: proposalDecisions,
+      pendingCount: pendingProposalCount,
+      isBusy: isReviewBusy,
+      onDecide: (index, decision) => decideProposalRef.current(index, decision)
+    } : null
+  ), [isInlineReview, isReviewBusy, pendingProposalCount, proposalDecisions, reviewDocumentId, reviewSegments, reviewSourceLabel]);
+  useEffect(() => {
+    onEditReviewChange?.(inlineReview);
+  }, [inlineReview, onEditReviewChange]);
+  useEffect(() => () => onEditReviewChange?.(null), [onEditReviewChange]);
+  const reviewHeading = isInlineReview && agentTurnRequest?.editorSnapshot && agentTurnResponse?.result.edit
+    ? headingAtLine(agentTurnRequest.editorSnapshot.markdown, agentTurnResponse.result.edit.actual_target.start_line)
+    : null;
+  const inlineReviewMeta = isInlineReview
+    ? [openDocumentTitle, reviewHeading, `제안 ${pendingProposalCount}개 (본문에 표시)`].filter(Boolean).join(" • ")
+    : null;
+
   // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
   const hasDocumentCommandPreview = Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
@@ -359,7 +403,8 @@ export function AgentPanel({
           onCreate={agentTurn.createMarkdownDocument}
         />
       )}
-      {editPreviewState?.preview && (
+      {isInlineReview && <ProposalDecisionButtons disabled={isReviewBusy} onDecide={agentTurn.decideRemainingProposals} />}
+      {editPreviewState?.preview && !isInlineReview && (
         <MarkdownEditPreview
           preview={editPreviewState.preview}
           validationError={editPreviewState.validationError}
@@ -409,7 +454,10 @@ export function AgentPanel({
             pendingTask={isAgentTurnLoading && agentTurnRequest ? { request: agentTurnRequest.message, stages: agentTurn.agentStages } : null}
             activePreviewTurnId={agentTurnResponse?.requestId ?? null}
             activePreview={documentCommandPreview}
+            activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
+            rejectedTurnIds={agentTurn.rejectedTurnIds}
+            onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
             errorMessage={agentTurn.agentTurnErrorMessage ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}

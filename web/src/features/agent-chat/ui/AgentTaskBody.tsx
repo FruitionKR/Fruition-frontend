@@ -101,11 +101,14 @@ export function AgentTaskBody({
   pendingTask,
   activePreviewTurnId,
   activePreview,
+  activePreviewMeta = null,
   appliedTurnIds,
+  rejectedTurnIds,
   errorMessage,
   isShown,
   onSaveRequestAsSkill,
-  onOpenFolderOrganize
+  onOpenFolderOrganize,
+  onShortenActivePreview
 }: {
   items: TaskMessageItem[];
   /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
@@ -113,13 +116,19 @@ export function AgentTaskBody({
   /** 편집안·새 문서 초안을 검토 중인 turn과 그 미리보기 */
   activePreviewTurnId: string | null;
   activePreview: ReactNode;
+  /** 검토 중인 카드의 보조 설명(Figma 1610:9145 "문서 • 섹션 • 제안 N개 (본문에 표시)"). 없으면 상태 문구 */
+  activePreviewMeta?: string | null;
   appliedTurnIds: ReadonlySet<string>;
+  /** 이 화면에서 편집안을 모두 거절한 turn */
+  rejectedTurnIds: ReadonlySet<string>;
   errorMessage: string | null;
   isShown: boolean;
   /** "이 요청을 스킬로 저장"(Figma 1671:13245). 없으면 버튼을 숨긴다. */
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
+  /** 검토 중인 편집안을 "더 짧게" 다시 받는다(Figma 1610:9183). 없으면 버튼을 숨긴다. */
+  onShortenActivePreview?: () => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -162,6 +171,7 @@ export function AgentTaskBody({
       operationCount: run?.plan?.operations.length ?? 0,
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
+      isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       hasLaterTask: index < items.length - 1 || Boolean(pendingTask)
     });
     const request = run?.request_summary?.trim().normalize("NFC") || item.request || "요청 내용 없음";
@@ -215,6 +225,7 @@ export function AgentTaskBody({
     const { item, status } = entry;
     // 되묻는 작업은 AI 질문을 제목으로, 원래 요청을 보조 설명으로 둔다(Figma 1671:13261).
     const isQuestion = status.group === "clarify" && item.action === "clarify" && Boolean(item.answer);
+    const isActivePreview = status.group === "approval" && item.turnId === activePreviewTurnId;
     return (
       <div key={item.key} className={styles["task-entry"]}>
         <TaskCard
@@ -222,16 +233,24 @@ export function AgentTaskBody({
           request={entry.request}
           createdAt={item.createdAt}
           title={isQuestion ? item.answer : undefined}
-          meta={isQuestion ? `요청 : ${entry.request}` : status.label}
+          meta={isQuestion ? `요청 : ${entry.request}` : (isActivePreview && activePreviewMeta) || status.label}
         >
           {renderDetail(entry)}
         </TaskCard>
-        {status.group === "approval" && onSaveRequestAsSkill && (
+        {status.group === "approval" && (onSaveRequestAsSkill || (isActivePreview && onShortenActivePreview)) && (
           <div className={styles["task-actions"]}>
-            <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onSaveRequestAsSkill(entry.request)}>
-              <AgentAssetIcon src={taskBoltIcon} size={12} />
-              이 요청을 스킬로 저장
-            </button>
+            {isActivePreview && onShortenActivePreview && (
+              <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onShortenActivePreview}>
+                <AgentAssetIcon src={taskBoltIcon} size={12} />
+                더 짧게
+              </button>
+            )}
+            {onSaveRequestAsSkill && (
+              <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onSaveRequestAsSkill(entry.request)}>
+                <AgentAssetIcon src={taskBoltIcon} size={12} />
+                이 요청을 스킬로 저장
+              </button>
+            )}
           </div>
         )}
       </div>

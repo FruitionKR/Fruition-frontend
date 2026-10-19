@@ -117,6 +117,7 @@ export function resolveTaskStatus({
   operationCount = 0,
   hasActivePreview = false,
   isApplied = false,
+  isRejected = false,
   hasLaterTask = false
 }: {
   action: string | null;
@@ -128,6 +129,8 @@ export function resolveTaskStatus({
   hasActivePreview?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
+  /** 이 화면에서 편집안을 모두 거절했는지 */
+  isRejected?: boolean;
   /** 이 작업 뒤에 보낸 작업이 있는지. 되물음은 다음 요청으로 답했거나 지나간 것으로 본다. */
   hasLaterTask?: boolean;
 }): TaskStatusView {
@@ -152,6 +155,7 @@ export function resolveTaskStatus({
   if (action === "reject") return { group: "failed", label: "처리 불가", tone: "danger", struck: false };
   if (hasActivePreview) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
   if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
+  if (isRejected) return { group: "done", label: "거절됨", tone: "danger", struck: true };
   if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
   return { group: "done", label: "답변", tone: "muted", struck: false };
 }

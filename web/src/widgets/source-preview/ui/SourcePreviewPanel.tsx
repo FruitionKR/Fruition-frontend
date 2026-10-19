@@ -30,6 +30,7 @@ import {
 import { cx } from "@/shared/lib/classNames";
 import styles from "./SourcePreviewPanel.module.css";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import { EditProposalBadge, InlineEditReview, type InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { DocumentStatus, NoteSaveStatus } from "@/entities/tree";
 import type { WikiPageDetailResponse } from "@/entities/wiki";
@@ -49,6 +50,7 @@ export function SourcePreviewPanel({
   documentId,
   sourceBlockHighlights,
   onMarkdownEditContextChange,
+  editReview = null,
   onRenameDocument,
   onRefreshDocuments,
   documentStatus,
@@ -64,6 +66,8 @@ export function SourcePreviewPanel({
   documentId?: string | null;
   sourceBlockHighlights?: SourceBlockHighlight[];
   onMarkdownEditContextChange?: (context: ActiveMarkdownEditContext | null) => void;
+  /** 채팅 패널이 받은 편집안. 이 문서의 것이면 본문 대신 제안을 붙인 검토 화면을 보여 준다(Figma 1571:27625). */
+  editReview?: InlineEditReviewState | null;
   onRenameDocument?: (documentId: string, filename: string) => Promise<void>;
   /** 저장 직후 백엔드 문서 목록을 다시 받아 알림·트리를 갱신한다. */
   onRefreshDocuments?: () => void;
@@ -155,6 +159,10 @@ export function SourcePreviewPanel({
     };
     return { ...split, body: stripPageComments(split.body) };
   }, [documentId, rawMarkdown]);
+  // 편집기로 연 이 문서의 편집 제안만 본문에 붙인다.
+  const activeEditReview = editReview && isMarkdownFile && !readOnly && editableNote && editReview.documentId === documentId
+    ? editReview
+    : null;
 
   useEffect(() => {
     setTitleInput(getMarkdownDocumentTitle(title));
@@ -471,6 +479,8 @@ export function SourcePreviewPanel({
         <div ref={contentRef} className={styles["source-preview-content"]}>
         <header className={styles["source-preview-heading"]}>
           {isMarkdownFile ? (
+            // 제안 배지가 붙으면 제목 칸을 글자 폭에 맞춰 배지를 제목 바로 옆에 둔다(Figma 1610:2850).
+            <div className={cx(styles["source-preview-title-field"], activeEditReview && styles["is-fit"])} data-value={titleInput || "제목을 입력하세요"}>
             <input
               className={styles["source-preview-title-input"]}
               aria-label="문서 이름"
@@ -501,6 +511,7 @@ export function SourcePreviewPanel({
                 }
               }}
             />
+            </div>
           ) : (
             <h2 title={titleHint}>{withPathSuffix(visibleTitle, titleSuffix)}</h2>
           )}
@@ -508,6 +519,7 @@ export function SourcePreviewPanel({
           {isMarkdownFile && titleSuffix && (
             <span className={styles["source-preview-title-suffix"]} title={titleHint}>· {titleSuffix}</span>
           )}
+          {activeEditReview && <EditProposalBadge count={activeEditReview.pendingCount} />}
           {!fillMain && <span>{pageId ? pageTypeLabel : editableNote ? "Note" : "Raw"}</span>}
         </header>
         {isMarkdownFile && renameError && (
@@ -548,7 +560,10 @@ export function SourcePreviewPanel({
             <MarkdownViewer markdown={editableNote.body} />
           </>
         )}
+        {activeEditReview && <InlineEditReview review={activeEditReview} />}
         {isMarkdownFile && !readOnly && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+          // 검토 중에는 편집기를 숨기되 마운트해 둔다. 수락하면 이 편집기로 적용·저장한다.
+          <div className={styles["source-preview-editor-slot"]} hidden={Boolean(activeEditReview)}>
           <DynamicNoteEditor
             key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
             documentId={documentId}
@@ -560,6 +575,7 @@ export function SourcePreviewPanel({
             onDetachedSaveComplete={handleDetachedSaveComplete}
             onRegisterSave={registerNoteSave}
           />
+          </div>
         )}
         {isPdfOrOther && errorMessage && <p>{errorMessage}</p>}
         {isPdfOrOther && !isLoading && !errorMessage && rawText !== null && (

@@ -49,6 +49,7 @@ import { getDocumentConversionView } from "@/entities/document/lib/documentConve
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import type { InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import { createClientId, findTreeItem } from "@/entities/tree";
 import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
 import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
@@ -88,6 +89,8 @@ export function HomeWorkspace() {
     if (activeView !== "settings") setSettingsResume(null);
   }, [activeView]);
   const [markdownEditContext, setMarkdownEditContext] = useState<ActiveMarkdownEditContext | null>(null);
+  // 채팅 패널이 받은 편집안을 열린 문서 본문에 제안으로 붙인다(Figma 1571:27625).
+  const [editReview, setEditReview] = useState<InlineEditReviewState | null>(null);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
   // 알림 목록·읽음 상태. 알림 화면 탭의 안 읽음 표시에 쓴다.
   const notificationFeed = useNotificationFeed(activeView === "notifications");
@@ -499,6 +502,7 @@ export function HomeWorkspace() {
             documentId={selection.selectedDocumentId}
             sourceBlockHighlights={selection.selectedPreviewTarget?.sourceBlockHighlights ?? []}
             onMarkdownEditContextChange={setMarkdownEditContext}
+            editReview={editReview}
             onRenameDocument={projectTree.renameDocumentById}
             onRefreshDocuments={() => void refreshBackendData()}
             documentStatus={selectedDocumentStatus}
@@ -575,6 +579,8 @@ export function HomeWorkspace() {
           onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
+          openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
+          onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}

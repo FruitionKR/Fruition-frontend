@@ -84,6 +84,7 @@ test("문서 편집·되물음·실패 작업의 상태를 정한다", () => {
   const base = { messageStatus: "completed" };
   assert.equal(resolveTaskStatus({ ...base, action: "markdown_edit", hasActivePreview: true }).group, "approval");
   assert.deepEqual(resolveTaskStatus({ ...base, action: "markdown_edit", isApplied: true }), { group: "done", label: "저장됨", tone: "primary", struck: false });
+  assert.deepEqual(resolveTaskStatus({ ...base, action: "markdown_edit", isRejected: true }), { group: "done", label: "거절됨", tone: "danger", struck: true });
   assert.equal(resolveTaskStatus({ ...base, action: "markdown_create" }).label, "제안 완료");
   assert.equal(resolveTaskStatus({ ...base, action: "clarify" }).group, "clarify");
   assert.equal(resolveTaskStatus({ ...base, action: "reject" }).group, "failed");
