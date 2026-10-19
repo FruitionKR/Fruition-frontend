@@ -472,8 +472,3 @@
   color: #fff;
   background: var(--color-danger);
 }
-
-/* --- 멤버 초대 모달 --- */
-.field-role {
-  align-self: flex-start;
-}

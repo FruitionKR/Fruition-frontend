@@ -45,7 +45,7 @@ test("연동·해제 실패는 서버 error.code로 안내하고, 모르는 code
 
 test("소셜 가입 이메일이면 가입을 막고 그 소셜 로그인 뒤 설정에서 연동하도록 안내하며, 없으면 막지 않는다", () => {
   assert.equal(signupOAuthConflictMessage([]), null);
-  assert.equal(signupOAuthConflictMessage(["google"]), "이미 Google로 가입된 이메일입니다. Google로 로그인한 뒤 설정 > 계정 보안에서 연동해 주세요.");
+  assert.equal(signupOAuthConflictMessage(["google"]), "이미 Google로 가입된 이메일입니다. Google로 로그인한 뒤 설정 > 사용자 설정에서 연동해 주세요.");
   assert.match(signupOAuthConflictMessage(["google", "kakao"]), /^이미 Google, 카카오로 가입된/);
 });
 
@@ -59,11 +59,11 @@ test("가입 화면 분기: oauth_providers가 있으면 available과 무관하�
   assert.equal(signupAvailabilityMessage({ available: true }), null);
 });
 
-test("같은 이메일의 계정 안내: local이 있으면 이메일 로그인, 아니면 그 소셜 로그인 뒤 설정 > 계정 보안에서 연동", () => {
+test("같은 이메일의 계정 안내: local이 있으면 이메일 로그인, 아니면 그 소셜 로그인 뒤 설정 > 사용자 설정에서 연동", () => {
   assert.equal(registeredEmailLoginMessage([]), null);
-  assert.equal(registeredEmailLoginMessage(["local"]), "이미 이메일로 가입된 이메일입니다. 이메일과 비밀번호로 로그인한 뒤 설정 > 계정 보안에서 연동해 주세요.");
+  assert.equal(registeredEmailLoginMessage(["local"]), "이미 이메일로 가입된 이메일입니다. 이메일과 비밀번호로 로그인한 뒤 설정 > 사용자 설정에서 연동해 주세요.");
   assert.match(registeredEmailLoginMessage(["local", "google"]), /^이미 이메일로 가입된 이메일입니다\. 이메일과 비밀번호로 로그인한 뒤/);
-  assert.equal(registeredEmailLoginMessage(["google"]), "이미 Google로 가입된 이메일입니다. Google로 로그인한 뒤 설정 > 계정 보안에서 연동해 주세요.");
+  assert.equal(registeredEmailLoginMessage(["google"]), "이미 Google로 가입된 이메일입니다. Google로 로그인한 뒤 설정 > 사용자 설정에서 연동해 주세요.");
 });
 
 test("409 EMAIL_REGISTERED_WITH_OAUTH·EMAIL_REGISTERED만 providers로 안내하고, 다른 오류는 null", () => {

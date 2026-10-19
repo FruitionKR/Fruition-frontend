@@ -1,37 +1,12 @@
 import type { AppNotification } from "../api/notifications";
 import type { NoticePayload } from "./noticeBus";
 
-const CHOICE_LABELS: Record<string, string> = {
-  server: "서버 본을 유지",
-  conflict: "내 본문을 적용",
-  merged: "합친 본문을 저장"
-};
-
-function text(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-/** 서버 알림을 사람이 읽을 제목·본문으로 바꾼다. 알림 목록과 우하단 카드가 같은 문구를 쓴다. */
+/**
+ * 서버 알림을 사람이 읽을 제목·본문으로 바꾼다. 알림 목록과 우하단 카드가 같은 문구를 쓴다.
+ * 전용 문구가 있던 편집 충돌 알림은 서버 자동 병합으로 없어져 지금은 모든 종류를 일반 문구로 보여준다.
+ */
 export function describeNotification(notification: AppNotification): { title: string; message: string } {
-  const { type, payload } = notification;
-  if (type === "edit_conflict_registered") {
-    const name = text(payload.document_name) ?? "문서";
-    const author = text(payload.author_user_id);
-    return {
-      title: "편집 충돌 등록",
-      message: `「${name}」에 ${author ? `${author}님의 ` : ""}편집 충돌이 등록되었습니다. 설정 > 문서 관리의 편집 충돌에서 어느 본문을 남길지 골라 주세요.`
-    };
-  }
-  if (type === "edit_conflict_resolved") {
-    const choice = text(payload.choice);
-    const resolvedBy = text(payload.resolved_by);
-    const outcome = (choice && CHOICE_LABELS[choice]) ?? "해결";
-    return {
-      title: "편집 충돌 해결",
-      message: `내가 등록한 편집 충돌을 ${resolvedBy ? `${resolvedBy}님이 ` : ""}${outcome}하는 쪽으로 해결했습니다.${choice === "server" ? " 내 본문은 충돌 기록에 남아 있습니다." : ""}`
-    };
-  }
-  return { title: "알림", message: `${type} 알림이 도착했습니다.` };
+  return { title: "알림", message: `${notification.type} 알림이 도착했습니다.` };
 }
 
 /** 우하단 카드용 payload. 실패가 아니라 정보성이므로 info로 보여준다. */

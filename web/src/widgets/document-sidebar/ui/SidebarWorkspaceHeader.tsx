@@ -179,7 +179,7 @@ export function SidebarWorkspaceHeader() {
             setIsOpen((open) => !open);
           }}
         >
-          <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} />
+          <WorkspaceIcon workspace={selectedWorkspace} className={styles["sidebar-workspace-mark"]} hideEmoji />
           <span className={styles["sidebar-workspace-label"]}>
             <span className={styles["sidebar-workspace-name"]}>{name}</span>
             <SidebarWorkspaceChevronIcon className={styles["sidebar-workspace-chevron"]} />

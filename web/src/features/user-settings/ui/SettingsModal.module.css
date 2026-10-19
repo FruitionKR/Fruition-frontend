@@ -77,6 +77,7 @@ button.nav-row.is-danger:focus-visible {
   background: var(--color-danger-weak);
 }
 
+/* 사용자 설정 아이콘 자리 (Figma 1577:3254): 24px 흰 칸 + 1px 테두리 + 이니셜 */
 .nav-avatar {
   width: 24px;
   height: 24px;
@@ -85,18 +86,23 @@ button.nav-row.is-danger:focus-visible {
   align-items: center;
   justify-content: center;
   color: var(--color-foreground);
-  background: var(--color-surface);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   overflow: hidden;
   font-size: 12px;
   font-weight: 600;
 }
 
+/* 메뉴 아이콘 칸 24px. Figma 자산(#8B95A1)은 원래 크기로 가운데 둔다. */
 .nav-icon {
   width: 24px;
   height: 24px;
   flex: 0 0 auto;
-  color: var(--color-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
 }
 
 /* --- 메인 본문 (Figma 1540:22548 container: pt 56, px 40, 폭 800 가운데) --- */
@@ -119,24 +125,23 @@ button.nav-row.is-danger:focus-visible {
   padding: 56px 40px 40px;
 }
 
+/* Hero block (Figma 1691:16593): 제목 블록과 본문 사이 24, 섹션끼리 44 */
 .detail {
   min-width: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
+}
+
+.detail > .section + .section {
+  margin-top: 20px;
 }
 
 .title {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-/* .title > p보다 우선하도록 클래스 2개 지정자로 둔다. */
-.title > .title-note {
-  color: var(--color-muted);
-  font-size: 12px;
 }
 
 .title-row {
@@ -148,8 +153,9 @@ button.nav-row.is-danger:focus-visible {
 .title-row h2 {
   margin: 0;
   color: var(--color-foreground);
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.64px;
   line-height: 1.4;
 }
 
@@ -166,7 +172,7 @@ button.nav-row.is-danger:focus-visible {
 .title > p {
   margin: 0;
   color: var(--color-body);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.4;
 }
@@ -178,6 +184,7 @@ button.nav-row.is-danger:focus-visible {
 }
 
 .section-header {
+  min-height: 28px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -190,8 +197,8 @@ button.nav-row.is-danger:focus-visible {
 
 .section-line {
   flex: 1;
-  height: 1px;
-  background: var(--color-surface-strong);
+  height: 1.2px;
+  background: var(--color-border);
 }
 
 /* 라벨 + 입력 필드 */
@@ -204,7 +211,7 @@ button.nav-row.is-danger:focus-visible {
 
 .field label,
 .field-label {
-  color: var(--color-foreground);
+  color: var(--color-body);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
@@ -212,27 +219,34 @@ button.nav-row.is-danger:focus-visible {
 }
 
 .field small {
-  margin-top: -6px;
+  margin-top: -8px;
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
 }
 
+/* 입력 칸 (Figma 1691:16605): 400px, 1.6px 테두리, 14 SemiBold. 워크스페이스 이름 칸은 surface 배경(.is-filled). */
 .field input {
   width: min(400px, 100%);
   padding: 8px 12px;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  color: var(--color-body);
+  background: var(--color-canvas);
+  border: 1.6px solid var(--color-border);
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.14px;
+  line-height: 1.4;
+}
+
+.field input.is-filled {
+  background: var(--color-surface);
 }
 
 .field input:focus-visible {
   outline: none;
-  border-color: var(--color-surface-strong);
+  border-color: var(--color-primary);
 }
 
 /* 제목/설명 + 우측 액션 행 */
@@ -246,14 +260,15 @@ button.nav-row.is-danger:focus-visible {
 }
 
 .row-title {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   line-height: 1.2;
 }
 
 .row-title strong {
-  color: var(--color-foreground);
+  color: var(--color-body);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
@@ -264,24 +279,35 @@ button.nav-row.is-danger:focus-visible {
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
+  line-height: 1.4;
 }
 
 .row-title .row-error {
   color: var(--color-danger);
 }
 
+/* 행 우측 버튼 (Figma 1691:16623): 흰 배경, 1.2px 테두리, 14 SemiBold */
 .btn {
   flex: 0 0 auto;
   padding: 6px 8px;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  color: var(--color-body);
+  background: var(--color-canvas);
+  border: 1.2px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.28px;
-  line-height: 1.2;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .btn:disabled {
@@ -296,69 +322,75 @@ button.nav-row.is-danger:focus-visible {
   border-color: var(--color-danger-weak);
 }
 
-/* 워크스페이스 아이콘 */
-.ws-icon-outline {
+.btn.btn-danger:hover:not(:disabled) {
+  border-color: var(--color-danger);
+}
+
+/* 아이콘 타일 (Figma 1512:15293 / 1691:16611): 80px surface 칸, 2px 테두리, 안쪽 8px 여백에 흰 칸 + 36px 글자 */
+.tile-button {
   width: 80px;
   height: 80px;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--color-border);
-  border-radius: 12px;
+  padding: 8px;
   overflow: hidden;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: 16px;
+  cursor: pointer;
 }
 
-.ws-icon-outline:disabled {
+.tile-button:disabled {
   cursor: default;
 }
 
-.ws-emoji-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
+.tile-button:hover:not(:disabled) {
+  --button-hover-overlay: none;
+  border-color: var(--color-subtle);
 }
 
-/* .field input의 min(400px, 100%)보다 우선하도록 지정자를 올린다 */
-.ws-emoji-field .ws-emoji {
-  flex: 0 0 auto;
-  width: 44px;
-  height: 36px;
-  padding: 0;
-  font-size: 20px;
-  line-height: 1;
-  text-align: center;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.tile-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
-.ws-emoji-field .ws-emoji:focus-visible {
-  border-color: var(--ink);
-  outline: none;
-}
-
-.ws-emoji-field .ws-emoji:disabled {
-  opacity: 0.6;
-}
-
-.ws-icon {
-  flex: 1;
-  align-self: stretch;
+.tile-face {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 8px solid var(--color-surface-strong);
+  background: var(--color-canvas);
   border-radius: 10px;
-  font-size: 40px;
-  font-weight: 500;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.72px;
+  line-height: 1.2;
+}
+
+/* 제목·설명 + 아래 타일 묶음 (Figma workspace_icon: gap 16, py 8) */
+.tile-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-text {
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 /* 스위치는 누를 때 손잡이가 살짝 늘어나고, 이동 끝에서 부드럽게 감속한다. */
@@ -370,70 +402,38 @@ button.nav-row.is-danger:focus-visible {
   gap: 8px;
 }
 
-.provider-list {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.provider-button {
-  min-width: 76px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.provider-button:hover,
-.provider-button:focus-visible,
-.provider-button.is-selected {
-  --button-hover-overlay: none;
-  border-color: var(--color-primary);
-  background: var(--color-surface-strong);
-}
-
-.provider-button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.provider-icon {
-  width: 28px;
-  height: 28px;
-}
-
-.provider-readonly {
-  max-width: 260px;
-  color: var(--color-body);
-  font-size: 11px;
-  text-align: right;
-}
-
-.model-error {
-  max-width: 260px;
+/* 행·필드 아래에 붙는 오류는 왼쪽 정렬로 문장 폭만큼 보여 준다 */
+.field-error {
   color: var(--color-danger);
-  font-size: 11px;
-  text-align: right;
+  font-size: 12px;
 }
 
 @media (max-width: 700px) {
   .content {
-    padding: 20px;
+    padding: 32px 16px 40px;
+  }
+
+  .title-row h2 {
+    font-size: 26px;
+  }
+
+  .row {
+    flex-wrap: wrap;
   }
 
   .detail {
     padding: 0;
   }
+}
 
-  .provider-list {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+/* 알림 설정 행 (Figma 1567:26338): 제목과 설명 사이 6 */
+.row-loose .row-title {
+  gap: 6px;
+}
+
+/* 아이콘 타일과 그 아래 행 사이 20 (Figma 1512:15288) */
+.stack-20 {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }

@@ -32,7 +32,7 @@ function formatActivity(session: LoginSession): string {
   return new Date(session.created_at).toLocaleString("ko-KR", { year: "numeric", month: "long", day: "numeric", hour: "numeric" });
 }
 
-/** 로그인된 기기 행과 기기 목록 표 (Figma 1131:5851, 1131:5859). 현재 기기는 "이 기기"로 강조한다. */
+/** 로그인된 기기 행과 기기 목록 표 (Figma 1691:16307). 현재 기기는 "이 기기"로 강조한다. */
 export function SessionsPanel() {
   const { data: sessions, isPending, error: loadError, refetch } = useQuery({
     queryKey: SESSIONS_QUERY_KEY, queryFn: fetchSessions, retry: false
@@ -103,14 +103,15 @@ export function SessionsPanel() {
               <span className={panelStyles["device-cell"]}>{formatActivity(session)}</span>
               {/* 세션 API는 위치를 내려주지 않아 비워 둔다. */}
               <span className={cx(panelStyles["device-cell"], panelStyles["device-cell-muted"])}>알 수 없음</span>
-              <button type="button" className={styles.btn} disabled={busy} onClick={() => void remove(session)}>로그아웃</button>
+              <button type="button" className={panelStyles["device-logout"]} aria-label={`${describeDevice(session.user_agent)} 로그아웃`}
+                disabled={busy} onClick={() => void remove(session)}>로그아웃</button>
             </li>
           ))}
           {sessions?.length === 0 && <li className={panelStyles["device-empty"]}>로그인된 기기가 없습니다.</li>}
         </ul>
       </div>
     )}
-    {message && <small role="status">{message}</small>}
-    {(error || loadError) && <small className={styles["model-error"]} role="alert">{error || getErrorMessage(loadError, "로그인된 기기를 불러오지 못했습니다.")}</small>}
+    {message && <small className={styles["status-text"]} role="status">{message}</small>}
+    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, "로그인된 기기를 불러오지 못했습니다.")}</small>}
   </>;
 }

@@ -19,7 +19,7 @@ registerHooks({
 });
 
 const { changePassword, updateDisplayName, requestEmailVerification, confirmEmailVerification, changeEmail, fetchSessions, revokeSession } = await import("../src/entities/user/api/auth.ts");
-const { updateWorkspaceIcon, uploadWorkspaceIcon, fetchWorkspaceIcon } = await import("../src/entities/workspace/api/workspace.ts");
+const { uploadWorkspaceIcon, fetchWorkspaceIcon } = await import("../src/entities/workspace/api/workspace.ts");
 const { fetchMembers, changeMemberRole, inviteMember, removeMember } = await import("../src/entities/workspace/api/members.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { fetchInvitation, acceptInvitation } = await import("../src/entities/workspace/api/invitations.ts");
@@ -209,7 +209,7 @@ test("세션 목록은 현재 기기와 알 수 없는 기기를 보존하고 �
   await revokeSession(42);
 });
 
-test("아이콘 이모지·초기화·multipart 업로드·인증 이미지 조회 계약을 따른다", async (t) => {
+test("아이콘 multipart 업로드·인증 이미지 조회 계약을 따른다", async (t) => {
   saveAccessToken("icon-test-access");
   const file = new File([new Uint8Array([137, 80, 78, 71])], "icon.png", { type: "image/png" });
   const calls = [];
@@ -220,22 +220,16 @@ test("아이콘 이모지·초기화·multipart 업로드·인증 이미지 조�
       assert.equal(init.headers.has("Content-Type"), false);
       assert.equal(init.body.get("file").name, "icon.png");
       assert.equal(init.body.get("file").size, file.size);
-    } else if (init.body) {
-      assert.deepEqual(JSON.parse(init.body), { icon_emoji: calls.length === 1 ? "📁" : null });
     } else {
       return new Response(file, { headers: { "Content-Type": "image/png" } });
     }
     return Response.json({ id: "ws_test", icon_emoji: null, icon_url: null });
   });
-  await updateWorkspaceIcon("ws_test", "📁");
-  await updateWorkspaceIcon("ws_test", null);
   await uploadWorkspaceIcon("ws_test", file);
   const blob = await fetchWorkspaceIcon("ws_test");
   assert.equal(blob.type, "image/png");
   assert.equal(blob.size, file.size);
   assert.deepEqual(calls, [
-    ["/api/workspaces/ws_test/icon", "PUT"],
-    ["/api/workspaces/ws_test/icon", "PUT"],
     ["/api/workspaces/ws_test/icon/image", "PUT"],
     ["/api/workspaces/ws_test/icon/image", "GET"]
   ]);

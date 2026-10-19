@@ -154,3 +154,27 @@ test("AI 초안의 capability로 기본 '상황에 맞게'를 덮고, capability
   assert.equal(applySkillDraft(INITIAL_SKILL_CREATE_FORM, { ...draft, capabilities: [] }).resultMode, "auto");
   assert.equal(applySkillDraft({ ...INITIAL_SKILL_CREATE_FORM, resultMode: "edit" }, { ...draft, capabilities: [] }).resultMode, "edit");
 });
+
+const { SKILL_KIND_CARDS, SKILL_RESULT_OPTIONS, skillCreateFormFromRequest } = await import(
+  "../src/features/skill-authoring/lib/skillCreateForm.ts"
+);
+
+test("스킬 종류 카드는 문서·폴더 정리 두 가지이고 결과 방식 라벨은 디자인과 같다", () => {
+  assert.deepEqual(SKILL_KIND_CARDS.map((card) => card.value), ["document", "folder"]);
+  assert.deepEqual(SKILL_RESULT_OPTIONS.map((option) => option.label), ["새 문서로 만들기", "열린 문서 고치기", "상황에 맞게"]);
+});
+
+test("AI 초안이 템플릿을 골라도 만들기에서 고른 종류를 유지한다", () => {
+  const draft = { name: "x", description: "", instructions_markdown: "양식으로 만든다.", capabilities: ["template"] };
+  const next = applySkillDraft({ ...INITIAL_SKILL_CREATE_FORM, kind: "folder" }, draft);
+  assert.equal(next.kind, "folder");
+  assert.equal(next.rules, "양식으로 만든다.");
+});
+
+test("Agent 요청으로 연 새 스킬은 요청을 실행 규칙에 채우고 나머지는 기본값(결과 방식 '상황에 맞게')이다", () => {
+  const form = skillCreateFormFromRequest("  연구 개요를 핵심만 3문장으로 정리해 줘 ");
+  assert.equal(form.rules, "연구 개요를 핵심만 3문장으로 정리해 줘");
+  assert.equal(form.resultMode, "auto");
+  assert.equal(form.kind, "document");
+  assert.equal(form.command, "");
+});
