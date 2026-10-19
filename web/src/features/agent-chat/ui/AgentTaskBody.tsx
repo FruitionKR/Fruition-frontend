@@ -168,7 +168,8 @@ export function AgentTaskBody({
     return {
       item,
       status,
-      title: `${taskKindLabel(item.action)} : ${request}`,
+      // 스킬로 실행한 폴더 정리는 카드 머리글과 같이 "문서 : /slug"로 적는다(Figma 1571:27625 완료 행).
+      title: `${item.action === "folder_organize" && request.startsWith("/") ? "문서" : taskKindLabel(item.action)} : ${request}`,
       request,
       run,
       runError: query?.error ?? null,

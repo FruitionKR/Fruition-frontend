@@ -106,7 +106,9 @@ test("작업 카드 머리글은 종류와 스킬, 따옴표 안에는 나머지
     heading: "문서 : /research-summary",
     quote: "연구 개요를 핵심만 3문장으로 정리해줘"
   });
-  assert.deepEqual(describeTaskRequest("folder_organize", "/file-organize"), { heading: "폴더 정리 : /file-organize", quote: "/file-organize" });
+  assert.deepEqual(describeTaskRequest("folder_organize", "/file-organize"), { heading: "문서 : /file-organize", quote: "/file-organize" });
+  assert.deepEqual(describeTaskRequest("folder_organize", "/file-organize 날짜_분류_제목 형식으로"), { heading: "문서 : /file-organize", quote: "날짜_분류_제목 형식으로" });
+  assert.deepEqual(describeTaskRequest("folder_organize", "폴더를 정리해줘"), { heading: "폴더 정리", quote: "폴더를 정리해줘" });
   assert.deepEqual(describeTaskRequest(null, "폴더를 정리해줘"), { heading: "작업", quote: "폴더를 정리해줘" });
 });
 

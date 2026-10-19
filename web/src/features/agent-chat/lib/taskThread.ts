@@ -232,10 +232,14 @@ export function selectionChipLabel(markdown: string, startLine: number, endLine:
   return short ? `선택 : ${short}` : `선택 : ${startLine}~${endLine}줄`;
 }
 
-/** 작업 카드 머리글(Figma 1671:13225 "문서 : /research-summary")과 따옴표 안 요청 문장. "/slug 요청"이면 둘로 나눈다. */
+/**
+ * 작업 카드 머리글(Figma 1671:13225 "문서 : /research-summary")과 따옴표 안 요청 문장. "/slug 요청"이면 둘로 나눈다.
+ * 폴더 정리도 스킬로 실행했으면 Figma 1656:11824·1656:11856처럼 "문서 : /file-organize"로 쓴다.
+ */
 export function describeTaskRequest(action: string | null, request: string): { heading: string; quote: string } {
   const kind = taskKindLabel(action);
   const match = request.match(/^\/([^\s/]+)(?:\s+([\s\S]*))?$/);
   if (!match) return { heading: kind, quote: request };
-  return { heading: `${kind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
+  const skillKind = action === "folder_organize" ? "문서" : kind;
+  return { heading: `${skillKind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
 }

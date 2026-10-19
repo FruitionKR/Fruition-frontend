@@ -16,6 +16,7 @@ import cancelIcon from "@/shared/assets/svg/agent/organize-cancel.svg";
 import applyIcon from "@/shared/assets/svg/agent/organize-apply.svg";
 import noticeTailIcon from "@/shared/assets/svg/agent/organize-notice-tail.svg";
 import { agentPlanStatusLabel, canApproveAgentPlan } from "../lib/agentPlan";
+import { describeTaskRequest } from "../lib/taskThread";
 import {
   buildFolderOrganizeView,
   canApplyFolderOrganizeSelection,
@@ -56,7 +57,9 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
   const { run, plan, tree, mutation, error, busy, ready, hasQueryError, clarificationMessage, retry } = useAgentPlanRun(request.turnId);
   const view = plan ? buildFolderOrganizeView(plan, tree ?? [], run?.target_folder_id) : null;
   const rows = view?.rows ?? [];
-  const { command, rule } = parseSkillCommand(request.question);
+  const { rule } = parseSkillCommand(request.question);
+  // 작업 탭 카드와 같은 머리글(Figma 1656:11824 "문서 : /file-organize"). 스킬 없이 요청했으면 "폴더 정리"만 둔다.
+  const { heading } = describeTaskRequest("folder_organize", (request.question ?? "").trim().normalize("NFC"));
   // 사용자가 바꾼 선택. 계획(id·version)이 바뀌면 다시 AI가 권장한 기본 선택(suggested_selected)에서 시작한다.
   const planKey = plan ? `${plan.id}:${plan.version}` : null;
   const [userDeselection, setUserDeselection] = useState<{ planKey: string; ids: ReadonlySet<string> } | null>(null);
@@ -102,7 +105,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
         <div className={styles.description}>
           <span className={styles.command}>
             <Image src={lightningIcon} alt="" />
-            문서 : {command ?? "폴더 정리"}
+            {heading}
           </span>
           {description && <>
             <Image src={dividerIcon} alt="" className={styles.divider} />
