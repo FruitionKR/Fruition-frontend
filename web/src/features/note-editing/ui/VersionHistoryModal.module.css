@@ -82,6 +82,12 @@
   font-weight: 600;
 }
 
+/* 자동 병합 표시(자동 병합·덮어씀·충돌 보관본): 현재 배지와 구분되게 primary 글자로 둔다 */
+.item .badge.is-merge {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  color: var(--color-primary);
+}
+
 .preview {
   min-height: 0;
   display: flex;

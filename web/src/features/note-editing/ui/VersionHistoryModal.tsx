@@ -11,7 +11,7 @@ import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import modalStyles from "@/shared/ui/modal/CenteredModal.module.css";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import { fetchDocumentVersion, fetchDocumentVersions, restoreDocumentVersion } from "../api/versions";
+import { fetchDocumentVersion, fetchDocumentVersions, restoreDocumentVersion, versionMergeStatusLabel } from "../api/versions";
 import styles from "./VersionHistoryModal.module.css";
 
 const dateFormat = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -109,6 +109,7 @@ export function VersionHistoryModal({
           {items.map((item) => {
             const isCurrent = item.version === currentVersion;
             const author = item.created_by ? memberNames.get(item.created_by) ?? item.created_by : null;
+            const mergeLabel = versionMergeStatusLabel(item.merge_status);
             return (
               <button
                 key={item.version}
@@ -121,6 +122,7 @@ export function VersionHistoryModal({
                 <strong>
                   버전 {item.version}
                   {isCurrent && <span className={styles.badge}>현재</span>}
+                  {mergeLabel && <span className={cx(styles.badge, styles["is-merge"])}>{mergeLabel}</span>}
                 </strong>
                 <span>{formatTime(item.created_at)}{author ? ` · ${author}` : ""}</span>
               </button>
