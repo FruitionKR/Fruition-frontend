@@ -67,6 +67,7 @@ function PasswordField({
  * 비밀번호 변경 3단계 모달 (Figma 1131:6030 / 6048 / 6529).
  * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 인증 토큰으로 password-reset 계약을 사용한다.
  * 변경에 성공하면 모달 안에서 재로그인 안내를 보여 주고, 확인(또는 닫기) 후 onSaved로 로그아웃을 맡긴다.
+ * 인증 메일은 로그인한 계정 이메일로만 보낸다. 이메일 칸은 읽기 전용이며 다른 주소로 바꿀 수 없다.
  */
 export function PasswordChangeModal({
   email: accountEmail,
@@ -78,7 +79,6 @@ export function PasswordChangeModal({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState(accountEmail);
   const [code, setCode] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState(0);
@@ -93,7 +93,7 @@ export function PasswordChangeModal({
     setBusy(true);
     setError(null);
     try {
-      const result = await requestEmailVerification(email.trim(), "password_reset");
+      const result = await requestEmailVerification(accountEmail, "password_reset");
       setVerificationId(result.verification_id);
       setExpiresAt(Date.now() + result.expires_in * 1000);
       setCode("");
@@ -133,7 +133,7 @@ export function PasswordChangeModal({
     setBusy(true);
     setError(null);
     try {
-      await resetPasswordWithVerification(email.trim(), newPassword, token);
+      await resetPasswordWithVerification(accountEmail, newPassword, token);
       setStep("done");
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "비밀번호를 변경하지 못했습니다."));
@@ -169,7 +169,7 @@ export function PasswordChangeModal({
   const canSubmit = !busy && (
     step === "done" ? true
     : step === "email"
-      ? email.trim().length > 0
+      ? accountEmail.length > 0
       : step === "code"
         ? code.trim().length === CODE_LENGTH && !countdown.isExpired
         : newPassword.length > 0 && passwordConfirm.length > 0
@@ -195,11 +195,9 @@ export function PasswordChangeModal({
             id="password-change-email"
             type="email"
             autoComplete="email"
-            placeholder="example@email.com"
-            autoFocus
-            value={email}
+            readOnly
+            value={accountEmail}
             disabled={busy}
-            onChange={(event) => setEmail(event.target.value)}
           />
           <FlowError error={error} />
         </div>
@@ -216,7 +214,7 @@ export function PasswordChangeModal({
               인증번호가 만료되었습니다. 다시 받기
             </button>
           ) : (
-            <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
+            <p className={styles.hint}>{accountEmail} 주소로 인증번호를 보냈습니다.</p>
           )}
           <FlowError error={error} />
         </div>
@@ -232,12 +230,13 @@ export function PasswordChangeModal({
 
       <div className={cx(styles.footer, (step === "email" || step === "done") && styles["is-end"])}>
         {(step === "code" || step === "password") && <FlowBackButton disabled={busy} onClick={handleBack} />}
-        {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다. */}
+        {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다.
+            이메일 단계는 입력할 칸이 없으므로 처음부터 다음 버튼에 포커스를 둔다. */}
         <FlowNextButton
           key={step === "done" ? "done" : "next"}
           disabled={!canSubmit}
           showChevron={!busy && step !== "done"}
-          autoFocus={step === "done"}
+          autoFocus={step === "email" || step === "done"}
         >
           {submitLabel}
         </FlowNextButton>
