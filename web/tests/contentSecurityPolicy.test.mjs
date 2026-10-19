@@ -34,6 +34,8 @@ test("이미지는 같은 출처·data:·blob:만 허용하고 위반은 /csp-re
   assert.deepEqual(policy["frame-src"], ["'self'", "blob:"]);
   assert.deepEqual(policy["report-uri"], [CSP_REPORT_PATH]);
   assert.deepEqual(policy["connect-src"], ["'self'", "https://*.amazonaws.com"]);
+  // 회의 녹음 재생 <audio>는 S3 presigned GET 주소를 직접 연다(#148).
+  assert.deepEqual(policy["media-src"], ["'self'", "https://*.amazonaws.com"]);
 });
 
 test("스크립트는 nonce와 strict-dynamic으로만 허용하고 인라인·eval은 허용하지 않는다", () => {
@@ -43,13 +45,16 @@ test("스크립트는 nonce와 strict-dynamic으로만 허용하고 인라인·e
   assert.ok(!policy["script-src"].includes("'unsafe-eval'"));
 });
 
-test("BACKEND_URL·CSP_S3_ORIGIN이 있으면 connect-src를 그 오리진으로 정한다", () => {
+test("BACKEND_URL·CSP_S3_ORIGIN이 있으면 connect-src를 그 오리진(회의 받아쓰기 WebSocket wss 포함)으로 정한다", () => {
   const policy = directives(buildContentSecurityPolicy({
     nonce: "abc",
     backendUrl: "https://document.example.com/base/",
     s3Origin: "https://bucket.s3.ap-northeast-2.amazonaws.com/path"
   }));
-  assert.deepEqual(policy["connect-src"], ["'self'", "https://document.example.com", "https://bucket.s3.ap-northeast-2.amazonaws.com"]);
+  assert.deepEqual(policy["connect-src"], ["'self'", "https://document.example.com", "wss://document.example.com", "https://bucket.s3.ap-northeast-2.amazonaws.com"]);
+  assert.deepEqual(policy["media-src"], ["'self'", "https://bucket.s3.ap-northeast-2.amazonaws.com"]);
+  const local = directives(buildContentSecurityPolicy({ nonce: "abc", backendUrl: "http://localhost:8080" }));
+  assert.deepEqual(local["connect-src"], ["'self'", "http://localhost:8080", "ws://localhost:8080", "https://*.amazonaws.com"]);
 });
 
 test("잘못된 BACKEND_URL은 출처를 빼고 잘못된 CSP_S3_ORIGIN은 기본 S3 와일드카드로 돌아가며 던지지 않는다", (t) => {

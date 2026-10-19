@@ -56,23 +56,10 @@
 | `POST·DELETE /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock` | 호출 없음. `main` 기준으로는 배선 여부를 확인할 수 없다 |
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/edit-lock/heartbeat` | 같음 |
 
-### UI 없음 — 음성·회의
+### 회의 경로 — 모두 호출한다
 
-이 저장소에 회의 UI가 없다. `MediaRecorder`·`getUserMedia`는 채팅 입력창 음성 받아쓰기
-(`web/src/features/agent-chat/model/useDictation.ts`, [ai-agent.md](consumed/ai-agent.md#음성-입력))에만
-쓰이고 `WebSocket`은 나타나지 않는다. 따라서 아래 8개 경로는 대응 화면 자체가 없다.
-이 문서는 그 사실만 기록하고 내용은 다루지 않는다.
-
-| 경로 |
-|---|
-| `/api/workspaces/{workspace_id}/meetings` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/live-tickets` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/append-preview` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/notes/{version}/apply` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording` |
-| `/api/workspaces/{workspace_id}/meetings/{meeting_id}/recording-url` |
+회의 실시간 받아쓰기·녹음 파일 전사·녹음 재생·회의 삭제와 회의록 초안·저장은 모두 채팅 패널 회의록 화면(#148)이 호출한다([meeting.md](consumed/meeting.md)).
+회의 목록 API가 없어 새로고침 뒤 지난 회의를 다시 여는 화면은 없다.
 
 ### 미배선 (실제 공백 후보)
 

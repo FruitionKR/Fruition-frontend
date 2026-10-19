@@ -30,7 +30,10 @@ export const state = {
   editConflicts: [],
   notifications: [],
   skills: [],
-  aiModels: []
+  aiModels: [],
+  // 회의 받아쓰기(#148): 회의(구간·연결·회의록 초안 포함)와 WebSocket 일회용 ticket → { meetingId, expiresAt }
+  meetings: [],
+  meetingTickets: new Map()
 };
 
 export const now = () => new Date().toISOString();
@@ -38,6 +41,11 @@ export const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).t
 export const id = (prefix) => `${prefix}_${randomUUID().slice(0, 8)}`;
 export const hash = (text) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** 프로필 사진 조회 경로. 사진이 없으면 null. ?v=는 이미지 SHA-256이라 사진을 바꾸면 URL도 바뀐다. */
+export function avatarUrlOf(user) {
+  return user?.avatar ? `/api/users/${user.id}/avatar?v=${user.avatar.hash}` : null;
+}
 
 export function error(ctx, status, message, code) {
   ctx.json(status, { error: { message, ...(code ? { code } : {}) } });
@@ -170,6 +178,8 @@ export function addOperationLog(workspaceId, entry) {
 }
 
 export function touchWiki(workspace) {
+  // wiki/graph ETag("wiki-{버전}")의 근거. 위키가 바뀔 때마다 올린다(document #131).
+  workspace.wiki_version = (workspace.wiki_version ?? 0) + 1;
   workspace.maintenance.needs_lint = true;
   workspace.maintenance.last_wiki_change_at = now();
 }

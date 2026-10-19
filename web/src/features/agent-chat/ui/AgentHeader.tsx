@@ -10,8 +10,23 @@ import { cx } from "@/shared/lib/classNames";
 import { AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
-/** 채팅 패널 헤더(Figma 1540:19113 GNB): 대화 제목 탭(제목 + 셰브론 = 세션 목록 드롭다운) + 패널 숨기기·옵션 버튼 */
+export type AgentPanelView = "chat" | "work";
+
+/** 헤더 보기 탭이 가리키는 본문(tabpanel) id. 패널은 화면에 하나뿐이다. */
+export const AGENT_PANEL_VIEW_IDS: Record<AgentPanelView, string> = { chat: "agent-panel-view-chat", work: "agent-panel-view-work" };
+
+const VIEW_TABS: { view: AgentPanelView; label: string }[] = [
+  { view: "chat", label: "채팅" },
+  { view: "work", label: "작업" }
+];
+
+/**
+ * 채팅 패널 헤더(Figma 1571:28010 GNB): 대화 제목 탭(제목 + 셰브론 = 세션 목록 드롭다운)
+ * + "채팅 | 작업" 보기 탭(1571:28015) + 옵션(⋯)·패널 숨기기 버튼
+ */
 export function AgentHeader({
+  activeView,
+  onViewChange,
   sessionTitle,
   onClose,
   activeSessionId,
@@ -20,6 +35,8 @@ export function AgentHeader({
   canStartWikiExport,
   onStartWikiExport
 }: {
+  activeView: AgentPanelView;
+  onViewChange: (view: AgentPanelView) => void;
   sessionTitle: string;
   onClose: () => void;
   activeSessionId: string | null;
@@ -117,7 +134,7 @@ export function AgentHeader({
 
   return (
     <div className={styles["agent-header"]} ref={rootRef}>
-      {/* 대화 탭(Figma 1540:19114): 제목과 오른쪽 셰브론 전체가 세션 목록 드롭다운을 연다. 새 채팅은 ⋯ 메뉴·목록 하단에서 시작한다. */}
+      {/* 대화 탭(Figma 1571:28011 tog): 제목과 오른쪽 셰브론 전체가 세션 목록 드롭다운을 연다. 새 채팅은 ⋯ 메뉴·목록 하단에서 시작한다. */}
       <div className={styles["agent-session-tab"]}>
         <button
           type="button"
@@ -133,9 +150,33 @@ export function AgentHeader({
         </button>
       </div>
       <div className={styles["agent-header-actions"]}>
-        <button type="button" className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
-          <SvgIcon src={sidebarToggleIcon} className={styles["panel-toggle-icon"]} />
-        </button>
+        <div className={styles["agent-view-tabs"]} role="tablist" aria-label="채팅 패널 보기">
+          {VIEW_TABS.map(({ view, label }) => {
+            const isSelected = view === activeView;
+            return (
+              <button
+                key={view}
+                type="button"
+                role="tab"
+                id={`${AGENT_PANEL_VIEW_IDS[view]}-tab`}
+                aria-selected={isSelected}
+                aria-controls={AGENT_PANEL_VIEW_IDS[view]}
+                tabIndex={isSelected ? 0 : -1}
+                className={cx(styles["agent-view-tab"], isSelected && styles["is-selected"])}
+                onClick={() => onViewChange(view)}
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                  event.preventDefault();
+                  const next = VIEW_TABS[(VIEW_TABS.findIndex((tab) => tab.view === view) + 1) % VIEW_TABS.length].view;
+                  onViewChange(next);
+                  document.getElementById(`${AGENT_PANEL_VIEW_IDS[next]}-tab`)?.focus();
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <div className={styles["agent-header-menu"]} ref={menuRef}>
           <button
             type="button"
@@ -164,6 +205,9 @@ export function AgentHeader({
             </div>
           )}
         </div>
+        <button type="button" className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
+          <SvgIcon src={sidebarToggleIcon} className={styles["panel-toggle-icon"]} />
+        </button>
       </div>
 
       {isListOpen && (

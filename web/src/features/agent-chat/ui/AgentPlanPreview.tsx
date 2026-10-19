@@ -4,7 +4,7 @@ import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
-import { agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan, type PlanPreviewNode } from "../lib/agentPlan";
 import styles from "./AgentChat.module.css";
 
 function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: number }) {
@@ -79,6 +79,7 @@ export function AgentPlanPreview({ turnId, action }: { turnId?: string; action: 
   const operations = plan ? describePlanOperations(plan, tree.data ?? []) : [];
   const preview = plan ? buildPlanPreviewTree(plan, tree.data ?? []) : null;
   const ready = canApproveAgentPlan(run) && Boolean(tree.data) && !query.error && !tree.error;
+  const clarificationMessage = agentPlanClarificationMessage(run);
   const busy = mutation.isPending || query.isFetching || tree.isFetching;
 
   return (
@@ -107,7 +108,7 @@ export function AgentPlanPreview({ turnId, action }: { turnId?: string; action: 
         </details>
       </>}
       {run?.status === "awaiting_approval" && <p>폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요.</p>}
-      {run?.status === "clarification_required" && <p>원하는 정리 기준을 채팅에 더 구체적으로 알려주세요.</p>}
+      {clarificationMessage && <p>{clarificationMessage}</p>}
       {run && ["failed", "partial_failed", "conflicted", "rollback_failed"].includes(run.status) && <p role="alert">작업을 완료하지 못했습니다. 항목별 상태를 확인해주세요.</p>}
       {error && <p role="alert">{typeof error === "string" ? error : getErrorMessage(error, "계획을 불러오지 못했습니다.")}</p>}
       <footer>

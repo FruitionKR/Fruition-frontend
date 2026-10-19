@@ -10,9 +10,11 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/forgot-password",
   "/login",
   "/oauth/callback",
+  "/privacy",
   "/reset-password",
   "/signup",
-  "/signup/verify"
+  "/signup/verify",
+  "/terms"
 ]);
 
 let accessToken: string | null = null;

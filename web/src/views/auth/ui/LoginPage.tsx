@@ -10,7 +10,10 @@ import {
   ME_QUERY_KEY,
   OAUTH_LINK_FAILED_MESSAGE,
   OAUTH_LINK_SUCCESS_MESSAGE,
+  OAUTH_LOGIN_FAILED_MESSAGE,
   oauthAccountErrorMessage,
+  oauthCallbackErrorMessage,
+  parseOAuthCallbackError,
   parseOAuthLinkCallback,
   parseOAuthSignupToken,
   saveOAuthLinkResult,
@@ -134,14 +137,16 @@ function LoginPageContent() {
     }
 
     const code = searchParams.get("code");
-    const oauthError = searchParams.get("error");
-    if (!code && !oauthError) return;
+    const callbackError = parseOAuthCallbackError(searchParams);
+    if (!code && !callbackError) return;
 
     hasHandledOAuth.current = true;
     window.history.replaceState({}, "", window.location.pathname);
 
-    if (oauthError) {
-      setErrorMessage("간편 로그인에 실패했습니다.");
+    // error=email_registered&providers=local,google: 같은 이메일의 계정이 있어 가입을 거절한 콜백.
+    // 그 계정의 로그인 수단(이메일 또는 소셜)으로 로그인한 뒤 설정에서 연동하도록 안내한다(access #31).
+    if (callbackError) {
+      setErrorMessage(oauthCallbackErrorMessage(callbackError));
       return;
     }
 
@@ -158,7 +163,7 @@ function LoginPageContent() {
         router.replace(takeAfterLoginPath());
       })
       .catch(() => {
-        setErrorMessage("간편 로그인에 실패했습니다.");
+        setErrorMessage(OAUTH_LOGIN_FAILED_MESSAGE);
         setIsSubmitting(false);
       });
   }, [isAccountDeleted, queryClient, router, searchParams]);

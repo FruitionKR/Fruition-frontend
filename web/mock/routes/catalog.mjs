@@ -1,5 +1,5 @@
 // document-svc(8080) 부가 라우트: AI 모델 카탈로그·워크스페이스 모델 설정·AI 작업 로그·스킬.
-import { state, now, id, error, requireWorkspace, slugify } from "../state.mjs";
+import { state, now, id, error, requireWorkspace, slugify, findDocument, isMarkdownDocument, sleep } from "../state.mjs";
 
 const DEFAULT_LOG_PAGE_SIZE = 20;
 const MAX_LOG_PAGE_SIZE = 100;
@@ -19,6 +19,94 @@ const SKILL_REJECT_RULES = [
   { pattern: /#거절/, status: 400, code: "SKILL_REQUEST_REJECTED", message: "Skill 요청이 거부되었습니다." },
   { pattern: /#AI장애/, status: 503, code: "SKILL_AI_UNAVAILABLE", message: "AI 서버를 사용할 수 없습니다." }
 ];
+
+// ai#122: 문서 Skill(document-create·document-edit)만 targets·result_mode를 가진다.
+const DOCUMENT_CAPABILITIES = new Set(["document-create", "document-edit"]);
+const TARGET_ORDER = ["current_document", "selection"];
+const RESULT_MODE_CAPABILITIES = { create: ["document-create"], edit: ["document-edit"], auto: ["document-create", "document-edit"] };
+// ai#121: allowed_tools를 생략하면 capabilities의 canonical Tool 합집합으로 계산한다(mock은 대표 Tool만 둔다).
+const CAPABILITY_TOOLS = {
+  "document-create": ["list_root_items", "list_folder_children", "get_document_content", "create_document"],
+  "document-edit": ["list_root_items", "list_folder_children", "get_document_content", "apply_document_edit"],
+  "folder-organize": ["list_root_items", "list_folder_children", "move_folder", "move_document", "rename_document"],
+  template: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"]
+};
+const usedTestRunIds = new Set();
+
+function isDocumentSkill(capabilities) {
+  return capabilities.some((capability) => DOCUMENT_CAPABILITIES.has(capability));
+}
+
+function canonicalTools(capabilities) {
+  return [...new Set(capabilities.flatMap((capability) => CAPABILITY_TOOLS[capability] ?? []))];
+}
+
+/**
+ * ai validate_execution_options 재현. 어긋나면 document가 중계하는 400 SKILL_INSTRUCTION_INVALID로 거절하고 undefined를 준다.
+ * targets가 undefined(생략)면 fallback(게시 기본값 또는 수정 시 기존 값), []면 기본값이다.
+ */
+function executionOptions(ctx, capabilities, body, fallback) {
+  const { targets, result_mode } = body;
+  if (Array.isArray(targets) && new Set(targets).size !== targets.length) {
+    return error(ctx, 400, "targets must not contain duplicates.", "SKILL_INSTRUCTION_INVALID");
+  }
+  if (!isDocumentSkill(capabilities)) {
+    if ((targets ?? []).length > 0) return error(ctx, 400, "targets require a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
+    if (result_mode != null) return error(ctx, 400, "result_mode requires a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
+    return { targets: [], result_mode: null };
+  }
+  const matches = (value) => value == null || (RESULT_MODE_CAPABILITIES[value] ?? ["?"]).every((capability) => capabilities.includes(capability));
+  if (result_mode !== undefined && !matches(result_mode)) {
+    return error(ctx, 400, `result_mode ${result_mode} does not match capabilities.`, "SKILL_INSTRUCTION_INVALID");
+  }
+  // 생략해 이어받은 값이 capabilities와 맞지 않으면 거절하지 않고 버린다(ai#122).
+  const mode = result_mode !== undefined ? result_mode : matches(fallback.result_mode) ? fallback.result_mode : null;
+  const chosen = targets === undefined ? fallback.targets : targets;
+  const ordered = TARGET_ORDER.filter((target) => chosen.includes(target));
+  return { targets: ordered.length > 0 ? ordered : ["current_document"], result_mode: mode ?? null };
+}
+
+/** 마크다운을 제목 기준 섹션으로 나눈다(1-based 줄 번호, 끝 포함). 제목 전 본문은 "(제목 없음)" 섹션이다. */
+function markdownSections(markdown) {
+  const lines = markdown.split("\n");
+  const sections = [];
+  lines.forEach((line, index) => {
+    const heading = /^#{1,6}\s+(.+)$/.exec(line);
+    if (heading || sections.length === 0) sections.push({ title: heading ? heading[1].trim() : "(제목 없음)", start: index + 1, end: index + 1 });
+    else sections[sections.length - 1].end = index + 1;
+  });
+  return { lines, sections };
+}
+
+const isBodyLine = (line) => line.trim() !== "" && !line.startsWith("#");
+
+/** ai skill_test_run 응답 모양 재현. 편집형은 범위와 겹치는 첫 섹션의 본문 첫 줄을 다듬은 것으로 바꾼다. */
+function testRunResult(definition, markdown, target) {
+  if (!definition.capabilities.includes("document-edit")) {
+    const preview = `# ${definition.name}\n\n${definition.description}\n\n(테스트로 만들어질 문서 미리보기)\n`;
+    return { status: "completed", changes: [], untouched_sections: [], result_markdown: preview, issues: [] };
+  }
+  const { lines, sections } = markdownSections(markdown);
+  const start = target?.start_line ?? 1;
+  const end = target?.end_line ?? lines.length;
+  const section = sections.find((item) => item.end >= start && item.start <= end && lines.slice(item.start - 1, item.end).some(isBodyLine));
+  if (!section) return { status: "completed", changes: [], untouched_sections: sections.map((item) => item.title), result_markdown: markdown, issues: [] };
+  const bodyIndex = lines.findIndex((line, index) => index >= section.start - 1 && index < section.end && isBodyLine(line));
+  const edited = lines.map((line, index) => (index === bodyIndex ? `${line.trim()} (스킬 규칙에 맞춰 다듬음)` : line));
+  return {
+    status: "completed",
+    changes: [{
+      section: section.title,
+      start_line: section.start,
+      end_line: section.end,
+      before: lines.slice(section.start - 1, section.end).join("\n"),
+      after: edited.slice(section.start - 1, section.end).join("\n")
+    }],
+    untouched_sections: sections.filter((item) => item !== section).map((item) => item.title),
+    result_markdown: edited.join("\n"),
+    issues: []
+  };
+}
 
 function isOwner(ctx, workspace) {
   return state.members.some((member) => member.workspace_id === workspace.id && member.user_id === ctx.user.id && member.role === "OWNER");
@@ -44,7 +132,8 @@ function toAuthoringResult(skill, version, issues = []) {
   return {
     skill_id: skill.id, version_id: version.id, name: version.name, description: version.description,
     instructions_markdown: version.instructions_markdown, skill_markdown: buildSkillMarkdown(version.name, version.description, version.instructions_markdown),
-    scope_type: skill.scope_type, status: version.status, allowed_tools: version.allowed_tools, capabilities: version.capabilities, issues, question: null
+    scope_type: skill.scope_type, status: version.status, allowed_tools: version.allowed_tools, capabilities: version.capabilities,
+    targets: version.targets ?? [], result_mode: version.result_mode ?? null, issues, question: null
   };
 }
 
@@ -69,6 +158,8 @@ export function registerCatalogRoutes(router) {
     if (!isOwner(ctx, workspace)) return error(ctx, 403, "워크스페이스 OWNER만 변경할 수 있습니다.");
     const { ingest_lint } = await ctx.body();
     if (!state.aiModels.some((item) => item.provider === ingest_lint?.provider && item.model === ingest_lint?.model)) return error(ctx, 400, "지원하지 않는 provider/model 조합입니다.");
+    // 실제 백엔드처럼 워크스페이스 공용 모델에는 Claude를 저장할 수 없다.
+    if (ingest_lint.provider === "claude") return error(ctx, 400, "Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다.");
     workspace.ai_model_settings = { provider: ingest_lint.provider, model: ingest_lint.model };
     ctx.json(200, { ingest_lint: { ...workspace.ai_model_settings }, can_update: true });
   });
@@ -158,14 +249,57 @@ export function registerCatalogRoutes(router) {
   router.post("/api/workspaces/:wid/skills/author/publish", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    const { name, description, instructions_markdown, scope_type, allowed_tools, capabilities } = await ctx.body();
+    const body = await ctx.body();
+    const { name, description, instructions_markdown, scope_type, allowed_tools } = body;
+    const capabilities = Array.isArray(body.capabilities) ? body.capabilities : [];
     if (typeof name !== "string" || !name.trim()) return error(ctx, 400, "스킬 이름을 입력해주세요.");
+    if (capabilities.length === 0) return error(ctx, 400, "capabilities는 1개 이상이어야 합니다.", "INVALID_REQUEST");
     const slug = slugify(name);
     if (state.skills.some((skill) => skill.workspace_id === workspace.id && skill.slug === slug)) return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
-    const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: allowed_tools ?? [], capabilities: capabilities ?? [], instructions_markdown: instructions_markdown ?? "" };
+    // 게시에서 targets를 생략하거나 []이면 ["current_document"], result_mode를 생략하면 null이다.
+    const options = executionOptions(ctx, capabilities, body, { targets: [], result_mode: null });
+    if (!options) return;
+    const tools = Array.isArray(allowed_tools) && allowed_tools.length > 0 ? allowed_tools : canonicalTools(capabilities);
+    const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: tools, capabilities, instructions_markdown: instructions_markdown ?? "", ...options };
     const skill = { id: id("skill"), workspace_id: workspace.id, owner_user_id: ctx.user.id, slug, scope_type: scope_type ?? "personal", status: "enabled", enabled_version: version, latest_version: version };
     state.skills.push(skill);
     ctx.json(201, toAuthoringResult(skill, version));
+  });
+
+  // 게시 전 정의를 문서 하나에 저장 없이 적용해 본다(document#148·ai#123). run_id는 한 번만 쓸 수 있다(재사용 409).
+  // 지침 표식으로 오류를 재현한다: #테스트불가 → 503 SKILL_TEST_RUN_UNAVAILABLE, #AI장애 → 503 SKILL_AI_UNAVAILABLE, #지연 → 3초 대기.
+  router.post("/api/workspaces/:wid/skills/test-run", async (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const runId = ctx.url.searchParams.get("run_id") ?? `skill_test_${id("run")}`;
+    if (!/^[a-zA-Z0-9:_-]{1,120}$/.test(runId)) return error(ctx, 400, "run_id 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    if (usedTestRunIds.has(runId)) return error(ctx, 409, "이미 사용한 run_id입니다.");
+    usedTestRunIds.add(runId);
+    const body = await ctx.body();
+    const { name, description, instructions_markdown, document_id, target } = body;
+    const capabilities = Array.isArray(body.capabilities) ? body.capabilities : [];
+    const hasRequired = [name, description, instructions_markdown, document_id].every((value) => typeof value === "string" && value.trim());
+    if (!hasRequired || capabilities.length === 0) return error(ctx, 400, "요청 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    const doc = findDocument(workspace.id, document_id);
+    if (!doc) return error(ctx, 404, "문서를 찾을 수 없습니다.", "DOCUMENT_NOT_FOUND");
+    if (!isMarkdownDocument(doc) || typeof doc.markdown !== "string") return error(ctx, 400, "Markdown 문서만 테스트할 수 있습니다.", "INVALID_REQUEST");
+    const markdown = typeof body.markdown === "string" ? body.markdown : doc.markdown;
+    if (target != null) {
+      const lineCount = markdown.split("\n").length;
+      const isValidType = ["selection", "current_section", "whole_document"].includes(target.type);
+      if (!isValidType || !(target.start_line >= 1) || target.end_line < target.start_line || target.end_line > lineCount) {
+        return error(ctx, 400, `적용 범위가 문서 줄 수(${lineCount})를 벗어났습니다.`, "INVALID_REQUEST");
+      }
+    }
+    if (capabilities.includes("folder-organize")) {
+      return error(ctx, 400, "이 종류의 Skill은 테스트 실행을 지원하지 않습니다. 문서 작성·수정·템플릿 Skill만 테스트할 수 있습니다.", "SKILL_TEST_RUN_UNSUPPORTED");
+    }
+    if (/#테스트불가/.test(instructions_markdown)) return error(ctx, 503, "Skill 테스트 실행을 아직 사용할 수 없습니다.", "SKILL_TEST_RUN_UNAVAILABLE");
+    if (/#AI장애/.test(instructions_markdown)) return error(ctx, 503, "AI 서버를 사용할 수 없습니다.", "SKILL_AI_UNAVAILABLE");
+    await sleep(/#지연/.test(instructions_markdown) ? 3000 : 600);
+    const issues = detectSkillIssues(instructions_markdown);
+    if (issues.length > 0) return ctx.json(200, { run_id: runId, status: "blocked", changes: [], untouched_sections: [], result_markdown: null, issues });
+    ctx.json(200, { run_id: runId, ...testRunResult({ name, description, capabilities }, markdown, target) });
   });
 
   router.patch("/api/workspaces/:wid/skills/:skillId", async (ctx) => {
@@ -179,7 +313,11 @@ export function registerCatalogRoutes(router) {
       return error(ctx, 400, "요청 값이 올바르지 않습니다.");
     }
     const base = skill.latest_version ?? skill.enabled_version;
-    const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown };
+    // 생략한 값은 이어받는다. 필드가 생기기 전 문서 Skill(targets 없음)은 두 대상 모두로 읽는다.
+    const inherited = { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
+    const options = executionOptions(ctx, base?.capabilities ?? [], body, inherited);
+    if (!options) return;
+    const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options };
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;
     ctx.json(200, toAuthoringResult(skill, version));

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { buildConsentBody, consentErrorMessage, loginWithEmail, signupWithEmail } from "@/entities/user";
-import { LEGAL_TERMS_VERSION } from "@/shared/config/legal";
+import { buildSignupConsentFields, consentErrorMessage, loginWithEmail, registeredEmailErrorMessage, signupWithEmail } from "@/entities/user";
+import { LEGAL_PAGES_ENABLED, LEGAL_TERMS_VERSION } from "@/shared/config/legal";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
@@ -56,7 +56,8 @@ export default function SignupVerificationPage() {
   async function completeVerification(code: string) {
     if (isSubmitting || !draft?.verificationId) return;
     // 가입 화면이 필수 동의 없이는 넘어오지 않지만, 초안이 바뀌었을 수 있어 요청 직전에 다시 확인한다.
-    const consent = buildConsentBody(draft.consent, LEGAL_TERMS_VERSION);
+    // 약관 공개 플래그가 꺼져 있으면 동의 필드를 아예 보내지 않는다(사용자 대신 동의 값을 만들지 않는다).
+    const consent = buildSignupConsentFields(LEGAL_PAGES_ENABLED, draft.consent, LEGAL_TERMS_VERSION);
     if (!consent) {
       setErrorMessage("약관 동의가 필요합니다. 가입 화면에서 다시 동의해 주세요.");
       return;
@@ -84,7 +85,8 @@ export default function SignupVerificationPage() {
       router.replace(takeAfterLoginPath());
     } catch (error: unknown) {
       // CONSENT_REQUIRED(약관 버전 불일치 등)는 동의만 고쳐 다시 보낼 수 있다. 인증 토큰은 소비되지 않는다.
-      setErrorMessage(consentErrorMessage(error, getErrorMessage(error, "회원가입에 실패했습니다.")));
+      // 409 EMAIL_REGISTERED_WITH_OAUTH는 같은 이메일의 소셜 계정으로 로그인한 뒤 연동하도록 안내한다(access #31).
+      setErrorMessage(registeredEmailErrorMessage(error) ?? consentErrorMessage(error, getErrorMessage(error, "회원가입에 실패했습니다.")));
       setIsSubmitting(false);
     }
   }

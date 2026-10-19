@@ -88,6 +88,8 @@ export function HomeWorkspace() {
   const notificationFeed = useNotificationFeed(activeView === "notifications");
   const panels = useWorkspacePanels({ activeView, locationKey });
   const { sidebarLayout, agentPanelLayout, isCompactLayout, isAgentPanelShown } = panels;
+  // 채팅 패널의 회의 화면(#148)이 열려 있는지. 그동안은 패널을 닫아도 숨긴 채 마운트해 회의록 흐름을 이어 간다.
+  const [hasOpenMeeting, setHasOpenMeeting] = useState(false);
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
   const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
@@ -140,7 +142,7 @@ export function HomeWorkspace() {
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
   const isDocumentMain = isHomeView && hasSourcePreview;
 
-  const { handleChatDocumentExported } = usePendingDocumentOpen({
+  const { handleChatDocumentExported, openSavedDocument } = usePendingDocumentOpen({
     documents,
     projects: projectTree.projects,
     selection,
@@ -525,14 +527,17 @@ export function HomeWorkspace() {
 
       {/* 스킬·알림 등 패널이 없는 화면으로 가도 열려 있던 패널은 숨겨서 유지한다.
           돌아올 때 대화·모델 목록을 다시 받느라 비었다 채워지는(새로고침처럼 보이는) 것을 막는다. */}
-      {panels.isAgentPanelOpen && (
+      {(panels.isAgentPanelOpen || hasOpenMeeting) && (
         <div className={cx("agent-panel-host", !isAgentPanelShown && "is-hidden")}>
         <AgentPanel
+          isShown={isAgentPanelShown}
           onClose={panels.closeAgentPanel}
           onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
           onDocumentExported={handleChatDocumentExported}
+          onMeetingNotesSaved={openSavedDocument}
+          onMeetingActiveChange={setHasOpenMeeting}
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {

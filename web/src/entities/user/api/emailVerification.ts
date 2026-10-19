@@ -1,5 +1,5 @@
 import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
-import type { ConsentBody } from "@/entities/user/model/consent";
+import type { SignupConsentFields } from "@/entities/user/model/consent";
 
 type EmailVerificationResponse = {
   verification_id: string;
@@ -62,7 +62,8 @@ export async function signupWithEmail(
   password: string,
   displayName: string,
   verificationToken: string,
-  consent: ConsentBody
+  /** 동의 UI가 꺼져 있으면 빈 객체라 동의 필드를 보내지 않는다. */
+  consent: SignupConsentFields
 ): Promise<void> {
   const response = await fetch("/api/auth/signup", {
     method: "POST",

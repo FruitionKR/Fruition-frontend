@@ -64,6 +64,11 @@ const nextConfig = {
         destination: `${accessUrl}/api/workspaces/:wid/invitations/:invitationId`
       },
       {
+        // 다른 사용자의 프로필 사진 조회(access-svc Users API). 최상위 /api/users 경로다.
+        source: "/api/users/:uid/avatar",
+        destination: `${accessUrl}/api/users/:uid/avatar`
+      },
+      {
         // 초대 링크 수신자가 부르는 경로. 워크스페이스 하위가 아니라 최상위다.
         source: "/api/invitations/:path*",
         destination: `${accessUrl}/api/invitations/:path*`

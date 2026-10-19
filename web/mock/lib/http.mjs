@@ -1,18 +1,24 @@
 // 의존성 없는 최소 HTTP 라우터. 경로 패턴(:param) 매칭, 본문 파싱, JSON/SSE 응답 헬퍼를 제공한다.
 import http from "node:http";
+import { rejectUpgrade } from "./websocket.mjs";
 
 const TOKEN_TTL_MS = 30 * 60_000;
 
 export function createRouter(state) {
   const routes = [];
+  const upgrades = [];
 
-  function add(method, pattern, handler, options = {}) {
+  function compile(pattern) {
     const keys = [];
     const source = pattern.replace(/:([a-zA-Z]+)/g, (_, key) => {
       keys.push(key);
       return "([^/]+)";
     });
-    routes.push({ method, regex: new RegExp(`^${source}$`), keys, handler, open: Boolean(options.open) });
+    return { regex: new RegExp(`^${source}$`), keys };
+  }
+
+  function add(method, pattern, handler, options = {}) {
+    routes.push({ method, ...compile(pattern), handler, open: Boolean(options.open) });
   }
 
   const api = {
@@ -21,6 +27,21 @@ export function createRouter(state) {
     put: (p, h, o) => add("PUT", p, h, o),
     patch: (p, h, o) => add("PATCH", p, h, o),
     delete: (p, h, o) => add("DELETE", p, h, o),
+    /** WebSocket upgrade 경로. 인증은 핸들러가 ticket 등으로 직접 한다(브라우저 WebSocket은 헤더를 못 보낸다). */
+    ws: (p, h) => upgrades.push({ ...compile(p), handler: h }),
+    handleUpgrade(req, socket, head, port) {
+      const url = new URL(req.url, `http://localhost:${port}`);
+      for (const route of upgrades) {
+        const match = url.pathname.match(route.regex);
+        if (!match) continue;
+        const params = {};
+        route.keys.forEach((key, index) => { params[key] = decodeURIComponent(match[index + 1]); });
+        console.log(`[mock:${port}] WS ${url.pathname}`);
+        route.handler({ req, socket, head, url, params, query: url.searchParams, state });
+        return;
+      }
+      rejectUpgrade(socket, 404, "Not Found");
+    },
     async handle(req, res, port) {
       const url = new URL(req.url, `http://localhost:${port}`);
       const ctx = createContext(req, res, url, state, port);
@@ -55,13 +76,15 @@ const AI_ENTRY_PATHS = [
   /\/agent\/runs\/[^/]+\/(approve|revise)$/,
   /\/documents\/[^/]+\/(ingest|convert-markdown)$/,
   /\/wiki\/maintenance\/lint$/,
+  /\/wiki\/pages\/[^/]+\/content$/,
   /\/skills\/author(\/publish)?$/,
-  /\/skills\/[^/]+$/
+  /\/skills\/[^/]+$/,
+  /\/speech\/synthesis$/
 ];
 
 function rejectForInsufficientCredit(ctx) {
   if (!["1", "true"].includes(process.env.MOCK_INSUFFICIENT_CREDIT ?? "")) return false;
-  if (!["POST", "PATCH"].includes(ctx.req.method)) return false;
+  if (!["POST", "PATCH", "PUT"].includes(ctx.req.method)) return false;
   if (!AI_ENTRY_PATHS.some((pattern) => pattern.test(ctx.url.pathname))) return false;
   ctx.json(402, { error: { code: "INSUFFICIENT_CREDIT", message: "크레딧이 부족해 작업을 시작하지 않았습니다." } });
   return true;
@@ -138,9 +161,9 @@ function createContext(req, res, url, state, port) {
       res.end(body);
       log(ctx);
     },
-    bytes(status, buffer, contentType) {
+    bytes(status, buffer, contentType, headers = {}) {
       ctx.status = status;
-      res.writeHead(status, { "Content-Type": contentType, "Content-Length": buffer.length });
+      res.writeHead(status, { "Content-Type": contentType, "Content-Length": buffer.length, ...headers });
       res.end(buffer);
       log(ctx);
     },
@@ -153,6 +176,20 @@ function createContext(req, res, url, state, port) {
     setCookie(name, value, maxAgeSeconds) {
       const parts = [`${name}=${value}`, "Path=/", "HttpOnly", "SameSite=Lax", `Max-Age=${maxAgeSeconds}`];
       res.setHeader("Set-Cookie", parts.join("; "));
+    },
+    /** NDJSON 스트림을 연다. 반환된 send(data)로 JSON 한 줄을 보내고 close()로 닫는다. */
+    ndjson() {
+      ctx.streaming = true;
+      ctx.status = 200;
+      res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" });
+      log(ctx);
+      return {
+        send(data) {
+          if (!res.writableEnded) res.write(`${JSON.stringify(data)}\n`);
+        },
+        close() { if (!res.writableEnded) res.end(); },
+        closed: () => res.writableEnded || res.destroyed
+      };
     },
     /** SSE 스트림을 연다. 반환된 send(event, data)/close()로 프레임을 보낸다. */
     sse() {
@@ -192,6 +229,7 @@ function parseCookies(header) {
 export function listen(router, port) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => { void router.handle(req, res, port); });
+    server.on("upgrade", (req, socket, head) => router.handleUpgrade(req, socket, head, port));
     server.on("error", reject);
     server.listen(port, () => resolve(server));
   });

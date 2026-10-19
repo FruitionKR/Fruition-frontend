@@ -27,6 +27,31 @@ export function buildConsentBody(choices: ConsentChoices, termsVersion: string):
   return { age_confirmed: true, terms_version: termsVersion, marketing_opt_in: choices.marketingOptIn };
 }
 
+/** 동의 필드가 하나도 없는 본문. 동의 UI가 꺼져 있을 때 사용자가 하지 않은 동의를 대신 보내지 않으려고 쓴다. */
+export type NoConsentBody = Record<string, never>;
+
+/** 가입 요청에 붙일 동의 필드. */
+export type SignupConsentFields = ConsentBody | NoConsentBody;
+
+/**
+ * 동의 UI 사용 여부(LEGAL_PAGES_ENABLED)에 따라 가입 요청의 동의 필드를 정한다.
+ * 꺼져 있으면 서버(LEGAL_CONSENT_REQUIRED=false)도 동의를 받지 않으므로 동의 필드를 전혀 보내지 않는다.
+ * 켜져 있으면 지금처럼 사용자 선택으로 만들고, 필수 항목이 빠졌으면 null이다.
+ */
+export function buildSignupConsentFields(
+  consentEnabled: boolean,
+  choices: ConsentChoices,
+  termsVersion: string
+): SignupConsentFields | null {
+  if (!consentEnabled) return {};
+  return buildConsentBody(choices, termsVersion);
+}
+
+/** 가입을 진행해도 되는지. 동의 UI가 꺼져 있으면 동의를 묻지 않으므로 항상 진행한다. */
+export function isSignupConsentReady(consentEnabled: boolean, choices: ConsentChoices): boolean {
+  return !consentEnabled || isConsentComplete(choices);
+}
+
 export const CONSENT_REQUIRED_MESSAGE = "만 18세 이상 확인과 현재 이용약관 동의가 필요합니다. 항목을 다시 확인해 주세요.";
 export const INVALID_SIGNUP_TOKEN_MESSAGE = "가입 요청이 만료되었거나 이미 사용되었습니다. 소셜 로그인부터 다시 시작해 주세요.";
 
@@ -50,6 +75,19 @@ export function consentErrorMessage(error: unknown, fallback: string): string {
 /** 소셜 가입 토큰이 만료·사용돼 소셜 로그인부터 다시 해야 하는 실패인지. */
 export function isSignupTokenInvalid(error: unknown): boolean {
   return errorCode(error) === "INVALID_SIGNUP_TOKEN";
+}
+
+/**
+ * 동의 화면에 머무는 사이 같은 이메일로 다른 가입이 끝나 거절된 409 EMAIL_REGISTERED인지.
+ * 토큰이 소비되므로 다시 보낼 수 없고, 기존 계정으로 로그인한 뒤 설정에서 연동한다.
+ */
+export function isSignupEmailRegistered(error: unknown): boolean {
+  return errorCode(error) === "EMAIL_REGISTERED";
+}
+
+/** 토큰이 소비돼 이 동의 화면에서는 더 진행할 수 없는 실패(만료·사용됨, 같은 이메일의 계정 있음). */
+export function isSignupTokenConsumed(error: unknown): boolean {
+  return isSignupTokenInvalid(error) || isSignupEmailRegistered(error);
 }
 
 /** OAuth 콜백 주소에 붙어 온 소셜 신규 가입 토큰. 기존 회원 로그인(code)·실패(error)면 null이다. */

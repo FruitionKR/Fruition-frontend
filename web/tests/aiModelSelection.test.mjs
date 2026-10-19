@@ -1,12 +1,64 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  filterAiModels,
   getProviderLabel,
+  getProviderMenuLabel,
   groupAiModelsByProvider,
+  filterWorkspaceAiModels,
+  hasWorkspaceExcludedModels,
   isSameSelection,
-  resolveInitialModel
+  resolveInitialModel,
+  resolveWorkspaceModelSelection,
+  WORKSPACE_DEFAULT_MODEL
 } from "../src/entities/ai/model/aiModel.ts";
+
+// 저가 모델 정책 카탈로그(3개).
+const POLICY_CATALOG = [
+  { provider: "openai", model: "gpt-6-luna", display_name: "GPT-6 Luna" },
+  { provider: "gemini", model: "gemini-3.5-flash-lite", display_name: "Gemini 3.5 Flash-Lite" },
+  { provider: "claude", model: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
+];
+const WORKSPACE_MODELS = filterWorkspaceAiModels(POLICY_CATALOG);
+
+test("워크스페이스 모델 목록에서 Claude provider를 뺀다", () => {
+  assert.deepEqual(WORKSPACE_MODELS, POLICY_CATALOG.slice(0, 2));
+  assert.equal(hasWorkspaceExcludedModels(POLICY_CATALOG), true);
+  assert.equal(hasWorkspaceExcludedModels(WORKSPACE_MODELS), false);
+});
+
+test("채팅 카탈로그 3개는 provider마다 모델 1개씩 묶인다", () => {
+  const groups = groupAiModelsByProvider(POLICY_CATALOG);
+  assert.deepEqual(groups.map((group) => [group.provider, group.models.length]), [["openai", 1], ["gemini", 1], ["claude", 1]]);
+});
+
+test("저장된 채팅 모델이 카탈로그에서 빠졌으면 catalog[0]으로 대체한다", () => {
+  assert.deepEqual(resolveInitialModel(POLICY_CATALOG, { provider: "claude", model: "claude-opus-5-5" }), POLICY_CATALOG[0]);
+});
+
+test("저장된 워크스페이스 모델이 허용 목록에 있으면 그대로 보여 준다", () => {
+  const saved = { provider: "openai", model: "gpt-6-luna" };
+  assert.deepEqual(resolveWorkspaceModelSelection(WORKSPACE_MODELS, saved), { selection: saved, isFallback: false });
+});
+
+test("저장된 워크스페이스 모델이 Claude면 기본 모델로 대체한다", () => {
+  const result = resolveWorkspaceModelSelection(WORKSPACE_MODELS, { provider: "claude", model: "claude-haiku-4-5-20251001" });
+  assert.deepEqual(result, { selection: WORKSPACE_DEFAULT_MODEL, isFallback: true });
+});
+
+test("저장된 워크스페이스 모델이 카탈로그에서 빠졌으면 기본 모델로 대체한다", () => {
+  const result = resolveWorkspaceModelSelection(WORKSPACE_MODELS, { provider: "openai", model: "gpt-5-nano" });
+  assert.deepEqual(result, { selection: WORKSPACE_DEFAULT_MODEL, isFallback: true });
+});
+
+test("카탈로그를 받기 전에는 Claude가 아닌 저장값을 그대로 두고, Claude는 기본 모델로 보여 준다", () => {
+  const saved = { provider: "openai", model: "gpt-5-nano" };
+  assert.deepEqual(resolveWorkspaceModelSelection([], saved), { selection: saved, isFallback: false });
+  assert.deepEqual(resolveWorkspaceModelSelection([], { provider: "claude", model: "claude-sonnet-5" }).isFallback, true);
+});
+
+test("워크스페이스 설정을 아직 못 받았으면 선택을 만들지 않는다", () => {
+  assert.deepEqual(resolveWorkspaceModelSelection(WORKSPACE_MODELS, null), { selection: null, isFallback: false });
+});
 
 const CATALOG = [
   { provider: "openai", model: "gpt-5-nano", display_name: "GPT-5 nano" },
@@ -70,23 +122,13 @@ test("빈 카탈로그는 빈 그룹 목록이 된다", () => {
   assert.deepEqual(groupAiModelsByProvider([]), []);
 });
 
-test("검색어가 비어 있으면 전체 목록을 그대로 돌려준다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, "   "), MIXED_CATALOG);
-});
-
-test("표시 이름으로 대소문자 없이 검색한다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, " SONNET "), [MIXED_CATALOG[3]]);
-});
-
-test("model id로도 검색한다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, "gpt-5-m"), [MIXED_CATALOG[2]]);
-});
-
-test("일치하는 모델이 없으면 빈 목록을 돌려준다", () => {
-  assert.deepEqual(filterAiModels(MIXED_CATALOG, "llama"), []);
-});
-
 test("알려진 provider는 표시 라벨로, 모르는 provider는 id 그대로 보여 준다", () => {
   assert.equal(getProviderLabel("openai"), "OpenAI");
   assert.equal(getProviderLabel("mistral"), "mistral");
+});
+
+test("모델 메뉴의 provider 행은 openai를 Chat GPT로, 나머지는 표시 라벨로 보여 준다", () => {
+  assert.equal(getProviderMenuLabel("openai"), "Chat GPT");
+  assert.equal(getProviderMenuLabel("claude"), "Claude");
+  assert.equal(getProviderMenuLabel("mistral"), "mistral");
 });

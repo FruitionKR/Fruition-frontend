@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
-import { AgentHeader } from "@/features/agent-chat/ui/AgentHeader";
+import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
+import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
@@ -24,6 +25,7 @@ import {
   type ChatPairSelectionKind
 } from "@/features/agent-chat/lib/chatPairSelection";
 import type { SourceBlockHighlight } from "@/entities/document";
+import type { MeetingListItem } from "@/entities/meeting";
 import type { GraphNode } from "@/entities/wiki";
 import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
@@ -42,7 +44,10 @@ export function AgentPanel({
   onDocumentExported,
   nodes,
   composerDraft,
-  wikiEvidenceNotice
+  wikiEvidenceNotice,
+  onMeetingNotesSaved,
+  onMeetingActiveChange,
+  isShown = true
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
@@ -60,7 +65,49 @@ export function AgentPanel({
     isIngesting: boolean;
     onIngest: () => void;
   } | null;
+  /** 회의록을 문서로 저장했다(#148). 문서 목록을 새로 받고 그 문서를 연다. */
+  onMeetingNotesSaved?: (documentId: string) => Promise<void> | void;
+  /** 회의 화면이 열려 있는지(#148). 열려 있는 동안 화면은 패널을 닫아도 마운트해 두어 회의·회의록을 잃지 않는다. */
+  onMeetingActiveChange?: (isActive: boolean) => void;
+  /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
+  isShown?: boolean;
 }) {
+  const [activeView, setActiveView] = useState<AgentPanelView>("chat");
+  // 회의록은 열린 Markdown 문서가 있으면 그 문서 끝에 추가할 수 있다(회의를 시작할 때의 문서로 고정된다).
+  const panelRef = useRef<HTMLElement | null>(null);
+  const recordingInputRef = useRef<HTMLInputElement | null>(null);
+  const pickRecording = useCallback(() => recordingInputRef.current?.click(), []);
+  const handleMeetingDeleted = useCallback(() => {
+    publishNotice({ kind: "completed", title: "회의 삭제", message: "회의를 삭제했습니다. 문서로 저장한 회의록은 남아 있어요." });
+    // 회의 화면이 사라져 포커스가 body로 떨어지지 않게 입력창으로 옮긴다.
+    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
+  }, []);
+  const meeting = useMeetingSession({
+    documentId: markdownEditContext?.documentId ?? null,
+    onDocumentSaved: onMeetingNotesSaved,
+    onMeetingDeleted: handleMeetingDeleted
+  });
+  const isMeetingViewOpen = meeting.phase !== "idle";
+  // 지난 회의 목록(진행 중인 회의 이어 보기). 목록에서 연 회의 화면을 닫으면 목록으로 돌아온다.
+  const [isMeetingListOpen, setIsMeetingListOpen] = useState(false);
+  const [meetingOpenError, setMeetingOpenError] = useState<string | null>(null);
+  const resumeMeeting = meeting.resume;
+  const openMeetingFromList = useCallback((item: MeetingListItem) => {
+    setMeetingOpenError(null);
+    void resumeMeeting(item).then(setMeetingOpenError);
+  }, [resumeMeeting]);
+  const isMeetingAreaOpen = isMeetingViewOpen || isMeetingListOpen;
+  useEffect(() => {
+    onMeetingActiveChange?.(isMeetingViewOpen);
+  }, [isMeetingViewOpen, onMeetingActiveChange]);
+  // 패널이 화면에서 사라지면(숨기기·패널 없는 화면) 보이지 않는 채 마이크·과금이 이어지지 않도록 받아쓰기를 정상 종료한다.
+  // 남은 구간을 저장하고 회의록을 이어서 만들므로 패널을 다시 열면 결과가 보인다.
+  const isMeetingCapturing = isCapturingPhase(meeting.phase);
+  const stopMeeting = meeting.stop;
+  useEffect(() => {
+    if (!isShown && isMeetingCapturing) stopMeeting();
+  }, [isMeetingCapturing, isShown, stopMeeting]);
+  const isChatVisible = activeView === "chat" && !isMeetingAreaOpen;
   const [composerValue, setComposerValue] = useState("");
   const restoreComposerQuestion = useCallback((question: string) => {
     setComposerValue((current) => current || question);
@@ -257,10 +304,13 @@ export function AgentPanel({
 
   return (
     <aside
+      ref={panelRef}
       className={`agent-panel${isPairSelectionMode ? " is-chat-selecting" : ""}`}
       onClick={(event) => event.stopPropagation()}
     >
       <AgentHeader
+        activeView={activeView}
+        onViewChange={setActiveView}
         sessionTitle={sessionTitle}
         onClose={onClose}
         activeSessionId={activeSessionId}
@@ -275,34 +325,63 @@ export function AgentPanel({
           setIsPairSelectionMode(false);
         }}
       />
-      <AgentBody
-        messages={messages}
-        isLoading={isLoading}
-        isCancelling={isCancelling}
-        isDocumentCommandLoading={isAgentTurnLoading}
-        documentCommandStages={agentTurn.agentStages}
-        documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
-        activeSessionId={activeSessionId}
-        activeTurn={activeTurn}
-        queryErrorMessage={
-          agentTurn.agentTurnErrorMessage
-          ?? agentTurn.editPreviewErrorMessage
-          ?? (markdownEditContext ? null : aiModelsErrorMessage)
-          ?? queryErrorMessage
-        }
-        chatLoadErrorMessage={chatLoadErrorMessage}
-        animatedMessageId={animatedMessageId}
-        queryStages={queryStages}
-        onOpenSourceBlocks={onOpenSourceBlocks}
-        isPairSelectionMode={isPairSelectionMode}
-        pairSelectionKind={pairSelectionKind}
-        selectablePairIds={exportPairIds}
-        excludedPairIds={excludedPairIds}
-        selectedPairIds={selectedPairIds}
-        onSelectPair={selectPair}
-        nodes={nodes}
-        documentCommandPreview={documentCommandPreview}
-      />
+      <div
+        className={styles["agent-view-panel"]}
+        role="tabpanel"
+        id={AGENT_PANEL_VIEW_IDS[activeView]}
+        aria-labelledby={`${AGENT_PANEL_VIEW_IDS[activeView]}-tab`}
+      >
+        {activeView === "work" ? (
+          // "작업" 탭 본문은 시안이 없다(#148). 진행 중인 위키 작업은 사이드바 작업 버튼, 지난 작업은 로그 화면에 있다.
+          <div className={styles["agent-work-empty"]}>
+            <p>작업 목록은 아직 준비 중이에요.</p>
+            <p>위키 편입·정리 진행 상황은 사이드바 작업 버튼에서, 지난 작업은 로그 화면에서 볼 수 있어요.</p>
+          </div>
+        ) : isMeetingViewOpen ? (
+          <MeetingNotesView session={meeting} onPickRecording={pickRecording} />
+        ) : isMeetingListOpen ? (
+          <MeetingListView
+            onOpen={openMeetingFromList}
+            onClose={() => {
+              setIsMeetingListOpen(false);
+              setMeetingOpenError(null);
+            }}
+            openErrorMessage={meetingOpenError}
+          />
+        ) : null}
+        {/* 대화는 다른 보기로 바꿔도 마운트해 두어 스크롤 위치·진행 상태를 잃지 않는다. */}
+        <div className={styles["agent-view-slot"]} hidden={!isChatVisible}>
+          <AgentBody
+            messages={messages}
+            isLoading={isLoading}
+            isCancelling={isCancelling}
+            isDocumentCommandLoading={isAgentTurnLoading}
+            documentCommandStages={agentTurn.agentStages}
+            documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
+            activeSessionId={activeSessionId}
+            isShown={isShown && isChatVisible}
+            activeTurn={activeTurn}
+            queryErrorMessage={
+              agentTurn.agentTurnErrorMessage
+              ?? agentTurn.editPreviewErrorMessage
+              ?? (markdownEditContext ? null : aiModelsErrorMessage)
+              ?? queryErrorMessage
+            }
+            chatLoadErrorMessage={chatLoadErrorMessage}
+            animatedMessageId={animatedMessageId}
+            queryStages={queryStages}
+            onOpenSourceBlocks={onOpenSourceBlocks}
+            isPairSelectionMode={isPairSelectionMode}
+            pairSelectionKind={pairSelectionKind}
+            selectablePairIds={exportPairIds}
+            excludedPairIds={excludedPairIds}
+            selectedPairIds={selectedPairIds}
+            onSelectPair={selectPair}
+            nodes={nodes}
+            documentCommandPreview={documentCommandPreview}
+          />
+        </div>
+      </div>
       {isPairSelectionMode ? (
         <div className={styles["chat-selection-actions"]}>
           <div className={styles["chat-selection-toolbar"]}>
@@ -348,7 +427,8 @@ export function AgentPanel({
         </div>
       ) : null}
       <div className={styles["composer-region"]}>
-        {wikiEvidenceNotice && !isPairSelectionMode && (
+        {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
+        {wikiEvidenceNotice && !isPairSelectionMode && !isMeetingAreaOpen && (
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
             {wikiEvidenceNotice.actionLabel && (
@@ -365,7 +445,8 @@ export function AgentPanel({
           models={aiModels}
           selectedModel={selectedModel}
           modelCatalogStatus={aiModelCatalogStatus}
-          canSubmit={!isPairSelectionMode && activeSessionId !== null && selectedModel !== null}
+          // 회의 화면이 열려 있는 동안에는 질문을 보내지 않는다(답이 가려진 채팅에 쌓인다).
+          canSubmit={!isPairSelectionMode && !isMeetingAreaOpen && activeSessionId !== null && selectedModel !== null}
           onModelChange={handleModelChange}
           allowWebSearch={allowWebSearch}
           onWebSearchChange={handleWebSearchChange}
@@ -374,7 +455,27 @@ export function AgentPanel({
           onCancel={isLoading ? cancelQuery : undefined}
           isCancelling={isCancelling}
           statusMessage={queryStatusMessage}
+          meetingControl={{
+            state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
+            onStart: () => {
+              setActiveView("chat");
+              setIsMeetingListOpen(false);
+              void meeting.start();
+            },
+            onStop: meeting.stop,
+            onPickRecording: () => {
+              setActiveView("chat");
+              setIsMeetingListOpen(false);
+              pickRecording();
+            },
+            onOpenMeetingList: () => {
+              setActiveView("chat");
+              setMeetingOpenError(null);
+              setIsMeetingListOpen(true);
+            }
+          }}
         />
+        <RecordingFileInput ref={recordingInputRef} onSelect={(file) => void meeting.uploadRecording(file)} />
       </div>
     </aside>
   );

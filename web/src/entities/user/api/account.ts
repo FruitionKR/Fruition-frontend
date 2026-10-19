@@ -21,6 +21,27 @@ export async function updateDisplayName(displayName: string): Promise<UserMeResp
   return parseJsonOrThrow<UserMeResponse>(response, "닉네임을 변경하지 못했습니다.");
 }
 
+/** 프로필 사진 업로드(PUT /api/auth/me/avatar). Content-Type은 브라우저 multipart boundary에 맡긴다. */
+export async function uploadAvatar(file: File): Promise<UserMeResponse> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await apiFetch("/api/auth/me/avatar", { method: "PUT", body });
+  return parseJsonOrThrow<UserMeResponse>(response, "프로필 사진을 올리지 못했습니다.");
+}
+
+/** 프로필 사진 삭제. 사진이 없어도 200이며 avatar_url이 null인 MeResponse가 온다. */
+export async function deleteAvatar(): Promise<UserMeResponse> {
+  const response = await apiFetch("/api/auth/me/avatar", { method: "DELETE" });
+  return parseJsonOrThrow<UserMeResponse>(response, "프로필 사진을 지우지 못했습니다.");
+}
+
+/** avatar_url(GET /api/users/{id}/avatar?v=…)의 이미지를 Bearer 요청으로 받는다. <img src>로는 401이라 object URL로 보여 준다. */
+export async function fetchUserAvatar(avatarUrl: string): Promise<Blob> {
+  const response = await apiFetch(avatarUrl, { cache: "no-store" });
+  await throwIfNotOk(response, "프로필 사진을 불러오지 못했습니다.");
+  return response.blob();
+}
+
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   const response = await apiFetch("/api/auth/me/password", {
     method: "PUT",

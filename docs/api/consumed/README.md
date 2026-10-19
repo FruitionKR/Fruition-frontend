@@ -10,12 +10,13 @@
 
 | 도메인 | 호출 수 | 서비스 | 주 모듈 |
 |---|---:|---|---|
-| [인증·계정](auth-account.md) | 25 | access-svc | `web/src/entities/user/api` |
-| [워크스페이스](workspace.md) | 12 | access-svc | `web/src/entities/workspace/api` |
+| [인증·계정](auth-account.md) | 28 | access-svc | `web/src/entities/user/api` |
+| [워크스페이스](workspace.md) | 14 | access-svc | `web/src/entities/workspace/api` |
 | [문서·트리](document.md) | 31 | document-svc | `web/src/entities/document/api`, `web/src/entities/tree/api`, `web/src/features/note-editing`, `web/src/features/document-notifications/api/notifications.ts` |
-| [Wiki](wiki.md) | 7 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
-| [AI·Agent·Query](ai-agent.md) | 19 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
+| [Wiki](wiki.md) | 8 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
+| [AI·Agent·Query](ai-agent.md) | 20 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `web/src/entities/skill/api` |
+| [회의 받아쓰기](meeting.md) | 17 | document-svc | `web/src/entities/meeting/api`, `web/src/features/meeting-dictation` |
 
 "호출 수"는 코드상의 호출 지점 수이고, 아래 집계의 "경로 수"는 서로 다른 backend 경로 수다.
 같은 경로를 여러 모듈에서 부르기 때문에 두 수는 다르다.
@@ -29,10 +30,11 @@
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.
 공동 편집 릴리스에서 추가된 권한 2·편집 충돌 3·알림 3 경로는 87개 기준 집계 밖이며 [document.md](document.md)에만 적었다.
+회의 받아쓰기(#148)의 REST 16 경로와 WebSocket 1개도 87개 기준 집계 밖이며 [meeting.md](meeting.md)에만 적었다.
 
 ## 경로 미해석
 
-없다. 91개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
+없다. 92개 `apiFetch` 호출 지점과 11개 raw `fetch` 호출 지점 전부를 구체 경로까지 해석했다.
 다음 세 곳은 변수를 호출자까지 따라가야 해석되므로 근거를 남긴다.
 
 | 호출 지점 | 변수 | 호출자 추적 결과 |
