@@ -51,7 +51,7 @@ test("랜딩 애니메이션은 움직임 줄이기 설정에서 꺼지고 trans
   const read = (name) => readFileSync(new URL(`../src/views/landing/ui/${name}`, import.meta.url), "utf8");
   // 랜딩 전체(.landing-page *)의 애니메이션·전환을 끄는 규칙은 페이지 모듈에 둔다.
   assert.match(read("LandingPage.module.css"), /@media \(prefers-reduced-motion: reduce\)/);
-  const css = ["LandingPage.module.css", "LandingChapterSection.module.css", "LandingClosing.module.css", "LandingMocks.module.css"]
+  const css = ["LandingPage.module.css", "LandingChapterSection.module.css", "LandingClosing.module.css", "AnswerDemo.module.css", "ThemeSwitch.module.css", "preview/Preview.module.css", "preview/PreviewShell.module.css", "preview/PreviewPanes.module.css", "preview/PreviewPages.module.css"]
     .map(read)
     .join("\n");
   const keyframes = css.match(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g) ?? [];
@@ -60,4 +60,14 @@ test("랜딩 애니메이션은 움직임 줄이기 설정에서 꺼지고 trans
     const properties = [...block.matchAll(/([a-z-]+)\s*:/g)].map((match) => match[1]);
     for (const property of properties) assert.ok(["transform", "opacity"].includes(property), `${property}는 애니메이션하지 않는다`);
   }
+});
+
+test("랜딩 포인트 색은 앱 토큰(--color-primary 계열)을 쓰고, 로고는 /home 레일과 같은 컴포넌트를 쓴다", () => {
+  const read = (name) => readFileSync(new URL(`../src/views/landing/ui/${name}`, import.meta.url), "utf8");
+  const css = read("LandingPage.module.css");
+  assert.match(css, /--lp-accent:\s*var\(--color-primary\);/);
+  assert.match(css, /--lp-accent-ink:\s*var\(--color-primary-weak-foreground\);/);
+  assert.match(css, /\.button-primary\s*\{[^}]*background:\s*var\(--lp-accent\);/s);
+  assert.doesNotMatch(css, /fruition-logo\.svg/);
+  assert.match(read("LandingPage.tsx"), /<RailLogoIcon \/>/);
 });

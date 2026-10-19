@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { LegalFooter } from "@/shared/ui/LegalFooter";
+import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_CHAPTERS } from "../model/landingContent";
 import { LandingChapterSection } from "./LandingChapterSection";
 import { LandingClosing, LandingFlow } from "./LandingClosing";
 import { LandingRedirect } from "./LandingRedirect";
-import { EditorMock } from "./ProductMocks";
+import { HeroPreview } from "./preview/LandingPreviews";
+import { ThemeSwitch } from "./ThemeSwitch";
 import styles from "./LandingPage.module.css";
 
+/** /home 레일과 같은 로고(RailLogoIcon, 색은 --color-foreground)에 서비스 이름을 붙인다. */
 function BrandMark() {
   return (
     <>
-      <span className={styles["brand-mark"]} aria-hidden="true" />
-      <span className={styles["brand-word"]}>
-        fruition<span className={styles["brand-dot"]}>.</span>
+      <span className={styles["brand-mark"]}>
+        <RailLogoIcon />
       </span>
+      <span className={styles["brand-word"]}>Fruition</span>
     </>
   );
 }
@@ -34,9 +37,12 @@ function LandingHeader() {
             ))}
           </ul>
         </nav>
-        <Link className={styles["login-link"]} href="/login">
-          로그인
-        </Link>
+        <div className={styles["header-actions"]}>
+          <ThemeSwitch />
+          <Link className={styles["login-link"]} href="/login">
+            로그인
+          </Link>
+        </div>
       </div>
     </header>
   );
@@ -76,7 +82,7 @@ function LandingHero() {
       </ol>
       <figure className={styles["hero-stage"]}>
         <div className={styles["hero-tilt"]}>
-          <EditorMock />
+          <HeroPreview />
         </div>
         <figcaption>Fruition · 제품 화면 구성 예시</figcaption>
       </figure>

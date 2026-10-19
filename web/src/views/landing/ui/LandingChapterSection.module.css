@@ -29,10 +29,10 @@
   min-width: 26px;
   height: 22px;
   padding: 0 6px;
-  color: var(--lp-ink);
+  color: var(--lp-accent-ink);
   font-size: 0.6875rem;
   font-weight: 700;
-  background: var(--lp-panel-strong);
+  background: var(--lp-accent-weak);
   border-radius: 5px;
 }
 
@@ -52,11 +52,11 @@
   text-wrap: pretty;
 }
 
+/* 설명 줄 위, 실제 앱 화면 미리보기를 아래 전체 폭으로 둔다(작게 줄이면 글자가 읽히지 않는다). */
 .showcase {
   display: grid;
-  grid-template-columns: minmax(200px, 0.75fr) minmax(0, 2fr);
-  align-items: center;
-  gap: clamp(24px, 4vw, 56px);
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 32px);
   margin-top: 52px;
   padding: clamp(20px, 3.5vw, 40px);
   position: relative;
@@ -71,10 +71,14 @@
 }
 
 .showcase-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding-left: clamp(0px, 1.5vw, 12px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 12px 32px;
+}
+
+.showcase-copy > :first-child {
+  grid-column: 1 / -1;
 }
 
 .showcase-title {
@@ -86,7 +90,7 @@
 }
 
 .showcase-caption {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--lp-body);
   font-size: 0.875rem;
   line-height: 1.7;
@@ -135,22 +139,6 @@
 
 /* ───── 반응형 ───── */
 @media (max-width: 1023px) {
-  .showcase {
-    grid-template-columns: 1fr;
-  }
-
-  .showcase-copy {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: end;
-    gap: 12px 24px;
-    padding-left: 0;
-  }
-
-  .showcase-copy > :first-child {
-    grid-column: 1 / -1;
-  }
-
   .feature-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

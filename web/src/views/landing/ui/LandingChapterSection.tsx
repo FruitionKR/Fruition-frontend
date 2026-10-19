@@ -1,21 +1,7 @@
-import type { LandingChapter, LandingChapterId } from "../model/landingContent";
-import { AnswerDemo } from "./AnswerDemo";
-import { EditorMock, GraphMock, TeamMock } from "./ProductMocks";
+import type { LandingChapter } from "../model/landingContent";
+import { ChapterPreview, DiscoverDemo } from "./preview/LandingPreviews";
 import styles from "./LandingPage.module.css";
 import chapterStyles from "./LandingChapterSection.module.css";
-
-function ChapterVisual({ id }: { id: LandingChapterId }) {
-  switch (id) {
-    case "capture":
-      return <EditorMock />;
-    case "connect":
-      return <GraphMock />;
-    case "together":
-      return <TeamMock />;
-    case "discover":
-      return null;
-  }
-}
 
 function ChapterShowcase({ chapter }: { chapter: LandingChapter }) {
   const { showcase } = chapter;
@@ -24,7 +10,7 @@ function ChapterShowcase({ chapter }: { chapter: LandingChapter }) {
   if (chapter.id === "discover") {
     return (
       <div className={chapterStyles["showcase"]} data-layout="wide">
-        <AnswerDemo />
+        <DiscoverDemo />
         <p className={chapterStyles["showcase-note"]}>{showcase.caption}</p>
       </div>
     );
@@ -41,8 +27,8 @@ function ChapterShowcase({ chapter }: { chapter: LandingChapter }) {
         </p>
         <p className={chapterStyles["showcase-caption"]}>{showcase.caption}</p>
       </div>
-      <div className={chapterStyles["showcase-visual"]} aria-hidden="true">
-        <ChapterVisual id={chapter.id} />
+      <div className={chapterStyles["showcase-visual"]}>
+        <ChapterPreview id={chapter.id} />
       </div>
     </div>
   );

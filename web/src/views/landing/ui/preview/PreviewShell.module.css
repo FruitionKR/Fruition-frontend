@@ -1,0 +1,227 @@
+/* 앱 셸(레일 + 문서 사이드바) 미리보기 (Figma 1571:27625 · 1540:21567 SNB). 색은 앱 토큰(--color-*)만 쓴다. */
+/* ───── 앱 셸 ───── */
+.app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--color-canvas);
+}
+
+.sidebar {
+  display: flex;
+  flex: 0 0 300px;
+  flex-direction: column;
+  border-right: 1px solid var(--color-border);
+}
+
+.sidebar-top {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.workspace {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-body);
+}
+
+.workspace-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-surface);
+  border: 1.2px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.workspace-badge[data-size="small"] {
+  width: 24px;
+  height: 24px;
+  background: var(--color-canvas);
+}
+
+.workspace-name {
+  margin-right: -10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sidebar-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 8px 24px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px !important;
+  padding: 8px 12px;
+  color: var(--color-placeholder);
+  font-weight: 500;
+  background: var(--color-canvas);
+  border: 1.4px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.search svg {
+  color: var(--color-muted);
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 10px;
+  padding: 3px;
+  background: var(--color-surface);
+  border-radius: 8px;
+}
+
+.segment span {
+  padding: 6px 0;
+  color: var(--color-muted);
+  font-weight: 600;
+  text-align: center;
+  border-radius: 6px;
+}
+
+.segment .is-active {
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  box-shadow: 0 0 2px var(--color-shadow);
+}
+
+.sidebar-index {
+  padding: 6px 10px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  color: var(--color-foreground);
+  font-weight: 500;
+  white-space: nowrap;
+  border-radius: 8px;
+}
+
+.tree-row[data-depth="1"] {
+  padding-left: 26px;
+}
+
+.tree-row[data-depth="2"] {
+  padding-left: 42px;
+}
+
+.tree-row.is-active {
+  background: var(--color-surface);
+}
+
+.tree-slot {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--color-muted);
+}
+
+.tree-arrow {
+  transform: rotate(-90deg);
+}
+
+.tree-arrow.is-open {
+  transform: none;
+}
+
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-badge {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tree-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.settings-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-group {
+  padding: 18px 8px 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  color: var(--color-foreground);
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.settings-row.is-active {
+  background: var(--color-surface);
+}
+
+.settings-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-body);
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
