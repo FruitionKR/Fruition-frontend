@@ -20,7 +20,11 @@ import {
   buildFolderOrganizeView,
   canApplyFolderOrganizeSelection,
   folderOrganizeNotice,
+  folderOrganizeSelection,
+  initialDeselectedRowIds,
+  MAX_SELECTED_OPERATIONS,
   parseSkillCommand,
+  selectedCreatedFolders,
   type FolderOrganizeRequest,
   type FolderOrganizeRow
 } from "../lib/folderOrganize";
@@ -50,24 +54,34 @@ function CheckBox({ checked, label, disabled, onToggle }: { checked: boolean; la
  */
 export function FolderOrganizePreview({ request, onClose }: { request: FolderOrganizeRequest; onClose: () => void }) {
   const { run, plan, tree, mutation, error, busy, ready, hasQueryError, clarificationMessage, retry } = useAgentPlanRun(request.turnId);
-  const view = plan ? buildFolderOrganizeView(plan, tree ?? []) : null;
+  const view = plan ? buildFolderOrganizeView(plan, tree ?? [], run?.target_folder_id) : null;
   const rows = view?.rows ?? [];
   const { command, rule } = parseSkillCommand(request.question);
-  const [deselectedIds, setDeselectedIds] = useState<ReadonlySet<string>>(new Set());
+  // 사용자가 바꾼 선택. 계획(id·version)이 바뀌면 다시 AI가 권장한 기본 선택(suggested_selected)에서 시작한다.
+  const planKey = plan ? `${plan.id}:${plan.version}` : null;
+  const [userDeselection, setUserDeselection] = useState<{ planKey: string; ids: ReadonlySet<string> } | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>("plan");
-  const selectedCount = rows.filter((row) => !deselectedIds.has(row.id)).length;
+  const deselectedIds = userDeselection && userDeselection.planKey === planKey ? userDeselection.ids : initialDeselectedRowIds(rows);
+  const selectedRows = rows.filter((row) => !deselectedIds.has(row.id));
+  const selectedCount = selectedRows.length;
   const isAllSelected = rows.length > 0 && selectedCount === rows.length;
   const isAwaiting = canApproveAgentPlan(run);
-  const canApply = ready && canApplyFolderOrganizeSelection(rows.length, selectedCount);
-  const description = rule ? `규칙: ${rule}` : plan?.summary.normalize("NFC") ?? "";
+  const operationIds = plan ? folderOrganizeSelection(plan, rows, new Set(selectedRows.map((row) => row.id))) : null;
+  const isSelectionValid = canApplyFolderOrganizeSelection(selectedCount, operationIds);
+  const canApply = ready && isSelectionValid;
+  const duplicateDeselected = rows.filter((row) => row.duplicateWarning && deselectedIds.has(row.id)).length;
+  const ruleText = run?.rule_summary?.trim().normalize("NFC") || rule;
+  const description = ruleText ? `규칙: ${ruleText}` : plan?.summary.normalize("NFC") ?? "";
+
+  function setDeselected(ids: ReadonlySet<string>) {
+    if (planKey) setUserDeselection({ planKey, ids });
+  }
 
   function toggleRow(id: string) {
-    setDeselectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(deselectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setDeselected(next);
   }
 
   return (
@@ -106,7 +120,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                   checked={isAllSelected}
                   label="모두 선택"
                   disabled={!isAwaiting || rows.length === 0}
-                  onToggle={() => setDeselectedIds(isAllSelected ? new Set(rows.map((row) => row.id)) : new Set())}
+                  onToggle={() => setDeselected(isAllSelected ? new Set(rows.map((row) => row.id)) : new Set())}
                 />
                 <button type="button" className={styles.sort} aria-label={`커맨드 정렬: ${{ plan: "계획 순서", asc: "이름 오름차순", desc: "이름 내림차순" }[sortOrder]}`} onClick={() => setSortOrder(NEXT_SORT[sortOrder])}>
                   커맨드
@@ -118,9 +132,10 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
               <div className={styles.change} role="columnheader">변경</div>
             </div>
             {sortRows(rows, sortOrder).map((row) => {
-              const checked = !deselectedIds.has(row.id);
+              // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
+              const checked = isAwaiting ? !deselectedIds.has(row.id) : !row.excluded;
               return (
-                <div key={row.id} className={styles.row} role="row">
+                <div key={row.id} className={cx(styles.row, row.duplicateWarning && styles["is-duplicate"], !isAwaiting && row.excluded && styles["is-excluded"])} role="row">
                   <div className={styles.source} role="cell">
                     <CheckBox checked={checked} label={`${row.originalName || row.newName} 선택`} disabled={!isAwaiting} onToggle={() => toggleRow(row.id)} />
                     <span className={styles["source-name"]} title={row.originalName}>{row.originalName || "새 문서"}</span>
@@ -132,10 +147,13 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                       <span className={styles.folder}>/</span>
                       <span className={styles["new-name"]}>{row.newName}</span>
                     </p>
-                    {row.reason && <p className={styles.reason}>→ {row.reason}</p>}
+                    {row.duplicateWarning
+                      ? <p className={cx(styles.reason, styles["is-warning"])} title={row.duplicateWarning}>→ {row.duplicateWarning}</p>
+                      : row.reason && <p className={styles.reason} title={row.reason}>→ {row.reason}</p>}
+                    {row.dependencyNote && <p className={styles["reason-note"]} title={row.dependencyNote}>{row.dependencyNote}</p>}
                   </div>
                   <div className={styles.change} role="cell">
-                    <span className={styles.chip}>{row.changeLabel}</span>
+                    <span className={styles.chip}>{!isAwaiting && row.excluded ? "제외됨" : row.changeLabel}</span>
                   </div>
                 </div>
               );
@@ -147,11 +165,15 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
           <Image src={noticeTailIcon} alt="" className={styles["notice-tail"]} />
           <p className={styles["notice-text"]}>
             {plan && isAwaiting
-              ? folderOrganizeNotice(rows.length, selectedCount, view?.createdFolders ?? [])
+              ? folderOrganizeNotice(rows.length, selectedCount, selectedCreatedFolders(view?.createdFolders ?? [], operationIds), duplicateDeselected)
               : clarificationMessage ?? agentPlanStatusLabel(run?.status)}
           </p>
-          {isAwaiting && !canApplyFolderOrganizeSelection(rows.length, selectedCount) && (
-            <p className={styles["notice-hint"]}>일부 항목만 적용하는 기능은 아직 지원하지 않아요. 모두 선택해야 적용할 수 있어요.</p>
+          {plan && isAwaiting && !isSelectionValid && (
+            <p className={styles["notice-hint"]}>
+              {selectedCount === 0
+                ? "적용할 항목을 하나 이상 선택해주세요."
+                : `일부만 적용할 때는 한 번에 작업 ${MAX_SELECTED_OPERATIONS}개까지 고를 수 있어요. 선택을 줄이거나 모두 선택해주세요.`}
+            </p>
           )}
           {run && ["failed", "partial_failed", "conflicted", "rollback_failed"].includes(run.status) && (
             <p className={styles["notice-error"]} role="alert">작업을 완료하지 못했습니다. 작업 로그에서 항목별 상태를 확인해주세요.</p>
@@ -164,7 +186,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 type="button"
                 className={cx(styles.action, styles["is-cancel"])}
                 disabled={busy || hasQueryError}
-                onClick={() => mutation.mutate("reject", { onSuccess: onClose })}
+                onClick={() => mutation.mutate({ decision: "reject" }, { onSuccess: onClose })}
               >
                 <Image src={cancelIcon} alt="" />
                 취소
@@ -173,7 +195,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 type="button"
                 className={cx(styles.action, styles["is-primary"])}
                 disabled={!canApply || busy}
-                onClick={() => mutation.mutate("approve")}
+                onClick={() => mutation.mutate({ decision: "approve", operationIds })}
               >
                 <Image src={applyIcon} alt="" />
                 {mutation.isPending ? "처리 중" : `선택한 ${selectedCount}개 적용`}

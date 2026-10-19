@@ -60,20 +60,63 @@ function buildEditResult(request) {
   };
 }
 
-function buildOrganizePlan(workspace, turn, message) {
-  const docs = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && doc.status === "completed").slice(0, 2);
-  const createOp = { id: id("opr"), sequence: 1, tool_name: "create_folder", target_id: null, source_parent_id: null, destination_parent_id: null, arguments: { name: "정리된 문서", parent_folder_id: null }, reason: "완료된 문서를 한 폴더로 모읍니다.", status: "planned" };
-  const moveOps = docs.map((doc, index) => ({ id: id("opr"), sequence: index + 2, tool_name: "move_document", target_id: doc.id, source_parent_id: null, destination_parent_id: null, arguments: { folder_id: { $operation_result: createOp.id } }, reason: `${doc.filename}을 새 폴더로 이동합니다.`, status: "planned" }));
-  const operations = [createOp, ...moveOps];
-  const plan = { id: id("plan"), version: 1, operation_hash: hash(JSON.stringify(operations)), summary: `폴더 1개 생성, 문서 ${docs.length}개 이동`, status: "awaiting_approval", operations };
-  const run = { id: id("run"), workspace_id: workspace.id, turn_id: turn.id, status: "awaiting_approval", error_code: null, request_summary: requestSummary(message), plan };
+const MAX_SELECTED_OPERATIONS = 20;
+
+function duplicateWarning(name) {
+  return { type: "duplicate_name", message: `같은 위치에 이름이 같은 문서 '${name}'이(가) 있어 중복일 수 있어요.` };
+}
+
+/**
+ * 폴더 생성 + 문서별 이동·이름 변경 계획. 문서가 둘 이상이면 마지막 문서의 새 이름을 첫 문서와 같게 만들어
+ * AI 계약의 중복 의심(warning duplicate_name, suggested_selected false)을 흉내 낸다.
+ */
+function buildOrganizePlan(workspace, turn, message, skill) {
+  const docs = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && doc.status === "completed").slice(0, 3);
+  const pick = (extra) => ({ source_parent_id: null, destination_parent_id: null, status: "planned", error_code: null, warning: null, suggested_selected: true, depends_on: [], ...extra });
+  const createOp = pick({ id: id("opr"), sequence: 1, tool_name: "create_folder", target_id: null, arguments: { name: "정리된 문서", parent_folder_id: null }, reason: "완료된 문서를 한 폴더로 모읍니다." });
+  const operations = [createOp];
+  const firstName = docs[0] ? `정리_${docs[0].filename}` : "";
+  docs.forEach((doc, index) => {
+    const isDuplicate = docs.length >= 2 && index === docs.length - 1;
+    const name = isDuplicate ? firstName : `정리_${doc.filename}`;
+    const warning = isDuplicate ? duplicateWarning(name) : null;
+    const move = pick({ id: id("opr"), sequence: operations.length + 1, tool_name: "move_document", target_id: doc.id, arguments: { folder_id: { $operation_result: createOp.id } }, reason: `${doc.filename}을 새 폴더로 이동합니다.`, depends_on: [createOp.id], warning, suggested_selected: !warning });
+    operations.push(move);
+    operations.push(pick({ id: id("opr"), sequence: operations.length + 1, tool_name: "rename_document", target_id: doc.id, arguments: { document_id: doc.id, display_name: name }, reason: "규칙에 맞게 이름을 바꿉니다.", warning, suggested_selected: !warning }));
+  });
+  // operation_hash는 실행 내용만 담는다(warning·suggested_selected 제외, AI 계약).
+  const hashed = operations.map(({ warning, suggested_selected, ...operation }) => operation);
+  const plan = { id: id("plan"), version: 1, operation_hash: hash(JSON.stringify(hashed)), summary: `폴더 1개 생성, 문서 ${docs.length}개 이동·이름 변경`, status: "awaiting_approval", operations };
+  const run = {
+    id: id("run"), workspace_id: workspace.id, turn_id: turn.id, status: "awaiting_approval", error_code: null, request_summary: requestSummary(message),
+    target_folder_id: turn.folder_id ?? null, rule_summary: skill?.enabled_version?.description ?? null, plan
+  };
   state.agentRuns.set(run.id, run);
   return run;
 }
 
-function organizeResult(workspace, turn, message) {
-  const run = buildOrganizePlan(workspace, turn, message);
+function organizeResult(workspace, turn, message, skill = null) {
+  const run = buildOrganizePlan(workspace, turn, message, skill);
   return { action: "folder_organize", route: route("folder_organize", "폴더 정리 요청"), message: "문서를 정리할 계획을 만들었습니다. 승인하면 실행합니다.", chat: null, edit: null, generated_markdown: null, run_id: run.id };
+}
+
+/** 부분 승인 operation_ids 검사(AI 계약): 422 형식(빈 배열·20개 초과), 400 중복·계획에 없는 ID·고르지 않은 작업에 의존. */
+function selectionError(plan, operationIds) {
+  if (!Array.isArray(operationIds) || operationIds.length === 0 || operationIds.length > MAX_SELECTED_OPERATIONS || operationIds.some((value) => typeof value !== "string")) {
+    return [422, "operation_ids는 1~20개의 작업 ID여야 합니다."];
+  }
+  const selected = new Set(operationIds);
+  if (selected.size !== operationIds.length) return [400, "operation_ids에 중복된 작업이 있습니다."];
+  const known = new Map(plan.operations.map((operation) => [operation.id, operation]));
+  if (operationIds.some((operationId) => !known.has(operationId))) return [400, "계획에 없는 작업이 있습니다."];
+  for (const operationId of operationIds) {
+    const operation = known.get(operationId);
+    const referenced = JSON.stringify(operation.arguments).match(/"\$operation_result":"([^"]+)"/g)?.map((match) => match.split('"')[3]) ?? [];
+    if ([...(operation.depends_on ?? []), ...referenced].some((dependency) => !selected.has(dependency))) {
+      return [400, "고른 작업이 고르지 않은 작업에 의존합니다."];
+    }
+  }
+  return null;
 }
 
 function createResult(message) {
@@ -86,7 +129,7 @@ function taskResult(workspace, turn, request) {
   const hasDocument = Boolean(request.documentId && request.editorSnapshot);
   const slash = findSlashSkill(workspace, message);
   if (slash) {
-    if (slash.skill.enabled_version.capabilities.includes("folder-organize")) return organizeResult(workspace, turn, message);
+    if (slash.skill.enabled_version.capabilities.includes("folder-organize")) return organizeResult(workspace, turn, message, slash.skill);
     if (hasDocument) return buildEditResult(request);
     return createResult(slash.rest || message);
   }
@@ -126,8 +169,8 @@ function toTurn(turn) {
 }
 
 function toRun(run) {
-  const { id: runId, status, error_code, request_summary, plan } = run;
-  return { id: runId, status, error_code, request_summary: request_summary ?? null, plan };
+  const { id: runId, status, error_code, request_summary, target_folder_id, rule_summary, plan } = run;
+  return { id: runId, status, error_code, request_summary: request_summary ?? null, target_folder_id: target_folder_id ?? null, rule_summary: rule_summary ?? null, plan };
 }
 
 export function registerAgentRoutes(router) {
@@ -208,14 +251,22 @@ export function registerAgentRoutes(router) {
       return ctx.json(200, toRun(run));
     }
     if (ctx.params.decision !== "approve") return error(ctx, 404, `mock: unhandled decision ${ctx.params.decision}`);
-    const { plan_version, operation_hash } = await ctx.body();
+    const { plan_version, operation_hash, operation_ids: operationIds = null } = await ctx.body();
     if (plan_version !== run.plan.version || operation_hash !== run.plan.operation_hash) return error(ctx, 409, "계획이 바뀌었습니다. 최신 상태를 확인해주세요.");
+    const invalid = operationIds === null ? null : selectionError(run.plan, operationIds);
+    if (invalid) return error(ctx, invalid[0], invalid[1]);
+    // 고르지 않은 작업은 승인 시점에 skipped·not_selected가 되고 실행하지 않는다.
+    const selected = operationIds === null ? null : new Set(operationIds);
+    run.plan.operations.forEach((operation) => {
+      if (selected && !selected.has(operation.id)) Object.assign(operation, { status: "skipped", error_code: "not_selected" });
+    });
+    run.approved_operation_ids = operationIds;
     run.status = "executing";
     run.plan.status = "executing";
     setTimeout(() => {
       run.status = "completed";
       run.plan.status = "completed";
-      run.plan.operations.forEach((operation) => { operation.status = "succeeded"; });
+      run.plan.operations.forEach((operation) => { if (operation.status !== "skipped") operation.status = "succeeded"; });
     }, 1500);
     ctx.json(200, toRun(run));
   });

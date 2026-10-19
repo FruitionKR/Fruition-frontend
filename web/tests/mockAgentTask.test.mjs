@@ -83,6 +83,36 @@ test("mock 승인은 검토한 버전·해시가 맞을 때만 실행한다", as
   assert.equal(approved.body.status, "executing");
 });
 
+test("mock 폴더 정리 계획은 중복 의심 작업을 기본 선택에서 빼고 부분 승인한 작업만 실행한다", async (t) => {
+  const request = await startMock(t);
+  if (!state.documents.some((doc) => doc.id === "doc_task_2")) {
+    state.documents.push({ id: "doc_task_2", workspace_id: WORKSPACE_ID, filename: "회의.md", status: "completed", document_role: "EDITABLE", markdown: "# 회의" });
+  }
+  const accepted = await request("POST", "/turn", { session_id: SESSION_ID, message: "/file-organize", mode: "task", folder_id: FOLDER_ID, ...MODEL });
+  const turn = await waitForTurn(request, accepted.body.requestId);
+  const run = (await request("GET", `/runs/${turn.result.run_id}`)).body;
+  assert.equal(run.target_folder_id, FOLDER_ID);
+  assert.equal(run.rule_summary, "폴더 정리");
+  const [create, ...rest] = run.plan.operations;
+  const duplicates = rest.filter((operation) => operation.warning?.type === "duplicate_name");
+  assert.equal(duplicates.length, 2);
+  assert.ok(duplicates.every((operation) => operation.suggested_selected === false));
+  const chosen = [create.id, ...rest.filter((operation) => operation.suggested_selected).map((operation) => operation.id)];
+  const approve = (operationIds) => request("POST", `/runs/${run.id}/approve`, { plan_version: run.plan.version, operation_hash: run.plan.operation_hash, operation_ids: operationIds });
+
+  assert.equal((await approve([])).status, 422);
+  assert.equal((await approve([create.id, create.id])).status, 400);
+  assert.equal((await approve(["opr_unknown"])).status, 400);
+  assert.equal((await approve(chosen.slice(1))).status, 400, "새 폴더 작업을 빼면 의존 오류");
+  const approved = await approve(chosen);
+  assert.equal(approved.status, 200);
+  assert.equal(approved.body.status, "executing");
+  for (const operation of approved.body.plan.operations) {
+    if (chosen.includes(operation.id)) assert.notEqual(operation.status, "skipped");
+    else assert.deepEqual([operation.status, operation.error_code], ["skipped", "not_selected"]);
+  }
+});
+
 test("mock 작업 탭은 채팅 답변 대신 되묻고, 문서 없는 편집 요청도 되묻는다", async (t) => {
   const request = await startMock(t);
   const question = await submitTask(request, "아동 발달 이론이 뭐야?");

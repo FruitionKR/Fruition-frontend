@@ -36,7 +36,9 @@ export function useAgentPlanRun(turnId: string | undefined) {
   const runStatus = run?.status;
   const plan = run?.plan;
   const mutation = useMutation({
-    mutationFn: (decision: "approve" | "reject") => decideAgentPlan(workspaceId, run!.id, decision, plan!),
+    // operationIds: 부분 승인으로 실행할 작업. null·생략이면 계획 전체.
+    mutationFn: ({ decision, operationIds }: { decision: "approve" | "reject"; operationIds?: readonly string[] | null }) =>
+      decideAgentPlan(workspaceId, run!.id, decision, plan!, decision === "approve" ? operationIds : null),
     onSuccess: (updated) => {
       // 승인 응답은 plan을 생략하므로 검토했던 목록은 다음 조회까지 유지한다.
       client.setQueryData(queryKey, { ...updated, plan: updated.plan ?? plan, request_summary: updated.request_summary ?? run?.request_summary });

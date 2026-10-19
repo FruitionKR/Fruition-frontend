@@ -8,6 +8,20 @@ export type AgentPlanOperation = {
   arguments: Record<string, unknown>;
   reason: string;
   status: string;
+  /** 실행 실패·제외 사유. 부분 승인에서 고르지 않은 작업은 status "skipped" + "not_selected". */
+  error_code?: string | null;
+  depends_on?: string[];
+  /** 승인 화면 안내용 검토 결과(operation_hash에 포함되지 않음). 옛 계획에는 없다. */
+  warning?: AgentPlanOperationWarning | null;
+  /** 화면의 기본 선택 여부. 없으면 선택으로 본다. */
+  suggested_selected?: boolean;
+};
+
+export type AgentPlanOperationWarning = {
+  /** "duplicate_name" | "depends_on_unselected" 등 */
+  type: string;
+  /** 그대로 보여 줄 한국어 문장 */
+  message: string;
 };
 
 export type AgentPlan = {
@@ -27,6 +41,10 @@ export type AgentPlanRun = {
   clarification_question?: string | null;
   /** 사용자가 보낸 원래 요청 요약. 작업 카드 제목에 쓴다. 옛 run에는 없을 수 있다. */
   request_summary?: string | null;
+  /** 턴에서 지정한 작업 대상 폴더. 지정하지 않았거나 옛 run이면 비어 있다. */
+  target_folder_id?: string | null;
+  /** 선택한 스킬의 규칙 요약. 스킬 없이 실행했거나 옛 run이면 비어 있다. */
+  rule_summary?: string | null;
   plan: AgentPlan | null;
 };
 
@@ -138,6 +156,11 @@ const DEFAULT_CLARIFICATION_MESSAGE = "원하는 정리 기준을 작업 입력�
 export function agentPlanClarificationMessage(run: AgentPlanRun | null | undefined): string | null {
   if (run?.status !== "clarification_required") return null;
   return run.clarification_question?.trim().normalize("NFC") || DEFAULT_CLARIFICATION_MESSAGE;
+}
+
+/** 부분 승인에서 고르지 않아 실행하지 않은 작업. 실패가 아니라 제외로 보여 준다. */
+export function isOperationNotSelected(operation: Pick<AgentPlanOperation, "status" | "error_code">): boolean {
+  return operation.status === "skipped" && operation.error_code === "not_selected";
 }
 
 export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boolean {

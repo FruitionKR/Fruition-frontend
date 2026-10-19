@@ -6,7 +6,7 @@ import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isOperationNotSelected, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
 import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
@@ -112,7 +112,7 @@ export function AgentPlanTaskDetail({
               <li key={operation.id}>
                 <strong>{operation.description}</strong>
                 {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
-                {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{OPERATION_STATUS_LABELS[operation.status] ?? "상태 확인 필요"}</small>}
+                {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{isOperationNotSelected(operation) ? "제외됨" : OPERATION_STATUS_LABELS[operation.status] ?? "상태 확인 필요"}</small>}
               </li>
             ))}
           </ol>

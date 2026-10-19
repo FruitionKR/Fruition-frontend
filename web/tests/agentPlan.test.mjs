@@ -35,6 +35,22 @@ test("승인은 화면에서 검토한 버전·해시를 전송하고 충돌을 
   await assert.rejects(decideAgentPlan("ws_test", "autonomous-1", "approve", plan), /계획이 변경/);
 });
 
+test("부분 승인은 고른 작업 id를 operation_ids로 보내고 400을 선택 오류로 알린다", async (t) => {
+  const bodies = [];
+  t.mock.method(globalThis, "fetch", async (_path, init) => {
+    bodies.push(JSON.parse(init.body));
+    return bodies.length === 1
+      ? Response.json({ id: "autonomous-1", status: "executing", plan: null })
+      : Response.json({ detail: "selected operations depend on unselected" }, { status: 400 });
+  });
+  assert.equal((await decideAgentPlan("ws_test", "autonomous-1", "approve", plan, ["op-1", "op-3"])).status, "executing");
+  await assert.rejects(decideAgentPlan("ws_test", "autonomous-1", "approve", plan, ["op-3"]), /함께 적용해야 하는 항목/);
+  assert.deepEqual(bodies, [
+    { plan_version: 2, operation_hash: "a".repeat(64), operation_ids: ["op-1", "op-3"] },
+    { plan_version: 2, operation_hash: "a".repeat(64), operation_ids: ["op-3"] }
+  ]);
+});
+
 test("거절은 승인 endpoint를 호출하지 않는다", async (t) => {
   t.mock.method(globalThis, "fetch", async (path, init) => {
     assert.ok(path.endsWith("/reject"));

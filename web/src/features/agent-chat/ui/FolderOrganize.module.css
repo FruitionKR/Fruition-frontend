@@ -140,6 +140,16 @@
   color: var(--color-muted);
 }
 
+/* 중복 의심 줄 (Figma 1656:12387): 옅은 빨강 바탕. Figma rgba(255,238,238,0.4)를 의미 토큰으로 섞는다. */
+.row.is-duplicate {
+  background: color-mix(in srgb, var(--color-danger) 5%, var(--color-canvas));
+}
+
+/* 부분 승인에서 제외된 줄 */
+.row.is-excluded {
+  color: var(--color-muted);
+}
+
 .source {
   display: flex;
   align-items: center;
@@ -230,6 +240,19 @@
 .reason {
   overflow: hidden;
   color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 중복 의심 사유 (Figma 1656:12400, #f04452) */
+.reason.is-warning {
+  color: var(--color-danger);
+}
+
+.reason-note {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
