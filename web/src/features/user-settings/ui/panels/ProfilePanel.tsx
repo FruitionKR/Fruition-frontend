@@ -7,12 +7,14 @@ import {
   useSignOut, validateAvatarFile, type UserMeResponse
 } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { cx } from "@/shared/lib/classNames";
 import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import { EmailChangeModal } from "../modals/EmailChangeModal";
 import { PasswordChangeModal } from "../modals/PasswordChangeModal";
 import { LinkedAccountsSection } from "./LinkedAccountsSection";
+import panelStyles from "./ProfilePanel.module.css";
 
 /**
  * 사용자 설정 (Figma 1691:16583): 프로필(닉네임·프로필 사진) + 계정 정보(이메일·비밀번호) + 연동된 계정.
@@ -107,66 +109,70 @@ export function ProfilePanel() {
 
       <div className={styles.section}>
         <SettingsSectionHeader>프로필</SettingsSectionHeader>
-        <div className={styles.field}>
-          <label htmlFor="profile-nickname">닉네임</label>
-          <input id="profile-nickname" type="text" value={nickname} maxLength={255} required
-            aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "profile-nickname-error" : undefined}
-            disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
-            onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
-            onBlur={() => void saveName()} />
-          {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
-          {savingName ? <small role="status">저장 중…</small> : nameSaved && nicknameDraft === null && <small role="status">닉네임을 변경했습니다.</small>}
-        </div>
-
-        <div className={styles["tile-field"]}>
-          <div className={styles["row-title"]}>
-            <strong>프로필 사진</strong>
-            {/* 시안 문구는 "업로드 미지원"이지만 사진 업로드 API(#avatar)가 있어 실제 동작을 안내한다. */}
-            <small>닉네임의 첫 글자로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)를 올릴 수 있습니다.</small>
+        <div className={panelStyles["profile-list"]}>
+          <div className={cx(styles.field, panelStyles["profile-field"])}>
+            <label htmlFor="profile-nickname">닉네임</label>
+            <input id="profile-nickname" type="text" value={nickname} maxLength={255} required
+              aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "profile-nickname-error" : undefined}
+              disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
+              onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
+              onBlur={() => void saveName()} />
+            {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
+            {savingName ? <small role="status">저장 중…</small> : nameSaved && nicknameDraft === null && <small role="status">닉네임을 변경했습니다.</small>}
           </div>
-          <button type="button" className={styles["tile-button"]} aria-label="프로필 사진 업로드"
-            disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
-            <UserAvatar avatarUrl={me?.avatar_url} name={avatarName} className={styles["tile-face"]} />
-          </button>
-          <input ref={photoInput} type="file" hidden accept={AVATAR_ACCEPT} disabled={!me || photoBusy}
-            onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) savePhoto(file); }} />
-          {(me?.avatar_url || photoBusy || photoMessage || photoError) && (
-            <div className={styles["tile-actions"]}>
-              {me?.avatar_url && (
-                <button type="button" className={styles.btn} disabled={photoBusy}
-                  onClick={() => void applyPhoto(deleteAvatar, "프로필 사진을 지웠습니다.", "프로필 사진을 지우지 못했습니다.")}>
-                  사진 삭제
-                </button>
-              )}
-              {photoBusy && <small className={styles["status-text"]} role="status">사진 저장 중…</small>}
-              {photoMessage && <small className={styles["status-text"]} role="status">{photoMessage}</small>}
-              {photoError && <small className={styles["field-error"]} role="alert">{photoError}</small>}
+
+          <div className={styles["tile-field"]}>
+            <div className={styles["row-title"]}>
+              <strong>프로필 사진</strong>
+              {/* 시안 문구는 "업로드 미지원"이지만 사진 업로드 API(#avatar)가 있어 실제 동작을 안내한다. */}
+              <small>닉네임의 첫 글자로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)를 올릴 수 있습니다.</small>
             </div>
-          )}
+            <button type="button" className={styles["tile-button"]} aria-label="프로필 사진 업로드"
+              disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
+              <UserAvatar avatarUrl={me?.avatar_url} name={avatarName} className={styles["tile-face"]} />
+            </button>
+            <input ref={photoInput} type="file" hidden accept={AVATAR_ACCEPT} disabled={!me || photoBusy}
+              onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) savePhoto(file); }} />
+            {(me?.avatar_url || photoBusy || photoMessage || photoError) && (
+              <div className={styles["tile-actions"]}>
+                {me?.avatar_url && (
+                  <button type="button" className={styles.btn} disabled={photoBusy}
+                    onClick={() => void applyPhoto(deleteAvatar, "프로필 사진을 지웠습니다.", "프로필 사진을 지우지 못했습니다.")}>
+                    사진 삭제
+                  </button>
+                )}
+                {photoBusy && <small className={styles["status-text"]} role="status">사진 저장 중…</small>}
+                {photoMessage && <small className={styles["status-text"]} role="status">{photoMessage}</small>}
+                {photoError && <small className={styles["field-error"]} role="alert">{photoError}</small>}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className={styles.section}>
         <SettingsSectionHeader>계정 정보</SettingsSectionHeader>
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>이메일</strong>
-            <small>{me?.email || "이메일 정보를 불러오지 못했습니다."}</small>
+        <div className={panelStyles["account-list"]}>
+          <div className={cx(styles.row, panelStyles["account-row"])}>
+            <div className={styles["row-title"]}>
+              <strong>이메일</strong>
+              <small>{me?.email || "이메일 정보를 불러오지 못했습니다."}</small>
+            </div>
+            <button type="button" className={styles.btn} disabled={!me}
+              onClick={() => { setShowEmail(true); setEmailSaved(false); }}>
+              이메일 변경
+            </button>
           </div>
-          <button type="button" className={styles.btn} disabled={!me}
-            onClick={() => { setShowEmail(true); setEmailSaved(false); }}>
-            이메일 변경
-          </button>
-        </div>
-        {emailSaved && <small className={styles["status-text"]} role="status">이메일을 변경했습니다.</small>}
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>비밀번호</strong>
-            <small>로그인에 사용하는 비밀번호를 변경하세요.</small>
+          {emailSaved && <small className={styles["status-text"]} role="status">이메일을 변경했습니다.</small>}
+          <div className={cx(styles.row, panelStyles["account-row"])}>
+            <div className={styles["row-title"]}>
+              <strong>비밀번호</strong>
+              <small>로그인에 사용하는 비밀번호를 변경하세요.</small>
+            </div>
+            <button type="button" className={styles.btn} disabled={!me} onClick={() => setShowPassword(true)}>
+              비밀번호 변경
+            </button>
           </div>
-          <button type="button" className={styles.btn} disabled={!me} onClick={() => setShowPassword(true)}>
-            비밀번호 변경
-          </button>
         </div>
       </div>
 
