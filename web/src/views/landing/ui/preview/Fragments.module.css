@@ -516,15 +516,6 @@
   }
 }
 
-/* 히어로 창: 살짝 비틀어 오른쪽 밖으로 흘려 놓는다(넓은 화면만). */
-@media (min-width: 1024px) {
-  .hero-window {
-    margin-right: -96px;
-    transform: perspective(1800px) rotateY(-6deg) rotateX(2deg);
-    transform-origin: left center;
-  }
-}
-
 /* 떠 있는 패널은 천천히 위아래로 떠 있는다(±8px, 7초). */
 @keyframes float-slow {
   0%,

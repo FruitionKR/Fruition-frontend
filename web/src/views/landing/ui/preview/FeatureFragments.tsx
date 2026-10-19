@@ -42,7 +42,7 @@ const HERO_ROWS: readonly TreeRow[] = [
 
 export function HeroPreview() {
   return (
-    <PreviewWindow className={styles["hero-window"]} frameClassName={styles["hero-frame"]}>
+    <PreviewWindow frameClassName={styles["hero-frame"]}>
       <div className={styles["app"]}>
         <SidebarPanel rows={HERO_ROWS} />
         <article className={styles["doc"]} data-size="compact">

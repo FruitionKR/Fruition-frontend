@@ -359,7 +359,7 @@
   mask-image: linear-gradient(to bottom, #000 0%, transparent 75%);
 }
 
-/* ───── 히어로: 왼쪽 문구 + 오른쪽 큰 실제 화면(오른쪽 밖으로 흘림) ───── */
+/* ───── 히어로: 왼쪽 문구 + 오른쪽 큰 실제 화면(평면, 컨테이너 안) ───── */
 .hero {
   overflow: visible;
 }
