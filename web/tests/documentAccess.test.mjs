@@ -16,7 +16,9 @@ const {
   canDeleteDocument,
   describePermissionError,
   isDocumentReadOnly,
-  isWriteForbiddenError
+  isWriteForbiddenError,
+  permissionChangedMessage,
+  permissionIndicatorLabel
 } = await import("../src/entities/document/lib/documentAccess.ts");
 const { canDragTreeItem } = await import("../src/entities/tree/lib/treeGuards.ts");
 const { projectsFromServerTree } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
@@ -97,4 +99,17 @@ test("보기 권한만 있는 문서는 끌어서 옮길 수 없다", () => {
   assert.equal(canDragTreeItem({ id: "f1", label: "a.md", type: "file", canEdit: false }), false);
   assert.equal(canDragTreeItem({ id: "f2", label: "b.md", type: "file", canEdit: true }), true);
   assert.equal(canDragTreeItem({ id: "f3", label: "c.md", type: "file" }), true);
+});
+
+test("트리 권한 표시는 자기 설정이 있을 때만 문구를 낸다", () => {
+  assert.equal(permissionIndicatorLabel("view"), "보기만 가능");
+  assert.equal(permissionIndicatorLabel("edit"), "편집 가능");
+  assert.equal(permissionIndicatorLabel(null), null);
+  assert.equal(permissionIndicatorLabel(undefined), null);
+});
+
+test("권한 저장 알림은 이름 뒤 조사 없이 바뀐 값을 알려 준다", () => {
+  assert.equal(permissionChangedMessage("팀 규칙.md", "view"), "'팀 규칙.md' 권한을 보기만 가능으로 바꿨습니다.");
+  assert.equal(permissionChangedMessage("기획", "edit"), "'기획' 권한을 편집 가능으로 바꿨습니다.");
+  assert.equal(permissionChangedMessage("기획", null), "'기획' 권한을 상위 설정 따름으로 바꿨습니다.");
 });

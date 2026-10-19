@@ -1213,3 +1213,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 트리 행의 자체 권한 표시(보기만·편집 가능). 이름 오른쪽, 확장자 배지 앞에 흐리게 둔다. */
+.tree-permission-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--color-muted);
+}

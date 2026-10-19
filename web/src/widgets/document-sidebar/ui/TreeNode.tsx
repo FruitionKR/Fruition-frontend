@@ -3,6 +3,8 @@ import { isFileItem } from "@/entities/tree";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
+import { permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
+import { SidebarPermissionIcon } from "./SidebarIcons";
 import { TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
@@ -69,6 +71,8 @@ export function TreeNode({
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
+  // 자기 권한이 지정된 항목만 표시한다. 폴더는 서버 트리에 권한 필드가 없어 아직 표시되지 않는다.
+  const permissionLabel = permissionIndicatorLabel(item.permission);
   // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
   const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
   const canOpenInNewTab = !isEditing && !isUploading && Boolean(item.graphNodeId || item.documentId);
@@ -161,6 +165,9 @@ export function TreeNode({
         ) : (
           <>
             <span>{display.name}</span>
+            {permissionLabel && item.permission && (
+              <SidebarPermissionIcon permission={item.permission} label={permissionLabel} className={styles["tree-permission-icon"]} />
+            )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
               : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}

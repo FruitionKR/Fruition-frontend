@@ -56,3 +56,28 @@ export function SidebarWorkspaceChevronIcon({ className }: IconProps) {
   );
 }
 
+
+/**
+ * 트리 행의 자체 권한 표시. 보기만은 자물쇠(설정 내비 nav-security.svg 패스), 편집 가능은 연필.
+ * 행 버튼의 접근 이름에 포함되도록 role="img" + aria-label을 주고, hover 안내는 <title>로 띄운다.
+ */
+export function SidebarPermissionIcon({ className, permission, label }: IconProps & { permission: "view" | "edit"; label: string }) {
+  if (permission === "view") {
+    return (
+      <svg role="img" aria-label={label} className={className} width="14" height="16" viewBox="0 0 15.6 17.28" fill="none">
+        <title>{label}</title>
+        <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7.8 10.4797V12.4797" />
+          <path d="M3.8 6.47969V4.80032C3.8 3.73945 4.22143 2.72204 4.97157 1.97189C5.72172 1.22175 6.73913 0.80032 7.8 0.80032C8.86087 0.80032 9.87828 1.22143 10.6284 1.97157C11.3786 2.72172 11.8 3.73913 11.8 4.8V6.47937" />
+          <rect x="0.8" y="6.47969" width="14" height="10" rx="2" />
+        </g>
+      </svg>
+    );
+  }
+  return (
+    <svg role="img" aria-label={label} className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <title>{label}</title>
+      <path d="M10.6 3.2L12.8 5.4M3 13L3.6 10.2L11.1 2.7C11.5 2.3 12.1 2.3 12.5 2.7L13.3 3.5C13.7 3.9 13.7 4.5 13.3 4.9L5.8 12.4L3 13Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

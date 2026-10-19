@@ -1,7 +1,7 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
-import { canDeleteDocument } from "@/entities/document/lib/documentAccess";
+import { canDeleteDocument, permissionChangedMessage } from "@/entities/document/lib/documentAccess";
 import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
 import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
@@ -282,12 +282,16 @@ export function useProjectTree({
     setContextMenu(null);
   }
 
-  /** 다이얼로그 저장: 실패는 다이얼로그가 보여주도록 그대로 던지고, 성공·실패 모두 트리를 다시 받는다. */
+  /** 다이얼로그 저장: 실패는 다이얼로그가 보여주도록 그대로 던지고, 성공·실패 모두 트리를 다시 받는다. 성공하면 알림으로 결과를 알린다. */
   async function applyPermission(access: DocumentPermission | null) {
     if (!permissionTarget) return;
     try {
-      if (permissionTarget.kind === "document") await setDocumentPermission(permissionTarget.id, access);
-      else await setFolderPermission(permissionTarget.id, access);
+      const result = permissionTarget.kind === "document"
+        ? await setDocumentPermission(permissionTarget.id, access)
+        : await setFolderPermission(permissionTarget.id, access);
+      // 서버가 확정한 값(access)을 우선하고, 응답에 없으면 요청한 값으로 안내한다.
+      const savedAccess = result?.access !== undefined ? result.access : access;
+      publishNotice({ kind: "completed", title: "권한 변경", message: permissionChangedMessage(permissionTarget.label, savedAccess) });
     } finally {
       await refreshRef.current().catch(() => {});
     }

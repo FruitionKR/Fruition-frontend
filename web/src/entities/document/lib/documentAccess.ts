@@ -36,6 +36,19 @@ export const PERMISSION_OPTIONS: { value: DocumentPermission | null; label: stri
   { value: "view", label: "보기만", description: "문서 소유자와 OWNER만 편집하고, 다른 멤버는 읽기 전용으로 봅니다." }
 ];
 
+/** 트리 행에 붙이는 자체 권한 표시 문구. 자기 설정이 없으면(null·필드 없음) 표시하지 않는다. */
+export function permissionIndicatorLabel(permission: DocumentPermission | null | undefined): string | null {
+  if (permission === "view") return "보기만 가능";
+  if (permission === "edit") return "편집 가능";
+  return null;
+}
+
+/** 권한 저장 성공 알림 본문. 이름 뒤 조사 문제를 피하려고 "'이름' 권한을 …으로" 형태로 쓴다. */
+export function permissionChangedMessage(label: string, access: DocumentPermission | null): string {
+  const phrase = permissionIndicatorLabel(access) ?? "상위 설정 따름";
+  return `'${label}' 권한을 ${phrase}으로 바꿨습니다.`;
+}
+
 /** 편집 권한이 없어 서버가 쓰기를 거절한 응답(403 DOCUMENT_WRITE_FORBIDDEN)인지 */
 export function isWriteForbiddenError(error: unknown): boolean {
   return error instanceof ApiError && (error.code === "DOCUMENT_WRITE_FORBIDDEN" || error.status === 403);
