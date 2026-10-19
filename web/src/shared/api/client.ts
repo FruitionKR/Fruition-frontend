@@ -179,6 +179,10 @@ function credentialRejectionCodes(path: string, method: string | undefined): str
   if (path === "/api/auth/me" && method?.toUpperCase() === "DELETE") {
     return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"];
   }
+  // 이메일 변경도 탈퇴와 같은 본인 확인을 거친다.
+  if (path === "/api/auth/me/email" && method?.toUpperCase() === "PUT") {
+    return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"];
+  }
   return [];
 }
 

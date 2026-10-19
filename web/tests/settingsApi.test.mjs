@@ -180,17 +180,18 @@ test("이메일 변경은 전용 목적의 인증번호를 확인한 뒤 인증�
   });
   const sent = await requestEmailVerification("new@example.test", "email_change");
   const confirmed = await confirmEmailVerification(sent.verification_id, "123456");
-  assert.equal((await changeEmail("new@example.test", confirmed.verification_token)).email, "new@example.test");
+  const body = { new_email: "new@example.test", verification_token: confirmed.verification_token, current_password: "current-password" };
+  assert.equal((await changeEmail(body)).email, "new@example.test");
   assert.deepEqual(calls, [
     ["/api/auth/email-verifications", "POST", { email: "new@example.test", purpose: "email_change" }],
     ["/api/auth/email-verifications/verify_test/confirm", "POST", { code: "123456" }],
-    ["/api/auth/me/email", "PUT", { new_email: "new@example.test", verification_token: "verified-test-token" }]
+    ["/api/auth/me/email", "PUT", { new_email: "new@example.test", verification_token: "verified-test-token", current_password: "current-password" }]
   ]);
 });
 
 test("이메일 중복과 만료된 인증은 성공으로 처리하지 않는다", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json({ error: { message: "이미 사용 중인 이메일입니다." } }, { status: 409 }));
-  await assert.rejects(changeEmail("used@example.test", "test-token"), /이미 사용 중/);
+  await assert.rejects(changeEmail({ new_email: "used@example.test", verification_token: "test-token" }), /이미 사용 중/);
   t.mock.method(globalThis, "fetch", async () => Response.json({ error: { message: "인증이 만료되었습니다." } }, { status: 400 }));
   await assert.rejects(confirmEmailVerification("expired", "123456"), /인증이 만료/);
 });

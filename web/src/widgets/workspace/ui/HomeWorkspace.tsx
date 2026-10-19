@@ -78,7 +78,8 @@ export function HomeWorkspace() {
     const resume = takeSettingsResume();
     if (!resume) return;
     setSettingsResume(resume);
-    navigate({ kind: "view", view: "settings", section: resume === "members" ? "members" : "account" }, "replace");
+    const section = resume === "members" ? "members" : resume === "email-change" ? "profile" : "account";
+    navigate({ kind: "view", view: "settings", section }, "replace");
     // 마운트 때 한 번만 확인한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

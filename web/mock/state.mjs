@@ -7,7 +7,8 @@ export const state = {
   refreshTokens: new Map(),
   mfaTokens: new Map(),
   verifications: new Map(),
-  verificationTokens: new Set(),
+  // verification_token → { email, purpose }. 실제 서버처럼 발급한 주소·목적에만 쓸 수 있다.
+  verificationTokens: new Map(),
   loginSessions: [],
   workspaces: [],
   members: [],

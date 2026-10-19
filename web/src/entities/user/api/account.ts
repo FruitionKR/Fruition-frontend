@@ -5,6 +5,7 @@ import {
   parseSoleOwnerWorkspaces,
   type AccountDeletionBody
 } from "@/entities/user/model/accountDeletion";
+import { parseRetryAfterSeconds, type EmailChangeBody } from "@/entities/user/model/emailChange";
 
 /** 로그인한 사용자 정보를 가져온다. */
 export async function fetchMe(): Promise<UserMeResponse> {
@@ -51,12 +52,21 @@ export async function changePassword(currentPassword: string, newPassword: strin
   await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
 }
 
-export async function changeEmail(newEmail: string, verificationToken: string): Promise<UserMeResponse> {
+/**
+ * 이메일 변경. 새 주소로 받은 인증 토큰과 본인 확인 값(비밀번호·MFA 코드)을 함께 보낸다.
+ * 성공하면 서버가 다른 세션을 폐기하고 기존 이메일로 변경 알림을 보낸다.
+ * 429는 Retry-After를 retryAfter(초)로 실어 던져 화면이 그동안 제출을 막을 수 있게 한다.
+ */
+export async function changeEmail(body: EmailChangeBody): Promise<UserMeResponse> {
   const response = await apiFetch("/api/auth/me/email", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ new_email: newEmail, verification_token: verificationToken })
+    body: JSON.stringify(body)
   });
+  if (response.status === 429) {
+    const apiError = await parseApiError(response, "시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+    throw Object.assign(apiError, { retryAfter: parseRetryAfterSeconds(response.headers.get("Retry-After")) });
+  }
   return parseJsonOrThrow<UserMeResponse>(response, "이메일을 변경하지 못했습니다.");
 }
 

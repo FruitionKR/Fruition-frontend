@@ -160,7 +160,7 @@ export function SettingsNav({
 
 /**
  * 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다.
- * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계를 다시 연다(account-delete).
+ * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계(account-delete)나 이메일 변경 창(email-change)을 다시 연다.
  */
 export function SettingsContent({
   section,
@@ -238,7 +238,7 @@ export function SettingsContent({
   return (
     <section className={styles.view} aria-label="설정">
       <div className={styles.content}>
-        {section === "profile" && <ProfilePanel />}
+        {section === "profile" && <ProfilePanel resumeEmailChange={resume === "email-change"} />}
         {section === "account" && (
           <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
         )}

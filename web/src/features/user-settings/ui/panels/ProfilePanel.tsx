@@ -20,10 +20,15 @@ import panelStyles from "./ProfilePanel.module.css";
  * 사용자 설정 (Figma 1691:16583): 프로필(닉네임·프로필 사진) + 계정 정보(이메일·비밀번호) + 연동된 계정.
  * 예전 프로필 설정과 계정 설정(이메일·비밀번호·소셜 연동)을 시안대로 한 화면에 합쳤다. 탈퇴·다단계 인증·기기는 계정 보안에 있다.
  */
-export function ProfilePanel() {
+export function ProfilePanel({
+  resumeEmailChange = false
+}: {
+  /** 소셜 재로그인에서 돌아와 이메일 변경 창을 바로 다시 열 때 */
+  resumeEmailChange?: boolean;
+}) {
   const { data: me, error: loadError } = useMe();
   const { signOut } = useSignOut();
-  const [showEmail, setShowEmail] = useState(false);
+  const [showEmail, setShowEmail] = useState(resumeEmailChange);
   const [emailSaved, setEmailSaved] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const queryClient = useQueryClient();
@@ -178,8 +183,9 @@ export function ProfilePanel() {
 
       <LinkedAccountsSection me={me} />
 
-      {showEmail && (
+      {showEmail && me && (
         <EmailChangeModal
+          me={me}
           onSaved={() => { setShowEmail(false); setEmailSaved(true); }}
           onClose={() => setShowEmail(false)}
         />
