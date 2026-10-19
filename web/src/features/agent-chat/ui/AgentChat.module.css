@@ -161,30 +161,6 @@
   display: none;
 }
 
-/* "작업" 탭 빈 상태. 시안이 없어 회의록 화면의 진행 문구와 같은 글자 크기·색을 쓴다. */
-.agent-work-empty {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  padding: 24px 22px;
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.agent-work-empty p {
-  margin: 0;
-}
-
-.agent-work-empty p:first-child {
-  color: var(--color-body);
-  font-weight: 600;
-}
-
 /* 헤더 우측 ⋯ 메뉴 (새 채팅 등) */
 .agent-header-menu {
   position: relative;
@@ -1954,80 +1930,6 @@ button.result-link:focus-visible {
 }
 
 /* agent-panel 반응형 폭(순수 전역)도 agent-panel-shell.css로 분리 */
-.plan-preview {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  color: var(--color-body);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-.plan-preview header,
-.plan-preview footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.plan-preview header span,
-.plan-preview small {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.plan-preview p {
-  margin: 0;
-}
-
-.plan-preview ol {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding-left: 20px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.plan-preview li p {
-  margin-top: 4px;
-  color: var(--color-muted);
-}
-
-.plan-preview footer {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.plan-preview button {
-  padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  color: var(--color-body);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-}
-
-.plan-preview button.is-primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
-  font-weight: 600;
-}
-
-.plan-preview button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.plan-preview [role="alert"] {
-  color: var(--color-danger);
-}
-
 .plan-counts {
   font-weight: 600;
   color: var(--color-primary);
@@ -2136,4 +2038,531 @@ button.result-link:focus-visible {
 
 .plan-details[open] > p {
   margin: 12px 0;
+}
+
+.plan-details ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.plan-details li p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+}
+
+.plan-details small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+/* --- 작업 탭 (Figma 1610:9529) --- */
+.asset-icon {
+  flex: 0 0 auto;
+  display: inline-block;
+  background: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.task-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 24px 22px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* 남는 높이를 위쪽에서 채워 작업 목록을 입력창 쪽(아래)에 붙인다. */
+.task-body::before {
+  content: "";
+  flex: 1 0 0;
+  margin-bottom: -32px;
+}
+
+.task-body > * {
+  flex: 0 0 auto;
+}
+
+.task-empty {
+  display: grid;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.task-empty p {
+  margin: 0;
+}
+
+.task-empty p:first-child {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+/* 상태 묶음: 라벨·작업·안내 사이 12 */
+.task-section {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-section-label {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.task-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-entry {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-entry + .task-entry {
+  margin-top: 8px;
+}
+
+/* 작업 줄 (Figma 1610:9596): 12px, 제목 SemiBold, 상태 Medium, 같은 주 색 */
+.task-row {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-primary);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+}
+
+.task-row.is-danger {
+  color: var(--color-danger);
+}
+
+.task-row.is-muted .task-row-status {
+  color: var(--color-muted);
+}
+
+.task-row-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.task-row-title > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-row.is-struck .task-row-title {
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+.task-row-status {
+  flex: 0 0 auto;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 안내 상자 (Figma 1610:9608): 회색 바탕, radius 16, 12px muted */
+.task-note {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border-radius: 16px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.task-plan {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--color-body);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.task-plan .plan-counts {
+  margin: 0;
+  font-size: 12px;
+}
+
+.task-plan .plan-details > summary {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.task-plan .plan-details[open] > p {
+  margin: 8px 0 12px;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 작업 버튼 (Figma 1610:9662): 옅은 주 색 바탕, 번개 아이콘, radius 16 */
+.task-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  cursor: pointer;
+}
+
+.task-pill.is-primary {
+  padding-left: 10px;
+  color: var(--color-primary);
+  background: var(--color-primary-weak);
+}
+
+.task-pill:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.task-pill:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.task-pill:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 작업 대상 칩 (Figma 1627:9925): 현재 문서는 회색, 선택은 옅은 주 색 */
+.task-context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-context-chip,
+.task-context-chip-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.task-context-chip.is-primary {
+  gap: 8px;
+  color: var(--color-primary);
+  background: var(--color-primary-weak);
+}
+
+.task-context-chip-add {
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  padding: 5px 9px;
+}
+
+.task-context-chip:focus-visible,
+.task-context-chip-add:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 스킬 고르기 (Figma 1627:9886): 입력창 위 카드, padding 12/8/14, radius 12 */
+.skill-picker {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 22px 0;
+  padding: 12px 8px 14px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-surface);
+  border-radius: 12px;
+  filter: drop-shadow(0 1px 2px var(--color-shadow));
+}
+
+.skill-picker-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.skill-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skill-picker-group + .skill-picker-group {
+  padding-top: 8px;
+}
+
+.skill-picker-group-label {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.skill-picker-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.skill-picker-option.is-active,
+.skill-picker-option:hover {
+  background: var(--color-primary-weak);
+}
+
+.skill-picker-slug {
+  color: var(--color-body);
+  font-weight: 600;
+  letter-spacing: -0.24px;
+}
+
+.skill-picker-option.is-active .skill-picker-slug {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.skill-picker-description {
+  color: var(--color-muted);
+  font-weight: 500;
+  letter-spacing: -0.12px;
+}
+
+.skill-picker-empty {
+  margin: 0;
+  padding: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.skill-picker-divider {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1.2px solid var(--color-surface);
+}
+
+.skill-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.12px;
+}
+
+.skill-picker-manage {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  color: var(--color-body);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.skill-picker-manage:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Figma 화살표 에셋은 아래를 향하므로 -90도 돌려 오른쪽을 향하게 한다. */
+.skill-picker-manage-arrow {
+  transform: rotate(-90deg);
+}
+
+/* 작업 카드 (Figma 1671:13219): 옅은 바탕 + surface 테두리, radius 16, padding 12/16, 사이 16 */
+.task-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--color-surface) 40%, var(--color-canvas));
+  border: 1px solid var(--color-surface);
+  border-radius: 16px;
+}
+
+.task-card > :nth-child(n + 4) {
+  margin-top: 8px;
+}
+
+.task-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+}
+
+.task-card-kind {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-card-kind > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-head time {
+  flex: 0 0 auto;
+}
+
+.task-card-title {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.28px;
+  overflow-wrap: anywhere;
+}
+
+.task-card-meta {
+  margin: -4px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  overflow-wrap: anywhere;
+}
+
+.task-decisions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* 거절·수락 버튼 (Figma 1671:13231): radius 6, padding 4/10/4/6, 흰 글자 */
+.task-decision {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  cursor: pointer;
+}
+
+.task-decision.is-danger {
+  color: #ffffff;
+  background: var(--color-danger);
+}
+
+.task-decision:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.task-decision:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.task-decision:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

@@ -2,8 +2,6 @@ import { Loader2, Square, Volume2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
-import { AgentPlanPreview } from "./AgentPlanPreview";
-import { isWorkspacePlanAction } from "../lib/agentPlan";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
@@ -45,12 +43,11 @@ export function AssistantThread({
   onToggleSpeech?: (messageId: string) => void;
 }) {
   const presentation = resolveChatTurnPresentation(message.action);
-  const isWorkspacePlan = isWorkspacePlanAction(message.action);
   const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
-  // 완료된 답변만 서버가 음성으로 만든다(진행 중·실패는 409). 계획 패널은 읽을 본문이 없다.
-  const canListen = Boolean(onToggleSpeech) && message.status === "completed" && !isWorkspacePlan;
+  // 완료된 답변만 서버가 음성으로 만든다(진행 중·실패는 409). 작업(계획) 문답은 작업 탭에 있어 여기 오지 않는다.
+  const canListen = Boolean(onToggleSpeech) && message.status === "completed";
   const speechStatus = speechPlayback?.messageId === message.id ? speechPlayback.status : null;
   const resultCards = buildSourceDocumentCards(message, nodes);
   const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
@@ -74,7 +71,7 @@ export function AssistantThread({
 
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
-      {!isWorkspacePlan && ((message.progress?.length ?? 0) > 0 || message.status === "pending") && (
+      {((message.progress?.length ?? 0) > 0 || message.status === "pending") && (
         <StatusList
           title={message.status === "pending" ? "요청 처리 중" : message.status === "completed" ? "요청 처리 완료" : "요청 처리 종료"}
           isLoading={message.status === "pending"}
@@ -115,7 +112,7 @@ export function AssistantThread({
               <AgentChevronIcon isWide className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
             </button>
           )}
-          {isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
+          {(!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
             markdown={formatAnswerMarkdown(message.content)}
             linkPolicy="inert-external"
             onCitationClick={openCitation}

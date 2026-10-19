@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { StatusList } from "./StatusList";
 import { AssistantThread, STAGE_ANSWER } from "./AssistantThread";
 import { groupMessagesByPair } from "../lib/messageGroups";
@@ -37,9 +37,6 @@ export function AgentBody({
   messages,
   isLoading,
   isCancelling = false,
-  isDocumentCommandLoading,
-  documentCommandQuestion,
-  documentCommandStages = [],
   activeSessionId,
   isShown = true,
   activeTurn,
@@ -54,15 +51,11 @@ export function AgentBody({
   excludedPairIds,
   selectedPairIds,
   onSelectPair,
-  nodes,
-  documentCommandPreview
+  nodes
 }: {
   messages: ChatMessageResponse[];
   isLoading: boolean;
   isCancelling?: boolean;
-  isDocumentCommandLoading: boolean;
-  documentCommandQuestion: string | null;
-  documentCommandStages?: QueryStageEvent[];
   activeSessionId: string | null;
   /** 패널이 화면에 보이는지. 숨겨지면(마운트 유지) 답변 듣기를 멈춘다. */
   isShown?: boolean;
@@ -79,11 +72,8 @@ export function AgentBody({
   selectedPairIds: string[];
   onSelectPair: (pairId: string) => void;
   nodes?: GraphNode[];
-  /** 문서 명령 제안 카드. 대화 흐름의 마지막에 이어 붙는다. */
-  documentCommandPreview?: ReactNode;
 }) {
   const showAgentStatus = isLoading && activeTurn === null;
-  const hasDocumentCommandPreview = documentCommandPreview != null;
   const [visibleAnswerStage, setVisibleAnswerStage] = useState(STAGE_ANSWER);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledInitialMessagesRef = useRef(false);
@@ -123,22 +113,14 @@ export function AgentBody({
     return () => window.cancelAnimationFrame(frameId);
   }, [animatedMessageId, visibleAnswerStage, isLoading, activeTurn, queryErrorMessage, scrollToLatestMessage]);
 
-  // 실제 제안 카드가 나타날 때만 내린다. 출처 열기 등으로 JSX가 다시 만들어져도 위치를 유지한다.
-  useLayoutEffect(() => {
-    if (!hasDocumentCommandPreview) return;
-
-    const frameId = window.requestAnimationFrame(() => scrollToLatestMessage());
-    return () => window.cancelAnimationFrame(frameId);
-  }, [hasDocumentCommandPreview, scrollToLatestMessage]);
-
   // 전송 직후 추가된 질문·진행 UI가 화면 아래에 가려지지 않도록 한 번만 즉시 내린다.
   // 이후 단계 갱신에는 반응하지 않아 사용자가 직접 올린 스크롤 위치를 방해하지 않는다.
   useLayoutEffect(() => {
-    if (!isLoading && !isDocumentCommandLoading) return;
+    if (!isLoading) return;
 
     const frameId = window.requestAnimationFrame(() => scrollToLatestMessage({ immediate: true }));
     return () => window.cancelAnimationFrame(frameId);
-  }, [isDocumentCommandLoading, isLoading, scrollToLatestMessage]);
+  }, [isLoading, scrollToLatestMessage]);
 
   useEffect(() => {
     if (messages.length === 0 || animatedMessageId || isLoading || queryErrorMessage) return;
@@ -255,19 +237,6 @@ export function AgentBody({
         </>
       )}
       {showAgentStatus && pendingStatusThread}
-
-      {isDocumentCommandLoading && documentCommandQuestion && (
-        <>
-          <div className={styles["question-bubble"]}>{documentCommandQuestion}</div>
-          <div className={styles["agent-thread"]} role="status" aria-live="polite">
-            <StatusList title="요청 처리 중" isLoading hasResponse={false}
-              steps={documentCommandStages.length ? buildProgressSteps(documentCommandStages, true)
-                : [["요청을 전달하고 있어요.", "active"]]} />
-          </div>
-        </>
-      )}
-
-      {documentCommandPreview}
 
       {queryErrorMessage && <p className={styles["query-error"]}>{queryErrorMessage}</p>}
       {chatLoadErrorMessage && <p className={styles["query-error"]}>{chatLoadErrorMessage}</p>}

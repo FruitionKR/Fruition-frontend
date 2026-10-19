@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Lock, Square } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   buildChatModelOptions,
   getAiModelLockMessage,
@@ -77,7 +77,11 @@ export function AgentComposer({
   onCancel,
   isCancelling = false,
   statusMessage,
-  meetingControl
+  meetingControl,
+  inputLabel = "Query 질문 입력",
+  header,
+  onInputKeyDown,
+  inputPopup
 }: {
   value: string;
   isLoading: boolean;
@@ -95,6 +99,14 @@ export function AgentComposer({
   isCancelling?: boolean;
   statusMessage?: string | null;
   meetingControl?: ComposerMeetingControl;
+  /** 입력창 접근성 이름. 작업 탭은 작업 요청 입력이다. */
+  inputLabel?: string;
+  /** 입력창 위에 놓는 칩(Figma 1627:9925 "현재 문서"·"선택 : …") */
+  header?: ReactNode;
+  /** 입력창 키 처리를 먼저 가로챈다(스킬 고르기 방향키·Enter). 처리했으면 true */
+  onInputKeyDown?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
+  /** 입력창이 여는 목록(스킬 고르기)의 combobox 속성 */
+  inputPopup?: { isOpen: boolean; listId: string; activeOptionId: string | null };
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
   // 오른쪽 하위 메뉴에 모델을 보여 주는 provider. 메뉴를 열 때 선택된 모델의 provider로 맞춘다.
@@ -247,6 +259,7 @@ export function AgentComposer({
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (onInputKeyDown?.(event)) return;
     if (event.key === "Escape" && onCancel && !event.nativeEvent.isComposing) {
       event.preventDefault();
       event.stopPropagation();
@@ -268,12 +281,18 @@ export function AgentComposer({
 
   return (
     <form className={styles.composer} ref={formRef} onSubmit={submitComposer}>
+      {header}
       <textarea
         value={value}
         placeholder={placeholder}
         disabled={isLoading && !onCancel}
         readOnly={isLoading}
-        aria-label="Query 질문 입력"
+        aria-label={inputLabel}
+        role={inputPopup ? "combobox" : undefined}
+        aria-autocomplete={inputPopup ? "list" : undefined}
+        aria-expanded={inputPopup ? inputPopup.isOpen : undefined}
+        aria-controls={inputPopup?.isOpen ? inputPopup.listId : undefined}
+        aria-activedescendant={inputPopup?.isOpen ? inputPopup.activeOptionId ?? undefined : undefined}
         aria-keyshortcuts={onCancel ? "Escape" : undefined}
         rows={4}
         onChange={(event) => onChange(event.target.value)}

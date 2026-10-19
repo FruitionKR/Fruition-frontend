@@ -8,9 +8,28 @@ const {
   closeTab,
   detailTabId,
   openCreateTab,
+  openCreateTabForRequest,
   openDetailTab,
   pruneDetailTabs
 } = await import("../src/widgets/skills-view/lib/skillEditorTabs.ts");
+
+test("작업 탭 '이 요청을 스킬로 저장'은 요청으로 채운 새 스킬 탭을 열고, 같은 요청이면 그 탭으로만 간다", () => {
+  const opened = openCreateTabForRequest(INITIAL_SKILL_EDITOR_TABS, "  문서를 주제별 폴더로 정리해줘 ");
+  assert.deepEqual(opened.tabs, [{ id: "create-1", kind: "create", prefillRequest: "문서를 주제별 폴더로 정리해줘" }]);
+  assert.equal(opened.activeId, "create-1");
+
+  const listed = activateTab(opened, SKILL_LIST_TAB_ID);
+  const again = openCreateTabForRequest(listed, "문서를 주제별 폴더로 정리해줘");
+  assert.equal(again.tabs.length, 1);
+  assert.equal(again.activeId, "create-1");
+
+  const other = openCreateTabForRequest(again, "회의록을 요약해줘");
+  assert.deepEqual(other.tabs.map((tab) => tab.id), ["create-1", "create-2"]);
+  assert.equal(other.activeId, "create-2");
+
+  // 빈 요청은 채우지 않은 새 스킬 탭이다.
+  assert.deepEqual(openCreateTabForRequest(INITIAL_SKILL_EDITOR_TABS, "  ").tabs, [{ id: "create-1", kind: "create" }]);
+});
 
 test("처음에는 스킬 목록 탭만 있다", () => {
   assert.deepEqual(INITIAL_SKILL_EDITOR_TABS.tabs, []);
