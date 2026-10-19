@@ -25,6 +25,7 @@ import {
   closeTab,
   INITIAL_SKILL_EDITOR_TABS,
   openCreateTab,
+  openCreateTabForRequest,
   openDetailTab,
   pruneDetailTabs,
   SKILL_LIST_TAB_ID,
@@ -78,8 +79,17 @@ function ColumnHeader({ column, sort, onSort }: {
  * 맨 위 탭 줄: '스킬'(목록) 탭 + 새 스킬·스킬 상세 편집 탭 + '+'(새 스킬). 디자인 '② 새 스킬 탭'.
  * 목록: 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행 클릭·더보기 '수정' = 스킬 상세 탭,
  * 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
+ * createRequest가 오면(작업 탭 "이 요청을 스킬로 저장") 그 요청으로 채운 새 스킬 탭을 한 번 열고 onCreateRequestHandled로 알린다.
  */
-export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) => void }) {
+export function SkillsView({
+  onRunSkill,
+  createRequest = null,
+  onCreateRequestHandled
+}: {
+  onRunSkill: (skill: SkillResponse) => void;
+  createRequest?: { id: number; text: string } | null;
+  onCreateRequestHandled?: (id: number) => void;
+}) {
   const workspaceId = getSelectedWorkspaceId();
   const catalog = useSkillCatalog(workspaceId);
   const { updateMutation, deleteMutation } = catalog;
@@ -90,6 +100,11 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
   const [searchText, setSearchText] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [editorTabs, setEditorTabs] = useState(INITIAL_SKILL_EDITOR_TABS);
+  useEffect(() => {
+    if (!createRequest) return;
+    setEditorTabs((current) => openCreateTabForRequest(current, createRequest.text));
+    onCreateRequestHandled?.(createRequest.id);
+  }, [createRequest, onCreateRequestHandled]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);

@@ -26,6 +26,17 @@ export function openCreateTab(state: SkillEditorTabsState, prefillRequest?: stri
   return { tabs: [...state.tabs, tab], activeId: id, nextCreateSeq: state.nextCreateSeq + 1 };
 }
 
+/**
+ * 작업 탭의 "이 요청을 스킬로 저장"(Figma 1671:13245)으로 새 스킬 탭을 연다.
+ * 같은 요청으로 채운 새 스킬 탭이 이미 있으면 그 탭으로만 간다(같은 버튼을 다시 눌러도 탭이 쌓이지 않게).
+ */
+export function openCreateTabForRequest(state: SkillEditorTabsState, request: string): SkillEditorTabsState {
+  const prefillRequest = request.trim();
+  if (!prefillRequest) return openCreateTab(state);
+  const existing = state.tabs.find((tab) => tab.kind === "create" && tab.prefillRequest === prefillRequest);
+  return existing ? { ...state, activeId: existing.id } : openCreateTab(state, prefillRequest);
+}
+
 export function detailTabId(skillId: string): string {
   return `detail-${skillId}`;
 }
