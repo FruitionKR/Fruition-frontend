@@ -23,10 +23,24 @@ const {
 
 const filledForm = {
   ...INITIAL_SKILL_CREATE_FORM,
+  resultMode: "create",
   command: " research-summary ",
   description: " 연구 문서의 개요를 핵심 문장 3개로 정리합니다. ",
   rules: "'연구 개요' 섹션만 고친다.\n문체는 '~다'체로 맞춘다.\n"
 };
+
+test("새 스킬은 문서 종류·'상황에 맞게'로 시작해 새 문서·수정을 모두 허용한다", () => {
+  assert.equal(INITIAL_SKILL_CREATE_FORM.kind, "document");
+  assert.equal(INITIAL_SKILL_CREATE_FORM.resultMode, "auto");
+  const request = skillPublishRequest({
+    ...INITIAL_SKILL_CREATE_FORM,
+    command: "research-summary",
+    description: "연구 개요를 정리합니다.",
+    rules: "'연구 개요' 섹션만 고친다."
+  });
+  assert.deepEqual(request.capabilities, ["document-create", "document-edit"]);
+  assert.equal(request.result_mode, "auto");
+});
 
 test("스킬 종류·결과 방식을 capability로 바꾼다", () => {
   assert.deepEqual(skillCapabilities("document", "create"), ["document-create"]);
@@ -132,4 +146,11 @@ test("AI 초안은 실행 규칙을 바꾸고 이름·설명은 비어 있을 �
   assert.equal(kept.description, filledForm.description);
   // 차단 응답은 지침이 null이라 입력한 규칙을 유지한다.
   assert.equal(applySkillDraft(filledForm, { ...draft, instructions_markdown: null }).rules, filledForm.rules);
+});
+
+test("AI 초안의 capability로 기본 '상황에 맞게'를 덮고, capability가 없으면 고른 결과 방식을 유지한다", () => {
+  const draft = { name: "x", description: "", instructions_markdown: "새 보고서를 만든다.", capabilities: ["document-create"] };
+  assert.equal(applySkillDraft(INITIAL_SKILL_CREATE_FORM, draft).resultMode, "create");
+  assert.equal(applySkillDraft(INITIAL_SKILL_CREATE_FORM, { ...draft, capabilities: [] }).resultMode, "auto");
+  assert.equal(applySkillDraft({ ...INITIAL_SKILL_CREATE_FORM, resultMode: "edit" }, { ...draft, capabilities: [] }).resultMode, "edit");
 });
