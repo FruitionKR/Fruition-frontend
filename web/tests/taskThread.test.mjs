@@ -11,6 +11,7 @@ registerHooks({
 
 const {
   buildSkillPickerGroups,
+  describeTaskRequest,
   groupTaskEntries,
   isTaskMessage,
   parseSkillSlashQuery,
@@ -55,14 +56,14 @@ test("세션 메시지를 문답 단위로 채팅·작업으로 나누고 작업
     message({ id: "a1", content: "근거 답변", pair_id: "p1", run_id: "query_1" }),
     message({ id: "u2", role: "user", content: "  문서를 주제별 폴더로 정리해줘 ", pair_id: "p2", run_id: "agent_2" }),
     message({ id: "a2", content: "계획을 만들었습니다.", pair_id: "p2", run_id: "agent_2", action: "folder_organize" }),
-    message({ id: "u3", role: "user", content: "고쳐줘", pair_id: "p3", run_id: "agent_3" }),
+    message({ id: "u3", role: "user", content: "고쳐줘", pair_id: "p3", run_id: "agent_3", created_at: "2026-10-19T01:00:00Z" }),
     message({ id: "a3", content: "어느 문서를 고칠까요?", pair_id: "p3", run_id: "agent_3", action: "clarify" })
   ];
   const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
   assert.deepEqual(chatMessages.map((item) => item.id), ["u1", "a1"]);
   assert.deepEqual(taskItems, [
-    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed" },
-    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed" }
+    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
+    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
   ]);
 });
 
@@ -92,10 +93,19 @@ test("작업을 할 일이 남은 묶음부터 나열하고 빈 묶음은 뺀다
   const entry = (key, group) => ({ key, status: { group, label: "", tone: "primary", struck: false } });
   const sections = groupTaskEntries([entry("a", "done"), entry("b", "approval"), entry("c", "done"), entry("d", "clarify")]);
   assert.deepEqual(sections.map((section) => [section.label, section.entries.map((item) => item.key)]), [
-    ["승인 대기", ["b"]],
-    ["추가 설명 필요", ["d"]],
+    ["확인 필요", ["b"]],
+    ["선택 필요", ["d"]],
     ["완료", ["a", "c"]]
   ]);
+});
+
+test("작업 카드 머리글은 종류와 스킬, 따옴표 안에는 나머지 요청을 둔다", () => {
+  assert.deepEqual(describeTaskRequest("markdown_edit", "/research-summary 연구 개요를 핵심만 3문장으로 정리해줘"), {
+    heading: "문서 : /research-summary",
+    quote: "연구 개요를 핵심만 3문장으로 정리해줘"
+  });
+  assert.deepEqual(describeTaskRequest("folder_organize", "/file-organize"), { heading: "폴더 정리 : /file-organize", quote: "/file-organize" });
+  assert.deepEqual(describeTaskRequest(null, "폴더를 정리해줘"), { heading: "작업", quote: "폴더를 정리해줘" });
 });
 
 test("작업 종류 라벨", () => {

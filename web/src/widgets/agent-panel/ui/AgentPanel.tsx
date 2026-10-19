@@ -55,6 +55,7 @@ export function AgentPanel({
   onMeetingNotesSaved,
   onMeetingActiveChange,
   onManageSkills,
+  onSaveRequestAsSkill,
   isShown = true
 }: {
   onClose: () => void;
@@ -79,6 +80,8 @@ export function AgentPanel({
   onMeetingActiveChange?: (isActive: boolean) => void;
   /** 스킬 고르기의 "스킬 관리 >"(Figma 1627:9913). 스킬 화면으로 옮긴다. */
   onManageSkills?: () => void;
+  /** 작업 카드의 "이 요청을 스킬로 저장"(Figma 1671:13245). 원래 요청 문장을 넘긴다. */
+  onSaveRequestAsSkill?: (request: string) => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -380,6 +383,7 @@ export function AgentPanel({
             appliedTurnIds={agentTurn.appliedTurnIds}
             errorMessage={agentTurn.agentTurnErrorMessage ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
+            onSaveRequestAsSkill={onSaveRequestAsSkill}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />

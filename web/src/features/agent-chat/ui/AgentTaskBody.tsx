@@ -5,10 +5,11 @@ import taskBoltDangerIcon from "@/shared/assets/svg/agent/task-bolt-danger.svg";
 import { getWorkspaceId } from "@/shared/api/client";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
+import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
 import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
-import { groupTaskEntries, resolveTaskStatus, taskKindLabel, type TaskMessageItem, type TaskStatusView } from "../lib/taskThread";
+import { describeTaskRequest, groupTaskEntries, resolveTaskStatus, taskKindLabel, type TaskMessageItem, type TaskStatusView } from "../lib/taskThread";
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
 import { AgentAssetIcon } from "./AgentIcons";
@@ -26,6 +27,8 @@ type TaskEntry = {
   item: TaskMessageItem;
   status: TaskStatusView;
   title: string;
+  /** 사용자가 보낸 원래 요청(run request_summary가 있으면 그 값) */
+  request: string;
   run: AgentPlanRun | null;
   runError: unknown;
   isRunFetching: boolean;
@@ -51,8 +54,45 @@ function TaskNote({ children, role }: { children: ReactNode; role?: "alert" | "s
 }
 
 /**
- * 작업 탭 본문(Figma 1610:9529): 상태별 묶음(진행 중·승인 대기·추가 설명 필요·실패·완료)마다
- * 작업 줄과 미리보기·승인 버튼·안내를 보여 준다. 폴더 정리 계획은 turn→run을 따라가 상태를 받는다.
+ * 할 일이 남은 작업 카드(Figma 1671:13219): 번개 + "종류 : /스킬"과 시각, 따옴표 안 요청, 보조 설명,
+ * 그 아래 미리보기·버튼. 되묻는 작업(1671:13252)은 질문을 제목으로 쓴다.
+ */
+function TaskCard({
+  action,
+  request,
+  createdAt,
+  title,
+  meta,
+  children
+}: {
+  action: string | null;
+  request: string;
+  createdAt: string | null;
+  /** 없으면 따옴표 안 요청 */
+  title?: string;
+  meta?: string | null;
+  children?: ReactNode;
+}) {
+  const { heading, quote } = describeTaskRequest(action, request);
+  return (
+    <article className={styles["task-card"]}>
+      <header className={styles["task-card-head"]}>
+        <span className={styles["task-card-kind"]}>
+          <AgentAssetIcon src={taskBoltIcon} size={12} />
+          <span>{heading}</span>
+        </span>
+        {createdAt && <time dateTime={createdAt}>{formatRelativeTime(createdAt)}</time>}
+      </header>
+      <p className={styles["task-card-title"]}>{title ?? `"${quote}"`}</p>
+      {meta && <p className={styles["task-card-meta"]}>{meta}</p>}
+      {children}
+    </article>
+  );
+}
+
+/**
+ * 작업 탭 본문(Figma 1671:13216·1610:9529): 상태별 묶음(진행 중·확인 필요·선택 필요·실패)은 작업 카드로,
+ * 완료는 한 줄 목록과 안내로 보여 준다. 폴더 정리 계획은 turn→run을 따라가 상태를 받는다.
  */
 export function AgentTaskBody({
   items,
@@ -61,7 +101,8 @@ export function AgentTaskBody({
   activePreview,
   appliedTurnIds,
   errorMessage,
-  isShown
+  isShown,
+  onSaveRequestAsSkill
 }: {
   items: TaskMessageItem[];
   /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
@@ -72,6 +113,8 @@ export function AgentTaskBody({
   appliedTurnIds: ReadonlySet<string>;
   errorMessage: string | null;
   isShown: boolean;
+  /** "이 요청을 스킬로 저장"(Figma 1671:13245). 없으면 버튼을 숨긴다. */
+  onSaveRequestAsSkill?: (request: string) => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -118,6 +161,7 @@ export function AgentTaskBody({
       item,
       status,
       title: `${taskKindLabel(item.action)} : ${request}`,
+      request,
       run,
       runError: query?.error ?? null,
       isRunFetching: query?.isFetching ?? false,
@@ -151,10 +195,35 @@ export function AgentTaskBody({
       );
     }
     if (status.group === "approval" && item.turnId === activePreviewTurnId) return activePreview;
-    if ((status.group === "clarify" || status.group === "failed") && item.answer) {
-      return <TaskNote role={status.group === "failed" ? "alert" : undefined}>{item.answer}</TaskNote>;
-    }
+    if (status.group === "failed" && item.answer) return <TaskNote role="alert">{item.answer}</TaskNote>;
     return null;
+  }
+
+  function renderCard(entry: TaskEntry) {
+    const { item, status } = entry;
+    // 되묻는 작업은 AI 질문을 제목으로, 원래 요청을 보조 설명으로 둔다(Figma 1671:13261).
+    const isQuestion = status.group === "clarify" && item.action === "clarify" && Boolean(item.answer);
+    return (
+      <div key={item.key} className={styles["task-entry"]}>
+        <TaskCard
+          action={item.action}
+          request={entry.request}
+          createdAt={item.createdAt}
+          title={isQuestion ? item.answer : undefined}
+          meta={isQuestion ? `요청 : ${entry.request}` : status.label}
+        >
+          {renderDetail(entry)}
+        </TaskCard>
+        {status.group === "approval" && onSaveRequestAsSkill && (
+          <div className={styles["task-actions"]}>
+            <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onSaveRequestAsSkill(entry.request)}>
+              <AgentAssetIcon src={taskBoltIcon} size={12} />
+              이 요청을 스킬로 저장
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   const isEmpty = sections.length === 0 && !pendingTask && !(activePreview && !hasPreviewEntry);
@@ -176,33 +245,27 @@ export function AgentTaskBody({
               </div>
               <TaskNote>{DONE_NOTICE}</TaskNote>
             </>
-          ) : section.entries.map((entry) => (
-            <div key={entry.item.key} className={styles["task-entry"]}>
-              <TaskRow title={entry.title} status={entry.status} />
-              {renderDetail(entry)}
-            </div>
-          ))}
+          ) : section.entries.map(renderCard)}
         </section>
       ))}
       {/* 서버 기록에 붙기 전의 편집안(응답 직후 목록을 다시 받는 사이)도 놓치지 않는다. */}
       {activePreview && !hasPreviewEntry && (
-        <section className={styles["task-section"]} aria-label="승인 대기">
-          <p className={styles["task-section-label"]}>승인 대기</p>
+        <section className={styles["task-section"]} aria-label="확인 필요">
+          <p className={styles["task-section-label"]}>확인 필요</p>
           {activePreview}
         </section>
       )}
       {pendingTask && (
         <section className={styles["task-section"]} aria-label="진행 중" aria-live="polite">
           <p className={styles["task-section-label"]}>진행 중</p>
-          <div className={styles["task-entry"]}>
-            <TaskRow title={`작업 : ${pendingTask.request}`} status={{ group: "running", label: "진행 중", tone: "primary", struck: false }} />
+          <TaskCard action={null} request={pendingTask.request} createdAt={null}>
             <StatusList
               title="요청 처리 중"
               isLoading
               hasResponse={false}
               steps={pendingTask.stages.length ? buildProgressSteps(pendingTask.stages, true) : [["요청을 전달하고 있어요.", "active"]]}
             />
-          </div>
+          </TaskCard>
         </section>
       )}
       {errorMessage && <p className={styles["query-error"]} role="alert">{errorMessage}</p>}

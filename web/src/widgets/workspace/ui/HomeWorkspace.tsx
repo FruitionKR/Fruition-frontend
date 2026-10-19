@@ -541,6 +541,8 @@ export function HomeWorkspace() {
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
           onManageSkills={() => handleViewChange("skills")}
+          // 스킬 화면으로 옮긴다. 요청 문장으로 새 스킬 편집 탭을 채우는 연결(prefillRequest)은 #194 병합 뒤에 붙인다.
+          onSaveRequestAsSkill={() => handleViewChange("skills")}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             ...chatEvidenceNotice,
             // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.

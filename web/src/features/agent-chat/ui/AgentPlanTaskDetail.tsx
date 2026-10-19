@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import taskBoltIcon from "@/shared/assets/svg/agent/task-bolt.svg";
+import taskAcceptIcon from "@/shared/assets/svg/agent/task-accept.svg";
+import taskRejectIcon from "@/shared/assets/svg/agent/task-reject.svg";
 import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
@@ -116,19 +117,27 @@ export function AgentPlanTaskDetail({
       {note && <p className={styles["task-note"]} role={isFailed ? "alert" : undefined}>{note}</p>}
       {error && <p className={styles["task-error"]} role="alert">{typeof error === "string" ? error : getErrorMessage(error, "계획을 불러오지 못했습니다.")}</p>}
       {(canDecide || (error && turnId)) && (
-        <div className={styles["task-actions"]}>
+        // 거절·수락 (Figma 1671:13230): 오른쪽 정렬, 빨강·주 색 바탕
+        <div className={styles["task-decisions"]}>
           {error && turnId && (
             <button type="button" className={styles["task-pill"]} disabled={busy} onClick={() => { mutation.reset(); onRefetch(); void tree.refetch(); }}>
               다시 확인
             </button>
           )}
           {canDecide && <>
-            <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={!ready || busy} onClick={() => mutation.mutate("approve")}>
-              <AgentAssetIcon src={taskBoltIcon} size={12} />
-              {mutation.isPending ? "처리 중" : action === "folder_organize" ? "승인하고 정리" : "승인하고 실행"}
-            </button>
-            <button type="button" className={styles["task-pill"]} disabled={busy || Boolean(runError)} onClick={() => mutation.mutate("reject")}>
+            <button type="button" className={cx(styles["task-decision"], styles["is-danger"])} disabled={busy || Boolean(runError)} onClick={() => mutation.mutate("reject")}>
+              <AgentAssetIcon src={taskRejectIcon} size={12} />
               거절
+            </button>
+            <button
+              type="button"
+              className={styles["task-decision"]}
+              aria-label={action === "folder_organize" ? "수락하고 정리" : "수락하고 실행"}
+              disabled={!ready || busy}
+              onClick={() => mutation.mutate("approve")}
+            >
+              <AgentAssetIcon src={taskAcceptIcon} size={12} />
+              {mutation.isPending ? "처리 중" : "수락"}
             </button>
           </>}
         </div>

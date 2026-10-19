@@ -34,6 +34,8 @@ export type TaskMessageItem = {
   /** AI가 남긴 답(편집 요약·되묻는 질문 등) */
   answer: string;
   messageStatus: string;
+  /** 요청을 보낸 시각(ISO). 작업 카드의 "방금 전"에 쓴다. */
+  createdAt: string | null;
 };
 
 function toTaskItem(key: string, pairId: string | null, messages: ChatMessageResponse[]): TaskMessageItem {
@@ -46,7 +48,8 @@ function toTaskItem(key: string, pairId: string | null, messages: ChatMessageRes
     action: assistant?.action ?? null,
     request: (user?.content ?? "").trim().normalize("NFC"),
     answer: (assistant?.content ?? "").trim().normalize("NFC"),
-    messageStatus: assistant?.status ?? user?.status ?? "pending"
+    messageStatus: assistant?.status ?? user?.status ?? "pending",
+    createdAt: user?.created_at ?? assistant?.created_at ?? null
   };
 }
 
@@ -88,11 +91,11 @@ export function taskKindLabel(action: string | null): string {
 
 export type TaskGroup = "running" | "approval" | "clarify" | "failed" | "done";
 
-/** Figma 1610:9529처럼 상태별 묶음으로 보여 준다. 할 일이 남은 묶음을 위에 둔다. */
+/** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. */
 export const TASK_GROUPS: { group: TaskGroup; label: string }[] = [
   { group: "running", label: "진행 중" },
-  { group: "approval", label: "승인 대기" },
-  { group: "clarify", label: "추가 설명 필요" },
+  { group: "approval", label: "확인 필요" },
+  { group: "clarify", label: "선택 필요" },
   { group: "failed", label: "실패" },
   { group: "done", label: "완료" }
 ];
@@ -197,4 +200,12 @@ export function selectionChipLabel(markdown: string, startLine: number, endLine:
   const text = lines.map((line) => line.replace(/^\s*(#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s*)/, "").trim()).find(Boolean) ?? "";
   const short = text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
   return short ? `선택 : ${short}` : `선택 : ${startLine}~${endLine}줄`;
+}
+
+/** 작업 카드 머리글(Figma 1671:13225 "문서 : /research-summary")과 따옴표 안 요청 문장. "/slug 요청"이면 둘로 나눈다. */
+export function describeTaskRequest(action: string | null, request: string): { heading: string; quote: string } {
+  const kind = taskKindLabel(action);
+  const match = request.match(/^\/([^\s/]+)(?:\s+([\s\S]*))?$/);
+  if (!match) return { heading: kind, quote: request };
+  return { heading: `${kind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
 }
