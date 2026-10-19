@@ -10,7 +10,7 @@ import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/featur
 import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
-import { AgentTaskBody, type SkillTargetPicker } from "@/features/agent-chat/ui/AgentTaskBody";
+import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
@@ -51,14 +51,14 @@ export function AgentPanel({
   markdownEditContext,
   onDocumentExported,
   nodes,
-  composerDraft,
+  skillRun = null,
+  onSkillRunSent,
   wikiEvidenceNotice,
   onMeetingNotesSaved,
   onMeetingActiveChange,
   onManageSkills,
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
-  skillTarget,
   skillTestRunSlotRef,
   isShown = true
 }: {
@@ -68,8 +68,13 @@ export function AgentPanel({
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   nodes?: GraphNode[];
-  /** 입력창에 채울 문장(스킬 실행의 "/slug "). id가 바뀔 때마다 한 번 채운다 */
-  composerDraft?: { id: number; text: string } | null;
+  /**
+   * 스킬 화면에서 대상을 고른 스킬 실행(Figma 1567:25081 '다음'). 작업 탭 요청으로 한 번 보낸다.
+   * documentId가 있으면 그 문서가 열려 편집 문맥이 준비된 뒤 문서와 함께 보내고, 없으면(폴더 대상) 문서 없이 보낸다.
+   */
+  skillRun?: { id: number; message: string; documentId: string | null } | null;
+  /** skillRun을 보냈다. 같은 실행을 다시 보내지 않도록 비운다. */
+  onSkillRunSent?: (id: number) => void;
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
   wikiEvidenceNotice?: {
     message: string;
@@ -88,8 +93,6 @@ export function AgentPanel({
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
-  /** 스킬 실행 대상 문서 고르기. 있으면 작업 탭 "선택 필요" 묶음에 카드로 붙인다(Figma 1671:13216 · 드롭다운 1610:9350). */
-  skillTarget?: SkillTargetPicker | null;
   /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
   skillTestRunSlotRef?: (element: HTMLDivElement | null) => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
@@ -135,17 +138,6 @@ export function AgentPanel({
   const restoreComposerQuestion = useCallback((question: string) => {
     setComposerValue((current) => current || question);
   }, []);
-  useEffect(() => {
-    if (!composerDraft) return;
-    setComposerValue(composerDraft.text);
-    // 스킬 실행("/slug ")은 작업 탭 요청이다.
-    setActiveView("work");
-  }, [composerDraft]);
-  // 스킬 실행 대상 고르기 카드는 작업 탭에 뜬다.
-  const hasSkillTarget = Boolean(skillTarget);
-  useEffect(() => {
-    if (hasSkillTarget) setActiveView("work");
-  }, [hasSkillTarget]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
@@ -229,6 +221,19 @@ export function AgentPanel({
   }, [isDocumentIncluded, isSelectionIncluded, markdownEditContext]);
   const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, onChange: setComposerValue });
   const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
+  // 스킬 실행 요청: 세션·모델이 준비되고, 문서 대상이면 그 문서의 편집 문맥이 들어온 뒤 작업 탭으로 보낸다.
+  const sentSkillRunId = useRef<number | null>(null);
+  const skillRunContext = skillRun?.documentId && markdownEditContext?.documentId === skillRun.documentId ? markdownEditContext : null;
+  const isSkillRunReady = Boolean(skillRun && (!skillRun.documentId || skillRunContext) && activeSessionId && selectedModel && !isSubmitting);
+  useEffect(() => {
+    if (!skillRun || !isSkillRunReady || !activeSessionId || !selectedModel || sentSkillRunId.current === skillRun.id) return;
+    sentSkillRunId.current = skillRun.id;
+    setActiveView("work");
+    agentTurn.submitAgentTurn(skillRun.message, skillRunContext, activeSessionId, selectedModel, selectedPairIds);
+    onSkillRunSent?.(skillRun.id);
+    // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skillRun?.id, isSkillRunReady]);
   const sessionTitle = activeSessionTitle ?? "새 채팅";
   const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
   useEffect(() => {
@@ -408,7 +413,6 @@ export function AgentPanel({
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
             onOpenFolderOrganize={onOpenFolderOrganize}
-            skillTarget={skillTarget ?? null}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />

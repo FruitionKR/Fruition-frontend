@@ -1,83 +1,75 @@
-import { useState } from "react";
-import { skillKindLabel, type SkillResponse } from "@/entities/skill";
+import { useEffect, useState } from "react";
+import type { SkillResponse } from "@/entities/skill";
 import type { DocumentItemResponse } from "@/entities/document";
-import { documentDisplayName, pickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { findTreeItem, type Project } from "@/entities/tree";
+import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
+import { resolveSkillRunTarget, skillRunMessage, treeItemPath, type SkillRunTarget } from "../lib/skillRunTarget";
+
+/** 고른 대상으로 작업 탭에 보낼 스킬 실행 요청. id가 바뀔 때마다 한 번 보낸다. */
+export type SkillRunRequest = {
+  id: number;
+  skill: SkillResponse;
+  target: SkillRunTarget;
+  message: string;
+};
 
 /**
- * 스킬 "실행": 채팅 패널의 "선택 필요" 카드(Figma 1571:27625 · 1610:9350)에서 실행할 문서를 고른다.
- * 실행은 사용자가 할 일을 적어 보낼 때 에이전트가 하므로, 여기서는 문서를 열고 채팅 입력창에 "/slug "를 채우는 데까지 한다.
- * 문서 스킬은 Markdown 문서 하나에 실행하므로 Markdown 문서만 고를 수 있다. 폴더 정리 스킬은 문서 없이
- * 작업 탭 요청(mode=task)으로 보내므로 고르기 없이 바로 커맨드를 채운다.
+ * 스킬 "실행"(Figma 1567:25081): 스킬 화면을 어둡게 덮고 안내 말풍선을 띄운 채 사이드바 트리에서 대상을 고른다.
+ * 문서 스킬은 고칠 문서(또는 새 문서를 둘 폴더), 폴더 정리 스킬은 정리할 폴더를 고른다.
+ * '다음'을 누르면 고른 대상으로 작업 탭 요청을 만들어 onConfirmed로 넘긴다.
  */
 export function useSkillRun({
+  activeView,
+  projects,
   documents,
   onStart,
-  onConfirmed,
-  onCreateDocument
+  onConfirmed
 }: {
+  activeView: RailView;
+  projects: Project[];
   documents: DocumentItemResponse[];
-  /** 홈 화면으로 가서 채팅 패널을 연다(카드는 채팅 패널에 뜬다). */
+  /** 대상은 사이드바 문서 패널에서 고르므로 접혀 있으면 편다. */
   onStart: () => void;
-  /** 고른 Markdown 문서를 연다. */
-  onConfirmed: (document: DocumentItemResponse) => void;
-  /** "새 문서로 만들기": 스킬을 실행할 빈 Markdown 문서를 만들고 연다. */
-  onCreateDocument: (skill: SkillResponse) => Promise<void>;
+  onConfirmed: (request: SkillRunRequest) => void;
 }) {
-  const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; isCreating: boolean; errorMessage: string | null } | null>(null);
-  // 채팅 입력창에 채울 스킬 커맨드. 패널이 열린 뒤 한 번 채운다.
-  const [agentComposerDraft, setAgentComposerDraft] = useState<{ id: number; text: string } | null>(null);
-  const candidates = pickerDocuments(documents, "");
+  const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; target: SkillRunTarget | null; errorMessage: string | null } | null>(null);
+
+  // 스킬 화면을 벗어나면(레일·검색 결과 이동 등) 대상 고르기를 끝낸다.
+  useEffect(() => {
+    if (activeView !== "skills") setSkillRun(null);
+  }, [activeView]);
 
   function startSkillRun(skill: SkillResponse) {
     onStart();
-    if (skill.enabled_version?.capabilities.includes("folder-organize")) {
-      fillComposer(skill);
+    setSkillRun({ skill, target: null, errorMessage: null });
+  }
+
+  /** 대상은 하나만 고른다. 같은 항목을 다시 누르면 고르기를 푼다. */
+  function pickSkillTarget(itemId: string) {
+    if (!skillRun) return;
+    const item = projects.map((project) => findTreeItem(project.items, itemId)).find(Boolean);
+    if (!item) return;
+    const resolution = resolveSkillRunTarget(skillRun.skill.enabled_version, item, documents);
+    if (resolution.status === "ignore") return;
+    if (resolution.status === "invalid") {
+      setSkillRun({ ...skillRun, target: null, errorMessage: resolution.message });
       return;
     }
-    setSkillRun({ skill, isCreating: false, errorMessage: null });
+    const isSame = skillRun.target?.itemId === resolution.target.itemId;
+    setSkillRun({ ...skillRun, target: isSame ? null : resolution.target, errorMessage: null });
   }
 
-  function fillComposer(skill: SkillResponse) {
+  function confirmSkillRun() {
+    if (!skillRun?.target) return;
+    const { skill, target } = skillRun;
+    const folderPath = target.kind === "folder" ? treeItemPath(projects, target.itemId) : null;
     setSkillRun(null);
-    setAgentComposerDraft({ id: Date.now(), text: `/${skill.slug} ` });
-  }
-
-  /** 스킬은 문서 하나에만 실행한다(agent turn이 요청마다 문서 하나만 받는다). 고르면 바로 문서를 열고 커맨드를 채운다. */
-  function pickSkillTarget(documentId: string) {
-    const target = candidates.find((document) => document.id === documentId);
-    if (!skillRun || !target) return;
-    fillComposer(skillRun.skill);
-    onConfirmed(target);
-  }
-
-  async function createSkillTargetDocument() {
-    if (!skillRun || skillRun.isCreating) return;
-    const { skill } = skillRun;
-    setSkillRun({ skill, isCreating: true, errorMessage: null });
-    try {
-      await onCreateDocument(skill);
-      fillComposer(skill);
-    } catch (error: unknown) {
-      setSkillRun({ skill, isCreating: false, errorMessage: getErrorMessage(error, "새 문서를 만들지 못했습니다.") });
-    }
+    onConfirmed({ id: Date.now(), skill, target, message: skillRunMessage(skill.slug, skill.enabled_version, target, folderPath) });
   }
 
   function cancelSkillRun() {
     setSkillRun(null);
   }
 
-  const skillTarget = skillRun ? {
-    kindLabel: skillKindLabel(skillRun.skill.enabled_version?.capabilities ?? []),
-    slug: skillRun.skill.slug,
-    description: skillRun.skill.enabled_version?.description ?? "",
-    options: candidates.map((document) => ({ value: document.id, label: documentDisplayName(document) })),
-    isCreating: skillRun.isCreating,
-    errorMessage: skillRun.errorMessage,
-    onPick: pickSkillTarget,
-    onCreateDocument: () => void createSkillTargetDocument(),
-    onCancel: cancelSkillRun
-  } : null;
-
-  return { skillTarget, agentComposerDraft, startSkillRun };
+  return { skillRun, startSkillRun, pickSkillTarget, confirmSkillRun, cancelSkillRun };
 }

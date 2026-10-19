@@ -138,10 +138,10 @@ export function TreeNode({
         onClick={(event) => {
           event.stopPropagation();
           if (isUploading || isEditing) return;
-          // 스킬 실행 대상 고르기: 문서 행은 고르고, 폴더 행은 펼치기만 한다.
+          // 스킬 실행 대상 고르기: 문서·폴더 행을 고른다(폴더는 펼치기도 한다). 쓸 수 있는 대상인지는 고르는 쪽이 판단한다.
           if (interaction.isPickingTarget) {
             if (isFolder) onToggle(item.id);
-            else if (item.documentId) interaction.onToggleSelectItem(item.id);
+            interaction.onToggleSelectItem(item.id);
             return;
           }
           // Cmd/Ctrl+클릭: 열지 않고 이동 대상으로 고른다. 위키 노드는 이동 대상이 아니다.

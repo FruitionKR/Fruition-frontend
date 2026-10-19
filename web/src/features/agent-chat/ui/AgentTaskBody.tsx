@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import taskBoltIcon from "@/shared/assets/svg/agent/task-bolt.svg";
 import taskBoltDangerIcon from "@/shared/assets/svg/agent/task-bolt-danger.svg";
@@ -6,13 +6,12 @@ import { getWorkspaceId } from "@/shared/api/client";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
-import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { fetchAgentPlanRun } from "../api/agentPlan";
 import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import type { FolderOrganizeRequest } from "../lib/folderOrganize";
-import { describeTaskRequest, groupTaskEntries, resolveTaskStatus, taskKindLabel, TASK_GROUPS, type TaskMessageItem, type TaskStatusView } from "../lib/taskThread";
+import { describeTaskRequest, groupTaskEntries, resolveTaskStatus, taskKindLabel, type TaskMessageItem, type TaskStatusView } from "../lib/taskThread";
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
 import { AgentAssetIcon } from "./AgentIcons";
@@ -52,20 +51,6 @@ function TaskRow({ title, status }: { title: string; status: TaskStatusView }) {
   );
 }
 
-/** 스킬 실행 대상 문서 고르기(useSkillRun). 작업 탭 "선택 필요" 묶음에 카드로 붙는다. */
-export type SkillTargetPicker = {
-  /** 스킬 종류 라벨(문서·폴더 정리·템플릿) */
-  kindLabel: string;
-  slug: string;
-  description: string;
-  options: ReadonlyArray<{ value: string; label: string }>;
-  isCreating: boolean;
-  errorMessage: string | null;
-  onPick: (documentId: string) => void;
-  onCreateDocument: () => void;
-  onCancel: () => void;
-};
-
 function TaskNote({ children, role }: { children: ReactNode; role?: "alert" | "status" }) {
   return <p className={styles["task-note"]} role={role}>{children}</p>;
 }
@@ -80,11 +65,8 @@ function TaskCard({
   createdAt,
   title,
   meta,
-  heading: headingOverride,
   children
 }: {
-  /** 없으면 action·요청에서 만든 "종류 : /스킬" */
-  heading?: string;
   action: string | null;
   request: string;
   createdAt: string | null;
@@ -93,9 +75,7 @@ function TaskCard({
   meta?: string | null;
   children?: ReactNode;
 }) {
-  const described = describeTaskRequest(action, request);
-  const heading = headingOverride ?? described.heading;
-  const { quote } = described;
+  const { heading, quote } = describeTaskRequest(action, request);
   return (
     <article className={styles["task-card"]}>
       <header className={styles["task-card-head"]}>
@@ -113,43 +93,6 @@ function TaskCard({
 }
 
 /**
- * 스킬 실행 대상 고르기 카드("선택 필요", Figma 1671:13216 카드 + 1610:9350 드롭다운).
- * 문서를 고르거나 "+ 새 문서로 만들기"로 빈 문서를 만들면 그 문서를 열고 입력창에 "/slug "를 채운다.
- */
-function SkillTargetTaskCard({ target }: { target: SkillTargetPicker }) {
-  const placeholder = target.isCreating
-    ? "새 문서를 만드는 중…"
-    : target.options.length > 0 ? "문서 선택" : "실행할 수 있는 Markdown 문서가 없어요";
-  return (
-    <div className={styles["task-entry"]}>
-      <TaskCard
-        action={null}
-        heading={`${target.kindLabel} : /${target.slug}`}
-        request={`/${target.slug}`}
-        createdAt={null}
-        title="어느 문서에 실행할까요?"
-        meta={target.description.trim() || null}
-      >
-        <OptionSelect
-          value={null}
-          placeholder={placeholder}
-          options={target.options}
-          disabled={target.isCreating}
-          action={{ label: "새 문서로 만들기", disabled: target.isCreating, onSelect: target.onCreateDocument }}
-          onChange={target.onPick}
-        />
-        {target.errorMessage && <p className={styles["task-error"]} role="alert">{target.errorMessage}</p>}
-        <div className={styles["task-decisions"]}>
-          <button type="button" className={styles["task-pill"]} disabled={target.isCreating} onClick={target.onCancel}>
-            취소
-          </button>
-        </div>
-      </TaskCard>
-    </div>
-  );
-}
-
-/**
  * 작업 탭 본문(Figma 1671:13216·1610:9529): 상태별 묶음(진행 중·확인 필요·선택 필요·실패)은 작업 카드로,
  * 완료는 한 줄 목록과 안내로 보여 준다. 폴더 정리 계획은 turn→run을 따라가 상태를 받는다.
  */
@@ -162,8 +105,7 @@ export function AgentTaskBody({
   errorMessage,
   isShown,
   onSaveRequestAsSkill,
-  onOpenFolderOrganize,
-  skillTarget = null
+  onOpenFolderOrganize
 }: {
   items: TaskMessageItem[];
   /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
@@ -178,8 +120,6 @@ export function AgentTaskBody({
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
-  /** 스킬 실행 대상 문서 고르기. 있으면 "선택 필요" 묶음에 카드를 붙인다. */
-  skillTarget?: SkillTargetPicker | null;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -240,7 +180,7 @@ export function AgentTaskBody({
   const hasPreviewEntry = entries.some((entry) => entry.status.group === "approval" && entry.item.turnId === activePreviewTurnId);
 
   // 새 작업·미리보기가 생기면 목록 아래(입력창 쪽)로 내린다.
-  const lastKey = `${items.at(-1)?.key ?? ""}|${pendingTask ? "pending" : ""}|${activePreviewTurnId ?? ""}|${skillTarget ? "skill-target" : ""}`;
+  const lastKey = `${items.at(-1)?.key ?? ""}|${pendingTask ? "pending" : ""}|${activePreviewTurnId ?? ""}`;
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
@@ -297,19 +237,7 @@ export function AgentTaskBody({
     );
   }
 
-  const hasClarifySection = sections.some((section) => section.group === "clarify");
-  // "선택 필요" 묶음이 없으면 스킬 대상 카드만 담은 묶음을 묶음 순서(TASK_GROUPS)대로 끼운다. -1이면 맨 뒤.
-  const clarifyOrder = TASK_GROUPS.findIndex(({ group }) => group === "clarify");
-  const standaloneSkillTargetIndex = skillTarget && !hasClarifySection
-    ? sections.findIndex((section) => TASK_GROUPS.findIndex(({ group }) => group === section.group) > clarifyOrder)
-    : null;
-  const standaloneSkillTarget = skillTarget && !hasClarifySection ? (
-    <section className={styles["task-section"]} aria-label="선택 필요">
-      <p className={styles["task-section-label"]}>선택 필요</p>
-      <SkillTargetTaskCard target={skillTarget} />
-    </section>
-  ) : null;
-  const isEmpty = sections.length === 0 && !pendingTask && !(activePreview && !hasPreviewEntry) && !skillTarget;
+  const isEmpty = sections.length === 0 && !pendingTask && !(activePreview && !hasPreviewEntry);
   return (
     <div className={styles["task-body"]} ref={bodyRef}>
       {isEmpty && (
@@ -318,24 +246,19 @@ export function AgentTaskBody({
           <p>/를 입력하면 스킬을 고를 수 있어요. 위키 내용 질문은 채팅 탭에서 할 수 있어요.</p>
         </div>
       )}
-      {sections.map((section, index) => (
-        <Fragment key={section.group}>
-          {index === standaloneSkillTargetIndex && standaloneSkillTarget}
-          <section className={styles["task-section"]} aria-label={section.label}>
-            <p className={styles["task-section-label"]}>{section.label}</p>
-            {section.group === "done" ? (
-              <>
-                <div className={styles["task-rows"]}>
-                  {section.entries.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
-                </div>
-                <TaskNote>{DONE_NOTICE}</TaskNote>
-              </>
-            ) : section.entries.map(renderCard)}
-            {section.group === "clarify" && skillTarget && <SkillTargetTaskCard target={skillTarget} />}
-          </section>
-        </Fragment>
+      {sections.map((section) => (
+        <section key={section.group} className={styles["task-section"]} aria-label={section.label}>
+          <p className={styles["task-section-label"]}>{section.label}</p>
+          {section.group === "done" ? (
+            <>
+              <div className={styles["task-rows"]}>
+                {section.entries.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
+              </div>
+              <TaskNote>{DONE_NOTICE}</TaskNote>
+            </>
+          ) : section.entries.map(renderCard)}
+        </section>
       ))}
-      {standaloneSkillTargetIndex === -1 && standaloneSkillTarget}
       {/* 서버 기록에 붙기 전의 편집안(응답 직후 목록을 다시 받는 사이)도 놓치지 않는다. */}
       {activePreview && !hasPreviewEntry && (
         <section className={styles["task-section"]} aria-label="확인 필요">
