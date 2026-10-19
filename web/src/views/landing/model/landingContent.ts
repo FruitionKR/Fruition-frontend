@@ -66,7 +66,7 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     headlineNote: "지식으로 연결하기",
     body:
       "문서 속 개념과 관계를 발견해 나만의 지식 위키를 구축하세요. 지식 그래프로 연결된 맥락을 탐색하고, 품질 검사와 변경 이력 관리로 신뢰할 수 있는 지식을 유지합니다.",
-    chips: ["문서와 채팅 위키 편입(Ingest)", "지식 그래프(Graph)", "지식 품질 검사(Lint)", "AI 로그 이력 · 롤백(History)"],
+    chips: ["문서와 채팅 위키 편입(Ingest)", "지식 그래프(Graph)", "지식 품질 검사(Lint)", "AI 로그 이력", "롤백(History)"],
     visualSide: "right"
   },
   {

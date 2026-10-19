@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cx } from "@/shared/lib/classNames";
 import { LegalFooter } from "@/shared/ui/LegalFooter";
 import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_NAV } from "../model/landingContent";
@@ -50,33 +51,34 @@ function LandingHeader() {
 
 function LandingHero() {
   return (
-    <section id="top" className={styles["hero"]} aria-labelledby="landing-title">
-      <div className={styles["hero-copy"]}>
-        <h1 id="landing-title" className={styles["h1"]}>
-          쌓이는 기록을,
-          <br />
-          쓰이는 지식으로.
-        </h1>
-        <p className={styles["hero-lead"]}>
-          흩어진 기록을 하나로 모으고, 연결하고, 활용하세요.{" "}
-          <br />
-          단순한 문서 저장을 넘어, 기록이 살아 있는 지식으로 발전하는 공간.
-        </p>
-        <div className={styles["hero-actions"]}>
-          <Link className={styles["button-primary"]} href="/login">
-            시작하기
-            <span aria-hidden="true">→</span>
-          </Link>
-          <a className={styles["button-ghost"]} href="#capture">
-            기능 둘러보기
-            <span aria-hidden="true">↓</span>
-          </a>
+    <section id="top" className={cx(styles["hero"], styles["hero-backdrop"])} aria-labelledby="landing-title">
+      <div className={styles["hero-inner"]}>
+        <div className={styles["hero-copy"]}>
+          <h1 id="landing-title" className={styles["h1"]}>
+            쌓이는 기록을,
+            <br />
+            쓰이는 지식으로.
+          </h1>
+          <div className={styles["hero-lead"]}>
+            <p className={styles["hero-sub"]}>흩어진 기록을 하나로 모으고, 연결하고, 활용하세요.</p>
+            <p className={styles["hero-text"]}>단순한 문서 저장을 넘어, 기록이 살아 있는 지식으로 발전하는 공간.</p>
+          </div>
+          <div className={styles["hero-actions"]}>
+            <Link className={styles["button-primary"]} href="/login">
+              시작하기
+              <span aria-hidden="true">→</span>
+            </Link>
+            <a className={styles["button-ghost"]} href="#capture">
+              기능 둘러보기
+              <span aria-hidden="true">↓</span>
+            </a>
+          </div>
         </div>
+        <figure className={styles["hero-visual"]}>
+          <HeroPreview />
+          <figcaption>문서와 위키, 채팅을 한 화면에서. 화면은 예시입니다.</figcaption>
+        </figure>
       </div>
-      <figure className={styles["hero-visual"]}>
-        <HeroPreview />
-        <figcaption>문서와 위키, 채팅을 한 화면에서. 화면은 예시입니다.</figcaption>
-      </figure>
     </section>
   );
 }
@@ -98,15 +100,17 @@ export default function LandingPage() {
         <LandingStart />
       </main>
       <div className={styles["landing-bottom"]}>
-        <footer className={styles["landing-footer"]}>
-          <div className={styles["footer-brand"]}>
-            <BrandMark />
-            <p>쌓이는 기록을, 쓰이는 지식으로.</p>
-          </div>
-          <p className={styles["footer-copy"]}>© Team Fruition</p>
-        </footer>
-        {/* 약관·운영자 정보(이슈 #130). 기능 플래그가 꺼져 있으면 아무것도 그리지 않는다. footer 안에 footer를 둘 수 없어 형제로 둔다. */}
-        <LegalFooter />
+        <div className={styles["landing-bottom-inner"]}>
+          <footer className={styles["landing-footer"]}>
+            <div className={styles["footer-brand"]}>
+              <BrandMark />
+              <p>쌓이는 기록을, 쓰이는 지식으로.</p>
+            </div>
+            <p className={styles["footer-copy"]}>© Team Fruition</p>
+          </footer>
+          {/* 약관·운영자 정보(이슈 #130). 기능 플래그가 꺼져 있으면 아무것도 그리지 않는다. footer 안에 footer를 둘 수 없어 형제로 둔다. */}
+          <LegalFooter />
+        </div>
       </div>
     </div>
   );

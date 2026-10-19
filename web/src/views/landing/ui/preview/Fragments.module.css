@@ -8,12 +8,91 @@
   background: var(--color-canvas);
 }
 
+/* 02: 그래프는 허브 주변만 크게 잘라 보여 준다(라벨이 읽히는 크기). */
+.graph-zoom {
+  overflow: hidden;
+}
+
+.graph-zoom svg {
+  width: 135%;
+  max-width: none;
+  margin-top: 36px;
+  /* 허브가 왼쪽 아래에 겹치는 개념 페이지 패널에 가리지 않게 오른쪽으로 민다 */
+  transform: translateX(12%);
+}
+
+/* ───── 창 + 떠 있는 패널 무대 ─────
+ * 큰 창은 칸 폭을 채우고, 보조 패널은 창 모서리에 겹친다. 패널 크기는 칸 폭에 대한 비율이라
+ * 화면 폭이 바뀌어도 창과 같은 축소율로 함께 줄어든다. */
+.stage {
+  position: relative;
+}
+
+.stage-main {
+  position: relative;
+}
+
+.stage-float {
+  position: absolute;
+  z-index: 1;
+}
+
+/* 01: 창 오른쪽 위 모서리에 알림 패널 */
+.stage[data-layout="capture"] {
+  padding-top: 44px;
+}
+
+.stage[data-layout="capture"] .stage-float {
+  top: 0;
+  right: -3%;
+  width: 46%;
+}
+
+/* 02: 창 왼쪽 아래 모서리에 개념 페이지 패널 */
+.stage[data-layout="connect"] {
+  padding-bottom: 56px;
+}
+
+.stage[data-layout="connect"] .stage-float {
+  bottom: 0;
+  left: -4%;
+  width: 50%;
+}
+
+/* 03: 채팅 탭과 작업 탭을 엇갈려 나란히 */
+.stage[data-layout="discover"] {
+  padding-bottom: 48px;
+}
+
+.stage[data-layout="discover"] .stage-main {
+  width: 48%;
+}
+
+.stage[data-layout="discover"] .stage-float {
+  top: 48px;
+  right: 0;
+  width: 48%;
+}
+
+/* 04: 창 오른쪽 아래 모서리에 팀 스킬 패널 */
+.stage[data-layout="together"] {
+  padding-bottom: 72px;
+}
+
+.stage[data-layout="together"] .stage-float {
+  right: 4%;
+  bottom: 0;
+  width: 46%;
+}
+
 /* ───── 히어로: 문서 트리(위키) + 문서 + 채팅 ───── */
 .hero-frame {
-  --preview-w: 880;
-  --preview-h: 620;
+  --preview-w: 780;
+  --preview-h: 500;
+}
 
-  box-shadow: 0 30px 80px -40px var(--color-shadow), 0 2px 8px var(--color-shadow);
+.hero-frame .app > :first-child {
+  flex-basis: 210px;
 }
 
 .wiki-link {
@@ -159,20 +238,15 @@
   background: var(--color-surface);
 }
 
-/* 실제 앱의 알림 카드(위키 편입 안내)와 같은 모양 */
+/* 실제 앱의 알림 카드(위키 편입 안내)와 같은 모양. 테두리·그림자는 떠 있는 패널 틀이 그린다. */
 .notice {
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 8px;
-  width: 300px;
+  height: 100%;
   padding: 18px 20px;
   background: var(--color-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  box-shadow: 0 8px 24px var(--color-shadow);
 }
 
 .notice-title {
@@ -212,11 +286,11 @@
 /* ───── 02: 위키 그래프 + 개념 페이지 ───── */
 .wiki-page {
   display: flex;
-  flex: 0 0 280px;
   flex-direction: column;
-  gap: 10px;
-  padding: 24px 20px;
-  border-left: 1px solid var(--color-border);
+  gap: 8px;
+  height: 100%;
+  padding: 20px;
+  background: var(--color-canvas);
 }
 
 .wiki-kind {
@@ -374,7 +448,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 0 40px 28px;
+  height: 100%;
+  padding: 18px 18px 0;
+  background: var(--color-canvas);
 }
 
 .team-skills-head {
@@ -397,8 +473,9 @@
 .team-skills li {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 11px 12px;
+  gap: 10px;
+  padding: 10px 4px;
+  font-size: 13px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -425,8 +502,8 @@
 /* 좁은 화면: 히어로는 채팅 패널만 남겨 글자가 너무 작아지지 않게 한다. */
 @media (max-width: 640px) {
   .hero-frame {
-    --preview-w: 380;
-    --preview-h: 560;
+    --preview-w: 360;
+    --preview-h: 480;
   }
 
   .hero-frame .app > :not(:last-child) {
@@ -436,5 +513,23 @@
   .hero-frame .app > :last-child {
     flex: 1;
     border-left: 0;
+  }
+}
+
+/* 떠 있는 패널은 천천히 위아래로 떠 있는다(±8px, 7초). */
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-reduce-motion="true"])) .stage-float {
+    animation: float-slow 7s ease-in-out infinite;
   }
 }
