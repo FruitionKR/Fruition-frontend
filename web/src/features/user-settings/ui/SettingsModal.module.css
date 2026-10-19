@@ -112,6 +112,8 @@ button.nav-row.is-danger:focus-visible {
   z-index: 1;
   display: flex;
   justify-content: center;
+  /* stretch면 .content가 화면 높이에 묶여 아래 패딩이 스크롤 범위에 들어가지 않는다 */
+  align-items: flex-start;
   overflow-y: auto;
   background: var(--color-canvas);
 }
