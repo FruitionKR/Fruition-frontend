@@ -102,9 +102,13 @@ function toNotesResponse(meeting, notes) {
     partial: notes.partial,
     display_name: notes.display_name,
     markdown: notes.markdown,
+    meeting_date: notes.meeting_date,
+    attendees: notes.attendees,
     summary: notes.summary,
+    discussion: notes.discussion,
     decisions: notes.decisions,
     action_items: notes.action_items,
+    next_schedule: notes.next_schedule,
     open_questions: notes.open_questions,
     applied: notes.applied,
     error_code: notes.error_code,
@@ -112,22 +116,50 @@ function toNotesResponse(meeting, notes) {
   };
 }
 
-/** document처럼 네 배열로 회의록 본문을 다시 만든다. 빈 항목은 "확인된 내용 없음". */
+/**
+ * AI처럼 Figma 시안 구성으로 회의록 본문을 만든다(document meetings.md 예시와 같은 모양).
+ * `# 이름` → `- 날짜:`·`- 참석자:` → `### 회의 요약`·`### 주요 논의`(`####` 주제)·`### 결정 사항`·`### 해야 할 일`·`### 다음 일정`.
+ * 빈 항목은 "확인된 내용 없음". 미결 사항은 본문에 넣지 않는다.
+ */
 function notesMarkdown(name, sections) {
-  const block = (title, items) => [`## ${title}`, ...(items.length ? items.map((item) => `- ${item.text}`) : ["- 확인된 내용 없음"])].join("\n");
-  return [`# ${name}`, block("요약", sections.summary), block("결정 사항", sections.decisions), block("할 일", sections.action_items), block("미결 사항", sections.open_questions)].join("\n\n");
+  const list = (items) => (items.length ? items.map((item) => `- ${item.text}`) : ["- 확인된 내용 없음"]);
+  const block = (title, lines) => [`### ${title}`, ...lines].join("\n");
+  const head = [`- 날짜: ${sections.meeting_date}`, ...(sections.attendees.length ? [`- 참석자: ${sections.attendees.join(", ")}`] : [])];
+  const discussion = sections.discussion.length
+    ? sections.discussion.flatMap((topic) => [`#### ${topic.topic}`, ...list(topic.items)])
+    : ["- 확인된 내용 없음"];
+  const actions = sections.action_items.length
+    ? sections.action_items.map((item) => `- [ ] ${item.text} · ${item.owner ?? "담당자 미정"} · ${item.due ?? "기한 미정"}`)
+    : ["- 확인된 내용 없음"];
+  return [
+    `# ${name}`, head.join("\n"), block("회의 요약", list(sections.summary)), block("주요 논의", discussion),
+    block("결정 사항", list(sections.decisions)), block("해야 할 일", actions), block("다음 일정", list(sections.next_schedule))
+  ].join("\n\n");
+}
+
+/** 회의를 만든 시각의 한국 날짜(YYYY-MM-DD) */
+function koreanDate(iso) {
+  return new Date(Date.parse(iso) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function draftFrom(meeting) {
   const completed = meeting.segments.filter((segment) => segment.status === "completed").sort((a, b) => a.position - b.position);
   const item = (segment) => ({ text: segment.text, source_segment_ids: [segment.id] });
-  const decisions = completed.filter((segment) => /하기로|확정|제한|진행합니다/.test(segment.text)).map(item);
-  const actions = completed.filter((segment) => /수정|확인이 필요|정리/.test(segment.text)).map(item);
+  const matching = (pattern) => completed.filter((segment) => pattern.test(segment.text));
+  const progress = matching(/완료|문제|점검/).map(item);
+  // 실시간 회의만 받아쓴 사람(회의 소유자)을 참석자로 안다. 녹음 파일은 비워 둔다.
+  const owner = state.users.find((user) => user.id === meeting.owner_user_id);
   return {
+    meeting_date: koreanDate(meeting.created_at),
+    attendees: meeting.source === "live" && owner?.display_name ? [owner.display_name] : [],
     summary: completed.slice(0, 3).map(item),
-    decisions,
-    action_items: actions,
-    open_questions: completed.filter((segment) => /다시 논의/.test(segment.text)).map(item)
+    discussion: progress.length ? [{ topic: "진행 상황", items: progress }] : [],
+    decisions: matching(/하기로|확정|제한/).map(item),
+    action_items: matching(/수정|확인이 필요|정리/).map((segment) => ({
+      ...item(segment), owner: null, due: /(\d+월 \d+일)까지/.exec(segment.text)?.[1] ?? null
+    })),
+    next_schedule: matching(/\d+시에|진행합니다/).map(item),
+    open_questions: matching(/다시 논의/).map(item)
   };
 }
 
@@ -247,7 +279,7 @@ export function registerMeetingRoutes(router) {
     if (!transcriptComplete(meeting) && !allowPartial) return error(ctx, 409, "누락되었거나 비정상 종료된 전사가 있습니다.", "MEETING_TRANSCRIPT_INCOMPLETE");
     const notes = {
       version: meeting.notes.length + 1, status: "generating", partial: allowPartial, display_name: meeting.display_name,
-      markdown: null, summary: [], decisions: [], action_items: [], open_questions: [], applied: null, error_code: null, apply_keys: new Map()
+      markdown: null, meeting_date: null, attendees: [], summary: [], discussion: [], decisions: [], action_items: [], next_schedule: [], open_questions: [], applied: null, error_code: null, apply_keys: new Map()
     };
     meeting.notes.push(notes);
     meeting.notes_keys.set(key, notes);
