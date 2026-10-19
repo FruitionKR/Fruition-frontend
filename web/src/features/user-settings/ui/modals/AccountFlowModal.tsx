@@ -22,6 +22,8 @@ export function AccountFlowModal({
   canClose,
   onClose,
   onSubmit,
+  className,
+  closeIcon,
   children
 }: {
   title: string;
@@ -33,6 +35,10 @@ export function AccountFlowModal({
   canClose: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
+  /** 모달 상자에 덧붙일 클래스(시안별 크기·반지름) */
+  className?: string;
+  /** 닫기 버튼 그림. 없으면 기본 X(+ 45도 회전)를 쓴다. */
+  closeIcon?: ReactNode;
   children: ReactNode;
 }) {
   // 닫을 수 없는 동안에도 레이어는 유지해 Escape가 아래 설정 창으로 넘어가지 않게 한다.
@@ -43,7 +49,7 @@ export function AccountFlowModal({
   return createPortal(
     <div className={styles.overlay} {...backdropClick}>
       <form
-        className={styles.modal}
+        className={cx(styles.modal, className)}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
@@ -57,7 +63,7 @@ export function AccountFlowModal({
               <h2 className={styles.title}>{title}</h2>
             </div>
             <button type="button" className={styles.close} aria-label="닫기" disabled={!canClose} onClick={onClose}>
-              <SvgIcon src={plusIcon} className={styles["close-icon"]} />
+              {closeIcon ?? <SvgIcon src={plusIcon} className={styles["close-icon"]} />}
             </button>
           </div>
           <p className={styles.subtitle} style={subtitleStyle}>{subtitle}</p>

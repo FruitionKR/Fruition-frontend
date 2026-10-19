@@ -1,7 +1,8 @@
-/* 계정 설정 패널 전용 스타일 (Figma 1127:5275). */
+/* 계정 보안 패널 전용 스타일 (Figma 1691:16255). */
 
 /* 로그인된 기기 행: 우측에 새로고침 아이콘 + 기기 수 pill (Figma 1131:5851) */
 .sessions-row {
+  margin-top: 4px;
   padding-bottom: 0;
 }
 
@@ -39,13 +40,14 @@
   height: 16px;
 }
 
+/* 기기 수 pill (Figma 1691:16316): surface 배경, px12 py8 */
 .sessions-count {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   color: var(--color-foreground);
-  background: var(--color-surface-strong);
+  background: var(--color-surface);
   border-radius: 100px;
   font-size: 14px;
   font-weight: 500;
@@ -62,7 +64,13 @@
   transform: rotate(-90deg);
 }
 
-/* 기기 목록 표 (Figma 1131:5859): 120/160/220px 열 + 우측 버튼, 행마다 하단 구분선 */
+.sessions-count:hover,
+.sessions-count:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface-strong);
+}
+
+/* 기기 목록 표 (Figma 1691:16320): 120/160/220/48px 열, 행마다 위아래 1.2px 구분선 */
 .device-table {
   display: flex;
   flex-direction: column;
@@ -79,12 +87,13 @@
 }
 
 .device-row {
+  min-width: 600px;
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(160px, 1fr) minmax(220px, 1.2fr) 72px;
+  grid-template-columns: 120px 160px 220px 48px;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
   padding: 12px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1.2px solid var(--color-border);
 }
 
 .device-row > :last-child {
@@ -92,13 +101,12 @@
 }
 
 .device-head {
-  height: 40px;
   padding: 10px 12px;
   color: var(--color-body);
-  border-top: 1px solid var(--color-border);
-  font-size: 14px;
+  border-top: 1.2px solid var(--color-border);
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: -0.28px;
+  letter-spacing: -0.24px;
   line-height: 1.2;
 }
 
@@ -124,9 +132,9 @@
 }
 
 .device-name {
-  color: var(--color-foreground);
+  color: var(--color-body);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.28px;
   white-space: nowrap;
   overflow: hidden;
@@ -137,12 +145,12 @@
   color: var(--color-primary);
   font-size: 12px;
   font-style: normal;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.24px;
 }
 
 .device-cell {
-  color: var(--color-foreground);
+  color: var(--color-body);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
@@ -160,4 +168,32 @@
   padding: 12px;
   color: var(--color-muted);
   font-size: 12px;
+}
+
+/* 행 끝 로그아웃 (Figma 1691:16334): 테두리 없는 12px 회색 글자 */
+.device-logout {
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.device-logout:hover:not(:disabled),
+.device-logout:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-danger);
+}
+
+.device-logout:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.device-logout:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
