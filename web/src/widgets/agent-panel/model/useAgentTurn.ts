@@ -6,6 +6,7 @@ import {
   buildAgentTurnRequest,
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
+  resolveGeneratedDocumentFolderId,
   validateMarkdownEditApplication
 } from "@/features/agent-chat/lib/agentTurn";
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
@@ -34,7 +35,8 @@ export function useAgentTurn({
   allowWebSearch: boolean;
   /** 응답이 오면 대화 목록을 다시 받아 새 문답을 이어 붙인다. */
   refreshMessages: (options: { animateLatest: boolean }) => Promise<unknown>;
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft) => Promise<void>;
+  /** folderId는 새 문서를 둘 폴더(null이면 루트). */
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null) => Promise<void>;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
   onInsufficientCredit?: (question: string) => void;
 }) {
@@ -84,13 +86,16 @@ export function useAgentTurn({
     context: ActiveMarkdownEditContext | null,
     sessionId: string,
     model: AiModel,
-    conversationPairIds: string[]
+    conversationPairIds: string[],
+    /** 폴더를 대상으로 고른 스킬 실행이면 그 폴더. */
+    folderId: string | null = null
   ) => {
     const request = buildAgentTurnRequest(question, context, {
       sessionId,
       selectedModel: { provider: model.provider, model: model.model },
       selectedPairIds: conversationPairIds,
-      allowWebSearch
+      allowWebSearch,
+      folderId
     });
     setAgentTurnRequest(request);
     setAgentTurnResponse(null);
@@ -139,7 +144,7 @@ export function useAgentTurn({
       setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
       return;
     }
-    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds);
+    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null);
   }
 
   function applyMarkdownEdit() {
@@ -171,7 +176,7 @@ export function useAgentTurn({
     };
     setIsCreatingMarkdown(true);
     setAgentTurnErrorMessage(null);
-    onCreateMarkdownDocument(draft)
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse))
       .then(() => {
         markApplied(agentTurnResponse?.requestId);
         setAgentTurnRequest(null);
@@ -188,7 +193,7 @@ export function useAgentTurn({
     if (!draft) return;
     setIsCreatingMarkdown(true);
     setMarkdownCreateErrorMessage(null);
-    onCreateMarkdownDocument(draft)
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse))
       .then(() => {
         markApplied(agentTurnResponse?.requestId);
         setAgentTurnRequest(null);

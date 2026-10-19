@@ -9,6 +9,8 @@ const WORKSPACE_ID = "ws_agent_task";
 const USER_ID = "user_agent_task";
 const SESSION_ID = "sess_agent_task";
 const MODEL = { provider: "openai", model: "gpt-6-luna", allow_web_search: false };
+const FOLDER_ID = "0b6f2d4e-1a3c-4e5f-9a7b-8c9d0e1f2a3b";
+const DELETED_FOLDER_ID = "1c7a3e5f-2b4d-4f60-8b8c-9d0e1f2a3b4c";
 
 async function startMock(t) {
   const timestamp = new Date().toISOString();
@@ -17,6 +19,8 @@ async function startMock(t) {
     state.workspaces.push({ id: WORKSPACE_ID, name: "작업 탭", created_at: timestamp, updated_at: timestamp });
     state.members.push({ workspace_id: WORKSPACE_ID, user_id: USER_ID, role: "OWNER", joined_at: timestamp });
     state.chatSessions.push({ id: SESSION_ID, workspace_id: WORKSPACE_ID, title: "작업", created_at: timestamp, last_message_at: timestamp });
+    state.folders.push({ id: FOLDER_ID, workspace_id: WORKSPACE_ID, name: "회의록", parent_folder_id: null, sort_order: 0, current_version: 1, created_at: timestamp });
+    state.folders.push({ id: DELETED_FOLDER_ID, workspace_id: WORKSPACE_ID, name: "지운 폴더", parent_folder_id: null, sort_order: 1, current_version: 1, created_at: timestamp, deleted_at: timestamp });
     state.documents.push({ id: "doc_task_1", workspace_id: WORKSPACE_ID, filename: "연구.md", status: "completed", document_role: "EDITABLE", markdown: "# 연구" });
     state.skills.push({ id: "skill_task_organize", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "file-organize", scope_type: "personal", status: "enabled",
       enabled_version: { id: "sv_task", name: "file-organize", description: "폴더 정리", status: "published", version: 1, allowed_tools: [], capabilities: ["folder-organize"], instructions_markdown: "" },
@@ -93,4 +97,23 @@ test("mock은 문서 필드를 일부만 보내거나 모르는 mode를 거절�
   const request = await startMock(t);
   assert.equal((await request("POST", "/turn", { session_id: SESSION_ID, message: "정리", mode: "task", documentId: "doc_task_1", ...MODEL })).status, 400);
   assert.equal((await request("POST", "/turn", { session_id: SESSION_ID, message: "정리", mode: "chat", ...MODEL })).status, 400);
+});
+
+test("mock은 작업 대상 폴더(folder_id)를 받아 turn 생성·조회 응답에 돌려준다", async (t) => {
+  const request = await startMock(t);
+  const accepted = await request("POST", "/turn", { session_id: SESSION_ID, message: "/file-organize", mode: "task", folder_id: FOLDER_ID, ...MODEL });
+  assert.equal(accepted.status, 202);
+  assert.equal(accepted.body.folder_id, FOLDER_ID);
+  const turn = await waitForTurn(request, accepted.body.requestId);
+  assert.equal(turn.folder_id, FOLDER_ID);
+  const withoutFolder = await submitTask(request, "새 문서 만들어줘");
+  assert.equal(withoutFolder.folder_id, null);
+});
+
+test("mock은 UUID가 아닌 folder_id를 400, 없거나 삭제된 폴더를 404로 거절한다", async (t) => {
+  const request = await startMock(t);
+  const send = (folderId) => request("POST", "/turn", { session_id: SESSION_ID, message: "/file-organize", mode: "task", folder_id: folderId, ...MODEL });
+  assert.equal((await send("folder_research")).status, 400);
+  assert.equal((await send("2d8b4f60-3c5e-4071-9c9d-0e1f2a3b4c5d")).status, 404);
+  assert.equal((await send(DELETED_FOLDER_ID)).status, 404);
 });

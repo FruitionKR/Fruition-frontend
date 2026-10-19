@@ -64,15 +64,16 @@ export function AgentPanel({
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft) => Promise<void>;
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null) => Promise<void>;
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   nodes?: GraphNode[];
   /**
    * 스킬 화면에서 대상을 고른 스킬 실행(Figma 1567:25081 '다음'). 작업 탭 요청으로 한 번 보낸다.
-   * documentId가 있으면 그 문서가 열려 편집 문맥이 준비된 뒤 문서와 함께 보내고, 없으면(폴더 대상) 문서 없이 보낸다.
+   * documentId가 있으면 그 문서가 열려 편집 문맥이 준비된 뒤 문서와 함께 보내고, 없으면(폴더 대상) 문서 없이
+   * folderId를 작업 대상 폴더(folder_id)로 실어 보낸다.
    */
-  skillRun?: { id: number; message: string; documentId: string | null } | null;
+  skillRun?: { id: number; message: string; documentId: string | null; folderId: string | null } | null;
   /** skillRun을 보냈다. 같은 실행을 다시 보내지 않도록 비운다. */
   onSkillRunSent?: (id: number) => void;
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
@@ -229,7 +230,7 @@ export function AgentPanel({
     if (!skillRun || !isSkillRunReady || !activeSessionId || !selectedModel || sentSkillRunId.current === skillRun.id) return;
     sentSkillRunId.current = skillRun.id;
     setActiveView("work");
-    agentTurn.submitAgentTurn(skillRun.message, skillRunContext, activeSessionId, selectedModel, selectedPairIds);
+    agentTurn.submitAgentTurn(skillRun.message, skillRunContext, activeSessionId, selectedModel, selectedPairIds, skillRun.folderId);
     onSkillRunSent?.(skillRun.id);
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps

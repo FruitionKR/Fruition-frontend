@@ -62,7 +62,7 @@ import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePr
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel } from "../lib/agentPanelVisibility";
-import { isFolderOrganizeSkill } from "../lib/skillRunTarget";
+import { skillRunFolderId } from "../lib/skillRunTarget";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -315,7 +315,7 @@ export function HomeWorkspace() {
     selection.openGraphNodePreview(node);
   }
 
-  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft) {
+  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null) {
     const noteId = createClientId("ai-note");
     const body = draft.markdown.endsWith("\n") ? draft.markdown : `${draft.markdown}\n`;
     const file = new File(
@@ -323,9 +323,7 @@ export function HomeWorkspace() {
       buildGeneratedMarkdownFilename(draft.title),
       { type: "text/markdown" }
     );
-    // 새 문서를 만드는 스킬을 폴더에 실행했으면 그 폴더에 만든다(한 번 쓰고 비운다).
-    const folderId = skillCreateFolderIdRef.current;
-    skillCreateFolderIdRef.current = null;
+    // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 루트에 만든다.
     const created = await uploadDocumentFile(file, folderId).catch(async (error: unknown) => {
       // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
@@ -341,7 +339,6 @@ export function HomeWorkspace() {
 
   // 대상을 고른 스킬 실행. 채팅 패널이 작업 탭으로 한 번 보내고 onSkillRunSent로 비운다.
   const [skillRunRequest, setSkillRunRequest] = useState<SkillRunRequest | null>(null);
-  const skillCreateFolderIdRef = useRef<string | null>(null);
   const skillRunState = useSkillRun({
     activeView,
     projects: projectTree.projects,
@@ -351,7 +348,6 @@ export function HomeWorkspace() {
       const { target } = request;
       handleViewChange("home");
       panels.openHomeAgentPanel();
-      skillCreateFolderIdRef.current = target.kind === "folder" && !isFolderOrganizeSkill(request.skill.enabled_version) ? target.folderId : null;
       if (target.kind === "document") {
         const filename = documents.find((document) => document.id === target.documentId)?.filename ?? target.label;
         openDocument(selection.openSourceBlockPreview(target.documentId, filename, []));
@@ -583,7 +579,8 @@ export function HomeWorkspace() {
           skillRun={skillRunRequest && {
             id: skillRunRequest.id,
             message: skillRunRequest.message,
-            documentId: skillRunRequest.target.kind === "document" ? skillRunRequest.target.documentId : null
+            documentId: skillRunRequest.target.kind === "document" ? skillRunRequest.target.documentId : null,
+            folderId: skillRunFolderId(skillRunRequest.target)
           }}
           onSkillRunSent={(id) => setSkillRunRequest((current) => (current?.id === id ? null : current))}
           onManageSkills={() => handleViewChange("skills")}

@@ -1,6 +1,7 @@
 // document-svc(8080) 폴더 라우트: 문서 트리, 폴더 생성·이름 변경·삭제·이동, 문서 이동.
 // 실제 백엔드처럼 base_version 낙관적 잠금을 검사하고 변경마다 current_version을 올린다.
-import { state, now, id, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, memberRole } from "../state.mjs";
+import { randomUUID } from "node:crypto";
+import { state, now, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, memberRole } from "../state.mjs";
 
 function liveFolders(workspaceId) {
   return state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at);
@@ -81,7 +82,7 @@ export function registerFolderRoutes(router) {
     const { name, parent_folder_id: parentId = null } = await ctx.body();
     if (typeof name !== "string" || !name.trim()) return error(ctx, 400, "폴더 이름을 입력해주세요.");
     if (!requireParent(ctx, workspace, parentId)) return;
-    const folder = { id: id("folder"), workspace_id: workspace.id, name: name.trim(), parent_folder_id: parentId, sort_order: nextSortOrder(workspace.id, parentId), current_version: 1, created_at: now() };
+    const folder = { id: randomUUID(), workspace_id: workspace.id, name: name.trim(), parent_folder_id: parentId, sort_order: nextSortOrder(workspace.id, parentId), current_version: 1, created_at: now() };
     state.folders.push(folder);
     ctx.json(201, toFolderResponse(folder));
   });

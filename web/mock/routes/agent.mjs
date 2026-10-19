@@ -16,6 +16,11 @@ const CREATE_PATTERN = /(새 문서|문서 만들|문서를 만들|작성해|cre
 const SLASH_SKILL_PATTERN = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/;
 const TASK_MODE = "task";
 const REQUEST_SUMMARY_MAX = 80;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isLiveFolder(workspaceId, folderId) {
+  return state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspaceId && !folder.deleted_at);
+}
 
 function requestSummary(message) {
   const text = message.trim().replace(/\s+/g, " ");
@@ -116,8 +121,8 @@ function completeTurn(workspace, turn, request) {
 }
 
 function toTurn(turn) {
-  const { id: requestId, documentId, baseVersion, apply_operation_id, status, result, error: turnError } = turn;
-  return { requestId, documentId, baseVersion, apply_operation_id, status, result, error: turnError ?? null };
+  const { id: requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError } = turn;
+  return { requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError ?? null };
 }
 
 function toRun(run) {
@@ -134,7 +139,11 @@ export function registerAgentRoutes(router) {
     const hasDocument = Boolean(request?.documentId);
     if (typeof request?.message !== "string" || !request.message.trim() || hasDocument !== Boolean(request.editorSnapshot)) return error(ctx, 400, "turn 요청 형식이 올바르지 않습니다.");
     if (request.mode !== undefined && request.mode !== TASK_MODE) return error(ctx, 400, "mode는 task만 받을 수 있습니다.");
-    const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), status: "queued", result: null, error_code: null };
+    // 작업 대상 폴더(folder_id): UUID가 아니면 400, 이 워크스페이스의 삭제되지 않은 폴더가 아니면 404(document 계약).
+    const folderId = request.folder_id ?? null;
+    if (folderId !== null && (typeof folderId !== "string" || !UUID_PATTERN.test(folderId))) return error(ctx, 400, "folder_id 형식이 올바르지 않습니다.");
+    if (folderId !== null && !isLiveFolder(workspace.id, folderId)) return error(ctx, 404, "대상 폴더를 찾을 수 없습니다.");
+    const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, status: "queued", result: null, error_code: null };
     state.agentTurns.set(turn.id, turn);
     if (hasDocument) addOperationLog(workspace.id, { operation_id: turn.apply_operation_id, operation_type: "document_edit", status: "succeeded", target_document_id: request.documentId, target_display_name: findDocument(workspace.id, request.documentId)?.filename ?? null, summary: request.message.slice(0, 40), changed_resource_count: 0, completed_at: now() });
     setTimeout(() => { if (turn.status === "queued") completeTurn(workspace, turn, request); }, TURN_DELAY_MS);

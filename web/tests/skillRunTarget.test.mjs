@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { resolveSkillRunTarget, skillRunMessage, skillRunTargetKind, treeItemPath } =
+const { resolveSkillRunTarget, skillRunFolderId, skillRunMessage, skillRunTargetKind } =
   await import("../src/widgets/workspace/lib/skillRunTarget.ts");
 
 const version = (capabilities, resultMode) => ({ capabilities, result_mode: resultMode });
@@ -73,13 +73,10 @@ test("편집 권한이 없는 문서·폴더와 위키 페이지는 고를 수 �
   assert.equal(resolveSkillRunTarget(AUTO_SKILL, { id: "w1", label: "개념", type: "wiki" }, documents).status, "invalid");
 });
 
-test("폴더 경로를 찾아 실행 요청 문장에 넣는다", () => {
-  const projects = [{ id: "p", title: "문서", items: [{ id: "root", label: "연간 계획", type: "folder", children: [folder] }] }];
-  assert.equal(treeItemPath(projects, "f1"), "연간 계획 / 회의록");
-  assert.equal(treeItemPath(projects, "missing"), null);
+test("실행 요청 문장은 커맨드만 담고, 폴더 대상은 folder_id로 따로 보낸다", () => {
   const folderTarget = { kind: "folder", itemId: "f1", folderId: "f1", label: "회의록" };
-  assert.equal(skillRunMessage("tidy", FOLDER_SKILL, folderTarget, "연간 계획 / 회의록"), '/tidy 정리할 폴더: 연간 계획 / 회의록');
-  assert.equal(skillRunMessage("draft", CREATE_SKILL, folderTarget, null), '/draft 새 문서를 둘 폴더: 회의록');
   const documentTarget = { kind: "document", itemId: "n1", documentId: "d1", label: "회의.md" };
-  assert.equal(skillRunMessage("polish", EDIT_SKILL, documentTarget, null), "/polish");
+  assert.equal(skillRunMessage("tidy"), "/tidy");
+  assert.equal(skillRunFolderId(folderTarget), "f1");
+  assert.equal(skillRunFolderId(documentTarget), null);
 });

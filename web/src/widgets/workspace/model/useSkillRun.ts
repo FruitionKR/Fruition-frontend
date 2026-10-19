@@ -3,7 +3,7 @@ import type { SkillResponse } from "@/entities/skill";
 import type { DocumentItemResponse } from "@/entities/document";
 import { findTreeItem, type Project } from "@/entities/tree";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
-import { resolveSkillRunTarget, skillRunMessage, treeItemPath, type SkillRunTarget } from "../lib/skillRunTarget";
+import { resolveSkillRunTarget, skillRunMessage, type SkillRunTarget } from "../lib/skillRunTarget";
 
 /** 고른 대상으로 작업 탭에 보낼 스킬 실행 요청. id가 바뀔 때마다 한 번 보낸다. */
 export type SkillRunRequest = {
@@ -62,9 +62,8 @@ export function useSkillRun({
   function confirmSkillRun() {
     if (!skillRun?.target) return;
     const { skill, target } = skillRun;
-    const folderPath = target.kind === "folder" ? treeItemPath(projects, target.itemId) : null;
     setSkillRun(null);
-    onConfirmed({ id: Date.now(), skill, target, message: skillRunMessage(skill.slug, skill.enabled_version, target, folderPath) });
+    onConfirmed({ id: Date.now(), skill, target, message: skillRunMessage(skill.slug) });
   }
 
   function cancelSkillRun() {

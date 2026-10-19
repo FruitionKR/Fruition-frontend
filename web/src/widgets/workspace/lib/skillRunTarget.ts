@@ -1,6 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { SkillVersion } from "@/entities/skill/model/skill";
-import type { Project, TreeItem } from "@/entities/tree/model/tree";
+import type { TreeItem } from "@/entities/tree/model/tree";
 import { isMarkdownDocument } from "@/entities/document/lib/documentKind";
 
 /**
@@ -70,32 +70,15 @@ export function resolveSkillRunTarget(
   return { status: "ok", target: { kind: "document", itemId: item.id, documentId: document.id, label: item.label } };
 }
 
-/** 폴더 경로("상위 / 하위"). 이름이 같은 폴더를 에이전트가 구분할 수 있게 요청에 넣는다. */
-export function treeItemPath(projects: readonly Project[], itemId: string): string | null {
-  function walk(items: readonly TreeItem[], trail: string[]): string[] | null {
-    for (const item of items) {
-      const next = [...trail, item.label];
-      if (item.id === itemId) return next;
-      const found = item.children ? walk(item.children, next) : null;
-      if (found) return found;
-    }
-    return null;
-  }
-  for (const project of projects) {
-    const path = walk(project.items, []);
-    if (path) return path.join(" / ");
-  }
-  return null;
+/**
+ * 작업 탭으로 보낼 스킬 실행 요청 문장. 문서 대상은 열린 문서(editor snapshot)로, 폴더 대상은 folder_id로
+ * 함께 가므로 요청 문장에는 커맨드만 적는다.
+ */
+export function skillRunMessage(slug: string): string {
+  return `/${slug}`;
 }
 
-/**
- * 작업 탭으로 보낼 스킬 실행 요청. 문서 대상은 열린 문서(editor snapshot)로 함께 가므로 커맨드만 보낸다.
- * 폴더 대상은 agent turn에 폴더 필드가 없어 요청 문장에 폴더 경로를 적는다.
- */
-export function skillRunMessage(slug: string, version: SkillVersionLike, target: SkillRunTarget, folderPath: string | null): string {
-  if (target.kind === "document") return `/${slug}`;
-  const path = folderPath ?? target.label;
-  return isFolderOrganizeSkill(version)
-    ? `/${slug} 정리할 폴더: ${path}`
-    : `/${slug} 새 문서를 둘 폴더: ${path}`;
+/** 요청의 작업 대상 폴더(folder_id). 폴더 정리 범위이자 새 문서를 둘 위치다. 문서 대상이면 null. */
+export function skillRunFolderId(target: SkillRunTarget): string | null {
+  return target.kind === "folder" ? target.folderId : null;
 }
