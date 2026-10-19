@@ -1,39 +1,113 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useMe } from "@/entities/user";
 import { LegalFooter } from "@/shared/ui/LegalFooter";
+import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
+import { LANDING_NAV } from "../model/landingContent";
+import { LandingRedirect } from "./LandingRedirect";
+import { ChapterCards, LandingChapters, LandingFaq, LandingStart } from "./LandingSections";
+import { SectionTabs } from "./SectionTabs";
+import { HeroPreview } from "./preview/FeatureFragments";
+import { ThemeSwitch } from "./ThemeSwitch";
 import styles from "./LandingPage.module.css";
 
-export default function LandingPage() {
-  const router = useRouter();
-  // access token은 메모리에만 있어 새 탭에서는 비어 있지만, HttpOnly refresh 쿠키가 살아 있으면
-  // /me 호출이 재발급을 거쳐 성공한다. 이미 로그인한 사용자는 로그인 화면을 거치지 않고 바로 들어간다.
-  const { isSuccess } = useMe();
-
-  useEffect(() => {
-    if (isSuccess) router.replace("/workspaces");
-  }, [isSuccess, router]);
-
+/** /home 레일과 같은 로고(RailLogoIcon, 색은 --color-foreground)에 서비스 이름을 붙인다. */
+function BrandMark() {
   return (
-    <main className={styles["landing-page"]}>
-      <nav className={styles["landing-nav"]} aria-label="주요 메뉴">
-        <span className={styles["landing-brand"]}>Fruition</span>
-        <Link className={styles["landing-login-link"]} href="/login">
-          로그인
-        </Link>
-      </nav>
+    <>
+      <span className={styles["brand-mark"]}>
+        <RailLogoIcon />
+      </span>
+      <span className={styles["brand-word"]}>Fruition</span>
+    </>
+  );
+}
 
-      <section className={styles["landing-hero"]} aria-labelledby="landing-title">
-        <p className={styles["landing-eyebrow"]}>AI RESEARCH WORKSPACE</p>
-        <h1 id="landing-title">자료를 연결하고, 생각을 완성하세요.</h1>
-        <p className={styles["landing-description"]}>
-          문서와 지식을 한곳에 모아 탐색하고, AI와 함께 더 빠르게 인사이트를 발견하세요.
+function LandingHeader() {
+  return (
+    <header className={styles["landing-header"]}>
+      <div className={styles["header-inner"]}>
+        <a className={styles["brand"]} href="#top" aria-label="Fruition 처음으로">
+          <BrandMark />
+        </a>
+        <nav className={styles["header-nav"]} aria-label="주요 메뉴">
+          <ul>
+            {LANDING_NAV.map((item) => (
+              <li key={item.href}>
+                <a href={item.href}>{item.label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className={styles["header-actions"]}>
+          <ThemeSwitch />
+          <Link className={styles["login-link"]} href="/login">
+            로그인
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function LandingHero() {
+  return (
+    <section id="top" className={styles["hero"]} aria-labelledby="landing-title">
+      <div className={styles["hero-copy"]}>
+        <h1 id="landing-title" className={styles["h1"]}>
+          쌓이는 기록을,
+          <br />
+          쓰이는 지식으로.
+        </h1>
+        <p className={styles["hero-lead"]}>
+          흩어진 기록을 하나로 모으고, 연결하고, 활용하세요.{" "}
+          <br />
+          단순한 문서 저장을 넘어, 기록이 살아 있는 지식으로 발전하는 공간.
         </p>
-      </section>
-      <LegalFooter />
-    </main>
+        <div className={styles["hero-actions"]}>
+          <Link className={styles["button-primary"]} href="/login">
+            시작하기
+            <span aria-hidden="true">→</span>
+          </Link>
+          <a className={styles["button-ghost"]} href="#capture">
+            기능 둘러보기
+            <span aria-hidden="true">↓</span>
+          </a>
+        </div>
+      </div>
+      <figure className={styles["hero-visual"]}>
+        <HeroPreview />
+        <figcaption>문서와 위키, 채팅을 한 화면에서. 화면은 예시입니다.</figcaption>
+      </figure>
+    </section>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <div className={styles["landing-page"]}>
+      <LandingRedirect />
+      <a className={styles["skip-link"]} href="#capture">
+        본문으로 건너뛰기
+      </a>
+      <LandingHeader />
+      <main>
+        <LandingHero />
+        <ChapterCards />
+        <SectionTabs />
+        <LandingChapters />
+        <LandingFaq />
+        <LandingStart />
+      </main>
+      <div className={styles["landing-bottom"]}>
+        <footer className={styles["landing-footer"]}>
+          <div className={styles["footer-brand"]}>
+            <BrandMark />
+            <p>쌓이는 기록을, 쓰이는 지식으로.</p>
+          </div>
+          <p className={styles["footer-copy"]}>© Team Fruition</p>
+        </footer>
+        {/* 약관·운영자 정보(이슈 #130). 기능 플래그가 꺼져 있으면 아무것도 그리지 않는다. footer 안에 footer를 둘 수 없어 형제로 둔다. */}
+        <LegalFooter />
+      </div>
+    </div>
   );
 }

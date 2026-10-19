@@ -1,0 +1,440 @@
+/* 랜딩 화면 조각(히어로 · 01~04장)의 배치. 색은 현재 테마의 앱 토큰(--color-*)만 쓴다. */
+
+.app {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--color-canvas);
+}
+
+/* ───── 히어로: 문서 트리(위키) + 문서 + 채팅 ───── */
+.hero-frame {
+  --preview-w: 880;
+  --preview-h: 620;
+
+  box-shadow: 0 30px 80px -40px var(--color-shadow), 0 2px 8px var(--color-shadow);
+}
+
+.wiki-link {
+  color: var(--color-primary-weak-foreground);
+  font-weight: 600;
+  background: var(--color-primary-weak);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+.doc-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  color: var(--color-body);
+  list-style: none;
+}
+
+.doc-checks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.doc-checks li::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1.4px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.doc-checks li[data-done]::before {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px !important;
+  padding: 0;
+  list-style: none;
+}
+
+.source-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.source-list li[data-active] {
+  color: var(--color-foreground);
+  background: var(--color-primary-weak);
+  border-color: var(--color-primary-default);
+}
+
+.source-number {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--color-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-primary);
+  border-radius: 5px;
+}
+
+/* ───── 문서 ───── */
+.doc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 28px 32px;
+}
+
+.doc[data-size="compact"] {
+  padding: 28px 26px;
+}
+
+.doc-crumb {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.doc-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.doc-meta {
+  align-self: flex-start;
+  padding: 3px 8px;
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-primary-weak);
+  border-radius: 6px;
+}
+
+.doc-h2 {
+  margin-top: 6px !important;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.doc-text {
+  color: var(--color-body);
+  line-height: 1.75;
+}
+
+.doc-table {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.doc-table th,
+.doc-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+}
+
+.doc-table th {
+  color: var(--color-body);
+  font-weight: 600;
+  background: var(--color-surface);
+}
+
+/* 실제 앱의 알림 카드(위키 편입 안내)와 같은 모양 */
+.notice {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 300px;
+  padding: 18px 20px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px var(--color-shadow);
+}
+
+.notice-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.notice-text {
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.notice-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px !important;
+}
+
+.notice-actions > span {
+  justify-content: center;
+}
+
+.notice-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-surface-strong);
+  border-radius: 8px;
+}
+
+/* ───── 02: 위키 그래프 + 개념 페이지 ───── */
+.wiki-page {
+  display: flex;
+  flex: 0 0 280px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 20px;
+  border-left: 1px solid var(--color-border);
+}
+
+.wiki-kind {
+  align-self: flex-start;
+  padding: 3px 8px;
+  color: var(--color-body);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-surface);
+  border-radius: 6px;
+}
+
+.wiki-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.wiki-section {
+  margin-top: 6px !important;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wiki-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  font-size: 13px;
+  list-style: none;
+}
+
+.wiki-sources li::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  background: var(--color-graph-source);
+  border-radius: 50%;
+}
+
+.wiki-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wiki-tags span {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+}
+
+/* ───── 03: 채팅 탭 인용 · 작업 탭 ───── */
+.quote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.quote-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.quote-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px !important;
+  font-weight: 600;
+}
+
+.quote-text {
+  color: var(--color-body);
+  font-size: 12px !important;
+}
+
+.task-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px 18px 12px;
+  overflow: hidden;
+}
+
+.task-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.task-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.task-title {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+.task-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-chips span {
+  padding: 5px 10px;
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-primary-weak);
+  border-radius: 99px;
+}
+
+.task-done {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ───── 04: 멤버 관리 + 팀 스킬 ───── */
+.team-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--color-canvas);
+}
+
+.team-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 40px 28px;
+}
+
+.team-skills-head {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.team-skills-head span {
+  color: var(--color-primary-weak-foreground);
+}
+
+.team-skills ul {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.team-skills li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.team-skills strong {
+  font-weight: 600;
+}
+
+.team-skills li span {
+  flex: 1;
+  color: var(--color-body);
+  font-size: 13px;
+}
+
+.team-skills em {
+  padding: 2px 8px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+  background: var(--color-surface);
+  border-radius: 6px;
+}
+
+/* 좁은 화면: 히어로는 채팅 패널만 남겨 글자가 너무 작아지지 않게 한다. */
+@media (max-width: 640px) {
+  .hero-frame {
+    --preview-w: 380;
+    --preview-h: 560;
+  }
+
+  .hero-frame .app > :not(:last-child) {
+    display: none;
+  }
+
+  .hero-frame .app > :last-child {
+    flex: 1;
+    border-left: 0;
+  }
+}

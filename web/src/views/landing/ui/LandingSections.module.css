@@ -1,0 +1,329 @@
+/* 랜딩 섹션 배치(장 목차 · 01~04장 · FAQ · 마지막 안내). 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
+
+/* ───── 장 목차 카드 ───── */
+.chapter-cards {
+  max-width: var(--lp-wrap);
+  margin: clamp(56px, 6vw, 88px) auto 0;
+  padding: 0 var(--lp-gutter);
+  box-sizing: content-box;
+}
+
+.chapter-cards ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 22px 22px 24px;
+  color: var(--lp-ink);
+  text-decoration: none;
+  background: var(--lp-panel);
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-panel);
+  transition: transform 220ms var(--lp-ease-out), border-color 160ms ease, box-shadow 220ms ease;
+}
+
+.chapter-card:hover {
+  border-color: color-mix(in srgb, var(--lp-accent) 55%, var(--lp-line));
+  box-shadow: 0 14px 30px -20px var(--color-shadow);
+  transform: translateY(-3px);
+}
+
+.chapter-card:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: var(--lp-accent-ink);
+  background: var(--lp-accent-weak);
+  border-radius: 12px;
+}
+
+.card-icon-36 {
+  width: 36px;
+  height: 36px;
+}
+
+.card-icon-16 {
+  width: 18px;
+  height: 18px;
+}
+
+.card-number {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-small);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-english {
+  color: var(--lp-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card-summary {
+  padding-right: 24px;
+  color: var(--lp-body);
+  font-size: var(--lp-text-small);
+  line-height: 1.55;
+}
+
+.card-arrow {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  color: var(--lp-muted);
+  transition: transform 220ms var(--lp-ease-out), color 160ms ease;
+}
+
+.chapter-card:hover .card-arrow {
+  color: var(--lp-accent-ink);
+  transform: translateY(3px);
+}
+
+/* ───── 01~04장(좌우 교차) ───── */
+.chapters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-section-gap);
+  max-width: var(--lp-wrap);
+  margin: var(--lp-section-gap) auto 0;
+  padding: 0 var(--lp-gutter);
+  box-sizing: content-box;
+}
+
+.chapter {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 80px);
+}
+
+/* 01·03은 화면이 왼쪽, 02·04는 오른쪽 */
+.chapter.is-visual-left {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+
+.chapter.is-visual-left .chapter-copy {
+  order: 2;
+}
+
+.chapter-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chapter-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: var(--lp-text-small);
+  font-weight: 700;
+}
+
+.chapter-number {
+  color: var(--lp-accent-ink);
+}
+
+.chapter-english {
+  color: var(--lp-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.chapter-note {
+  margin: -6px 0 4px;
+  color: var(--lp-accent-ink);
+  font-size: var(--lp-text-body);
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chips li {
+  padding: 8px 14px;
+  font-size: var(--lp-text-small);
+  font-weight: 600;
+  background: var(--lp-panel);
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+}
+
+.chapter-visual {
+  min-width: 0;
+}
+
+/* 03: 채팅 탭 · 작업 탭 두 화면 */
+.tab-previews {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.tab-previews figure {
+  margin: 0;
+}
+
+.tab-previews figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 12px;
+  color: var(--lp-body);
+  font-size: var(--lp-text-small);
+  line-height: 1.5;
+}
+
+.tab-previews figcaption strong {
+  color: var(--lp-ink);
+}
+
+/* ───── FAQ ───── */
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 820px;
+  margin: var(--lp-section-gap) auto 0;
+  padding: 0 var(--lp-gutter);
+  box-sizing: content-box;
+}
+
+.faq-list {
+  border-top: 1px solid var(--lp-line);
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 4px;
+  font-size: var(--lp-text-body);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-icon {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.faq-icon::before,
+.faq-icon::after {
+  content: "";
+  position: absolute;
+  inset: 5.5px 0 auto;
+  height: 1.5px;
+  background: var(--lp-body);
+  transition: transform 220ms var(--lp-ease-out);
+}
+
+.faq-icon::after {
+  transform: rotate(90deg);
+}
+
+.faq-item[open] .faq-icon::after {
+  transform: rotate(0deg);
+}
+
+.faq-item p {
+  margin: 0;
+  padding: 0 4px 24px;
+  color: var(--lp-body);
+  line-height: 1.75;
+}
+
+/* ───── 마지막 안내 ───── */
+.start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  margin-top: var(--lp-section-gap);
+  padding: clamp(72px, 7vw, 104px) var(--lp-gutter);
+  text-align: center;
+  background:
+    radial-gradient(50% 70% at 50% 100%, var(--lp-glow), transparent 70%),
+    var(--lp-band);
+  border-top: 1px solid var(--lp-line);
+}
+
+/* ───── 반응형 ───── */
+@media (max-width: 1023px) {
+  .chapter-cards ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chapter,
+  .chapter.is-visual-left {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter.is-visual-left .chapter-copy {
+    order: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .chapter-cards ol {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .tab-previews {
+    grid-template-columns: 1fr;
+  }
+}

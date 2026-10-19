@@ -1,0 +1,56 @@
+/* 헤더의 테마 선택 세그먼트. 라디오를 시각적으로 숨기고 라벨을 버튼처럼 그린다. */
+.theme-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  background: var(--lp-panel);
+  border: 1px solid var(--lp-line);
+  border-radius: 10px;
+}
+
+.option {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  color: var(--lp-muted);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.option:hover {
+  color: var(--lp-ink);
+}
+
+.option:has(input:checked) {
+  color: var(--lp-accent-ink);
+  background: var(--lp-bg);
+  box-shadow: 0 1px 3px var(--color-shadow);
+}
+
+.option:has(input:focus-visible) {
+  outline: 2px solid var(--lp-accent);
+  outline-offset: 1px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
