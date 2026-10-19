@@ -329,49 +329,6 @@ img.profile-icon {
   white-space: nowrap;
 }
 
-/* 사용 권한 (Figma 1540:22129): 테두리 없는 14 Medium 글자 + 16px 화살표 */
-.role-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-}
-
-.role-select {
-  appearance: none;
-  padding: 2px 20px 2px 0;
-  color: var(--color-body);
-  background: transparent;
-  border: none;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.28px;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.role-select:disabled {
-  cursor: default;
-  opacity: 1;
-}
-
-.role-select:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.role-chevron {
-  position: absolute;
-  right: 0;
-  pointer-events: none;
-}
-
-.role-select:disabled + .role-chevron {
-  opacity: 0.4;
-}
-
 .more-btn {
   width: 28px;
   height: 28px;
@@ -419,7 +376,6 @@ img.profile-icon {
   :root:not([data-theme="light"]) .icon-btn img,
   :root:not([data-theme="light"]) .filter-btn img,
   :root:not([data-theme="light"]) .sort-btn img,
-  :root:not([data-theme="light"]) .role-chevron,
   :root:not([data-theme="light"]) .more-btn img {
     filter: brightness(2.4);
   }
@@ -432,7 +388,6 @@ img.profile-icon {
 :root[data-theme="dark"] .icon-btn img,
 :root[data-theme="dark"] .filter-btn img,
 :root[data-theme="dark"] .sort-btn img,
-:root[data-theme="dark"] .role-chevron,
 :root[data-theme="dark"] .more-btn img {
   filter: brightness(2.4);
 }

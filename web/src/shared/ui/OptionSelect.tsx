@@ -12,6 +12,7 @@ import styles from "./OptionSelect.module.css";
 /**
  * 문서 고르기 드롭다운 (Figma 1610:9350). 닫힌 상자(테두리 라벨 + 화살표) 아래에 목록을 펼치고,
  * 고른 항목 오른쪽에 체크를 보인다. action은 목록 끝의 "+ 새 문서로 만들기" 같은 보조 동작이다.
+ * floating이면 목록을 아래 내용 위에 띄운다(표 행·모달처럼 높이가 밀리면 안 되는 자리). ariaLabel·title은 보이는 라벨이 없을 때 쓴다.
  */
 export function OptionSelect({
   id,
@@ -20,6 +21,9 @@ export function OptionSelect({
   options,
   action,
   disabled,
+  floating,
+  ariaLabel,
+  title,
   onChange
 }: {
   id?: string;
@@ -28,6 +32,9 @@ export function OptionSelect({
   options: ReadonlyArray<{ value: string; label: string }>;
   action?: { label: string; disabled?: boolean; onSelect: () => void };
   disabled?: boolean;
+  floating?: boolean;
+  ariaLabel?: string;
+  title?: string;
   onChange: (value: string) => void;
 }) {
   const fallbackId = useId();
@@ -75,6 +82,8 @@ export function OptionSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls={isOpen ? listId : undefined}
+        aria-label={ariaLabel}
+        title={title}
         disabled={disabled || (options.length === 0 && !action)}
         onClick={() => setIsOpen((open) => !open)}
       >
@@ -82,7 +91,7 @@ export function OptionSelect({
         <SvgIcon src={selectArrowIcon} className={styles.arrow} />
       </button>
       {isOpen && (
-        <div ref={listRef} className={styles.list} onKeyDown={handleListKeyDown}>
+        <div ref={listRef} className={cx(styles.list, floating && styles["is-floating"])} onKeyDown={handleListKeyDown}>
           <div id={listId} role="listbox" aria-labelledby={triggerId} className={styles.options}>
             {options.map((option) => {
               const isSelected = option.value === value;

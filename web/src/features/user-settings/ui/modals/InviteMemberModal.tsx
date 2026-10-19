@@ -4,12 +4,17 @@ import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import { inviteMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import modalCloseIcon from "@/shared/assets/svg/settings/modal-close.svg";
-import selectArrowIcon from "@/shared/assets/svg/settings/select-arrow.svg";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import flowStyles from "./AccountFlowModal.module.css";
 import { FlowError, AccountFlowModal } from "./AccountFlowModal";
 import styles from "./InviteMemberModal.module.css";
+
+const ROLE_OPTIONS: ReadonlyArray<{ value: WorkspaceRole; label: string }> = [
+  { value: "MEMBER", label: "MEMBER" },
+  { value: "OWNER", label: "OWNER" }
+];
 
 /** 멤버 초대 모달 (Figma 1708:5354). 성공하면 onInvited로 안내 문구를 넘기고 닫힌다. 실패하면 모달 안에 오류를 보여준다. */
 export function InviteMemberModal({
@@ -69,13 +74,16 @@ export function InviteMemberModal({
         </div>
         <div className={styles.field}>
           <label htmlFor="invite-role">권한</label>
-          <span className={styles["select-wrap"]}>
-            <select id="invite-role" value={role} disabled={busy} onChange={(event) => setRole(event.target.value as WorkspaceRole)}>
-              <option value="MEMBER">MEMBER</option>
-              <option value="OWNER">OWNER</option>
-            </select>
-            <Image src={selectArrowIcon} alt="" aria-hidden className={styles["select-arrow"]} />
-          </span>
+          {/* 권한 목록 (Figma 1610:9350): 닫힌 상자 아래로 띄워 펼치고 고른 권한에 체크 */}
+          <OptionSelect
+            id="invite-role"
+            value={role}
+            placeholder="권한 선택"
+            options={ROLE_OPTIONS}
+            disabled={busy}
+            floating
+            onChange={(value) => setRole(value as WorkspaceRole)}
+          />
           <FlowError error={error} />
         </div>
       </div>

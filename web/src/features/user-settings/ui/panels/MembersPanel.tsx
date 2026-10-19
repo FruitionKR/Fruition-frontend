@@ -16,6 +16,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import { WORKSPACE_PERMISSIONS, workspacePermissionLabel, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { excludeMember, memberDisplayName, selectVisibleMembers, type MemberRoleFilter, type MemberSortDirection } from "../../lib/memberList";
 import modalStyles from "../SettingsModal.module.css";
 import { InviteMemberModal } from "../modals/InviteMemberModal";
@@ -25,6 +26,11 @@ import { SettingsPanelTitle } from "../SettingsPanelTitle";
 // 권한 필터 순서. 빈 값은 전체.
 const ROLE_FILTERS: readonly MemberRoleFilter[] = ["", "OWNER", "MEMBER"];
 const ROLE_FILTER_LABELS: Record<MemberRoleFilter, string> = { "": "전체", OWNER: "OWNER", MEMBER: "MEMBER" };
+// 행 권한 목록 (Figma 1610:9350)
+const ROLE_OPTIONS: ReadonlyArray<{ value: WorkspaceRole; label: string }> = [
+  { value: "OWNER", label: "OWNER" },
+  { value: "MEMBER", label: "MEMBER" }
+];
 
 /** 행 앞 체크 칸 (Figma Check off 1482:10965). 일괄 작업이 없어 표시만 한다. */
 function RowCheck() {
@@ -236,18 +242,18 @@ export function MembersPanel() {
                     </div>
                   </div>
                 </div>
-                <span className={styles["cell-role"]}>
-                  <span className={styles["role-chip"]}>
-                    <select className={styles["role-select"]} aria-label={`${name} 권한`} value={member.role}
-                      disabled={!isOwner || busy || lastOwner}
-                      title={lastOwner ? "마지막 OWNER의 권한은 변경할 수 없습니다." : undefined}
-                      onChange={(event) => changeRole(member, event.target.value as WorkspaceRole)}>
-                      <option value="OWNER">OWNER</option>
-                      <option value="MEMBER">MEMBER</option>
-                    </select>
-                    <Image src={chevronDownIcon} alt="" aria-hidden className={styles["role-chevron"]} />
-                  </span>
-                </span>
+                <div className={styles["cell-role"]}>
+                  <OptionSelect
+                    value={member.role}
+                    placeholder="권한"
+                    options={ROLE_OPTIONS}
+                    ariaLabel={`${name} 권한: ${member.role}`}
+                    disabled={!isOwner || busy || lastOwner}
+                    title={lastOwner ? "마지막 OWNER의 권한은 변경할 수 없습니다." : undefined}
+                    floating
+                    onChange={(value) => changeRole(member, value as WorkspaceRole)}
+                  />
+                </div>
                 <div className={styles["cell-more"]} ref={isMenuOpen ? rowMenuRef : undefined}>
                   <button type="button" className={styles["more-btn"]} aria-label={`${name} 더보기`} aria-haspopup="menu"
                     aria-expanded={isMenuOpen} onClick={() => setOpenMenuId(isMenuOpen ? null : member.user_id)}>
