@@ -27,7 +27,6 @@ export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageI
   const documentIds = [...new Set(targets.flatMap((target) => (target.documentId && target.applyOperationId ? [target.documentId] : [])))];
   const versionQueries = useQueries({
     queries: documentIds.map((documentId) => ({
-      // 버전 기록 창과 같은 키를 써서 캐시를 나눠 쓴다.
       queryKey: ["document-versions", documentId],
       queryFn: () => fetchDocumentVersions(documentId),
       enabled: isShown,

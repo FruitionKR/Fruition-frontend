@@ -4,7 +4,6 @@ import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { useUserPreferences } from "@/entities/user";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
-import { VersionHistoryModal } from "@/features/note-editing/ui/VersionHistoryModal";
 import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
@@ -112,8 +111,6 @@ export function SourcePreviewPanel({
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>("saved");
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
-  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
-  const openVersionHistory = useCallback(() => setIsVersionHistoryOpen(true), []);
   // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되거나 변환 묶음이 추가되면 본문을 다시 불러온다.
   const previousStatusRef = useRef<OpenDocumentState>({ id: null, converting: false });
   useEffect(() => {
@@ -181,7 +178,6 @@ export function SourcePreviewPanel({
   // 저장 상태는 문서가 바뀔 때만 되돌린다.
   useEffect(() => {
     noteSaveRef.current = null;
-    setIsVersionHistoryOpen(false);
     noteSaveStatusRef.current = "saved";
     setNoteSaveStatus("saved");
     setNoteSaveError(null);
@@ -451,11 +447,6 @@ export function SourcePreviewPanel({
               {saveStatusLabel}
             </span>
           )}
-          {isMarkdownFile && !readOnly && editableNote && documentId && (
-            <button type="button" className={styles["source-preview-history-button"]} onClick={openVersionHistory}>
-              버전 기록
-            </button>
-          )}
         </div>
       )}
       <div className={cx(styles["source-preview-document"], isPdfFile && styles["is-pdf"])}>
@@ -568,19 +559,6 @@ export function SourcePreviewPanel({
             onSaveStatusChange={handleSaveStatusChange}
             onDetachedSaveComplete={handleDetachedSaveComplete}
             onRegisterSave={registerNoteSave}
-            onOpenVersionHistory={openVersionHistory}
-          />
-        )}
-        {isVersionHistoryOpen && documentId && (
-          <VersionHistoryModal
-            documentId={documentId}
-            onBeforeRestore={() => noteSaveRef.current?.() ?? Promise.resolve(true)}
-            onRestored={() => {
-              // 복원된 본문을 다시 불러온다. 같은 문서 재조회라 화면을 비우지 않는다.
-              setDocumentReloadCount((count) => count + 1);
-              onRefreshDocuments?.();
-            }}
-            onClose={() => setIsVersionHistoryOpen(false)}
           />
         )}
         {isPdfOrOther && errorMessage && <p>{errorMessage}</p>}

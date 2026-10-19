@@ -19,7 +19,7 @@ import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownE
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
-import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE, VERSION_HISTORY_ACTION_LABEL } from "../model/saveMerge";
+import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
 import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
@@ -86,8 +86,7 @@ export function NoteEditor({
   onMarkdownEditContextChange,
   onSaveStatusChange,
   onDetachedSaveComplete,
-  onRegisterSave,
-  onOpenVersionHistory
+  onRegisterSave
 }: {
   documentId: string;
   marker: string;
@@ -98,8 +97,6 @@ export function NoteEditor({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
-  /** 덮어쓰기 안내의 "버전 기록" 버튼. 없으면 버튼 없이 안내만 한다. */
-  onOpenVersionHistory?: () => void;
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
@@ -218,8 +215,7 @@ export function NoteEditor({
     publishNotice({
       kind: "info",
       title: OVERWRITTEN_NOTICE_TITLE,
-      message: OVERWRITTEN_NOTICE_MESSAGE,
-      action: onOpenVersionHistory ? { label: VERSION_HISTORY_ACTION_LABEL, onAction: onOpenVersionHistory } : undefined
+      message: OVERWRITTEN_NOTICE_MESSAGE
     });
   };
 
