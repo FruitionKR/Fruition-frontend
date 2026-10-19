@@ -14,6 +14,7 @@ import {
   SKILL_RESULT_OPTIONS,
   SKILL_SCOPE_OPTIONS,
   SKILL_TARGET_OPTIONS,
+  rulesPlaceholderHint,
   skillAuthorRequest,
   type SkillAuthoringMode,
   type SkillTarget
@@ -31,7 +32,6 @@ import {
 import {
   HelpTip,
   RESULT_HELP,
-  RULES_PLACEHOLDER_HINT,
   SCOPE_HELP,
   SegmentedControl,
   SkillAuthorAssist,
@@ -80,6 +80,7 @@ export function SkillDetailEditor({
   const isBlocked = Object.keys(errors).length > 0;
   const visibleError = (field: SkillDetailField) => (touched.has(field) ? errors[field] : undefined);
   const isDocument = form.kind != null && isDocumentKind(form.kind);
+  const rulesHint = rulesPlaceholderHint(form.kind);
 
   function update(patch: Partial<SkillDetailForm>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -343,15 +344,15 @@ export function SkillDetailEditor({
             className={cx(styles.input, styles.textarea)}
             rows={8}
             value={form.rules}
-            {...errorProps("rules", fieldId("rules-hint"))}
+            {...errorProps("rules", rulesHint != null ? fieldId("rules-hint") : undefined)}
             onChange={(event) => update({ rules: event.target.value })}
             onBlur={() => touch("rules")}
           />
-          {errorText("rules") ?? (
+          {errorText("rules") ?? (rulesHint != null && (
             <p id={fieldId("rules-hint")} className={styles.hint}>
-              {RULES_PLACEHOLDER_HINT}
+              {rulesHint}
             </p>
-          )}
+          ))}
           <SkillAuthorAssist
             selectedDocs={referenceDocs.selectedDocs}
             onOpenPicker={referenceDocs.openPicker}

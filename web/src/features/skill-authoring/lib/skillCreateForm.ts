@@ -85,6 +85,14 @@ export function skillCreateFormFromRequest(request: string): SkillCreateForm {
   return { ...INITIAL_SKILL_CREATE_FORM, rules: request.trim() };
 }
 
+/** 실행 규칙 아래 안내 (디자인 문구 그대로). 자리표시자 치환은 실행 쪽(AI pipeline)이 맡는다. */
+export const RULES_PLACEHOLDER_HINT = "{문서}, {선택한 부분}, {요청} 을 넣으면 실행할 때 채워집니다.";
+
+/** 실행 규칙 안내 문구. 폴더 정리 스킬은 문서·선택한 부분을 받지 않으므로 자리표시자 안내를 감춘다(null). */
+export function rulesPlaceholderHint(kind: SkillKind | null): string | null {
+  return kind === "folder" ? null : RULES_PLACEHOLDER_HINT;
+}
+
 /** 결과 방식·대상은 문서 스킬에만 의미가 있다(폴더 정리·템플릿은 capability 하나로 정해진다). */
 export function isDocumentKind(kind: SkillKind): boolean {
   return kind === "document";

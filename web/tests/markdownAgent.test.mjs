@@ -1,13 +1,22 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import {
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    return nextResolve(specifier, context);
+  }
+});
+
+const {
   buildAgentTurnRequest,
   buildGeneratedMarkdownFilename,
   isDocumentCommandAction,
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
   validateMarkdownEditApplication
-} from "../src/features/agent-chat/lib/agentTurn.ts";
+} = await import("../src/features/agent-chat/lib/agentTurn.ts");
 
 test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", () => {
   assert.deepEqual(resolveChatTurnPresentation("chat_answer"), { kind: "query", grounded: true });
