@@ -11,7 +11,6 @@ import { describeSkillAuthorError, skillAuthoringOutcome } from "../lib/skillAut
 import {
   isDocumentKind,
   SKILL_NAME_MAX,
-  SKILL_RESULT_OPTIONS,
   SKILL_SCOPE_OPTIONS,
   SKILL_TARGET_OPTIONS,
   rulesPlaceholderHint,
@@ -31,16 +30,14 @@ import {
 } from "../lib/skillDetailForm";
 import {
   HelpTip,
-  RESULT_HELP,
   SCOPE_HELP,
-  SegmentedControl,
+  SelectBox,
   SkillAuthorAssist,
-  SkillEditorLayout,
-  SkillKindCards,
   SkillSafetyIssues,
   TargetChecks,
   useReferenceDocuments
 } from "./SkillFormParts";
+import { SkillSheet } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
 import detailStyles from "./SkillDetailEditor.module.css";
@@ -49,22 +46,26 @@ const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
 
 /**
- * 스킬 상세 편집 탭. 목록 행 클릭·더보기 '수정'으로 연다. 새 스킬 탭과 같은 틀을 쓴다.
+ * 스킬 상세 시트 (Figma 1708:3848). 목록 행 클릭·더보기 '수정'으로 연다. 스킬 만들기와 같은 시트를 쓴다.
  * 설명·실행 규칙·대상을 PATCH /skills/{id}로 저장하고(문서 스킬은 targets 포함, result_mode는 생략해 유지), '스킬 삭제'로 지운다.
- * 저장범위·커맨드는 수정 API가 받지 않고, 스킬 종류·결과 방식은 지침을 다시 분류한 capability와 맞아야 해 읽기 전용으로 보여 준다.
+ * 저장범위·커맨드는 수정 API가 받지 않아 읽기 전용이고, 스킬 종류·결과 방식은 바꿀 수 없어 시안대로 보여 주지 않는다.
  */
 export function SkillDetailEditor({
   workspaceId,
   skill,
+  host,
+  testRunTarget,
   onClose,
-  onShowList,
   onSubmit,
   onDelete
 }: {
   workspaceId: string;
   skill: SkillResponse;
+  /** 시트를 그릴 요소(main.workspace). 없으면 제자리에 그린다. */
+  host: HTMLElement | null;
+  /** 채팅 패널의 테스트 실행 자리. 없으면 시트 본문 끝에 둔다. */
+  testRunTarget: HTMLElement | null;
   onClose: () => void;
-  onShowList: () => void;
   onSubmit: (draft: SkillDetailDraft) => Promise<SkillAuthoringResult>;
   onDelete: () => Promise<void>;
 }) {
@@ -175,28 +176,38 @@ export function SkillDetailEditor({
     if (!deleteMutation.isPending) setIsDeleteConfirmOpen(false);
   }
 
-  // 테스트 실행은 종류를 알아야 capability를 정할 수 있다. 알 수 없는 capability면 테스트 열을 두지 않는다.
+  // 테스트 실행은 종류를 알아야 capability를 정할 수 있다. 알 수 없는 capability면 테스트 실행을 두지 않는다.
   const testRunForm = form.kind != null ? skillDetailAuthorForm(form) : null;
+  const testRun = testRunForm != null
+    ? <SkillTestRunCard workspaceId={workspaceId} form={testRunForm} label={`스킬 수정 · /${skill.slug}`} />
+    : undefined;
 
   return (
-    <SkillEditorLayout
+    <SkillSheet
+      host={host}
       titleId={fieldId("title")}
-      title={`/${skill.slug}`}
-      onShowList={onShowList}
-      aside={testRunForm != null ? <SkillTestRunCard workspaceId={workspaceId} form={testRunForm} /> : undefined}
+      headerLabel="스킬 상세"
+      title="스킬"
+      subtitle={`/${skill.slug}`}
+      testRun={testRun}
+      testRunTarget={testRunTarget}
+      isClosable={!saveMutation.isPending && !deleteMutation.isPending}
+      onClose={onClose}
+      footerStart={
+        <button
+          type="button"
+          className={detailStyles["delete-button"]}
+          disabled={isBusy}
+          onClick={() => {
+            deleteMutation.reset();
+            setIsDeleteConfirmOpen(true);
+          }}
+        >
+          스킬 삭제
+        </button>
+      }
       actions={
         <>
-          <button
-            type="button"
-            className={detailStyles["delete-button"]}
-            disabled={isBusy}
-            onClick={() => {
-              deleteMutation.reset();
-              setIsDeleteConfirmOpen(true);
-            }}
-          >
-            스킬 삭제
-          </button>
           <button type="button" className={styles["cancel-button"]} onClick={onClose}>
             취소
           </button>
@@ -212,109 +223,66 @@ export function SkillDetailEditor({
         </>
       }
     >
+      {/* Figma 1708:3848: 저장범위 · 커맨드명 · 설명 · 실행 규칙. 스킬 종류·결과 방식은 만든 뒤 바꿀 수 없어 두지 않는다. */}
       <div className={styles.fields}>
-        {/* 스킬 종류·결과 방식 → capabilities (읽기 전용). 알 수 없는 capability면 표시하지 않는다. */}
-        {form.kind != null && (
-          <div className={styles.field}>
-            <span id={fieldId("kind-label")} className={styles.label}>
-              스킬 종류
-            </span>
-            <SkillKindCards
-              name={fieldId("kind")}
-              labelledBy={fieldId("kind-label")}
-              value={form.kind}
+        {/* 저장범위 → scope_type (수정 API가 받지 않아 읽기 전용) */}
+        <div className={styles.field}>
+          <div className={styles["label-row"]}>
+            <label className={styles.label} htmlFor={fieldId("scope")}>
+              저장범위
+            </label>
+            <HelpTip label="저장범위" content={SCOPE_HELP} />
+          </div>
+          <div className={styles.menu}>
+            <SelectBox
+              id={fieldId("scope")}
+              value={form.scope}
+              options={SKILL_SCOPE_OPTIONS}
+              describedBy={fieldId("scope-hint")}
               disabled
               onChange={() => undefined}
             />
-
-            {isDocument && (
-              <div className={styles["sub-panel"]}>
-                <div className={styles.field}>
-                  <div className={styles["label-row"]}>
-                    <span id={fieldId("result-label")} className={styles.label}>
-                      결과 방식
-                    </span>
-                    <HelpTip label="결과 방식" content={RESULT_HELP} />
-                  </div>
-                  <div className={styles.menu}>
-                    <SegmentedControl
-                      name={fieldId("result")}
-                      labelledBy={fieldId("result-label")}
-                      describedBy={fieldId("result-hint")}
-                      value={form.resultMode}
-                      options={SKILL_RESULT_OPTIONS}
-                      disabled
-                      onChange={() => undefined}
-                    />
-                    <p id={fieldId("result-hint")} className={styles.hint}>
-                      스킬 종류와 결과 방식은 만든 뒤 바꿀 수 없어요.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 대상 → targets */}
-                <fieldset className={styles.field} {...errorProps("targets")}>
-                  <legend className={cx(styles.label, styles.legend)}>대상</legend>
-                  <TargetChecks targets={form.targets} onToggle={toggleTarget} />
-                  {errorText("targets")}
-                </fieldset>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className={styles["field-row"]}>
-          {/* 커맨드 → slug (읽기 전용) */}
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={fieldId("command")}>
-              커맨드
-            </label>
-            <div className={cx(styles.input, styles["command-input"], detailStyles["read-only"])}>
-              <span className={styles["command-prefix"]} aria-hidden>
-                /
-              </span>
-              <input
-                id={fieldId("command")}
-                type="text"
-                readOnly
-                value={form.command}
-                spellCheck={false}
-                aria-describedby={fieldId("command-hint")}
-              />
-              <span className={styles.counter}>
-                {form.command.length}/{SKILL_NAME_MAX}
-              </span>
-            </div>
-            <p id={fieldId("command-hint")} className={styles.hint}>
-              Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.
+            <p id={fieldId("scope-hint")} className={styles.hint}>
+              {form.scope === "team"
+                ? "팀: 현재 워크스페이스에서 사용됩니다. 저장범위는 만든 뒤 바꿀 수 없어요."
+                : "저장범위는 만든 뒤 바꿀 수 없어요."}
             </p>
           </div>
+        </div>
 
-          {/* 저장범위 → scope_type (수정 API가 받지 않아 읽기 전용) */}
-          <div className={styles.field}>
-            <div className={styles["label-row"]}>
-              <span id={fieldId("scope-label")} className={styles.label}>
-                저장범위
-              </span>
-              <HelpTip label="저장범위" content={SCOPE_HELP} />
-            </div>
-            <div className={styles.menu}>
-              <SegmentedControl
-                name={fieldId("scope")}
-                labelledBy={fieldId("scope-label")}
-                describedBy={fieldId("scope-hint")}
-                value={form.scope}
-                options={SKILL_SCOPE_OPTIONS}
-                disabled
-                onChange={() => undefined}
-              />
-              <p id={fieldId("scope-hint")} className={styles.hint}>
-                {form.scope === "team"
-                  ? "팀: 현재 워크스페이스에서 사용됩니다. 저장범위는 만든 뒤 바꿀 수 없어요."
-                  : "저장범위는 만든 뒤 바꿀 수 없어요."}
-              </p>
-            </div>
+        {/* 문서 스킬만: 대상 → targets (수정 가능) */}
+        {isDocument && (
+          <fieldset className={styles.field} {...errorProps("targets")}>
+            <legend className={cx(styles.label, styles.legend)}>대상</legend>
+            <TargetChecks targets={form.targets} onToggle={toggleTarget} />
+            {errorText("targets")}
+          </fieldset>
+        )}
+
+        {/* 커맨드명 → slug (읽기 전용) */}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={fieldId("command")}>
+            커맨드명
+          </label>
+          <div className={cx(styles.input, styles["command-input"], detailStyles["read-only"])}>
+            <span className={styles["command-prefix"]} aria-hidden>
+              /
+            </span>
+            <input
+              id={fieldId("command")}
+              type="text"
+              readOnly
+              value={form.command}
+              spellCheck={false}
+              aria-describedby={fieldId("command-hint")}
+            />
+            <span className={styles.counter}>
+              {form.command.length}/{SKILL_NAME_MAX}
+            </span>
           </div>
+          <p id={fieldId("command-hint")} className={styles.hint}>
+            Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.
+          </p>
         </div>
 
         {/* 설명 → description */}
@@ -342,7 +310,7 @@ export function SkillDetailEditor({
           <textarea
             id={fieldId("rules")}
             className={cx(styles.input, styles.textarea)}
-            rows={8}
+            rows={6}
             value={form.rules}
             {...errorProps("rules", rulesHint != null ? fieldId("rules-hint") : undefined)}
             onChange={(event) => update({ rules: event.target.value })}
@@ -440,6 +408,6 @@ export function SkillDetailEditor({
           </button>
         </AlertModal>
       )}
-    </SkillEditorLayout>
+    </SkillSheet>
   );
 }

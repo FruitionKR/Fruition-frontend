@@ -33,10 +33,10 @@ const DIFF_LINE_CLASS = { delete: styles.before, insert: styles.after, context: 
 const DIFF_LINE_LABEL = { delete: "지운 줄: ", insert: "추가한 줄: ", context: "" } as const;
 
 /**
- * 스킬 편집 탭 오른쪽 열의 "테스트 실행" 카드 (Figma 1671:14585 카드 모양, 디자인 '② 새 스킬 탭' 배치).
+ * "테스트 실행" 묶음 (Figma 1671:14585): 묶음 이름(label) · 카드 · 다시 테스트 칩. 스킬 시트가 열린 동안 채팅 패널 입력창 위에 둔다.
  * 지금 시트에 적은 정의를 고른 문서 하나에 적용해 섹션별 변경 전/후를 보여 준다. 문서·스킬은 저장하지 않는다.
  */
-export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; form: SkillCreateForm }) {
+export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: string; form: SkillCreateForm; label: string }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const [documentId, setDocumentId] = useState(NO_DOCUMENT);
@@ -74,6 +74,7 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
   if (!isSupported) {
     return (
       <section className={styles.container} aria-labelledby={fieldId("title")}>
+        <p className={styles.group}>{label}</p>
         <div className={styles.card}>
           <div className={styles.heading}>
             <p id={fieldId("title")} className={styles.title}>
@@ -88,6 +89,7 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
 
   return (
     <section className={styles.container} aria-labelledby={fieldId("title")}>
+      <p className={styles.group}>{label}</p>
       <div className={styles.card}>
         <div className={styles.heading}>
           <p id={fieldId("title")} className={styles.title}>
@@ -196,11 +198,12 @@ function SkillTestRunResult({ view }: { view: NonNullable<ReturnType<typeof skil
           <p className={styles.section}>
             {change.section} · {change.start_line}–{change.end_line}줄
           </p>
-          {/* 바뀐 줄만 빨강(지움)·초록(새 줄)으로, 그대로인 줄은 맥락으로 보여 준다. */}
+          {/* Figma 1671:14822: 지운 줄은 빨강 취소선, 새 줄은 파랑(묶음 첫 줄에 →), 그대로인 줄은 맥락으로 흐리게. */}
           <div className={styles.diff} aria-label="변경 전후 줄 비교">
-            {skillChangeDiffLines(change).map((line, lineIndex) => (
+            {skillChangeDiffLines(change).map((line, lineIndex, lines) => (
               <p key={`${line.type}-${lineIndex}`} className={DIFF_LINE_CLASS[line.type]}>
                 <span className={styles["sr-only"]}>{DIFF_LINE_LABEL[line.type]}</span>
+                {line.type === "insert" && lines[lineIndex - 1]?.type !== "insert" && <span aria-hidden>→ </span>}
                 {line.text || " "}
               </p>
             ))}

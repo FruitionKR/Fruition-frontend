@@ -59,6 +59,7 @@ export function AgentPanel({
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
   skillTarget,
+  skillTestRunSlotRef,
   isShown = true
 }: {
   onClose: () => void;
@@ -89,6 +90,8 @@ export function AgentPanel({
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
   /** 스킬 실행 대상 문서 고르기. 있으면 작업 탭 "선택 필요" 묶음에 카드로 붙인다(Figma 1671:13216 · 드롭다운 1610:9350). */
   skillTarget?: SkillTargetPicker | null;
+  /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
+  skillTestRunSlotRef?: (element: HTMLDivElement | null) => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -488,6 +491,7 @@ export function AgentPanel({
         </div>
       ) : null}
       <div className={styles["composer-region"]}>
+        {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} />}
         {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
         {wikiEvidenceNotice && !isWorkView && !isPairSelectionMode && !isMeetingAreaOpen && (
           <div className={styles["wiki-evidence-notice"]}>

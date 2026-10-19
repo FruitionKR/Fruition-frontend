@@ -12,17 +12,10 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 import { chevronDownSmallIcon, menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { ReferenceDocumentPickerModal } from "./ReferenceDocumentPickerModal";
 import { documentDisplayName } from "../lib/referenceDocumentPicker";
-import { cx } from "@/shared/lib/classNames";
-import {
-  SKILL_KIND_CARDS,
-  SKILL_KIND_LABELS,
-  SKILL_TARGET_OPTIONS,
-  type SkillKind,
-  type SkillTarget
-} from "../lib/skillCreateForm";
+import { SKILL_KIND_CARDS, SKILL_TARGET_OPTIONS, type SkillTarget } from "../lib/skillCreateForm";
 import styles from "./SkillEditor.module.css";
 
-/** 스킬 만들기·스킬 상세 편집 탭이 함께 쓰는 입력 조각. */
+/** 스킬 만들기·스킬 상세 시트가 함께 쓰는 입력 조각. */
 
 export const REFERENCE_DOC_MAX = 3;
 
@@ -111,96 +104,6 @@ export function SelectBox<T extends string>({
   );
 }
 
-/**
- * 세그먼트 선택 (결과 방식·저장범위). 네이티브 라디오라 방향키로 옮겨 다닐 수 있다.
- */
-export function SegmentedControl<T extends string>({
-  name,
-  labelledBy,
-  value,
-  options,
-  disabled,
-  describedBy,
-  onChange
-}: {
-  name: string;
-  labelledBy: string;
-  value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
-  disabled?: boolean;
-  describedBy?: string;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-labelledby={labelledBy}
-      aria-describedby={describedBy}
-      aria-disabled={disabled || undefined}
-      className={cx(styles.segmented, disabled && styles["is-disabled"])}
-    >
-      {options.map((option) => (
-        <label key={option.value} className={styles.segment}>
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            checked={value === option.value}
-            disabled={disabled}
-            onChange={() => onChange(option.value)}
-          />
-          <span>{option.label}</span>
-        </label>
-      ))}
-    </div>
-  );
-}
-
-/**
- * 스킬 종류 카드 두 장(문서 / 폴더 정리). 예전에 만든 템플릿 스킬은 읽기 전용일 때만 세 번째 카드로 보여 준다.
- */
-export function SkillKindCards({
-  name,
-  labelledBy,
-  value,
-  disabled,
-  onChange
-}: {
-  name: string;
-  labelledBy: string;
-  value: SkillKind;
-  disabled?: boolean;
-  onChange: (value: Exclude<SkillKind, "template">) => void;
-}) {
-  const cards: ReadonlyArray<{ value: SkillKind; label: string; description: string }> =
-    value === "template"
-      ? [...SKILL_KIND_CARDS, { value: "template", label: SKILL_KIND_LABELS.template, description: "정해진 양식으로 문서를 만듭니다." }]
-      : SKILL_KIND_CARDS;
-  return (
-    <div role="radiogroup" aria-labelledby={labelledBy} className={cx(styles["kind-cards"], disabled && styles["is-disabled"])}>
-      {cards.map((card) => (
-        <label key={card.value} className={styles["kind-card"]}>
-          <input
-            type="radio"
-            name={name}
-            value={card.value}
-            checked={value === card.value}
-            disabled={disabled}
-            aria-describedby={`${name}-${card.value}-desc`}
-            onChange={() => {
-              if (card.value !== "template") onChange(card.value);
-            }}
-          />
-          <span className={styles["kind-card-title"]}>{card.label}</span>
-          <span id={`${name}-${card.value}-desc`} className={styles["kind-card-desc"]}>
-            {card.description}
-          </span>
-        </label>
-      ))}
-    </div>
-  );
-}
-
 /** 대상 체크 (현재 문서 / 선택한 부분) */
 export function TargetChecks({
   targets,
@@ -228,67 +131,23 @@ export function TargetChecks({
   );
 }
 
-/**
- * 편집 탭 틀: 왼쪽 본문(경로 · 제목 · 오른쪽 위 버튼 · 입력) + 오른쪽 '테스트 실행' 열.
- * 좁은 폭에서는 테스트 실행 열이 본문 아래로 내려간다.
- */
-export function SkillEditorLayout({
-  titleId,
-  title,
-  subtitle,
-  actions,
-  aside,
-  onShowList,
-  children
-}: {
-  titleId: string;
-  title: string;
-  subtitle?: string;
-  actions: ReactNode;
-  aside?: ReactNode;
-  onShowList: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className={styles.editor}>
-      <div className={cx(styles.columns, aside == null && styles["is-single"])}>
-        <div className={styles.main}>
-          <header className={styles.head}>
-            <nav aria-label="경로" className={styles.breadcrumb}>
-              <button type="button" className={styles["breadcrumb-link"]} onClick={onShowList}>
-                스킬
-              </button>
-              <span aria-hidden className={styles["breadcrumb-sep"]}>
-                ›
-              </span>
-            </nav>
-            <div className={styles["title-row"]}>
-              <div className={styles.heading}>
-                <h2 id={titleId} className={styles.title}>
-                  {title}
-                </h2>
-                {subtitle && <p className={styles.sub}>{subtitle}</p>}
-              </div>
-              <div className={styles.actions}>{actions}</div>
-            </div>
-          </header>
-          {children}
-        </div>
-        {aside != null && (
-          <aside className={styles.aside} aria-label="테스트 실행">
-            {aside}
-          </aside>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export const SCOPE_HELP = (
   <>
     개인 - 모든 워크스페이스에서 사용됩니다.
     <br />
     팀 - 현재 워크스페이스에서 사용됩니다.
+  </>
+);
+
+/** 스킬 종류 물음표 설명 (종류별 한 줄) */
+export const KIND_HELP = (
+  <>
+    {SKILL_KIND_CARDS.map((card, index) => (
+      <span key={card.value}>
+        {index > 0 && <br />}
+        {card.label} - {card.description}
+      </span>
+    ))}
   </>
 );
 

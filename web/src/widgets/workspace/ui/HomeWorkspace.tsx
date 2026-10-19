@@ -89,8 +89,20 @@ export function HomeWorkspace() {
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
   // 알림 목록·읽음 상태. 알림 화면 탭의 안 읽음 표시에 쓴다.
   const notificationFeed = useNotificationFeed(activeView === "notifications");
-  const panels = useWorkspacePanels({ activeView, locationKey });
+  // 스킬 만들기·상세 시트(Figma 1671:13573 · 1708:3848)가 열렸는지. 열린 동안 스킬 화면에도 채팅 패널을 띄우고,
+  // 패널 입력창 위 자리(skillTestRunTarget)에 시트의 "테스트 실행"을 그린다.
+  const [isSkillSheetOpen, setIsSkillSheetOpen] = useState(false);
+  const [skillTestRunTarget, setSkillTestRunTarget] = useState<HTMLDivElement | null>(null);
+  const isSkillSheetShown = activeView === "skills" && isSkillSheetOpen;
+  const panels = useWorkspacePanels({ activeView, locationKey, isSkillSheetOpen: isSkillSheetShown });
   const { sidebarLayout, agentPanelLayout, isCompactLayout, isAgentPanelShown } = panels;
+  // 시트를 열면 채팅 패널도 연다. 좁은 화면에서는 패널이 시트를 덮으므로 열지 않고 시트 안에 테스트 실행을 둔다.
+  const openHomeAgentPanel = panels.openHomeAgentPanel;
+  useEffect(() => {
+    if (isSkillSheetShown && !isCompactLayout) openHomeAgentPanel();
+    // 시트가 열릴 때 한 번만 연다. 그 뒤 사용자가 패널을 닫으면 그대로 둔다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSkillSheetShown]);
   // 채팅 패널의 회의 화면(#148)이 열려 있는지. 그동안은 패널을 닫아도 숨긴 채 마운트해 회의록 흐름을 이어 간다.
   const [hasOpenMeeting, setHasOpenMeeting] = useState(false);
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
@@ -559,6 +571,7 @@ export function HomeWorkspace() {
           composerDraft={skillRunState.agentComposerDraft}
           skillTarget={skillRunState.skillTarget}
           onManageSkills={() => handleViewChange("skills")}
+          skillTestRunSlotRef={isSkillSheetShown ? setSkillTestRunTarget : undefined}
           onSaveRequestAsSkill={(request) => {
             // 스킬 화면으로 옮기고, 그 요청으로 채운 새 스킬 탭(prefillRequest)을 연다.
             setSkillCreateRequest({ id: Date.now(), text: request });
@@ -581,6 +594,8 @@ export function HomeWorkspace() {
             onRunSkill={skillRunState.startSkillRun}
             createRequest={skillCreateRequest}
             onCreateRequestHandled={clearSkillCreateRequest}
+            onSheetOpenChange={setIsSkillSheetOpen}
+            testRunTarget={isAgentPanelShown ? skillTestRunTarget : null}
           />
         ) : activeView === "logs" ? (
           <LogView

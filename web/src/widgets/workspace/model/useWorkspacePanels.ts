@@ -11,7 +11,16 @@ import { isAgentPanelVisible } from "../lib/agentPanelVisibility";
  * 사이드바·채팅 패널의 열림/폭/좁은 화면 겹침을 한곳에서 조합한다.
  * 드래그 중 폭은 React 상태 대신 main의 CSS 변수로 바로 그린다(panelStyle과 같은 변수·같은 계산).
  */
-export function useWorkspacePanels({ activeView, locationKey }: { activeView: RailView; locationKey: string }) {
+export function useWorkspacePanels({
+  activeView,
+  locationKey,
+  isSkillSheetOpen = false
+}: {
+  activeView: RailView;
+  locationKey: string;
+  /** 스킬 만들기·상세 시트가 열렸는지. 열린 동안 스킬 화면에도 채팅 패널을 띄운다. */
+  isSkillSheetOpen?: boolean;
+}) {
   const [isHomeAgentPanelOpen, setIsHomeAgentPanelOpen] = useState(true);
   const [isGraphAgentPanelOpen, setIsGraphAgentPanelOpen] = useState(false);
   const isGraphView = activeView === "graph";
@@ -37,7 +46,7 @@ export function useWorkspacePanels({ activeView, locationKey }: { activeView: Ra
   // 현재 뷰(홈/그래프)에서 패널이 열려 있는지. 패널이 없는 화면으로 가도 이 값은 유지돼 패널을 숨긴 채 살려 둔다.
   const isAgentPanelOpen = isGraphView ? isGraphAgentPanelOpen : isHomeAgentPanelOpen;
   // 패널이 실제로 화면에 있는지. 렌더 조건·그래프 우측 여백·알림 위치가 모두 이 값을 기준으로 한다.
-  const isAgentPanelShown = isAgentPanelVisible(activeView, isAgentPanelOpen);
+  const isAgentPanelShown = isAgentPanelVisible(activeView, isAgentPanelOpen, isSkillSheetOpen);
   const agentPanelLayout = useAgentPanelLayout({
     isShown: isAgentPanelShown,
     sidebarWidth: sidebarLayout.visibleWidth,
