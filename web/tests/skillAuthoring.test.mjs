@@ -134,23 +134,19 @@ test("author 응답 status로 되묻기·검토·통과를 나눈다", () => {
   assert.equal(skillAuthoringOutcome({ status: "draft", issues: undefined }), "pass");
 });
 
-test("스킬 수정 요청은 편집한 버전의 이름을 함께 보낸다(백엔드 name 필수)", () => {
-  const version = (name) => ({ id: "v", name, description: "", status: "published", version: 1, allowed_tools: [], capabilities: [], instructions_markdown: "" });
-  const draft = { description: "새 설명", instructionsMarkdown: "새 지침" };
-  assert.deepEqual(
-    skillUpdateRequest({ slug: "meeting-notes", enabled_version: version("enabled-name"), latest_version: version("latest-name") }, draft),
-    { name: "enabled-name", description: "새 설명", instructions_markdown: "새 지침" }
-  );
-  assert.equal(skillUpdateRequest({ slug: "s", enabled_version: null, latest_version: version("latest-name") }, draft).name, "latest-name");
-  assert.equal(skillUpdateRequest({ slug: "fallback-slug", enabled_version: null, latest_version: null }, draft).name, "fallback-slug");
+test("스킬 수정 요청은 상세 시트의 커맨드명을 name으로 보낸다(백엔드 name 필수, slug를 바꾼다)", () => {
+  assert.deepEqual(skillUpdateRequest({ name: "meeting-notes", description: "새 설명", instructionsMarkdown: "새 지침" }), {
+    name: "meeting-notes",
+    description: "새 설명",
+    instructions_markdown: "새 지침"
+  });
 });
 
 test("스킬 수정 요청은 초안의 targets·result_mode를 담고, 없으면 키를 빼 서버가 기존 값을 유지하게 한다", () => {
-  const skill = { slug: "s", enabled_version: null, latest_version: null };
   assert.deepEqual(
-    skillUpdateRequest(skill, { description: "d", instructionsMarkdown: "i", targets: ["selection"], result_mode: "edit" }),
+    skillUpdateRequest({ name: "s", description: "d", instructionsMarkdown: "i", targets: ["selection"], result_mode: "edit" }),
     { name: "s", description: "d", instructions_markdown: "i", targets: ["selection"], result_mode: "edit" }
   );
-  const omitted = skillUpdateRequest(skill, { description: "d", instructionsMarkdown: "i" });
+  const omitted = skillUpdateRequest({ name: "s", description: "d", instructionsMarkdown: "i" });
   assert.ok(!("targets" in omitted) && !("result_mode" in omitted));
 });

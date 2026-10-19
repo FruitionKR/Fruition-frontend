@@ -14,7 +14,7 @@ import { skillUpdateRequest } from "@/features/skill-authoring";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { needsSkillEnable } from "../lib/skillTable";
 
-export type SkillDraft = { description: string; instructionsMarkdown: string } & SkillExecutionOptions;
+export type SkillDraft = { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions;
 
 /**
  * 스킬 목록·정의 수정·삭제. 스킬은 항상 사용 상태로 두므로 꺼진 스킬은 불러오는 대로 켠다. 스킬 만들기 위저드의 중복 커맨드 검사와
@@ -56,7 +56,7 @@ export function useSkillCatalog(workspaceId: string | null) {
 
   const updateMutation = useMutation({
     mutationFn: ({ skill, draft }: { skill: SkillResponse; draft: SkillDraft }) =>
-      updateSkill(workspaceId ?? "", skill.id, skillUpdateRequest(skill, draft)),
+      updateSkill(workspaceId ?? "", skill.id, skillUpdateRequest(draft)),
     // PATCH 응답은 SkillResponse가 아니어서 목록을 다시 받는다.
     onSuccess: () => queryClient.invalidateQueries({ queryKey })
   });

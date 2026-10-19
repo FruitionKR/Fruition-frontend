@@ -312,12 +312,17 @@ export function registerCatalogRoutes(router) {
     if (!["name", "description", "instructions_markdown"].every((key) => typeof body[key] === "string" && body[key].trim())) {
       return error(ctx, 400, "요청 값이 올바르지 않습니다.");
     }
+    // 실제 백엔드처럼 name으로 커맨드(slug)를 바꾸고, 다른 스킬과 겹치면 409로 막는다.
+    if (state.skills.some((item) => item.workspace_id === workspace.id && item.id !== skill.id && item.slug === body.name)) {
+      return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
+    }
     const base = skill.latest_version ?? skill.enabled_version;
     // 생략한 값은 이어받는다. 필드가 생기기 전 문서 Skill(targets 없음)은 두 대상 모두로 읽는다.
     const inherited = { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
     const options = executionOptions(ctx, base?.capabilities ?? [], body, inherited);
     if (!options) return;
     const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options };
+    skill.slug = body.name;
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;
     ctx.json(200, toAuthoringResult(skill, version));

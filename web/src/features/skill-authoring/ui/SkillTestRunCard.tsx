@@ -11,20 +11,16 @@ import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
 import { documentDisplayName, pickerDocuments } from "../lib/referenceDocumentPicker";
 import { skillCapabilities, type SkillCreateForm } from "../lib/skillCreateForm";
 import {
-  defaultSkillTestRunScope,
   describeSkillTestRunError,
   newSkillTestRunId,
   SKILL_TEST_RUN_FOLDER_NOTE,
-  SKILL_TEST_RUN_SCOPE_OPTIONS,
   skillChangeDiffLines,
   skillTestRunBlocker,
   skillTestRunRequest,
   skillTestRunView,
-  supportsSkillTestRun,
-  type SkillTestRunInput,
-  type SkillTestRunScope
+  supportsSkillTestRun
 } from "../lib/skillTestRun";
-import { issueText, SelectBox } from "./SkillFormParts";
+import { issueText } from "./SkillFormParts";
 import styles from "./SkillTestRunCard.module.css";
 
 const NO_DOCUMENT = "";
@@ -34,17 +30,12 @@ const DIFF_LINE_LABEL = { delete: "지운 줄: ", insert: "추가한 줄: ", con
 
 /**
  * "테스트 실행" 묶음 (Figma 1671:14585): 묶음 이름(label) · 카드 · 다시 테스트 칩. 스킬 시트가 열린 동안 채팅 패널 입력창 위에 둔다.
- * 지금 시트에 적은 정의를 고른 문서 하나에 적용해 섹션별 변경 전/후를 보여 준다. 문서·스킬은 저장하지 않는다.
+ * 지금 시트에 적은 정의를 고른 문서 하나 전체에 적용해 섹션별 변경 전/후를 보여 준다. 문서·스킬은 저장하지 않는다.
  */
 export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: string; form: SkillCreateForm; label: string }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const [documentId, setDocumentId] = useState(NO_DOCUMENT);
-  // 직접 고르기 전에는 시트의 대상을 따른다('선택한 부분'만이면 줄 범위).
-  const [chosenScope, setChosenScope] = useState<SkillTestRunScope | null>(null);
-  const scope = chosenScope ?? defaultSkillTestRunScope(form.targets);
-  const [startLine, setStartLine] = useState("1");
-  const [endLine, setEndLine] = useState("1");
 
   const isSupported = supportsSkillTestRun(form.kind);
   const { data: documents, isLoading: isDocumentsLoading } = useQuery({
@@ -56,21 +47,20 @@ export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: st
   const candidates = pickerDocuments(documents ?? [], "");
   const documentOptions = candidates.map((doc) => ({ value: doc.id, label: documentDisplayName(doc) }));
 
-  const input: SkillTestRunInput = { documentId, scope, startLine: Number(startLine), endLine: Number(endLine) };
-  const blocker = skillTestRunBlocker(form, input);
+  const blocker = skillTestRunBlocker(form, documentId);
 
   const runMutation = useMutation({
     // run_id는 한 번만 쓸 수 있어 실행할 때마다 새로 만든다.
     mutationFn: async () => {
       const capabilities = skillCapabilities(form.kind, form.resultMode);
-      const result = await testRunSkill(workspaceId, skillTestRunRequest(form, input), newSkillTestRunId());
+      const result = await testRunSkill(workspaceId, skillTestRunRequest(form, documentId), newSkillTestRunId());
       return skillTestRunView(result, capabilities);
     }
   });
   const view = runMutation.data;
   const hasRun = view != null || runMutation.isError;
 
-  // 폴더 정리 스킬: 테스트할 문서·범위 고르기 없이 안내만 둔다.
+  // 폴더 정리 스킬: 테스트할 문서 고르기 없이 안내만 둔다.
   if (!isSupported) {
     return (
       <section className={styles.container} aria-labelledby={fieldId("title")}>
@@ -110,25 +100,6 @@ export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: st
               options={documentOptions}
               onChange={setDocumentId}
             />
-            <label className={styles["sr-only"]} htmlFor={fieldId("scope")}>
-              적용 범위
-            </label>
-            <SelectBox id={fieldId("scope")} value={scope} options={SKILL_TEST_RUN_SCOPE_OPTIONS} compact onChange={setChosenScope} />
-            {scope === "lines" && (
-              <div className={styles.lines}>
-                <label className={styles["line-field"]}>
-                  <span>시작 줄</span>
-                  <input type="number" min={1} inputMode="numeric" value={startLine} onChange={(event) => setStartLine(event.target.value)} />
-                </label>
-                <span aria-hidden className={styles["line-dash"]}>
-                  –
-                </span>
-                <label className={styles["line-field"]}>
-                  <span>끝 줄</span>
-                  <input type="number" min={1} inputMode="numeric" value={endLine} onChange={(event) => setEndLine(event.target.value)} />
-                </label>
-              </div>
-            )}
             {!isDocumentsLoading && candidates.length === 0 && (
               <p className={styles.note}>테스트할 Markdown 문서가 없어요. 문서를 먼저 만들어 주세요.</p>
             )}

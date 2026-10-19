@@ -13,7 +13,6 @@ registerHooks({
 });
 
 const {
-  applySkillDetailDraft,
   parseSkillInstructions,
   skillDetailAuthorForm,
   skillDetailDraft,
@@ -112,6 +111,7 @@ test("skillDetailForm은 이전 형식의 실행 대상 절이 있으면 그 대
   assert.equal(form.rules, RULES);
   assert.deepEqual(form.targets, ["selection"]);
   assert.deepEqual(skillDetailDraft(form), {
+    name: "research-summary",
     description: "연구 문서의 개요를 정리합니다.",
     instructionsMarkdown: RULES,
     targets: ["selection"]
@@ -135,8 +135,9 @@ test("skillDetailForm은 켜진 버전이 없으면 최신 버전을, capabiliti
 });
 
 test("skillDetailDraft는 문서 스킬에 targets만 담고(result_mode는 생략해 서버가 유지) 지침에 절을 붙이지 않는다", () => {
-  const form = { ...skillDetailForm(skill()), description: "  새 설명 ", targets: ["current-document", "selection"] };
+  const form = { ...skillDetailForm(skill()), command: " new-name ", description: "  새 설명 ", targets: ["current-document", "selection"] };
   assert.deepEqual(skillDetailDraft(form), {
+    name: "new-name",
     description: "새 설명",
     instructionsMarkdown: RULES,
     targets: ["current_document", "selection"]
@@ -146,34 +147,29 @@ test("skillDetailDraft는 문서 스킬에 targets만 담고(result_mode는 생�
 test("skillDetailDraft는 폴더 정리·알 수 없는 스킬에 targets·result_mode를 담지 않는다", () => {
   const folder = skillDetailForm(skill({ enabled_version: version({ capabilities: ["folder-organize"] }) }));
   assert.equal(folder.kind, "folder");
-  assert.deepEqual(skillDetailDraft(folder), { description: "연구 문서의 개요를 정리합니다.", instructionsMarkdown: RULES });
+  assert.deepEqual(skillDetailDraft(folder), { name: "research-summary", description: "연구 문서의 개요를 정리합니다.", instructionsMarkdown: RULES });
   const unknown = skillDetailForm(skill({ enabled_version: version({ capabilities: ["unknown"] }) }));
-  assert.deepEqual(Object.keys(skillDetailDraft(unknown)).sort(), ["description", "instructionsMarkdown"]);
+  assert.deepEqual(Object.keys(skillDetailDraft(unknown)).sort(), ["description", "instructionsMarkdown", "name"]);
 });
 
-test("validateSkillDetailForm은 빈 설명·규칙·대상과 길이 초과를 막는다", () => {
+test("validateSkillDetailForm은 빈·잘못된·중복 커맨드, 빈 설명·규칙과 길이 초과를 막는다(대상은 화면에 없어 검사하지 않는다)", () => {
   const form = skillDetailForm(skill());
-  assert.deepEqual(validateSkillDetailForm(form), {});
-  assert.deepEqual(Object.keys(validateSkillDetailForm({ ...form, description: " ", rules: "", targets: [] })).sort(), ["description", "rules", "targets"]);
-  assert.match(validateSkillDetailForm({ ...form, description: "a".repeat(501) }).description, /500자/);
-  assert.match(validateSkillDetailForm({ ...form, rules: "a".repeat(30_001) }).rules, /30,000자/);
+  assert.deepEqual(validateSkillDetailForm(form, []), {});
+  assert.deepEqual(
+    Object.keys(validateSkillDetailForm({ ...form, command: " ", description: " ", rules: "", targets: [] }, [])).sort(),
+    ["command", "description", "rules"]
+  );
+  assert.match(validateSkillDetailForm({ ...form, command: "Bad Name" }, []).command, /소문자/);
+  assert.match(validateSkillDetailForm({ ...form, command: "taken" }, ["taken"]).command, /이미 사용 중/);
+  assert.match(validateSkillDetailForm({ ...form, description: "a".repeat(501) }, []).description, /500자/);
+  assert.match(validateSkillDetailForm({ ...form, rules: "a".repeat(30_001) }, []).rules, /30,000자/);
 });
 
-test("skillDetailAuthorForm은 상세 값을 AI 작성 요청 모양으로 옮긴다", () => {
+test("skillDetailAuthorForm은 상세 값을 테스트 실행 카드의 만들기 시트 모양으로 옮긴다", () => {
   const form = { ...skillDetailForm(skill({ scope_type: "workspace" })), rules: "새 규칙" };
   const authorForm = skillDetailAuthorForm(form);
   assert.equal(authorForm.scope, "team");
   assert.equal(authorForm.command, "research-summary");
   assert.equal(authorForm.rules, "새 규칙");
   assert.equal(authorForm.resultMode, "edit");
-});
-
-test("applySkillDetailDraft는 실행 규칙만 바꾸고 비어 있는 설명만 채운다", () => {
-  const form = skillDetailForm(skill());
-  const next = applySkillDetailDraft(form, { description: "AI 설명", instructions_markdown: "AI 규칙" });
-  assert.equal(next.rules, "AI 규칙");
-  assert.equal(next.description, form.description);
-  assert.deepEqual(next.targets, form.targets);
-  assert.equal(applySkillDetailDraft({ ...form, description: "" }, { description: "AI 설명", instructions_markdown: "" }).description, "AI 설명");
-  assert.equal(applySkillDetailDraft(form, { description: "", instructions_markdown: "  " }).rules, RULES);
 });

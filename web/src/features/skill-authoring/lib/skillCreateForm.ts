@@ -207,19 +207,23 @@ export type SkillCreateField = "command" | "description" | "rules" | "targets";
 
 export const TARGETS_REQUIRED_MESSAGE = "대상을 하나 이상 골라 주세요.";
 
+/** 커맨드명(→ name·slug) 오류 문구. 문제가 없으면 null. 만들기·상세 시트가 같이 쓴다. */
+export function skillCommandError(value: string, existingSlugs: readonly string[]): string | null {
+  const command = value.trim();
+  if (command === "") return "커맨드명을 입력해 주세요.";
+  if (!SKILL_NAME_PATTERN.test(command)) return "커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)";
+  if (existingSlugs.includes(command)) return "이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.";
+  return null;
+}
+
 /** 필드별 오류 문구. 오류가 없으면 빈 객체다. */
 export function validateSkillCreateForm(
   form: SkillCreateForm,
   existingSlugs: readonly string[]
 ): Partial<Record<SkillCreateField, string>> {
   const errors: Partial<Record<SkillCreateField, string>> = {};
-  const command = form.command.trim();
-  if (command === "") errors.command = "커맨드명을 입력해 주세요.";
-  else if (!SKILL_NAME_PATTERN.test(command)) {
-    errors.command = "커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)";
-  } else if (existingSlugs.includes(command)) {
-    errors.command = "이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.";
-  }
+  const commandError = skillCommandError(form.command, existingSlugs);
+  if (commandError != null) errors.command = commandError;
   const description = form.description.trim();
   if (description === "") errors.description = "설명을 입력해 주세요.";
   else if (description.length > SKILL_DESCRIPTION_MAX) {

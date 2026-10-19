@@ -1,13 +1,12 @@
-import type { SkillAuthoringResult, SkillExecutionOptions, SkillResponse } from "@/entities/skill/model/skill";
+import type { SkillExecutionOptions, SkillResponse } from "@/entities/skill/model/skill";
 import {
   INITIAL_SKILL_CREATE_FORM,
-  isDocumentKind,
   kindFromCapabilities,
   SKILL_DESCRIPTION_MAX,
   SKILL_INSTRUCTIONS_MAX,
   SKILL_TARGET_OPTIONS,
+  skillCommandError,
   skillExecutionOptions,
-  TARGETS_REQUIRED_MESSAGE,
   targetsFromValues,
   type SkillCreateForm,
   type SkillKind,
@@ -18,8 +17,9 @@ import {
 
 /**
  * 스킬 상세 시트(Figma 1708:4059) 입력값.
- * 대상·결과 방식은 버전의 targets·result_mode에서 읽는다(ai#122). 저장할 때는 설명·지침·대상만 보낸다.
- * 결과 방식은 PATCH가 지침을 다시 분류한 capabilities와 맞아야 해, 저장범위·커맨드명·스킬 종류와 함께 읽기 전용으로 두고 보내지 않는다.
+ * 화면에는 저장범위·커맨드명·설명·실행 규칙만 둔다. 저장할 때는 커맨드명(name)·설명·지침과, 문서 스킬이면 읽어 둔 대상을 그대로 보낸다.
+ * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 결과 방식은 PATCH가 지침을 다시 분류한 capabilities와 맞아야 해 보내지 않는다.
+ * 대상·결과 방식·스킬 종류는 화면에 두지 않지만 테스트 실행 capability를 정하려고 버전의 targets·result_mode·capabilities에서 읽는다(ai#122).
  */
 export interface SkillDetailForm {
   /** capabilities를 알 수 없으면 null(종류·결과 방식·대상을 표시하지 않는다) */
@@ -99,26 +99,34 @@ export function skillDetailForm(skill: SkillResponse): SkillDetailForm {
   };
 }
 
-export type SkillDetailDraft = { description: string; instructionsMarkdown: string } & SkillExecutionOptions;
+export type SkillDetailDraft = { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions;
 
 /**
- * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 문서 스킬이면 대상(targets)을 함께 보낸다.
+ * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 커맨드명은 name으로 보내 slug를 바꾼다.
+ * 문서 스킬이면 읽어 둔 대상(targets)을 함께 보낸다(이전 형식 "실행 대상" 절을 뗀 스킬은 이걸로 대상이 남는다).
  * 결과 방식은 읽기 전용이라 보내지 않는다(생략하면 서버가 기존 값을 유지한다, ai#122).
  * 명시해 보내면 서버가 지침을 다시 분류한 capabilities와 맞지 않을 때 400으로 저장이 실패한다.
  */
 export function skillDetailDraft(form: SkillDetailForm): SkillDetailDraft {
   const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
   return {
+    name: form.command.trim(),
     description: form.description.trim(),
     instructionsMarkdown: form.rules.trim(),
     ...(targets != null ? { targets } : {})
   };
 }
 
-export type SkillDetailField = "description" | "rules" | "targets";
+export type SkillDetailField = "command" | "description" | "rules";
 
-export function validateSkillDetailForm(form: SkillDetailForm): Partial<Record<SkillDetailField, string>> {
+/** 필드별 오류 문구. otherSlugs는 이 스킬을 뺀 다른 스킬의 커맨드다. */
+export function validateSkillDetailForm(
+  form: SkillDetailForm,
+  otherSlugs: readonly string[]
+): Partial<Record<SkillDetailField, string>> {
   const errors: Partial<Record<SkillDetailField, string>> = {};
+  const commandError = skillCommandError(form.command, otherSlugs);
+  if (commandError != null) errors.command = commandError;
   const description = form.description.trim();
   if (description === "") errors.description = "설명을 입력해 주세요.";
   else if (description.length > SKILL_DESCRIPTION_MAX) {
@@ -128,11 +136,10 @@ export function validateSkillDetailForm(form: SkillDetailForm): Partial<Record<S
   else if (form.rules.trim().length > SKILL_INSTRUCTIONS_MAX) {
     errors.rules = `실행 규칙은 ${SKILL_INSTRUCTIONS_MAX.toLocaleString("ko-KR")}자까지 쓸 수 있습니다.`;
   }
-  if (form.kind != null && isDocumentKind(form.kind) && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_MESSAGE;
   return errors;
 }
 
-/** AI 작성 요청(skillAuthorRequest)에 넘길 만들기 시트 모양 입력값 */
+/** 테스트 실행 카드에 넘길 만들기 시트 모양 입력값 */
 export function skillDetailAuthorForm(form: SkillDetailForm): SkillCreateForm {
   return {
     ...INITIAL_SKILL_CREATE_FORM,
@@ -142,22 +149,5 @@ export function skillDetailAuthorForm(form: SkillDetailForm): SkillCreateForm {
     command: form.command,
     description: form.description,
     rules: form.rules
-  };
-}
-
-/**
- * AI 초안을 상세 시트에 채운다. 게시된 스킬의 종류·결과 방식은 바꿀 수 없어 실행 규칙만 바꾸고,
- * 설명은 비어 있을 때만 제안값으로 채운다.
- */
-export function applySkillDetailDraft(
-  form: SkillDetailForm,
-  draft: Pick<SkillAuthoringResult, "description" | "instructions_markdown">
-): SkillDetailForm {
-  const suggestedDescription = (draft.description ?? "").trim();
-  const instructions = (draft.instructions_markdown ?? "").trim();
-  return {
-    ...form,
-    rules: instructions !== "" ? instructions : form.rules,
-    description: form.description.trim() === "" ? suggestedDescription.slice(0, SKILL_DESCRIPTION_MAX) : form.description
   };
 }

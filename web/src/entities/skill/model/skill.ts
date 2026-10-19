@@ -71,14 +71,8 @@ export interface SkillUpdateRequest extends SkillExecutionOptions {
   instructions_markdown: string;
 }
 
-/** 테스트 실행 적용 범위. 1-based 줄 번호(끝 포함). 생략하면 문서 전체다. */
-export interface SkillTestRunTarget {
-  type: "selection" | "current_section" | "whole_document";
-  start_line: number;
-  end_line: number;
-}
-
 // POST /skills/test-run 요청 (SkillTestRunRequest). 아무것도 저장하지 않는다.
+// 적용 범위(target)는 보내지 않는다. 생략하면 서버가 문서 전체에 적용한다.
 export interface SkillTestRunRequest {
   name: string;
   description: string;
@@ -86,7 +80,6 @@ export interface SkillTestRunRequest {
   capabilities: string[];
   document_id: string;
   markdown?: string;
-  target?: SkillTestRunTarget;
 }
 
 export interface SkillTestRunChange {

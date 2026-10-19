@@ -1,4 +1,4 @@
-import type { SkillAuthoringResult, SkillExecutionOptions, SkillResponse, SkillUpdateRequest } from "@/entities/skill/model/skill";
+import type { SkillAuthoringResult, SkillExecutionOptions, SkillUpdateRequest } from "@/entities/skill/model/skill";
 import { ApiError, getErrorMessage, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
 
 type SkillAuthorErrorNotice = { title: string; description: string };
@@ -64,17 +64,14 @@ export function skillAuthoringOutcome(result: Pick<SkillAuthoringResult, "status
 }
 
 /**
- * 스킬 수정 요청을 만든다. 이름은 편집하지 않으므로 편집 초안을 채운 버전의 이름을 그대로 보낸다.
- * 버전 이름은 slug와 같게 만들어지므로, 버전이 없으면 slug로 대신한다.
+ * 스킬 수정 요청을 만든다. name은 상세 시트의 커맨드명이다(PATCH가 name으로 slug를 바꾼다).
  * 대상·결과 방식은 초안에 있을 때만 보낸다(문서 스킬). 빼면 서버가 기존 값을 유지한다.
  */
 export function skillUpdateRequest(
-  skill: Pick<SkillResponse, "slug" | "enabled_version" | "latest_version">,
-  draft: { description: string; instructionsMarkdown: string } & SkillExecutionOptions
+  draft: { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions
 ): SkillUpdateRequest {
-  const version = skill.enabled_version ?? skill.latest_version;
   return {
-    name: version?.name ?? skill.slug,
+    name: draft.name,
     description: draft.description,
     instructions_markdown: draft.instructionsMarkdown,
     ...(draft.targets != null ? { targets: [...draft.targets] } : {}),

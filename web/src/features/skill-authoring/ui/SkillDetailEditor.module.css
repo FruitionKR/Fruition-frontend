@@ -1,11 +1,5 @@
 /* 스킬 상세 시트. 본문 조각은 SkillEditor.module.css를 함께 쓴다. */
 
-/* 커맨드명은 수정 API가 받지 않아 읽기 전용이다. 모양은 Figma 입력 상자 그대로 두고 커서만 바꾼다. */
-.read-only,
-.read-only input {
-  cursor: default;
-}
-
 /* 스킬 삭제 (Figma 1708:4125): 붉은 옅은 바탕, radius 8, 안쪽 6·16. 아래 버튼 줄 왼쪽에 둔다. */
 .delete-button {
   height: 32px;

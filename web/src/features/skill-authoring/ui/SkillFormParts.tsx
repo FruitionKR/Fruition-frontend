@@ -65,14 +65,13 @@ export function HelpTip({ label, content }: { label: string; content: ReactNode 
   );
 }
 
-/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. compact는 테스트 실행 카드의 작은 선택 상자(Figma 1671:14817)다. */
+/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. */
 export function SelectBox<T extends string>({
   id,
   value,
   options,
   disabled,
   describedBy,
-  compact,
   onChange
 }: {
   id: string;
@@ -80,14 +79,13 @@ export function SelectBox<T extends string>({
   options: ReadonlyArray<{ value: T; label: string }>;
   disabled?: boolean;
   describedBy?: string;
-  compact?: boolean;
   onChange: (value: T) => void;
 }) {
   return (
     <div className={styles["select-wrap"]}>
       <select
         id={id}
-        className={compact ? `${styles.select} ${styles["select-compact"]}` : styles.select}
+        className={styles.select}
         value={value}
         disabled={disabled}
         aria-describedby={describedBy}
@@ -287,8 +285,9 @@ export function SkillSafetyIssues({
 }: {
   issues: readonly unknown[];
   isBusy: boolean;
-  onRegenerate: () => void;
-  onPreserve: () => void;
+  /** 없으면(상세 시트) AI 다시 만들기 버튼 없이 지적만 보여 준다. 실행 규칙을 고쳐 다시 저장하면 다시 검토한다. */
+  onRegenerate?: () => void;
+  onPreserve?: () => void;
 }) {
   if (issues.length === 0) return null;
   return (
@@ -299,15 +298,17 @@ export function SkillSafetyIssues({
           <li key={index}>{issueText(issue)}</li>
         ))}
       </ul>
-      <div className={styles["issue-actions"]}>
-        <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={onRegenerate}>
-          <span aria-hidden>✦</span>
-          AI로 안전하게 다시 만들기
-        </button>
-        <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={onPreserve}>
-          고친 내용 다시 검토
-        </button>
-      </div>
+      {onRegenerate != null && onPreserve != null && (
+        <div className={styles["issue-actions"]}>
+          <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={onRegenerate}>
+            <span aria-hidden>✦</span>
+            AI로 안전하게 다시 만들기
+          </button>
+          <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={onPreserve}>
+            고친 내용 다시 검토
+          </button>
+        </div>
+      )}
     </div>
   );
 }
