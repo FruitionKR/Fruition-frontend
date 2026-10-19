@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ComponentType, ReactNode } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { RailArchiveIcon, RailBellIcon, RailHomeIcon, RailLightningIcon, RailLogoIcon } from "./RailIcons";
+import { RailArchiveIcon, RailBellIcon, RailGraphIcon, RailHomeIcon, RailLightningIcon, RailLogoIcon } from "./RailIcons";
 import styles from "./RailNavigation.module.css";
 
 export type RailView = "home" | "graph" | "skills" | "logs" | "notifications" | "settings";
@@ -16,9 +16,10 @@ export const railItems: { id: RailView; label: string }[] = [
   { id: "settings", label: "설정" }
 ];
 
-// 레일에 아이콘으로 노출하는 화면. 문서/그래프는 홈 하나로 묶고 사이드바 상단 세그먼트로 전환한다.
+// 레일에 아이콘으로 노출하는 화면 (Figma 1406:10278). 문서(홈)/그래프 전환도 레일 버튼이 맡는다.
 const navItems: { id: RailView; label: string; Icon: ComponentType<{ className?: string }>; isActive: (view: RailView) => boolean }[] = [
-  { id: "home", label: "홈", Icon: RailHomeIcon, isActive: (view) => view === "home" || view === "graph" },
+  { id: "home", label: "홈", Icon: RailHomeIcon, isActive: (view) => view === "home" },
+  { id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: (view) => view === "graph" },
   { id: "skills", label: "스킬", Icon: RailLightningIcon, isActive: (view) => view === "skills" },
   { id: "logs", label: "로그", Icon: RailArchiveIcon, isActive: (view) => view === "logs" }
 ];
@@ -76,7 +77,7 @@ export function RailGroup({ children }: { children: ReactNode }) {
 
 /**
  * 좌측 53px 아이콘 레일 (Figma 1486:4340 / 1527:16289). 사이드바 상단 바(45px) 아래에서 시작한다.
- * 상단: 로고 · 화면 이동(홈/스킬/로그/알림) · 화면별 도구(tools), 하단: 설정·프로필(footer).
+ * 상단: 로고 · 화면 이동(홈/그래프/스킬/로그/알림) · 화면별 도구(tools), 하단: 설정·프로필(footer).
  * isCollapsed: 사이드바를 접어 레일만 남은 상태 (Figma 1540:17920). 문서 패널 경계선이 없어 오른쪽 선을 사이드바 테두리에 맡긴다.
  */
 export function RailNavigation({

@@ -9,7 +9,6 @@ import { ContextMenu } from "./ContextMenu";
 import { GraphRailActions } from "./GraphRailActions";
 import { GraphSidebarActions } from "./GraphSidebarActions";
 import { RootTree } from "./RootTree";
-import { SidebarMenuRow } from "./SidebarMenuRow";
 import { SidebarProfile } from "./SidebarProfile";
 import { SidebarWorkspaceHeader } from "./SidebarWorkspaceHeader";
 import { sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
@@ -216,7 +215,7 @@ export function DocumentSidebar({
     onCancelEditing
   };
 
-  // 그래프 밖으로 나가면(레일·세그먼트·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
+  // 그래프 밖으로 나가면(레일·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
   useEffect(() => {
     if (activeView !== "graph") setIsIngestSelecting(false);
   }, [activeView]);
@@ -341,7 +340,6 @@ export function DocumentSidebar({
               <SidebarSearchIcon className={styles["sidebar-search-icon"]} />
               <span>통합 검색</span>
             </button>
-            {!settingsNav && <SidebarMenuRow activeView={activeView} onViewChange={onViewChange} />}
           </div>
           {isSearchOpen && (
             <DocumentSearch
