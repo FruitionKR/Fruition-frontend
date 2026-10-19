@@ -536,9 +536,10 @@
 }
 
 /* --- 루트 트리 --- */
+/* 높이를 내용만큼만 잡아 "새 노트 추가"가 마지막 항목 바로 아래에 붙는다 (Figma 1406:10278).
+   그 아래 빈 영역은 sidebar-content라 우클릭 시 최상위 메뉴가 계속 열린다. */
 .tree-root {
   position: relative;
-  min-height: 120px;
 }
 
 /* 여백에 항목을 끌어다 놓으면 루트로 이동한다 */
@@ -594,7 +595,8 @@
 }
 
 .tree-root-header.is-actionable:hover .tree-root-add,
-.tree-root-add:focus-visible {
+.tree-root-add:focus-visible,
+.tree-root-add[aria-expanded="true"] {
   opacity: 1;
 }
 
