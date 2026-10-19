@@ -21,6 +21,7 @@ import {
   type SkillTestRunScope
 } from "../lib/skillTestRun";
 import { issueText, SelectBox } from "./SkillFormParts";
+import { SkillTestDocumentSelect } from "./SkillTestDocumentSelect";
 import styles from "./SkillTestRunCard.module.css";
 
 const NO_DOCUMENT = "";
@@ -45,10 +46,7 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
   });
   // 테스트 실행은 Markdown 문서만 받는다(그 밖의 원본은 400). 참고 문서 피커와 같은 기준으로 고른다.
   const candidates = pickerDocuments(documents ?? [], "");
-  const documentOptions = [
-    { value: NO_DOCUMENT, label: isDocumentsLoading ? "문서를 불러오는 중…" : "테스트할 문서 선택" },
-    ...candidates.map((doc) => ({ value: doc.id, label: documentDisplayName(doc) }))
-  ];
+  const documentOptions = candidates.map((doc) => ({ value: doc.id, label: documentDisplayName(doc) }));
 
   const input: SkillTestRunInput = { documentId, scope, startLine: Number(startLine), endLine: Number(endLine) };
   const blocker = skillTestRunBlocker(form, input);
@@ -80,7 +78,13 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
             <label className={styles["sr-only"]} htmlFor={fieldId("document")}>
               테스트할 문서
             </label>
-            <SelectBox id={fieldId("document")} value={documentId} options={documentOptions} compact onChange={setDocumentId} />
+            <SkillTestDocumentSelect
+              id={fieldId("document")}
+              value={documentId}
+              placeholder={isDocumentsLoading ? "문서를 불러오는 중…" : "테스트할 문서 선택"}
+              options={documentOptions}
+              onChange={setDocumentId}
+            />
             <label className={styles["sr-only"]} htmlFor={fieldId("scope")}>
               적용 범위
             </label>
