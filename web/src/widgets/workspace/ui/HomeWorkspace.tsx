@@ -57,6 +57,8 @@ import { useWorkspacePanels } from "../model/useWorkspacePanels";
 import { useWorkspaceDocumentTitle } from "../model/useWorkspaceDocumentTitle";
 import { useGraphWikiActions } from "../model/useGraphWikiActions";
 import { useSkillRun } from "../model/useSkillRun";
+import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
+import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel } from "../lib/agentPanelVisibility";
@@ -326,6 +328,7 @@ export function HomeWorkspace() {
     }
   });
   const { skillRun } = skillRunState;
+  const folderOrganize = useFolderOrganizePreview({ locationKey, isHomeView, goHome: () => handleViewChange("home") });
 
   // main 배경을 직접 누르고 뗐을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서 버블된 클릭이나
   // 편집기에서 드래그해 바깥에서 놓은 클릭까지 해제하면 노트 선택이 풀려 편집기가 비어 보인다.
@@ -480,6 +483,11 @@ export function HomeWorkspace() {
         )
       )}
 
+      {/* 폴더 정리 스킬 결과는 문서 화면 위에 미리보기 탭으로 띄운다(Figma 1656:11542). 문서 편집 결과는 채팅의 편집 미리보기를 쓴다. */}
+      {isHomeView && folderOrganize.request && (
+        <FolderOrganizePreview key={folderOrganize.request.turnId} request={folderOrganize.request} onClose={folderOrganize.close} />
+      )}
+
       {/* 그래프: ?view=graph일 때 그래프 화면을 보여준다. */}
       {isGraphView && (
         <Graph
@@ -538,6 +546,7 @@ export function HomeWorkspace() {
           onDocumentExported={handleChatDocumentExported}
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
+          onOpenFolderOrganize={folderOrganize.open}
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
+import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
 import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
 import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
@@ -47,6 +48,7 @@ export function AgentPanel({
   wikiEvidenceNotice,
   onMeetingNotesSaved,
   onMeetingActiveChange,
+  onOpenFolderOrganize,
   isShown = true
 }: {
   onClose: () => void;
@@ -69,6 +71,8 @@ export function AgentPanel({
   onMeetingNotesSaved?: (documentId: string) => Promise<void> | void;
   /** 회의 화면이 열려 있는지(#148). 열려 있는 동안 화면은 패널을 닫아도 마운트해 두어 회의·회의록을 잃지 않는다. */
   onMeetingActiveChange?: (isActive: boolean) => void;
+  /** 폴더 정리 스킬 결과를 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
+  onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -379,6 +383,7 @@ export function AgentPanel({
             onSelectPair={selectPair}
             nodes={nodes}
             documentCommandPreview={documentCommandPreview}
+            onOpenFolderOrganize={onOpenFolderOrganize}
           />
         </div>
       </div>

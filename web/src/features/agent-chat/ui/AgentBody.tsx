@@ -6,6 +6,7 @@ import { buildProgressSteps } from "../lib/progressSteps";
 import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
 import type { ChatPairSelectionKind } from "../lib/chatPairSelection";
+import type { FolderOrganizeRequest } from "../lib/folderOrganize";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
@@ -55,7 +56,8 @@ export function AgentBody({
   selectedPairIds,
   onSelectPair,
   nodes,
-  documentCommandPreview
+  documentCommandPreview,
+  onOpenFolderOrganize
 }: {
   messages: ChatMessageResponse[];
   isLoading: boolean;
@@ -81,6 +83,8 @@ export function AgentBody({
   nodes?: GraphNode[];
   /** 문서 명령 제안 카드. 대화 흐름의 마지막에 이어 붙는다. */
   documentCommandPreview?: ReactNode;
+  /** 폴더 정리 스킬 결과를 메인 영역의 미리보기 탭으로 연다. */
+  onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
 }) {
   const showAgentStatus = isLoading && activeTurn === null;
   const hasDocumentCommandPreview = documentCommandPreview != null;
@@ -240,6 +244,8 @@ export function AgentBody({
                   speechPlayback={speech.playback}
                   speechErrorMessage={speech.error?.messageId === message.id ? speech.error.message : null}
                   onToggleSpeech={speech.toggle}
+                  question={group.messages.find((item) => item.role === "user")?.content ?? null}
+                  onOpenFolderOrganize={onOpenFolderOrganize}
                 />
               )
               ))}

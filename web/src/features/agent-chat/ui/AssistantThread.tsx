@@ -1,9 +1,11 @@
 import { Loader2, Square, Volume2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { AgentPlanPreview } from "./AgentPlanPreview";
+import { FolderOrganizeCard } from "./FolderOrganizeCard";
 import { isWorkspacePlanAction } from "../lib/agentPlan";
+import { isFolderOrganizeAction, type FolderOrganizeRequest } from "../lib/folderOrganize";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
@@ -31,7 +33,9 @@ export function AssistantThread({
   onOpenSourceBlocks,
   speechPlayback = null,
   speechErrorMessage = null,
-  onToggleSpeech
+  onToggleSpeech,
+  question = null,
+  onOpenFolderOrganize
 }: {
   message: ChatMessageResponse;
   isAnimated: boolean;
@@ -43,9 +47,25 @@ export function AssistantThread({
   /** 이 메시지의 음성 재생 실패 안내. */
   speechErrorMessage?: string | null;
   onToggleSpeech?: (messageId: string) => void;
+  /** 이 답변을 만든 사용자 질문(스킬 커맨드). 폴더 정리 카드가 커맨드를 보여 준다. */
+  question?: string | null;
+  /** 폴더 정리 결과를 메인 영역의 미리보기 탭으로 연다. */
+  onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
 }) {
   const presentation = resolveChatTurnPresentation(message.action);
   const isWorkspacePlan = isWorkspacePlanAction(message.action);
+  const isFolderOrganize = isFolderOrganizeAction(message.action);
+  const turnId = message.run_id;
+  const openFolderOrganize = isFolderOrganize && turnId && onOpenFolderOrganize
+    ? () => onOpenFolderOrganize({ turnId, question })
+    : undefined;
+  // 방금 도착한 폴더 정리 결과는 미리보기 탭을 바로 연다. 지난 대화를 다시 볼 때는 열지 않는다.
+  const shouldAutoOpenFolderOrganize = isAnimated && Boolean(openFolderOrganize);
+  useEffect(() => {
+    if (shouldAutoOpenFolderOrganize) openFolderOrganize?.();
+    // 도착 시 한 번만 연다. 콜백 identity가 바뀌어도 다시 열지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoOpenFolderOrganize]);
   const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
@@ -115,7 +135,9 @@ export function AssistantThread({
               <AgentChevronIcon isWide className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
             </button>
           )}
-          {isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
+          {isFolderOrganize ? (
+            <FolderOrganizeCard turnId={turnId} question={question} createdAt={message.created_at} onOpenPreview={openFolderOrganize} />
+          ) : isWorkspacePlan ? <AgentPlanPreview turnId={message.run_id} action={message.action!} /> : (!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
             markdown={formatAnswerMarkdown(message.content)}
             linkPolicy="inert-external"
             onCitationClick={openCitation}
