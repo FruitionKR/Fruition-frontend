@@ -1,7 +1,10 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, throwIfNotOk, workspacePath } from "@/shared/api/client";
 
-/** 지금 서버가 만드는 앱 안 알림 종류. 모르는 type은 문자열로 받아 일반 문구로 보여준다. */
-export type AppNotificationType = "edit_conflict_registered" | "edit_conflict_resolved" | (string & {});
+/**
+ * 앱 안 알림 종류. 편집 충돌 알림(edit_conflict_*)은 서버 자동 병합으로 없어져 지금 전용 문구를 둔 종류는 없다.
+ * 모르는 type은 문자열로 받아 일반 문구로 보여준다.
+ */
+export type AppNotificationType = string;
 
 export type AppNotification = {
   id: string;

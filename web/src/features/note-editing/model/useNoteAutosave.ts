@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { NoteContentConflictError, saveNoteDraft } from "../api/note";
-import { registerEditConflict } from "../api/editConflict";
-import { describeConflictRegistration } from "./editConflict";
+import { fetchNoteDraft, NoteContentConflictError, saveNoteDraft, type NoteSaveMerge } from "../api/note";
+import { LEGACY_CONFLICT_MESSAGE } from "./saveMerge";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/noteMarkdown";
 import { isSessionExpired } from "@/shared/lib/authSessionStorage";
@@ -22,7 +21,17 @@ import { isWriteForbiddenError } from "@/entities/document/lib/documentAccess";
 const WRITE_FORBIDDEN_SAVE_MESSAGE = "이 문서의 편집 권한이 없어 저장하지 못했습니다. 본문을 복사해 두고 소유자나 OWNER에게 편집 권한을 요청해 주세요.";
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
-type NoteSaveBlock = "conflict" | "lock-lost" | "session-expired";
+type NoteSaveBlock = "lock-lost" | "session-expired";
+
+/**
+ * 서버가 다른 곳의 저장과 합쳐 저장했을 때 편집기에 알리는 내용.
+ * markdown은 편집기 본문을 바꿔도 될 때만 있다(보낸 뒤 더 고친 내용이 없을 때). notify는 같은 덮어쓰기를 한 번만 알리게 한다.
+ */
+export type NoteServerMerge = {
+  status: NoteSaveMerge["status"];
+  markdown: string | null;
+  notify: boolean;
+};
 
 export type DetachedNoteSaveResult =
   | { success: true }
@@ -39,6 +48,7 @@ export function useNoteAutosave({
   initialVersion,
   onDetachedSaveComplete,
   onAttachmentsSaved,
+  onServerMerge,
   autoSave = true
 }: {
   documentId: string;
@@ -47,6 +57,8 @@ export function useNoteAutosave({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 이미지 placeholder가 서버 관리 경로로 치환됐을 때. 편집기 본문의 placeholder를 바꿔 넣는 데 쓴다. */
   onAttachmentsSaved?: (saved: SavedAttachment[]) => void;
+  /** 저장 응답이 자동 병합(merged·overwritten)이거나 구 서버 409 뒤 다시 저장해 덮어썼을 때. */
+  onServerMerge?: (merge: NoteServerMerge) => void;
   /**
    * 기본 설정의 자동 저장. 끄면 입력 중에는 저장하지 않고 "저장 안 됨"으로 남긴다.
    * Cmd/Ctrl+S(saveNow), 다른 문서로 이동(언마운트), AI 편집 적용은 그대로 저장한다.
@@ -59,6 +71,12 @@ export function useNoteAutosave({
   const versionRef = useRef(initialVersion);
   const onAttachmentsSavedRef = useRef(onAttachmentsSaved);
   onAttachmentsSavedRef.current = onAttachmentsSaved;
+  const onServerMergeRef = useRef(onServerMerge);
+  onServerMergeRef.current = onServerMerge;
+  // 이미 알린 덮어쓰기 버전. 저장 중 더 고친 본문을 다시 병합할 때 같은 안내를 거듭 띄우지 않는다.
+  const notifiedOverwriteRef = useRef<number | null>(null);
+  // 구 서버 409 뒤 최신 버전을 기준으로 한 번 다시 저장하는 중인지. 연달아 409면 멈추고 안내한다.
+  const legacyConflictRetryRef = useRef(false);
   // 이미 저장된 placeholder → 관리 경로. 사용자가 치환 전에 더 입력해도 같은 파일을 다시 올리지 않는다.
   const savedAttachmentPathsRef = useRef(new Map<string, string>());
   const revisionRef = useRef(0);
@@ -66,10 +84,8 @@ export function useNoteAutosave({
   const scheduledSaveRef = useRef<PendingNoteSave | null>(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
-  // 더 이상 서버에 써서는 안 되는 이유. conflict(버전 충돌)·lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
+  // 더 이상 서버에 써서는 안 되는 이유. lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
   const saveBlockRef = useRef<NoteSaveBlock | null>(null);
-  // 이 편집 세션의 충돌 등록 ID. 같은 ID 재전송은 서버가 기존 충돌을 돌려주므로 재시도해도 중복되지 않는다.
-  const clientConflictIdRef = useRef(crypto.randomUUID());
   const agentRetryRequiredRef = useRef(false);
   const agentRetryApplyOperationIdRef = useRef<string | undefined>(undefined);
   const agentRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,7 +119,7 @@ export function useNoteAutosave({
   }, []);
 
   /**
-   * 저장을 막아야 하는지. conflict·lock-lost는 이 화면에서 풀리지 않지만,
+   * 저장을 막아야 하는지. lock-lost는 이 화면에서 풀리지 않지만,
    * session-expired는 다른 요청·탭의 재발급이나 재로그인으로 세션이 돌아오면 푼다.
    */
   function isSaveBlocked(): boolean {
@@ -160,13 +176,11 @@ export function useNoteAutosave({
       setStatus("saving");
       setErrorMessage(null);
     }
-    // 충돌 등록은 저장하려던 본문을 그대로 올리므로 try 바깥에서도 읽을 수 있게 둔다.
-    let markdownToSave = saveCandidate.markdown;
     try {
       if (saveCandidate.source === "agent") {
         agentRetryApplyOperationIdRef.current = saveCandidate.applyOperationId;
       }
-      markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
+      const markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
       const attachments = pendingImages.collect(markdownToSave);
       if (attachments.length > MAX_IMAGES_PER_SAVE) {
         throw new Error(`한 번에 저장할 수 있는 새 이미지는 ${MAX_IMAGES_PER_SAVE}개까지입니다.`);
@@ -185,8 +199,17 @@ export function useNoteAutosave({
         saved.attachments.forEach((entry) => savedAttachmentPathsRef.current.set(entry.attachment_id.toLowerCase(), entry.content_path));
         onAttachmentsSavedRef.current?.(saved.attachments);
       }
-      versionRef.current = saved.content_version;
-      if (mountedRef.current) setContentVersion(saved.content_version);
+      // 보낸 뒤 더 고친 내용이 없으면 서버 본문이 곧 편집기 본문이 된다.
+      const isLatestEdit = saveCandidate.revision === revisionRef.current && !pendingSaveRef.current;
+      if (!saved.merge || isLatestEdit) {
+        versionRef.current = saved.content_version;
+        if (mountedRef.current) setContentVersion(saved.content_version);
+      }
+      // 병합됐는데 그사이 더 고쳤다면 기준 버전을 그대로 둔다. 다음 저장에서 서버가 같은 기준으로 다시 합쳐
+      // 다른 곳의 변경을 잃지 않는다(편집기 본문에는 아직 그 변경이 없기 때문이다).
+      const wasLegacyRetry = legacyConflictRetryRef.current;
+      legacyConflictRetryRef.current = false;
+      reportServerMerge(saved.merge, isLatestEdit ? saved.markdown : null, wasLegacyRetry);
       if (saveCandidate.source === "agent") {
         agentRetryApplyOperationIdRef.current = undefined;
         agentRetryRequiredRef.current = false;
@@ -201,21 +224,27 @@ export function useNoteAutosave({
       return true;
     } catch (error) {
       if (error instanceof NoteContentConflictError) {
-        saveBlockRef.current = "conflict";
-        cancelAgentRetry();
-        if (mountedRef.current) setStatus("conflict");
-        // 내 본문을 버리지 않고 충돌로 등록해 OWNER가 고르게 한다. 등록 결과에 따라 안내 문구를 바꾼다.
-        // 응답을 기다리는 동안 더 고친 본문(pending)이 있으면 그쪽이 최신이므로 그것을 올린다. 충돌 뒤에는 pending을 버리기 때문이다.
-        const latestMarkdown = pendingSaveRef.current
-          ? substituteAttachmentPaths(pendingSaveRef.current.markdown, savedAttachmentPathsRef.current)
-          : markdownToSave;
-        const registered = await registerEditConflict(documentId, {
-          markdown: latestMarkdown,
-          base_revision: versionRef.current,
-          client_conflict_id: clientConflictIdRef.current
-        }).then(() => true, () => false);
-        if (mountedRef.current) setErrorMessage(describeConflictRegistration(registered));
-        else onDetachedSaveCompleteRef.current?.({ success: false, error: new Error(describeConflictRegistration(registered)) });
+        // 자동 병합 이전 서버의 409. 저장을 막지 않고 최신 버전을 기준으로 지금 본문을 한 번 다시 보낸다.
+        // 덮인 서버 본문은 버전 기록에 남는다. 다시 보내도 409면 멈추고 다음 편집·Cmd/Ctrl+S를 기다린다.
+        const latestVersion = await fetchNoteDraft(documentId)
+          .then((draft) => draft?.content_version ?? error.currentRevision, () => error.currentRevision);
+        if (latestVersion !== null) {
+          versionRef.current = latestVersion;
+          if (mountedRef.current) setContentVersion(latestVersion);
+        }
+        if (!legacyConflictRetryRef.current && latestVersion !== null) {
+          legacyConflictRetryRef.current = true;
+          // 그사이 더 고친 본문(pending)이 있으면 그쪽이 최신이므로 그대로 둔다.
+          if (!pendingSaveRef.current) pendingSaveRef.current = saveCandidate;
+          return false;
+        }
+        legacyConflictRetryRef.current = false;
+        if (mountedRef.current) {
+          setStatus("error");
+          setErrorMessage(LEGACY_CONFLICT_MESSAGE);
+        } else {
+          onDetachedSaveCompleteRef.current?.({ success: false, error: new Error(LEGACY_CONFLICT_MESSAGE) });
+        }
         return false;
       } else if (isWriteForbiddenError(error)) {
         // 편집 중 권한이 "보기만"으로 바뀌면 이후 저장은 모두 403이다. 저장된 척하지 않고 멈춘다.
@@ -248,6 +277,20 @@ export function useNoteAutosave({
       pendingSaveRef.current = null;
       if (pending && !saveBlockRef.current) void trackedFlushSave(pending);
     }
+  }
+
+  /** 병합 결과를 편집기에 알린다. 덮어쓰기 안내는 같은 버전에 한 번만 띄운다. */
+  function reportServerMerge(merge: NoteSaveMerge | null, markdown: string | null, wasLegacyRetry: boolean) {
+    if (!mountedRef.current) return;
+    if (merge) {
+      const isNewOverwrite = merge.status === "overwritten"
+        && (merge.overwrittenVersion === null || merge.overwrittenVersion !== notifiedOverwriteRef.current);
+      if (isNewOverwrite) notifiedOverwriteRef.current = merge.overwrittenVersion;
+      onServerMergeRef.current?.({ status: merge.status, markdown, notify: isNewOverwrite });
+      return;
+    }
+    // 구 서버: 409 뒤 최신 버전 기준으로 다시 저장했으면 서버 본문을 덮은 것이다. 편집기 본문은 이미 그대로다.
+    if (wasLegacyRetry) onServerMergeRef.current?.({ status: "overwritten", markdown: null, notify: true });
   }
 
   function trackedFlushSave(candidate: PendingNoteSave): Promise<boolean> {
