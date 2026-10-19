@@ -12,7 +12,7 @@ export type SelectableTreeItem = {
 export type TreeInteractionProps = {
   draggedItemId: string | null;
   selectedItemId: string | null;
-  /** Cmd/Ctrl+클릭으로 고른 이동 대상 항목 id */
+  /** Cmd/Ctrl+클릭·Shift+클릭으로 고른 묶음 이동·삭제 대상 항목 id */
   selectedItemIds: ReadonlySet<string>;
   /** 스킬 실행 대상 고르기 중: 행을 눌러도 열지 않고 onToggleSelectItem으로 고른다 */
   isPickingTarget?: boolean;
@@ -27,7 +27,12 @@ export type TreeInteractionProps = {
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
   onToggleSelectItem: (itemId: string) => void;
-  onClearSelectedItems: () => void;
+  /** Shift+클릭: 마지막으로 누른 행부터 이 행까지 보이는 행을 고른다 */
+  onSelectItemRange: (itemId: string) => void;
+  /** 선택 해제. anchorItemId를 주면 다음 Shift+클릭의 시작 행으로 삼는다 */
+  onClearSelectedItems: (anchorItemId?: string) => void;
+  /** 선택한 항목 묶음 삭제(Delete·Backspace 키). 확인 모달을 거친다 */
+  onDeleteSelectedItems: () => void;
   onDragOverItem: (target: DropTarget) => void;
   onFileDragOver: (target: FileDropTarget) => void;
   onFileDragLeave: () => void;

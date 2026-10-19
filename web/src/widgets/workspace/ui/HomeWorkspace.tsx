@@ -16,6 +16,7 @@ import { DocumentProcessingNotifications } from "@/features/document-notificatio
 import { railItems } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
 import { DeleteConfirmModal } from "@/shared/ui/modal/DeleteConfirmModal";
+import { BulkDeleteConfirmModal } from "@/shared/ui/modal/BulkDeleteConfirmModal";
 import { MergeConfirmModal } from "@/shared/ui/modal/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
@@ -437,7 +438,10 @@ export function HomeWorkspace() {
         onDropFiles={upload.dropUploadFiles}
         onDragStart={projectTree.onDragStart}
         onToggleSelectItem={skillRun ? skillRunState.pickSkillTarget : projectTree.toggleSelectedItem}
+        onSelectItemRange={projectTree.selectItemRange}
         onClearSelectedItems={projectTree.clearSelectedItems}
+        onDeleteSelectedItems={projectTree.deleteSelectedItems}
+        selectedContextCount={skillRun ? 0 : projectTree.selectedContextCount}
         onDragOverItem={projectTree.onDragOverItem}
         onFileDragOver={projectTree.setFileDropTarget}
         onFileDragLeave={projectTree.onFileDragLeave}
@@ -653,6 +657,13 @@ export function HomeWorkspace() {
       {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. */}
       {(isHomeView || isGraphView) && <DocumentProcessingNotifications documents={documents} />}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
+      {projectTree.bulkDeleteConfirm && (
+        <BulkDeleteConfirmModal
+          target={projectTree.bulkDeleteConfirm}
+          onConfirm={projectTree.confirmBulkDelete}
+          onCancel={projectTree.cancelBulkDelete}
+        />
+      )}
       {projectTree.deleteConfirm && (
         <DeleteConfirmModal
           target={projectTree.deleteConfirm}

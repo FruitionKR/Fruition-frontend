@@ -118,6 +118,9 @@ export function TreeNode({
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
         title={item.errorMessage ?? item.sourceUri}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={isSelected}
         aria-expanded={isFolder ? isOpen : undefined}
         aria-busy={isUploading || undefined}
         aria-disabled={isUploading || undefined}
@@ -132,14 +135,35 @@ export function TreeNode({
           interaction.onContextMenuItem(event, projectId, item.id);
         }}
         // 가운데 클릭: 문서를 새 브라우저 탭으로 연다. mousedown 기본 동작(자동 스크롤)은 막는다.
+        // Shift+클릭은 범위 선택이라 글자 선택이 생기지 않게 막는다.
         onMouseDown={(event) => {
           if (event.button === 1 && canOpenInNewTab) event.preventDefault();
+          if (event.button === 0 && event.shiftKey && !interaction.isPickingTarget) event.preventDefault();
         }}
         onAuxClick={(event) => {
           if (event.button !== 1 || !canOpenInNewTab) return;
           event.preventDefault();
           event.stopPropagation();
           interaction.onOpenInNewTab(item);
+        }}
+        onKeyDown={(event) => {
+          // 입력 중인 이름 편집 칸의 키는 건드리지 않는다.
+          if (event.target !== event.currentTarget || isEditing || interaction.isPickingTarget) return;
+          // Delete·Backspace: 고른 항목을 묶음 삭제한다(확인 모달).
+          if ((event.key === "Delete" || event.key === "Backspace") && selectedItemIds.size > 0) {
+            event.preventDefault();
+            interaction.onDeleteSelectedItems();
+            return;
+          }
+          // 키보드로도 마우스와 같은 선택: Cmd/Ctrl+Space·Enter는 토글, Shift+Space·Enter는 범위 선택.
+          if ((event.key !== " " && event.key !== "Enter") || isUploading || item.type === "wiki") return;
+          if (event.metaKey || event.ctrlKey) {
+            event.preventDefault();
+            interaction.onToggleSelectItem(item.id);
+          } else if (event.shiftKey) {
+            event.preventDefault();
+            interaction.onSelectItemRange(item.id);
+          }
         }}
         onClick={(event) => {
           event.stopPropagation();
@@ -150,12 +174,18 @@ export function TreeNode({
             interaction.onToggleSelectItem(item.id);
             return;
           }
-          // Cmd/Ctrl+클릭: 열지 않고 이동 대상으로 고른다. 위키 노드는 이동 대상이 아니다.
+          // Cmd/Ctrl+클릭: 열지 않고 묶음 대상으로 고른다. 위키 노드는 이동·삭제 대상이 아니다.
           if ((event.metaKey || event.ctrlKey) && item.type !== "wiki") {
             interaction.onToggleSelectItem(item.id);
             return;
           }
-          if (selectedItemIds.size > 0) interaction.onClearSelectedItems();
+          // Shift+클릭: 마지막으로 누른 행부터 이 행까지 보이는 행을 고른다.
+          if (event.shiftKey && item.type !== "wiki") {
+            interaction.onSelectItemRange(item.id);
+            return;
+          }
+          // 일반 클릭: 묶음 선택을 풀고 지금처럼 연다. 이 행이 다음 Shift+클릭의 시작이 된다.
+          interaction.onClearSelectedItems(item.id);
           if (!isEditing && (item.graphNodeId || item.documentId)) interaction.onSelectGraphNode(item);
           if (!isEditing && isFolder) onToggle(item.id);
         }}

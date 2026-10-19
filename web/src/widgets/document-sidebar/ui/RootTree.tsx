@@ -26,6 +26,10 @@ export function RootTree({ project, interaction }: { project: Project; interacti
 
   return (
     <div
+      role="tree"
+      aria-label="문서 트리"
+      // 스킬 대상 고르기에서는 한 항목만 고른다.
+      aria-multiselectable={!interaction.isPickingTarget}
       className={cx(styles["tree-root"], isRootDropTarget && styles["is-tree-drop-target"])}
       onDragOver={handleDragOver}
       onDrop={handleDrop}

@@ -17,6 +17,7 @@ import { WikiWorkButton } from "./WikiWorkButton";
 import { DocumentSearch } from "@/features/document-search/ui/DocumentSearch";
 import type { SelectableTreeItem, TreeInteractionProps } from "../model/treeInteraction";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
+import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
 import styles from "./DocumentSidebar.module.css";
 
@@ -56,7 +57,10 @@ export function DocumentSidebar({
   onDropFiles,
   onDragStart,
   onToggleSelectItem,
+  onSelectItemRange,
   onClearSelectedItems,
+  onDeleteSelectedItems,
+  selectedContextCount = 0,
   onDragOverItem,
   onFileDragOver,
   onFileDragLeave,
@@ -144,7 +148,13 @@ export function DocumentSidebar({
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
   onToggleSelectItem: (itemId: string) => void;
-  onClearSelectedItems: () => void;
+  /** Shift+클릭 범위 선택. 지금 보이는 행 순서(visibleIds)와 지금 열린 행(selectedItemId)을 함께 넘긴다 */
+  onSelectItemRange: (itemId: string, visibleIds: readonly string[], fallbackAnchorId: string | null) => void;
+  onClearSelectedItems: (anchorItemId?: string) => void;
+  /** 고른 항목 묶음 삭제(우클릭 메뉴·Delete 키). 확인 모달을 연다 */
+  onDeleteSelectedItems: () => void;
+  /** 우클릭한 행이 2개 이상 묶음 선택에 들면 그 개수. 컨텍스트 메뉴가 묶음 메뉴로 바뀐다 */
+  selectedContextCount?: number;
   onDragOverItem: (target: DropTarget) => void;
   onFileDragOver: (target: FileDropTarget) => void;
   onFileDragLeave: () => void;
@@ -201,7 +211,9 @@ export function DocumentSidebar({
     onDropFiles,
     onDragStart,
     onToggleSelectItem,
+    onSelectItemRange: (itemId) => onSelectItemRange(itemId, visibleSelectableIds(rootProject?.items ?? [], openIds), selectedItemId),
     onClearSelectedItems,
+    onDeleteSelectedItems,
     onDragOverItem,
     onFileDragOver,
     onFileDragLeave,
@@ -285,6 +297,8 @@ export function DocumentSidebar({
           canRenameTarget={canRenameContextTarget}
           canDeleteTarget={canDeleteContextTarget}
           canSetPermissionTarget={canSetPermissionContextTarget}
+          selectedCount={selectedContextCount}
+          onDeleteSelected={onDeleteSelectedItems}
           onRenameContextTarget={onRenameContextTarget}
           onSetPermissionContextTarget={onSetPermissionContextTarget}
           onAddProject={onAddProject}
@@ -392,6 +406,8 @@ export function DocumentSidebar({
           {settingsNav ?? (
           <div
             className={styles["sidebar-content"]}
+            // 트리 행 밖 빈 영역을 누르면 묶음 선택을 푼다(행 클릭은 전파를 막는다).
+            onClick={() => onClearSelectedItems()}
             onContextMenu={(event) => {
               // 문서 관리 뷰에서는 트리 밖 빈 영역 우클릭도 프로젝트 메뉴(새 노트 등)를 연다.
               // 폴더·프로젝트에서 이미 연 메뉴(preventDefault됨)는 덮어쓰지 않는다.

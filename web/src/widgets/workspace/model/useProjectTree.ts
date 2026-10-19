@@ -12,6 +12,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
 import { resolveTreeMove } from "../lib/treeMoveRules";
+import { bulkResultNotice, planBulkDelete, rangeSelection, type SkippedTreeItem } from "../lib/treeBulkSelection";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
   findTreeItem,
@@ -51,6 +52,12 @@ type DeleteConfirmTarget = {
   kind: "folder" | "document";
 };
 
+/** 묶음 삭제 확인 모달이 필요로 하는 정보. 모달을 연 시점의 선택을 스냅샷한다. */
+type BulkDeleteConfirmTarget = {
+  items: { id: string; label: string; kind: "folder" | "document" }[];
+  skipped: SkippedTreeItem[];
+};
+
 /** 문서 위에 문서를 놓아 새 묶음 폴더를 만들기 전 확인 모달이 필요로 하는 정보. */
 type MergeConfirmTarget = {
   sourceLabel: string;
@@ -85,22 +92,40 @@ export function useProjectTree({
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmTarget | null>(null);
   const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
   const [permissionTarget, setPermissionTarget] = useState<PermissionDialogTarget | null>(null);
-  // Cmd/Ctrl+클릭으로 고른 이동 대상. Escape나 일반 클릭으로 해제한다.
+  // Cmd/Ctrl+클릭·Shift+클릭으로 고른 묶음 이동·삭제 대상. Escape·일반 클릭·빈 영역 클릭으로 해제한다.
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<BulkDeleteConfirmTarget | null>(null);
+  // Shift+클릭 범위의 시작 행. 마지막으로 누른 행이다(렌더에 쓰지 않아 ref로 둔다).
+  const selectionAnchorRef = useRef<string | null>(null);
   const editingCancelRef = useRef(false);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
-  const clearSelectedItems = useCallback(() => setSelectedItemIds(new Set()), []);
+  /** 선택을 비운다. anchorItemId를 주면 그 행을 다음 Shift+클릭의 시작으로 삼는다(일반 클릭). */
+  const clearSelectedItems = useCallback((anchorItemId?: string) => {
+    if (anchorItemId !== undefined) selectionAnchorRef.current = anchorItemId;
+    setSelectedItemIds((current) => current.size === 0 ? current : new Set());
+  }, []);
   // 선택 해제는 모달·메뉴 등 열린 레이어가 없을 때만 Escape로 처리한다.
-  useEscapeLayer(selectedItemIds.size > 0, clearSelectedItems, "fallback");
+  useEscapeLayer(selectedItemIds.size > 0, () => clearSelectedItems(), "fallback");
 
   function toggleSelectedItem(itemId: string) {
+    selectionAnchorRef.current = itemId;
     setSelectedItemIds((current) => {
       const next = new Set(current);
       if (next.has(itemId)) next.delete(itemId);
       else next.add(itemId);
       return next;
     });
+  }
+
+  /**
+   * Shift+클릭: 시작 행부터 itemId까지 보이는 행을 고른다(기존 선택은 바꾼다).
+   * 시작 행이 없으면 지금 열린 문서 행(fallbackAnchorId)에서 시작한다. 시작 행은 그대로 둬 범위를 다시 넓힐 수 있다.
+   */
+  function selectItemRange(itemId: string, visibleIds: readonly string[], fallbackAnchorId: string | null) {
+    const anchorId = selectionAnchorRef.current ?? fallbackAnchorId;
+    selectionAnchorRef.current = anchorId ?? itemId;
+    setSelectedItemIds(new Set(rangeSelection(visibleIds, anchorId, itemId)));
   }
 
   // 동시 변경은 막아야 하지만, 진행 중인 변경이 있다고 다음 변경을 버리면
@@ -149,19 +174,29 @@ export function useProjectTree({
       return;
     }
     if (resolution.kind === "move-many") {
-      const { items: selectedItems, destination, folderId } = resolution;
+      const { items: selectedItems, skipped, destination, folderId } = resolution;
       setSelectedItemIds(new Set());
       void runTreeMutation(async (latest) => {
         if (!hasFolderLocation(latest, destination)) throw new Error(STALE_TARGET_MESSAGE);
-        // 기다리는 동안 사라진 항목은 빼고 옮긴다.
-        const items = selectedItems.filter((entry) => hasTreeItem(latest, entry.id));
-        if (items.length === 0) throw new Error(STALE_TARGET_MESSAGE);
-        // 하나가 실패해도 나머지는 계속 옮기고, 몇 개가 실패했는지 알린다. finally의 재조회가 실제 위치를 보여준다.
-        const results = await Promise.allSettled(items.map((entry) =>
-          entry.documentId ? moveDocument(entry.documentId, folderId) : moveFolder(entry.id, folderId)
-        ));
-        const failed = results.filter((result) => result.status === "rejected").length;
-        if (failed > 0) throw new Error(`${items.length}개 중 ${failed}개 항목을 옮기지 못했습니다.`);
+        const failures = [...skipped];
+        let moved = 0;
+        // 트리 순서대로 하나씩 대상 폴더 끝에 붙여 상대 순서를 지킨다. 하나가 실패해도 나머지는 계속 옮긴다.
+        for (const entry of selectedItems) {
+          // 기다리는 동안 사라진 항목은 건너뛴다.
+          if (!hasTreeItem(latest, entry.id)) {
+            failures.push({ label: entry.label, reason: STALE_TARGET_MESSAGE });
+            continue;
+          }
+          try {
+            if (entry.documentId) await moveDocument(entry.documentId, folderId);
+            else await moveFolder(entry.id, folderId);
+            moved += 1;
+          } catch (error) {
+            failures.push({ label: entry.label, reason: getErrorMessage(error, "옮기지 못했습니다.") });
+          }
+        }
+        // 결과는 한 번만 알리고, finally의 재조회가 실제 위치를 보여준다.
+        publishNotice(bulkResultNotice("이동", moved, failures));
       }, "항목 이동 실패");
       return;
     }
@@ -207,6 +242,8 @@ export function useProjectTree({
   function openFolderMenu(event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) {
     event.preventDefault();
     event.stopPropagation();
+    // 선택 밖의 행을 우클릭하면 그 행 하나의 메뉴를 열므로 묶음 선택은 해제한다.
+    if (!selectedItemIds.has(itemId)) clearSelectedItems();
     setContextMenu({ projectId, itemId, x: event.clientX, y: event.clientY });
   }
 
@@ -359,6 +396,61 @@ export function useProjectTree({
     setDeleteConfirm(null);
   }
 
+  // 우클릭한 행이 2개 이상 묶음 선택에 들어 있으면 메뉴를 묶음 메뉴로 바꾼다. 0이면 단일 항목 메뉴다.
+  const selectedContextCount = contextMenu?.itemId && selectedItemIds.has(contextMenu.itemId) && selectedItemIds.size > 1
+    ? selectedItemIds.size
+    : 0;
+
+  /** 묶음 삭제(우클릭 메뉴·Delete 키): 바로 지우지 않고 대상 이름과 개수를 보여 주는 확인 모달을 연다. */
+  function deleteSelectedItems() {
+    setContextMenu(null);
+    const { items, skipped } = planBulkDelete(projects, selectedItemIds);
+    if (items.length === 0) {
+      if (skipped.length > 0) publishNotice(bulkResultNotice("삭제", 0, skipped));
+      return;
+    }
+    setBulkDeleteConfirm({
+      items: items.map((item) => ({ id: item.id, label: item.label, kind: isFileItem(item) ? "document" : "folder" })),
+      skipped
+    });
+  }
+
+  function confirmBulkDelete() {
+    if (!bulkDeleteConfirm) return;
+    const { items, skipped } = bulkDeleteConfirm;
+    setBulkDeleteConfirm(null);
+    setSelectedItemIds(new Set());
+    void runTreeMutation(async (latest) => {
+      const failures = [...skipped];
+      let deletedCount = 0;
+      for (const target of items) {
+        const location = findItemLocation(latest, target.id);
+        const project = location && latest.find((entry) => entry.id === location.projectId);
+        const item = project ? findTreeItem(project.items, target.id) : null;
+        // 기다리는 동안 이미 사라졌으면(앞서 지운 폴더의 하위 등) 삭제 목적은 이뤄졌다.
+        if (!location || !item) {
+          deletedCount += 1;
+          continue;
+        }
+        const deleted = collectDeletedTreeIds(latest, location.projectId, target.id);
+        try {
+          if (target.kind === "folder") await deleteFolder(target.id);
+          else if (item.documentId) await deleteDocument(item.documentId);
+          else throw new Error("업로드가 끝나지 않았습니다");
+          deletedCount += 1;
+          onDeletedRef.current?.(deleted);
+        } catch (error) {
+          failures.push({ label: target.label, reason: getErrorMessage(error, "삭제하지 못했습니다.") });
+        }
+      }
+      publishNotice(bulkResultNotice("삭제", deletedCount, failures));
+    }, "삭제 실패");
+  }
+
+  function cancelBulkDelete() {
+    setBulkDeleteConfirm(null);
+  }
+
   function commitEditing() {
     if (editingCancelRef.current) { editingCancelRef.current = false; setEditing(null); return; }
     if (!editing) return;
@@ -434,7 +526,13 @@ export function useProjectTree({
     cancelMerge,
     selectedItemIds,
     toggleSelectedItem,
+    selectItemRange,
     clearSelectedItems,
+    selectedContextCount,
+    deleteSelectedItems,
+    bulkDeleteConfirm,
+    confirmBulkDelete,
+    cancelBulkDelete,
     setFileDropTarget,
     addProject,
     moveTreeEntry,

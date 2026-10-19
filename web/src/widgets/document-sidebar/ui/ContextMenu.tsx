@@ -13,6 +13,8 @@ export function ContextMenu({
   canRenameTarget,
   canDeleteTarget = true,
   canSetPermissionTarget = false,
+  selectedCount = 0,
+  onDeleteSelected,
   onRenameContextTarget,
   onSetPermissionContextTarget,
   onAddProject,
@@ -35,6 +37,9 @@ export function ContextMenu({
   canDeleteTarget?: boolean;
   /** 문서·폴더 항목이면 공동 편집 권한 설정 메뉴를 보인다(권한 판정은 서버가 한다). */
   canSetPermissionTarget?: boolean;
+  /** 우클릭한 행이 2개 이상 묶음 선택에 들어 있으면 그 개수. 단일 항목 메뉴 대신 묶음 메뉴를 보인다. */
+  selectedCount?: number;
+  onDeleteSelected?: () => void;
   onRenameContextTarget: () => void;
   onSetPermissionContextTarget?: () => void;
   onAddProject: () => void;
@@ -59,6 +64,12 @@ export function ContextMenu({
       // 열린 메뉴 위 우클릭이 사이드바 빈 영역 핸들러로 버블돼 메뉴가 바뀌지 않도록 막는다.
       onContextMenu={(event) => event.preventDefault()}
     >
+      {selectedCount > 1 && onDeleteSelected ? (
+        <button type="button" className={styles.danger} onClick={onDeleteSelected}>
+          선택한 {selectedCount}개 삭제
+        </button>
+      ) : (
+      <>
       {canCreateInTarget && (
         <>
           {canCreateProject && (
@@ -89,6 +100,8 @@ export function ContextMenu({
         >
           삭제
         </button>
+      )}
+      </>
       )}
     </div>,
     document.body
