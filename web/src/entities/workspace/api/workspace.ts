@@ -44,15 +44,6 @@ export async function createWorkspace(name: string): Promise<WorkspaceResponse> 
   return parseJsonOrThrow<WorkspaceResponse>(response, ERROR_MESSAGES.workspaceCreateFailed);
 }
 
-export async function updateWorkspaceIcon(workspaceId: string, emoji: string | null): Promise<WorkspaceResponse> {
-  const response = await apiFetch(workspacePath(workspaceId, "icon"), {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ icon_emoji: emoji })
-  });
-  return parseJsonOrThrow<WorkspaceResponse>(response, "아이콘을 변경하지 못했습니다.");
-}
-
 export async function uploadWorkspaceIcon(workspaceId: string, file: File): Promise<WorkspaceResponse> {
   const body = new FormData();
   body.append("file", file);
