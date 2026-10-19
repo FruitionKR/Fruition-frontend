@@ -1,4 +1,5 @@
 import type { SkillTestRunRequest, SkillTestRunResponse } from "@/entities/skill/model/skill";
+import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
 import { ApiError, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import {
   skillCapabilities,
@@ -25,6 +26,13 @@ export interface SkillTestRunInput {
   scope: SkillTestRunScope;
   startLine: number;
   endLine: number;
+}
+
+/** 폴더 정리 스킬은 테스트 실행을 지원하지 않는다(서버도 SKILL_TEST_RUN_UNSUPPORTED). 카드는 문서 선택 대신 안내만 둔다. */
+export const SKILL_TEST_RUN_FOLDER_NOTE = "폴더 정리 스킬은 테스트 실행을 지원하지 않아요. 저장한 뒤 작업 탭에서 실행하면 승인 전에 정리 계획을 확인할 수 있어요.";
+
+export function supportsSkillTestRun(kind: SkillCreateForm["kind"]): boolean {
+  return kind !== "folder";
 }
 
 /** 대상이 "선택한 부분"뿐인 스킬은 선택 범위가 있어야 동작하므로 줄 범위로 시작한다. */
@@ -97,6 +105,13 @@ export function skillTestRunView(result: SkillTestRunResponse, capabilities: rea
   const markdown = result.result_markdown ?? "";
   if (!capabilities.includes("document-edit") && markdown.trim() !== "") return { kind: "created", markdown };
   return { kind: "unchanged", untouchedSections };
+}
+
+/** 섹션 변경 전/후를 줄 단위로 비교한다. 바뀐 줄만 지움·추가로, 그대로인 줄은 맥락(context)으로 둔다. */
+export function skillChangeDiffLines(change: { before: string; after: string }): MarkdownDiffLine[] {
+  if (change.before === "") return change.after === "" ? [] : change.after.split("\n").map((text) => ({ type: "insert", text }));
+  if (change.after === "") return change.before.split("\n").map((text) => ({ type: "delete", text }));
+  return lineDiff(change.before, change.after);
 }
 
 const UNAVAILABLE_MESSAGE = "AI가 지금 응답하지 않습니다. 잠시 후 다시 테스트해 주세요.";

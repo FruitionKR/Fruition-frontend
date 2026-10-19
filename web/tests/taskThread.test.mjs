@@ -11,8 +11,10 @@ registerHooks({
 
 const {
   buildSkillPickerGroups,
+  collectServerAppliedTurnIds,
   describeTaskRequest,
   groupTaskEntries,
+  isServerAppliableTask,
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
@@ -147,4 +149,32 @@ test("선택 칩은 선택한 첫 줄을 짧게 보여 준다", () => {
   assert.equal(selectionChipLabel(markdown, 3, 4), "선택 : 연구 개요 문단입니다");
   assert.equal(selectionChipLabel(markdown, 3, 4, 6), "선택 : 연구 개요 …");
   assert.equal(selectionChipLabel("\n\n", 1, 2), "선택 : 1~2줄");
+});
+
+test("되물음 뒤에 다른 작업을 보냈으면 선택 필요에 남기지 않고 완료(지난 질문)로 내린다", () => {
+  const base = { action: "clarify", messageStatus: "completed" };
+  assert.equal(resolveTaskStatus(base).group, "clarify");
+  assert.equal(resolveTaskStatus({ ...base, hasLaterTask: false }).label, "답변 필요");
+  assert.deepEqual(resolveTaskStatus({ ...base, hasLaterTask: true }), { group: "done", label: "지난 질문", tone: "muted", struck: false });
+  // 되물음이 아닌 작업은 뒤 작업과 상관없이 같은 상태다.
+  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", hasLaterTask: true }).label, "제안 완료");
+});
+
+test("서버 버전 기록의 operation_id가 turn의 apply_operation_id와 같으면 적용(저장됨)으로 본다", () => {
+  const targets = [
+    { turnId: "agent_applied", documentId: "doc_a", applyOperationId: "apply_1" },
+    { turnId: "agent_not_applied", documentId: "doc_a", applyOperationId: "apply_2" },
+    { turnId: "agent_unknown_doc", documentId: "doc_b", applyOperationId: "apply_3" },
+    { turnId: "agent_no_document", documentId: null, applyOperationId: null }
+  ];
+  const versions = new Map([["doc_a", [{ operation_id: null }, { operation_id: "apply_1" }]]]);
+  assert.deepEqual([...collectServerAppliedTurnIds(targets, versions)], ["agent_applied"]);
+  assert.deepEqual([...collectServerAppliedTurnIds(targets, new Map())], []);
+});
+
+test("서버 적용 확인은 끝난 문서 편집 작업만 대상으로 한다", () => {
+  assert.equal(isServerAppliableTask({ action: "markdown_edit", messageStatus: "completed", turnId: "agent_1" }), true);
+  assert.equal(isServerAppliableTask({ action: "markdown_edit", messageStatus: "pending", turnId: "agent_1" }), false);
+  assert.equal(isServerAppliableTask({ action: "markdown_edit", messageStatus: "completed", turnId: null }), false);
+  assert.equal(isServerAppliableTask({ action: "clarify", messageStatus: "completed", turnId: "agent_1" }), false);
 });

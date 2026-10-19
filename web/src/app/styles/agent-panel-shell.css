@@ -40,6 +40,12 @@
   --agent-selecting-overlay: rgb(65 65 65 / 60%);
 }
 
+/* 모델 메뉴처럼 패널 밖으로 펼쳐지는 fixed 메뉴는 패널(z 9) 쌓임 맥락에 갇혀 알림 카드(z 50) 아래에 깔린다.
+   메뉴가 열린 동안만 패널을 알림 위로 올린다. 모달(60)보다는 아래다. */
+.agent-panel:has([data-agent-floating-menu]) {
+  z-index: 55;
+}
+
 /* 좁은 화면: 콘텐츠 위에 겹쳐 열리므로 경계를 그림자로 구분한다 */
 .workspace.is-compact-layout .agent-panel {
   box-shadow: 0 8px 24px var(--color-shadow);

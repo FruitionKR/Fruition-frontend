@@ -116,7 +116,8 @@ export function resolveTaskStatus({
   runStatus,
   operationCount = 0,
   hasActivePreview = false,
-  isApplied = false
+  isApplied = false,
+  hasLaterTask = false
 }: {
   action: string | null;
   messageStatus: string;
@@ -125,8 +126,10 @@ export function resolveTaskStatus({
   operationCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
-  /** 이 화면에서 편집안을 적용·새 문서로 만들었는지 */
+  /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
+  /** 이 작업 뒤에 보낸 작업이 있는지. 되물음은 다음 요청으로 답했거나 지나간 것으로 본다. */
+  hasLaterTask?: boolean;
 }): TaskStatusView {
   if (messageStatus === "pending") return { group: "running", label: "진행 중", tone: "primary", struck: false };
   if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
@@ -141,12 +144,39 @@ export function resolveTaskStatus({
     if (shouldPollAgentPlan(runStatus)) return { group: "running", label: agentPlanStatusLabel(runStatus), tone: "primary", struck: false };
     return { group: "done", label: agentPlanStatusLabel(runStatus), tone: "muted", struck: false };
   }
-  if (action === "clarify") return { group: "clarify", label: "답변 필요", tone: "primary", struck: false };
+  if (action === "clarify") {
+    return hasLaterTask
+      ? { group: "done", label: "지난 질문", tone: "muted", struck: false }
+      : { group: "clarify", label: "답변 필요", tone: "primary", struck: false };
+  }
   if (action === "reject") return { group: "failed", label: "처리 불가", tone: "danger", struck: false };
   if (hasActivePreview) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
   if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
   if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
   return { group: "done", label: "답변", tone: "muted", struck: false };
+}
+
+/** 서버 버전 기록으로 적용 여부를 확인할 편집 작업(새로 고침 뒤에도 "저장됨"을 지키려고). */
+export function isServerAppliableTask(item: Pick<TaskMessageItem, "action" | "messageStatus" | "turnId">): boolean {
+  return item.action === "markdown_edit" && item.messageStatus === "completed" && Boolean(item.turnId);
+}
+
+export type TaskApplyTarget = { turnId: string; documentId: string | null; applyOperationId: string | null };
+
+/**
+ * 편집안이 실제 문서에 저장된 turn ID. Agent 적용으로 저장한 버전은 operation_id에 turn의 apply_operation_id를 남긴다
+ * (document 버전 목록). 버전 목록을 아직 못 받은 문서는 판단하지 않는다.
+ */
+export function collectServerAppliedTurnIds(
+  targets: TaskApplyTarget[],
+  versionsByDocument: ReadonlyMap<string, ReadonlyArray<{ operation_id?: string | null }>>
+): Set<string> {
+  const applied = new Set<string>();
+  for (const { turnId, documentId, applyOperationId } of targets) {
+    if (!documentId || !applyOperationId) continue;
+    if (versionsByDocument.get(documentId)?.some((version) => version.operation_id === applyOperationId)) applied.add(turnId);
+  }
+  return applied;
 }
 
 /** 상태별 묶음으로 나눈다. 묶음 안은 보낸 순서를 지킨다. 빈 묶음은 뺀다. */

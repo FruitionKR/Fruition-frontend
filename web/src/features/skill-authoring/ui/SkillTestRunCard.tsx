@@ -13,10 +13,13 @@ import {
   defaultSkillTestRunScope,
   describeSkillTestRunError,
   newSkillTestRunId,
+  SKILL_TEST_RUN_FOLDER_NOTE,
   SKILL_TEST_RUN_SCOPE_OPTIONS,
+  skillChangeDiffLines,
   skillTestRunBlocker,
   skillTestRunRequest,
   skillTestRunView,
+  supportsSkillTestRun,
   type SkillTestRunInput,
   type SkillTestRunScope
 } from "../lib/skillTestRun";
@@ -24,6 +27,9 @@ import { issueText, SelectBox } from "./SkillFormParts";
 import styles from "./SkillTestRunCard.module.css";
 
 const NO_DOCUMENT = "";
+const DIFF_LINE_CLASS = { delete: styles.before, insert: styles.after, context: styles.context } as const;
+// 색만으로 구분하지 않도록 화면 낭독기에 줄 종류를 읽어 준다.
+const DIFF_LINE_LABEL = { delete: "지운 줄: ", insert: "추가한 줄: ", context: "" } as const;
 
 /**
  * 스킬 편집 탭 오른쪽 열의 "테스트 실행" 카드 (Figma 1671:14585 카드 모양, 디자인 '② 새 스킬 탭' 배치).
@@ -39,9 +45,11 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
   const [startLine, setStartLine] = useState("1");
   const [endLine, setEndLine] = useState("1");
 
+  const isSupported = supportsSkillTestRun(form.kind);
   const { data: documents, isLoading: isDocumentsLoading } = useQuery({
     queryKey: ["documents", workspaceId],
-    queryFn: fetchDocuments
+    queryFn: fetchDocuments,
+    enabled: isSupported
   });
   // 테스트 실행은 Markdown 문서만 받는다(그 밖의 원본은 400). 참고 문서 피커와 같은 기준으로 고른다.
   const candidates = pickerDocuments(documents ?? [], "");
@@ -63,6 +71,22 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
   });
   const view = runMutation.data;
   const hasRun = view != null || runMutation.isError;
+
+  // 폴더 정리 스킬: 테스트할 문서·범위 고르기 없이 안내만 둔다.
+  if (!isSupported) {
+    return (
+      <section className={styles.container} aria-labelledby={fieldId("title")}>
+        <div className={styles.card}>
+          <div className={styles.heading}>
+            <p id={fieldId("title")} className={styles.title}>
+              테스트 실행
+            </p>
+            <p className={styles.sub}>{SKILL_TEST_RUN_FOLDER_NOTE}</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={styles.container} aria-labelledby={fieldId("title")}>
@@ -168,9 +192,14 @@ function SkillTestRunResult({ view }: { view: NonNullable<ReturnType<typeof skil
           <p className={styles.section}>
             {change.section} · {change.start_line}–{change.end_line}줄
           </p>
-          <div className={styles.diff}>
-            <p className={styles.before}>{change.before}</p>
-            <p className={styles.after}>→ {change.after}</p>
+          {/* 바뀐 줄만 빨강(지움)·초록(새 줄)으로, 그대로인 줄은 맥락으로 보여 준다. */}
+          <div className={styles.diff} aria-label="변경 전후 줄 비교">
+            {skillChangeDiffLines(change).map((line, lineIndex) => (
+              <p key={`${line.type}-${lineIndex}`} className={DIFF_LINE_CLASS[line.type]}>
+                <span className={styles["sr-only"]}>{DIFF_LINE_LABEL[line.type]}</span>
+                {line.text || " "}
+              </p>
+            ))}
           </div>
         </div>
       ))}

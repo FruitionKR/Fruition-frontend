@@ -115,3 +115,36 @@ test("테스트 실행 오류를 사유별 안내로 바꾼다", () => {
   assert.match(describeSkillTestRunError(new DOMException("timeout", "TimeoutError")), /오래 걸려/);
   assert.match(describeSkillTestRunError(new TypeError("fetch failed")), /응답하지 않습니다/);
 });
+
+const { skillChangeDiffLines, supportsSkillTestRun } = await import("../src/features/skill-authoring/lib/skillTestRun.ts");
+const { rulesPlaceholderHint, RULES_PLACEHOLDER_HINT } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+
+test("섹션 변경 전후는 바뀐 줄만 지움·추가로, 그대로인 줄은 맥락으로 비교한다", () => {
+  const before = "## 연구 개요\n첫 문장\n둘째 문장\n셋째 문장";
+  const after = "## 연구 개요\n첫 문장\n둘째 문장 (요약)\n셋째 문장";
+  assert.deepEqual(skillChangeDiffLines({ before, after }), [
+    { type: "context", text: "## 연구 개요" },
+    { type: "context", text: "첫 문장" },
+    { type: "delete", text: "둘째 문장" },
+    { type: "insert", text: "둘째 문장 (요약)" },
+    { type: "context", text: "셋째 문장" }
+  ]);
+});
+
+test("빈 변경 전·후는 빈 줄 하나와 비교하지 않고 전부 추가·삭제로 보여 준다", () => {
+  assert.deepEqual(skillChangeDiffLines({ before: "", after: "새 줄\n둘째" }), [
+    { type: "insert", text: "새 줄" },
+    { type: "insert", text: "둘째" }
+  ]);
+  assert.deepEqual(skillChangeDiffLines({ before: "지울 줄", after: "" }), [{ type: "delete", text: "지울 줄" }]);
+  assert.deepEqual(skillChangeDiffLines({ before: "", after: "" }), []);
+});
+
+test("폴더 정리 스킬은 테스트 실행과 문서·선택 부분 자리표시자 안내를 감춘다", () => {
+  assert.equal(supportsSkillTestRun("folder"), false);
+  assert.equal(supportsSkillTestRun("document"), true);
+  assert.equal(supportsSkillTestRun("template"), true);
+  assert.equal(rulesPlaceholderHint("folder"), null);
+  assert.equal(rulesPlaceholderHint("document"), RULES_PLACEHOLDER_HINT);
+  assert.equal(rulesPlaceholderHint(null), RULES_PLACEHOLDER_HINT);
+});

@@ -333,7 +333,8 @@ export function AgentComposer({
           </button>
           {/* Figma 1691:16177: 왼쪽 provider 메뉴(1691:16178, 아래 웹 서칭) + 오른쪽 하위 메뉴(1691:16196, provider의 모델) */}
           {isModelListOpen && modelMenuPosition && (
-            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef}>
+            // data-agent-floating-menu: 메뉴가 열린 동안 채팅 패널을 알림 카드(z 50) 위로 올린다(agent-panel-shell.css).
+            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef} data-agent-floating-menu>
               <div className={styles["composer-model-list"]}>
                 <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label="모델 제공사">
                   {modelGroups.map((group) => {

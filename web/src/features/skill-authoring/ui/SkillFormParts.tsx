@@ -284,9 +284,6 @@ export function SkillEditorLayout({
   );
 }
 
-/** 실행 규칙 아래 안내 (디자인 문구 그대로). 자리표시자 치환은 실행 쪽(AI pipeline)이 맡는다. */
-export const RULES_PLACEHOLDER_HINT = "{문서}, {선택한 부분}, {요청} 을 넣으면 실행할 때 채워집니다.";
-
 export const SCOPE_HELP = (
   <>
     개인 - 모든 워크스페이스에서 사용됩니다.

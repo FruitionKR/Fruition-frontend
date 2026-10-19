@@ -67,6 +67,14 @@ function mergeOnSave(doc, baseRevision, mine) {
   };
 }
 
+/** 일반 저장의 버전 메타. 서버처럼 merge none은 null로, Agent 적용(apply_operation_id)은 source agent·operation_id로 남긴다. */
+function saveMeta(merge, applyOperationId) {
+  const mergeStatus = merge.status === "none" ? null : merge.status;
+  return typeof applyOperationId === "string" && applyOperationId
+    ? { merge_status: mergeStatus, source: "agent", operation_id: applyOperationId }
+    : { merge_status: mergeStatus, source: "user" };
+}
+
 function saveVersion(doc, markdown, createdBy, meta = {}) {
   const buffer = Buffer.from(markdown, "utf8");
   doc.current_version += 1;
@@ -295,7 +303,7 @@ export function registerDocumentRoutes(router) {
       const pathById = new Map(attachments.map((entry) => [entry.attachment_id, entry.content_path]));
       const replaced = metadata.markdown.replace(ATTACHMENT_PLACEHOLDER, (_whole, attachmentId) => pathById.get(attachmentId.toLowerCase()));
       const { markdown, merge } = mergeOnSave(doc, Number(metadata.base_version), replaced);
-      return ctx.json(200, { ...saveVersion(doc, markdown, ctx.user.id, { merge_status: merge.status }), markdown, attachments, merge });
+      return ctx.json(200, { ...saveVersion(doc, markdown, ctx.user.id, saveMeta(merge, body.apply_operation_id)), markdown, attachments, merge });
     }
     // 프론트는 CRLF 변환을 피하려고 markdown을 file part(Blob)로 보낸다. 문자열·파일 둘 다 받는다.
     const markdown = typeof body.markdown === "string" ? body.markdown : body.markdown?.buffer?.toString("utf8");
@@ -309,7 +317,7 @@ export function registerDocumentRoutes(router) {
     if (finalMarkdown === doc.markdown) {
       return ctx.json(200, { document_id: doc.id, current_version: doc.current_version, content_hash: hash(finalMarkdown), updated_at: doc.updated_at, changed: false, ...(merge.status === "none" ? {} : { markdown: finalMarkdown }), merge });
     }
-    const saved = saveVersion(doc, finalMarkdown, ctx.user.id, { merge_status: merge.status });
+    const saved = saveVersion(doc, finalMarkdown, ctx.user.id, saveMeta(merge, body.apply_operation_id));
     ctx.json(200, { ...saved, ...(merge.status === "none" ? {} : { markdown: finalMarkdown }), merge });
   });
 
@@ -320,7 +328,10 @@ export function registerDocumentRoutes(router) {
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
     if (!isMarkdownDocument(doc)) return error(ctx, 400, "편집 가능한 Markdown 문서만 버전 이력을 제공합니다.");
-    const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at }) => ({ version, content_hash, created_by, created_at }));
+    const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at, source, operation_id, restored_from_version, merge_status }) => ({
+      version, content_hash, created_by, created_at,
+      source: source ?? null, operation_id: operation_id ?? null, restored_from_version: restored_from_version ?? null, merge_status: merge_status ?? null
+    }));
     ctx.json(200, { document_id: doc.id, current_version: doc.edit_revision, versions });
   });
 

@@ -18,6 +18,7 @@ import {
   SKILL_TARGET_OPTIONS,
   skillAuthorRequest,
   skillCreateFormFromRequest,
+  rulesPlaceholderHint,
   skillPublishRequest,
   validateSkillCreateForm,
   type SkillAuthoringMode,
@@ -28,7 +29,6 @@ import {
 import {
   HelpTip,
   RESULT_HELP,
-  RULES_PLACEHOLDER_HINT,
   SCOPE_HELP,
   SegmentedControl,
   SkillAuthorAssist,
@@ -85,6 +85,7 @@ export function SkillCreateEditor({
   const isBlocked = Object.keys(errors).length > 0;
   const visibleError = (field: SkillCreateField) => (touched.has(field) ? errors[field] : undefined);
   const isDocument = isDocumentKind(form.kind);
+  const rulesHint = rulesPlaceholderHint(form.kind);
 
   function update(patch: Partial<SkillCreateForm>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -341,15 +342,15 @@ export function SkillCreateEditor({
             rows={8}
             placeholder={"'연구 개요' 섹션만 고친다. 다른 섹션은 바꾸지 않는다.\n원문에 없는 수치나 사실은 추가하지 않는다."}
             value={form.rules}
-            {...errorProps("rules", fieldId("rules-hint"))}
+            {...errorProps("rules", rulesHint != null ? fieldId("rules-hint") : undefined)}
             onChange={(event) => update({ rules: event.target.value })}
             onBlur={() => touch("rules")}
           />
-          {errorText("rules") ?? (
+          {errorText("rules") ?? (rulesHint != null && (
             <p id={fieldId("rules-hint")} className={styles.hint}>
-              {RULES_PLACEHOLDER_HINT}
+              {rulesHint}
             </p>
-          )}
+          ))}
 
           {/* 참고 문서 + AI 작성: 실행 규칙을 AI 지시문으로 보내 초안을 받아 채운다 (POST /skills/author) */}
           <SkillAuthorAssist

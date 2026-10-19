@@ -5,7 +5,21 @@ export type DocumentVersionItem = {
   content_hash: string;
   created_by: string | null;
   created_at: string;
+  /** Agent 편집 적용으로 만든 버전이면 그 적용 ID(turn의 apply_operation_id). 그 밖에는 null. */
+  operation_id?: string | null;
+  /** 자동 병합 결과(document #152). merged·overwritten, V80이 옮긴 충돌 본문은 conflict_archived, 그 밖에는 null. */
+  merge_status?: "merged" | "overwritten" | "conflict_archived" | null;
 };
+
+/** 버전 목록에 붙일 자동 병합 표시. 모르는 값·null이면 붙이지 않는다. */
+export function versionMergeStatusLabel(status: string | null | undefined): string | null {
+  switch (status) {
+    case "merged": return "자동 병합";
+    case "overwritten": return "덮어씀";
+    case "conflict_archived": return "충돌 보관본";
+    default: return null;
+  }
+}
 
 export type DocumentVersionList = {
   document_id: string;
