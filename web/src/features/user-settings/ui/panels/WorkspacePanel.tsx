@@ -2,37 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Lock } from "lucide-react";
 import {
   buildWorkspaceModelOptions,
   filterWorkspaceAiModels,
-  getAiModelLockMessage,
-  getProviderLabel,
   hasWorkspaceExcludedModels,
-  isProviderLocked,
-  isSameSelection,
   LOCKED_AI_MODELS,
   resolveWorkspaceModelSelection,
   type AiModel,
   type AiModelSelection
 } from "@/entities/ai";
+import { useUserPreferences } from "@/entities/user";
 import { renameWorkspace, updateWorkspaceAutoIngest, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
-import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
 import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
-import panelStyles from "./WorkspacePanel.module.css";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
+import { WorkspaceModelMenu } from "./WorkspaceModelMenu";
 
-// provider id → 아이콘
-const providerIcons: Record<string, SvgAsset> = {
-  openai: gptIcon,
-  gemini: geminiIcon,
-  claude: claudeIcon
-};
+/** 워크스페이스 이름 최대 길이 (서버 제한과 같다) */
+const WORKSPACE_NAME_MAX_LENGTH = 65;
 
 interface WorkspacePanelProps {
   wsName: string;
@@ -44,7 +35,11 @@ interface WorkspacePanelProps {
   onSelectModel: (model: AiModel) => void;
 }
 
-/** 워크스페이스 설정 패널 (Figma 771:18800). */
+/**
+ * 워크스페이스 설정 (Figma 1511:14771, 모델 메뉴 1691:17420).
+ * 이름 · 아이콘 + 자동 저장 · AI 모델. 자동 저장은 디스플레이(기본 설정)에 있던 개인 설정을 시안대로 이 화면으로 옮겼다.
+ * 위키 자동 편입은 시안에 없지만 다른 진입점이 없어 맨 아래에 남긴다. 시안의 튜토리얼 다시보기는 튜토리얼 기능이 없어 넣지 않았다.
+ */
 export function WorkspacePanel({
   wsName,
   aiModels,
@@ -54,15 +49,12 @@ export function WorkspacePanel({
   canUpdateAiModel,
   onSelectModel
 }: WorkspacePanelProps) {
-  // "모델 변경" 클릭 시에만 provider 선택 목록을 펼친다.
-  const [isProviderListOpen, setIsProviderListOpen] = useState(false);
-  // provider 클릭은 모델 목록만 바꿔 보여 주고, 저장은 모델을 고를 때 한다.
-  const [viewingProvider, setViewingProvider] = useState<string | null>(null);
-
   const queryClient = useQueryClient();
+  const { preferences, updatePreferences } = useUserPreferences();
   const [nameInput, setNameInput] = useState(wsName);
   const [isNameSaving, setIsNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaved, setNameSaved] = useState(false);
 
   // 업로드 자동 편입 설정(access #32). 워크스페이스 목록 응답의 값을 보여 주고, OWNER만 바꾼다.
   const workspace = useSelectedWorkspace();
@@ -93,17 +85,26 @@ export function WorkspacePanel({
   }, [wsName]);
 
   const trimmedName = nameInput.trim();
-  const canSaveName = trimmedName.length > 0 && trimmedName.length <= 65 && trimmedName !== wsName && !isNameSaving;
+  const canSaveName = trimmedName.length > 0 && trimmedName.length <= WORKSPACE_NAME_MAX_LENGTH && trimmedName !== wsName && !isNameSaving;
 
+  /** 시안에는 저장 버튼이 없어 Enter·포커스 이탈 때 저장한다(닉네임과 같은 방식). */
   async function saveWorkspaceName() {
     const workspaceId = getSelectedWorkspaceId();
-    if (!workspaceId || !canSaveName) return;
+    if (!workspaceId) return;
+    if (!trimmedName) {
+      setNameSaved(false);
+      setNameError("워크스페이스 이름을 입력해 주세요.");
+      return;
+    }
+    if (!canSaveName) return;
     setIsNameSaving(true);
     setNameError(null);
+    setNameSaved(false);
     try {
       await renameWorkspace(workspaceId, trimmedName);
       // 서버에 저장된 정규화 값(trim)으로 입력창을 맞춘다.
       setNameInput(trimmedName);
+      setNameSaved(true);
       // 사이드바 등 useWorkspaceName 소비처가 새 이름을 반영하도록 캐시를 무효화한다.
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
@@ -123,13 +124,6 @@ export function WorkspacePanel({
     workspaceModels,
     aiModelSelection
   );
-  const providers = Array.from(new Set(modelOptions.map((model) => model.provider)));
-  const selectedIcon = shownSelection ? providerIcons[shownSelection.provider] : undefined;
-  // 표시 중인 provider가 목록에 없으면 첫 provider를 보여 준다(빈 목록 방지).
-  const savedProvider =
-    shownSelection && providers.includes(shownSelection.provider) ? shownSelection.provider : null;
-  const activeProvider = viewingProvider ?? savedProvider ?? providers[0] ?? null;
-  const providerModels = modelOptions.filter((model) => model.provider === activeProvider);
 
   return (
     <div className={styles.detail}>
@@ -139,33 +133,60 @@ export function WorkspacePanel({
         <SettingsSectionHeader>워크스페이스 이름</SettingsSectionHeader>
         <div className={styles.field}>
           <label htmlFor="workspace-name">워크스페이스 이름</label>
-          <small>워크스페이스 이름은 최대 65자까지 입력할 수 있습니다.</small>
-          <div className={panelStyles["name-edit"]}>
-            <input
-              id="workspace-name"
-              type="text"
-              maxLength={65}
-              value={nameInput}
-              onChange={(event) => setNameInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void saveWorkspaceName();
-              }}
-            />
-            <button type="button" className={styles.btn} disabled={!canSaveName} onClick={() => void saveWorkspaceName()}>
-              {isNameSaving ? "저장 중…" : "저장"}
-            </button>
-          </div>
-          {nameError && (
-            <small className={styles["model-error"]} role="alert">
-              {nameError}
-            </small>
-          )}
+          <small id="workspace-name-hint">워크스페이스 이름은 최대 {WORKSPACE_NAME_MAX_LENGTH}자까지 입력할 수 있습니다.</small>
+          <input
+            id="workspace-name"
+            type="text"
+            className={styles["is-filled"]}
+            maxLength={WORKSPACE_NAME_MAX_LENGTH}
+            value={nameInput}
+            aria-describedby={nameError ? "workspace-name-hint workspace-name-error" : "workspace-name-hint"}
+            aria-invalid={nameError ? true : undefined}
+            onChange={(event) => { setNameInput(event.target.value); setNameError(null); setNameSaved(false); }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) void saveWorkspaceName();
+            }}
+            onBlur={() => void saveWorkspaceName()}
+          />
+          {nameError && <small id="workspace-name-error" className={styles["field-error"]} role="alert">{nameError}</small>}
+          {isNameSaving ? <small role="status">저장 중…</small> : nameSaved && <small role="status">워크스페이스 이름을 변경했습니다.</small>}
         </div>
       </div>
 
       <div className={styles.section}>
         <SettingsSectionHeader>워크스페이스 아이콘</SettingsSectionHeader>
-        <WorkspaceIconSettings />
+        <div className={styles["stack-20"]}>
+          <WorkspaceIconSettings />
+          <div className={styles.row}>
+            <div className={styles["row-title"]}>
+              <strong>자동 저장</strong>
+              <small>편집한 내용을 자동으로 저장합니다.</small>
+            </div>
+            <Switch checked={preferences.autoSave} label="자동 저장"
+              onClick={() => updatePreferences((current) => ({ ...current, autoSave: !current.autoSave }))} />
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        <SettingsSectionHeader>AI 모델</SettingsSectionHeader>
+        <div className={styles.row}>
+          <div className={styles["row-title"]}>
+            <strong>LLM Provider</strong>
+            <small>위키 생성•편집에 사용하는 모델</small>
+            {hasExcludedModels && <small>Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다.</small>}
+            {!canUpdateAiModel && <small>Provider 변경은 워크스페이스 OWNER만 할 수 있습니다.</small>}
+            {isSelectionFallback && <small>저장된 모델을 더 이상 사용할 수 없어 기본 모델로 처리합니다.</small>}
+            {aiModelError && <small className={styles["row-error"]} role="alert">{aiModelError}</small>}
+          </div>
+          <WorkspaceModelMenu
+            modelOptions={modelOptions}
+            selection={shownSelection}
+            canUpdate={canUpdateAiModel}
+            isSaving={isAiModelSaving}
+            onSelect={onSelectModel}
+          />
+        </div>
       </div>
 
       <div className={styles.section}>
@@ -177,12 +198,8 @@ export function WorkspacePanel({
               문서를 올리면 변환 뒤 바로 팀 위키에 편입합니다. 편입은 LLM 비용이 들고,
               멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버가 올린 문서에만 적용됩니다.
             </small>
-            {!isOwner && <small className={styles["provider-readonly"]}>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
-            {autoIngestError && (
-              <small className={styles["model-error"]} role="alert">
-                {autoIngestError}
-              </small>
-            )}
+            {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
+            {autoIngestError && <small className={styles["row-error"]} role="alert">{autoIngestError}</small>}
           </div>
           <Switch
             checked={autoIngestOnUpload}
@@ -191,116 +208,6 @@ export function WorkspacePanel({
             disabled={!isOwner || !workspace}
             onClick={() => void toggleAutoIngest()}
           />
-        </div>
-      </div>
-
-      <div className={styles.section}>
-        <SettingsSectionHeader>AI 모델</SettingsSectionHeader>
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>LLM Provider</strong>
-            <small>위키 생성•편집에 사용하는 모델</small>
-            {hasExcludedModels && <small>Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다.</small>}
-          </div>
-          <div className={panelStyles["model-controls"]}>
-            <div className={panelStyles["model-actions"]}>
-              {shownSelection && (
-                <span className={panelStyles.pill}>
-                  {selectedIcon && <SvgIcon src={selectedIcon} className={panelStyles["pill-icon"]} />}
-                  {getProviderLabel(shownSelection.provider)} • {shownSelection.model}
-                </span>
-              )}
-              <button
-                type="button"
-                className={styles.btn}
-                disabled={!canUpdateAiModel}
-                aria-expanded={isProviderListOpen}
-                onClick={() => setIsProviderListOpen((open) => !open)}
-              >
-                모델 변경
-              </button>
-            </div>
-            {!canUpdateAiModel && (
-              <small className={styles["provider-readonly"]}>
-                Provider 변경은 워크스페이스 OWNER만 할 수 있습니다.
-              </small>
-            )}
-            {isSelectionFallback && (
-              <small className={styles["provider-readonly"]}>
-                저장된 모델을 더 이상 사용할 수 없어 기본 모델로 처리합니다.
-              </small>
-            )}
-            {isProviderListOpen && canUpdateAiModel && (
-              <>
-                {workspaceModels.length === 0 && (
-                  <small className={styles["provider-readonly"]}>사용할 수 있는 모델이 없습니다.</small>
-                )}
-                <div className={styles["provider-list"]}>
-                  {providers.map((provider) => {
-                    const icon = providerIcons[provider];
-                    const isActive = activeProvider === provider;
-                    // 모델이 모두 잠긴 provider(Claude)도 눌러서 잠긴 모델을 볼 수 있다. 자물쇠로 쓸 수 없음을 알린다.
-                    const isLocked = isProviderLocked(modelOptions.filter((model) => model.provider === provider));
-                    return (
-                      <button
-                        key={provider}
-                        type="button"
-                        className={`${styles["provider-button"]} ${isActive ? styles["is-selected"] : ""} ${isLocked ? panelStyles["is-locked"] : ""}`}
-                        aria-pressed={isActive}
-                        disabled={isAiModelSaving}
-                        onClick={() => setViewingProvider(provider)}
-                      >
-                        {icon && <SvgIcon src={icon} className={styles["provider-icon"]} />}
-                        <span className={panelStyles["provider-name"]}>
-                          {getProviderLabel(provider)}
-                          {isLocked && <Lock size={11} aria-label="사용 불가" role="img" />}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {providerModels.length > 0 && (
-                  <div
-                    className={panelStyles["model-list"]}
-                    role="group"
-                    aria-label={`${getProviderLabel(activeProvider ?? "")} 모델`}
-                  >
-                    {providerModels.map((model) => {
-                      const isSelected = isSameSelection(model, shownSelection);
-                      const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
-                      return (
-                        <button
-                          key={model.model}
-                          type="button"
-                          className={`${panelStyles["model-option"]} ${isSelected ? panelStyles["is-selected"] : ""} ${lockMessage ? panelStyles["is-locked"] : ""}`}
-                          aria-pressed={isSelected}
-                          aria-disabled={lockMessage ? true : undefined}
-                          title={lockMessage ?? undefined}
-                          disabled={isAiModelSaving}
-                          // 잠긴 모델은 포커스는 받지만 고를 수 없다.
-                          onClick={() => {
-                            if (!lockMessage) onSelectModel(model);
-                          }}
-                        >
-                          <span className={panelStyles["model-option-text"]}>
-                            <span>{model.display_name}</span>
-                            <small>{lockMessage ?? model.model}</small>
-                          </span>
-                          {isSelected && <Check size={12} aria-hidden />}
-                          {lockMessage && <Lock size={12} aria-hidden />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-            {aiModelError && (
-              <small className={styles["model-error"]} role="alert">
-                {aiModelError}
-              </small>
-            )}
-          </div>
         </div>
       </div>
     </div>

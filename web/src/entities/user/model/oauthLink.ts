@@ -42,7 +42,7 @@ export function oauthAccountErrorMessage(error: unknown, fallback: string): stri
 
 /** 이메일 가입 계정의 로그인 수단. 서버가 소셜 provider와 같은 목록에 이 이름으로 넣어 준다. */
 const LOCAL_PROVIDER = "local";
-const LINK_GUIDE = "설정 > 계정 보안에서 연동해 주세요.";
+const LINK_GUIDE = "설정 > 사용자 설정에서 연동해 주세요.";
 /** providers가 비어 온 비정상 응답에도 두 번째 가입 대신 로그인·연동을 안내한다. */
 const REGISTERED_EMAIL_FALLBACK_MESSAGE = `이미 가입된 이메일입니다. 기존 방법으로 로그인한 뒤 ${LINK_GUIDE}`;
 

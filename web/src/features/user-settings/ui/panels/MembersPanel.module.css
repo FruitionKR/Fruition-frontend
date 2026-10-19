@@ -1,17 +1,12 @@
-/* 멤버 관리 패널 (Figma 987:10705). */
+/* 멤버 관리 (Figma 1540:21567). */
 
-.search-input {
-  min-width: 0;
-  width: 180px;
-  padding: 6px 8px;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 13px;
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* --- 툴바 --- */
+/* --- 위 줄: 총 인원 + 검색·권한 필터·초대 (Figma 1540:21840) --- */
 .toolbar {
   display: flex;
   align-items: center;
@@ -19,295 +14,372 @@
   gap: 12px;
 }
 
+.total {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.14px;
+  white-space: nowrap;
+}
+
+.total strong {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 .toolbar-group {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+.search-input {
+  min-width: 0;
+  width: 180px;
+  padding: 6px 10px;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1.2px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.search-input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.icon-btn {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 4px;
+}
+
+/* 권한 필터 (Figma 1540:21904): 1.2px 테두리, 반지름 8, 12 Medium + 16px 화살표 */
+.filter-wrap {
+  position: relative;
+}
+
 .filter-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.28px;
+  gap: 8px;
+  padding: 8px 8px 8px 10px;
+  color: var(--color-body);
+  background: var(--color-canvas);
+  border: 1.2px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
+}
+
+.filter-btn:hover {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
 }
 
 .filter-accent {
   color: var(--color-primary);
 }
 
-/* 필터 드롭다운 */
-.filter-wrap {
-  position: relative;
+/* 멤버 초대하기 (Figma 1540:21924): primary 배경, 12 SemiBold 흰 글자, 반지름 8 */
+.invite-btn {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
-.filter-menu {
+.invite-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.icon-btn:focus-visible,
+.filter-btn:focus-visible,
+.invite-btn:focus-visible,
+.sort-btn:focus-visible,
+.more-btn:focus-visible,
+.menu-option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 필터·더보기 드롭다운 */
+.filter-menu,
+.more-menu {
   position: absolute;
   top: calc(100% + 4px);
-  left: 0;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  min-width: 120px;
-  padding: 4px;
+  padding: 6px;
   background: var(--color-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  box-shadow: 0 2px 12px var(--color-shadow);
+  border: 1px solid var(--color-surface);
+  border-radius: 12px;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 12%));
 }
 
-.filter-option {
-  padding: 6px 8px;
+.filter-menu {
+  left: 0;
+  min-width: 120px;
+}
+
+.more-menu {
+  right: 0;
+  min-width: 200px;
+}
+
+.menu-label {
+  margin: 0;
+  padding: 4px 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px;
   color: var(--color-foreground);
   background: transparent;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
-  letter-spacing: -0.28px;
+  font-weight: 500;
+  line-height: 1.4;
   text-align: left;
   white-space: nowrap;
 }
 
-.filter-option:hover,
-.filter-option:focus-visible {
+.menu-option:hover:not(:disabled),
+.menu-option:focus-visible {
   --button-hover-overlay: none;
-  background: var(--color-surface-strong);
+  background: var(--color-surface);
 }
 
-.filter-option.is-selected {
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
-.search-btn {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--color-foreground);
-  background: transparent;
-}
-
-.search-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.invite-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  color: var(--color-on-primary);
-  background: var(--color-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.28px;
-  white-space: nowrap;
-}
-
-.filter-btn:disabled,
-.search-btn:disabled,
-.invite-btn:disabled,
-.role-select:disabled,
-.more-btn:disabled,
-.filter-option:disabled {
+.menu-option:disabled {
   cursor: default;
   opacity: 0.6;
 }
 
-/* --- 테이블 --- */
+.menu-option.is-selected {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.menu-option.is-danger {
+  margin-top: 4px;
+  color: var(--color-danger);
+}
+
+.perm-state {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.perm-option.is-on .perm-state {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+/* --- 표 (Figma 1540:21961): 사용자 220 · 사용 권한 100 · 더보기 28, 행 사이 1.4px 구분선 --- */
 .table {
   display: flex;
   flex-direction: column;
 }
 
-/* 체크박스 20 + 좌측 400 컨테이너 + 권한 항목 + 우측 끝 더보기 28 */
 .row {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 400px) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 24px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-foreground);
-  font-size: 14px;
-}
-
-.row-head {
-  height: 40px;
-  color: var(--color-body);
-  font-weight: 500;
-  letter-spacing: -0.28px;
-}
-
-/* 사용자 정보 + 권한을 좌측 ~400px 컨테이너에 배치한다. */
-.row-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1.4px solid var(--color-border);
 }
 
-.checkbox {
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--color-body);
-  border-radius: 4px;
+.row-head {
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.14px;
+  line-height: 1.4;
 }
 
-/* 권한 항목 칩 묶음. 좁으면 줄을 바꾼다. */
-.cell-permissions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.cell-user {
+  width: 220px;
   min-width: 0;
-}
-
-.perm-chip {
-  padding: 4px 8px;
-  color: var(--color-muted);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 100px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.24px;
-  white-space: nowrap;
-}
-
-.perm-chip.is-on {
-  color: var(--color-on-primary);
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-.perm-chip:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-/* 저장 중(포커스를 유지하려고 disabled 대신 aria-disabled) */
-.perm-chip[aria-disabled="true"] {
-  cursor: progress;
-  opacity: 0.6;
-}
-
-/* 본인 권한 항목 안내(멤버는 읽기 전용) */
-.my-permissions {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.24px;
+  flex: 0 1 220px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .cell-role {
-  width: 84px;
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: flex-end;
+  width: 100px;
+  flex: 0 0 100px;
 }
 
-.profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
+.cell-more {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
 }
 
-/* 멤버 프로필 사진. 없으면 이름 첫 글자 상자(설정 메뉴 .nav-avatar와 같은 모양). */
-.profile-icon {
-  width: 22px;
-  height: 22px;
+/* 체크 칸 20px: 테두리 + 연한 체크 (Figma Check off) */
+.checkbox {
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1.2px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.profile {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   color: var(--color-foreground);
   background: var(--color-surface);
-  border-radius: 6px;
-  overflow: hidden;
+  border-radius: 50%;
   font-size: 11px;
   font-weight: 600;
 }
 
+img.profile-icon {
+  background: transparent;
+}
+
 .profile-text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
   line-height: 1.2;
 }
 
 .profile-name {
-  color: var(--color-foreground);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-body);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
 }
 
+.self-badge {
+  padding: 0 4px;
+  color: var(--color-primary);
+  background: var(--color-primary-weak);
+  border-radius: 4px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
 .profile-email {
+  overflow: hidden;
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 권한 라벨 (Figma label): select 위에 셰브론을 겹쳐 드롭다운처럼 보인다.
-   Figma: padding 6 + 텍스트 58 + gap 6 + 셰브론 10 + padding 6. */
+/* 사용 권한 (Figma 1540:22129): 테두리 없는 14 Medium 글자 + 16px 화살표 */
 .role-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .role-select {
   appearance: none;
-  width: 86px;
-  padding: 6px 22px 6px 6px;
-  color: var(--color-foreground);
+  padding: 2px 20px 2px 0;
+  color: var(--color-body);
   background: transparent;
   border: none;
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.28px;
-  text-align: center;
+  line-height: 1.2;
   cursor: pointer;
 }
 
+.role-select:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 .role-select:focus-visible {
-  outline: none;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-.role-chip:focus-within {
-  border-color: var(--color-surface-strong);
-}
-
-.role-chip .chev-icon {
+.role-chevron {
   position: absolute;
-  right: 6px;
+  right: 0;
   pointer-events: none;
 }
 
-/* 행 우측 끝 더보기 버튼 */
-.more-wrap {
-  position: relative;
-  justify-self: end;
+.role-select:disabled + .role-chevron {
+  opacity: 0.4;
 }
 
 .more-btn {
@@ -317,53 +389,64 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--color-body);
   background: transparent;
   border-radius: 4px;
 }
 
-.more-icon {
-  width: 28px;
-  height: 28px;
+.more-btn:hover {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
 }
 
-.more-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  min-width: 140px;
-  padding: 4px;
-  background: var(--color-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  box-shadow: 0 2px 12px var(--color-shadow);
+.empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
-/* 드롭다운 셰브론 아이콘 (shared/assets/svg/navigation/chevron-down-small.svg) */
-.chev-icon {
-  width: 10px;
-  height: 5px;
-  flex: 0 0 auto;
-}
+@media (max-width: 700px) {
+  .toolbar {
+    flex-wrap: wrap;
+  }
 
-/* 활성 필터의 셰브론은 라벨과 같은 노란색으로 맞춘다. */
-.filter-btn:has(.filter-accent) .chev-icon {
-  color: var(--color-primary);
-}
+  .toolbar-group {
+    flex-wrap: wrap;
+  }
 
-/* 떠 있는 메뉴·대화상자: 라이트는 흰 바탕, 다크는 기존 패널색을 유지한다. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .filter-menu,
-  :root:not([data-theme="light"]) .more-menu {
-    background: var(--color-surface);
+  .cell-user {
+    gap: 10px;
+  }
+
+  .row-head .checkbox,
+  .row .checkbox {
+    display: none;
   }
 }
 
-/* 설정에서 다크 테마를 고르면 OS 설정과 상관없이 같은 값을 쓴다 (html[data-theme]) */
-:root[data-theme="dark"] .filter-menu,
-:root[data-theme="dark"] .more-menu {
-  background: var(--color-surface);
+/* 다크: 시안 아이콘 자산은 밝은 화면용 고정색(#4E5968·#E5E8EB)이라 어두운 배경에서 밝기만 맞춘다 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .icon-btn img,
+  :root:not([data-theme="light"]) .filter-btn img,
+  :root:not([data-theme="light"]) .sort-btn img,
+  :root:not([data-theme="light"]) .role-chevron,
+  :root:not([data-theme="light"]) .more-btn img {
+    filter: brightness(2.4);
+  }
+
+  :root:not([data-theme="light"]) .checkbox img {
+    opacity: 0.3;
+  }
+}
+
+:root[data-theme="dark"] .icon-btn img,
+:root[data-theme="dark"] .filter-btn img,
+:root[data-theme="dark"] .sort-btn img,
+:root[data-theme="dark"] .role-chevron,
+:root[data-theme="dark"] .more-btn img {
+  filter: brightness(2.4);
+}
+
+:root[data-theme="dark"] .checkbox img {
+  opacity: 0.3;
 }

@@ -1,118 +1,187 @@
-/* 워크스페이스 설정 패널 전용 스타일 (Figma 771:18800). */
+/* 워크스페이스 설정 > AI 모델 (Figma 1691:17216 칩 / 1691:17420 펼친 메뉴). */
 
-/* 이름 입력 + 저장 버튼 가로 배치 */
-.name-edit {
+/* 칩 — 12px 선 — 모델 변경 버튼. 메뉴는 칩 왼쪽 56px 앞에서 아래로 연다. */
+.model-select {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
-/* AI 모델 우측 영역: 현재 선택 pill + 변경 버튼 + 펼침 목록 */
-.model-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.model-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* 현재 선택된 provider·model 표시 pill */
+/* 현재 모델 칩 (Figma 1691:17215): surface 배경, 12px 로고 + 14 Medium */
 .pill {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 6px 12px;
+  overflow: hidden;
   color: var(--color-foreground);
-  background: var(--color-surface-strong);
+  background: var(--color-surface);
   border-radius: 100px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: -0.24px;
+  letter-spacing: -0.28px;
+  line-height: 1.2;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .pill-icon {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
 }
 
-/* 선택한 provider의 모델 목록: 모델이 수십 개여도 패널이 늘어나지 않도록 스크롤한다. */
-.model-list {
-  width: 260px;
-  max-height: 240px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.model-divider {
+  width: 12px;
+  height: 1.4px;
+  flex: 0 0 auto;
+  background: var(--color-border);
 }
 
-.model-option {
+.model-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: -56px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* 메뉴 카드 (Figma 1691:17156): 흰 배경, surface 테두리, 반지름 16, 그림자 0 2 4 12% */
+.model-menu-card {
+  width: 272px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px 10px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-surface);
+  border-radius: 16px;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 12%));
+}
+
+/* 모델 카드 (Figma 1691:17174): 184px, 위 provider 이름 + 모델 목록 */
+.model-menu-card.is-models {
+  width: 184px;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.model-menu-empty {
+  margin: 0;
+  padding: 4px 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+/* provider 줄 (Figma 1691:17158): 14 Medium, 활성은 surface 배경 + 오른쪽 화살표 */
+.provider-option {
+  width: 100%;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 6px 8px;
-  color: var(--ink);
+  gap: 8px;
+  padding: 4px 6px;
+  color: var(--color-foreground);
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
   text-align: left;
 }
 
-.model-option:hover,
-.model-option:focus-visible,
-.model-option.is-selected {
+.provider-option:hover,
+.provider-option:focus-visible,
+.provider-option.is-active {
   --button-hover-overlay: none;
-  background: var(--soft);
+  background: var(--color-surface);
 }
 
+.provider-option:focus-visible,
+.model-option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.provider-option:disabled,
 .model-option:disabled {
   cursor: default;
   opacity: 0.6;
 }
 
-.model-option svg {
-  flex: 0 0 auto;
-  color: var(--yellow);
-}
-
-.model-option-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.model-option-text span {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.model-option-text small {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 잠긴 모델·provider (저가 모델 정책): Figma에 잠금 상태가 없어 기존 비활성 토큰과 자물쇠 아이콘으로 표시한다. */
 .provider-name {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
+/* 아래 방향 화살표 자산을 시안처럼 오른쪽으로 돌린다 */
+.provider-arrow {
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+
+.model-group-label {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+/* 모델이 많아도 카드가 화면 밖으로 길어지지 않게 스크롤한다 */
+.model-options {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 모델 줄 (Figma 1691:17177): pl 6 pr 2 py 4, 선택은 오른쪽 20px 체크 */
+.model-option {
+  width: 100%;
+  min-height: 28px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px 4px 6px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.model-option:hover,
+.model-option:focus-visible {
+  --button-hover-overlay: none;
+  background: var(--color-surface);
+}
+
+.model-option > img,
+.model-option > svg {
+  flex: 0 0 auto;
+}
+
+/* 잠금 사유는 채팅 모델 메뉴처럼 title·aria-label로 알린다 */
+.model-option-text {
+  min-width: 0;
+}
+
+/* 잠긴 모델·provider (저가 모델 정책): Figma에 잠금 상태가 없어 기존 비활성 토큰과 자물쇠 아이콘으로 표시한다. */
 .is-locked .provider-name,
 .model-option.is-locked {
   color: var(--color-subtle);
@@ -130,7 +199,29 @@
   background: transparent;
 }
 
-/* 잠금 사유는 길 수 있어 줄바꿈해 모두 보여 준다. */
-.model-option.is-locked .model-option-text small {
-  white-space: normal;
+/* 본문 옆 여백이 좁으면 시안 위치(칩 왼쪽 56px)로는 메뉴가 화면 밖으로 나가 버튼 오른쪽 끝에 맞춘다 */
+@media (max-width: 1280px) {
+  .model-menu {
+    left: auto;
+    right: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .model-select {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .model-menu {
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .model-menu-card,
+  .model-menu-card.is-models {
+    width: 100%;
+  }
 }
