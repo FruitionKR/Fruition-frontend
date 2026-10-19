@@ -605,12 +605,19 @@
   outline-offset: 0;
 }
 
+/* 빈 트리 안내: 트리 행(h37) 한 줄 높이로 고정해, 문서가 1개일 때와 "새 노트 추가" 위치가 같게 한다 */
 .tree-root-empty {
+  height: 37px;
   margin: 0;
-  padding: 12px 10px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
   color: var(--color-muted);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 새 노트 추가 (Figma 1486:4480 새 페이지 추가 자리): 좌우 10, 상하 12, + 20px */
