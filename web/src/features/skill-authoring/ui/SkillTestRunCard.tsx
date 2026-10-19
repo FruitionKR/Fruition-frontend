@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { fetchDocuments } from "@/entities/document";
 import { testRunSkill } from "@/entities/skill";
 import { cx } from "@/shared/lib/classNames";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
 import { documentDisplayName, pickerDocuments } from "../lib/referenceDocumentPicker";
@@ -21,7 +22,6 @@ import {
   type SkillTestRunScope
 } from "../lib/skillTestRun";
 import { issueText, SelectBox } from "./SkillFormParts";
-import { SkillTestDocumentSelect } from "./SkillTestDocumentSelect";
 import styles from "./SkillTestRunCard.module.css";
 
 const NO_DOCUMENT = "";
@@ -78,7 +78,7 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
             <label className={styles["sr-only"]} htmlFor={fieldId("document")}>
               테스트할 문서
             </label>
-            <SkillTestDocumentSelect
+            <OptionSelect
               id={fieldId("document")}
               value={documentId}
               placeholder={isDocumentsLoading ? "문서를 불러오는 중…" : "테스트할 문서 선택"}

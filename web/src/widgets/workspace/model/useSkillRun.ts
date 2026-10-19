@@ -1,71 +1,78 @@
-import { useEffect, useState } from "react";
-import type { SkillResponse } from "@/entities/skill";
-import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
-import { findTreeItem, type Project, type TreeItem } from "@/entities/tree";
-import { isMarkdownDocument } from "@/entities/document/lib/documentKind";
+import { useState } from "react";
+import { skillKindLabel, type SkillResponse } from "@/entities/skill";
 import type { DocumentItemResponse } from "@/entities/document";
+import { documentDisplayName, pickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 
 /**
- * 스킬 "실행": 사이드바에서 대상 문서를 고르는 중인 스킬과 고른 트리 항목 (Figma 1527:15924).
- * 실행은 사용자가 할 일을 적어 보낼 때 에이전트가 하므로, 여기서는 채팅 입력창에 채울 커맨드까지만 만든다.
+ * 스킬 "실행": 채팅 패널의 "선택 필요" 카드(Figma 1571:27625 · 1610:9350)에서 실행할 문서를 고른다.
+ * 실행은 사용자가 할 일을 적어 보낼 때 에이전트가 하므로, 여기서는 문서를 열고 채팅 입력창에 "/slug "를 채우는 데까지 한다.
+ * 에이전트는 Markdown 문서에서만 스킬을 실행하므로(백엔드 agent turn 제약) Markdown 문서만 고를 수 있다.
  */
 export function useSkillRun({
-  activeView,
-  projects,
   documents,
   onStart,
-  onConfirmed
+  onConfirmed,
+  onCreateDocument
 }: {
-  activeView: RailView;
-  projects: Project[];
   documents: DocumentItemResponse[];
-  /** 대상은 사이드바 문서 패널에서 고르므로 접혀 있으면 편다. */
+  /** 홈 화면으로 가서 채팅 패널을 연다(카드는 채팅 패널에 뜬다). */
   onStart: () => void;
-  /** 고른 Markdown 문서를 열고 채팅 패널을 띄운다. */
-  onConfirmed: (item: TreeItem) => void;
+  /** 고른 Markdown 문서를 연다. */
+  onConfirmed: (document: DocumentItemResponse) => void;
+  /** "새 문서로 만들기": 스킬을 실행할 빈 Markdown 문서를 만들고 연다. */
+  onCreateDocument: (skill: SkillResponse) => Promise<void>;
 }) {
-  const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; targetItemId: string | null; errorMessage: string | null } | null>(null);
+  const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; isCreating: boolean; errorMessage: string | null } | null>(null);
   // 채팅 입력창에 채울 스킬 커맨드. 패널이 열린 뒤 한 번 채운다.
   const [agentComposerDraft, setAgentComposerDraft] = useState<{ id: number; text: string } | null>(null);
-
-  // 스킬 화면을 벗어나면(레일·검색 결과 이동 등) 대상 고르기를 끝낸다.
-  useEffect(() => {
-    if (activeView !== "skills") setSkillRun(null);
-  }, [activeView]);
+  const candidates = pickerDocuments(documents, "");
 
   function startSkillRun(skill: SkillResponse) {
     onStart();
-    setSkillRun({ skill, targetItemId: null, errorMessage: null });
+    setSkillRun({ skill, isCreating: false, errorMessage: null });
   }
 
-  /** 스킬은 문서 하나에만 실행한다(agent turn이 요청마다 문서 하나만 받는다). 다른 문서를 누르면 바꿔 고른다. */
-  function pickSkillTarget(itemId: string) {
-    setSkillRun((current) => current && {
-      ...current,
-      targetItemId: current.targetItemId === itemId ? null : itemId,
-      errorMessage: null
-    });
-  }
-
-  /** 고른 문서를 열고 채팅 패널 입력창에 "/slug "를 채운다. */
-  function confirmSkillRun() {
-    const targetItemId = skillRun?.targetItemId;
-    if (!skillRun || !targetItemId) return;
-    const item = projects.map((project) => findTreeItem(project.items, targetItemId)).find(Boolean);
-    const targetDocument = item?.documentId ? documents.find((document) => document.id === item.documentId) : undefined;
-    // 에이전트는 Markdown 문서에서만 스킬을 실행한다(백엔드 agent turn 제약).
-    if (!item || !targetDocument || !isMarkdownDocument(targetDocument)) {
-      setSkillRun({ ...skillRun, errorMessage: "Markdown 문서만 스킬을 실행할 수 있습니다. 다른 문서를 골라 주세요." });
-      return;
-    }
+  function fillComposer(skill: SkillResponse) {
     setSkillRun(null);
-    setAgentComposerDraft({ id: Date.now(), text: `/${skillRun.skill.slug} ` });
-    onConfirmed(item);
+    setAgentComposerDraft({ id: Date.now(), text: `/${skill.slug} ` });
+  }
+
+  /** 스킬은 문서 하나에만 실행한다(agent turn이 요청마다 문서 하나만 받는다). 고르면 바로 문서를 열고 커맨드를 채운다. */
+  function pickSkillTarget(documentId: string) {
+    const target = candidates.find((document) => document.id === documentId);
+    if (!skillRun || !target) return;
+    fillComposer(skillRun.skill);
+    onConfirmed(target);
+  }
+
+  async function createSkillTargetDocument() {
+    if (!skillRun || skillRun.isCreating) return;
+    const { skill } = skillRun;
+    setSkillRun({ skill, isCreating: true, errorMessage: null });
+    try {
+      await onCreateDocument(skill);
+      fillComposer(skill);
+    } catch (error: unknown) {
+      setSkillRun({ skill, isCreating: false, errorMessage: getErrorMessage(error, "새 문서를 만들지 못했습니다.") });
+    }
   }
 
   function cancelSkillRun() {
     setSkillRun(null);
   }
 
-  return { skillRun, agentComposerDraft, startSkillRun, pickSkillTarget, confirmSkillRun, cancelSkillRun };
+  const skillTarget = skillRun ? {
+    kindLabel: skillKindLabel(skillRun.skill.enabled_version?.capabilities ?? []),
+    slug: skillRun.skill.slug,
+    description: skillRun.skill.enabled_version?.description ?? "",
+    options: candidates.map((document) => ({ value: document.id, label: documentDisplayName(document) })),
+    isCreating: skillRun.isCreating,
+    errorMessage: skillRun.errorMessage,
+    onPick: pickSkillTarget,
+    onCreateDocument: () => void createSkillTargetDocument(),
+    onCancel: cancelSkillRun
+  } : null;
+
+  return { skillTarget, agentComposerDraft, startSkillRun };
 }

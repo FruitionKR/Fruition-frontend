@@ -77,7 +77,8 @@ export function AgentComposer({
   onCancel,
   isCancelling = false,
   statusMessage,
-  meetingControl
+  meetingControl,
+  onKeyDownBefore
 }: {
   value: string;
   isLoading: boolean;
@@ -95,6 +96,8 @@ export function AgentComposer({
   isCancelling?: boolean;
   statusMessage?: string | null;
   meetingControl?: ComposerMeetingControl;
+  /** 입력창 키를 먼저 받는다(스킬 "/" 목록의 화살표·Enter). true를 돌려주면 기본 처리(보내기 등)를 건너뛴다. */
+  onKeyDownBefore?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
   // 오른쪽 하위 메뉴에 모델을 보여 주는 provider. 메뉴를 열 때 선택된 모델의 provider로 맞춘다.
@@ -247,6 +250,7 @@ export function AgentComposer({
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (onKeyDownBefore?.(event)) return;
     if (event.key === "Escape" && onCancel && !event.nativeEvent.isComposing) {
       event.preventDefault();
       event.stopPropagation();

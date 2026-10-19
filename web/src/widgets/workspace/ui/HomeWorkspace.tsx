@@ -7,7 +7,7 @@ import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
 import { PermissionDialog } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { Graph } from "@/widgets/graph/ui/Graph";
-import { SkillRunCoach, SkillsView } from "@/widgets/skills-view";
+import { SkillsView } from "@/widgets/skills-view";
 import { LogView } from "@/widgets/log-view";
 import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-view";
 import { AccessCodeSettingsPanel } from "@/features/access-code-settings";
@@ -62,6 +62,7 @@ import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePr
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel } from "../lib/agentPanelVisibility";
+import { formatSkillDocumentStamp } from "../lib/skillRunDocument";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -318,16 +319,19 @@ export function HomeWorkspace() {
   }
 
   const skillRunState = useSkillRun({
-    activeView,
-    projects: projectTree.projects,
     documents,
-    onStart: panels.expandSidebar,
-    onConfirmed: (item) => {
+    onStart: () => {
+      handleViewChange("home");
       panels.openHomeAgentPanel();
-      openDocument(selection.selectTreeGraphNode(item));
-    }
+    },
+    onConfirmed: (document) => openDocument(selection.openSourceBlockPreview(document.id, document.filename, [])),
+    // 스킬 결과를 담을 빈 Markdown 문서를 만들어 연다. 같은 이름 충돌을 피하려고 만든 시각을 붙인다.
+    onCreateDocument: (skill) => createGeneratedMarkdownDocument({
+      title: `${skill.enabled_version?.name || skill.slug} ${formatSkillDocumentStamp(new Date())}`,
+      summary: "",
+      markdown: ""
+    })
   });
-  const { skillRun } = skillRunState;
   const folderOrganize = useFolderOrganizePreview({ locationKey, isHomeView, goHome: () => handleViewChange("home") });
 
   // main 배경을 직접 누르고 뗐을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서 버블된 클릭이나
@@ -358,8 +362,7 @@ export function HomeWorkspace() {
         projects={isGraphView ? graphProjects : projectTree.projects}
         draggedItemId={projectTree.draggedItem?.itemId ?? null}
         selectedItemId={selection.selectedTreeItemId}
-        selectedItemIds={skillRun ? new Set(skillRun.targetItemId ? [skillRun.targetItemId] : []) : projectTree.selectedItemIds}
-        isPickingTarget={skillRun !== null}
+        selectedItemIds={projectTree.selectedItemIds}
         dropTarget={projectTree.dropTarget}
         fileDropTarget={projectTree.fileDropTarget}
         editing={projectTree.editing}
@@ -408,7 +411,7 @@ export function HomeWorkspace() {
         onMoveItem={projectTree.moveTreeEntry}
         onDropFiles={upload.dropUploadFiles}
         onDragStart={projectTree.onDragStart}
-        onToggleSelectItem={skillRun ? skillRunState.pickSkillTarget : projectTree.toggleSelectedItem}
+        onToggleSelectItem={projectTree.toggleSelectedItem}
         onClearSelectedItems={projectTree.clearSelectedItems}
         onDragOverItem={projectTree.onDragOverItem}
         onFileDragOver={projectTree.setFileDropTarget}
@@ -445,8 +448,8 @@ export function HomeWorkspace() {
         onCloseContextMenu={projectTree.closeContextMenu}
       />
 
-      {/* 좁은 화면에서 겹쳐 연 사이드바 바깥을 누르면 닫는다. 스킬 대상을 고르는 동안에는 안내의 확인 버튼을 가리지 않게 두지 않는다. */}
-      {isCompactLayout && panels.isCompactSidebarOpen && !skillRun && (
+      {/* 좁은 화면에서 겹쳐 연 사이드바 바깥을 누르면 닫는다. */}
+      {isCompactLayout && panels.isCompactSidebarOpen && (
         <button type="button" tabIndex={-1} className="compact-sidebar-backdrop" aria-label="사이드바 닫기" onClick={panels.collapseSidebar} />
       )}
 
@@ -549,6 +552,8 @@ export function HomeWorkspace() {
           onOpenFolderOrganize={folderOrganize.open}
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
+          skillTarget={skillRunState.skillTarget}
+          onOpenSkills={() => handleViewChange("skills")}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             ...chatEvidenceNotice,
             // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.
@@ -592,15 +597,6 @@ export function HomeWorkspace() {
         ) : (
           <section className="blank-view" aria-label={`${railItems.find((item) => item.id === activeView)?.label ?? ""} 빈 화면`} />
         )
-      )}
-
-      {activeView === "skills" && skillRun && (
-        <SkillRunCoach
-          hasTarget={skillRun.targetItemId !== null}
-          errorMessage={skillRun.errorMessage}
-          onCancel={skillRunState.cancelSkillRun}
-          onNext={skillRunState.confirmSkillRun}
-        />
       )}
 
       {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. */}

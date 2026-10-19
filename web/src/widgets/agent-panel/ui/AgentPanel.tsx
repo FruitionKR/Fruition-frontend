@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { RotateCcw } from "lucide-react";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
@@ -9,6 +9,9 @@ import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/featur
 import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
+import { SkillSlashMenu } from "@/features/agent-chat/ui/SkillSlashMenu";
+import { SkillTargetCard } from "@/features/agent-chat/ui/SkillTargetCard";
+import { useSkillSlashMenu } from "@/features/agent-chat/model/useSkillSlashMenu";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { fetchCurrentChatSessionId } from "@/entities/chat";
 import { publishNotice } from "@/features/document-notifications";
@@ -49,6 +52,8 @@ export function AgentPanel({
   onMeetingNotesSaved,
   onMeetingActiveChange,
   onOpenFolderOrganize,
+  skillTarget,
+  onOpenSkills,
   isShown = true
 }: {
   onClose: () => void;
@@ -73,6 +78,10 @@ export function AgentPanel({
   onMeetingActiveChange?: (isActive: boolean) => void;
   /** 폴더 정리 스킬 결과를 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
+  /** 스킬 실행 대상 고르기(Figma 1610:9246 "선택 필요" 카드). 있으면 대화 끝에 카드를 붙인다. */
+  skillTarget?: ComponentProps<typeof SkillTargetCard> | null;
+  /** "/" 스킬 목록의 스킬 관리 링크(Figma 1627:9913) */
+  onOpenSkills?: () => void;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -124,6 +133,7 @@ export function AgentPanel({
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
   const [pairSelection, setPairSelection] = useState<ChatPairRangeSelection>(EMPTY_CHAT_PAIR_RANGE_SELECTION);
   const [pairSelectionKind, setPairSelectionKind] = useState<ChatPairSelectionKind>("range");
+  const slashMenu = useSkillSlashMenu({ value: composerValue, enabled: isChatVisible && !isPairSelectionMode, onChange: setComposerValue });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSessionTitle, setActiveSessionTitle] = useState<string | null>(null);
   // 마운트 시 현재 활성 세션을 확보해 헤더 강조·메시지 로드의 기준으로 삼는다.
@@ -279,9 +289,11 @@ export function AgentPanel({
   const hasDocumentCommandPreview = !isPairSelectionMode && Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
+    || skillTarget
   );
   const documentCommandPreview = hasDocumentCommandPreview ? (
     <>
+      {skillTarget && <SkillTargetCard {...skillTarget} />}
       {agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown && (
         <MarkdownCreatePreview
           draft={agentTurnResponse.result.generated_markdown}
@@ -443,8 +455,19 @@ export function AgentPanel({
             )}
           </div>
         )}
+        {slashMenu.isOpen && (
+          <SkillSlashMenu
+            id={slashMenu.menuId}
+            groups={slashMenu.groups}
+            activeSkillId={slashMenu.activeSkillId}
+            isLoading={slashMenu.isLoading}
+            onPick={slashMenu.pick}
+            onManage={onOpenSkills}
+          />
+        )}
         <AgentComposer
           value={composerValue}
+          onKeyDownBefore={slashMenu.handleKeyDown}
           isLoading={isSubmitting || isPairSelectionMode}
           placeholder={composerPlaceholder}
           models={aiModels}

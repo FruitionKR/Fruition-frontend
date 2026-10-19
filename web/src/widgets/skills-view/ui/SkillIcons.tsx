@@ -32,18 +32,3 @@ export function SkillMoreIcon({ className }: IconProps) {
     </svg>
   );
 }
-
-/**
- * 실행 안내 말풍선 꼬리 (Figma Polygon 2 채움 + Polygon 1 테두리, 왼쪽을 가리키도록 -90° 회전).
- * 오른쪽 끝 채움 띠가 말풍선 테두리를 덮어 꼬리와 본문이 이어져 보이게 한다(Figma도 채움이 테두리 위로 겹친다).
- */
-export function SkillCoachArrow({ className }: IconProps) {
-  return (
-    <svg aria-hidden className={className} width="20" height="23.6204" viewBox="0 0 20 23.6204" fill="none">
-      <g transform="translate(0 23.6204) rotate(-90)">
-        <path d="M22.8703 15.9066L15.2743 2.75C13.7347 0.0833333 9.88571 0.0833337 8.34611 2.75L0.750125 15.9066" fill="var(--color-canvas)" stroke="var(--color-border)" strokeWidth="1.5" strokeLinecap="round" />
-      </g>
-      <rect x="15.2" y="1.5" width="4.8" height="20.6" fill="var(--color-canvas)" />
-    </svg>
-  );
-}
