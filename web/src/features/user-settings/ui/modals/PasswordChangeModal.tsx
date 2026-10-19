@@ -1,10 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
 import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
-import { confirmEmailVerification, requestEmailVerification, resetPasswordWithVerification } from "@/entities/user";
+import {
+  changePasswordWithVerification,
+  confirmEmailVerification,
+  passwordChangeFailure,
+  requestPasswordChangeVerification
+} from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
@@ -18,7 +23,7 @@ const SUBTITLES: Record<Step, string> = {
   email: "현재 이메일 계정을 인증합니다.",
   code: "인증번호 6자리를 입력하여 이메일을 인증하세요.",
   password: "최소 15자의 문자 또는\n최소 8자의 문자와 숫자 조합을 비밀번호로 사용하세요.",
-  done: "비밀번호가 변경되었습니다.\n새 비밀번호로 다시 로그인해 주세요."
+  done: "비밀번호가 변경되었습니다.\n다른 기기의 로그인은 해제되었습니다."
 };
 
 function PasswordField({
@@ -65,9 +70,11 @@ function PasswordField({
 
 /**
  * 비밀번호 변경 3단계 모달 (Figma 1131:6030 / 6048 / 6529).
- * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 인증 토큰으로 password-reset 계약을 사용한다.
- * 변경에 성공하면 모달 안에서 재로그인 안내를 보여 주고, 확인(또는 닫기) 후 onSaved로 로그아웃을 맡긴다.
- * 인증 메일은 로그인한 계정 이메일로만 보낸다. 이메일 칸은 읽기 전용이며 다른 주소로 바꿀 수 없다.
+ * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 로그인 세션 전용 계약을 쓴다:
+ * POST /api/auth/me/password/verification → email-verifications confirm → PUT /api/auth/me/password/verified.
+ * 인증 메일은 서버가 로그인한 계정 이메일로만 보낸다. 이메일 칸은 그 주소를 보여 주는 읽기 전용이다.
+ * 변경해도 현재 세션은 유지되고 다른 세션만 해제되므로, 완료 안내 뒤 onSaved는 창만 닫는다.
+ * 비밀번호가 없는 소셜 전용 계정은 서버가 거절하며(PASSWORD_LOGIN_UNAVAILABLE) 안내만 보여 주고 진행을 막는다.
  */
 export function PasswordChangeModal({
   email: accountEmail,
@@ -87,19 +94,56 @@ export function PasswordChangeModal({
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
+  const [blockedUntil, setBlockedUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const countdown = useExpiryCountdown(expiresAt);
+  const blockedSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
+
+  useEffect(() => {
+    if (!blockedUntil) return;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= blockedUntil) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [blockedUntil]);
+
+  /** 실패 code에 맞춰 단계를 되돌리거나 요청을 막는다. 토큰이 무효면 인증번호를 새로 받는 단계로 돌아간다. */
+  function applyFailure(cause: unknown, fallback: string) {
+    const failure = passwordChangeFailure(cause, fallback);
+    setError(failure.message);
+    if (failure.recovery === "unavailable") {
+      setIsUnavailable(true);
+      setStep("email");
+    }
+    if (failure.recovery === "resend") {
+      setVerificationId(null);
+      setToken(null);
+      setCode("");
+      setNewPassword("");
+      setPasswordConfirm("");
+      setStep("email");
+    }
+    if (failure.recovery === "wait" && failure.retryAfter) {
+      setNow(Date.now());
+      setBlockedUntil(Date.now() + failure.retryAfter * 1000);
+    }
+  }
 
   async function sendCode() {
+    if (Date.now() < blockedUntil) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await requestEmailVerification(accountEmail, "password_reset");
+      const result = await requestPasswordChangeVerification();
       setVerificationId(result.verification_id);
       setExpiresAt(Date.now() + result.expires_in * 1000);
       setCode("");
       setStep("code");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "인증번호를 보내지 못했습니다."));
+      applyFailure(cause, "인증번호를 보내지 못했습니다.");
     } finally {
       setBusy(false);
     }
@@ -133,10 +177,10 @@ export function PasswordChangeModal({
     setBusy(true);
     setError(null);
     try {
-      await resetPasswordWithVerification(accountEmail, newPassword, token);
+      await changePasswordWithVerification(newPassword, token);
       setStep("done");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "비밀번호를 변경하지 못했습니다."));
+      applyFailure(cause, "비밀번호를 변경하지 못했습니다.");
     } finally {
       setBusy(false);
     }
@@ -169,13 +213,13 @@ export function PasswordChangeModal({
   const canSubmit = !busy && (
     step === "done" ? true
     : step === "email"
-      ? accountEmail.length > 0
+      ? accountEmail.length > 0 && !isUnavailable && blockedSeconds === 0
       : step === "code"
         ? code.trim().length === CODE_LENGTH && !countdown.isExpired
         : newPassword.length > 0 && passwordConfirm.length > 0
   );
   const submitLabel = busy ? "처리 중…"
-    : step === "email" ? "다음으로" : step === "code" ? "인증하기" : step === "password" ? "비밀번호 변경" : "확인";
+    : step === "email" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "다음으로") : step === "code" ? "인증하기" : step === "password" ? "비밀번호 변경" : "확인";
 
   return (
     <AccountFlowModal
@@ -184,7 +228,6 @@ export function PasswordChangeModal({
       subtitleStyle={{ whiteSpace: "pre-line" }}
       ariaLabel="비밀번호 변경"
       canClose={!busy}
-      // 변경 후에는 기존 세션이 폐기됐으므로 닫아도 로그아웃한다.
       onClose={step === "done" ? onSaved : onClose}
       onSubmit={handleSubmit}
     >
@@ -210,7 +253,7 @@ export function PasswordChangeModal({
             <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>
           </div>
           {countdown.isExpired ? (
-            <button type="button" className={styles.resend} disabled={busy} onClick={() => void sendCode()}>
+            <button type="button" className={styles.resend} disabled={busy || blockedSeconds > 0} onClick={() => void sendCode()}>
               인증번호가 만료되었습니다. 다시 받기
             </button>
           ) : (

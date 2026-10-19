@@ -4,6 +4,7 @@ export * from "./model/oauthLink";
 export * from "./model/consent";
 export * from "./model/accountDeletion";
 export * from "./model/emailChange";
+export * from "./model/passwordChange";
 export * from "./model/preferences";
 export * from "./model/useMe";
 export * from "./model/useSignOut";

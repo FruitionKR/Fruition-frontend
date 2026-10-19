@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AVATAR_ACCEPT, ME_QUERY_KEY, UserAvatar, avatarUploadErrorMessage, deleteAvatar, updateDisplayName, uploadAvatar, useMe,
-  useSignOut, validateAvatarFile, type UserMeResponse
+  validateAvatarFile, type UserMeResponse
 } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
@@ -27,7 +27,6 @@ export function ProfilePanel({
   resumeEmailChange?: boolean;
 }) {
   const { data: me, error: loadError } = useMe();
-  const { signOut } = useSignOut();
   const [showEmail, setShowEmail] = useState(resumeEmailChange);
   const [emailSaved, setEmailSaved] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -193,8 +192,8 @@ export function ProfilePanel({
       {showPassword && me && (
         <PasswordChangeModal
           email={me.email}
-          // 비밀번호를 바꾸면 서버가 모든 refresh 토큰을 폐기하므로 다시 로그인해야 한다.
-          onSaved={() => { setShowPassword(false); void signOut({ callLogout: true }); }}
+          // 비밀번호를 바꿔도 현재 세션은 유지된다(다른 세션만 폐기). 완료 안내 뒤 창만 닫는다.
+          onSaved={() => setShowPassword(false)}
           onClose={() => setShowPassword(false)}
         />
       )}
