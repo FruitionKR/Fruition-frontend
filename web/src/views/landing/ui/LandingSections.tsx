@@ -1,5 +1,8 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { cx } from "@/shared/lib/classNames";
+import { chatBubbleIcon, shareIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
+import { RailIngestIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_CHAPTERS, LANDING_FAQ, type LandingChapter } from "../model/landingContent";
 import {
   CapturePreview,
@@ -11,16 +14,33 @@ import {
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
 
-/** 장 목차: 01 모으고 쓰기 → 02 지식으로 연결 → 03 활용 → 04 팀으로 확장 */
-export function ChapterIndex() {
+const CHAPTER_ICONS: Record<LandingChapter["id"], ReactNode> = {
+  capture: <RailIngestIcon />,
+  connect: <SvgIcon src={shareIcon} className={sections["card-icon-36"]} />,
+  discover: <SvgIcon src={chatBubbleIcon} className={sections["card-icon-16"]} />,
+  together: <SvgIcon src={userCircleIcon} className={sections["card-icon-16"]} />
+};
+
+/** 장 목차 카드: 번호 · 영어 부제 · 짧은 이름 · 한 줄 설명. 카드 전체가 장으로 가는 링크다. */
+export function ChapterCards() {
   return (
-    <nav className={sections["chapter-index"]} aria-label="장 목차">
+    <nav className={sections["chapter-cards"]} aria-label="장 목차">
       <ol>
         {LANDING_CHAPTERS.map((chapter) => (
           <li key={chapter.id}>
-            <a href={`#${chapter.id}`}>
-              <span className={sections["chapter-index-number"]}>{chapter.index}</span>
-              {chapter.indexLabel}
+            <a className={sections["chapter-card"]} href={`#${chapter.id}`}>
+              <span className={sections["card-top"]}>
+                <span className={sections["card-icon"]} aria-hidden="true">
+                  {CHAPTER_ICONS[chapter.id]}
+                </span>
+                <span className={sections["card-number"]}>{chapter.index}</span>
+              </span>
+              <span className={sections["card-english"]}>{chapter.english}</span>
+              <span className={sections["card-title"]}>{chapter.indexLabel}</span>
+              <span className={sections["card-summary"]}>{chapter.summary}</span>
+              <span className={sections["card-arrow"]} aria-hidden="true">
+                ↓
+              </span>
             </a>
           </li>
         ))}
@@ -91,7 +111,7 @@ function ChapterSection({ chapter }: { chapter: LandingChapter }) {
 
 export function LandingChapters() {
   return (
-    <div className={sections["chapters"]}>
+    <div id="chapters" className={sections["chapters"]}>
       {LANDING_CHAPTERS.map((chapter) => (
         <ChapterSection key={chapter.id} chapter={chapter} />
       ))}

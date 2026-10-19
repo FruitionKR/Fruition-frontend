@@ -26,6 +26,7 @@
   --lp-gutter: clamp(16px, 5vw, 64px);
   --lp-section-gap: clamp(88px, 6vw + 48px, 160px);
   --lp-header-height: 72px;
+  --lp-tabs-height: 56px;
   --lp-radius-panel: 20px;
   --lp-radius-control: 12px;
   --lp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -68,8 +69,9 @@
   --lp-header-bg: rgb(10 10 10 / 90%);
 }
 
+/* 앵커 이동은 고정 헤더와 장 탭 바(--lp-tabs-height) 아래로 맞춘다. */
 .landing-page :is(section, nav)[id] {
-  scroll-margin-top: calc(var(--lp-header-height) + 16px);
+  scroll-margin-top: calc(var(--lp-header-height) + var(--lp-tabs-height) + 16px);
 }
 
 @media (prefers-reduced-motion: no-preference) {

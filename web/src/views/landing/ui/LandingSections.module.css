@@ -1,66 +1,112 @@
 /* 랜딩 섹션 배치(장 목차 · 01~04장 · FAQ · 마지막 안내). 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
 
-/* ───── 장 목차 ───── */
-.chapter-index {
+/* ───── 장 목차 카드 ───── */
+.chapter-cards {
   max-width: var(--lp-wrap);
   margin: clamp(56px, 6vw, 88px) auto 0;
   padding: 0 var(--lp-gutter);
   box-sizing: content-box;
 }
 
-.chapter-index ol {
+.chapter-cards ol {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
-  border-block: 1px solid var(--lp-line);
 }
 
-.chapter-index li {
+.chapter-card {
   position: relative;
-}
-
-.chapter-index li + li {
-  border-left: 1px solid var(--lp-line);
-}
-
-/* 장 사이 흐름(→) */
-.chapter-index li + li::before {
-  content: "→";
-  position: absolute;
-  top: 50%;
-  left: -0.6em;
-  z-index: 1;
-  padding: 0 2px;
-  color: var(--lp-muted);
-  line-height: 1;
-  background: var(--lp-bg);
-  transform: translateY(-50%);
-}
-
-.chapter-index a {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  flex-direction: column;
+  gap: 6px;
   height: 100%;
-  padding: 22px 20px;
+  padding: 22px 22px 24px;
   color: var(--lp-ink);
-  font-size: var(--lp-text-body);
-  font-weight: 650;
   text-decoration: none;
-  transition: background-color 160ms ease;
-}
-
-.chapter-index a:hover {
   background: var(--lp-panel);
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-panel);
+  transition: transform 220ms var(--lp-ease-out), border-color 160ms ease, box-shadow 220ms ease;
 }
 
-.chapter-index-number {
+.chapter-card:hover {
+  border-color: color-mix(in srgb, var(--lp-accent) 55%, var(--lp-line));
+  box-shadow: 0 14px 30px -20px var(--color-shadow);
+  transform: translateY(-3px);
+}
+
+.chapter-card:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   color: var(--lp-accent-ink);
+  background: var(--lp-accent-weak);
+  border-radius: 12px;
+}
+
+.card-icon-36 {
+  width: 36px;
+  height: 36px;
+}
+
+.card-icon-16 {
+  width: 18px;
+  height: 18px;
+}
+
+.card-number {
+  color: var(--lp-muted);
   font-size: var(--lp-text-small);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.card-english {
+  color: var(--lp-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card-summary {
+  padding-right: 24px;
+  color: var(--lp-body);
+  font-size: var(--lp-text-small);
+  line-height: 1.55;
+}
+
+.card-arrow {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  color: var(--lp-muted);
+  transition: transform 220ms var(--lp-ease-out), color 160ms ease;
+}
+
+.chapter-card:hover .card-arrow {
+  color: var(--lp-accent-ink);
+  transform: translateY(3px);
 }
 
 /* ───── 01~04장(좌우 교차) ───── */
@@ -255,6 +301,10 @@
 
 /* ───── 반응형 ───── */
 @media (max-width: 1023px) {
+  .chapter-cards ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .chapter,
   .chapter.is-visual-left {
     grid-template-columns: 1fr;
@@ -266,24 +316,9 @@
 }
 
 @media (max-width: 767px) {
-  .chapter-index ol {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .chapter-index li:nth-child(3) {
-    border-left: 0;
-  }
-
-  .chapter-index li:nth-child(3)::before {
-    content: none;
-  }
-
-  .chapter-index li:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--lp-line);
-  }
-
-  .chapter-index a {
-    padding: 18px 14px;
+  .chapter-cards ol {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 

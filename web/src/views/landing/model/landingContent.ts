@@ -20,8 +20,12 @@ export const LANDING_NAV: readonly LandingNavItem[] = [
 export interface LandingChapter {
   readonly id: LandingChapterId;
   readonly index: string;
-  /** 장 목차에 쓰는 짧은 이름 */
+  /** 장 목차 카드에 쓰는 짧은 이름 */
   readonly indexLabel: string;
+  /** 장 목차 카드의 한 줄 설명 */
+  readonly summary: string;
+  /** 고정 탭 바에 쓰는 이름 */
+  readonly tabLabel: string;
   /** 장 이름과 영어 부제: "01. 지식 작성 및 편집 (CAPTURE & ORGANIZE)" */
   readonly name: string;
   readonly english: string;
@@ -39,6 +43,8 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     id: "capture",
     index: "01",
     indexLabel: "모으고 쓰기",
+    summary: "PDF·회의록까지 한곳에 기록하고 정리",
+    tabLabel: "모으기",
     name: "지식 작성 및 편집",
     english: "CAPTURE & ORGANIZE",
     headline: "흩어진 기록을 한곳에 모으고",
@@ -52,6 +58,8 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     id: "connect",
     index: "02",
     indexLabel: "지식으로 연결",
+    summary: "위키와 그래프로 개념과 출처를 연결",
+    tabLabel: "연결",
     name: "LLM Wiki 기반 지식 관리",
     english: "CONNECT THE DOTS",
     headline: "개별 기록을 연결된 지식으로 만들고",
@@ -65,6 +73,8 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     id: "discover",
     index: "03",
     indexLabel: "활용",
+    summary: "근거 있는 답변과 AI 편집·스킬",
+    tabLabel: "활용",
     name: "AI로 지식 활용",
     english: "PUT KNOWLEDGE TO WORK",
     headline: "필요한 순간, 지식을 찾아 활용하고",
@@ -78,6 +88,8 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     id: "together",
     index: "04",
     indexLabel: "팀으로 확장",
+    summary: "초대·권한·팀 스킬로 함께 쓰기",
+    tabLabel: "협업",
     name: "협업",
     english: "BUILD TOGETHER",
     headline: "개인의 기록을 팀의 지식으로 확장하세요",
