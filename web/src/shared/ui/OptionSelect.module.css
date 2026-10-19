@@ -163,3 +163,17 @@
   width: 12px;
   height: 12px;
 }
+
+/* md: 14px 글자 입력칸과 같은 높이·글자 크기. 막힌 상태는 글자도 흐리게 해 읽기 전용임을 드러낸다 */
+.is-md .trigger {
+  padding: 8px 8px 8px 12px;
+}
+
+.is-md .label {
+  font-size: 14px;
+  letter-spacing: -0.28px;
+}
+
+.is-md .trigger:disabled {
+  color: var(--color-muted);
+}

@@ -13,6 +13,7 @@ import styles from "./OptionSelect.module.css";
  * 문서 고르기 드롭다운 (Figma 1610:9350). 닫힌 상자(테두리 라벨 + 화살표) 아래에 목록을 펼치고,
  * 고른 항목 오른쪽에 체크를 보인다. action은 목록 끝의 "+ 새 문서로 만들기" 같은 보조 동작이다.
  * floating이면 목록을 아래 내용 위에 띄운다(표 행·모달처럼 높이가 밀리면 안 되는 자리). ariaLabel·title은 보이는 라벨이 없을 때 쓴다.
+ * size="md"는 14px 글자 입력칸(스킬 시트 등)과 높이를 맞춘다. describedBy는 아래 도움말 id를 닫힌 상자에 잇는다.
  */
 export function OptionSelect({
   id,
@@ -24,6 +25,8 @@ export function OptionSelect({
   floating,
   ariaLabel,
   title,
+  describedBy,
+  size = "sm",
   onChange
 }: {
   id?: string;
@@ -35,6 +38,8 @@ export function OptionSelect({
   floating?: boolean;
   ariaLabel?: string;
   title?: string;
+  describedBy?: string;
+  size?: "sm" | "md";
   onChange: (value: string) => void;
 }) {
   const fallbackId = useId();
@@ -73,7 +78,7 @@ export function OptionSelect({
   }
 
   return (
-    <div ref={wrapRef} className={styles.select}>
+    <div ref={wrapRef} className={cx(styles.select, size === "md" && styles["is-md"])}>
       <button
         ref={triggerRef}
         id={triggerId}
@@ -83,6 +88,7 @@ export function OptionSelect({
         aria-expanded={isOpen}
         aria-controls={isOpen ? listId : undefined}
         aria-label={ariaLabel}
+        aria-describedby={describedBy}
         title={title}
         disabled={disabled || (options.length === 0 && !action)}
         onClick={() => setIsOpen((open) => !open)}

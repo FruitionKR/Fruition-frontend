@@ -8,8 +8,9 @@ import {
   uploadSkillReferenceDocument,
   type DocumentItemResponse
 } from "@/entities/document";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { chevronDownSmallIcon, menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { ReferenceDocumentPickerModal } from "./ReferenceDocumentPickerModal";
 import { documentDisplayName } from "../lib/referenceDocumentPicker";
 import { SKILL_KIND_CARDS, SKILL_TARGET_OPTIONS, type SkillTarget } from "../lib/skillCreateForm";
@@ -65,7 +66,7 @@ export function HelpTip({ label, content }: { label: string; content: ReactNode 
   );
 }
 
-/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. */
+/** Figma 드롭다운(1610:9350) 선택 상자. 목록은 아래 필드를 밀지 않게 띄운다. */
 export function SelectBox<T extends string>({
   id,
   value,
@@ -82,23 +83,17 @@ export function SelectBox<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className={styles["select-wrap"]}>
-      <select
-        id={id}
-        className={styles.select}
-        value={value}
-        disabled={disabled}
-        aria-describedby={describedBy}
-        onChange={(event) => onChange(event.target.value as T)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <SvgIcon src={chevronDownSmallIcon} className={styles["select-arrow"]} />
-    </div>
+    <OptionSelect
+      id={id}
+      value={value}
+      placeholder=""
+      options={options}
+      disabled={disabled}
+      describedBy={describedBy}
+      size="md"
+      floating
+      onChange={(next) => onChange(next as T)}
+    />
   );
 }
 

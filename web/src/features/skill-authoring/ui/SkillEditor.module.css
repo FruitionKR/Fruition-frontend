@@ -82,54 +82,7 @@
   height: 16px;
 }
 
-/* 선택 상자 (Figma btn 1671:14745): 테두리 1.2, radius 8, 안쪽 8·12, 화살표 16 */
-.select-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.select {
-  width: 100%;
-  padding: 8px 40px 8px 12px;
-  border: 1.2px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-canvas);
-  color: var(--color-body);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  appearance: none;
-  cursor: pointer;
-  transition: border-color 150ms ease-out;
-}
-
-.select:hover:not(:disabled) {
-  border-color: var(--color-subtle);
-}
-
-.select:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.select:disabled {
-  background: var(--color-surface);
-  color: var(--color-muted);
-  cursor: default;
-}
-
-.select-arrow {
-  position: absolute;
-  top: 50%;
-  right: 16px;
-  width: 9px;
-  height: 4.5px;
-  color: var(--color-muted);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
+/* 선택 상자 + 아래 도움말 */
 .menu {
   display: flex;
   flex-direction: column;
