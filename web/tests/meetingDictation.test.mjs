@@ -15,6 +15,7 @@ const { buildLiveSocketUrl, describeLiveError, isFatalLiveError, parseLiveServer
 const { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, transcriptLines } = await import("../src/features/meeting-dictation/lib/liveTranscript.ts");
 const { createResampler, encodePcm16, pcmDurationMs, shouldCommit, splitAudioFrames, COMMIT_MAX_MS, COMMIT_MIN_MS } = await import("../src/features/meeting-dictation/lib/pcm16.ts");
 const { describeNotesRequestError, describeNotesSaveError, isCapturingPhase, meetingProgressText, MEETING_MESSAGES } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+const { meetingCardLines } = await import("../src/features/meeting-dictation/lib/meetingCardLines.ts");
 const { createLiveSession } = await import("../src/features/meeting-dictation/model/liveSession.ts");
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 
@@ -259,4 +260,12 @@ test("진행 표시는 받아쓰기·마무리·회의록 작성 중에만 보�
   assert.equal(meetingProgressText("stopped"), null);
   assert.equal(isCapturingPhase("reconnecting"), true);
   assert.equal(isCapturingPhase("finishing"), false);
+});
+
+test("회의록 카드는 제목만 맨 앞에 두고 나머지 줄은 두 칸, 목록은 기호 뒤로 내어 쓴다", () => {
+  const lines = meetingCardLines("# 회의록\n\n## 요약\n- 첫 항목\n- [ ] 할 일\n  - 하위 항목\n1. 번호\n문단");
+  assert.deepEqual(lines.map(({ indent, hanging }) => [indent, hanging]), [
+    [0, 0], [2, 0], [2, 0], [2, 2], [2, 2], [2, 4], [2, 3], [2, 0]
+  ]);
+  assert.deepEqual(lines.map((line) => line.text), ["# 회의록", "", "## 요약", "- 첫 항목", "- [ ] 할 일", "  - 하위 항목", "1. 번호", "문단"]);
 });

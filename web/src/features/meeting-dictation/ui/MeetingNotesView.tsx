@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AgentChevronIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { cx } from "@/shared/lib/classNames";
 import { transcriptLines } from "../lib/liveTranscript";
+import { meetingCardLines } from "../lib/meetingCardLines";
 import { canCloseMeetingInPhase, canDeleteMeetingInPhase, MEETING_TITLES, meetingProgressText } from "../lib/meetingNotesFlow";
 import type { MeetingSessionState } from "../model/useMeetingSession";
 import { MeetingDeleteConfirm } from "./MeetingDeleteConfirm";
@@ -88,7 +89,19 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             }}
           >
             {body
-              ? <p className={styles["meeting-card-text"]}>{body}</p>
+              ? (
+                <p className={styles["meeting-card-text"]}>
+                  {meetingCardLines(body).map((line, index) => (
+                    <span
+                      key={index}
+                      className={styles["meeting-card-line"]}
+                      style={{ paddingLeft: `${line.indent + line.hanging}ch`, textIndent: `${-line.hanging}ch` }}
+                    >
+                      {line.text}
+                    </span>
+                  ))}
+                </p>
+              )
               : <p className={styles["meeting-card-empty"]}>{emptyText}</p>}
           </div>
         )}

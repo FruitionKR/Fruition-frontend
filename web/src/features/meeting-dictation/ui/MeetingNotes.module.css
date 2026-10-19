@@ -202,6 +202,12 @@
   color: var(--color-muted);
 }
 
+/* 줄마다 블록으로 둔다. 들여쓰기·내어쓰기 폭은 meetingCardLines가 줄별로 정한다. 빈 줄도 한 줄 높이를 차지한다. */
+.meeting-card-line {
+  display: block;
+  min-height: 1.32em;
+}
+
 .meeting-footer {
   min-width: 0;
   display: flex;
