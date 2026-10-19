@@ -47,9 +47,23 @@ function toRow(kind: WikiWorkKind, document: DocumentItemResponse): WikiWorkRow 
   };
 }
 
+function startTimeValue(startedAt: string | undefined): number {
+  const time = startedAt ? Date.parse(startedAt) : Number.NaN;
+  return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+}
+
+/** 최근에 시작한 작업이 위에 오도록 정렬한 사본을 돌려준다(Figma 1655:10162). 시각이 없으면 맨 아래. */
+function sortNewestFirst<T>(items: T[], getStartedAt: (item: T) => string | undefined): T[] {
+  return [...items].sort((a, b) => {
+    const diff = startTimeValue(getStartedAt(b)) - startTimeValue(getStartedAt(a));
+    return Number.isNaN(diff) ? 0 : diff;
+  });
+}
+
 /**
  * 진행 중인 문서(selectActiveIngestDocuments로 거른 목록)와 lint·롤백 작업을
  * 위키 편입 / 위키 최신화 / PDF→MD 변환 / 롤백 네 구역으로 나눈다. 행이 없는 구역은 제외한다.
+ * 각 구역 안에서는 최근에 시작한 작업이 위에 온다.
  */
 export function buildWikiWorkSections(
   activeDocuments: DocumentItemResponse[],
@@ -58,7 +72,7 @@ export function buildWikiWorkSections(
 ): WikiWorkSection[] {
   const ingestRows: WikiWorkRow[] = [];
   const convertRows: WikiWorkRow[] = [];
-  for (const document of activeDocuments) {
+  for (const document of sortNewestFirst(activeDocuments, (item) => item.processing_started_at)) {
     // 변환 placeholder는 status processing + `convert:` run이다. 변환 후 자동 ingest는 다른 run id라 편입으로 분류된다.
     if (isDocumentConverting(document)) convertRows.push(toRow("convert", document));
     else ingestRows.push(toRow("ingest", document));
@@ -67,7 +81,7 @@ export function buildWikiWorkSections(
     ? [{ key: `lint-${activeLint.operation_id}`, label: "Wiki Lint", startTime: formatWorkStartTime(activeLint.created_at) }]
     : [];
 
-  const restoreRows: WikiWorkRow[] = activeRestores.map((restore) => ({
+  const restoreRows: WikiWorkRow[] = sortNewestFirst(activeRestores, (item) => item.created_at).map((restore) => ({
     key: `restore-${restore.operation_id}`,
     label: restore.target_display_name || restore.summary || "롤백",
     startTime: formatWorkStartTime(restore.created_at)

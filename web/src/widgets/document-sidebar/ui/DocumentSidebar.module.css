@@ -207,11 +207,11 @@
   display: flex;
 }
 
-/* 레일 진행 중 작업 버튼 오른쪽으로 열리는 팝오버 (Figma 1131:6591) */
+/* 레일 진행 중 작업 버튼 오른쪽 12px에 열리는 팝오버 (Figma 1655:10162): 240px, 8px 모서리, surface 테두리 */
 .wiki-work-popover {
   position: absolute;
   top: 0;
-  left: calc(100% + 8px);
+  left: calc(100% + 12px);
   z-index: 12;
   width: 240px;
   display: flex;
@@ -219,9 +219,9 @@
   gap: 8px;
   padding: 8px 12px 12px;
   background: var(--color-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px var(--color-shadow);
+  border: 1px solid var(--color-surface);
+  border-radius: 8px;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 12%));
 }
 
 .wiki-work-section {
@@ -253,7 +253,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: var(--color-foreground);
+  color: var(--color-body);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -266,15 +266,13 @@
   text-overflow: ellipsis;
 }
 
-/* 진행 중 작업이 없을 때 (Figma 1276:13306): 12px 여백, 8px 모서리, 안내 문구 한 줄 */
+/* 진행 중 작업이 없을 때 (Figma 1655:10161): 위아래 16px·좌우 12px 여백, 안내 문구 한 줄 */
 .wiki-work-popover.is-empty {
-  padding: 12px;
-  border-radius: 8px;
+  padding: 16px 12px;
 }
 
 .wiki-work-empty {
   margin: 0;
-  padding: 4px 0;
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
