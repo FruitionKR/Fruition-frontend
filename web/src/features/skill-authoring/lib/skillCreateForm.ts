@@ -55,9 +55,13 @@ export interface SkillCreateForm {
   rules: string;
 }
 
+/**
+ * 결과 방식 기본값은 '상황에 맞게'다. 실행 규칙이 "고친다"인데 '새 문서로 만들기'로 게시되는 일을 막고,
+ * 새 문서·현재 문서 수정 중 무엇을 할지는 서버가 정한다(테스트 실행도 수정 결과로 보여 준다).
+ */
 export const INITIAL_SKILL_CREATE_FORM: SkillCreateForm = {
   kind: "document",
-  resultMode: "create",
+  resultMode: "auto",
   targets: ["current-document"],
   scope: "personal",
   command: "",

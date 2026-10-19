@@ -76,6 +76,13 @@ test("폴더 정리·빈 필드·문서 미선택이면 테스트를 시작하�
   assert.match(skillTestRunBlocker(form, { ...whole, documentId: "" }), /문서를 골라/);
 });
 
+test("테스트 실행 capability는 고른 결과 방식을 따른다(기본 '상황에 맞게'는 수정 결과로 본다)", () => {
+  const base = { ...form, resultMode: INITIAL_SKILL_CREATE_FORM.resultMode };
+  assert.deepEqual(skillTestRunRequest(base, whole).capabilities, ["document-create", "document-edit"]);
+  assert.deepEqual(skillTestRunRequest({ ...form, resultMode: "edit" }, whole).capabilities, ["document-edit"]);
+  assert.deepEqual(skillTestRunRequest({ ...form, resultMode: "create" }, whole).capabilities, ["document-create"]);
+});
+
 test("응답을 변경/생성/변경 없음/차단 화면으로 나눈다", () => {
   const base = { run_id: "r", status: "completed", changes: [], untouched_sections: [], result_markdown: null, issues: [] };
   const change = { section: "연구 개요", start_line: 1, end_line: 6, before: "a", after: "b" };
