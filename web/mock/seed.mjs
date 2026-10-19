@@ -254,7 +254,11 @@ export function seed() {
     // targets·result_mode 필드가 생기기 전 프론트가 대상을 지침 끝 "## 실행 대상" 절로 붙여 게시한 문서 Skill(ai#122 이전 행).
     { id: "skill_legacy_polish", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "polish-selection", scope_type: "personal", status: "enabled",
       enabled_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" },
-      latest_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" } }
+      latest_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" } },
+    // 스킬 만들기에서 템플릿 종류를 뺀 뒤에도 예전에 만든 템플릿 스킬은 상세 탭에서 읽기 전용 카드로 보인다.
+    { id: "skill_weekly_template", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "weekly-report", scope_type: "personal", status: "enabled",
+      enabled_version: { id: "sv_4", name: "weekly-report", description: "주간 보고서 양식으로 새 문서를 만든다.", status: "published", version: 1, allowed_tools: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"], capabilities: ["template"], targets: [], result_mode: null, instructions_markdown: "# 주간 보고\n\n## 이번 주 한 일\n\n## 다음 주 할 일\n" },
+      latest_version: { id: "sv_4", name: "weekly-report", description: "주간 보고서 양식으로 새 문서를 만든다.", status: "published", version: 1, allowed_tools: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"], capabilities: ["template"], targets: [], result_mode: null, instructions_markdown: "# 주간 보고\n\n## 이번 주 한 일\n\n## 다음 주 할 일\n" } }
   );
 
   state.aiModels.push(
