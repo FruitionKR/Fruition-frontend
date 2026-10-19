@@ -1,27 +1,14 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ReactElement } from "react";
 import { cx } from "@/shared/lib/classNames";
-import { chatBubbleIcon, shareIcon, SvgIcon, userCircleIcon } from "@/shared/ui/SvgIcon";
-import { RailIngestIcon } from "@/widgets/rail-navigation/ui/RailIcons";
+import { chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { LANDING_CHAPTERS, LANDING_FAQ, type LandingChapter } from "../model/landingContent";
-import {
-  CapturePreview,
-  ChatTabPreview,
-  ConnectPreview,
-  TaskTabPreview,
-  TogetherPreview
-} from "./preview/FeatureFragments";
+import { CHAPTER_ICONS, CHIP_ICONS } from "./LandingIcons";
+import { CaptureVisual, ConnectVisual, DiscoverVisual, TogetherVisual } from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
 
-const CHAPTER_ICONS: Record<LandingChapter["id"], ReactNode> = {
-  capture: <RailIngestIcon />,
-  connect: <SvgIcon src={shareIcon} className={sections["card-icon-36"]} />,
-  discover: <SvgIcon src={chatBubbleIcon} className={sections["card-icon-16"]} />,
-  together: <SvgIcon src={userCircleIcon} className={sections["card-icon-16"]} />
-};
-
-/** 장 목차 카드: 번호 · 영어 부제 · 짧은 이름 · 한 줄 설명. 카드 전체가 장으로 가는 링크다. */
+/** 장 목차 카드: 아이콘 · 번호 · 영어 부제 · 짧은 이름 · 한 줄 설명. 카드 전체가 장으로 가는 링크다. */
 export function ChapterCards() {
   return (
     <nav className={sections["chapter-cards"]} aria-label="장 목차">
@@ -49,61 +36,49 @@ export function ChapterCards() {
   );
 }
 
-function ChapterVisual({ id }: { id: LandingChapter["id"] }) {
-  switch (id) {
-    case "capture":
-      return <CapturePreview />;
-    case "connect":
-      return <ConnectPreview />;
-    case "discover":
-      return (
-        <div className={sections["tab-previews"]}>
-          <figure>
-            <ChatTabPreview />
-            <figcaption>
-              <strong>채팅 탭</strong> 질문하고 근거와 함께 답을 받습니다
-            </figcaption>
-          </figure>
-          <figure>
-            <TaskTabPreview />
-            <figcaption>
-              <strong>작업 탭</strong> 편집 · 정리 · 스킬 실행을 확인하고 승인합니다
-            </figcaption>
-          </figure>
-        </div>
-      );
-    case "together":
-      return <TogetherPreview />;
-  }
-}
+const CHAPTER_VISUALS: Record<LandingChapter["id"], () => ReactElement> = {
+  capture: CaptureVisual,
+  connect: ConnectVisual,
+  discover: DiscoverVisual,
+  together: TogetherVisual
+};
 
 function ChapterSection({ chapter }: { chapter: LandingChapter }) {
   const headingId = `${chapter.id}-title`;
+  const Visual = CHAPTER_VISUALS[chapter.id];
   return (
     <section
       id={chapter.id}
       className={cx(sections["chapter"], chapter.visualSide === "left" && sections["is-visual-left"])}
+      data-chapter={chapter.id}
       aria-labelledby={headingId}
     >
-      <div className={sections["chapter-copy"]}>
-        <p className={sections["chapter-name"]}>
-          <span className={sections["chapter-number"]}>{chapter.index}.</span>
-          {chapter.name}
-          <span className={sections["chapter-english"]}>({chapter.english})</span>
-        </p>
-        <h2 id={headingId} className={styles["h2"]}>
-          {chapter.headline}
-        </h2>
-        <p className={sections["chapter-note"]}>({chapter.headlineNote})</p>
-        <p className={styles["lead"]}>{chapter.body}</p>
-        <ul className={sections["chips"]} aria-label={`${chapter.name} 기능`}>
-          {chapter.chips.map((chip) => (
-            <li key={chip}>{chip}</li>
-          ))}
-        </ul>
-      </div>
-      <div className={sections["chapter-visual"]}>
-        <ChapterVisual id={chapter.id} />
+      <div className={sections["chapter-inner"]}>
+        <div className={sections["chapter-copy"]}>
+          <p className={sections["chapter-name"]}>
+            <span className={sections["chapter-number"]}>{chapter.index}.</span>
+            {chapter.name}
+            <span className={sections["chapter-english"]}>({chapter.english})</span>
+          </p>
+          <h2 id={headingId} className={styles["h2"]}>
+            {chapter.headline}
+          </h2>
+          <p className={sections["chapter-note"]}>({chapter.headlineNote})</p>
+          <p className={styles["lead"]}>{chapter.body}</p>
+          <ul className={sections["chips"]} aria-label={`${chapter.name} 기능`}>
+            {chapter.chips.map((chip) => (
+              <li key={chip}>
+                <span className={sections["chip-icon"]} aria-hidden="true">
+                  {CHIP_ICONS[chip]}
+                </span>
+                {chip}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className={sections["chapter-visual"]}>
+          <Visual />
+        </div>
       </div>
     </section>
   );
@@ -130,7 +105,9 @@ export function LandingFaq() {
           <details key={item.question} className={sections["faq-item"]}>
             <summary>
               <span>{item.question}</span>
-              <span className={sections["faq-icon"]} aria-hidden="true" />
+              <span className={sections["faq-icon"]} aria-hidden="true">
+                <SvgIcon src={chevronDownSmallIcon} className={sections["faq-chevron"]} />
+              </span>
             </summary>
             <p>{item.answer}</p>
           </details>
@@ -140,16 +117,19 @@ export function LandingFaq() {
   );
 }
 
+/** 마지막 안내: 히어로와 같은 바탕(그라데이션 + 격자)을 깐 둥근 상자 */
 export function LandingStart() {
   return (
     <section id="start" className={sections["start"]} aria-labelledby="start-title">
-      <h2 id="start-title" className={styles["h2"]}>
-        지금 기록을 지식으로 바꿔 보세요
-      </h2>
-      <Link className={styles["button-primary"]} href="/login">
-        시작하기
-        <span aria-hidden="true">→</span>
-      </Link>
+      <div className={cx(sections["start-box"], styles["hero-backdrop"])}>
+        <h2 id="start-title" className={styles["h2"]}>
+          지금 기록을 지식으로 바꿔 보세요
+        </h2>
+        <Link className={styles["button-primary"]} href="/login">
+          시작하기
+          <span aria-hidden="true">→</span>
+        </Link>
+      </div>
     </section>
   );
 }

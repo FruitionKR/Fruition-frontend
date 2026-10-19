@@ -51,6 +51,27 @@ test("장 문구는 정해진 영어 부제와 괄호 병기 기능 이름을 �
   );
   assert.ok(LANDING_CHAPTERS[1].chips.includes("지식 그래프(Graph)"));
   assert.ok(LANDING_CHAPTERS[2].chips.includes("자연어 질의응답(Query)"));
+  // 02의 로그 이력과 롤백은 원래 문구처럼 별도 칩이다.
+  assert.ok(LANDING_CHAPTERS[1].chips.includes("AI 로그 이력"));
+  assert.ok(LANDING_CHAPTERS[1].chips.includes("롤백(History)"));
+});
+
+test("모든 기능 칩에 앱 SVG 아이콘이 있다", () => {
+  const icons = read("LandingIcons.tsx");
+  for (const chip of LANDING_CHAPTERS.flatMap((chapter) => chapter.chips)) {
+    assert.ok(icons.includes(`"${chip}":`), `${chip} 아이콘`);
+  }
+  assert.doesNotMatch(icons, /lucide-react/);
+});
+
+test("장 화면은 큰 창 하나와 겹쳐 떠 있는 보조 패널 하나로 그린다", () => {
+  const fragments = read("preview/FeatureFragments.tsx");
+  for (const name of ["CaptureVisual", "ConnectVisual", "DiscoverVisual", "TogetherVisual"]) {
+    const body = fragments.split(`export function ${name}`)[1]?.split("export function")[0] ?? "";
+    assert.match(body, /<Stage/, `${name}는 Stage를 쓴다`);
+    assert.match(body, /main=\{/);
+    assert.match(body, /float=\{/);
+  }
 });
 
 test("충돌을 사람이 직접 해결한다는 문구를 쓰지 않는다(자동 병합)", () => {

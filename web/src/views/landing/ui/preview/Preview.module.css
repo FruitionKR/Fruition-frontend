@@ -79,3 +79,41 @@
   padding: 6px 12px;
   border-radius: 8px;
 }
+
+/* ───── 창 틀(점 3개 머리줄)과 떠 있는 보조 패널 ─────
+ * 창은 머리줄 + 축소 틀 한 겹으로만 그리고 안쪽 틀의 테두리·모서리는 지운다(이중 틀 없음).
+ * 그림자·모서리는 랜딩 토큰(--lp-shadow-*, --lp-radius-*)을 따른다. */
+.window {
+  overflow: hidden;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: var(--lp-radius-window);
+  box-shadow: var(--lp-shadow-window);
+}
+
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.window-bar i {
+  width: 10px;
+  height: 10px;
+  background: var(--color-surface-strong);
+  border-radius: 50%;
+}
+
+.window .frame {
+  border: 0;
+  border-radius: 0;
+}
+
+.panel {
+  border-radius: var(--lp-radius);
+  box-shadow: var(--lp-shadow-float);
+}
