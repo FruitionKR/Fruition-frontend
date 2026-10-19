@@ -18,7 +18,12 @@ function toTerminalResult(run: AgentTurnRunResponse): AgentTurnResponse | null {
 
 export async function requestAgentTurn(
   request: AgentTurnRequest,
-  handlers: { onStage: (event: RunStageEvent) => void; signal: AbortSignal }
+  handlers: {
+    onStage: (event: RunStageEvent) => void;
+    signal: AbortSignal;
+    /** 서버가 turn을 받아 ID를 정했을 때. 화면은 이 ID로 세션 메시지를 작업 탭에 묶는다. */
+    onAccepted?: (requestId: string) => void;
+  }
 ): Promise<AgentTurnResponse> {
   const signal = AbortSignal.any([handlers.signal, AbortSignal.timeout(300_000)]);
   const workspaceId = getWorkspaceId();
@@ -29,6 +34,7 @@ export async function requestAgentTurn(
     body: JSON.stringify(request)
   });
   const run = await parseJsonOrThrow<AgentTurnRunResponse>(response, ERROR_MESSAGES.agentTurnFailed);
+  handlers.onAccepted?.(run.requestId);
   // 생성 응답이 이미 종료 상태면 첫 대기 없이 바로 반환한다.
   const initial = toTerminalResult(run);
   if (initial) return initial;
@@ -48,7 +54,21 @@ export async function requestAgentTurn(
   return result;
 }
 
-type AgentTurnRunResponse = Omit<AgentTurnResponse, "status" | "result"> & {
+/** 끝난 편집 turn의 대상 문서와 적용 ID. 새로 고침 뒤 버전 기록과 맞춰 적용 여부를 알아낸다. */
+export async function fetchAgentTurnApplyTarget(
+  workspaceId: string,
+  turnId: string,
+  signal?: AbortSignal
+): Promise<{ documentId: string | null; applyOperationId: string | null }> {
+  const response = await apiFetch(workspacePath(workspaceId, "agent", "turn", turnId), { cache: "no-store", signal });
+  const turn = await parseJsonOrThrow<{ documentId?: string | null; apply_operation_id?: string | null }>(
+    response,
+    ERROR_MESSAGES.agentTurnFailed
+  );
+  return { documentId: turn.documentId ?? null, applyOperationId: turn.apply_operation_id ?? null };
+}
+
+type AgentTurnRunResponse =Omit<AgentTurnResponse, "status" | "result"> & {
   status: string;
   result: AgentTurnResponse["result"] | null;
   /** 실패 코드. 화면에 그대로 보여 주지 않는다. */

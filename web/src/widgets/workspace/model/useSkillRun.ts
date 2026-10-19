@@ -7,7 +7,8 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 /**
  * 스킬 "실행": 채팅 패널의 "선택 필요" 카드(Figma 1571:27625 · 1610:9350)에서 실행할 문서를 고른다.
  * 실행은 사용자가 할 일을 적어 보낼 때 에이전트가 하므로, 여기서는 문서를 열고 채팅 입력창에 "/slug "를 채우는 데까지 한다.
- * 에이전트는 Markdown 문서에서만 스킬을 실행하므로(백엔드 agent turn 제약) Markdown 문서만 고를 수 있다.
+ * 문서 스킬은 Markdown 문서 하나에 실행하므로 Markdown 문서만 고를 수 있다. 폴더 정리 스킬은 문서 없이
+ * 작업 탭 요청(mode=task)으로 보내므로 고르기 없이 바로 커맨드를 채운다.
  */
 export function useSkillRun({
   documents,
@@ -30,6 +31,10 @@ export function useSkillRun({
 
   function startSkillRun(skill: SkillResponse) {
     onStart();
+    if (skill.enabled_version?.capabilities.includes("folder-organize")) {
+      fillComposer(skill);
+      return;
+    }
     setSkillRun({ skill, isCreating: false, errorMessage: null });
   }
 

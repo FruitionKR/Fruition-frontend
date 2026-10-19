@@ -7,7 +7,7 @@ import type {
 } from "@/entities/skill/model/skill";
 
 /**
- * 스킬 만들기 시트(Figma 1671:14199) 입력값과 게시 요청 변환.
+ * 스킬 만들기 탭 입력값과 게시 요청 변환.
  * 스킬 종류·결과 방식은 capabilities로, 문서 스킬의 결과 방식·대상은 result_mode·targets로 보낸다.
  */
 
@@ -23,15 +23,24 @@ export type SkillTarget = "current-document" | "selection";
 export type SkillScope = "personal" | "team";
 export type SkillCapability = "document-create" | "document-edit" | "folder-organize" | "template";
 
-export const SKILL_KIND_OPTIONS: ReadonlyArray<{ value: SkillKind; label: string }> = [
-  { value: "document", label: "문서" },
-  { value: "folder", label: "폴더 정리" },
-  { value: "template", label: "템플릿" }
+export const SKILL_KIND_LABELS: Record<SkillKind, string> = {
+  document: "문서",
+  folder: "폴더 정리",
+  template: "템플릿"
+};
+
+/**
+ * 스킬 만들기에서 고르는 종류 카드는 문서·폴더 정리 두 가지다(디자인 '② 새 스킬 탭').
+ * 템플릿 capability는 새로 만들 수 없고, 예전에 만든 템플릿 스킬을 열 때만 읽기 전용으로 보여 준다.
+ */
+export const SKILL_KIND_CARDS: ReadonlyArray<{ value: Exclude<SkillKind, "template">; label: string; description: string }> = [
+  { value: "document", label: "문서", description: "새 문서를 만들거나 열린 문서를 고칩니다. 미리보기로 확인한 뒤 저장돼요." },
+  { value: "folder", label: "폴더 정리", description: "폴더·문서 트리 항목을 만들고, 이름을 바꾸고, 옮깁니다. 승인한 항목만 저장돼요." }
 ];
 
 export const SKILL_RESULT_OPTIONS: ReadonlyArray<{ value: SkillResultMode; label: string }> = [
   { value: "create", label: "새 문서로 만들기" },
-  { value: "edit", label: "현재 문서 수정" },
+  { value: "edit", label: "열린 문서 고치기" },
   { value: "auto", label: "상황에 맞게" }
 ];
 
@@ -68,6 +77,21 @@ export const INITIAL_SKILL_CREATE_FORM: SkillCreateForm = {
   description: "",
   rules: ""
 };
+
+/**
+ * Agent 대화의 요청으로 새 스킬을 열 때의 초기값. 요청 문장을 실행 규칙에 채워 두고 사용자가 필요한 부분만 고친다.
+ */
+export function skillCreateFormFromRequest(request: string): SkillCreateForm {
+  return { ...INITIAL_SKILL_CREATE_FORM, rules: request.trim() };
+}
+
+/** 실행 규칙 아래 안내 (디자인 문구 그대로). 자리표시자 치환은 실행 쪽(AI pipeline)이 맡는다. */
+export const RULES_PLACEHOLDER_HINT = "{문서}, {선택한 부분}, {요청} 을 넣으면 실행할 때 채워집니다.";
+
+/** 실행 규칙 안내 문구. 폴더 정리 스킬은 문서·선택한 부분을 받지 않으므로 자리표시자 안내를 감춘다(null). */
+export function rulesPlaceholderHint(kind: SkillKind | null): string | null {
+  return kind === "folder" ? null : RULES_PLACEHOLDER_HINT;
+}
 
 /** 결과 방식·대상은 문서 스킬에만 의미가 있다(폴더 정리·템플릿은 capability 하나로 정해진다). */
 export function isDocumentKind(kind: SkillKind): boolean {
@@ -160,7 +184,7 @@ export function kindFromCapabilities(
 
 /**
  * AI 초안을 시트에 채운다. 실행 규칙은 초안 지침으로 바꾸고(차단돼 지침이 없으면 유지),
- * 커맨드명·설명은 비어 있을 때만 제안값으로 채운다. 스킬 종류·결과 방식은 AI가 고른 capability를 따른다.
+ * 커맨드명·설명은 비어 있을 때만 제안값으로 채운다. 스킬 종류·결과 방식은 AI가 고른 capability를 따른다(템플릿 제외).
  */
 export function applySkillDraft(
   form: SkillCreateForm,
@@ -168,9 +192,11 @@ export function applySkillDraft(
 ): SkillCreateForm {
   const suggestedName = (draft.name ?? "").trim();
   const suggestedDescription = (draft.description ?? "").trim();
+  const drafted = kindFromCapabilities(draft.capabilities ?? []);
   return {
     ...form,
-    ...(kindFromCapabilities(draft.capabilities ?? []) ?? {}),
+    // 템플릿은 만들기에서 고를 수 없는 종류라, AI가 템플릿을 골라도 지금 고른 종류를 유지한다.
+    ...(drafted != null && drafted.kind !== "template" ? drafted : {}),
     rules: draft.instructions_markdown?.trim() ? draft.instructions_markdown : form.rules,
     command: form.command.trim() === "" && SKILL_NAME_PATTERN.test(suggestedName) ? suggestedName : form.command,
     description: form.description.trim() === "" ? suggestedDescription.slice(0, SKILL_DESCRIPTION_MAX) : form.description

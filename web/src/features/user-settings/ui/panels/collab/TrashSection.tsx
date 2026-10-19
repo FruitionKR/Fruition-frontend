@@ -9,11 +9,7 @@ export function TrashSection() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <section className={styles.section} aria-labelledby="document-trash-heading">
-      <div className={styles["section-header"]}>
-        <span id="document-trash-heading">휴지통</span>
-        <span className={styles["section-line"]} />
-      </div>
+    <section className={styles.section} aria-label="휴지통">
       <div className={styles.row}>
         <div className={styles["row-title"]}>
           <strong>휴지통</strong>

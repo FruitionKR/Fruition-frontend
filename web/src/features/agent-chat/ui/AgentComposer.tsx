@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Lock, Square } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   buildChatModelOptions,
   getAiModelLockMessage,
@@ -78,7 +78,10 @@ export function AgentComposer({
   isCancelling = false,
   statusMessage,
   meetingControl,
-  onKeyDownBefore
+  inputLabel = "Query 질문 입력",
+  header,
+  onInputKeyDown,
+  inputPopup
 }: {
   value: string;
   isLoading: boolean;
@@ -96,8 +99,14 @@ export function AgentComposer({
   isCancelling?: boolean;
   statusMessage?: string | null;
   meetingControl?: ComposerMeetingControl;
-  /** 입력창 키를 먼저 받는다(스킬 "/" 목록의 화살표·Enter). true를 돌려주면 기본 처리(보내기 등)를 건너뛴다. */
-  onKeyDownBefore?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
+  /** 입력창 접근성 이름. 작업 탭은 작업 요청 입력이다. */
+  inputLabel?: string;
+  /** 입력창 위에 놓는 칩(Figma 1627:9925 "현재 문서"·"선택 : …") */
+  header?: ReactNode;
+  /** 입력창 키 처리를 먼저 가로챈다(스킬 고르기 방향키·Enter). 처리했으면 true */
+  onInputKeyDown?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
+  /** 입력창이 여는 목록(스킬 고르기)의 combobox 속성 */
+  inputPopup?: { isOpen: boolean; listId: string; activeOptionId: string | null };
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
   // 오른쪽 하위 메뉴에 모델을 보여 주는 provider. 메뉴를 열 때 선택된 모델의 provider로 맞춘다.
@@ -250,7 +259,7 @@ export function AgentComposer({
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (onKeyDownBefore?.(event)) return;
+    if (onInputKeyDown?.(event)) return;
     if (event.key === "Escape" && onCancel && !event.nativeEvent.isComposing) {
       event.preventDefault();
       event.stopPropagation();
@@ -272,12 +281,18 @@ export function AgentComposer({
 
   return (
     <form className={styles.composer} ref={formRef} onSubmit={submitComposer}>
+      {header}
       <textarea
         value={value}
         placeholder={placeholder}
         disabled={isLoading && !onCancel}
         readOnly={isLoading}
-        aria-label="Query 질문 입력"
+        aria-label={inputLabel}
+        role={inputPopup ? "combobox" : undefined}
+        aria-autocomplete={inputPopup ? "list" : undefined}
+        aria-expanded={inputPopup ? inputPopup.isOpen : undefined}
+        aria-controls={inputPopup?.isOpen ? inputPopup.listId : undefined}
+        aria-activedescendant={inputPopup?.isOpen ? inputPopup.activeOptionId ?? undefined : undefined}
         aria-keyshortcuts={onCancel ? "Escape" : undefined}
         rows={4}
         onChange={(event) => onChange(event.target.value)}
@@ -318,7 +333,8 @@ export function AgentComposer({
           </button>
           {/* Figma 1691:16177: 왼쪽 provider 메뉴(1691:16178, 아래 웹 서칭) + 오른쪽 하위 메뉴(1691:16196, provider의 모델) */}
           {isModelListOpen && modelMenuPosition && (
-            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef}>
+            // data-agent-floating-menu: 메뉴가 열린 동안 채팅 패널을 알림 카드(z 50) 위로 올린다(agent-panel-shell.css).
+            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef} data-agent-floating-menu>
               <div className={styles["composer-model-list"]}>
                 <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label="모델 제공사">
                   {modelGroups.map((group) => {

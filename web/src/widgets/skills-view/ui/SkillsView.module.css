@@ -6,9 +6,159 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
   background: var(--color-canvas);
   color: var(--color-foreground);
+}
+
+/* 편집 탭 줄 (디자인 '② 새 스킬 탭'): 높이 44, 아래 선. 고른 탭은 캔버스 바탕으로 본문과 이어진다. */
+.editor-tab-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  height: 44px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.editor-tab-list {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.editor-tab {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 220px;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  color: var(--color-muted);
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.editor-tab:hover {
+  color: var(--color-body);
+}
+
+.editor-tab.is-active {
+  border-color: var(--color-border);
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+}
+
+.editor-tab-button {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.editor-tab-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 8px 0 -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.editor-tab-close:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-foreground);
+}
+
+.editor-tab-add {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
+}
+
+.editor-tab-add:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+  color: var(--color-foreground);
+}
+
+.editor-tab-add:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.editor-tab-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.editor-tab-button:focus-visible,
+.editor-tab-close:focus-visible,
+.editor-tab-add:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+/* 목록 탭 본문: 예전 화면 전체 스크롤을 탭 본문 스크롤로 옮긴다. */
+.list-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.editor-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.list-panel[hidden],
+.editor-panel[hidden] {
+  display: none;
 }
 
 /* Hero block (Figma 1567:25089): 위 56 · 좌우 40, 제목과 탭 사이 24 */

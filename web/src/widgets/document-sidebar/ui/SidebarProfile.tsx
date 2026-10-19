@@ -17,9 +17,9 @@ export function SidebarProfile({
   isActive?: boolean;
   onOpenSettings: (section: SettingsSection) => void;
 }) {
-  // 설정에서 시작한 소셜 계정 연동을 마치고 돌아오면 결과를 보여 줄 계정 보안 항목을 다시 연다.
+  // 설정에서 시작한 소셜 계정 연동을 마치고 돌아오면 결과를 보여 줄 사용자 설정(연동된 계정)을 다시 연다.
   useEffect(() => {
-    if (hasOAuthLinkResult()) onOpenSettings("account");
+    if (hasOAuthLinkResult()) onOpenSettings("profile");
     // 마운트 때 한 번만 확인한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

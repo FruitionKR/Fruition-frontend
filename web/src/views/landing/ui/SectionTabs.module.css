@@ -1,0 +1,80 @@
+/*
+ * 장 고정 탭. 헤더 아래 가운데에 떠 있는 알약 모양이고, 화면 폭 전체를 덮지 않는다(장 제목을 가리지 않게).
+ * 바깥 nav는 위치만 잡고 클릭을 통과시키며, 알약(ul)만 클릭을 받는다. 색은 --lp-* 토큰을 이어받는다.
+ */
+.section-tabs {
+  position: fixed;
+  top: calc(var(--lp-header-height) + 12px);
+  right: 0;
+  left: 0;
+  z-index: 9;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--lp-gutter);
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 200ms ease, transform 200ms var(--lp-ease-out), visibility 0s linear 200ms;
+}
+
+.section-tabs.is-shown {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition: opacity 200ms ease, transform 200ms var(--lp-ease-out), visibility 0s;
+}
+
+.section-tabs ul {
+  display: flex;
+  gap: 2px;
+  max-width: 100%;
+  margin: 0;
+  padding: 4px;
+  overflow-x: auto;
+  list-style: none;
+  pointer-events: auto;
+  background: var(--lp-pill-bg);
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+  box-shadow: var(--lp-shadow-float);
+  backdrop-filter: blur(24px);
+  scrollbar-width: none;
+}
+
+.section-tabs ul::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 16px;
+  color: var(--lp-body);
+  font-size: var(--lp-text-small);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  border-radius: 999px;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.tab:hover {
+  color: var(--lp-ink);
+  background: color-mix(in srgb, var(--lp-ink) 5%, transparent);
+}
+
+/*
+ * 현재 장은 포인트 색으로 채운다. 14px 글자라 흰 글자 + #3182f6(3.7:1) 대신 같은 계열의 짙은 포인트
+ * (--lp-accent-ink: 라이트 #185ac4, 다크 #ffd666)에 on-primary 글자를 써서 AA 대비를 지킨다.
+ */
+.tab.is-active {
+  color: var(--lp-on-accent);
+  background: var(--lp-accent-ink);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--lp-accent);
+  outline-offset: 2px;
+}

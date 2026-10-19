@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree";
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
@@ -140,6 +140,11 @@ export function HomeWorkspace() {
   const isHomeView = activeView === "home";
   const isGraphView = activeView === "graph";
   const isSettingsView = activeView === "settings";
+  // 작업 탭 "이 요청을 스킬로 저장"(Figma 1671:13245): 스킬 화면이 받아 새 스킬 탭을 열면 비운다.
+  const [skillCreateRequest, setSkillCreateRequest] = useState<{ id: number; text: string } | null>(null);
+  const clearSkillCreateRequest = useCallback((id: number) => {
+    setSkillCreateRequest((current) => (current?.id === id ? null : current));
+  }, []);
   const settingsSection = getSettingsSection(location);
   const hasSourcePreview = Boolean(selection.selectedDocumentTitle);
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
@@ -553,7 +558,12 @@ export function HomeWorkspace() {
           nodes={graphData.nodes}
           composerDraft={skillRunState.agentComposerDraft}
           skillTarget={skillRunState.skillTarget}
-          onOpenSkills={() => handleViewChange("skills")}
+          onManageSkills={() => handleViewChange("skills")}
+          onSaveRequestAsSkill={(request) => {
+            // 스킬 화면으로 옮기고, 그 요청으로 채운 새 스킬 탭(prefillRequest)을 연다.
+            setSkillCreateRequest({ id: Date.now(), text: request });
+            handleViewChange("skills");
+          }}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             ...chatEvidenceNotice,
             // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.
@@ -567,7 +577,11 @@ export function HomeWorkspace() {
 
       {!isHomeView && !isGraphView && (
         activeView === "skills" ? (
-          <SkillsView onRunSkill={skillRunState.startSkillRun} />
+          <SkillsView
+            onRunSkill={skillRunState.startSkillRun}
+            createRequest={skillCreateRequest}
+            onCreateRequestHandled={clearSkillCreateRequest}
+          />
         ) : activeView === "logs" ? (
           <LogView
             feed={operationLogFeed}

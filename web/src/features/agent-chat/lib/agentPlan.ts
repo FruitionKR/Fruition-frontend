@@ -25,6 +25,8 @@ export type AgentPlanRun = {
   error_code: string | null;
   /** 계획을 세우지 못한 이유를 AI가 되묻는 문장. 명확화 요청이 아니거나 옛 AI 응답이면 비어 있다. */
   clarification_question?: string | null;
+  /** 사용자가 보낸 원래 요청 요약. 작업 카드 제목에 쓴다. 옛 run에는 없을 수 있다. */
+  request_summary?: string | null;
   plan: AgentPlan | null;
 };
 
@@ -130,7 +132,7 @@ export function agentPlanStatusLabel(status: string | undefined): string {
   return status ? labels[status] ?? "상태 확인 필요" : "계획 불러오는 중";
 }
 
-const DEFAULT_CLARIFICATION_MESSAGE = "원하는 정리 기준을 채팅에 더 구체적으로 알려주세요.";
+const DEFAULT_CLARIFICATION_MESSAGE = "원하는 정리 기준을 작업 입력창에 더 구체적으로 알려주세요.";
 
 /** 명확화 요청일 때 카드에 보일 문장. AI가 되물은 질문이 있으면 그 문장을, 없으면 기본 안내를 쓴다. */
 export function agentPlanClarificationMessage(run: AgentPlanRun | null | undefined): string | null {

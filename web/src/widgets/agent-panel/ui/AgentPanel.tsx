@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import contextChipCloseIcon from "@/shared/assets/svg/agent/context-chip-close.svg";
+import contextChipClosePrimaryIcon from "@/shared/assets/svg/agent/context-chip-close-primary.svg";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
-import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentComposer } from "@/features/agent-chat/ui/AgentComposer";
 import { AGENT_PANEL_VIEW_IDS, AgentHeader, type AgentPanelView } from "@/features/agent-chat/ui/AgentHeader";
 import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput, useMeetingSession } from "@/features/meeting-dictation";
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
-import { SkillSlashMenu } from "@/features/agent-chat/ui/SkillSlashMenu";
-import { SkillTargetCard } from "@/features/agent-chat/ui/SkillTargetCard";
-import { useSkillSlashMenu } from "@/features/agent-chat/model/useSkillSlashMenu";
+import { AgentTaskBody, type SkillTargetPicker } from "@/features/agent-chat/ui/AgentTaskBody";
+import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
+import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
+import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
+import { resolveSubmitRoute, selectionChipLabel, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { fetchCurrentChatSessionId } from "@/entities/chat";
 import { publishNotice } from "@/features/document-notifications";
@@ -33,6 +36,7 @@ import type { MeetingListItem } from "@/entities/meeting";
 import type { GraphNode } from "@/entities/wiki";
 import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
+import { useSkillSlashPicker } from "../model/useSkillSlashPicker";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
 const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
@@ -51,9 +55,10 @@ export function AgentPanel({
   wikiEvidenceNotice,
   onMeetingNotesSaved,
   onMeetingActiveChange,
+  onManageSkills,
+  onSaveRequestAsSkill,
   onOpenFolderOrganize,
   skillTarget,
-  onOpenSkills,
   isShown = true
 }: {
   onClose: () => void;
@@ -76,12 +81,14 @@ export function AgentPanel({
   onMeetingNotesSaved?: (documentId: string) => Promise<void> | void;
   /** 회의 화면이 열려 있는지(#148). 열려 있는 동안 화면은 패널을 닫아도 마운트해 두어 회의·회의록을 잃지 않는다. */
   onMeetingActiveChange?: (isActive: boolean) => void;
-  /** 폴더 정리 스킬 결과를 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
+  /** 스킬 고르기의 "스킬 관리 >"(Figma 1627:9913). 스킬 화면으로 옮긴다. */
+  onManageSkills?: () => void;
+  /** 작업 카드의 "이 요청을 스킬로 저장"(Figma 1671:13245). 원래 요청 문장을 넘긴다. */
+  onSaveRequestAsSkill?: (request: string) => void;
+  /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
-  /** 스킬 실행 대상 고르기(Figma 1610:9246 "선택 필요" 카드). 있으면 대화 끝에 카드를 붙인다. */
-  skillTarget?: ComponentProps<typeof SkillTargetCard> | null;
-  /** "/" 스킬 목록의 스킬 관리 링크(Figma 1627:9913) */
-  onOpenSkills?: () => void;
+  /** 스킬 실행 대상 문서 고르기. 있으면 작업 탭 "선택 필요" 묶음에 카드로 붙인다(Figma 1671:13216 · 드롭다운 1610:9350). */
+  skillTarget?: SkillTargetPicker | null;
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
@@ -126,14 +133,21 @@ export function AgentPanel({
     setComposerValue((current) => current || question);
   }, []);
   useEffect(() => {
-    if (composerDraft) setComposerValue(composerDraft.text);
+    if (!composerDraft) return;
+    setComposerValue(composerDraft.text);
+    // 스킬 실행("/slug ")은 작업 탭 요청이다.
+    setActiveView("work");
   }, [composerDraft]);
+  // 스킬 실행 대상 고르기 카드는 작업 탭에 뜬다.
+  const hasSkillTarget = Boolean(skillTarget);
+  useEffect(() => {
+    if (hasSkillTarget) setActiveView("work");
+  }, [hasSkillTarget]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
   const [pairSelection, setPairSelection] = useState<ChatPairRangeSelection>(EMPTY_CHAT_PAIR_RANGE_SELECTION);
   const [pairSelectionKind, setPairSelectionKind] = useState<ChatPairSelectionKind>("range");
-  const slashMenu = useSkillSlashMenu({ value: composerValue, enabled: isChatVisible && !isPairSelectionMode, onChange: setComposerValue });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSessionTitle, setActiveSessionTitle] = useState<string | null>(null);
   // 마운트 시 현재 활성 세션을 확보해 헤더 강조·메시지 로드의 기준으로 삼는다.
@@ -164,10 +178,6 @@ export function AgentPanel({
     submitQuery,
     cancelQuery
   } = useChatThread(activeSessionId);
-  const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
-    () => classifyChatExportPairs(messages),
-    [messages]
-  );
   const selectedPairIds = pairSelection.selectedPairIds;
   const agentTurn = useAgentTurn({
     markdownEditContext,
@@ -180,7 +190,41 @@ export function AgentPanel({
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
     onInsufficientCredit: restoreComposerQuestion
   });
-  const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState } = agentTurn;
+  const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState, taskRunIds } = agentTurn;
+  // 이 화면에서 보낸 폴더 정리 요청의 계획이 도착하면 미리보기 탭을 바로 연다. 지난 기록은 작업 카드의 버튼으로 연다.
+  const arrivedFolderOrganizeTurnId = agentTurnResponse?.result.action === "folder_organize" ? agentTurnResponse.requestId : null;
+  const arrivedFolderOrganizeQuestion = agentTurnRequest?.message ?? null;
+  useEffect(() => {
+    if (arrivedFolderOrganizeTurnId) onOpenFolderOrganize?.({ turnId: arrivedFolderOrganizeTurnId, question: arrivedFolderOrganizeQuestion });
+    // 도착 시 한 번만 연다. 콜백 identity가 바뀌어도 다시 열지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrivedFolderOrganizeTurnId]);
+  // 채팅 탭은 위키 질의 문답만, 작업 탭은 agent turn(문서 편집·폴더 정리·스킬) 문답만 보여 준다(2026-10-19 계약).
+  const { chatMessages, taskItems } = useMemo(() => splitChatAndTaskMessages(messages, taskRunIds), [messages, taskRunIds]);
+  const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
+    () => classifyChatExportPairs(chatMessages),
+    [chatMessages]
+  );
+  const isWorkView = activeView === "work";
+  // 작업 대상 칩(Figma 1627:9925). ×로 뺀 문서·선택은 같은 문서·같은 선택인 동안만 빠진다.
+  const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
+  const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
+  const openDocumentId = markdownEditContext?.documentId ?? null;
+  const editorTarget = markdownEditContext?.editorSnapshot.target;
+  const selectionKey = openDocumentId && editorTarget?.type === "selection"
+    ? `${openDocumentId}:${editorTarget.startLine}-${editorTarget.endLine}`
+    : null;
+  const isDocumentIncluded = openDocumentId !== null && excludedDocumentId !== openDocumentId;
+  const isSelectionIncluded = isDocumentIncluded && selectionKey !== null && excludedSelectionKey !== selectionKey;
+  const taskContext = useMemo<ActiveMarkdownEditContext | null>(() => {
+    if (!markdownEditContext || !isDocumentIncluded) return null;
+    const { editorSnapshot } = markdownEditContext;
+    if (editorSnapshot.target.type !== "selection" || isSelectionIncluded) return markdownEditContext;
+    // 선택을 뺐으면 문서 전체를 대상으로 보낸다.
+    const lastLine = editorSnapshot.markdown.split("\n").length;
+    return { ...markdownEditContext, editorSnapshot: { ...editorSnapshot, target: { type: "whole_document", startLine: 1, endLine: lastLine } } };
+  }, [isDocumentIncluded, isSelectionIncluded, markdownEditContext]);
+  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, onChange: setComposerValue });
   const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   const sessionTitle = activeSessionTitle ?? "새 채팅";
   const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
@@ -206,17 +250,21 @@ export function AgentPanel({
     void loadTitle();
     return () => { cancelled = true; clearTimeout(timer); };
   }, [activeSessionId, completedReplies]);
-  const composerPlaceholder = "AI 에이전트에게 무엇이든 물어보세요.";
+  // 작업 탭 입력(Figma 1610:9628). "@문서"는 아직 고르기 UI가 없고, 열린 문서가 "현재 문서" 칩으로 붙는다.
+  const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
 
   function handleSubmit() {
     const question = composerValue.trim();
-    if (!question || isSubmitting) return;
-    if (markdownEditContext) {
+    const route = resolveSubmitRoute(activeView, question);
+    if (!route || isSubmitting) return;
+    if (route === "task") {
+      // 작업 탭은 항상 agent turn(mode=task)이다. 열린 문서가 없어도 보낸다(폴더 정리·폴더 스킬).
       if (!activeSessionId || !selectedModel) return;
       setComposerValue("");
-      agentTurn.submitAgentTurn(question, markdownEditContext, activeSessionId, selectedModel, selectedPairIds);
+      agentTurn.submitAgentTurn(question, taskContext, activeSessionId, selectedModel, selectedPairIds);
       return;
     }
+    // 채팅 탭은 문서가 열려 있어도 위키 질의(Query)만 보낸다.
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
@@ -285,15 +333,13 @@ export function AgentPanel({
     }
   }
 
-  // 문서 명령 제안은 대화 흐름 안에 이어 붙인다. 편입 선택 모드에서는 대화가 선택 UI로 바뀌므로 내보내지 않는다.
-  const hasDocumentCommandPreview = !isPairSelectionMode && Boolean(
+  // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
+  const hasDocumentCommandPreview = Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
-    || skillTarget
   );
   const documentCommandPreview = hasDocumentCommandPreview ? (
     <>
-      {skillTarget && <SkillTargetCard {...skillTarget} />}
       {agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown && (
         <MarkdownCreatePreview
           draft={agentTurnResponse.result.generated_markdown}
@@ -347,12 +393,20 @@ export function AgentPanel({
         id={AGENT_PANEL_VIEW_IDS[activeView]}
         aria-labelledby={`${AGENT_PANEL_VIEW_IDS[activeView]}-tab`}
       >
-        {activeView === "work" ? (
-          // "작업" 탭 본문은 시안이 없다(#148). 진행 중인 위키 작업은 사이드바 작업 버튼, 지난 작업은 로그 화면에 있다.
-          <div className={styles["agent-work-empty"]}>
-            <p>작업 목록은 아직 준비 중이에요.</p>
-            <p>위키 편입·정리 진행 상황은 사이드바 작업 버튼에서, 지난 작업은 로그 화면에서 볼 수 있어요.</p>
-          </div>
+        {isWorkView ? (
+          // 작업 탭(Figma 1610:9512): 문서 편집·폴더 정리·스킬 실행 요청과 결과를 상태별로 묶어 보여 준다.
+          <AgentTaskBody
+            items={taskItems}
+            pendingTask={isAgentTurnLoading && agentTurnRequest ? { request: agentTurnRequest.message, stages: agentTurn.agentStages } : null}
+            activePreviewTurnId={agentTurnResponse?.requestId ?? null}
+            activePreview={documentCommandPreview}
+            appliedTurnIds={agentTurn.appliedTurnIds}
+            errorMessage={agentTurn.agentTurnErrorMessage ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
+            isShown={isShown}
+            onSaveRequestAsSkill={onSaveRequestAsSkill}
+            onOpenFolderOrganize={onOpenFolderOrganize}
+            skillTarget={skillTarget ?? null}
+          />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />
         ) : isMeetingListOpen ? (
@@ -368,21 +422,13 @@ export function AgentPanel({
         {/* 대화는 다른 보기로 바꿔도 마운트해 두어 스크롤 위치·진행 상태를 잃지 않는다. */}
         <div className={styles["agent-view-slot"]} hidden={!isChatVisible}>
           <AgentBody
-            messages={messages}
+            messages={chatMessages}
             isLoading={isLoading}
             isCancelling={isCancelling}
-            isDocumentCommandLoading={isAgentTurnLoading}
-            documentCommandStages={agentTurn.agentStages}
-            documentCommandQuestion={isAgentTurnLoading ? agentTurnRequest?.message ?? null : null}
             activeSessionId={activeSessionId}
             isShown={isShown && isChatVisible}
             activeTurn={activeTurn}
-            queryErrorMessage={
-              agentTurn.agentTurnErrorMessage
-              ?? agentTurn.editPreviewErrorMessage
-              ?? (markdownEditContext ? null : aiModelsErrorMessage)
-              ?? queryErrorMessage
-            }
+            queryErrorMessage={aiModelsErrorMessage ?? queryErrorMessage}
             chatLoadErrorMessage={chatLoadErrorMessage}
             animatedMessageId={animatedMessageId}
             queryStages={queryStages}
@@ -394,8 +440,6 @@ export function AgentPanel({
             selectedPairIds={selectedPairIds}
             onSelectPair={selectPair}
             nodes={nodes}
-            documentCommandPreview={documentCommandPreview}
-            onOpenFolderOrganize={onOpenFolderOrganize}
           />
         </div>
       </div>
@@ -445,7 +489,7 @@ export function AgentPanel({
       ) : null}
       <div className={styles["composer-region"]}>
         {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
-        {wikiEvidenceNotice && !isPairSelectionMode && !isMeetingAreaOpen && (
+        {wikiEvidenceNotice && !isWorkView && !isPairSelectionMode && !isMeetingAreaOpen && (
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
             {wikiEvidenceNotice.actionLabel && (
@@ -455,19 +499,45 @@ export function AgentPanel({
             )}
           </div>
         )}
-        {slashMenu.isOpen && (
-          <SkillSlashMenu
-            id={slashMenu.menuId}
-            groups={slashMenu.groups}
-            activeSkillId={slashMenu.activeSkillId}
-            isLoading={slashMenu.isLoading}
-            onPick={slashMenu.pick}
-            onManage={onOpenSkills}
+        {skillPicker.isOpen && (
+          <SkillSlashPicker
+            groups={skillPicker.groups}
+            activeSkillId={skillPicker.activeSkillId}
+            statusMessage={skillPicker.statusMessage}
+            onPick={skillPicker.pick}
+            onHover={skillPicker.setActiveSkillId}
+            onManageSkills={onManageSkills}
           />
         )}
         <AgentComposer
           value={composerValue}
-          onKeyDownBefore={slashMenu.handleKeyDown}
+          inputLabel={isWorkView ? "작업 요청 입력" : undefined}
+          header={isWorkView && openDocumentId ? (
+            <div className={styles["task-context-chips"]}>
+              {isDocumentIncluded ? (
+                <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 작업 대상에서 빼기" onClick={() => setExcludedDocumentId(openDocumentId)}>
+                  현재 문서
+                  <AgentAssetIcon src={contextChipCloseIcon} size={12} />
+                </button>
+              ) : (
+                <button type="button" className={styles["task-context-chip-add"]} onClick={() => setExcludedDocumentId(null)}>
+                  + 현재 문서
+                </button>
+              )}
+              {isSelectionIncluded && markdownEditContext && editorTarget && (
+                <button type="button" className={`${styles["task-context-chip"]} ${styles["is-primary"]}`} aria-label="선택한 부분을 작업 대상에서 빼기" onClick={() => setExcludedSelectionKey(selectionKey)}>
+                  {selectionChipLabel(markdownEditContext.editorSnapshot.markdown, editorTarget.startLine, editorTarget.endLine)}
+                  <AgentAssetIcon src={contextChipClosePrimaryIcon} size={12} />
+                </button>
+              )}
+            </div>
+          ) : null}
+          onInputKeyDown={isWorkView ? skillPicker.handleKeyDown : undefined}
+          inputPopup={isWorkView ? {
+            isOpen: skillPicker.isOpen,
+            listId: SKILL_PICKER_LIST_ID,
+            activeOptionId: skillPicker.activeSkillId ? skillPickerOptionId(skillPicker.activeSkillId) : null
+          } : undefined}
           isLoading={isSubmitting || isPairSelectionMode}
           placeholder={composerPlaceholder}
           models={aiModels}
@@ -480,7 +550,7 @@ export function AgentPanel({
           onWebSearchChange={handleWebSearchChange}
           onChange={setComposerValue}
           onSubmit={handleSubmit}
-          onCancel={isLoading ? cancelQuery : undefined}
+          onCancel={isLoading && !isWorkView ? cancelQuery : undefined}
           isCancelling={isCancelling}
           statusMessage={queryStatusMessage}
           meetingControl={{

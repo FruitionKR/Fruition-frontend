@@ -1,8 +1,9 @@
-// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장·ingest·변환·편집 잠금.
-import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete, addNotification } from "../state.mjs";
+// document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장(자동 병합)·버전 기록·ingest·변환·편집 잠금.
+import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 import { uploadRejection } from "../lib/limits.mjs";
+import { merge3 } from "../lib/merge3.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
 // 편집기 이미지 첨부 계약: 본문의 attachment://<uuid> placeholder와 attachment_<uuid> file part
@@ -49,17 +50,32 @@ function purgeAt(doc) {
   return new Date(Date.parse(doc.deleted_at) + TRASH_RETENTION_MS).toISOString();
 }
 
-/** 본문 저장 409: 서버 현재 revision을 error.current_revision으로 알려 클라이언트가 충돌을 등록할 수 있게 한다. */
-function versionConflict(ctx, doc) {
-  ctx.json(409, { error: { message: "다른 편집 내용이 먼저 저장되었습니다.", code: "DOCUMENT_VERSION_CONFLICT", current_revision: doc.edit_revision } });
+/**
+ * 저장 기준 버전이 현재와 다르면 기준 스냅샷·서버 현재 본·요청 본을 줄 단위로 합친다(서버 자동 병합 계약).
+ * 겹침이 없으면 merged, 겹치면 요청 본이 이겨 overwritten이고 진 쪽(서버 현재 본)은 그 버전 기록에 남는다.
+ * 기준 스냅샷이 없으면 overwritten과 같이 요청 본을 그대로 쓴다.
+ */
+function mergeOnSave(doc, baseRevision, mine) {
+  const serverVersion = doc.edit_revision;
+  if (baseRevision === serverVersion) return { markdown: mine, merge: { status: "none" } };
+  const base = doc.versions.find((version) => version.version === baseRevision && typeof version.markdown === "string");
+  const result = base ? merge3(base.markdown, doc.markdown ?? "", mine) : { markdown: mine, conflict: true };
+  const status = result.conflict ? "overwritten" : "merged";
+  return {
+    markdown: result.markdown,
+    merge: { status, base_version: baseRevision, server_version: serverVersion, overwritten_version: status === "overwritten" ? serverVersion : null }
+  };
 }
 
-function toConflict(conflict) {
-  const { workspace_id: _workspaceId, client_conflict_id: _clientConflictId, ...rest } = conflict;
-  return rest;
+/** 일반 저장의 버전 메타. 서버처럼 merge none은 null로, Agent 적용(apply_operation_id)은 source agent·operation_id로 남긴다. */
+function saveMeta(merge, applyOperationId) {
+  const mergeStatus = merge.status === "none" ? null : merge.status;
+  return typeof applyOperationId === "string" && applyOperationId
+    ? { merge_status: mergeStatus, source: "agent", operation_id: applyOperationId }
+    : { merge_status: mergeStatus, source: "user" };
 }
 
-function saveVersion(doc, markdown, createdBy) {
+function saveVersion(doc, markdown, createdBy, meta = {}) {
   const buffer = Buffer.from(markdown, "utf8");
   doc.current_version += 1;
   doc.edit_revision = doc.current_version;
@@ -70,7 +86,7 @@ function saveVersion(doc, markdown, createdBy) {
   doc.updated_by = createdBy;
   if (doc.status === "completed") doc.needs_reingest = true;
   const contentHash = hash(markdown);
-  doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown });
+  doc.versions.push({ version: doc.current_version, content_hash: contentHash, created_by: createdBy, created_at: doc.updated_at, markdown, ...meta });
   return { document_id: doc.id, current_version: doc.current_version, content_hash: contentHash, updated_at: doc.updated_at, changed: true };
 }
 
@@ -269,7 +285,6 @@ export function registerDocumentRoutes(router) {
       let metadata;
       try { metadata = JSON.parse(body.metadata); } catch { return error(ctx, 400, "metadata JSON이 올바르지 않습니다."); }
       if (typeof metadata.markdown !== "string" || !(Number(metadata.base_version) >= 1)) return error(ctx, 400, "metadata에는 markdown과 1 이상의 base_version이 필요합니다.");
-      if (Number(metadata.base_version) !== doc.edit_revision) return versionConflict(ctx, doc);
       const placeholders = [...new Set([...metadata.markdown.matchAll(ATTACHMENT_PLACEHOLDER)].map((match) => match[1].toLowerCase()))];
       const files = Object.entries(body).filter(([key]) => key.startsWith("attachment_")).map(([key, file]) => [key.slice("attachment_".length).toLowerCase(), file]);
       const fileIds = files.map(([id]) => id);
@@ -286,18 +301,63 @@ export function registerDocumentRoutes(router) {
         return { attachment_id: attachmentId, asset_id: asset.id, content_path: `/api/workspaces/${workspace.id}/assets/${asset.id}/content` };
       });
       const pathById = new Map(attachments.map((entry) => [entry.attachment_id, entry.content_path]));
-      const markdown = metadata.markdown.replace(ATTACHMENT_PLACEHOLDER, (_whole, attachmentId) => pathById.get(attachmentId.toLowerCase()));
-      return ctx.json(200, { ...saveVersion(doc, markdown, ctx.user.id), markdown, attachments });
+      const replaced = metadata.markdown.replace(ATTACHMENT_PLACEHOLDER, (_whole, attachmentId) => pathById.get(attachmentId.toLowerCase()));
+      const { markdown, merge } = mergeOnSave(doc, Number(metadata.base_version), replaced);
+      return ctx.json(200, { ...saveVersion(doc, markdown, ctx.user.id, saveMeta(merge, body.apply_operation_id)), markdown, attachments, merge });
     }
     // 프론트는 CRLF 변환을 피하려고 markdown을 file part(Blob)로 보낸다. 문자열·파일 둘 다 받는다.
     const markdown = typeof body.markdown === "string" ? body.markdown : body.markdown?.buffer?.toString("utf8");
     const { base_revision } = body;
     if (typeof markdown !== "string") return error(ctx, 400, "markdown 본문이 필요합니다.");
-    if (Number(base_revision) !== doc.edit_revision) return versionConflict(ctx, doc);
-    if (markdown === doc.markdown) {
-      return ctx.json(200, { document_id: doc.id, current_version: doc.current_version, content_hash: hash(markdown), updated_at: doc.updated_at, changed: false });
+    // 자동 병합 이전 서버(409) 흉내: MOCK_LEGACY_VERSION_CONFLICT=1이면 기준 버전이 다를 때 409를 낸다.
+    if (process.env.MOCK_LEGACY_VERSION_CONFLICT === "1" && Number(base_revision) !== doc.edit_revision) {
+      return ctx.json(409, { error: { message: "다른 편집 내용이 먼저 저장되었습니다.", code: "DOCUMENT_VERSION_CONFLICT", current_revision: doc.edit_revision } });
     }
-    ctx.json(200, saveVersion(doc, markdown, ctx.user.id));
+    const { markdown: finalMarkdown, merge } = mergeOnSave(doc, Number(base_revision), markdown);
+    if (finalMarkdown === doc.markdown) {
+      return ctx.json(200, { document_id: doc.id, current_version: doc.current_version, content_hash: hash(finalMarkdown), updated_at: doc.updated_at, changed: false, ...(merge.status === "none" ? {} : { markdown: finalMarkdown }), merge });
+    }
+    const saved = saveVersion(doc, finalMarkdown, ctx.user.id, saveMeta(merge, body.apply_operation_id));
+    ctx.json(200, { ...saved, ...(merge.status === "none" ? {} : { markdown: finalMarkdown }), merge });
+  });
+
+  // 버전 기록: 최신이 먼저. current_version은 편집 revision이며 복원의 base_version으로 쓴다.
+  router.get("/api/workspaces/:wid/documents/:id/versions", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    if (!isMarkdownDocument(doc)) return error(ctx, 400, "편집 가능한 Markdown 문서만 버전 이력을 제공합니다.");
+    const versions = [...doc.versions].reverse().map(({ version, content_hash, created_by, created_at, source, operation_id, restored_from_version, merge_status }) => ({
+      version, content_hash, created_by, created_at,
+      source: source ?? null, operation_id: operation_id ?? null, restored_from_version: restored_from_version ?? null, merge_status: merge_status ?? null
+    }));
+    ctx.json(200, { document_id: doc.id, current_version: doc.edit_revision, versions });
+  });
+
+  router.get("/api/workspaces/:wid/documents/:id/versions/:version", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    const entry = doc.versions.find((version) => version.version === Number(ctx.params.version));
+    if (!entry || typeof entry.markdown !== "string") return error(ctx, 404, "해당 버전을 찾을 수 없습니다.");
+    ctx.json(200, { document_id: doc.id, version: entry.version, markdown: entry.markdown, content_hash: entry.content_hash, created_by: entry.created_by, created_at: entry.created_at });
+  });
+
+  // 복원: 그 버전 본문을 새 버전으로 저장한다. 기준 버전이 다르면 일반 저장처럼 자동 병합한다.
+  router.post("/api/workspaces/:wid/documents/:id/versions/:version/restore", async (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const doc = requireDocument(ctx, workspace);
+    if (!doc) return;
+    if (!requireDocumentEdit(ctx, doc)) return;
+    const entry = doc.versions.find((version) => version.version === Number(ctx.params.version));
+    if (!entry || typeof entry.markdown !== "string") return error(ctx, 404, "해당 버전을 찾을 수 없습니다.");
+    const { base_version } = await ctx.body();
+    if (!(Number(base_version) >= 1)) return error(ctx, 400, "base_version이 필요합니다.");
+    const { markdown, merge } = mergeOnSave(doc, Number(base_version), entry.markdown);
+    ctx.json(200, { ...saveVersion(doc, markdown, ctx.user.id, { source: "restore", restored_from_version: entry.version }), merge });
   });
 
   // 관리 이미지 조회 (REQ-005): 워크스페이스 멤버만. 다른 워크스페이스 asset은 404.
@@ -328,70 +388,6 @@ export function registerDocumentRoutes(router) {
     if (!doc) return;
     if (doc.document_role === "EDITABLE") return error(ctx, 400, "이미 Markdown 문서입니다.");
     ctx.json(202, startConvert(workspace, doc));
-  });
-
-  // 편집 충돌 등록: 저장 409를 받은 클라이언트가 자기 본문을 보존한다. 같은 client_conflict_id는 기존 충돌을 돌려준다.
-  router.post("/api/workspaces/:wid/documents/:id/conflicts", async (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    const doc = requireDocument(ctx, workspace);
-    if (!doc) return;
-    if (!isMarkdownDocument(doc)) return error(ctx, 400, "편집 가능한 Markdown 문서만 충돌을 등록할 수 있습니다.");
-    if (!requireDocumentEdit(ctx, doc)) return;
-    const { markdown, base_revision, client_conflict_id } = await ctx.body();
-    if (typeof markdown !== "string" || !Number.isInteger(base_revision) || typeof client_conflict_id !== "string") return error(ctx, 400, "markdown, base_revision, client_conflict_id가 필요합니다.");
-    const existing = state.editConflicts.find((item) => item.document_id === doc.id && item.client_conflict_id === client_conflict_id);
-    if (existing) return ctx.json(201, toConflict(existing));
-    const conflict = {
-      id: id("conflict"), workspace_id: workspace.id, document_id: doc.id, client_conflict_id, base_revision, markdown,
-      author_user_id: ctx.user.id, status: "open", resolution: null, resolved_by: null, resolved_revision: null, created_at: now(), resolved_at: null
-    };
-    state.editConflicts.push(conflict);
-    addNotification(workspace.id, { type: "edit_conflict_registered", audience: "workspace_owners", payload: { conflict_id: conflict.id, document_id: doc.id, document_name: doc.filename, author_user_id: ctx.user.id } });
-    ctx.json(201, toConflict(conflict));
-  });
-
-  // OWNER용 미해결 충돌 목록(오래된 순). 휴지통 문서의 충돌은 뺀다.
-  router.get("/api/workspaces/:wid/conflicts", (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    if (memberRole(workspace.id, ctx.user.id) !== "OWNER") return error(ctx, 403, "워크스페이스 OWNER만 볼 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
-    const conflicts = state.editConflicts
-      .filter((conflict) => conflict.workspace_id === workspace.id && conflict.status === "open")
-      .map((conflict) => ({ conflict, doc: findDocument(workspace.id, conflict.document_id) }))
-      .filter(({ doc }) => doc)
-      .sort((a, b) => a.conflict.created_at.localeCompare(b.conflict.created_at))
-      .map(({ conflict, doc }) => ({
-        conflict: toConflict(conflict),
-        document_name: doc.filename,
-        server: { markdown: doc.markdown ?? "", revision: doc.edit_revision, updated_by: doc.updated_by ?? doc.owner_user_id ?? null, updated_at: doc.updated_at }
-      }));
-    ctx.json(200, { conflicts });
-  });
-
-  // 충돌 해결: server는 그대로, conflict는 충돌 본, merged는 보낸 markdown을 새 revision으로 저장한다.
-  router.post("/api/workspaces/:wid/conflicts/:id/resolve", async (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    if (memberRole(workspace.id, ctx.user.id) !== "OWNER") return error(ctx, 403, "워크스페이스 OWNER만 해결할 수 있습니다.", "DOCUMENT_WRITE_FORBIDDEN");
-    const conflict = state.editConflicts.find((item) => item.workspace_id === workspace.id && item.id === ctx.params.id);
-    if (!conflict) return error(ctx, 404, "충돌을 찾을 수 없습니다.", "EDIT_CONFLICT_NOT_FOUND");
-    if (conflict.status === "resolved") return error(ctx, 409, "이미 해결된 충돌입니다.", "CONFLICT_ALREADY_RESOLVED");
-    const doc = findDocument(workspace.id, conflict.document_id);
-    if (!doc) return error(ctx, 404, "문서를 찾을 수 없습니다.");
-    const { choice, markdown, base_revision } = await ctx.body();
-    if (!["server", "conflict", "merged"].includes(choice)) return error(ctx, 400, "choice는 server, conflict, merged 중 하나입니다.");
-    if (choice !== "server") {
-      if (base_revision !== doc.edit_revision) return versionConflict(ctx, doc);
-      const lock = activeEditLock(doc.id);
-      if (lock && lock.holder_user_id !== ctx.user.id) return ctx.json(423, withLockTtl(lock));
-      const nextMarkdown = choice === "merged" ? markdown : conflict.markdown;
-      if (typeof nextMarkdown !== "string") return error(ctx, 400, "merged에는 markdown이 필요합니다.");
-      saveVersion(doc, nextMarkdown, ctx.user.id);
-    }
-    Object.assign(conflict, { status: "resolved", resolution: choice, resolved_by: ctx.user.id, resolved_revision: doc.edit_revision, resolved_at: now() });
-    addNotification(workspace.id, { type: "edit_conflict_resolved", audience: "user", recipientUserId: conflict.author_user_id, payload: { conflict_id: conflict.id, document_id: doc.id, choice, resolved_by: ctx.user.id } });
-    ctx.json(200, toConflict(conflict));
   });
 
   // 편집 잠금: 비었거나 만료됐거나 본인 보유면 획득, 타인 보유면 423(보유자 정보 포함).

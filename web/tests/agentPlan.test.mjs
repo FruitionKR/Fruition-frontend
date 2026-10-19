@@ -145,7 +145,7 @@ test("명확화 요청이면 AI가 되물은 질문을 보이고, 질문이 없�
   const question = "각 문서의 생성일 정보가 없어 날짜별로 폴더를 만들 수 없습니다.";
   assert.equal(agentPlanClarificationMessage({ status: "clarification_required", clarification_question: question, plan: null }), question);
   for (const clarification_question of [undefined, null, "", "   "]) {
-    assert.equal(agentPlanClarificationMessage({ status: "clarification_required", clarification_question, plan: null }), "원하는 정리 기준을 채팅에 더 구체적으로 알려주세요.");
+    assert.equal(agentPlanClarificationMessage({ status: "clarification_required", clarification_question, plan: null }), "원하는 정리 기준을 작업 입력창에 더 구체적으로 알려주세요.");
   }
   assert.equal(agentPlanClarificationMessage({ status: "failed", clarification_question: question, plan: null }), null);
   assert.equal(agentPlanClarificationMessage(undefined), null);

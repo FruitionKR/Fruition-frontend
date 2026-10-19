@@ -3,13 +3,16 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
-import { updateWorkspaceIcon, uploadWorkspaceIcon, useSelectedWorkspace, type WorkspaceListResponse, type WorkspaceResponse } from "@/entities/workspace";
+import { uploadWorkspaceIcon, useSelectedWorkspace, type WorkspaceListResponse, type WorkspaceResponse } from "@/entities/workspace";
 import { fetchMembers } from "@/entities/workspace/api/members";
 import { WorkspaceIcon } from "@/entities/workspace/ui/WorkspaceIcon";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
-import { emojiPickerHint, pickEmoji } from "../../lib/workspaceEmoji";
 import styles from "../SettingsModal.module.css";
 
+/**
+ * 워크스페이스 아이콘 (Figma 1512:15289): 제목·설명 + 80px 타일. 타일을 누르면 이미지를 올린다(OWNER만).
+ * 이모티콘 선택은 없앴다. 예전에 저장한 icon_emoji는 서버에 그대로 두고 여기서는 이름 첫 글자를 보여 준다.
+ */
 export function WorkspaceIconSettings() {
   const workspace = useSelectedWorkspace();
   const { data: me } = useMe();
@@ -24,20 +27,6 @@ export function WorkspaceIconSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const pickerHint = emojiPickerHint(typeof navigator === "undefined" ? "" : navigator.platform);
-
-  /** OS 이모티콘 선택기로 넣은 값 중 이모티콘 한 글자만 PUT /icon(icon_emoji)으로 저장한다. */
-  function saveEmoji(value: string) {
-    const emoji = pickEmoji(value);
-    if (!emoji) {
-      if (value.trim()) {
-        setSaved(false);
-        setError("이모티콘만 넣을 수 있습니다.");
-      }
-      return;
-    }
-    void apply(() => updateWorkspaceIcon(workspace!.id, emoji));
-  }
 
   async function save(file: File) {
     if (file.size === 0 || file.size > 1024 * 1024) {
@@ -67,26 +56,26 @@ export function WorkspaceIconSettings() {
     }
   }
 
-  return <div className={styles.field}>
-    <span className={styles["field-label"]}>워크스페이스 아이콘</span>
-    <small>이미지를 업로드하거나 이모티콘을 선택하세요 (100*100 사이즈를 추천드립니다.)</small>
-    <button type="button" className={styles["ws-icon-outline"]} aria-label="워크스페이스 아이콘 이미지 업로드"
+  const loadError = error || (membersError ? getErrorMessage(membersError, "아이콘 변경 권한을 확인하지 못했습니다.") : null);
+
+  return <div className={styles["tile-field"]}>
+    <div className={styles["row-title"]}>
+      <strong>워크스페이스 아이콘</strong>
+      <small>이미지를 업로드하세요 (100*100 사이즈를 추천드립니다.)</small>
+    </div>
+    <button type="button" className={styles["tile-button"]} aria-label="워크스페이스 아이콘 이미지 업로드"
       disabled={!isOwner || busy} onClick={() => fileInput.current?.click()}>
-      <WorkspaceIcon workspace={workspace} className={styles["ws-icon"]} />
+      <WorkspaceIcon workspace={workspace} className={styles["tile-face"]} hideEmoji />
     </button>
     <input ref={fileInput} type="file" hidden accept="image/png,image/jpeg,image/webp,image/gif" disabled={!isOwner || busy}
       onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void save(file); }} />
-    <label className={styles["ws-emoji-field"]}>
-      <span>이모티콘</span>
-      <input type="text" className={styles["ws-emoji"]} autoComplete="off" spellCheck={false}
-        placeholder={workspace?.icon_url ? "" : workspace?.icon_emoji ?? "🙂"} aria-label="워크스페이스 아이콘 이모티콘"
-        aria-describedby="ws-emoji-hint" disabled={!isOwner || busy}
-        onChange={(event) => { const value = event.target.value; event.target.value = ""; saveEmoji(value); }} />
-      <small id="ws-emoji-hint">{pickerHint}로 OS 이모티콘 선택기를 열어 넣으세요.</small>
-    </label>
-    {!isOwner && <small>아이콘 변경은 워크스페이스 OWNER만 할 수 있습니다.</small>}
-    {busy && <small role="status">아이콘 저장 중…</small>}
-    {saved && <small role="status">아이콘을 변경했습니다.</small>}
-    {(error || membersError) && <small className={styles["model-error"]} role="alert">{error || getErrorMessage(membersError, "아이콘 변경 권한을 확인하지 못했습니다.")}</small>}
+    {(!isOwner || busy || saved || loadError) && (
+      <div className={styles["tile-actions"]}>
+        {!isOwner && !membersError && <small className={styles["status-text"]}>아이콘 변경은 워크스페이스 OWNER만 할 수 있습니다.</small>}
+        {busy && <small className={styles["status-text"]} role="status">아이콘 저장 중…</small>}
+        {saved && <small className={styles["status-text"]} role="status">아이콘을 변경했습니다.</small>}
+        {loadError && <small className={styles["field-error"]} role="alert">{loadError}</small>}
+      </div>
+    )}
   </div>;
 }

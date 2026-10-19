@@ -1,0 +1,295 @@
+/* 위키 그래프 · 스킬 · 멤버 관리 미리보기 (Figma 1406:13761 · 1482:9848 · 1540:21567). 색은 앱 토큰(--color-*)만 쓴다. */
+/* ───── 위키 그래프 (Figma 1406:13761, 색은 graphColors.ts와 같은 값) ───── */
+.graph {
+  --graph-source: #185ac4;
+  --graph-concept: #fe9800;
+  --graph-raw: #4e5968;
+  --graph-raw-stroke: #4e5968;
+  --graph-hover: #3182f6;
+  --graph-glow: 0.2;
+  --graph-edge: rgb(195 202 210 / 100%);
+  --graph-raw-edge: rgb(78 89 104 / 100%);
+  --graph-source-ink: #21252a;
+  --graph-concept-ink: #21252a;
+  --graph-raw-ink: #4e5968;
+  --graph-track: #8b95a1;
+  --graph-fill: #ffffff;
+
+  position: relative;
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-width: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .graph {
+    --graph-source: #bbcf6c;
+    --graph-concept: #fffdf0;
+    --graph-raw: #4f4f4f;
+    --graph-raw-stroke: #a7a7a7;
+    --graph-hover: #ffc117;
+    --graph-glow: 0.24;
+    --graph-edge: rgb(79 79 79 / 50%);
+    --graph-raw-edge: rgb(90 90 90 / 68%);
+    --graph-source-ink: #f0f0f0;
+    --graph-concept-ink: #8a8a8a;
+    --graph-raw-ink: #8a8a8a;
+    --graph-track: #6b6b6b;
+    --graph-fill: #0a0a0a;
+  }
+}
+
+:global(:root[data-theme="dark"]) .graph {
+  --graph-source: #bbcf6c;
+  --graph-concept: #fffdf0;
+  --graph-raw: #4f4f4f;
+  --graph-raw-stroke: #a7a7a7;
+  --graph-hover: #ffc117;
+  --graph-glow: 0.24;
+  --graph-edge: rgb(79 79 79 / 50%);
+  --graph-raw-edge: rgb(90 90 90 / 68%);
+  --graph-source-ink: #f0f0f0;
+  --graph-concept-ink: #8a8a8a;
+  --graph-raw-ink: #8a8a8a;
+  --graph-track: #6b6b6b;
+  --graph-fill: #0a0a0a;
+}
+
+.graph-svg {
+  width: 100%;
+  height: auto;
+}
+
+.graph-glow-start {
+  stop-color: var(--graph-hover);
+  stop-opacity: var(--graph-glow);
+}
+
+.graph-glow-end {
+  stop-color: var(--graph-hover);
+  stop-opacity: 0;
+}
+
+.graph-edge {
+  stroke: var(--graph-edge);
+  stroke-width: 1;
+}
+
+.graph-raw-edge {
+  stroke: var(--graph-raw-edge);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.graph-node text {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.graph-node[data-kind="source"] circle {
+  fill: var(--graph-source);
+}
+
+.graph-node[data-kind="source"] text {
+  fill: var(--graph-source-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.graph-node[data-kind="concept"] circle {
+  fill: var(--graph-concept);
+}
+
+.graph-node[data-kind="concept"] text {
+  fill: var(--graph-concept-ink);
+}
+
+.graph-node[data-kind="raw"] circle {
+  fill: var(--graph-raw);
+  stroke: var(--graph-raw-stroke);
+}
+
+.graph-node[data-kind="raw"] text {
+  fill: var(--graph-raw-ink);
+  font-size: 9px;
+}
+
+.graph-node[data-kind="hover"] circle {
+  fill: var(--graph-hover);
+}
+
+.graph-node[data-kind="hover"] text {
+  fill: var(--graph-source-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.graph-progress text {
+  fill: var(--graph-source-ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.graph-progress .graph-progress-label {
+  fill: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.graph-progress-track {
+  fill: var(--graph-fill);
+  stroke: var(--graph-track);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.graph-progress-ring {
+  fill: none;
+  stroke: var(--graph-hover);
+  stroke-width: 3;
+  stroke-dasharray: 58 100;
+  transform: rotate(-90deg);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* ───── 스킬 · 멤버 관리 (Figma 1482:9848 · 1540:21567) ───── */
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  padding: 36px 40px 0;
+}
+
+.page-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.page-title h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.page-title p {
+  color: var(--color-body);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.page-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.table {
+  width: 100%;
+  margin-top: 0;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding: 12px;
+  color: var(--color-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: 13px 12px;
+  color: var(--color-foreground);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table th svg,
+.table td svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.table td:last-child,
+.table th:last-child {
+  width: 40px;
+  color: var(--color-muted);
+}
+
+.member-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: -12px;
+  color: var(--color-body);
+  font-weight: 500;
+}
+
+.member-toolbar strong {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.filter {
+  padding: 6px 8px 6px 10px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1.2px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 1.4px solid var(--color-border);
+  border-radius: 6px;
+}
+
+/* 사용자 칸: 체크박스 · 아바타 · 이름을 한 줄로 */
+.table[data-variant="members"] td:first-child,
+.table[data-variant="members"] th:first-child {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.member-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: -10px;
+  color: var(--color-canvas);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-placeholder);
+  border-radius: 50%;
+}
+
+.member-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.member-name strong {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+.member-name span {
+  color: var(--color-muted);
+  font-size: 12px;
+}

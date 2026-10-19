@@ -1,0 +1,412 @@
+/* 랜딩 섹션 배치(장 목차 · 01~04장 · FAQ · 마지막 안내). 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
+
+/* ───── 아이콘 글리프(카드·칩 공통) ───── */
+.glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* 36×36 캔버스 아이콘은 가운데 글리프가 작아 크게 그리고 바깥 여백만큼 당긴다. */
+.glyph[data-pad] {
+  width: 28px;
+  height: 28px;
+  margin: -6px;
+}
+
+.glyph-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.glyph-mask {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+/* ───── 장 목차 카드 ───── */
+.chapter-cards {
+  max-width: var(--lp-wrap);
+  margin: clamp(72px, 6vw, 112px) auto 0;
+  padding: 0 var(--lp-gutter);
+}
+
+.chapter-cards ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 24px 24px 52px;
+  color: var(--lp-ink);
+  text-decoration: none;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-card);
+  transition:
+    transform 260ms var(--lp-ease-out),
+    border-color 200ms ease,
+    box-shadow 260ms ease;
+}
+
+.chapter-card:hover {
+  border-color: color-mix(in srgb, var(--lp-accent) 40%, transparent);
+  box-shadow: var(--lp-shadow-float);
+  transform: translateY(-4px);
+}
+
+.chapter-card:active {
+  transform: translateY(-2px);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: var(--lp-accent-ink);
+  background: var(--lp-accent-weak);
+  border-radius: 50%;
+}
+
+.card-icon .glyph {
+  width: 20px;
+  height: 20px;
+}
+
+.card-icon .glyph-mask {
+  width: 22px;
+  height: 22px;
+}
+
+.card-icon .glyph[data-pad] {
+  width: 34px;
+  height: 34px;
+  margin: -7px;
+}
+
+.card-number {
+  color: var(--lp-muted);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: color 200ms ease;
+}
+
+.chapter-card:hover .card-number {
+  color: var(--lp-accent-ink);
+}
+
+.card-english {
+  color: var(--lp-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.card-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card-summary {
+  color: var(--lp-body);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.card-arrow {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  color: var(--lp-muted);
+  transition: transform 260ms var(--lp-ease-out), color 200ms ease;
+}
+
+.chapter-card:hover .card-arrow {
+  color: var(--lp-accent-ink);
+  transform: translateY(3px);
+}
+
+/* ───── 01~04장: 장마다 옅은 바탕색 띠, 화면은 좌우 교차 ───── */
+.chapters {
+  margin-top: clamp(48px, 4vw, 64px);
+}
+
+.chapter {
+  padding: var(--lp-section-pad) 0;
+  background: var(--lp-tint);
+}
+
+.chapter[data-chapter="capture"] {
+  --lp-tint: var(--lp-tint-capture);
+}
+
+.chapter[data-chapter="connect"] {
+  --lp-tint: var(--lp-tint-connect);
+}
+
+.chapter[data-chapter="discover"] {
+  --lp-tint: var(--lp-tint-discover);
+}
+
+.chapter[data-chapter="together"] {
+  --lp-tint: var(--lp-tint-together);
+}
+
+/* 앞 칸이 1.1fr. 01·03은 화면이 앞(왼쪽), 02·04는 문구가 앞이다. */
+.chapter-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 64px;
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: 0 var(--lp-gutter);
+}
+
+.chapter.is-visual-left .chapter-visual {
+  order: -1;
+}
+
+.chapter-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chapter-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.chapter-number {
+  margin-right: -4px;
+  color: var(--lp-accent-ink);
+  font-weight: 700;
+}
+
+.chapter-english {
+  color: var(--lp-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.chapter-note {
+  margin: -8px 0 0;
+  color: var(--lp-accent-ink);
+  font-size: var(--lp-text-sub);
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 7px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+}
+
+.chip-icon {
+  display: inline-flex;
+  color: var(--lp-accent-ink);
+}
+
+.chip-icon:empty {
+  display: none;
+}
+
+.chapter-visual {
+  min-width: 0;
+}
+
+/* 스크롤에 맞춰 문구·화면이 아래에서 떠오른다(지원 브라우저만, 0.8s 상당 · 16px). */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    :global(html:not([data-reduce-motion="true"])) .chapter-copy,
+    :global(html:not([data-reduce-motion="true"])) .chapter-visual {
+      animation: fade-up linear both;
+      animation-range: entry 0% entry 60%;
+      animation-timeline: view();
+    }
+  }
+}
+
+/* ───── FAQ ───── */
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  max-width: 752px;
+  margin: 0 auto;
+  padding: var(--lp-section-pad) var(--lp-gutter) 0;
+}
+
+.faq > h2 {
+  text-align: center;
+}
+
+.faq-list {
+  border-top: 1px solid var(--lp-line);
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 4px;
+  font-size: var(--lp-text-body);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  transition: color 160ms ease;
+}
+
+.faq-item summary:hover {
+  color: var(--lp-accent-ink);
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--lp-muted);
+  transition: transform 260ms var(--lp-ease-out);
+}
+
+.faq-chevron {
+  width: 12px;
+  height: 6px;
+}
+
+.faq-item[open] .faq-icon {
+  transform: rotate(180deg);
+}
+
+.faq-item p {
+  margin: 0;
+  padding: 0 4px 24px;
+  color: var(--lp-body);
+  line-height: 1.7;
+}
+
+/* ───── 마지막 안내: 히어로 바탕을 깐 둥근 상자 ───── */
+.start {
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: var(--lp-section-pad) var(--lp-gutter);
+}
+
+.start-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: clamp(64px, 7vw, 96px) 24px;
+  text-align: center;
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-cta);
+}
+
+/* ───── 반응형 ───── */
+@media (max-width: 1023px) {
+  .chapter-cards ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 좁은 화면은 모든 장에서 화면이 먼저, 문구가 아래 */
+  .chapter-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 48px;
+  }
+
+  .chapter-visual {
+    order: -1;
+    max-width: 680px;
+  }
+}
+
+@media (max-width: 559px) {
+  .chapter-cards ol {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .chapter-card {
+    padding: 20px 20px 44px;
+  }
+
+  .card-top {
+    margin-bottom: 8px;
+  }
+}

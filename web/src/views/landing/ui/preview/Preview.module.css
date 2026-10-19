@@ -1,0 +1,119 @@
+/*
+ * 랜딩의 실제 앱 화면 미리보기. 값은 Figma(RaoSahQhmNhzE4XsGAe2LX) design context와 실제 서비스 화면에서 옮겼고,
+ * 색은 앱 토큰(--color-*)만 써서 라이트·다크가 앱과 똑같이 바뀐다. 화면은 원래 크기로 그린 뒤 통째로 축소한다.
+ */
+
+/* ───── 축소 틀 ───── */
+.frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--preview-w) / var(--preview-h);
+  overflow: hidden;
+  container-type: inline-size;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  user-select: none;
+}
+
+/* 컨테이너 폭 ÷ 원래 폭을 CSS만으로 구한다(tan(atan2(a, b)) = a / b). */
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--preview-w) * 1px);
+  height: calc(var(--preview-h) * 1px);
+  transform-origin: 0 0;
+  transform: scale(tan(atan2(100cqw, calc(var(--preview-w) * 1px))));
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  /* 히어로처럼 가운데 정렬된 부모 안에서도 앱처럼 왼쪽 정렬한다. */
+  text-align: left;
+  word-break: normal;
+}
+
+.canvas p,
+.canvas h1,
+.canvas h2,
+.canvas ul,
+.canvas ol,
+.canvas pre,
+.canvas blockquote {
+  margin: 0;
+}
+
+/* ───── 여러 화면이 함께 쓰는 조각 ───── */
+.sidebar-toggle {
+  width: 16px;
+  height: 16px;
+}
+
+.button-danger,
+.button-primary {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.button-danger {
+  color: #ffffff;
+  background: var(--color-danger);
+}
+
+.button-primary {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.button-primary[data-size="medium"] {
+  padding: 6px 14px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+.button-primary[data-size="small"] {
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+/* ───── 창 틀(점 3개 머리줄)과 떠 있는 보조 패널 ─────
+ * 창은 머리줄 + 축소 틀 한 겹으로만 그리고 안쪽 틀의 테두리·모서리는 지운다(이중 틀 없음).
+ * 그림자·모서리는 랜딩 토큰(--lp-shadow-*, --lp-radius-*)을 따른다. */
+.window {
+  overflow: hidden;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: var(--lp-radius-window);
+  box-shadow: var(--lp-shadow-window);
+}
+
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.window-bar i {
+  width: 10px;
+  height: 10px;
+  background: var(--color-surface-strong);
+  border-radius: 50%;
+}
+
+.window .frame {
+  border: 0;
+  border-radius: 0;
+}
+
+.panel {
+  border-radius: var(--lp-radius);
+  box-shadow: var(--lp-shadow-float);
+}
