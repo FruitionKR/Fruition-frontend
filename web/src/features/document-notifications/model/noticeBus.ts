@@ -13,11 +13,15 @@ export type NoticePayload = {
    * id가 있으면 같은 작업의 알림(직접 발행 + 로그 폴링)을 한 번만 표시한다.
    */
   operation?: { type: "lint" | "restore"; id?: string };
+  /** 카드가 다루는 문서 id. 이 카드가 보이는 동안 같은 문서로 제안 카드를 또 띄우지 않는 데 쓴다. */
+  subjectIds?: readonly string[];
 };
 
 type NoticeListener = (notice: NoticePayload) => void;
 
 const listeners = new Set<NoticeListener>();
+// 알림 스택이 지금 보여 주는 카드들의 subjectIds. 스택(useDocumentProcessingNotifications)이 갱신한다.
+let visibleSubjectIds: ReadonlySet<string> = new Set();
 
 export function publishNotice(notice: NoticePayload) {
   listeners.forEach((listener) => listener(notice));
@@ -28,4 +32,13 @@ export function subscribeNotices(listener: NoticeListener) {
   return () => {
     listeners.delete(listener);
   };
+}
+
+export function setVisibleNoticeSubjects(ids: ReadonlySet<string>) {
+  visibleSubjectIds = ids;
+}
+
+/** 이 문서를 다루는 카드가 지금 화면에 있는가. */
+export function isNoticeSubjectVisible(id: string) {
+  return visibleSubjectIds.has(id);
 }

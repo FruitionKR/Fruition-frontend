@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   enqueueNotice,
-  selectEvictedNoticeIds
+  selectEvictedNoticeIds,
+  visibleNoticeSubjectIds
 } from "../src/features/document-notifications/model/noticeQueue.ts";
 
 const action = { label: "실행", onAction() {} };
@@ -57,4 +58,14 @@ test("입력 배열을 변경하지 않는다", () => {
   enqueueNotice(current, { id: "c" }, options);
 
   assert.deepEqual(current, [{ id: "a" }, { id: "b" }]);
+});
+
+test("보이는 카드의 문서 id만 모으고 퇴장 중인 카드는 뺀다", () => {
+  const notices = [
+    { id: "a", action, subjectIds: ["doc1", "doc2"] },
+    { id: "b", action, subjectIds: ["doc3"], leaving: true },
+    { id: "c" }
+  ];
+
+  assert.deepEqual([...visibleNoticeSubjectIds(notices)].sort(), ["doc1", "doc2"]);
 });

@@ -3,6 +3,7 @@
 type QueuedNotice = {
   id: string;
   action?: unknown;
+  subjectIds?: readonly string[];
   /** 퇴장 애니메이션 중. 개수 계산에서 빠진다. */
   leaving?: boolean;
 };
@@ -33,4 +34,9 @@ export function enqueueNotice<T extends QueuedNotice>(
   if (evicted.size === 0) return next;
   if (removeImmediately) return next.filter((item) => !evicted.has(item.id));
   return next.map((item) => (evicted.has(item.id) ? { ...item, leaving: true } : item));
+}
+
+/** 화면에 남아 있는(퇴장 중 제외) 카드가 다루는 문서 id. 같은 문서로 제안 카드를 겹쳐 띄우지 않는 데 쓴다. */
+export function visibleNoticeSubjectIds(notices: readonly QueuedNotice[]): Set<string> {
+  return new Set(notices.filter((notice) => !notice.leaving).flatMap((notice) => notice.subjectIds ?? []));
 }

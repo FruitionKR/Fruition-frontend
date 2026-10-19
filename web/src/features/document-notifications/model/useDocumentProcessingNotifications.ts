@@ -8,8 +8,8 @@ import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
-import { publishNotice, subscribeNotices, type NoticePayload } from "./noticeBus";
-import { enqueueNotice } from "./noticeQueue";
+import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
+import { enqueueNotice, visibleNoticeSubjectIds } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
 
 type DocumentProcessingNotice = NoticePayload & { id: string; leaving?: boolean };
@@ -80,6 +80,12 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
       new Notification(notice.title, { body: notice.message });
     }
   }, [browserNotifications, dismissNotice, lintNotifications, reduceMotion, restoreNotifications]);
+
+  // 대기 작업 감지(usePendingWorkNotifications)가 보이는 카드와 같은 문서로 제안을 겹쳐 띄우지 않도록 알린다.
+  useEffect(() => {
+    setVisibleNoticeSubjects(visibleNoticeSubjectIds(notices));
+  }, [notices]);
+  useEffect(() => () => setVisibleNoticeSubjects(new Set()), []);
 
   // 닫혔거나 퇴장 중인 카드의 자동 닫힘 타이머를 해제하고, 퇴장 중인 카드는 애니메이션 뒤 제거한다.
   useEffect(() => {

@@ -654,8 +654,10 @@ export function HomeWorkspace() {
         />
       )}
 
-      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. */}
-      {(isHomeView || isGraphView) && <DocumentProcessingNotifications documents={documents} />}
+      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
+      {(isHomeView || isGraphView) && (
+        <DocumentProcessingNotifications documents={documents} isAboveLauncher={!isAgentPanelShown} />
+      )}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
       {projectTree.bulkDeleteConfirm && (
         <BulkDeleteConfirmModal

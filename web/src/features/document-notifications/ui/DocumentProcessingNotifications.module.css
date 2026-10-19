@@ -1,9 +1,10 @@
-/* 알림 카드 (Figma 1246:7338 bottom_up): 콘텐츠 영역 우하단에서 올라오는 320px 카드.
-   에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓고, 패널이 닫혔을 때의 채팅 런처(48px) 위에 둔다. */
+/* 알림 카드 (Figma 1246:7338 bottom_up): 콘텐츠 영역 우하단에서 올라오는 320px 카드. 새 카드가 맨 아래에 붙는다.
+   에이전트 패널(우측 고정)을 가리지 않도록 패널 폭만큼 왼쪽으로 비켜 놓고, 콘텐츠 바닥에서 24px 띄운다.
+   런처는 패널이 닫혔을 때만 있으므로 그때만(.is-above-launcher) 런처 위로 올린다. */
 .notice-stack {
   position: fixed;
   right: calc(var(--agent-panel-self-width, var(--agent-panel-width, 360px)) + 24px);
-  bottom: 88px;
+  bottom: 24px;
   z-index: 50;
   display: grid;
   width: min(320px, calc(100vw - 48px));
@@ -11,6 +12,11 @@
   font-family: "Fruition Chat Pretendard", Pretendard, "Apple SD Gothic Neo", sans-serif;
   /* 떠 있는 카드 배경: 라이트는 흰 카드, 다크는 기존 패널색 */
   --notice-bg: var(--color-canvas);
+}
+
+/* 채팅 런처(bottom 24 + 48px) 위로 16px 간격 */
+.notice-stack.is-above-launcher {
+  bottom: 88px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +36,10 @@
     left: 16px;
     bottom: 16px;
     width: auto;
+  }
+
+  .notice-stack.is-above-launcher {
+    bottom: 88px;
   }
 }
 

@@ -6,7 +6,7 @@ import { reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { fetchWikiMaintenanceStatus, requestWikiLint } from "../api/wikiLint";
-import { publishNotice } from "./noticeBus";
+import { isNoticeSubjectVisible, publishNotice } from "./noticeBus";
 
 // 연속 업로드를 한 장의 카드로 묶기 위한 대기 시간
 const INGEST_PROMPT_DEBOUNCE_MS = 3_000;
@@ -51,6 +51,7 @@ function publishIngestPrompt(candidates: DocumentItemResponse[], title: string, 
     kind: "info",
     title,
     message,
+    subjectIds: documents.map((document) => document.id),
     action: {
       label: "위키 편입",
       onAction: () => {
@@ -177,7 +178,8 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
         currentIds.add(document.id);
         const seenAt = firstSeen.get(document.id) ?? now;
         if (!firstSeen.has(document.id)) firstSeen.set(document.id, now);
-        if (now - seenAt >= INGEST_STALL_MS && !stallNotifiedRef.current.has(document.id)) {
+        // 같은 문서의 제안 카드가 아직 화면에 있으면 리마인드하지 않는다. 카드를 닫은 뒤 다음 점검에서 다시 본다.
+        if (now - seenAt >= INGEST_STALL_MS && !stallNotifiedRef.current.has(document.id) && !isNoticeSubjectVisible(document.id)) {
           stalled.push(document);
           stallNotifiedRef.current.add(document.id);
         }

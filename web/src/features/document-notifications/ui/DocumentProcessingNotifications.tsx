@@ -7,11 +7,16 @@ import { usePendingWorkNotifications } from "../model/usePendingWorkNotification
 import { useServerNotifications } from "../model/useServerNotifications";
 import styles from "./DocumentProcessingNotifications.module.css";
 
-/** 우하단 알림 카드 스택 (Figma 1246:7338). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 서버 앱 안 알림 + 버스 발행 알림. */
+/**
+ * 우하단 알림 카드 스택 (Figma 1246:7338). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 서버 앱 안 알림 + 버스 발행 알림.
+ * isAboveLauncher: 채팅 패널이 닫혀 우하단 런처(48px)가 떠 있을 때만 그 위로 올린다. 패널이 열려 있으면 콘텐츠 바닥에 붙인다.
+ */
 export function DocumentProcessingNotifications({
-  documents
+  documents,
+  isAboveLauncher
 }: {
   documents: DocumentItemResponse[];
+  isAboveLauncher: boolean;
 }) {
   const { notices, dismissNotice } = useDocumentProcessingNotifications(documents);
   useOperationNotifications();
@@ -21,7 +26,10 @@ export function DocumentProcessingNotifications({
   if (notices.length === 0) return null;
 
   return (
-    <aside className={styles["notice-stack"]} aria-label="문서 처리 알림">
+    <aside
+      className={isAboveLauncher ? `${styles["notice-stack"]} ${styles["is-above-launcher"]}` : styles["notice-stack"]}
+      aria-label="문서 처리 알림"
+    >
       {notices.map((notice) => (
         <div
           key={notice.id}
