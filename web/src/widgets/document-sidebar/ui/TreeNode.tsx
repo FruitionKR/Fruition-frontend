@@ -1,9 +1,9 @@
 import { cx } from "@/shared/lib/classNames";
-import { isFileItem } from "@/entities/tree";
+import { effectivePermission, isFileItem, permissionForChildren } from "@/entities/tree";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import type { DropTarget, TreeItem } from "@/entities/tree";
+import type { DropTarget, InheritedPermission, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
-import { permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
+import { inheritedPermissionLabel, permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
 import { SidebarPermissionIcon } from "./SidebarIcons";
 import { TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
@@ -44,7 +44,8 @@ export function TreeNode({
   onToggle,
   projectId,
   onDropItem,
-  interaction
+  interaction,
+  inheritedPermission = null
 }: {
   item: TreeItem;
   depth: number;
@@ -54,6 +55,8 @@ export function TreeNode({
   onDropItem: (target: DropTarget) => void;
   /** 트리 상호작용 상태·핸들러 묶음. onMoveItem은 onDropItem으로 감싸서 받는다 */
   interaction: Omit<TreeInteractionProps, "onMoveItem">;
+  /** 가장 가까운 상위 폴더의 자기 권한. 상위 설정 따름 항목의 적용 권한 표시에 쓴다 */
+  inheritedPermission?: InheritedPermission;
 }) {
   const { draggedItemId, dropTarget, fileDropTarget, editing, selectedItemIds } = interaction;
   const isSelected = selectedItemIds.has(item.id);
@@ -71,8 +74,11 @@ export function TreeNode({
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
-  // 자기 권한이 지정된 항목만 표시한다. 폴더는 서버 트리에 권한 필드가 없어 아직 표시되지 않는다.
-  const permissionLabel = permissionIndicatorLabel(item.permission);
+  // 자기 권한은 그대로, 상위 설정 따름은 가장 가까운 상위 폴더 권한을 흐리게 표시한다.
+  const permission = effectivePermission(item, inheritedPermission);
+  const permissionLabel = permission && (permission.source === "own"
+    ? permissionIndicatorLabel(permission.access)
+    : inheritedPermissionLabel(permission.access, permission.fromFolderName));
   // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
   const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
   const canOpenInNewTab = !isEditing && !isUploading && Boolean(item.graphNodeId || item.documentId);
@@ -165,8 +171,12 @@ export function TreeNode({
         ) : (
           <>
             <span>{display.name}</span>
-            {permissionLabel && item.permission && (
-              <SidebarPermissionIcon permission={item.permission} label={permissionLabel} className={styles["tree-permission-icon"]} />
+            {permission && permissionLabel && (
+              <SidebarPermissionIcon
+                permission={permission.access}
+                label={permissionLabel}
+                className={cx(styles["tree-permission-icon"], permission.source === "inherited" && styles["is-inherited"])}
+              />
             )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
@@ -203,6 +213,7 @@ export function TreeNode({
           projectId={projectId}
           onDropItem={onDropItem}
           interaction={interaction}
+          inheritedPermission={permissionForChildren(item, inheritedPermission)}
         />
       ))}
     </div>

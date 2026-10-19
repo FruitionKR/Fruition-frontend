@@ -1221,3 +1221,8 @@
   height: 14px;
   color: var(--color-muted);
 }
+
+/* 상위 폴더 설정을 따르는(상속) 권한 표시는 자기 설정보다 더 흐리게 둔다. */
+.tree-permission-icon.is-inherited {
+  opacity: 0.45;
+}

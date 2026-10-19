@@ -21,7 +21,7 @@ const bySortThenName = (a, b) => (a.sort_order - b.sort_order) || a.name.localeC
 function buildTree(workspaceId, userId, parentId = null) {
   const folders = liveFolders(workspaceId)
     .filter((folder) => folder.parent_folder_id === parentId)
-    .map((folder) => ({ type: "folder", id: folder.id, name: folder.name, sort_order: folder.sort_order, current_version: folder.current_version, children: buildTree(workspaceId, userId, folder.id) }));
+    .map((folder) => ({ type: "folder", id: folder.id, name: folder.name, sort_order: folder.sort_order, current_version: folder.current_version, permission: folder.permission ?? null, children: buildTree(workspaceId, userId, folder.id) }));
   const documents = liveDocuments(workspaceId)
     .filter((doc) => (doc.folder_id ?? null) === parentId)
     .map((doc) => ({ type: "document", id: doc.id, name: doc.filename, sort_order: doc.sort_order ?? 0, current_version: doc.current_version, document: toDocumentItemFor(doc, userId) }));

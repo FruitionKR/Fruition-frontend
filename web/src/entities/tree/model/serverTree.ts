@@ -7,6 +7,8 @@ export type ServerTreeItem = {
   sort_order: number;
   current_version: number;
   children?: ServerTreeItem[];
+  /** 폴더에 직접 건 권한(edit·view). null·없음은 상위 설정 따름. 백엔드 추가 필요(제안) 필드라 없을 수 있다. */
+  permission?: "edit" | "view" | null;
   document?: DocumentItemResponse;
 };
 export type DocumentTreeResponse = { items: ServerTreeItem[] };

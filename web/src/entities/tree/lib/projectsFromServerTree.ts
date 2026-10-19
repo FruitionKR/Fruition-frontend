@@ -14,7 +14,7 @@ export function projectsFromServerTree(items: ServerTreeItem[], previous: Projec
   const mapItem = (item: ServerTreeItem): TreeItem => {
     const doc = item.document;
     return item.type === "folder"
-      ? { id: item.id, label: item.name, type: "folder", currentVersion: item.current_version, children: (item.children ?? []).map(mapItem).sort(byName) }
+      ? { id: item.id, label: item.name, type: "folder", currentVersion: item.current_version, permission: item.permission, children: (item.children ?? []).map(mapItem).sort(byName) }
       : { id: `document-file-${item.id}`, label: item.name, type: "file", documentId: item.id, graphNodeId: makeRawId(item.id),
           currentVersion: item.current_version, status: doc?.status, mimeType: doc?.mime_type,
           processingState: doc?.processing_state, processingStage: doc?.processing_stage,

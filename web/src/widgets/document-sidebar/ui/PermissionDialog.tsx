@@ -8,7 +8,7 @@ import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import styles from "./DocumentSidebar.module.css";
 
-/** 권한 설정 대상. 폴더 권한은 트리 응답에 없어 현재값을 모르므로 null(상위 따름)에서 시작한다. */
+/** 권한 설정 대상. 폴더는 트리 응답의 permission을 쓰고, 백엔드가 아직 안 보내면 null(상위 따름)에서 시작한다. */
 export type PermissionDialogTarget = {
   kind: "folder" | "document";
   id: string;

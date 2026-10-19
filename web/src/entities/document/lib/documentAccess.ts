@@ -43,6 +43,11 @@ export function permissionIndicatorLabel(permission: DocumentPermission | null |
   return null;
 }
 
+/** 상위 폴더 설정을 따르는 항목의 권한 표시 문구. 출처 폴더 이름을 함께 알린다. */
+export function inheritedPermissionLabel(access: DocumentPermission, fromFolderName: string): string {
+  return `${permissionIndicatorLabel(access)} (상위 폴더 '${fromFolderName}'에서 상속)`;
+}
+
 /** 권한 저장 성공 알림 본문. 이름 뒤 조사 문제를 피하려고 "'이름' 권한을 …으로" 형태로 쓴다. */
 export function permissionChangedMessage(label: string, access: DocumentPermission | null): string {
   const phrase = permissionIndicatorLabel(access) ?? "상위 설정 따름";

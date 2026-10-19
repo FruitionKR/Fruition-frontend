@@ -14,7 +14,7 @@ document-svc의 문서·폴더·본문 API다. 이 경로군은 전부 직접 �
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `GET /api/workspaces/{workspace_id}/documents` | 문서 평면 목록 | `web/src/entities/document/api/document.ts` `fetchDocuments` / `web/src/entities/wiki/api/wiki.ts` `fetchDocumentData` | `workspacePath(workspaceId, "documents")` | `cache: no-store` | `documents[]` | 두 모듈이 같은 경로를 각자 호출한다 |
-| `GET /api/workspaces/{workspace_id}/document-tree` | 폴더·문서 트리 | `web/src/entities/tree/api/documentTree.ts` `fetchDocumentTree` / `web/src/features/agent-chat/api/agentPlan.ts` `fetchPlanTree` | `workspacePath(workspaceId, "document-tree")` | `cache: no-store` | `items[]` (`id`, `name`, `type`, `children`, `current_version`) | 낙관적 잠금용 `current_version`과 이름 중복 검사의 근거 데이터다. `web/src/features/document-search`는 이 트리를 받아 **클라이언트에서 필터링**하며 backend 검색 API를 쓰지 않는다 |
+| `GET /api/workspaces/{workspace_id}/document-tree` | 폴더·문서 트리 | `web/src/entities/tree/api/documentTree.ts` `fetchDocumentTree` / `web/src/features/agent-chat/api/agentPlan.ts` `fetchPlanTree` | `workspacePath(workspaceId, "document-tree")` | `cache: no-store` | `items[]` (`id`, `name`, `type`, `children`, `current_version`, 폴더 `permission`) | 낙관적 잠금용 `current_version`과 이름 중복 검사의 근거 데이터다. `web/src/features/document-search`는 이 트리를 받아 **클라이언트에서 필터링**하며 backend 검색 API를 쓰지 않는다 |
 
 ## 업로드
 
@@ -74,7 +74,17 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `PUT /api/workspaces/{workspace_id}/documents/{document_id}/permission` | 문서 권한 설정 | `web/src/entities/document/api/permission.ts` `setDocumentPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "documents", documentId, "permission")` | `{ access: "edit" \| "view" \| null }` | `access` | 문서 소유자·OWNER만. `403 DOCUMENT_WRITE_FORBIDDEN`은 `describePermissionError`가 역할 안내 문구로 바꾼다 |
-| `PUT /api/workspaces/{workspace_id}/folders/{folder_id}/permission` | 폴더 권한 설정 | `web/src/entities/document/api/permission.ts` `setFolderPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "folders", folderId, "permission")` | `{ access }` | `access` | OWNER만. 폴더 안 문서·하위 폴더가 따른다. 트리 응답에 폴더 권한이 없어 다이얼로그는 `null`(상위 따름)에서 시작한다 |
+| `PUT /api/workspaces/{workspace_id}/folders/{folder_id}/permission` | 폴더 권한 설정 | `web/src/entities/document/api/permission.ts` `setFolderPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "folders", folderId, "permission")` | `{ access }` | `access` | OWNER만. 폴더 안 문서·하위 폴더가 따른다. 다이얼로그는 트리 응답의 폴더 `permission`에서 시작하고, 없으면 `null`(상위 따름)에서 시작한다 |
+
+### 트리의 폴더 `permission` — 백엔드 추가 필요(제안)
+
+`GET /document-tree`의 `type: "folder"` 항목에 폴더 자기 권한 `permission: "edit" | "view" | null`을 내려 주길 제안한다
+(`null`은 상위 설정 따름, `PUT .../folders/{folder_id}/permission`으로 저장한 값과 같다). 문서 항목은 이미 `document.permission`이 있다.
+
+- 프론트는 이 필드가 있으면 폴더 행에 자기 권한(자물쇠·연필)을, 상위 설정 따름 항목에는 가장 가까운 권한 있는 상위 폴더의 권한을 흐린 아이콘과
+  "보기만 가능 (상위 폴더 '{폴더명}'에서 상속)" 안내로 보여 준다(`web/src/entities/tree/lib/treePermission.ts`).
+- 필드가 없는 현재 백엔드 응답에서는 폴더 권한과 그로부터의 상속 표시가 나오지 않는다(문서 자기 권한 표시만 동작).
+- mock(`web/mock/routes/folders.mjs` `buildTree`)은 이 제안 계약대로 폴더 `permission`을 내려 준다.
 
 ## 편집 충돌
 
