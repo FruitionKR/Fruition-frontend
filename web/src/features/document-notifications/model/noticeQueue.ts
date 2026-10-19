@@ -40,3 +40,13 @@ export function enqueueNotice<T extends QueuedNotice>(
 export function visibleNoticeSubjectIds(notices: readonly QueuedNotice[]): Set<string> {
   return new Set(notices.filter((notice) => !notice.leaving).flatMap((notice) => notice.subjectIds ?? []));
 }
+
+/**
+ * 자동 닫힘 타이머를 새로 걸어야 하는 카드 id. 퇴장 중·action 카드(사용자가 고를 때까지 남김)·이미 타이머가 있는 카드는 뺀다.
+ * 스택을 잠시 숨겼다가(좁은 화면에서 겹친 패널이 열린 동안) 다시 보일 때 남은 카드의 타이머를 새로 건다.
+ */
+export function selectAutoDismissIds(notices: readonly QueuedNotice[], scheduledIds: ReadonlySet<string>): string[] {
+  return notices
+    .filter((notice) => !notice.leaving && !notice.action && !scheduledIds.has(notice.id))
+    .map((notice) => notice.id);
+}

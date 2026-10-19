@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   enqueueNotice,
+  selectAutoDismissIds,
   selectEvictedNoticeIds,
   visibleNoticeSubjectIds
 } from "../src/features/document-notifications/model/noticeQueue.ts";
@@ -68,4 +69,21 @@ test("보이는 카드의 문서 id만 모으고 퇴장 중인 카드는 뺀다"
   ];
 
   assert.deepEqual([...visibleNoticeSubjectIds(notices)].sort(), ["doc1", "doc2"]);
+});
+
+test("자동 닫힘 대상은 퇴장 중·action·이미 타이머가 있는 카드를 뺀다", () => {
+  const notices = [
+    { id: "a" },
+    { id: "b", action },
+    { id: "c", leaving: true },
+    { id: "d" }
+  ];
+
+  assert.deepEqual(selectAutoDismissIds(notices, new Set(["d"])), ["a"]);
+});
+
+test("타이머가 하나도 없으면(숨겼다 다시 보일 때) 남은 일반 카드 모두가 대상이다", () => {
+  const notices = [{ id: "a" }, { id: "b", action }, { id: "c" }];
+
+  assert.deepEqual(selectAutoDismissIds(notices, new Set()), ["a", "c"]);
 });

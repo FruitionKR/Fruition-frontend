@@ -9,7 +9,7 @@ import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
-import { enqueueNotice, visibleNoticeSubjectIds } from "./noticeQueue";
+import { enqueueNotice, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
 
 type DocumentProcessingNotice = NoticePayload & { id: string; leaving?: boolean };
@@ -30,7 +30,11 @@ function completedNoticeText(count: number) {
   };
 }
 
-export function useDocumentProcessingNotifications(documents: DocumentItemResponse[]) {
+/**
+ * isPaused: 스택을 잠시 화면에서 뺀 동안(좁은 화면에서 겹친 채팅 패널·사이드바가 열림) 카드를 쌓아 두기만 하고
+ * 자동 닫힘 타이머를 멈춘다. 다시 보이면 남은 일반 카드에 타이머를 새로 건다.
+ */
+export function useDocumentProcessingNotifications(documents: DocumentItemResponse[], isPaused = false) {
   const { preferences, reduceMotion } = useUserPreferences();
   const {
     browser: browserNotifications,
@@ -66,10 +70,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
       max: MAX_VISIBLE_NOTICES,
       removeImmediately: reduceMotion
     }));
-    // 액션이 있는 카드는 사용자가 선택할 때까지 남긴다.
-    if (!notice.action) {
-      autoDismissTimersRef.current.set(id, window.setTimeout(() => dismissNotice(id), NOTICE_DURATION_MS));
-    }
+    // 자동 닫힘 타이머는 아래 effect가 건다(액션 카드는 사용자가 선택할 때까지 남긴다).
 
     if (
       browserNotifications
@@ -79,7 +80,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     ) {
       new Notification(notice.title, { body: notice.message });
     }
-  }, [browserNotifications, dismissNotice, lintNotifications, reduceMotion, restoreNotifications]);
+  }, [browserNotifications, lintNotifications, reduceMotion, restoreNotifications]);
 
   // 대기 작업 감지(usePendingWorkNotifications)가 보이는 카드와 같은 문서로 제안을 겹쳐 띄우지 않도록 알린다.
   useEffect(() => {
@@ -109,6 +110,19 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
       }, NOTICE_EXIT_MS));
     });
   }, [notices]);
+
+  // 보이는 동안 타이머가 없는 일반 카드에 자동 닫힘 타이머를 건다. 숨긴 동안에는 모두 멈춰 카드가 보이지 않은 채 사라지지 않게 한다.
+  useEffect(() => {
+    const autoTimers = autoDismissTimersRef.current;
+    if (isPaused) {
+      autoTimers.forEach((timer) => window.clearTimeout(timer));
+      autoTimers.clear();
+      return;
+    }
+    selectAutoDismissIds(notices, new Set(autoTimers.keys())).forEach((id) => {
+      autoTimers.set(id, window.setTimeout(() => dismissNotice(id), NOTICE_DURATION_MS));
+    });
+  }, [dismissNotice, isPaused, notices]);
 
   useEffect(() => {
     const autoTimers = autoDismissTimersRef.current;

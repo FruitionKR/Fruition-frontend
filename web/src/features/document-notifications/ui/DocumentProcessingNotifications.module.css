@@ -30,6 +30,7 @@
   --notice-bg: var(--color-surface);
 }
 
+/* 700px 이하에서는 화면 폭으로 펼친다. 겹친 채팅 패널·사이드바가 열린 동안은 컴포넌트가 스택을 숨긴다(isOverlayOpen). */
 @media (max-width: 700px) {
   .notice-stack {
     right: 16px;

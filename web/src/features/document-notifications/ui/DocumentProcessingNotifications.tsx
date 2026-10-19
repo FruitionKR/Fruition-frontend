@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import type { DocumentItemResponse } from "@/entities/document";
 import { useDocumentProcessingNotifications } from "../model/useDocumentProcessingNotifications";
 import { useOperationNotifications } from "../model/useOperationNotifications";
@@ -10,20 +11,28 @@ import styles from "./DocumentProcessingNotifications.module.css";
 /**
  * 우하단 알림 카드 스택 (Figma 1246:7338). 문서 처리 + AI 작업(lint·restore) + 대기 작업 감지 + 서버 앱 안 알림 + 버스 발행 알림.
  * isAboveLauncher: 채팅 패널이 닫혀 우하단 런처(48px)가 떠 있을 때만 그 위로 올린다. 패널이 열려 있으면 콘텐츠 바닥에 붙인다.
+ * isOverlayOpen: 좁은 화면에서 채팅 패널·사이드바가 콘텐츠 위에 겹쳐 열려 있는지.
+ *   700px 이하에서는 겹친 패널이 레일 오른쪽(채팅) 또는 화면 대부분(사이드바 300px)을 덮어 카드(320px)를 둘 자리가 없으므로
+ *   그동안 스택을 숨기고 카드는 쌓아 둔다(자동 닫힘도 멈춘다). 패널을 닫으면 다시 보인다.
+ *   701px 이상의 좁은 화면은 겹친 채팅 패널 왼쪽에 카드를 둘 수 있어 그대로 보인다.
  */
 export function DocumentProcessingNotifications({
   documents,
-  isAboveLauncher
+  isAboveLauncher,
+  isOverlayOpen
 }: {
   documents: DocumentItemResponse[];
   isAboveLauncher: boolean;
+  isOverlayOpen: boolean;
 }) {
-  const { notices, dismissNotice } = useDocumentProcessingNotifications(documents);
+  const isNarrow = useIsNarrowViewport();
+  const isDeferred = isOverlayOpen && isNarrow;
+  const { notices, dismissNotice } = useDocumentProcessingNotifications(documents, isDeferred);
   useOperationNotifications();
   usePendingWorkNotifications(documents);
   useServerNotifications();
 
-  if (notices.length === 0) return null;
+  if (notices.length === 0 || isDeferred) return null;
 
   return (
     <aside
@@ -73,5 +82,22 @@ export function DocumentProcessingNotifications({
         </div>
       ))}
     </aside>
+  );
+}
+
+/** CSS의 @media (max-width: 700px)(카드를 화면 폭으로 펼치는 구간)와 같은 기준 */
+const NARROW_VIEWPORT_QUERY = "(max-width: 700px)";
+
+function subscribeNarrowViewport(onChange: () => void) {
+  const query = window.matchMedia(NARROW_VIEWPORT_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function useIsNarrowViewport(): boolean {
+  return useSyncExternalStore(
+    subscribeNarrowViewport,
+    () => window.matchMedia(NARROW_VIEWPORT_QUERY).matches,
+    () => false
   );
 }
