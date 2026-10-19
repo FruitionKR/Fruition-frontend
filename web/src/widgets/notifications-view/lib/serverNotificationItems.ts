@@ -2,7 +2,7 @@ import type { AppNotification } from "@/features/document-notifications/api/noti
 import { describeNotification } from "@/features/document-notifications/model/serverNotifications";
 import type { NotificationItem } from "./notificationFeed";
 
-/** 서버 앱 안 알림(편집 충돌 등록·해결)의 알림 화면 id 접두어. 읽음 처리를 서버로 보낼 때 이 접두어로 구분한다. */
+/** 서버 앱 안 알림의 알림 화면 id 접두어. 읽음 처리를 서버로 보낼 때 이 접두어로 구분한다. */
 export const SERVER_NOTIFICATION_ID_PREFIX = "server:";
 
 export function toServerNotificationId(notificationId: string): string {
@@ -31,7 +31,7 @@ export function buildServerNotifications(notifications: readonly AppNotification
       occurredAt,
       changeCount: null,
       details: [message],
-      tone: notification.type === "edit_conflict_registered" ? "failure" : "success",
+      tone: "success",
       serverRead: notification.read
     }];
   }).sort((a, b) => b.occurredAt - a.occurredAt);

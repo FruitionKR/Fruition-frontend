@@ -16,8 +16,8 @@ const { isNotificationUnread, countUnreadNotifications } = await import("../src/
 
 const notification = (overrides) => ({
   id: "n1",
-  type: "edit_conflict_registered",
-  payload: { document_name: "할 일.md", author_user_id: "user_jihyun" },
+  type: "workspace_notice",
+  payload: { document_name: "할 일.md" },
   read: false,
   created_at: "2026-10-09T01:00:00Z",
   ...overrides
@@ -26,17 +26,15 @@ const notification = (overrides) => ({
 test("서버 알림을 워크스페이스 알림 항목으로 바꾸고 최신순으로 정렬한다", () => {
   const items = buildServerNotifications([
     notification({}),
-    notification({ id: "n2", type: "edit_conflict_resolved", payload: { choice: "merged" }, read: true, created_at: "2026-10-09T02:00:00Z" }),
+    notification({ id: "n2", type: "other_notice", payload: {}, read: true, created_at: "2026-10-09T02:00:00Z" }),
     notification({ id: "n3", created_at: "not-a-date" })
   ]);
   assert.deepEqual(items.map((item) => item.id), ["server:n2", "server:n1"]);
   assert.equal(items[0].category, "workspace");
-  assert.equal(items[0].title, "편집 충돌 해결");
+  assert.equal(items[0].title, "알림");
   assert.equal(items[0].tone, "success");
   assert.equal(items[0].serverRead, true);
-  assert.equal(items[1].title, "편집 충돌 등록");
-  assert.equal(items[1].tone, "failure");
-  assert.match(items[1].description, /「할 일.md」에 user_jihyun님의 편집 충돌/);
+  assert.equal(items[1].description, "workspace_notice 알림이 도착했습니다.");
   assert.deepEqual(items[1].details, [items[1].description]);
   assert.equal(items[1].occurredAt, Date.parse("2026-10-09T01:00:00Z"));
 });

@@ -33,7 +33,7 @@ import styles from "./SettingsModal.module.css";
 
 export type { SettingsSection };
 
-/** 문서 관리 아이콘: 접힌 모서리가 있는 문서 (24×24). */
+/** 휴지통(문서 관리) 아이콘: 접힌 모서리가 있는 문서 (24×24). */
 function DocumentsIcon({ className }: { className?: string }) {
   return (
     <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -93,7 +93,7 @@ function NavRow({
 /**
  * 설정 화면의 왼쪽 메뉴 (Figma 1577:3242 SNB). 사이드바의 문서 트리 자리에 들어간다.
  * 계정: 사용자 설정·계정 보안·알림 설정 / 설정: 워크스페이스 설정·디스플레이 설정·멤버 관리.
- * 문서 관리와 로그아웃은 시안에 없지만 다른 진입점이 없어 시안 항목 뒤에 남긴다.
+ * 휴지통과 로그아웃은 시안에 없지만 다른 진입점이 없어 시안 항목 뒤에 남긴다.
  */
 export function SettingsNav({
   activeSection,
@@ -140,7 +140,7 @@ export function SettingsNav({
         </NavRow>
         <NavRow section="documents" activeSection={activeSection} onSelect={onSelect}>
           <DocumentsIcon className={styles["nav-icon"]} />
-          <span>문서 관리</span>
+          <span>휴지통</span>
         </NavRow>
       </div>
       {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}

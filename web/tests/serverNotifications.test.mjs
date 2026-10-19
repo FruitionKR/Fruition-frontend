@@ -18,21 +18,15 @@ const { fetchNotifications } = await import("../src/features/document-notificati
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 
 const notification = (id, overrides = {}) => ({
-  id, type: "edit_conflict_registered", payload: { document_name: "할 일.md", author_user_id: "user_jihyun" }, read: false, created_at: `2026-10-12T00:00:0${id.slice(-1)}Z`, ...overrides
+  id, type: "workspace_notice", payload: { document_name: "할 일.md" }, read: false, created_at: `2026-10-12T00:00:0${id.slice(-1)}Z`, ...overrides
 });
 
-test("충돌 등록·해결 알림을 사람이 읽을 문구로 바꾼다", () => {
-  const registered = describeNotification(notification("n1"));
-  assert.equal(registered.title, "편집 충돌 등록");
-  assert.match(registered.message, /「할 일.md」에 user_jihyun님의 편집 충돌/);
-
-  const resolved = describeNotification(notification("n2", { type: "edit_conflict_resolved", payload: { choice: "server", resolved_by: "user_demo" } }));
-  assert.equal(resolved.title, "편집 충돌 해결");
-  assert.match(resolved.message, /user_demo님이 서버 본을 유지/);
-  assert.match(resolved.message, /충돌 기록에 남아/);
-
-  // 모르는 type도 깨지지 않는다.
-  assert.equal(describeNotification(notification("n3", { type: "something_new", payload: {} })).title, "알림");
+test("서버 알림은 종류와 관계없이 일반 문구로 보여 주고 편집 충돌 전용 문구는 없다", () => {
+  // 서버 자동 병합으로 편집 충돌 알림은 더 오지 않는다. 남아 있는 옛 알림도 일반 문구로 깨지지 않게 보여 준다.
+  const legacy = describeNotification(notification("n1", { type: "edit_conflict_registered" }));
+  assert.equal(legacy.title, "알림");
+  assert.doesNotMatch(legacy.message, /편집 충돌|설정 > 문서 관리/);
+  assert.equal(describeNotification(notification("n3", { type: "something_new", payload: {} })).message, "something_new 알림이 도착했습니다.");
   assert.equal(toNoticePayload(notification("n1")).kind, "info");
 });
 

@@ -172,21 +172,6 @@ export function seed() {
     document({ id: "doc_trashed", filename: "지난 분기 회고.md", markdown: "# 지난 분기 회고\n\n정리 끝.\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 40), deleted_at: minutesAgo(60 * 24 * 3), deleted_by: USER_ID }),
     document({ id: "doc_expired", filename: "오래된 메모.md", markdown: "# 오래된 메모\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 90), deleted_at: minutesAgo(60 * 24 * 45), deleted_by: USER_ID })
   );
-  // 미해결 편집 충돌 예시: 김지현이 '할 일.md'를 revision 1 기준으로 고쳤는데 서버는 이미 2다. OWNER 설정 화면에서 해결한다.
-  const todoDoc = state.documents.find((doc) => doc.id === "doc_todo");
-  todoDoc.current_version = 2;
-  todoDoc.edit_revision = 2;
-  todoDoc.updated_by = USER_ID;
-  state.editConflicts.push({
-    id: "conflict_todo", workspace_id: WORKSPACE_ID, document_id: "doc_todo", client_conflict_id: "seed-conflict-1", base_revision: 1,
-    markdown: `${TODO_MD}\n- [ ] 김지현: 충돌 본에서 추가한 항목\n`, author_user_id: MEMBER_ID,
-    status: "open", resolution: null, resolved_by: null, resolved_revision: null, created_at: minutesAgo(12), resolved_at: null
-  });
-  state.notifications.push({
-    id: "ntf_conflict_todo", workspace_id: WORKSPACE_ID, type: "edit_conflict_registered", audience: "workspace_owners", recipient_user_id: null, read_by: new Set(), created_at: minutesAgo(12),
-    payload: { conflict_id: "conflict_todo", document_id: "doc_todo", document_name: "할 일.md", author_user_id: MEMBER_ID }
-  });
-
   // ingest가 끝난 Markdown 문서는 현재 본문 그대로 block 스냅샷을 가진다(stale 아님).
   state.documents
     .filter((doc) => doc.status === "completed" && doc.markdown && !doc.source_snapshot)
