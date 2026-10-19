@@ -4,14 +4,12 @@ import { useId, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { authorSkill, type SkillResponse } from "@/entities/skill";
 import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
-import { SideSheet } from "@/shared/ui/modal/SideSheet";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { describeSkillAuthorError, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
   isDocumentKind,
-  SKILL_KIND_OPTIONS,
   SKILL_NAME_MAX,
   SKILL_RESULT_OPTIONS,
   SKILL_SCOPE_OPTIONS,
@@ -31,36 +29,42 @@ import {
   type SkillDetailForm
 } from "../lib/skillDetailForm";
 import {
-  CheckMark,
   HelpTip,
   RESULT_HELP,
+  RULES_PLACEHOLDER_HINT,
   SCOPE_HELP,
-  SelectBox,
+  SegmentedControl,
   SkillAuthorAssist,
+  SkillEditorLayout,
+  SkillKindCards,
   SkillSafetyIssues,
+  TargetChecks,
   useReferenceDocuments
 } from "./SkillFormParts";
-import styles from "./SkillCreateSheet.module.css";
-import detailStyles from "./SkillDetailSheet.module.css";
+import { SkillTestRunCard } from "./SkillTestRunCard";
+import styles from "./SkillEditor.module.css";
+import detailStyles from "./SkillDetailEditor.module.css";
 
 const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
 
 /**
- * 스킬 상세 시트 (Figma 1708:4059). 목록 행 클릭·더보기 '수정'으로 연다.
- * 설명·실행 규칙·대상을 PATCH /skills/{id}로 저장하고(문서 스킬은 targets 포함, result_mode는 생략해 유지), 왼쪽 아래 '스킬 삭제'로 지운다.
- * 저장범위·커맨드명은 수정 API가 받지 않고, 스킬 종류·결과 방식은 지침을 다시 분류한 capability와 맞아야 해 읽기 전용으로 보여 준다.
+ * 스킬 상세 편집 탭. 목록 행 클릭·더보기 '수정'으로 연다. 새 스킬 탭과 같은 틀을 쓴다.
+ * 설명·실행 규칙·대상을 PATCH /skills/{id}로 저장하고(문서 스킬은 targets 포함, result_mode는 생략해 유지), '스킬 삭제'로 지운다.
+ * 저장범위·커맨드는 수정 API가 받지 않고, 스킬 종류·결과 방식은 지침을 다시 분류한 capability와 맞아야 해 읽기 전용으로 보여 준다.
  */
-export function SkillDetailSheet({
+export function SkillDetailEditor({
   workspaceId,
   skill,
   onClose,
+  onShowList,
   onSubmit,
   onDelete
 }: {
   workspaceId: string;
   skill: SkillResponse;
   onClose: () => void;
+  onShowList: () => void;
   onSubmit: (draft: SkillDetailDraft) => Promise<SkillAuthoringResult>;
   onDelete: () => Promise<void>;
 }) {
@@ -88,6 +92,7 @@ export function SkillDetailSheet({
   }
 
   function toggleTarget(target: SkillTarget, checked: boolean) {
+    touch("targets");
     update({
       targets: SKILL_TARGET_OPTIONS.map((option) => option.value).filter((value) =>
         value === target ? checked : form.targets.includes(value)
@@ -149,11 +154,11 @@ export function SkillDetailSheet({
     if (!isBlocked) saveMutation.mutate();
   }
 
-  const errorProps = (field: SkillDetailField) => {
+  const errorProps = (field: SkillDetailField, hintId?: string) => {
     const message = visibleError(field);
     return {
       "aria-invalid": message != null,
-      "aria-describedby": message != null ? fieldId(`${field}-error`) : undefined
+      "aria-describedby": message != null ? fieldId(`${field}-error`) : hintId
     };
   };
   const errorText = (field: SkillDetailField) => {
@@ -169,11 +174,16 @@ export function SkillDetailSheet({
     if (!deleteMutation.isPending) setIsDeleteConfirmOpen(false);
   }
 
+  // 테스트 실행은 종류를 알아야 capability를 정할 수 있다. 알 수 없는 capability면 테스트 열을 두지 않는다.
+  const testRunForm = form.kind != null ? skillDetailAuthorForm(form) : null;
+
   return (
-    <SideSheet
-      title="스킬 상세"
-      onClose={onClose}
-      footer={
+    <SkillEditorLayout
+      titleId={fieldId("title")}
+      title={`/${skill.slug}`}
+      onShowList={onShowList}
+      aside={testRunForm != null ? <SkillTestRunCard workspaceId={workspaceId} form={testRunForm} /> : undefined}
+      actions={
         <>
           <button
             type="button"
@@ -201,26 +211,100 @@ export function SkillDetailSheet({
         </>
       }
     >
-      <div className={styles.hero}>
-        <div className={cx(styles.heading, detailStyles.heading)}>
-          <p className={styles.title}>스킬</p>
-          <p className={styles.sub}>/{skill.slug}</p>
-        </div>
+      <div className={styles.fields}>
+        {/* 스킬 종류·결과 방식 → capabilities (읽기 전용). 알 수 없는 capability면 표시하지 않는다. */}
+        {form.kind != null && (
+          <div className={styles.field}>
+            <span id={fieldId("kind-label")} className={styles.label}>
+              스킬 종류
+            </span>
+            <SkillKindCards
+              name={fieldId("kind")}
+              labelledBy={fieldId("kind-label")}
+              value={form.kind}
+              disabled
+              onChange={() => undefined}
+            />
 
-        <div className={styles.fields}>
+            {isDocument && (
+              <div className={styles["sub-panel"]}>
+                <div className={styles.field}>
+                  <div className={styles["label-row"]}>
+                    <span id={fieldId("result-label")} className={styles.label}>
+                      결과 방식
+                    </span>
+                    <HelpTip label="결과 방식" content={RESULT_HELP} />
+                  </div>
+                  <div className={styles.menu}>
+                    <SegmentedControl
+                      name={fieldId("result")}
+                      labelledBy={fieldId("result-label")}
+                      describedBy={fieldId("result-hint")}
+                      value={form.resultMode}
+                      options={SKILL_RESULT_OPTIONS}
+                      disabled
+                      onChange={() => undefined}
+                    />
+                    <p id={fieldId("result-hint")} className={styles.hint}>
+                      스킬 종류와 결과 방식은 만든 뒤 바꿀 수 없어요.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 대상 → targets */}
+                <fieldset className={styles.field} {...errorProps("targets")}>
+                  <legend className={cx(styles.label, styles.legend)}>대상</legend>
+                  <TargetChecks targets={form.targets} onToggle={toggleTarget} />
+                  {errorText("targets")}
+                </fieldset>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className={styles["field-row"]}>
+          {/* 커맨드 → slug (읽기 전용) */}
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor={fieldId("command")}>
+              커맨드
+            </label>
+            <div className={cx(styles.input, styles["command-input"], detailStyles["read-only"])}>
+              <span className={styles["command-prefix"]} aria-hidden>
+                /
+              </span>
+              <input
+                id={fieldId("command")}
+                type="text"
+                readOnly
+                value={form.command}
+                spellCheck={false}
+                aria-describedby={fieldId("command-hint")}
+              />
+              <span className={styles.counter}>
+                {form.command.length}/{SKILL_NAME_MAX}
+              </span>
+            </div>
+            <p id={fieldId("command-hint")} className={styles.hint}>
+              Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.
+            </p>
+          </div>
+
           {/* 저장범위 → scope_type (수정 API가 받지 않아 읽기 전용) */}
           <div className={styles.field}>
             <div className={styles["label-row"]}>
-              <label className={styles.label} htmlFor={fieldId("scope")}>저장범위</label>
+              <span id={fieldId("scope-label")} className={styles.label}>
+                저장범위
+              </span>
               <HelpTip label="저장범위" content={SCOPE_HELP} />
             </div>
             <div className={styles.menu}>
-              <SelectBox
-                id={fieldId("scope")}
+              <SegmentedControl
+                name={fieldId("scope")}
+                labelledBy={fieldId("scope-label")}
+                describedBy={fieldId("scope-hint")}
                 value={form.scope}
                 options={SKILL_SCOPE_OPTIONS}
                 disabled
-                describedBy={fieldId("scope-hint")}
                 onChange={() => undefined}
               />
               <p id={fieldId("scope-hint")} className={styles.hint}>
@@ -230,129 +314,68 @@ export function SkillDetailSheet({
               </p>
             </div>
           </div>
+        </div>
 
-          {/* 커맨드명 → slug (읽기 전용) */}
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={fieldId("command")}>커맨드명</label>
-            <div className={cx(styles.input, styles["command-input"], detailStyles["read-only"])}>
-              <span className={styles["command-prefix"]} aria-hidden>
-                /
-              </span>
-              <input id={fieldId("command")} type="text" readOnly value={form.command} spellCheck={false} />
-              <span className={styles.counter}>
-                {form.command.length}/{SKILL_NAME_MAX}
-              </span>
-            </div>
-          </div>
-
-          {/* 설명 → description */}
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={fieldId("description")}>설명</label>
-            <input
-              id={fieldId("description")}
-              type="text"
-              className={styles.input}
-              value={form.description}
-              {...errorProps("description")}
-              onChange={(event) => update({ description: event.target.value })}
-              onBlur={() => touch("description")}
-            />
-            {errorText("description")}
-          </div>
-
-          {/* 실행 규칙 → instructions_markdown (이전 형식의 "실행 대상" 절은 떼어 아래 대상으로 보여 준다) */}
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={fieldId("rules")}>실행 규칙</label>
-            <textarea
-              id={fieldId("rules")}
-              className={cx(styles.input, styles.textarea)}
-              rows={6}
-              value={form.rules}
-              {...errorProps("rules")}
-              onChange={(event) => update({ rules: event.target.value })}
-              onBlur={() => touch("rules")}
-            />
-            {errorText("rules")}
-            <SkillAuthorAssist
-              selectedDocs={referenceDocs.selectedDocs}
-              onOpenPicker={referenceDocs.openPicker}
-              onRemoveDoc={referenceDocs.removeDoc}
-              isBusy={isBusy}
-              isAuthoring={authorMutation.isPending}
-              status={authorStatus}
-              idleHint="적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요."
-              onAuthor={() => runAuthor("enhance")}
-            />
-          </div>
-
-          {/* 스킬 종류·결과 방식 → capabilities (읽기 전용). 알 수 없는 capability면 표시하지 않는다. */}
-          {form.kind != null && (
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor={fieldId("kind")}>스킬 종류</label>
-              <SelectBox id={fieldId("kind")} value={form.kind} options={SKILL_KIND_OPTIONS} disabled onChange={() => undefined} />
-            </div>
-          )}
-          {isDocument && (
-            <>
-              <div className={styles.field}>
-                <div className={styles["label-row"]}>
-                  <label className={styles.label} htmlFor={fieldId("result")}>결과 방식</label>
-                  <HelpTip label="결과 방식" content={RESULT_HELP} />
-                </div>
-                <div className={styles.menu}>
-                  <SelectBox
-                    id={fieldId("result")}
-                    value={form.resultMode}
-                    options={SKILL_RESULT_OPTIONS}
-                    disabled
-                    describedBy={fieldId("result-hint")}
-                    onChange={() => undefined}
-                  />
-                  <p id={fieldId("result-hint")} className={styles.hint}>
-                    스킬 종류와 결과 방식은 만든 뒤 바꿀 수 없어요.
-                  </p>
-                </div>
-              </div>
-
-              {/* 대상 → targets */}
-              <fieldset className={styles.field} {...errorProps("targets")}>
-                <legend className={cx(styles.label, styles.legend)}>대상</legend>
-                <div className={styles.checks}>
-                  {SKILL_TARGET_OPTIONS.map((option) => (
-                    <label key={option.value} className={styles["check-row"]}>
-                      <span className={styles.check}>
-                        <input
-                          type="checkbox"
-                          checked={form.targets.includes(option.value)}
-                          onChange={(event) => {
-                            touch("targets");
-                            toggleTarget(option.value, event.target.checked);
-                          }}
-                        />
-                        <CheckMark />
-                      </span>
-                      <span className={styles["check-label"]}>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-                {errorText("targets")}
-              </fieldset>
-            </>
-          )}
-
-          <SkillSafetyIssues
-            issues={issues}
-            isBusy={isBusy}
-            onRegenerate={() => runAuthor("regenerate")}
-            onPreserve={() => runAuthor("preserve")}
+        {/* 설명 → description */}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={fieldId("description")}>
+            설명
+          </label>
+          <input
+            id={fieldId("description")}
+            type="text"
+            className={styles.input}
+            value={form.description}
+            {...errorProps("description")}
+            onChange={(event) => update({ description: event.target.value })}
+            onBlur={() => touch("description")}
           />
+          {errorText("description")}
+        </div>
 
-          {saveMutation.isError && (
-            <p className={styles.error} role="alert">
-              {getErrorMessage(saveMutation.error, "스킬 정의를 수정하지 못했습니다.")}
+        {/* 실행 규칙 → instructions_markdown (이전 형식의 "실행 대상" 절은 떼어 위 대상으로 보여 준다) */}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={fieldId("rules")}>
+            실행 규칙
+          </label>
+          <textarea
+            id={fieldId("rules")}
+            className={cx(styles.input, styles.textarea)}
+            rows={8}
+            value={form.rules}
+            {...errorProps("rules", fieldId("rules-hint"))}
+            onChange={(event) => update({ rules: event.target.value })}
+            onBlur={() => touch("rules")}
+          />
+          {errorText("rules") ?? (
+            <p id={fieldId("rules-hint")} className={styles.hint}>
+              {RULES_PLACEHOLDER_HINT}
             </p>
           )}
+          <SkillAuthorAssist
+            selectedDocs={referenceDocs.selectedDocs}
+            onOpenPicker={referenceDocs.openPicker}
+            onRemoveDoc={referenceDocs.removeDoc}
+            isBusy={isBusy}
+            isAuthoring={authorMutation.isPending}
+            status={authorStatus}
+            idleHint="적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요."
+            onAuthor={() => runAuthor("enhance")}
+          />
         </div>
+
+        <SkillSafetyIssues
+          issues={issues}
+          isBusy={isBusy}
+          onRegenerate={() => runAuthor("regenerate")}
+          onPreserve={() => runAuthor("preserve")}
+        />
+
+        {saveMutation.isError && (
+          <p className={styles.error} role="alert">
+            {getErrorMessage(saveMutation.error, "스킬 정의를 수정하지 못했습니다.")}
+          </p>
+        )}
       </div>
 
       {isDeleteConfirmOpen && (
@@ -416,6 +439,6 @@ export function SkillDetailSheet({
           </button>
         </AlertModal>
       )}
-    </SideSheet>
+    </SkillEditorLayout>
   );
 }

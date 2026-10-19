@@ -26,7 +26,7 @@ import styles from "./SkillTestRunCard.module.css";
 const NO_DOCUMENT = "";
 
 /**
- * 스킬 만들기의 "테스트 실행" 카드 (Figma 1671:14585, 시트 오른쪽 채팅 열).
+ * 스킬 편집 탭 오른쪽 열의 "테스트 실행" 카드 (Figma 1671:14585 카드 모양, 디자인 '② 새 스킬 탭' 배치).
  * 지금 시트에 적은 정의를 고른 문서 하나에 적용해 섹션별 변경 전/후를 보여 준다. 문서·스킬은 저장하지 않는다.
  */
 export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; form: SkillCreateForm }) {
@@ -66,7 +66,6 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
 
   return (
     <section className={styles.container} aria-labelledby={fieldId("title")}>
-      <p className={styles.caption}>새 스킬 만들기</p>
       <div className={styles.card}>
         <div className={styles.heading}>
           <p id={fieldId("title")} className={styles.title}>

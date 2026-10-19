@@ -1,3 +1,3 @@
-export { SkillCreateSheet } from "./ui/SkillCreateSheet";
+export { SkillCreateEditor } from "./ui/SkillCreateEditor";
 export { skillUpdateRequest } from "./lib/skillAuthoring";
-export { SkillDetailSheet } from "./ui/SkillDetailSheet";
+export { SkillDetailEditor } from "./ui/SkillDetailEditor";
