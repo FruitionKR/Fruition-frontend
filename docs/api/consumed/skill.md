@@ -73,6 +73,13 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
   '새 문서로 만들기'이고 사이드바에서 같은 문서로 실행했으면 그 문서가 있는 폴더를 `folder_id`로 싣는다
   (`web/src/features/agent-chat/lib/taskThread.ts` `skillModeQuestionSlug`·`SKILL_MODE_CHOICES`).
 
+## 채팅에서 `/slug` 입력으로 실행
+
+작업 탭 입력에 `/slug …`를 직접 쓰면 열린 문서가 요청과 무관할 수 있다. '새 문서로 만들기'(`result_mode: "create"`) 스킬은
+열린 문서를 기본으로 싣지 않고, "현재 문서" 칩을 눌러 원문으로 쓰겠다고 했을 때만 문서 문맥을 함께 보낸다. 다른 결과 방식·템플릿·폴더 정리는
+기존대로다. 결과 방식은 `/` 스킬 고르기와 같은 `["skills", workspaceId]` 목록에서 찾는다
+([ai-agent.md](ai-agent.md) "Markdown Agent" 표 참조, `web/src/widgets/agent-panel/lib/openDocumentSource.ts`).
+
 ## UI 위치
 
 - `web/src/features/user-settings/ui/panels` (Skill 관리 패널)

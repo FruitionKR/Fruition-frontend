@@ -108,6 +108,11 @@ export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "re
   return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
 }
 
+/** 입력이 `/slug` 또는 `/slug 요청`으로 시작하면 그 slug, 아니면 null. */
+export function slashCommandSlug(text: string): string | null {
+  return SLASH_COMMAND_PATTERN.exec(text.trim())?.[1] ?? null;
+}
+
 /** 되묻기 선택 → 작업 탭으로 보낼 요청 문장 */
 export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES)[number]): string {
   return `/${slug} ${choice.request}`;

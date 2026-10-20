@@ -119,8 +119,10 @@ function selectionError(plan, operationIds) {
   return null;
 }
 
-function createResult(message) {
-  return { action: "markdown_create", route: route("markdown_create", "새 문서 생성 요청"), message: null, chat: null, edit: null, generated_markdown: { title: "AI 초안", summary: message, markdown: `# AI 초안\n\n요청: ${message}\n\n## 내용\n\nmock 서버가 생성한 초안입니다.\n` } };
+/** sourceName이 있으면 명시한 스킬이 열린 문서를 원문(source_document)으로 쓴 초안이다(ai _uses_source_document). */
+function createResult(message, sourceName = null) {
+  const source = sourceName ? `원문: ${sourceName}\n\n` : "";
+  return { action: "markdown_create", route: route("markdown_create", "새 문서 생성 요청"), message: null, chat: null, edit: null, generated_markdown: { title: "AI 초안", summary: message, markdown: `# AI 초안\n\n${source}요청: ${message}\n\n## 내용\n\nmock 서버가 생성한 초안입니다.\n` } };
 }
 
 /** 작업 탭 요청: 문서 편집·폴더 정리·스킬만 고르고, 채팅 답변 갈래는 clarify로 돌린다. */
@@ -135,7 +137,8 @@ function taskResult(workspace, turn, request) {
     const caps = version.capabilities;
     const mode = version.result_mode ?? (caps.includes("document-create") && !caps.includes("document-edit") ? "create" : caps.includes("document-edit") && !caps.includes("document-create") ? "edit" : "auto");
     const wantsCreate = /새 문서/.test(slash.rest) || (!slash.rest && mode === "create") || (!hasDocument && mode !== "edit");
-    if (wantsCreate) return createResult(slash.rest || message);
+    // 열린 문서(active_markdown_context)가 오면 원문으로 쓰고, 없으면 스킬 지침만으로 만든다.
+    if (wantsCreate) return createResult(slash.rest || message, hasDocument ? findDocument(workspace.id, request.documentId)?.filename ?? request.documentId : null);
     if (!hasDocument) return clarify("수정할 문서를 열고 다시 실행해 주세요.");
     if (!slash.rest && mode === "auto") return clarify("새 문서로 만들까요, 지금 문서를 수정할까요?");
     return buildEditResult(request);

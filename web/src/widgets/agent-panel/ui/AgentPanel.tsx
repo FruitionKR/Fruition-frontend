@@ -39,6 +39,7 @@ import type { GraphNode } from "@/entities/wiki";
 import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
 import { useSkillSlashPicker } from "../model/useSkillSlashPicker";
+import { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } from "../lib/openDocumentSource";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
 const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
@@ -230,22 +231,35 @@ export function AgentPanel({
   // 작업 대상 칩(Figma 1627:9925). ×로 뺀 문서·선택은 같은 문서·같은 선택인 동안만 빠진다.
   const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
   const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
+  // '새 문서로 만들기' 스킬에서 "현재 문서" 칩을 눌러 원문으로 쓰기로 한 문서. 보내면 비운다.
+  const [optedInDocumentId, setOptedInDocumentId] = useState<string | null>(null);
   const openDocumentId = markdownEditContext?.documentId ?? null;
+  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, onChange: setComposerValue });
+  const composerIntent = isWorkView ? composerSkillIntent(composerValue, skillPicker.skills) : null;
+  const isSourceOptIn = isOpenDocumentOptIn(composerIntent);
   const editorTarget = markdownEditContext?.editorSnapshot.target;
   const selectionKey = openDocumentId && editorTarget?.type === "selection"
     ? `${openDocumentId}:${editorTarget.startLine}-${editorTarget.endLine}`
     : null;
-  const isDocumentIncluded = openDocumentId !== null && excludedDocumentId !== openDocumentId;
-  const isSelectionIncluded = isDocumentIncluded && selectionKey !== null && excludedSelectionKey !== selectionKey;
-  const taskContext = useMemo<ActiveMarkdownEditContext | null>(() => {
-    if (!markdownEditContext || !isDocumentIncluded) return null;
+  // "@문서" 고르기 UI는 아직 없어 멘션한 문서는 늘 없다(hasDocumentMention: false).
+  const isDocumentIncluded = openDocumentId !== null && shouldSendOpenDocument({
+    intent: composerIntent,
+    isExcluded: excludedDocumentId === openDocumentId,
+    isOptedIn: optedInDocumentId === openDocumentId,
+    hasDocumentMention: false
+  });
+  const isSelectionKept = selectionKey !== null && excludedSelectionKey !== selectionKey;
+  const isSelectionIncluded = isDocumentIncluded && isSelectionKept;
+  // 열린 문서 문맥. 칩에서 뺀 선택은 문서 전체 대상으로 바꾼다. 문서를 실을지는 따로 정한다.
+  const documentContext = useMemo<ActiveMarkdownEditContext | null>(() => {
+    if (!markdownEditContext) return null;
     const { editorSnapshot } = markdownEditContext;
-    if (editorSnapshot.target.type !== "selection" || isSelectionIncluded) return markdownEditContext;
+    if (editorSnapshot.target.type !== "selection" || isSelectionKept) return markdownEditContext;
     // 선택을 뺐으면 문서 전체를 대상으로 보낸다.
     const lastLine = editorSnapshot.markdown.split("\n").length;
     return { ...markdownEditContext, editorSnapshot: { ...editorSnapshot, target: { type: "whole_document", startLine: 1, endLine: lastLine } } };
-  }, [isDocumentIncluded, isSelectionIncluded, markdownEditContext]);
-  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, onChange: setComposerValue });
+  }, [isSelectionKept, markdownEditContext]);
+  const taskContext = isDocumentIncluded ? documentContext : null;
   const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   // 스킬 실행 요청: 세션·모델이 준비되고, 문서 대상이면 그 문서의 편집 문맥이 들어온 뒤 작업 탭으로 보낸다.
   const sentSkillRunId = useRef<number | null>(null);
@@ -297,8 +311,10 @@ export function AgentPanel({
   function answerSkillQuestion(request: string, createsDocument: boolean) {
     if (isSubmitting || !activeSessionId || !selectedModel) return;
     const ran = lastSkillRunDocument.current;
-    const folderId = createsDocument && ran && ran.documentId === taskContext?.documentId ? ran.folderId : null;
-    agentTurn.submitAgentTurn(request, taskContext, activeSessionId, selectedModel, selectedPairIds, folderId);
+    // 되묻기 답은 '상황에 맞게' 스킬이라 입력창의 `/slug`와 상관없이 ×로 빼지 않은 열린 문서를 싣는다.
+    const answerContext = excludedDocumentId === openDocumentId ? null : documentContext;
+    const folderId = createsDocument && ran && ran.documentId === answerContext?.documentId ? ran.folderId : null;
+    agentTurn.submitAgentTurn(request, answerContext, activeSessionId, selectedModel, selectedPairIds, folderId);
   }
 
   function handleSubmit() {
@@ -309,6 +325,7 @@ export function AgentPanel({
       // 작업 탭은 항상 agent turn(mode=task)이다. 열린 문서가 없어도 보낸다(폴더 정리·폴더 스킬).
       if (!activeSessionId || !selectedModel) return;
       setComposerValue("");
+      setOptedInDocumentId(null);
       agentTurn.submitAgentTurn(question, taskContext, activeSessionId, selectedModel, selectedPairIds);
       return;
     }
@@ -604,7 +621,19 @@ export function AgentPanel({
           inputLabel={isWorkView ? "작업 요청 입력" : undefined}
           header={isWorkView && openDocumentId ? (
             <div className={styles["task-context-chips"]}>
-              {isDocumentIncluded ? (
+              {isSourceOptIn ? (
+                // '새 문서로 만들기' 스킬: 열린 문서는 기본으로 빼고, 눌러야 원문으로 쓴다.
+                isDocumentIncluded ? (
+                  <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 원문에서 빼기" onClick={() => setOptedInDocumentId(null)}>
+                    현재 문서 · 원문으로 사용
+                    <AgentAssetIcon src={contextChipCloseIcon} size={12} />
+                  </button>
+                ) : (
+                  <button type="button" className={styles["task-context-chip-add"]} aria-label="현재 문서를 새 문서의 원문으로 쓰기" title="눌러서 새 문서의 원문으로 쓰기" onClick={() => setOptedInDocumentId(openDocumentId)}>
+                    현재 문서
+                  </button>
+                )
+              ) : isDocumentIncluded ? (
                 <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 작업 대상에서 빼기" onClick={() => setExcludedDocumentId(openDocumentId)}>
                   현재 문서
                   <AgentAssetIcon src={contextChipCloseIcon} size={12} />

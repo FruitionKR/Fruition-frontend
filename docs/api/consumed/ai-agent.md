@@ -65,6 +65,20 @@ Query와 Wiki 내보내기가 이 컨텍스트를 공유한다.
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/approve` | 계획 승인 | `web/src/features/agent-chat/api/agentPlan.ts` `decideAgentPlan` (`decision === "approve"`) | 템플릿 결합 — `workspacePath(workspaceId, "agent", "runs", runId, decision)`, `decision`이 마지막 segment | `{ plan_version, operation_hash, operation_ids? }` | `AgentPlanRun` | `idempotentJsonHeaders()`. 폴더 정리 미리보기에서 일부 줄만 고르면 `operation_ids`(1–20개)에 고른 줄의 모든 작업(이동·이름 변경 등)과 그 작업이 기대는 작업(`depends_on`·`$operation_result` 새 폴더)을 계획 순서로 보낸다. 모든 줄을 고르면 생략(계획 전체). 0개면 버튼을 막고, 부분 선택이 20개를 넘으면 적용을 막는다. `operation_ids`를 보낸 요청의 `400`(중복·계획에 없는 ID·고르지 않은 작업에 의존)은 선택 오류 문구로 보여 준다. 작업 탭 카드의 수락은 계획 전체 승인이다. 경로의 마지막 segment가 변수라 리터럴 검색으로 찾히지 않는다 |
 | `POST /api/workspaces/{workspace_id}/agent/runs/{run_id}/reject` | 계획 거절 | `web/src/features/agent-chat/api/agentPlan.ts` `decideAgentPlan` (`decision === "reject"`) | 위와 같은 호출, `decision === "reject"` | 본문 없음 | `AgentPlanRun` | `idempotentJsonHeaders()`. `decision` 유니온은 `"approve" \| "reject"`로만 선언되어 있어 `cancel`·`revise`는 호출될 수 없다 |
 
+작업 탭 입력에서 열린 문서 문맥(`documentId`·`baseVersion`·`editorSnapshot` → AI의 `document_id`·`base_version`·
+`active_markdown_context`)을 실을지는 입력의 `/slug`가 가리키는 스킬로 정한다
+(`web/src/widgets/agent-panel/lib/openDocumentSource.ts` `shouldSendOpenDocument`). AI는 명시한 '새 문서로 만들기' 스킬에
+`active_markdown_context`가 오면 그 문서를 원문(`source_document`)으로 쓰므로, 무관한 열린 문서가 원문이 되지 않게 프론트가 뺀다.
+
+| 입력 | 열린 문서 |
+|---|---|
+| 일반 요청(스킬 없음) · `/열린 문서 고치기` · `/상황에 맞게` · 템플릿 · 폴더 정리 | 싣는다("현재 문서" 칩 ×로 뺄 수 있음) |
+| `/새 문서로 만들기` 스킬 | 기본으로 뺀다. 칩이 점선 "현재 문서"로 바뀌고, 누르면 "현재 문서 · 원문으로 사용"이 되어 싣는다. 보내면 다시 뺀 상태로 돌아간다 |
+| `@문서` 멘션 | 멘션한 문서만 원문(열린 문서는 싣지 않음). 멘션 고르기 UI는 아직 없다 |
+
+문서를 빼고 보낸 '새 문서로 만들기' 요청의 새 문서 위치는 기존대로 `folder_id` 없이(루트) 둔다. 스킬 화면에서 사이드바로 문서를 골라
+실행하는 경로는 이 규칙과 무관하게 고른 문서를 싣는다([skill.md](skill.md) "스킬 화면에서 실행").
+
 계획 패널은 문서·폴더 이름 표시를 위해 `document-tree`도 조회한다
 (`fetchPlanTree`, [document.md](document.md) 참조).
 
