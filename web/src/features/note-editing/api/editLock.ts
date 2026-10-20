@@ -33,6 +33,9 @@ export class EditLockDeniedError extends Error {}
  */
 export class EditLockUnsupportedError extends EditLockDeniedError {}
 
+/** 편집 잠금을 쓸 수 없는 문서에 서버가 주는 400 코드. */
+const EDIT_LOCK_UNSUPPORTED_CODE = "INVALID_MARKDOWN_CONTENT";
+
 function editLockPath(documentId: string): string {
   return `${workspacePath(getWorkspaceId(), "documents", documentId)}/edit-lock`;
 }
@@ -49,7 +52,11 @@ export async function acquireEditLock(documentId: string): Promise<EditLockRespo
   if (response.status === 403) throw new EditLockDeniedError(ERROR_MESSAGES.editLockForbidden);
   if (response.status === 404) throw new EditLockDeniedError(ERROR_MESSAGES.editLockMissing);
   if (response.status === 400) {
-    throw new EditLockUnsupportedError((await parseApiError(response, ERROR_MESSAGES.editLockUnsupported)).message);
+    const error = await parseApiError(response, ERROR_MESSAGES.editLockUnsupported);
+    // 문서 성격으로 잠글 수 없다고 밝힌 400만 다시 요청하지 않는다. 다른 400은 다시 열면 달라질 수 있는 실패라
+    // 기억하지 않고, 403·404처럼 서버 상세 대신 정해진 문구를 던진다.
+    if (error.code === EDIT_LOCK_UNSUPPORTED_CODE) throw new EditLockUnsupportedError(error.message);
+    throw new Error(ERROR_MESSAGES.editLockFailed);
   }
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }

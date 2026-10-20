@@ -605,6 +605,33 @@ test("편집 잠금을 쓸 수 없는 문서(400)는 서버 문구를 담고, �
   second.unmount();
 });
 
+test("INVALID_MARKDOWN_CONTENT가 아닌 400은 일반 실패로 다루고, 다시 마운트하면 다시 요청한다", async (t) => {
+  workspaceEnv(t);
+  const documentId = "doc_lock_bad_request";
+  let posts = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    posts++;
+    return Response.json({ error: { code: "INVALID_REQUEST", message: "internal validation detail" } }, { status: 400 });
+  });
+  await assert.rejects(acquireEditLock(documentId), (error) => {
+    assert.ok(!(error instanceof EditLockDeniedError), "기다리면 달라질 수 있는 실패다");
+    assert.equal(error.message, ERROR_MESSAGES.editLockFailed, "서버 상세는 노출하지 않는다");
+    return true;
+  });
+  posts = 0;
+
+  const first = render(() => useEditLock({ documentId, onLockLost: () => {} }));
+  for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+  first.rerender();
+  assert.deepEqual(first.result, { phase: "error", message: ERROR_MESSAGES.editLockFailed });
+  first.unmount();
+
+  const second = render(() => useEditLock({ documentId, onLockLost: () => {} }));
+  for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+  assert.equal(posts, 2, "기억하지 않으므로 다시 마운트하면 다시 요청한다");
+  second.unmount();
+});
+
 function fakeTimers() {
   const timers = new Map();
   let next = 1;
