@@ -70,3 +70,12 @@ export function emailChangeFailure(error: unknown, fallback: string): EmailChang
   if (known) return { ...known };
   return { recovery: "retry", message: error instanceof Error && error.message ? error.message : fallback };
 }
+
+/**
+ * 인증번호 요청(POST /api/auth/email-verifications, purpose=email_change)의 실패 문구.
+ * 다른 계정이 쓰는 주소면 서버 원문(주소 포함) 대신 변경 단계와 같은 문구를 쓴다. 그 밖의 실패는 null(호출부 문구).
+ */
+export function emailCodeRequestFailureMessage(error: unknown): string | null {
+  const { code } = (error ?? {}) as { code?: unknown };
+  return code === "DUPLICATE_EMAIL" ? FAILURES.DUPLICATE_EMAIL.message : null;
+}

@@ -9,6 +9,7 @@ import {
   changeEmail,
   confirmEmailVerification,
   emailChangeFailure,
+  emailCodeRequestFailureMessage,
   fetchMfaStatus,
   getOAuthAuthorizationUrl,
   requestEmailVerification,
@@ -88,7 +89,8 @@ export function EmailChangeModal({
       setNow(Date.now());
       setRetryAt(Date.now() + result.retry_after * 1000);
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "인증번호를 보내지 못했습니다."));
+      // 다른 계정이 쓰는 주소(409 DUPLICATE_EMAIL)는 변경 단계와 같은 문구로 알리고 이메일 입력에 머문다.
+      setError(emailCodeRequestFailureMessage(cause) ?? getErrorMessage(cause, "인증번호를 보내지 못했습니다."));
     } finally {
       setBusy(false);
     }

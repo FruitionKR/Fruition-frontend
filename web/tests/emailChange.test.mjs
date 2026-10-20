@@ -13,7 +13,7 @@ registerHooks({
   }
 });
 
-const { buildEmailChangeBody, emailChangeFailure, parseRetryAfterSeconds } = await import("../src/entities/user/model/emailChange.ts");
+const { buildEmailChangeBody, emailChangeFailure, emailCodeRequestFailureMessage, parseRetryAfterSeconds } = await import("../src/entities/user/model/emailChange.ts");
 const { changeEmail } = await import("../src/entities/user/api/account.ts");
 const { saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/authSessionStorage.ts");
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
@@ -169,4 +169,12 @@ test("mock은 인증 토큰을 발급 주소·목적에 묶고, 이메일 변경
   assert.equal(response.status, 429);
   assert.equal(await codeOf(response), "PASSWORD_CHANGE_RATE_LIMITED");
   assert.ok(Number(response.headers.get("Retry-After")) > 0);
+});
+
+test("인증번호 요청의 409 DUPLICATE_EMAIL은 서버 원문 대신 변경 단계와 같은 문구로 보인다", () => {
+  const duplicate = Object.assign(new Error("이미 가입된 이메일입니다: email=other@example.com"), { code: "DUPLICATE_EMAIL", status: 409 });
+  assert.equal(emailCodeRequestFailureMessage(duplicate), "이미 다른 계정이 사용 중인 이메일입니다.");
+  assert.equal(emailCodeRequestFailureMessage(duplicate), emailChangeFailure(duplicate, "x").message);
+  assert.equal(emailCodeRequestFailureMessage(withCode("RATE_LIMITED", 429)), null, "다른 실패는 호출부 문구를 쓴다");
+  assert.equal(emailCodeRequestFailureMessage(null), null);
 });
