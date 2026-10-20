@@ -317,6 +317,12 @@ export function AgentPanel({
     agentTurn.submitAgentTurn(request, answerContext, activeSessionId, selectedModel, selectedPairIds, folderId);
   }
 
+  /** 계획 단계에서 실패한 작업(폴더 정리 등)을 같은 요청·대상 폴더로 다시 보낸다. */
+  function retryTask(request: string, folderId: string | null) {
+    if (isSubmitting || !activeSessionId || !selectedModel) return;
+    agentTurn.submitAgentTurn(request, taskContext, activeSessionId, selectedModel, selectedPairIds, folderId);
+  }
+
   function handleSubmit() {
     const question = composerValue.trim();
     const route = resolveSubmitRoute(activeView, question);
@@ -511,6 +517,7 @@ export function AgentPanel({
             onSaveRequestAsSkill={onSaveRequestAsSkill}
             onOpenFolderOrganize={onOpenFolderOrganize}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
+            onRetryTask={isSubmitting ? undefined : retryTask}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />

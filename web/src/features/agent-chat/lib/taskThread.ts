@@ -144,6 +144,7 @@ export function resolveTaskStatus({
   messageStatus,
   runStatus,
   operationCount = 0,
+  excludedCount = 0,
   hasActivePreview = false,
   isApplied = false,
   isRejected = false,
@@ -153,7 +154,10 @@ export function resolveTaskStatus({
   messageStatus: string;
   /** 폴더 정리 계획 run 상태. 아직 받지 못했으면 undefined */
   runStatus?: string;
+  /** 실행 완료된 계획에서 실제로 저장된 작업 수(summarizePlanOperationResults.applied) */
   operationCount?: number;
+  /** 고르지 않았거나 건너뛰어 저장하지 않은 작업 수 */
+  excludedCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
@@ -169,7 +173,7 @@ export function resolveTaskStatus({
     if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
     if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };
     if (runStatus === "clarification_required") return { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false };
-    if (runStatus === "completed") return { group: "done", label: `저장됨(${operationCount})`, tone: "primary", struck: false };
+    if (runStatus === "completed") return { group: "done", label: `저장됨(${operationCount})${excludedCount > 0 ? ` · 제외 ${excludedCount}` : ""}`, tone: "primary", struck: false };
     if (runStatus === "rejected") return { group: "done", label: "거절됨", tone: "danger", struck: true };
     if (runStatus === "cancelled") return { group: "done", label: "취소됨", tone: "danger", struck: true };
     if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: true };

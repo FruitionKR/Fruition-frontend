@@ -234,3 +234,63 @@ test("isSameWon compares amounts after rounding to won", () => {
   assert.equal(isSameWon(1_240_400, 1_239_600), true);
   assert.equal(isSameWon(1_240_400, 1_241_600), false);
 });
+
+test("estimateUsageCost caps a model's estimate at what that model was actually billed when usage runs ahead of charges", () => {
+  // Arrange: 청구는 1,000토큰에 2원까지만 반영됐는데 사용량 집계에는 1,500토큰이 이미 있다(청구 반영 지연).
+  const rows = [row({ known_input_tokens: 1200, known_output_tokens: 300 })];
+  const summary = charges([charge({ input_tokens: 1000, charge_krw_milli: 2000 })]);
+
+  // Act
+  const estimate = estimateUsageCost(rows, summary);
+
+  // Assert: 3원(3,000 milli)이 아니라 이 모델 청구액 2원까지만 보인다.
+  assert.equal(estimate.models["openai/gpt-6-luna"], 2000);
+  assert.equal(estimate.totalKrwMilli, 2000);
+  assert.equal(estimate.isCapped, true);
+});
+
+test("estimateUsageCost caps snapshot rows per response model and keeps other models untouched", () => {
+  const rows = [
+    row({ model: "gpt-6-luna", known_input_tokens: 300 }),
+    row({ model: "gpt-6-luna-2026-08-28", known_input_tokens: 100 }),
+    row({ provider: "claude", requested_model: "claude-haiku", model: "claude-haiku", known_input_tokens: 100 })
+  ];
+  const summary = charges([
+    charge({ model: "gpt-6-luna", input_tokens: 200, charge_krw_milli: 400 }),
+    charge({ model: "gpt-6-luna-2026-08-28", input_tokens: 100, charge_krw_milli: 200 }),
+    charge({ provider: "claude", model: "claude-haiku", input_tokens: 1000, charge_krw_milli: 3000 })
+  ]);
+
+  const estimate = estimateUsageCost(rows, summary);
+
+  // gpt-6-luna는 600 → 400으로 낮추고, 스냅샷 200은 그대로 더한다. claude는 300으로 청구액 안이다.
+  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 600, "claude/claude-haiku": 300 });
+  assert.equal(estimate.totalKrwMilli, 900);
+  assert.equal(estimate.isCapped, true);
+});
+
+test("estimateUsageCost caps the overall estimate at the account total and scales model rows to match", () => {
+  const rows = [
+    row({ known_input_tokens: 1000 }),
+    row({ provider: "claude", requested_model: "claude-haiku", model: "claude-haiku", known_input_tokens: 1000 })
+  ];
+  // 모델별 청구 합(4,000)보다 전체 청구(2,000)가 늦게 집계됐다.
+  const summary = charges([
+    charge({ input_tokens: 1000, charge_krw_milli: 1000 }),
+    charge({ provider: "claude", model: "claude-haiku", input_tokens: 1000, charge_krw_milli: 3000 })
+  ], 2000);
+
+  const estimate = estimateUsageCost(rows, summary);
+
+  assert.equal(estimate.totalKrwMilli, 2000);
+  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 500, "claude/claude-haiku": 1500 });
+  assert.equal(estimate.isCapped, true);
+  assert.ok(estimate.totalKrwMilli <= estimate.accountKrwMilli);
+});
+
+test("estimateUsageCost does not flag capping when the estimate stays within charges", () => {
+  const rows = [row({ known_input_tokens: 800, known_output_tokens: 200 })];
+  const summary = charges([charge({ input_tokens: 3000, output_tokens: 1000, charge_krw_milli: 8000 })]);
+
+  assert.equal(estimateUsageCost(rows, summary).isCapped, false);
+});

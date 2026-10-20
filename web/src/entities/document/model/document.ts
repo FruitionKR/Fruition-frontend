@@ -43,6 +43,8 @@ export type DocumentItemResponse = DocumentUploadResponse & {
   permission?: DocumentPermission | null;
   /** 마지막으로 본문을 저장한 사용자 ID */
   updated_by?: string | null;
+  /** 문서를 처음 만든 AI 경로. chat_export(채팅 Wiki page화 문서)는 확인 전용이라 본문을 편집할 수 없다. */
+  ai_origin?: "agent" | "meeting_notes" | "chat_export" | null;
 };
 
 export type DocumentListResponse = {

@@ -15,7 +15,7 @@ import arrowIcon from "@/shared/assets/svg/agent/organize-arrow.svg";
 import cancelIcon from "@/shared/assets/svg/agent/organize-cancel.svg";
 import applyIcon from "@/shared/assets/svg/agent/organize-apply.svg";
 import noticeTailIcon from "@/shared/assets/svg/agent/organize-notice-tail.svg";
-import { agentPlanStatusLabel, canApproveAgentPlan } from "../lib/agentPlan";
+import { agentPlanStatusLabel, canApproveAgentPlan, splitPlanSummary } from "../lib/agentPlan";
 import { describeTaskRequest } from "../lib/taskThread";
 import {
   buildFolderOrganizeView,
@@ -75,7 +75,9 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
   const canApply = ready && isSelectionValid;
   const duplicateDeselected = approval?.duplicateExcludedCount ?? 0;
   const ruleText = run?.rule_summary?.trim().normalize("NFC") || rule;
-  const description = ruleText ? `규칙: ${ruleText}` : plan?.summary.normalize("NFC") ?? "";
+  // 범위 밖 작업을 뺐다는 안내는 한 줄로 잘리는 설명과 따로 보여 준다.
+  const planSummary = splitPlanSummary(plan?.summary);
+  const description = ruleText ? `규칙: ${ruleText}` : planSummary.body;
 
   function toggleRow(id: string) {
     const next = new Set(deselectedIds);
@@ -106,9 +108,10 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
           </span>
           {description && <>
             <Image src={dividerIcon} alt="" className={styles.divider} />
-            <p className={styles.rule}>{description}</p>
+            <p className={styles.rule} title={description}>{description}</p>
           </>}
         </div>
+        {planSummary.scopeNote && <p className={styles["scope-note"]} role="status">{planSummary.scopeNote}</p>}
       </header>
 
       <div className={styles.body}>

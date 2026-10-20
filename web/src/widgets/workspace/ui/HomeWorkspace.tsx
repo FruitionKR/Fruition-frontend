@@ -43,7 +43,7 @@ import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest"
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
-import { isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
+import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { uploadDocumentFile } from "@/entities/document";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
@@ -190,6 +190,11 @@ export function HomeWorkspace() {
   // 서버 can_edit=false인 문서만 읽기 전용이다. 목록에서 아직 못 찾았거나 구 서버 응답이면 편집 가능으로 본다.
   const isSelectedDocumentReadOnly = useMemo(
     () => isDocumentReadOnly(documents.find((item) => item.id === selection.selectedDocumentId)),
+    [documents, selection.selectedDocumentId]
+  );
+  // 채팅 Wiki page화 문서는 권한과 무관하게 본문 편집기(편집 잠금)를 열지 않는다.
+  const isSelectedDocumentBodyLocked = useMemo(
+    () => isDocumentBodyLocked(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
   );
   const selectedDocumentConversion = useMemo(
@@ -506,6 +511,7 @@ export function HomeWorkspace() {
             onRefreshDocuments={() => void refreshBackendData()}
             documentStatus={selectedDocumentStatus}
             readOnly={isSelectedDocumentReadOnly}
+            bodyLocked={isSelectedDocumentBodyLocked}
             documentConversion={selectedDocumentConversion}
             titleHint={`${selectedDocumentParentLabel} / ${selectedDocumentLabel}`}
             titleSuffix={selection.selectedDocumentId ? documentPathSuffixes.get(selection.selectedDocumentId) : undefined}

@@ -76,6 +76,11 @@ test("폴더 정리 run 상태를 Figma 묶음·문구로 바꾼다", () => {
   assert.deepEqual(plan("awaiting_approval"), { group: "approval", label: "승인 대기", tone: "primary", struck: false });
   assert.deepEqual(plan("executing"), { group: "running", label: "실행 중", tone: "primary", struck: false });
   assert.deepEqual(plan("completed", 5), { group: "done", label: "저장됨(5)", tone: "primary", struck: false });
+  // 4개 중 1개를 고르지 않았으면 저장된 3개만 세고 제외 수를 덧붙인다.
+  assert.deepEqual(
+    resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "completed", operationCount: 3, excludedCount: 1 }),
+    { group: "done", label: "저장됨(3) · 제외 1", tone: "primary", struck: false }
+  );
   assert.deepEqual(plan("rejected"), { group: "done", label: "거절됨", tone: "danger", struck: true });
   assert.deepEqual(plan("clarification_required"), { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false });
   assert.deepEqual(plan("partial_failed"), { group: "failed", label: "일부 작업 실패", tone: "danger", struck: true });

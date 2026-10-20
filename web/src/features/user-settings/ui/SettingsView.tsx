@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fetchAiModels,
   fetchWorkspaceAiModelSettings,
@@ -105,9 +105,21 @@ export function SettingsNav({
   const { signOut } = useSignOut();
   const { data: me } = useMe();
   const name = me?.display_name || "사용자";
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // 뒤로 가기·본문 안 이동처럼 메뉴를 누르지 않고 섹션이 바뀌면, 전에 누른 메뉴에 포커스가 남는다.
+  // 그 상태로 키보드로 스크롤하면 그 메뉴가 :focus-visible 배경을 받아 활성 메뉴와 함께 강조돼 보이므로
+  // 포커스를 활성 메뉴로 옮겨 강조되는 메뉴를 하나로 맞춘다.
+  useEffect(() => {
+    const nav = navRef.current;
+    const focused = document.activeElement;
+    if (!nav || !(focused instanceof HTMLElement) || !nav.contains(focused)) return;
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    if (active && active !== focused) active.focus({ preventScroll: true });
+  }, [activeSection]);
 
   return (
-    <nav className={styles.nav} aria-label="설정 메뉴">
+    <nav ref={navRef} className={styles.nav} aria-label="설정 메뉴">
       <div className={styles["nav-group"]}>
         <p className={styles["nav-label"]}>계정</p>
         {/* 사용자 설정: 프로필 사진(없으면 이니셜)을 아이콘 자리에 보여 준다 */}

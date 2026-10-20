@@ -396,6 +396,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
+    if (doc.ai_origin === "chat_export") return error(ctx, 400, "채팅 Wiki page화 문서는 편집할 수 없습니다.", "INVALID_MARKDOWN_CONTENT");
     const current = activeEditLock(doc.id);
     if (current && current.holder_user_id !== ctx.user.id) return ctx.json(423, withLockTtl(current));
     const lock = {

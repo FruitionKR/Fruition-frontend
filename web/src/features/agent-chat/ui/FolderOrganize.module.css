@@ -108,6 +108,15 @@
   white-space: nowrap;
 }
 
+/* AI가 대상 폴더 밖 작업을 뺐다는 안내. 설명 줄은 한 줄로 잘리므로 따로 줄바꿈해 끝까지 보인다 */
+.scope-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .body {
   display: flex;
   flex-direction: column;

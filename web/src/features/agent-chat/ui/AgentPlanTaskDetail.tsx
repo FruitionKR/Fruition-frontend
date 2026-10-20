@@ -6,7 +6,7 @@ import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isOperationNotSelected, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isOperationNotSelected, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import { cx } from "@/shared/lib/classNames";
@@ -54,6 +54,7 @@ export function AgentPlanTaskDetail({
   runError,
   isRunFetching,
   onRefetch,
+  onRetry,
   onOpenPreview
 }: {
   turnId: string | null;
@@ -62,6 +63,8 @@ export function AgentPlanTaskDetail({
   runError: unknown;
   isRunFetching: boolean;
   onRefetch: () => void;
+  /** 계획 단계에서 실패한 요청을 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
+  onRetry?: () => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭(Figma 1656:11542)으로 연다. 항목별로 골라 적용할 수 있다. */
   onOpenPreview?: () => void;
 }) {
@@ -104,21 +107,26 @@ export function AgentPlanTaskDetail({
   const ready = canDecide && Boolean(tree.data) && !runError && !tree.error && (approval?.canApply ?? true);
   const clarificationMessage = agentPlanClarificationMessage(run);
   const busy = mutation.isPending || isRunFetching || tree.isFetching;
-  const isFailed = run !== null && ["failed", "partial_failed", "conflicted", "rollback_failed"].includes(run.status);
+  const failureMessage = agentPlanFailureMessage(run);
+  const isFailed = failureMessage !== null;
+  const canRetry = Boolean(onRetry) && canRetryAgentPlanRun(run);
+  // AI가 대상 폴더 밖 작업을 뺐다는 안내는 접힌 상세 보기가 아니라 카드에 바로 보인다.
+  const planSummary = splitPlanSummary(plan?.summary);
   const note = clarificationMessage
-    ?? (isFailed ? "작업을 완료하지 못했습니다. 상세 보기에서 항목별 상태를 확인해주세요." : null)
+    ?? failureMessage
     ?? (canDecide ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null);
 
   return (
     <div className={styles["task-plan"]} aria-label={action === "folder_organize" ? "폴더 정리 계획" : "워크스페이스 작업 계획"}>
       {plan && <>
         {preview?.summary && <p className={styles["plan-counts"]}>{preview.summary}</p>}
+        {planSummary.scopeNote && <p className={styles["task-card-meta"]} role="status">{planSummary.scopeNote}</p>}
         <div className={styles["plan-tree-region"]} aria-label="정리 후 폴더 구조">
           <PlanTree nodes={preview?.nodes ?? []} />
         </div>
         <details className={styles["plan-details"]}>
           <summary>상세 보기</summary>
-          <p>{plan.summary.normalize("NFC")}</p>
+          {planSummary.body && <p>{planSummary.body}</p>}
           <ol>
             {operations.map((operation) => (
               <li key={operation.id}>
@@ -141,6 +149,14 @@ export function AgentPlanTaskDetail({
         </div>
       )}
       {canDecide && approvalHint && <p className={cx(styles["task-card-meta"], styles["task-decision-hint"])} role="status">{approvalHint}</p>}
+      {canRetry && !canDecide && (
+        <div className={styles["task-actions"]}>
+          <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onRetry}>
+            <AgentAssetIcon src={taskBoltIcon} size={12} />
+            다시 시도
+          </button>
+        </div>
+      )}
       {(canDecide || (error && turnId)) && (
         // 거절·수락 (Figma 1671:13230): 오른쪽 정렬, 빨강·주 색 바탕
         <div className={styles["task-decisions"]}>

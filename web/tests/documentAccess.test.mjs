@@ -15,6 +15,7 @@ const {
   READ_ONLY_DOCUMENT_TITLE,
   canDeleteDocument,
   describePermissionError,
+  isDocumentBodyLocked,
   isDocumentReadOnly,
   isWriteForbiddenError,
   permissionChangedMessage,
@@ -112,4 +113,12 @@ test("권한 저장 알림은 이름 뒤 조사 없이 바뀐 값을 알려 준�
   assert.equal(permissionChangedMessage("팀 규칙.md", "view"), "'팀 규칙.md' 권한을 보기만 가능으로 바꿨습니다.");
   assert.equal(permissionChangedMessage("기획", "edit"), "'기획' 권한을 편집 가능으로 바꿨습니다.");
   assert.equal(permissionChangedMessage("기획", null), "'기획' 권한을 상위 설정 따름으로 바꿨습니다.");
+});
+
+test("채팅 Wiki page화 문서(ai_origin=chat_export)만 권한과 무관하게 본문을 잠근다", () => {
+  assert.equal(isDocumentBodyLocked({ can_edit: true, ai_origin: "chat_export" }), true);
+  assert.equal(isDocumentBodyLocked({ can_edit: true, ai_origin: "agent" }), false);
+  assert.equal(isDocumentBodyLocked({ can_edit: true, ai_origin: null }), false);
+  assert.equal(isDocumentBodyLocked({ can_edit: true }), false, "구 서버 응답은 편집 가능으로 본다");
+  assert.equal(isDocumentBodyLocked(undefined), false, "목록에서 아직 못 찾은 문서는 편집 잠금 응답으로 판단한다");
 });

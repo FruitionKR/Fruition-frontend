@@ -14,7 +14,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
-import { READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_MESSAGE, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
+import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
@@ -56,6 +56,7 @@ export function SourcePreviewPanel({
   documentStatus,
   documentConversion = null,
   readOnly = false,
+  bodyLocked = false,
   titleHint,
   titleSuffix,
   fillMain = false
@@ -77,6 +78,8 @@ export function SourcePreviewPanel({
   documentConversion?: DocumentConversionView | null;
   /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경을 막는다. */
   readOnly?: boolean;
+  /** 권한과 무관하게 본문을 고칠 수 없는 문서(채팅 Wiki page화 문서). 편집기·편집 잠금 없이 읽기 전용 본문만 보여준다. 이름 변경은 readOnly를 따른다. */
+  bodyLocked?: boolean;
   /** 제목 hover 설명(상위 폴더 경로 등). 없으면 제목을 쓴다 */
   titleHint?: string;
   /** 같은 이름의 문서를 구분하는 폴더 경로(#150). 그래프 노드 라벨과 같은 `이름 · 폴더/경로` 형식으로 보여준다. */
@@ -150,7 +153,11 @@ export function SourcePreviewPanel({
     ? "저장 안 됨 · Cmd/Ctrl+S"
     : SAVE_STATUS_LABELS[noteSaveStatus];
   // 읽기 전용 노트: 저장 상태 대신 배지를 보여주고 편집기를 열지 않는다.
-  const isReadOnlyNote = isMarkdownFile && readOnly;
+  const isBodyReadOnly = readOnly || bodyLocked;
+  const isReadOnlyNote = isMarkdownFile && isBodyReadOnly;
+  // 보기 권한이 없으면 권한 안내를, 채팅 Wiki page화 문서면 확인 전용 안내를 보여준다.
+  const readOnlyTitle = readOnly ? READ_ONLY_DOCUMENT_TITLE : CHAT_EXPORT_READ_ONLY_TITLE;
+  const readOnlyHint = readOnly ? READ_ONLY_DOCUMENT_HINT : CHAT_EXPORT_READ_ONLY_HINT;
   const editableNote = useMemo(() => {
     if (rawMarkdown === null || !documentId) return null;
     const split = splitEditableNoteMarkdown(rawMarkdown) ?? {
@@ -160,7 +167,7 @@ export function SourcePreviewPanel({
     return { ...split, body: stripPageComments(split.body) };
   }, [documentId, rawMarkdown]);
   // 편집기로 연 이 문서의 편집 제안만 본문에 붙인다.
-  const activeEditReview = editReview && isMarkdownFile && !readOnly && editableNote && editReview.documentId === documentId
+  const activeEditReview = editReview && isMarkdownFile && !isBodyReadOnly && editableNote && editReview.documentId === documentId
     ? editReview
     : null;
 
@@ -444,7 +451,7 @@ export function SourcePreviewPanel({
       {!isPdfFile && (
         <div className={styles["source-preview-actions"]}>
           {isReadOnlyNote && (
-            <span className={styles["source-preview-readonly-badge"]} title={READ_ONLY_DOCUMENT_MESSAGE}>읽기 전용</span>
+            <span className={styles["source-preview-readonly-badge"]} title={`${readOnlyTitle}\n${readOnlyHint}`}>읽기 전용</span>
           )}
           {!isReadOnlyNote && saveStatusLabel && (
             <span
@@ -554,14 +561,14 @@ export function SourcePreviewPanel({
         {isReadOnlyNote && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && (
           <>
             <p className={styles["source-preview-readonly-notice"]} role="status">
-              <span>{READ_ONLY_DOCUMENT_TITLE}</span>
-              <span>{READ_ONLY_DOCUMENT_HINT}</span>
+              <span>{readOnlyTitle}</span>
+              <span>{readOnlyHint}</span>
             </p>
             <MarkdownViewer markdown={editableNote.body} />
           </>
         )}
         {activeEditReview && <InlineEditReview review={activeEditReview} />}
-        {isMarkdownFile && !readOnly && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
+        {isMarkdownFile && !isBodyReadOnly && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && documentId && (
           // 검토 중에는 편집기를 숨기되 마운트해 둔다. 수락하면 이 편집기로 적용·저장한다.
           <div className={styles["source-preview-editor-slot"]} hidden={Boolean(activeEditReview)}>
           <DynamicNoteEditor

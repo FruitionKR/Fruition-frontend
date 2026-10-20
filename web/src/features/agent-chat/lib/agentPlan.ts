@@ -163,6 +163,70 @@ export function isOperationNotSelected(operation: Pick<AgentPlanOperation, "stat
   return operation.status === "skipped" && operation.error_code === "not_selected";
 }
 
+const SUCCEEDED_OPERATION_STATUSES = new Set(["succeeded", "completed"]);
+const PENDING_OPERATION_STATUSES = new Set(["pending", "planned"]);
+
+export type PlanOperationResults = {
+  /** 실제로 저장(적용)된 작업 */
+  applied: number;
+  /** 고르지 않았거나 건너뛴 작업(skipped, not_selected 포함) */
+  excluded: number;
+  /** 실패·충돌·권한 없음 등으로 저장되지 않은 작업 */
+  failed: number;
+};
+
+/**
+ * 실행이 끝난 계획에서 실제로 저장된 작업 수를 센다. 계획 전체 작업 수가 아니라 결과 기준이다.
+ * 결과 상태가 하나도 없는 응답(승인 직후 캐시처럼 아직 planned)은 고르지 않은 작업만 빼고 저장으로 본다.
+ */
+export function summarizePlanOperationResults(operations: ReadonlyArray<Pick<AgentPlanOperation, "status" | "error_code">>): PlanOperationResults {
+  const excluded = operations.filter((operation) => operation.status === "skipped").length;
+  const hasResults = operations.some((operation) => operation.status !== "skipped" && !PENDING_OPERATION_STATUSES.has(operation.status));
+  if (!hasResults) return { applied: operations.length - excluded, excluded, failed: 0 };
+  const applied = operations.filter((operation) => SUCCEEDED_OPERATION_STATUSES.has(operation.status)).length;
+  return { applied, excluded, failed: operations.length - excluded - applied };
+}
+
+/** 실행 실패(run error_code)별 안내. AI는 예외 원문 없이 코드만 내려준다(ai failure_codes). */
+const PLAN_FAILURE_MESSAGES: Record<string, string> = {
+  plan_out_of_scope: "선택한 폴더 밖으로 옮기는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요.",
+  input_rejected: "AI가 만든 계획이 검증을 통과하지 못해 정리 계획을 만들지 못했어요. 규칙을 조정하거나 다시 시도해 주세요.",
+  provider_rate_limited: "AI 요청이 많아 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+  provider_unavailable: "AI 서비스에 연결하지 못해 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+  deadline_exceeded: "계획을 만드는 데 너무 오래 걸려 중단했어요. 다시 시도해 주세요."
+};
+const PLAN_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 다시 시도해 주세요.";
+const PLAN_EXECUTION_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 상세 보기에서 항목별 상태를 확인해주세요.";
+const FAILED_PLAN_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
+
+/** 실패한 run이면 카드에 보일 이유, 아니면 null. 알려진 코드는 원인별 문구, 모르는 코드는 기본 안내를 쓴다. */
+export function agentPlanFailureMessage(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined): string | null {
+  if (!run || !FAILED_PLAN_RUN_STATUSES.has(run.status)) return null;
+  const known = run.error_code ? PLAN_FAILURE_MESSAGES[run.error_code] : undefined;
+  if (known) return known;
+  // 계획이 있으면 항목별 결과를 상세 보기에서 볼 수 있다.
+  return run.plan ? PLAN_EXECUTION_FAILURE_FALLBACK : PLAN_FAILURE_FALLBACK;
+}
+
+/**
+ * 계획을 세우는 단계에서 실패해 실행된 작업이 없는 run인지. 같은 요청을 다시 보내도 중복 변경이 생기지 않아
+ * "다시 시도"를 보여 준다. 일부 실행 뒤 실패(partial_failed 등)는 다시 보내면 이미 옮긴 항목이 또 바뀔 수 있어 제외한다.
+ */
+export function canRetryAgentPlanRun(run: Pick<AgentPlanRun, "status" | "plan"> | null | undefined): boolean {
+  return run?.status === "failed" && !run.plan;
+}
+
+/** AI가 대상 폴더 밖 작업을 계획에서 뺐을 때 요약 끝에 붙이는 문장(ai folder_organize). */
+const OUT_OF_SCOPE_NOTE_PATTERN = /\s*대상 폴더 밖으로 옮기는 작업 \d+개는 계획에서 뺐어요\.?/;
+
+/** 계획 요약을 본문과 범위 밖 제외 안내로 나눈다. 안내는 요약이 한 줄로 잘려도 보이도록 따로 보여 준다. */
+export function splitPlanSummary(summary: string | null | undefined): { body: string; scopeNote: string | null } {
+  const text = (summary ?? "").normalize("NFC");
+  const match = OUT_OF_SCOPE_NOTE_PATTERN.exec(text);
+  if (!match) return { body: text.trim(), scopeNote: null };
+  return { body: (text.slice(0, match.index) + text.slice(match.index + match[0].length)).trim(), scopeNote: match[0].trim() };
+}
+
 export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boolean {
   return run?.status === "awaiting_approval" && run.plan?.status === "awaiting_approval";
 }

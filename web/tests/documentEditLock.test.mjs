@@ -20,6 +20,7 @@ const {
   EditLockDeniedError,
   EditLockHeldError,
   EditLockLostError,
+  EditLockUnsupportedError,
   acquireEditLock,
   releaseEditLock,
   sendEditLockHeartbeat
@@ -565,4 +566,38 @@ test("절전 직후 오프라인이어도 서버 TTL이 지났으면 재시도 �
   for (let elapsed = 0; elapsed < 60_000; elapsed += HEARTBEAT_RETRY_MS) await advance(t, HEARTBEAT_RETRY_MS);
 
   assert.ok(acquires.length >= 2, `만료가 지나면 재획득으로 확인한다 (acquires=${acquires.length})`);
+});
+
+test("편집 잠금을 쓸 수 없는 문서(400)는 서버 문구를 담고, 다시 마운트해도 재요청하지 않는다", async (t) => {
+  workspaceEnv(t);
+  const documentId = "chatdoc_lock_unsupported";
+  let posts = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    posts++;
+    return Response.json(
+      { error: { code: "INVALID_MARKDOWN_CONTENT", message: "채팅 Wiki page화 문서는 편집할 수 없습니다." } },
+      { status: 400 }
+    );
+  });
+  await assert.rejects(acquireEditLock(documentId), (error) => {
+    assert.ok(error instanceof EditLockUnsupportedError);
+    assert.ok(error instanceof EditLockDeniedError, "권한 오류처럼 기다려도 달라지지 않는 실패로 다룬다");
+    assert.equal(error.message, "채팅 Wiki page화 문서는 편집할 수 없습니다.");
+    return true;
+  });
+  posts = 0;
+
+  const first = render(() => useEditLock({ documentId, onLockLost: () => {} }));
+  for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+  first.rerender();
+  assert.equal(posts, 1);
+  assert.deepEqual(first.result, { phase: "error", message: "채팅 Wiki page화 문서는 편집할 수 없습니다." });
+  first.unmount();
+
+  // 본문 재로드 등으로 편집기가 다시 마운트돼도 같은 400을 반복 요청하지 않는다.
+  const second = render(() => useEditLock({ documentId, onLockLost: () => {} }));
+  for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+  assert.equal(posts, 1);
+  assert.deepEqual(second.result, { phase: "error", message: "채팅 Wiki page화 문서는 편집할 수 없습니다." });
+  second.unmount();
 });

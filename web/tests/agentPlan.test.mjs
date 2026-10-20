@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanClarificationMessage, agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -165,4 +165,56 @@ test("명확화 요청이면 AI가 되물은 질문을 보이고, 질문이 없�
   }
   assert.equal(agentPlanClarificationMessage({ status: "failed", clarification_question: question, plan: null }), null);
   assert.equal(agentPlanClarificationMessage(undefined), null);
+});
+
+test("완료된 계획은 실제로 저장된 작업만 세고 고르지 않은·실패한 작업은 따로 센다", () => {
+  const op = (status, error_code = null) => ({ status, error_code });
+  assert.deepEqual(
+    summarizePlanOperationResults([op("succeeded"), op("succeeded"), op("completed"), op("skipped", "not_selected")]),
+    { applied: 3, excluded: 1, failed: 0 }
+  );
+  assert.deepEqual(
+    summarizePlanOperationResults([op("succeeded"), op("failed"), op("skipped", "not_selected")]),
+    { applied: 1, excluded: 1, failed: 1 }
+  );
+  // 승인 직후 캐시처럼 결과 상태가 아직 없으면 고르지 않은 작업만 뺀다.
+  assert.deepEqual(
+    summarizePlanOperationResults([op("planned"), op("planned"), op("skipped", "not_selected")]),
+    { applied: 2, excluded: 1, failed: 0 }
+  );
+  assert.deepEqual(summarizePlanOperationResults([]), { applied: 0, excluded: 0, failed: 0 });
+});
+
+test("실패한 run은 error_code별 이유를 보여 주고 모르는 코드는 기본 안내를 쓴다", () => {
+  const failed = (error_code, plan = null) => ({ status: "failed", error_code, plan });
+  assert.equal(
+    agentPlanFailureMessage(failed("plan_out_of_scope")),
+    "선택한 폴더 밖으로 옮기는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요."
+  );
+  assert.match(agentPlanFailureMessage(failed("input_rejected")), /검증을 통과하지 못해.*다시 시도해 주세요/);
+  assert.match(agentPlanFailureMessage(failed("provider_rate_limited")), /잠시 후 다시 시도/);
+  assert.match(agentPlanFailureMessage(failed("provider_unavailable")), /연결하지 못해/);
+  assert.match(agentPlanFailureMessage(failed("deadline_exceeded")), /오래 걸려/);
+  assert.equal(agentPlanFailureMessage(failed("internal_error")), "작업을 완료하지 못했습니다. 다시 시도해 주세요.");
+  assert.equal(agentPlanFailureMessage(failed(null)), "작업을 완료하지 못했습니다. 다시 시도해 주세요.");
+  assert.match(agentPlanFailureMessage({ status: "partial_failed", error_code: null, plan }), /상세 보기에서 항목별 상태/);
+  assert.equal(agentPlanFailureMessage({ status: "completed", error_code: null, plan }), null);
+  assert.equal(agentPlanFailureMessage(null), null);
+});
+
+test("계획 단계에서 실패해 실행된 작업이 없는 run만 다시 시도할 수 있다", () => {
+  assert.equal(canRetryAgentPlanRun({ status: "failed", plan: null }), true);
+  assert.equal(canRetryAgentPlanRun({ status: "failed", plan }), false, "실행 중 실패는 다시 보내면 중복 변경이 생길 수 있다");
+  assert.equal(canRetryAgentPlanRun({ status: "partial_failed", plan: null }), false);
+  assert.equal(canRetryAgentPlanRun({ status: "completed", plan: null }), false);
+  assert.equal(canRetryAgentPlanRun(null), false);
+});
+
+test("계획 요약 끝의 범위 밖 제외 안내를 따로 떼어 낸다", () => {
+  assert.deepEqual(
+    splitPlanSummary("회의록 3개를 날짜 폴더로 옮깁니다. 대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요."),
+    { body: "회의록 3개를 날짜 폴더로 옮깁니다.", scopeNote: "대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요." }
+  );
+  assert.deepEqual(splitPlanSummary("문서 2개 이동"), { body: "문서 2개 이동", scopeNote: null });
+  assert.deepEqual(splitPlanSummary(undefined), { body: "", scopeNote: null });
 });

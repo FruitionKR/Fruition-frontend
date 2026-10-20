@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { SessionExpiredError } from "@/shared/lib/apiErrors";
-import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
+import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, EditLockUnsupportedError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
 import { HEARTBEAT_RETRY_MS, resolveHeartbeatDelayMs, resolveHeartbeatFailure, resolveLockElapsedMs, resolveLockRemainingMs, type LockClockAnchor } from "./editLockSchedule";
 
 type EditLockPhase =
@@ -24,6 +24,12 @@ type EditLockState = {
 };
 
 /**
+ * 편집 잠금을 쓸 수 없다고 서버가 답한 문서(400)와 그 안내 문구.
+ * 편집기가 다시 마운트돼도(본문 재로드·목록 갱신) 같은 400을 반복 요청하지 않는다.
+ */
+const unsupportedLockDocuments = new Map<string, string>();
+
+/**
  * 문서 편집 잠금을 진입 시 획득하고, 편집 중 주기적으로 연장하고, 종료 시 해제한다.
  * heartbeat가 409를 받으면 재획득을 시도하고, 그래도 받지 못하면 onLockLost로 autosave를 멈춘다.
  */
@@ -35,11 +41,19 @@ export function useEditLock({
   /** 잠금을 잃어 더 이상 저장해서는 안 될 때. useNoteAutosave의 reportSaveBlock에 연결한다. */
   onLockLost: (message: string) => void;
 }): EditLockState {
-  const [state, setState] = useState<EditLockState>({ phase: "acquiring", message: null });
+  const [state, setState] = useState<EditLockState>(() => {
+    const unsupported = unsupportedLockDocuments.get(documentId);
+    return unsupported ? { phase: "error", message: unsupported } : { phase: "acquiring", message: null };
+  });
   const onLockLostRef = useRef(onLockLost);
   onLockLostRef.current = onLockLost;
 
   useEffect(() => {
+    const unsupported = unsupportedLockDocuments.get(documentId);
+    if (unsupported) {
+      setState({ phase: "error", message: unsupported });
+      return;
+    }
     let disposed = false;
     let holding = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -167,6 +181,7 @@ export function useEditLock({
         scheduleHeartbeat(lock, initialSentAt);
       },
       (error) => {
+        if (error instanceof EditLockUnsupportedError) unsupportedLockDocuments.set(documentId, error.message);
         if (disposed) return;
         setState(
           error instanceof EditLockHeldError

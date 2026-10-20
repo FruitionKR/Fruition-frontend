@@ -1,4 +1,4 @@
-import { apiFetch, ERROR_MESSAGES, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
+import { apiFetch, ERROR_MESSAGES, getWorkspaceId, parseApiError, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import { describeEditLockHolder } from "../model/editLockSchedule";
 
 /** 편집 잠금 상태. 잠금이 없으면 필드 자체가 빠진다. */
@@ -27,6 +27,12 @@ export class EditLockLostError extends Error {}
 /** 잠글 수 없는 문서다(403 권한 없음·404 없음). 네트워크 오류와 달리 기다려도 달라지지 않는다. */
 export class EditLockDeniedError extends Error {}
 
+/**
+ * 편집 잠금을 쓸 수 없는 문서다(400 INVALID_MARKDOWN_CONTENT: 채팅 Wiki page화 문서·Markdown이 아닌 문서).
+ * 권한과 달리 문서 성격이라 다시 열어도 달라지지 않으므로 같은 문서에 다시 요청하지 않는다.
+ */
+export class EditLockUnsupportedError extends EditLockDeniedError {}
+
 function editLockPath(documentId: string): string {
   return `${workspacePath(getWorkspaceId(), "documents", documentId)}/edit-lock`;
 }
@@ -42,6 +48,9 @@ export async function acquireEditLock(documentId: string): Promise<EditLockRespo
   }
   if (response.status === 403) throw new EditLockDeniedError(ERROR_MESSAGES.editLockForbidden);
   if (response.status === 404) throw new EditLockDeniedError(ERROR_MESSAGES.editLockMissing);
+  if (response.status === 400) {
+    throw new EditLockUnsupportedError((await parseApiError(response, ERROR_MESSAGES.editLockUnsupported)).message);
+  }
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }
 

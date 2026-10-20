@@ -7,7 +7,7 @@ import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
-import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
+import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import type { FolderOrganizeRequest } from "../lib/folderOrganize";
@@ -119,7 +119,8 @@ export function AgentTaskBody({
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
   onShortenActivePreview,
-  onAnswerSkillQuestion
+  onAnswerSkillQuestion,
+  onRetryTask
 }: {
   items: TaskMessageItem[];
   /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
@@ -142,6 +143,8 @@ export function AgentTaskBody({
   onShortenActivePreview?: () => void;
   /** 스킬 되묻기(새 문서·문서 수정)에 고른 답(`/slug …`)을 같은 대상으로 보낸다. 없으면 선택 버튼을 숨긴다. */
   onAnswerSkillQuestion?: (request: string, createsDocument: boolean) => void;
+  /** 계획 단계에서 실패한 작업을 같은 요청·대상 폴더로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
+  onRetryTask?: (request: string, folderId: string | null) => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -177,11 +180,14 @@ export function AgentTaskBody({
   const entries: TaskEntry[] = items.map((item, index) => {
     const query = runsByKey.get(item.key);
     const run = query?.data ?? null;
+    // 계획 전체 수가 아니라 실제로 저장된 작업만 센다(고르지 않은·실패한 작업 제외).
+    const results = summarizePlanOperationResults(run?.plan?.operations ?? []);
     const status = resolveTaskStatus({
       action: item.action,
       messageStatus: item.messageStatus,
       runStatus: run?.status,
-      operationCount: run?.plan?.operations.length ?? 0,
+      operationCount: results.applied,
+      excludedCount: results.excluded,
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
@@ -223,6 +229,9 @@ export function AgentTaskBody({
           runError={entry.runError}
           isRunFetching={entry.isRunFetching}
           onRefetch={entry.refetchRun}
+          onRetry={onRetryTask && item.request
+            ? () => onRetryTask(item.request, entry.run?.target_folder_id ?? null)
+            : undefined}
           onOpenPreview={item.action === "folder_organize" && item.turnId && onOpenFolderOrganize
             ? () => onOpenFolderOrganize({ turnId: item.turnId!, question: entry.request })
             : undefined}

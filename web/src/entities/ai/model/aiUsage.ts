@@ -218,6 +218,11 @@ export type UsageCostEstimate = {
   accountKrwMilli: number;
   /** 단가가 없거나 아직 청구가 집계되지 않아 예상에서 빠진 사용량이 있다 */
   hasUnpriced: boolean;
+  /**
+   * 예상이 실제 청구를 넘어 청구액으로 낮췄다. 사용량 집계가 청구 집계보다 앞서(청구 반영 지연)
+   * 이 워크스페이스 사용량이 모든 워크스페이스 청구보다 커 보일 때다.
+   */
+  isCapped: boolean;
 };
 
 /**
@@ -225,32 +230,62 @@ export type UsageCostEstimate = {
  * 청구는 워크스페이스를 가로질러 합쳐 오므로 같은 응답 모델(provider + model)의 평균 단가를 빌려 쓴다.
  * 입력·출력 비율이 워크스페이스마다 다르면 실제와 조금 다를 수 있어 "예상"이다.
  * 모든 호출이 단가 없음이거나, 토큰 없이 음성·글자로만 매겨진 줄, 아직 청구가 집계되지 않은 모델은 평균 단가를 만들 수 없다.
+ *
+ * 사용량(usage/models)은 청구(usage/charges)보다 먼저 집계돼, 아직 청구되지 않은 호출까지 세면 예상이 실제 청구를 넘을 수 있다.
+ * 한 워크스페이스 몫은 모든 워크스페이스 청구를 넘을 수 없으므로, 응답 모델별 예상은 그 모델의 청구액까지,
+ * 합계는 전체 청구액까지 비율을 유지한 채 낮추고 isCapped로 알린다.
  */
 export function estimateUsageCost(rows: readonly ModelUsageRow[], charges: ChargeSummaryResponse): UsageCostEstimate {
-  const rates = new Map<string, number>();
+  const rates = new Map<string, { rate: number; chargedKrwMilli: number }>();
   let hasUnpriced = false;
   for (const charge of charges.models ?? []) {
     const tokens = count(charge.input_tokens) + count(charge.output_tokens);
     const calls = count(charge.calls);
     const unpriced = count(charge.unpriced_calls);
     if (unpriced > 0) hasUnpriced = true;
-    if (tokens > 0 && unpriced < calls) rates.set(`${charge.provider}/${charge.model}`, count(charge.charge_krw_milli) / tokens);
+    if (tokens > 0 && unpriced < calls) {
+      const chargedKrwMilli = count(charge.charge_krw_milli);
+      rates.set(`${charge.provider}/${charge.model}`, { rate: chargedKrwMilli / tokens, chargedKrwMilli });
+    }
   }
+  // 응답 모델(단가 키)별 예상과, 그 예상이 들어갈 표 줄 키별 몫
+  const contributions: { key: string; rateKey: string; amount: number }[] = [];
   const models: Record<string, number | null> = {};
   for (const row of rows) {
     const tokens = count(row.known_input_tokens) + count(row.known_output_tokens);
     if (tokens === 0) continue;
     const key = summaryKey(row);
-    const rate = rates.get(`${row.provider}/${row.model}`);
-    if (rate === undefined) {
+    const rateKey = `${row.provider}/${row.model}`;
+    const priced = rates.get(rateKey);
+    if (priced === undefined) {
       hasUnpriced = true;
       models[key] = models[key] ?? null;
       continue;
     }
-    models[key] = (models[key] ?? 0) + tokens * rate;
+    contributions.push({ key, rateKey, amount: tokens * priced.rate });
   }
-  const totalKrwMilli = Object.values(models).reduce<number>((sum, value) => sum + (value ?? 0), 0);
-  return { models, totalKrwMilli, accountKrwMilli: count(charges.charge_krw_milli), hasUnpriced };
+  let isCapped = false;
+  const estimatedByRate = new Map<string, number>();
+  for (const { rateKey, amount } of contributions) estimatedByRate.set(rateKey, (estimatedByRate.get(rateKey) ?? 0) + amount);
+  for (const { key, rateKey, amount } of contributions) {
+    const estimated = estimatedByRate.get(rateKey) ?? 0;
+    const charged = rates.get(rateKey)?.chargedKrwMilli ?? 0;
+    const scale = estimated > charged ? charged / estimated : 1;
+    if (scale < 1) isCapped = true;
+    models[key] = (models[key] ?? 0) + amount * scale;
+  }
+  const accountKrwMilli = count(charges.charge_krw_milli);
+  const estimatedTotal = Object.values(models).reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  if (estimatedTotal > accountKrwMilli) {
+    isCapped = true;
+    const scale = estimatedTotal > 0 ? accountKrwMilli / estimatedTotal : 0;
+    for (const key of Object.keys(models)) {
+      const value = models[key];
+      if (value !== null) models[key] = value * scale;
+    }
+  }
+  const totalKrwMilli = Math.min(estimatedTotal, accountKrwMilli);
+  return { models, totalKrwMilli, accountKrwMilli, hasUnpriced, isCapped };
 }
 
 const KRW_FORMAT = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });

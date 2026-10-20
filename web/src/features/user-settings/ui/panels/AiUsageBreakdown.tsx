@@ -72,16 +72,18 @@ export function AiUsageBreakdown({ summary, cost, rangeLabel }: { summary: Model
           </tbody>
         </table>
       </div>
-      <UsageNotes summary={summary} hasCache={hasCache} hasUnpriced={Boolean(estimate?.hasUnpriced)} />
+      <UsageNotes summary={summary} hasCache={hasCache} hasUnpriced={Boolean(estimate?.hasUnpriced)} isCapped={Boolean(estimate?.isCapped)} />
     </>
   );
 }
 
-function UsageNotes({ summary, hasCache, hasUnpriced }: { summary: ModelUsageSummary; hasCache: boolean; hasUnpriced: boolean }) {
+function UsageNotes({ summary, hasCache, hasUnpriced, isCapped }: { summary: ModelUsageSummary; hasCache: boolean; hasUnpriced: boolean; isCapped: boolean }) {
   const notes = [
     hasCache ? "캐시 토큰은 입력에 포함되어 합계에 따로 더하지 않아요." : null,
     summary.unknownUsageCalls > 0 ? `사용량을 확인하지 못한 호출 ${formatTokenCount(summary.unknownUsageCalls)}건은 합계에 없어요.` : null,
-    hasUnpriced ? "단가가 없거나 아직 금액이 집계되지 않은 사용량은 예상 비용에 없어요." : null
+    hasUnpriced ? "단가가 없거나 아직 금액이 집계되지 않은 사용량은 예상 비용에 없어요." : null,
+    // 사용량은 청구보다 먼저 집계된다. 예상이 실제 청구를 넘지 않게 청구액으로 낮췄음을 알린다.
+    isCapped ? "아직 청구에 반영되지 않은 사용량이 있어 예상 비용이 실제보다 적게 보일 수 있어요." : null
   ].filter(Boolean);
   return notes.length > 0 ? <p className={styles.note}>{notes.join(" ")}</p> : null;
 }

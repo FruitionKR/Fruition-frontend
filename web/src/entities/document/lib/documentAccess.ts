@@ -1,7 +1,7 @@
 import type { DocumentPermission } from "@/entities/document/model/document";
 import { ApiError } from "@/shared/lib/apiErrors";
 
-type DocumentAccessFields = { can_edit?: boolean; can_delete?: boolean } | null | undefined;
+type DocumentAccessFields = { can_edit?: boolean; can_delete?: boolean; ai_origin?: string | null } | null | undefined;
 
 /** 읽기 전용 안내 첫 줄(상태). 편집기 위 안내에서 두 줄로 나눠 보여준다. */
 export const READ_ONLY_DOCUMENT_TITLE = "이 문서는 보기 권한만 있어 읽기 전용으로 열었습니다.";
@@ -22,6 +22,20 @@ export const PERMISSION_FORBIDDEN_MESSAGE =
  */
 export function isDocumentReadOnly(document: DocumentAccessFields): boolean {
   return document?.can_edit === false;
+}
+
+/** 채팅 Wiki page화 문서 안내 첫 줄. 서버가 본문 저장·편집 잠금을 거절하는 확인 전용 문서다. */
+export const CHAT_EXPORT_READ_ONLY_TITLE = "채팅 Wiki page화 문서는 확인 전용이라 읽기 전용으로 열었습니다.";
+
+/** 채팅 Wiki page화 문서 안내 둘째 줄. */
+export const CHAT_EXPORT_READ_ONLY_HINT = "문답 출처를 지키기 위해 본문은 고칠 수 없습니다. 내용을 바꾸려면 새 문서로 옮겨 적어 주세요.";
+
+/**
+ * 권한과 무관하게 본문을 편집할 수 없는 문서인지. 채팅 Wiki page화 문서(ai_origin=chat_export)는
+ * 서버가 편집 잠금·저장을 400으로 거절하므로 편집기를 열지 않는다. 이름 변경은 권한(can_edit)을 따른다.
+ */
+export function isDocumentBodyLocked(document: DocumentAccessFields): boolean {
+  return document?.ai_origin === "chat_export";
 }
 
 /** 삭제·휴지통 복구는 문서 소유자와 OWNER만 한다. 필드가 없으면 서버가 403으로 막으므로 메뉴는 보여 준다. */
