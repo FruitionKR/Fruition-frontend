@@ -52,6 +52,9 @@ test("질의 메시지(action 없음)와 옛 agent 채팅 답변은 채팅 탭, 
   // 진행 중인 agent turn은 action이 아직 없다.
   assert.equal(isTaskMessage(message({ status: "pending", run_id: "agent_9" })), true);
   assert.equal(isTaskMessage(message({ status: "pending", run_id: "query_9" })), false);
+  // 진행 중에 취소돼 서버가 닫은 turn(action 없음)도 작업 탭에 남는다. 취소된 질의는 채팅 탭이다.
+  assert.equal(isTaskMessage(message({ status: "cancelled", run_id: "agent_9" })), true);
+  assert.equal(isTaskMessage(message({ status: "cancelled", run_id: "query_9" })), false);
   // 작업 탭에서 보낸 turn은 서버가 채팅 답변으로 돌려줘도 작업 탭에 남긴다(mode=task 미배포 서버).
   assert.equal(isTaskMessage(message({ action: "chat_answer", run_id: "agent_2" }), new Set(["agent_2"])), true);
 });
@@ -281,4 +284,13 @@ test("같은 스킬을 다시 실행해 끝나면 앞의 '추가 설명 필요'�
   const clarify = { action: "folder_organize", messageStatus: "completed", runStatus: "clarification_required" };
   assert.equal(resolveTaskStatus(clarify).group, "clarify");
   assert.deepEqual(resolveTaskStatus({ ...clarify, isSuperseded: true }), { group: "done", label: "다시 실행됨", tone: "muted", struck: false });
+});
+
+test("서버가 취소로 닫은(cancelled) turn은 완료 묶음의 '취소됨'으로, 닫거나 막혀도 같게 보인다", () => {
+  const cancelled = { group: "done", label: "취소됨", tone: "muted", struck: true };
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled" }), cancelled);
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", isStalled: true, isReleased: true }), cancelled);
+  assert.deepEqual(resolveTaskStatus({ action: "folder_organize", messageStatus: "cancelled" }), cancelled);
+  // 편집안 초안을 취소한 것과 같은 문구다.
+  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isCancelled: true }).label, "취소됨");
 });

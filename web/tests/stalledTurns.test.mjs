@@ -4,6 +4,7 @@ import test from "node:test";
 const {
   STALLED_QUERY_AGE_MS,
   STALLED_TURN_AGE_MS,
+  TURN_CANCEL_STATUSES,
   classifyTurnCheck,
   hasBlockingPendingMessages,
   isPendingAgentTurnMessage,
@@ -12,6 +13,7 @@ const {
   pendingQueryRuns,
   stalledQueryCancelNotice,
   stalledQueryQuestion,
+  stalledTurnCancelOutcome,
   turnsToCheck
 } = await import("../src/features/agent-chat/lib/stalledTurns.ts");
 
@@ -121,4 +123,32 @@ test("닫기 취소 요청을 서버에 전하지 못했거나 복구에 실패�
   }
   assert.match(stalledQueryCancelNotice({ kind: "failed" }), /취소를 전하지 못했어요/);
   assert.match(stalledQueryCancelNotice({ kind: "status", status: "rollback_failed" }), /복구하지 못했어요/);
+});
+
+test("막힌 작업 닫기: 취소 계열이면 목록만 다시 받고, 복구 실패만 알린다", () => {
+  assert.deepEqual([...TURN_CANCEL_STATUSES].sort(), ["cancel_requested", "cancelled", "rollback_failed", "rolling_back"]);
+  for (const status of ["cancel_requested", "rolling_back", "cancelled"]) {
+    assert.deepEqual(stalledTurnCancelOutcome({ kind: "status", status }), { notice: null, refresh: true, showResult: false }, status);
+  }
+  const rollbackFailed = stalledTurnCancelOutcome({ kind: "status", status: "rollback_failed" });
+  assert.match(rollbackFailed.notice, /복구하지 못했어요/);
+  assert.equal(rollbackFailed.refresh, true);
+  assert.equal(rollbackFailed.showResult, false);
+});
+
+test("막힌 작업 닫기: 404는 조용히, 409(이미 끝남)는 결과를 다시 받고, 전하지 못하면 알린다", () => {
+  assert.deepEqual(stalledTurnCancelOutcome({ kind: "missing" }), { notice: null, refresh: false, showResult: false });
+  assert.deepEqual(stalledTurnCancelOutcome({ kind: "finished" }), { notice: null, refresh: true, showResult: true });
+  // 200인데 취소 계열이 아닌 상태(경합으로 이미 끝남)도 끝난 결과로 본다.
+  assert.deepEqual(stalledTurnCancelOutcome({ kind: "status", status: "completed" }), { notice: null, refresh: true, showResult: true });
+  const failed = stalledTurnCancelOutcome({ kind: "failed" });
+  assert.match(failed.notice, /취소를 전하지 못했어요/);
+  assert.equal(failed.refresh, false);
+  assert.equal(failed.showResult, false);
+});
+
+test("취소된(cancelled) 응답은 입력을 막지 않는다", () => {
+  assert.equal(hasBlockingPendingMessages([assistant("agent_1", "cancelled")], new Set()), false);
+  assert.equal(isPendingAgentTurnMessage(assistant("agent_1", "cancelled")), false);
+  assert.deepEqual(pendingAgentTurns([assistant("agent_1", "cancelled", minutesAgo(20))], NOW), []);
 });

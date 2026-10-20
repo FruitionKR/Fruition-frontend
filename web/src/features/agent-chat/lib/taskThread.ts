@@ -14,6 +14,9 @@ const CHAT_ANSWER_ACTIONS = new Set(["chat_answer", "conversation_reply"]);
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
 
+/** action이 아직 없어도 작업 탭에 둘 agent turn 메시지 상태: 진행 중, 그리고 진행 중에 취소돼 서버가 닫은 메시지. */
+const ACTIONLESS_TASK_STATUSES = new Set(["pending", "cancelled"]);
+
 /**
  * 작업 탭에 둘 메시지인지. taskRunIds는 이 화면에서 작업 탭으로 보낸 turn ID다.
  * mode=task를 아직 모르는 서버가 채팅 답변(chat_answer)으로 돌려줘도 보낸 탭(작업)에 남긴다.
@@ -21,7 +24,7 @@ const AGENT_RUN_PREFIX = "agent_";
 export function isTaskMessage(message: ChatMessageResponse, taskRunIds: ReadonlySet<string> = new Set()): boolean {
   if (message.run_id && taskRunIds.has(message.run_id)) return true;
   if (message.action) return !CHAT_ANSWER_ACTIONS.has(message.action);
-  return message.status === "pending" && Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
+  return ACTIONLESS_TASK_STATUSES.has(message.status) && Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
 }
 
 export type TaskMessageItem = {
@@ -189,6 +192,8 @@ export function resolveTaskStatus({
     return { group: "running", label: "진행 중", tone: "primary", struck: false };
   }
   if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
+  // 진행 중에 취소돼 서버가 닫은 turn(agent turn 취소 API). 편집안 초안을 취소한 것과 같은 "취소됨"으로 보인다.
+  if (messageStatus === "cancelled") return { group: "done", label: "취소됨", tone: "muted", struck: true };
   if (isWorkspacePlanAction(action ?? undefined)) {
     if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
     if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };

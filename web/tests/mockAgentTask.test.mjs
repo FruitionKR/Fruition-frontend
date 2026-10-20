@@ -193,3 +193,35 @@ test("mock 원문 스킬을 폴더에 실행하면 읽을 문서가 없을 때 �
   assert.equal(full.result.message, "폴더 문서 22개 중 최근 수정한 20개만 읽었어요.");
   assert.match(full.result.generated_markdown.markdown, /원문: 20개 문서/);
 });
+
+test("mock turn 취소는 진행 중 turn의 pending 응답을 바로 cancelled로 닫고, 멱등이며, 끝난 turn은 409·없는 turn은 404다", async (t) => {
+  const request = await startMock(t);
+  const turnId = "agent_cancel_mock";
+  state.agentTurns.set(turnId, { id: turnId, workspace_id: WORKSPACE_ID, documentId: null, baseVersion: null, apply_operation_id: "apply_cancel_mock", folder_id: null, status: "running", result: null, error_code: null });
+  const pending = { id: "msg_cancel_mock", session_id: SESSION_ID, role: "assistant", content: "", status: "pending", created_at: new Date().toISOString(), run_id: turnId, references: [] };
+  state.chatMessages.push(pending);
+  t.after(() => {
+    state.agentTurns.delete(turnId);
+    state.chatMessages.splice(state.chatMessages.indexOf(pending), 1);
+  });
+
+  const cancelled = await request("POST", `/turn/${turnId}/cancel`);
+  assert.equal(cancelled.status, 200);
+  assert.equal(cancelled.body.requestId, turnId);
+  assert.equal(cancelled.body.status, "cancel_requested");
+  assert.equal(pending.status, "cancelled");
+  assert.equal(pending.error_message, "Agent 작업이 취소되었습니다.");
+  // 이미 취소 중이면 상태를 그대로 돌려준다.
+  const again = await request("POST", `/turn/${turnId}/cancel`);
+  assert.equal(again.status, 200);
+  assert.equal(again.body.status, "cancel_requested");
+
+  const finished = await submitTask(request, "폴더 정리해줘");
+  const conflict = await request("POST", `/turn/${finished.requestId}/cancel`);
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.error.code, "AGENT_TURN_ALREADY_FINISHED");
+
+  const missing = await request("POST", "/turn/agent_missing/cancel");
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.error.code, "AGENT_RUN_NOT_FOUND");
+});

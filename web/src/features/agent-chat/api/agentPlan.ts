@@ -1,7 +1,6 @@
 import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import type { AgentPlan, AgentPlanRun } from "../lib/agentPlan";
-
-const TURN_CANCEL_STATUSES = new Set(["cancel_requested", "rolling_back", "rollback_failed", "cancelled"]);
+import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
 
 /** 채팅의 turn ID와 실제 승인 대상 run ID는 서로 다르다. */
 export async function fetchAgentPlanRun(workspaceId: string, turnId: string, signal?: AbortSignal): Promise<AgentPlanRun | null> {

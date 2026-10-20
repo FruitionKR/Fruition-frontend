@@ -4,6 +4,10 @@ import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMe
 import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
+// 취소 요청 뒤 cancel_requested → rolling_back → cancelled로 넘어가는 간격(ai/tasks 취소 mock과 같다).
+const CANCEL_STEP_DELAY_MS = 1_000;
+const CANCELLING_STATUSES = new Set(["cancel_requested", "rolling_back", "cancelled", "rollback_failed"]);
+const AGENT_TURN_CANCELLED_MESSAGE = "Agent 작업이 취소되었습니다.";
 const TURN_STAGE_DELAY_MS = 500;
 // 실제 AgentTurnController의 SSE(query.log → query.completed)를 흉내 낸다. 단계 이름은 설명용이다.
 const TURN_STAGES = [
@@ -258,6 +262,31 @@ export function registerAgentRoutes(router) {
     if (!workspace) return;
     const turn = state.agentTurns.get(ctx.params.id);
     if (!turn) return error(ctx, 404, "turn을 찾을 수 없습니다.");
+    ctx.json(200, toTurn(turn));
+  });
+
+  /**
+   * turn 취소(document AgentTurnController). 본문 없음, 200은 GET turn과 같은 모양이다.
+   * 진행 중이면 cancel_requested로 바꾸고 pending assistant 메시지를 바로 cancelled로 닫은 뒤 rolling_back을 거쳐 cancelled가 된다.
+   * 이미 취소 중·취소됨이면 그 상태 그대로(멱등), 이미 completed·failed면 409, 없거나 남의 워크스페이스 turn이면 404.
+   */
+  router.post("/api/workspaces/:wid/agent/turn/:id/cancel", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const turn = state.agentTurns.get(ctx.params.id);
+    if (!turn || turn.workspace_id !== workspace.id) return error(ctx, 404, "Agent 실행을 찾을 수 없습니다.", "AGENT_RUN_NOT_FOUND");
+    if (turn.status === "completed" || turn.status === "failed") return error(ctx, 409, "이미 끝난 Agent 작업입니다.", "AGENT_TURN_ALREADY_FINISHED");
+    if (!CANCELLING_STATUSES.has(turn.status)) {
+      turn.status = "cancel_requested";
+      state.chatMessages
+        .filter((message) => message.run_id === turn.id && message.role === "assistant" && message.status === "pending")
+        .forEach((message) => Object.assign(message, { status: "cancelled", error_message: AGENT_TURN_CANCELLED_MESSAGE }));
+      setTimeout(() => {
+        if (turn.status !== "cancel_requested") return;
+        turn.status = "rolling_back";
+        setTimeout(() => { if (turn.status === "rolling_back") turn.status = "cancelled"; }, CANCEL_STEP_DELAY_MS);
+      }, CANCEL_STEP_DELAY_MS);
+    }
     ctx.json(200, toTurn(turn));
   });
 

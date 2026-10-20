@@ -220,6 +220,15 @@ export function seed() {
     state.queryRuns.set("query_stalled_seed", { id: "query_stalled_seed", workspace_id: WORKSPACE_ID, session_id: "chat_1", status: "running", error_code: null, result: null, question: "Lint는 언제 실행되나요?", options: { allow_web_search: false }, sequence: 0 });
   }
 
+  // 테스트용 시나리오: 작업자가 멈춰 11분째 running인 작업 turn(메시지는 pending). 기본 데이터에는 넣지 않는다.
+  if (process.env.MOCK_STALLED_TURN === "1") {
+    state.chatMessages.push(
+      { id: "msg_stalled_turn_q", session_id: "chat_1", role: "user", content: "회의록 폴더 정리해줘", status: "completed", created_at: minutesAgo(11), pair_id: "pair_stalled_turn", run_id: "agent_stalled_seed", references: [] },
+      { id: "msg_stalled_turn_a", session_id: "chat_1", role: "assistant", content: "", status: "pending", created_at: minutesAgo(11), pair_id: "pair_stalled_turn", run_id: "agent_stalled_seed", references: [] }
+    );
+    state.agentTurns.set("agent_stalled_seed", { id: "agent_stalled_seed", workspace_id: WORKSPACE_ID, documentId: null, baseVersion: null, apply_operation_id: "apply_stalled_seed", folder_id: null, status: "running", result: null, error_code: null });
+  }
+
   // 작업자(user_id) 예시: 데모 사용자(설정에서 사진을 올리면 사진), 김지현(사진 없음 → 기본 이미지), 멤버 목록에 없는 사용자.
   state.operationLogs.push(
     { operation_id: "op_ingest_intro", workspace_id: WORKSPACE_ID, user_id: "user_removed", operation_type: "ingest", status: "succeeded", target_document_id: "doc_intro", target_display_name: "프로젝트 소개.md", summary: "source 1개, concept 2개 생성", changed_resource_count: 3, restored_from: null, created_at: minutesAgo(101), completed_at: minutesAgo(100),

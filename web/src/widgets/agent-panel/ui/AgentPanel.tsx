@@ -15,6 +15,7 @@ import { AGENT_TURN_SLOW_MESSAGE } from "@/features/agent-chat/lib/turnFollow";
 import { hasBlockingPendingMessages, STALLED_QUERY_COMPOSER_NOTICE, STALLED_TURN_COMPOSER_NOTICE } from "@/features/agent-chat/lib/stalledTurns";
 import { useStalledQueries } from "@/features/agent-chat/model/useStalledQueries";
 import { useReleasedTurns, useStalledAgentTurns } from "@/features/agent-chat/model/useStalledAgentTurns";
+import { announceFinishedTurn, useCloseStalledTurns } from "@/features/agent-chat/model/useCloseStalledTurns";
 import { skillRunWaitingState } from "../lib/skillRunWaiting";
 import type { TaskMessageItem } from "@/features/agent-chat/lib/taskThread";
 import { ProposalDecisionButtons, type InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
@@ -302,6 +303,8 @@ export function AgentPanel({
     force: Boolean(skillRun) && hasPendingMessages,
     refreshMessages
   });
+  // 응답을 받지 못한 작업의 '닫기'·'앞선 작업 닫고 실행': 서버 취소를 먼저 요청하고 잠금을 푼다.
+  const { closingTurnIds, closeStalledTurns } = useCloseStalledTurns({ releaseTurns, refreshMessages });
   // 스킬 화면에서 '다음'을 누르면 보내기 전(세션·모델·문서 준비, 앞선 작업 대기)에도 작업 탭에 바로 카드를 띄운다.
   useEffect(() => {
     if (!skillRun) return;
@@ -376,10 +379,28 @@ export function AgentPanel({
     agentTurn.submitAgentTurn(request, taskContext, activeSessionId, selectedModel, selectedPairIds, folderId);
   }
 
-  /** 응답을 받지 못한 turn을 닫는다. 서버 기록은 pending으로 남지만 입력·세션 전환을 더 막지 않는다(agent turn 취소 API 없음). */
-  function dismissStalledTurns(turnIds: readonly string[]) {
+  /** 응답을 받지 못한 turn의 잠금만 푼다(다시 시도 직전). 서버 기록이 pending으로 남아도 입력·세션 전환을 더 막지 않는다. */
+  function releaseStalledTurns(turnIds: readonly string[]) {
     releaseTurns(turnIds);
     turnIds.forEach((turnId) => agentTurn.forgetTurn(turnId));
+  }
+
+  /**
+   * 응답을 받지 못한 turn을 닫는다. 서버 취소를 요청한 뒤 결과와 상관없이 잠금을 푼다.
+   * 이미 끝나 있던 turn(409)은 결과가 묻히지 않게, 이 화면에서 결과 확인이 끊긴 turn이면 turn을 다시 받아 결과를 띄우고
+   * 지난 기록이면 끝난 상태를 알린다.
+   */
+  async function dismissStalledTurns(turnIds: readonly string[]) {
+    const pendingIds = turnIds.filter((turnId) => !closingTurnIds.has(turnId));
+    const finishedIds = new Set(await closeStalledTurns(pendingIds));
+    pendingIds.forEach((turnId) => {
+      if (finishedIds.has(turnId) && agentTurn.unconfirmedTurnId === turnId) {
+        agentTurn.recheckAgentTurn();
+        return;
+      }
+      agentTurn.forgetTurn(turnId);
+      if (finishedIds.has(turnId)) void announceFinishedTurn(turnId);
+    });
   }
 
   /**
@@ -388,7 +409,7 @@ export function AgentPanel({
    */
   function retryStalledTurn(item: TaskMessageItem) {
     if (!item.turnId || isLoading || isAgentTurnLoading || isCreatingMarkdown || !activeSessionId || !selectedModel) return;
-    dismissStalledTurns([item.turnId]);
+    releaseStalledTurns([item.turnId]);
     if (agentTurnRequest && agentTurn.requestTurnId === item.turnId) {
       // 같은 요청·대상 폴더로, 문서 대상이면 지금 열린 그 문서의 최신 내용으로 다시 보낸다(문서가 닫혔으면 다시 열라고 안내).
       agentTurn.regenerateAgentTurn();
@@ -607,8 +628,14 @@ export function AgentPanel({
               actions: (
                 <>
                   {waitingSkillRun.canReleaseBlocking && (
-                    <button type="button" className={`${styles["task-pill"]} ${styles["is-primary"]}`} onClick={() => dismissStalledTurns([...stalledTurnIds])}>
-                      앞선 작업 닫고 실행
+                    <button
+                      type="button"
+                      className={`${styles["task-pill"]} ${styles["is-primary"]}`}
+                      disabled={closingTurnIds.size > 0}
+                      aria-busy={closingTurnIds.size > 0 || undefined}
+                      onClick={() => void dismissStalledTurns([...stalledTurnIds])}
+                    >
+                      {closingTurnIds.size > 0 ? "앞선 작업 닫는 중…" : "앞선 작업 닫고 실행"}
                     </button>
                   )}
                   <button type="button" className={styles["task-pill"]} onClick={() => onSkillRunSent?.(skillRun.id)}>
@@ -634,7 +661,8 @@ export function AgentPanel({
             stalledTurnIds={stalledTurnIds}
             releasedTurnIds={releasedTurnIds}
             onRetryStalled={isLoading || isAgentTurnLoading || isCreatingMarkdown ? undefined : retryStalledTurn}
-            onDismissStalled={(turnId) => dismissStalledTurns([turnId])}
+            closingTurnIds={closingTurnIds}
+            onDismissStalled={(turnId) => void dismissStalledTurns([turnId])}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />

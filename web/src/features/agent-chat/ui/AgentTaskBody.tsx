@@ -158,6 +158,7 @@ export function AgentTaskBody({
   onRecheck,
   stalledTurnIds = NO_TURN_IDS,
   releasedTurnIds = NO_TURN_IDS,
+  closingTurnIds = NO_TURN_IDS,
   onRetryStalled,
   onDismissStalled
 }: {
@@ -191,6 +192,8 @@ export function AgentTaskBody({
   stalledTurnIds?: ReadonlySet<string>;
   /** 응답을 받지 못해 닫은 turn */
   releasedTurnIds?: ReadonlySet<string>;
+  /** 닫기(서버 취소 요청) 중인 turn */
+  closingTurnIds?: ReadonlySet<string>;
   /** 응답을 받지 못한 작업을 같은 요청으로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
   onRetryStalled?: (item: TaskMessageItem) => void;
   /** 응답을 받지 못한 작업을 닫아 입력 잠금을 푼다. */
@@ -346,14 +349,20 @@ export function AgentTaskBody({
         {stalledTurnId && (onRetryStalled || onDismissStalled) && (
           <div className={styles["task-actions"]}>
             {onRetryStalled && (
-              <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onRetryStalled(item)}>
+              <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={closingTurnIds.has(stalledTurnId)} onClick={() => onRetryStalled(item)}>
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
                 다시 시도
               </button>
             )}
             {onDismissStalled && (
-              <button type="button" className={styles["task-pill"]} onClick={() => onDismissStalled(stalledTurnId)}>
-                닫기
+              <button
+                type="button"
+                className={styles["task-pill"]}
+                disabled={closingTurnIds.has(stalledTurnId)}
+                aria-busy={closingTurnIds.has(stalledTurnId) || undefined}
+                onClick={() => onDismissStalled(stalledTurnId)}
+              >
+                {closingTurnIds.has(stalledTurnId) ? "닫는 중…" : "닫기"}
               </button>
             )}
           </div>

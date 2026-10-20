@@ -3,7 +3,7 @@ import { ApiError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { followAgentTurn } from "@/features/agent-chat/lib/turnFollow";
 import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
-import type { TurnCheckResult } from "../lib/stalledTurns";
+import type { StalledTurnCancelResult, TurnCheckResult } from "../lib/stalledTurns";
 
 export const AGENT_TURN_CANCELLED_MESSAGE = "요청이 취소되었습니다.";
 export const AGENT_TURN_ROLLBACK_FAILED_MESSAGE = "요청이 취소됐지만 변경 복구에 실패했습니다. 문서 내용을 확인해 주세요.";
@@ -105,11 +105,24 @@ function followAgentTurnRun(workspaceId: string, turnId: string, handlers: Agent
 
 /**
  * 오래 pending에 머문 turn을 한 번 조회한다. 404면 서버에 turn이 없다(missing). 그 밖의 실패는 던진다.
- * agent turn 취소 API는 없어(ai-agent.md) 화면은 이 결과로 '응답을 받지 못했어요'를 띄우고 입력 잠금만 푼다.
+ * 화면은 이 결과로 '응답을 받지 못했어요'를 띄우고, '닫기'로 취소(requestAgentTurnCancel)를 요청한 뒤 입력 잠금을 푼다.
  */
 export async function checkAgentTurnStatus(turnId: string, signal?: AbortSignal): Promise<TurnCheckResult> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId), { cache: "no-store", signal });
   if (response.status === 404) return { kind: "missing" };
+  const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
+  return { kind: "status", status: run.status ?? "" };
+}
+
+/**
+ * agent turn 취소를 요청만 한다(복구 완료까지 기다리지 않는다). 응답을 받지 못한 작업을 닫을 때 쓴다.
+ * 200은 취소 계열 상태(이미 취소 중·취소됨이면 그 상태 그대로), 404는 없는 turn(missing), 409는 이미 끝난 turn(finished).
+ * 그 밖의 실패(400·5xx·네트워크)는 던진다.
+ */
+export async function requestAgentTurnCancel(turnId: string, signal?: AbortSignal): Promise<StalledTurnCancelResult> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId, "cancel"), { method: "POST", signal });
+  if (response.status === 404) return { kind: "missing" };
+  if (response.status === 409) return { kind: "finished" };
   const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
   return { kind: "status", status: run.status ?? "" };
 }

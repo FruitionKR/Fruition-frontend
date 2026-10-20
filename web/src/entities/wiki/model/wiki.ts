@@ -46,11 +46,19 @@ export type QueryEvidenceSnippetResponse = {
   text: string;
 };
 
+/**
+ * 세션 메시지 상태. cancelled는 진행 중인 agent turn을 취소해 서버가 pending 응답을 닫은 값이다
+ * (`error_message: "Agent 작업이 취소되었습니다."`). 모르는 값도 받도록 string을 열어 둔다.
+ */
+export type ChatMessageStatus = "pending" | "completed" | "failed" | "cancelled" | (string & {});
+
 export type QueryMessageSummary = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  status: string;
+  status: ChatMessageStatus;
+  /** 실패·취소된 응답의 서버 안내 문구 */
+  error_message?: string | null;
   created_at: string;
   // 같은 문답(Q&A) 쌍을 묶는 id. 채팅 부분 편입(partial export)에서 pair 선택 단위로 쓴다.
   pair_id?: string;

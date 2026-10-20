@@ -5,6 +5,7 @@ import { AgentResultCard } from "./AgentResultCard";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
+import { messageStatusTitle } from "../lib/statusSteps";
 import { STALLED_QUERY_DETAIL, STALLED_QUERY_RELEASED_DETAIL, STALLED_TURN_TITLE } from "../lib/stalledTurns";
 import { resolveChatTurnPresentation } from "../lib/agentTurn";
 import { formatAnswerMarkdown } from "../lib/answerMarkdown";
@@ -84,6 +85,8 @@ export function AssistantThread({
   stall?: StalledQueryView | null;
 }) {
   const presentation = resolveChatTurnPresentation(message.action);
+  // 진행 중에 취소돼 서버가 닫은 응답. 본문이 비어 있으면 "요청 취소됨" 상태 목록만 남긴다.
+  const isCancelled = message.status === "cancelled";
   const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
@@ -113,13 +116,13 @@ export function AssistantThread({
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
       {stall && <StalledQueryNotice stall={stall} />}
-      {!stall && ((message.progress?.length ?? 0) > 0 || message.status === "pending") && (
+      {!stall && ((message.progress?.length ?? 0) > 0 || message.status === "pending" || isCancelled) && (
         <StatusList
-          title={message.status === "pending" ? "요청 처리 중" : message.status === "completed" ? "요청 처리 완료" : "요청 처리 종료"}
+          title={messageStatusTitle(message.status)}
           isLoading={message.status === "pending"}
           hasResponse={message.status === "completed"}
           steps={message.progress?.length ? buildProgressSteps(message.progress, message.status === "pending")
-            : [["요청을 전달하고 있어요.", "active"]]}
+            : isCancelled ? [] : [["요청을 전달하고 있어요.", "active"]]}
         />
       )}
 
@@ -138,7 +141,7 @@ export function AssistantThread({
         </div>
       )}
 
-      {(!isAnimated || visibleAnswerStage >= STAGE_ANSWER) && !(stall && !message.content.trim()) && (
+      {(!isAnimated || visibleAnswerStage >= STAGE_ANSWER) && !((stall || isCancelled) && !message.content.trim()) && (
         <section
           className={cx(styles["agent-answer"], isAnimated && styles["agent-stage"])}
           aria-label={isSearchAnswer ? "실행 중 발견 사항" : "답변"}

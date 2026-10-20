@@ -29,6 +29,8 @@ const AGENT_RUN_PREFIX = "agent_";
 /** 채팅 질의 run ID 접두사. 질의 run ID는 AI task ID로도 그대로 쓰인다(ai/tasks/{id}). */
 const QUERY_RUN_PREFIX = "query_";
 const TERMINAL_TURN_STATUSES = new Set(["completed", "failed", "cancelled", "rollback_failed"]);
+/** 취소가 받아들여진 turn 상태(취소 중·복구 중·취소됨·복구 실패). 취소 API 응답과 turn 조회 응답에 같이 쓴다. */
+export const TURN_CANCEL_STATUSES: ReadonlySet<string> = new Set(["cancel_requested", "rolling_back", "rollback_failed", "cancelled"]);
 
 type PendingCandidate = {
   role: string;
@@ -148,4 +150,29 @@ export function stalledQueryCancelNotice(result: StalledQueryCancelResult): stri
   if (result.kind === "failed") return "질문을 닫았지만 서버에 취소를 전하지 못했어요. 서버에서는 아직 처리 중일 수 있어요.";
   if (result.status === "rollback_failed") return "질문을 닫았지만 서버가 질문의 변경을 복구하지 못했어요. 잠시 뒤 다시 확인해 주세요.";
   return null;
+}
+
+/** 막힌 작업 turn을 닫으며 보낸 취소 요청의 결과. finished는 409(이미 completed·failed로 끝남), failed는 서버에 전하지 못함. */
+export type StalledTurnCancelResult = TurnCheckResult | { kind: "finished" } | { kind: "failed" };
+
+/** 닫기 취소 결과로 할 일. refresh: 세션 메시지를 다시 받는다, showResult: 이미 끝난 turn의 결과를 다시 받아 보여 준다. */
+export type StalledTurnCancelOutcome = { notice: string | null; refresh: boolean; showResult: boolean };
+
+/**
+ * 막힌 작업 turn의 닫기 취소 결과를 해석한다. 화면 잠금은 결과와 상관없이 푼다.
+ * - 취소 계열 상태: 서버가 pending 메시지를 cancelled로 닫았으니 목록을 다시 받는다(복구 실패면 알림)
+ * - 404: 서버에 turn이 없다. 조용히 닫는다
+ * - 409·그 밖의 상태: 이미 끝난 turn이라 결과가 묻히지 않게 다시 받아 보여 준다
+ * - 전하지 못함: 서버가 계속 처리 중일 수 있다고 알린다
+ */
+export function stalledTurnCancelOutcome(result: StalledTurnCancelResult): StalledTurnCancelOutcome {
+  if (result.kind === "missing") return { notice: null, refresh: false, showResult: false };
+  if (result.kind === "failed") {
+    return { notice: "작업을 닫았지만 서버에 취소를 전하지 못했어요. 서버에서는 아직 처리 중일 수 있어요.", refresh: false, showResult: false };
+  }
+  if (result.kind === "finished" || !TURN_CANCEL_STATUSES.has(result.status)) return { notice: null, refresh: true, showResult: true };
+  if (result.status === "rollback_failed") {
+    return { notice: "작업을 닫았지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, showResult: false };
+  }
+  return { notice: null, refresh: true, showResult: false };
 }
