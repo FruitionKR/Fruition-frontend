@@ -4,7 +4,7 @@ import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import type { DropTarget, InheritedPermission, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
 import { inheritedPermissionLabel, permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
-import { SidebarPermissionIcon } from "./SidebarIcons";
+import { SidebarConvertedCheckIcon, SidebarPermissionIcon } from "./SidebarIcons";
 import { TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
@@ -77,6 +77,10 @@ export function TreeNode({
   // 지금 위키 편입을 시작할 수 있는 문서에만 신규·수정됨·재시도 배지를 붙인다(업로드 중 자리표시 행 제외).
   const wikiReflectBadge = !isUploading && item.documentId
     ? interaction.wikiReflectBadges?.get(item.documentId) ?? null
+    : null;
+  // PDF 원본·변환본 MD는 확장자 배지를 짝 관계 배지(PDF✓·PDF→MD)로 바꿔 그린다.
+  const conversionBadge = !isUploading && item.documentId
+    ? interaction.conversionBadges?.get(item.documentId) ?? null
     : null;
   // 자기 권한은 그대로, 상위 설정 따름은 가장 가까운 상위 폴더 권한을 흐리게 표시한다.
   const permission = effectivePermission(item, inheritedPermission);
@@ -223,7 +227,18 @@ export function TreeNode({
             )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
-              : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
+              : conversionBadge
+                ? (
+                  <small
+                    className={cx(styles["tree-type-badge"], styles["is-conversion"])}
+                    title={conversionBadge.description}
+                    aria-label={conversionBadge.description}
+                  >
+                    {conversionBadge.label}
+                    {conversionBadge.isConverted && <SidebarConvertedCheckIcon className={styles["tree-converted-check"]} />}
+                  </small>
+                )
+                : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
             {isFileDropTarget && <small className={styles["tree-drop-hint"]}>여기에 추가</small>}
           </>
         )}

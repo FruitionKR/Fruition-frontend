@@ -47,6 +47,15 @@ export function SidebarCheckOnIcon({ className }: IconProps) {
   );
 }
 
+/** 변환을 마친 PDF 배지 옆 작은 체크(10×10). 색은 currentColor로 CSS가 정한다. */
+export function SidebarConvertedCheckIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden className={className} width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <path d="M2 5.2L4.1 7.2L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** 워크스페이스 이름 옆 펼침 셰브론 (Figma 1527:16282 arrow 16×16) */
 export function SidebarWorkspaceChevronIcon({ className }: IconProps) {
   return (

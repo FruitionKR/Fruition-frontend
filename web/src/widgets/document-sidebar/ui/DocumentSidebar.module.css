@@ -812,6 +812,20 @@
   line-height: 1.2;
 }
 
+/* PDF 원본(PDF✓)·변환본(PDF→MD) 관계 배지. 확장자 배지 자리를 그대로 쓰고 줄바꿈·축소 없이 그린다. */
+.tree-type-badge.is-conversion {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+/* .tree-row svg의 muted 색보다 앞서도록 행 선택자를 함께 쓴다 */
+.tree-row .tree-converted-check {
+  flex: 0 0 auto;
+  color: var(--color-status-success);
+}
+
 /* 문서 행 위키 반영 배지(신규·수정됨·재시도). 이름은 말줄임되고 배지는 줄지 않는다. */
 .tree-reflect-badge {
   --tree-reflect-warning-weak: color-mix(in srgb, var(--color-status-warning) 14%, var(--color-canvas));
