@@ -26,8 +26,8 @@ export interface OperationLogItem {
   created_at: string;
   completed_at: string | null;
   /**
-   * 작업한 사용자 id. 백엔드는 ai_operation_logs.user_id를 저장하지만 아직 응답에 내려 주지 않는다.
-   * 내려오면 로그 행에 작업자(Figma 1485:1725)로 표시하고, 없으면 변경 건수를 대신 보여 준다.
+   * 작업한 사용자 id(ai_operation_logs.user_id, 목록·상세 응답에 포함). 복구 로그는 복구를 실행한 사용자다.
+   * 로그 행에 작업자(Figma 1485:1725)로 표시하고, 없으면 변경 건수를 대신 보여 준다.
    */
   user_id?: string | null;
 }
