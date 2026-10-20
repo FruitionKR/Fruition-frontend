@@ -2262,6 +2262,13 @@ button.result-link:focus-visible {
   margin: 8px 0 12px;
 }
 
+/* 응답을 받지 못한 질의: 안내 아래에 다시 질문·닫기 */
+.stalled-query {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .task-actions {
   display: flex;
   flex-wrap: wrap;

@@ -211,6 +211,14 @@ export function seed() {
         { id: 2, reference_type: "evidence", rank: 2, source_document_id: "doc_arch", source_block_ids: ["B0004"], text: "PDF 등 원본 문서는 먼저 Markdown 변환을 거칩니다." }
       ] }
   );
+  // 테스트용 시나리오: 작업자가 멈춰 10분째 running인 채팅 질의(메시지는 pending). 기본 데이터에는 넣지 않는다.
+  if (process.env.MOCK_STALLED_QUERY === "1") {
+    state.chatMessages.push(
+      { id: "msg_stalled_q", session_id: "chat_1", role: "user", content: "Lint는 언제 실행되나요?", status: "completed", created_at: minutesAgo(10), pair_id: "pair_stalled", run_id: "query_stalled_seed", references: [] },
+      { id: "msg_stalled_a", session_id: "chat_1", role: "assistant", content: "", status: "pending", created_at: minutesAgo(10), pair_id: "pair_stalled", run_id: "query_stalled_seed", references: [] }
+    );
+    state.queryRuns.set("query_stalled_seed", { id: "query_stalled_seed", workspace_id: WORKSPACE_ID, session_id: "chat_1", status: "running", error_code: null, result: null, question: "Lint는 언제 실행되나요?", options: { allow_web_search: false }, sequence: 0 });
+  }
 
   // 작업자(user_id) 예시: 데모 사용자(설정에서 사진을 올리면 사진), 김지현(사진 없음 → 기본 이미지), 멤버 목록에 없는 사용자.
   state.operationLogs.push(

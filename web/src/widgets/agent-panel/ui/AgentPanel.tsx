@@ -12,7 +12,8 @@ import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePr
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
 import { AGENT_TURN_SLOW_MESSAGE } from "@/features/agent-chat/lib/turnFollow";
-import { STALLED_TURN_COMPOSER_NOTICE } from "@/features/agent-chat/lib/stalledTurns";
+import { hasBlockingPendingMessages, STALLED_QUERY_COMPOSER_NOTICE, STALLED_TURN_COMPOSER_NOTICE } from "@/features/agent-chat/lib/stalledTurns";
+import { useStalledQueries } from "@/features/agent-chat/model/useStalledQueries";
 import { useReleasedTurns, useStalledAgentTurns } from "@/features/agent-chat/model/useStalledAgentTurns";
 import { skillRunWaitingState } from "../lib/skillRunWaiting";
 import type { TaskMessageItem } from "@/features/agent-chat/lib/taskThread";
@@ -202,6 +203,14 @@ export function AgentPanel({
     submitQuery,
     cancelQuery
   } = useChatThread(activeSessionId, releasedTurnIds);
+  // 응답을 받지 못한(pending에 머문) 채팅 질의. 닫으면 서버 취소를 요청하고 같은 저장소에 기억해 다시 잠기지 않는다.
+  const { stalledQueryIds, closingQueryIds, closeStalledQuery } = useStalledQueries({
+    messages,
+    releasedRunIds: releasedTurnIds,
+    releaseRuns: releaseTurns,
+    isQueryActive: isLoading,
+    refreshMessages
+  });
   const selectedPairIds = pairSelection.selectedPairIds;
   const agentTurn = useAgentTurn({
     markdownEditContext,
@@ -387,6 +396,17 @@ export function AgentPanel({
     }
     if (!item.request) return;
     agentTurn.submitAgentTurn(item.request, taskContext, activeSessionId, selectedModel, selectedPairIds);
+  }
+
+  /**
+   * 응답을 받지 못한 질의를 닫고(서버 취소 요청) 같은 질문을 다시 보낸다.
+   * 그 질의 말고도 입력을 막는 요청이 남아 있으면 보내지 않는다.
+   */
+  async function retryStalledQuery(runId: string, question: string) {
+    if (isLoading || isAgentTurnLoading || isCreatingMarkdown || !activeSessionId || !selectedModel) return;
+    if (hasBlockingPendingMessages(messages, new Set([...releasedTurnIds, runId]))) return;
+    await closeStalledQuery(runId);
+    void submitQuery(question, selectedModel, allowWebSearch);
   }
 
   function handleSubmit() {
@@ -649,6 +669,13 @@ export function AgentPanel({
             selectedPairIds={selectedPairIds}
             onSelectPair={selectPair}
             nodes={nodes}
+            stalledQueryIds={stalledQueryIds}
+            releasedQueryIds={releasedTurnIds}
+            closingQueryIds={closingQueryIds}
+            onRetryStalledQuery={isLoading || isAgentTurnLoading || isCreatingMarkdown || !selectedModel
+              ? undefined
+              : (runId, question) => void retryStalledQuery(runId, question)}
+            onDismissStalledQuery={(runId) => void closeStalledQuery(runId)}
           />
         </div>
       </div>
@@ -780,7 +807,8 @@ export function AgentPanel({
           onSubmit={handleSubmit}
           onCancel={isLoading && !isWorkView ? cancelQuery : undefined}
           isCancelling={isCancelling}
-          statusMessage={queryStatusMessage ?? (stalledTurnIds.size > 0 ? STALLED_TURN_COMPOSER_NOTICE : null)}
+          statusMessage={queryStatusMessage
+            ?? (stalledTurnIds.size > 0 ? STALLED_TURN_COMPOSER_NOTICE : stalledQueryIds.size > 0 ? STALLED_QUERY_COMPOSER_NOTICE : null)}
           meetingControl={{
             state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
             onStart: () => {

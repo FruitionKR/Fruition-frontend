@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const {
+  STALLED_QUERY_AGE_MS,
   STALLED_TURN_AGE_MS,
   classifyTurnCheck,
   hasBlockingPendingMessages,
   isPendingAgentTurnMessage,
+  isPendingQueryMessage,
   pendingAgentTurns,
+  pendingQueryRuns,
+  stalledQueryCancelNotice,
+  stalledQueryQuestion,
   turnsToCheck
 } = await import("../src/features/agent-chat/lib/stalledTurns.ts");
 
@@ -59,4 +64,61 @@ test("닫은 turn의 pending 메시지는 입력을 막지 않는다", () => {
   assert.equal(hasBlockingPendingMessages(messages, new Set(["agent_1"])), false);
   assert.equal(hasBlockingPendingMessages([assistant("query_1")], new Set(["agent_1"])), true);
   assert.equal(hasBlockingPendingMessages([assistant("agent_1", "completed")], new Set()), false);
+});
+
+test("pending인 채팅 질의 응답만 질의 확인 대상으로 보고 나이를 잰다", () => {
+  assert.equal(isPendingQueryMessage(assistant("query_1")), true);
+  assert.equal(isPendingQueryMessage(assistant("query_1", "completed")), false);
+  assert.equal(isPendingQueryMessage(assistant("agent_1")), false);
+  assert.equal(isPendingQueryMessage({ role: "user", status: "pending", run_id: "query_1" }), false);
+  assert.deepEqual(
+    pendingQueryRuns([assistant("query_old", "pending", minutesAgo(6)), assistant("agent_1"), assistant("query_new")], NOW),
+    [{ turnId: "query_old", ageMs: 6 * 60_000 }, { turnId: "query_new", ageMs: 60_000 }]
+  );
+});
+
+test("질의는 작업 turn보다 짧은 5분 기준으로 확인하고 판정한다", () => {
+  assert.equal(STALLED_QUERY_AGE_MS, 5 * 60_000);
+  assert.ok(STALLED_QUERY_AGE_MS < STALLED_TURN_AGE_MS);
+  const pending = [{ turnId: "query_old", ageMs: STALLED_QUERY_AGE_MS }, { turnId: "query_new", ageMs: STALLED_QUERY_AGE_MS - 1 }];
+  assert.deepEqual(
+    turnsToCheck(pending, new Map(), { thresholdMs: STALLED_QUERY_AGE_MS }).map(({ turnId }) => turnId),
+    ["query_old"]
+  );
+  // 같은 나이라도 작업 turn 기준(10분)이면 아직 확인하지 않는다.
+  assert.deepEqual(turnsToCheck(pending, new Map()), []);
+  assert.equal(classifyTurnCheck({ kind: "status", status: "running" }, STALLED_QUERY_AGE_MS, undefined, STALLED_QUERY_AGE_MS), "stalled");
+  assert.equal(classifyTurnCheck({ kind: "status", status: "running" }, STALLED_QUERY_AGE_MS - 1, undefined, STALLED_QUERY_AGE_MS), "running");
+  assert.equal(classifyTurnCheck({ kind: "missing" }, STALLED_QUERY_AGE_MS, undefined, STALLED_QUERY_AGE_MS), "stalled");
+  // 끝났다는데 메시지가 계속 pending이면(두 번째 확인) 잠금을 풀 수 있게 한다.
+  assert.equal(classifyTurnCheck({ kind: "status", status: "completed" }, STALLED_QUERY_AGE_MS, undefined, STALLED_QUERY_AGE_MS), "settled");
+  assert.equal(classifyTurnCheck({ kind: "status", status: "completed" }, STALLED_QUERY_AGE_MS, "settled", STALLED_QUERY_AGE_MS), "stalled");
+});
+
+test("닫은 질의의 pending 메시지는 입력을 막지 않는다", () => {
+  assert.equal(hasBlockingPendingMessages([assistant("query_1")], new Set(["query_1"])), false);
+  assert.equal(hasBlockingPendingMessages([assistant("query_1"), assistant("query_2")], new Set(["query_1"])), true);
+});
+
+test("막힌 질의를 다시 보낼 질문은 같은 문답이나 같은 run의 사용자 메시지에서 찾는다", () => {
+  const messages = [
+    { role: "user", status: "completed", content: "이전 질문", pair_id: "pair_0", run_id: "query_0" },
+    { role: "user", status: "completed", content: "  위키 편입은 어떻게 해?  ", pair_id: "pair_1" },
+    { ...assistant("query_1"), content: "", pair_id: "pair_1" },
+    { role: "user", status: "completed", content: "pair 없는 질문", run_id: "query_2" },
+    { ...assistant("query_2"), content: "" },
+    { ...assistant("query_3"), content: "" }
+  ];
+  assert.equal(stalledQueryQuestion(messages, "query_1"), "위키 편입은 어떻게 해?");
+  assert.equal(stalledQueryQuestion(messages, "query_2"), "pair 없는 질문");
+  assert.equal(stalledQueryQuestion(messages, "query_3"), null);
+});
+
+test("닫기 취소 요청을 서버에 전하지 못했거나 복구에 실패했을 때만 안내한다", () => {
+  assert.equal(stalledQueryCancelNotice({ kind: "missing" }), null);
+  for (const status of ["cancel_requested", "rolling_back", "cancelled", "completed"]) {
+    assert.equal(stalledQueryCancelNotice({ kind: "status", status }), null);
+  }
+  assert.match(stalledQueryCancelNotice({ kind: "failed" }), /취소를 전하지 못했어요/);
+  assert.match(stalledQueryCancelNotice({ kind: "status", status: "rollback_failed" }), /복구하지 못했어요/);
 });

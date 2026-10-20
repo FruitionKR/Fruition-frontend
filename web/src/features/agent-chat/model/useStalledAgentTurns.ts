@@ -4,8 +4,11 @@ import { checkAgentTurnStatus } from "../api/agent";
 import {
   classifyTurnCheck,
   pendingAgentTurns,
+  STALLED_TURN_AGE_MS,
   STALLED_TURN_TICK_MS,
   turnsToCheck,
+  type PendingRun,
+  type TurnCheckResult,
   type TurnCheckVerdict
 } from "../lib/stalledTurns";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
@@ -57,30 +60,43 @@ export function useReleasedTurns(activeSessionId: string | null) {
   return { releasedTurnIds, releaseTurns };
 }
 
+type RunCheck = (runId: string, signal: AbortSignal) => Promise<TurnCheckResult>;
+type PendingSelector = (messages: readonly ChatMessageResponse[], now: number) => PendingRun[];
+
 /**
- * pending에 오래 머문 agent turn을 `GET agent/turn/{id}`로 확인해 응답을 받지 못한 turn을 찾는다.
- * - 10분 넘게 pending인데 서버가 아직 끝나지 않았다고 하거나 turn이 없으면(404) stalled
- * - 이 화면이 따라가다 결과 확인을 포기한 turn(lostTurnId)도 stalled
- * - 스킬 실행이 pending에 막혀 기다리는 동안(force)은 오래되지 않은 turn도 한 번 확인해 404면 바로 푼다
+ * pending에 오래 머문 run(agent turn·채팅 질의)을 서버 조회로 확인해 응답을 받지 못한 run을 찾는다.
+ * - thresholdMs 넘게 pending인데 서버가 아직 끝나지 않았다고 하거나 run이 없으면(404) stalled
+ * - 이 화면이 따라가다 결과 확인을 포기한 run(lostRunId)도 stalled
+ * - force면 오래되지 않은 run도 한 번 확인해 404면 바로 푼다
  * - 이미 끝났다고 하면 목록을 다시 받는다(다음 확인에도 메시지가 pending이면 stalled)
+ * selectPending·check는 모듈 수준 함수처럼 identity가 바뀌지 않아야 한다.
  */
-export function useStalledAgentTurns({
+export function useStalledRuns({
   messages,
-  ignoredTurnIds,
-  lostTurnId,
-  force,
+  selectPending,
+  check,
+  thresholdMs,
+  ignoredRunIds,
+  lostRunId = null,
+  force = false,
+  enabled = true,
   refreshMessages
 }: {
   messages: ChatMessageResponse[];
-  /** 지금 따라가는 turn·이미 닫은 turn */
-  ignoredTurnIds: ReadonlySet<string>;
-  lostTurnId: string | null;
-  force: boolean;
+  selectPending: PendingSelector;
+  check: RunCheck;
+  thresholdMs: number;
+  /** 지금 따라가는 run·이미 닫은 run */
+  ignoredRunIds: ReadonlySet<string>;
+  lostRunId?: string | null;
+  force?: boolean;
+  /** false면 확인하지 않는다(이 화면이 run을 직접 따라가는 동안 등) */
+  enabled?: boolean;
   refreshMessages: () => Promise<unknown>;
 }): ReadonlySet<string> {
   const [verdicts, setVerdicts] = useState<ReadonlyMap<string, TurnCheckVerdict>>(() => new Map());
   const [now, setNow] = useState(() => Date.now());
-  const pending = useMemo(() => pendingAgentTurns(messages, now), [messages, now]);
+  const pending = useMemo(() => selectPending(messages, now), [messages, now, selectPending]);
   const hasPending = pending.length > 0;
 
   useEffect(() => {
@@ -91,20 +107,21 @@ export function useStalledAgentTurns({
   }, [hasPending]);
 
   useEffect(() => {
-    if (!lostTurnId) return;
-    setVerdicts((current) => new Map(current).set(lostTurnId, "stalled"));
-  }, [lostTurnId]);
+    if (!lostRunId) return;
+    setVerdicts((current) => new Map(current).set(lostRunId, "stalled"));
+  }, [lostRunId]);
 
-  const checkKey = turnsToCheck(pending, verdicts, { force, ignoredTurnIds })
+  const targetsNow = enabled ? turnsToCheck(pending, verdicts, { force, ignoredTurnIds: ignoredRunIds, thresholdMs }) : [];
+  const checkKey = targetsNow
     .map(({ turnId, ageMs }) => `${turnId}:${ageMs >= 0 ? Math.floor(ageMs / STALLED_TURN_TICK_MS) : 0}`)
     .join("|");
   useEffect(() => {
-    const targets = turnsToCheck(pending, verdicts, { force, ignoredTurnIds });
+    const targets = targetsNow;
     if (targets.length === 0) return;
     const controller = new AbortController();
     void Promise.all(targets.map(async ({ turnId, ageMs }) => {
       try {
-        const verdict = classifyTurnCheck(await checkAgentTurnStatus(turnId, controller.signal), ageMs, verdicts.get(turnId));
+        const verdict = classifyTurnCheck(await check(turnId, controller.signal), ageMs, verdicts.get(turnId), thresholdMs);
         return [turnId, verdict] as const;
       } catch {
         // 네트워크·5xx는 판단하지 않는다. 다음 확인 주기에 다시 본다.
@@ -129,6 +146,36 @@ export function useStalledAgentTurns({
   return useMemo(() => {
     const pendingIds = new Set(pending.map(({ turnId }) => turnId));
     return new Set([...verdicts].flatMap(([turnId, verdict]) =>
-      verdict === "stalled" && pendingIds.has(turnId) && !ignoredTurnIds.has(turnId) ? [turnId] : []));
-  }, [ignoredTurnIds, pending, verdicts]);
+      verdict === "stalled" && pendingIds.has(turnId) && !ignoredRunIds.has(turnId) ? [turnId] : []));
+  }, [ignoredRunIds, pending, verdicts]);
+}
+
+/**
+ * pending에 오래 머문 agent turn을 `GET agent/turn/{id}`로 확인해 응답을 받지 못한 turn을 찾는다(10분 기준).
+ * 스킬 실행이 pending에 막혀 기다리는 동안(force)은 오래되지 않은 turn도 한 번 확인해 404면 바로 푼다.
+ */
+export function useStalledAgentTurns({
+  messages,
+  ignoredTurnIds,
+  lostTurnId,
+  force,
+  refreshMessages
+}: {
+  messages: ChatMessageResponse[];
+  /** 지금 따라가는 turn·이미 닫은 turn */
+  ignoredTurnIds: ReadonlySet<string>;
+  lostTurnId: string | null;
+  force: boolean;
+  refreshMessages: () => Promise<unknown>;
+}): ReadonlySet<string> {
+  return useStalledRuns({
+    messages,
+    selectPending: pendingAgentTurns,
+    check: checkAgentTurnStatus,
+    thresholdMs: STALLED_TURN_AGE_MS,
+    ignoredRunIds: ignoredTurnIds,
+    lostRunId: lostTurnId,
+    force,
+    refreshMessages
+  });
 }
