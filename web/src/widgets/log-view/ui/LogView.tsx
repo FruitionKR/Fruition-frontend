@@ -140,7 +140,7 @@ type OperationLogFeedState = {
   loadMoreErrorMessage: string | null;
   isLoading: boolean;
   isLoadingMore: boolean;
-  onSelect: (operationId: string) => void;
+  onSelect: (operationId: string | null) => void;
   onLoadMore: () => void;
 };
 
@@ -329,10 +329,10 @@ export function LogView({
 
   function selectType(type: OperationType | null) {
     setTypeFilter(type);
-    // 고른 작업이 새 탭에 없으면 탭의 가장 최근 작업으로 옮긴다.
+    // 고른 작업이 새 탭에 없으면 선택을 푼다. 보이지 않는 작업이 롤백 대상으로 남지 않게 한다.
     const nextItems = filterOperationLogsByType(allItems, type);
-    if (feed && nextItems.length > 0 && !nextItems.some((item) => item.operation_id === operationId)) {
-      feed.onSelect(nextItems[0].operation_id);
+    if (feed && operationId && !nextItems.some((item) => item.operation_id === operationId)) {
+      feed.onSelect(null);
     }
   }
 

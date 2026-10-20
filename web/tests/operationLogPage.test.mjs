@@ -61,16 +61,16 @@ test("첫 페이지 갱신은 최신 항목을 교체하고 이미 불러온 이
   assert.equal(merged[1].summary, "갱신");
 });
 
-test("선택이 없으면 가장 최근 작업을 고른다", () => {
-  assert.equal(pickSelectedOperationId([log("op1"), log("op2")], null), "op1");
+test("선택이 없으면 첫 작업을 자동으로 고르지 않는다", () => {
+  assert.equal(pickSelectedOperationId([log("op1"), log("op2")], null), null);
 });
 
 test("이미 고른 작업이 목록에 있으면 유지한다", () => {
   assert.equal(pickSelectedOperationId([log("op1"), log("op2")], "op2"), "op2");
 });
 
-test("고른 작업이 목록에서 사라지면 가장 최근 작업으로 되돌린다", () => {
-  assert.equal(pickSelectedOperationId([log("op1"), log("op2")], "gone"), "op1");
+test("고른 작업이 목록에서 사라지면 선택을 해제한다", () => {
+  assert.equal(pickSelectedOperationId([log("op1"), log("op2")], "gone"), null);
 });
 
 test("목록이 비면 선택이 없다", () => {

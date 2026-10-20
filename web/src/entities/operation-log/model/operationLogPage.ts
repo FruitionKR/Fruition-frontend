@@ -103,14 +103,13 @@ export function mergeRefreshedLogPage(
 
 /**
  * 목록에서 상세로 띄울 작업 하나를 고른다.
- * 이미 고른 작업이 목록에 남아 있으면 유지하고, 없으면 가장 최근 작업을 고른다.
+ * 사용자가 고른 작업이 목록에 남아 있을 때만 유지하고, 아니면 아무것도 고르지 않는다(첫 행 자동 선택 없음).
  */
 export function pickSelectedOperationId(
   items: OperationLogItem[],
   current: string | null
 ): string | null {
-  if (current && items.some((item) => item.operation_id === current)) return current;
-  return items[0]?.operation_id ?? null;
+  return current && items.some((item) => item.operation_id === current) ? current : null;
 }
 
 export function collectRestoredOperationIds(items: OperationLogItem[]): ReadonlySet<string> {
