@@ -33,6 +33,7 @@ export function RailButton({
   tooltip,
   tooltipHint,
   isActive = false,
+  hasIndicator = false,
   className,
   children,
   ...buttonProps
@@ -43,6 +44,8 @@ export function RailButton({
   /** 말풍선 보조줄(단축키·비활성 사유) */
   tooltipHint?: ReactNode;
   isActive?: boolean;
+  /** 할 일이 있을 때 오른쪽 위에 켜는 주황 점(알림 탭 안 읽음 점과 같은 모양) */
+  hasIndicator?: boolean;
 }) {
   const tooltipText = tooltip ?? label;
   return (
@@ -60,6 +63,7 @@ export function RailButton({
         aria-label={label}
       >
         {children}
+        {hasIndicator && <span className={styles["rail-indicator"]} aria-hidden />}
       </button>
     </Tooltip>
   );

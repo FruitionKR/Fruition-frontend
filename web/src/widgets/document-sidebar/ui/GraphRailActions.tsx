@@ -3,11 +3,13 @@ import { cx } from "@/shared/lib/classNames";
 import { RailButton, RailGroup } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { RailIngestIcon, RailRefreshIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { useGraphWikiStatus } from "../model/useGraphWikiStatus";
+import { getIngestIndicator, getLintIndicator, selectPendingIngestDocuments } from "../model/wikiActionIndicators";
 import styles from "./DocumentSidebar.module.css";
 
 /**
  * 그래프 뷰 레일의 위키 편입·위키 최신화 버튼 (Figma 1486:4377).
  * 위키 편입은 사이드바 트리를 문서 선택 모드로 바꾸고, 확정은 사이드바 하단 바에서 한다.
+ * 편입할 문서가 있거나 최신화가 필요하면 버튼에 주황 점을 켜고 말풍선에 이유를 보여 준다.
  */
 export function GraphRailActions({
   documents,
@@ -31,14 +33,21 @@ export function GraphRailActions({
     : isIngestDisabled
       ? (pending === "ingest" ? "진행 중이에요" : "최신화 중에는 할 수 없어요")
       : null;
+  const ingestIndicator = getIngestIndicator({
+    pendingCount: selectPendingIngestDocuments(documents).length,
+    isSelecting,
+    isDisabled: isIngestDisabled
+  });
+  const lintIndicator = getLintIndicator({ isLintEnabled, isSelecting });
 
   return (
     <RailGroup>
       <RailButton
-        label={pending === "ingest" ? "위키 편입 중" : "위키 편입"}
-        tooltip={isSelecting ? "선택 취소" : "위키 편입"}
+        label={pending === "ingest" ? "위키 편입 중" : (ingestIndicator.label ?? "위키 편입")}
+        tooltip={isSelecting ? "선택 취소" : (ingestIndicator.tooltip ?? "위키 편입")}
         tooltipHint={ingestHint}
         isActive={isSelecting}
+        hasIndicator={ingestIndicator.isLit}
         aria-pressed={isSelecting}
         // 선택 중에는 진행 상태와 관계없이 다시 눌러 선택을 끌 수 있어야 한다.
         disabled={isIngestDisabled}
@@ -50,8 +59,9 @@ export function GraphRailActions({
         <RailIngestIcon />
       </RailButton>
       <RailButton
-        label={isMaintenanceStatusError ? "위키 최신화 상태 재확인" : "위키 최신화"}
-        tooltip="위키 최신화"
+        label={isMaintenanceStatusError ? "위키 최신화 상태 재확인" : (lintIndicator.label ?? "위키 최신화")}
+        tooltip={lintIndicator.tooltip ?? "위키 최신화"}
+        hasIndicator={lintIndicator.isLit}
         tooltipHint={isSelecting ? "문서 선택 중에는 할 수 없어요" : lintHint}
         className={cx(pending === "lint" && styles["is-spinning"])}
         disabled={isSelecting || (!isLintEnabled && !isMaintenanceStatusError)}

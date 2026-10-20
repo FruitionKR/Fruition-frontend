@@ -74,6 +74,20 @@
   flex: 0 0 auto;
 }
 
+/* 할 일 표시 점: 알림 탭 안 읽음 점(NotificationsView .tab-badge)과 같은 7px 주황 점·캔버스 테두리·그림자 */
+.rail-indicator {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 50%;
+  background: var(--color-notification-dot);
+  filter: drop-shadow(0 1px 2px var(--color-notification-dot-shadow));
+  pointer-events: none;
+}
+
 /* 프로필 버튼의 사진. 기본 사용자 아이콘(24.6px)과 같은 자리·크기다. */
 .rail-avatar {
   width: 24px;
