@@ -210,19 +210,20 @@ export function seed() {
       ] }
   );
 
+  // 작업자(user_id) 예시: 데모 사용자(설정에서 사진을 올리면 사진), 김지현(사진 없음 → 기본 이미지), 멤버 목록에 없는 사용자.
   state.operationLogs.push(
-    { operation_id: "op_ingest_intro", workspace_id: WORKSPACE_ID, operation_type: "ingest", status: "succeeded", target_document_id: "doc_intro", target_display_name: "프로젝트 소개.md", summary: "source 1개, concept 2개 생성", changed_resource_count: 3, restored_from: null, created_at: minutesAgo(101), completed_at: minutesAgo(100),
+    { operation_id: "op_ingest_intro", workspace_id: WORKSPACE_ID, user_id: "user_removed", operation_type: "ingest", status: "succeeded", target_document_id: "doc_intro", target_display_name: "프로젝트 소개.md", summary: "source 1개, concept 2개 생성", changed_resource_count: 3, restored_from: null, created_at: minutesAgo(101), completed_at: minutesAgo(100),
       changes: [
         { id: 1, resource_type: "wiki_page", resource_id: "page_src_intro", resource_display_name: "프로젝트 소개", page_type: "source", before_revision: null, after_revision: 1, change_type: "created", change_summary: "source 페이지 생성", additions: 12, deletions: 0 },
         { id: 2, resource_type: "wiki_page", resource_id: "page_c_ingest", resource_display_name: "Ingest", page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성", additions: 6, deletions: 0 },
         { id: 3, resource_type: "wiki_page", resource_id: "page_c_workspace", resource_display_name: "워크스페이스", page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성", additions: 4, deletions: 0 }
       ] },
-    { operation_id: "op_ingest_arch", workspace_id: WORKSPACE_ID, operation_type: "ingest", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "source 1개, concept 1개 생성", changed_resource_count: 2, restored_from: null, created_at: minutesAgo(96), completed_at: minutesAgo(95),
+    { operation_id: "op_ingest_arch", workspace_id: WORKSPACE_ID, user_id: MEMBER_ID, operation_type: "ingest", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "source 1개, concept 1개 생성", changed_resource_count: 2, restored_from: null, created_at: minutesAgo(96), completed_at: minutesAgo(95),
       changes: [
         { id: 4, resource_type: "wiki_page", resource_id: "page_src_arch", resource_display_name: "아키텍처 개요", page_type: "source", before_revision: null, after_revision: 1, change_type: "created", change_summary: "source 페이지 생성", additions: 9, deletions: 0 },
         { id: 5, resource_type: "wiki_page", resource_id: "page_c_lint", resource_display_name: "Lint", page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성", additions: 5, deletions: 0 }
       ] },
-    { operation_id: "op_edit_arch", workspace_id: WORKSPACE_ID, operation_type: "document_edit", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "Lint 섹션 설명 보강", changed_resource_count: 1, restored_from: null, created_at: minutesAgo(31), completed_at: minutesAgo(30),
+    { operation_id: "op_edit_arch", workspace_id: WORKSPACE_ID, user_id: USER_ID, operation_type: "document_edit", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "Lint 섹션 설명 보강", changed_resource_count: 1, restored_from: null, created_at: minutesAgo(31), completed_at: minutesAgo(30),
       changes: [{ id: 6, resource_type: "document", resource_id: "doc_arch", resource_display_name: "아키텍처 개요.md", before_revision: 1, after_revision: 2, change_type: "updated", change_summary: "Lint 설명 한 줄 추가", additions: 1, deletions: 1,
         hunks: [{ old_start: 11, old_lines: 1, new_start: 11, new_lines: 1, lines: [
           { type: "DELETE", old_line: 11, new_line: null, content: "Lint는 위키 페이지를 다듬습니다." },
