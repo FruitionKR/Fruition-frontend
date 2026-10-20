@@ -147,3 +147,34 @@ test("mock은 UUID가 아닌 folder_id를 400, 없거나 삭제된 폴더를 404
   assert.equal((await send("2d8b4f60-3c5e-4071-9c9d-0e1f2a3b4c5d")).status, 404);
   assert.equal((await send(DELETED_FOLDER_ID)).status, 404);
 });
+
+test("mock 원문 스킬을 폴더에 실행하면 읽을 문서가 없을 때 되묻고, 20개를 넘으면 최근 20개만 읽었다고 알린다", async (t) => {
+  const request = await startMock(t);
+  const EMPTY_FOLDER_ID = "3e9c5a71-4d6f-4182-8ad0-1f2a3b4c5d6e";
+  const FULL_FOLDER_ID = "4fad6b82-5e70-4293-9be1-2a3b4c5d6e7f";
+  if (!state.skills.some((skill) => skill.id === "skill_task_source")) {
+    const timestamp = new Date().toISOString();
+    state.folders.push({ id: EMPTY_FOLDER_ID, workspace_id: WORKSPACE_ID, name: "빈 폴더", parent_folder_id: null, sort_order: 2, current_version: 1, created_at: timestamp });
+    state.folders.push({ id: FULL_FOLDER_ID, workspace_id: WORKSPACE_ID, name: "보고서", parent_folder_id: null, sort_order: 3, current_version: 1, created_at: timestamp });
+    for (let index = 0; index < 22; index += 1) {
+      state.documents.push({ id: `doc_task_src_${index}`, workspace_id: WORKSPACE_ID, folder_id: FULL_FOLDER_ID, filename: `보고 ${index}.md`, status: "completed", document_role: "EDITABLE", markdown: `# 보고 ${index}`, updated_at: new Date(Date.now() - index * 1000).toISOString() });
+    }
+    state.skills.push({ id: "skill_task_source", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "source-summary", scope_type: "personal", status: "enabled",
+      enabled_version: { id: "sv_task_source", name: "source-summary", description: "요약", status: "published", version: 1, allowed_tools: [], capabilities: ["document-create"], result_mode: "create", requires_source: true, instructions_markdown: "{문서}를 요약한다." },
+      latest_version: null });
+  }
+  const send = async (folderId) => {
+    const accepted = await request("POST", "/turn", { session_id: SESSION_ID, message: "/source-summary", mode: "task", folder_id: folderId, ...MODEL });
+    assert.equal(accepted.status, 202);
+    return waitForTurn(request, accepted.body.requestId);
+  };
+  const empty = await send(EMPTY_FOLDER_ID);
+  assert.equal(empty.result.action, "clarify");
+  assert.match(empty.result.chat.answer, /'빈 폴더' 폴더에 읽을 문서가 없어요/);
+  assert.equal(empty.result.generated_markdown, null);
+
+  const full = await send(FULL_FOLDER_ID);
+  assert.equal(full.result.action, "markdown_create");
+  assert.equal(full.result.message, "폴더 문서 22개 중 최근 수정한 20개만 읽었어요.");
+  assert.match(full.result.generated_markdown.markdown, /원문: 20개 문서/);
+});

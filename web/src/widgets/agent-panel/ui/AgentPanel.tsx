@@ -452,6 +452,7 @@ export function AgentPanel({
       {agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown && (
         <MarkdownCreatePreview
           draft={agentTurnResponse.result.generated_markdown}
+          notice={agentTurnResponse.result.message}
           isSubmitting={isCreatingMarkdown}
           errorMessage={agentTurn.markdownCreateErrorMessage}
           onCancel={agentTurn.cancelAgentTurnResult}

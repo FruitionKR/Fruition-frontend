@@ -11,6 +11,7 @@ import { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome } fro
 import {
   applySkillDraft,
   draftResultModeChange,
+  draftSourceChange,
   INITIAL_SKILL_CREATE_FORM,
   isDocumentKind,
   SKILL_KIND_CARDS,
@@ -90,6 +91,8 @@ export function SkillCreateEditor({
   const [question, setQuestion] = useState<string | null>(null);
   // AI 초안이 고른 결과 방식으로 바꿨을 때 알림. 사용자가 고른 값(from)으로 되돌릴 수 있다.
   const [resultModeNote, setResultModeNote] = useState<{ from: SkillResultMode; to: SkillResultMode } | null>(null);
+  // AI 초안이 원문 문서를 정했을 때 알림. 이전 값(고르지 않음이면 null)으로 되돌릴 수 있다.
+  const [sourceNote, setSourceNote] = useState<{ from: boolean | null; to: boolean } | null>(null);
 
   // 기존 스킬 커맨드와 중복이면 미리 막는다 (서버도 게시 시점에 중복을 차단한다).
   const { data: existingSkills } = useQuery({
@@ -159,6 +162,7 @@ export function SkillCreateEditor({
       const drafted = applySkillDraft(form, result);
       setForm(drafted);
       setResultModeNote(draftResultModeChange(form, drafted));
+      setSourceNote(draftSourceChange(form, drafted));
       if (outcome === "review") {
         setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
         setAuthorStatus("안전 검토에서 고칠 부분이 발견되었습니다.");
@@ -301,12 +305,17 @@ export function SkillCreateEditor({
           </>
         )}
 
-        {/* 새 문서를 만들 수 있는 문서 스킬만: 원문 문서 → requires_source. 고르지 않으면 보내지 않고 저장할 때 AI가 정한다. */}
+        {/* 새 문서를 만들 수 있는 문서 스킬만: 원문 문서 → requires_source. AI 초안이 정한 값도 게시에 싣는다(게시는 다시 분류하지 않음). */}
         {showsSourceField(form.kind, form.resultMode) && (
           <SourceField
             id={fieldId("source")}
             value={form.requiresSource}
+            note={sourceNote}
             onChange={(requiresSource) => update({ requiresSource })}
+            onUndo={() => {
+              if (sourceNote) update({ requiresSource: sourceNote.from });
+              setSourceNote(null);
+            }}
           />
         )}
 

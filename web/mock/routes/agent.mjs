@@ -1,7 +1,7 @@
 // document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
 // mode=task(작업 탭)면 문서 없이도 받고, 채팅 답변 갈래 대신 clarify로 되묻는다(2026-10-19 계약).
 import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument } from "../state.mjs";
-import { classifyRequiresSource } from "./catalog.mjs";
+import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
 const TURN_STAGE_DELAY_MS = 500;
@@ -122,12 +122,26 @@ function selectionError(plan, operationIds) {
   return null;
 }
 
-/** 폴더 바로 아래 Markdown 문서(최근 수정 순, 최대 20개). 원문이 필요한 스킬을 폴더에 실행할 때 원문으로 읽는다. */
+/** 폴더 바로 아래 Markdown 문서 전체(최근 수정 순). 원문이 필요한 스킬을 폴더에 실행할 때 앞의 20개를 원문으로 읽는다. */
 function folderSourceDocuments(workspaceId, folderId) {
   return state.documents
     .filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && (doc.folder_id ?? null) === folderId && isMarkdownDocument(doc))
-    .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))
-    .slice(0, FOLDER_SOURCE_LIMIT);
+    .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")));
+}
+
+/**
+ * 폴더 원문 실행(ai agent.md): 읽을 문서가 없으면 초안 없이 clarify로 다른 대상을 고르라고 한다.
+ * 20개를 넘으면 최근 수정한 20개만 읽고 결과 message에 그 사실을 덧붙인다.
+ */
+function folderSourceResult(workspace, folderId, request) {
+  const documents = folderSourceDocuments(workspace.id, folderId);
+  const folderName = state.folders.find((folder) => folder.id === folderId)?.name ?? "고른";
+  if (documents.length === 0) return clarify(`'${folderName}' 폴더에 읽을 문서가 없어요. 다른 대상을 골라 다시 실행해 주세요.`);
+  const read = Math.min(documents.length, FOLDER_SOURCE_LIMIT);
+  const result = createResult(request, `${read}개 문서`);
+  return read < documents.length
+    ? { ...result, message: `폴더 문서 ${documents.length}개 중 최근 수정한 ${read}개만 읽었어요.` }
+    : result;
 }
 
 /**
@@ -151,12 +165,12 @@ function taskResult(workspace, turn, request) {
     const caps = version.capabilities;
     const mode = version.result_mode ?? (caps.includes("document-create") && !caps.includes("document-edit") ? "create" : caps.includes("document-edit") && !caps.includes("document-create") ? "edit" : "auto");
     const wantsCreate = /새 문서/.test(slash.rest) || (!slash.rest && mode === "create") || (!hasDocument && mode !== "edit");
-    // 원문 문서 필요 여부(requires_source). 예전 Skill은 계산값을 쓴다.
-    const requiresSource = typeof version.requires_source === "boolean" ? version.requires_source : classifyRequiresSource(caps, version.instructions_markdown);
+    // 원문 문서 필요 여부(requires_source). 예전 Skill(저장값 없음)은 조회 규칙으로 계산한 값을 쓴다.
+    const requiresSource = typeof version.requires_source === "boolean" ? version.requires_source : legacyRequiresSource(version);
     if (wantsCreate) {
       // 열린 문서(active_markdown_context)가 오면 원문으로 쓴다. 문서 없이 폴더만 오고 원문이 필요하면 폴더 안 문서를 원문으로 읽는다.
       if (hasDocument) return createResult(slash.rest || message, findDocument(workspace.id, request.documentId)?.filename ?? request.documentId);
-      if (requiresSource && turn.folder_id) return createResult(slash.rest || message, `${folderSourceDocuments(workspace.id, turn.folder_id).length}개 문서`);
+      if (requiresSource && turn.folder_id) return folderSourceResult(workspace, turn.folder_id, slash.rest || message);
       return createResult(slash.rest || message);
     }
     if (!hasDocument) return clarify("수정할 문서를 열고 다시 실행해 주세요.");

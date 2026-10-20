@@ -19,7 +19,8 @@ export interface SkillVersion {
   result_mode?: SkillResultModeValue | null;
   /**
    * 원문 문서가 필요한지. true면 폴더에 실행할 때 폴더 안 Markdown 문서를 원문으로 읽고, false면 원문 없이 새 문서를 만든다.
-   * 저장할 때 AI가 정하고(지침에 {문서} → true, 템플릿 → false, 그 밖은 분류) 사용자가 바꿀 수 있다. 이 필드가 없는 백엔드는 undefined다.
+   * 보낸 값 → 지침에 {문서} → true, 템플릿 → false 순으로 정하고, LLM 분류는 작성 초안·지침을 바꾼 수정에서만 한다(게시는 다시 분류하지 않음).
+   * 예전 Skill은 AI가 조회할 때 계산해 준다. 이 필드가 없는 백엔드는 undefined다.
    */
   requires_source?: boolean | null;
 }
@@ -48,6 +49,7 @@ export interface SkillAuthoringResult {
   capabilities: string[];
   targets?: SkillTargetValue[];
   result_mode?: SkillResultModeValue | null;
+  /** 작성 초안에서는 의도 분류 판단이다. 게시는 다시 분류하지 않으므로 이 값을 게시 요청에 실어야 유지된다. */
   requires_source?: boolean | null;
   issues: unknown[];
   question: string | null;
@@ -57,7 +59,7 @@ export interface SkillAuthoringResult {
 export interface SkillExecutionOptions {
   targets?: SkillTargetValue[];
   result_mode?: SkillResultModeValue;
-  /** 사용자가 직접 고른 경우에만 보낸다. 생략하면 게시는 AI가 정하고, 수정은 서버가 정한다. */
+  /** 게시: 초안 판단이나 사용자 선택이 있으면 보낸다(생략하면 {문서}·템플릿 규칙만). 수정: 바꿨을 때만 보낸다. */
   requires_source?: boolean;
 }
 

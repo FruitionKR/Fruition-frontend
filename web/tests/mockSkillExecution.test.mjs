@@ -3,7 +3,7 @@ import test from "node:test";
 
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
 const { state } = await import("../mock/state.mjs");
-const { registerCatalogRoutes, classifyRequiresSource } = await import("../mock/routes/catalog.mjs");
+const { registerCatalogRoutes, classifyRequiresSource, legacyRequiresSource } = await import("../mock/routes/catalog.mjs");
 
 const WORKSPACE_ID = "ws_skill_exec";
 const USER_ID = "user_skill_exec";
@@ -92,11 +92,29 @@ test("mock requires_source 분류: {문서} → true, 템플릿·폴더 정리 �
   assert.equal(classifyRequiresSource(["folder-organize"], "폴더를 정리한다."), false);
 });
 
-test("mock 게시·수정은 requires_source를 고른 값으로 저장하고, 생략하면 AI 분류로 정한다", async (t) => {
+test("mock 예전 Skill(requires_source 없음)은 조회 규칙으로 계산한다: 템플릿 false, 새 문서를 만들면 true", () => {
+  assert.equal(legacyRequiresSource({ capabilities: ["document-create"], result_mode: null }), true);
+  assert.equal(legacyRequiresSource({ capabilities: ["document-create", "document-edit"], result_mode: "auto" }), true);
+  assert.equal(legacyRequiresSource({ capabilities: ["document-create", "document-edit"], result_mode: "edit" }), false);
+  assert.equal(legacyRequiresSource({ capabilities: ["document-edit"], result_mode: null }), false);
+  assert.equal(legacyRequiresSource({ capabilities: ["template"], result_mode: null }), false);
+  assert.equal(legacyRequiresSource({ capabilities: ["folder-organize"] }), false);
+});
+
+test("mock 게시·수정은 requires_source를 보낸 값으로 저장하고, 게시에서 생략하면 다시 분류하지 않고 {문서} 규칙만 쓴다", async (t) => {
   const call = await startMock(t);
   const base = { description: "점검", scope_type: "personal", capabilities: ["document-create"], result_mode: "create" };
-  const decided = await call("POST", "/author/publish", { ...base, name: "src-auto", instructions_markdown: "회의를 요약한다." });
-  assert.equal(decided.body.requires_source, true);
+  // 초안은 분류로 판단하지만, 게시는 생략하면 {문서}가 없는 한 false다(초안 판단을 지키려면 클라이언트가 보내야 한다).
+  const draft = await call("POST", "/author", { instruction: "#새문서 회의를 요약한다.", scope_type: "personal" });
+  assert.equal(draft.body.requires_source, true);
+  const omitted = await call("POST", "/author/publish", { ...base, name: "src-auto", instructions_markdown: "회의를 요약한다." });
+  assert.equal(omitted.body.requires_source, false);
+  const placeholder = await call("POST", "/author/publish", { ...base, name: "src-placeholder", instructions_markdown: "{문서}를 요약한다." });
+  assert.equal(placeholder.body.requires_source, true);
+  const kept = await call("POST", "/author/publish", { ...base, name: "src-kept", instructions_markdown: "회의를 요약한다.", requires_source: draft.body.requires_source });
+  assert.equal(kept.body.requires_source, true);
+  const editOnly = await call("POST", "/author/publish", { ...base, name: "src-edit", capabilities: ["document-edit"], result_mode: "edit", instructions_markdown: "{문서}를 고친다.", requires_source: true });
+  assert.equal(editOnly.body.requires_source, false);
   const picked = await call("POST", "/author/publish", { ...base, name: "src-picked", instructions_markdown: "회의를 요약한다.", requires_source: false });
   assert.equal(picked.body.requires_source, false);
   assert.equal((await call("POST", "/author/publish", { ...base, name: "src-bad", instructions_markdown: "x", requires_source: "yes" })).status, 400);

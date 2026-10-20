@@ -166,7 +166,7 @@ function particle(word: string, withFinal: string, withoutFinal: string): string
 
 /**
  * 대상을 고른 뒤 안내 말풍선에 보일 미리보기. 원문 문서를 어떻게 쓸지 알 수 있는 경우에만 문구를 만들고, 아니면 null이다.
- * - 새 문서를 만드는 스킬(새 문서로 만들기·상황에 맞게·템플릿)에 폴더를 고르면: 원문이 필요하면 폴더 문서 N개를 읽는다고, 아니면 원문 없이 만든다고.
+ * - 새 문서를 만드는 스킬(새 문서로 만들기·상황에 맞게·템플릿)에 폴더를 고르면: 원문이 필요하면 폴더 문서 N개를 읽는다고(없으면 읽을 문서가 없다고), 아니면 원문 없이 만든다고.
  * - '새 문서로 만들기'에 문서를 고르면: 원문이 필요하면 그 문서를 읽어 같은 폴더에, 아니면 그 문서가 있는 폴더에 원문 없이.
  * 폴더 정리·열린 문서 고치기, '상황에 맞게'에 문서를 고른 경우(고칠 수도 있다), requires_source를 모르면(구버전 백엔드) null이다.
  * folderMarkdownCount는 폴더 대상의 바로 아래 Markdown 문서 수다.
@@ -178,7 +178,8 @@ export function skillRunPreview(version: SkillVersionLike, target: SkillRunTarge
   if (target.kind === "folder") {
     const name = `'${target.label}'`;
     if (!requiresSource) return `${name} 폴더에 새 문서를 만들어요 (원문 없이)`;
-    if (folderMarkdownCount === 0) return `${name} 폴더에 읽을 Markdown 문서가 없어 원문 없이 새 문서를 만들어요`;
+    // 읽을 문서가 없으면 AI가 초안 없이 다른 대상을 고르라고 되묻는다(clarify, ai agent.md).
+    if (folderMarkdownCount === 0) return `${name} 폴더에 읽을 문서가 없어요`;
     const limit = folderMarkdownCount > FOLDER_SOURCE_LIMIT ? ` (최근 ${FOLDER_SOURCE_LIMIT}개만)` : "";
     return `${name} 폴더 문서 ${folderMarkdownCount}개를 읽어 새 문서를 만들어요${limit}`;
   }

@@ -1925,6 +1925,18 @@ button.result-link:focus-visible {
   font-size: 11px;
 }
 
+.markdown-create-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-canvas);
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .markdown-create-rendered-preview {
   max-height: 260px;
 }

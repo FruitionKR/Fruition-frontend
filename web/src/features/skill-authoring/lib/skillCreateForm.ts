@@ -63,13 +63,16 @@ export const SKILL_SOURCE_OPTIONS: ReadonlyArray<{ value: SkillSourceChoice; lab
 ];
 
 /** 원문 문서를 아직 정하지 않았을 때(만들기 시트에서 고르기 전) 선택 상자에 보이는 문구 */
-export const SOURCE_AI_PLACEHOLDER = "저장할 때 AI가 정해요";
+export const SOURCE_UNSET_PLACEHOLDER = "고르지 않음";
 
 export interface SkillCreateForm {
   kind: SkillKind;
   resultMode: SkillResultMode;
   targets: readonly SkillTarget[];
-  /** 원문 문서 필요 여부(requires_source). null이면 사용자가 고르지 않아 저장할 때 AI가 정한다. */
+  /**
+   * 원문 문서 필요 여부(requires_source). 'AI로 작성' 초안이 정한 값이나 사용자가 고른 값이다.
+   * null이면 보내지 않아 서버가 규칙으로만 정한다(지침에 {문서}가 있으면 읽음, 아니면 읽지 않음). 게시는 다시 분류하지 않는다.
+   */
   requiresSource: boolean | null;
   scope: SkillScope;
   command: string;
@@ -138,9 +141,12 @@ export function requiresSourceFromChoice(choice: SkillSourceChoice): boolean {
   return choice === "read";
 }
 
-/** '원문 문서' 아래 안내. 정하지 않았으면(null) AI가 무엇으로 정하는지 알린다. */
+/**
+ * '원문 문서' 아래 안내. 정하지 않았으면(null) 게시할 때 적용되는 규칙을 알린다.
+ * 게시는 의도를 다시 분류하지 않아, 고르지 않으면 {문서} 자리표시자가 있을 때만 원문을 읽는다(ai skills.md).
+ */
 export function sourceHint(requiresSource: boolean | null): string {
-  if (requiresSource == null) return "고르지 않으면 실행 규칙을 보고 AI가 정해요. 저장한 뒤 스킬 상세에서 바꿀 수 있어요.";
+  if (requiresSource == null) return "고르지 않으면 {문서} 자리표시자가 있을 때만 원문을 읽어요. ‘AI로 작성·보강’을 누르면 AI가 골라 줘요.";
   return requiresSource ? "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요" : "원문 없이 새 문서를 만들어요";
 }
 
@@ -177,7 +183,8 @@ export function skillExecutionOptions(
 
 /**
  * 시트 입력값 → POST /skills/author/publish 요청. allowed_tools는 서버가 capabilities로 계산한다(ai#121).
- * requires_source는 사용자가 '원문 문서'를 직접 골랐고 그 필드가 보이는 스킬일 때만 보낸다. 빼면 AI가 정한다.
+ * requires_source는 '원문 문서' 값이 있고(AI 초안이 정했거나 사용자가 골랐고) 그 필드가 보이는 스킬일 때만 보낸다.
+ * 게시는 의도를 다시 분류하지 않으므로, 초안의 판단을 지키려면 사용자가 손대지 않았어도 보내야 한다. 빼면 {문서}·템플릿 규칙만 적용된다.
  */
 export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest {
   const sendsSource = form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
@@ -232,10 +239,11 @@ export function kindFromCapabilities(
 /**
  * AI 초안을 시트에 채운다. 실행 규칙은 초안 지침으로 바꾸고(차단돼 지침이 없으면 유지),
  * 커맨드명·설명은 비어 있을 때만 제안값으로 채운다. 스킬 종류·결과 방식은 AI가 고른 capability를 따른다(템플릿 제외).
+ * 원문 문서는 초안이 requires_source(boolean)를 주면 그 값으로 채운다. 게시에 그대로 실어 AI 판단을 지킨다.
  */
 export function applySkillDraft(
   form: SkillCreateForm,
-  draft: Pick<SkillAuthoringResult, "name" | "description" | "instructions_markdown" | "capabilities">
+  draft: Pick<SkillAuthoringResult, "name" | "description" | "instructions_markdown" | "capabilities" | "requires_source">
 ): SkillCreateForm {
   const suggestedName = (draft.name ?? "").trim();
   const suggestedDescription = (draft.description ?? "").trim();
@@ -244,6 +252,7 @@ export function applySkillDraft(
     ...form,
     // 템플릿은 만들기에서 고를 수 없는 종류라, AI가 템플릿을 골라도 지금 고른 종류를 유지한다.
     ...(drafted != null && drafted.kind !== "template" ? drafted : {}),
+    ...(typeof draft.requires_source === "boolean" ? { requiresSource: draft.requires_source } : {}),
     rules: draft.instructions_markdown?.trim() ? draft.instructions_markdown : form.rules,
     command: form.command.trim() === "" && SKILL_NAME_PATTERN.test(suggestedName) ? suggestedName : form.command,
     description: form.description.trim() === "" ? suggestedDescription.slice(0, SKILL_DESCRIPTION_MAX) : form.description
@@ -265,6 +274,19 @@ export function draftResultModeChange(
 ): { from: SkillResultMode; to: SkillResultMode } | null {
   if (!isDocumentKind(before.kind) || !isDocumentKind(after.kind) || before.resultMode === after.resultMode) return null;
   return { from: before.resultMode, to: after.resultMode };
+}
+
+/**
+ * AI 초안을 채우며 '원문 문서' 값이 바뀌었으면 이전·이후 값, 아니면 null. 이전 값은 고르지 않음(null)일 수 있다.
+ * 결과 방식처럼 AI가 정한 사실을 알리고 되돌릴 수 있게 한다. 필드가 보이지 않는 스킬(고치기·폴더 정리)은 알리지 않는다.
+ */
+export function draftSourceChange(
+  before: Pick<SkillCreateForm, "requiresSource">,
+  after: Pick<SkillCreateForm, "kind" | "resultMode" | "requiresSource">
+): { from: boolean | null; to: boolean } | null {
+  if (after.requiresSource == null || before.requiresSource === after.requiresSource) return null;
+  if (!showsSourceField(after.kind, after.resultMode)) return null;
+  return { from: before.requiresSource, to: after.requiresSource };
 }
 
 export type SkillCreateField = "command" | "description" | "rules" | "targets";

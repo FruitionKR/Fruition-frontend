@@ -18,7 +18,7 @@ import {
   SKILL_KIND_CARDS,
   SKILL_SOURCE_OPTIONS,
   SKILL_TARGET_OPTIONS,
-  SOURCE_AI_PLACEHOLDER,
+  SOURCE_UNSET_PLACEHOLDER,
   sourceChoice,
   sourceHint,
   sourceLabel,
@@ -176,8 +176,8 @@ export const SOURCE_HELP = (
 );
 
 /**
- * '원문 문서' 필드(requires_source). 읽음·읽지 않음을 고르고, 고르기 전(null)에는 'AI가 정해요' 상태를 보인다.
- * note가 있으면 AI가 값을 바꿨다고 알리고 이전 값으로 되돌리는 버튼을 둔다.
+ * '원문 문서' 필드(requires_source). 읽음·읽지 않음을 고르고, 고르기 전(null)에는 '고르지 않음'과 게시 규칙 안내를 보인다.
+ * note가 있으면 AI가 값을 정했다고 알리고 이전 값(고르지 않음일 수 있다)으로 되돌리는 버튼을 둔다.
  */
 export function SourceField({
   id,
@@ -188,7 +188,7 @@ export function SourceField({
 }: {
   id: string;
   value: boolean | null;
-  note?: { from: boolean; to: boolean } | null;
+  note?: { from: boolean | null; to: boolean } | null;
   onChange: (value: boolean) => void;
   onUndo?: () => void;
 }) {
@@ -206,7 +206,7 @@ export function SourceField({
           id={id}
           value={sourceChoice(value)}
           options={SKILL_SOURCE_OPTIONS}
-          placeholder={SOURCE_AI_PLACEHOLDER}
+          placeholder={SOURCE_UNSET_PLACEHOLDER}
           describedBy={hintId}
           onChange={(choice) => onChange(requiresSourceFromChoice(choice))}
         />
@@ -217,7 +217,7 @@ export function SourceField({
           <p className={styles["result-note"]} role="status">
             <span>실행 규칙에 맞춰 AI가 원문 문서를 ‘{sourceLabel(note.to)}’으로 정했어요.</span>
             <button type="button" className={styles["result-note-undo"]} onClick={onUndo}>
-              ‘{sourceLabel(note.from)}’으로 되돌리기
+              ‘{note.from == null ? SOURCE_UNSET_PLACEHOLDER : sourceLabel(note.from)}’으로 되돌리기
             </button>
           </p>
         )}

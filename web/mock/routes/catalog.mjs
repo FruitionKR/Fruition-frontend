@@ -51,10 +51,32 @@ export function classifyRequiresSource(capabilities, instructions) {
   return text.includes("{문서}") || SOURCE_KEYWORD_PATTERN.test(text);
 }
 
-/** 이 필드가 생기기 전 버전(seed 등)은 계산한 값으로 내려준다(백엔드가 예전 Skill에 계산값을 주는 것과 같다). */
+/** 새 문서를 만드는 문서 Skill인지(document-create가 있고 결과 방식이 edit가 아님). 아니면 requires_source는 늘 false다. */
+function createsDocument(capabilities, resultMode) {
+  return (capabilities ?? []).includes("document-create") && resultMode !== "edit";
+}
+
+/**
+ * 게시에서 requires_source를 생략했을 때(ai skills.md): 게시는 의도를 다시 분류하지 않아
+ * 새 문서를 만드는 문서 Skill의 지침에 {문서}가 있을 때만 true, 그 밖(템플릿 포함)은 false다.
+ */
+export function publishRuleRequiresSource(capabilities, resultMode, instructions) {
+  if ((capabilities ?? []).includes("template") || !createsDocument(capabilities, resultMode)) return false;
+  return (instructions ?? "").includes("{문서}");
+}
+
+/**
+ * 이 필드가 생기기 전 버전(seed 등, 저장값 없음)은 조회할 때 계산한다(ai skills.md 예전 Skill 규칙):
+ * template이 있으면 false, document-create가 있고 결과 방식이 edit가 아니면 true, 그 밖은 false.
+ */
+export function legacyRequiresSource(version) {
+  if ((version?.capabilities ?? []).includes("template")) return false;
+  return createsDocument(version?.capabilities, version?.result_mode ?? null);
+}
+
 function withRequiresSource(version) {
   if (!version || typeof version.requires_source === "boolean") return version;
-  return { ...version, requires_source: classifyRequiresSource(version.capabilities, version.instructions_markdown) };
+  return { ...version, requires_source: legacyRequiresSource(version) };
 }
 
 /** 요청의 requires_source: 사용자가 고른 값(boolean). 생략·null이면 undefined다(형식은 라우트가 먼저 검사한다). */
@@ -273,7 +295,9 @@ export function registerCatalogRoutes(router) {
     const reject = SKILL_REJECT_RULES.find((rule) => rule.pattern.test(instruction));
     if (reject) return error(ctx, reject.status, reject.message, reject.code);
     const skillName = (name ?? slugify(instruction.slice(0, 20))).trim();
-    const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities: draftCapabilities(instruction), instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n` };
+    const capabilities = draftCapabilities(instruction);
+    // 초안의 requires_source는 의도 분류(LLM) 판단이다. 게시는 다시 분류하지 않아 클라이언트가 이 값을 게시에 실어야 유지된다.
+    const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities, instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n`, requires_source: classifyRequiresSource(capabilities, instruction) };
     ctx.json(200, toAuthoringResult({ id: id("skill"), scope_type: scope_type ?? "personal" }, version, detectSkillIssues(instruction)));
   });
 
@@ -292,9 +316,9 @@ export function registerCatalogRoutes(router) {
     const options = executionOptions(ctx, capabilities, body, { targets: [], result_mode: null });
     if (!options) return;
     const tools = Array.isArray(allowed_tools) && allowed_tools.length > 0 ? allowed_tools : canonicalTools(capabilities);
-    // 사용자가 고르면 그 값을, 아니면 AI가 지침으로 정한다. 템플릿·폴더 정리는 늘 false다.
-    const requiresSource = isDocumentSkill(capabilities)
-      ? requestedRequiresSource(body) ?? classifyRequiresSource(capabilities, instructions_markdown)
+    // 보낸 값(초안 판단·사용자 선택)을 쓴다. 생략하면 다시 분류하지 않고 {문서} 규칙만 적용한다. 새 문서를 만들지 않는 Skill은 늘 false다.
+    const requiresSource = createsDocument(capabilities, options.result_mode)
+      ? requestedRequiresSource(body) ?? publishRuleRequiresSource(capabilities, options.result_mode, instructions_markdown)
       : false;
     const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: tools, capabilities, instructions_markdown: instructions_markdown ?? "", ...options, requires_source: requiresSource };
     const skill = { id: id("skill"), workspace_id: workspace.id, owner_user_id: ctx.user.id, slug, scope_type: scope_type ?? "personal", status: "enabled", enabled_version: version, latest_version: version };

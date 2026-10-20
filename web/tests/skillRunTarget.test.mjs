@@ -146,7 +146,7 @@ test("원문이 필요한 스킬을 폴더에 실행하면 폴더 문서 N개를
   assert.equal(skillRunPreview(create, folderTarget, 3), "'회의록' 폴더 문서 3개를 읽어 새 문서를 만들어요");
   assert.equal(skillRunPreview(create, folderTarget, 20), "'회의록' 폴더 문서 20개를 읽어 새 문서를 만들어요");
   assert.equal(skillRunPreview(create, folderTarget, 25), "'회의록' 폴더 문서 25개를 읽어 새 문서를 만들어요 (최근 20개만)");
-  assert.match(skillRunPreview(create, folderTarget, 0), /읽을 Markdown 문서가 없어/);
+  assert.equal(skillRunPreview(create, folderTarget, 0), "'회의록' 폴더에 읽을 문서가 없어요");
   assert.equal(skillRunPreview(withSource(AUTO_SKILL, true), folderTarget, 2), "'회의록' 폴더 문서 2개를 읽어 새 문서를 만들어요");
 });
 
