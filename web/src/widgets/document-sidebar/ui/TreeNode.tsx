@@ -74,6 +74,10 @@ export function TreeNode({
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
+  // 지금 위키 편입을 시작할 수 있는 문서에만 신규·수정됨·재시도 배지를 붙인다(업로드 중 자리표시 행 제외).
+  const wikiReflectBadge = !isUploading && item.documentId
+    ? interaction.wikiReflectBadges?.get(item.documentId) ?? null
+    : null;
   // 자기 권한은 그대로, 상위 설정 따름은 가장 가까운 상위 폴더 권한을 흐리게 표시한다.
   const permission = effectivePermission(item, inheritedPermission);
   const permissionLabel = permission && (permission.source === "own"
@@ -207,6 +211,15 @@ export function TreeNode({
                 label={permissionLabel}
                 className={cx(styles["tree-permission-icon"], permission.source === "inherited" && styles["is-inherited"])}
               />
+            )}
+            {wikiReflectBadge && (
+              <small
+                className={cx(styles["tree-reflect-badge"], styles[`is-${wikiReflectBadge.tone}`])}
+                title={wikiReflectBadge.description}
+                aria-label={wikiReflectBadge.description}
+              >
+                {wikiReflectBadge.label}
+              </small>
             )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
@@ -19,6 +19,7 @@ import type { SelectableTreeItem, TreeInteractionProps } from "../model/treeInte
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
 import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
+import { buildTreeWikiReflectBadges } from "../model/treeWikiReflectBadge";
 import styles from "./DocumentSidebar.module.css";
 
 export function DocumentSidebar({
@@ -198,6 +199,8 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDropFiles
   });
+  // 문서 행 우측 위키 반영 배지. 문서 목록이 바뀔 때만 다시 계산한다.
+  const wikiReflectBadges = useMemo(() => buildTreeWikiReflectBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
   const interaction: TreeInteractionProps = {
     draggedItemId,
@@ -207,6 +210,7 @@ export function DocumentSidebar({
     dropTarget,
     fileDropTarget,
     editing,
+    wikiReflectBadges,
     openIds,
     onToggleOpen,
     onOpenMany,
