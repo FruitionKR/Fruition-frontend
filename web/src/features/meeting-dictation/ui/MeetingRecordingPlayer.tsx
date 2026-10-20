@@ -57,7 +57,7 @@ export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
         src={source.url}
         controls
         preload="metadata"
-        aria-label="회의 녹음"
+        aria-label="녹음 재생"
         onLoadedMetadata={(event) => {
           const resume = resumeRef.current;
           resumeRef.current = null;
