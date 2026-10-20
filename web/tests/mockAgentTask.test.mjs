@@ -100,7 +100,9 @@ test("mock 폴더 정리 계획은 중복 의심 작업을 기본 선택에서 �
   const chosen = [create.id, ...rest.filter((operation) => operation.suggested_selected).map((operation) => operation.id)];
   const approve = (operationIds) => request("POST", `/runs/${run.id}/approve`, { plan_version: run.plan.version, operation_hash: run.plan.operation_hash, operation_ids: operationIds });
 
-  assert.equal((await approve([])).status, 422);
+  const empty = await approve([]);
+  assert.equal(empty.status, 400, "형식 오류는 document-svc처럼 400이다");
+  assert.equal(empty.body.error.code, "INVALID_REQUEST");
   assert.equal((await approve([create.id, create.id])).status, 400);
   assert.equal((await approve(["opr_unknown"])).status, 400);
   assert.equal((await approve(chosen.slice(1))).status, 400, "새 폴더 작업을 빼면 의존 오류");

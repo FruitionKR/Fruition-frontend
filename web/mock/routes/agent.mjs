@@ -132,10 +132,13 @@ function organizeResult(workspace, turn, message, skill = null) {
   return { action: "folder_organize", route: route("folder_organize", "폴더 정리 요청"), message: "문서를 정리할 계획을 만들었습니다. 승인하면 실행합니다.", chat: null, edit: null, generated_markdown: null, run_id: run.id };
 }
 
-/** 부분 승인 operation_ids 검사(AI 계약): 422 형식(빈 배열·20개 초과), 400 중복·계획에 없는 ID·고르지 않은 작업에 의존. */
+/**
+ * 부분 승인 operation_ids 검사(AI 계약): 형식(빈 배열·20개 초과)은 document-svc처럼 400 INVALID_REQUEST,
+ * 400 중복·계획에 없는 ID·고르지 않은 작업에 의존.
+ */
 function selectionError(plan, operationIds) {
   if (!Array.isArray(operationIds) || operationIds.length === 0 || operationIds.length > MAX_SELECTED_OPERATIONS || operationIds.some((value) => typeof value !== "string")) {
-    return [422, "operation_ids는 1~20개의 작업 ID여야 합니다."];
+    return [400, "operation_ids는 1~20개의 작업 ID여야 합니다.", "INVALID_REQUEST"];
   }
   const selected = new Set(operationIds);
   if (selected.size !== operationIds.length) return [400, "operation_ids에 중복된 작업이 있습니다."];
@@ -416,7 +419,7 @@ export function registerAgentRoutes(router) {
     const { plan_version, operation_hash, operation_ids: operationIds = null } = await ctx.body();
     if (plan_version !== run.plan.version || operation_hash !== run.plan.operation_hash) return error(ctx, 409, "계획이 바뀌었습니다. 최신 상태를 확인해주세요.");
     const invalid = operationIds === null ? null : selectionError(run.plan, operationIds);
-    if (invalid) return error(ctx, invalid[0], invalid[1]);
+    if (invalid) return error(ctx, invalid[0], invalid[1], invalid[2]);
     // 고르지 않은 작업은 승인 시점에 skipped·not_selected가 되고 실행하지 않는다.
     const selected = operationIds === null ? null : new Set(operationIds);
     run.plan.operations.forEach((operation) => {
