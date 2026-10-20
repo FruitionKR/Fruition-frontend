@@ -16,7 +16,7 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
 | `GET /api/workspaces/{workspace_id}/skills` | Skill 목록 | `web/src/entities/skill/api/skill.ts` `fetchSkills` | 템플릿 결합 (`` `/api/workspaces/${workspaceId}/skills` ``) | `cache: no-store` | `SkillResponse[]` (배열 루트) | 응답이 envelope 없는 배열이다 |
 | `POST /api/workspaces/{workspace_id}/skills/author` | Skill 초안 생성 | `web/src/entities/skill/api/skill.ts` `authorSkill` | 템플릿 결합 | `SkillAuthoringRequest` JSON | `SkillAuthoringResult` | 응답의 `capabilities`·`allowed_tools`는 사용자가 검토할 초안 권한이며 publish 요청에 그대로 전달한다 |
 | `POST /api/workspaces/{workspace_id}/skills/author/publish` | 초안 게시 | `web/src/entities/skill/api/skill.ts` `publishSkill` | 템플릿 결합 | `SkillPublishRequest` JSON | `SkillAuthoringResult` | backend가 지침을 다시 보안 검사하며 권한이 확대되면 저장하지 않는다 |
-| `PATCH /api/workspaces/{workspace_id}/skills/{skill_id}` | Skill 정의 수정 | `web/src/entities/skill/api/skill.ts` `updateSkill` | 템플릿 결합 | `SkillUpdateRequest` JSON | `SkillAuthoringResult` | - |
+| `PATCH /api/workspaces/{workspace_id}/skills/{skill_id}` | Skill 정의 수정 | `web/src/entities/skill/api/skill.ts` `updateSkill` | 템플릿 결합 | `SkillUpdateRequest` JSON | `SkillAuthoringResult` | 종류·결과 방식을 바꾸면 `capabilities`를 싣는다(아래 '수정에서 종류·결과 방식 바꾸기') |
 | `DELETE /api/workspaces/{workspace_id}/skills/{skill_id}` | Skill 삭제 | `web/src/entities/skill/api/skill.ts` `deleteSkill` | 템플릿 결합 (`encodeURIComponent` 적용) | 본문 없음 | - (`throwIfNotOk`) | 같은 경로를 PATCH와 공유한다 |
 | `POST /api/workspaces/{workspace_id}/skills/{skill_id}/enable` | Skill 활성화 | `web/src/entities/skill/api/skill.ts` `enableSkill` | 템플릿 결합 | 본문 없음 | `SkillResponse` | - |
 | `POST /api/workspaces/{workspace_id}/skills/{skill_id}/disable` | Skill 비활성화 | `web/src/entities/skill/api/skill.ts` `disableSkill` | 템플릿 결합 | 본문 없음 | `SkillResponse` | - |
@@ -29,8 +29,8 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
 
 | 필드 | 값 | 게시에서 생략 | 수정에서 생략 | 화면 |
 |---|---|---|---|---|
-| `targets` | `current_document`(현재 문서), `selection`(선택한 부분). 중복 불가, 저장 순서 고정 | `[]`과 같이 `["current_document"]` | 기존 값 유지(`[]`이면 기본값으로 되돌림) | 만들기 시트 '대상' 체크 |
-| `result_mode` | `create`(새 문서로 만들기), `edit`(열린 문서 고치기), `auto`(상황에 맞게) | `null` | 기존 값 유지 | 만들기 시트 '결과 방식'. 상세 시트는 아래 불일치 때만 |
+| `targets` | `current_document`(현재 문서), `selection`(선택한 부분). 중복 불가, 저장 순서 고정 | `[]`과 같이 `["current_document"]` | 기존 값 유지(`[]`이면 기본값으로 되돌림) | 만들기·상세 시트 '대상' 체크 |
+| `result_mode` | `create`(새 문서로 만들기), `edit`(열린 문서 고치기), `auto`(상황에 맞게) | `null` | 기존 값 유지(`capabilities`를 보내면 그 값에서 정해짐) | 만들기·상세 시트 '결과 방식' |
 
 - `result_mode`는 `capabilities`와 정확히 맞아야 한다: `create`→`document-create`, `edit`→`document-edit`, `auto`→둘 다.
   게시는 프론트가 결과 방식으로 `capabilities`를 계산해 함께 보내므로 늘 맞는다(`skillPublishRequest`).
@@ -38,16 +38,34 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
   응답에서는 `targets: []`, `result_mode: null`로 온다.
 - 필드가 생기기 전에 게시된 문서 Skill은 `targets: ["current_document", "selection"]`, `result_mode: null`로 읽힌다.
   프론트는 `result_mode`가 없으면 `capabilities`로 결과 방식을 추정한다(`kindFromCapabilities`, `skillRunIntent`).
-- 상세 시트 저장(PATCH)은 이름·설명·지침과 문서 Skill의 `targets`만 보내고 `result_mode`는 생략한다. AI가 고친 지침을
-  다시 분류해 `capabilities`가 바뀌면 이어받은 `result_mode`가 맞지 않아 **거절 없이 `null`로 버려진다**. 프론트는 응답에서
-  이를 감지(`resultModeDrift`)해 시트를 닫지 않고 '결과 방식' 필드를 띄워, 고른 값을 `result_mode`로 실어 다시 저장한다.
+
+### 수정에서 종류·결과 방식 바꾸기: `capabilities`
+
+상세 시트는 만들기 시트와 같은 '스킬 종류'·'결과 방식'·'대상'·('원문 문서') 필드를 늘 보여 주고, PATCH에 선택 필드
+`capabilities?: string[]`를 싣는다. 값과 조합 검증은 게시와 같다. 프론트는 `skillCapabilities(kind, resultMode)`로 만든다
+(문서+edit `["document-edit"]`, 문서+create `["document-create"]`, 문서+auto `["document-create","document-edit"]`, 폴더 정리 `["folder-organize"]`, 템플릿 `["template"]`).
+
+- **생략**: 이전 버전 `capabilities`를 그대로 이어받는다(재분류 없음).
+- **보냄**: `allowed_tools`를 새 `capabilities`로 다시 계산한다. 문서 Skill이 아니게 되면 `targets: []`·`result_mode: null`·`requires_source: false`
+  (보낸 `targets`·`result_mode`가 있으면 `SKILL_TARGETS_INVALID`·`SKILL_RESULT_MODE_INVALID`로 거절). 문서 Skill이면 `result_mode`를 생략할 때
+  `capabilities`에서 정해지는 값, `targets`는 이전에도 문서 Skill이면 이어받고 새로 문서 Skill이 되면 `["current_document"]`.
+- 프론트 규칙(`skillDetailDraft`·`detailCapabilitiesChange`):
+  - 종류를 바꿨거나 문서 Skill의 결과 방식을 바꿨으면 `capabilities`를 보내고, 문서 Skill이면 `result_mode`(화면 값)와 `targets`를 **명시해** 함께 보낸다.
+  - 저장된 조합이 시트에서 고를 수 있는 조합이 아니면(예: `["document-edit","folder-organize"]`, 화면에는 `kindFromCapabilities`대로 '폴더 정리') 바꾸지 않았어도
+    화면에 보이는 종류로 `capabilities`를 보내 바로잡는다.
+  - 바꾸지 않았으면 `capabilities`를 생략하고, 문서 Skill이면 저장된 `targets`·`result_mode`를 함께 보내 지침만 고친 저장이 종류를 바꾸지 않게 한다.
+    `result_mode` 저장값이 없는 예전 Skill은 이때 `result_mode`를 보내지 않는다.
+  - 폴더 정리·템플릿이면 `targets`·`result_mode`·`requires_source`를 뺀다. 종류를 알 수 없는 Skill은 사용자가 종류를 고르기 전까지 `capabilities`를 보내지 않는다.
+  - 템플릿은 새로 고를 수 없어, 저장된 종류가 템플릿일 때만 선택지에 남긴다.
+- 테스트 실행 카드는 저장 전 화면의 종류·결과 방식으로 `capabilities`를 정한다(`skillDetailAuthorForm`).
 
 ### 오류 code
 
 | AI code | 뜻 | document가 돌려주는 값 | 프론트 처리 |
 |---|---|---|---|
-| `invalid_result_mode` | `result_mode`가 `capabilities`와 맞지 않음, 또는 문서 Skill이 아닌데 보냄 | `400` `SKILL_REQUEST_REJECTED`("Skill 요청이 거부되었습니다.") — 전용 code로 옮기지 않음 | 결과 방식을 실어 보낸 PATCH가 이 code로 거절되면 결과 방식 불일치로 보고 상세 시트에 안내(`isResultModeRejection`). 전용 code(`invalid_result_mode`·`INVALID_RESULT_MODE`·`SKILL_RESULT_MODE_INVALID`)가 오면 그대로 인식 |
-| `invalid_targets` | `targets` 중복, 또는 문서 Skill이 아닌데 보냄 | `400` `SKILL_REQUEST_REJECTED` | 일반 저장 실패 문구 |
+| `invalid_result_mode` | `result_mode`가 `capabilities`와 맞지 않음, 또는 문서 Skill이 아닌데 보냄 | `400` `SKILL_RESULT_MODE_INVALID` | "결과 방식이 스킬 종류와 맞지 않아 저장하지 못했어요. 스킬 종류·결과 방식을 다시 골라 주세요."(`describeSkillSaveError`, `invalid_result_mode`·`INVALID_RESULT_MODE` 표기도 같음) |
+| `invalid_targets` | `targets` 중복, 또는 문서 Skill이 아닌데 보냄 | `400` `SKILL_TARGETS_INVALID` | 서버의 한국어 message, 비었으면 정해 둔 대상 안내 |
+| 허용 밖·빈 `capabilities`(AI 422), 중복(AI 400) | 게시와 같은 검증 | 게시와 같은 매핑, 없으면 `400` `SKILL_CAPABILITIES_INVALID` | "이 스킬 종류로는 저장할 수 없어요. 스킬 종류·결과 방식을 다시 골라 주세요." 그 밖의 code는 서버 message |
 
 ## 원문 문서: `requires_source`
 
@@ -65,7 +83,7 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
     'AI로 작성·보강' 초안이 `requires_source`(boolean)를 주면 그 값으로 채우고, 바뀌었으면 "실행 규칙에 맞춰 AI가 원문 문서를 ‘…’으로 정했어요"와
     이전 값(고르지 않음일 수 있다)으로 되돌리기 버튼을 보인다(`applySkillDraft`·`draftSourceChange`).
     게시에는 값이 있으면(초안이 정했거나 사용자가 골랐으면) 사용자가 손대지 않았어도 `requires_source`를 싣고, 둘 다 없으면 뺀다(`skillPublishRequest`).
-  - 상세 시트: 서버 값을 기본으로 보여 주고, 저장된 값에서 바꿨을 때만 싣는다(`skillDetailDraft`). 보내지 않은 저장에서 응답 값이
+  - 상세 시트: 서버 값을 기본으로 보여 주고, 필드가 보이면 화면 값을 늘 싣는다(`skillDetailDraft`). 보내지 않은 저장에서 응답 값이
     저장 전 값과 다르면(AI가 바꿈) 시트를 닫지 않고 "실행 규칙에 맞춰 AI가 원문 문서를 ‘…’으로 정했어요"와 되돌리기 버튼을 보인다(`requiresSourceDrift`).
 - **필드는 새 문서를 만들 수 있는 문서 Skill에만 보인다**: 결과 방식 `create`·`auto`. `edit`·폴더 정리·템플릿에서는 감추고 보내지 않는다(`showsSourceField`).
   상세 시트는 응답에 값이 없으면(구버전 백엔드) 감춘다(`showsDetailSourceField`).

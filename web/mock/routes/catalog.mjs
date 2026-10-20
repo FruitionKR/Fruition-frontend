@@ -88,6 +88,23 @@ function isDocumentSkill(capabilities) {
   return capabilities.some((capability) => DOCUMENT_CAPABILITIES.has(capability));
 }
 
+/** 게시와 같은 capabilities 검증: 알려진 값만, 1개 이상, 중복 없음. */
+function validCapabilities(capabilities) {
+  return Array.isArray(capabilities) && capabilities.length > 0
+    && new Set(capabilities).size === capabilities.length
+    && capabilities.every((capability) => Object.hasOwn(CAPABILITY_TOOLS, capability));
+}
+
+/** 문서 Skill capabilities에서 정해지는 결과 방식. 문서 Skill이 아니면 null이다. */
+function resultModeFromCapabilities(capabilities) {
+  const creates = capabilities.includes("document-create");
+  const edits = capabilities.includes("document-edit");
+  if (creates && edits) return "auto";
+  if (creates) return "create";
+  if (edits) return "edit";
+  return null;
+}
+
 function canonicalTools(capabilities) {
   return [...new Set(capabilities.flatMap((capability) => CAPABILITY_TOOLS[capability] ?? []))];
 }
@@ -377,20 +394,33 @@ export function registerCatalogRoutes(router) {
       return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
     }
     const base = skill.latest_version ?? skill.enabled_version;
-    // 실제 AI는 고친 지침으로 capabilities를 다시 분류한다. 지침 표식으로 재현한다: #새문서 → document-create, #고치기 → document-edit.
-    const reclassified = /#새문서/.test(body.instructions_markdown) ? ["document-create"]
-      : /#고치기/.test(body.instructions_markdown) ? ["document-edit"] : base?.capabilities ?? [];
+    const baseCapabilities = base?.capabilities ?? [];
+    // capabilities를 보내면 게시와 같은 규칙으로 검증해 쓰고 allowed_tools를 다시 계산한다. 생략하면 이전 값을 이어받는다(재분류 없음).
+    const sentCapabilities = body.capabilities !== undefined;
+    if (sentCapabilities && !validCapabilities(body.capabilities)) {
+      return error(ctx, 400, "허용되지 않는 스킬 종류입니다.", "SKILL_CAPABILITIES_INVALID");
+    }
+    const capabilities = sentCapabilities ? body.capabilities : baseCapabilities;
     // 생략한 값은 이어받는다. 필드가 생기기 전 문서 Skill(targets 없음)은 두 대상 모두로 읽는다.
-    const inherited = { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
+    // capabilities를 보냈으면: 이전에도 문서 Skill이면 대상을 이어받고, 새로 문서 Skill이 되면 기본 대상이다.
+    // result_mode는 capabilities에서 정해지는 값(edit/create/auto)이다.
+    const inherited = sentCapabilities
+      ? {
+        targets: isDocumentSkill(baseCapabilities) && base?.targets?.length ? base.targets : ["current_document"],
+        result_mode: resultModeFromCapabilities(capabilities)
+      }
+      : { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
     if (body.requires_source != null && typeof body.requires_source !== "boolean") return error(ctx, 400, "requires_source는 true·false여야 합니다.", "INVALID_REQUEST");
-    const options = executionOptions(ctx, reclassified, body, inherited);
+    const options = executionOptions(ctx, capabilities, body, inherited);
     if (!options) return;
     // 보낸 값이 있으면 그 값을 쓴다. 생략하면 지침이 바뀌었을 때만 AI가 다시 정하고, 아니면 기존 값을 이어받는다.
+    // 새 문서를 만들지 않는 Skill(고치기 전용·폴더 정리·템플릿)이 되면 false다.
     const inheritedSource = withRequiresSource(base)?.requires_source ?? false;
-    const requiresSource = !isDocumentSkill(reclassified) ? false
+    const requiresSource = !createsDocument(capabilities, options.result_mode) ? false
       : requestedRequiresSource(body)
-        ?? (body.instructions_markdown !== base?.instructions_markdown ? classifyRequiresSource(reclassified, body.instructions_markdown) : inheritedSource);
-    const version = { ...base, capabilities: reclassified, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options, requires_source: requiresSource };
+        ?? (body.instructions_markdown !== base?.instructions_markdown ? classifyRequiresSource(capabilities, body.instructions_markdown) : inheritedSource);
+    const tools = sentCapabilities ? canonicalTools(capabilities) : base?.allowed_tools ?? canonicalTools(capabilities);
+    const version = { ...base, capabilities, allowed_tools: tools, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options, requires_source: requiresSource };
     skill.slug = body.name;
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;

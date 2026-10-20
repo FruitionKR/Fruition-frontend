@@ -75,10 +75,12 @@ export interface SkillPublishRequest extends SkillExecutionOptions {
 
 // PATCH /skills/{id} 요청. 백엔드가 이름·설명·지침을 필수로 검증한다.
 // targets·result_mode는 생략하면 기존 값을 유지하고, targets: []는 기본값으로 되돌린다.
+// capabilities는 종류·결과 방식을 바꿀 때만 보낸다(게시와 같은 규칙). 생략하면 이전 버전 값을 이어받는다.
 export interface SkillUpdateRequest extends SkillExecutionOptions {
   name: string;
   description: string;
   instructions_markdown: string;
+  capabilities?: string[];
 }
 
 // POST /skills/test-run 요청 (SkillTestRunRequest). 아무것도 저장하지 않는다.

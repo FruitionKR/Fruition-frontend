@@ -1,14 +1,18 @@
 import type { SkillAuthoringResult, SkillExecutionOptions, SkillResponse } from "@/entities/skill/model/skill";
 import {
   INITIAL_SKILL_CREATE_FORM,
+  isDocumentKind,
   kindFromCapabilities,
   SKILL_DESCRIPTION_MAX,
   SKILL_INSTRUCTIONS_MAX,
   SKILL_TARGET_OPTIONS,
   showsSourceField,
+  skillCapabilities,
   skillCommandError,
   skillExecutionOptions,
   targetsFromValues,
+  TARGETS_REQUIRED_MESSAGE,
+  type SkillCapability,
   type SkillCreateForm,
   type SkillKind,
   type SkillResultMode,
@@ -18,13 +22,12 @@ import {
 
 /**
  * 스킬 상세 시트(Figma 1708:4059) 입력값.
- * 화면에는 저장범위·커맨드명·설명·실행 규칙만 둔다. 저장할 때는 커맨드명(name)·설명·지침과, 문서 스킬이면 읽어 둔 대상·
- * 저장된 결과 방식·원문 문서를 그대로 보내 실행 규칙만 고친 저장이 종류를 바꾸지 않게 한다.
- * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 결과 방식이 서버 capabilities와 맞지 않아 거절되면, 그때 결과 방식을 고르게 해 실어 보낸다.
- * 대상·결과 방식·스킬 종류는 화면에 두지 않지만 테스트 실행 capability를 정하려고 버전의 targets·result_mode·capabilities에서 읽는다(ai#122).
+ * 만들기 시트와 같은 스킬 종류·결과 방식·대상·(원문 문서) 필드와 저장범위·커맨드명·설명·실행 규칙을 둔다.
+ * 종류·결과 방식은 버전의 capabilities·result_mode에서 읽고, 바꿔 저장하면 capabilities를 함께 보낸다(skillDetailDraft).
+ * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 테스트 실행 capability도 이 화면 값을 따른다(skillDetailAuthorForm).
  */
 export interface SkillDetailForm {
-  /** capabilities를 알 수 없으면 null(종류·결과 방식·대상을 표시하지 않는다) */
+  /** capabilities를 알 수 없으면 null(종류를 고르기 전까지 결과 방식·대상을 표시하지 않는다) */
   kind: SkillKind | null;
   resultMode: SkillResultMode;
   scope: SkillScope;
@@ -112,36 +115,88 @@ export function showsDetailSourceField(form: Pick<SkillDetailForm, "kind" | "res
   return form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
 }
 
-export type SkillDetailDraft = { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions;
+export type SkillDetailDraft = {
+  name: string;
+  description: string;
+  instructionsMarkdown: string;
+  capabilities?: SkillCapability[];
+} & SkillExecutionOptions;
 
-/** 서버에 저장된 결과 방식(켜진 버전, 없으면 최신 버전). 저장값이 없으면(필드 추가 전 스킬) null이다. */
-export function savedSkillResultMode(skill: SkillResponse): SkillResultMode | null {
-  return (skill.enabled_version ?? skill.latest_version)?.result_mode ?? null;
+/** 서버에 저장된 종류·결과 방식(켜진 버전, 없으면 최신 버전). 저장 때 바뀌었는지 비교하는 기준이다. */
+export interface SavedSkillKind {
+  capabilities: readonly string[];
+  /** 저장된 결과 방식. 필드 추가 전 스킬이거나 문서 스킬이 아니면 null */
+  resultMode: SkillResultMode | null;
+  /** 시트를 열 때 보여 준 종류·결과 방식(skillDetailForm과 같은 규칙) */
+  shown: Pick<SkillDetailForm, "kind" | "resultMode">;
+}
+
+function toSavedSkillKind(capabilities: readonly string[], resultMode: SkillResultMode | null): SavedSkillKind {
+  const derived = kindFromCapabilities(capabilities);
+  return {
+    capabilities,
+    resultMode,
+    shown: { kind: derived?.kind ?? null, resultMode: resultMode ?? derived?.resultMode ?? INITIAL_SKILL_CREATE_FORM.resultMode }
+  };
+}
+
+export function savedSkillKind(skill: SkillResponse): SavedSkillKind {
+  const version = skill.enabled_version ?? skill.latest_version;
+  return toSavedSkillKind(version?.capabilities ?? [], version?.result_mode ?? null);
+}
+
+/** 저장 응답 → 새 기준. 저장한 뒤 시트를 열어 둘 때(원문 문서 알림) 다음 저장의 비교 기준으로 쓴다. */
+export function savedSkillKindFromResult(result: Pick<SkillAuthoringResult, "capabilities" | "result_mode">): SavedSkillKind {
+  return toSavedSkillKind(result.capabilities ?? [], result.result_mode ?? null);
+}
+
+function sameCapabilities(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((capability) => b.includes(capability));
+}
+
+/**
+ * 저장된 capabilities가 시트에서 고를 수 있는 조합 하나와 정확히 같은지.
+ * 아니면(예: ["document-edit","folder-organize"]는 '폴더 정리'로 보인다) 잘못 저장된 조합이다.
+ */
+function isCanonicalCapabilities(capabilities: readonly string[]): boolean {
+  const derived = kindFromCapabilities(capabilities);
+  return derived != null && sameCapabilities(skillCapabilities(derived.kind, derived.resultMode), capabilities);
+}
+
+/**
+ * 저장할 때 보낼 capabilities. 보내지 않으면 null(서버가 이전 값을 이어받는다).
+ * - 사용자가 종류를 바꿨거나 문서 스킬의 결과 방식을 바꿨으면 화면 값으로 만든 capabilities를 보낸다.
+ * - 저장된 조합이 잘못됐으면(isCanonicalCapabilities) 바꾸지 않았어도 화면에 보이는 종류로 보내 바로잡는다.
+ * - 종류를 알 수 없고(null) 사용자가 고르지도 않았으면 보내지 않는다.
+ */
+export function detailCapabilitiesChange(form: Pick<SkillDetailForm, "kind" | "resultMode">, saved: SavedSkillKind): SkillCapability[] | null {
+  if (form.kind == null) return null;
+  const isChanged = form.kind !== saved.shown.kind || (isDocumentKind(form.kind) && form.resultMode !== saved.shown.resultMode);
+  if (!isChanged && isCanonicalCapabilities(saved.capabilities)) return null;
+  return skillCapabilities(form.kind, form.resultMode);
 }
 
 /**
  * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 커맨드명은 name으로 보내 slug를 바꾼다.
- * 실행 규칙만 고쳐도 스킬 종류·대상·결과 방식이 바뀌지 않도록, 문서 스킬이면 지금 값을 모두 함께 보낸다.
- * - targets: 읽어 둔 대상(이전 형식 "실행 대상" 절을 뗀 스킬은 이걸로 대상이 남는다).
- * - result_mode: 사용자가 다시 고른 값(resultMode), 없으면 서버에 저장된 값(savedResultMode).
- *   저장값이 없는 스킬(필드 추가 전)은 보내지 않는다. 보내면 결과 방식 없음(null)이 바뀌기 때문이다.
- *   보낸 값이 서버의 capabilities와 맞지 않으면 400으로 거절되고, 그때 결과 방식을 고르게 한다(resultModeAfterRejection).
- * - requires_source: '원문 문서' 필드가 보이는 스킬이면 화면 값을 그대로 보낸다(빼면 서버가 지침으로 다시 정할 수 있다).
- * 폴더 정리·템플릿 등 문서 스킬이 아니면 PATCH에 종류를 실을 필드가 없어 담지 않는다(서버가 기존 값을 유지한다).
+ * - capabilities: 종류·결과 방식을 바꿨거나 저장된 조합이 잘못됐을 때만 보낸다(detailCapabilitiesChange).
+ *   생략하면 서버가 이전 값을 이어받는다.
+ * - 문서 스킬이면 targets와 result_mode를 함께 보내 실행 규칙만 고친 저장이 종류를 바꾸지 않게 한다.
+ *   result_mode는 화면 값이다. 저장값이 없는 예전 스킬은 종류·결과 방식을 바꾸지 않은 저장에서 보내지 않는다
+ *   (결과 방식 없음(null)을 바꾸지 않게).
+ * - requires_source: '원문 문서' 필드가 보이면 화면 값을 그대로 보낸다(빼면 서버가 지침으로 다시 정할 수 있다).
+ * 폴더 정리·템플릿처럼 문서 스킬이 아니면 targets·result_mode·requires_source를 빼고 보낸다(보내면 400).
  */
-export function skillDetailDraft(
-  form: SkillDetailForm,
-  resultMode?: SkillResultMode,
-  savedResultMode: SkillResultMode | null = null
-): SkillDetailDraft {
-  const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
-  const sentResultMode = resultMode ?? savedResultMode;
+export function skillDetailDraft(form: SkillDetailForm, saved: SavedSkillKind): SkillDetailDraft {
+  const capabilities = detailCapabilitiesChange(form, saved);
+  const options = form.kind == null ? {} : skillExecutionOptions(form.kind, form.resultMode, form.targets);
+  const sendsResultMode = capabilities != null || saved.resultMode != null;
   return {
     name: form.command.trim(),
     description: form.description.trim(),
     instructionsMarkdown: form.rules.trim(),
-    ...(targets != null ? { targets } : {}),
-    ...(targets != null && sentResultMode != null ? { result_mode: sentResultMode } : {}),
+    ...(capabilities != null ? { capabilities } : {}),
+    ...(options.targets != null ? { targets: options.targets } : {}),
+    ...(options.result_mode != null && sendsResultMode ? { result_mode: options.result_mode } : {}),
     ...(showsDetailSourceField(form) ? { requires_source: form.requiresSource as boolean } : {})
   };
 }
@@ -162,36 +217,7 @@ export function requiresSourceDrift(
   return { from, to: result.requires_source };
 }
 
-/**
- * 저장 응답에서 결과 방식이 사라졌는지 본다. 지금 AI는 이어받은 result_mode가 다시 분류한 capabilities와 맞지 않으면
- * 저장을 거절한다(invalid_result_mode → resultModeAfterRejection). 이전 AI는 거절하지 않고 null로 버렸으므로(ai#122)
- * 그런 백엔드와 붙을 때를 위해 남겨 둔다. 버려졌으면 저장 전 값(from)과 새 capabilities에 맞는 값(to)을, 아니면 null을 돌려준다.
- * 다시 분류된 스킬이 문서 스킬이 아니게 됐으면(결과 방식이 없는 종류) null이다.
- */
-export function resultModeDrift(
-  skill: SkillResponse,
-  result: Pick<SkillAuthoringResult, "capabilities" | "result_mode">
-): { from: SkillResultMode; to: SkillResultMode } | null {
-  const from = savedSkillResultMode(skill);
-  if (from == null || result.result_mode != null) return null;
-  const reclassified = kindFromCapabilities(result.capabilities ?? []);
-  if (reclassified == null || reclassified.kind !== "document") return null;
-  return { from, to: reclassified.resultMode };
-}
-
-/**
- * 결과 방식 불일치로 저장이 거절됐을 때 먼저 골라 둘 결과 방식. 거절 응답에는 새 capabilities가 없어 저장 전 값으로 짐작한다.
- * 이어받은 값이 맞지 않았다는 건 그 capability가 빠졌다는 뜻이다:
- * '열린 문서 고치기'가 거절되면 고치기가 빠져 '새 문서로 만들기'만, '새 문서로 만들기'가 거절되면 '열린 문서 고치기'만 남았다고 본다.
- * '상황에 맞게'(둘 다)가 거절되면 둘 중 하나만 남았는데 어느 쪽인지 알 수 없어, 문서를 새로 만들지 않는 '열린 문서 고치기'를 고른다.
- * 저장 전 값도 목록에 남아 있어 사용자가 바꿀 수 있다.
- */
-export function resultModeAfterRejection(current: SkillResultMode): SkillResultMode {
-  if (current === "edit") return "create";
-  return "edit";
-}
-
-export type SkillDetailField = "command" | "description" | "rules";
+export type SkillDetailField = "command" | "description" | "rules" | "targets";
 
 /** 필드별 오류 문구. otherSlugs는 이 스킬을 뺀 다른 스킬의 커맨드다. */
 export function validateSkillDetailForm(
@@ -210,6 +236,7 @@ export function validateSkillDetailForm(
   else if (form.rules.trim().length > SKILL_INSTRUCTIONS_MAX) {
     errors.rules = `실행 규칙은 ${SKILL_INSTRUCTIONS_MAX.toLocaleString("ko-KR")}자까지 쓸 수 있습니다.`;
   }
+  if (form.kind === "document" && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_MESSAGE;
   return errors;
 }
 

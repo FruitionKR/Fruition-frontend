@@ -65,15 +65,17 @@ export function skillAuthoringOutcome(result: Pick<SkillAuthoringResult, "status
 
 /**
  * 스킬 수정 요청을 만든다. name은 상세 시트의 커맨드명이다(PATCH가 name으로 slug를 바꾼다).
- * 대상·결과 방식·원문 문서는 초안에 있을 때만 보낸다(문서 스킬). 빼면 서버가 기존 값을 유지하거나 정한다.
+ * capabilities(종류·결과 방식을 바꿨을 때)·대상·결과 방식·원문 문서는 초안에 있을 때만 보낸다.
+ * 빼면 서버가 기존 값을 유지하거나 정한다.
  */
 export function skillUpdateRequest(
-  draft: { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions
+  draft: { name: string; description: string; instructionsMarkdown: string; capabilities?: readonly string[] } & SkillExecutionOptions
 ): SkillUpdateRequest {
   return {
     name: draft.name,
     description: draft.description,
     instructions_markdown: draft.instructionsMarkdown,
+    ...(draft.capabilities != null ? { capabilities: [...draft.capabilities] } : {}),
     ...(draft.targets != null ? { targets: [...draft.targets] } : {}),
     ...(draft.result_mode != null ? { result_mode: draft.result_mode } : {}),
     ...(draft.requires_source != null ? { requires_source: draft.requires_source } : {})
@@ -98,28 +100,29 @@ const RESULT_MODE_REJECTION_CODES = new Set([
   "INVALID_RESULT_MODE",
   "SKILL_INVALID_RESULT_MODE"
 ]);
-
-/**
- * 스킬 수정 실패가 결과 방식 불일치(ai invalid_result_mode)일 수 있는지 본다.
- * 지침을 고치면 AI가 capabilities를 다시 분류하고, 이어받은 result_mode가 새 capabilities와 맞지 않으면
- * 저장을 거절한다. 구버전 document는 이 code를 SKILL_REQUEST_REJECTED(400)로 바꿔 돌려주므로 그 code도 같이 본다.
- * 문서 스킬에서만 쓰며, 결과 방식을 고르게 한 뒤 다시 보내 확인한다.
- */
-export function isResultModeRejection(error: unknown): boolean {
-  if (!(error instanceof ApiError) || error.status !== 400 || error.code == null) return false;
-  return RESULT_MODE_REJECTION_CODES.has(error.code) || error.code === "SKILL_REQUEST_REJECTED";
-}
+/** 허용되지 않는 capabilities 값·조합(게시와 같은 검증). document 매핑이 없던 때의 AI 원래 표기도 받는다. */
+const CAPABILITIES_REJECTION_CODES = new Set(["SKILL_CAPABILITIES_INVALID", "invalid_capabilities", "INVALID_CAPABILITIES"]);
 
 const TARGETS_INVALID_FALLBACK = "실행 대상이 이 스킬과 맞지 않아 저장하지 못했어요. 대상을 확인해 주세요.";
+const RESULT_MODE_INVALID_MESSAGE = "결과 방식이 스킬 종류와 맞지 않아 저장하지 못했어요. 스킬 종류·결과 방식을 다시 골라 주세요.";
+const CAPABILITIES_INVALID_MESSAGE = "이 스킬 종류로는 저장할 수 없어요. 스킬 종류·결과 방식을 다시 골라 주세요.";
 
 /**
- * 스킬 수정(PATCH) 실패 문구. 대상이 맞지 않으면(400 SKILL_TARGETS_INVALID, AI invalid_targets) 대상 문제임을 알리는
- * 서버의 한국어 message를 보여 주고, 비었으면 정해 둔 문구를 쓴다. 그 밖에는 서버 message나 fallback이다.
+ * 스킬 수정(PATCH) 실패 문구.
+ * - 대상이 맞지 않으면(400 SKILL_TARGETS_INVALID, AI invalid_targets) 대상 문제임을 알리는 서버의 한국어 message를,
+ *   비었으면 정해 둔 문구를 보여 준다.
+ * - 결과 방식 불일치(SKILL_RESULT_MODE_INVALID 등)·허용되지 않는 종류(SKILL_CAPABILITIES_INVALID)는 서버 message가
+ *   AI 내부 표현일 수 있어 정해 둔 문구로 종류·결과 방식을 다시 고르게 한다.
+ * 그 밖에는 서버 message나 fallback이다.
  */
 export function describeSkillSaveError(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.code === "SKILL_TARGETS_INVALID") {
-    const message = error.message.trim();
-    return message && message !== fallback ? message : TARGETS_INVALID_FALLBACK;
+  if (error instanceof ApiError && error.code != null) {
+    if (error.code === "SKILL_TARGETS_INVALID") {
+      const message = error.message.trim();
+      return message && message !== fallback ? message : TARGETS_INVALID_FALLBACK;
+    }
+    if (RESULT_MODE_REJECTION_CODES.has(error.code)) return RESULT_MODE_INVALID_MESSAGE;
+    if (CAPABILITIES_REJECTION_CODES.has(error.code)) return CAPABILITIES_INVALID_MESSAGE;
   }
   return getErrorMessage(error, fallback);
 }
