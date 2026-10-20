@@ -28,6 +28,11 @@
   font-weight: 600;
 }
 
+.selected-count {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 .toolbar-group {
   min-width: 0;
   display: flex;
@@ -107,6 +112,26 @@
   white-space: nowrap;
 }
 
+/* 삭제 (Figma btn 1742:4215): off는 --color-border 바탕, on은 --color-status-error(#F04452) 바탕. 12 SemiBold 흰 글자, 높이 33 */
+.delete-btn {
+  height: 33px;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  color: var(--color-canvas);
+  background: var(--color-danger);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.delete-btn:disabled {
+  cursor: default;
+  background: var(--color-border);
+}
+
 .invite-btn:disabled {
   cursor: default;
   opacity: 0.5;
@@ -115,6 +140,8 @@
 .icon-btn:focus-visible,
 .filter-btn:focus-visible,
 .invite-btn:focus-visible,
+.delete-btn:focus-visible,
+.check-btn:focus-visible,
 .sort-btn:focus-visible,
 .more-btn:focus-visible,
 .menu-option:focus-visible {
@@ -265,6 +292,41 @@
   border-radius: 6px;
 }
 
+/* 체크 칸을 감싼 버튼(role=checkbox). 20px 칸 그대로 보이고 클릭 영역만 맡는다. */
+.check-btn {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.check-btn:disabled {
+  cursor: default;
+}
+
+.check-btn:hover:not(:disabled) .checkbox {
+  border-color: var(--color-primary);
+}
+
+/* 일부만 고른 머리 칸: primary 바탕 + 흰 가로줄 */
+.checkbox.is-mixed {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.checkbox.is-mixed::after {
+  content: "";
+  width: 9px;
+  height: 1.8px;
+  background: var(--color-on-primary);
+  border-radius: 1px;
+}
+
 .sort-btn {
   display: flex;
   align-items: center;
@@ -363,11 +425,6 @@ img.profile-icon {
 
   .cell-user {
     gap: 10px;
-  }
-
-  .row-head .checkbox,
-  .row .checkbox {
-    display: none;
   }
 }
 
