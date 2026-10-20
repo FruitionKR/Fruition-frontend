@@ -1625,6 +1625,8 @@ button.result-link:focus-visible {
   border-radius: 6px;
   font-size: 13px;
   text-align: left;
+  /* 좁은 메뉴에서 설명이 낱말 중간에서 끊기지 않게 한다 */
+  word-break: keep-all;
 }
 
 .composer-voice-menu button span + span {
