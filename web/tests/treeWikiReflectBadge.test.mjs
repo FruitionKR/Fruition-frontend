@@ -41,12 +41,15 @@ test("최신 반영 문서와 편입 진행 중 문서는 배지를 붙이지 �
   assert.equal(badgeOf(md("stalled", { status: "uploaded", processing_state: "stalled" })), null);
 });
 
-test("PDF 원본·TXT·채팅 편입 문서는 편입할 수 있는 상태여도 배지를 붙이지 않는다", () => {
+test("PDF 원본·TXT는 편입할 수 있는 상태여도 배지를 붙이지 않는다", () => {
   const pdf = { id: "pdf", filename: "a.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", status: "uploaded" };
   const txt = { id: "txt", filename: "a.txt", mime_type: "text/plain", document_role: "EDITABLE", status: "uploaded" };
   assert.equal(badgeOf(pdf), null);
   assert.equal(badgeOf(txt), null);
-  assert.equal(badgeOf(md("chat", { status: "uploaded", ai_origin: "chat_export" })), null);
+});
+
+test("채팅 편입 문서도 편입 전이면 신규 배지를 붙인다", () => {
+  assert.equal(badgeOf(md("chat", { status: "uploaded", ai_origin: "chat_export" }))?.label, "신규");
 });
 
 test("PDF 변환 중이거나 변환에 실패한 노트는 배지를 붙이지 않고, 변환을 마친 노트는 신규로 본다", () => {

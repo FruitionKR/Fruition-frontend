@@ -1,6 +1,5 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
-import { isChatExportDocument } from "@/features/document-notifications/model/ingestPromptTargets";
 import { isGraphIngestEligible } from "@/features/wiki-ingest/model/graphDocuments";
 import { getWikiReflectLabel, getWikiReflectState } from "@/features/wiki-ingest/model/wikiReflectState";
 
@@ -22,13 +21,14 @@ const BADGE_TONES: Record<string, { tone: TreeWikiReflectTone; description: stri
 
 /**
  * 문서 하나의 트리 배지. 지금 위키 편입을 시작할 수 있는 문서에만 붙인다.
- * PDF 원본·Markdown이 아닌 파일·변환 중이거나 변환에 실패한 노트·채팅 편입 문서·진행 중·최신 반영 문서는 null이다.
+ * 채팅 편입 문서([채팅])도 그래프에서 편입할 수 있어 같은 규칙으로 붙인다.
+ * PDF 원본·Markdown이 아닌 파일·변환 중이거나 변환에 실패한 노트·진행 중·최신 반영 문서는 null이다.
  */
 export function getTreeWikiReflectBadge(
   document: DocumentItemResponse,
   documents: DocumentItemResponse[]
 ): TreeWikiReflectBadge | null {
-  if (isPdfDocument(document) || isChatExportDocument(document)) return null;
+  if (isPdfDocument(document)) return null;
   if (!isGraphIngestEligible(document, documents)) return null;
   const label = getWikiReflectLabel(document);
   const tone = BADGE_TONES[getWikiReflectState(document)];
