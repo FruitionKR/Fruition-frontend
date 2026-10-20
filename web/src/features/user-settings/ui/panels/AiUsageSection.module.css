@@ -1,4 +1,7 @@
-/* 사용자 설정 > AI 사용량. 섹션·행 제목·버튼은 SettingsModal.module.css를 쓰고 계정 정보 행(py 6)과 리듬을 맞춘다. */
+/*
+ * 사용자 설정 > AI 사용량. 섹션·행 제목·버튼은 SettingsModal.module.css를 쓰고 계정 정보 행(py 6)과 리듬을 맞춘다.
+ * 입력·출력 색은 --color-usage-input/output(base.css). 글자는 색 대신 텍스트 토큰을 쓰고, 색은 막대·견본에만 칠한다.
+ */
 
 .head {
   display: flex;
@@ -14,9 +17,10 @@
 }
 
 .body {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   transition: opacity 150ms ease-out;
 }
 
@@ -24,134 +28,384 @@
   opacity: 0.6;
 }
 
-/* 합계를 크게, 입력·출력은 작은 숫자로 옆에 둔다 */
-.stats {
-  margin: 0;
+/* ── 합계 카드 ─────────────────────────────── */
+
+.hero {
   display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 8px 32px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  border-radius: 16px;
+  background: var(--color-surface);
 }
 
-.stats > div {
+.hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.total {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.eyebrow,
+.models-head {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.24px;
+  line-height: 1.3;
+}
+
+.total-value {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  color: var(--color-foreground);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -1.2px;
+  line-height: 1.1;
+}
+
+.total-unit {
+  color: var(--color-body);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.32px;
+}
+
+.total-exact {
+  margin-left: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.26px;
+}
+
+.side-stats {
+  margin: 0;
+  display: flex;
+  gap: 20px;
+  flex: 0 0 auto;
+}
+
+.side-stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.side-stats dt {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.24px;
+  line-height: 1.3;
+}
+
+.side-stats dd {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.36px;
+  line-height: 1.2;
+}
+
+.side-stats dd span {
+  margin-left: 2px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 입력·출력 100% 막대. 조각 사이 2px 틈은 카드 바탕색이 보인다. */
+.hero-bar,
+.model-bar {
+  display: flex;
+  gap: 2px;
+  transform-origin: left center;
+  animation: usage-bar-grow 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hero-bar {
+  height: 12px;
+}
+
+.segment-input,
+.segment-output {
+  flex-basis: 0;
+  min-width: 2px;
+  border-radius: 2px;
+}
+
+.segment-input {
+  background: var(--color-usage-input);
+}
+
+.segment-output {
+  background: var(--color-usage-output);
+}
+
+/* 막대 바깥 끝만 4px로 둥글게 */
+.hero-bar > :first-child,
+.model-bar > :first-child {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.hero-bar > :last-child,
+.model-bar > :last-child {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: -0.26px;
+}
+
+.legend li:last-child {
+  margin-left: auto;
+}
+
+.legend strong {
+  color: var(--color-foreground);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-label {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+.legend-share {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.swatch-input,
+.swatch-output {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.swatch-input {
+  background: var(--color-usage-input);
+}
+
+.swatch-output {
+  background: var(--color-usage-output);
+}
+
+/* ── 모델별 순위 ──────────────────────────── */
+
+.models {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.stats dt {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.24px;
+.models-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px 4px;
 }
 
-.stats dd {
+.model-list {
   margin: 0;
-  color: var(--color-body);
-  font-size: 16px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.32px;
-  line-height: 1.3;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
 }
 
-.stat-total dd {
-  color: var(--color-foreground);
-  font-size: 28px;
+.model {
+  display: grid;
+  grid-template-columns: 16px 28px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "rank icon name value"
+    ". . track track";
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px 8px;
+  border-radius: 12px;
+  transition: background-color 150ms ease-out;
+}
+
+@media (hover: hover) {
+  .model:hover {
+    background: var(--color-hover-overlay);
+  }
+
+  /* 행 배경이 칸 바탕(surface)과 겹치지 않게 아이콘 칸을 한 단계 띄운다 */
+  .model:hover .provider-icon:not([data-provider="openai"]) {
+    background: var(--color-canvas);
+  }
+}
+
+.rank {
+  grid-area: rank;
+  color: var(--color-subtle);
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: -0.56px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
-.stat-total dd span {
-  color: var(--color-muted);
+.provider-icon {
+  grid-area: icon;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* GPT 아이콘은 흰색 한 가지라 밝은 테마에서는 어두운 칸에 올린다 */
+.provider-icon[data-provider="openai"] {
+  background: light-dark(var(--color-foreground), var(--color-surface));
+}
+
+.model-name {
+  grid-area: name;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.model-name strong {
+  overflow: hidden;
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
-}
-
-.table-wrap {
-  overflow-x: auto;
-  border: 1.2px solid var(--color-border);
-  border-radius: 12px;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.table caption {
-  padding: 12px 16px 4px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.24px;
-  text-align: left;
-}
-
-.table th,
-.table td {
-  padding: 10px 16px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.table thead th {
+.model-name small,
+.model-value small {
   color: var(--color-muted);
   font-size: 12px;
-  font-weight: 600;
-  text-align: right;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.table thead th:first-child,
-.table tbody th {
-  text-align: left;
-}
-
-.table tbody th {
-  color: var(--color-body);
-  font-weight: 600;
-}
-
-.table td {
-  color: var(--color-body);
   font-weight: 500;
-  text-align: right;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.24px;
+  line-height: 1.3;
 }
 
-.table td:last-child {
+.model-value {
+  grid-area: value;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.model-value strong {
   color: var(--color-foreground);
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.3;
 }
 
-.table tbody tr + tr > * {
-  border-top: 1px solid var(--color-border);
+/* 막대 길이 = 전체 합계에서 이 모델이 차지하는 비율. 바탕 트랙이 100%를 보여 준다. */
+.model-track {
+  grid-area: track;
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-surface);
 }
 
-.table abbr {
-  text-decoration: underline dotted;
-  cursor: help;
+.model-bar {
+  height: 100%;
+  min-width: 4px;
 }
 
 .note {
+  margin: 0;
+  padding: 0 4px;
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
 }
 
+@keyframes usage-bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ── 빈 상태 · 오류 · 불러오는 중 ─────────────── */
+
 .empty {
-  margin: 0;
-  padding: 20px 16px;
-  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 20px;
+  border-radius: 16px;
   background: var(--color-surface);
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 500;
   text-align: center;
+}
+
+.empty strong {
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+}
+
+.empty small {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 비어 있는 100% 막대: 채울 자리가 있다는 것만 보인다 */
+.empty-bar {
+  width: min(160px, 60%);
+  height: 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background: var(--color-surface-strong);
 }
 
 .error {
@@ -165,25 +419,51 @@
 .skeleton {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.skeleton-stat,
-.skeleton-row {
+.skeleton-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.skeleton-model {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 8px 8px 72px;
+}
+
+.skeleton-line,
+.skeleton-total,
+.skeleton-bar {
   display: block;
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--color-surface-strong);
   animation: usage-skeleton-pulse 1.2s ease-in-out infinite;
 }
 
-.skeleton-stat {
-  width: 180px;
-  height: 36px;
-  margin-bottom: 6px;
+.skeleton-line {
+  height: 12px;
 }
 
-.skeleton-row {
-  height: 20px;
+.skeleton-total {
+  width: 140px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.skeleton-bar {
+  height: 10px;
+}
+
+.skeleton-model .skeleton-line,
+.skeleton-model .skeleton-bar {
+  background: var(--color-surface);
 }
 
 @keyframes usage-skeleton-pulse {
@@ -193,9 +473,27 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-stat,
-  .skeleton-row {
+  .hero-bar,
+  .model-bar,
+  .skeleton-line,
+  .skeleton-total,
+  .skeleton-bar {
     animation: none;
+  }
+}
+
+/* 강제 색상 모드: 칠이 사라져도 두 조각의 경계가 남게 테두리를 그린다 */
+@media (forced-colors: active) {
+  .segment-input,
+  .segment-output,
+  .swatch-input,
+  .swatch-output {
+    border: 1px solid CanvasText;
+  }
+
+  .segment-output,
+  .swatch-output {
+    background: CanvasText;
   }
 }
 
@@ -211,5 +509,39 @@
 @media (max-width: 700px) {
   .head {
     flex-wrap: wrap;
+  }
+}
+
+/* 좁은 설정 폭: 순위 숫자를 빼고, 합계 카드의 호출 수를 합계 아래로 내린다 */
+@container (max-width: 420px) {
+  .hero {
+    padding: 16px 16px 14px;
+  }
+
+  .hero-top {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .side-stats > div {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .total-value {
+    font-size: 32px;
+  }
+
+  .model {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon name value"
+      "track track track";
+    padding: 12px 4px;
+  }
+
+  .rank {
+    display: none;
   }
 }

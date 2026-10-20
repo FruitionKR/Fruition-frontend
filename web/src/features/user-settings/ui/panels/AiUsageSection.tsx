@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, fetchAiModels, fetchModelUsage, formatTokenCount, formatUsageRange,
+  AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, fetchAiModels, fetchModelUsage, formatUsageRange,
   resolveUsageRange, summarizeModelUsage, type AiUsagePeriod
 } from "@/entities/ai";
 import { useSelectedWorkspace } from "@/entities/workspace";
@@ -11,6 +11,7 @@ import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
 import styles from "../SettingsModal.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
+import { AiUsageBreakdown } from "./AiUsageBreakdown";
 import usageStyles from "./AiUsageSection.module.css";
 
 /**
@@ -54,66 +55,43 @@ export function AiUsageSection() {
       ) : !summary || !usage.data ? (
         <UsageSkeleton />
       ) : summary.models.length === 0 ? (
-        <p className={usageStyles.empty}>이 기간에 AI 사용 기록이 없어요.</p>
+        <UsageEmpty title="이 기간에 AI 사용 기록이 없어요." description="AI 작업을 실행하면 모델별 사용량이 여기에 쌓여요." />
       ) : (
         <div className={usageStyles.body} aria-busy={usage.isFetching || undefined}>
-          <dl className={usageStyles.stats}>
-            <div className={usageStyles["stat-total"]}>
-              <dt>합계</dt>
-              <dd>{formatTokenCount(summary.totalTokens)}<span> 토큰</span></dd>
-            </div>
-            <div>
-              <dt>입력</dt>
-              <dd>{formatTokenCount(summary.inputTokens)}</dd>
-            </div>
-            <div>
-              <dt>출력</dt>
-              <dd>{formatTokenCount(summary.outputTokens)}</dd>
-            </div>
-          </dl>
-          <div className={usageStyles["table-wrap"]}>
-            <table className={usageStyles.table}>
-              <caption>모델별 토큰 사용량 · {formatUsageRange(usage.data.range)}</caption>
-              <thead>
-                <tr>
-                  <th scope="col">모델</th>
-                  <th scope="col">입력 토큰</th>
-                  <th scope="col">출력 토큰</th>
-                  <th scope="col"><abbr title="입력 토큰 중 캐시에서 읽은 토큰. 합계에 따로 더하지 않습니다.">캐시</abbr></th>
-                  <th scope="col">합계</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.models.map((item) => (
-                  <tr key={item.key}>
-                    <th scope="row">{item.label}</th>
-                    <td>{formatTokenCount(item.inputTokens)}</td>
-                    <td>{formatTokenCount(item.outputTokens)}</td>
-                    <td>{formatTokenCount(item.cachedInputTokens)}</td>
-                    <td>{formatTokenCount(item.totalTokens)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <small className={usageStyles.note}>
-            캐시 토큰은 입력 토큰에 포함되어 합계에 따로 더하지 않습니다.
-            {summary.unknownUsageCalls > 0 && ` 사용량을 확인하지 못한 호출 ${formatTokenCount(summary.unknownUsageCalls)}건은 합계에 없습니다.`}
-          </small>
+          <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range)} />
         </div>
       )}
     </section>
   );
 }
 
+/** 실제 화면 모양(합계 카드 + 모델 막대 두 줄)을 그대로 비운 자리 표시 */
 function UsageSkeleton() {
   return (
     <div className={usageStyles.skeleton} aria-busy="true">
       <span className={usageStyles["sr-only"]} role="status">AI 사용량을 불러오는 중…</span>
-      <span className={usageStyles["skeleton-stat"]} />
-      <span className={usageStyles["skeleton-row"]} />
-      <span className={usageStyles["skeleton-row"]} />
-      <span className={usageStyles["skeleton-row"]} />
+      <div className={usageStyles["skeleton-hero"]}>
+        <span className={usageStyles["skeleton-line"]} style={{ width: 120 }} />
+        <span className={usageStyles["skeleton-total"]} />
+        <span className={usageStyles["skeleton-bar"]} />
+        <span className={usageStyles["skeleton-line"]} style={{ width: "60%" }} />
+      </div>
+      {["72%", "28%"].map((width) => (
+        <div key={width} className={usageStyles["skeleton-model"]}>
+          <span className={usageStyles["skeleton-line"]} style={{ width: "40%" }} />
+          <span className={usageStyles["skeleton-bar"]} style={{ width }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UsageEmpty({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className={usageStyles.empty}>
+      <span className={usageStyles["empty-bar"]} aria-hidden="true" />
+      <strong>{title}</strong>
+      {description && <small>{description}</small>}
     </div>
   );
 }
@@ -121,7 +99,7 @@ function UsageSkeleton() {
 /** 404는 멤버가 아니거나 백엔드에 경로가 아직 없는 경우라 다시 시도해도 같다. 중립 안내만 보인다. */
 function UsageError({ error, retrying, onRetry }: { error: unknown; retrying: boolean; onRetry: () => void }) {
   if (error instanceof ApiError && error.status === 404) {
-    return <p className={usageStyles.empty}>이 워크스페이스에서는 아직 AI 사용량을 볼 수 없어요.</p>;
+    return <UsageEmpty title="이 워크스페이스에서는 아직 AI 사용량을 볼 수 없어요." />;
   }
   return (
     <div className={usageStyles.error}>

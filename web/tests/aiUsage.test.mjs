@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatCompactTokenCount,
+  formatPercentShare,
   formatTokenCount,
   formatUsageRange,
   resolveUsageRange,
-  summarizeModelUsage
+  summarizeModelUsage,
+  toPercentShares
 } from "../src/entities/ai/model/aiUsage.ts";
 
 const CATALOG = [
@@ -60,7 +63,7 @@ test("토큰이 없는 줄은 표에서 빼고 사용량 미확인 호출 수는
 });
 
 test("빈 응답은 합계 0이다", () => {
-  assert.deepEqual(summarizeModelUsage([], CATALOG), { models: [], inputTokens: 0, outputTokens: 0, totalTokens: 0, unknownUsageCalls: 0 });
+  assert.deepEqual(summarizeModelUsage([], CATALOG), { models: [], inputTokens: 0, outputTokens: 0, totalTokens: 0, calls: 0, unknownUsageCalls: 0 });
 });
 
 test("이상한 값(음수·null)은 0으로 본다", () => {
@@ -92,4 +95,41 @@ test("숫자는 ko-KR 천 단위 구분 기호로 보인다", () => {
 test("기간 문구: 자정으로 끝나는 기간은 전날까지로 보인다", () => {
   assert.equal(formatUsageRange({ from: new Date(2026, 8, 1), to: new Date(2026, 9, 1) }), "9월 1일 ~ 9월 30일");
   assert.equal(formatUsageRange({ from: new Date(2026, 9, 1), to: new Date(2026, 9, 20, 15) }), "10월 1일 ~ 10월 20일");
+});
+
+test("호출 수는 토큰이 없는 줄까지 모두 더한다", () => {
+  const summary = summarizeModelUsage([
+    row({ calls: 3, known_input_tokens: 10 }),
+    row({ provider: "gemini", requested_model: "gemini-3.5-flash-lite", calls: 2, unknown_usage_calls: 2 })
+  ], CATALOG);
+  assert.equal(summary.calls, 5);
+});
+
+test("큰 토큰 수는 만·억 단위로 줄이고 1만 미만은 그대로 보인다", () => {
+  assert.equal(formatCompactTokenCount(0), "0");
+  assert.equal(formatCompactTokenCount(3170), "3,170");
+  assert.equal(formatCompactTokenCount(9999), "9,999");
+  assert.equal(formatCompactTokenCount(10000), "1만");
+  assert.equal(formatCompactTokenCount(78257), "7.8만");
+  assert.equal(formatCompactTokenCount(1234567), "123.5만");
+  assert.equal(formatCompactTokenCount(99999999), "1억");
+  assert.equal(formatCompactTokenCount(123456789), "1.2억");
+});
+
+test("비율은 합이 정확히 100인 정수 %다", () => {
+  assert.deepEqual(toPercentShares([72200, 6057]), [92, 8]);
+  assert.deepEqual(toPercentShares([75087, 3170]), [96, 4]);
+  assert.deepEqual(toPercentShares([1, 1, 1]), [34, 33, 33]);
+  assert.deepEqual(toPercentShares([1000, 1]), [100, 0]);
+  assert.deepEqual(toPercentShares([0, 0]), [0, 0]);
+  assert.deepEqual(toPercentShares([]), []);
+  for (const values of [[5, 5, 5, 5, 5, 5, 5], [1, 2, 3, 4], [999, 1, 1]]) {
+    assert.equal(toPercentShares(values).reduce((sum, value) => sum + value, 0), 100);
+  }
+});
+
+test("0%로 반올림된 0 아닌 값은 <1%로 보인다", () => {
+  assert.equal(formatPercentShare(0, 1), "<1%");
+  assert.equal(formatPercentShare(0, 0), "0%");
+  assert.equal(formatPercentShare(92, 72200), "92%");
 });

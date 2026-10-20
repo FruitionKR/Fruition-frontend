@@ -69,6 +69,8 @@ export type ModelUsageSummary = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  /** 기간 안 전체 호출 수(실패·사용량 미확인 포함) */
+  calls: number;
   /** 토큰을 몰라 합계에 빠진 호출 수 */
   unknownUsageCalls: number;
 };
@@ -84,6 +86,7 @@ function count(value: unknown): number {
 export function summarizeModelUsage(rows: readonly ModelUsageRow[], catalog: readonly AiModel[]): ModelUsageSummary {
   const grouped = new Map<string, ModelUsageSummaryRow>();
   let unknownUsageCalls = 0;
+  let calls = 0;
   for (const row of rows) {
     const modelId = row.requested_model || row.model;
     const key = `${row.provider}/${modelId}`;
@@ -106,13 +109,14 @@ export function summarizeModelUsage(rows: readonly ModelUsageRow[], catalog: rea
       totalTokens: inputTokens + outputTokens
     });
     unknownUsageCalls += count(row.unknown_usage_calls);
+    calls += count(row.calls);
   }
   const models = Array.from(grouped.values())
     .filter((item) => item.totalTokens > 0)
     .sort((a, b) => b.totalTokens - a.totalTokens || a.label.localeCompare(b.label, "ko"));
   const inputTokens = models.reduce((sum, item) => sum + item.inputTokens, 0);
   const outputTokens = models.reduce((sum, item) => sum + item.outputTokens, 0);
-  return { models, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, unknownUsageCalls };
+  return { models, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, calls, unknownUsageCalls };
 }
 
 function catalogLabel(catalog: readonly AiModel[], provider: string, model: string): string | undefined {
@@ -124,6 +128,37 @@ const NUMBER_FORMAT = new Intl.NumberFormat("ko-KR");
 /** 토큰 수를 천 단위 구분 기호로 보인다. */
 export function formatTokenCount(value: number): string {
   return NUMBER_FORMAT.format(value);
+}
+
+const COMPACT_FORMAT = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
+const COMPACT_FROM = 10_000;
+
+/** 큰 토큰 수를 만·억 단위로 줄인다(78,257 → 7.8만). 1만 미만은 줄이지 않고 천 단위 구분 기호로 보인다. */
+export function formatCompactTokenCount(value: number): string {
+  return value < COMPACT_FROM ? formatTokenCount(value) : COMPACT_FORMAT.format(value);
+}
+
+/**
+ * 값들의 비율을 합이 정확히 100인 정수 %로 나눈다(최대 나머지 방식). 합이 0이면 모두 0이다.
+ * 반올림만 하면 33·33·33처럼 합이 99나 101이 되어 막대와 숫자가 어긋난다.
+ */
+export function toPercentShares(values: readonly number[]): number[] {
+  const safe = values.map(count);
+  const total = safe.reduce((sum, value) => sum + value, 0);
+  if (total === 0) return safe.map(() => 0);
+  const exact = safe.map((value) => (value / total) * 100);
+  const shares = exact.map(Math.floor);
+  const order = exact
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  const missing = 100 - shares.reduce((sum, value) => sum + value, 0);
+  const bumped = new Set(order.slice(0, missing).map((item) => item.index));
+  return shares.map((share, index) => (bumped.has(index) ? share + 1 : share));
+}
+
+/** 정수 % 문구. 0이 아닌 값이 0%로 반올림되면 "<1%"로 보인다. */
+export function formatPercentShare(share: number, value: number): string {
+  return share === 0 && value > 0 ? "<1%" : `${share}%`;
 }
 
 const DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" });
