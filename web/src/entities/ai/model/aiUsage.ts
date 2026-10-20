@@ -89,7 +89,7 @@ export function summarizeModelUsage(rows: readonly ModelUsageRow[], catalog: rea
   let calls = 0;
   for (const row of rows) {
     const modelId = row.requested_model || row.model;
-    const key = `${row.provider}/${modelId}`;
+    const key = summaryKey(row);
     const current = grouped.get(key) ?? {
       key,
       label: catalogLabel(catalog, row.provider, modelId) ?? catalogLabel(catalog, row.provider, row.model) ?? modelId,
@@ -117,6 +117,11 @@ export function summarizeModelUsage(rows: readonly ModelUsageRow[], catalog: rea
   const inputTokens = models.reduce((sum, item) => sum + item.inputTokens, 0);
   const outputTokens = models.reduce((sum, item) => sum + item.outputTokens, 0);
   return { models, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, calls, unknownUsageCalls };
+}
+
+/** 화면 표 한 줄의 키. 같은 요청 모델의 스냅샷 줄을 합친다(summarizeModelUsage·estimateUsageCost가 같이 쓴다). */
+function summaryKey(row: Pick<ModelUsageRow, "provider" | "requested_model" | "model">): string {
+  return `${row.provider}/${row.requested_model || row.model}`;
 }
 
 function catalogLabel(catalog: readonly AiModel[], provider: string, model: string): string | undefined {
@@ -168,4 +173,99 @@ export function formatUsageRange({ from, to }: UsageRange): string {
   const isMidnight = to.getHours() === 0 && to.getMinutes() === 0 && to.getSeconds() === 0 && to.getMilliseconds() === 0;
   const last = isMidnight ? new Date(to.getTime() - 1) : to;
   return `${DATE_FORMAT.format(from)} ~ ${DATE_FORMAT.format(last)}`;
+}
+
+/**
+ * GET /api/users/me/usage/charges 응답의 모델 한 줄. 응답 모델(`model`)별로 묶인 실제 청구다.
+ * 금액은 부가세 포함 milli-KRW 정수(1000 = 1원)이고, 토큰에는 단가 없는(unpriced) 호출의 토큰도 들어 있다.
+ */
+export type ModelChargeRow = {
+  provider: string;
+  model: string;
+  calls: number;
+  input_tokens: number;
+  cached_input_tokens: number;
+  cache_creation_tokens: number;
+  output_tokens: number;
+  reasoning_tokens: number;
+  audio_seconds: number;
+  tts_characters: number;
+  charge_krw_milli: number;
+  /** 단가·환율·정책이 없어 금액에 빠진 호출 수 */
+  unpriced_calls: number;
+  /** 사용량을 몰라 0원으로 둔 호출 수 */
+  needs_review_calls: number;
+};
+
+/** 본인 호출 청구 합계. 워크스페이스를 가로질러 합친 값이라 워크스페이스로 거를 수 없다. */
+export type ChargeSummaryResponse = {
+  user_id: string;
+  from_at: string;
+  to_at: string;
+  currency: string;
+  charge_krw_milli: number;
+  unpriced_calls: number;
+  needs_review_calls: number;
+  models: ModelChargeRow[];
+};
+
+export type UsageCostEstimate = {
+  /** 표 줄 키 → 이 워크스페이스 예상 금액(milli-KRW). 단가를 아직 모르면 null */
+  models: Record<string, number | null>;
+  /** 이 워크스페이스 예상 합계(milli-KRW). 단가를 아는 모델만 더한다 */
+  totalKrwMilli: number;
+  /** 모든 워크스페이스 합산 실제 청구(milli-KRW). 음성 초·글자 수로 매긴 금액도 들어 있다 */
+  accountKrwMilli: number;
+  /** 단가가 없거나 아직 청구가 집계되지 않아 예상에서 빠진 사용량이 있다 */
+  hasUnpriced: boolean;
+};
+
+/**
+ * 이 워크스페이스 토큰에 모델별 평균 단가(청구 금액 ÷ 청구 토큰)를 곱해 예상 금액을 만든다.
+ * 청구는 워크스페이스를 가로질러 합쳐 오므로 같은 응답 모델(provider + model)의 평균 단가를 빌려 쓴다.
+ * 입력·출력 비율이 워크스페이스마다 다르면 실제와 조금 다를 수 있어 "예상"이다.
+ * 모든 호출이 단가 없음이거나, 토큰 없이 음성·글자로만 매겨진 줄, 아직 청구가 집계되지 않은 모델은 평균 단가를 만들 수 없다.
+ */
+export function estimateUsageCost(rows: readonly ModelUsageRow[], charges: ChargeSummaryResponse): UsageCostEstimate {
+  const rates = new Map<string, number>();
+  let hasUnpriced = false;
+  for (const charge of charges.models ?? []) {
+    const tokens = count(charge.input_tokens) + count(charge.output_tokens);
+    const calls = count(charge.calls);
+    const unpriced = count(charge.unpriced_calls);
+    if (unpriced > 0) hasUnpriced = true;
+    if (tokens > 0 && unpriced < calls) rates.set(`${charge.provider}/${charge.model}`, count(charge.charge_krw_milli) / tokens);
+  }
+  const models: Record<string, number | null> = {};
+  for (const row of rows) {
+    const tokens = count(row.known_input_tokens) + count(row.known_output_tokens);
+    if (tokens === 0) continue;
+    const key = summaryKey(row);
+    const rate = rates.get(`${row.provider}/${row.model}`);
+    if (rate === undefined) {
+      hasUnpriced = true;
+      models[key] = models[key] ?? null;
+      continue;
+    }
+    models[key] = (models[key] ?? 0) + tokens * rate;
+  }
+  const totalKrwMilli = Object.values(models).reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  return { models, totalKrwMilli, accountKrwMilli: count(charges.charge_krw_milli), hasUnpriced };
+}
+
+const KRW_FORMAT = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
+
+/**
+ * milli-KRW 금액을 원 단위로 반올림해 보인다(1,240,400 → ₩1,240). 0은 ₩0, 0원 초과 1원 미만은 "<₩1"이다.
+ * 원화는 소수 자리를 쓰지 않으므로 작은 금액도 소수로 늘이지 않는다.
+ */
+export function formatKrwMilli(value: number): string {
+  const safe = count(value);
+  if (safe > 0 && safe < 500) return `<${KRW_FORMAT.format(1)}`;
+  return KRW_FORMAT.format(Math.round(safe / 1000));
+}
+
+/** 두 milli-KRW 금액이 원 단위로 반올림했을 때 같은지 */
+export function isSameWon(a: number, b: number): boolean {
+  return Math.round(count(a) / 1000) === Math.round(count(b) / 1000);
 }

@@ -3,20 +3,21 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, fetchAiModels, fetchModelUsage, formatUsageRange,
-  resolveUsageRange, summarizeModelUsage, type AiUsagePeriod
+  AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, estimateUsageCost, fetchAiModels, fetchModelUsage, fetchUsageCharges,
+  formatUsageRange, resolveUsageRange, summarizeModelUsage, type AiUsagePeriod
 } from "@/entities/ai";
 import { useSelectedWorkspace } from "@/entities/workspace";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
 import styles from "../SettingsModal.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
-import { AiUsageBreakdown } from "./AiUsageBreakdown";
+import { AiUsageBreakdown, type UsageCostView } from "./AiUsageBreakdown";
 import usageStyles from "./AiUsageSection.module.css";
 
 /**
- * 사용자 설정 맨 아래 AI 사용량: 지금 워크스페이스에서 내가 쓴 모델별 토큰(GET usage/models).
- * 금액·크레딧은 사업자 등록 전까지 보이지 않는다(users/me/credits·usage/charges 미호출).
+ * 사용자 설정 맨 아래 AI 사용량: 지금 워크스페이스에서 내가 쓴 모델별 토큰(GET usage/models)과 예상 비용.
+ * 예상 비용은 본인 청구(GET users/me/usage/charges, 모든 워크스페이스 합산)의 모델별 평균 단가로 만든다.
+ * 금액 조회가 실패해도 토큰 화면은 그대로 보인다. 크레딧·충전은 사업자 등록 전까지 보이지 않는다(users/me/credits 미호출).
  */
 export function AiUsageSection() {
   const workspace = useSelectedWorkspace();
@@ -35,6 +36,19 @@ export function AiUsageSection() {
   const summary = usage.data
     ? summarizeModelUsage(usage.data.response.models, [...(catalog.data ?? []), ...LOCKED_AI_MODELS])
     : null;
+  // 토큰과 같은 기간을 쓰도록 사용량 응답의 range로 부른다.
+  const range = usage.data?.range;
+  const charges = useQuery({
+    queryKey: ["aiUsageCharges", range?.from.toISOString() ?? null, range?.to.toISOString() ?? null],
+    queryFn: () => fetchUsageCharges(range!),
+    enabled: Boolean(range),
+    retry: false
+  });
+  const cost: UsageCostView = charges.isError
+    ? { status: "error" }
+    : charges.data && usage.data
+      ? { status: "ready", estimate: estimateUsageCost(usage.data.response.models, charges.data) }
+      : { status: "loading" };
 
   return (
     <section className={styles.section} aria-labelledby="ai-usage-heading">
@@ -58,7 +72,7 @@ export function AiUsageSection() {
         <UsageEmpty title="이 기간에 AI 사용 기록이 없어요." description="AI 작업을 실행하면 모델별 사용량이 여기에 쌓여요." />
       ) : (
         <div className={usageStyles.body} aria-busy={usage.isFetching || undefined}>
-          <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range)} />
+          <AiUsageBreakdown summary={summary} cost={cost} rangeLabel={formatUsageRange(usage.data.range)} />
         </div>
       )}
     </section>

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  estimateUsageCost,
   formatCompactTokenCount,
+  formatKrwMilli,
+  isSameWon,
   formatPercentShare,
   formatTokenCount,
   formatUsageRange,
@@ -132,4 +135,102 @@ test("0%로 반올림된 0 아닌 값은 <1%로 보인다", () => {
   assert.equal(formatPercentShare(0, 1), "<1%");
   assert.equal(formatPercentShare(0, 0), "0%");
   assert.equal(formatPercentShare(92, 72200), "92%");
+});
+
+function charge(overrides) {
+  return {
+    provider: "openai", model: "gpt-6-luna", calls: 1, input_tokens: 0, cached_input_tokens: 0, cache_creation_tokens: 0,
+    output_tokens: 0, reasoning_tokens: 0, audio_seconds: 0, tts_characters: 0, charge_krw_milli: 0,
+    unpriced_calls: 0, needs_review_calls: 0, ...overrides
+  };
+}
+
+function charges(models, total = models.reduce((sum, item) => sum + item.charge_krw_milli, 0)) {
+  return {
+    user_id: "u", from_at: "2026-10-01T00:00:00Z", to_at: "2026-10-20T00:00:00Z", currency: "KRW",
+    charge_krw_milli: total, unpriced_calls: 0, needs_review_calls: 0, models
+  };
+}
+
+test("estimateUsageCost applies each response model's average rate to this workspace's tokens", () => {
+  // Arrange: 모든 워크스페이스에서 gpt-6-luna 4,000토큰에 8원(8,000 milli) → 토큰당 2 milli
+  const rows = [row({ known_input_tokens: 800, known_output_tokens: 200 })];
+  const summary = charges([charge({ input_tokens: 3000, output_tokens: 1000, charge_krw_milli: 8000 })]);
+
+  // Act
+  const estimate = estimateUsageCost(rows, summary);
+
+  // Assert
+  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 2000 });
+  assert.equal(estimate.totalKrwMilli, 2000);
+  assert.equal(estimate.accountKrwMilli, 8000);
+  assert.equal(estimate.hasUnpriced, false);
+});
+
+test("estimateUsageCost matches snapshot response models and sums them into the requested-model row", () => {
+  const rows = [
+    row({ model: "gpt-6-luna", known_input_tokens: 100 }),
+    row({ model: "gpt-6-luna-2026-08-28", known_input_tokens: 100 })
+  ];
+  const summary = charges([
+    charge({ model: "gpt-6-luna", input_tokens: 100, charge_krw_milli: 100 }),
+    charge({ model: "gpt-6-luna-2026-08-28", input_tokens: 100, charge_krw_milli: 300 })
+  ]);
+
+  const estimate = estimateUsageCost(rows, summary);
+
+  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 400 });
+});
+
+test("estimateUsageCost leaves models without a usable rate as null and flags them", () => {
+  const rows = [
+    row({ provider: "openai", requested_model: "gpt-5.5", model: "gpt-5.5", known_input_tokens: 500 }),
+    row({ provider: "claude", requested_model: "claude-haiku", model: "claude-haiku", known_input_tokens: 500 }),
+    row({ known_input_tokens: 0, known_output_tokens: 0 })
+  ];
+  // gpt-5.5는 모든 호출이 단가 없음, claude-haiku는 아직 청구가 집계되지 않음, 토큰 없는 줄은 건너뛴다
+  const summary = charges([charge({ model: "gpt-5.5", calls: 2, input_tokens: 900, unpriced_calls: 2 })]);
+
+  const estimate = estimateUsageCost(rows, summary);
+
+  assert.deepEqual(estimate.models, { "openai/gpt-5.5": null, "claude/claude-haiku": null });
+  assert.equal(estimate.totalKrwMilli, 0);
+  assert.equal(estimate.hasUnpriced, true);
+});
+
+test("estimateUsageCost keeps non-token charges (TTS characters) only in the account total", () => {
+  const rows = [row({ known_input_tokens: 1000 })];
+  const summary = charges([
+    charge({ input_tokens: 1000, charge_krw_milli: 1500 }),
+    charge({ model: "gpt-4o-mini-tts", tts_characters: 1800, charge_krw_milli: 2160 })
+  ]);
+
+  const estimate = estimateUsageCost(rows, summary);
+
+  assert.equal(estimate.totalKrwMilli, 1500);
+  assert.equal(estimate.accountKrwMilli, 3660);
+});
+
+test("estimateUsageCost flags partially unpriced models but still estimates them", () => {
+  const rows = [row({ known_input_tokens: 100 })];
+  const summary = charges([charge({ calls: 3, input_tokens: 300, charge_krw_milli: 600, unpriced_calls: 1 })]);
+
+  const estimate = estimateUsageCost(rows, summary);
+
+  assert.equal(estimate.models["openai/gpt-6-luna"], 200);
+  assert.equal(estimate.hasUnpriced, true);
+});
+
+test("formatKrwMilli rounds to whole won and shows <₩1 for sub-won amounts", () => {
+  assert.equal(formatKrwMilli(0), "₩0");
+  assert.equal(formatKrwMilli(120), "<₩1");
+  assert.equal(formatKrwMilli(499.9), "<₩1");
+  assert.equal(formatKrwMilli(500), "₩1");
+  assert.equal(formatKrwMilli(1_240_400), "₩1,240");
+  assert.equal(formatKrwMilli(Number.NaN), "₩0");
+});
+
+test("isSameWon compares amounts after rounding to won", () => {
+  assert.equal(isSameWon(1_240_400, 1_239_600), true);
+  assert.equal(isSameWon(1_240_400, 1_241_600), false);
 });

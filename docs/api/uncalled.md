@@ -47,12 +47,11 @@
 ### 집계 밖 — 금액·크레딧 (의도적 비사용, 결제 보류)
 
 87개 기준 집계 뒤에 생긴 경로다. 크레딧·결제 화면은 사업자 등록 전까지 보류해 호출하지 않는다.
-사용자 설정 AI 사용량 섹션은 금액 없이 토큰만 보이도록 `usage/models`만 부른다.
+(본인 청구 금액 `users/me/usage/charges`는 사용자 설정 AI 사용량의 예상 비용 표시에 배선되어 빠졌다. 읽기 전용이며 결제·충전 UI는 없다. [consumed/ai-agent.md](consumed/ai-agent.md#ai-사용량))
 
 | 경로 | 근거 |
 |---|---|
 | `GET /api/users/me/credits` | 선불 크레딧 잔액·원장. 결제 보류로 호출하지 않는다 |
-| `GET /api/users/me/usage/charges` | 본인 호출 단위 청구 금액(milli-KRW). 같은 이유 |
 | `GET /api/workspaces/{workspace_id}/usage/settlement`, `GET·POST .../usage/settlements` | OWNER 정산(USD). 같은 이유 |
 
 ### 진행 중 (다른 분기에서 배선 중)

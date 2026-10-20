@@ -129,6 +129,63 @@
   font-weight: 600;
 }
 
+/* 예상 비용: "약"은 단위처럼 흐리게, 금액은 호출 수와 같은 굵기로 */
+.side-stats dd .cost-approx {
+  margin: 0 3px 0 0;
+}
+
+.side-stats dd .cost-unknown {
+  margin: 0;
+  font-size: 14px;
+}
+
+.side-stats dd[aria-busy="true"] {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+}
+
+.cost-skeleton {
+  display: block;
+  width: 64px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--color-surface-strong);
+  animation: usage-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.cost-note {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 1.4;
+}
+
+.cost-account strong {
+  color: var(--color-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-cost {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+.model-cost::after {
+  content: "·";
+  margin: 0 4px;
+  color: var(--color-subtle);
+}
+
 /* 입력·출력 100% 막대. 조각 사이 2px 틈은 카드 바탕색이 보인다. */
 .hero-bar,
 .model-bar {
@@ -475,6 +532,7 @@
 @media (prefers-reduced-motion: reduce) {
   .hero-bar,
   .model-bar,
+  .cost-skeleton,
   .skeleton-line,
   .skeleton-total,
   .skeleton-bar {
@@ -521,6 +579,11 @@
   .hero-top {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .side-stats {
+    flex-wrap: wrap;
+    gap: 6px 20px;
   }
 
   .side-stats > div {
