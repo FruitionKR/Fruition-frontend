@@ -122,6 +122,8 @@ function document(partial) {
     owner_user_id: USER_ID,
     permission: null,
     versions: [{ version: 1, content_hash: hash(content.toString("utf8")), created_by: USER_ID, created_at: uploadedAt, markdown }],
+    // completed 시드 문서는 위키에 편입된 문서다. 화면은 편입 run(pipeline_run_id) 유무로 "편입한 적 있음"을 가린다.
+    pipeline_run_id: (partial.status ?? "completed") === "completed" ? `run_seed_${partial.id}` : undefined,
     ...partial,
     markdown,
     content

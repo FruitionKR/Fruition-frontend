@@ -149,7 +149,7 @@ test("60초 넘게 uploaded에 머문 문서는 한 번만 리마인드하고, �
 
 test("마지막 편입 이후 수정된 문서는 재편입을 제안하고 빈 목록에서는 제안 기록을 지우지 않는다", async (t) => {
   const { titles, storage } = notificationEnv(t);
-  const edited = doc("r1", "completed", { needs_reingest: true });
+  const edited = doc("r1", "completed", { needs_reingest: true, pipeline_run_id: "run_1" });
   const view = renderNotifications([edited]);
   assert.deepEqual(titles(), ["마지막 위키 편입 이후 수정된 문서가 있습니다"]);
 
@@ -164,9 +164,23 @@ test("마지막 편입 이후 수정된 문서는 재편입을 제안하고 빈 
   assert.equal(titles().length, 1);
 
   // 재편입이 시작돼 needs_reingest가 풀리면 다음 편집에서 다시 제안한다.
-  reloaded.setDocuments([doc("r1", "completed")]);
+  reloaded.setDocuments([doc("r1", "completed", { pipeline_run_id: "run_2" })]);
   reloaded.setDocuments([edited]);
   assert.equal(titles().length, 2);
+});
+
+test("편입한 적 없는 직접 만든 노트(run 없음)는 needs_reingest여도 재편입이 아니라 신규 편입을 제안한다", async (t) => {
+  const { notices, titles } = notificationEnv(t);
+  const note = doc("note1", "completed", { needs_reingest: true });
+  const view = renderNotifications([note]);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+  assert.equal(notices[0].message, '"note1.md" 문서의 위키 편입을 시작해 보세요.');
+
+  // 나중에 새로 만든 노트는 연속 업로드와 같이 묶어 "새 문서" 카드 한 장으로 제안하고, 재편입 카드는 띄우지 않는다.
+  view.setDocuments([note, doc("note2", "completed", { needs_reingest: true })]);
+  await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다", "새 문서가 추가되었습니다"]);
+  assert.equal(notices[1].message, '"note2.md" 문서의 위키 편입을 시작해 보세요.');
 });
 
 test("문서가 completed로 바뀌면 유지보수 상태를 확인해 lint가 필요할 때만 제안한다", async (t) => {

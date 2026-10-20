@@ -46,11 +46,24 @@ test("진행 중이면 needs_reingest가 켜져 있어도 요청할 수 없다",
   assert.equal(isWikiReflectEligible(document), false);
 });
 
-test("needs_reingest가 true면 변경 상태이고 재반영할 수 있다", () => {
-  const document = makeDocument({ status: "completed", needs_reingest: true });
+test("편입한 적 있는(run 있는) 문서가 needs_reingest면 변경 상태이고 재반영할 수 있다", () => {
+  const document = makeDocument({ status: "completed", needs_reingest: true, pipeline_run_id: "run_1" });
   assert.equal(getWikiReflectState(document), "changed");
   assert.equal(getWikiReflectLabel(document), "수정됨");
   assert.equal(isWikiReflectEligible(document), true);
+});
+
+test("직접 만든 노트(completed, run 없음)는 needs_reingest여도 수정됨이 아니라 신규다", () => {
+  const document = makeDocument({ status: "completed", needs_reingest: true });
+  assert.equal(getWikiReflectState(document), "not-included");
+  assert.equal(getWikiReflectLabel(document), "신규");
+  assert.equal(isWikiReflectEligible(document), true);
+  assert.equal(getChatEvidenceNotice(document)?.actionLabel, "위키에 편입");
+});
+
+test("PDF 변환 run만 있는 노트는 needs_reingest여도 신규다", () => {
+  const document = makeDocument({ status: "failed", needs_reingest: true, pipeline_run_id: "convert:doc-1" });
+  assert.equal(getWikiReflectState(document), "not-included");
 });
 
 test("status가 uploaded면 아직 미반영이고 반영할 수 있다", () => {
@@ -111,7 +124,7 @@ test("미편입 노트는 편입하면 근거로 답한다고 안내하고 편�
 });
 
 test("편입 후 수정된 노트는 수정 내용 반영 버튼을 둔다", () => {
-  assert.deepEqual(getChatEvidenceNotice(makeDocument({ status: "completed", needs_reingest: true })), {
+  assert.deepEqual(getChatEvidenceNotice(makeDocument({ status: "completed", needs_reingest: true, pipeline_run_id: "run_1" })), {
     message: "마지막 편입 이후 수정한 내용은 답변에 반영되지 않습니다.",
     actionLabel: "수정 내용 반영"
   });
@@ -131,7 +144,7 @@ test("PDF 변환으로 만든 노트는 편입 전이므로 미편입 안내를 
 });
 
 test("실패 상태에서 needs_reingest가 켜져 있으면 수정 안내를 우선한다", () => {
-  const document = makeDocument({ status: "failed", needs_reingest: true });
+  const document = makeDocument({ status: "failed", needs_reingest: true, pipeline_run_id: "run_1" });
   assert.equal(getWikiReflectState(document), "changed");
   assert.equal(getChatEvidenceNotice(document)?.actionLabel, "수정 내용 반영");
 });

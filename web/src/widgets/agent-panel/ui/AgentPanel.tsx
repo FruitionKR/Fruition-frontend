@@ -93,6 +93,8 @@ export function AgentPanel({
     message: string;
     actionLabel: string | null;
     isDisabled: boolean;
+    /** 막힌 사유(편입 권한 없음 등). 버튼 툴팁으로 보여 준다. */
+    disabledReason?: string | null;
     isIngesting: boolean;
     onIngest: () => void;
   } | null;
@@ -608,7 +610,12 @@ export function AgentPanel({
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
             {wikiEvidenceNotice.actionLabel && (
-              <button type="button" disabled={wikiEvidenceNotice.isDisabled} onClick={wikiEvidenceNotice.onIngest}>
+              <button
+                type="button"
+                disabled={wikiEvidenceNotice.isDisabled}
+                title={wikiEvidenceNotice.disabledReason ?? undefined}
+                onClick={wikiEvidenceNotice.onIngest}
+              >
                 {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : wikiEvidenceNotice.actionLabel}
               </button>
             )}

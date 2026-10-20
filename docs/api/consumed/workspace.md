@@ -50,6 +50,11 @@ access-svc가 받는 워크스페이스 자체 CRUD·아이콘·멤버십·초�
 `web/src/shared/lib/apiErrors.ts` `getErrorMessage`가 이 응답을 "이 작업에는 '위키 편입' 권한이 필요합니다. 워크스페이스 OWNER에게 권한을 요청하세요."로 바꾸므로,
 `getErrorMessage`를 거치는 호출처(`useGraphWikiActions`, `usePdfWikiIngest`, `useProjectTree`의 Markdown 변환, `LogView`의 롤백, 스킬 작성·게시)는 별도 분기 없이 같은 안내를 보여 준다.
 
+위키 편입·위키 최신화는 403이 나기 전에 화면에서 막는다. 본인 권한은 멤버 목록 응답의 `role`·`permissions`로 판단하고(`hasWorkspacePermission`, OWNER는 항상 허용),
+`web/src/features/wiki-ingest/model/wikiActionPermission.ts` `getWikiActionGate`가 버튼 상태를 정한다. 권한이 없으면 버튼을 막고 "위키 편입 권한이 없어요"·"위키 최신화 권한이 없어요"를 말풍선·툴팁으로 보여 주고,
+역할을 확인하는 중이면 사유 없이 막는다. 진입점별로 그래프 레일의 위키 편입·위키 최신화(`GraphRailActions`), 채팅 답변 근거 안내의 편입 버튼(`HomeWorkspace` → `AgentPanel`), 편입·최신화 제안 카드(`DocumentProcessingNotifications`)가 이 값을 쓰고,
+`useGraphWikiActions`는 권한이 확실할 때(`true`)만 ingest·convert·lint 요청을 보낸다. 채팅 내보내기(`chat/sessions/{id}/wiki`)는 원문 문서 저장만 해서 권한 항목이 필요 없다(편입은 그 문서로 따로 요청).
+
 ## UI 위치
 
 - 워크스페이스 선택·생성: `web/src/views/workspaces/ui`

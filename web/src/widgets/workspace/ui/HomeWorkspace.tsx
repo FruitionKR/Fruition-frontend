@@ -41,6 +41,7 @@ import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-inges
 import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
+import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
@@ -207,6 +208,7 @@ export function HomeWorkspace() {
     [documents, markdownEditContext?.documentId]
   );
   const chatEvidenceNotice = getChatEvidenceNotice(chatContextDocument);
+  const chatIngestGate = getWikiActionGate(wikiActions.canIngest, "ingest");
   const firstSidebarNote = useMemo(() => {
     const documentIds = new Set(documents.map((document) => document.id));
     for (const project of projectTree.projects) {
@@ -608,8 +610,9 @@ export function HomeWorkspace() {
           }}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             ...chatEvidenceNotice,
-            // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.
-            isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending,
+            // handleGraphIngest는 다른 위키 작업이 진행 중이거나 편입 권한이 없으면(확인 중 포함) 요청을 무시하므로 그동안 버튼을 막는다.
+            isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending || chatIngestGate.isBlocked,
+            disabledReason: chatIngestGate.hint,
             isIngesting: wikiActionPending === "ingest" && wikiActions.ingestTargetIds.includes(chatContextDocument.id),
             onIngest: () => requestGraphIngest([chatContextDocument])
           } : null}

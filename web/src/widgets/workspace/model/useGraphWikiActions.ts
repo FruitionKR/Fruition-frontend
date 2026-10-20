@@ -3,11 +3,16 @@ import { fetchWikiMaintenanceStatus, publishNotice, requestWikiLint } from "@/fe
 import { shouldRequestWikiLint, WIKI_UP_TO_DATE_NOTICE } from "@/features/document-notifications/model/wikiLintStatus";
 import { isGraphIngestEligible } from "@/features/wiki-ingest/model/graphDocuments";
 import type { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
+import { useWikiActionPermissions } from "@/features/wiki-ingest/model/useWikiActionPermissions";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { reflectDocumentToWiki, type DocumentItemResponse } from "@/entities/document";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 
-/** 그래프 사이드바·채팅 안내의 위키 액션(편입 요청·Lint)과 PDF 변환 확인 모달 상태. */
+/**
+ * 그래프 사이드바·채팅 안내의 위키 액션(편입 요청·Lint)과 PDF 변환 확인 모달 상태.
+ * 위키 편입(wiki.ingest)·위키 최신화(wiki.lint) 권한을 확실히 가졌을 때(canIngest·canLint가 true)만 요청을 보낸다.
+ * 버튼도 같은 값으로 막지만, 어느 진입점이든 403이 나갈 요청을 만들지 않도록 여기서 한 번 더 거른다.
+ */
 export function useGraphWikiActions({
   documents,
   pdfWikiIngest,
@@ -22,9 +27,10 @@ export function useGraphWikiActions({
   const [ingestTargetIds, setIngestTargetIds] = useState<readonly string[]>([]);
   const [pdfIngestConfirmation, setPdfIngestConfirmation] = useState<DocumentItemResponse[] | null>(null);
   const graphIngestRunningRef = useRef(false);
+  const { canIngest, canLint } = useWikiActionPermissions();
 
   async function handleGraphIngest(targets: DocumentItemResponse[]) {
-    if (graphIngestRunningRef.current || wikiActionPending || targets.length === 0) return;
+    if (canIngest !== true || graphIngestRunningRef.current || wikiActionPending || targets.length === 0) return;
     graphIngestRunningRef.current = true;
     setWikiActionPending("ingest");
     setIngestTargetIds(targets.map((target) => target.id));
@@ -72,6 +78,7 @@ export function useGraphWikiActions({
 
   // 변환 전 PDF가 섞여 있으면 먼저 Markdown으로 변환한다는 확인을 받는다.
   function requestGraphIngest(targets: DocumentItemResponse[]) {
+    if (canIngest !== true) return;
     if (targets.some(isPdfDocument)) {
       setPdfIngestConfirmation(targets);
       return;
@@ -95,7 +102,7 @@ export function useGraphWikiActions({
   }
 
   async function handleGraphLint() {
-    if (wikiActionPending) return;
+    if (canLint !== true || wikiActionPending) return;
     setWikiActionPending("lint");
     try {
       // 마지막 다듬기 이후 위키 변경이 있을 때만 실제 lint를 보낸다.
@@ -124,6 +131,8 @@ export function useGraphWikiActions({
   }
 
   return {
+    canIngest,
+    canLint,
     wikiActionPending,
     ingestTargetIds,
     pdfIngestConfirmation,

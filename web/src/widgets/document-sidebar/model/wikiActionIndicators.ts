@@ -46,6 +46,5 @@ export function getLintIndicator({
   return { isLit: true, tooltip: "위키 최신화가 가능해요", label: "위키 최신화, 최신화 가능" };
 }
 
-/** 권한이 없어 막힌 레일 버튼의 말풍선 보조줄. */
-export const WIKI_INGEST_PERMISSION_HINT = "위키 편입 권한이 없어요";
-export const WIKI_LINT_PERMISSION_HINT = "위키 최신화 권한이 없어요";
+/** 권한이 없어 막힌 레일 버튼의 말풍선 보조줄. 채팅 안내 버튼과 같은 문구를 쓴다. */
+export { WIKI_INGEST_PERMISSION_HINT, WIKI_LINT_PERMISSION_HINT } from "@/features/wiki-ingest/model/wikiActionPermission";

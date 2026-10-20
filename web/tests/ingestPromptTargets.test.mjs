@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { hasBeenIngestedToWiki, ingestPromptMessage, selectIngestPromptTargets } = await import(
+const { hasBeenIngestedToWiki, ingestPromptMessage, isAwaitingFirstIngest, selectIngestPromptTargets } = await import(
   "../src/features/document-notifications/model/ingestPromptTargets.ts"
 );
 
@@ -36,9 +36,25 @@ test("문구는 1개면 문서 이름, 여러 개면 개수를 보여 준다", (
   assert.equal(ingestPromptMessage([doc("a"), doc("b")]), "2개 문서의 위키 편입을 시작해 보세요.");
 });
 
-test("편입한 적 있는 문서만 재편입 대상이다 (uploaded·PDF 변환만 끝난 문서는 아니다)", () => {
+test("편입 run이 있는 문서만 편입한 적 있다 (uploaded·PDF 변환만 끝난 문서·직접 만든 노트는 아니다)", () => {
   assert.equal(hasBeenIngestedToWiki(doc("n", "uploaded")), false);
+  assert.equal(hasBeenIngestedToWiki(doc("restored", "uploaded", { pipeline_run_id: "run_0" })), false);
   assert.equal(hasBeenIngestedToWiki(doc("c", "completed", { pipeline_run_id: "convert:c" })), false);
+  assert.equal(hasBeenIngestedToWiki(doc("note", "completed")), false);
   assert.equal(hasBeenIngestedToWiki(doc("i", "completed", { pipeline_run_id: "run_1" })), true);
-  assert.equal(hasBeenIngestedToWiki(doc("legacy", "completed")), true);
+  assert.equal(hasBeenIngestedToWiki(doc("f", "failed", { pipeline_run_id: "run_2" })), true);
+});
+
+test("첫 편입 대기와 재편입 대상은 겹치지 않는다 — 새 노트는 신규 제안, 편입 후 수정은 재편입 제안", () => {
+  const cases = [
+    [doc("up", "uploaded"), true, false],
+    [doc("note", "completed", { needs_reingest: true }), true, false],
+    [doc("converted", "completed", { needs_reingest: true, pipeline_run_id: "convert:x" }), true, false],
+    [doc("edited", "completed", { needs_reingest: true, pipeline_run_id: "run_1" }), false, true],
+    [doc("fresh", "completed", { needs_reingest: false, pipeline_run_id: "run_1" }), false, false]
+  ];
+  for (const [document, awaiting, reingest] of cases) {
+    assert.equal(isAwaitingFirstIngest(document), awaiting, document.id);
+    assert.equal(document.needs_reingest === true && hasBeenIngestedToWiki(document), reingest, document.id);
+  }
 });

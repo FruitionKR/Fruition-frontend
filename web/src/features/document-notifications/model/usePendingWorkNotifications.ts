@@ -6,12 +6,12 @@ import { reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { fetchWikiMaintenanceStatus, requestWikiLint } from "../api/wikiLint";
-import { hasBeenIngestedToWiki, ingestPromptMessage, selectIngestPromptTargets } from "./ingestPromptTargets";
+import { hasBeenIngestedToWiki, ingestPromptMessage, isAwaitingFirstIngest, selectIngestPromptTargets } from "./ingestPromptTargets";
 import { isNoticeSubjectVisible, noticeSubjectHiddenAt, publishNotice } from "./noticeBus";
 
 // 연속 업로드를 한 장의 카드로 묶기 위한 대기 시간
 const INGEST_PROMPT_DEBOUNCE_MS = 3_000;
-// uploaded 상태로 이 시간 이상 머물면 리마인드 카드를 띄운다.
+// 첫 편입 대기(uploaded·편입 전 새 노트) 상태로 이 시간 이상 머물면 리마인드 카드를 띄운다.
 // 같은 문서의 카드가 사라진 뒤에도 이만큼 지나야 리마인드한다(카드가 내려가자마자 다시 뜨지 않게).
 const INGEST_STALL_MS = 60_000;
 const STALL_CHECK_INTERVAL_MS = 30_000;
@@ -103,8 +103,9 @@ function publishIngestPrompt(
 
 /**
  * 사용자 개입이 필요한 상황을 감지해 알림 카드를 발행한다.
- * - ingest 시작 제안: 업로드 직후(연속 업로드 묶음) / 세션 진입 시 uploaded 문서 존재 / 60초 정체 리마인드
- * - 재분석 제안: 마지막 ingest 이후 편집된 문서(needs_reingest) 감지
+ * - ingest 시작 제안: 업로드·새 노트 직후(연속 묶음) / 세션 진입 시 첫 편입 대기 문서 존재 / 60초 정체 리마인드
+ *   첫 편입 대기 = uploaded 또는 편입한 적 없는 needs_reingest 문서(직접 만든 노트 등, isAwaitingFirstIngest)
+ * - 재분석 제안: 편입한 적 있는 문서가 마지막 ingest 이후 편집됨(needs_reingest) 감지
  * - 위키 최신화(lint) 필요: ingest 완료 직후 유지보수 상태(needs_lint)를 확인
  * permissions: 위키 편입(wiki.ingest)·위키 최신화(wiki.lint) 권한. 없으면 해당 제안을 띄우지 않고, 확인 전(null)이면 기다린다.
  */
@@ -159,26 +160,26 @@ export function usePendingWorkNotifications(
     });
   }
 
-  // ① 업로드 직후 / ② 세션 진입 시: uploaded 문서에 분석 시작 제안
+  // ① 업로드·새 노트 직후 / ② 세션 진입 시: 첫 편입 대기 문서에 편입 시작 제안
   useEffect(() => {
     // 권한을 확인하기 전에는 첫 스냅샷으로 삼지 않는다. 권한이 없으면 제안하지 않는다.
     if (canIngest !== true) return;
     restorePromptMemory();
     const known = knownIdsRef.current;
-    const uploaded = documents.filter((document) => document.status === "uploaded");
+    const awaiting = documents.filter(isAwaitingFirstIngest);
 
     if (!known) {
       // 첫 스냅샷: 이미 대기 중인 문서가 있으면 즉시 제안 (세션 재진입 케이스)
       knownIdsRef.current = new Set(documents.map((document) => document.id));
-      const initial = uploaded.filter((document) => !promptedIdsRef.current.has(document.id));
+      const initial = awaiting.filter((document) => !promptedIdsRef.current.has(document.id));
       initial.forEach((document) => promptedIdsRef.current.add(document.id));
       persistPromptMemory();
       publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다", suggestEnabledRef.current, promptHandlers);
       return;
     }
 
-    // 이후: 새로 등장한 uploaded 문서를 디바운스로 묶어 제안 (연속 업로드 대응)
-    const fresh = uploaded.filter(
+    // 이후: 새로 등장한 첫 편입 대기 문서를 디바운스로 묶어 제안 (연속 업로드 대응)
+    const fresh = awaiting.filter(
       (document) => !known.has(document.id) && !promptedIdsRef.current.has(document.id)
     );
     documents.forEach((document) => known.add(document.id));
@@ -194,7 +195,7 @@ export function usePendingWorkNotifications(
         const queuedIds = promptQueueRef.current;
         promptQueueRef.current = new Set();
         const targets = documentsRef.current.filter(
-          (document) => queuedIds.has(document.id) && document.status === "uploaded"
+          (document) => queuedIds.has(document.id) && isAwaitingFirstIngest(document)
         );
         publishIngestPrompt(targets, "새 문서가 추가되었습니다", suggestEnabledRef.current, promptHandlers);
       }, INGEST_PROMPT_DEBOUNCE_MS);
@@ -216,7 +217,7 @@ export function usePendingWorkNotifications(
 
       const stalled: DocumentItemResponse[] = [];
       documentsRef.current.forEach((document) => {
-        if (document.status !== "uploaded") return;
+        if (!isAwaitingFirstIngest(document)) return;
         currentIds.add(document.id);
         const seenAt = firstSeen.get(document.id) ?? now;
         if (!firstSeen.has(document.id)) firstSeen.set(document.id, now);
@@ -228,7 +229,7 @@ export function usePendingWorkNotifications(
           stallNotifiedRef.current.add(document.id);
         }
       });
-      // uploaded를 벗어난 문서는 추적에서 제거한다 (재업로드 시 다시 감지)
+      // 첫 편입 대기를 벗어난 문서는 추적에서 제거한다 (재업로드 시 다시 감지)
       [...firstSeen.keys()].forEach((id) => {
         if (!currentIds.has(id)) {
           firstSeen.delete(id);
