@@ -5,6 +5,7 @@ const {
   STALLED_QUERY_AGE_MS,
   STALLED_TURN_AGE_MS,
   TURN_CANCEL_STATUSES,
+  activeTurnStopOutcome,
   classifyTurnCheck,
   hasBlockingPendingMessages,
   isPendingAgentTurnMessage,
@@ -151,4 +152,20 @@ test("취소된(cancelled) 응답은 입력을 막지 않는다", () => {
   assert.equal(hasBlockingPendingMessages([assistant("agent_1", "cancelled")], new Set()), false);
   assert.equal(isPendingAgentTurnMessage(assistant("agent_1", "cancelled")), false);
   assert.deepEqual(pendingAgentTurns([assistant("agent_1", "cancelled", minutesAgo(20))], NOW), []);
+});
+
+test("진행 중인 작업을 Esc로 중지한 결과: 취소되면 목록을 다시 받고 잠금을 풀고, 전하지 못하거나 이미 끝났으면 다시 따라간다", () => {
+  for (const status of ["cancel_requested", "rolling_back", "cancelled"]) {
+    assert.deepEqual(activeTurnStopOutcome({ kind: "status", status }), { notice: null, refresh: true, release: true, resume: false });
+  }
+  const rollbackFailed = activeTurnStopOutcome({ kind: "status", status: "rollback_failed" });
+  assert.equal(rollbackFailed.release, true);
+  assert.match(rollbackFailed.notice, /복구하지 못했어요/);
+  assert.deepEqual(activeTurnStopOutcome({ kind: "missing" }), { notice: null, refresh: false, release: true, resume: false });
+  assert.deepEqual(activeTurnStopOutcome({ kind: "finished" }), { notice: null, refresh: false, release: false, resume: true });
+  assert.deepEqual(activeTurnStopOutcome({ kind: "status", status: "completed" }), { notice: null, refresh: false, release: false, resume: true });
+  const failed = activeTurnStopOutcome({ kind: "failed" });
+  assert.equal(failed.release, false);
+  assert.equal(failed.resume, true);
+  assert.match(failed.notice, /다시 Esc/);
 });

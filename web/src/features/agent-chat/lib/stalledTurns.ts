@@ -176,3 +176,29 @@ export function stalledTurnCancelOutcome(result: StalledTurnCancelResult): Stall
   }
   return { notice: null, refresh: true, showResult: false };
 }
+
+/**
+ * 따라가던 작업을 입력창 Esc로 중지한 결과로 할 일. 화면은 취소를 요청하기 전에 따라가기(SSE·조회)를 먼저 멈춘다.
+ * refresh: 세션 메시지를 다시 받는다, release: 입력 잠금을 푼다, resume: 같은 turn을 다시 따라간다(결과·진행이 묻히지 않게).
+ */
+export type ActiveTurnStopOutcome = { notice: string | null; refresh: boolean; release: boolean; resume: boolean };
+
+/**
+ * 진행 중인 작업을 Esc로 중지한 취소 요청 결과를 해석한다. 응답을 받지 못한 작업 '닫기'와 달리 서버에 전하지 못하면
+ * 작업이 계속 진행 중이므로 잠금을 풀지 않고 다시 따라간다(Esc를 다시 누를 수 있다).
+ * - 취소 계열 상태: 서버가 pending 메시지를 cancelled로 닫았으니 목록을 다시 받고 잠금을 푼다(복구 실패면 알림)
+ * - 404: 서버에 turn이 없다. 조용히 잠금을 푼다
+ * - 409·그 밖의 상태: 이미 끝난 turn이라 다시 따라가 결과를 보여 준다
+ * - 전하지 못함: 다시 따라가고 알린다
+ */
+export function activeTurnStopOutcome(result: StalledTurnCancelResult): ActiveTurnStopOutcome {
+  if (result.kind === "missing") return { notice: null, refresh: false, release: true, resume: false };
+  if (result.kind === "failed") {
+    return { notice: "작업을 중지하지 못했어요. 서버에 중지 요청을 전하지 못해 작업이 계속 진행 중이에요. 다시 Esc를 눌러 주세요.", refresh: false, release: false, resume: true };
+  }
+  if (result.kind === "finished" || !TURN_CANCEL_STATUSES.has(result.status)) return { notice: null, refresh: false, release: false, resume: true };
+  if (result.status === "rollback_failed") {
+    return { notice: "작업을 중지했지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, release: true, resume: false };
+  }
+  return { notice: null, refresh: true, release: true, resume: false };
+}

@@ -182,6 +182,11 @@ export function useAgentTurn({
   function recheckAgentTurn() {
     const turnId = unconfirmedTurnId;
     if (!turnId || isAgentTurnLoading) return;
+    resumeFollowing(turnId);
+  }
+
+  /** 같은 turn의 끝을 turn 조회로 다시 따라간다(다시 확인·중지 요청이 409로 끝났거나 전해지지 않았을 때). */
+  function resumeFollowing(turnId: string) {
     setUnconfirmedTurnId(null);
     setAgentTurnErrorMessage(null);
     setIsAgentTurnLoading(true);
@@ -241,6 +246,20 @@ export function useAgentTurn({
     }), () => acceptedTurnId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
+
+  /**
+   * 지금 따라가는 turn의 진행 SSE·조회를 멈춘다(Esc 중지). 서버 취소는 호출부가 요청하고, 결과를 받을 때까지
+   * 진행 카드는 그대로 둔다. 취소가 받아들여지면 finishFollowing으로 진행 카드를 내린다.
+   */
+  function stopFollowing() {
+    agentRequestRef.current?.abort();
+    agentRequestRef.current = null;
+  }
+
+  function finishFollowing() {
+    setIsAgentTurnLoading(false);
+    setIsAgentTurnSlow(false);
+  }
 
   /** 응답을 받지 못한 turn을 닫았다. 그 turn의 '결과 다시 확인'·오류 안내를 지운다. */
   function forgetTurn(turnId: string) {
@@ -382,6 +401,9 @@ export function useAgentTurn({
     followingTurnId: isAgentTurnLoading ? requestTurnId : null,
     forgetTurn,
     recheckAgentTurn,
+    stopFollowing,
+    finishFollowing,
+    resumeFollowing,
     isCreatingMarkdown,
     markdownCreateErrorMessage,
     editPreviewState,

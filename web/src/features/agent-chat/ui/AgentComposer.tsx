@@ -76,6 +76,7 @@ export function AgentComposer({
   onSubmit,
   onCancel,
   isCancelling = false,
+  cancelHint = "입력창에서 Esc를 누르면 질문을 취소합니다.",
   statusMessage,
   meetingControl,
   inputLabel = "Query 질문 입력",
@@ -97,6 +98,8 @@ export function AgentComposer({
   onSubmit: () => void;
   onCancel?: () => void;
   isCancelling?: boolean;
+  /** onCancel이 있을 때 입력창 아래에 보이는 Esc 안내(질문 취소·작업 중지·스킬 실행 취소) */
+  cancelHint?: string;
   statusMessage?: string | null;
   meetingControl?: ComposerMeetingControl;
   /** 입력창 접근성 이름. 작업 탭은 작업 요청 입력이다. */
@@ -300,7 +303,7 @@ export function AgentComposer({
       />
       {(statusMessage || onCancel) && (
         <p className={cx(styles["composer-status"], !isLoading && statusMessage && styles["composer-cancelled"])} role="status">
-          {statusMessage ?? "입력창에서 Esc를 누르면 질문을 취소합니다."}
+          {statusMessage ?? cancelHint}
         </p>
       )}
       {dictation.message && (

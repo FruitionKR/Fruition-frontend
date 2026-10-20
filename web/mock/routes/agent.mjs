@@ -4,6 +4,9 @@ import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMe
 import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
+// 테스트용 시나리오(MOCK_SLOW_TURN=1): 실제 서버처럼 turn을 받자마자 pending 메시지를 남기고 오래 처리한다(입력창 Esc 중지 확인). 기본에는 넣지 않는다.
+const SLOW_TURN = process.env.MOCK_SLOW_TURN === "1";
+const SLOW_TURN_DELAY_MS = 30_000;
 // 취소 요청 뒤 cancel_requested → rolling_back → cancelled로 넘어가는 간격(ai/tasks 취소 mock과 같다).
 const CANCEL_STEP_DELAY_MS = 1_000;
 const CANCELLING_STATUSES = new Set(["cancel_requested", "rolling_back", "cancelled", "rollback_failed"]);
@@ -222,8 +225,14 @@ function completeTurn(workspace, turn, request) {
     const answer = `현재 문서 "${doc?.filename ?? request.documentId}"를 기준으로 답합니다.\n\n${message}에 대한 mock 답변입니다. 편집을 원하면 "수정해줘"처럼 요청해보세요.`;
     result = { action: "chat_answer", route: route("chat_answer", "일반 질문"), message: null, chat: { answer }, edit: null, generated_markdown: null };
   }
-  upsertMessage(request.session_id, { role: "user", content: message, pair_id: pairId, run_id: turn.id });
-  upsertMessage(request.session_id, { role: "assistant", content: result.chat?.answer ?? result.message ?? result.edit?.summary ?? result.generated_markdown?.summary ?? "", pair_id: pairId, run_id: turn.id, action: result.action, related_pages: [] });
+  const answer = { content: result.chat?.answer ?? result.message ?? result.edit?.summary ?? result.generated_markdown?.summary ?? "", action: result.action, related_pages: [] };
+  const pending = state.chatMessages.find((item) => item.run_id === turn.id && item.role === "assistant" && item.status === "pending");
+  if (pending) {
+    Object.assign(pending, answer, { status: "completed" });
+  } else {
+    upsertMessage(request.session_id, { role: "user", content: message, pair_id: pairId, run_id: turn.id });
+    upsertMessage(request.session_id, { role: "assistant", ...answer, pair_id: pairId, run_id: turn.id });
+  }
   Object.assign(turn, { status: "completed", result });
 }
 
@@ -253,7 +262,12 @@ export function registerAgentRoutes(router) {
     const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, status: "queued", result: null, error_code: null };
     state.agentTurns.set(turn.id, turn);
     if (hasDocument) addOperationLog(workspace.id, { operation_id: turn.apply_operation_id, operation_type: "document_edit", status: "succeeded", target_document_id: request.documentId, target_display_name: findDocument(workspace.id, request.documentId)?.filename ?? null, summary: request.message.slice(0, 40), changed_resource_count: 0, completed_at: now() });
-    setTimeout(() => { if (turn.status === "queued") completeTurn(workspace, turn, request); }, TURN_DELAY_MS);
+    if (SLOW_TURN) {
+      const pairId = id("pair");
+      upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
+      upsertMessage(request.session_id, { role: "assistant", content: "", status: "pending", pair_id: pairId, run_id: turn.id });
+    }
+    setTimeout(() => { if (turn.status === "queued") completeTurn(workspace, turn, request); }, SLOW_TURN ? SLOW_TURN_DELAY_MS : TURN_DELAY_MS);
     ctx.json(202, toTurn(turn));
   });
 

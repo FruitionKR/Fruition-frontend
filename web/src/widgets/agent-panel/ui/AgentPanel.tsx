@@ -12,11 +12,18 @@ import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePr
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
 import { AGENT_TURN_SLOW_MESSAGE } from "@/features/agent-chat/lib/turnFollow";
-import { hasBlockingPendingMessages, STALLED_QUERY_COMPOSER_NOTICE, STALLED_TURN_COMPOSER_NOTICE } from "@/features/agent-chat/lib/stalledTurns";
+import {
+  hasBlockingPendingMessages,
+  isPendingAgentTurnMessage,
+  isPendingQueryMessage,
+  STALLED_QUERY_COMPOSER_NOTICE,
+  STALLED_TURN_COMPOSER_NOTICE
+} from "@/features/agent-chat/lib/stalledTurns";
 import { useStalledQueries } from "@/features/agent-chat/model/useStalledQueries";
 import { useReleasedTurns, useStalledAgentTurns } from "@/features/agent-chat/model/useStalledAgentTurns";
 import { announceFinishedTurn, useCloseStalledTurns } from "@/features/agent-chat/model/useCloseStalledTurns";
 import { skillRunWaitingState } from "../lib/skillRunWaiting";
+import { composerStopHint, composerStoppingMessage, resolveComposerStopTarget, type PendingStopCandidate } from "../lib/composerStop";
 import type { TaskMessageItem } from "@/features/agent-chat/lib/taskThread";
 import { ProposalDecisionButtons, type InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import { countPendingProposals, countProposals, headingAtLine, proposalSourceLabel } from "@/features/agent-chat/lib/inlineEditReview";
@@ -45,6 +52,7 @@ import type { MeetingListItem } from "@/entities/meeting";
 import type { GraphNode } from "@/entities/wiki";
 import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
+import { useComposerStop } from "../model/useComposerStop";
 import { useSkillSlashPicker } from "../model/useSkillSlashPicker";
 import { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } from "../lib/openDocumentSource";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
@@ -358,6 +366,40 @@ export function AgentPanel({
     isAgentBusy: isCreatingMarkdown,
     isWaitingForDocument: Boolean(skillRun.documentId) && !skillRunContext
   }) : null;
+  // 입력창 Esc로 멈출 대상(가장 나중에 시작한 것 하나). 이미 닫았거나 닫는 중인 run은 뺀다.
+  const pendingStopCandidates = useMemo<PendingStopCandidate[]>(() => messages.flatMap((message): PendingStopCandidate[] => {
+    if (!message.run_id) return [];
+    if (isPendingAgentTurnMessage(message)) return [{ runId: message.run_id, kind: "turn", createdAt: message.created_at ?? null }];
+    if (isPendingQueryMessage(message)) return [{ runId: message.run_id, kind: "query", createdAt: message.created_at ?? null }];
+    return [];
+  }), [messages]);
+  const stopIgnoredRunIds = useMemo(
+    () => new Set([...releasedTurnIds, ...closingTurnIds, ...closingQueryIds]),
+    [closingQueryIds, closingTurnIds, releasedTurnIds]
+  );
+  const stopTarget = resolveComposerStopTarget({
+    hasWaitingSkillRun: Boolean(skillRun && waitingSkillRun),
+    isQueryActive: isLoading,
+    isTurnFollowing: isAgentTurnLoading,
+    followingTurnId,
+    pendingRuns: pendingStopCandidates,
+    ignoredRunIds: stopIgnoredRunIds
+  });
+  const composerStop = useComposerStop({
+    target: stopTarget,
+    cancelSkillRun: () => { if (skillRun) onSkillRunSent?.(skillRun.id); },
+    cancelQuery,
+    followingTurnId,
+    isTurnFollowing: isAgentTurnLoading,
+    stopFollowing: agentTurn.stopFollowing,
+    finishFollowing: agentTurn.finishFollowing,
+    resumeFollowing: agentTurn.resumeFollowing,
+    closePendingTurn: (turnId) => dismissStalledTurns([turnId]),
+    closePendingQuery: closeStalledQuery,
+    releaseTurns,
+    refreshMessages
+  });
+  const composerStopHintTarget = composerStop.stoppingTarget ?? stopTarget;
   const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
 
   /**
@@ -821,7 +863,7 @@ export function AgentPanel({
             listId: SKILL_PICKER_LIST_ID,
             activeOptionId: skillPicker.activeSkillId ? skillPickerOptionId(skillPicker.activeSkillId) : null
           } : undefined}
-          isLoading={isSubmitting || isPairSelectionMode}
+          isLoading={isSubmitting || isPairSelectionMode || composerStop.isStopping}
           placeholder={composerPlaceholder}
           models={aiModels}
           selectedModel={selectedModel}
@@ -833,9 +875,12 @@ export function AgentPanel({
           onWebSearchChange={handleWebSearchChange}
           onChange={setComposerValue}
           onSubmit={handleSubmit}
-          onCancel={isLoading && !isWorkView ? cancelQuery : undefined}
-          isCancelling={isCancelling}
-          statusMessage={queryStatusMessage
+          // 입력창에서 Esc: 진행 중인 질의·작업·보내기 전 스킬 실행 중 가장 나중에 시작한 것 하나를 멈춘다.
+          onCancel={composerStopHintTarget ? composerStop.stop : undefined}
+          isCancelling={isCancelling || composerStop.isStopping}
+          cancelHint={composerStopHintTarget ? composerStopHint(composerStopHintTarget) : undefined}
+          statusMessage={composerStoppingMessage(composerStop.stoppingTarget)
+            ?? (stopTarget && stopTarget.kind !== "query" ? null : queryStatusMessage)
             ?? (stalledTurnIds.size > 0 ? STALLED_TURN_COMPOSER_NOTICE : stalledQueryIds.size > 0 ? STALLED_QUERY_COMPOSER_NOTICE : null)}
           meetingControl={{
             state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
