@@ -17,25 +17,35 @@ const INGEST_STALL_MS = 60_000;
 const STALL_CHECK_INTERVAL_MS = 30_000;
 // 연속 완료 시 같은 제안 카드가 반복되지 않게 최소 간격을 둔다.
 const LINT_CHECK_COOLDOWN_MS = 5 * 60_000;
-// 새로고침해도 이미 보여준 제안 카드가 반복되지 않도록 제안 기록을 보존한다.
-const PROMPT_MEMORY_STORAGE_KEY = "fruition.pending_work_prompted";
+// 새로고침해도 이미 보여준 제안 카드가 반복되지 않도록 제안 기록을 워크스페이스별로 보존한다.
+const PROMPT_MEMORY_STORAGE_PREFIX = "fruition.pending_work_prompted";
+// 워크스페이스 구분 없이 쌓던 예전 키. 어느 워크스페이스 기록인지 알 수 없어 읽지 않고 지운다.
+const LEGACY_PROMPT_MEMORY_STORAGE_KEY = PROMPT_MEMORY_STORAGE_PREFIX;
 
 type PromptMemory = { prompted?: string[]; stalled?: string[]; reingest?: string[] };
 
-function loadPromptMemory(): PromptMemory {
-  if (typeof window === "undefined") return {};
+/** 워크스페이스의 제안 기록 키. 워크스페이스를 모르면 null(이번 화면에서만 기억한다). */
+export function promptMemoryStorageKey(workspaceId: string | null | undefined): string | null {
+  return workspaceId ? `${PROMPT_MEMORY_STORAGE_PREFIX}.${workspaceId}` : null;
+}
+
+/** 저장된 기록과 그 원문. 원문은 바뀌지 않은 기록을 다시 쓰지 않으려고 비교에 쓴다. */
+function loadPromptMemory(key: string | null): { memory: PromptMemory; raw: string | null } {
+  if (typeof window === "undefined" || !key) return { memory: {}, raw: null };
   try {
-    return (JSON.parse(window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY) ?? "null") ?? {}) as PromptMemory;
+    window.localStorage.removeItem(LEGACY_PROMPT_MEMORY_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
+    return { memory: (JSON.parse(raw ?? "null") ?? {}) as PromptMemory, raw };
   } catch {
     // 손상된 저장값은 무시하고 새로 쌓는다.
-    return {};
+    return { memory: {}, raw: null };
   }
 }
 
-function savePromptMemory(memory: Required<PromptMemory>) {
-  if (typeof window === "undefined") return;
+function savePromptMemory(key: string | null, serialized: string) {
+  if (typeof window === "undefined" || !key) return;
   try {
-    window.localStorage.setItem(PROMPT_MEMORY_STORAGE_KEY, JSON.stringify(memory));
+    window.localStorage.setItem(key, serialized);
   } catch {
     // 저장 실패는 다음 새로고침에 카드가 한 번 더 보일 뿐이므로 무시한다.
   }
@@ -155,6 +165,8 @@ export function usePendingWorkNotifications(
   const lastLintCheckAtRef = useRef(0);
   // 새로고침 후에도 같은 카드를 다시 띄우지 않도록 제안 기록을 localStorage에서 복원한다.
   const promptMemoryLoadedRef = useRef(false);
+  // 마지막으로 읽거나 쓴 기록 원문. 같으면 다시 쓰지 않는다(문서 목록 갱신·30초 점검마다 쓰지 않게).
+  const persistedMemoryRef = useRef<string | null>(null);
   const baselineWorkspaceRef = useRef(workspaceId);
 
   /** 워크스페이스가 바뀌었으면 이전 워크스페이스의 기준·대기열을 버린다. 각 effect 앞에서 부르며 여러 번 불러도 같다. */
@@ -165,6 +177,12 @@ export function usePendingWorkNotifications(
     previousStatusesRef.current = null;
     uploadedFirstSeenRef.current.clear();
     promptQueueRef.current = new Set();
+    // 제안 기록도 워크스페이스별이라 새 워크스페이스의 기록을 다시 읽는다.
+    promptMemoryLoadedRef.current = false;
+    persistedMemoryRef.current = null;
+    promptedIdsRef.current.clear();
+    stallNotifiedRef.current.clear();
+    reingestNotifiedRef.current.clear();
     if (promptTimerRef.current) {
       window.clearTimeout(promptTimerRef.current);
       promptTimerRef.current = null;
@@ -174,18 +192,22 @@ export function usePendingWorkNotifications(
   function restorePromptMemory() {
     if (promptMemoryLoadedRef.current) return;
     promptMemoryLoadedRef.current = true;
-    const memory = loadPromptMemory();
+    const { memory, raw } = loadPromptMemory(promptMemoryStorageKey(baselineWorkspaceRef.current));
+    persistedMemoryRef.current = raw;
     memory.prompted?.forEach((id) => promptedIdsRef.current.add(id));
     memory.stalled?.forEach((id) => stallNotifiedRef.current.add(id));
     memory.reingest?.forEach((id) => reingestNotifiedRef.current.add(id));
   }
 
   function persistPromptMemory() {
-    savePromptMemory({
+    const serialized = JSON.stringify({
       prompted: [...promptedIdsRef.current],
       stalled: [...stallNotifiedRef.current],
       reingest: [...reingestNotifiedRef.current]
     });
+    if (serialized === persistedMemoryRef.current) return;
+    persistedMemoryRef.current = serialized;
+    savePromptMemory(promptMemoryStorageKey(baselineWorkspaceRef.current), serialized);
   }
 
   // ① 업로드·새 노트 직후 / ② 세션 진입 시: 첫 편입 대기 문서에 편입 시작 제안
@@ -282,6 +304,7 @@ export function usePendingWorkNotifications(
   // 재분석 제안: 마지막 ingest 이후 편집된 문서(needs_reingest)를 감지한다.
   // 재분석이 시작되면 needs_reingest가 풀리므로, 그때 알림 기록을 해제해 다음 편집 때 다시 제안한다.
   useEffect(() => {
+    syncWorkspaceBaseline();
     if (canIngest !== true) return;
     restorePromptMemory();
     // 문서 목록을 아직 받기 전(빈 배열)에는 복원한 알림 기록을 지우면 안 된다.

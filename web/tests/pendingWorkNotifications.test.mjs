@@ -59,7 +59,8 @@ function notificationEnv(t, { needsLint = false } = {}) {
   return { ...env, notices, statusRequests, titles: () => notices.map((notice) => notice.title) };
 }
 
-const ALLOWED = { canIngest: true, canLint: true };
+const ALLOWED = { canIngest: true, canLint: true, workspaceId: "ws_test" };
+const MEMORY_KEY = "fruition.pending_work_prompted.ws_test";
 
 function renderNotifications(documents, permissions = ALLOWED) {
   const props = { documents, permissions };
@@ -161,7 +162,7 @@ test("마지막 편입 이후 수정된 문서는 재편입을 제안하고 빈 
 
   view.setDocuments([edited]);
   assert.equal(titles().length, 1, "같은 문서를 다시 제안하지 않는다");
-  assert.match(storage.get("fruition.pending_work_prompted"), /"reingest":\["r1"\]/);
+  assert.match(storage.get(MEMORY_KEY), /"reingest":\["r1"\]/);
 
   // 새로고침 직후 목록이 비어 있는 동안 기록을 지우면 목록 도착 때 같은 카드가 다시 뜬다.
   view.unmount();
@@ -371,6 +372,37 @@ test("워크스페이스를 바꾸면 이전 워크스페이스에서 묶던 새
   view.setDocuments([doc("a1")]);
   view.setBoth([doc("b1", "completed")], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: true });
   await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), []);
+  view.unmount();
+});
+
+test("제안 기록은 워크스페이스별로 두고, 예전 전역 키는 지운다", async (t) => {
+  const { storage, titles } = notificationEnv(t);
+  storage.set("fruition.pending_work_prompted", JSON.stringify({ prompted: ["a1"] }));
+  storage.set("fruition.pending_work_prompted.ws_b", JSON.stringify({ prompted: ["b1"] }));
+
+  const view = renderNotifications([doc("a1")], { ...ALLOWED, workspaceId: "ws_a" });
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"], "예전 전역 기록은 읽지 않는다");
+  assert.equal(storage.has("fruition.pending_work_prompted"), false);
+  assert.match(storage.get("fruition.pending_work_prompted.ws_a"), /"prompted":\["a1"\]/);
+
+  // 다른 워크스페이스로 옮기면 그 워크스페이스의 기록을 읽어 이미 보인 카드를 다시 띄우지 않는다.
+  view.setBoth([doc("b1")], { ...ALLOWED, workspaceId: "ws_b" });
+  assert.equal(titles().length, 1);
+  assert.match(storage.get("fruition.pending_work_prompted.ws_a"), /"prompted":\["a1"\]/, "이전 워크스페이스 기록은 그대로 둔다");
+  view.unmount();
+});
+
+test("제안 기록이 바뀌지 않으면 문서 목록 갱신·정기 점검마다 다시 쓰지 않는다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const writes = [];
+  const setItem = window.localStorage.setItem;
+  window.localStorage.setItem = (key, value) => { writes.push(key); setItem(key, value); };
+  const view = renderNotifications([doc("w1", "completed")]);
+  const initialWrites = writes.length;
+  view.setDocuments([doc("w1", "completed", { updated_at: "x" })]);
+  await advance(t, 30_000 * 3);
+  assert.equal(writes.length, initialWrites);
   assert.deepEqual(titles(), []);
   view.unmount();
 });
