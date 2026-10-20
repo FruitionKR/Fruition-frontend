@@ -88,7 +88,17 @@ test("기간: 지난 30일은 지금으로부터 30일 전부터", () => {
   const now = new Date(2026, 9, 20, 15, 30);
   const range = resolveUsageRange("last_30_days", now);
   assert.equal(now.getTime() - range.from.getTime(), 30 * 24 * 60 * 60 * 1000);
-  assert.equal(range.to, now);
+  assert.deepEqual(range.to, now);
+});
+
+test("기간: 끝 시각은 분 단위로 내려 같은 분 안에서는 같은 범위다(금액 조회 키가 매번 바뀌지 않게)", () => {
+  const first = resolveUsageRange("this_month", new Date(2026, 9, 20, 15, 30, 5, 120));
+  const again = resolveUsageRange("this_month", new Date(2026, 9, 20, 15, 30, 59, 999));
+  assert.deepEqual(first.to, new Date(2026, 9, 20, 15, 30));
+  assert.equal(first.to.getTime(), again.to.getTime());
+  const last30 = resolveUsageRange("last_30_days", new Date(2026, 9, 20, 15, 30, 42));
+  assert.equal(last30.to.getTime() - last30.from.getTime(), 30 * 24 * 60 * 60 * 1000);
+  assert.deepEqual(last30.to, new Date(2026, 9, 20, 15, 30));
 });
 
 test("숫자는 ko-KR 천 단위 구분 기호로 보인다", () => {

@@ -39,9 +39,12 @@ export function AiUsageSection() {
   // 토큰과 같은 기간을 쓰도록 사용량 응답의 range로 부른다.
   const range = usage.data?.range;
   const charges = useQuery({
-    queryKey: ["aiUsageCharges", range?.from.toISOString() ?? null, range?.to.toISOString() ?? null],
+    queryKey: ["aiUsageCharges", period, range?.from.toISOString() ?? null, range?.to.toISOString() ?? null],
     queryFn: () => fetchUsageCharges(range!),
     enabled: Boolean(range),
+    // 다시 조회해 끝 시각(분 단위)이 바뀌어도 새 금액이 올 때까지 같은 기간의 지난 금액을 보인다.
+    // 기간을 바꿨으면 다른 기간의 단가를 섞지 않도록 불러오는 중으로 둔다.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === period ? previous : undefined),
     retry: false
   });
   const cost: UsageCostView = charges.isError

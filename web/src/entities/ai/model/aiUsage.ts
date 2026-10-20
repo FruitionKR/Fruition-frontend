@@ -41,9 +41,14 @@ export const AI_USAGE_PERIOD_OPTIONS: ReadonlyArray<{ value: AiUsagePeriod; labe
 export type UsageRange = { from: Date; to: Date };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 
-/** 기간을 [from, to) 시각으로 바꾼다. 달 경계는 사용자 기기 시간대 기준이다(백엔드 기본값은 UTC 이번 달). */
-export function resolveUsageRange(period: AiUsagePeriod, now: Date): UsageRange {
+/**
+ * 기간을 [from, to) 시각으로 바꾼다. 달 경계는 사용자 기기 시간대 기준이다(백엔드 기본값은 UTC 이번 달).
+ * 지금 시각은 분 단위로 내린다. 다시 조회할 때마다 끝 시각이 바뀌면 그 범위로 부르는 금액 조회의 키도 매번 달라진다.
+ */
+export function resolveUsageRange(period: AiUsagePeriod, at: Date): UsageRange {
+  const now = new Date(Math.floor(at.getTime() / MINUTE_MS) * MINUTE_MS);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   if (period === "last_month") {
     return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: monthStart };
