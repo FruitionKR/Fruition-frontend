@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const {
+  clearWorkspaceGone,
   getWorkspaceGoneVersion,
   isRequestToGoneWorkspace,
   isWorkspaceGone,
@@ -49,6 +50,24 @@ test("접근 불가로 기록되면 구독자에게 알리고 그 워크스페�
   assert.equal(isRequestToGoneWorkspace("/api/workspaces/ws_1/wiki/graph"), true);
   assert.equal(isRequestToGoneWorkspace("/api/workspaces/ws_2/wiki/graph"), false);
   assert.equal(isRequestToGoneWorkspace("/api/workspaces"), false, "목록 조회는 막지 않는다(다른 워크스페이스로 옮길 때 쓴다)");
+  unsubscribe();
+  resetWorkspaceGone();
+});
+
+test("초대를 다시 수락하거나 워크스페이스를 다시 고르면 접근 불가 기록을 지우고 구독자에게 알린다", () => {
+  resetWorkspaceGone();
+  markWorkspaceGone("ws_1");
+  let notified = 0;
+  const unsubscribe = subscribeWorkspaceGone(() => { notified += 1; });
+  const before = getWorkspaceGoneVersion();
+  clearWorkspaceGone("ws_1");
+  assert.equal(isWorkspaceGone("ws_1"), false);
+  assert.equal(isRequestToGoneWorkspace("/api/workspaces/ws_1/document-tree"), false, "다시 요청을 보낸다");
+  assert.equal(notified, 1);
+  assert.notEqual(getWorkspaceGoneVersion(), before, "useSyncExternalStore가 다시 그리도록 스냅샷이 바뀐다");
+  clearWorkspaceGone("ws_1");
+  clearWorkspaceGone("ws_2");
+  assert.equal(notified, 1, "기록이 없으면 알리지 않는다");
   unsubscribe();
   resetWorkspaceGone();
 });

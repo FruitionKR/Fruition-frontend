@@ -12,6 +12,7 @@ import {
 import { UserAvatar, useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useSelectedWorkspace";
 import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import Image, { type StaticImageData } from "next/image";
@@ -193,6 +194,7 @@ export function SettingsContent({
       return;
     }
     setSelectedWorkspaceId(workspaceId);
+    clearWorkspaceGone(workspaceId);
     saveSettingsResume("members");
     window.location.reload();
   }

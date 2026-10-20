@@ -114,6 +114,10 @@ test("초대 확인은 공개 조회, 수락은 인증 요청으로 처리한다
 
 test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 계정을 사용한다", async (t) => {
   const auth = await import("../src/shared/lib/authSessionStorage.ts");
+  const workspaceAccess = await import("../src/shared/lib/workspaceAccess.ts");
+  // 이 탭에서 내보내졌던 워크스페이스에 다시 초대받은 경우다. 수락하면 접근 불가 기록을 지운다.
+  workspaceAccess.markWorkspaceGone("invited-workspace");
+  t.after(() => workspaceAccess.resetWorkspaceGone());
   const originalWindow = globalThis.window;
   const selected = [];
   const navigated = [];
@@ -146,6 +150,7 @@ test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 
     "@/entities/workspace/api/invitations": { acceptInvitation, fetchInvitation },
     "@/entities/user": { useSignOut: () => ({ signOut: async () => {} }) },
     "@/shared/lib/apiErrors": {},
+    "@/shared/lib/workspaceAccess": workspaceAccess,
     "@/views/workspaces/ui/WorkspacesPage.module.css": { default: {} }
   };
   runInNewContext(outputText, { exports, require: (name) => modules[name], window: globalThis.window });
@@ -160,6 +165,7 @@ test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 
   assert.equal(queryClient.getQueryCache().getAll().length, 0);
   assert.deepEqual(selected, [["fruition.workspace_id", "invited-workspace"]]);
   assert.deepEqual(navigated, ["/home"]);
+  assert.equal(workspaceAccess.isWorkspaceGone("invited-workspace"), false);
   assert.deepEqual(requests, [
     ["/api/invitations/invite-token/accept", "Bearer previous-user-access"],
     ["/api/invitations/invite-token/accept", null],

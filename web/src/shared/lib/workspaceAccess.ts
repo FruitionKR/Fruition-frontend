@@ -50,6 +50,16 @@ export function markWorkspaceGone(workspaceId: string) {
   listeners.forEach((listener) => listener());
 }
 
+/**
+ * 접근 불가 기록을 지운다. 같은 탭에서 초대를 다시 수락했거나 워크스페이스를 다시 고르면
+ * 그 워크스페이스로 가는 요청을 다시 보내야 한다(기록이 남으면 apiFetch가 계속 막는다).
+ */
+export function clearWorkspaceGone(workspaceId: string) {
+  if (!goneWorkspaceIds.delete(workspaceId)) return;
+  version += 1;
+  listeners.forEach((listener) => listener());
+}
+
 export function isWorkspaceGone(workspaceId: string | null): boolean {
   return workspaceId !== null && goneWorkspaceIds.has(workspaceId);
 }
