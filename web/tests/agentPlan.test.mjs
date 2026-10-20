@@ -218,3 +218,19 @@ test("계획 요약 끝의 범위 밖 제외 안내를 따로 떼어 낸다", ()
   assert.deepEqual(splitPlanSummary("문서 2개 이동"), { body: "문서 2개 이동", scopeNote: null });
   assert.deepEqual(splitPlanSummary(undefined), { body: "", scopeNote: null });
 });
+
+test("계획 요약 끝의 내용 중복 안내 두 문장도 떼어 내고, 이름 속 마침표에서 끊지 않는다", () => {
+  const pairs = "계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: '회의록 v1.2.md'와(과) '회의록.md', '참고.pdf'와(과) '참고 자료.pdf'.";
+  const unchecked = "문서 3개는 내용 중복을 확인하지 못했어요.";
+  assert.deepEqual(
+    splitPlanSummary(`문서 4개를 옮깁니다. ${pairs} ${unchecked}`),
+    { body: "문서 4개를 옮깁니다.", scopeNote: `${pairs} ${unchecked}` }
+  );
+  assert.deepEqual(splitPlanSummary(`문서 1개 이동. ${unchecked}`), { body: "문서 1개 이동.", scopeNote: unchecked });
+  // 범위 밖 제외 안내와 함께 오면 요약에 나온 순서대로 잇는다.
+  const scope = "대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요.";
+  assert.deepEqual(
+    splitPlanSummary(`문서 2개 이동. ${scope} ${pairs}`),
+    { body: "문서 2개 이동.", scopeNote: `${scope} ${pairs}` }
+  );
+});

@@ -27,7 +27,7 @@ export type FolderOrganizeRow = {
   operationIds: string[];
   /** 기본 선택 여부: 묶인 작업이 모두 suggested_selected !== false일 때만 선택. */
   suggestedSelected: boolean;
-  /** 중복 의심(duplicate_name) 안내 문장. 빨간 줄로 보여 준다. */
+  /** 중복 의심(duplicate_name, 없으면 duplicate_content) 안내 문장. 빨간 줄로 보여 준다. */
   duplicateWarning: string | null;
   /** 기본 선택에서 빠진 작업에 의존(depends_on_unselected)한다는 보조 안내. */
   dependencyNote: string | null;
@@ -143,7 +143,7 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
       changeLabel: row.changeLabel || [moved && "이동", renamed && "이름", edited && "편집"].filter(Boolean).join(" · "),
       operationIds: operations.map((operation) => operation.id),
       suggestedSelected: operations.every((operation) => operation.suggested_selected !== false),
-      duplicateWarning: warningMessage(operations, "duplicate_name"),
+      duplicateWarning: warningMessage(operations, "duplicate_name") ?? warningMessage(operations, "duplicate_content"),
       dependencyNote: warningMessage(operations, "depends_on_unselected"),
       excluded: operations.every(isOperationNotSelected)
     })),
@@ -248,7 +248,7 @@ export type FolderOrganizeApproval = {
   selectedCount: number;
   /** 선택에서 빠진 줄 수 */
   excludedCount: number;
-  /** 빠진 줄 중 중복 의심(duplicate_name) 줄 수 */
+  /** 빠진 줄 중 중복 의심(duplicate_name·duplicate_content) 줄 수 */
   duplicateExcludedCount: number;
   /** 부분 승인으로 보낼 작업 id. null이면 계획 전체 승인. */
   operationIds: string[] | null;

@@ -69,27 +69,43 @@ function duplicateWarning(name) {
   return { type: "duplicate_name", message: `같은 위치에 이름이 같은 문서 '${name}'이(가) 있어 중복일 수 있어요.` };
 }
 
+function contentDuplicateWarning(originalName) {
+  return { type: "duplicate_content", message: `'${originalName}'와(과) 내용이 거의 같아 중복일 수 있어요.` };
+}
+
+/** 요청에 이 문구가 있으면 본문 중복 감지(duplicate_content·요약 안내 문장) 사례를 함께 만든다. 기존 시나리오는 그대로 둔다. */
+const CONTENT_DUPLICATE_TRIGGER = "내용 중복";
+
 /**
  * 폴더 생성 + 문서별 이동·이름 변경 계획. 문서가 둘 이상이면 마지막 문서의 새 이름을 첫 문서와 같게 만들어
  * AI 계약의 중복 의심(warning duplicate_name, suggested_selected false)을 흉내 낸다.
+ * 요청에 CONTENT_DUPLICATE_TRIGGER가 있으면 첫 문서에 duplicate_content 경고를 붙이고 요약 끝에 AI의 고정 안내 문장을 붙인다.
  */
+function organizeSummary(count, withContentDuplicate) {
+  const summary = `폴더 1개 생성, 문서 ${count}개 이동·이름 변경`;
+  if (!withContentDuplicate) return summary;
+  return `${summary}. 계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: '회의록 v1.2.md'와(과) '회의록.md', '참고 자료.pdf'와(과) '참고.pdf'. 문서 1개는 내용 중복을 확인하지 못했어요.`;
+}
+
 function buildOrganizePlan(workspace, turn, message, skill) {
   const docs = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && doc.status === "completed").slice(0, 3);
   const pick = (extra) => ({ source_parent_id: null, destination_parent_id: null, status: "planned", error_code: null, warning: null, suggested_selected: true, depends_on: [], ...extra });
   const createOp = pick({ id: id("opr"), sequence: 1, tool_name: "create_folder", target_id: null, arguments: { name: "정리된 문서", parent_folder_id: null }, reason: "완료된 문서를 한 폴더로 모읍니다." });
   const operations = [createOp];
   const firstName = docs[0] ? `정리_${docs[0].filename}` : "";
+  const withContentDuplicate = message.includes(CONTENT_DUPLICATE_TRIGGER) && docs.length >= 2;
   docs.forEach((doc, index) => {
     const isDuplicate = docs.length >= 2 && index === docs.length - 1;
     const name = isDuplicate ? firstName : `정리_${doc.filename}`;
-    const warning = isDuplicate ? duplicateWarning(name) : null;
+    const warning = isDuplicate ? duplicateWarning(name)
+      : withContentDuplicate && index === 0 ? contentDuplicateWarning(docs[1].filename) : null;
     const move = pick({ id: id("opr"), sequence: operations.length + 1, tool_name: "move_document", target_id: doc.id, arguments: { folder_id: { $operation_result: createOp.id } }, reason: `${doc.filename}을 새 폴더로 이동합니다.`, depends_on: [createOp.id], warning, suggested_selected: !warning });
     operations.push(move);
     operations.push(pick({ id: id("opr"), sequence: operations.length + 1, tool_name: "rename_document", target_id: doc.id, arguments: { document_id: doc.id, display_name: name }, reason: "규칙에 맞게 이름을 바꿉니다.", warning, suggested_selected: !warning }));
   });
   // operation_hash는 실행 내용만 담는다(warning·suggested_selected 제외, AI 계약).
   const hashed = operations.map(({ warning, suggested_selected, ...operation }) => operation);
-  const plan = { id: id("plan"), version: 1, operation_hash: hash(JSON.stringify(hashed)), summary: `폴더 1개 생성, 문서 ${docs.length}개 이동·이름 변경`, status: "awaiting_approval", operations };
+  const plan = { id: id("plan"), version: 1, operation_hash: hash(JSON.stringify(hashed)), summary: organizeSummary(docs.length, withContentDuplicate), status: "awaiting_approval", operations };
   const run = {
     id: id("run"), workspace_id: workspace.id, turn_id: turn.id, status: "awaiting_approval", error_code: null, request_summary: requestSummary(message),
     target_folder_id: turn.folder_id ?? null, rule_summary: skill?.enabled_version?.description ?? null, plan

@@ -118,6 +118,22 @@ test("기본 선택은 suggested_selected를 따르고 중복·의존 안내를 
   assert.deepEqual([...initialDeselectedRowIds(buildFolderOrganizeView(mixed, tree).rows)], ["doc-pdf", "doc-xlsx", "doc-md"]);
 });
 
+test("본문 중복(duplicate_content)도 빨간 줄·서버 문구로 보이고 중복 제외 수에 들어가며, duplicate_name이 있으면 그것을 쓴다", () => {
+  const plan = organizePlan();
+  const contentMessage = "'계획서.pdf'와(과) 내용이 거의 같아 중복일 수 있어요.";
+  plan.operations[2] = { ...plan.operations[2], ...warned("duplicate_content", contentMessage) };
+  plan.operations[3] = { ...plan.operations[3], ...warned("duplicate_content", contentMessage) };
+  // 같은 줄에 duplicate_name이 먼저 붙어 있으면 그것이 우선이다(AI도 그대로 둔다).
+  plan.operations[4] = { ...plan.operations[4], ...warned("duplicate_content", contentMessage) };
+  const { rows } = buildFolderOrganizeView(plan, tree);
+  assert.equal(rows.find((row) => row.id === "doc-pdf").duplicateWarning, contentMessage);
+  assert.equal(rows.find((row) => row.id === "doc-xlsx").duplicateWarning, "같은 위치에 이름이 같은 문서가 있어 중복일 수 있어요.");
+  assert.deepEqual([...initialDeselectedRowIds(rows)], ["doc-pdf", "doc-xlsx", "doc-md"]);
+  const approval = folderOrganizeApproval(plan, rows, new Set(["doc-pdf", "doc-xlsx"]));
+  assert.equal(approval.duplicateExcludedCount, 2);
+  assert.equal(folderOrganizeCardHint(approval), "중복 의심 2개는 제외하고 적용해요.");
+});
+
 test("부분 승인은 고른 줄의 모든 작업과 그 작업이 기대는 새 폴더 작업을 보낸다", () => {
   const plan = organizePlan();
   const { rows, createdFolders } = buildFolderOrganizeView(plan, tree);

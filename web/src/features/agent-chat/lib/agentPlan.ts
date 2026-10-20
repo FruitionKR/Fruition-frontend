@@ -18,7 +18,7 @@ export type AgentPlanOperation = {
 };
 
 export type AgentPlanOperationWarning = {
-  /** "duplicate_name" | "depends_on_unselected" 등 */
+  /** "duplicate_name" | "duplicate_content" | "depends_on_unselected" 등 */
   type: string;
   /** 그대로 보여 줄 한국어 문장 */
   message: string;
@@ -216,15 +216,34 @@ export function canRetryAgentPlanRun(run: Pick<AgentPlanRun, "status" | "plan"> 
   return run?.status === "failed" && !run.plan;
 }
 
-/** AI가 대상 폴더 밖 작업을 계획에서 뺐을 때 요약 끝에 붙이는 문장(ai folder_organize). */
-const OUT_OF_SCOPE_NOTE_PATTERN = /\s*대상 폴더 밖으로 옮기는 작업 \d+개는 계획에서 뺐어요\.?/;
+/**
+ * AI가 요약 끝에 붙이는 고정 안내 문장(ai folder_organize).
+ * - 대상 폴더 밖 작업을 계획에서 뺐을 때
+ * - 계획에 없는 문서끼리 본문이 거의 같을 때. 이름에 `.`이 들어갈 수 있어 따옴표 쌍 기준으로 맞춘다.
+ * - 본문 중복을 확인하지 못한 문서가 있을 때
+ */
+const PLAN_SUMMARY_NOTE_PATTERNS = [
+  /\s*대상 폴더 밖으로 옮기는 작업 \d+개는 계획에서 뺐어요\.?/,
+  /\s*계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: (?:'[^']*'와\(과\) '[^']*'(?:, )?)+\./,
+  /\s*문서 \d+개는 내용 중복을 확인하지 못했어요\./
+];
 
-/** 계획 요약을 본문과 범위 밖 제외 안내로 나눈다. 안내는 요약이 한 줄로 잘려도 보이도록 따로 보여 준다. */
+/**
+ * 계획 요약을 본문과 안내(범위 밖 제외·내용 중복)로 나눈다. 안내는 요약이 한 줄로 잘리거나 규칙 텍스트로 가려져도
+ * 보이도록 따로 보여 준다. 안내가 여럿이면 요약에 나온 순서대로 이어 붙인다.
+ */
 export function splitPlanSummary(summary: string | null | undefined): { body: string; scopeNote: string | null } {
   const text = (summary ?? "").normalize("NFC");
-  const match = OUT_OF_SCOPE_NOTE_PATTERN.exec(text);
-  if (!match) return { body: text.trim(), scopeNote: null };
-  return { body: (text.slice(0, match.index) + text.slice(match.index + match[0].length)).trim(), scopeNote: match[0].trim() };
+  let body = text;
+  const notes: { index: number; text: string }[] = [];
+  for (const pattern of PLAN_SUMMARY_NOTE_PATTERNS) {
+    const match = pattern.exec(body);
+    if (!match) continue;
+    notes.push({ index: text.indexOf(match[0]), text: match[0].trim() });
+    body = body.slice(0, match.index) + body.slice(match.index + match[0].length);
+  }
+  const scopeNote = notes.sort((a, b) => a.index - b.index).map((note) => note.text).join(" ") || null;
+  return { body: body.trim(), scopeNote };
 }
 
 export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boolean {

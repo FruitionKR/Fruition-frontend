@@ -113,6 +113,21 @@ test("mock 폴더 정리 계획은 중복 의심 작업을 기본 선택에서 �
   }
 });
 
+test("mock 폴더 정리 계획은 '내용 중복' 요청이면 duplicate_content 경고와 요약 안내 문장을 붙인다", async (t) => {
+  const request = await startMock(t);
+  if (!state.documents.some((doc) => doc.id === "doc_task_2")) {
+    state.documents.push({ id: "doc_task_2", workspace_id: WORKSPACE_ID, filename: "회의.md", status: "completed", document_role: "EDITABLE", markdown: "# 회의" });
+  }
+  const accepted = await request("POST", "/turn", { session_id: SESSION_ID, message: "/file-organize 내용 중복", mode: "task", folder_id: FOLDER_ID, ...MODEL });
+  const turn = await waitForTurn(request, accepted.body.requestId);
+  const run = (await request("GET", `/runs/${turn.result.run_id}`)).body;
+  const content = run.plan.operations.filter((operation) => operation.warning?.type === "duplicate_content");
+  assert.equal(content.length, 2);
+  assert.ok(content.every((operation) => operation.suggested_selected === false && /내용이 거의 같아 중복일 수 있어요\.$/.test(operation.warning.message)));
+  assert.equal(run.plan.operations.filter((operation) => operation.warning?.type === "duplicate_name").length, 2);
+  assert.match(run.plan.summary, /계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: .+\. 문서 1개는 내용 중복을 확인하지 못했어요\.$/);
+});
+
 test("mock 작업 탭은 채팅 답변 대신 되묻고, 문서 없는 편집 요청도 되묻는다", async (t) => {
   const request = await startMock(t);
   const question = await submitTask(request, "아동 발달 이론이 뭐야?");
