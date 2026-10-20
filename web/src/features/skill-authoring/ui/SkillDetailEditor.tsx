@@ -19,6 +19,7 @@ import {
   requiresSourceDrift,
   resultModeAfterRejection,
   resultModeDrift,
+  savedSkillResultMode,
   showsDetailSourceField,
   skillDetailAuthorForm,
   skillDetailDraft,
@@ -66,12 +67,13 @@ function resultModeFixMessage(fix: ResultModeFix): string {
  * 스킬 상세 시트 (Figma 1708:3848). 목록 행(커맨드명) 클릭으로 연다. 스킬 만들기와 같은 시트를 쓰지만 필드는 시안대로
  * 저장범위 · 커맨드명 · 설명 · 실행 규칙만 둔다(대상·스킬 종류·결과 방식·AI 작성·참고 문서 없음).
  * 커맨드명(name → slug)·설명·실행 규칙을 PATCH /skills/{id}로 저장하고, '스킬 삭제'로 지운다.
+ * 실행 규칙만 고쳐도 종류가 바뀌지 않게, 문서 스킬이면 저장된 대상·결과 방식·원문 문서도 함께 보낸다(skillDetailDraft).
  * 저장범위는 수정 API가 받지 않아(scope_type은 바꿀 수 없다) 읽기 전용이다.
  * 고친 내용은 '저장'을 눌러야 반영된다(자동 저장 없음). 테스트 실행은 저장 전 입력값으로 하고, 고친 채 닫으면 버릴지 묻는다.
  * 고친 실행 규칙 때문에 이어받은 결과 방식이 맞지 않아 저장이 거절되면(구버전 백엔드는 비워서 저장한다, resultModeDrift),
  * 그때만 결과 방식 필드를 띄워 고른 값(result_mode)을 실어 다시 저장하게 한다.
  * 새 문서를 만들 수 있는 문서 스킬이고 서버가 requires_source를 주면 '원문 문서' 필드를 더 둔다(시안 밖 추가 필드).
- * 바꿨을 때만 보내고, 보내지 않은 저장에서 AI가 값을 바꾸면 시트를 열어 둔 채 알리고 되돌릴 수 있게 한다.
+ * 필드가 보이면 화면 값을 그대로 보내고, 보내지 않은 저장에서 AI가 값을 바꾸면 시트를 열어 둔 채 알리고 되돌릴 수 있게 한다.
  */
 export function SkillDetailEditor({
   workspaceId,
@@ -176,7 +178,7 @@ export function SkillDetailEditor({
 
   function submit() {
     setTouched(new Set<SkillDetailField>(["command", "description", "rules"]));
-    if (!isBlocked) saveMutation.mutate(skillDetailDraft(form, resultModeFix?.picked, initialForm.requiresSource));
+    if (!isBlocked) saveMutation.mutate(skillDetailDraft(form, resultModeFix?.picked, savedSkillResultMode(skill)));
   }
 
   const errorProps = (field: SkillDetailField) => {
@@ -322,7 +324,7 @@ export function SkillDetailEditor({
           {errorText("rules")}
         </div>
 
-        {/* 원문 문서 → requires_source. 서버 값이 있고 새 문서를 만들 수 있는 문서 스킬일 때만 보인다. 바꿨을 때만 보낸다. */}
+        {/* 원문 문서 → requires_source. 서버 값이 있고 새 문서를 만들 수 있는 문서 스킬일 때만 보인다. 보이면 화면 값을 그대로 보낸다. */}
         {showsDetailSourceField(form) && (
           <SourceField
             id={fieldId("source")}

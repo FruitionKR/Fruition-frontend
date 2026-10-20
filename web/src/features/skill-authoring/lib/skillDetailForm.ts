@@ -18,9 +18,9 @@ import {
 
 /**
  * 스킬 상세 시트(Figma 1708:4059) 입력값.
- * 화면에는 저장범위·커맨드명·설명·실행 규칙만 둔다. 저장할 때는 커맨드명(name)·설명·지침과, 문서 스킬이면 읽어 둔 대상을 그대로 보낸다.
- * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 결과 방식은 처음 저장할 때 보내지 않는다(서버가 기존 값을 이어받는다).
- * 지침을 다시 분류한 capabilities와 이어받은 값이 맞지 않아 거절되면, 그때 결과 방식을 고르게 해 실어 보낸다.
+ * 화면에는 저장범위·커맨드명·설명·실행 규칙만 둔다. 저장할 때는 커맨드명(name)·설명·지침과, 문서 스킬이면 읽어 둔 대상·
+ * 저장된 결과 방식·원문 문서를 그대로 보내 실행 규칙만 고친 저장이 종류를 바꾸지 않게 한다.
+ * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 결과 방식이 서버 capabilities와 맞지 않아 거절되면, 그때 결과 방식을 고르게 해 실어 보낸다.
  * 대상·결과 방식·스킬 종류는 화면에 두지 않지만 테스트 실행 capability를 정하려고 버전의 targets·result_mode·capabilities에서 읽는다(ai#122).
  */
 export interface SkillDetailForm {
@@ -114,29 +114,35 @@ export function showsDetailSourceField(form: Pick<SkillDetailForm, "kind" | "res
 
 export type SkillDetailDraft = { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions;
 
+/** 서버에 저장된 결과 방식(켜진 버전, 없으면 최신 버전). 저장값이 없으면(필드 추가 전 스킬) null이다. */
+export function savedSkillResultMode(skill: SkillResponse): SkillResultMode | null {
+  return (skill.enabled_version ?? skill.latest_version)?.result_mode ?? null;
+}
+
 /**
  * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 커맨드명은 name으로 보내 slug를 바꾼다.
- * 문서 스킬이면 읽어 둔 대상(targets)을 함께 보낸다(이전 형식 "실행 대상" 절을 뗀 스킬은 이걸로 대상이 남는다).
- * 결과 방식은 보통 보내지 않는다(생략하면 서버가 기존 값을 유지한다, ai#122).
- * 이어받은 값이든 명시한 값이든 서버가 지침을 다시 분류한 capabilities와 맞지 않으면 400으로 저장이 실패한다.
- * resultMode는 그렇게 거절됐거나(구버전 백엔드는 비워서 저장한다, resultModeDrift) 사용자가 다시 고른 값이다.
- * 문서 스킬일 때만 담는다.
+ * 실행 규칙만 고쳐도 스킬 종류·대상·결과 방식이 바뀌지 않도록, 문서 스킬이면 지금 값을 모두 함께 보낸다.
+ * - targets: 읽어 둔 대상(이전 형식 "실행 대상" 절을 뗀 스킬은 이걸로 대상이 남는다).
+ * - result_mode: 사용자가 다시 고른 값(resultMode), 없으면 서버에 저장된 값(savedResultMode).
+ *   저장값이 없는 스킬(필드 추가 전)은 보내지 않는다. 보내면 결과 방식 없음(null)이 바뀌기 때문이다.
+ *   보낸 값이 서버의 capabilities와 맞지 않으면 400으로 거절되고, 그때 결과 방식을 고르게 한다(resultModeAfterRejection).
+ * - requires_source: '원문 문서' 필드가 보이는 스킬이면 화면 값을 그대로 보낸다(빼면 서버가 지침으로 다시 정할 수 있다).
+ * 폴더 정리·템플릿 등 문서 스킬이 아니면 PATCH에 종류를 실을 필드가 없어 담지 않는다(서버가 기존 값을 유지한다).
  */
 export function skillDetailDraft(
   form: SkillDetailForm,
   resultMode?: SkillResultMode,
-  savedRequiresSource: boolean | null = form.requiresSource
+  savedResultMode: SkillResultMode | null = null
 ): SkillDetailDraft {
   const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
-  // 원문 문서는 사용자가 저장된 값에서 바꿨을 때만 보낸다. 빼면 서버가 정한다(지침을 고치면 AI가 다시 정할 수 있다).
-  const sendsSource = showsDetailSourceField(form) && form.requiresSource !== savedRequiresSource;
+  const sentResultMode = resultMode ?? savedResultMode;
   return {
     name: form.command.trim(),
     description: form.description.trim(),
     instructionsMarkdown: form.rules.trim(),
     ...(targets != null ? { targets } : {}),
-    ...(targets != null && resultMode != null ? { result_mode: resultMode } : {}),
-    ...(sendsSource ? { requires_source: form.requiresSource as boolean } : {})
+    ...(targets != null && sentResultMode != null ? { result_mode: sentResultMode } : {}),
+    ...(showsDetailSourceField(form) ? { requires_source: form.requiresSource as boolean } : {})
   };
 }
 
@@ -166,7 +172,7 @@ export function resultModeDrift(
   skill: SkillResponse,
   result: Pick<SkillAuthoringResult, "capabilities" | "result_mode">
 ): { from: SkillResultMode; to: SkillResultMode } | null {
-  const from = (skill.enabled_version ?? skill.latest_version)?.result_mode;
+  const from = savedSkillResultMode(skill);
   if (from == null || result.result_mode != null) return null;
   const reclassified = kindFromCapabilities(result.capabilities ?? []);
   if (reclassified == null || reclassified.kind !== "document") return null;

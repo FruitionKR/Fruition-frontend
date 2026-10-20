@@ -18,6 +18,7 @@ const {
   showsDetailSourceField,
   resultModeAfterRejection,
   resultModeDrift,
+  savedSkillResultMode,
   skillDetailAuthorForm,
   skillDetailDraft,
   skillDetailForm,
@@ -139,7 +140,7 @@ test("skillDetailForm은 켜진 버전이 없으면 최신 버전을, capabiliti
   assert.equal(skillDetailForm(skill({ enabled_version: null, latest_version: null })).rules, "");
 });
 
-test("skillDetailDraft는 문서 스킬에 targets만 담고(result_mode는 생략해 서버가 유지) 지침에 절을 붙이지 않는다", () => {
+test("skillDetailDraft는 결과 방식 저장값이 없는 문서 스킬에 targets만 담고(result_mode 생략) 지침에 절을 붙이지 않는다", () => {
   const form = { ...skillDetailForm(skill()), command: " new-name ", description: "  새 설명 ", targets: ["current-document", "selection"] };
   assert.deepEqual(skillDetailDraft(form), {
     name: "new-name",
@@ -219,12 +220,46 @@ test("상세 시트의 원문 문서는 서버 값이 있고 새 문서를 만�
   assert.equal(showsDetailSourceField(legacy), false);
 });
 
-test("skillDetailDraft는 원문 문서를 저장된 값에서 바꿨을 때만 requires_source로 보낸다", () => {
+test("skillDetailDraft는 원문 문서 필드가 보이면 바꾸지 않았어도 화면 값을 requires_source로 보낸다", () => {
   const form = skillDetailForm(skill({ enabled_version: version({ capabilities: ["document-create"], result_mode: "create", requires_source: true }) }));
-  assert.ok(!("requires_source" in skillDetailDraft(form)));
-  assert.equal(skillDetailDraft({ ...form, requiresSource: false }, undefined, true).requires_source, false);
+  assert.equal(skillDetailDraft(form).requires_source, true);
+  assert.equal(skillDetailDraft({ ...form, requiresSource: false }).requires_source, false);
   // 필드가 보이지 않는 스킬은 바꿨어도 보내지 않는다.
-  assert.ok(!("requires_source" in skillDetailDraft({ ...form, resultMode: "edit", requiresSource: false }, undefined, true)));
+  assert.ok(!("requires_source" in skillDetailDraft({ ...form, resultMode: "edit", requiresSource: false })));
+  // 서버가 값을 주지 않으면(구버전) 필드가 없어 보내지 않는다.
+  const legacy = skillDetailForm(skill({ enabled_version: version({ capabilities: ["document-create"], result_mode: "create" }) }));
+  assert.ok(!("requires_source" in skillDetailDraft(legacy)));
+});
+
+test("skillDetailDraft는 실행 규칙만 고친 저장에도 저장된 결과 방식·대상·원문 문서를 함께 보낸다(종류가 바뀌지 않게)", () => {
+  const saved = skill({
+    enabled_version: version({ capabilities: ["document-create"], targets: ["selection"], result_mode: "create", requires_source: false })
+  });
+  const form = { ...skillDetailForm(saved), rules: "새 실행 규칙" };
+  assert.equal(savedSkillResultMode(saved), "create");
+  assert.deepEqual(skillDetailDraft(form, undefined, savedSkillResultMode(saved)), {
+    name: "research-summary",
+    description: "연구 문서의 개요를 정리합니다.",
+    instructionsMarkdown: "새 실행 규칙",
+    targets: ["selection"],
+    result_mode: "create",
+    requires_source: false
+  });
+  // 다시 고른 결과 방식이 저장값보다 앞선다.
+  assert.equal(skillDetailDraft(form, "auto", "create").result_mode, "auto");
+  // 결과 방식 저장값이 없는 스킬(필드 추가 전)은 결과 방식을 새로 정하지 않는다.
+  assert.equal(savedSkillResultMode(skill({ enabled_version: version({ result_mode: null }) })), null);
+  assert.ok(!("result_mode" in skillDetailDraft(form, undefined, null)));
+});
+
+test("skillDetailDraft는 폴더 정리 스킬의 실행 규칙만 고칠 때 대상·결과 방식·원문 문서를 싣지 않는다(빈 targets로 기본 대상이 붙지 않게)", () => {
+  const folderSkill = skill({ enabled_version: version({ capabilities: ["folder-organize"], targets: [], result_mode: null, requires_source: false }) });
+  const form = { ...skillDetailForm(folderSkill), rules: "문서 이름을 날짜로 시작하게 바꾼다." };
+  assert.deepEqual(skillDetailDraft(form, undefined, savedSkillResultMode(folderSkill)), {
+    name: "research-summary",
+    description: "연구 문서의 개요를 정리합니다.",
+    instructionsMarkdown: "문서 이름을 날짜로 시작하게 바꾼다."
+  });
 });
 
 test("requiresSourceDrift는 보내지 않은 저장에서 AI가 원문 문서를 바꿨을 때만 이전·이후 값을 준다", () => {
