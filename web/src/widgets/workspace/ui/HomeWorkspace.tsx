@@ -704,6 +704,7 @@ export function HomeWorkspace() {
           isAboveLauncher={!isAgentPanelShown}
           isOverlayOpen={isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
           onIngestStarted={() => void refreshBackendData().catch(() => {})}
+          isDocumentsLoaded={documentsUpdatedAt !== 0}
         />
       )}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}

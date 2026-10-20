@@ -1,6 +1,7 @@
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
+import { STALLED_TURN_TITLE } from "@/features/agent-chat/lib/stalledTurns";
 
 /**
  * 채팅 탭과 작업 탭의 분리(2026-10-19 계약).
@@ -145,11 +146,15 @@ export function resolveTaskStatus({
   runStatus,
   operationCount = 0,
   excludedCount = 0,
+  createdFolderCount = 0,
   hasActivePreview = false,
   isApplied = false,
   isRejected = false,
   isCancelled = false,
-  hasLaterTask = false
+  hasLaterTask = false,
+  isSuperseded = false,
+  isStalled = false,
+  isReleased = false
 }: {
   action: string | null;
   messageStatus: string;
@@ -159,6 +164,8 @@ export function resolveTaskStatus({
   operationCount?: number;
   /** 고르지 않았거나 건너뛰어 저장하지 않은 작업 수 */
   excludedCount?: number;
+  /** 실행으로 만들어진 새 폴더 수. 폴더 정리는 저장·제외를 줄(문서) 단위로 세고 새 폴더는 따로 적는다. */
+  createdFolderCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
@@ -169,14 +176,35 @@ export function resolveTaskStatus({
   isCancelled?: boolean;
   /** 이 작업 뒤에 보낸 작업이 있는지. 되물음은 다음 요청으로 답했거나 지나간 것으로 본다. */
   hasLaterTask?: boolean;
+  /** 같은 요청·스킬을 뒤에 다시 실행해 끝났는지(supersededTaskKeys). 남은 되물음은 더 답할 필요가 없다. */
+  isSuperseded?: boolean;
+  /** pending에 오래 머물러 응답을 받지 못한 turn(stalledTurns) */
+  isStalled?: boolean;
+  /** 응답을 받지 못한 turn을 사용자가 닫았는지 */
+  isReleased?: boolean;
 }): TaskStatusView {
-  if (messageStatus === "pending") return { group: "running", label: "진행 중", tone: "primary", struck: false };
+  if (messageStatus === "pending") {
+    if (isReleased) return { group: "done", label: "중단됨", tone: "muted", struck: true };
+    if (isStalled) return { group: "failed", label: STALLED_TURN_TITLE, tone: "danger", struck: false };
+    return { group: "running", label: "진행 중", tone: "primary", struck: false };
+  }
   if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
   if (isWorkspacePlanAction(action ?? undefined)) {
     if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
     if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };
-    if (runStatus === "clarification_required") return { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false };
-    if (runStatus === "completed") return { group: "done", label: `저장됨(${operationCount})${excludedCount > 0 ? ` · 제외 ${excludedCount}` : ""}`, tone: "primary", struck: false };
+    if (runStatus === "clarification_required") {
+      return isSuperseded
+        ? { group: "done", label: "다시 실행됨", tone: "muted", struck: false }
+        : { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false };
+    }
+    if (runStatus === "completed") {
+      const label = [
+        `저장됨(${operationCount})`,
+        excludedCount > 0 && `제외 ${excludedCount}`,
+        createdFolderCount > 0 && `새 폴더 ${createdFolderCount}`
+      ].filter(Boolean).join(" · ");
+      return { group: "done", label, tone: "primary", struck: false };
+    }
     if (runStatus === "rejected") return { group: "done", label: "거절됨", tone: "danger", struck: true };
     if (runStatus === "cancelled") return { group: "done", label: "취소됨", tone: "danger", struck: true };
     if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: true };
@@ -195,6 +223,30 @@ export function resolveTaskStatus({
   if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
   if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
   return { group: "done", label: "답변", tone: "muted", struck: false };
+}
+
+/** 같은 작업을 다시 실행한 것으로 볼 기준: 스킬 요청은 `/slug`, 그 밖에는 요청 문장 그대로. */
+function taskRequestKey(request: string): string {
+  const text = request.trim().normalize("NFC");
+  const slug = slashCommandSlug(text);
+  return slug ? `/${slug}` : text;
+}
+
+/**
+ * 뒤에 같은 요청·스킬을 다시 보내 끝난(completed) 작업의 key. 그 앞의 되물음("추가 설명 필요")은
+ * 다시 실행으로 지나갔으므로 "선택 필요"에 남기지 않는다. 뒤 작업이 아직 진행 중이거나 실패했으면 그대로 둔다.
+ */
+export function supersededTaskKeys(items: ReadonlyArray<Pick<TaskMessageItem, "key" | "request" | "messageStatus">>): Set<string> {
+  const superseded = new Set<string>();
+  const completedLater = new Set<string>();
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    const requestKey = taskRequestKey(item.request);
+    if (!requestKey) continue;
+    if (completedLater.has(requestKey)) superseded.add(item.key);
+    if (item.messageStatus === "completed") completedLater.add(requestKey);
+  }
+  return superseded;
 }
 
 /** 서버 버전 기록으로 적용 여부를 확인할 편집 작업(새로 고침 뒤에도 "저장됨"을 지키려고). */

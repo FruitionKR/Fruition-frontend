@@ -12,6 +12,10 @@ import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePr
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
 import { AGENT_TURN_SLOW_MESSAGE } from "@/features/agent-chat/lib/turnFollow";
+import { STALLED_TURN_COMPOSER_NOTICE } from "@/features/agent-chat/lib/stalledTurns";
+import { useReleasedTurns, useStalledAgentTurns } from "@/features/agent-chat/model/useStalledAgentTurns";
+import { skillRunWaitingState } from "../lib/skillRunWaiting";
+import type { TaskMessageItem } from "@/features/agent-chat/lib/taskThread";
 import { ProposalDecisionButtons, type InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import { countPendingProposals, countProposals, headingAtLine, proposalSourceLabel } from "@/features/agent-chat/lib/inlineEditReview";
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
@@ -90,7 +94,7 @@ export function AgentPanel({
     /** 문서 대상이면 그 문서가 있는 폴더(루트면 null). 되묻기에 '새 문서로 만들기'로 답하면 새 문서를 그 옆에 둔다. */
     documentFolderId?: string | null;
   } | null;
-  /** skillRun을 보냈다. 같은 실행을 다시 보내지 않도록 비운다. */
+  /** skillRun을 보냈거나 기다리는 카드에서 '실행 취소'했다. 같은 실행을 다시 보내지 않도록 비운다. */
   onSkillRunSent?: (id: number) => void;
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
   wikiEvidenceNotice?: {
@@ -181,6 +185,8 @@ export function AgentPanel({
     handleWebSearchChange,
     handleModelChange
   } = useAiModelSelection();
+  // 응답을 받지 못해 '닫기'로 잠금을 푼 turn. 서버 메시지가 pending이어도 입력을 막지 않는다.
+  const { releasedTurnIds, releaseTurns } = useReleasedTurns(activeSessionId);
   const {
     messages,
     queryErrorMessage,
@@ -195,7 +201,7 @@ export function AgentPanel({
     refreshMessages,
     submitQuery,
     cancelQuery
-  } = useChatThread(activeSessionId);
+  } = useChatThread(activeSessionId, releasedTurnIds);
   const selectedPairIds = pairSelection.selectedPairIds;
   const agentTurn = useAgentTurn({
     markdownEditContext,
@@ -267,12 +273,34 @@ export function AgentPanel({
   }, [isSelectionKept, markdownEditContext]);
   const taskContext = isDocumentIncluded ? documentContext : null;
   const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
+  // 응답을 받지 못한(pending에 머문) turn. 지금 따라가는 turn과 이미 닫은 turn은 확인하지 않는다.
+  const followingTurnId = agentTurn.followingTurnId;
+  const ignoredStallTurnIds = useMemo(
+    () => (followingTurnId ? new Set([...releasedTurnIds, followingTurnId]) : releasedTurnIds),
+    [followingTurnId, releasedTurnIds]
+  );
   // 스킬 실행 요청: 세션·모델이 준비되고, 문서 대상이면 그 문서의 편집 문맥이 들어온 뒤 작업 탭으로 보낸다.
   const sentSkillRunId = useRef<number | null>(null);
   // 마지막으로 보낸 스킬 실행의 문서와 그 문서가 있는 폴더. 되묻기에 '새 문서로 만들기'로 답하면 그 폴더를 folder_id로 싣는다.
   const lastSkillRunDocument = useRef<{ documentId: string; folderId: string | null } | null>(null);
   const skillRunContext = skillRun?.documentId && markdownEditContext?.documentId === skillRun.documentId ? markdownEditContext : null;
   const isSkillRunReady = Boolean(skillRun && (!skillRun.documentId || skillRunContext) && activeSessionId && selectedModel && !isSubmitting);
+  // 스킬 실행이 앞선 pending 작업에 막혀 기다리는 중이면 그 작업을 바로 확인한다(서버에 없으면 곧바로 풀 수 있게).
+  const stalledTurnIds = useStalledAgentTurns({
+    messages,
+    ignoredTurnIds: ignoredStallTurnIds,
+    lostTurnId: agentTurn.unconfirmedTurnId,
+    force: Boolean(skillRun) && hasPendingMessages,
+    refreshMessages
+  });
+  // 스킬 화면에서 '다음'을 누르면 보내기 전(세션·모델·문서 준비, 앞선 작업 대기)에도 작업 탭에 바로 카드를 띄운다.
+  useEffect(() => {
+    if (!skillRun) return;
+    setActiveView("work");
+    if (viewBeforeSkillSheetRef.current !== null) viewBeforeSkillSheetRef.current = "work";
+    // 실행 요청이 바뀔 때만 탭을 옮긴다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skillRun?.id]);
   useEffect(() => {
     if (!skillRun || !isSkillRunReady || !activeSessionId || !selectedModel || sentSkillRunId.current === skillRun.id) return;
     sentSkillRunId.current = skillRun.id;
@@ -310,6 +338,14 @@ export function AgentPanel({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [activeSessionId, completedReplies]);
   // 작업 탭 입력(Figma 1610:9628). "@문서"는 아직 고르기 UI가 없고, 열린 문서가 "현재 문서" 칩으로 붙는다.
+  // 보내기 전 스킬 실행 카드. 보낸 뒤에는 진행 카드(agentTurnRequest)가 이어받는다.
+  const waitingSkillRun = skillRun && !isAgentTurnLoading ? skillRunWaitingState({
+    stalledTurnCount: stalledTurnIds.size,
+    hasBlockingPending: hasPendingMessages,
+    isQueryLoading: isLoading,
+    isAgentBusy: isCreatingMarkdown,
+    isWaitingForDocument: Boolean(skillRun.documentId) && !skillRunContext
+  }) : null;
   const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
 
   /**
@@ -329,6 +365,28 @@ export function AgentPanel({
   function retryTask(request: string, folderId: string | null) {
     if (isSubmitting || !activeSessionId || !selectedModel) return;
     agentTurn.submitAgentTurn(request, taskContext, activeSessionId, selectedModel, selectedPairIds, folderId);
+  }
+
+  /** 응답을 받지 못한 turn을 닫는다. 서버 기록은 pending으로 남지만 입력·세션 전환을 더 막지 않는다(agent turn 취소 API 없음). */
+  function dismissStalledTurns(turnIds: readonly string[]) {
+    releaseTurns(turnIds);
+    turnIds.forEach((turnId) => agentTurn.forgetTurn(turnId));
+  }
+
+  /**
+   * 응답을 받지 못한 작업을 같은 요청으로 다시 보낸다. 이 화면에서 보낸 요청이면 그 요청의 문서·대상 폴더를 그대로 쓰고,
+   * 지난 기록이면 요청 문장과 지금 입력창의 대상(열린 문서)으로 보낸다. 먼저 그 turn을 닫아 잠금을 푼다.
+   */
+  function retryStalledTurn(item: TaskMessageItem) {
+    if (!item.turnId || isLoading || isAgentTurnLoading || isCreatingMarkdown || !activeSessionId || !selectedModel) return;
+    dismissStalledTurns([item.turnId]);
+    if (agentTurnRequest && agentTurn.requestTurnId === item.turnId) {
+      // 같은 요청·대상 폴더로, 문서 대상이면 지금 열린 그 문서의 최신 내용으로 다시 보낸다(문서가 닫혔으면 다시 열라고 안내).
+      agentTurn.regenerateAgentTurn();
+      return;
+    }
+    if (!item.request) return;
+    agentTurn.submitAgentTurn(item.request, taskContext, activeSessionId, selectedModel, selectedPairIds);
   }
 
   function handleSubmit() {
@@ -520,7 +578,24 @@ export function AgentPanel({
             pendingTask={isAgentTurnLoading && agentTurnRequest ? {
               request: agentTurnRequest.message,
               stages: agentTurn.agentStages,
-              notice: agentTurn.isAgentTurnSlow ? AGENT_TURN_SLOW_MESSAGE : null
+              notice: agentTurn.isAgentTurnSlow ? AGENT_TURN_SLOW_MESSAGE : null,
+              turnId: agentTurn.requestTurnId
+            } : skillRun && waitingSkillRun ? {
+              request: skillRun.message,
+              stages: [],
+              waitingLabel: waitingSkillRun.label,
+              actions: (
+                <>
+                  {waitingSkillRun.canReleaseBlocking && (
+                    <button type="button" className={`${styles["task-pill"]} ${styles["is-primary"]}`} onClick={() => dismissStalledTurns([...stalledTurnIds])}>
+                      앞선 작업 닫고 실행
+                    </button>
+                  )}
+                  <button type="button" className={styles["task-pill"]} onClick={() => onSkillRunSent?.(skillRun.id)}>
+                    실행 취소
+                  </button>
+                </>
+              )
             } : null}
             activePreviewTurnId={agentTurnResponse?.requestId ?? null}
             activePreview={documentCommandPreview}
@@ -536,6 +611,10 @@ export function AgentPanel({
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
             onRetryTask={isSubmitting ? undefined : retryTask}
             onRecheck={agentTurn.canRecheckAgentTurn ? agentTurn.recheckAgentTurn : undefined}
+            stalledTurnIds={stalledTurnIds}
+            releasedTurnIds={releasedTurnIds}
+            onRetryStalled={isLoading || isAgentTurnLoading || isCreatingMarkdown ? undefined : retryStalledTurn}
+            onDismissStalled={(turnId) => dismissStalledTurns([turnId])}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />
@@ -701,7 +780,7 @@ export function AgentPanel({
           onSubmit={handleSubmit}
           onCancel={isLoading && !isWorkView ? cancelQuery : undefined}
           isCancelling={isCancelling}
-          statusMessage={queryStatusMessage}
+          statusMessage={queryStatusMessage ?? (stalledTurnIds.size > 0 ? STALLED_TURN_COMPOSER_NOTICE : null)}
           meetingControl={{
             state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
             onStart: () => {

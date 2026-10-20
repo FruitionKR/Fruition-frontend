@@ -1,4 +1,4 @@
-import { isOperationNotSelected, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
+import { isOperationNotSelected, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
 
 /** 폴더 정리 미리보기 화면을 여는 데 필요한 것: 계획을 조회할 turn과 사용자가 보낸 커맨드. */
 export type FolderOrganizeRequest = {
@@ -161,6 +161,34 @@ function emptyRow(id: string, originalName: string, folderName: string, newName:
 
 function warningMessage(operations: AgentPlanOperation[], type: string): string | null {
   return operations.find((operation) => operation.warning?.type === type)?.warning?.message.trim().normalize("NFC") || null;
+}
+
+export type FolderOrganizeRowResults = {
+  /** 저장된 줄(문서·항목) 수. 줄에 묶인 작업이 하나라도 저장됐으면 저장으로 본다. */
+  saved: number;
+  /** 고르지 않았거나 건너뛰어 하나도 실행하지 않은 줄 수 */
+  excluded: number;
+  /** 실제로 만들어진 새 폴더 수 */
+  createdFolders: number;
+};
+
+/**
+ * 실행이 끝난 폴더 정리 계획의 결과를 미리보기와 같은 단위(줄 = 문서·항목)로 센다.
+ * 작업 수(폴더 생성·이동·이름 변경을 따로 셈)로 세면 미리보기의 "4개 중 3개 선택"과 카드의 "저장됨(5)"가 어긋난다.
+ * 새 폴더는 줄이 아니라 따로 센다.
+ */
+export function summarizeFolderOrganizeRows(plan: AgentPlan): FolderOrganizeRowResults {
+  const operations = new Map(plan.operations.map((operation) => [operation.id, operation]));
+  const { rows, createdFolders } = buildFolderOrganizeView(plan, []);
+  let saved = 0;
+  let excluded = 0;
+  for (const row of rows) {
+    const results = summarizePlanOperationResults(row.operationIds.flatMap((id) => operations.get(id) ?? []));
+    if (results.applied > 0) saved += 1;
+    else if (results.failed === 0) excluded += 1;
+  }
+  const folderOperations = createdFolders.flatMap((folder) => operations.get(folder.operationId) ?? []);
+  return { saved, excluded, createdFolders: summarizePlanOperationResults(folderOperations).applied };
 }
 
 /** 처음 열 때 선택을 해제해 둘 줄: 묶인 작업 중 하나라도 suggested_selected가 false인 줄. */

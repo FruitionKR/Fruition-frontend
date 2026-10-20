@@ -23,6 +23,7 @@ const {
   resolveTaskStatus,
   selectionChipLabel,
   splitChatAndTaskMessages,
+  supersededTaskKeys,
   taskHeadingKind,
   taskKindLabel
 } = await import("../src/features/agent-chat/lib/taskThread.ts");
@@ -250,4 +251,34 @@ test("스킬 실행 카드 머리글은 action이 정해지기 전(진행 중)�
   // 스킬이 아닌 요청은 action별 라벨을 그대로 쓴다.
   assert.equal(taskHeadingKind("folder_organize", "폴더를 정리해줘"), "폴더 정리");
   assert.equal(taskHeadingKind(null, "폴더를 정리해줘"), "작업");
+});
+
+test("폴더 정리 완료 행은 새 폴더 수를 따로 적는다", () => {
+  assert.deepEqual(
+    resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "completed", operationCount: 3, excludedCount: 1, createdFolderCount: 2 }),
+    { group: "done", label: "저장됨(3) · 제외 1 · 새 폴더 2", tone: "primary", struck: false }
+  );
+});
+
+test("응답을 받지 못한 turn은 실패 묶음에 두고, 닫으면 완료 묶음의 '중단됨'으로 옮긴다", () => {
+  const base = { action: null, messageStatus: "pending" };
+  assert.equal(resolveTaskStatus(base).group, "running");
+  assert.deepEqual(resolveTaskStatus({ ...base, isStalled: true }), { group: "failed", label: "응답을 받지 못했어요", tone: "danger", struck: false });
+  assert.deepEqual(resolveTaskStatus({ ...base, isStalled: true, isReleased: true }), { group: "done", label: "중단됨", tone: "muted", struck: true });
+});
+
+test("같은 스킬을 다시 실행해 끝나면 앞의 '추가 설명 필요'를 '다시 실행됨'으로 완료에 옮긴다", () => {
+  const items = [
+    { key: "a", request: "/file-organize", messageStatus: "completed" },
+    { key: "b", request: "/other", messageStatus: "completed" },
+    { key: "c", request: "/file-organize 날짜별로", messageStatus: "completed" },
+    { key: "d", request: "폴더 정리해줘", messageStatus: "completed" },
+    { key: "e", request: "폴더 정리해줘", messageStatus: "pending" }
+  ];
+  // c가 a를 대신한다. d 뒤의 같은 요청(e)은 아직 진행 중이라 d를 대신하지 않는다.
+  assert.deepEqual([...supersededTaskKeys(items)], ["a"]);
+  assert.deepEqual(supersededTaskKeys([{ key: "x", request: "/s", messageStatus: "completed" }, { key: "y", request: "/s", messageStatus: "failed" }]), new Set());
+  const clarify = { action: "folder_organize", messageStatus: "completed", runStatus: "clarification_required" };
+  assert.equal(resolveTaskStatus(clarify).group, "clarify");
+  assert.deepEqual(resolveTaskStatus({ ...clarify, isSuperseded: true }), { group: "done", label: "다시 실행됨", tone: "muted", struck: false });
 });

@@ -10,7 +10,8 @@ import { fetchAgentPlanRun } from "../api/agentPlan";
 import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
-import type { FolderOrganizeRequest } from "../lib/folderOrganize";
+import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
+import { STALLED_TURN_DETAIL } from "../lib/stalledTurns";
 import {
   describeTaskRequest,
   groupTaskEntries,
@@ -19,6 +20,7 @@ import {
   SKILL_MODE_CHOICES,
   skillModeAnswer,
   skillModeQuestionSlug,
+  supersededTaskKeys,
   taskHeadingKind,
   type TaskMessageItem,
   type TaskStatusView
@@ -31,6 +33,7 @@ import styles from "./AgentChat.module.css";
 /** Figma 1610:9608: 완료 묶음 아래 안내 */
 const DONE_NOTICE = "작업기록은 LLM Wiki에 들어가지 않습니다. 문서·파일의 변경 이력으로만 남습니다.";
 const PLAN_POLL_INTERVAL_MS = 3000;
+const NO_TURN_IDS: ReadonlySet<string> = new Set();
 
 export function agentPlanQueryKey(workspaceId: string, turnId: string | null) {
   return ["agentPlan", workspaceId, turnId] as const;
@@ -49,6 +52,16 @@ type TaskEntry = {
   isRunFetching: boolean;
   refetchRun: () => void;
 };
+
+/** 완료 행 "저장됨(N) · 제외 M · 새 폴더 K"에 쓸 수. 폴더 정리는 줄 단위, 그 밖의 계획은 작업 단위로 센다. */
+function countPlanResults(action: string | null, run: AgentPlanRun | null): { applied: number; excluded: number; createdFolders: number } {
+  if (action === "folder_organize" && run?.plan) {
+    const { saved, excluded, createdFolders } = summarizeFolderOrganizeRows(run.plan);
+    return { applied: saved, excluded, createdFolders };
+  }
+  const { applied, excluded } = summarizePlanOperationResults(run?.plan?.operations ?? []);
+  return { applied, excluded, createdFolders: 0 };
+}
 
 /** 작업 한 줄(Figma 1610:9596): 번개 아이콘 + "종류 : 요청" 왼쪽, 상태 오른쪽. 거절·실패는 빨간 취소선 */
 function TaskRow({ title, status }: { title: string; status: TaskStatusView }) {
@@ -109,6 +122,19 @@ function TaskCard({
   );
 }
 
+/** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중이거나 보내려고 기다리는 요청 */
+export type PendingTaskView = {
+  request: string;
+  stages: RunStageEvent[];
+  notice?: string | null;
+  /** 서버가 정한 turn ID. 같은 turn의 서버 기록(pending 메시지)은 이 카드로 대신해 두 번 보이지 않게 한다. */
+  turnId?: string | null;
+  /** 진행 단계가 없을 때 보일 문장. 없으면 "요청을 전달하고 있어요." */
+  waitingLabel?: string | null;
+  /** 카드 아래 버튼(기다리는 스킬 실행의 '실행 취소' 등) */
+  actions?: ReactNode;
+};
+
 /**
  * 작업 탭 본문(Figma 1671:13216·1610:9529): 상태별 묶음(진행 중·확인 필요·선택 필요·실패)은 작업 카드로,
  * 완료는 한 줄 목록과 안내로 보여 준다. 폴더 정리 계획은 turn→run을 따라가 상태를 받는다.
@@ -129,11 +155,14 @@ export function AgentTaskBody({
   onShortenActivePreview,
   onAnswerSkillQuestion,
   onRetryTask,
-  onRecheck
+  onRecheck,
+  stalledTurnIds = NO_TURN_IDS,
+  releasedTurnIds = NO_TURN_IDS,
+  onRetryStalled,
+  onDismissStalled
 }: {
   items: TaskMessageItem[];
-  /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
-  pendingTask: { request: string; stages: RunStageEvent[]; notice?: string | null } | null;
+  pendingTask: PendingTaskView | null;
   /** 편집안·새 문서 초안을 검토 중인 turn과 그 미리보기 */
   activePreviewTurnId: string | null;
   activePreview: ReactNode;
@@ -158,11 +187,23 @@ export function AgentTaskBody({
   onRetryTask?: (request: string, folderId: string | null) => void;
   /** 결과 확인이 끊긴 작업의 끝을 다시 확인한다. 있으면 오류 문구 아래에 "다시 확인"을 둔다. */
   onRecheck?: () => void;
+  /** 응답을 받지 못한(pending에 머문) turn */
+  stalledTurnIds?: ReadonlySet<string>;
+  /** 응답을 받지 못해 닫은 turn */
+  releasedTurnIds?: ReadonlySet<string>;
+  /** 응답을 받지 못한 작업을 같은 요청으로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
+  onRetryStalled?: (item: TaskMessageItem) => void;
+  /** 응답을 받지 못한 작업을 닫아 입력 잠금을 푼다. */
+  onDismissStalled?: (turnId: string) => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
   const bodyRef = useRef<HTMLDivElement | null>(null);
-  const planItems = items.filter((item) => isWorkspacePlanAction(item.action ?? undefined) && item.messageStatus === "completed");
+  // 진행 카드가 대신 보여 주는 turn의 서버 기록은 빼서 같은 작업이 두 장 보이지 않게 한다.
+  const pendingTurnId = pendingTask?.turnId ?? null;
+  const visibleItems = pendingTurnId ? items.filter((item) => item.turnId !== pendingTurnId) : items;
+  const supersededKeys = supersededTaskKeys(visibleItems);
+  const planItems = visibleItems.filter((item) => isWorkspacePlanAction(item.action ?? undefined) && item.messageStatus === "completed");
   const runQueries = useQueries({
     queries: planItems.map((item) => ({
       queryKey: agentPlanQueryKey(workspaceId, item.turnId),
@@ -178,7 +219,7 @@ export function AgentTaskBody({
   });
   const runsByKey = new Map(planItems.map((item, index) => [item.key, runQueries[index]]));
   // 새로 고침 뒤에도 적용한 편집안이 "저장됨"으로 남게 서버 버전 기록으로 다시 확인한다.
-  const serverAppliedTurnIds = useServerAppliedTurnIds(workspaceId, items, isShown);
+  const serverAppliedTurnIds = useServerAppliedTurnIds(workspaceId, visibleItems, isShown);
 
   // 실행이 끝나는 전이를 볼 때만 문서·트리·그래프를 다시 받는다(#66).
   const runStatusSignature = runQueries.map((query) => query.data?.status ?? "").join("|");
@@ -190,22 +231,27 @@ export function AgentTaskBody({
     previousStatuses.current = statuses;
   }, [client, runStatusSignature]);
 
-  const entries: TaskEntry[] = items.map((item, index) => {
+  const entries: TaskEntry[] = visibleItems.map((item, index) => {
     const query = runsByKey.get(item.key);
     const run = query?.data ?? null;
     // 계획 전체 수가 아니라 실제로 저장된 작업만 센다(고르지 않은·실패한 작업 제외).
-    const results = summarizePlanOperationResults(run?.plan?.operations ?? []);
+    // 폴더 정리는 미리보기("4개 중 3개 선택")처럼 줄(문서·항목) 단위로 세고 새 폴더는 따로 적는다.
+    const results = countPlanResults(item.action, run);
     const status = resolveTaskStatus({
       action: item.action,
       messageStatus: item.messageStatus,
       runStatus: run?.status,
       operationCount: results.applied,
       excludedCount: results.excluded,
+      createdFolderCount: results.createdFolders,
+      isSuperseded: supersededKeys.has(item.key),
+      isStalled: item.turnId !== null && stalledTurnIds.has(item.turnId),
+      isReleased: item.turnId !== null && releasedTurnIds.has(item.turnId),
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),
-      hasLaterTask: index < items.length - 1 || Boolean(pendingTask)
+      hasLaterTask: index < visibleItems.length - 1 || Boolean(pendingTask)
     });
     const { request, summary } = resolveTaskRequest(item.request, run?.request_summary);
     return {
@@ -225,7 +271,7 @@ export function AgentTaskBody({
   const hasPreviewEntry = entries.some((entry) => entry.status.group === "approval" && entry.item.turnId === activePreviewTurnId);
 
   // 새 작업·미리보기가 생기면 목록 아래(입력창 쪽)로 내린다.
-  const lastKey = `${items.at(-1)?.key ?? ""}|${pendingTask ? "pending" : ""}|${activePreviewTurnId ?? ""}`;
+  const lastKey = `${visibleItems.at(-1)?.key ?? ""}|${pendingTask ? "pending" : ""}|${activePreviewTurnId ?? ""}`;
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
@@ -254,6 +300,9 @@ export function AgentTaskBody({
       );
     }
     if (status.group === "approval" && item.turnId === activePreviewTurnId) return activePreview;
+    if (item.turnId !== null && stalledTurnIds.has(item.turnId) && item.messageStatus === "pending") {
+      return <TaskNote role="alert">{STALLED_TURN_DETAIL}</TaskNote>;
+    }
     if (status.group === "failed" && item.answer) return <TaskNote role="alert">{item.answer}</TaskNote>;
     return null;
   }
@@ -264,6 +313,9 @@ export function AgentTaskBody({
     const isQuestion = status.group === "clarify" && item.action === "clarify" && Boolean(item.answer);
     const isActivePreview = status.group === "approval" && item.turnId === activePreviewTurnId;
     const questionSlug = isQuestion ? skillModeQuestionSlug(item) : null;
+    const stalledTurnId = status.group === "failed" && item.messageStatus === "pending" && item.turnId !== null && stalledTurnIds.has(item.turnId)
+      ? item.turnId
+      : null;
     return (
       <div key={item.key} className={styles["task-entry"]}>
         <TaskCard
@@ -289,6 +341,21 @@ export function AgentTaskBody({
                 {choice.label}
               </button>
             ))}
+          </div>
+        )}
+        {stalledTurnId && (onRetryStalled || onDismissStalled) && (
+          <div className={styles["task-actions"]}>
+            {onRetryStalled && (
+              <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onRetryStalled(item)}>
+                <AgentAssetIcon src={taskBoltIcon} size={12} />
+                다시 시도
+              </button>
+            )}
+            {onDismissStalled && (
+              <button type="button" className={styles["task-pill"]} onClick={() => onDismissStalled(stalledTurnId)}>
+                닫기
+              </button>
+            )}
           </div>
         )}
         {status.group === "approval" && (onSaveRequestAsSkill || (isActivePreview && onShortenActivePreview)) && (
@@ -348,10 +415,13 @@ export function AgentTaskBody({
               title="요청 처리 중"
               isLoading
               hasResponse={false}
-              steps={pendingTask.stages.length ? buildProgressSteps(pendingTask.stages, true) : [["요청을 전달하고 있어요.", "active"]]}
+              steps={pendingTask.stages.length
+                ? buildProgressSteps(pendingTask.stages, true)
+                : [[pendingTask.waitingLabel || "요청을 전달하고 있어요.", "active"]]}
             />
             {pendingTask.notice && <TaskNote role="status">{pendingTask.notice}</TaskNote>}
           </TaskCard>
+          {pendingTask.actions && <div className={styles["task-actions"]}>{pendingTask.actions}</div>}
         </section>
       )}
       {errorMessage && <p className={styles["query-error"]} role="alert">{errorMessage}</p>}

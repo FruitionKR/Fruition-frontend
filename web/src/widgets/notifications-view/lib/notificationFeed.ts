@@ -34,7 +34,7 @@ export const MAX_READ_IDS = 200;
 // 작업 알림 제목에 쓰는 작업 종류 이름.
 const TASK_LABELS: Record<OperationType, string> = {
   ingest: "문서 처리",
-  lint: "위키 다듬기",
+  lint: "위키 최신화",
   restore: "복구(롤백)",
   document_edit: "AI 편집 반영",
   wiki_edit: "위키 직접 편집"
@@ -66,7 +66,7 @@ function describeOperation(log: OperationLogItem, fallback: string) {
 }
 
 /**
- * 작업 알림: 종결된 AI 작업 로그(문서 처리·위키 다듬기·복구·AI 편집). 진행 중 작업과
+ * 작업 알림: 종결된 AI 작업 로그(문서 처리·위키 최신화·복구·AI 편집). 진행 중 작업과
  * 바꾼 문서 없이 성공한 lint(로그 화면에서도 숨김)는 뺀다.
  */
 export function buildTaskNotifications(logs: readonly OperationLogItem[]): NotificationItem[] {

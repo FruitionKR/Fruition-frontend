@@ -74,6 +74,8 @@ export function useAgentTurn({
   const [isAgentTurnSlow, setIsAgentTurnSlow] = useState(false);
   // 결과 확인이 끊긴 turn. '다시 확인'으로 같은 turn의 끝을 이어서 확인한다.
   const [unconfirmedTurnId, setUnconfirmedTurnId] = useState<string | null>(null);
+  // 지금 보낸 요청(agentTurnRequest)을 서버가 받아 정한 turn ID. 따라가는 동안 진행 카드와 서버 기록을 같은 turn으로 묶는다.
+  const [requestTurnId, setRequestTurnId] = useState<string | null>(null);
   const agentRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => agentRequestRef.current?.abort(), []);
   const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
@@ -219,6 +221,7 @@ export function useAgentTurn({
     setAgentStages([]);
     setIsAgentTurnSlow(false);
     setUnconfirmedTurnId(null);
+    setRequestTurnId(null);
     agentRequestRef.current?.abort();
     const controller = new AbortController();
     agentRequestRef.current = controller;
@@ -227,7 +230,9 @@ export function useAgentTurn({
       signal: controller.signal,
       onAccepted: (requestId) => {
         acceptedTurnId = requestId;
-        if (!controller.signal.aborted) setTaskRunIds((current) => new Set([...current, requestId]));
+        if (controller.signal.aborted) return;
+        setRequestTurnId(requestId);
+        setTaskRunIds((current) => new Set([...current, requestId]));
       },
       onStage: (stage) => {
         if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
@@ -236,6 +241,13 @@ export function useAgentTurn({
     }), () => acceptedTurnId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
+
+  /** 응답을 받지 못한 turn을 닫았다. 그 turn의 '결과 다시 확인'·오류 안내를 지운다. */
+  function forgetTurn(turnId: string) {
+    if (unconfirmedTurnId !== turnId) return;
+    setUnconfirmedTurnId(null);
+    setAgentTurnErrorMessage(null);
+  }
 
   function dismissAgentTurnResult() {
     setAgentTurnRequest(null);
@@ -364,6 +376,11 @@ export function useAgentTurn({
     isAgentTurnSlow,
     agentStages,
     canRecheckAgentTurn: unconfirmedTurnId !== null && !isAgentTurnLoading,
+    unconfirmedTurnId,
+    requestTurnId,
+    /** 지금 따라가고 있는 turn. 오래 머문 turn 확인에서 뺀다. */
+    followingTurnId: isAgentTurnLoading ? requestTurnId : null,
+    forgetTurn,
     recheckAgentTurn,
     isCreatingMarkdown,
     markdownCreateErrorMessage,

@@ -20,7 +20,8 @@ const {
   initialDeselectedRowIds,
   isFolderOrganizeAction,
   parseSkillCommand,
-  selectedCreatedFolders
+  selectedCreatedFolders,
+  summarizeFolderOrganizeRows
 } = await import("../src/features/agent-chat/lib/folderOrganize.ts");
 
 const tree = [
@@ -174,4 +175,27 @@ test("카드 수락: 모두 선택이면 전체 승인, 빈 선택·20개 초과
   assert.equal(folderOrganizeCardHint({ ...all, operationIds: Array.from({ length: 21 }, (_, index) => `op-${index}`), canApply: false }),
     "일부만 적용할 때는 작업 20개까지예요. 미리보기 탭에서 선택을 조정해주세요.");
   assert.equal(folderOrganizeCardHint({ ...all, excludedCount: 1, operationIds: ["op-1"] }), "1개는 제외하고 적용해요.");
+});
+
+test("완료 행은 작업 수가 아니라 미리보기와 같은 줄(문서) 수로 저장·제외를 세고 새 폴더는 따로 센다", () => {
+  // 미리보기: 4개 중 3개 선택(doc-md 제외). 작업은 폴더 생성 2 + 이동·이름 변경 5 = 7개다.
+  const plan = { id: "p", version: 1, operation_hash: "h", summary: "", status: "completed", operations: [
+    op(1, "create_folder", null, { name: "계획" }, { status: "succeeded" }),
+    op(2, "create_folder", null, { name: "참고" }, { status: "succeeded" }),
+    op(3, "move_document", "doc-pdf", { folder_id: { $operation_result: "op-1" } }, { status: "succeeded" }),
+    op(4, "rename_document", "doc-pdf", { name: "a.pdf" }, { status: "succeeded" }),
+    op(5, "move_document", "doc-xlsx", { folder_id: { $operation_result: "op-1" } }, { status: "succeeded" }),
+    op(6, "rename_document", "doc-md", { name: "b.md" }, { status: "skipped", error_code: "not_selected" }),
+    op(7, "move_document", "doc-new", { folder_id: { $operation_result: "op-2" } }, { status: "succeeded" })
+  ] };
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 3, excluded: 1, createdFolders: 2 });
+});
+
+test("고르지 않아 만들지 않은 새 폴더와 실패한 줄은 저장으로 세지 않는다", () => {
+  const plan = { id: "p", version: 1, operation_hash: "h", summary: "", status: "completed", operations: [
+    op(1, "create_folder", null, { name: "계획" }, { status: "skipped", error_code: "not_selected" }),
+    op(2, "move_document", "doc-pdf", { folder_id: "timeline" }, { status: "succeeded" }),
+    op(3, "move_document", "doc-xlsx", { folder_id: "timeline" }, { status: "failed", error_code: "conflict" })
+  ] };
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 1, excluded: 0, createdFolders: 0 });
 });

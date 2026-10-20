@@ -3,6 +3,7 @@ import { ApiError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { followAgentTurn } from "@/features/agent-chat/lib/turnFollow";
 import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
+import type { TurnCheckResult } from "../lib/stalledTurns";
 
 export const AGENT_TURN_CANCELLED_MESSAGE = "요청이 취소되었습니다.";
 export const AGENT_TURN_ROLLBACK_FAILED_MESSAGE = "요청이 취소됐지만 변경 복구에 실패했습니다. 문서 내용을 확인해 주세요.";
@@ -100,6 +101,17 @@ function followAgentTurnRun(workspaceId: string, turnId: string, handlers: Agent
     signal,
     cancelledMessage: AGENT_TURN_CANCELLED_MESSAGE
   });
+}
+
+/**
+ * 오래 pending에 머문 turn을 한 번 조회한다. 404면 서버에 turn이 없다(missing). 그 밖의 실패는 던진다.
+ * agent turn 취소 API는 없어(ai-agent.md) 화면은 이 결과로 '응답을 받지 못했어요'를 띄우고 입력 잠금만 푼다.
+ */
+export async function checkAgentTurnStatus(turnId: string, signal?: AbortSignal): Promise<TurnCheckResult> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId), { cache: "no-store", signal });
+  if (response.status === 404) return { kind: "missing" };
+  const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
+  return { kind: "status", status: run.status ?? "" };
 }
 
 /** 끝난 편집 turn의 대상 문서와 적용 ID. 새로 고침 뒤 버전 기록과 맞춰 적용 여부를 알아낸다. */

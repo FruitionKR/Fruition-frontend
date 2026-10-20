@@ -1,4 +1,5 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
+import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
 import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
@@ -149,6 +150,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   const hadAccessToken = Boolean(getAccessToken());
   const response = await fetchWithToken(requestPath, requestInit);
   if (response.status === 404) await detectGoneWorkspace(path, init?.method, response);
+  if (response.status === 403) await detectPermissionDenied(path, response);
   if (response.status !== 401) return response;
   // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
   // 다만 본문이 비어 있거나 code가 없어도 세션 만료로 단정하지 않는다(아래 재발급 성공 분기).
@@ -184,6 +186,14 @@ async function detectGoneWorkspace(path: string, method: string | undefined, res
   if (isWorkspaceGoneResponse({ path, method, status: response.status, code, selectedWorkspaceId })) {
     markWorkspaceGone(selectedWorkspaceId);
   }
+}
+
+/** 권한 부족 403이면 본인 역할·권한을 다시 받도록 알린다(OWNER가 권한을 회수한 직후에도 버튼이 열려 있지 않게). */
+async function detectPermissionDenied(path: string, response: Response): Promise<void> {
+  const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
+  const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
+  const workspaceId = permissionDeniedWorkspaceId(path, response.status, code);
+  if (workspaceId) notifyWorkspacePermissionDenied(workspaceId);
 }
 
 /** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */

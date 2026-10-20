@@ -108,14 +108,26 @@ function publishIngestPrompt(
  * - 재분석 제안: 편입한 적 있는 문서가 마지막 ingest 이후 편집됨(needs_reingest) 감지
  * - 위키 최신화(lint) 필요: ingest 완료 직후 유지보수 상태(needs_lint)를 확인
  * permissions: 위키 편입(wiki.ingest)·위키 최신화(wiki.lint) 권한. 없으면 해당 제안을 띄우지 않고, 확인 전(null)이면 기다린다.
+ * workspaceId·isDocumentsLoaded: 워크스페이스를 바꾸면 기준(이미 본 문서)을 비우고, 새 워크스페이스의 문서 목록을 받은 뒤의
+ * 첫 스냅샷을 세션 진입 스냅샷으로 본다(기존 문서를 "새 문서가 추가되었습니다"로 알리지 않는다).
  */
 export function usePendingWorkNotifications(
   documents: DocumentItemResponse[],
   {
     canIngest,
     canLint,
-    onIngestStarted
-  }: { canIngest: boolean | null; canLint: boolean | null; onIngestStarted?: () => void }
+    onIngestStarted,
+    workspaceId,
+    isDocumentsLoaded = true
+  }: {
+    canIngest: boolean | null;
+    canLint: boolean | null;
+    onIngestStarted?: () => void;
+    /** 지금 문서 목록의 워크스페이스. 바뀌면 기준을 다시 잡는다. */
+    workspaceId?: string | null;
+    /** 이 워크스페이스의 문서 목록을 한 번이라도 받았는지. 받기 전(빈 목록)은 첫 스냅샷으로 삼지 않는다. */
+    isDocumentsLoaded?: boolean;
+  }
 ) {
   const { preferences } = useUserPreferences();
   const suggestEnabled = preferences.notifications.suggest;
@@ -142,6 +154,21 @@ export function usePendingWorkNotifications(
   const lastLintCheckAtRef = useRef(0);
   // 새로고침 후에도 같은 카드를 다시 띄우지 않도록 제안 기록을 localStorage에서 복원한다.
   const promptMemoryLoadedRef = useRef(false);
+  const baselineWorkspaceRef = useRef(workspaceId);
+
+  /** 워크스페이스가 바뀌었으면 이전 워크스페이스의 기준·대기열을 버린다. 각 effect 앞에서 부르며 여러 번 불러도 같다. */
+  function syncWorkspaceBaseline() {
+    if (baselineWorkspaceRef.current === workspaceId) return;
+    baselineWorkspaceRef.current = workspaceId;
+    knownIdsRef.current = null;
+    previousStatusesRef.current = null;
+    uploadedFirstSeenRef.current.clear();
+    promptQueueRef.current = new Set();
+    if (promptTimerRef.current) {
+      window.clearTimeout(promptTimerRef.current);
+      promptTimerRef.current = null;
+    }
+  }
 
   function restorePromptMemory() {
     if (promptMemoryLoadedRef.current) return;
@@ -162,8 +189,9 @@ export function usePendingWorkNotifications(
 
   // ① 업로드·새 노트 직후 / ② 세션 진입 시: 첫 편입 대기 문서에 편입 시작 제안
   useEffect(() => {
-    // 권한을 확인하기 전에는 첫 스냅샷으로 삼지 않는다. 권한이 없으면 제안하지 않는다.
-    if (canIngest !== true) return;
+    syncWorkspaceBaseline();
+    // 권한을 확인하기 전·문서 목록을 받기 전에는 첫 스냅샷으로 삼지 않는다. 권한이 없으면 제안하지 않는다.
+    if (canIngest !== true || !isDocumentsLoaded) return;
     restorePromptMemory();
     const known = knownIdsRef.current;
     const awaiting = documents.filter(isAwaitingFirstIngest);
@@ -200,7 +228,9 @@ export function usePendingWorkNotifications(
         publishIngestPrompt(targets, "새 문서가 추가되었습니다", suggestEnabledRef.current, promptHandlers);
       }, INGEST_PROMPT_DEBOUNCE_MS);
     }
-  }, [documents, canIngest]);
+    // syncWorkspaceBaseline은 ref만 다룬다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents, canIngest, workspaceId, isDocumentsLoaded]);
 
   useEffect(() => () => {
     if (promptTimerRef.current) window.clearTimeout(promptTimerRef.current);
@@ -208,6 +238,7 @@ export function usePendingWorkNotifications(
 
   // ③ 60초 정체 리마인드: 제안을 넘겼거나 시작이 실패한 문서를 다시 잡아준다
   useEffect(() => {
+    syncWorkspaceBaseline();
     if (canIngest !== true) return;
     restorePromptMemory();
     function checkStalledUploads() {
@@ -274,6 +305,7 @@ export function usePendingWorkNotifications(
 
   // 위키 최신화(lint) 필요 감지: 문서가 completed로 전이하면 유지보수 상태를 확인한다 (DB 비교라 저렴)
   useEffect(() => {
+    syncWorkspaceBaseline();
     const currentStatuses = new Map(documents.map((document) => [document.id, document.status as string]));
     const previousStatuses = previousStatusesRef.current;
     previousStatusesRef.current = currentStatuses;

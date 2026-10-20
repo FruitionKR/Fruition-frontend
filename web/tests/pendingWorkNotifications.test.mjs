@@ -73,6 +73,12 @@ function renderNotifications(documents, permissions = ALLOWED) {
       props.permissions = next;
       view.rerender();
     },
+    /** 문서 목록과 옵션을 한 렌더에서 함께 바꾼다(워크스페이스 전환처럼). */
+    setBoth(documents, permissions) {
+      props.documents = documents;
+      props.permissions = permissions;
+      view.rerender();
+    },
     unmount: view.unmount
   };
 }
@@ -338,4 +344,33 @@ test("제안 카드가 내려간 직후에는 리마인드하지 않고, 사라�
   view.setDocuments([doc("s1", "uploaded", { updated_at: "z" })]);
   assert.deepEqual(titles().at(-1), "위키 편입이 아직 시작되지 않았습니다");
   assert.equal(titles().length, 2);
+});
+
+test("워크스페이스를 바꾸면 새 워크스페이스의 첫 목록을 세션 진입 스냅샷으로 보고 '새 문서'로 알리지 않는다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const view = renderNotifications([doc("a1", "completed")], { ...ALLOWED, workspaceId: "ws_a", isDocumentsLoaded: true });
+  assert.deepEqual(titles(), []);
+
+  // 전환 직후: 새 워크스페이스 목록을 아직 받지 못해 빈 목록이다. 이 빈 목록을 기준으로 삼지 않는다.
+  view.setBoth([], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: false });
+  view.setBoth([doc("b1"), doc("b2", "completed")], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: true });
+  await advance(t, PROMPT_DEBOUNCE_MS);
+
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+
+  // 이후에 올라온 문서는 그대로 새 문서로 알린다.
+  view.setDocuments([doc("b1"), doc("b2", "completed"), doc("b3")]);
+  await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다", "새 문서가 추가되었습니다"]);
+  view.unmount();
+});
+
+test("워크스페이스를 바꾸면 이전 워크스페이스에서 묶던 새 문서 카드를 버린다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const view = renderNotifications([], { ...ALLOWED, workspaceId: "ws_a", isDocumentsLoaded: true });
+  view.setDocuments([doc("a1")]);
+  view.setBoth([doc("b1", "completed")], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: true });
+  await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), []);
+  view.unmount();
 });

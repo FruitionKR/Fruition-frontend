@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { DocumentItemResponse } from "@/entities/document";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { hasWorkspacePermission } from "@/shared/lib/workspacePermissions";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { useDocumentProcessingNotifications } from "../model/useDocumentProcessingNotifications";
 import { useOperationNotifications } from "../model/useOperationNotifications";
 import { usePendingWorkNotifications } from "../model/usePendingWorkNotifications";
@@ -18,17 +19,20 @@ import styles from "./DocumentProcessingNotifications.module.css";
  *   그동안 스택을 숨기고 카드는 쌓아 둔다(자동 닫힘도 멈춘다). 패널을 닫으면 다시 보인다.
  *   701px 이상의 좁은 화면은 겹친 채팅 패널 왼쪽에 카드를 둘 수 있어 그대로 보인다.
  * onIngestStarted: 제안 카드로 위키 편입을 요청한 뒤 문서 목록을 다시 받는다(진행 중 상태를 바로 보고 빠른 폴링으로 바꾼다).
+ * isDocumentsLoaded: 선택한 워크스페이스의 문서 목록을 받았는지. 워크스페이스를 바꾼 직후의 빈 목록을 첫 스냅샷으로 삼지 않는다.
  */
 export function DocumentProcessingNotifications({
   documents,
   isAboveLauncher,
   isOverlayOpen,
-  onIngestStarted
+  onIngestStarted,
+  isDocumentsLoaded = true
 }: {
   documents: DocumentItemResponse[];
   isAboveLauncher: boolean;
   isOverlayOpen: boolean;
   onIngestStarted?: () => void;
+  isDocumentsLoaded?: boolean;
 }) {
   const isNarrow = useIsNarrowViewport();
   const isDeferred = isOverlayOpen && isNarrow;
@@ -39,7 +43,9 @@ export function DocumentProcessingNotifications({
   usePendingWorkNotifications(documents, {
     canIngest: hasWorkspacePermission(workspaceRole, "wiki.ingest"),
     canLint: hasWorkspacePermission(workspaceRole, "wiki.lint"),
-    onIngestStarted
+    onIngestStarted,
+    workspaceId: getSelectedWorkspaceId(),
+    isDocumentsLoaded
   });
   useServerNotifications();
 
