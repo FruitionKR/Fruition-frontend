@@ -49,13 +49,13 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
   const showsPlayer = Boolean(meeting?.has_recording) && phase !== "uploading" && phase !== "deleting";
   // 회의를 불러오는 중에는 진행 표시만 보여 준다.
   const emptyText = phase === "opening" ? "" : session.source === "upload"
-    ? "녹음 파일을 전사하면 받아쓴 내용이 여기에 보여요."
-    : "말씀을 시작하면 받아쓴 문장이 여기에 쌓여요.";
+    ? "녹음 파일을 글로 옮기면 대화 내용이 여기에 보여요."
+    : "말씀을 시작하면 글로 옮긴 문장이 여기에 쌓여요.";
   const title = MEETING_TITLES[phase];
   const canAppend = Boolean(session.meeting?.document_id);
 
   return (
-    <section className={styles["meeting-view"]} aria-label="회의 받아쓰기">
+    <section className={styles["meeting-view"]} aria-label="회의 녹음">
       <div className={cx(styles["meeting-container"], isCollapsed && styles["is-collapsed"])}>
         <div className={styles["meeting-title-row"]}>
           <button
@@ -86,7 +86,7 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             ref={cardRef}
             className={styles["meeting-card"]}
             tabIndex={0}
-            aria-label={showsNotes ? "회의록" : phase === "previewing" ? "문서 끝에 추가한 결과" : "받아쓴 내용"}
+            aria-label={showsNotes ? "회의록" : phase === "previewing" ? "문서 끝에 추가한 결과" : "대화 내용"}
             aria-live={phase === "recording" ? "polite" : undefined}
             onScroll={(event) => {
               const card = event.currentTarget;
@@ -160,7 +160,7 @@ function MeetingActions({
   if (phase === "transcribing") {
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" onClick={() => void session.cancelTranscription()}>전사 취소</button>
+        <button type="button" onClick={() => void session.cancelTranscription()}>글로 옮기기 취소</button>
       </div>
     );
   }

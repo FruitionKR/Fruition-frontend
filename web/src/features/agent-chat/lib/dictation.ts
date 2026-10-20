@@ -13,10 +13,10 @@ export const DICTATION_MESSAGES = {
   permissionDenied: "마이크 사용 권한이 거부되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.",
   noMicrophone: "사용할 수 있는 마이크를 찾지 못했습니다.",
   microphoneFailed: "마이크를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-  tooLarge: "녹음이 24MiB를 넘어 전사할 수 없습니다. 더 짧게 말해 주세요.",
-  empty: "인식된 음성이 없습니다.",
-  recording: "녹음 중입니다. 마이크 버튼을 다시 누르면 멈춥니다(최대 60초).",
-  transcribing: "음성을 텍스트로 바꾸는 중입니다."
+  tooLarge: "녹음이 너무 길어요. 60초 안으로 짧게 말해 주세요.",
+  empty: "말소리를 알아듣지 못했어요. 다시 한 번 말해 주세요.",
+  recording: "듣고 있어요. 다 말했으면 버튼을 한 번 더 눌러 주세요 (최대 60초)",
+  transcribing: "말한 내용을 글로 바꾸고 있어요…"
 } as const;
 
 /** MediaRecorder가 지원하는 첫 형식. 하나도 없으면 null. */

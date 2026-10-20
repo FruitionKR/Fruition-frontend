@@ -79,12 +79,12 @@ test("다시 열기: 받아쓴 문장이 없으면 회의록을 만들 수 없�
 });
 
 test("목록 표시: 전사 중·실패를 먼저 알리고, 끝난 회의는 회의록 여부를 보여 준다", () => {
-  assert.deepEqual(meetingListBadge({ status: "transcribing", has_notes: false, source: "upload" }), { label: "전사 중", tone: "progress" });
-  assert.deepEqual(meetingListBadge({ status: "failed", has_notes: false, source: "upload" }), { label: "전사 실패", tone: "error" });
+  assert.deepEqual(meetingListBadge({ status: "transcribing", has_notes: false, source: "upload" }), { label: "글로 옮기는 중", tone: "progress" });
+  assert.deepEqual(meetingListBadge({ status: "failed", has_notes: false, source: "upload" }), { label: "글로 옮기기 실패", tone: "error" });
   assert.equal(meetingListBadge({ status: "awaiting_upload", has_notes: false, source: "upload" }).label, "올리기 전");
   assert.equal(meetingListBadge({ status: "open", has_notes: true, source: "live" }).label, "회의록 있음");
-  assert.equal(meetingListBadge({ status: "open", has_notes: false, source: "upload" }).label, "전사 완료");
-  assert.equal(meetingListBadge({ status: "open", has_notes: false, source: "live" }).label, "받아쓰기");
+  assert.equal(meetingListBadge({ status: "open", has_notes: false, source: "upload" }).label, "글로 옮기기 완료");
+  assert.equal(meetingListBadge({ status: "open", has_notes: false, source: "live" }).label, "녹음");
 });
 
 test("전사·회의록 생성·불러오기 중에는 회의 화면을 닫을 수 있고, 올리는 중·받아쓰는 중에는 닫을 수 없다", () => {

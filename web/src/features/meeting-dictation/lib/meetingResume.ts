@@ -12,7 +12,7 @@ export type ResumedMeetingView = {
 
 export const MEETING_RESUME_MESSAGES = {
   awaitingUpload: "녹음 파일을 아직 올리지 않은 회의예요. 녹음 파일을 다시 올려 주세요.",
-  liveConnected: "다른 화면에서 이 회의를 받아쓰고 있어요. 받아쓰기를 멈춘 뒤 회의록을 만들 수 있어요."
+  liveConnected: "다른 화면에서 이 회의를 녹음하고 있어요. 녹음을 멈춘 뒤 회의록을 만들 수 있어요."
 } as const;
 
 /**
@@ -72,11 +72,11 @@ export type MeetingListBadge = { label: string; tone: "progress" | "error" | "ne
 /** 회의 목록 한 줄의 상태 표시. 진행 중(전사)·실패를 먼저 알리고, 끝난 회의는 회의록 여부를 보여 준다. */
 export function meetingListBadge(item: Pick<MeetingListItem, "status" | "has_notes" | "source">): MeetingListBadge {
   switch (item.status) {
-    case "transcribing": return { label: "전사 중", tone: "progress" };
+    case "transcribing": return { label: "글로 옮기는 중", tone: "progress" };
     case "awaiting_upload": return { label: "올리기 전", tone: "neutral" };
-    case "failed": return { label: "전사 실패", tone: "error" };
+    case "failed": return { label: "글로 옮기기 실패", tone: "error" };
     default: return item.has_notes
       ? { label: "회의록 있음", tone: "neutral" }
-      : { label: item.source === "upload" ? "전사 완료" : "받아쓰기", tone: "neutral" };
+      : { label: item.source === "upload" ? "글로 옮기기 완료" : "녹음", tone: "neutral" };
   }
 }

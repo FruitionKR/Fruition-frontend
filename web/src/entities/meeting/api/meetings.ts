@@ -23,7 +23,7 @@ import type {
 
 export const MEETING_ERROR_MESSAGES = {
   createFailed: "회의를 시작하지 못했습니다.",
-  ticketFailed: "받아쓰기 연결을 준비하지 못했습니다.",
+  ticketFailed: "녹음 연결을 준비하지 못했습니다.",
   notesFailed: "회의록을 요청하지 못했습니다.",
   notesLoadFailed: "회의록을 불러오지 못했습니다.",
   notesCancelFailed: "회의록 만들기를 취소하지 못했습니다.",
@@ -32,7 +32,7 @@ export const MEETING_ERROR_MESSAGES = {
   loadFailed: "회의 상태를 불러오지 못했습니다.",
   listFailed: "회의 목록을 불러오지 못했습니다.",
   uploadFailed: "녹음 파일을 올리지 못했습니다.",
-  transcriptionCancelFailed: "전사를 취소하지 못했습니다.",
+  transcriptionCancelFailed: "글로 옮기기를 취소하지 못했습니다.",
   recordingUrlFailed: "녹음을 불러오지 못했습니다.",
   deleteFailed: "회의를 삭제하지 못했습니다."
 } as const;
