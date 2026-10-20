@@ -35,6 +35,7 @@ const unsupportedLockDocuments = new Map<string, string>();
  * 해제·재획득 없이 넘겨받고, 아니면 잠시 뒤 해제한다. 페이지를 떠날 때(pagehide)는 기다리지 않고 해제한다.
  */
 const editLockHandoffs = createEditLockHandoffs({ release: releaseEditLock });
+// 마운트된 편집기가 보유한 잠금은 useEditLock이 pagehide에서 직접 해제한다.
 if (typeof window !== "undefined") window.addEventListener("pagehide", () => editLockHandoffs.flush());
 
 /** 맡겨 둔 잠금을 해제하지 않고 잊는다. 테스트끼리 넘겨받기가 섞이지 않게 할 때만 쓴다. */
@@ -81,6 +82,13 @@ export function useEditLock({
     let acquiring: Promise<HeldEditLock> | null = null;
     // heartbeat(재획득 포함)가 진행 중인지. 탭 복귀 즉시 heartbeat가 예약 heartbeat와 겹치지 않게 한다.
     let beating = false;
+    // 페이지를 떠나며(pagehide) 잠금을 해제했는지. 그 뒤 응답이 와도 보유를 주장하지 않고,
+    // 뒤로 가기 캐시(bfcache)로 돌아오면 다시 받는다.
+    let releasedOnLeave = false;
+    // 처음 획득 요청을 받는 중에 떠나 그 해제를 releaseOnLeave에 맡겼는지. 그 응답은 이 편집기가 쓰지 않는다.
+    let initialReleasedOnLeave = false;
+    // 떠날 때 보낸 해제. 돌아와 다시 받을 때 이 해제가 새 잠금을 지우지 않도록 끝난 뒤 획득한다.
+    let leaveRelease: Promise<void> = Promise.resolve();
 
     /** 요청 직전에 기준점을 잡는다. 응답 지연만큼 마감이 늦게 잡히지 않게 한다. */
     function markSent(): LockClockAnchor {
@@ -118,7 +126,7 @@ export function useEditLock({
       try {
         const sentAt = markSent();
         const lock = await sendEditLockHeartbeat(documentId);
-        if (disposed) return;
+        if (disposed || releasedOnLeave) return;
         scheduleHeartbeat(lock, sentAt);
       } catch (error) {
         // 409는 만료 또는 타인 보유다. 백그라운드 탭 타이머 지연·절전으로 heartbeat가 늦으면
@@ -152,8 +160,8 @@ export function useEditLock({
       try {
         const sentAt = markSent();
         const lock = await acquireEditLock(documentId);
-        if (disposed) {
-          void releaseEditLock(documentId).catch(() => {});
+        if (disposed || releasedOnLeave) {
+          void releaseEditLock(documentId, { keepalive: releasedOnLeave }).catch(() => {});
           return;
         }
         holding = true;
@@ -185,8 +193,39 @@ export function useEditLock({
       void beat();
     }
 
+    /**
+     * 탭을 닫거나 다른 페이지로 떠나면 편집기가 정리되지 않으므로, 지금 보유하거나 받는 중인 잠금을
+     * keepalive로 바로 해제한다(맡겨 둔 잠금은 editLockHandoffs.flush가 해제한다). 이후 정리에서는 다시 맡기지 않는다.
+     */
+    function releaseOnLeave() {
+      if (disposed || releasedOnLeave || (!holding && !acquiring)) return;
+      releasedOnLeave = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      const held = acquiring;
+      acquiring = null;
+      holding = false;
+      lastHeld = null;
+      initialReleasedOnLeave = held !== null;
+      leaveRelease = (held ?? Promise.resolve())
+        .then(() => releaseEditLock(documentId, { keepalive: true }))
+        .catch(() => {});
+    }
+
+    /** 뒤로 가기 캐시로 페이지가 돌아오면 떠날 때 해제한 잠금을 다시 받는다. */
+    function reacquireOnReturn(event: PageTransitionEvent) {
+      if (!event.persisted || !releasedOnLeave || disposed) return;
+      void leaveRelease.then(() => {
+        if (disposed || !releasedOnLeave) return;
+        releasedOnLeave = false;
+        return reacquire(new Error(ERROR_MESSAGES.editLockExpired));
+      });
+    }
+
     document.addEventListener("visibilitychange", beatNow);
     window.addEventListener("online", beatNow);
+    window.addEventListener("pagehide", releaseOnLeave);
+    window.addEventListener("pageshow", reacquireOnReturn);
 
     // 방금 사라진 같은 문서의 편집기가 맡긴 잠금이 있으면 넘겨받는다. 없으면 새로 획득한다.
     const claimed = editLockHandoffs.claim(documentId);
@@ -196,6 +235,8 @@ export function useEditLock({
     acquiring = initial;
     initial.then(
       ({ lock, sentAt }) => {
+        // 페이지를 떠나며 해제를 맡긴 요청이면 releaseOnLeave가 해제한다.
+        if (initialReleasedOnLeave) return;
         acquiring = null;
         // 떠난 편집기의 잠금은 editLockHandoffs가 맡아 넘겨주거나 해제한다.
         if (disposed) return;
@@ -219,6 +260,8 @@ export function useEditLock({
       disposed = true;
       document.removeEventListener("visibilitychange", beatNow);
       window.removeEventListener("online", beatNow);
+      window.removeEventListener("pagehide", releaseOnLeave);
+      window.removeEventListener("pageshow", reacquireOnReturn);
       if (timer) clearTimeout(timer);
       timer = null;
       // 보유 중이거나 획득 중인 잠금만 맡긴다(곧 다시 마운트되면 넘겨주고, 아니면 잠시 뒤 해제한다).

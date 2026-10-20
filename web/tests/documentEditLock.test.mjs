@@ -729,3 +729,63 @@ test("편집기가 마운트·해제·재마운트돼도 잠금 POST는 한 번�
   await advance(t, 1);
   assert.deepEqual(calls, ["POST", "HEARTBEAT", "DELETE"]);
 });
+
+/** 잠금 요청을 종류(POST·HEARTBEAT·DELETE)와 keepalive 여부로 기록한다. */
+function recordLockCalls(t) {
+  workspaceEnv(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  t.mock.method(performance, "now", () => Date.now());
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    const kind = path.endsWith("/heartbeat") ? "HEARTBEAT" : init?.method;
+    calls.push(init?.keepalive ? `${kind}:keepalive` : kind);
+    if (kind === "DELETE") return new Response(null, { status: 204 });
+    return Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString(), ttl_ms: 30_000 });
+  });
+  return calls;
+}
+
+function pageTransition(type, persisted) {
+  return Object.assign(new Event(type), { persisted });
+}
+
+test("편집 중에 탭을 닫으면(pagehide) 보유한 잠금을 keepalive로 한 번만 해제한다", async (t) => {
+  const calls = recordLockCalls(t);
+  const editor = render(() => useEditLock({ documentId: "doc_leave_held", onLockLost() {} }));
+  await advance(t, 0);
+  editor.rerender();
+  assert.equal(editor.result.phase, "granted");
+
+  window.dispatchEvent(pageTransition("pagehide", false));
+  await advance(t, 0);
+  assert.deepEqual(calls, ["POST", "DELETE:keepalive"]);
+
+  // 페이지와 함께 편집기가 정리돼도 다시 맡기거나 heartbeat하지 않는다.
+  editor.unmount();
+  await advance(t, 60_000);
+  assert.deepEqual(calls, ["POST", "DELETE:keepalive"]);
+});
+
+test("잠금을 받는 중에 떠나면 받은 뒤 keepalive로 해제하고 보유를 주장하지 않는다", async (t) => {
+  const calls = recordLockCalls(t);
+  const editor = render(() => useEditLock({ documentId: "doc_leave_acquiring", onLockLost() {} }));
+  window.dispatchEvent(pageTransition("pagehide", false));
+  await advance(t, 0);
+  editor.unmount();
+  await advance(t, 60_000);
+  assert.deepEqual(calls, ["POST", "DELETE:keepalive"]);
+});
+
+test("뒤로 가기 캐시로 돌아오면 떠날 때 해제한 잠금을 다시 받는다", async (t) => {
+  const calls = recordLockCalls(t);
+  const editor = render(() => useEditLock({ documentId: "doc_leave_return", onLockLost() {} }));
+  await advance(t, 0);
+  window.dispatchEvent(pageTransition("pagehide", true));
+  await advance(t, 0);
+  window.dispatchEvent(pageTransition("pageshow", true));
+  await advance(t, 0);
+  editor.rerender();
+  assert.equal(editor.result.phase, "granted");
+  assert.deepEqual(calls, ["POST", "DELETE:keepalive", "POST"]);
+  editor.unmount();
+});
