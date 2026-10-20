@@ -14,7 +14,7 @@ registerHooks({
 
 const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/client.ts");
 const { ApiError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
-const { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
+const { describeSkillAuthorError, isResultModeRejection, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -156,4 +156,14 @@ test("시트 입력을 고쳤는지는 처음 값과 비교해 정한다(저장 
   assert.equal(isSkillFormDirty(initial, { ...initial }), false);
   assert.equal(isSkillFormDirty(initial, { ...initial, rules: "요약한다." }), true);
   assert.equal(isSkillFormDirty(initial, { ...initial, targets: ["current-document", "selection"] }), true);
+});
+
+test("결과 방식 불일치 거절은 전용 code이거나, 결과 방식을 실어 보낸 요청의 SKILL_REQUEST_REJECTED다", () => {
+  assert.equal(isResultModeRejection(new ApiError("x", 400, "invalid_result_mode"), false), true);
+  assert.equal(isResultModeRejection(new ApiError("x", 400, "SKILL_RESULT_MODE_INVALID"), false), true);
+  // document는 지금 이 code를 SKILL_REQUEST_REJECTED로 바꿔 돌려준다. 결과 방식을 보냈을 때만 그렇게 본다.
+  assert.equal(isResultModeRejection(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), true), true);
+  assert.equal(isResultModeRejection(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), false), false);
+  assert.equal(isResultModeRejection(new ApiError("x", 409, "invalid_result_mode"), true), false);
+  assert.equal(isResultModeRejection(new Error("network"), true), false);
 });

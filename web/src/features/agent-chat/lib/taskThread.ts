@@ -89,6 +89,30 @@ export function taskKindLabel(action: string | null): string {
   }
 }
 
+const SLASH_COMMAND_PATTERN = /^\/([a-z0-9][a-z0-9-]{0,62})(?:\s|$)/;
+
+/** '상황에 맞게' 스킬의 되묻기("새 문서로 만들까요, 지금 문서를 수정할까요?")에 답하는 두 선택. */
+export const SKILL_MODE_CHOICES = [
+  { label: "새 문서로 만들기", request: "새 문서로 만들어 줘", createsDocument: true },
+  { label: "지금 문서 수정", request: "지금 문서를 수정해 줘", createsDocument: false }
+] as const;
+
+/**
+ * 스킬(`/slug …`)로 보낸 작업에 AI가 새 문서·문서 수정 중 무엇을 할지 되물었으면 그 slug, 아니면 null.
+ * 답도 `/slug 새 문서로 만들어 줘`처럼 커맨드를 붙여 보내야 스킬이 유지된다(ai agent.md).
+ */
+export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "request" | "answer">): string | null {
+  if (item.action !== "clarify") return null;
+  const match = SLASH_COMMAND_PATTERN.exec(item.request);
+  if (!match) return null;
+  return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
+}
+
+/** 되묻기 선택 → 작업 탭으로 보낼 요청 문장 */
+export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES)[number]): string {
+  return `/${slug} ${choice.request}`;
+}
+
 export type TaskGroup = "running" | "approval" | "clarify" | "failed" | "done";
 
 /** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. */

@@ -64,7 +64,6 @@ import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePr
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel } from "../lib/agentPanelVisibility";
-import { skillRunFolderId } from "../lib/skillRunTarget";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -590,7 +589,8 @@ export function HomeWorkspace() {
             id: skillRunRequest.id,
             message: skillRunRequest.message,
             documentId: skillRunRequest.target.kind === "document" ? skillRunRequest.target.documentId : null,
-            folderId: skillRunFolderId(skillRunRequest.target)
+            folderId: skillRunRequest.folderId,
+            documentFolderId: skillRunRequest.target.kind === "document" ? skillRunRequest.target.parentFolderId : null
           }}
           onSkillRunSent={(id) => setSkillRunRequest((current) => (current?.id === id ? null : current))}
           onManageSkills={() => handleViewChange("skills")}

@@ -86,3 +86,17 @@ export function skillUpdateRequest(
 export function isSkillFormDirty(initial: object, current: object): boolean {
   return JSON.stringify(initial) !== JSON.stringify(current);
 }
+
+/** 결과 방식이 capabilities와 맞지 않을 때 AI가 주는 code. document가 그대로 넘기거나 대문자로 바꿔 넘길 수 있다. */
+const RESULT_MODE_REJECTION_CODES = new Set(["invalid_result_mode", "INVALID_RESULT_MODE", "SKILL_RESULT_MODE_INVALID"]);
+
+/**
+ * 스킬 수정 실패가 결과 방식 불일치(ai invalid_result_mode)인지 본다.
+ * 지금 document는 이 code를 따로 옮기지 않고 SKILL_REQUEST_REJECTED(400)로 바꿔 돌려주므로,
+ * 결과 방식을 실어 보낸 요청(sentResultMode)이 그 code로 거절됐을 때도 결과 방식 불일치로 본다.
+ */
+export function isResultModeRejection(error: unknown, sentResultMode: boolean): boolean {
+  if (!(error instanceof ApiError) || error.status !== 400) return false;
+  if (error.code != null && RESULT_MODE_REJECTION_CODES.has(error.code)) return true;
+  return sentResultMode && error.code === "SKILL_REQUEST_REJECTED";
+}

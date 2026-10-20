@@ -1,4 +1,4 @@
-import type { SkillExecutionOptions, SkillResponse } from "@/entities/skill/model/skill";
+import type { SkillAuthoringResult, SkillExecutionOptions, SkillResponse } from "@/entities/skill/model/skill";
 import {
   INITIAL_SKILL_CREATE_FORM,
   kindFromCapabilities,
@@ -104,17 +104,36 @@ export type SkillDetailDraft = { name: string; description: string; instructions
 /**
  * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 커맨드명은 name으로 보내 slug를 바꾼다.
  * 문서 스킬이면 읽어 둔 대상(targets)을 함께 보낸다(이전 형식 "실행 대상" 절을 뗀 스킬은 이걸로 대상이 남는다).
- * 결과 방식은 읽기 전용이라 보내지 않는다(생략하면 서버가 기존 값을 유지한다, ai#122).
+ * 결과 방식은 보통 보내지 않는다(생략하면 서버가 기존 값을 유지한다, ai#122).
  * 명시해 보내면 서버가 지침을 다시 분류한 capabilities와 맞지 않을 때 400으로 저장이 실패한다.
+ * resultMode는 저장 뒤 결과 방식이 비워져(resultModeDrift) 사용자가 다시 고른 값이다. 문서 스킬일 때만 담는다.
  */
-export function skillDetailDraft(form: SkillDetailForm): SkillDetailDraft {
+export function skillDetailDraft(form: SkillDetailForm, resultMode?: SkillResultMode): SkillDetailDraft {
   const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
   return {
     name: form.command.trim(),
     description: form.description.trim(),
     instructionsMarkdown: form.rules.trim(),
-    ...(targets != null ? { targets } : {})
+    ...(targets != null ? { targets } : {}),
+    ...(targets != null && resultMode != null ? { result_mode: resultMode } : {})
   };
+}
+
+/**
+ * 저장 응답에서 결과 방식이 사라졌는지 본다. 고친 지침을 AI가 다시 분류해 capabilities가 바뀌면, 생략해 이어받은
+ * result_mode가 새 capabilities와 맞지 않을 때 서버가 거절하지 않고 null로 버린다(ai#122).
+ * 그렇게 버려졌으면 저장 전 값(from)과 새 capabilities에 맞는 값(to)을, 아니면 null을 돌려준다.
+ * 다시 분류된 스킬이 문서 스킬이 아니게 됐으면(결과 방식이 없는 종류) null이다.
+ */
+export function resultModeDrift(
+  skill: SkillResponse,
+  result: Pick<SkillAuthoringResult, "capabilities" | "result_mode">
+): { from: SkillResultMode; to: SkillResultMode } | null {
+  const from = (skill.enabled_version ?? skill.latest_version)?.result_mode;
+  if (from == null || result.result_mode != null) return null;
+  const reclassified = kindFromCapabilities(result.capabilities ?? []);
+  if (reclassified == null || reclassified.kind !== "document") return null;
+  return { from, to: reclassified.resultMode };
 }
 
 export type SkillDetailField = "command" | "description" | "rules";

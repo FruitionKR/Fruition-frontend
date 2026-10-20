@@ -17,7 +17,7 @@ export function SkillRunCoach({
 }: {
   /** 사이드바에서 쓸 수 있는 대상을 골랐는지 */
   hasTarget: boolean;
-  /** 고른 항목을 대상으로 쓸 수 없을 때 안내(폴더 정리 스킬에 문서를 고른 경우 등) */
+  /** 고른 항목을 대상으로 쓸 수 없을 때 안내(폴더 정리 스킬에 문서를 고른 경우, 선택한 부분에만 쓰는 스킬 등) */
   errorMessage: string | null;
   onCancel: () => void;
   onNext: () => void;
@@ -35,7 +35,9 @@ export function SkillRunCoach({
             <em>실행할 문서</em>를 선택해주세요.
           </h2>
           <p>
-            문서 스킬은 고칠 문서(또는 새 문서를 둘 위치)를
+            문서 스킬은 고칠 문서(또는 요약·변환할 문서나
+            <br />
+            새 문서를 둘 폴더)를,
             <br />
             폴더 정리 스킬은 정리할 폴더를 고릅니다.
           </p>

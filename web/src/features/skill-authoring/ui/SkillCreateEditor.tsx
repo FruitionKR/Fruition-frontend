@@ -10,6 +10,7 @@ import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
 import { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
   applySkillDraft,
+  draftResultModeChange,
   INITIAL_SKILL_CREATE_FORM,
   isDocumentKind,
   SKILL_KIND_CARDS,
@@ -21,10 +22,12 @@ import {
   skillCreateFormFromRequest,
   rulesPlaceholderHint,
   skillPublishRequest,
+  skillResultModeLabel,
   validateSkillCreateForm,
   type SkillAuthoringMode,
   type SkillCreateField,
   type SkillCreateForm,
+  type SkillResultMode,
   type SkillTarget
 } from "../lib/skillCreateForm";
 import {
@@ -83,6 +86,8 @@ export function SkillCreateEditor({
   const [touched, setTouched] = useState<ReadonlySet<SkillCreateField>>(new Set());
   const [issues, setIssues] = useState<unknown[]>([]);
   const [question, setQuestion] = useState<string | null>(null);
+  // AI 초안이 고른 결과 방식으로 바꿨을 때 알림. 사용자가 고른 값(from)으로 되돌릴 수 있다.
+  const [resultModeNote, setResultModeNote] = useState<{ from: SkillResultMode; to: SkillResultMode } | null>(null);
 
   // 기존 스킬 커맨드와 중복이면 미리 막는다 (서버도 게시 시점에 중복을 차단한다).
   const { data: existingSkills } = useQuery({
@@ -149,7 +154,9 @@ export function SkillCreateEditor({
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
-      setForm((current) => applySkillDraft(current, result));
+      const drafted = applySkillDraft(form, result);
+      setForm(drafted);
+      setResultModeNote(draftResultModeChange(form, drafted));
       if (outcome === "review") {
         setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
         setAuthorStatus("안전 검토에서 고칠 부분이 발견되었습니다.");
@@ -258,11 +265,29 @@ export function SkillCreateEditor({
                   value={form.resultMode}
                   options={SKILL_RESULT_OPTIONS}
                   describedBy={fieldId("result-hint")}
-                  onChange={(resultMode) => update({ resultMode })}
+                  onChange={(resultMode) => {
+                    setResultModeNote(null);
+                    update({ resultMode });
+                  }}
                 />
                 <p id={fieldId("result-hint")} className={styles.hint}>
                   &apos;상황에 맞게&apos;는 대상이 애매하면 Agent가 되물어요.
                 </p>
+                {resultModeNote && form.resultMode === resultModeNote.to && (
+                  <p className={styles["result-note"]} role="status">
+                    <span>AI 초안에 맞춰 결과 방식을 ‘{skillResultModeLabel(resultModeNote.to)}’로 바꿨어요.</span>
+                    <button
+                      type="button"
+                      className={styles["result-note-undo"]}
+                      onClick={() => {
+                        update({ resultMode: resultModeNote.from });
+                        setResultModeNote(null);
+                      }}
+                    >
+                      ‘{skillResultModeLabel(resultModeNote.from)}’로 되돌리기
+                    </button>
+                  </p>
+                )}
               </div>
             </div>
 

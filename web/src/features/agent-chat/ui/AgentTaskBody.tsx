@@ -11,7 +11,17 @@ import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, type Agen
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import type { FolderOrganizeRequest } from "../lib/folderOrganize";
-import { describeTaskRequest, groupTaskEntries, resolveTaskStatus, taskKindLabel, type TaskMessageItem, type TaskStatusView } from "../lib/taskThread";
+import {
+  describeTaskRequest,
+  groupTaskEntries,
+  resolveTaskStatus,
+  SKILL_MODE_CHOICES,
+  skillModeAnswer,
+  skillModeQuestionSlug,
+  taskKindLabel,
+  type TaskMessageItem,
+  type TaskStatusView
+} from "../lib/taskThread";
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
 import { AgentAssetIcon } from "./AgentIcons";
@@ -108,7 +118,8 @@ export function AgentTaskBody({
   isShown,
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
-  onShortenActivePreview
+  onShortenActivePreview,
+  onAnswerSkillQuestion
 }: {
   items: TaskMessageItem[];
   /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
@@ -129,6 +140,8 @@ export function AgentTaskBody({
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
   /** 검토 중인 편집안을 "더 짧게" 다시 받는다(Figma 1610:9183). 없으면 버튼을 숨긴다. */
   onShortenActivePreview?: () => void;
+  /** 스킬 되묻기(새 문서·문서 수정)에 고른 답(`/slug …`)을 같은 대상으로 보낸다. 없으면 선택 버튼을 숨긴다. */
+  onAnswerSkillQuestion?: (request: string, createsDocument: boolean) => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -226,6 +239,7 @@ export function AgentTaskBody({
     // 되묻는 작업은 AI 질문을 제목으로, 원래 요청을 보조 설명으로 둔다(Figma 1671:13261).
     const isQuestion = status.group === "clarify" && item.action === "clarify" && Boolean(item.answer);
     const isActivePreview = status.group === "approval" && item.turnId === activePreviewTurnId;
+    const questionSlug = isQuestion ? skillModeQuestionSlug(item) : null;
     return (
       <div key={item.key} className={styles["task-entry"]}>
         <TaskCard
@@ -237,6 +251,21 @@ export function AgentTaskBody({
         >
           {renderDetail(entry)}
         </TaskCard>
+        {questionSlug && onAnswerSkillQuestion && (
+          <div className={styles["task-actions"]}>
+            {SKILL_MODE_CHOICES.map((choice) => (
+              <button
+                key={choice.label}
+                type="button"
+                className={cx(styles["task-pill"], styles["is-primary"])}
+                onClick={() => onAnswerSkillQuestion(skillModeAnswer(questionSlug, choice), choice.createsDocument)}
+              >
+                <AgentAssetIcon src={taskBoltIcon} size={12} />
+                {choice.label}
+              </button>
+            ))}
+          </div>
+        )}
         {status.group === "approval" && (onSaveRequestAsSkill || (isActivePreview && onShortenActivePreview)) && (
           <div className={styles["task-actions"]}>
             {isActivePreview && onShortenActivePreview && (

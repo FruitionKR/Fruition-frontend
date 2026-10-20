@@ -130,8 +130,15 @@ function taskResult(workspace, turn, request) {
   const slash = findSlashSkill(workspace, message);
   if (slash) {
     if (slash.skill.enabled_version.capabilities.includes("folder-organize")) return organizeResult(workspace, turn, message, slash.skill);
-    if (hasDocument) return buildEditResult(request);
-    return createResult(slash.rest || message);
+    // ai agent.md "할 일 없이 /slug만 보낸 턴": 결과 방식대로 정한다. 할 일을 붙이면 그 말을 따른다.
+    const version = slash.skill.enabled_version;
+    const caps = version.capabilities;
+    const mode = version.result_mode ?? (caps.includes("document-create") && !caps.includes("document-edit") ? "create" : caps.includes("document-edit") && !caps.includes("document-create") ? "edit" : "auto");
+    const wantsCreate = /새 문서/.test(slash.rest) || (!slash.rest && mode === "create") || (!hasDocument && mode !== "edit");
+    if (wantsCreate) return createResult(slash.rest || message);
+    if (!hasDocument) return clarify("수정할 문서를 열고 다시 실행해 주세요.");
+    if (!slash.rest && mode === "auto") return clarify("새 문서로 만들까요, 지금 문서를 수정할까요?");
+    return buildEditResult(request);
   }
   if (ORGANIZE_PATTERN.test(message)) return organizeResult(workspace, turn, message);
   if (CREATE_PATTERN.test(message)) return createResult(message);

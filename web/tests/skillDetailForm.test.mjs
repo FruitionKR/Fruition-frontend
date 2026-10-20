@@ -14,6 +14,7 @@ registerHooks({
 
 const {
   parseSkillInstructions,
+  resultModeDrift,
   skillDetailAuthorForm,
   skillDetailDraft,
   skillDetailForm,
@@ -172,4 +173,23 @@ test("skillDetailAuthorForm은 상세 값을 테스트 실행 카드의 만들�
   assert.equal(authorForm.command, "research-summary");
   assert.equal(authorForm.rules, "새 규칙");
   assert.equal(authorForm.resultMode, "edit");
+});
+
+test("skillDetailDraft는 다시 고른 결과 방식을 문서 스킬일 때만 result_mode로 담는다", () => {
+  const form = skillDetailForm(skill());
+  assert.equal(skillDetailDraft(form, "create").result_mode, "create");
+  assert.ok(!("result_mode" in skillDetailDraft(form)));
+  const folder = skillDetailForm(skill({ enabled_version: version({ capabilities: ["folder-organize"] }) }));
+  assert.ok(!("result_mode" in skillDetailDraft(folder, "create")));
+});
+
+test("resultModeDrift는 저장 응답에서 결과 방식이 비워졌을 때만 저장 전 값과 새 capabilities에 맞는 값을 준다", () => {
+  const stored = skill({ enabled_version: version({ capabilities: ["document-edit"], result_mode: "edit" }) });
+  // 지침을 다시 분류해 document-create가 됐고, 생략해 이어받은 edit가 맞지 않아 null로 버려졌다.
+  assert.deepEqual(resultModeDrift(stored, { capabilities: ["document-create"], result_mode: null }), { from: "edit", to: "create" });
+  assert.deepEqual(resultModeDrift(stored, { capabilities: ["document-create", "document-edit"], result_mode: null }), { from: "edit", to: "auto" });
+  // 그대로 유지됐거나, 원래 결과 방식이 없었거나(예전 스킬), 문서 스킬이 아니게 됐으면 고를 것이 없다.
+  assert.equal(resultModeDrift(stored, { capabilities: ["document-edit"], result_mode: "edit" }), null);
+  assert.equal(resultModeDrift(skill(), { capabilities: ["document-create"], result_mode: null }), null);
+  assert.equal(resultModeDrift(stored, { capabilities: ["folder-organize"], result_mode: null }), null);
 });

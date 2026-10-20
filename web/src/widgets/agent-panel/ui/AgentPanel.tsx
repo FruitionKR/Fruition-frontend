@@ -77,7 +77,14 @@ export function AgentPanel({
    * documentId가 있으면 그 문서가 열려 편집 문맥이 준비된 뒤 문서와 함께 보내고, 없으면(폴더 대상) 문서 없이
    * folderId를 작업 대상 폴더(folder_id)로 실어 보낸다.
    */
-  skillRun?: { id: number; message: string; documentId: string | null; folderId: string | null } | null;
+  skillRun?: {
+    id: number;
+    message: string;
+    documentId: string | null;
+    folderId: string | null;
+    /** 문서 대상이면 그 문서가 있는 폴더(루트면 null). 되묻기에 '새 문서로 만들기'로 답하면 새 문서를 그 옆에 둔다. */
+    documentFolderId?: string | null;
+  } | null;
   /** skillRun을 보냈다. 같은 실행을 다시 보내지 않도록 비운다. */
   onSkillRunSent?: (id: number) => void;
   /** 열린 노트가 위키 미편입·편입 후 수정 상태일 때 composer 위에 띄우는 안내. */
@@ -242,11 +249,14 @@ export function AgentPanel({
   const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
   // 스킬 실행 요청: 세션·모델이 준비되고, 문서 대상이면 그 문서의 편집 문맥이 들어온 뒤 작업 탭으로 보낸다.
   const sentSkillRunId = useRef<number | null>(null);
+  // 마지막으로 보낸 스킬 실행의 문서와 그 문서가 있는 폴더. 되묻기에 '새 문서로 만들기'로 답하면 그 폴더를 folder_id로 싣는다.
+  const lastSkillRunDocument = useRef<{ documentId: string; folderId: string | null } | null>(null);
   const skillRunContext = skillRun?.documentId && markdownEditContext?.documentId === skillRun.documentId ? markdownEditContext : null;
   const isSkillRunReady = Boolean(skillRun && (!skillRun.documentId || skillRunContext) && activeSessionId && selectedModel && !isSubmitting);
   useEffect(() => {
     if (!skillRun || !isSkillRunReady || !activeSessionId || !selectedModel || sentSkillRunId.current === skillRun.id) return;
     sentSkillRunId.current = skillRun.id;
+    lastSkillRunDocument.current = skillRun.documentId ? { documentId: skillRun.documentId, folderId: skillRun.documentFolderId ?? null } : null;
     setActiveView("work");
     agentTurn.submitAgentTurn(skillRun.message, skillRunContext, activeSessionId, selectedModel, selectedPairIds, skillRun.folderId);
     onSkillRunSent?.(skillRun.id);
@@ -279,6 +289,17 @@ export function AgentPanel({
   }, [activeSessionId, completedReplies]);
   // 작업 탭 입력(Figma 1610:9628). "@문서"는 아직 고르기 UI가 없고, 열린 문서가 "현재 문서" 칩으로 붙는다.
   const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
+
+  /**
+   * 스킬 되묻기 답(`/slug …`)을 열린 문서 문맥과 함께 보낸다. '새 문서로 만들기'이고 사이드바에서 같은 문서로 실행했던
+   * 스킬이면 새 문서를 그 문서 옆에 두도록 문서가 있는 폴더를 folder_id로 싣는다.
+   */
+  function answerSkillQuestion(request: string, createsDocument: boolean) {
+    if (isSubmitting || !activeSessionId || !selectedModel) return;
+    const ran = lastSkillRunDocument.current;
+    const folderId = createsDocument && ran && ran.documentId === taskContext?.documentId ? ran.folderId : null;
+    agentTurn.submitAgentTurn(request, taskContext, activeSessionId, selectedModel, selectedPairIds, folderId);
+  }
 
   function handleSubmit() {
     const question = composerValue.trim();
@@ -472,6 +493,7 @@ export function AgentPanel({
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
             onOpenFolderOrganize={onOpenFolderOrganize}
+            onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />

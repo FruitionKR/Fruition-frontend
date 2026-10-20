@@ -109,7 +109,7 @@ test("필수값·커맨드 형식·중복 커맨드를 검증한다", () => {
   assert.match(validateSkillCreateForm({ ...filledForm, description: "가".repeat(501) }, []).description, /500자/);
 });
 
-const { applySkillDraft, kindFromCapabilities, skillAuthorRequest } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+const { applySkillDraft, draftResultModeChange, kindFromCapabilities, skillAuthorRequest, skillResultModeLabel } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 
 test("AI 작성 요청은 실행 규칙을 지시문으로 보내고 유효한 이름·설명·참고 문서만 담는다", () => {
   const request = skillAuthorRequest({ ...filledForm, scope: "team" }, "enhance", ["doc_1", "doc_2"]);
@@ -177,4 +177,16 @@ test("Agent 요청으로 연 새 스킬은 요청을 실행 규칙에 채우고 
   assert.equal(form.resultMode, "auto");
   assert.equal(form.kind, "document");
   assert.equal(form.command, "");
+});
+
+test("AI 초안이 문서 스킬의 결과 방식을 바꾸면 이전·이후 값을 알려 되돌릴 수 있게 한다", () => {
+  const draft = { name: "summary-maker", description: "", instructions_markdown: "문서를 요약한 새 문서를 만든다.", capabilities: ["document-edit"] };
+  const chosen = { ...INITIAL_SKILL_CREATE_FORM, resultMode: "create" };
+  const next = applySkillDraft(chosen, draft);
+  assert.equal(next.resultMode, "edit");
+  assert.deepEqual(draftResultModeChange(chosen, next), { from: "create", to: "edit" });
+  assert.equal(skillResultModeLabel("edit"), "열린 문서 고치기");
+  // 바뀌지 않았거나 문서 스킬이 아니면 알릴 것이 없다.
+  assert.equal(draftResultModeChange(chosen, applySkillDraft(chosen, { ...draft, capabilities: ["document-create"] })), null);
+  assert.equal(draftResultModeChange(chosen, { kind: "folder", resultMode: "create" }), null);
 });

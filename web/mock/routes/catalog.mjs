@@ -20,6 +20,13 @@ const SKILL_REJECT_RULES = [
   { pattern: /#AI장애/, status: 503, code: "SKILL_AI_UNAVAILABLE", message: "AI 서버를 사용할 수 없습니다." }
 ];
 
+/** 초안 capability. 지침 표식으로 AI 분류를 재현한다: #새문서 → document-create, #고치기 → document-edit. */
+function draftCapabilities(instruction) {
+  if (/#새문서/.test(instruction)) return ["document-create"];
+  if (/#고치기/.test(instruction)) return ["document-edit"];
+  return ["summarize"];
+}
+
 // ai#122: 문서 Skill(document-create·document-edit)만 targets·result_mode를 가진다.
 const DOCUMENT_CAPABILITIES = new Set(["document-create", "document-edit"]);
 const TARGET_ORDER = ["current_document", "selection"];
@@ -51,13 +58,14 @@ function executionOptions(ctx, capabilities, body, fallback) {
     return error(ctx, 400, "targets must not contain duplicates.", "SKILL_INSTRUCTION_INVALID");
   }
   if (!isDocumentSkill(capabilities)) {
-    if ((targets ?? []).length > 0) return error(ctx, 400, "targets require a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
-    if (result_mode != null) return error(ctx, 400, "result_mode requires a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
+    // document는 AI의 invalid_targets·invalid_result_mode를 따로 옮기지 않고 SKILL_REQUEST_REJECTED로 돌려준다.
+    if ((targets ?? []).length > 0) return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
+    if (result_mode != null) return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
     return { targets: [], result_mode: null };
   }
   const matches = (value) => value == null || (RESULT_MODE_CAPABILITIES[value] ?? ["?"]).every((capability) => capabilities.includes(capability));
   if (result_mode !== undefined && !matches(result_mode)) {
-    return error(ctx, 400, `result_mode ${result_mode} does not match capabilities.`, "SKILL_INSTRUCTION_INVALID");
+    return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
   }
   // 생략해 이어받은 값이 capabilities와 맞지 않으면 거절하지 않고 버린다(ai#122).
   const mode = result_mode !== undefined ? result_mode : matches(fallback.result_mode) ? fallback.result_mode : null;
@@ -242,7 +250,7 @@ export function registerCatalogRoutes(router) {
     const reject = SKILL_REJECT_RULES.find((rule) => rule.pattern.test(instruction));
     if (reject) return error(ctx, reject.status, reject.message, reject.code);
     const skillName = (name ?? slugify(instruction.slice(0, 20))).trim();
-    const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities: ["summarize"], instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n` };
+    const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities: draftCapabilities(instruction), instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n` };
     ctx.json(200, toAuthoringResult({ id: id("skill"), scope_type: scope_type ?? "personal" }, version, detectSkillIssues(instruction)));
   });
 
@@ -317,11 +325,14 @@ export function registerCatalogRoutes(router) {
       return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
     }
     const base = skill.latest_version ?? skill.enabled_version;
+    // 실제 AI는 고친 지침으로 capabilities를 다시 분류한다. 지침 표식으로 재현한다: #새문서 → document-create, #고치기 → document-edit.
+    const reclassified = /#새문서/.test(body.instructions_markdown) ? ["document-create"]
+      : /#고치기/.test(body.instructions_markdown) ? ["document-edit"] : base?.capabilities ?? [];
     // 생략한 값은 이어받는다. 필드가 생기기 전 문서 Skill(targets 없음)은 두 대상 모두로 읽는다.
     const inherited = { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
-    const options = executionOptions(ctx, base?.capabilities ?? [], body, inherited);
+    const options = executionOptions(ctx, reclassified, body, inherited);
     if (!options) return;
-    const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options };
+    const version = { ...base, capabilities: reclassified, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options };
     skill.slug = body.name;
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;

@@ -194,3 +194,18 @@ test("스킬 시트가 열리면 작업 탭으로 옮기고 원래 탭을 기억
   // 시트 없이 처음 마운트되면 탭을 바꾸지 않는다.
   assert.deepEqual(skillSheetPanelView(false, "chat", null), { view: "chat", saved: null });
 });
+
+test("스킬로 보낸 작업의 새 문서·문서 수정 되묻기에는 커맨드를 붙인 두 답을 만든다", async () => {
+  const { SKILL_MODE_CHOICES, skillModeAnswer, skillModeQuestionSlug } = await import("../src/features/agent-chat/lib/taskThread.ts");
+  const question = "새 문서로 만들까요, 지금 문서를 수정할까요?";
+  assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/summary-maker", answer: question }), "summary-maker");
+  assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/any 정리해 줘", answer: question }), "any");
+  // 스킬이 아니거나, 다른 되묻기거나, 되묻기가 아니면 선택을 두지 않는다.
+  assert.equal(skillModeQuestionSlug({ action: "clarify", request: "요약해 줘", answer: question }), null);
+  assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/polish", answer: "수정할 문서를 열어 주세요." }), null);
+  assert.equal(skillModeQuestionSlug({ action: "markdown_edit", request: "/polish", answer: question }), null);
+  assert.deepEqual(SKILL_MODE_CHOICES.map((choice) => skillModeAnswer("summary-maker", choice)), [
+    "/summary-maker 새 문서로 만들어 줘",
+    "/summary-maker 지금 문서를 수정해 줘"
+  ]);
+});

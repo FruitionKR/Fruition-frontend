@@ -7,9 +7,16 @@ import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
-import { isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
-import { SKILL_NAME_MAX, SKILL_SCOPE_OPTIONS } from "../lib/skillCreateForm";
+import { isResultModeRejection, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
+  SKILL_NAME_MAX,
+  SKILL_RESULT_OPTIONS,
+  SKILL_SCOPE_OPTIONS,
+  skillResultModeLabel,
+  type SkillResultMode
+} from "../lib/skillCreateForm";
+import {
+  resultModeDrift,
   skillDetailAuthorForm,
   skillDetailDraft,
   skillDetailForm,
@@ -18,7 +25,7 @@ import {
   type SkillDetailField,
   type SkillDetailForm
 } from "../lib/skillDetailForm";
-import { HelpTip, SCOPE_HELP, SelectBox, SkillSafetyIssues } from "./SkillFormParts";
+import { HelpTip, RESULT_HELP, SCOPE_HELP, SelectBox, SkillSafetyIssues } from "./SkillFormParts";
 import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
@@ -27,12 +34,25 @@ import detailStyles from "./SkillDetailEditor.module.css";
 const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
 
+/** 저장 뒤 결과 방식을 다시 골라야 하는 상태. from은 저장 전 값, to는 다시 분류된 capabilities에 맞는 값이다. */
+type ResultModeFix = { from: SkillResultMode; to: SkillResultMode; picked: SkillResultMode; isRejected: boolean };
+
+function resultModeFixMessage(fix: ResultModeFix): string {
+  if (fix.isRejected) {
+    return `고른 결과 방식이 실행 규칙과 맞지 않아 저장하지 못했어요. ‘${skillResultModeLabel(fix.to)}’를 고르거나 실행 규칙을 고쳐 주세요.`;
+  }
+  return `변경 내용은 저장됐지만, 실행 규칙이 바뀌어 결과 방식(‘${skillResultModeLabel(fix.from)}’)이 비워졌어요. `
+    + `AI는 이 스킬을 ‘${skillResultModeLabel(fix.to)}’ 스킬로 봐요. 결과 방식을 고른 뒤 다시 저장해 주세요.`;
+}
+
 /**
  * 스킬 상세 시트 (Figma 1708:3848). 목록 행(커맨드명) 클릭으로 연다. 스킬 만들기와 같은 시트를 쓰지만 필드는 시안대로
  * 저장범위 · 커맨드명 · 설명 · 실행 규칙만 둔다(대상·스킬 종류·결과 방식·AI 작성·참고 문서 없음).
  * 커맨드명(name → slug)·설명·실행 규칙을 PATCH /skills/{id}로 저장하고, '스킬 삭제'로 지운다.
  * 저장범위는 수정 API가 받지 않아(scope_type은 바꿀 수 없다) 읽기 전용이다.
  * 고친 내용은 '저장'을 눌러야 반영된다(자동 저장 없음). 테스트 실행은 저장 전 입력값으로 하고, 고친 채 닫으면 버릴지 묻는다.
+ * 고친 실행 규칙 때문에 결과 방식이 비워지거나(resultModeDrift) 맞지 않아 거절되면, 그때만 결과 방식 필드를 띄워
+ * 고른 값(result_mode)을 실어 다시 저장하게 한다.
  */
 export function SkillDetailEditor({
   workspaceId,
@@ -62,6 +82,8 @@ export function SkillDetailEditor({
   const [issues, setIssues] = useState<unknown[]>([]);
   const [question, setQuestion] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  // 결과 방식이 실행 규칙과 어긋났을 때만 결과 방식 필드를 보여 주고, 고른 값을 실어 다시 저장한다.
+  const [resultModeFix, setResultModeFix] = useState<ResultModeFix | null>(null);
 
   // 다른 스킬 커맨드와 중복이면 미리 막는다(서버도 409로 막는다). 만들기 시트와 같은 쿼리 키를 쓴다.
   const { data: existingSkills } = useQuery({
@@ -85,7 +107,7 @@ export function SkillDetailEditor({
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => onSubmit(skillDetailDraft(form)),
+    mutationFn: () => onSubmit(skillDetailDraft(form, resultModeFix?.picked)),
     onSuccess: (result) => {
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "review") {
@@ -96,9 +118,22 @@ export function SkillDetailEditor({
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
+      const drift = resultModeFix == null ? resultModeDrift(skill, result) : null;
+      if (drift != null) {
+        setResultModeFix({ ...drift, picked: drift.to, isRejected: false });
+        return;
+      }
       sheetClose.close();
+    },
+    onError: (error) => {
+      if (form.kind !== "document" || !isResultModeRejection(error, resultModeFix != null)) return;
+      setResultModeFix((current) => ({
+        ...(current ?? { from: form.resultMode, to: form.resultMode, picked: form.resultMode }),
+        isRejected: true
+      }));
     }
   });
+  const isResultModeError = resultModeFix?.isRejected === true;
 
   const deleteMutation = useMutation({ mutationFn: onDelete, onSuccess: sheetClose.close });
 
@@ -252,9 +287,33 @@ export function SkillDetailEditor({
           {errorText("rules")}
         </div>
 
+        {/* 결과 방식 → result_mode. 실행 규칙을 고쳐 결과 방식이 비워졌거나 맞지 않을 때만 보여 준다. */}
+        {resultModeFix && (
+          <div className={styles.field}>
+            <div className={styles["label-row"]}>
+              <label className={styles.label} htmlFor={fieldId("result")}>
+                결과 방식
+              </label>
+              <HelpTip label="결과 방식" content={RESULT_HELP} />
+            </div>
+            <div className={styles.menu}>
+              <SelectBox
+                id={fieldId("result")}
+                value={resultModeFix.picked}
+                options={SKILL_RESULT_OPTIONS}
+                describedBy={fieldId("result-note")}
+                onChange={(picked) => setResultModeFix({ ...resultModeFix, picked, isRejected: false })}
+              />
+              <p id={fieldId("result-note")} className={styles["result-note"]} role="alert">
+                {resultModeFixMessage(resultModeFix)}
+              </p>
+            </div>
+          </div>
+        )}
+
         <SkillSafetyIssues issues={issues} isBusy={isBusy} />
 
-        {saveMutation.isError && (
+        {saveMutation.isError && !isResultModeError && (
           <p className={styles.error} role="alert">
             {getErrorMessage(saveMutation.error, "스킬 정의를 수정하지 못했습니다.")}
           </p>

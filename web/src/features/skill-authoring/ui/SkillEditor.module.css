@@ -98,6 +98,44 @@
   letter-spacing: -0.24px;
 }
 
+/* 결과 방식 알림: AI 초안이 결과 방식을 바꿨거나(만들기), 저장 뒤 결과 방식을 다시 골라야 할 때(상세). 배너와 같은 옅은 바탕. */
+.result-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--color-primary-weak);
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.result-note-undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.result-note-undo:hover {
+  filter: brightness(0.9);
+}
+
+.result-note-undo:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* 대상 체크 (Figma 1671:14763): 행 간격 12, 상자↔글자 12 */
 .checks {
   display: flex;

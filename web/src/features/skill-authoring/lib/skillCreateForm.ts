@@ -203,6 +203,23 @@ export function applySkillDraft(
   };
 }
 
+/** 결과 방식 값 → 화면 라벨('새 문서로 만들기' 등) */
+export function skillResultModeLabel(mode: SkillResultMode): string {
+  return SKILL_RESULT_OPTIONS.find((option) => option.value === mode)?.label ?? mode;
+}
+
+/**
+ * AI 초안을 채우며 문서 스킬의 결과 방식이 바뀌었으면 이전·이후 값, 아니면 null.
+ * 사용자가 고른 값을 말없이 덮지 않도록, 바꾼 사실을 알리고 되돌릴 수 있게 하는 데 쓴다.
+ */
+export function draftResultModeChange(
+  before: Pick<SkillCreateForm, "kind" | "resultMode">,
+  after: Pick<SkillCreateForm, "kind" | "resultMode">
+): { from: SkillResultMode; to: SkillResultMode } | null {
+  if (!isDocumentKind(before.kind) || !isDocumentKind(after.kind) || before.resultMode === after.resultMode) return null;
+  return { from: before.resultMode, to: after.resultMode };
+}
+
 export type SkillCreateField = "command" | "description" | "rules" | "targets";
 
 export const TARGETS_REQUIRED_MESSAGE = "대상을 하나 이상 골라 주세요.";
