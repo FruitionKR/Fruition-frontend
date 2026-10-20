@@ -33,7 +33,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | `web/src/entities/workspace/api/workspace.ts` `fetchWorkspaceStorage` | `workspacePath(workspaceId, "storage")` | `cache: no-store` | `used_bytes`, `limit_bytes` | **백엔드 미구현(요구사항)**. 404면 `null`을 돌려준다. 업로드 직전(`web/src/features/document-upload/model/useDocumentUpload.ts`)에만 부르며, 404·오류·3초 초과면 사전 검사를 건너뛰고 서버 판단에 맡긴다. 404는 탭 단위로 기억해 다시 묻지 않고, 새 노트 만들기에서는 부르지 않는다. 직접 전송 정규식에 없어 rewrite를 경유한다 |
+| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | 없음(프론트는 호출하지 않는다) | - | - | - | **백엔드 요구사항(보류)**. 플랜·용량 정책을 정할 때 백엔드에서 한도 적용(`STORAGE_QUOTA_EXCEEDED`)과 함께 구현할 요구사항이다. 현재 document-svc에는 이 API와 워크스페이스 용량 한도가 없고 파일당 50MB multipart 제한만 있다. 프론트는 업로드 전 용량 사전 검사를 하지 않고 서버 판단에 맡긴다 |
 
 업로드 실패의 `error.code`가 `STORAGE_QUOTA_EXCEEDED`면 서버 message 대신
 `describeLimitError`(`web/src/entities/workspace/model/workspaceLimits.ts`)의 정해 둔 문구를 보여 준다.

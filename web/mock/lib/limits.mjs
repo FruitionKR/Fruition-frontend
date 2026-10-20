@@ -33,8 +33,8 @@ function usedBytes(workspaceId) {
   return documents + assets;
 }
 
-/** GET /api/workspaces/{id}/storage 응답 */
-export function storageOf(workspace) {
+/** 플랜·사용량·용량. 업로드 거절(STORAGE_QUOTA_EXCEEDED) 판단에 쓴다. */
+function storageOf(workspace) {
   const plan = planOf(workspace);
   return { plan, used_bytes: usedBytes(workspace.id), limit_bytes: PLAN_LIMIT_BYTES[plan] };
 }
