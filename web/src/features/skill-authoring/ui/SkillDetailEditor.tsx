@@ -7,7 +7,7 @@ import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
-import { skillAuthoringOutcome } from "../lib/skillAuthoring";
+import { isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import { SKILL_NAME_MAX, SKILL_SCOPE_OPTIONS } from "../lib/skillCreateForm";
 import {
   skillDetailAuthorForm,
@@ -19,7 +19,7 @@ import {
   type SkillDetailForm
 } from "../lib/skillDetailForm";
 import { HelpTip, SCOPE_HELP, SelectBox, SkillSafetyIssues } from "./SkillFormParts";
-import { SkillSheet } from "./SkillSheet";
+import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
 import detailStyles from "./SkillDetailEditor.module.css";
@@ -28,10 +28,11 @@ const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
 
 /**
- * 스킬 상세 시트 (Figma 1708:3848). 목록 행 클릭·더보기 '수정'으로 연다. 스킬 만들기와 같은 시트를 쓰지만 필드는 시안대로
+ * 스킬 상세 시트 (Figma 1708:3848). 목록 행(커맨드명) 클릭으로 연다. 스킬 만들기와 같은 시트를 쓰지만 필드는 시안대로
  * 저장범위 · 커맨드명 · 설명 · 실행 규칙만 둔다(대상·스킬 종류·결과 방식·AI 작성·참고 문서 없음).
  * 커맨드명(name → slug)·설명·실행 규칙을 PATCH /skills/{id}로 저장하고, '스킬 삭제'로 지운다.
  * 저장범위는 수정 API가 받지 않아(scope_type은 바꿀 수 없다) 읽기 전용이다.
+ * 고친 내용은 '저장'을 눌러야 반영된다(자동 저장 없음). 테스트 실행은 저장 전 입력값으로 하고, 고친 채 닫으면 버릴지 묻는다.
  */
 export function SkillDetailEditor({
   workspaceId,
@@ -54,7 +55,9 @@ export function SkillDetailEditor({
 }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
-  const [form, setForm] = useState<SkillDetailForm>(() => skillDetailForm(skill));
+  const [initialForm] = useState<SkillDetailForm>(() => skillDetailForm(skill));
+  const [form, setForm] = useState<SkillDetailForm>(initialForm);
+  const sheetClose = useSkillSheetClose(onClose, isSkillFormDirty(initialForm, form));
   const [touched, setTouched] = useState<ReadonlySet<SkillDetailField>>(new Set());
   const [issues, setIssues] = useState<unknown[]>([]);
   const [question, setQuestion] = useState<string | null>(null);
@@ -93,11 +96,11 @@ export function SkillDetailEditor({
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
-      onClose();
+      sheetClose.close();
     }
   });
 
-  const deleteMutation = useMutation({ mutationFn: onDelete, onSuccess: onClose });
+  const deleteMutation = useMutation({ mutationFn: onDelete, onSuccess: sheetClose.close });
 
   const isBusy = saveMutation.isPending || deleteMutation.isPending;
 
@@ -142,7 +145,9 @@ export function SkillDetailEditor({
       testRun={testRun}
       testRunTarget={testRunTarget}
       isClosable={!saveMutation.isPending && !deleteMutation.isPending}
-      onClose={onClose}
+      isLeaving={sheetClose.isLeaving}
+      discardConfirm={sheetClose.discardConfirm}
+      onClose={sheetClose.requestClose}
       footerStart={
         <button
           type="button"
@@ -158,7 +163,7 @@ export function SkillDetailEditor({
       }
       actions={
         <>
-          <button type="button" className={styles["cancel-button"]} onClick={onClose}>
+          <button type="button" className={styles["cancel-button"]} onClick={sheetClose.requestClose}>
             취소
           </button>
           <button

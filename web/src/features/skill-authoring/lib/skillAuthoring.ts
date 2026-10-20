@@ -78,3 +78,11 @@ export function skillUpdateRequest(
     ...(draft.result_mode != null ? { result_mode: draft.result_mode } : {})
   };
 }
+
+/**
+ * 시트를 연 뒤 입력을 고쳤는지. 저장(스킬 만들기) 전에는 반영하지 않으므로, 고친 채 닫으면 버릴지 묻는다.
+ * 폼은 문자열·배열·null로만 이루어져 값 비교로 충분하다.
+ */
+export function isSkillFormDirty(initial: object, current: object): boolean {
+  return JSON.stringify(initial) !== JSON.stringify(current);
+}

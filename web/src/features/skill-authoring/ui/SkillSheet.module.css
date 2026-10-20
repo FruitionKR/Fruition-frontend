@@ -111,6 +111,32 @@
   gap: 16px;
 }
 
+/* 닫을 때 오른쪽으로 빠져나간다(SKILL_SHEET_EXIT_MS = 200ms). 빠져나가는 동안은 누르기를 받지 않는다. */
+.is-leaving {
+  pointer-events: none;
+}
+
+.is-leaving .sheet {
+  animation: skill-sheet-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.is-leaving .dimmed {
+  animation: skill-sheet-fade-out 200ms ease-out forwards;
+}
+
+@keyframes skill-sheet-out {
+  to {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+}
+
+@keyframes skill-sheet-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes skill-sheet-in {
   from {
     transform: translateX(32px);
@@ -126,7 +152,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduce-motion="false"]) .sheet,
-  :root:not([data-reduce-motion="false"]) .dimmed {
+  :root:not([data-reduce-motion="false"]) .dimmed,
+  :root:not([data-reduce-motion="false"]) .is-leaving .sheet,
+  :root:not([data-reduce-motion="false"]) .is-leaving .dimmed {
     animation: none;
   }
 }

@@ -166,6 +166,7 @@
 .search-chip:focus-visible,
 .sort-button:focus-visible,
 .run:focus-visible,
+.command-button:focus-visible,
 .more-button:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
@@ -271,6 +272,22 @@
 .command {
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 커맨드명: 보이는 모양은 일반 텍스트, 키보드로 상세 시트를 여는 버튼 */
+.command-button {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

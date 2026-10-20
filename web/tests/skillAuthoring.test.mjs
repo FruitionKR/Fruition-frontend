@@ -14,7 +14,7 @@ registerHooks({
 
 const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/client.ts");
 const { ApiError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
-const { describeSkillAuthorError, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
+const { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -149,4 +149,11 @@ test("스킬 수정 요청은 초안의 targets·result_mode를 담고, 없으�
   );
   const omitted = skillUpdateRequest({ name: "s", description: "d", instructionsMarkdown: "i" });
   assert.ok(!("targets" in omitted) && !("result_mode" in omitted));
+});
+
+test("시트 입력을 고쳤는지는 처음 값과 비교해 정한다(저장 전 닫기 확인)", () => {
+  const initial = { kind: "document", targets: ["current-document"], command: "summarize", rules: "요약한다" };
+  assert.equal(isSkillFormDirty(initial, { ...initial }), false);
+  assert.equal(isSkillFormDirty(initial, { ...initial, rules: "요약한다." }), true);
+  assert.equal(isSkillFormDirty(initial, { ...initial, targets: ["current-document", "selection"] }), true);
 });

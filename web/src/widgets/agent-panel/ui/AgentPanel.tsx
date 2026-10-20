@@ -16,7 +16,7 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { resolveSubmitRoute, selectionChipLabel, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
+import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { fetchCurrentChatSessionId } from "@/entities/chat";
 import { publishNotice } from "@/features/document-notifications";
@@ -210,6 +210,16 @@ export function AgentPanel({
     [chatMessages]
   );
   const isWorkView = activeView === "work";
+  // 스킬 시트가 열린 동안(테스트 실행 자리가 있는 동안) 작업 탭을 보이고, 닫히면 원래 탭으로 돌린다. 대화는 그대로 둔다.
+  const isSkillSheetOpen = skillTestRunSlotRef != null;
+  const viewBeforeSkillSheetRef = useRef<AgentPanelView | null>(null);
+  useEffect(() => {
+    const next = skillSheetPanelView(isSkillSheetOpen, activeView, viewBeforeSkillSheetRef.current);
+    viewBeforeSkillSheetRef.current = next.saved;
+    setActiveView(next.view);
+    // 시트가 열리고 닫힐 때만 탭을 바꾼다. 열린 동안 사용자가 고른 탭은 건드리지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSkillSheetOpen]);
   // 작업 대상 칩(Figma 1627:9925). ×로 뺀 문서·선택은 같은 문서·같은 선택인 동안만 빠진다.
   const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
   const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
@@ -544,7 +554,8 @@ export function AgentPanel({
         </div>
       ) : null}
       <div className={styles["composer-region"]}>
-        {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} />}
+        {/* 테스트 실행 묶음은 작업 탭에만 보인다(Figma 1671:14585). 채팅 탭으로 바꿔도 자리는 남겨 실행 상태를 잃지 않는다. */}
+        {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} hidden={!isWorkView} />}
         {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
         {wikiEvidenceNotice && !isWorkView && !isPairSelectionMode && !isMeetingAreaOpen && (
           <div className={styles["wiki-evidence-notice"]}>

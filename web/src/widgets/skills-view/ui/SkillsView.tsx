@@ -66,7 +66,7 @@ function ColumnHeader({ column, sort, onSort }: {
 
 /**
  * 스킬 화면 (Figma 1482:9848). 레일 번개로 연다.
- * 목록: 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행 클릭·더보기 '수정' = 스킬 상세 시트(Figma 1708:3848),
+ * 목록: 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행·커맨드명 클릭 = 스킬 상세 시트(Figma 1708:3848),
  * '스킬 만들기' = 스킬 만들기 시트(Figma 1671:13573), 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
  * createRequest가 오면(작업 탭 "이 요청을 스킬로 저장") 그 요청으로 채운 스킬 만들기 시트를 한 번 열고 onCreateRequestHandled로 알린다.
  * 시트가 열리고 닫힐 때 onSheetOpenChange로 알린다(채팅 패널을 함께 띄워 테스트 실행 자리 testRunTarget을 받는다).
@@ -229,11 +229,13 @@ export function SkillsView({
               const isMenuOpen = openMenuId === skill.id;
               return (
                 <div key={skill.id} role="rowgroup">
-                  {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 더보기 '수정'으로 연다. */}
+                  {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 커맨드명 버튼으로 연다(누르면 행으로 전달된다). */}
                   <div className={cx(styles.row, styles["is-clickable"])} role="row" onClick={() => openDetail(skill)}>
                     {/* 커맨드 (Figma 1708:4537): 일반 텍스트 */}
                     <div className={cx(styles.cell, styles["col-command"], styles.command)} role="cell" title={command}>
-                      {command}
+                      <button type="button" className={styles["command-button"]} aria-label={`${command} 상세 열기`}>
+                        {command}
+                      </button>
                     </div>
                     <div className={cx(styles.cell, styles["col-description"], styles.description)} role="cell">
                       {skillDescription(skill)}
@@ -266,9 +268,6 @@ export function SkillsView({
                       </button>
                       {isMenuOpen && (
                         <div className={styles.menu} role="menu">
-                          <button type="button" role="menuitem" onClick={() => openDetail(skill)}>
-                            수정
-                          </button>
                           <button type="button" role="menuitem" className={styles["is-danger"]} onClick={() => {
                             setOpenMenuId(null);
                             deleteMutation.reset();

@@ -7,7 +7,7 @@ import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
-import { describeSkillAuthorError, skillAuthoringOutcome } from "../lib/skillAuthoring";
+import { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
   applySkillDraft,
   INITIAL_SKILL_CREATE_FORM,
@@ -38,7 +38,7 @@ import {
   TargetChecks,
   useReferenceDocuments
 } from "./SkillFormParts";
-import { SkillSheet } from "./SkillSheet";
+import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
 
@@ -74,9 +74,12 @@ export function SkillCreateEditor({
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const prefill = prefillRequest?.trim() ?? "";
-  const [form, setForm] = useState<SkillCreateForm>(() =>
+  const [initialForm] = useState<SkillCreateForm>(() =>
     prefill !== "" ? skillCreateFormFromRequest(prefill) : INITIAL_SKILL_CREATE_FORM
   );
+  const [form, setForm] = useState<SkillCreateForm>(initialForm);
+  // '스킬 만들기'를 누르기 전에는 게시하지 않는다. 고친 채 닫으면 버릴지 묻는다.
+  const sheetClose = useSkillSheetClose(onClose, isSkillFormDirty(initialForm, form));
   const [touched, setTouched] = useState<ReadonlySet<SkillCreateField>>(new Set());
   const [issues, setIssues] = useState<unknown[]>([]);
   const [question, setQuestion] = useState<string | null>(null);
@@ -126,7 +129,7 @@ export function SkillCreateEditor({
         return;
       }
       onPublished();
-      onClose();
+      sheetClose.close();
     }
   });
   const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error) : null;
@@ -199,10 +202,12 @@ export function SkillCreateEditor({
       testRun={testRun}
       testRunTarget={testRunTarget}
       isClosable={!publishMutation.isPending}
-      onClose={onClose}
+      isLeaving={sheetClose.isLeaving}
+      discardConfirm={sheetClose.discardConfirm}
+      onClose={sheetClose.requestClose}
       actions={
         <>
-          <button type="button" className={styles["cancel-button"]} onClick={onClose}>
+          <button type="button" className={styles["cancel-button"]} onClick={sheetClose.requestClose}>
             취소
           </button>
           <button

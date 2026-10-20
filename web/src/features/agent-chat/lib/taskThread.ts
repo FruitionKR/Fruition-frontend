@@ -228,6 +228,19 @@ export function resolveSubmitRoute(view: "chat" | "work", question: string): "qu
   return text === "/" ? null : "task";
 }
 
+/**
+ * 스킬 만들기·상세 시트가 열리고 닫힐 때의 패널 탭(Figma 1671:13573 · 1708:3848).
+ * 열리면 테스트 실행 묶음이 있는 작업 탭으로 옮기고 원래 탭을 기억해 두었다가, 닫히면 그 탭으로 돌려놓는다.
+ */
+export function skillSheetPanelView(
+  isSheetOpen: boolean,
+  current: "chat" | "work",
+  saved: "chat" | "work" | null
+): { view: "chat" | "work"; saved: "chat" | "work" | null } {
+  if (isSheetOpen) return { view: "work", saved: saved ?? current };
+  return { view: saved ?? current, saved: null };
+}
+
 /** 선택 칩 문구(Figma 1627:9923 "선택 : 연구 개요 문단"). 선택한 첫 줄을 짧게 줄인다. */
 export function selectionChipLabel(markdown: string, startLine: number, endLine: number, maxLength = 12): string {
   const lines = markdown.split("\n").slice(Math.max(0, startLine - 1), Math.max(startLine, endLine));

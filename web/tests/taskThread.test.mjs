@@ -18,6 +18,7 @@ const {
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
+  skillSheetPanelView,
   resolveTaskStatus,
   selectionChipLabel,
   splitChatAndTaskMessages,
@@ -180,4 +181,16 @@ test("서버 적용 확인은 끝난 문서 편집 작업만 대상으로 한다
   assert.equal(isServerAppliableTask({ action: "markdown_edit", messageStatus: "pending", turnId: "agent_1" }), false);
   assert.equal(isServerAppliableTask({ action: "markdown_edit", messageStatus: "completed", turnId: null }), false);
   assert.equal(isServerAppliableTask({ action: "clarify", messageStatus: "completed", turnId: "agent_1" }), false);
+});
+
+test("스킬 시트가 열리면 작업 탭으로 옮기고 원래 탭을 기억했다가, 닫히면 그 탭으로 돌린다", () => {
+  const opened = skillSheetPanelView(true, "chat", null);
+  assert.deepEqual(opened, { view: "work", saved: "chat" });
+  // 열린 동안 다시 계산돼도 처음 기억한 탭을 지킨다.
+  assert.deepEqual(skillSheetPanelView(true, "work", opened.saved), { view: "work", saved: "chat" });
+  assert.deepEqual(skillSheetPanelView(false, "work", opened.saved), { view: "chat", saved: null });
+  // 작업 탭에서 열었으면 닫아도 작업 탭이다.
+  assert.deepEqual(skillSheetPanelView(false, "work", skillSheetPanelView(true, "work", null).saved), { view: "work", saved: null });
+  // 시트 없이 처음 마운트되면 탭을 바꾸지 않는다.
+  assert.deepEqual(skillSheetPanelView(false, "chat", null), { view: "chat", saved: null });
 });
