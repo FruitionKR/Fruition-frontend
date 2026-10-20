@@ -64,6 +64,15 @@
   color: var(--color-body);
 }
 
+/* 고른 대상 미리보기: 강조색으로 안내 본문과 구분한다. */
+.text .preview {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  overflow-wrap: anywhere;
+}
+
 .text .error {
   margin-top: 4px;
   font-size: 13px;

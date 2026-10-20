@@ -1,6 +1,7 @@
 // document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
 // mode=task(작업 탭)면 문서 없이도 받고, 채팅 답변 갈래 대신 clarify로 되묻는다(2026-10-19 계약).
-import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now } from "../state.mjs";
+import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument } from "../state.mjs";
+import { classifyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
 const TURN_STAGE_DELAY_MS = 500;
@@ -16,6 +17,8 @@ const CREATE_PATTERN = /(새 문서|문서 만들|문서를 만들|작성해|cre
 const SLASH_SKILL_PATTERN = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/;
 const TASK_MODE = "task";
 const REQUEST_SUMMARY_MAX = 80;
+// 폴더에 원문이 필요한 스킬을 실행하면 바로 아래 Markdown 문서를 최근 수정 순으로 이만큼 읽는다(ai 폴더 원문 규칙).
+const FOLDER_SOURCE_LIMIT = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isLiveFolder(workspaceId, folderId) {
@@ -119,7 +122,18 @@ function selectionError(plan, operationIds) {
   return null;
 }
 
-/** sourceName이 있으면 명시한 스킬이 열린 문서를 원문(source_document)으로 쓴 초안이다(ai _uses_source_document). */
+/** 폴더 바로 아래 Markdown 문서(최근 수정 순, 최대 20개). 원문이 필요한 스킬을 폴더에 실행할 때 원문으로 읽는다. */
+function folderSourceDocuments(workspaceId, folderId) {
+  return state.documents
+    .filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at && (doc.folder_id ?? null) === folderId && isMarkdownDocument(doc))
+    .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))
+    .slice(0, FOLDER_SOURCE_LIMIT);
+}
+
+/**
+ * sourceName이 있으면 명시한 스킬이 열린 문서를 원문(source_document)으로 쓴 초안이다(ai _uses_source_document).
+ * 폴더 원문이면 sourceName이 "N개 문서"다.
+ */
 function createResult(message, sourceName = null) {
   const source = sourceName ? `원문: ${sourceName}\n\n` : "";
   return { action: "markdown_create", route: route("markdown_create", "새 문서 생성 요청"), message: null, chat: null, edit: null, generated_markdown: { title: "AI 초안", summary: message, markdown: `# AI 초안\n\n${source}요청: ${message}\n\n## 내용\n\nmock 서버가 생성한 초안입니다.\n` } };
@@ -137,8 +151,14 @@ function taskResult(workspace, turn, request) {
     const caps = version.capabilities;
     const mode = version.result_mode ?? (caps.includes("document-create") && !caps.includes("document-edit") ? "create" : caps.includes("document-edit") && !caps.includes("document-create") ? "edit" : "auto");
     const wantsCreate = /새 문서/.test(slash.rest) || (!slash.rest && mode === "create") || (!hasDocument && mode !== "edit");
-    // 열린 문서(active_markdown_context)가 오면 원문으로 쓰고, 없으면 스킬 지침만으로 만든다.
-    if (wantsCreate) return createResult(slash.rest || message, hasDocument ? findDocument(workspace.id, request.documentId)?.filename ?? request.documentId : null);
+    // 원문 문서 필요 여부(requires_source). 예전 Skill은 계산값을 쓴다.
+    const requiresSource = typeof version.requires_source === "boolean" ? version.requires_source : classifyRequiresSource(caps, version.instructions_markdown);
+    if (wantsCreate) {
+      // 열린 문서(active_markdown_context)가 오면 원문으로 쓴다. 문서 없이 폴더만 오고 원문이 필요하면 폴더 안 문서를 원문으로 읽는다.
+      if (hasDocument) return createResult(slash.rest || message, findDocument(workspace.id, request.documentId)?.filename ?? request.documentId);
+      if (requiresSource && turn.folder_id) return createResult(slash.rest || message, `${folderSourceDocuments(workspace.id, turn.folder_id).length}개 문서`);
+      return createResult(slash.rest || message);
+    }
     if (!hasDocument) return clarify("수정할 문서를 열고 다시 실행해 주세요.");
     if (!slash.rest && mode === "auto") return clarify("새 문서로 만들까요, 지금 문서를 수정할까요?");
     return buildEditResult(request);

@@ -14,6 +14,8 @@ registerHooks({
 
 const {
   parseSkillInstructions,
+  requiresSourceDrift,
+  showsDetailSourceField,
   resultModeAfterRejection,
   resultModeDrift,
   skillDetailAuthorForm,
@@ -95,7 +97,8 @@ test("skillDetailForm은 버전의 targets·result_mode를 읽는다", () => {
     command: "research-summary",
     description: "연구 문서의 개요를 정리합니다.",
     rules: RULES,
-    targets: ["selection"]
+    targets: ["selection"],
+    requiresSource: null
   });
 });
 
@@ -199,4 +202,38 @@ test("resultModeAfterRejection은 거절된 결과 방식에서 빠졌을 capabi
   assert.equal(resultModeAfterRejection("edit"), "create");
   assert.equal(resultModeAfterRejection("create"), "edit");
   assert.equal(resultModeAfterRejection("auto"), "edit");
+});
+
+test("상세 시트의 원문 문서는 서버 값이 있고 새 문서를 만들 수 있는 문서 스킬에만 보인다", () => {
+  const create = skillDetailForm(skill({ enabled_version: version({ capabilities: ["document-create"], result_mode: "create", requires_source: true }) }));
+  assert.equal(create.requiresSource, true);
+  assert.equal(showsDetailSourceField(create), true);
+  const auto = skillDetailForm(skill({ enabled_version: version({ capabilities: ["document-create", "document-edit"], result_mode: "auto", requires_source: false }) }));
+  assert.equal(showsDetailSourceField(auto), true);
+  // 고치기 전용·폴더 정리·템플릿, 그리고 이 필드를 주지 않는 백엔드(구버전)는 감춘다.
+  assert.equal(showsDetailSourceField(skillDetailForm(skill({ enabled_version: version({ result_mode: "edit", requires_source: true }) }))), false);
+  assert.equal(showsDetailSourceField(skillDetailForm(skill({ enabled_version: version({ capabilities: ["folder-organize"], requires_source: false }) }))), false);
+  assert.equal(showsDetailSourceField(skillDetailForm(skill({ enabled_version: version({ capabilities: ["template"], requires_source: false }) }))), false);
+  const legacy = skillDetailForm(skill({ enabled_version: version({ capabilities: ["document-create"], result_mode: "create" }) }));
+  assert.equal(legacy.requiresSource, null);
+  assert.equal(showsDetailSourceField(legacy), false);
+});
+
+test("skillDetailDraft는 원문 문서를 저장된 값에서 바꿨을 때만 requires_source로 보낸다", () => {
+  const form = skillDetailForm(skill({ enabled_version: version({ capabilities: ["document-create"], result_mode: "create", requires_source: true }) }));
+  assert.ok(!("requires_source" in skillDetailDraft(form)));
+  assert.equal(skillDetailDraft({ ...form, requiresSource: false }, undefined, true).requires_source, false);
+  // 필드가 보이지 않는 스킬은 바꿨어도 보내지 않는다.
+  assert.ok(!("requires_source" in skillDetailDraft({ ...form, resultMode: "edit", requiresSource: false }, undefined, true)));
+});
+
+test("requiresSourceDrift는 보내지 않은 저장에서 AI가 원문 문서를 바꿨을 때만 이전·이후 값을 준다", () => {
+  const created = { capabilities: ["document-create"], result_mode: "create" };
+  assert.deepEqual(requiresSourceDrift(false, undefined, { ...created, requires_source: true }), { from: false, to: true });
+  assert.equal(requiresSourceDrift(false, undefined, { ...created, requires_source: false }), null);
+  // 직접 골라 보냈거나, 원래 값이 없었거나, 응답에 값이 없거나, 다시 분류된 스킬이 고치기 전용이면 알리지 않는다.
+  assert.equal(requiresSourceDrift(false, true, { ...created, requires_source: true }), null);
+  assert.equal(requiresSourceDrift(null, undefined, { ...created, requires_source: true }), null);
+  assert.equal(requiresSourceDrift(false, undefined, created), null);
+  assert.equal(requiresSourceDrift(false, undefined, { capabilities: ["document-edit"], result_mode: "edit", requires_source: true }), null);
 });

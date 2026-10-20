@@ -17,6 +17,11 @@ export interface SkillVersion {
   /** ai#122 배포 전 응답에는 없다. 그 전에 게시된 문서 Skill은 두 대상을 모두 담아 내려온다. */
   targets?: SkillTargetValue[];
   result_mode?: SkillResultModeValue | null;
+  /**
+   * 원문 문서가 필요한지. true면 폴더에 실행할 때 폴더 안 Markdown 문서를 원문으로 읽고, false면 원문 없이 새 문서를 만든다.
+   * 저장할 때 AI가 정하고(지침에 {문서} → true, 템플릿 → false, 그 밖은 분류) 사용자가 바꿀 수 있다. 이 필드가 없는 백엔드는 undefined다.
+   */
+  requires_source?: boolean | null;
 }
 
 // POST /skills/author 요청 (SkillAuthoringRequest)
@@ -43,6 +48,7 @@ export interface SkillAuthoringResult {
   capabilities: string[];
   targets?: SkillTargetValue[];
   result_mode?: SkillResultModeValue | null;
+  requires_source?: boolean | null;
   issues: unknown[];
   question: string | null;
 }
@@ -51,6 +57,8 @@ export interface SkillAuthoringResult {
 export interface SkillExecutionOptions {
   targets?: SkillTargetValue[];
   result_mode?: SkillResultModeValue;
+  /** 사용자가 직접 고른 경우에만 보낸다. 생략하면 게시는 AI가 정하고, 수정은 서버가 정한다. */
+  requires_source?: boolean;
 }
 
 // POST /skills/author/publish 요청 (SkillPublishRequest).

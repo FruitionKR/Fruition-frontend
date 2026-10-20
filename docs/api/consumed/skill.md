@@ -49,6 +49,36 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
 | `invalid_result_mode` | `result_mode`가 `capabilities`와 맞지 않음, 또는 문서 Skill이 아닌데 보냄 | `400` `SKILL_REQUEST_REJECTED`("Skill 요청이 거부되었습니다.") — 전용 code로 옮기지 않음 | 결과 방식을 실어 보낸 PATCH가 이 code로 거절되면 결과 방식 불일치로 보고 상세 시트에 안내(`isResultModeRejection`). 전용 code(`invalid_result_mode`·`INVALID_RESULT_MODE`·`SKILL_RESULT_MODE_INVALID`)가 오면 그대로 인식 |
 | `invalid_targets` | `targets` 중복, 또는 문서 Skill이 아닌데 보냄 | `400` `SKILL_REQUEST_REJECTED` | 일반 저장 실패 문구 |
 
+## 원문 문서: `requires_source`
+
+새 문서를 만드는 Skill이 실행할 때 원문 문서를 읽는지(`boolean`). 타입은 `SkillVersion.requires_source`,
+`SkillAuthoringResult.requires_source`(응답, `boolean | null`), `SkillExecutionOptions.requires_source`(요청, 선택).
+
+- **AI가 저장할 때 정한다**: 지침에 `{문서}`가 있으면 `true`, 템플릿은 `false`, 그 밖은 LLM 분류. 폴더 정리도 `false`.
+  필드가 생기기 전 Skill은 서버가 계산한 값을 내려준다.
+- **요청에는 사용자가 직접 골랐을 때만 싣는다**. 게시(`POST .../author/publish`)는 생략하면 AI가 정하고,
+  수정(`PATCH .../skills/{skill_id}`)은 생략하면 서버가 정한다(지침이 바뀌면 다시 정할 수 있다).
+  - 만들기 시트: '원문 문서' 기본값은 "저장할 때 AI가 정해요"(값 없음). '읽음'·'읽지 않음'을 고르면 `requires_source: true/false`를 싣는다(`skillPublishRequest`).
+  - 상세 시트: 서버 값을 기본으로 보여 주고, 저장된 값에서 바꿨을 때만 싣는다(`skillDetailDraft`). 보내지 않은 저장에서 응답 값이
+    저장 전 값과 다르면(AI가 바꿈) 시트를 닫지 않고 "실행 규칙에 맞춰 AI가 원문 문서를 ‘…’으로 정했어요"와 되돌리기 버튼을 보인다(`requiresSourceDrift`).
+- **필드는 새 문서를 만들 수 있는 문서 Skill에만 보인다**: 결과 방식 `create`·`auto`. `edit`·폴더 정리·템플릿에서는 감추고 보내지 않는다(`showsSourceField`).
+  상세 시트는 응답에 값이 없으면(구버전 백엔드) 감춘다(`showsDetailSourceField`).
+
+### 실행 규칙
+
+| `requires_source` | 대상 | 함께 가는 것 | `folder_id` | AI 결과 | 안내 말풍선 미리보기 |
+|---|---|---|---|---|---|
+| `true` | 폴더 | - | 고른 폴더 | 폴더 바로 아래 Markdown 문서(최근 수정 순 최대 20개, 글자 수 상한)를 원문으로 읽어 그 폴더에 새 문서 | `'{폴더}' 폴더 문서 N개를 읽어 새 문서를 만들어요` (N>20이면 ` (최근 20개만)`) |
+| `false` | 폴더 | - | 고른 폴더 | 원문 없이 그 폴더에 새 문서(위치만) | `'{폴더}' 폴더에 새 문서를 만들어요 (원문 없이)` |
+| `true` | 문서 ('새 문서로 만들기') | 문서 문맥 | 문서가 있는 폴더 | 그 문서를 원문으로 같은 폴더에 새 문서 | `'{문서}'를 읽어 같은 폴더에 새 문서를 만들어요` |
+| `false` | 문서 ('새 문서로 만들기') | **보내지 않음** | 문서가 있는 폴더(루트면 생략) | 원문 없이 그 폴더에 새 문서 | `'{문서}'가 있는 폴더에 새 문서를 만들어요 (원문 없이)` |
+| 없음(구버전) | - | 아래 기존 표 그대로 | | | 없음 |
+
+- 문서 이름 뒤 조사(을·를, 이·가)는 받침에 맞춘다. N은 사이드바 트리에서 그 폴더 **바로 아래** Markdown 문서 수다(`folderMarkdownCount`). 하위 폴더 안 문서는 세지 않는다.
+- '상황에 맞게'에 문서를 고르면 고칠 수도 있어 `requires_source`와 상관없이 문서 문맥을 보내고 미리보기를 두지 않는다. 폴더를 고르면 위 폴더 규칙을 따른다.
+- 원문이 필요 없는 '새 문서로 만들기'에 문서를 고르면 그 문서를 편집기에 열지 않는다(`skillRunSourceDocumentId`).
+- 구현: `web/src/widgets/workspace/lib/skillRunTarget.ts` `skillRunPreview`·`skillRunSourceDocumentId`, `web/src/widgets/skills-view/ui/SkillRunCoach.tsx`.
+
 ## 스킬 화면에서 실행 (작업 탭 `POST /ai/agent/turn`)
 
 스킬 목록의 '실행'은 사이드바에서 대상을 고른 뒤 작업 탭으로 **할 일 없이 `message: "/slug"`만** 보낸다
@@ -60,8 +90,8 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
 |---|---|---|---|---|
 | 폴더 정리 | 폴더 | - | 고른 폴더 | 그 폴더 정리 계획 |
 | 템플릿 | 폴더 | - | 고른 폴더 | 새 문서 초안 |
-| 새 문서로 만들기 | 문서 | 문서 문맥 | 문서가 있는 폴더(루트면 생략) | 그 문서를 원문으로 새 문서 초안 |
-| 새 문서로 만들기 | 폴더 | - | 고른 폴더 | 새 문서 초안 |
+| 새 문서로 만들기 | 문서 | 문서 문맥(`requires_source: false`면 없음) | 문서가 있는 폴더(루트면 생략) | 그 문서를 원문으로 새 문서 초안(`false`면 원문 없이) |
+| 새 문서로 만들기 | 폴더 | - | 고른 폴더 | 새 문서 초안(`requires_source: true`면 폴더 문서를 원문으로) |
 | 열린 문서 고치기 | 문서 | 문서 문맥 | 생략 | 편집안 |
 | 상황에 맞게 | 문서 | 문서 문맥 | 생략 | 되묻기(아래) |
 | 상황에 맞게 | 폴더 | - | 고른 폴더 | 새 문서 초안 |

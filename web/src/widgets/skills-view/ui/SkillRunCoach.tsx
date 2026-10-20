@@ -11,12 +11,15 @@ import styles from "./SkillRunCoach.module.css";
  */
 export function SkillRunCoach({
   hasTarget,
+  preview,
   errorMessage,
   onCancel,
   onNext
 }: {
   /** 사이드바에서 쓸 수 있는 대상을 골랐는지 */
   hasTarget: boolean;
+  /** 고른 대상으로 무엇을 할지 미리 알리는 문구(원문 문서를 읽는지 등). 없으면 감춘다. */
+  preview?: string | null;
   /** 고른 항목을 대상으로 쓸 수 없을 때 안내(폴더 정리 스킬에 문서를 고른 경우, 선택한 부분에만 쓰는 스킬 등) */
   errorMessage: string | null;
   onCancel: () => void;
@@ -41,6 +44,7 @@ export function SkillRunCoach({
             <br />
             폴더 정리 스킬은 정리할 폴더를 고릅니다.
           </p>
+          {preview && !errorMessage && <p className={styles.preview} role="status">{preview}</p>}
           {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
         </div>
         <div className={styles.actions}>

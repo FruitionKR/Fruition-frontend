@@ -65,7 +65,7 @@ export function skillAuthoringOutcome(result: Pick<SkillAuthoringResult, "status
 
 /**
  * 스킬 수정 요청을 만든다. name은 상세 시트의 커맨드명이다(PATCH가 name으로 slug를 바꾼다).
- * 대상·결과 방식은 초안에 있을 때만 보낸다(문서 스킬). 빼면 서버가 기존 값을 유지한다.
+ * 대상·결과 방식·원문 문서는 초안에 있을 때만 보낸다(문서 스킬). 빼면 서버가 기존 값을 유지하거나 정한다.
  */
 export function skillUpdateRequest(
   draft: { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions
@@ -75,7 +75,8 @@ export function skillUpdateRequest(
     description: draft.description,
     instructions_markdown: draft.instructionsMarkdown,
     ...(draft.targets != null ? { targets: [...draft.targets] } : {}),
-    ...(draft.result_mode != null ? { result_mode: draft.result_mode } : {})
+    ...(draft.result_mode != null ? { result_mode: draft.result_mode } : {}),
+    ...(draft.requires_source != null ? { requires_source: draft.requires_source } : {})
   };
 }
 

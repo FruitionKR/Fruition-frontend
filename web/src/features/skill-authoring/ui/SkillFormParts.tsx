@@ -13,7 +13,17 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 import { menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { ReferenceDocumentPickerModal } from "./ReferenceDocumentPickerModal";
 import { documentDisplayName } from "../lib/referenceDocumentPicker";
-import { SKILL_KIND_CARDS, SKILL_TARGET_OPTIONS, type SkillTarget } from "../lib/skillCreateForm";
+import {
+  requiresSourceFromChoice,
+  SKILL_KIND_CARDS,
+  SKILL_SOURCE_OPTIONS,
+  SKILL_TARGET_OPTIONS,
+  SOURCE_AI_PLACEHOLDER,
+  sourceChoice,
+  sourceHint,
+  sourceLabel,
+  type SkillTarget
+} from "../lib/skillCreateForm";
 import styles from "./SkillEditor.module.css";
 
 /** 스킬 만들기·스킬 상세 시트가 함께 쓰는 입력 조각. */
@@ -71,13 +81,16 @@ export function SelectBox<T extends string>({
   id,
   value,
   options,
+  placeholder = "",
   disabled,
   describedBy,
   onChange
 }: {
   id: string;
-  value: T;
+  /** null이면 아직 고르지 않아 placeholder를 보여 준다. */
+  value: T | null;
   options: ReadonlyArray<{ value: T; label: string }>;
+  placeholder?: string;
   disabled?: boolean;
   describedBy?: string;
   onChange: (value: T) => void;
@@ -86,7 +99,7 @@ export function SelectBox<T extends string>({
     <OptionSelect
       id={id}
       value={value}
-      placeholder=""
+      placeholder={placeholder}
       options={options}
       disabled={disabled}
       describedBy={describedBy}
@@ -153,6 +166,65 @@ export const RESULT_HELP = (
     상황에 맞게 - 요청에 따라 Agent가 고릅니다.
   </>
 );
+
+export const SOURCE_HELP = (
+  <>
+    읽음 - 폴더에 실행하면 폴더 안 Markdown 문서(최근 20개)를, 문서에 실행하면 그 문서를 원문으로 읽습니다.
+    <br />
+    읽지 않음 - 원문 없이 실행 규칙만으로 새 문서를 만듭니다.
+  </>
+);
+
+/**
+ * '원문 문서' 필드(requires_source). 읽음·읽지 않음을 고르고, 고르기 전(null)에는 'AI가 정해요' 상태를 보인다.
+ * note가 있으면 AI가 값을 바꿨다고 알리고 이전 값으로 되돌리는 버튼을 둔다.
+ */
+export function SourceField({
+  id,
+  value,
+  note,
+  onChange,
+  onUndo
+}: {
+  id: string;
+  value: boolean | null;
+  note?: { from: boolean; to: boolean } | null;
+  onChange: (value: boolean) => void;
+  onUndo?: () => void;
+}) {
+  const hintId = `${id}-hint`;
+  return (
+    <div className={styles.field}>
+      <div className={styles["label-row"]}>
+        <label className={styles.label} htmlFor={id}>
+          원문 문서
+        </label>
+        <HelpTip label="원문 문서" content={SOURCE_HELP} />
+      </div>
+      <div className={styles.menu}>
+        <SelectBox
+          id={id}
+          value={sourceChoice(value)}
+          options={SKILL_SOURCE_OPTIONS}
+          placeholder={SOURCE_AI_PLACEHOLDER}
+          describedBy={hintId}
+          onChange={(choice) => onChange(requiresSourceFromChoice(choice))}
+        />
+        <p id={hintId} className={styles.hint}>
+          {sourceHint(value)}
+        </p>
+        {note && onUndo && value === note.to && (
+          <p className={styles["result-note"]} role="status">
+            <span>실행 규칙에 맞춰 AI가 원문 문서를 ‘{sourceLabel(note.to)}’으로 정했어요.</span>
+            <button type="button" className={styles["result-note-undo"]} onClick={onUndo}>
+              ‘{sourceLabel(note.from)}’으로 되돌리기
+            </button>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * 참고 문서 선택 상태(최대 3개)와 선택 모달. AI 작성 요청에만 쓰인다(게시·수정 API는 참고 문서를 받지 않는다).

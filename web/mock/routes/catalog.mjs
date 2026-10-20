@@ -39,6 +39,28 @@ const CAPABILITY_TOOLS = {
   template: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"]
 };
 const usedTestRunIds = new Set();
+const SOURCE_KEYWORD_PATTERN = /요약|정리|비교/;
+
+/**
+ * requires_source(원문 문서 필요 여부) AI 분류 재현: 템플릿·폴더 정리 → false, 지침에 {문서} → true,
+ * 요약·정리·비교 같은 원문이 필요한 말이 있으면 true, 그 밖은 false.
+ */
+export function classifyRequiresSource(capabilities, instructions) {
+  if (!isDocumentSkill(capabilities ?? [])) return false;
+  const text = instructions ?? "";
+  return text.includes("{문서}") || SOURCE_KEYWORD_PATTERN.test(text);
+}
+
+/** 이 필드가 생기기 전 버전(seed 등)은 계산한 값으로 내려준다(백엔드가 예전 Skill에 계산값을 주는 것과 같다). */
+function withRequiresSource(version) {
+  if (!version || typeof version.requires_source === "boolean") return version;
+  return { ...version, requires_source: classifyRequiresSource(version.capabilities, version.instructions_markdown) };
+}
+
+/** 요청의 requires_source: 사용자가 고른 값(boolean). 생략·null이면 undefined다(형식은 라우트가 먼저 검사한다). */
+function requestedRequiresSource(body) {
+  return typeof body.requires_source === "boolean" ? body.requires_source : undefined;
+}
 
 function isDocumentSkill(capabilities) {
   return capabilities.some((capability) => DOCUMENT_CAPABILITIES.has(capability));
@@ -139,7 +161,8 @@ function toAuthoringResult(skill, version, issues = []) {
     skill_id: skill.id, version_id: version.id, name: version.name, description: version.description,
     instructions_markdown: version.instructions_markdown, skill_markdown: buildSkillMarkdown(version.name, version.description, version.instructions_markdown),
     scope_type: skill.scope_type, status: version.status, allowed_tools: version.allowed_tools, capabilities: version.capabilities,
-    targets: version.targets ?? [], result_mode: version.result_mode ?? null, issues, question: null
+    targets: version.targets ?? [], result_mode: version.result_mode ?? null,
+    requires_source: withRequiresSource(version).requires_source ?? null, issues, question: null
   };
 }
 
@@ -237,7 +260,9 @@ export function registerCatalogRoutes(router) {
   router.get("/api/workspaces/:wid/skills", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    ctx.json(200, state.skills.filter((skill) => skill.workspace_id === workspace.id));
+    ctx.json(200, state.skills
+      .filter((skill) => skill.workspace_id === workspace.id)
+      .map((skill) => ({ ...skill, enabled_version: withRequiresSource(skill.enabled_version), latest_version: withRequiresSource(skill.latest_version) })));
   });
 
   router.post("/api/workspaces/:wid/skills/author", async (ctx) => {
@@ -263,10 +288,15 @@ export function registerCatalogRoutes(router) {
     const slug = slugify(name);
     if (state.skills.some((skill) => skill.workspace_id === workspace.id && skill.slug === slug)) return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
     // 게시에서 targets를 생략하거나 []이면 ["current_document"], result_mode를 생략하면 null이다.
+    if (body.requires_source != null && typeof body.requires_source !== "boolean") return error(ctx, 400, "requires_source는 true·false여야 합니다.", "INVALID_REQUEST");
     const options = executionOptions(ctx, capabilities, body, { targets: [], result_mode: null });
     if (!options) return;
     const tools = Array.isArray(allowed_tools) && allowed_tools.length > 0 ? allowed_tools : canonicalTools(capabilities);
-    const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: tools, capabilities, instructions_markdown: instructions_markdown ?? "", ...options };
+    // 사용자가 고르면 그 값을, 아니면 AI가 지침으로 정한다. 템플릿·폴더 정리는 늘 false다.
+    const requiresSource = isDocumentSkill(capabilities)
+      ? requestedRequiresSource(body) ?? classifyRequiresSource(capabilities, instructions_markdown)
+      : false;
+    const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: tools, capabilities, instructions_markdown: instructions_markdown ?? "", ...options, requires_source: requiresSource };
     const skill = { id: id("skill"), workspace_id: workspace.id, owner_user_id: ctx.user.id, slug, scope_type: scope_type ?? "personal", status: "enabled", enabled_version: version, latest_version: version };
     state.skills.push(skill);
     ctx.json(201, toAuthoringResult(skill, version));
@@ -328,9 +358,15 @@ export function registerCatalogRoutes(router) {
       : /#고치기/.test(body.instructions_markdown) ? ["document-edit"] : base?.capabilities ?? [];
     // 생략한 값은 이어받는다. 필드가 생기기 전 문서 Skill(targets 없음)은 두 대상 모두로 읽는다.
     const inherited = { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
+    if (body.requires_source != null && typeof body.requires_source !== "boolean") return error(ctx, 400, "requires_source는 true·false여야 합니다.", "INVALID_REQUEST");
     const options = executionOptions(ctx, reclassified, body, inherited);
     if (!options) return;
-    const version = { ...base, capabilities: reclassified, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options };
+    // 보낸 값이 있으면 그 값을 쓴다. 생략하면 지침이 바뀌었을 때만 AI가 다시 정하고, 아니면 기존 값을 이어받는다.
+    const inheritedSource = withRequiresSource(base)?.requires_source ?? false;
+    const requiresSource = !isDocumentSkill(reclassified) ? false
+      : requestedRequiresSource(body)
+        ?? (body.instructions_markdown !== base?.instructions_markdown ? classifyRequiresSource(reclassified, body.instructions_markdown) : inheritedSource);
+    const version = { ...base, capabilities: reclassified, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options, requires_source: requiresSource };
     skill.slug = body.name;
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;

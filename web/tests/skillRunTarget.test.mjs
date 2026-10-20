@@ -8,7 +8,10 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { resolveSkillRunTarget, skillRunBlockedMessage, skillRunFolderId, skillRunIntent, skillRunMessage, skillRunTargetKind } =
+const {
+  folderMarkdownCount, resolveSkillRunTarget, skillRunBlockedMessage, skillRunFolderId, skillRunIntent, skillRunMessage,
+  skillRunPreview, skillRunSourceDocumentId, skillRunTargetKind
+} =
   await import("../src/widgets/workspace/lib/skillRunTarget.ts");
 
 const version = (capabilities, resultMode, targets) => ({ capabilities, result_mode: resultMode, targets });
@@ -119,4 +122,62 @@ test("folder_id는 폴더 대상이면 그 폴더, 새 문서로 만들기 스�
   assert.equal(skillRunFolderId(CREATE_SKILL, rootDocumentTarget), null);
   assert.equal(skillRunFolderId(EDIT_SKILL, documentTarget), null);
   assert.equal(skillRunFolderId(AUTO_SKILL, documentTarget), null);
+});
+
+const withSource = (skillVersion, requiresSource) => ({ ...skillVersion, requires_source: requiresSource });
+
+test("folderMarkdownCount는 폴더 바로 아래 Markdown 문서만 센다", () => {
+  const nested = {
+    id: "f2", label: "자료", type: "folder",
+    children: [
+      { id: "a", label: "회의.md", documentId: "d1" },
+      { id: "b", label: "논문.pdf", documentId: "d2" },
+      { id: "c", label: "새 노트.md", documentId: "d-unknown", mimeType: "text/markdown" },
+      { id: "sub", label: "하위", type: "folder", children: [{ id: "d", label: "메모.md", documentId: "d3" }] },
+      { id: "w", label: "개념", type: "wiki" }
+    ]
+  };
+  assert.equal(folderMarkdownCount(nested, documents), 2);
+  assert.equal(folderMarkdownCount({ id: "e", label: "빈", type: "folder" }, documents), 0);
+});
+
+test("원문이 필요한 스킬을 폴더에 실행하면 폴더 문서 N개를 읽는다고 미리 알리고, 20개를 넘으면 최근 20개만이라고 덧붙인다", () => {
+  const create = withSource(CREATE_SKILL, true);
+  assert.equal(skillRunPreview(create, folderTarget, 3), "'회의록' 폴더 문서 3개를 읽어 새 문서를 만들어요");
+  assert.equal(skillRunPreview(create, folderTarget, 20), "'회의록' 폴더 문서 20개를 읽어 새 문서를 만들어요");
+  assert.equal(skillRunPreview(create, folderTarget, 25), "'회의록' 폴더 문서 25개를 읽어 새 문서를 만들어요 (최근 20개만)");
+  assert.match(skillRunPreview(create, folderTarget, 0), /읽을 Markdown 문서가 없어/);
+  assert.equal(skillRunPreview(withSource(AUTO_SKILL, true), folderTarget, 2), "'회의록' 폴더 문서 2개를 읽어 새 문서를 만들어요");
+});
+
+test("원문이 필요 없는 스킬은 폴더·문서 대상 모두 원문 없이 새 문서를 만든다고 알린다", () => {
+  const create = withSource(CREATE_SKILL, false);
+  assert.equal(skillRunPreview(create, folderTarget, 5), "'회의록' 폴더에 새 문서를 만들어요 (원문 없이)");
+  assert.equal(skillRunPreview(withSource(TEMPLATE_SKILL, false), folderTarget, 5), "'회의록' 폴더에 새 문서를 만들어요 (원문 없이)");
+  assert.equal(skillRunPreview(create, documentTarget), "'회의'가 있는 폴더에 새 문서를 만들어요 (원문 없이)");
+  assert.equal(skillRunPreview(withSource(CREATE_SKILL, true), documentTarget), "'회의'를 읽어 같은 폴더에 새 문서를 만들어요");
+  // Markdown 확장자는 빼고, 받침 있는 한글 이름은 조사를 맞춘다.
+  const named = { ...documentTarget, label: "주간 회의록" };
+  assert.equal(skillRunPreview(withSource(CREATE_SKILL, true), named), "'주간 회의록'을 읽어 같은 폴더에 새 문서를 만들어요");
+  assert.equal(skillRunPreview(create, named), "'주간 회의록'이 있는 폴더에 새 문서를 만들어요 (원문 없이)");
+});
+
+test("값을 모르거나(구버전 백엔드) 폴더 정리·고치기·상황에 맞게의 문서 대상이면 미리보기를 만들지 않는다", () => {
+  assert.equal(skillRunPreview(CREATE_SKILL, folderTarget, 3), null);
+  assert.equal(skillRunPreview(withSource(CREATE_SKILL, null), documentTarget), null);
+  assert.equal(skillRunPreview(withSource(FOLDER_SKILL, false), folderTarget, 3), null);
+  assert.equal(skillRunPreview(withSource(EDIT_SKILL, true), documentTarget), null);
+  assert.equal(skillRunPreview(withSource(AUTO_SKILL, true), documentTarget), null);
+});
+
+test("원문이 필요 없는 새 문서로 만들기 스킬에 문서를 고르면 문서를 원문으로 보내지 않고 그 폴더만 쓴다", () => {
+  const skip = withSource(CREATE_SKILL, false);
+  assert.equal(skillRunSourceDocumentId(skip, documentTarget), null);
+  assert.equal(skillRunFolderId(skip, documentTarget), "f1");
+  assert.equal(skillRunSourceDocumentId(withSource(CREATE_SKILL, true), documentTarget), "d1");
+  // 값을 모르면 예전처럼 보낸다. 상황에 맞게·고치기는 문서를 고칠 수 있어 늘 보낸다. 폴더 대상은 문서가 없다.
+  assert.equal(skillRunSourceDocumentId(CREATE_SKILL, documentTarget), "d1");
+  assert.equal(skillRunSourceDocumentId(withSource(AUTO_SKILL, false), documentTarget), "d1");
+  assert.equal(skillRunSourceDocumentId(withSource(EDIT_SKILL, false), documentTarget), "d1");
+  assert.equal(skillRunSourceDocumentId(withSource(CREATE_SKILL, true), folderTarget), null);
 });

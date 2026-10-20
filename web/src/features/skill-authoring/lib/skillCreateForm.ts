@@ -54,10 +54,23 @@ export const SKILL_SCOPE_OPTIONS: ReadonlyArray<{ value: SkillScope; label: stri
   { value: "team", label: "팀" }
 ];
 
+/** 원문 문서: read=읽음, skip=읽지 않음 (requires_source true/false) */
+export type SkillSourceChoice = "read" | "skip";
+
+export const SKILL_SOURCE_OPTIONS: ReadonlyArray<{ value: SkillSourceChoice; label: string }> = [
+  { value: "read", label: "읽음" },
+  { value: "skip", label: "읽지 않음" }
+];
+
+/** 원문 문서를 아직 정하지 않았을 때(만들기 시트에서 고르기 전) 선택 상자에 보이는 문구 */
+export const SOURCE_AI_PLACEHOLDER = "저장할 때 AI가 정해요";
+
 export interface SkillCreateForm {
   kind: SkillKind;
   resultMode: SkillResultMode;
   targets: readonly SkillTarget[];
+  /** 원문 문서 필요 여부(requires_source). null이면 사용자가 고르지 않아 저장할 때 AI가 정한다. */
+  requiresSource: boolean | null;
   scope: SkillScope;
   command: string;
   description: string;
@@ -72,6 +85,7 @@ export const INITIAL_SKILL_CREATE_FORM: SkillCreateForm = {
   kind: "document",
   resultMode: "auto",
   targets: ["current-document"],
+  requiresSource: null,
   scope: "personal",
   command: "",
   description: "",
@@ -107,6 +121,34 @@ export function skillCapabilities(kind: SkillKind, resultMode: SkillResultMode):
   return ["document-create", "document-edit"];
 }
 
+/**
+ * '원문 문서' 필드를 보여 줄지. 새 문서를 만들 수 있는 문서 스킬('새 문서로 만들기'·'상황에 맞게')에만 의미가 있다.
+ * '열린 문서 고치기'·폴더 정리·템플릿(늘 원문 없음)은 감춘다.
+ */
+export function showsSourceField(kind: SkillKind | null, resultMode: SkillResultMode): boolean {
+  return kind === "document" && resultMode !== "edit";
+}
+
+export function sourceChoice(requiresSource: boolean | null): SkillSourceChoice | null {
+  if (requiresSource == null) return null;
+  return requiresSource ? "read" : "skip";
+}
+
+export function requiresSourceFromChoice(choice: SkillSourceChoice): boolean {
+  return choice === "read";
+}
+
+/** '원문 문서' 아래 안내. 정하지 않았으면(null) AI가 무엇으로 정하는지 알린다. */
+export function sourceHint(requiresSource: boolean | null): string {
+  if (requiresSource == null) return "고르지 않으면 실행 규칙을 보고 AI가 정해요. 저장한 뒤 스킬 상세에서 바꿀 수 있어요.";
+  return requiresSource ? "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요" : "원문 없이 새 문서를 만들어요";
+}
+
+/** 원문 문서 값 → 화면 라벨('읽음'·'읽지 않음') */
+export function sourceLabel(requiresSource: boolean): string {
+  return requiresSource ? "읽음" : "읽지 않음";
+}
+
 const TARGET_VALUES: Record<SkillTarget, SkillTargetValue> = {
   "current-document": "current_document",
   selection: "selection"
@@ -133,15 +175,20 @@ export function skillExecutionOptions(
   };
 }
 
-/** 시트 입력값 → POST /skills/author/publish 요청. allowed_tools는 서버가 capabilities로 계산한다(ai#121). */
+/**
+ * 시트 입력값 → POST /skills/author/publish 요청. allowed_tools는 서버가 capabilities로 계산한다(ai#121).
+ * requires_source는 사용자가 '원문 문서'를 직접 골랐고 그 필드가 보이는 스킬일 때만 보낸다. 빼면 AI가 정한다.
+ */
 export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest {
+  const sendsSource = form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
   return {
     name: form.command.trim(),
     description: form.description.trim(),
     instructions_markdown: form.rules.trim(),
     scope_type: form.scope,
     capabilities: skillCapabilities(form.kind, form.resultMode),
-    ...skillExecutionOptions(form.kind, form.resultMode, form.targets)
+    ...skillExecutionOptions(form.kind, form.resultMode, form.targets),
+    ...(sendsSource ? { requires_source: form.requiresSource as boolean } : {})
   };
 }
 

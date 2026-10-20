@@ -21,6 +21,7 @@ import {
   skillAuthorRequest,
   skillCreateFormFromRequest,
   rulesPlaceholderHint,
+  showsSourceField,
   skillPublishRequest,
   skillResultModeLabel,
   validateSkillCreateForm,
@@ -38,6 +39,7 @@ import {
   SelectBox,
   SkillAuthorAssist,
   SkillSafetyIssues,
+  SourceField,
   TargetChecks,
   useReferenceDocuments
 } from "./SkillFormParts";
@@ -236,7 +238,7 @@ export function SkillCreateEditor({
         </p>
       )}
 
-      {/* 입력 순서·모양은 Figma 1671:14736: 종류 · 결과 방식 · 대상 · 저장범위 · 커맨드명 · 설명 · 실행 규칙 */}
+      {/* 입력 순서·모양은 Figma 1671:14736: 종류 · 결과 방식 · 대상 · (원문 문서) · 저장범위 · 커맨드명 · 설명 · 실행 규칙 */}
       <div className={styles.fields}>
         {/* 스킬 종류 → capability */}
         <div className={styles.field}>
@@ -297,6 +299,15 @@ export function SkillCreateEditor({
               {errorText("targets")}
             </fieldset>
           </>
+        )}
+
+        {/* 새 문서를 만들 수 있는 문서 스킬만: 원문 문서 → requires_source. 고르지 않으면 보내지 않고 저장할 때 AI가 정한다. */}
+        {showsSourceField(form.kind, form.resultMode) && (
+          <SourceField
+            id={fieldId("source")}
+            value={form.requiresSource}
+            onChange={(requiresSource) => update({ requiresSource })}
+          />
         )}
 
         {/* 저장범위 → scope_type */}

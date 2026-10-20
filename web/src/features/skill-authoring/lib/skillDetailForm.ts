@@ -5,6 +5,7 @@ import {
   SKILL_DESCRIPTION_MAX,
   SKILL_INSTRUCTIONS_MAX,
   SKILL_TARGET_OPTIONS,
+  showsSourceField,
   skillCommandError,
   skillExecutionOptions,
   targetsFromValues,
@@ -31,6 +32,11 @@ export interface SkillDetailForm {
   description: string;
   rules: string;
   targets: readonly SkillTarget[];
+  /**
+   * 원문 문서 필요 여부(requires_source). 서버가 이 필드를 주지 않으면(구버전 백엔드) null이고 '원문 문서' 필드를 감춘다.
+   * 필드는 새 문서를 만들 수 있는 문서 스킬에만 보인다(showsSourceField).
+   */
+  requiresSource: boolean | null;
 }
 
 // 이전 만들기 시트가 대상·결과 방식을 지침 끝에 붙이던 "## 실행 대상" 절 형식.
@@ -96,8 +102,14 @@ export function skillDetailForm(skill: SkillResponse): SkillDetailForm {
     command: skill.slug,
     description: version?.description ?? "",
     rules: parsed.rules,
-    targets: legacyTargets ?? (storedTargets.length > 0 ? storedTargets : INITIAL_SKILL_CREATE_FORM.targets)
+    targets: legacyTargets ?? (storedTargets.length > 0 ? storedTargets : INITIAL_SKILL_CREATE_FORM.targets),
+    requiresSource: typeof version?.requires_source === "boolean" ? version.requires_source : null
   };
+}
+
+/** 상세 시트에 '원문 문서' 필드를 보여 줄지. 서버 값이 있고 새 문서를 만들 수 있는 문서 스킬일 때만이다. */
+export function showsDetailSourceField(form: Pick<SkillDetailForm, "kind" | "resultMode" | "requiresSource">): boolean {
+  return form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
 }
 
 export type SkillDetailDraft = { name: string; description: string; instructionsMarkdown: string } & SkillExecutionOptions;
@@ -110,15 +122,38 @@ export type SkillDetailDraft = { name: string; description: string; instructions
  * resultMode는 그렇게 거절됐거나(구버전 백엔드는 비워서 저장한다, resultModeDrift) 사용자가 다시 고른 값이다.
  * 문서 스킬일 때만 담는다.
  */
-export function skillDetailDraft(form: SkillDetailForm, resultMode?: SkillResultMode): SkillDetailDraft {
+export function skillDetailDraft(
+  form: SkillDetailForm,
+  resultMode?: SkillResultMode,
+  savedRequiresSource: boolean | null = form.requiresSource
+): SkillDetailDraft {
   const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
+  // 원문 문서는 사용자가 저장된 값에서 바꿨을 때만 보낸다. 빼면 서버가 정한다(지침을 고치면 AI가 다시 정할 수 있다).
+  const sendsSource = showsDetailSourceField(form) && form.requiresSource !== savedRequiresSource;
   return {
     name: form.command.trim(),
     description: form.description.trim(),
     instructionsMarkdown: form.rules.trim(),
     ...(targets != null ? { targets } : {}),
-    ...(targets != null && resultMode != null ? { result_mode: resultMode } : {})
+    ...(targets != null && resultMode != null ? { result_mode: resultMode } : {}),
+    ...(sendsSource ? { requires_source: form.requiresSource as boolean } : {})
   };
+}
+
+/**
+ * 원문 문서를 보내지 않은 저장에서 서버(AI)가 값을 바꿨는지 본다. 사용자가 예상한 값(저장 전 값, from)과 다르면
+ * 이전·이후 값을 돌려줘 시트에 알리고 되돌릴 수 있게 한다. 직접 골라 보냈거나, 값이 없거나, 같으면 null이다.
+ * 다시 분류된 스킬이 새 문서를 만들지 않으면('열린 문서 고치기'·폴더 정리·템플릿) 필드가 없어 알리지 않는다.
+ */
+export function requiresSourceDrift(
+  from: boolean | null,
+  sent: boolean | undefined,
+  result: Pick<SkillAuthoringResult, "capabilities" | "result_mode" | "requires_source">
+): { from: boolean; to: boolean } | null {
+  if (sent !== undefined || from == null || typeof result.requires_source !== "boolean" || result.requires_source === from) return null;
+  const reclassified = kindFromCapabilities(result.capabilities ?? []);
+  if (reclassified == null || !showsSourceField(reclassified.kind, result.result_mode ?? reclassified.resultMode)) return null;
+  return { from, to: result.requires_source };
 }
 
 /**
@@ -178,6 +213,7 @@ export function skillDetailAuthorForm(form: SkillDetailForm): SkillCreateForm {
     ...INITIAL_SKILL_CREATE_FORM,
     ...(form.kind != null ? { kind: form.kind, resultMode: form.resultMode } : {}),
     targets: form.targets,
+    requiresSource: form.requiresSource,
     scope: form.scope,
     command: form.command,
     description: form.description,

@@ -14,6 +14,8 @@ registerHooks({
 
 const {
   INITIAL_SKILL_CREATE_FORM,
+  showsSourceField,
+  sourceHint,
   skillCapabilities,
   skillExecutionOptions,
   skillPublishRequest,
@@ -189,4 +191,29 @@ test("AI 초안이 문서 스킬의 결과 방식을 바꾸면 이전·이후 �
   // 바뀌지 않았거나 문서 스킬이 아니면 알릴 것이 없다.
   assert.equal(draftResultModeChange(chosen, applySkillDraft(chosen, { ...draft, capabilities: ["document-create"] })), null);
   assert.equal(draftResultModeChange(chosen, { kind: "folder", resultMode: "create" }), null);
+});
+
+test("원문 문서 필드는 새 문서를 만들 수 있는 문서 스킬('새 문서로 만들기'·'상황에 맞게')에만 보인다", () => {
+  assert.equal(showsSourceField("document", "create"), true);
+  assert.equal(showsSourceField("document", "auto"), true);
+  assert.equal(showsSourceField("document", "edit"), false);
+  assert.equal(showsSourceField("folder", "create"), false);
+  assert.equal(showsSourceField("template", "create"), false);
+  assert.equal(showsSourceField(null, "create"), false);
+});
+
+test("원문 문서 안내는 고른 값마다 다르고, 고르기 전에는 AI가 정한다고 알린다", () => {
+  assert.equal(sourceHint(true), "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요");
+  assert.equal(sourceHint(false), "원문 없이 새 문서를 만들어요");
+  assert.match(sourceHint(null), /AI가 정해요/);
+});
+
+test("게시 요청은 사용자가 원문 문서를 직접 골랐을 때만 requires_source를 싣는다", () => {
+  assert.equal(INITIAL_SKILL_CREATE_FORM.requiresSource, null);
+  assert.ok(!("requires_source" in skillPublishRequest(filledForm)));
+  assert.equal(skillPublishRequest({ ...filledForm, requiresSource: true }).requires_source, true);
+  assert.equal(skillPublishRequest({ ...filledForm, resultMode: "auto", requiresSource: false }).requires_source, false);
+  // 고른 뒤 고치기 전용·폴더 정리로 바꾸면 필드가 사라져 보내지 않는다.
+  assert.ok(!("requires_source" in skillPublishRequest({ ...filledForm, resultMode: "edit", requiresSource: true })));
+  assert.ok(!("requires_source" in skillPublishRequest({ ...filledForm, kind: "folder", requiresSource: true })));
 });

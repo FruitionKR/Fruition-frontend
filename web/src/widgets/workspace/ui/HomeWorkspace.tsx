@@ -358,7 +358,8 @@ export function HomeWorkspace() {
       const { target } = request;
       handleViewChange("home");
       panels.openHomeAgentPanel();
-      if (target.kind === "document") {
+      // 원문으로 보낼 문서만 연다. 위치만 쓰는 문서(원문 없이 새 문서)는 열지 않는다.
+      if (target.kind === "document" && request.sourceDocumentId != null) {
         const filename = documents.find((document) => document.id === target.documentId)?.filename ?? target.label;
         openDocument(selection.openSourceBlockPreview(target.documentId, filename, []));
       }
@@ -596,9 +597,11 @@ export function HomeWorkspace() {
           skillRun={skillRunRequest && {
             id: skillRunRequest.id,
             message: skillRunRequest.message,
-            documentId: skillRunRequest.target.kind === "document" ? skillRunRequest.target.documentId : null,
+            documentId: skillRunRequest.sourceDocumentId,
             folderId: skillRunRequest.folderId,
-            documentFolderId: skillRunRequest.target.kind === "document" ? skillRunRequest.target.parentFolderId : null
+            documentFolderId: skillRunRequest.sourceDocumentId != null && skillRunRequest.target.kind === "document"
+              ? skillRunRequest.target.parentFolderId
+              : null
           }}
           onSkillRunSent={(id) => setSkillRunRequest((current) => (current?.id === id ? null : current))}
           onManageSkills={() => handleViewChange("skills")}
@@ -663,6 +666,7 @@ export function HomeWorkspace() {
       {activeView === "skills" && skillRun && (
         <SkillRunCoach
           hasTarget={skillRun.target !== null}
+          preview={skillRun.preview}
           errorMessage={skillRun.errorMessage}
           onCancel={skillRunState.cancelSkillRun}
           onNext={skillRunState.confirmSkillRun}

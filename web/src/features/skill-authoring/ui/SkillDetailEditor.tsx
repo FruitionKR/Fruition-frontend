@@ -16,8 +16,10 @@ import {
   type SkillResultMode
 } from "../lib/skillCreateForm";
 import {
+  requiresSourceDrift,
   resultModeAfterRejection,
   resultModeDrift,
+  showsDetailSourceField,
   skillDetailAuthorForm,
   skillDetailDraft,
   skillDetailForm,
@@ -26,7 +28,7 @@ import {
   type SkillDetailField,
   type SkillDetailForm
 } from "../lib/skillDetailForm";
-import { HelpTip, RESULT_HELP, SCOPE_HELP, SelectBox, SkillSafetyIssues } from "./SkillFormParts";
+import { HelpTip, RESULT_HELP, SCOPE_HELP, SelectBox, SkillSafetyIssues, SourceField } from "./SkillFormParts";
 import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
@@ -68,6 +70,8 @@ function resultModeFixMessage(fix: ResultModeFix): string {
  * 고친 내용은 '저장'을 눌러야 반영된다(자동 저장 없음). 테스트 실행은 저장 전 입력값으로 하고, 고친 채 닫으면 버릴지 묻는다.
  * 고친 실행 규칙 때문에 이어받은 결과 방식이 맞지 않아 저장이 거절되면(구버전 백엔드는 비워서 저장한다, resultModeDrift),
  * 그때만 결과 방식 필드를 띄워 고른 값(result_mode)을 실어 다시 저장하게 한다.
+ * 새 문서를 만들 수 있는 문서 스킬이고 서버가 requires_source를 주면 '원문 문서' 필드를 더 둔다(시안 밖 추가 필드).
+ * 바꿨을 때만 보내고, 보내지 않은 저장에서 AI가 값을 바꾸면 시트를 열어 둔 채 알리고 되돌릴 수 있게 한다.
  */
 export function SkillDetailEditor({
   workspaceId,
@@ -90,7 +94,8 @@ export function SkillDetailEditor({
 }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
-  const [initialForm] = useState<SkillDetailForm>(() => skillDetailForm(skill));
+  // 저장한 뒤 AI가 원문 문서를 바꿔 시트를 열어 둘 때는 저장된 값을 새 기준으로 삼는다.
+  const [initialForm, setInitialForm] = useState<SkillDetailForm>(() => skillDetailForm(skill));
   const [form, setForm] = useState<SkillDetailForm>(initialForm);
   const sheetClose = useSkillSheetClose(onClose, isSkillFormDirty(initialForm, form));
   const [touched, setTouched] = useState<ReadonlySet<SkillDetailField>>(new Set());
@@ -99,6 +104,8 @@ export function SkillDetailEditor({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   // 결과 방식이 실행 규칙과 어긋났을 때만 결과 방식 필드를 보여 주고, 고른 값을 실어 다시 저장한다.
   const [resultModeFix, setResultModeFix] = useState<ResultModeFix | null>(null);
+  // 원문 문서를 보내지 않은 저장에서 AI가 값을 바꿨을 때 알림. 이전 값(from)으로 되돌려 다시 저장할 수 있다.
+  const [sourceNote, setSourceNote] = useState<{ from: boolean; to: boolean } | null>(null);
 
   // 다른 스킬 커맨드와 중복이면 미리 막는다(서버도 409로 막는다). 만들기 시트와 같은 쿼리 키를 쓴다.
   const { data: existingSkills } = useQuery({
@@ -122,8 +129,8 @@ export function SkillDetailEditor({
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => onSubmit(skillDetailDraft(form, resultModeFix?.picked)),
-    onSuccess: (result) => {
+    mutationFn: (draft: SkillDetailDraft) => onSubmit(draft),
+    onSuccess: (result, draft) => {
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "review") {
         setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
@@ -136,6 +143,15 @@ export function SkillDetailEditor({
       const drift = resultModeFix == null ? resultModeDrift(skill, result) : null;
       if (drift != null) {
         setResultModeFix({ ...drift, picked: drift.to, origin: "drift", isRejected: false });
+        return;
+      }
+      const sourceDrift = requiresSourceDrift(initialForm.requiresSource, draft.requires_source, result);
+      if (sourceDrift != null) {
+        // 변경은 저장됐다. 저장된 값을 새 기준으로 두고, AI가 바꾼 값을 보여 준 채 시트를 열어 둔다.
+        const saved = { ...form, requiresSource: sourceDrift.to };
+        setInitialForm(saved);
+        setForm(saved);
+        setSourceNote(sourceDrift);
         return;
       }
       sheetClose.close();
@@ -160,7 +176,7 @@ export function SkillDetailEditor({
 
   function submit() {
     setTouched(new Set<SkillDetailField>(["command", "description", "rules"]));
-    if (!isBlocked) saveMutation.mutate();
+    if (!isBlocked) saveMutation.mutate(skillDetailDraft(form, resultModeFix?.picked, initialForm.requiresSource));
   }
 
   const errorProps = (field: SkillDetailField) => {
@@ -232,7 +248,7 @@ export function SkillDetailEditor({
         </>
       }
     >
-      {/* Figma 1708:3848: 저장범위 · 커맨드명 · 설명 · 실행 규칙 */}
+      {/* Figma 1708:3848: 저장범위 · 커맨드명 · 설명 · 실행 규칙 (+ 해당하는 문서 스킬만 원문 문서) */}
       <div className={styles.fields}>
         {/* 저장범위 → scope_type (수정 API가 받지 않아 읽기 전용) */}
         <div className={styles.field}>
@@ -305,6 +321,20 @@ export function SkillDetailEditor({
           />
           {errorText("rules")}
         </div>
+
+        {/* 원문 문서 → requires_source. 서버 값이 있고 새 문서를 만들 수 있는 문서 스킬일 때만 보인다. 바꿨을 때만 보낸다. */}
+        {showsDetailSourceField(form) && (
+          <SourceField
+            id={fieldId("source")}
+            value={form.requiresSource}
+            note={sourceNote}
+            onChange={(requiresSource) => update({ requiresSource })}
+            onUndo={() => {
+              if (sourceNote) update({ requiresSource: sourceNote.from });
+              setSourceNote(null);
+            }}
+          />
+        )}
 
         {/* 결과 방식 → result_mode. 실행 규칙을 고쳐 결과 방식이 비워졌거나 맞지 않을 때만 보여 준다. */}
         {resultModeFix && (

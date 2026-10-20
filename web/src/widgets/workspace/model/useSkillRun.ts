@@ -4,10 +4,13 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { findItemLocation, findTreeItem, type Project } from "@/entities/tree";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import {
+  folderMarkdownCount,
   resolveSkillRunTarget,
   skillRunBlockedMessage,
   skillRunFolderId,
   skillRunMessage,
+  skillRunPreview,
+  skillRunSourceDocumentId,
   type SkillRunTarget
 } from "../lib/skillRunTarget";
 
@@ -19,6 +22,16 @@ export type SkillRunRequest = {
   message: string;
   /** 작업 대상 폴더(folder_id). 폴더 정리 범위이자 새 문서를 둘 위치다. */
   folderId: string | null;
+  /** 원문으로 함께 보낼 문서. 원문이 필요 없는 '새 문서로 만들기'에 문서를 골랐으면 null(위치만 쓴다). */
+  sourceDocumentId: string | null;
+};
+
+type SkillRunState = {
+  skill: SkillResponse;
+  target: SkillRunTarget | null;
+  errorMessage: string | null;
+  /** 고른 대상으로 무엇을 할지 미리 알려 주는 문구. 알 수 없으면 null */
+  preview: string | null;
 };
 
 /**
@@ -41,7 +54,7 @@ export function useSkillRun({
   onStart: () => void;
   onConfirmed: (request: SkillRunRequest) => void;
 }) {
-  const [skillRun, setSkillRun] = useState<{ skill: SkillResponse; target: SkillRunTarget | null; errorMessage: string | null } | null>(null);
+  const [skillRun, setSkillRun] = useState<SkillRunState | null>(null);
 
   // 스킬 화면을 벗어나면(레일·검색 결과 이동 등) 대상 고르기를 끝낸다.
   useEffect(() => {
@@ -50,7 +63,7 @@ export function useSkillRun({
 
   function startSkillRun(skill: SkillResponse) {
     onStart();
-    setSkillRun({ skill, target: null, errorMessage: skillRunBlockedMessage(skill.enabled_version, skill.slug) });
+    setSkillRun({ skill, target: null, errorMessage: skillRunBlockedMessage(skill.enabled_version, skill.slug), preview: null });
   }
 
   /** 대상은 하나만 고른다. 같은 항목을 다시 누르면 고르기를 푼다. */
@@ -65,11 +78,14 @@ export function useSkillRun({
     const resolution = resolveSkillRunTarget(skillRun.skill.enabled_version, item, documents, skillRun.skill.slug, parentFolderId);
     if (resolution.status === "ignore") return;
     if (resolution.status === "invalid") {
-      setSkillRun({ ...skillRun, target: null, errorMessage: resolution.message });
+      setSkillRun({ ...skillRun, target: null, errorMessage: resolution.message, preview: null });
       return;
     }
     const isSame = skillRun.target?.itemId === resolution.target.itemId;
-    setSkillRun({ ...skillRun, target: isSame ? null : resolution.target, errorMessage: null });
+    const target = isSame ? null : resolution.target;
+    // 폴더 문서 수는 사이드바 트리의 바로 아래 Markdown 문서로 센다(AI가 읽는 범위와 같다).
+    const preview = target ? skillRunPreview(skillRun.skill.enabled_version, target, folderMarkdownCount(item, documents)) : null;
+    setSkillRun({ ...skillRun, target, errorMessage: null, preview });
   }
 
   function confirmSkillRun() {
@@ -82,7 +98,8 @@ export function useSkillRun({
       skill,
       target,
       message: skillRunMessage(skill.slug),
-      folderId: skillRunFolderId(version, target)
+      folderId: skillRunFolderId(version, target),
+      sourceDocumentId: skillRunSourceDocumentId(version, target)
     });
   }
 

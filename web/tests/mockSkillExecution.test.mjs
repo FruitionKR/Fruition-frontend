@@ -3,7 +3,7 @@ import test from "node:test";
 
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
 const { state } = await import("../mock/state.mjs");
-const { registerCatalogRoutes } = await import("../mock/routes/catalog.mjs");
+const { registerCatalogRoutes, classifyRequiresSource } = await import("../mock/routes/catalog.mjs");
 
 const WORKSPACE_ID = "ws_skill_exec";
 const USER_ID = "user_skill_exec";
@@ -81,4 +81,32 @@ test("mock 테스트 실행은 섹션 변경 전/후를 돌려주고 같은 run_
   const unavailable = await call("POST", "/test-run?run_id=skill_test_mock_4", { ...definition, instructions_markdown: "#테스트불가", document_id: DOC_ID });
   assert.equal(unavailable.status, 503);
   assert.equal(unavailable.body.error.code, "SKILL_TEST_RUN_UNAVAILABLE");
+});
+
+test("mock requires_source 분류: {문서} → true, 템플릿·폴더 정리 → false, 요약·정리·비교 → true", () => {
+  assert.equal(classifyRequiresSource(["document-create"], "{문서}를 바탕으로 보고서를 쓴다."), true);
+  assert.equal(classifyRequiresSource(["document-create"], "회의 내용을 요약한다."), true);
+  assert.equal(classifyRequiresSource(["document-create", "document-edit"], "두 안을 비교한다."), true);
+  assert.equal(classifyRequiresSource(["document-create"], "빈 주간 보고 양식을 만든다."), false);
+  assert.equal(classifyRequiresSource(["template"], "{문서} 요약"), false);
+  assert.equal(classifyRequiresSource(["folder-organize"], "폴더를 정리한다."), false);
+});
+
+test("mock 게시·수정은 requires_source를 고른 값으로 저장하고, 생략하면 AI 분류로 정한다", async (t) => {
+  const call = await startMock(t);
+  const base = { description: "점검", scope_type: "personal", capabilities: ["document-create"], result_mode: "create" };
+  const decided = await call("POST", "/author/publish", { ...base, name: "src-auto", instructions_markdown: "회의를 요약한다." });
+  assert.equal(decided.body.requires_source, true);
+  const picked = await call("POST", "/author/publish", { ...base, name: "src-picked", instructions_markdown: "회의를 요약한다.", requires_source: false });
+  assert.equal(picked.body.requires_source, false);
+  assert.equal((await call("POST", "/author/publish", { ...base, name: "src-bad", instructions_markdown: "x", requires_source: "yes" })).status, 400);
+  const listed = (await call("GET", "")).body.find((skill) => skill.id === picked.body.skill_id);
+  assert.equal(listed.enabled_version.requires_source, false);
+
+  // 지침을 그대로 두고 생략하면 이어받고, 지침을 고치면 다시 정하고, 보내면 그 값을 쓴다.
+  const patch = { name: "src-picked", description: "점검", instructions_markdown: "회의를 요약한다." };
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, patch)).body.requires_source, false);
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, { ...patch, instructions_markdown: "빈 양식을 만든다." })).body.requires_source, false);
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, { ...patch, instructions_markdown: "{문서}를 다시 쓴다." })).body.requires_source, true);
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, { ...patch, requires_source: false })).body.requires_source, false);
 });

@@ -1,7 +1,8 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { SkillVersion } from "@/entities/skill/model/skill";
 import type { TreeItem } from "@/entities/tree/model/tree";
-import { isMarkdownDocument } from "@/entities/document/lib/documentKind";
+import { isMarkdownDocument, isMarkdownTreeItem } from "@/entities/document/lib/documentKind";
+import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
 
 /**
  * 스킬이 실행에서 하는 일. capability·결과 방식(result_mode)으로 정한다.
@@ -28,7 +29,10 @@ export type SkillRunTargetResolution =
   | { status: "invalid"; message: string }
   | { status: "ignore" };
 
-type SkillVersionLike = Pick<SkillVersion, "capabilities" | "result_mode" | "targets"> | null | undefined;
+type SkillVersionLike = Pick<SkillVersion, "capabilities" | "result_mode" | "targets" | "requires_source"> | null | undefined;
+
+/** 폴더에 실행할 때 AI가 원문으로 읽는 Markdown 문서 수 상한(최근 수정 순). */
+export const FOLDER_SOURCE_LIMIT = 20;
 
 export function skillRunIntent(version: SkillVersionLike): SkillRunIntent {
   const capabilities = version?.capabilities ?? [];
@@ -126,4 +130,63 @@ export function skillRunMessage(slug: string): string {
 export function skillRunFolderId(version: SkillVersionLike, target: SkillRunTarget): string | null {
   if (target.kind === "folder") return target.folderId;
   return skillRunIntent(version) === "create" ? target.parentFolderId : null;
+}
+
+/** 원문 문서 필요 여부. 이 필드를 주지 않는 백엔드(undefined·null)면 null이고 예전 동작을 따른다. */
+export function skillRunRequiresSource(version: SkillVersionLike): boolean | null {
+  return typeof version?.requires_source === "boolean" ? version.requires_source : null;
+}
+
+/**
+ * 원문으로 함께 보낼 문서(열린 문서 문맥). 폴더 대상이면 없다.
+ * '새 문서로 만들기' 스킬이 원문이 필요 없으면(requires_source false) 문서를 고른 건 위치(그 문서가 있는 폴더)만 정한 것이라 보내지 않는다.
+ * 값을 모르면(구버전 백엔드) 예전처럼 고른 문서를 보낸다. '상황에 맞게'는 고칠 수도 있어 늘 보낸다.
+ */
+export function skillRunSourceDocumentId(version: SkillVersionLike, target: SkillRunTarget): string | null {
+  if (target.kind !== "document") return null;
+  if (skillRunIntent(version) === "create" && skillRunRequiresSource(version) === false) return null;
+  return target.documentId;
+}
+
+/** 폴더 바로 아래 Markdown 문서 수(하위 폴더 안은 세지 않는다). 문서 목록에 있으면 그 판단을, 없으면 트리 항목 이름·형식을 쓴다. */
+export function folderMarkdownCount(folder: TreeItem, documents: readonly DocumentItemResponse[]): number {
+  return (folder.children ?? []).filter((child) => {
+    if (child.type === "folder" || child.type === "wiki" || !child.documentId) return false;
+    const document = documents.find((entry) => entry.id === child.documentId);
+    return document ? isMarkdownDocument(document) : isMarkdownTreeItem(child);
+  }).length;
+}
+
+/** 받침 유무로 고른 조사. 한글이 아니면 받침 없는 쪽(spec 문구 '를'·'가')을 쓴다. */
+function particle(word: string, withFinal: string, withoutFinal: string): string {
+  const code = word.trim().charCodeAt(word.trim().length - 1) - 0xac00;
+  if (Number.isNaN(code) || code < 0 || code > 11171) return withoutFinal;
+  return code % 28 === 0 ? withoutFinal : withFinal;
+}
+
+/**
+ * 대상을 고른 뒤 안내 말풍선에 보일 미리보기. 원문 문서를 어떻게 쓸지 알 수 있는 경우에만 문구를 만들고, 아니면 null이다.
+ * - 새 문서를 만드는 스킬(새 문서로 만들기·상황에 맞게·템플릿)에 폴더를 고르면: 원문이 필요하면 폴더 문서 N개를 읽는다고, 아니면 원문 없이 만든다고.
+ * - '새 문서로 만들기'에 문서를 고르면: 원문이 필요하면 그 문서를 읽어 같은 폴더에, 아니면 그 문서가 있는 폴더에 원문 없이.
+ * 폴더 정리·열린 문서 고치기, '상황에 맞게'에 문서를 고른 경우(고칠 수도 있다), requires_source를 모르면(구버전 백엔드) null이다.
+ * folderMarkdownCount는 폴더 대상의 바로 아래 Markdown 문서 수다.
+ */
+export function skillRunPreview(version: SkillVersionLike, target: SkillRunTarget, folderMarkdownCount = 0): string | null {
+  const requiresSource = skillRunRequiresSource(version);
+  const intent = skillRunIntent(version);
+  if (requiresSource == null || intent === "organize" || intent === "edit") return null;
+  if (target.kind === "folder") {
+    const name = `'${target.label}'`;
+    if (!requiresSource) return `${name} 폴더에 새 문서를 만들어요 (원문 없이)`;
+    if (folderMarkdownCount === 0) return `${name} 폴더에 읽을 Markdown 문서가 없어 원문 없이 새 문서를 만들어요`;
+    const limit = folderMarkdownCount > FOLDER_SOURCE_LIMIT ? ` (최근 ${FOLDER_SOURCE_LIMIT}개만)` : "";
+    return `${name} 폴더 문서 ${folderMarkdownCount}개를 읽어 새 문서를 만들어요${limit}`;
+  }
+  if (intent !== "create") return null;
+  // 사이드바처럼 Markdown 확장자는 빼고 보여 준다.
+  const title = getMarkdownDocumentTitle(target.label);
+  const document = `'${title}'`;
+  return requiresSource
+    ? `${document}${particle(title, "을", "를")} 읽어 같은 폴더에 새 문서를 만들어요`
+    : `${document}${particle(title, "이", "가")} 있는 폴더에 새 문서를 만들어요 (원문 없이)`;
 }
