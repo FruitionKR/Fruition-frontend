@@ -290,14 +290,20 @@ export function estimateUsageCost(rows: readonly ModelUsageRow[], charges: Charg
 
 const KRW_FORMAT = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 
+/** 0원보다 크지만 원 단위로 반올림하면 0원이 되는 금액인지(milli-KRW 1~499). 화면은 "₩1 미만"으로 보인다. */
+export function isUnderOneWon(value: number): boolean {
+  const safe = count(value);
+  return safe > 0 && safe < 500;
+}
+
 /**
- * milli-KRW 금액을 원 단위로 반올림해 보인다(1,240,400 → ₩1,240). 0은 ₩0, 0원 초과 1원 미만은 "<₩1"이다.
+ * milli-KRW 금액을 원 단위로 반올림해 보인다(1,240,400 → ₩1,240). 0은 ₩0, 0원 초과 1원 미만은 "₩1 미만"이다.
  * 원화는 소수 자리를 쓰지 않으므로 작은 금액도 소수로 늘이지 않는다.
+ * "₩1 미만"은 그 자체로 어림값이라 앞에 '약'을 붙이지 않는다(isUnderOneWon으로 판단).
  */
 export function formatKrwMilli(value: number): string {
-  const safe = count(value);
-  if (safe > 0 && safe < 500) return `<${KRW_FORMAT.format(1)}`;
-  return KRW_FORMAT.format(Math.round(safe / 1000));
+  if (isUnderOneWon(value)) return `${KRW_FORMAT.format(1)} 미만`;
+  return KRW_FORMAT.format(Math.round(count(value) / 1000));
 }
 
 /** 두 milli-KRW 금액이 원 단위로 반올림했을 때 같은지 */

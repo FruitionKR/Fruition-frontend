@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
+import { isDevelopmentVerificationCode } from "@/shared/lib/developmentVerificationCode";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { plusIcon, chevronLeftSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
@@ -11,6 +12,16 @@ import styles from "./AccountFlowModal.module.css";
 
 /** 이메일 인증번호·인증 앱 코드 자릿수. */
 export const CODE_LENGTH = 6;
+
+/**
+ * 이메일 인증번호를 다 넣었는지. 운영은 6자리만 받고, 개발 환경은 가입·비밀번호 찾기처럼 고정 인증번호(9700)도 받는다.
+ */
+export function isEmailCodeComplete(code: string): boolean {
+  return code.trim().length === CODE_LENGTH || isDevelopmentVerificationCode(code);
+}
+
+// 개발 환경에서는 4자리 고정 인증번호도 폼 검증을 통과하게 한다.
+const CODE_PATTERN = process.env.NODE_ENV === "production" ? "[0-9]{6}" : "[0-9]{6}|[0-9]{4}";
 
 /** 계정 흐름 모달 공통 셸: 제목·부제·닫기 버튼. */
 export function AccountFlowModal({
@@ -98,7 +109,7 @@ export function VerificationCodeInput({
       id={id}
       inputMode="numeric"
       autoComplete="one-time-code"
-      pattern="[0-9]{6}"
+      pattern={CODE_PATTERN}
       maxLength={CODE_LENGTH}
       placeholder="XXXXXX"
       autoFocus

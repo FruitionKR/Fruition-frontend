@@ -48,6 +48,8 @@ export function OptionSelect({
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  // 펼칠 때 고른 항목이 없으면 첫 항목(first)과 마지막 항목(last) 중 어디에 포커스를 둘지. ArrowUp으로 열면 last다.
+  const openEdgeRef = useRef<"first" | "last">("first");
   const wrapRef = useDismissableMenu<HTMLDivElement>(isOpen, close);
   const selected = options.find((option) => option.value === value);
 
@@ -61,12 +63,25 @@ export function OptionSelect({
     return Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
   }
 
-  // 펼치면 고른 항목(없으면 첫 항목)에 포커스를 둔다.
+  // 펼치면 고른 항목(없으면 첫 항목, ArrowUp으로 열었으면 마지막 항목)에 포커스를 둔다.
   useEffect(() => {
     if (!isOpen) return;
     const buttons = listButtons();
-    (buttons.find((button) => button.getAttribute("aria-selected") === "true") ?? buttons[0])?.focus();
+    // 마지막은 보조 동작(+ 새 문서로 만들기)이 아닌 마지막 선택지다.
+    const edge = openEdgeRef.current === "last"
+      ? buttons.filter((button) => button.getAttribute("role") === "option").at(-1) ?? buttons.at(-1)
+      : buttons[0];
+    openEdgeRef.current = "first";
+    (buttons.find((button) => button.getAttribute("aria-selected") === "true") ?? edge)?.focus();
   }, [isOpen]);
+
+  /** 닫힌 상자에서 ArrowDown·ArrowUp을 누르면 목록을 연다(네이티브 select·listbox 관례). */
+  function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (isOpen || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+    event.preventDefault();
+    openEdgeRef.current = event.key === "ArrowUp" ? "last" : "first";
+    setIsOpen(true);
+  }
 
   function handleListKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -92,6 +107,7 @@ export function OptionSelect({
         title={title}
         disabled={disabled || (options.length === 0 && !action)}
         onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={handleTriggerKeyDown}
       >
         <span className={cx(styles.label, !selected && styles["is-placeholder"])}>{selected?.label ?? placeholder}</span>
         <SvgIcon src={selectArrowIcon} className={styles.arrow} />

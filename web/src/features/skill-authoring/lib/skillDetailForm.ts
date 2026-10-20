@@ -18,7 +18,8 @@ import {
 /**
  * 스킬 상세 시트(Figma 1708:4059) 입력값.
  * 화면에는 저장범위·커맨드명·설명·실행 규칙만 둔다. 저장할 때는 커맨드명(name)·설명·지침과, 문서 스킬이면 읽어 둔 대상을 그대로 보낸다.
- * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 결과 방식은 PATCH가 지침을 다시 분류한 capabilities와 맞아야 해 보내지 않는다.
+ * 저장범위는 PATCH가 받지 않아 읽기 전용이다. 결과 방식은 처음 저장할 때 보내지 않는다(서버가 기존 값을 이어받는다).
+ * 지침을 다시 분류한 capabilities와 이어받은 값이 맞지 않아 거절되면, 그때 결과 방식을 고르게 해 실어 보낸다.
  * 대상·결과 방식·스킬 종류는 화면에 두지 않지만 테스트 실행 capability를 정하려고 버전의 targets·result_mode·capabilities에서 읽는다(ai#122).
  */
 export interface SkillDetailForm {
@@ -105,8 +106,9 @@ export type SkillDetailDraft = { name: string; description: string; instructions
  * 상세 입력값 → 목록 훅의 수정 초안(skillUpdateRequest 입력). 커맨드명은 name으로 보내 slug를 바꾼다.
  * 문서 스킬이면 읽어 둔 대상(targets)을 함께 보낸다(이전 형식 "실행 대상" 절을 뗀 스킬은 이걸로 대상이 남는다).
  * 결과 방식은 보통 보내지 않는다(생략하면 서버가 기존 값을 유지한다, ai#122).
- * 명시해 보내면 서버가 지침을 다시 분류한 capabilities와 맞지 않을 때 400으로 저장이 실패한다.
- * resultMode는 저장 뒤 결과 방식이 비워져(resultModeDrift) 사용자가 다시 고른 값이다. 문서 스킬일 때만 담는다.
+ * 이어받은 값이든 명시한 값이든 서버가 지침을 다시 분류한 capabilities와 맞지 않으면 400으로 저장이 실패한다.
+ * resultMode는 그렇게 거절됐거나(구버전 백엔드는 비워서 저장한다, resultModeDrift) 사용자가 다시 고른 값이다.
+ * 문서 스킬일 때만 담는다.
  */
 export function skillDetailDraft(form: SkillDetailForm, resultMode?: SkillResultMode): SkillDetailDraft {
   const targets = form.kind == null ? undefined : skillExecutionOptions(form.kind, form.resultMode, form.targets).targets;
@@ -120,9 +122,9 @@ export function skillDetailDraft(form: SkillDetailForm, resultMode?: SkillResult
 }
 
 /**
- * 저장 응답에서 결과 방식이 사라졌는지 본다. 고친 지침을 AI가 다시 분류해 capabilities가 바뀌면, 생략해 이어받은
- * result_mode가 새 capabilities와 맞지 않을 때 서버가 거절하지 않고 null로 버린다(ai#122).
- * 그렇게 버려졌으면 저장 전 값(from)과 새 capabilities에 맞는 값(to)을, 아니면 null을 돌려준다.
+ * 저장 응답에서 결과 방식이 사라졌는지 본다. 지금 AI는 이어받은 result_mode가 다시 분류한 capabilities와 맞지 않으면
+ * 저장을 거절한다(invalid_result_mode → resultModeAfterRejection). 이전 AI는 거절하지 않고 null로 버렸으므로(ai#122)
+ * 그런 백엔드와 붙을 때를 위해 남겨 둔다. 버려졌으면 저장 전 값(from)과 새 capabilities에 맞는 값(to)을, 아니면 null을 돌려준다.
  * 다시 분류된 스킬이 문서 스킬이 아니게 됐으면(결과 방식이 없는 종류) null이다.
  */
 export function resultModeDrift(
@@ -134,6 +136,18 @@ export function resultModeDrift(
   const reclassified = kindFromCapabilities(result.capabilities ?? []);
   if (reclassified == null || reclassified.kind !== "document") return null;
   return { from, to: reclassified.resultMode };
+}
+
+/**
+ * 결과 방식 불일치로 저장이 거절됐을 때 먼저 골라 둘 결과 방식. 거절 응답에는 새 capabilities가 없어 저장 전 값으로 짐작한다.
+ * 이어받은 값이 맞지 않았다는 건 그 capability가 빠졌다는 뜻이다:
+ * '열린 문서 고치기'가 거절되면 고치기가 빠져 '새 문서로 만들기'만, '새 문서로 만들기'가 거절되면 '열린 문서 고치기'만 남았다고 본다.
+ * '상황에 맞게'(둘 다)가 거절되면 둘 중 하나만 남았는데 어느 쪽인지 알 수 없어, 문서를 새로 만들지 않는 '열린 문서 고치기'를 고른다.
+ * 저장 전 값도 목록에 남아 있어 사용자가 바꿀 수 있다.
+ */
+export function resultModeAfterRejection(current: SkillResultMode): SkillResultMode {
+  if (current === "edit") return "create";
+  return "edit";
 }
 
 export type SkillDetailField = "command" | "description" | "rules";

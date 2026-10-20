@@ -1,5 +1,6 @@
 "use client";
 
+import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,7 +23,7 @@ import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { saveSettingsResume } from "../../lib/settingsResume";
 import styles from "./AccountFlowModal.module.css";
-import { CODE_LENGTH, FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, VerificationCodeInput } from "./AccountFlowModal";
+import { FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, isEmailCodeComplete, VerificationCodeInput } from "./AccountFlowModal";
 
 type Step = "email" | "code" | "reauth" | "done";
 
@@ -150,6 +151,9 @@ export function EmailChangeModal({
     window.location.assign(getOAuthAuthorizationUrl(provider));
   }
 
+  // 개발 환경의 고정 인증번호(9700)는 가입·비밀번호 찾기처럼 입력하면 바로 확인한다.
+  useDevelopmentVerificationCode(step === "code" ? code : "", () => verifyCode());
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (step === "done") onSaved();
@@ -175,7 +179,7 @@ export function EmailChangeModal({
   const canSubmit = !busy && (
     step === "done" ? true
     : step === "email" ? email.trim().length > 0 && retrySeconds === 0
-    : step === "code" ? code.trim().length === CODE_LENGTH
+    : step === "code" ? isEmailCodeComplete(code)
     : blockedSeconds === 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
   );
   const submitLabel = busy ? "처리 중…"

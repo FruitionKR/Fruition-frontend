@@ -14,6 +14,7 @@ registerHooks({
 
 const {
   parseSkillInstructions,
+  resultModeAfterRejection,
   resultModeDrift,
   skillDetailAuthorForm,
   skillDetailDraft,
@@ -192,4 +193,10 @@ test("resultModeDrift는 저장 응답에서 결과 방식이 비워졌을 때�
   assert.equal(resultModeDrift(stored, { capabilities: ["document-edit"], result_mode: "edit" }), null);
   assert.equal(resultModeDrift(skill(), { capabilities: ["document-create"], result_mode: null }), null);
   assert.equal(resultModeDrift(stored, { capabilities: ["folder-organize"], result_mode: null }), null);
+});
+
+test("resultModeAfterRejection은 거절된 결과 방식에서 빠졌을 capability를 피해 다른 값을 고른다", () => {
+  assert.equal(resultModeAfterRejection("edit"), "create");
+  assert.equal(resultModeAfterRejection("create"), "edit");
+  assert.equal(resultModeAfterRejection("auto"), "edit");
 });

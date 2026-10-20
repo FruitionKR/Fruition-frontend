@@ -38,3 +38,26 @@ test("무료 워크스페이스 한도는 서버가 값을 줄 때만 적용한�
   assert.equal(isFreeWorkspaceLimitReached(5, null), false);
   assert.equal(isFreeWorkspaceLimitReached(undefined, undefined), false);
 });
+
+test("용량 API가 404면 null을 돌려주고 같은 워크스페이스는 다시 요청하지 않는다", async (t) => {
+  const { fetchWorkspaceStorage } = await import("../src/entities/workspace/api/workspace.ts");
+  const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
+  const old = globalThis.window;
+  globalThis.window = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} } };
+  t.after(() => { if (old === undefined) delete globalThis.window; else globalThis.window = old; });
+  saveAccessToken("access-test");
+  const paths = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    paths.push(String(path));
+    return String(path).includes("ws_missing")
+      ? new Response(null, { status: 404 })
+      : Response.json({ plan: "FREE", used_bytes: 1, limit_bytes: 2 });
+  });
+  assert.equal(await fetchWorkspaceStorage("ws_missing"), null);
+  assert.equal(await fetchWorkspaceStorage("ws_missing"), null);
+  assert.equal(paths.filter((path) => path.includes("ws_missing")).length, 1);
+  // 다른 워크스페이스는 따로 묻는다.
+  assert.deepEqual(await fetchWorkspaceStorage("ws_ok"), { plan: "FREE", used_bytes: 1, limit_bytes: 2 });
+  assert.deepEqual(await fetchWorkspaceStorage("ws_ok"), { plan: "FREE", used_bytes: 1, limit_bytes: 2 });
+  assert.equal(paths.filter((path) => path.includes("ws_ok")).length, 2);
+});

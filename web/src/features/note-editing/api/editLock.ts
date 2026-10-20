@@ -62,8 +62,11 @@ export async function sendEditLockHeartbeat(documentId: string): Promise<EditLoc
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }
 
-/** 편집기 종료 시 호출한다. 보유자 본인의 잠금만 해제하며 멱등이다. */
-export async function releaseEditLock(documentId: string): Promise<void> {
+/**
+ * 편집기 종료 시 호출한다. 보유자 본인의 잠금만 해제하며 멱등이다.
+ * keepalive는 페이지를 떠나는 중(pagehide)에도 요청이 끝까지 가게 한다.
+ */
+export async function releaseEditLock(documentId: string, { keepalive = false }: { keepalive?: boolean } = {}): Promise<void> {
   // 해제 실패는 사용자가 할 수 있는 일이 없고, 서버의 expires_at 만료가 최종 안전장치라 상태를 따지지 않는다.
-  await apiFetch(editLockPath(documentId), { method: "DELETE" });
+  await apiFetch(editLockPath(documentId), { method: "DELETE", ...(keepalive ? { keepalive: true } : {}) });
 }

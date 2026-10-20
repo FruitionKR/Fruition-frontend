@@ -131,7 +131,12 @@ export function ProfilePanel({
             <div className={styles["row-title"]}>
               <strong>프로필 사진</strong>
               {/* 시안 문구는 "업로드 미지원"이지만 사진 업로드 API(#avatar)가 있어 실제 동작을 안내한다. */}
-              <small>닉네임의 첫 글자로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)를 올릴 수 있습니다.</small>
+              {/* 사진이 있으면 첫 글자 대신 사진이 보이므로 바꾸기·삭제를 안내한다. */}
+              <small>
+                {me?.avatar_url
+                  ? "올린 사진으로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)로 바꾸거나, 사진 삭제로 닉네임 첫 글자 표시로 돌아갈 수 있습니다."
+                  : "닉네임의 첫 글자로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)를 올릴 수 있습니다."}
+              </small>
             </div>
             <button type="button" className={styles["tile-button"]} aria-label="프로필 사진 업로드"
               disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>

@@ -58,17 +58,15 @@ function executionOptions(ctx, capabilities, body, fallback) {
     return error(ctx, 400, "targets must not contain duplicates.", "SKILL_INSTRUCTION_INVALID");
   }
   if (!isDocumentSkill(capabilities)) {
-    // document는 AI의 invalid_targets·invalid_result_mode를 따로 옮기지 않고 SKILL_REQUEST_REJECTED로 돌려준다.
-    if ((targets ?? []).length > 0) return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
-    if (result_mode != null) return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
+    // document는 AI의 invalid_targets·invalid_result_mode를 SKILL_TARGETS_INVALID·SKILL_RESULT_MODE_INVALID(400)로 옮긴다.
+    if ((targets ?? []).length > 0) return error(ctx, 400, "이 스킬은 문서 대상을 고를 수 없습니다. 대상을 비워 주세요.", "SKILL_TARGETS_INVALID");
+    if (result_mode != null) return error(ctx, 400, "결과 방식이 실행 규칙과 맞지 않습니다.", "SKILL_RESULT_MODE_INVALID");
     return { targets: [], result_mode: null };
   }
   const matches = (value) => value == null || (RESULT_MODE_CAPABILITIES[value] ?? ["?"]).every((capability) => capabilities.includes(capability));
-  if (result_mode !== undefined && !matches(result_mode)) {
-    return error(ctx, 400, "Skill 요청이 거부되었습니다.", "SKILL_REQUEST_REJECTED");
-  }
-  // 생략해 이어받은 값이 capabilities와 맞지 않으면 거절하지 않고 버린다(ai#122).
-  const mode = result_mode !== undefined ? result_mode : matches(fallback.result_mode) ? fallback.result_mode : null;
+  // 보낸 값이든 생략해 이어받은 값이든 다시 분류한 capabilities와 맞지 않으면 거절한다(지금 AI는 null로 버리지 않는다).
+  const mode = result_mode !== undefined ? result_mode : fallback.result_mode;
+  if (!matches(mode)) return error(ctx, 400, "결과 방식이 실행 규칙과 맞지 않습니다.", "SKILL_RESULT_MODE_INVALID");
   const chosen = targets === undefined ? fallback.targets : targets;
   const ordered = TARGET_ORDER.filter((target) => chosen.includes(target));
   return { targets: ordered.length > 0 ? ordered : ["current_document"], result_mode: mode ?? null };

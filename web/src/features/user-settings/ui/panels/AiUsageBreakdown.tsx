@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import {
-  formatCompactTokenCount, formatKrwMilli, formatPercentShare, formatTokenCount, getProviderLabel, isSameWon,
+  formatCompactTokenCount, formatKrwMilli, formatPercentShare, formatTokenCount, getProviderLabel, isSameWon, isUnderOneWon,
   toPercentShares, type ModelUsageSummary, type ModelUsageSummaryRow, type UsageCostEstimate
 } from "@/entities/ai";
 import { claudeIcon, geminiIcon, gptIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
@@ -120,7 +120,11 @@ function UsageHero({ summary, cost, rangeLabel }: { summary: ModelUsageSummary; 
                     <span className={styles["sr-only"]}>계산 중</span>
                   </>
                 ) : hasAnyPrice(cost.estimate) ? (
-                  <><span className={styles["cost-approx"]}>약</span>{formatKrwMilli(cost.estimate.totalKrwMilli)}</>
+                  <>
+                    {/* "₩1 미만"은 그 자체로 어림값이라 '약'을 붙이지 않는다. */}
+                    {!isUnderOneWon(cost.estimate.totalKrwMilli) && <span className={styles["cost-approx"]}>약</span>}
+                    {formatKrwMilli(cost.estimate.totalKrwMilli)}
+                  </>
                 ) : (
                   <span className={styles["cost-unknown"]}>알 수 없음</span>
                 )}

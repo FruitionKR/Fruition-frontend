@@ -1,5 +1,6 @@
 "use client";
 
+import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
@@ -15,7 +16,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "@/shared/lib/passwordPolicy";
 import styles from "./AccountFlowModal.module.css";
-import { CODE_LENGTH, FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, VerificationCodeInput } from "./AccountFlowModal";
+import { FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, isEmailCodeComplete, VerificationCodeInput } from "./AccountFlowModal";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -186,6 +187,9 @@ export function PasswordChangeModal({
     }
   }
 
+  // 개발 환경의 고정 인증번호(9700)는 가입·비밀번호 찾기처럼 입력하면 바로 확인한다.
+  useDevelopmentVerificationCode(step === "code" ? code : "", () => verifyCode());
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -215,7 +219,7 @@ export function PasswordChangeModal({
     : step === "email"
       ? accountEmail.length > 0 && !isUnavailable && blockedSeconds === 0
       : step === "code"
-        ? code.trim().length === CODE_LENGTH && !countdown.isExpired
+        ? isEmailCodeComplete(code) && !countdown.isExpired
         : newPassword.length > 0 && passwordConfirm.length > 0
   );
   const submitLabel = busy ? "처리 중…"

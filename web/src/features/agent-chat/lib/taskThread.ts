@@ -148,6 +148,7 @@ export function resolveTaskStatus({
   hasActivePreview = false,
   isApplied = false,
   isRejected = false,
+  isCancelled = false,
   hasLaterTask = false
 }: {
   action: string | null;
@@ -162,8 +163,10 @@ export function resolveTaskStatus({
   hasActivePreview?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
-  /** 이 화면에서 편집안을 모두 거절했는지 */
+  /** 편집안을 모두 거절했는지 */
   isRejected?: boolean;
+  /** 편집안·새 문서 초안을 적용하지 않고 취소했는지 */
+  isCancelled?: boolean;
   /** 이 작업 뒤에 보낸 작업이 있는지. 되물음은 다음 요청으로 답했거나 지나간 것으로 본다. */
   hasLaterTask?: boolean;
 }): TaskStatusView {
@@ -189,6 +192,7 @@ export function resolveTaskStatus({
   if (hasActivePreview) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
   if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
   if (isRejected) return { group: "done", label: "거절됨", tone: "danger", struck: true };
+  if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
   if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
   return { group: "done", label: "답변", tone: "muted", struck: false };
 }
@@ -280,6 +284,22 @@ export function selectionChipLabel(markdown: string, startLine: number, endLine:
   const text = lines.map((line) => line.replace(/^\s*(#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s*)/, "").trim()).find(Boolean) ?? "";
   const short = text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
   return short ? `선택 : ${short}` : `선택 : ${startLine}~${endLine}줄`;
+}
+
+/**
+ * 작업 카드에 쓸 요청 문장. 사용자가 보낸 요청(itemRequest)과 run이 정리한 요약(request_summary)을 고른다.
+ * 스킬로 실행한 요청("/slug …")은 AI가 요약을 문장으로 다시 써도("'slug' Skill의 지침에 따라 …") 머리글이
+ * "문서 : /slug"로 남도록 사용자가 보낸 원문을 쓰고, 요약은 summary로 따로 돌려준다.
+ * 그 밖의 요청은 지금처럼 요약을 먼저 쓴다.
+ */
+export function resolveTaskRequest(
+  itemRequest: string | null | undefined,
+  runSummary: string | null | undefined
+): { request: string; summary: string | null } {
+  const original = (itemRequest ?? "").trim();
+  const summary = runSummary?.trim().normalize("NFC") || null;
+  if (original.startsWith("/")) return { request: original, summary: summary === original ? null : summary };
+  return { request: summary || original || "요청 내용 없음", summary: null };
 }
 
 /**

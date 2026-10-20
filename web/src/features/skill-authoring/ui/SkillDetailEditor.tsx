@@ -7,7 +7,7 @@ import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
-import { isResultModeRejection, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
+import { describeSkillSaveError, isResultModeRejection, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
   SKILL_NAME_MAX,
   SKILL_RESULT_OPTIONS,
@@ -16,6 +16,7 @@ import {
   type SkillResultMode
 } from "../lib/skillCreateForm";
 import {
+  resultModeAfterRejection,
   resultModeDrift,
   skillDetailAuthorForm,
   skillDetailDraft,
@@ -34,13 +35,27 @@ import detailStyles from "./SkillDetailEditor.module.css";
 const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
 
-/** 저장 뒤 결과 방식을 다시 골라야 하는 상태. from은 저장 전 값, to는 다시 분류된 capabilities에 맞는 값이다. */
-type ResultModeFix = { from: SkillResultMode; to: SkillResultMode; picked: SkillResultMode; isRejected: boolean };
+/**
+ * 결과 방식을 다시 골라야 하는 상태. from은 저장 전 값, to는 맞을 것으로 보이는 값, picked는 사용자가 고른 값이다.
+ * origin: 저장이 결과 방식 불일치로 거절됐는지(rejected), 구버전 백엔드가 저장하며 결과 방식을 비웠는지(drift).
+ * isRejected는 고른 값을 실어 다시 보낸 저장도 거절됐다는 뜻이다.
+ */
+type ResultModeFix = {
+  from: SkillResultMode;
+  to: SkillResultMode;
+  picked: SkillResultMode;
+  origin: "rejected" | "drift";
+  isRejected: boolean;
+};
+
+const RESULT_MODE_PICK_MESSAGE = "실행 규칙이 바뀌어 지금 결과 방식과 맞지 않을 수 있어요. 결과 방식을 고른 뒤 다시 저장해 주세요.";
 
 function resultModeFixMessage(fix: ResultModeFix): string {
   if (fix.isRejected) {
-    return `고른 결과 방식이 실행 규칙과 맞지 않아 저장하지 못했어요. ‘${skillResultModeLabel(fix.to)}’를 고르거나 실행 규칙을 고쳐 주세요.`;
+    const hint = fix.picked !== fix.to ? `‘${skillResultModeLabel(fix.to)}’를 고르거나` : "다른 결과 방식을 고르거나";
+    return `고른 결과 방식이 실행 규칙과 맞지 않아 저장하지 못했어요. ${hint} 실행 규칙을 고쳐 주세요.`;
   }
+  if (fix.origin === "rejected") return RESULT_MODE_PICK_MESSAGE;
   return `변경 내용은 저장됐지만, 실행 규칙이 바뀌어 결과 방식(‘${skillResultModeLabel(fix.from)}’)이 비워졌어요. `
     + `AI는 이 스킬을 ‘${skillResultModeLabel(fix.to)}’ 스킬로 봐요. 결과 방식을 고른 뒤 다시 저장해 주세요.`;
 }
@@ -51,8 +66,8 @@ function resultModeFixMessage(fix: ResultModeFix): string {
  * 커맨드명(name → slug)·설명·실행 규칙을 PATCH /skills/{id}로 저장하고, '스킬 삭제'로 지운다.
  * 저장범위는 수정 API가 받지 않아(scope_type은 바꿀 수 없다) 읽기 전용이다.
  * 고친 내용은 '저장'을 눌러야 반영된다(자동 저장 없음). 테스트 실행은 저장 전 입력값으로 하고, 고친 채 닫으면 버릴지 묻는다.
- * 고친 실행 규칙 때문에 결과 방식이 비워지거나(resultModeDrift) 맞지 않아 거절되면, 그때만 결과 방식 필드를 띄워
- * 고른 값(result_mode)을 실어 다시 저장하게 한다.
+ * 고친 실행 규칙 때문에 이어받은 결과 방식이 맞지 않아 저장이 거절되면(구버전 백엔드는 비워서 저장한다, resultModeDrift),
+ * 그때만 결과 방식 필드를 띄워 고른 값(result_mode)을 실어 다시 저장하게 한다.
  */
 export function SkillDetailEditor({
   workspaceId,
@@ -120,20 +135,24 @@ export function SkillDetailEditor({
       }
       const drift = resultModeFix == null ? resultModeDrift(skill, result) : null;
       if (drift != null) {
-        setResultModeFix({ ...drift, picked: drift.to, isRejected: false });
+        setResultModeFix({ ...drift, picked: drift.to, origin: "drift", isRejected: false });
         return;
       }
       sheetClose.close();
     },
     onError: (error) => {
-      if (form.kind !== "document" || !isResultModeRejection(error, resultModeFix != null)) return;
-      setResultModeFix((current) => ({
-        ...(current ?? { from: form.resultMode, to: form.resultMode, picked: form.resultMode }),
-        isRejected: true
-      }));
+      if (form.kind !== "document" || !isResultModeRejection(error)) return;
+      if (resultModeFix == null) {
+        // 결과 방식 없이 보낸 저장이 거절됐다. 맞을 것 같은 값을 골라 두고 결과 방식 필드를 띄운다.
+        const to = resultModeAfterRejection(form.resultMode);
+        setResultModeFix({ from: form.resultMode, to, picked: to, origin: "rejected", isRejected: false });
+        return;
+      }
+      setResultModeFix({ ...resultModeFix, isRejected: true });
     }
   });
-  const isResultModeError = resultModeFix?.isRejected === true;
+  // 결과 방식 불일치 거절은 결과 방식 필드의 안내로 보여 주므로, 서버의 일반 거절 문구는 겹쳐 띄우지 않는다.
+  const isResultModeError = resultModeFix != null && isResultModeRejection(saveMutation.error);
 
   const deleteMutation = useMutation({ mutationFn: onDelete, onSuccess: sheetClose.close });
 
@@ -315,7 +334,7 @@ export function SkillDetailEditor({
 
         {saveMutation.isError && !isResultModeError && (
           <p className={styles.error} role="alert">
-            {getErrorMessage(saveMutation.error, "스킬 정의를 수정하지 못했습니다.")}
+            {describeSkillSaveError(saveMutation.error, "스킬 정의를 수정하지 못했습니다.")}
           </p>
         )}
       </div>

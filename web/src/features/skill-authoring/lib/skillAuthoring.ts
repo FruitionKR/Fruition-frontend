@@ -11,11 +11,11 @@ const UNAVAILABLE_DESCRIPTION = "AI 검토가 지금 응답하지 않습니다. 
 const UNSUPPORTED_DESCRIPTION = "스킬로는 불가능한 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중 하나로 적어 주세요.";
 const REFERENCE_TOO_LARGE_DESCRIPTION = "참고 문서는 한 개당 30,000자까지 쓸 수 있습니다. 더 짧은 문서를 골라 주세요.";
 /** 서버 message가 화면용 한국어 안내인 거절 code. 빈 message는 parseApiError가 호출부 fallback으로 채운다. */
-const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTION_INVALID"]);
+const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTION_INVALID", "SKILL_TARGETS_INVALID"]);
 
 /**
  * author 요청 실패를 사유별 안내로 바꾼다.
- * 사유 code(의도 불명확·지침 오류)가 오면 화면용 한국어인 서버 message를 그대로 보여 준다.
+ * 사유 code(의도 불명확·지침 오류·대상 오류)가 오면 화면용 한국어인 서버 message를 그대로 보여 준다.
  * 불가능한 작업(SKILL_INTENT_UNSUPPORTED)은 서버 message 대신 정해 둔 문구로 안내한다.
  * 참고 문서 한 개가 너무 긴 경우(413 REFERENCE_DOCUMENT_TOO_LARGE)는 AI의 내부 용어가 섞인 message 대신 정해 둔 문구로 안내한다.
  * 크레딧 부족(402 INSUFFICIENT_CREDIT)은 공통 문의 안내로 보여 준다(#153).
@@ -87,16 +87,38 @@ export function isSkillFormDirty(initial: object, current: object): boolean {
   return JSON.stringify(initial) !== JSON.stringify(current);
 }
 
-/** 결과 방식이 capabilities와 맞지 않을 때 AI가 주는 code. document가 그대로 넘기거나 대문자로 바꿔 넘길 수 있다. */
-const RESULT_MODE_REJECTION_CODES = new Set(["invalid_result_mode", "INVALID_RESULT_MODE", "SKILL_RESULT_MODE_INVALID"]);
+/**
+ * 결과 방식이 capabilities와 맞지 않을 때의 code. document는 AI의 invalid_result_mode를 400 SKILL_RESULT_MODE_INVALID로 옮긴다.
+ * 그 밖의 표기(AI 원래 code·대문자)도 같은 뜻으로 받는다.
+ */
+const RESULT_MODE_REJECTION_CODES = new Set([
+  "SKILL_RESULT_MODE_INVALID",
+  "invalid_result_mode",
+  "INVALID_RESULT_MODE",
+  "SKILL_INVALID_RESULT_MODE"
+]);
 
 /**
- * 스킬 수정 실패가 결과 방식 불일치(ai invalid_result_mode)인지 본다.
- * 지금 document는 이 code를 따로 옮기지 않고 SKILL_REQUEST_REJECTED(400)로 바꿔 돌려주므로,
- * 결과 방식을 실어 보낸 요청(sentResultMode)이 그 code로 거절됐을 때도 결과 방식 불일치로 본다.
+ * 스킬 수정 실패가 결과 방식 불일치(ai invalid_result_mode)일 수 있는지 본다.
+ * 지침을 고치면 AI가 capabilities를 다시 분류하고, 이어받은 result_mode가 새 capabilities와 맞지 않으면
+ * 저장을 거절한다. 구버전 document는 이 code를 SKILL_REQUEST_REJECTED(400)로 바꿔 돌려주므로 그 code도 같이 본다.
+ * 문서 스킬에서만 쓰며, 결과 방식을 고르게 한 뒤 다시 보내 확인한다.
  */
-export function isResultModeRejection(error: unknown, sentResultMode: boolean): boolean {
-  if (!(error instanceof ApiError) || error.status !== 400) return false;
-  if (error.code != null && RESULT_MODE_REJECTION_CODES.has(error.code)) return true;
-  return sentResultMode && error.code === "SKILL_REQUEST_REJECTED";
+export function isResultModeRejection(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 400 || error.code == null) return false;
+  return RESULT_MODE_REJECTION_CODES.has(error.code) || error.code === "SKILL_REQUEST_REJECTED";
+}
+
+const TARGETS_INVALID_FALLBACK = "실행 대상이 이 스킬과 맞지 않아 저장하지 못했어요. 대상을 확인해 주세요.";
+
+/**
+ * 스킬 수정(PATCH) 실패 문구. 대상이 맞지 않으면(400 SKILL_TARGETS_INVALID, AI invalid_targets) 대상 문제임을 알리는
+ * 서버의 한국어 message를 보여 주고, 비었으면 정해 둔 문구를 쓴다. 그 밖에는 서버 message나 fallback이다.
+ */
+export function describeSkillSaveError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.code === "SKILL_TARGETS_INVALID") {
+    const message = error.message.trim();
+    return message && message !== fallback ? message : TARGETS_INVALID_FALLBACK;
+  }
+  return getErrorMessage(error, fallback);
 }

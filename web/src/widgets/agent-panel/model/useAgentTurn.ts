@@ -21,7 +21,19 @@ import {
   type EditProposalDecisions,
   type EditReviewSegment
 } from "@/features/agent-chat/lib/inlineEditReview";
+import {
+  browserTaskOutcomeStorage,
+  mergeTaskOutcomes,
+  readTaskOutcomes,
+  recordTaskOutcome,
+  taskOutcomeStorageKey,
+  turnIdsWithOutcome,
+  writeTaskOutcome,
+  type TaskOutcome,
+  type TaskOutcomes
+} from "@/features/agent-chat/lib/taskOutcomes";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 
 const NO_DECISIONS: EditProposalDecisions = {};
 
@@ -63,13 +75,27 @@ export function useAgentTurn({
   const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
   // 이 화면에서 작업 탭으로 보낸 turn ID. 서버가 채팅 답변으로 돌려줘도 작업 탭에 남긴다.
   const [taskRunIds, setTaskRunIds] = useState<ReadonlySet<string>>(() => new Set());
-  // 편집안을 적용했거나 새 문서로 만든 turn ID. 작업 목록에서 "저장됨"으로 보인다.
-  const [appliedTurnIds, setAppliedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
-  const markApplied = useCallback((turnId: string | undefined) => {
-    if (turnId) setAppliedTurnIds((current) => new Set([...current, turnId]));
-  }, []);
-  // 편집안을 모두 거절한 turn ID. 작업 목록에서 "거절됨"으로 보인다(Figma 1610:9421).
-  const [rejectedTurnIds, setRejectedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+  // 편집안을 적용·새 문서로 만들었거나(저장됨) 모두 거절했거나(거절됨, Figma 1610:9421) 초안을 취소한(취소됨) turn.
+  // 새로 고침 뒤에도 남게 워크스페이스·세션별 localStorage에 적어 두고, 세션을 열 때 읽어 합친다.
+  const [taskOutcomes, setTaskOutcomes] = useState<TaskOutcomes>(() => new Map());
+  const outcomeStorageKey = useMemo(() => {
+    const workspaceId = getSelectedWorkspaceId();
+    return workspaceId && activeSessionId ? taskOutcomeStorageKey(workspaceId, activeSessionId) : null;
+  }, [activeSessionId]);
+  useEffect(() => {
+    if (!outcomeStorageKey) return;
+    const stored = readTaskOutcomes(browserTaskOutcomeStorage(), outcomeStorageKey);
+    if (stored.size > 0) setTaskOutcomes((current) => mergeTaskOutcomes(stored, current));
+  }, [outcomeStorageKey]);
+  const markOutcome = useCallback((turnId: string | undefined, outcome: TaskOutcome) => {
+    if (!turnId) return;
+    setTaskOutcomes((current) => recordTaskOutcome(current, turnId, outcome));
+    if (outcomeStorageKey) writeTaskOutcome(browserTaskOutcomeStorage(), outcomeStorageKey, turnId, outcome);
+  }, [outcomeStorageKey]);
+  const markApplied = useCallback((turnId: string | undefined) => markOutcome(turnId, "applied"), [markOutcome]);
+  const appliedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "applied"), [taskOutcomes]);
+  const rejectedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "rejected"), [taskOutcomes]);
+  const cancelledTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "cancelled"), [taskOutcomes]);
   // 본문에 붙인 제안(Figma 1571:27625)마다 고른 거절·수락. 다른 turn의 결정은 쓰지 않는다.
   const [reviewDecisions, setReviewDecisions] = useState<{ turnId: string; decisions: EditProposalDecisions } | null>(null);
 
@@ -165,6 +191,12 @@ export function useAgentTurn({
     setMarkdownCreateErrorMessage(null);
   }
 
+  /** 편집안·새 문서 초안 카드의 '취소'. 작업 목록에서 "취소됨"으로 남긴다. */
+  function cancelAgentTurnResult() {
+    markOutcome(agentTurnResponse?.requestId, "cancelled");
+    dismissAgentTurnResult();
+  }
+
   function regenerateAgentTurn() {
     const needsDocument = agentTurnRequest?.documentId !== undefined;
     if (!agentTurnRequest || (needsDocument && !markdownEditContext) || !activeSessionId || !selectedModel) {
@@ -206,7 +238,7 @@ export function useAgentTurn({
       return;
     }
     if (!hasAcceptedProposal(decisions)) {
-      setRejectedTurnIds((current) => new Set([...current, turnId]));
+      markOutcome(turnId, "rejected");
       setReviewDecisions(null);
       dismissAgentTurnResult();
       return;
@@ -284,6 +316,7 @@ export function useAgentTurn({
     taskRunIds,
     appliedTurnIds,
     rejectedTurnIds,
+    cancelledTurnIds,
     reviewSegments,
     proposalDecisions,
     decideProposal,
@@ -291,6 +324,7 @@ export function useAgentTurn({
     refineAgentTurn,
     submitAgentTurn,
     dismissAgentTurnResult,
+    cancelAgentTurnResult,
     regenerateAgentTurn,
     applyMarkdownEdit,
     openMarkdownEditAsNewDocument,

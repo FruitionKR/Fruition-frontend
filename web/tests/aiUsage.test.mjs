@@ -4,6 +4,7 @@ import {
   estimateUsageCost,
   formatCompactTokenCount,
   formatKrwMilli,
+  isUnderOneWon,
   isSameWon,
   formatPercentShare,
   formatTokenCount,
@@ -221,10 +222,13 @@ test("estimateUsageCost flags partially unpriced models but still estimates them
   assert.equal(estimate.hasUnpriced, true);
 });
 
-test("formatKrwMilli rounds to whole won and shows <₩1 for sub-won amounts", () => {
+test("formatKrwMilli rounds to whole won and shows ₩1 미만 for sub-won amounts", () => {
   assert.equal(formatKrwMilli(0), "₩0");
-  assert.equal(formatKrwMilli(120), "<₩1");
-  assert.equal(formatKrwMilli(499.9), "<₩1");
+  assert.equal(formatKrwMilli(120), "₩1 미만");
+  assert.equal(formatKrwMilli(499.9), "₩1 미만");
+  assert.equal(isUnderOneWon(120), true);
+  assert.equal(isUnderOneWon(0), false);
+  assert.equal(isUnderOneWon(500), false);
   assert.equal(formatKrwMilli(500), "₩1");
   assert.equal(formatKrwMilli(1_240_400), "₩1,240");
   assert.equal(formatKrwMilli(Number.NaN), "₩0");

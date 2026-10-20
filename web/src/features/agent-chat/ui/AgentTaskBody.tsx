@@ -14,6 +14,7 @@ import type { FolderOrganizeRequest } from "../lib/folderOrganize";
 import {
   describeTaskRequest,
   groupTaskEntries,
+  resolveTaskRequest,
   resolveTaskStatus,
   SKILL_MODE_CHOICES,
   skillModeAnswer,
@@ -39,8 +40,10 @@ type TaskEntry = {
   item: TaskMessageItem;
   status: TaskStatusView;
   title: string;
-  /** 사용자가 보낸 원래 요청(run request_summary가 있으면 그 값) */
+  /** 사용자가 보낸 원래 요청(스킬 요청이 아니고 run request_summary가 있으면 그 값) */
   request: string;
+  /** 스킬 요청("/slug")을 run이 문장으로 정리한 요약. 따옴표 안 문장으로 쓴다. */
+  summary: string | null;
   run: AgentPlanRun | null;
   runError: unknown;
   isRunFetching: boolean;
@@ -74,6 +77,7 @@ function TaskCard({
   request,
   createdAt,
   title,
+  summary = null,
   meta,
   children
 }: {
@@ -82,10 +86,13 @@ function TaskCard({
   createdAt: string | null;
   /** 없으면 따옴표 안 요청 */
   title?: string;
+  /** 스킬 요청에 덧붙인 문장이 없을 때 따옴표 안에 대신 쓸 run 요약 */
+  summary?: string | null;
   meta?: string | null;
   children?: ReactNode;
 }) {
   const { heading, quote } = describeTaskRequest(action, request);
+  const shownQuote = summary && quote === request.trim() ? summary : quote;
   return (
     <article className={styles["task-card"]}>
       <header className={styles["task-card-head"]}>
@@ -95,7 +102,7 @@ function TaskCard({
         </span>
         {createdAt && <time dateTime={createdAt}>{formatRelativeTime(createdAt)}</time>}
       </header>
-      <p className={styles["task-card-title"]}>{title ?? `"${quote}"`}</p>
+      <p className={styles["task-card-title"]}>{title ?? `"${shownQuote}"`}</p>
       {meta && <p className={styles["task-card-meta"]}>{meta}</p>}
       {children}
     </article>
@@ -114,6 +121,7 @@ export function AgentTaskBody({
   activePreviewMeta = null,
   appliedTurnIds,
   rejectedTurnIds,
+  cancelledTurnIds,
   errorMessage,
   isShown,
   onSaveRequestAsSkill,
@@ -131,8 +139,10 @@ export function AgentTaskBody({
   /** 검토 중인 카드의 보조 설명(Figma 1610:9145 "문서 • 섹션 • 제안 N개 (본문에 표시)"). 없으면 상태 문구 */
   activePreviewMeta?: string | null;
   appliedTurnIds: ReadonlySet<string>;
-  /** 이 화면에서 편집안을 모두 거절한 turn */
+  /** 편집안을 모두 거절한 turn(이 사람의 브라우저에 남긴 기록 포함) */
   rejectedTurnIds: ReadonlySet<string>;
+  /** 편집안·새 문서 초안을 취소한 turn */
+  cancelledTurnIds: ReadonlySet<string>;
   errorMessage: string | null;
   isShown: boolean;
   /** "이 요청을 스킬로 저장"(Figma 1671:13245). 없으면 버튼을 숨긴다. */
@@ -191,15 +201,17 @@ export function AgentTaskBody({
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
+      isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),
       hasLaterTask: index < items.length - 1 || Boolean(pendingTask)
     });
-    const request = run?.request_summary?.trim().normalize("NFC") || item.request || "요청 내용 없음";
+    const { request, summary } = resolveTaskRequest(item.request, run?.request_summary);
     return {
       item,
       status,
       // 스킬로 실행한 폴더 정리는 카드 머리글과 같이 "문서 : /slug"로 적는다(Figma 1571:27625 완료 행).
       title: `${item.action === "folder_organize" && request.startsWith("/") ? "문서" : taskKindLabel(item.action)} : ${request}`,
       request,
+      summary,
       run,
       runError: query?.error ?? null,
       isRunFetching: query?.isFetching ?? false,
@@ -254,6 +266,7 @@ export function AgentTaskBody({
         <TaskCard
           action={item.action}
           request={entry.request}
+          summary={entry.summary}
           createdAt={item.createdAt}
           title={isQuestion ? item.answer : undefined}
           meta={isQuestion ? `요청 : ${entry.request}` : (isActivePreview && activePreviewMeta) || status.label}

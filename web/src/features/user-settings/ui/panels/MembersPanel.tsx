@@ -22,7 +22,7 @@ import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
 import {
   canRemoveMember, effectiveSelection, excludeMember, memberDisplayName, removalNotice, selectAllState, selectVisibleMembers,
-  summarizeMemberNames, toggleAllSelection, toggleSelection, type MemberRoleFilter, type MemberSortDirection, type RemovalFailure,
+  MEMBER_ROLE_OPTIONS, summarizeMemberNames, toggleAllSelection, toggleSelection, type MemberRoleFilter, type MemberSortDirection, type RemovalFailure,
   type SelectAllState
 } from "../../lib/memberList";
 import modalStyles from "../SettingsModal.module.css";
@@ -33,11 +33,6 @@ import { SettingsPanelTitle } from "../SettingsPanelTitle";
 // 권한 필터 순서. 빈 값은 전체.
 const ROLE_FILTERS: readonly MemberRoleFilter[] = ["", "OWNER", "MEMBER"];
 const ROLE_FILTER_LABELS: Record<MemberRoleFilter, string> = { "": "전체", OWNER: "OWNER", MEMBER: "MEMBER" };
-// 행 권한 목록 (Figma 1610:9350)
-const ROLE_OPTIONS: ReadonlyArray<{ value: WorkspaceRole; label: string }> = [
-  { value: "OWNER", label: "OWNER" },
-  { value: "MEMBER", label: "MEMBER" }
-];
 
 /**
  * 삭제 대상을 고르는 체크 칸 (Figma Check off 1482:10965, 켜짐은 같은 시안의 primary 채운 체크).
@@ -327,7 +322,7 @@ export function MembersPanel() {
                   <OptionSelect
                     value={member.role}
                     placeholder="권한"
-                    options={ROLE_OPTIONS}
+                    options={MEMBER_ROLE_OPTIONS}
                     ariaLabel={`${name} 권한: ${member.role}`}
                     disabled={!isOwner || busy || lastOwner}
                     title={lastOwner ? "마지막 OWNER의 권한은 변경할 수 없습니다." : undefined}

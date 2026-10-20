@@ -7,14 +7,11 @@ import modalCloseIcon from "@/shared/assets/svg/settings/modal-close.svg";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
+import { MEMBER_ROLE_OPTIONS } from "../../lib/memberList";
 import flowStyles from "./AccountFlowModal.module.css";
 import { FlowError, AccountFlowModal } from "./AccountFlowModal";
 import styles from "./InviteMemberModal.module.css";
 
-const ROLE_OPTIONS: ReadonlyArray<{ value: WorkspaceRole; label: string }> = [
-  { value: "MEMBER", label: "MEMBER" },
-  { value: "OWNER", label: "OWNER" }
-];
 
 /** 멤버 초대 모달 (Figma 1708:5354). 성공하면 onInvited로 안내 문구를 넘기고 닫힌다. 실패하면 모달 안에 오류를 보여준다. */
 export function InviteMemberModal({
@@ -79,7 +76,7 @@ export function InviteMemberModal({
             id="invite-role"
             value={role}
             placeholder="권한 선택"
-            options={ROLE_OPTIONS}
+            options={MEMBER_ROLE_OPTIONS}
             disabled={busy}
             floating
             onChange={(value) => setRole(value as WorkspaceRole)}

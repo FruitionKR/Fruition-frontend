@@ -14,7 +14,7 @@ registerHooks({
 
 const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/client.ts");
 const { ApiError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
-const { describeSkillAuthorError, isResultModeRejection, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
+const { describeSkillAuthorError, describeSkillSaveError, isResultModeRejection, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -158,12 +158,23 @@ test("시트 입력을 고쳤는지는 처음 값과 비교해 정한다(저장 
   assert.equal(isSkillFormDirty(initial, { ...initial, targets: ["current-document", "selection"] }), true);
 });
 
-test("결과 방식 불일치 거절은 전용 code이거나, 결과 방식을 실어 보낸 요청의 SKILL_REQUEST_REJECTED다", () => {
-  assert.equal(isResultModeRejection(new ApiError("x", 400, "invalid_result_mode"), false), true);
-  assert.equal(isResultModeRejection(new ApiError("x", 400, "SKILL_RESULT_MODE_INVALID"), false), true);
-  // document는 지금 이 code를 SKILL_REQUEST_REJECTED로 바꿔 돌려준다. 결과 방식을 보냈을 때만 그렇게 본다.
-  assert.equal(isResultModeRejection(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), true), true);
-  assert.equal(isResultModeRejection(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), false), false);
-  assert.equal(isResultModeRejection(new ApiError("x", 409, "invalid_result_mode"), true), false);
-  assert.equal(isResultModeRejection(new Error("network"), true), false);
+test("결과 방식 불일치 거절은 전용 code(모든 표기)이거나 document가 바꿔 돌려준 SKILL_REQUEST_REJECTED다", () => {
+  for (const code of ["invalid_result_mode", "INVALID_RESULT_MODE", "SKILL_INVALID_RESULT_MODE", "SKILL_RESULT_MODE_INVALID"]) {
+    assert.equal(isResultModeRejection(new ApiError("x", 400, code)), true, code);
+  }
+  // 결과 방식을 보내지 않은 첫 저장도, 지침 재분류로 이어받은 값이 거절되면 SKILL_REQUEST_REJECTED로 온다.
+  assert.equal(isResultModeRejection(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED")), true);
+  assert.equal(isResultModeRejection(new ApiError("x", 400, "SKILL_INTENT_AMBIGUOUS")), false);
+  assert.equal(isResultModeRejection(new ApiError("x", 400)), false);
+  assert.equal(isResultModeRejection(new ApiError("x", 409, "invalid_result_mode")), false);
+  assert.equal(isResultModeRejection(new Error("network")), false);
+});
+
+test("대상 오류(SKILL_TARGETS_INVALID)는 결과 방식 문제가 아니며 서버의 대상 안내를 보여 준다", () => {
+  const error = new ApiError("선택한 부분은 이 스킬의 대상이 될 수 없습니다.", 400, "SKILL_TARGETS_INVALID");
+  assert.equal(isResultModeRejection(error), false);
+  assert.equal(describeSkillSaveError(error, "스킬 정의를 수정하지 못했습니다."), "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
+  assert.match(describeSkillSaveError(new ApiError("스킬 정의를 수정하지 못했습니다.", 400, "SKILL_TARGETS_INVALID"), "스킬 정의를 수정하지 못했습니다."), /실행 대상/);
+  assert.equal(describeSkillAuthorError(error).description, "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
+  assert.equal(describeSkillSaveError(new ApiError("기타", 400, "X"), "fb"), "기타");
 });

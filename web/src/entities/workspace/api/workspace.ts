@@ -57,12 +57,19 @@ export async function fetchWorkspaceIcon(workspaceId: string): Promise<Blob> {
   return response.blob();
 }
 
+// 용량 API가 없다고(404) 답한 워크스페이스. 이 탭에서는 다시 묻지 않는다(브라우저 콘솔에 404가 쌓이지 않게).
+const storageMissingWorkspaces = new Set<string>();
+
 /**
  * 워크스페이스 플랜·저장 용량·사용량을 조회한다.
- * 백엔드가 아직 이 API를 제공하지 않으면(404) null을 돌려준다.
+ * 백엔드가 아직 이 API를 제공하지 않으면(404) null을 돌려주고, 그 워크스페이스는 이후 요청 없이 null을 돌려준다.
  */
 export async function fetchWorkspaceStorage(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceStorageResponse | null> {
+  if (storageMissingWorkspaces.has(workspaceId)) return null;
   const response = await apiFetch(workspacePath(workspaceId, "storage"), { cache: "no-store", signal });
-  if (response.status === 404) return null;
+  if (response.status === 404) {
+    storageMissingWorkspaces.add(workspaceId);
+    return null;
+  }
   return parseJsonOrThrow<WorkspaceStorageResponse>(response, "저장 용량을 불러오지 못했습니다.");
 }

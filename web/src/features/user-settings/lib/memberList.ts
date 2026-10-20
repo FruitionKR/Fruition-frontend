@@ -4,6 +4,15 @@
 export type MemberRoleFilter = "" | "OWNER" | "MEMBER";
 export type MemberSortDirection = "asc" | "desc";
 
+/**
+ * 권한 고르기 목록(멤버 초대 모달·멤버 표의 행 권한)이 함께 쓰는 순서.
+ * 초대 기본값이자 대부분의 멤버가 가진 MEMBER를 위에, 더 넓은 권한인 OWNER를 아래에 둔다.
+ */
+export const MEMBER_ROLE_OPTIONS: ReadonlyArray<{ value: "MEMBER" | "OWNER"; label: string }> = [
+  { value: "MEMBER", label: "MEMBER" },
+  { value: "OWNER", label: "OWNER" }
+];
+
 type ListedMember = { email: string; display_name: string | null; role: string };
 
 /** 표에 보이는 이름. 닉네임이 없으면 이메일이다. */

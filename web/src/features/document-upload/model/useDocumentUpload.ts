@@ -18,8 +18,6 @@ import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tre
 
 // 용량 조회가 이보다 늦으면 사전 검사를 건너뛰고 업로드를 시작한다.
 const STORAGE_CHECK_TIMEOUT_MS = 3_000;
-// 백엔드에 용량 API가 없으면(404) 이 탭에서는 다시 묻지 않는다.
-let isStorageApiMissing = false;
 
 /**
  * 업로드 전에 워크스페이스 남은 용량을 검사해 파일별 거절 문구(통과면 null)를 돌려준다.
@@ -27,12 +25,8 @@ let isStorageApiMissing = false;
  */
 async function loadUploadRejections(files: File[]): Promise<(string | null)[]> {
   const skipped = files.map(() => null);
-  if (isStorageApiMissing) return skipped;
+  // 용량 API가 없는(404) 워크스페이스는 fetchWorkspaceStorage가 다시 묻지 않고 null을 돌려준다.
   const storage = await fetchWorkspaceStorage(getWorkspaceId(), AbortSignal.timeout(STORAGE_CHECK_TIMEOUT_MS))
-    .then((response) => {
-      if (!response) isStorageApiMissing = true;
-      return response;
-    })
     .catch(() => null);
   if (!storage) return skipped;
   return checkStorageQuota(files.map((file) => file.size), storage);

@@ -452,7 +452,7 @@ export function AgentPanel({
           draft={agentTurnResponse.result.generated_markdown}
           isSubmitting={isCreatingMarkdown}
           errorMessage={agentTurn.markdownCreateErrorMessage}
-          onCancel={agentTurn.dismissAgentTurnResult}
+          onCancel={agentTurn.cancelAgentTurnResult}
           onRegenerate={agentTurn.regenerateAgentTurn}
           onCreate={agentTurn.createMarkdownDocument}
         />
@@ -464,7 +464,7 @@ export function AgentPanel({
           validationError={editPreviewState.validationError}
           isLoading={isAgentTurnLoading || isCreatingMarkdown}
           onApply={agentTurn.applyMarkdownEdit}
-          onCancel={agentTurn.dismissAgentTurnResult}
+          onCancel={agentTurn.cancelAgentTurnResult}
           onOpenAsNewDocument={agentTurn.openMarkdownEditAsNewDocument}
           onRegenerate={agentTurn.regenerateAgentTurn}
         />
@@ -511,6 +511,7 @@ export function AgentPanel({
             activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
+            cancelledTurnIds={agentTurn.cancelledTurnIds}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
             errorMessage={agentTurn.agentTurnErrorMessage ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}

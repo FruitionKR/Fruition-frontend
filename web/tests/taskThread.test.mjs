@@ -18,6 +18,7 @@ const {
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
+  resolveTaskRequest,
   skillSheetPanelView,
   resolveTaskStatus,
   selectionChipLabel,
@@ -213,4 +214,27 @@ test("스킬로 보낸 작업의 새 문서·문서 수정 되묻기에는 커�
     "/summary-maker 새 문서로 만들어 줘",
     "/summary-maker 지금 문서를 수정해 줘"
   ]);
+});
+
+test("resolveTaskRequest는 스킬 요청이면 AI가 다시 쓴 요약 대신 보낸 원문을 머리글용으로 쓴다", () => {
+  const rewritten = "'squash-names' Skill의 지침에 따라 이 폴더를 정리해 주세요.";
+  const resolved = resolveTaskRequest("/squash-names", rewritten);
+  assert.deepEqual(resolved, { request: "/squash-names", summary: rewritten });
+  assert.deepEqual(describeTaskRequest("folder_organize", resolved.request), { heading: "문서 : /squash-names", quote: "/squash-names" });
+  // 요약이 원문과 같으면 따로 돌려주지 않는다.
+  assert.deepEqual(resolveTaskRequest(" /squash-names ", "/squash-names"), { request: "/squash-names", summary: null });
+  // 스킬 요청이 아니면 지금처럼 요약을 먼저 쓴다.
+  assert.deepEqual(resolveTaskRequest("정리해 줘", "보고서 폴더를 주제별로 정리"), { request: "보고서 폴더를 주제별로 정리", summary: null });
+  assert.deepEqual(resolveTaskRequest("정리해 줘", null), { request: "정리해 줘", summary: null });
+  assert.deepEqual(resolveTaskRequest("", "  "), { request: "요청 내용 없음", summary: null });
+});
+
+test("초안을 취소한 편집·새 문서 작업은 '제안 완료' 대신 '취소됨'으로 보인다", () => {
+  const cancelled = resolveTaskStatus({ action: "markdown_create", messageStatus: "completed", isCancelled: true });
+  assert.equal(cancelled.label, "취소됨");
+  assert.equal(cancelled.group, "done");
+  // 저장·거절 기록이 있으면 그쪽이 먼저다.
+  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isApplied: true, isCancelled: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isRejected: true, isCancelled: true }).label, "거절됨");
+  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "제안 완료");
 });

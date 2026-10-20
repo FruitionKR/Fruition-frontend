@@ -11,7 +11,7 @@ import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
 import { confirmVerificationCode } from "@/views/auth/lib/confirmVerificationCode";
-import { useDevelopmentVerificationCode } from "@/views/auth/model/useDevelopmentVerificationCode";
+import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { useVerificationResend } from "@/views/auth/model/useVerificationResend";
 import { ResendCodePrompt } from "@/views/auth/ui/ResendCodePrompt";

@@ -36,7 +36,8 @@ const {
   resolveLockElapsedMs,
   resolveLockRemainingMs
 } = await import("../src/features/note-editing/model/editLockSchedule.ts");
-const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
+const { discardEditLockHandoffs, useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
+const { EDIT_LOCK_RELEASE_DELAY_MS, createEditLockHandoffs } = await import("../src/features/note-editing/model/editLockHandoff.ts");
 const { SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { ERROR_MESSAGES } = await import("../src/shared/api/client.ts");
@@ -62,6 +63,8 @@ function workspaceEnv(t) {
   t.after(() => {
     globalThis.window = original;
     globalThis.document = originalDocument;
+    // 앞 테스트가 떠나며 맡긴 잠금을 다음 테스트가 넘겨받지 않게 한다.
+    discardEditLockHandoffs();
   });
   saveAccessToken("test-access");
 }
@@ -600,4 +603,102 @@ test("편집 잠금을 쓸 수 없는 문서(400)는 서버 문구를 담고, �
   assert.equal(posts, 1);
   assert.deepEqual(second.result, { phase: "error", message: "채팅 Wiki page화 문서는 편집할 수 없습니다." });
   second.unmount();
+});
+
+function fakeTimers() {
+  const timers = new Map();
+  let next = 1;
+  return {
+    setTimer: (callback, ms) => { const id = next++; timers.set(id, { callback, ms }); return id; },
+    clearTimer: (id) => { timers.delete(id); },
+    runAll: () => { const due = [...timers.values()]; timers.clear(); due.forEach(({ callback }) => callback()); },
+    get size() { return timers.size; }
+  };
+}
+
+const settle = async () => { for (let turn = 0; turn < 10; turn++) await Promise.resolve(); };
+const HELD = { lock: { ttl_ms: 30_000 }, sentAt: { monoMs: 0, wallMs: 0 } };
+
+test("곧바로 다시 마운트된 편집기는 맡긴 잠금을 넘겨받고 해제하지 않는다", async () => {
+  const timers = fakeTimers();
+  const released = [];
+  const handoffs = createEditLockHandoffs({ release: async (id) => { released.push(id); }, ...timers });
+  handoffs.defer("doc", Promise.resolve(HELD));
+  assert.equal(await handoffs.claim("doc"), HELD);
+  assert.equal(timers.size, 0, "넘겨주면 해제 예약을 지운다");
+  assert.equal(handoffs.claim("doc"), null, "한 번 넘긴 잠금은 다시 넘기지 않는다");
+  timers.runAll();
+  await settle();
+  assert.deepEqual(released, []);
+});
+
+test("아무도 넘겨받지 않으면 잠시 뒤 해제하고, 획득에 실패한 잠금은 해제하지 않는다", async () => {
+  const timers = fakeTimers();
+  const released = [];
+  const handoffs = createEditLockHandoffs({ release: async (id) => { released.push(id); }, ...timers });
+  handoffs.defer("held", Promise.resolve(HELD));
+  handoffs.defer("failed", Promise.reject(new Error("423")));
+  await settle();
+  assert.deepEqual(released, [], "기다리는 동안은 해제하지 않는다");
+  timers.runAll();
+  await settle();
+  assert.deepEqual(released, ["held"]);
+  assert.equal(handoffs.claim("held"), null);
+});
+
+test("획득 중에 떠난 편집기의 요청도 넘겨받아 같은 응답을 쓴다(StrictMode 이중 마운트)", async () => {
+  const timers = fakeTimers();
+  const released = [];
+  const handoffs = createEditLockHandoffs({ release: async (id) => { released.push(id); }, ...timers });
+  let resolve;
+  const inFlight = new Promise((done) => { resolve = done; });
+  handoffs.defer("doc", inFlight);
+  const claimed = handoffs.claim("doc");
+  resolve(HELD);
+  assert.equal(await claimed, HELD);
+  timers.runAll();
+  await settle();
+  assert.deepEqual(released, []);
+});
+
+test("페이지를 떠나면 기다리지 않고 keepalive로 해제한다", async () => {
+  const timers = fakeTimers();
+  const released = [];
+  const handoffs = createEditLockHandoffs({ release: async (id, options) => { released.push([id, options.keepalive]); }, ...timers });
+  handoffs.defer("doc", Promise.resolve(HELD));
+  handoffs.flush();
+  await settle();
+  assert.deepEqual(released, [["doc", true]]);
+  assert.equal(timers.size, 0);
+});
+
+test("편집기가 마운트·해제·재마운트돼도 잠금 POST는 한 번이고 DELETE·409가 없다", async (t) => {
+  workspaceEnv(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  t.mock.method(performance, "now", () => Date.now());
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    const kind = path.endsWith("/heartbeat") ? "HEARTBEAT" : init?.method;
+    calls.push(kind);
+    if (kind === "DELETE") return new Response(null, { status: 204 });
+    return Response.json({ expires_at: new Date(Date.now() + 30_000).toISOString(), ttl_ms: 30_000 });
+  });
+  // React StrictMode: 마운트 → 정리 → 다시 마운트가 같은 틱에 일어난다.
+  const first = render(() => useEditLock({ documentId: DOCUMENT_ID, onLockLost() {} }));
+  first.unmount();
+  const second = render(() => useEditLock({ documentId: DOCUMENT_ID, onLockLost() {} }));
+  await advance(t, 0);
+  second.rerender();
+  assert.equal(second.result.phase, "granted");
+  await advance(t, EDIT_LOCK_RELEASE_DELAY_MS);
+  assert.deepEqual(calls, ["POST"], "넘겨받은 잠금은 해제·재획득하지 않는다");
+  await advance(t, 10_000);
+  assert.deepEqual(calls, ["POST", "HEARTBEAT"]);
+
+  // 진짜로 떠나면 잠시 뒤 한 번 해제한다.
+  second.unmount();
+  await advance(t, EDIT_LOCK_RELEASE_DELAY_MS - 1);
+  assert.deepEqual(calls, ["POST", "HEARTBEAT"]);
+  await advance(t, 1);
+  assert.deepEqual(calls, ["POST", "HEARTBEAT", "DELETE"]);
 });
