@@ -12,6 +12,7 @@ import * as closedMath from "../src/shared/lib/markdown/remarkClosedMath.ts";
 import * as sourceBlocks from "../src/shared/lib/markdown/markdownSourceBlocks.ts";
 import * as customTokens from "../src/shared/lib/markdown/remarkCustomTokens.ts";
 import * as externalResources from "../src/shared/lib/markdown/externalResources.ts";
+import * as codeBlock from "../src/shared/lib/markdown/codeBlock.ts";
 
 // 실제 MarkdownViewer와 ManagedImage를 함께 렌더해 외부 주소의 <img>·링크가 만들어지지 않는지 본다(이슈 #77).
 const require = createRequire(import.meta.url);
@@ -29,6 +30,9 @@ const { ManagedImage } = load("../src/shared/ui/markdown/ManagedImage.tsx", {
   "@/shared/api/assets": assets,
   "@/shared/lib/markdown/externalResources": externalResources
 });
+const { MarkdownCodeBlock } = load("../src/shared/ui/markdown/MarkdownCodeBlock.tsx", {
+  "@/shared/lib/markdown/codeBlock": codeBlock
+});
 const { MarkdownViewer } = load("../src/shared/ui/markdown/MarkdownViewer.tsx", {
   // KaTeX 스타일은 번들러가 처리하는 부수효과 임포트라 Node에서는 비운다
   "katex/dist/katex.min.css": {},
@@ -38,7 +42,8 @@ const { MarkdownViewer } = load("../src/shared/ui/markdown/MarkdownViewer.tsx", 
   "@/shared/lib/markdown/markdownSourceBlocks": sourceBlocks,
   "@/shared/lib/markdown/remarkCustomTokens": customTokens,
   "@/shared/lib/markdown/externalResources": externalResources,
-  "@/shared/ui/markdown/ManagedImage": { ManagedImage }
+  "@/shared/ui/markdown/ManagedImage": { ManagedImage },
+  "@/shared/ui/markdown/MarkdownCodeBlock": { MarkdownCodeBlock }
 });
 
 const render = (markdown, props = {}) => renderToStaticMarkup(React.createElement(MarkdownViewer, { markdown, ...props }));
@@ -94,4 +99,17 @@ test("AI 본문 정책은 외부 링크를 누를 수 없는 글자와 도메인
   assert.match(html, /<span class="markdown-inert-link">메일<\/span>/);
   assert.match(html, /<a href="\/workspaces\/ws">내부<\/a>/);
   assert.match(html, /markdown-wikilink/);
+});
+
+test("코드 블록은 언어 라벨·코드 복사 버튼·선택에서 빠지는 줄 번호와 함께 그린다", () => {
+  const html = render("```js\nconst a = 1;\nconst b = 2;\n```\n\n```\nplain\n```\n\n본문의 `inline` 코드");
+
+  assert.match(html, /<span class="markdown-codeblock-tool markdown-codeblock-language">js<\/span>/);
+  assert.match(html, /<span class="markdown-codeblock-tool markdown-codeblock-language">Text<\/span>/);
+  assert.equal([...html.matchAll(/aria-label="코드 복사"/g)].length, 2);
+  assert.match(html, /<div class="markdown-codeblock-gutter" aria-hidden="true"><span>1<\/span><span>2<\/span><\/div>/);
+  // 줄 번호는 pre 밖에 있어 코드 텍스트(복사·선택 대상)에 섞이지 않는다
+  assert.match(html, /<pre class="markdown-codeblock-scroll"><code class="language-js">const a = 1;\nconst b = 2;\n<\/code><\/pre>/);
+  // 인라인 코드는 기존처럼 code 하나로 남는다
+  assert.match(html, /<p>본문의 <code>inline<\/code> 코드<\/p>/);
 });

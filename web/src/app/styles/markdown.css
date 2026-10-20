@@ -10,6 +10,24 @@
   --markdown-citation-5: #8b5cf6;
   --markdown-link: var(--color-primary);
   --markdown-code-foreground: var(--color-foreground);
+  /* 코드 블록: 문서 보기(.markdown-codeblock)와 노트 편집기(.milkdown-code-block)가 같은 값을 쓴다. */
+  --code-block-background: var(--color-surface);
+  --code-block-line-number: var(--color-muted);
+  --code-block-font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Consolas, monospace;
+  --code-block-font-size: 14px;
+  --code-block-line-height: 1.4;
+  --code-block-inset: 16px;
+  --code-block-radius: 8px;
+  /* 줄 번호 칸: 2자리까지는 폭이 같고(10번째 줄에서 코드가 밀리지 않게), 숫자~코드 간격은 일정하다. */
+  --code-block-gutter-gap: 12px;
+  --code-block-gutter-min-width: calc(2ch + var(--code-block-gutter-gap));
+  /* 툴바 칩(언어 라벨·Copy 버튼) */
+  --code-block-tool-height: 24px;
+  --code-block-tool-padding-x: 8px;
+  --code-block-tool-gap: 4px;
+  --code-block-tool-radius: 6px;
+  --code-block-tool-font-size: 12px;
+  --code-block-tool-icon: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +39,7 @@
     --markdown-citation-5: #d2a8ff;
     --markdown-link: #8ab4e8;
     --markdown-code-foreground: #d0d7de;
+    --code-block-background: #161616;
   }
 }
 
@@ -33,6 +52,7 @@
   --markdown-citation-5: #d2a8ff;
   --markdown-link: #8ab4e8;
   --markdown-code-foreground: #d0d7de;
+  --code-block-background: #161616;
 }
 
 /* 문서 본문 타이포그래피 (Figma 1406:10314): foreground, Medium 14px, 행간 1.4.
@@ -137,7 +157,6 @@
   font-size: 0.92em;
 }
 
-.markdown-codeblock,
 .markdown-frontmatter pre {
   margin: 0 0 16px;
   overflow-x: auto;
@@ -152,21 +171,153 @@
   overflow-wrap: break-word;
 }
 
+/* 코드 블록: 노트 편집기(NoteEditor.module.css의 .milkdown-code-block)와 같은 모양.
+   네 방향 inset, 툴바~코드 inset, 툴바는 hover·키보드 포커스·hover 없는 기기에서 보인다. */
 .markdown-codeblock {
-  padding: 2px 2px 2px 6px;
+  position: relative;
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: var(--code-block-inset);
+  color: var(--markdown-code-foreground);
+  background: var(--code-block-background);
+  border-radius: var(--code-block-radius);
 }
 
 .markdown-viewer p + .markdown-codeblock {
   margin-top: -4px;
 }
 
-.markdown-codeblock code {
+.markdown-codeblock-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: var(--code-block-inset);
+}
+
+.markdown-codeblock-tool {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--code-block-tool-gap);
+  box-sizing: border-box;
+  height: var(--code-block-tool-height);
+  margin: 0;
+  padding: 0 var(--code-block-tool-padding-x);
+  color: var(--color-body);
+  background: var(--color-surface-strong);
+  border: 0;
+  border-radius: var(--code-block-tool-radius);
+  font-family: var(--document-font-family);
+  font-size: var(--code-block-tool-font-size);
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.markdown-codeblock:hover .markdown-codeblock-tool,
+.markdown-codeblock:focus-within .markdown-codeblock-tool {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .markdown-codeblock-tool {
+    opacity: 1;
+  }
+}
+
+/* 긴 언어 이름은 좁은 화면(채팅 답변 등)에서 말줄임한다. */
+.markdown-codeblock-language {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  line-height: var(--code-block-tool-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-codeblock-copy {
+  cursor: pointer;
+}
+
+.markdown-codeblock-copy:hover {
+  background-image: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
+}
+
+.markdown-codeblock-copy:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.markdown-codeblock-copy svg {
+  width: var(--code-block-tool-icon);
+  height: var(--code-block-tool-icon);
+  fill: currentColor;
+}
+
+.markdown-codeblock-copy[data-state="failed"] {
+  color: var(--color-danger);
+}
+
+/* 스크린리더 안내만 남기고 화면에서는 숨긴다. */
+.markdown-codeblock-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.markdown-codeblock-body {
+  display: flex;
+  font-family: var(--code-block-font-family);
+  font-size: var(--code-block-font-size);
+  line-height: var(--code-block-line-height);
+}
+
+/* 줄 번호: 스크롤 영역 밖이라 가로 스크롤에도 고정되고, 선택·복사에서 빠진다. */
+.markdown-codeblock-gutter {
+  flex: none;
+  box-sizing: border-box;
+  min-width: var(--code-block-gutter-min-width);
+  padding-right: var(--code-block-gutter-gap);
+  color: var(--code-block-line-number);
+  text-align: right;
+  user-select: none;
+}
+
+.markdown-codeblock-gutter span {
+  display: block;
+}
+
+/* 긴 줄은 줄바꿈하지 않고 가로로 스크롤한다(줄 번호와 줄이 1:1로 맞게).
+   패널 쪽 pre 규칙(예: 문서 미리보기의 pre-wrap·아래 여백)보다 우선하도록 블록 클래스로 한정한다. */
+.markdown-codeblock .markdown-codeblock-scroll {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+/* .markdown-viewer code(인라인 코드)의 배경·0.92em이 블록 안 code에 걸리지 않게 한다. */
+.markdown-viewer .markdown-codeblock code {
   display: block;
   margin: 0;
   padding: 0;
+  color: inherit;
   background: transparent;
   border-radius: 0;
-  line-height: inherit;
+  font: inherit;
 }
 
 .markdown-frontmatter {

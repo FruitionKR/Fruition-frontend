@@ -324,10 +324,6 @@
 }
 
 /* markdown 콘텐츠 어휘(전역) override */
-.source-preview-content :global(.markdown-codeblock) {
-  padding: 2px 2px 2px 6px;
-}
-
 .source-preview-content :global(.markdown-frontmatter) pre {
   padding: 12px 14px;
 }
