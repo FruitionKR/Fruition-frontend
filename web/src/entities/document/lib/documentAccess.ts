@@ -1,7 +1,7 @@
 import type { DocumentPermission } from "@/entities/document/model/document";
 import { ApiError } from "@/shared/lib/apiErrors";
 
-type DocumentAccessFields = { can_edit?: boolean; can_delete?: boolean; ai_origin?: string | null } | null | undefined;
+type DocumentAccessFields = { can_edit?: boolean; can_delete?: boolean; can_convert?: boolean; ai_origin?: string | null } | null | undefined;
 
 /** 읽기 전용 안내 첫 줄(상태). 편집기 위 안내에서 두 줄로 나눠 보여준다. */
 export const READ_ONLY_DOCUMENT_TITLE = "이 문서는 보기 권한만 있어 읽기 전용으로 열었습니다.";
@@ -41,6 +41,17 @@ export function isDocumentBodyLocked(document: DocumentAccessFields): boolean {
 /** 삭제·휴지통 복구는 문서 소유자와 OWNER만 한다. 필드가 없으면 서버가 403으로 막으므로 메뉴는 보여 준다. */
 export function canDeleteDocument(document: DocumentAccessFields): boolean {
   return document?.can_delete !== false;
+}
+
+/** Markdown 변환을 막을 때(can_convert=false) 메뉴·편입 선택·알림에 함께 보여줄 이유 */
+export const CONVERT_FORBIDDEN_REASON = "다른 사람이 올린 PDF는 변환 권한이 있어야 해요";
+
+/**
+ * PDF → Markdown 변환은 올린 사람, document.convert 권한이 있는 멤버, OWNER만 한다(can_convert).
+ * 필드가 없는 구 서버 응답은 지금처럼 요청을 보내고 서버 판정에 맡긴다.
+ */
+export function canConvertDocument(document: DocumentAccessFields): boolean {
+  return document?.can_convert !== false;
 }
 
 /** 권한 선택 UI에 보여줄 항목 */

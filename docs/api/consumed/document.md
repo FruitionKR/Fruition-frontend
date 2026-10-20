@@ -76,6 +76,16 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | `PUT /api/workspaces/{workspace_id}/documents/{document_id}/permission` | 문서 권한 설정 | `web/src/entities/document/api/permission.ts` `setDocumentPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "documents", documentId, "permission")` | `{ access: "edit" \| "view" \| null }` | `access` | 문서 소유자·OWNER만. `403 DOCUMENT_WRITE_FORBIDDEN`은 `describePermissionError`가 역할 안내 문구로 바꾼다 |
 | `PUT /api/workspaces/{workspace_id}/folders/{folder_id}/permission` | 폴더 권한 설정 | `web/src/entities/document/api/permission.ts` `setFolderPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "folders", folderId, "permission")` | `{ access }` | `access` | OWNER만. 폴더 안 문서·하위 폴더가 따른다. 다이얼로그는 트리 응답의 폴더 `permission`에서 시작하고, 없으면 `null`(상위 따름)에서 시작한다 |
 
+### `can_convert` — Markdown 변환 가능 여부
+
+목록·트리·상세 응답의 문서 항목에 `can_convert: boolean`을 `can_edit`·`can_delete`와 같은 자리로 받는다.
+값은 `convert-markdown` 판정과 같은 규칙이다: 올린 사람은 자기 PDF를 변환할 수 있고, 그 외에는 워크스페이스 `document.convert` 권한이 필요하며 OWNER는 항상 가능하다. 변환 대상이 아닌 문서는 `false`다.
+
+- `can_convert === false`면 문서 트리 우클릭 "Markdown으로 변환"을 비활성화하고 "다른 사람이 올린 PDF는 변환 권한이 있어야 해요"를 툴팁·`aria-description`으로 알린다. 요청은 보내지 않는다(`web/src/widgets/workspace/model/useProjectTree.ts`).
+- 위키 편입 선택 트리도 같은 이유로 그 PDF를 고르지 못하게 하고(`getGraphIngestBlockReason`), PDF 편입 흐름(`usePdfWikiIngest.startPdfIngest`)은 convert 요청 전에 같은 이유로 실패시킨다.
+- 필드가 없는 구 응답은 지금처럼 요청을 보내고 서버 판정(403)에 맡긴다(`canConvertDocument`, `web/src/entities/document/lib/documentAccess.ts`).
+- mock(`web/mock/state.mjs` `canConvertDocument`·`mayConvertDocument`)은 같은 규칙으로 `can_convert`를 내려 주고, `convert-markdown`은 권한이 없으면 `403 WORKSPACE_PERMISSION_REQUIRED`를 돌려준다.
+
 ### 트리의 폴더 `permission` — 백엔드 추가 필요(제안)
 
 `GET /document-tree`의 `type: "folder"` 항목에 폴더 자기 권한 `permission: "edit" | "view" | null`을 내려 주길 제안한다
@@ -117,7 +127,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/ingest` | Wiki 편입 시작 | `web/src/entities/document/api/document.ts` `startDocumentIngest` (비공개) | `workspacePath(workspaceId, "documents", documentId, "ingest")` | 본문 없음 | - (`throwIfNotOk`) | `documentRole === "EDITABLE"`일 때만 호출한다. ingest가 편집 가능 Markdown만 받기 때문 |
-| `POST /api/workspaces/{workspace_id}/documents/{document_id}/convert-markdown` | PDF 등 원본을 Markdown으로 변환 | `web/src/entities/document/api/document.ts` `convertDocumentToMarkdown` | `workspacePath(workspaceId, "documents", documentId, "convert-markdown")` | 본문 없음 | `DocumentItemResponse` (`id`) | `Idempotency-Key`. `EDITABLE`이 아닌 문서의 Wiki 반영 경로이기도 하다. 응답 `id`로 변환 완료 후 자동 열기 이벤트(`publishConvertStarted`)를 발행한다 |
+| `POST /api/workspaces/{workspace_id}/documents/{document_id}/convert-markdown` | PDF 등 원본을 Markdown으로 변환 | `web/src/entities/document/api/document.ts` `convertDocumentToMarkdown` | `workspacePath(workspaceId, "documents", documentId, "convert-markdown")` | 본문 없음 | `DocumentItemResponse` (`id`) | `Idempotency-Key`. `EDITABLE`이 아닌 문서의 Wiki 반영 경로이기도 하다. `can_convert === false`면 보내지 않는다(공동 편집 권한의 `can_convert` 절). 응답 `id`로 변환 완료 후 자동 열기 이벤트(`publishConvertStarted`)를 발행한다 |
 
 ## UI 위치
 

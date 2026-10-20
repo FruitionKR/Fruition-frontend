@@ -2,6 +2,7 @@ import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
 import { filterTreeItems } from "@/entities/tree/lib/treeQueries";
 import { isDocumentConverting, isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
+import { canConvertDocument, CONVERT_FORBIDDEN_REASON } from "@/entities/document/lib/documentAccess";
 import { getWikiReflectState, isWikiReflectEligible } from "./wikiReflectState";
 
 function isFailedPdfConversion(document: DocumentItemResponse): boolean {
@@ -24,6 +25,7 @@ export const GRAPH_INGEST_BLOCK_REASONS = {
   notMarkdown: "Markdown 문서만 위키에 편입할 수 있어요",
   pdfConverted: "이미 Markdown으로 변환했어요. 변환된 Markdown 문서를 선택해 주세요",
   pdfConverting: "Markdown으로 변환하는 중이에요",
+  convertForbidden: CONVERT_FORBIDDEN_REASON,
   conversionFailed: "Markdown 변환에 실패한 문서예요",
   processing: "처리 중이라 지금은 편입할 수 없어요",
   upToDate: "이미 최신 내용이 위키에 반영돼 있어요"
@@ -34,6 +36,7 @@ export const GRAPH_INGEST_BLOCK_REASONS = {
  * - Markdown: 처리 중이거나 이미 최신으로 반영된 문서, 변환에 실패한 문서는 막는다.
  * - PDF: 아직 변환하지 않은 원본만 고를 수 있다(확인 후 Markdown으로 변환해 편입).
  *   변환본(source_document_id로 연결된 Markdown)이 있거나 변환 중이면 막는다. 실패한 변환본은 없는 것으로 본다.
+ *   변환 권한이 없으면(can_convert=false) 변환이 403으로 끝나므로 막는다.
  * - 그 밖의 파일(TXT 등)은 고를 수 없다.
  */
 export function getGraphIngestBlockReason(
@@ -46,6 +49,7 @@ export function getGraphIngestBlockReason(
     );
     if (converted.some(isDocumentConverting)) return GRAPH_INGEST_BLOCK_REASONS.pdfConverting;
     if (converted.length > 0) return GRAPH_INGEST_BLOCK_REASONS.pdfConverted;
+    if (!canConvertDocument(document)) return GRAPH_INGEST_BLOCK_REASONS.convertForbidden;
     return getWikiReflectState(document) === "processing" ? GRAPH_INGEST_BLOCK_REASONS.processing : null;
   }
   if (!isMarkdownDocument(document)) return GRAPH_INGEST_BLOCK_REASONS.notMarkdown;

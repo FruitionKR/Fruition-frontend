@@ -103,12 +103,30 @@ export function effectivePermission(doc) {
   return "edit";
 }
 
+/** 사용자가 워크스페이스 권한(document.convert 등)을 가졌는지. OWNER는 모든 권한을 가진다. */
+export function hasWorkspacePermission(workspaceId, userId, permission) {
+  const member = state.members.find((item) => item.workspace_id === workspaceId && item.user_id === userId);
+  return member?.role === "OWNER" || member?.permissions?.includes(permission) === true;
+}
+
+/** convert-markdown 권한 규칙: 올린 사람은 자기 문서를, 그 외에는 document.convert 권한(OWNER는 항상)이 있어야 변환한다. */
+export function mayConvertDocument(doc, userId) {
+  return doc.owner_user_id === userId || hasWorkspacePermission(doc.workspace_id, userId, "document.convert");
+}
+
+/** 응답 can_convert: 변환 대상(PDF 원본)이 아니면 false, 대상이면 권한 규칙을 따른다. */
+export function canConvertDocument(doc, userId) {
+  if (doc.mime_type !== "application/pdf" || doc.document_role === "EDITABLE") return false;
+  return mayConvertDocument(doc, userId);
+}
+
 /** 서버 DocumentAccessPolicy 흉내: 소유자·OWNER는 항상 편집·삭제, 그 외 멤버는 적용 권한이 edit일 때만 편집. */
 export function documentAccess(doc, userId) {
   const isPrivileged = doc.owner_user_id === userId || memberRole(doc.workspace_id, userId) === "OWNER";
   return {
     can_edit: isPrivileged || effectivePermission(doc) === "edit",
     can_delete: isPrivileged,
+    can_convert: canConvertDocument(doc, userId),
     permission: doc.permission ?? null,
     updated_by: doc.updated_by ?? doc.owner_user_id ?? null
   };

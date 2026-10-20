@@ -95,7 +95,7 @@ export function DocumentSidebar({
   onToggleOpen: (id: string) => void;
   onOpenMany: (ids: readonly string[]) => void;
   contextMenu: ContextMenuState | null;
-  convertContextTarget: { isDisabled: boolean } | null;
+  convertContextTarget: { isDisabled: boolean; disabledReason?: string } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameContextTarget: boolean;
   /** 서버 can_delete=false면 삭제 메뉴를 비활성화한다. */

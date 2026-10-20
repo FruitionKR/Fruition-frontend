@@ -1,7 +1,7 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
-import { canDeleteDocument, permissionChangedMessage } from "@/entities/document/lib/documentAccess";
+import { canConvertDocument, canDeleteDocument, CONVERT_FORBIDDEN_REASON, permissionChangedMessage } from "@/entities/document/lib/documentAccess";
 import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
 import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
@@ -334,10 +334,13 @@ export function useProjectTree({
     }
   }
 
+  // 변환 권한이 없으면(can_convert=false) 이유와 함께 비활성화한다. 필드가 없는 구 서버는 지금처럼 요청한다.
+  const canConvertContextItem = canConvertDocument(contextMenuItem ? { can_convert: contextMenuItem.canConvert } : null);
   const convertContextTarget = contextMenuItem?.documentId && contextMenuItem.mimeType === "application/pdf"
     ? {
       // 원본이 아직 처리 중이면 변환을 시작할 수 없어 비활성화한다.
-      isDisabled: contextMenuItem.status === "uploading" || contextMenuItem.status === "processing"
+      isDisabled: !canConvertContextItem || contextMenuItem.status === "uploading" || contextMenuItem.status === "processing",
+      disabledReason: canConvertContextItem ? undefined : CONVERT_FORBIDDEN_REASON
     }
     : null;
 
@@ -347,7 +350,7 @@ export function useProjectTree({
     const itemId = contextMenuItem?.id;
     const documentId = contextMenuItem?.documentId;
     setContextMenu(null);
-    if (!itemId || !documentId) return;
+    if (!itemId || !documentId || !canConvertContextItem) return;
     void runTreeMutation(async (latest) => {
       if (!hasTreeItem(latest, itemId)) throw new Error(STALE_TARGET_MESSAGE);
       await convertDocumentToMarkdown(documentId);

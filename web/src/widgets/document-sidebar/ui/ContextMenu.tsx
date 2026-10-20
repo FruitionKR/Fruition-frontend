@@ -30,8 +30,8 @@ export function ContextMenu({
   canCreateProject: boolean;
   /** 파일(노트·PDF) 메뉴면 false. 새 폴더·새 노트·파일 업로드를 숨긴다. */
   canCreateInTarget: boolean;
-  /** PDF 원본 문서일 때만 값이 있고, 처리 중이면 isDisabled로 비활성화한다. */
-  convertTarget: { isDisabled: boolean } | null;
+  /** PDF 원본 문서일 때만 값이 있고, 처리 중이거나 변환 권한이 없으면 isDisabled로 비활성화한다. 권한 때문이면 disabledReason을 툴팁으로 알린다. */
+  convertTarget: { isDisabled: boolean; disabledReason?: string } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameTarget: boolean;
   /** 서버 can_delete=false(문서 소유자·OWNER가 아님)면 삭제 메뉴를 비활성화한다. */
@@ -118,7 +118,15 @@ export function ContextMenu({
         <button type="button" role="menuitem" tabIndex={-1} onClick={onSetPermissionContextTarget}>권한 설정</button>
       )}
       {convertTarget && (
-        <button type="button" role="menuitem" tabIndex={-1} disabled={convertTarget.isDisabled} onClick={onConvertContextTarget}>
+        <button
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          disabled={convertTarget.isDisabled}
+          title={convertTarget.disabledReason}
+          aria-description={convertTarget.disabledReason}
+          onClick={onConvertContextTarget}
+        >
           Markdown으로 변환
         </button>
       )}
