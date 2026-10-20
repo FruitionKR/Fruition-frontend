@@ -154,7 +154,8 @@ export function useAgentTurn({
     run()
       .then(async (response) => {
         if (controller.signal.aborted) return;
-        await refreshMessages({ animateLatest: true });
+        // turn은 이미 끝났다. 목록을 다시 받지 못해도 실패로 돌리지 않고 결과(편집 미리보기·새 문서 초안)는 보여 준다.
+        await refreshMessages({ animateLatest: true }).catch(() => undefined);
         if (controller.signal.aborted) return;
         setAgentTurnResponse(
           resolveChatTurnPresentation(response.result.action).kind === "document-command" ? response : null
