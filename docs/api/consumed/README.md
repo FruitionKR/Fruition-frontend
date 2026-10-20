@@ -14,7 +14,7 @@
 | [워크스페이스](workspace.md) | 14 | access-svc | `web/src/entities/workspace/api` |
 | [문서·트리](document.md) | 31 | document-svc | `web/src/entities/document/api`, `web/src/entities/tree/api`, `web/src/features/note-editing`, `web/src/features/document-notifications/api/notifications.ts` |
 | [Wiki](wiki.md) | 8 | document-svc | `web/src/entities/wiki/api`, `web/src/features/wiki-export`, `web/src/features/document-notifications` |
-| [AI·Agent·Query](ai-agent.md) | 20 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
+| [AI·Agent·Query](ai-agent.md) | 21 | document-svc | `web/src/entities/ai/api`, `web/src/entities/chat/api`, `web/src/entities/operation-log/api`, `web/src/features/agent-chat/api` |
 | [Skill](skill.md) | 7 | document-svc | `web/src/entities/skill/api` |
 | [회의 받아쓰기](meeting.md) | 17 | document-svc | `web/src/entities/meeting/api`, `web/src/features/meeting-dictation` |
 
@@ -25,7 +25,7 @@
 
 | 서비스 | `/api/**` 전체 | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 53 | 34 |
+| document-svc | 87 | 54 | 33 |
 | access-svc | 32 | 29 | 3 |
 
 미호출 경로는 [uncalled.md](../uncalled.md)에서 의도적 비사용과 실제 공백으로 나눠 다룬다.

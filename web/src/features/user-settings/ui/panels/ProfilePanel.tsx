@@ -13,11 +13,13 @@ import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import { EmailChangeModal } from "../modals/EmailChangeModal";
 import { PasswordChangeModal } from "../modals/PasswordChangeModal";
+import { AiUsageSection } from "./AiUsageSection";
 import { LinkedAccountsSection } from "./LinkedAccountsSection";
 import panelStyles from "./ProfilePanel.module.css";
 
 /**
  * 사용자 설정 (Figma 1691:16583): 프로필(닉네임·프로필 사진) + 계정 정보(이메일·비밀번호) + 연동된 계정.
+ * 맨 아래 AI 사용량(토큰)은 시안 밖에서 같은 섹션 머리말·간격으로 덧붙였다.
  * 예전 프로필 설정과 계정 설정(이메일·비밀번호·소셜 연동)을 시안대로 한 화면에 합쳤다. 탈퇴·다단계 인증·기기는 계정 보안에 있다.
  */
 export function ProfilePanel({
@@ -181,6 +183,8 @@ export function ProfilePanel({
       </div>
 
       <LinkedAccountsSection me={me} />
+
+      <AiUsageSection />
 
       {showEmail && me && (
         <EmailChangeModal

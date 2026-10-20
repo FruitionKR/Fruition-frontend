@@ -4,10 +4,10 @@
 
 document-svc의 AI 모델 설정, 채팅 세션, 비동기 Query, Markdown Agent, AI 작업 로그, 채팅 음성 입력·답변 듣기다.
 `agent/**`과 `chat/**`은 직접 전송 정규식에 포함되고, `ai-models`·`ai-model-settings`·
-`ai-operation-logs`·`ai/tasks`·`query/runs`·`speech`는 포함되지 않아 rewrite를 경유한다.
+`ai-operation-logs`·`ai/tasks`·`query/runs`·`speech`·`usage`는 포함되지 않아 rewrite를 경유한다.
 
-- 호출 지점: 20
-- 호출 경로: 18
+- 호출 지점: 21
+- 호출 경로: 19
 
 ## 음성 입력·답변 듣기
 
@@ -23,6 +23,12 @@ document-svc의 AI 모델 설정, 채팅 세션, 비동기 Query, Markdown Agent
 | `GET /api/ai-models` | 선택 가능한 provider/model 카탈로그 | `web/src/entities/ai/api/aiModels.ts` `fetchAiModels` | 리터럴 | `cache: no-store` | `models[]` | 워크스페이스 비종속 전역 경로 |
 | `GET /api/workspaces/{workspace_id}/ai-model-settings` | ingest·lint용 워크스페이스 모델 설정 조회 | `web/src/entities/ai/api/aiModels.ts` `fetchWorkspaceAiModelSettings` | `workspacePath(workspaceId, "ai-model-settings")` | `cache: no-store` | `WorkspaceAiModelSettings` | - |
 | `PUT /api/workspaces/{workspace_id}/ai-model-settings` | 모델 설정 저장 | `web/src/entities/ai/api/aiModels.ts` `updateWorkspaceAiModelSettings` | `workspacePath(workspaceId, "ai-model-settings")` | `{ ingest_lint: { provider, model } }` | `WorkspaceAiModelSettings` | `provider`·`model`은 backend 카탈로그 검증 대상이라 쌍으로 보낸다 |
+
+## AI 사용량
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `GET /api/workspaces/{workspace_id}/usage/models` | 지금 워크스페이스에서 내가 쓴 모델별 토큰(사용자 설정 맨 아래 AI 사용량) | `web/src/entities/ai/api/aiUsage.ts` `fetchModelUsage` | `workspacePath(workspaceId, "usage", "models")` + `?from_at&to_at` | `from_at`·`to_at` ISO 8601 UTC(`toISOString`), `cache: no-store`. 기간은 기기 시간대 기준 이번 달(1일~지금)·지난 30일·지난 달 | `models[]`의 `provider`, `requested_model`, `model`, `known_input_tokens`, `known_output_tokens`, `known_cached_input_tokens`, `unknown_usage_calls` | `web/src/features/user-settings/ui/panels/AiUsageSection.tsx`가 react-query(`["aiUsage", workspaceId, period]`, 폴링 없음)로 부른다. `entities/ai/model/aiUsage.ts` `summarizeModelUsage`가 같은 요청 모델의 스냅샷 줄을 합치고 이름은 `ai-models` 카탈로그·`LOCKED_AI_MODELS`의 `display_name`을 쓴다. 합계는 입력+출력이며 캐시(입력의 부분 집합)·추론(출력의 부분 집합)은 더하지 않는다. 404(비멤버·경로 없음)는 중립 안내만, 그 밖의 오류는 다시 시도 버튼. 금액·크레딧(`users/me/credits`·`users/me/usage/charges`)은 결제 보류로 부르지 않는다([uncalled.md](../uncalled.md)) |
 
 ## 채팅 세션
 

@@ -16,15 +16,16 @@
 
 | 서비스 | 전체 `/api/**` | 호출 | 미호출 |
 |---|---:|---:|---:|
-| document-svc | 87 | 53 | 34 |
+| document-svc | 87 | 54 | 33 |
 | access-svc | 29 | 26 | 3 |
 
-미호출 34개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 6, 미배선 14.
+미호출 33개 분류: 의도적 비사용 8, 진행 중 6, UI 없음 6, 미배선 13.
 (문서 휴지통 조회·문서 복구는 설정 화면 휴지통 섹션에 배선되어 빠졌다. [consumed/document.md](consumed/document.md#휴지통))
+(본인 모델 사용량 `usage/models`는 사용자 설정 AI 사용량 섹션에 배선되어 빠졌다. [consumed/ai-agent.md](consumed/ai-agent.md#ai-사용량))
 
 ---
 
-## document-svc 미호출 36개
+## document-svc 미호출 35개
 
 ### 의도적 비사용
 
@@ -42,6 +43,17 @@
 `navigation*` 3개를 "의도적"으로 분류한 근거는 대체 구현이 코드에 실제로 있다는 점이다.
 다만 트리 전체를 받아 클라이언트에서 거르는 방식이므로 워크스페이스 규모가 커지면
 재검토 대상이 될 수 있다. 그 판단은 이 문서의 범위를 넘는다.
+
+### 집계 밖 — 금액·크레딧 (의도적 비사용, 결제 보류)
+
+87개 기준 집계 뒤에 생긴 경로다. 크레딧·결제 화면은 사업자 등록 전까지 보류해 호출하지 않는다.
+사용자 설정 AI 사용량 섹션은 금액 없이 토큰만 보이도록 `usage/models`만 부른다.
+
+| 경로 | 근거 |
+|---|---|
+| `GET /api/users/me/credits` | 선불 크레딧 잔액·원장. 결제 보류로 호출하지 않는다 |
+| `GET /api/users/me/usage/charges` | 본인 호출 단위 청구 금액(milli-KRW). 같은 이유 |
+| `GET /api/workspaces/{workspace_id}/usage/settlement`, `GET·POST .../usage/settlements` | OWNER 정산(USD). 같은 이유 |
 
 ### 진행 중 (다른 분기에서 배선 중)
 
@@ -76,7 +88,6 @@ UI 필요 여부를 단정하지 않는다.
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/duplicate` | 복제 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/documents/{document_id}/export` | 문서 내보내기 호출이 없다 |
 | `GET /api/workspaces/{workspace_id}/folders/{folder_id}/children` | 자식 조회를 쓰지 않는다. 트리를 한 번에 받는다 |
-| `GET /api/workspaces/{workspace_id}/usage/models` | 모델 사용량 조회 호출이 없다. 설정 화면은 `ai-models`와 `ai-model-settings`만 쓴다 |
 | `GET /api/workspaces/{workspace_id}/wiki/pages/{wiki_page_id}/diff` | Wiki 페이지 변경 비교 호출이 없다 |
 | `PATCH /api/workspaces/{workspace_id}/wiki/pages/{wiki_page_id}/rename` | Wiki 페이지 이름 변경 호출이 없다 |
 
