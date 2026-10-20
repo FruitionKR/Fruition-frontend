@@ -1,12 +1,13 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { DocumentItemResponse } from "@/entities/document";
 import { useWorkspaceRole } from "@/entities/workspace";
-import { hasWorkspacePermission } from "@/shared/lib/workspacePermissions";
+import { hasWorkspacePermission, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { useDocumentProcessingNotifications } from "../model/useDocumentProcessingNotifications";
 import { useOperationNotifications } from "../model/useOperationNotifications";
+import { selectPermissionRevokedIds } from "../model/noticeQueue";
 import { usePendingWorkNotifications } from "../model/usePendingWorkNotifications";
 import { useServerNotifications } from "../model/useServerNotifications";
 import styles from "./DocumentProcessingNotifications.module.css";
@@ -48,6 +49,13 @@ export function DocumentProcessingNotifications({
     isDocumentsLoaded
   });
   useServerNotifications();
+  // 위키 편입 제안처럼 권한이 필요한 카드가 떠 있는 동안 권한이 회수되면(OWNER가 회수·403 뒤 역할 재조회) 카드를 내린다.
+  const { role, permissions, isLoading: isRoleLoading } = workspaceRole;
+  useEffect(() => {
+    const access = { role, permissions, isLoading: isRoleLoading };
+    selectPermissionRevokedIds(notices, (permission) => hasWorkspacePermission(access, permission as WorkspacePermission))
+      .forEach(dismissNotice);
+  }, [dismissNotice, isRoleLoading, notices, permissions, role]);
 
   // 자리가 없어 대기열로 뺀 카드는 앞 카드가 닫히면 보인다.
   const shownNotices = notices.filter((notice) => !notice.parked);

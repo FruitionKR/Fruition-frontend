@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useUserPreferences } from "@/entities/user";
 import taskBoltIcon from "@/shared/assets/svg/agent/task-bolt.svg";
 import taskBoltDangerIcon from "@/shared/assets/svg/agent/task-bolt-danger.svg";
 import { getWorkspaceId } from "@/shared/api/client";
@@ -12,6 +13,7 @@ import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
 import { STALLED_TURN_DETAIL } from "../lib/stalledTurns";
+import { newAttentionKeys, revealScrollDelta } from "../lib/revealScroll";
 import {
   describeTaskRequest,
   groupTaskEntries,
@@ -21,7 +23,9 @@ import {
   skillModeAnswer,
   skillModeQuestionSlug,
   supersededTaskKeys,
+  TASK_GROUPS,
   taskHeadingKind,
+  type TaskGroup,
   type TaskMessageItem,
   type TaskStatusView
 } from "../lib/taskThread";
@@ -33,6 +37,12 @@ import styles from "./AgentChat.module.css";
 /** Figma 1610:9608: 완료 묶음 아래 안내 */
 const DONE_NOTICE = "작업기록은 LLM Wiki에 들어가지 않습니다. 문서·파일의 변경 이력으로만 남습니다.";
 const PLAN_POLL_INTERVAL_MS = 3000;
+/** 실패한 turn에 서버 안내 문구가 없을 때 */
+const FAILED_TASK_FALLBACK = "작업을 처리하지 못했어요. 다시 시도해 주세요.";
+/** 새로 생기면 보이도록 굴려 줄 카드 묶음(할 일이 남은 묶음과, 진행 카드가 실패로 끝나 옮겨 간 '실패') */
+const ATTENTION_GROUPS: ReadonlySet<TaskGroup> = new Set(["running", "approval", "clarify", "failed"]);
+const PENDING_ATTENTION_KEY = "pending";
+const PREVIEW_ATTENTION_KEY = "preview";
 const NO_TURN_IDS: ReadonlySet<string> = new Set();
 
 export function agentPlanQueryKey(workspaceId: string, turnId: string | null) {
@@ -160,7 +170,9 @@ export function AgentTaskBody({
   releasedTurnIds = NO_TURN_IDS,
   closingTurnIds = NO_TURN_IDS,
   onRetryStalled,
-  onDismissStalled
+  onDismissStalled,
+  onRetryFailed,
+  cancelAcceptedTurnIds = NO_TURN_IDS
 }: {
   items: TaskMessageItem[];
   pendingTask: PendingTaskView | null;
@@ -198,9 +210,14 @@ export function AgentTaskBody({
   onRetryStalled?: (item: TaskMessageItem) => void;
   /** 응답을 받지 못한 작업을 닫아 입력 잠금을 푼다. */
   onDismissStalled?: (turnId: string) => void;
+  /** 실패로 끝난 작업(계획이 아닌 편집·스킬 실행)을 같은 요청으로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
+  onRetryFailed?: (item: TaskMessageItem) => void;
+  /** 닫기·중지로 보낸 취소를 서버가 받아들인 turn. 목록이 아직 pending이어도 "취소됨"으로 보인다. */
+  cancelAcceptedTurnIds?: ReadonlySet<string>;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
+  const { reduceMotion } = useUserPreferences();
   const bodyRef = useRef<HTMLDivElement | null>(null);
   // 진행 카드가 대신 보여 주는 turn의 서버 기록은 빼서 같은 작업이 두 장 보이지 않게 한다.
   const pendingTurnId = pendingTask?.turnId ?? null;
@@ -250,6 +267,7 @@ export function AgentTaskBody({
       isSuperseded: supersededKeys.has(item.key),
       isStalled: item.turnId !== null && stalledTurnIds.has(item.turnId),
       isReleased: item.turnId !== null && releasedTurnIds.has(item.turnId),
+      isCancelAccepted: item.turnId !== null && cancelAcceptedTurnIds.has(item.turnId),
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
@@ -273,14 +291,40 @@ export function AgentTaskBody({
   const sections = groupTaskEntries(entries);
   const hasPreviewEntry = entries.some((entry) => entry.status.group === "approval" && entry.item.turnId === activePreviewTurnId);
 
-  // 새 작업·미리보기가 생기면 목록 아래(입력창 쪽)로 내린다.
-  const lastKey = `${visibleItems.at(-1)?.key ?? ""}|${pendingTask ? "pending" : ""}|${activePreviewTurnId ?? ""}`;
+  const isOrphanPreview = Boolean(activePreview) && !hasPreviewEntry;
+  // 새 진행·확인·선택 필요·실패 카드가 생기면 그 카드 전체가 보이게 굴린다. 처음 그릴 때는 굴리지 않는다(할 일 묶음이 위에 있다).
+  const attentionKeys = [
+    ...entries.filter((entry) => ATTENTION_GROUPS.has(entry.status.group)).map((entry) => entry.item.key),
+    ...(isOrphanPreview ? [PREVIEW_ATTENTION_KEY] : []),
+    ...(pendingTask ? [PENDING_ATTENTION_KEY] : [])
+  ];
+  const attentionSignature = attentionKeys.join("|");
+  const seenAttentionKeys = useRef<ReadonlySet<string> | null>(null);
+  const pendingStageCount = pendingTask?.stages.length ?? 0;
   useLayoutEffect(() => {
     const body = bodyRef.current;
-    if (!body) return;
-    const frameId = window.requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+    const keys = attentionSignature ? attentionSignature.split("|") : [];
+    const previous = seenAttentionKeys.current;
+    seenAttentionKeys.current = new Set(keys);
+    if (!body || !previous) return;
+    const target = newAttentionKeys(previous, keys).at(-1);
+    if (!target) return;
+    const frameId = window.requestAnimationFrame(() => revealAttentionCard(body, target, reduceMotion));
     return () => window.cancelAnimationFrame(frameId);
-  }, [lastKey]);
+  }, [attentionSignature, reduceMotion]);
+  // 진행 카드가 단계가 늘어 길어지면, 보고 있던(머리글이 보이는) 카드가 잘리지 않게 다시 맞춘다.
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body || pendingStageCount === 0) return;
+    const frameId = window.requestAnimationFrame(() => {
+      const card = findAttentionCard(body, PENDING_ATTENTION_KEY);
+      if (!card) return;
+      const bodyBox = body.getBoundingClientRect();
+      const cardTop = card.getBoundingClientRect().top;
+      if (cardTop >= bodyBox.top && cardTop < bodyBox.bottom) revealAttentionCard(body, PENDING_ATTENTION_KEY, reduceMotion);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [pendingStageCount, reduceMotion]);
 
   function renderDetail(entry: TaskEntry) {
     const { item, status } = entry;
@@ -307,6 +351,7 @@ export function AgentTaskBody({
       return <TaskNote role="alert">{STALLED_TURN_DETAIL}</TaskNote>;
     }
     if (status.group === "failed" && item.answer) return <TaskNote role="alert">{item.answer}</TaskNote>;
+    if (item.messageStatus === "failed") return <TaskNote role="alert">{FAILED_TASK_FALLBACK}</TaskNote>;
     return null;
   }
 
@@ -319,8 +364,15 @@ export function AgentTaskBody({
     const stalledTurnId = status.group === "failed" && item.messageStatus === "pending" && item.turnId !== null && stalledTurnIds.has(item.turnId)
       ? item.turnId
       : null;
+    // 계획(폴더 정리 등)은 계획 상세가 "다시 시도"를 둔다. 그 밖의 실패한 turn(편집·스킬 실행)은 여기서 같은 요청으로 다시 보낸다.
+    const canRetryFailed = item.messageStatus === "failed" && !isWorkspacePlanAction(item.action ?? undefined)
+      && Boolean(item.request) && Boolean(onRetryFailed);
     return (
-      <div key={item.key} className={styles["task-entry"]}>
+      <div
+        key={item.key}
+        className={styles["task-entry"]}
+        data-attention-key={ATTENTION_GROUPS.has(status.group) ? item.key : undefined}
+      >
         <TaskCard
           action={item.action}
           request={entry.request}
@@ -344,6 +396,14 @@ export function AgentTaskBody({
                 {choice.label}
               </button>
             ))}
+          </div>
+        )}
+        {canRetryFailed && (
+          <div className={styles["task-actions"]}>
+            <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onRetryFailed?.(item)}>
+              <AgentAssetIcon src={taskBoltIcon} size={12} />
+              다시 시도
+            </button>
           </div>
         )}
         {stalledTurnId && (onRetryStalled || onDismissStalled) && (
@@ -387,7 +447,29 @@ export function AgentTaskBody({
     );
   }
 
-  const isEmpty = sections.length === 0 && !pendingTask && !(activePreview && !hasPreviewEntry);
+  const isEmpty = sections.length === 0 && !pendingTask && !isOrphanPreview;
+  // 묶음 순서(진행 중 → 확인 필요 → 선택 필요 → 실패 → 완료)를 지킨다. 서버 기록에 붙기 전의 진행 카드는 '진행 중' 묶음에,
+  // 서버 기록에 붙기 전의 편집안(응답 직후 목록을 다시 받는 사이)은 '확인 필요' 묶음에 함께 둔다.
+  const extraByGroup: Partial<Record<TaskGroup, ReactNode>> = {
+    running: pendingTask && (
+      <div className={styles["task-entry"]} data-attention-key={PENDING_ATTENTION_KEY} aria-live="polite">
+        <TaskCard action={null} request={pendingTask.request} createdAt={null}>
+          <StatusList
+            title="요청 처리 중"
+            isLoading
+            hasResponse={false}
+            steps={pendingTask.stages.length
+              ? buildProgressSteps(pendingTask.stages, true)
+              : [[pendingTask.waitingLabel || "요청을 전달하고 있어요.", "active"]]}
+          />
+          {pendingTask.notice && <TaskNote role="status">{pendingTask.notice}</TaskNote>}
+        </TaskCard>
+        {pendingTask.actions && <div className={styles["task-actions"]}>{pendingTask.actions}</div>}
+      </div>
+    ),
+    approval: isOrphanPreview && <div className={styles["task-entry"]} data-attention-key={PREVIEW_ATTENTION_KEY}>{activePreview}</div>
+  };
+  const sectionEntries = new Map(sections.map((section) => [section.group, section.entries]));
   return (
     <div className={styles["task-body"]} ref={bodyRef}>
       {isEmpty && (
@@ -396,43 +478,25 @@ export function AgentTaskBody({
           <p>/를 입력하면 스킬을 고를 수 있어요. 위키 내용 질문은 채팅 탭에서 할 수 있어요.</p>
         </div>
       )}
-      {sections.map((section) => (
-        <section key={section.group} className={styles["task-section"]} aria-label={section.label}>
-          <p className={styles["task-section-label"]}>{section.label}</p>
-          {section.group === "done" ? (
-            <>
-              <div className={styles["task-rows"]}>
-                {section.entries.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
-              </div>
-              <TaskNote>{DONE_NOTICE}</TaskNote>
-            </>
-          ) : section.entries.map(renderCard)}
-        </section>
-      ))}
-      {/* 서버 기록에 붙기 전의 편집안(응답 직후 목록을 다시 받는 사이)도 놓치지 않는다. */}
-      {activePreview && !hasPreviewEntry && (
-        <section className={styles["task-section"]} aria-label="확인 필요">
-          <p className={styles["task-section-label"]}>확인 필요</p>
-          {activePreview}
-        </section>
-      )}
-      {pendingTask && (
-        <section className={styles["task-section"]} aria-label="진행 중" aria-live="polite">
-          <p className={styles["task-section-label"]}>진행 중</p>
-          <TaskCard action={null} request={pendingTask.request} createdAt={null}>
-            <StatusList
-              title="요청 처리 중"
-              isLoading
-              hasResponse={false}
-              steps={pendingTask.stages.length
-                ? buildProgressSteps(pendingTask.stages, true)
-                : [[pendingTask.waitingLabel || "요청을 전달하고 있어요.", "active"]]}
-            />
-            {pendingTask.notice && <TaskNote role="status">{pendingTask.notice}</TaskNote>}
-          </TaskCard>
-          {pendingTask.actions && <div className={styles["task-actions"]}>{pendingTask.actions}</div>}
-        </section>
-      )}
+      {TASK_GROUPS.map(({ group, label }) => {
+        const groupEntries = sectionEntries.get(group) ?? [];
+        const extra = extraByGroup[group];
+        if (groupEntries.length === 0 && !extra) return null;
+        return (
+          <section key={group} className={styles["task-section"]} aria-label={label}>
+            <p className={styles["task-section-label"]}>{label}</p>
+            {group === "done" ? (
+              <>
+                <div className={styles["task-rows"]}>
+                  {groupEntries.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
+                </div>
+                <TaskNote>{DONE_NOTICE}</TaskNote>
+              </>
+            ) : groupEntries.map(renderCard)}
+            {extra}
+          </section>
+        );
+      })}
       {errorMessage && <p className={styles["query-error"]} role="alert">{errorMessage}</p>}
       {errorMessage && onRecheck && (
         <div className={styles["task-actions"]}>
@@ -444,4 +508,16 @@ export function AgentTaskBody({
       )}
     </div>
   );
+}
+
+function findAttentionCard(body: HTMLElement, key: string): HTMLElement | null {
+  return [...body.querySelectorAll<HTMLElement>("[data-attention-key]")].find((element) => element.dataset.attentionKey === key) ?? null;
+}
+
+/** 작업 목록 안에서 그 카드 전체가 보이게 굴린다. 움직임 줄이기면 바로 옮긴다. */
+function revealAttentionCard(body: HTMLElement, key: string, reduceMotion: boolean) {
+  const card = findAttentionCard(body, key);
+  if (!card) return;
+  const delta = revealScrollDelta(body.getBoundingClientRect(), card.getBoundingClientRect());
+  if (delta !== 0) body.scrollBy({ top: delta, behavior: reduceMotion ? "auto" : "smooth" });
 }

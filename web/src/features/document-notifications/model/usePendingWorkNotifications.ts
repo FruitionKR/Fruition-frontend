@@ -68,6 +68,7 @@ function publishIngestPrompt(
     title,
     message: ingestPromptMessage(documents),
     subjectIds: ids,
+    requiredPermission: "wiki.ingest",
     reconcile: (latest) => {
       const targets = selectIngestPromptTargets(ids, latest);
       if (targets.length === 0) return null;
@@ -327,6 +328,7 @@ export function usePendingWorkNotifications(
         publishNotice({
           kind: "info",
           title: "위키 최신화 제안",
+          requiredPermission: "wiki.lint",
           message: "새 문서 반영 후 위키 페이지가 변경되었습니다. 위키 최신화를 실행할 수 있습니다.",
           action: {
             label: "위키 최신화",

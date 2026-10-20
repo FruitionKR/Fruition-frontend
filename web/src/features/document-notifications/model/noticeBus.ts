@@ -3,6 +3,7 @@
 // 다른 feature(채팅 질의 등)는 이 버스로 발행만 한다.
 
 import type { DocumentItemResponse } from "@/entities/document/model/document";
+import type { WorkspacePermission } from "@/shared/lib/workspacePermissions";
 
 export type NoticePayload = {
   kind: "completed" | "failed" | "info";
@@ -10,6 +11,11 @@ export type NoticePayload = {
   message: string;
   /** 있으면 취소/실행 2버튼 카드로 렌더한다 (Figma 673:3870). 자동 닫힘 없음. */
   action?: { label: string; onAction: () => void };
+  /**
+   * action 버튼에 필요한 워크스페이스 권한(위키 편입 제안이면 wiki.ingest). 카드가 떠 있는 동안 권한이 회수되면
+   * 스택이 카드를 내려 눌러도 403이 나는 버튼을 남기지 않는다.
+   */
+  requiredPermission?: WorkspacePermission;
   /**
    * lint·restore 작업 알림. 해당 유형 알림 설정이 꺼져 있으면 표시하지 않고,
    * id가 있으면 같은 작업의 알림(직접 발행 + 로그 폴링)을 한 번만 표시한다.

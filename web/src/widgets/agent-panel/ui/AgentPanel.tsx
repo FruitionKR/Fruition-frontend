@@ -197,6 +197,11 @@ export function AgentPanel({
   } = useAiModelSelection();
   // 응답을 받지 못해 '닫기'로 잠금을 푼 turn. 서버 메시지가 pending이어도 입력을 막지 않는다.
   const { releasedTurnIds, releaseTurns } = useReleasedTurns(activeSessionId);
+  // 닫기·Esc 중지로 보낸 취소를 서버가 받아들인 turn. 목록이 아직 pending이어도 "중단됨"이 아니라 "취소됨"으로 보인다.
+  const [cancelAcceptedTurnIds, setCancelAcceptedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+  const markCancelAccepted = useCallback((turnIds: readonly string[]) => {
+    setCancelAcceptedTurnIds((current) => new Set([...current, ...turnIds]));
+  }, []);
   const {
     messages,
     queryErrorMessage,
@@ -243,6 +248,10 @@ export function AgentPanel({
   }, [arrivedFolderOrganizeTurnId]);
   // 채팅 탭은 위키 질의 문답만, 작업 탭은 agent turn(문서 편집·폴더 정리·스킬) 문답만 보여 준다(2026-10-19 계약).
   const { chatMessages, taskItems } = useMemo(() => splitChatAndTaskMessages(messages, taskRunIds), [messages, taskRunIds]);
+  // 방금 보낸 요청이 실패로 끝나 작업 탭 '실패' 묶음에 서버 문구와 '다시 시도'로 보이면 입력창 위 빨간 오류는 겹쳐 띄우지 않는다.
+  const requestTurnId = agentTurn.requestTurnId;
+  const isRequestFailureListed = requestTurnId !== null
+    && taskItems.some((item) => item.turnId === requestTurnId && item.messageStatus === "failed");
   const { selectablePairIds: exportPairIds, excludedPairIds } = useMemo(
     () => classifyChatExportPairs(chatMessages),
     [chatMessages]
@@ -312,7 +321,7 @@ export function AgentPanel({
     refreshMessages
   });
   // 응답을 받지 못한 작업의 '닫기'·'앞선 작업 닫고 실행': 서버 취소를 먼저 요청하고 잠금을 푼다.
-  const { closingTurnIds, closeStalledTurns } = useCloseStalledTurns({ releaseTurns, refreshMessages });
+  const { closingTurnIds, closeStalledTurns } = useCloseStalledTurns({ releaseTurns, refreshMessages, onCancelAccepted: markCancelAccepted });
   // 스킬 화면에서 '다음'을 누르면 보내기 전(세션·모델·문서 준비, 앞선 작업 대기)에도 작업 탭에 바로 카드를 띄운다.
   useEffect(() => {
     if (!skillRun) return;
@@ -397,7 +406,8 @@ export function AgentPanel({
     closePendingTurn: (turnId) => dismissStalledTurns([turnId]),
     closePendingQuery: closeStalledQuery,
     releaseTurns,
-    refreshMessages
+    refreshMessages,
+    onCancelAccepted: markCancelAccepted
   });
   const composerStopHintTarget = composerStop.stoppingTarget ?? stopTarget;
   const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
@@ -454,6 +464,20 @@ export function AgentPanel({
     releaseStalledTurns([item.turnId]);
     if (agentTurnRequest && agentTurn.requestTurnId === item.turnId) {
       // 같은 요청·대상 폴더로, 문서 대상이면 지금 열린 그 문서의 최신 내용으로 다시 보낸다(문서가 닫혔으면 다시 열라고 안내).
+      agentTurn.regenerateAgentTurn();
+      return;
+    }
+    if (!item.request) return;
+    agentTurn.submitAgentTurn(item.request, taskContext, activeSessionId, selectedModel, selectedPairIds);
+  }
+
+  /**
+   * 실패로 끝난 작업을 같은 요청으로 다시 보낸다. 이 화면에서 보낸 요청이면 그 요청의 문서·대상 폴더를 그대로 쓰고,
+   * 지난 기록이면 요청 문장과 지금 입력창의 대상(열린 문서)으로 보낸다.
+   */
+  function retryFailedTask(item: TaskMessageItem) {
+    if (isSubmitting || !activeSessionId || !selectedModel) return;
+    if (agentTurnRequest && item.turnId && agentTurn.requestTurnId === item.turnId) {
       agentTurn.regenerateAgentTurn();
       return;
     }
@@ -535,7 +559,8 @@ export function AgentPanel({
           title: "채팅 편입 완료",
           message: getChatExportSuccessMessage(response.status, Boolean(ingest)),
           subjectIds: [response.exportDocumentId],
-          action: ingest ? { label: "위키 편입", onAction: () => ingest(response.exportDocumentId) } : undefined
+          action: ingest ? { label: "위키 편입", onAction: () => ingest(response.exportDocumentId) } : undefined,
+          requiredPermission: ingest ? "wiki.ingest" : undefined
         });
       } catch (error: unknown) {
         const detail = getErrorMessage(error, "워크스페이스 목록 갱신에 실패했습니다.");
@@ -693,12 +718,14 @@ export function AgentPanel({
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
-            errorMessage={agentTurn.agentTurnErrorMessage ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
+            errorMessage={(isRequestFailureListed ? null : agentTurn.agentTurnErrorMessage) ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
             onOpenFolderOrganize={onOpenFolderOrganize}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
             onRetryTask={isSubmitting ? undefined : retryTask}
+            onRetryFailed={isSubmitting ? undefined : retryFailedTask}
+            cancelAcceptedTurnIds={cancelAcceptedTurnIds}
             onRecheck={agentTurn.canRecheckAgentTurn ? agentTurn.recheckAgentTurn : undefined}
             stalledTurnIds={stalledTurnIds}
             releasedTurnIds={releasedTurnIds}

@@ -55,6 +55,10 @@ test("질의 메시지(action 없음)와 옛 agent 채팅 답변은 채팅 탭, 
   // 진행 중에 취소돼 서버가 닫은 turn(action 없음)도 작업 탭에 남는다. 취소된 질의는 채팅 탭이다.
   assert.equal(isTaskMessage(message({ status: "cancelled", run_id: "agent_9" })), true);
   assert.equal(isTaskMessage(message({ status: "cancelled", run_id: "query_9" })), false);
+  // 실패로 끝난 agent turn(action 없음, 스킬 실행 markdown_output_contract_failed 등)도 새로 고침 뒤까지 작업 탭에 남는다.
+  assert.equal(isTaskMessage(message({ status: "failed", run_id: "agent_9" })), true);
+  assert.equal(isTaskMessage(message({ status: "completed", run_id: "agent_9" })), true);
+  assert.equal(isTaskMessage(message({ status: "failed", run_id: "query_9" })), false);
   // 작업 탭에서 보낸 turn은 서버가 채팅 답변으로 돌려줘도 작업 탭에 남긴다(mode=task 미배포 서버).
   assert.equal(isTaskMessage(message({ action: "chat_answer", run_id: "agent_2" }), new Set(["agent_2"])), true);
 });
@@ -293,4 +297,27 @@ test("서버가 취소로 닫은(cancelled) turn은 완료 묶음의 '취소됨'
   assert.deepEqual(resolveTaskStatus({ action: "folder_organize", messageStatus: "cancelled" }), cancelled);
   // 편집안 초안을 취소한 것과 같은 문구다.
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isCancelled: true }).label, "취소됨");
+});
+
+test("실패한 스킬 실행 turn은 작업 탭 '실패' 묶음에 서버 안내 문구와 함께 들어간다", () => {
+  const messages = [
+    message({ id: "u1", role: "user", content: "/polish-intro", pair_id: "p1" }),
+    message({ id: "a1", pair_id: "p1", run_id: "agent_x", status: "failed", content: "", error_message: "편집안을 만들지 못했습니다. 다시 시도해 주세요." }),
+    message({ id: "u2", role: "user", content: "회의 정리해 줘", pair_id: "p2" }),
+    message({ id: "a2", pair_id: "p2", run_id: "query_y", content: "답" })
+  ];
+  const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
+  assert.deepEqual(chatMessages.map((item) => item.id), ["u2", "a2"]);
+  assert.equal(taskItems.length, 1);
+  assert.equal(taskItems[0].turnId, "agent_x");
+  assert.equal(taskItems[0].request, "/polish-intro");
+  assert.equal(taskItems[0].answer, "편집안을 만들지 못했습니다. 다시 시도해 주세요.");
+  assert.equal(resolveTaskStatus({ action: taskItems[0].action, messageStatus: taskItems[0].messageStatus }).group, "failed");
+});
+
+test("서버가 취소를 받아들인 turn은 목록이 아직 pending이어도 '중단됨'이 아니라 '취소됨'이다", () => {
+  const cancelled = { group: "done", label: "취소됨", tone: "muted", struck: true };
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, isReleased: true }), cancelled);
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, isStalled: true }), cancelled);
+  assert.equal(resolveTaskStatus({ action: null, messageStatus: "pending", isReleased: true }).label, "중단됨");
 });

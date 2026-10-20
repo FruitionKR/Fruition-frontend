@@ -7,6 +7,7 @@ import {
   promoteParkedNotices,
   reconcileNotices,
   selectAutoDismissIds,
+  selectPermissionRevokedIds,
   visibleNoticeSubjectIds
 } from "../src/features/document-notifications/model/noticeQueue.ts";
 
@@ -155,4 +156,16 @@ test("reconcile 결과가 모두 같으면 같은 배열을 돌려준다 (렌더
   const notices = [{ id: "a", message: "m", subjectIds: ["d1"] }, { id: "b", leaving: true }];
 
   assert.equal(reconcileNotices(notices, () => ({ message: "m", subjectIds: ["d1"] }), { removeImmediately: false }), notices);
+});
+
+test("버튼에 필요한 권한이 회수된 카드만 내린다(확인 전·권한 있음·퇴장 중은 그대로)", () => {
+  const notices = [
+    { id: "ingest", action, requiredPermission: "wiki.ingest" },
+    { id: "lint", action, requiredPermission: "wiki.lint" },
+    { id: "plain" },
+    { id: "leaving", action, requiredPermission: "wiki.ingest", leaving: true }
+  ];
+  const granted = { "wiki.ingest": false, "wiki.lint": true };
+  assert.deepEqual(selectPermissionRevokedIds(notices, (permission) => granted[permission]), ["ingest"]);
+  assert.deepEqual(selectPermissionRevokedIds(notices, () => null), []);
 });

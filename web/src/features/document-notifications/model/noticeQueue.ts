@@ -133,3 +133,16 @@ function sameNoticeContent(a: object, b: object) {
     return Object.is(left, right);
   });
 }
+
+/**
+ * 버튼에 필요한 권한(requiredPermission)이 회수된 카드 id. 권한을 아직 확인하지 못했으면(null) 내리지 않는다.
+ * 이미 퇴장 중인 카드는 뺀다.
+ */
+export function selectPermissionRevokedIds(
+  notices: readonly (QueuedNotice & { requiredPermission?: string })[],
+  hasPermission: (permission: string) => boolean | null
+): string[] {
+  return notices
+    .filter((notice) => !notice.leaving && notice.requiredPermission && hasPermission(notice.requiredPermission) === false)
+    .map((notice) => notice.id);
+}

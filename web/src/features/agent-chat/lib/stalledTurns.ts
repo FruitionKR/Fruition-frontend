@@ -155,6 +155,14 @@ export function stalledQueryCancelNotice(result: StalledQueryCancelResult): stri
 /** 막힌 작업 turn을 닫으며 보낸 취소 요청의 결과. finished는 409(이미 completed·failed로 끝남), failed는 서버에 전하지 못함. */
 export type StalledTurnCancelResult = TurnCheckResult | { kind: "finished" } | { kind: "failed" };
 
+/**
+ * 취소 요청을 서버가 받아들였는지(200 + 취소 계열 상태). 서버가 메시지를 cancelled로 닫기 전에 목록을 다시 받으면
+ * 아직 pending으로 오므로, 화면은 이 turn을 "중단됨"이 아니라 "취소됨"으로 보여 준다.
+ */
+export function isTurnCancelAccepted(result: StalledTurnCancelResult): boolean {
+  return result.kind === "status" && TURN_CANCEL_STATUSES.has(result.status);
+}
+
 /** 닫기 취소 결과로 할 일. refresh: 세션 메시지를 다시 받는다, showResult: 이미 끝난 turn의 결과를 다시 받아 보여 준다. */
 export type StalledTurnCancelOutcome = { notice: string | null; refresh: boolean; showResult: boolean };
 

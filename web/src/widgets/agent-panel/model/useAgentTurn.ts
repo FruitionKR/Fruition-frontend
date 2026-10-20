@@ -165,11 +165,11 @@ export function useAgentTurn({
         setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
-        if (turnId && error instanceof AgentTurnLostError) {
-          setUnconfirmedTurnId(turnId);
-          // 결과를 확인하지 못해도 서버에 남은 진행 기록(진행 중 카드)이 보이도록 목록을 다시 받는다.
-          void refreshMessages({ animateLatest: false }).catch(() => undefined);
-        }
+        if (!turnId) return;
+        if (error instanceof AgentTurnLostError) setUnconfirmedTurnId(turnId);
+        // 결과를 확인하지 못했으면 서버에 남은 진행 기록(진행 중 카드)이, 실패로 끝났으면 그 turn이
+        // 작업 탭 '실패' 묶음에 보이도록 목록을 다시 받는다.
+        void refreshMessages({ animateLatest: false }).catch(() => undefined);
       })
       .finally(() => {
         if (controller.signal.aborted) return;

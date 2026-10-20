@@ -6,6 +6,9 @@ import { legacyRequiresSource } from "./catalog.mjs";
 const TURN_DELAY_MS = 1_500;
 // 테스트용 시나리오(MOCK_SLOW_TURN=1): 실제 서버처럼 turn을 받자마자 pending 메시지를 남기고 오래 처리한다(입력창 Esc 중지 확인). 기본에는 넣지 않는다.
 const SLOW_TURN = process.env.MOCK_SLOW_TURN === "1";
+// 테스트용 시나리오(MOCK_FAIL_TURN=1): 요청에 "실패"가 들어간 turn을 실제 서버처럼 failed로 끝낸다(편집안 계약 검사 실패). 기본에는 넣지 않는다.
+const FAIL_TURN = process.env.MOCK_FAIL_TURN === "1";
+const FAILED_TURN_MESSAGE = "편집안을 만들지 못했습니다. 다시 시도해 주세요.";
 const SLOW_TURN_DELAY_MS = 30_000;
 // 취소 요청 뒤 cancel_requested → rolling_back → cancelled로 넘어가는 간격(ai/tasks 취소 mock과 같다).
 const CANCEL_STEP_DELAY_MS = 1_000;
@@ -236,9 +239,23 @@ function completeTurn(workspace, turn, request) {
   Object.assign(turn, { status: "completed", result });
 }
 
+/** 실제 서버처럼 turn을 failed로 닫고 assistant 메시지에 실패 문구(error_message)를 남긴다. action은 없다. */
+function failTurn(turn, request) {
+  const failed = { content: "", status: "failed", error_message: FAILED_TURN_MESSAGE };
+  const pending = state.chatMessages.find((item) => item.run_id === turn.id && item.role === "assistant" && item.status === "pending");
+  if (pending) {
+    Object.assign(pending, failed);
+  } else {
+    const pairId = id("pair");
+    upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
+    upsertMessage(request.session_id, { role: "assistant", ...failed, pair_id: pairId, run_id: turn.id });
+  }
+  Object.assign(turn, { status: "failed", error: "markdown_output_contract_failed", error_message: FAILED_TURN_MESSAGE });
+}
+
 function toTurn(turn) {
-  const { id: requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError } = turn;
-  return { requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError ?? null };
+  const { id: requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError, error_message } = turn;
+  return { requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError ?? null, error_message: error_message ?? null };
 }
 
 function toRun(run) {
@@ -267,7 +284,11 @@ export function registerAgentRoutes(router) {
       upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
       upsertMessage(request.session_id, { role: "assistant", content: "", status: "pending", pair_id: pairId, run_id: turn.id });
     }
-    setTimeout(() => { if (turn.status === "queued") completeTurn(workspace, turn, request); }, SLOW_TURN ? SLOW_TURN_DELAY_MS : TURN_DELAY_MS);
+    setTimeout(() => {
+      if (turn.status !== "queued") return;
+      if (FAIL_TURN && request.message.includes("실패")) failTurn(turn, request);
+      else completeTurn(workspace, turn, request);
+    }, SLOW_TURN ? SLOW_TURN_DELAY_MS : TURN_DELAY_MS);
     ctx.json(202, toTurn(turn));
   });
 
@@ -311,10 +332,11 @@ export function registerAgentRoutes(router) {
     const turn = state.agentTurns.get(ctx.params.id);
     if (!turn) return error(ctx, 404, "turn을 찾을 수 없습니다.");
     const stream = ctx.sse();
-    const isTerminal = () => turn.status === "completed" || turn.status === "cancelled";
+    const isTerminal = () => turn.status === "completed" || turn.status === "cancelled" || turn.status === "failed";
     const isCancelling = () => turn.status === "cancel_requested" || turn.status === "rolling_back" || turn.status === "cancelled";
     const finish = () => {
-      stream.send(turn.status === "completed" ? "query.completed" : "query.cancelled", { request_id: turn.id });
+      if (turn.status === "failed") stream.send("query.failed", { request_id: turn.id, error: turn.error_message, code: turn.error });
+      else stream.send(turn.status === "completed" ? "query.completed" : "query.cancelled", { request_id: turn.id });
       stream.close();
     };
     if (isTerminal()) return finish();

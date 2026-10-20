@@ -17,15 +17,36 @@ export function permissionDeniedWorkspaceId(path: string, status: number, code: 
 }
 
 type Listener = (workspaceId: string) => void;
-const listeners = new Set<Listener>();
+type Subscription = { listener: Listener; key?: string };
+const subscriptions = new Set<Subscription>();
 
-export function notifyWorkspacePermissionDenied(workspaceId: string) {
-  listeners.forEach((listener) => listener(workspaceId));
+/** 같은 워크스페이스의 신호를 이 시간 안에서는 한 번으로 합친다(403이 한꺼번에 여러 건 와도 역할을 한 번만 다시 받게). */
+export const PERMISSION_SIGNAL_COALESCE_MS = 2_000;
+const lastNotifiedAt = new Map<string, number>();
+
+/**
+ * 권한 부족 신호를 구독한 화면에 알린다. 같은 워크스페이스 신호가 PERMISSION_SIGNAL_COALESCE_MS 안에 다시 오면 건너뛰고,
+ * 같은 key로 구독한 화면들(같은 역할 조회를 쓰는 여러 컴포넌트)에는 한 번만 알린다.
+ */
+export function notifyWorkspacePermissionDenied(workspaceId: string, now = Date.now()) {
+  const last = lastNotifiedAt.get(workspaceId);
+  if (last !== undefined && now - last < PERMISSION_SIGNAL_COALESCE_MS) return;
+  lastNotifiedAt.set(workspaceId, now);
+  const notifiedKeys = new Set<string>();
+  [...subscriptions].forEach(({ listener, key }) => {
+    if (key !== undefined) {
+      if (notifiedKeys.has(key)) return;
+      notifiedKeys.add(key);
+    }
+    listener(workspaceId);
+  });
 }
 
-export function subscribeWorkspacePermissionDenied(listener: Listener): () => void {
-  listeners.add(listener);
+/** key가 같은 구독은 신호 하나에 한 번만 불린다(먼저 구독한 쪽). */
+export function subscribeWorkspacePermissionDenied(listener: Listener, key?: string): () => void {
+  const subscription: Subscription = { listener, key };
+  subscriptions.add(subscription);
   return () => {
-    listeners.delete(listener);
+    subscriptions.delete(subscription);
   };
 }

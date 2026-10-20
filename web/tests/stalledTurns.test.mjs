@@ -8,6 +8,7 @@ const {
   activeTurnStopOutcome,
   classifyTurnCheck,
   hasBlockingPendingMessages,
+  isTurnCancelAccepted,
   isPendingAgentTurnMessage,
   isPendingQueryMessage,
   pendingAgentTurns,
@@ -168,4 +169,12 @@ test("진행 중인 작업을 Esc로 중지한 결과: 취소되면 목록을 �
   assert.equal(failed.release, false);
   assert.equal(failed.resume, true);
   assert.match(failed.notice, /다시 Esc/);
+});
+
+test("취소 계열 상태로 답한 취소 요청만 '취소를 받아들임'으로 본다", () => {
+  for (const status of TURN_CANCEL_STATUSES) assert.equal(isTurnCancelAccepted({ kind: "status", status }), true, status);
+  assert.equal(isTurnCancelAccepted({ kind: "status", status: "completed" }), false);
+  assert.equal(isTurnCancelAccepted({ kind: "finished" }), false);
+  assert.equal(isTurnCancelAccepted({ kind: "missing" }), false);
+  assert.equal(isTurnCancelAccepted({ kind: "failed" }), false);
 });

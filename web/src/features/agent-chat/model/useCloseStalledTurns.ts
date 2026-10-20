@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { requestAgentTurnCancel, resumeAgentTurn } from "../api/agent";
-import { stalledTurnCancelOutcome, type StalledTurnCancelResult } from "../lib/stalledTurns";
+import { isTurnCancelAccepted, stalledTurnCancelOutcome, type StalledTurnCancelResult } from "../lib/stalledTurns";
 
 /** 닫기 취소 요청·끝난 turn 조회를 이만큼만 기다린다. 응답이 없어도 화면 잠금은 푼다. */
 const CANCEL_REQUEST_TIMEOUT_MS = 10_000;
@@ -38,24 +38,30 @@ export async function announceFinishedTurn(turnId: string): Promise<void> {
  */
 export function useCloseStalledTurns({
   releaseTurns,
-  refreshMessages
+  refreshMessages,
+  onCancelAccepted
 }: {
   releaseTurns: (turnIds: readonly string[]) => void;
   refreshMessages: () => Promise<unknown>;
+  /** 서버가 취소를 받아들인 turn. 목록이 아직 pending이어도 "취소됨"으로 보이게 한다. */
+  onCancelAccepted?: (turnIds: readonly string[]) => void;
 }) {
   const [closingTurnIds, setClosingTurnIds] = useState<ReadonlySet<string>>(NO_TURNS);
 
   const closeStalledTurns = useCallback(async (turnIds: readonly string[]): Promise<string[]> => {
     if (turnIds.length === 0) return [];
     setClosingTurnIds((current) => new Set([...current, ...turnIds]));
-    const outcomes = (await Promise.all(turnIds.map(requestCancel))).map(stalledTurnCancelOutcome);
+    const results = await Promise.all(turnIds.map(requestCancel));
+    const outcomes = results.map(stalledTurnCancelOutcome);
+    const acceptedIds = turnIds.filter((_, index) => isTurnCancelAccepted(results[index]));
+    if (acceptedIds.length > 0) onCancelAccepted?.(acceptedIds);
     if (outcomes.some((outcome) => outcome.refresh)) await refreshMessages().catch(() => undefined);
     releaseTurns(turnIds);
     setClosingTurnIds((current) => new Set([...current].filter((turnId) => !turnIds.includes(turnId))));
     [...new Set(outcomes.flatMap((outcome) => (outcome.notice ? [outcome.notice] : [])))]
       .forEach((message) => publishNotice({ kind: "failed", title: "작업 취소 확인 실패", message }));
     return turnIds.filter((_, index) => outcomes[index].showResult);
-  }, [refreshMessages, releaseTurns]);
+  }, [onCancelAccepted, refreshMessages, releaseTurns]);
 
   return { closingTurnIds, closeStalledTurns };
 }

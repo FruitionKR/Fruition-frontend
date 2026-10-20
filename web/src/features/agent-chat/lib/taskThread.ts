@@ -14,9 +14,6 @@ const CHAT_ANSWER_ACTIONS = new Set(["chat_answer", "conversation_reply"]);
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
 
-/** action이 아직 없어도 작업 탭에 둘 agent turn 메시지 상태: 진행 중, 그리고 진행 중에 취소돼 서버가 닫은 메시지. */
-const ACTIONLESS_TASK_STATUSES = new Set(["pending", "cancelled"]);
-
 /**
  * 작업 탭에 둘 메시지인지. taskRunIds는 이 화면에서 작업 탭으로 보낸 turn ID다.
  * mode=task를 아직 모르는 서버가 채팅 답변(chat_answer)으로 돌려줘도 보낸 탭(작업)에 남긴다.
@@ -24,7 +21,8 @@ const ACTIONLESS_TASK_STATUSES = new Set(["pending", "cancelled"]);
 export function isTaskMessage(message: ChatMessageResponse, taskRunIds: ReadonlySet<string> = new Set()): boolean {
   if (message.run_id && taskRunIds.has(message.run_id)) return true;
   if (message.action) return !CHAT_ANSWER_ACTIONS.has(message.action);
-  return ACTIONLESS_TASK_STATUSES.has(message.status) && Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
+  // action이 없는 agent turn 메시지(진행 중·취소·실패로 끝남)도 상태와 상관없이 작업 탭에 둔다. 실패는 '실패' 묶음에 보인다.
+  return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
 }
 
 export type TaskMessageItem = {
@@ -42,6 +40,13 @@ export type TaskMessageItem = {
   createdAt: string | null;
 };
 
+/** 작업 카드에 보일 AI의 답. 실패로 끝난 turn은 서버 안내 문구(error_message)를 먼저 쓴다. */
+function taskAnswer(assistant: ChatMessageResponse | undefined): string {
+  if (!assistant) return "";
+  if (assistant.status === "failed" && assistant.error_message?.trim()) return assistant.error_message;
+  return assistant.content ?? "";
+}
+
 function toTaskItem(key: string, pairId: string | null, messages: ChatMessageResponse[]): TaskMessageItem {
   const user = messages.find((message) => message.role === "user");
   const assistant = messages.findLast((message) => message.role === "assistant");
@@ -51,7 +56,7 @@ function toTaskItem(key: string, pairId: string | null, messages: ChatMessageRes
     turnId: assistant?.run_id ?? user?.run_id ?? null,
     action: assistant?.action ?? null,
     request: (user?.content ?? "").trim().normalize("NFC"),
-    answer: (assistant?.content ?? "").trim().normalize("NFC"),
+    answer: taskAnswer(assistant).trim().normalize("NFC"),
     messageStatus: assistant?.status ?? user?.status ?? "pending",
     createdAt: user?.created_at ?? assistant?.created_at ?? null
   };
@@ -141,6 +146,8 @@ export type TaskStatusView = {
   struck: boolean;
 };
 
+const CANCELLED_TASK_STATUS: TaskStatusView = { group: "done", label: "취소됨", tone: "muted", struck: true };
+
 const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
 
 export function resolveTaskStatus({
@@ -157,7 +164,8 @@ export function resolveTaskStatus({
   hasLaterTask = false,
   isSuperseded = false,
   isStalled = false,
-  isReleased = false
+  isReleased = false,
+  isCancelAccepted = false
 }: {
   action: string | null;
   messageStatus: string;
@@ -185,15 +193,18 @@ export function resolveTaskStatus({
   isStalled?: boolean;
   /** 응답을 받지 못한 turn을 사용자가 닫았는지 */
   isReleased?: boolean;
+  /** 닫기·중지로 보낸 취소를 서버가 받아들였는지(취소 계열 응답). 목록이 아직 pending이어도 "취소됨"으로 본다. */
+  isCancelAccepted?: boolean;
 }): TaskStatusView {
   if (messageStatus === "pending") {
+    if (isCancelAccepted) return CANCELLED_TASK_STATUS;
     if (isReleased) return { group: "done", label: "중단됨", tone: "muted", struck: true };
     if (isStalled) return { group: "failed", label: STALLED_TURN_TITLE, tone: "danger", struck: false };
     return { group: "running", label: "진행 중", tone: "primary", struck: false };
   }
   if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
   // 진행 중에 취소돼 서버가 닫은 turn(agent turn 취소 API). 편집안 초안을 취소한 것과 같은 "취소됨"으로 보인다.
-  if (messageStatus === "cancelled") return { group: "done", label: "취소됨", tone: "muted", struck: true };
+  if (messageStatus === "cancelled") return CANCELLED_TASK_STATUS;
   if (isWorkspacePlanAction(action ?? undefined)) {
     if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
     if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };
