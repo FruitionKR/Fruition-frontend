@@ -206,7 +206,7 @@ export function resolveTaskStatus({
   isCancelled?: boolean;
   /** 이 작업 뒤에 보낸 작업이 있는지. 되물음은 다음 요청으로 답했거나 지나간 것으로 본다. */
   hasLaterTask?: boolean;
-  /** 같은 요청·스킬을 뒤에 다시 실행해 끝났는지(supersededTaskKeys). 남은 되물음은 더 답할 필요가 없다. */
+  /** 같은 요청·스킬을 같은 대상에 뒤에 다시 실행해 끝났는지(supersededTaskKeys). 남은 되물음은 더 답할 필요가 없다. */
   isSuperseded?: boolean;
   /** pending에 오래 머물러 응답을 받지 못한 turn(stalledTurns) */
   isStalled?: boolean;
@@ -275,18 +275,25 @@ function taskRequestKey(request: string): string {
 }
 
 /**
- * 뒤에 같은 요청·스킬을 다시 보내 끝난(completed) 작업의 key. 그 앞의 되물음("추가 설명 필요")은
+ * 뒤에 같은 요청·스킬을 같은 대상에 다시 보내 끝난(completed) 작업의 key. 그 앞의 되물음("추가 설명 필요")은
  * 다시 실행으로 지나갔으므로 "선택 필요"에 남기지 않는다. 뒤 작업이 아직 진행 중이거나 실패했으면 그대로 둔다.
+ * targetOf: 작업 대상(폴더 정리 run의 target_folder_id 등). 다른 폴더에 같은 스킬을 실행한 것은 다시 실행이 아니므로,
+ * 대상을 모르는 작업은 대신하지도 대신받지도 않는다.
  */
-export function supersededTaskKeys(items: ReadonlyArray<Pick<TaskMessageItem, "key" | "request" | "messageStatus">>): Set<string> {
+export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "request" | "messageStatus">>(
+  items: ReadonlyArray<T>,
+  targetOf: (item: T) => string | null | undefined
+): Set<string> {
   const superseded = new Set<string>();
   const completedLater = new Set<string>();
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     const requestKey = taskRequestKey(item.request);
-    if (!requestKey) continue;
-    if (completedLater.has(requestKey)) superseded.add(item.key);
-    if (item.messageStatus === "completed") completedLater.add(requestKey);
+    const target = targetOf(item);
+    if (!requestKey || !target) continue;
+    const key = JSON.stringify([requestKey, target]);
+    if (completedLater.has(key)) superseded.add(item.key);
+    if (item.messageStatus === "completed") completedLater.add(key);
   }
   return superseded;
 }

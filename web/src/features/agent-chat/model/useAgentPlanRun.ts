@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getWorkspaceId } from "@/shared/api/client";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
-import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, shouldPollAgentPlan } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
 
 /**
  * 작업 turn의 계획(run)과 승인·거절. 작업 탭 카드(AgentTaskBody)와 폴더 정리 미리보기 화면이 같은 쿼리 키를 공유해
@@ -15,7 +15,8 @@ export function useAgentPlanRun(turnId: string | undefined) {
   const queryKey = ["agentPlan", workspaceId, turnId];
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) => fetchAgentPlanRun(workspaceId, turnId!, signal),
+    queryFn: ({ signal }) =>
+      fetchAgentPlanRun(workspaceId, turnId!, signal, knownPlanRunId(client.getQueryData<AgentPlanRun | null>(queryKey), turnId!)),
     enabled: Boolean(turnId),
     retry: false,
     refetchInterval: (current) => !current.state.error && shouldPollAgentPlan(current.state.data?.status) ? 3000 : false,

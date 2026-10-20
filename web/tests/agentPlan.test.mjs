@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -22,6 +22,22 @@ test("채팅 기록의 turn ID에서 실제 승인 대상 run을 조회한다", 
   });
   assert.equal((await fetchAgentPlanRun("ws_test", "turn-1")).plan.version, 2);
   assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/turn/turn-1", "/api/workspaces/ws_test/agent/runs/autonomous-1"]);
+});
+
+test("이미 받은 run이 있으면 다음 폴링은 turn을 다시 묻지 않고 run만 조회한다", async (t) => {
+  const paths = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    paths.push(path);
+    return Response.json({ id: "autonomous-1", status: "awaiting_approval", plan });
+  });
+  const previous = { id: "autonomous-1", status: "awaiting_approval", error_code: null, plan };
+  assert.equal(knownPlanRunId(previous, "turn-1"), "autonomous-1");
+  assert.equal((await fetchAgentPlanRun("ws_test", "turn-1", undefined, knownPlanRunId(previous, "turn-1"))).status, "awaiting_approval");
+  assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/runs/autonomous-1"]);
+  // 아직 못 받았거나 turn 취소 상태만 담은 결과(id가 turn ID)는 turn부터 다시 묻는다.
+  assert.equal(knownPlanRunId(undefined, "turn-1"), null);
+  assert.equal(knownPlanRunId(null, "turn-1"), null);
+  assert.equal(knownPlanRunId({ id: "turn-1", status: "cancel_requested", error_code: null, plan: null }, "turn-1"), null);
 });
 
 test("승인은 화면에서 검토한 버전·해시를 전송하고 충돌을 성공으로 처리하지 않는다", async (t) => {

@@ -274,20 +274,44 @@ test("응답을 받지 못한 turn은 실패 묶음에 두고, 닫으면 완료 
   assert.deepEqual(resolveTaskStatus({ ...base, isStalled: true, isReleased: true }), { group: "done", label: "중단됨", tone: "muted", struck: true });
 });
 
-test("같은 스킬을 다시 실행해 끝나면 앞의 '추가 설명 필요'를 '다시 실행됨'으로 완료에 옮긴다", () => {
+test("같은 스킬을 같은 폴더에 다시 실행해 끝나면 앞의 '추가 설명 필요'를 '다시 실행됨'으로 완료에 옮긴다", () => {
   const items = [
-    { key: "a", request: "/file-organize", messageStatus: "completed" },
-    { key: "b", request: "/other", messageStatus: "completed" },
-    { key: "c", request: "/file-organize 날짜별로", messageStatus: "completed" },
-    { key: "d", request: "폴더 정리해줘", messageStatus: "completed" },
-    { key: "e", request: "폴더 정리해줘", messageStatus: "pending" }
+    { key: "a", request: "/file-organize", messageStatus: "completed", target: "folder_a" },
+    { key: "b", request: "/other", messageStatus: "completed", target: "folder_a" },
+    { key: "c", request: "/file-organize 날짜별로", messageStatus: "completed", target: "folder_a" },
+    { key: "d", request: "폴더 정리해줘", messageStatus: "completed", target: "folder_a" },
+    { key: "e", request: "폴더 정리해줘", messageStatus: "pending", target: "folder_a" }
   ];
+  const targetOf = (item) => item.target;
   // c가 a를 대신한다. d 뒤의 같은 요청(e)은 아직 진행 중이라 d를 대신하지 않는다.
-  assert.deepEqual([...supersededTaskKeys(items)], ["a"]);
-  assert.deepEqual(supersededTaskKeys([{ key: "x", request: "/s", messageStatus: "completed" }, { key: "y", request: "/s", messageStatus: "failed" }]), new Set());
+  assert.deepEqual([...supersededTaskKeys(items, targetOf)], ["a"]);
+  assert.deepEqual(supersededTaskKeys([
+    { key: "x", request: "/s", messageStatus: "completed", target: "f" },
+    { key: "y", request: "/s", messageStatus: "failed", target: "f" }
+  ], targetOf), new Set());
   const clarify = { action: "folder_organize", messageStatus: "completed", runStatus: "clarification_required" };
   assert.equal(resolveTaskStatus(clarify).group, "clarify");
   assert.deepEqual(resolveTaskStatus({ ...clarify, isSuperseded: true }), { group: "done", label: "다시 실행됨", tone: "muted", struck: false });
+});
+
+test("다른 폴더에 같은 스킬을 실행해 끝나도 앞 폴더의 되묻기 카드는 그대로 둔다", () => {
+  const targetOf = (item) => item.target;
+  const otherFolder = [
+    { key: "a", request: "/tidy-names", messageStatus: "completed", target: "folder_a" },
+    { key: "b", request: "/tidy-names", messageStatus: "completed", target: "folder_b" }
+  ];
+  assert.deepEqual(supersededTaskKeys(otherFolder, targetOf), new Set());
+  // 같은 폴더에 다시 실행하면 대신한다.
+  assert.deepEqual(supersededTaskKeys([...otherFolder, { key: "c", request: "/tidy-names", messageStatus: "completed", target: "folder_a" }], targetOf), new Set(["a"]));
+  // 대상을 모르면(계획을 아직 못 받음) 정리하지 않는다.
+  assert.deepEqual(supersededTaskKeys([
+    { key: "a", request: "/tidy-names", messageStatus: "completed", target: "folder_a" },
+    { key: "b", request: "/tidy-names", messageStatus: "completed", target: null }
+  ], targetOf), new Set());
+  assert.deepEqual(supersededTaskKeys([
+    { key: "a", request: "/tidy-names", messageStatus: "completed", target: null },
+    { key: "b", request: "/tidy-names", messageStatus: "completed", target: null }
+  ], targetOf), new Set());
 });
 
 test("서버가 취소로 닫은(cancelled) turn은 완료 묶음의 '취소됨'으로, 닫거나 막혀도 같게 보인다", () => {

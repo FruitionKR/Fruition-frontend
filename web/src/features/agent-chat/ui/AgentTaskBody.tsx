@@ -8,7 +8,7 @@ import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
-import { isPlanRunSettled, isWorkspacePlanAction, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
+import { isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
@@ -230,12 +230,16 @@ export function AgentTaskBody({
   // 진행 카드가 대신 보여 주는 turn의 서버 기록은 빼서 같은 작업이 두 장 보이지 않게 한다.
   const pendingTurnId = pendingTask?.turnId ?? null;
   const visibleItems = pendingTurnId ? items.filter((item) => item.turnId !== pendingTurnId) : items;
-  const supersededKeys = supersededTaskKeys(visibleItems);
   const planItems = visibleItems.filter((item) => isWorkspacePlanAction(item.action ?? undefined) && item.messageStatus === "completed");
   const runQueries = useQueries({
     queries: planItems.map((item) => ({
       queryKey: agentPlanQueryKey(workspaceId, item.turnId),
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchAgentPlanRun(workspaceId, item.turnId!, signal),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchAgentPlanRun(
+        workspaceId,
+        item.turnId!,
+        signal,
+        knownPlanRunId(client.getQueryData<AgentPlanRun | null>(agentPlanQueryKey(workspaceId, item.turnId)), item.turnId!)
+      ),
       enabled: Boolean(item.turnId) && isShown,
       retry: false,
       refetchInterval: (query: { state: { error: unknown; data?: AgentPlanRun | null } }) =>
@@ -246,6 +250,8 @@ export function AgentTaskBody({
     }))
   });
   const runsByKey = new Map(planItems.map((item, index) => [item.key, runQueries[index]]));
+  // 같은 스킬·요청이라도 대상 폴더가 같아야 다시 실행으로 본다. 대상을 모르는 작업(계획을 아직 못 받음 등)은 정리하지 않는다.
+  const supersededKeys = supersededTaskKeys(visibleItems, (item) => runsByKey.get(item.key)?.data?.target_folder_id);
   // 같은 폴더에 새 계획이 승인 대기에 도달하면 앞선 승인 대기 계획을 거절해 확인 필요 카드가 두 장 남지 않게 한다.
   const planEntries = planItems.map((item, index) => ({ turnId: item.turnId, action: item.action, run: runQueries[index]?.data ?? null }));
   useSupersedeFolderPlans({

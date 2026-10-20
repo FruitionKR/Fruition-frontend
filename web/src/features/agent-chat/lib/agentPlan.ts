@@ -132,6 +132,14 @@ export function isWorkspacePlanAction(action: string | undefined): boolean {
 /** 진행 중인 계획 run·취소 중인 turn을 다시 조회하는 주기 */
 export const PLAN_POLL_INTERVAL_MS = 3000;
 
+/**
+ * 이미 받은 계획의 run ID. 끝난(completed) turn이 가리키는 run은 바뀌지 않으므로, 다음 폴링은 turn을 다시 묻지 않고
+ * 이 run만 조회한다(폴링 한 주기에 요청 하나). turn 취소 상태만 담은 결과(id가 turn ID)나 아직 못 받았으면 null이다.
+ */
+export function knownPlanRunId(previous: Pick<AgentPlanRun, "id"> | null | undefined, turnId: string): string | null {
+  return previous?.id && previous.id !== turnId ? previous.id : null;
+}
+
 export function shouldPollAgentPlan(status: string | undefined): boolean {
   return !status || ["queued", "planning", "awaiting_approval", "executing", "verifying", "cancel_requested", "rolling_back"].includes(status);
 }
