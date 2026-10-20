@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { requestAgentTurnCancel, resumeAgentTurn } from "../api/agent";
-import { isTurnCancelAccepted, stalledTurnCancelOutcome, type StalledTurnCancelResult } from "../lib/stalledTurns";
+import { isTurnCancelAccepted, stalledTurnCancelOutcome, type CancelAcceptedTurn, type StalledTurnCancelResult } from "../lib/stalledTurns";
 
 /** 닫기 취소 요청·끝난 turn 조회를 이만큼만 기다린다. 응답이 없어도 화면 잠금은 푼다. */
 const CANCEL_REQUEST_TIMEOUT_MS = 10_000;
@@ -33,7 +33,8 @@ export async function announceFinishedTurn(turnId: string): Promise<void> {
 /**
  * 응답을 받지 못한 작업 turn을 '닫기'로 닫는다. 서버 취소(`POST agent/turn/{id}/cancel`)를 먼저 요청하고,
  * 결과와 상관없이 releaseTurns로 입력 잠금을 푼다(워크스페이스·세션별로 기억). 취소가 받아들여지면 서버가 pending 메시지를
- * cancelled로 닫으므로 잠금을 풀기 전에 목록을 다시 받아 "취소됨"으로 바로 보이게 한다.
+ * cancelled로 닫으므로 잠금을 풀기 전에 목록을 다시 받는다. 되돌리기가 끝나기 전(cancel_requested·rolling_back)이면 화면은
+ * "취소하는 중…"으로 보이고 turn 조회로 "취소됨"까지 따라간다.
  * 이미 끝난 turn(409)의 ID를 돌려줘 화면이 그 결과를 다시 받아 보여 주게 한다.
  */
 export function useCloseStalledTurns({
@@ -43,8 +44,8 @@ export function useCloseStalledTurns({
 }: {
   releaseTurns: (turnIds: readonly string[]) => void;
   refreshMessages: () => Promise<unknown>;
-  /** 서버가 취소를 받아들인 turn. 목록이 아직 pending이어도 "취소됨"으로 보이게 한다. */
-  onCancelAccepted?: (turnIds: readonly string[]) => void;
+  /** 서버가 취소를 받아들인 turn과 그때의 상태. 목록이 아직 pending이어도 취소로 보이게 한다. */
+  onCancelAccepted?: (accepted: readonly CancelAcceptedTurn[]) => void;
 }) {
   const [closingTurnIds, setClosingTurnIds] = useState<ReadonlySet<string>>(NO_TURNS);
 
@@ -53,8 +54,11 @@ export function useCloseStalledTurns({
     setClosingTurnIds((current) => new Set([...current, ...turnIds]));
     const results = await Promise.all(turnIds.map(requestCancel));
     const outcomes = results.map(stalledTurnCancelOutcome);
-    const acceptedIds = turnIds.filter((_, index) => isTurnCancelAccepted(results[index]));
-    if (acceptedIds.length > 0) onCancelAccepted?.(acceptedIds);
+    const accepted = turnIds.flatMap((turnId, index) => {
+      const result = results[index];
+      return isTurnCancelAccepted(result) ? [{ turnId, status: result.status }] : [];
+    });
+    if (accepted.length > 0) onCancelAccepted?.(accepted);
     if (outcomes.some((outcome) => outcome.refresh)) await refreshMessages().catch(() => undefined);
     releaseTurns(turnIds);
     setClosingTurnIds((current) => new Set([...current].filter((turnId) => !turnIds.includes(turnId))));

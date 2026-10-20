@@ -1,7 +1,14 @@
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
-import { STALLED_TURN_TITLE } from "@/features/agent-chat/lib/stalledTurns";
+import { SUPERSEDED_PLAN_LABEL } from "@/features/agent-chat/lib/folderPlanSupersede";
+import {
+  isTurnCancelling,
+  STALLED_TURN_TITLE,
+  TURN_CANCELLING_LABEL,
+  TURN_ROLLBACK_FAILED_LABEL,
+  type TurnCancelState
+} from "@/features/agent-chat/lib/stalledTurns";
 
 /**
  * 채팅 탭과 작업 탭의 분리(2026-10-19 계약).
@@ -150,6 +157,16 @@ const CANCELLED_TASK_STATUS: TaskStatusView = { group: "done", label: "취소됨
 
 const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
 
+/**
+ * 취소한 turn의 상태. 서버는 말풍선을 바로 cancelled로 닫지만 turn은 되돌리기를 마쳐야 끝나므로,
+ * turn 조회로 받은 진행 상태(cancelState)를 따른다. 아직 모르면 "취소됨"으로 둔다.
+ */
+function cancelledTaskStatus(cancelState: TurnCancelState | null): TaskStatusView {
+  if (isTurnCancelling(cancelState)) return { group: "running", label: TURN_CANCELLING_LABEL, tone: "muted", struck: false };
+  if (cancelState === "rollback_failed") return { group: "failed", label: TURN_ROLLBACK_FAILED_LABEL, tone: "danger", struck: false };
+  return CANCELLED_TASK_STATUS;
+}
+
 export function resolveTaskStatus({
   action,
   messageStatus,
@@ -165,7 +182,9 @@ export function resolveTaskStatus({
   isSuperseded = false,
   isStalled = false,
   isReleased = false,
-  isCancelAccepted = false
+  isCancelAccepted = false,
+  cancelState = null,
+  isPlanSuperseded = false
 }: {
   action: string | null;
   messageStatus: string;
@@ -195,18 +214,25 @@ export function resolveTaskStatus({
   isReleased?: boolean;
   /** 닫기·중지로 보낸 취소를 서버가 받아들였는지(취소 계열 응답). 목록이 아직 pending이어도 "취소됨"으로 본다. */
   isCancelAccepted?: boolean;
+  /** 취소한 turn을 조회해 받은 취소 진행 상태(취소하는 중·취소됨·복구 실패). 모르면 null */
+  cancelState?: TurnCancelState | null;
+  /** 같은 대상 폴더에 뒤에 실행한 새 계획이 승인 대기에 도달해 이 승인 대기 계획을 대신했는지(거절해 정리한다) */
+  isPlanSuperseded?: boolean;
 }): TaskStatusView {
   if (messageStatus === "pending") {
-    if (isCancelAccepted) return CANCELLED_TASK_STATUS;
+    if (isCancelAccepted) return cancelledTaskStatus(cancelState);
     if (isReleased) return { group: "done", label: "중단됨", tone: "muted", struck: true };
     if (isStalled) return { group: "failed", label: STALLED_TURN_TITLE, tone: "danger", struck: false };
     return { group: "running", label: "진행 중", tone: "primary", struck: false };
   }
   if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
   // 진행 중에 취소돼 서버가 닫은 turn(agent turn 취소 API). 편집안 초안을 취소한 것과 같은 "취소됨"으로 보인다.
-  if (messageStatus === "cancelled") return CANCELLED_TASK_STATUS;
+  if (messageStatus === "cancelled") return cancelledTaskStatus(cancelState);
   if (isWorkspacePlanAction(action ?? undefined)) {
     if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
+    if (isPlanSuperseded && (runStatus === "awaiting_approval" || runStatus === "rejected")) {
+      return { group: "done", label: SUPERSEDED_PLAN_LABEL, tone: "muted", struck: false };
+    }
     if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };
     if (runStatus === "clarification_required") {
       return isSuperseded

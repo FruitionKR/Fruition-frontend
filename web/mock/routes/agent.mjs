@@ -11,7 +11,10 @@ const FAIL_TURN = process.env.MOCK_FAIL_TURN === "1";
 const FAILED_TURN_MESSAGE = "편집안을 만들지 못했습니다. 다시 시도해 주세요.";
 const SLOW_TURN_DELAY_MS = 30_000;
 // 취소 요청 뒤 cancel_requested → rolling_back → cancelled로 넘어가는 간격(ai/tasks 취소 mock과 같다).
-const CANCEL_STEP_DELAY_MS = 1_000;
+// 테스트용 시나리오(MOCK_CANCEL_STEP_DELAY_MS): 간격을 늘려 "취소하는 중…"을 오래 보이게 한다. 기본에는 넣지 않는다.
+const CANCEL_STEP_DELAY_MS = Number(process.env.MOCK_CANCEL_STEP_DELAY_MS ?? 1_000);
+// 테스트용 시나리오(MOCK_ROLLBACK_FAIL=1): 되돌리기가 rollback_failed로 끝난다. 기본에는 넣지 않는다.
+const ROLLBACK_FAIL = process.env.MOCK_ROLLBACK_FAIL === "1";
 const CANCELLING_STATUSES = new Set(["cancel_requested", "rolling_back", "cancelled", "rollback_failed"]);
 const AGENT_TURN_CANCELLED_MESSAGE = "Agent 작업이 취소되었습니다.";
 const TURN_STAGE_DELAY_MS = 500;
@@ -253,6 +256,38 @@ function failTurn(turn, request) {
   Object.assign(turn, { status: "failed", error: "markdown_output_contract_failed", error_message: FAILED_TURN_MESSAGE });
 }
 
+// 테스트용 시나리오(MOCK_SAME_FOLDER_PLANS=1): 같은 폴더('연구 자료')에 폴더 정리 스킬을 두 번 실행한 기록.
+// 앞선 계획은 승인 대기이고, 뒤 계획은 처음 조회되고 MOCK_SAME_FOLDER_PLAN_DELAY_MS 뒤 계획 생성 중 → 승인 대기가 된다. 기본에는 넣지 않는다.
+const SAME_FOLDER_PLANS = process.env.MOCK_SAME_FOLDER_PLANS === "1";
+const SAME_FOLDER_PLAN_DELAY_MS = Number(process.env.MOCK_SAME_FOLDER_PLAN_DELAY_MS ?? 8_000);
+const SAME_FOLDER_ID = "6f1c2a3b-4d5e-4f60-8a71-9b2c3d4e5f60";
+
+function seedSameFolderPlans() {
+  const workspace = state.workspaces.find((item) => item.id === "ws_fruition");
+  if (!workspace) return;
+  const message = "/file-organize 날짜별로 정리";
+  ["agent_same_folder_1", "agent_same_folder_2"].forEach((turnId, index) => {
+    const turn = { id: turnId, workspace_id: workspace.id, documentId: null, baseVersion: null, apply_operation_id: `apply_${turnId}`, folder_id: SAME_FOLDER_ID, status: "completed", result: null, error_code: null };
+    state.agentTurns.set(turnId, turn);
+    const run = buildOrganizePlan(workspace, turn, message, null);
+    turn.result = { action: "folder_organize", route: route("folder_organize", "폴더 정리 요청"), message: "문서를 정리할 계획을 만들었습니다. 승인하면 실행합니다.", chat: null, edit: null, generated_markdown: null, run_id: run.id };
+    if (index === 1) Object.assign(run, { status: "planning", ready_after_ms: SAME_FOLDER_PLAN_DELAY_MS });
+    const createdAt = new Date(Date.now() - (5 - index) * 60_000).toISOString();
+    const pairId = `pair_${turnId}`;
+    state.chatMessages.push(
+      { id: `msg_${turnId}_q`, session_id: "chat_1", role: "user", content: message, status: "completed", created_at: createdAt, pair_id: pairId, run_id: turnId, references: [] },
+      { id: `msg_${turnId}_a`, session_id: "chat_1", role: "assistant", content: turn.result.message, action: "folder_organize", status: "completed", created_at: createdAt, pair_id: pairId, run_id: turnId, references: [] }
+    );
+  });
+}
+
+/** 계획 생성 중으로 시작한 시나리오 run은 처음 조회되고 정한 시간이 지나면 승인 대기가 된다. */
+function advanceSeededRun(run) {
+  if (run.status !== "planning" || !run.ready_after_ms) return;
+  run.ready_at ??= Date.now() + run.ready_after_ms;
+  if (Date.now() >= run.ready_at) run.status = "awaiting_approval";
+}
+
 function toTurn(turn) {
   const { id: requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError, error_message } = turn;
   return { requestId, documentId, baseVersion, apply_operation_id, folder_id, status, result, error: turnError ?? null, error_message: error_message ?? null };
@@ -264,6 +299,7 @@ function toRun(run) {
 }
 
 export function registerAgentRoutes(router) {
+  if (SAME_FOLDER_PLANS) seedSameFolderPlans();
   router.post("/api/workspaces/:wid/agent/turn", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
@@ -319,7 +355,7 @@ export function registerAgentRoutes(router) {
       setTimeout(() => {
         if (turn.status !== "cancel_requested") return;
         turn.status = "rolling_back";
-        setTimeout(() => { if (turn.status === "rolling_back") turn.status = "cancelled"; }, CANCEL_STEP_DELAY_MS);
+        setTimeout(() => { if (turn.status === "rolling_back") turn.status = ROLLBACK_FAIL ? "rollback_failed" : "cancelled"; }, CANCEL_STEP_DELAY_MS);
       }, CANCEL_STEP_DELAY_MS);
     }
     ctx.json(200, toTurn(turn));
@@ -361,6 +397,7 @@ export function registerAgentRoutes(router) {
     if (!workspace) return;
     const run = state.agentRuns.get(ctx.params.id);
     if (!run) return error(ctx, 404, "run을 찾을 수 없습니다.");
+    advanceSeededRun(run);
     ctx.json(200, toRun(run));
   });
 

@@ -8,11 +8,13 @@ import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
-import { isPlanRunSettled, isWorkspacePlanAction, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
+import { isPlanRunSettled, isWorkspacePlanAction, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
-import { STALLED_TURN_DETAIL } from "../lib/stalledTurns";
+import { STALLED_TURN_DETAIL, TURN_CANCELLING_DETAIL, TURN_ROLLBACK_FAILED_DETAIL, type TurnCancelState } from "../lib/stalledTurns";
+import { supersededFolderPlans, type FolderPlanSupersession } from "../lib/folderPlanSupersede";
+import { useSupersedeFolderPlans } from "../model/useSupersedeFolderPlans";
 import { newAttentionKeys, revealScrollDelta } from "../lib/revealScroll";
 import {
   describeTaskRequest,
@@ -36,7 +38,6 @@ import styles from "./AgentChat.module.css";
 
 /** Figma 1610:9608: 완료 묶음 아래 안내 */
 const DONE_NOTICE = "작업기록은 LLM Wiki에 들어가지 않습니다. 문서·파일의 변경 이력으로만 남습니다.";
-const PLAN_POLL_INTERVAL_MS = 3000;
 /** 실패한 turn에 서버 안내 문구가 없을 때 */
 const FAILED_TASK_FALLBACK = "작업을 처리하지 못했어요. 다시 시도해 주세요.";
 /** 새로 생기면 보이도록 굴려 줄 카드 묶음(할 일이 남은 묶음과, 진행 카드가 실패로 끝나 옮겨 간 '실패') */
@@ -44,6 +45,7 @@ const ATTENTION_GROUPS: ReadonlySet<TaskGroup> = new Set(["running", "approval",
 const PENDING_ATTENTION_KEY = "pending";
 const PREVIEW_ATTENTION_KEY = "preview";
 const NO_TURN_IDS: ReadonlySet<string> = new Set();
+const NO_CANCEL_STATES: ReadonlyMap<string, TurnCancelState> = new Map();
 
 export function agentPlanQueryKey(workspaceId: string, turnId: string | null) {
   return ["agentPlan", workspaceId, turnId] as const;
@@ -172,7 +174,9 @@ export function AgentTaskBody({
   onRetryStalled,
   onDismissStalled,
   onRetryFailed,
-  cancelAcceptedTurnIds = NO_TURN_IDS
+  cancelAcceptedTurnIds = NO_TURN_IDS,
+  cancelStates = NO_CANCEL_STATES,
+  onFolderPlanSuperseded
 }: {
   items: TaskMessageItem[];
   pendingTask: PendingTaskView | null;
@@ -214,6 +218,10 @@ export function AgentTaskBody({
   onRetryFailed?: (item: TaskMessageItem) => void;
   /** 닫기·중지로 보낸 취소를 서버가 받아들인 turn. 목록이 아직 pending이어도 "취소됨"으로 보인다. */
   cancelAcceptedTurnIds?: ReadonlySet<string>;
+  /** 취소한 turn을 조회해 받은 취소 진행 상태. 취소하는 중이면 "취소하는 중…", 복구 실패면 '실패' 묶음에 보인다. */
+  cancelStates?: ReadonlyMap<string, TurnCancelState>;
+  /** 앞선 승인 대기 계획을 새 계획으로 대체해 서버에 거절했다. question은 새 run을 보낸 요청이다. */
+  onFolderPlanSuperseded?: (supersession: FolderPlanSupersession & { question: string }) => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -238,6 +246,19 @@ export function AgentTaskBody({
     }))
   });
   const runsByKey = new Map(planItems.map((item, index) => [item.key, runQueries[index]]));
+  // 같은 폴더에 새 계획이 승인 대기에 도달하면 앞선 승인 대기 계획을 거절해 확인 필요 카드가 두 장 남지 않게 한다.
+  const planEntries = planItems.map((item, index) => ({ turnId: item.turnId, action: item.action, run: runQueries[index]?.data ?? null }));
+  useSupersedeFolderPlans({
+    workspaceId,
+    entries: planEntries,
+    onSuperseded: (supersession) => {
+      const newer = planItems.find((item) => item.turnId === supersession.supersededBy);
+      const newerRun = newer ? runsByKey.get(newer.key)?.data : null;
+      onFolderPlanSuperseded?.({ ...supersession, question: resolveTaskRequest(newer?.request, newerRun?.request_summary).request });
+    }
+  });
+  // 거절 응답 전(승인 대기)에도, 거절된 뒤 새로 고침해도 같은 폴더의 새 계획에 대체된 계획은 "새 실행으로 대체됨"으로 보인다.
+  const supersededPlanTurnIds = new Set(supersededFolderPlans(planEntries, { includeRejected: true }).map(({ turnId }) => turnId));
   // 새로 고침 뒤에도 적용한 편집안이 "저장됨"으로 남게 서버 버전 기록으로 다시 확인한다.
   const serverAppliedTurnIds = useServerAppliedTurnIds(workspaceId, visibleItems, isShown);
 
@@ -268,6 +289,8 @@ export function AgentTaskBody({
       isStalled: item.turnId !== null && stalledTurnIds.has(item.turnId),
       isReleased: item.turnId !== null && releasedTurnIds.has(item.turnId),
       isCancelAccepted: item.turnId !== null && cancelAcceptedTurnIds.has(item.turnId),
+      cancelState: item.turnId !== null ? cancelStates.get(item.turnId) ?? null : null,
+      isPlanSuperseded: item.turnId !== null && supersededPlanTurnIds.has(item.turnId),
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
@@ -328,6 +351,12 @@ export function AgentTaskBody({
 
   function renderDetail(entry: TaskEntry) {
     const { item, status } = entry;
+    const cancelState = item.turnId !== null ? cancelStates.get(item.turnId) : undefined;
+    const isCancelledTurn = item.messageStatus === "cancelled" || (item.messageStatus === "pending" && item.turnId !== null && cancelAcceptedTurnIds.has(item.turnId));
+    if (isCancelledTurn && (cancelState === "requested" || cancelState === "rolling_back")) {
+      return <TaskNote role="status">{TURN_CANCELLING_DETAIL[cancelState]}</TaskNote>;
+    }
+    if (isCancelledTurn && cancelState === "rollback_failed") return <TaskNote role="alert">{TURN_ROLLBACK_FAILED_DETAIL}</TaskNote>;
     if (isWorkspacePlanAction(item.action ?? undefined) && status.group !== "done") {
       return (
         <AgentPlanTaskDetail

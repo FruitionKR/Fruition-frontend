@@ -178,3 +178,47 @@ test("취소 계열 상태로 답한 취소 요청만 '취소를 받아들임'�
   assert.equal(isTurnCancelAccepted({ kind: "missing" }), false);
   assert.equal(isTurnCancelAccepted({ kind: "failed" }), false);
 });
+
+const {
+  TURN_CANCEL_POLL_LIMIT,
+  TURN_ROLLBACK_FAILED_DETAIL,
+  isTurnCancelling,
+  shouldPollTurnCancel,
+  turnCancelSettledNotice,
+  turnCancelState
+} = await import("../src/features/agent-chat/lib/stalledTurns.ts");
+
+test("취소한 turn 조회 결과를 취소 진행 상태로 바꾼다", () => {
+  assert.equal(turnCancelState(undefined), null);
+  assert.equal(turnCancelState({ kind: "status", status: "cancel_requested" }), "requested");
+  assert.equal(turnCancelState({ kind: "status", status: "rolling_back" }), "rolling_back");
+  assert.equal(turnCancelState({ kind: "status", status: "rollback_failed" }), "rollback_failed");
+  assert.equal(turnCancelState({ kind: "status", status: "cancelled" }), "cancelled");
+  // 서버에 없거나 취소 계열이 아닌 상태는 더 기다릴 것이 없다.
+  assert.equal(turnCancelState({ kind: "missing" }), "cancelled");
+  assert.equal(turnCancelState({ kind: "status", status: "completed" }), "cancelled");
+  assert.equal(isTurnCancelling("requested"), true);
+  assert.equal(isTurnCancelling("rolling_back"), true);
+  assert.equal(isTurnCancelling("cancelled"), false);
+  assert.equal(isTurnCancelling(null), false);
+});
+
+test("취소하는 중인 turn만 상한까지 다시 조회한다", () => {
+  const rollingBack = { kind: "status", status: "rolling_back" };
+  assert.equal(shouldPollTurnCancel(rollingBack, 0), true);
+  assert.equal(shouldPollTurnCancel({ kind: "status", status: "cancel_requested" }, TURN_CANCEL_POLL_LIMIT - 1), true);
+  assert.equal(shouldPollTurnCancel(rollingBack, TURN_CANCEL_POLL_LIMIT), false);
+  assert.equal(shouldPollTurnCancel({ kind: "status", status: "cancelled" }, 0), false);
+  assert.equal(shouldPollTurnCancel({ kind: "status", status: "rollback_failed" }, 0), false);
+  assert.equal(shouldPollTurnCancel({ kind: "missing" }, 0), false);
+  assert.equal(shouldPollTurnCancel(undefined, 0), false);
+});
+
+test("이 화면에서 취소하는 중이던 turn이 복구 실패로 끝날 때만 알린다", () => {
+  assert.equal(turnCancelSettledNotice("rolling_back", "rollback_failed"), TURN_ROLLBACK_FAILED_DETAIL);
+  assert.equal(turnCancelSettledNotice("requested", "rollback_failed"), TURN_ROLLBACK_FAILED_DETAIL);
+  assert.equal(turnCancelSettledNotice("rolling_back", "cancelled"), null);
+  // 새로 고침 뒤 처음 받은 상태·이미 알린 상태로는 다시 알리지 않는다.
+  assert.equal(turnCancelSettledNotice(undefined, "rollback_failed"), null);
+  assert.equal(turnCancelSettledNotice("rollback_failed", "rollback_failed"), null);
+});

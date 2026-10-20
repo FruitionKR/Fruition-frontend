@@ -617,6 +617,7 @@ export function HomeWorkspace() {
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
           onOpenFolderOrganize={folderOrganize.open}
+          onReplaceFolderOrganize={folderOrganize.replaceSuperseded}
           nodes={graphData.nodes}
           skillRun={skillRunRequest && {
             id: skillRunRequest.id,

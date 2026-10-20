@@ -159,9 +159,12 @@ export type StalledTurnCancelResult = TurnCheckResult | { kind: "finished" } | {
  * 취소 요청을 서버가 받아들였는지(200 + 취소 계열 상태). 서버가 메시지를 cancelled로 닫기 전에 목록을 다시 받으면
  * 아직 pending으로 오므로, 화면은 이 turn을 "중단됨"이 아니라 "취소됨"으로 보여 준다.
  */
-export function isTurnCancelAccepted(result: StalledTurnCancelResult): boolean {
+export function isTurnCancelAccepted(result: StalledTurnCancelResult): result is { kind: "status"; status: string } {
   return result.kind === "status" && TURN_CANCEL_STATUSES.has(result.status);
 }
+
+/** 서버가 취소를 받아들인 turn과 그때 받은 turn 상태(cancel_requested·rolling_back·cancelled·rollback_failed) */
+export type CancelAcceptedTurn = { turnId: string; status: string };
 
 /** 닫기 취소 결과로 할 일. refresh: 세션 메시지를 다시 받는다, showResult: 이미 끝난 turn의 결과를 다시 받아 보여 준다. */
 export type StalledTurnCancelOutcome = { notice: string | null; refresh: boolean; showResult: boolean };
@@ -209,4 +212,48 @@ export function activeTurnStopOutcome(result: StalledTurnCancelResult): ActiveTu
     return { notice: "작업을 중지했지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, release: true, resume: false };
   }
   return { notice: null, refresh: true, release: true, resume: false };
+}
+
+/**
+ * 취소를 받아들인 turn이 지금 어디까지 왔는지. 서버는 취소를 받으면 말풍선(메시지)을 바로 cancelled로 닫지만,
+ * turn은 cancel_requested → rolling_back(작업이 바꾼 내용을 되돌리는 중)을 거쳐 cancelled·rollback_failed로 끝난다.
+ * requested·rolling_back: 취소하는 중, cancelled: 취소됨, rollback_failed: 취소했지만 변경을 되돌리지 못함.
+ */
+export type TurnCancelState = "requested" | "rolling_back" | "cancelled" | "rollback_failed";
+
+/** 취소 중인 turn을 이만큼만 다시 조회한다(조회 주기 × 횟수). 넘으면 "취소하는 중…"으로 두고 다음에 열 때 다시 확인한다. */
+export const TURN_CANCEL_POLL_LIMIT = 40;
+export const TURN_CANCELLING_LABEL = "취소하는 중…";
+export const TURN_ROLLBACK_FAILED_LABEL = "변경 복구 실패";
+export const TURN_ROLLBACK_FAILED_DETAIL = "취소했지만 변경을 되돌리지 못했어요. 문서 내용을 확인해 주세요.";
+/** 취소하는 중인 작업 카드의 설명. 되돌리는 단계인지 알 수 있게 나눠 적는다. */
+export const TURN_CANCELLING_DETAIL: Record<"requested" | "rolling_back", string> = {
+  requested: "작업을 멈추고 있어요.",
+  rolling_back: "작업이 바꾼 내용을 되돌리고 있어요. 끝나면 '취소됨'으로 바뀌어요."
+};
+
+/**
+ * turn 조회(또는 취소 응답) 결과 → 취소 진행 상태. 404(서버에 turn이 없음)와 취소 계열이 아닌 상태는 더 기다릴 것이 없어 취소됨으로 본다.
+ * 아직 모르면 null.
+ */
+export function turnCancelState(result: TurnCheckResult | null | undefined): TurnCancelState | null {
+  if (!result) return null;
+  if (result.kind === "missing") return "cancelled";
+  if (result.status === "cancel_requested") return "requested";
+  if (result.status === "rolling_back" || result.status === "rollback_failed") return result.status;
+  return "cancelled";
+}
+
+export function isTurnCancelling(state: TurnCancelState | null | undefined): boolean {
+  return state === "requested" || state === "rolling_back";
+}
+
+/** 취소 중인 turn을 다시 조회할지. 끝났거나 상한(pollCount)에 닿으면 멈춘다. */
+export function shouldPollTurnCancel(result: TurnCheckResult | null | undefined, pollCount: number): boolean {
+  return isTurnCancelling(turnCancelState(result)) && pollCount < TURN_CANCEL_POLL_LIMIT;
+}
+
+/** 이 화면에서 취소하는 중이던 turn이 복구 실패로 끝났을 때만 알림 문구. 새로 고침 뒤 처음 받은 상태로는 알리지 않는다. */
+export function turnCancelSettledNotice(previous: TurnCancelState | null | undefined, next: TurnCancelState | null | undefined): string | null {
+  return isTurnCancelling(previous) && next === "rollback_failed" ? TURN_ROLLBACK_FAILED_DETAIL : null;
 }

@@ -129,6 +129,9 @@ export function isWorkspacePlanAction(action: string | undefined): boolean {
   return action === "folder_organize" || action === "workspace_workflow";
 }
 
+/** 진행 중인 계획 run·취소 중인 turn을 다시 조회하는 주기 */
+export const PLAN_POLL_INTERVAL_MS = 3000;
+
 export function shouldPollAgentPlan(status: string | undefined): boolean {
   return !status || ["queued", "planning", "awaiting_approval", "executing", "verifying", "cancel_requested", "rolling_back"].includes(status);
 }

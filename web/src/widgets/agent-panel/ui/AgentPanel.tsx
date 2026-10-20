@@ -22,6 +22,8 @@ import {
 import { useStalledQueries } from "@/features/agent-chat/model/useStalledQueries";
 import { useReleasedTurns, useStalledAgentTurns } from "@/features/agent-chat/model/useStalledAgentTurns";
 import { announceFinishedTurn, useCloseStalledTurns } from "@/features/agent-chat/model/useCloseStalledTurns";
+import { useTurnCancelStates } from "@/features/agent-chat/model/useTurnCancelStates";
+import type { CancelAcceptedTurn } from "@/features/agent-chat/lib/stalledTurns";
 import { skillRunWaitingState } from "../lib/skillRunWaiting";
 import { composerStopHint, composerStoppingMessage, resolveComposerStopTarget, type PendingStopCandidate } from "../lib/composerStop";
 import type { TaskMessageItem } from "@/features/agent-chat/lib/taskThread";
@@ -78,6 +80,7 @@ export function AgentPanel({
   onManageSkills,
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
+  onReplaceFolderOrganize,
   skillTestRunSlotRef,
   openDocumentTitle = null,
   onEditReviewChange,
@@ -126,6 +129,8 @@ export function AgentPanel({
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
+  /** 앞선 폴더 정리 계획이 같은 폴더의 새 계획으로 대체됐다. 그 계획의 미리보기 탭이 열려 있으면 새 계획으로 바꾼다. */
+  onReplaceFolderOrganize?: (supersededTurnId: string, next: FolderOrganizeRequest) => void;
   /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
   skillTestRunSlotRef?: (element: HTMLDivElement | null) => void;
   /** 열린 문서 이름. 본문에 붙인 편집 제안 카드의 보조 설명에 쓴다(Figma 1610:9145). */
@@ -197,11 +202,8 @@ export function AgentPanel({
   } = useAiModelSelection();
   // 응답을 받지 못해 '닫기'로 잠금을 푼 turn. 서버 메시지가 pending이어도 입력을 막지 않는다.
   const { releasedTurnIds, releaseTurns } = useReleasedTurns(activeSessionId);
-  // 닫기·Esc 중지로 보낸 취소를 서버가 받아들인 turn. 목록이 아직 pending이어도 "중단됨"이 아니라 "취소됨"으로 보인다.
+  // 닫기·Esc 중지로 보낸 취소를 서버가 받아들인 turn. 목록이 아직 pending이어도 "중단됨"이 아니라 취소로 보인다.
   const [cancelAcceptedTurnIds, setCancelAcceptedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
-  const markCancelAccepted = useCallback((turnIds: readonly string[]) => {
-    setCancelAcceptedTurnIds((current) => new Set([...current, ...turnIds]));
-  }, []);
   const {
     messages,
     queryErrorMessage,
@@ -248,7 +250,18 @@ export function AgentPanel({
   }, [arrivedFolderOrganizeTurnId]);
   // 채팅 탭은 위키 질의 문답만, 작업 탭은 agent turn(문서 편집·폴더 정리·스킬) 문답만 보여 준다(2026-10-19 계약).
   const { chatMessages, taskItems } = useMemo(() => splitChatAndTaskMessages(messages, taskRunIds), [messages, taskRunIds]);
-  // 방금 보낸 요청이 실패로 끝나 작업 탭 '실패' 묶음에 서버 문구와 '다시 시도'로 보이면 입력창 위 빨간 오류는 겹쳐 띄우지 않는다.
+  // 취소한 작업(서버가 cancelled로 닫은 말풍선·취소를 받아들인 pending 말풍선)은 turn 조회로 되돌리기가 끝났는지 따라간다.
+  // 서버는 말풍선을 취소 요청 즉시 닫으므로, 되돌리는 중이면 "취소하는 중…", 끝나면 "취소됨"·복구 실패로 보인다.
+  const cancelledTaskTurnIds = useMemo(() => taskItems.flatMap((item) => (
+    item.turnId && (item.messageStatus === "cancelled" || (item.messageStatus === "pending" && cancelAcceptedTurnIds.has(item.turnId)))
+      ? [item.turnId]
+      : []
+  )), [cancelAcceptedTurnIds, taskItems]);
+  const { cancelStates, seedCancelState } = useTurnCancelStates(cancelledTaskTurnIds);
+  const markCancelAccepted = useCallback((accepted: readonly CancelAcceptedTurn[]) => {
+    accepted.forEach(({ turnId, status }) => seedCancelState(turnId, { kind: "status", status }));
+    setCancelAcceptedTurnIds((current) => new Set([...current, ...accepted.map(({ turnId }) => turnId)]));
+  }, [seedCancelState]);  // 방금 보낸 요청이 실패로 끝나 작업 탭 '실패' 묶음에 서버 문구와 '다시 시도'로 보이면 입력창 위 빨간 오류는 겹쳐 띄우지 않는다.
   const requestTurnId = agentTurn.requestTurnId;
   const isRequestFailureListed = requestTurnId !== null
     && taskItems.some((item) => item.turnId === requestTurnId && item.messageStatus === "failed");
@@ -726,6 +739,8 @@ export function AgentPanel({
             onRetryTask={isSubmitting ? undefined : retryTask}
             onRetryFailed={isSubmitting ? undefined : retryFailedTask}
             cancelAcceptedTurnIds={cancelAcceptedTurnIds}
+            cancelStates={cancelStates}
+            onFolderPlanSuperseded={({ turnId, supersededBy, question }) => onReplaceFolderOrganize?.(turnId, { turnId: supersededBy, question })}
             onRecheck={agentTurn.canRecheckAgentTurn ? agentTurn.recheckAgentTurn : undefined}
             stalledTurnIds={stalledTurnIds}
             releasedTurnIds={releasedTurnIds}

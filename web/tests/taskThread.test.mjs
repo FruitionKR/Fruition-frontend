@@ -321,3 +321,30 @@ test("서버가 취소를 받아들인 turn은 목록이 아직 pending이어도
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, isStalled: true }), cancelled);
   assert.equal(resolveTaskStatus({ action: null, messageStatus: "pending", isReleased: true }).label, "중단됨");
 });
+
+test("취소한 turn은 되돌리는 동안 '진행 중' 묶음의 '취소하는 중…', 끝나면 '취소됨', 복구 실패면 '실패' 묶음이다", () => {
+  const cancelling = { group: "running", label: "취소하는 중…", tone: "muted", struck: false };
+  const cancelled = { group: "done", label: "취소됨", tone: "muted", struck: true };
+  const rollbackFailed = { group: "failed", label: "변경 복구 실패", tone: "danger", struck: false };
+  // 서버는 말풍선을 취소 요청 즉시 cancelled로 닫으므로 turn 조회 상태를 따른다.
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "requested" }), cancelling);
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rolling_back" }), cancelling);
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "cancelled" }), cancelled);
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_failed" }), rollbackFailed);
+  // 목록이 아직 pending이어도 취소 응답 상태로 같게 보인다.
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, cancelState: "rolling_back" }), cancelling);
+  assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, cancelState: "rollback_failed" }), rollbackFailed);
+  // 취소를 받아들이지 않은 pending turn은 취소 상태를 보지 않는다.
+  assert.equal(resolveTaskStatus({ action: null, messageStatus: "pending", cancelState: "rolling_back" }).label, "진행 중");
+});
+
+test("같은 폴더의 새 계획에 대체된 승인 대기·거절 계획은 완료 묶음의 '새 실행으로 대체됨'이다", () => {
+  const superseded = { group: "done", label: "새 실행으로 대체됨", tone: "muted", struck: false };
+  const base = { action: "folder_organize", messageStatus: "completed", isPlanSuperseded: true };
+  assert.deepEqual(resolveTaskStatus({ ...base, runStatus: "awaiting_approval" }), superseded);
+  assert.deepEqual(resolveTaskStatus({ ...base, runStatus: "rejected" }), superseded);
+  // 승인 처리 중·끝난 계획은 그대로 보인다.
+  assert.equal(resolveTaskStatus({ ...base, runStatus: "executing" }).label, "실행 중");
+  assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "rejected" }).label, "거절됨");
+  assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "awaiting_approval" }).group, "approval");
+});

@@ -34,5 +34,10 @@ export function useFolderOrganizePreview({
     }
   }
 
-  return { request, open, close: () => setRequest(null) };
+  /** 열려 있는 미리보기가 대체된 계획이면 새 계획으로 바꾼다. 다른 계획을 보고 있거나 닫혀 있으면 그대로 둔다. */
+  function replaceSuperseded(supersededTurnId: string, next: FolderOrganizeRequest) {
+    setRequest((current) => (current?.turnId === supersededTurnId ? next : current));
+  }
+
+  return { request, open, replaceSuperseded, close: () => setRequest(null) };
 }
