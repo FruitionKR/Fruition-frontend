@@ -79,3 +79,8 @@ export function emailCodeRequestFailureMessage(error: unknown): string | null {
   const { code } = (error ?? {}) as { code?: unknown };
   return code === "DUPLICATE_EMAIL" ? FAILURES.DUPLICATE_EMAIL.message : null;
 }
+
+/** 지금 쓰는 이메일과 같은 주소인지(앞뒤 공백·대소문자 무시). 같은 주소로는 인증번호를 요청하지 않는다(서버가 409로 거절한다). */
+export function isSameEmail(newEmail: string, currentEmail: string | null | undefined): boolean {
+  return Boolean(currentEmail) && newEmail.trim().toLowerCase() === currentEmail!.trim().toLowerCase();
+}

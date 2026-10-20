@@ -12,6 +12,7 @@ import {
   emailCodeRequestFailureMessage,
   fetchMfaStatus,
   getOAuthAuthorizationUrl,
+  isSameEmail,
   requestEmailVerification,
   oauthProviderName,
   ME_QUERY_KEY,
@@ -78,6 +79,11 @@ export function EmailChangeModal({
 
   async function sendCode() {
     if (busy || Date.now() < retryAt) return;
+    // 인증번호 요청은 로그인 없이 받는 요청이라 지금 쓰는 주소도 '다른 계정이 사용 중'(409)으로 거절된다. 보내기 전에 막는다.
+    if (isSameEmail(email, me.email)) {
+      setError("지금 쓰는 이메일과 같습니다.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

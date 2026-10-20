@@ -13,7 +13,7 @@ registerHooks({
   }
 });
 
-const { buildEmailChangeBody, emailChangeFailure, emailCodeRequestFailureMessage, parseRetryAfterSeconds } = await import("../src/entities/user/model/emailChange.ts");
+const { buildEmailChangeBody, emailChangeFailure, emailCodeRequestFailureMessage, isSameEmail, parseRetryAfterSeconds } = await import("../src/entities/user/model/emailChange.ts");
 const { changeEmail } = await import("../src/entities/user/api/account.ts");
 const { saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/authSessionStorage.ts");
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
@@ -177,4 +177,11 @@ test("인증번호 요청의 409 DUPLICATE_EMAIL은 서버 원문 대신 변경 
   assert.equal(emailCodeRequestFailureMessage(duplicate), emailChangeFailure(duplicate, "x").message);
   assert.equal(emailCodeRequestFailureMessage(withCode("RATE_LIMITED", 429)), null, "다른 실패는 호출부 문구를 쓴다");
   assert.equal(emailCodeRequestFailureMessage(null), null);
+});
+
+test("지금 쓰는 이메일과 같은 주소는 앞뒤 공백·대소문자를 무시하고 같은 주소로 본다", () => {
+  assert.equal(isSameEmail("  Me@Example.com ", "me@example.com"), true);
+  assert.equal(isSameEmail("me@example.com", "ME@EXAMPLE.COM "), true);
+  assert.equal(isSameEmail("new@example.com", "me@example.com"), false);
+  assert.equal(isSameEmail("me@example.com", null), false, "현재 이메일을 모르면 막지 않는다");
 });
