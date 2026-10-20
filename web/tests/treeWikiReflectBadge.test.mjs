@@ -12,24 +12,24 @@ const { buildTreeWikiReflectBadges, getTreeWikiReflectBadge } = await import("..
 const md = (id, extra = {}) => ({ id, filename: `${id}.md`, mime_type: "text/markdown", document_role: "EDITABLE", status: "completed", needs_reingest: false, ...extra });
 const badgeOf = (document, documents = [document]) => getTreeWikiReflectBadge(document, documents);
 
-test("한 번도 편입하지 않은 문서는 신규 배지를 붙인다", () => {
+test("한 번도 편입하지 않은 문서는 미편입 배지를 붙인다", () => {
   assert.deepEqual(badgeOf(md("new", { status: "uploaded" })), {
-    label: "신규",
+    label: "미편입",
     tone: "new",
     description: "위키에 아직 편입하지 않은 문서"
   });
   // 직접 만든 새 노트: run 없이 needs_reingest=true
-  assert.equal(badgeOf(md("note", { needs_reingest: true }))?.label, "신규");
+  assert.equal(badgeOf(md("note", { needs_reingest: true }))?.label, "미편입");
 });
 
-test("편입 후 편집된 문서는 수정됨, 편입에 실패한 문서는 재시도 배지를 붙인다", () => {
+test("편입 후 편집된 문서는 수정됨, 편입에 실패한 문서는 편입 실패 배지를 붙인다", () => {
   assert.deepEqual(badgeOf(md("changed", { needs_reingest: true, pipeline_run_id: "run-1" })), {
     label: "수정됨",
     tone: "changed",
     description: "위키 편입 후 수정된 문서"
   });
   assert.deepEqual(badgeOf(md("failed", { status: "failed", pipeline_run_id: "run-2" })), {
-    label: "재시도",
+    label: "편입 실패",
     tone: "retry",
     description: "위키 편입에 실패한 문서"
   });
@@ -48,14 +48,14 @@ test("PDF 원본·TXT는 편입할 수 있는 상태여도 배지를 붙이지 �
   assert.equal(badgeOf(txt), null);
 });
 
-test("채팅 편입 문서도 편입 전이면 신규 배지를 붙인다", () => {
-  assert.equal(badgeOf(md("chat", { status: "uploaded", ai_origin: "chat_export" }))?.label, "신규");
+test("채팅 편입 문서도 편입 전이면 미편입 배지를 붙인다", () => {
+  assert.equal(badgeOf(md("chat", { status: "uploaded", ai_origin: "chat_export" }))?.label, "미편입");
 });
 
-test("PDF 변환 중이거나 변환에 실패한 노트는 배지를 붙이지 않고, 변환을 마친 노트는 신규로 본다", () => {
+test("PDF 변환 중이거나 변환에 실패한 노트는 배지를 붙이지 않고, 변환을 마친 노트는 미편입으로 본다", () => {
   assert.equal(badgeOf(md("converting", { status: "processing", pipeline_run_id: "convert:1" })), null);
   assert.equal(badgeOf(md("convert-failed", { status: "failed", pipeline_run_id: "convert:2" })), null);
-  assert.equal(badgeOf(md("converted", { pipeline_run_id: "convert:3" }))?.label, "신규");
+  assert.equal(badgeOf(md("converted", { pipeline_run_id: "convert:3" }))?.label, "미편입");
 });
 
 test("문서 id별 배지 맵에는 배지가 있는 문서만 담는다", () => {

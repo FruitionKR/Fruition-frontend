@@ -53,15 +53,15 @@ test("편입한 적 있는(run 있는) 문서가 needs_reingest면 변경 상태
   assert.equal(isWikiReflectEligible(document), true);
 });
 
-test("직접 만든 노트(completed, run 없음)는 needs_reingest여도 수정됨이 아니라 신규다", () => {
+test("직접 만든 노트(completed, run 없음)는 needs_reingest여도 수정됨이 아니라 미편입이다", () => {
   const document = makeDocument({ status: "completed", needs_reingest: true });
   assert.equal(getWikiReflectState(document), "not-included");
-  assert.equal(getWikiReflectLabel(document), "신규");
+  assert.equal(getWikiReflectLabel(document), "미편입");
   assert.equal(isWikiReflectEligible(document), true);
   assert.equal(getChatEvidenceNotice(document)?.actionLabel, "위키에 편입");
 });
 
-test("PDF 변환 run만 있는 노트는 needs_reingest여도 신규다", () => {
+test("PDF 변환 run만 있는 노트는 needs_reingest여도 미편입이다", () => {
   const document = makeDocument({ status: "failed", needs_reingest: true, pipeline_run_id: "convert:doc-1" });
   assert.equal(getWikiReflectState(document), "not-included");
 });
@@ -69,14 +69,14 @@ test("PDF 변환 run만 있는 노트는 needs_reingest여도 신규다", () => 
 test("status가 uploaded면 아직 미반영이고 반영할 수 있다", () => {
   const document = makeDocument({ status: "uploaded" });
   assert.equal(getWikiReflectState(document), "not-included");
-  assert.equal(getWikiReflectLabel(document), "신규");
+  assert.equal(getWikiReflectLabel(document), "미편입");
   assert.equal(isWikiReflectEligible(document), true);
 });
 
 test("status가 failed면 재시도할 수 있다", () => {
   const document = makeDocument({ status: "failed" });
   assert.equal(getWikiReflectState(document), "retry");
-  assert.equal(getWikiReflectLabel(document), "재시도");
+  assert.equal(getWikiReflectLabel(document), "편입 실패");
   assert.equal(isWikiReflectEligible(document), true);
 });
 

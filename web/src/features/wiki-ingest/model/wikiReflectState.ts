@@ -12,8 +12,8 @@ type WikiReflectState = "processing" | "changed" | "not-included" | "retry" | "u
 
 const WIKI_REFLECT_LABELS: Partial<Record<WikiReflectState, string>> = {
   changed: "수정됨",
-  "not-included": "신규",
-  retry: "재시도"
+  "not-included": "미편입",
+  retry: "편입 실패"
 };
 
 /**
