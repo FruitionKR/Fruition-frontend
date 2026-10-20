@@ -13,7 +13,7 @@ const NOTIFICATION_ROWS: { key: NotificationKey; label: string; description: str
   { key: "restore", label: "복구(롤백)", description: "AI 작업 되돌리기가 끝나면 알립니다." },
   { key: "query", label: "질의 완료", description: "채팅 질의의 답변 도착•실패를 알립니다." },
   { key: "browser", label: "브라우저 알림", description: "탭이 백그라운드일 때 브라우저 알림으로도 보냅니다." },
-  { key: "suggest", label: "작업 제안", description: "위키 편입이나 Lint가 필요한 문서가 있으면 실행을 제안합니다." }
+  { key: "suggest", label: "작업 제안", description: "위키 편입이나 위키 최신화가 필요한 문서가 있으면 실행을 제안합니다." }
 ];
 
 /** 알림 설정 (Figma 1567:26085). 알림 설정은 이 패널에서만 바꾼다. 설정값은 이 기기(브라우저)에 저장된다. */

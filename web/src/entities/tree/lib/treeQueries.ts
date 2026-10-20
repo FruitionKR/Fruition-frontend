@@ -43,3 +43,15 @@ export function collectTreeItems<T>(items: TreeItem[], pick: (item: TreeItem) =>
     return picked === undefined ? rest : [picked, ...rest];
   });
 }
+
+/** 문서 id → 상위 폴더 이름 경로("연구 / 2026"). 같은 이름 문서를 구분해 보여 줄 때 쓴다. 최상위 문서는 넣지 않는다. */
+export function buildDocumentFolderPaths(items: TreeItem[], parents: readonly string[] = []): Map<string, string> {
+  const paths = new Map<string, string>();
+  for (const item of items) {
+    if (item.documentId && parents.length > 0) paths.set(item.documentId, parents.join(" / "));
+    if (item.type === "folder" && item.children) {
+      buildDocumentFolderPaths(item.children, [...parents, item.label]).forEach((path, id) => paths.set(id, path));
+    }
+  }
+  return paths;
+}

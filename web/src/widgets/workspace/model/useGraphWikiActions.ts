@@ -109,14 +109,14 @@ export function useGraphWikiActions({
       publishNotice({
         operation: { type: "lint", id: operationId },
         kind: "completed",
-        title: "Lint 완료",
+        title: "위키 최신화 완료",
         message: `${changedPageCount}개 페이지를 다듬었습니다.`
       });
     } catch (error: unknown) {
       publishNotice({
         kind: "failed",
-        title: "Lint 실패",
-        message: getErrorMessage(error, "Lint 요청에 실패했습니다.")
+        title: "위키 최신화 실패",
+        message: getErrorMessage(error, "위키 최신화 요청에 실패했습니다.")
       });
     } finally {
       setWikiActionPending(null);

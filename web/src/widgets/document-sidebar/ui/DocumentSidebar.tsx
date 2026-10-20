@@ -341,7 +341,7 @@ export function DocumentSidebar({
           tools={(
             <>
               <RailGroup>
-                <WikiWorkButton documents={documents} />
+                <WikiWorkButton documents={documents} treeItems={rootProject?.items} />
               </RailGroup>
               {activeView === "graph" && graphActions && (
                 <>

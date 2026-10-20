@@ -49,7 +49,7 @@ export class EmailRegisteredError extends ApiError {
  */
 export const WORKSPACE_PERMISSION_LABELS = {
   "wiki.ingest": "위키 편입",
-  "wiki.lint": "위키 정리",
+  "wiki.lint": "위키 최신화",
   "skill.author": "스킬 작성",
   "wiki.restore": "작업 되돌리기",
   "document.convert": "PDF 변환"

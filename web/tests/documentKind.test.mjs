@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const {
   hasMarkdownExtension, hasPdfExtension, hasTextExtension,
-  isPdfDocument, isMarkdownDocument, isMarkdownTreeItem, isPdfTreeItem, isDocumentInFlight,
+  isPdfDocument, isMarkdownDocument, isMarkdownTreeItem, isPdfTreeItem, isDocumentInFlight, isDocumentPipelineActive,
   SUPPORTED_UPLOAD_EXTENSIONS
 } = await import("../src/entities/document/lib/documentKind.ts");
 
@@ -56,4 +56,15 @@ test("uploaded·processing만 진행 중 상태다", () => {
   assert.equal(isDocumentInFlight("completed"), false);
   assert.equal(isDocumentInFlight("failed"), false);
   assert.equal(isDocumentInFlight(undefined), false);
+});
+
+test("폴링을 짧게 돌릴 문서는 파이프라인이 실제로 도는 문서뿐이고, 편입을 미룬 uploaded는 대기로 본다", () => {
+  assert.equal(isDocumentPipelineActive({ status: "uploaded" }), false);
+  assert.equal(isDocumentPipelineActive({ status: "uploaded", processing_state: "completed" }), false);
+  assert.equal(isDocumentPipelineActive({ status: "processing" }), true);
+  // 편입 요청 직후 status보다 processing_state가 먼저 바뀌는 경우
+  assert.equal(isDocumentPipelineActive({ status: "uploaded", processing_state: "starting" }), true);
+  assert.equal(isDocumentPipelineActive({ status: "completed", processing_state: "stalled" }), true);
+  assert.equal(isDocumentPipelineActive({ status: "completed" }), false);
+  assert.equal(isDocumentPipelineActive({ status: "failed", processing_state: "failed" }), false);
 });

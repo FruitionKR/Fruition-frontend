@@ -91,7 +91,7 @@ test("작업 유형 라벨은 Figma 로그 화면의 한국어 명칭을 쓴다"
   assert.deepEqual(OPERATION_TYPE_LABELS, {
     document_edit: "AI 편집 반영",
     ingest: "위키 편입",
-    lint: "Lint",
+    lint: "위키 최신화",
     restore: "롤백",
     wiki_edit: "위키 직접 편집"
   });
@@ -128,7 +128,7 @@ test("Ingest 로그 제목은 시작 시점의 문서 이름을 쓴다", () => {
     formatOperationLogTitle({ operation_type: "ingest", target_display_name: "회의록" }),
     "회의록"
   );
-  assert.equal(formatOperationLogTitle(log("op-lint", "lint")), "Lint");
+  assert.equal(formatOperationLogTitle(log("op-lint", "lint")), "위키 최신화");
 });
 
 test("실제 바꾼 문서 없이 성공으로 끝난 lint 로그만 숨긴다", () => {

@@ -113,11 +113,11 @@ export function TreeNode({
           (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
           isFileDropTarget && styles["is-file-drop-target"],
           item.type === "folder" ? styles["is-folder"] : styles["is-note"],
-          depth > 0 && styles["is-nested"],
           isDropTarget && styles[`is-drop-${dropTarget.position}`]
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
-        title={item.errorMessage ?? item.sourceUri}
+        // 저장소 경로(sourceUri)는 내부 정보라 보이지 않는다. 처리 실패 사유만 알려 준다.
+        title={item.errorMessage}
         role="treeitem"
         aria-level={depth + 1}
         aria-selected={isSelected}

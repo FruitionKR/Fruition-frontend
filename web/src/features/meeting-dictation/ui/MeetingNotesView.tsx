@@ -30,11 +30,16 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
     ? preview.markdown
     : showsNotes ? notes?.markdown ?? "" : transcriptLines(transcript).join("\n");
 
-  // 카드는 아래 정렬이다. 사용자가 위로 올려 읽는 중이 아니면 새 내용이 보이게 맨 아래로 맞춘다.
+  // 완성된 회의록·추가 결과는 위에서부터 읽으므로 위 정렬한다. 받아쓰는 동안만 아래 정렬로 새 문장을 쌓는다.
+  const isTopAligned = showsNotes || (phase === "previewing" && Boolean(preview));
+
+  // 받아쓰는 동안 사용자가 위로 올려 읽는 중이 아니면 새 내용이 보이게 맨 아래로 맞춘다. 위 정렬 내용은 처음부터 보인다.
   useLayoutEffect(() => {
     const card = cardRef.current;
-    if (card && isStuckToBottomRef.current) card.scrollTop = card.scrollHeight;
-  }, [body, isCollapsed]);
+    if (!card) return;
+    if (isTopAligned) card.scrollTop = 0;
+    else if (isStuckToBottomRef.current) card.scrollTop = card.scrollHeight;
+  }, [body, isCollapsed, isTopAligned]);
 
   if (phase === "idle") return null;
   const progressText = meetingProgressText(phase, session.uploadPercent);
@@ -90,7 +95,7 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
           >
             {body
               ? (
-                <p className={styles["meeting-card-text"]}>
+                <p className={cx(styles["meeting-card-text"], isTopAligned && styles["is-top-aligned"])}>
                   {meetingCardLines(body).map((line, index) => (
                     <span
                       key={index}

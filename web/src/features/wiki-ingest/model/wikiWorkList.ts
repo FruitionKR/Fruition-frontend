@@ -7,6 +7,8 @@ import { OPERATION_TYPE_LABELS } from "@/entities/operation-log/model/operationT
 interface WikiWorkRow {
   key: string;
   label: string;
+  /** 문서의 상위 폴더 경로. 같은 이름 문서를 구분한다. 최상위 문서·문서가 아닌 작업은 없다. */
+  folderPath?: string;
   /** 로컬 시각 HH:MM. 시작 시각이 없으면 --:-- */
   startTime: string;
 }
@@ -39,10 +41,12 @@ export function formatWorkStartTime(startedAt: string | undefined): string {
   return `${hours}:${minutes}`;
 }
 
-function toRow(kind: WikiWorkKind, document: DocumentItemResponse): WikiWorkRow {
+function toRow(kind: WikiWorkKind, document: DocumentItemResponse, folderPaths: ReadonlyMap<string, string>): WikiWorkRow {
+  const folderPath = folderPaths.get(document.id);
   return {
     key: `${kind}-${document.id}`,
     label: document.filename,
+    ...(folderPath ? { folderPath } : {}),
     startTime: formatWorkStartTime(document.processing_started_at)
   };
 }
@@ -63,22 +67,23 @@ function sortNewestFirst<T>(items: T[], getStartedAt: (item: T) => string | unde
 /**
  * 진행 중인 문서(selectActiveIngestDocuments로 거른 목록)와 lint·롤백 작업을
  * 위키 편입 / 위키 최신화 / PDF→MD 변환 / 롤백 네 구역으로 나눈다. 행이 없는 구역은 제외한다.
- * 각 구역 안에서는 최근에 시작한 작업이 위에 온다.
+ * 각 구역 안에서는 최근에 시작한 작업이 위에 온다. folderPaths(문서 id → 상위 폴더 경로)가 있으면 문서 행에 붙인다.
  */
 export function buildWikiWorkSections(
   activeDocuments: DocumentItemResponse[],
   activeLint: OperationLogItem | null,
-  activeRestores: OperationLogItem[] = []
+  activeRestores: OperationLogItem[] = [],
+  folderPaths: ReadonlyMap<string, string> = new Map()
 ): WikiWorkSection[] {
   const ingestRows: WikiWorkRow[] = [];
   const convertRows: WikiWorkRow[] = [];
   for (const document of sortNewestFirst(activeDocuments, (item) => item.processing_started_at)) {
     // 변환 placeholder는 status processing + `convert:` run이다. 변환 후 자동 ingest는 다른 run id라 편입으로 분류된다.
-    if (isDocumentConverting(document)) convertRows.push(toRow("convert", document));
-    else ingestRows.push(toRow("ingest", document));
+    if (isDocumentConverting(document)) convertRows.push(toRow("convert", document, folderPaths));
+    else ingestRows.push(toRow("ingest", document, folderPaths));
   }
   const lintRows: WikiWorkRow[] = activeLint
-    ? [{ key: `lint-${activeLint.operation_id}`, label: "Wiki Lint", startTime: formatWorkStartTime(activeLint.created_at) }]
+    ? [{ key: `lint-${activeLint.operation_id}`, label: "위키 최신화", startTime: formatWorkStartTime(activeLint.created_at) }]
     : [];
 
   const restoreRows: WikiWorkRow[] = sortNewestFirst(activeRestores, (item) => item.created_at).map((restore) => ({

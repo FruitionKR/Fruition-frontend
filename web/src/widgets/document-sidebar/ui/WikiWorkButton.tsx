@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
+import type { TreeItem } from "@/entities/tree/model/tree";
 import { useActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
 import { useActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { selectActiveIngestDocuments } from "@/features/wiki-ingest/model/wikiReflectState";
@@ -11,7 +12,7 @@ import { WikiWorkPopover } from "./WikiWorkPopover";
 import styles from "./DocumentSidebar.module.css";
 
 /** 레일의 진행 중 작업 버튼 (Figma 1436:17585). 누르면 오른쪽에 진행 중 작업 팝오버를 연다. */
-export function WikiWorkButton({ documents = [] }: { documents?: DocumentItemResponse[] }) {
+export function WikiWorkButton({ documents = [], treeItems }: { documents?: DocumentItemResponse[]; treeItems?: TreeItem[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -36,7 +37,7 @@ export function WikiWorkButton({ documents = [] }: { documents?: DocumentItemRes
       >
         <RailWorkIcon />
       </RailButton>
-      {isOpen && <WikiWorkPopover documents={documents} />}
+      {isOpen && <WikiWorkPopover documents={documents} treeItems={treeItems} />}
     </div>
   );
 }

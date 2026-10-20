@@ -6,11 +6,13 @@ import { reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { fetchWikiMaintenanceStatus, requestWikiLint } from "../api/wikiLint";
-import { isNoticeSubjectVisible, publishNotice } from "./noticeBus";
+import { hasBeenIngestedToWiki, ingestPromptMessage, selectIngestPromptTargets } from "./ingestPromptTargets";
+import { isNoticeSubjectVisible, noticeSubjectHiddenAt, publishNotice } from "./noticeBus";
 
 // 연속 업로드를 한 장의 카드로 묶기 위한 대기 시간
 const INGEST_PROMPT_DEBOUNCE_MS = 3_000;
 // uploaded 상태로 이 시간 이상 머물면 리마인드 카드를 띄운다.
+// 같은 문서의 카드가 사라진 뒤에도 이만큼 지나야 리마인드한다(카드가 내려가자마자 다시 뜨지 않게).
 const INGEST_STALL_MS = 60_000;
 const STALL_CHECK_INTERVAL_MS = 30_000;
 // 연속 완료 시 같은 제안 카드가 반복되지 않게 최소 간격을 둔다.
@@ -39,29 +41,51 @@ function savePromptMemory(memory: Required<PromptMemory>) {
   }
 }
 
-function publishIngestPrompt(candidates: DocumentItemResponse[], title: string, enabled: boolean) {
+type PromptHandlers = {
+  /** 버튼을 누른 시점의 최신 문서 목록 */
+  getDocuments: () => DocumentItemResponse[];
+  /** 하나라도 편입 요청이 접수되면 부른다. 문서 목록을 바로 다시 받아 진행 상태(빠른 폴링)를 놓치지 않게 한다. */
+  onStarted: () => void;
+};
+
+/**
+ * 위키 편입 제안 카드. 발행 뒤 문서가 삭제·이름 변경·편입 시작되면 스택이 reconcile로 대상과 문구를 맞추고,
+ * 버튼을 누르면 그 시점의 최신 목록(getDocuments)으로 다시 골라 없어진 문서·이미 편입 중인 문서는 건너뛴다.
+ */
+function publishIngestPrompt(
+  candidates: DocumentItemResponse[],
+  title: string,
+  enabled: boolean,
+  { getDocuments, onStarted }: PromptHandlers
+) {
   if (!enabled) return;
   // PDF 원본은 ingest 대상이 아니므로 분석 제안에서 제외한다.
-  const documents = candidates.filter((document) => document.mime_type !== "application/pdf");
+  const documents = selectIngestPromptTargets(candidates.map((document) => document.id), candidates);
   if (documents.length === 0) return;
-  const message = documents.length === 1
-    ? `"${documents[0].filename}" 문서의 위키 편입을 시작해 보세요.`
-    : `${documents.length}개 문서의 위키 편입을 시작해 보세요.`;
+  const ids = documents.map((document) => document.id);
   publishNotice({
     kind: "info",
     title,
-    message,
-    subjectIds: documents.map((document) => document.id),
+    message: ingestPromptMessage(documents),
+    subjectIds: ids,
+    reconcile: (latest) => {
+      const targets = selectIngestPromptTargets(ids, latest);
+      if (targets.length === 0) return null;
+      return { message: ingestPromptMessage(targets), subjectIds: targets.map((document) => document.id) };
+    },
     action: {
       label: "위키 편입",
       onAction: () => {
+        const targets = selectIngestPromptTargets(ids, getDocuments());
+        if (targets.length === 0) return;
         void Promise.allSettled(
-          documents.map((document) => reflectDocumentToWiki(document.id, document.document_role))
+          targets.map((document) => reflectDocumentToWiki(document.id, document.document_role))
         ).then((results) => {
+          if (results.some((result) => result.status === "fulfilled")) onStarted();
           // 실패 사유는 백엔드 원문을 그대로 보여준다. 개수만 알려주면 원인을 알 수 없다.
           const failures = results.flatMap((result, index) =>
             result.status === "rejected"
-              ? [`${documents[index].filename}: ${getErrorMessage(result.reason, "요청에 실패했습니다.")}`]
+              ? [`${targets[index].filename}: ${getErrorMessage(result.reason, "요청에 실패했습니다.")}`]
               : []
           );
           if (failures.length > 0) {
@@ -81,15 +105,30 @@ function publishIngestPrompt(candidates: DocumentItemResponse[], title: string, 
  * 사용자 개입이 필요한 상황을 감지해 알림 카드를 발행한다.
  * - ingest 시작 제안: 업로드 직후(연속 업로드 묶음) / 세션 진입 시 uploaded 문서 존재 / 60초 정체 리마인드
  * - 재분석 제안: 마지막 ingest 이후 편집된 문서(needs_reingest) 감지
- * - lint 필요: ingest 완료 직후 유지보수 상태(needs_lint)를 확인
+ * - 위키 최신화(lint) 필요: ingest 완료 직후 유지보수 상태(needs_lint)를 확인
+ * permissions: 위키 편입(wiki.ingest)·위키 최신화(wiki.lint) 권한. 없으면 해당 제안을 띄우지 않고, 확인 전(null)이면 기다린다.
  */
-export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
+export function usePendingWorkNotifications(
+  documents: DocumentItemResponse[],
+  {
+    canIngest,
+    canLint,
+    onIngestStarted
+  }: { canIngest: boolean | null; canLint: boolean | null; onIngestStarted?: () => void }
+) {
   const { preferences } = useUserPreferences();
   const suggestEnabled = preferences.notifications.suggest;
   const suggestEnabledRef = useRef(suggestEnabled);
   suggestEnabledRef.current = suggestEnabled;
   const documentsRef = useRef(documents);
   documentsRef.current = documents;
+  const onIngestStartedRef = useRef(onIngestStarted);
+  onIngestStartedRef.current = onIngestStarted;
+  // 제안 카드 버튼은 누르는 시점의 최신 목록으로 대상을 다시 고르고, 요청이 접수되면 목록을 다시 받게 한다.
+  const promptHandlers: PromptHandlers = {
+    getDocuments: () => documentsRef.current,
+    onStarted: () => onIngestStartedRef.current?.()
+  };
   const knownIdsRef = useRef<Set<string> | null>(null);
   const promptedIdsRef = useRef(new Set<string>());
   const promptQueueRef = useRef(new Set<string>());
@@ -122,6 +161,8 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
 
   // ① 업로드 직후 / ② 세션 진입 시: uploaded 문서에 분석 시작 제안
   useEffect(() => {
+    // 권한을 확인하기 전에는 첫 스냅샷으로 삼지 않는다. 권한이 없으면 제안하지 않는다.
+    if (canIngest !== true) return;
     restorePromptMemory();
     const known = knownIdsRef.current;
     const uploaded = documents.filter((document) => document.status === "uploaded");
@@ -132,7 +173,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       const initial = uploaded.filter((document) => !promptedIdsRef.current.has(document.id));
       initial.forEach((document) => promptedIdsRef.current.add(document.id));
       persistPromptMemory();
-      publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다", suggestEnabledRef.current);
+      publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다", suggestEnabledRef.current, promptHandlers);
       return;
     }
 
@@ -155,10 +196,10 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
         const targets = documentsRef.current.filter(
           (document) => queuedIds.has(document.id) && document.status === "uploaded"
         );
-        publishIngestPrompt(targets, "새 문서가 추가되었습니다", suggestEnabledRef.current);
+        publishIngestPrompt(targets, "새 문서가 추가되었습니다", suggestEnabledRef.current, promptHandlers);
       }, INGEST_PROMPT_DEBOUNCE_MS);
     }
-  }, [documents]);
+  }, [documents, canIngest]);
 
   useEffect(() => () => {
     if (promptTimerRef.current) window.clearTimeout(promptTimerRef.current);
@@ -166,6 +207,7 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
 
   // ③ 60초 정체 리마인드: 제안을 넘겼거나 시작이 실패한 문서를 다시 잡아준다
   useEffect(() => {
+    if (canIngest !== true) return;
     restorePromptMemory();
     function checkStalledUploads() {
       const now = Date.now();
@@ -178,8 +220,10 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
         currentIds.add(document.id);
         const seenAt = firstSeen.get(document.id) ?? now;
         if (!firstSeen.has(document.id)) firstSeen.set(document.id, now);
-        // 같은 문서의 제안 카드가 아직 화면에 있으면 리마인드하지 않는다. 카드를 닫은 뒤 다음 점검에서 다시 본다.
-        if (now - seenAt >= INGEST_STALL_MS && !stallNotifiedRef.current.has(document.id) && !isNoticeSubjectVisible(document.id)) {
+        // 같은 문서의 제안 카드가 아직 화면(대기열 포함)에 있으면 리마인드하지 않는다.
+        // 카드가 사라진 뒤에도 INGEST_STALL_MS가 지나야 다시 본다. 문서 목록이 바뀔 때마다 점검해도 카드가 곧바로 다시 뜨지 않는다.
+        const quietSince = Math.max(seenAt, noticeSubjectHiddenAt(document.id) ?? Number.NEGATIVE_INFINITY);
+        if (now - quietSince >= INGEST_STALL_MS && !stallNotifiedRef.current.has(document.id) && !isNoticeSubjectVisible(document.id)) {
           stalled.push(document);
           stallNotifiedRef.current.add(document.id);
         }
@@ -194,22 +238,24 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       });
       persistPromptMemory();
 
-      publishIngestPrompt(stalled, "위키 편입이 아직 시작되지 않았습니다", suggestEnabledRef.current);
+      publishIngestPrompt(stalled, "위키 편입이 아직 시작되지 않았습니다", suggestEnabledRef.current, promptHandlers);
     }
 
     checkStalledUploads();
     const timer = window.setInterval(checkStalledUploads, STALL_CHECK_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [documents]);
+  }, [documents, canIngest]);
 
   // 재분석 제안: 마지막 ingest 이후 편집된 문서(needs_reingest)를 감지한다.
   // 재분석이 시작되면 needs_reingest가 풀리므로, 그때 알림 기록을 해제해 다음 편집 때 다시 제안한다.
   useEffect(() => {
+    if (canIngest !== true) return;
     restorePromptMemory();
     // 문서 목록을 아직 받기 전(빈 배열)에는 복원한 알림 기록을 지우면 안 된다.
     // 여기서 지우면 목록 도착 시 같은 카드가 새로고침마다 다시 발행된다.
     if (documents.length === 0) return;
-    const needing = documents.filter((document) => document.needs_reingest);
+    // 편입한 적 없는 문서는 needs_reingest여도 "수정됨"이 아니다(새 문서 제안이 따로 다룬다).
+    const needing = documents.filter((document) => document.needs_reingest && hasBeenIngestedToWiki(document));
     const needingIds = new Set(needing.map((document) => document.id));
     [...reingestNotifiedRef.current].forEach((id) => {
       if (!needingIds.has(id)) reingestNotifiedRef.current.delete(id);
@@ -222,15 +268,15 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
     }
     fresh.forEach((document) => reingestNotifiedRef.current.add(document.id));
     persistPromptMemory();
-    publishIngestPrompt(fresh, "마지막 위키 편입 이후 수정된 문서가 있습니다", suggestEnabledRef.current);
-  }, [documents]);
+    publishIngestPrompt(fresh, "마지막 위키 편입 이후 수정된 문서가 있습니다", suggestEnabledRef.current, promptHandlers);
+  }, [documents, canIngest]);
 
-  // lint 필요 감지: 문서가 completed로 전이하면 유지보수 상태를 확인한다 (DB 비교라 저렴)
+  // 위키 최신화(lint) 필요 감지: 문서가 completed로 전이하면 유지보수 상태를 확인한다 (DB 비교라 저렴)
   useEffect(() => {
     const currentStatuses = new Map(documents.map((document) => [document.id, document.status as string]));
     const previousStatuses = previousStatusesRef.current;
     previousStatusesRef.current = currentStatuses;
-    if (!previousStatuses || !suggestEnabled) return;
+    if (!previousStatuses || !suggestEnabled || canLint !== true) return;
 
     const hasNewCompletion = documents.some((document) =>
       document.status === "completed" && previousStatuses.get(document.id) !== "completed"
@@ -247,25 +293,25 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
         if (!needs_lint) return;
         publishNotice({
           kind: "info",
-          title: "Lint 제안",
-          message: "새 문서 반영 후 위키 페이지가 변경되었습니다. Lint를 실행할 수 있습니다.",
+          title: "위키 최신화 제안",
+          message: "새 문서 반영 후 위키 페이지가 변경되었습니다. 위키 최신화를 실행할 수 있습니다.",
           action: {
-            label: "Lint",
+            label: "위키 최신화",
             onAction: () => {
               requestWikiLint(false)
                 .then(({ changedPageCount, operationId }) => {
                   publishNotice({
                     operation: { type: "lint", id: operationId },
                     kind: "completed",
-                    title: "Lint 완료",
+                    title: "위키 최신화 완료",
                     message: `${changedPageCount}개 페이지를 다듬었습니다.`
                   });
                 })
                 .catch((error: unknown) => {
                   publishNotice({
                     kind: "failed",
-                    title: "Lint 실패",
-                    message: getErrorMessage(error, "Lint 요청에 실패했습니다.")
+                    title: "위키 최신화 실패",
+                    message: getErrorMessage(error, "위키 최신화 요청에 실패했습니다.")
                   });
                 });
             }
@@ -278,5 +324,5 @@ export function usePendingWorkNotifications(documents: DocumentItemResponse[]) {
       .finally(() => {
         lintCheckInFlightRef.current = false;
       });
-  }, [documents, suggestEnabled]);
+  }, [canLint, documents, suggestEnabled]);
 }
