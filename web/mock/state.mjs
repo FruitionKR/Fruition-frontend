@@ -55,7 +55,7 @@ export function error(ctx, status, message, code) {
 export function requireWorkspace(ctx) {
   const workspace = state.workspaces.find((item) => item.id === ctx.params.wid && !item.deleted_at);
   if (!workspace) {
-    error(ctx, 404, "워크스페이스를 찾을 수 없습니다.");
+    error(ctx, 404, `워크스페이스를 찾을 수 없습니다: id=${ctx.params.wid}`, "WORKSPACE_NOT_FOUND");
     return null;
   }
   const isMember = state.members.some((member) => member.workspace_id === workspace.id && member.user_id === ctx.user.id);

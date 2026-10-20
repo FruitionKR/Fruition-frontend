@@ -19,7 +19,7 @@ import {
   SKILL_MODE_CHOICES,
   skillModeAnswer,
   skillModeQuestionSlug,
-  taskKindLabel,
+  taskHeadingKind,
   type TaskMessageItem,
   type TaskStatusView
 } from "../lib/taskThread";
@@ -128,11 +128,12 @@ export function AgentTaskBody({
   onOpenFolderOrganize,
   onShortenActivePreview,
   onAnswerSkillQuestion,
-  onRetryTask
+  onRetryTask,
+  onRecheck
 }: {
   items: TaskMessageItem[];
   /** 아직 서버 기록에 없는, 이 화면에서 보내 처리 중인 요청 */
-  pendingTask: { request: string; stages: RunStageEvent[] } | null;
+  pendingTask: { request: string; stages: RunStageEvent[]; notice?: string | null } | null;
   /** 편집안·새 문서 초안을 검토 중인 turn과 그 미리보기 */
   activePreviewTurnId: string | null;
   activePreview: ReactNode;
@@ -155,6 +156,8 @@ export function AgentTaskBody({
   onAnswerSkillQuestion?: (request: string, createsDocument: boolean) => void;
   /** 계획 단계에서 실패한 작업을 같은 요청·대상 폴더로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
   onRetryTask?: (request: string, folderId: string | null) => void;
+  /** 결과 확인이 끊긴 작업의 끝을 다시 확인한다. 있으면 오류 문구 아래에 "다시 확인"을 둔다. */
+  onRecheck?: () => void;
 }) {
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
@@ -208,8 +211,8 @@ export function AgentTaskBody({
     return {
       item,
       status,
-      // 스킬로 실행한 폴더 정리는 카드 머리글과 같이 "문서 : /slug"로 적는다(Figma 1571:27625 완료 행).
-      title: `${item.action === "folder_organize" && request.startsWith("/") ? "문서" : taskKindLabel(item.action)} : ${request}`,
+      // 스킬 실행은 진행 중·완료 카드 머리글과 같이 "문서 : /slug"로 적는다(Figma 1571:27625 완료 행).
+      title: `${taskHeadingKind(item.action, request)} : ${request}`,
       request,
       summary,
       run,
@@ -347,10 +350,19 @@ export function AgentTaskBody({
               hasResponse={false}
               steps={pendingTask.stages.length ? buildProgressSteps(pendingTask.stages, true) : [["요청을 전달하고 있어요.", "active"]]}
             />
+            {pendingTask.notice && <TaskNote role="status">{pendingTask.notice}</TaskNote>}
           </TaskCard>
         </section>
       )}
       {errorMessage && <p className={styles["query-error"]} role="alert">{errorMessage}</p>}
+      {errorMessage && onRecheck && (
+        <div className={styles["task-actions"]}>
+          <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onRecheck}>
+            <AgentAssetIcon src={taskBoltIcon} size={12} />
+            결과 다시 확인
+          </button>
+        </div>
+      )}
     </div>
   );
 }

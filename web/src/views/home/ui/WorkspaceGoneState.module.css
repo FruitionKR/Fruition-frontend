@@ -1,0 +1,78 @@
+/* 워크스페이스 준비 실패 화면(WorkspacesPage)과 같은 카드 모양을 쓴다. */
+.screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 34%),
+    var(--color-canvas);
+}
+
+.card {
+  width: min(100%, 480px);
+  padding: 42px 40px 38px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--color-surface);
+  box-shadow: 0 24px 80px var(--color-shadow);
+  text-align: center;
+}
+
+.icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 32%, transparent);
+  border-radius: 18px;
+  color: var(--yellow);
+  background: var(--color-primary-weak);
+}
+
+.card h1 {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: clamp(22px, 4vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.35;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+
+.description {
+  margin: 16px auto 0;
+  word-break: keep-all;
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.action {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 9px;
+  color: var(--color-on-primary);
+  background: var(--yellow);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .card {
+    padding: 34px 22px 28px;
+  }
+}

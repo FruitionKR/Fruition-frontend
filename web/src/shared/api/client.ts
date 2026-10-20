@@ -7,6 +7,13 @@ import {
   saveAccessToken,
   withAuthRefreshLock
 } from "@/shared/lib/authSessionStorage";
+import {
+  WORKSPACE_NOT_FOUND_CODE,
+  isRequestToGoneWorkspace,
+  isWorkspaceGoneResponse,
+  markWorkspaceGone,
+  workspaceIdFromPath
+} from "@/shared/lib/workspaceAccess";
 
 // 공통 에러 메시지 상수
 export const ERROR_MESSAGES = {
@@ -124,6 +131,10 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
  * 재발급이 일시적으로 실패하면 세션 만료가 아니므로 일반 에러를 던져 호출부가 다시 시도하게 한다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  // 접근할 수 없게 된 워크스페이스로 가는 요청(남은 폴링 등)은 보내지 않는다. 화면은 안내로 바뀐다.
+  if (isRequestToGoneWorkspace(path)) {
+    throw new ApiError("워크스페이스를 찾을 수 없습니다.", 404, WORKSPACE_NOT_FOUND_CODE);
+  }
   let requestPath = path;
   let requestInit = init;
   if (typeof window !== "undefined" && usesDocumentTransport(path)) {
@@ -137,6 +148,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   // 이 요청을 보낼 때 세션이 있었는지 기억한다. 없었다면 refresh 거절은 만료가 아니라 로그인 전 상태다.
   const hadAccessToken = Boolean(getAccessToken());
   const response = await fetchWithToken(requestPath, requestInit);
+  if (response.status === 404) await detectGoneWorkspace(path, init?.method, response);
   if (response.status !== 401) return response;
   // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
   // 다만 본문이 비어 있거나 code가 없어도 세션 만료로 단정하지 않는다(아래 재발급 성공 분기).
@@ -161,6 +173,17 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   // 호출부마다 처리하면 대부분 놓치므로, 세션 만료는 한 곳에서 재인증으로 이어 붙인다.
   notifySessionExpired();
   throw new SessionExpiredError(ERROR_MESSAGES.loginRequired);
+}
+
+/** 선택한 워크스페이스 조회가 404 WORKSPACE_NOT_FOUND면 그 워크스페이스를 접근 불가로 기록한다(내보내짐·삭제). */
+async function detectGoneWorkspace(path: string, method: string | undefined, response: Response): Promise<void> {
+  const selectedWorkspaceId = getSelectedWorkspaceId();
+  if (!selectedWorkspaceId || workspaceIdFromPath(path) !== selectedWorkspaceId) return;
+  const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
+  const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
+  if (isWorkspaceGoneResponse({ path, method, status: response.status, code, selectedWorkspaceId })) {
+    markWorkspaceGone(selectedWorkspaceId);
+  }
 }
 
 /** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */

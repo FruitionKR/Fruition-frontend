@@ -24,6 +24,7 @@ import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useProjectTree } from "../model/useProjectTree";
+import { createSingleFlight, focusNoteTitleWhenReady } from "../lib/noteCreation";
 import type { DeletedTreeIds } from "../lib/deletedTreeIds";
 import { getSelectionLocation, useTreeSelection, type TreeSelectionState } from "../model/useTreeSelection";
 import {
@@ -127,6 +128,14 @@ export function HomeWorkspace() {
   const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData, documentsUpdatedAt);
   const wikiActions = useGraphWikiActions({ documents, pdfWikiIngest, refreshBackendData });
   const { wikiActionPending, requestGraphIngest } = wikiActions;
+  // 채팅 편입 완료 알림의 '위키 편입'은 알림을 띄운 뒤에 눌리므로, 누를 때의 최신 문서 목록과 편입 요청을 쓴다.
+  const latestIngestRef = useRef({ documents, requestGraphIngest });
+  latestIngestRef.current = { documents, requestGraphIngest };
+  const ingestExportedDocument = useCallback((documentId: string) => {
+    const { documents: latestDocuments, requestGraphIngest: ingest } = latestIngestRef.current;
+    const document = latestDocuments.find((item) => item.id === documentId);
+    if (document) ingest([document]);
+  }, []);
   const graphDocuments = useMemo(() => selectGraphDocuments(documents), [documents]);
   const graphProjects = useMemo(() => filterGraphProjects(projectTree.projects, documents), [projectTree.projects, documents]);
   const documentTitles = useMemo(
@@ -347,6 +356,24 @@ export function HomeWorkspace() {
     openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
   }
 
+  // 새 노트 만들기(사이드바 "새 노트 추가"·파일 메뉴 "새 노트"). 만드는 동안 다시 누르거나 버튼에 남은 포커스로
+  // Space·Enter가 반복돼도 하나만 만들고, 다 만들면 노트를 열어 제목 칸으로 포커스를 옮긴다.
+  const noteCreateFlight = useRef(createSingleFlight());
+  const [isCreatingNote, setIsCreatingNote] = useState(false);
+  function createNoteAndOpen(projectId: string, folderId: string | null) {
+    if (noteCreateFlight.current.isPending()) return;
+    setIsCreatingNote(true);
+    void noteCreateFlight.current.run(() => upload.createMarkdownFile(projectId, folderId))
+      .then((created) => {
+        // 실패는 트리 행이 실패 상태로 보여 준다.
+        if (!created) return;
+        openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
+        focusNoteTitleWhenReady(getMarkdownDocumentTitle(created.filename));
+      })
+      .catch(() => undefined)
+      .finally(() => setIsCreatingNote(false));
+  }
+
   // 대상을 고른 스킬 실행. 채팅 패널이 작업 탭으로 한 번 보내고 onSkillRunSent로 비운다.
   const [skillRunRequest, setSkillRunRequest] = useState<SkillRunRequest | null>(null);
   const skillRunState = useSkillRun({
@@ -469,14 +496,10 @@ export function HomeWorkspace() {
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
-          if (target) void upload.createMarkdownFile(target.projectId, target.folderId);
+          if (target) createNoteAndOpen(target.projectId, target.folderId);
         }}
-        onCreateNote={(projectId) => {
-          // 최상위에 새 노트를 만들고, 업로드가 끝나면 바로 편집 화면으로 연다. 실패는 트리 행이 실패 상태로 보여 준다.
-          void upload.createMarkdownFile(projectId, null).then((created) => {
-            if (created) openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
-          });
-        }}
+        onCreateNote={(projectId) => createNoteAndOpen(projectId, null)}
+        isCreatingNote={isCreatingNote}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
@@ -590,6 +613,7 @@ export function HomeWorkspace() {
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
           onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}
+          onIngestExportedDocument={wikiActions.canIngest === true ? ingestExportedDocument : undefined}
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
           onOpenFolderOrganize={folderOrganize.open}

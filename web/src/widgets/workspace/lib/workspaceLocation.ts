@@ -75,6 +75,15 @@ export function buildWorkspaceHref(location: WorkspaceLocation): string {
   return `${WORKSPACE_PATH}?${new URLSearchParams(params).toString()}`;
 }
 
+/**
+ * 워크스페이스를 바꿀 때 갈 주소. 문서·위키 페이지·트리 항목(doc·page·tree)은 이전 워크스페이스 것이라 버리고,
+ * 그래프·스킬·설정 같은 화면 선택만 남긴다. 새 워크스페이스에서 "문서를 찾을 수 없습니다"가 뜨지 않게 한다.
+ */
+export function workspaceSwitchHref(params: SearchParamsLike | null): string {
+  const location = parseWorkspaceLocation(params);
+  return buildWorkspaceHref(location.kind === "view" ? location : WORKSPACE_HOME_LOCATION);
+}
+
 /** 같은 대상인지 비교하는 키. 선택 상태와 URL이 이미 맞는지 볼 때 쓴다. */
 export function getWorkspaceLocationKey(location: WorkspaceLocation): string {
   const params = toSearchParams(location);

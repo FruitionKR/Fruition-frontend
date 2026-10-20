@@ -1,6 +1,7 @@
 "use client";
 
 import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
+import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -223,7 +224,7 @@ export function EmailChangeModal({
 
       {step === "code" && (
         <div className={styles.field}>
-          <label htmlFor="email-change-code">인증번호 6자리</label>
+          <label htmlFor="email-change-code">{verificationCodeLabel()}</label>
           <VerificationCodeInput id="email-change-code" value={code} disabled={busy} onChange={setCode} />
           <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
           <button type="button" className={styles.resend} disabled={busy || retrySeconds > 0} onClick={() => void sendCode()}>

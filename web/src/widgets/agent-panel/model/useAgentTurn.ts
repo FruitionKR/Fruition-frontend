@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import type { AiModel } from "@/entities/ai";
-import { requestAgentTurn } from "@/features/agent-chat";
+import { requestAgentTurn, resumeAgentTurn } from "@/features/agent-chat";
 import {
   buildAgentTurnRequest,
   prepareMarkdownEditPreview,
@@ -33,6 +33,7 @@ import {
   type TaskOutcomes
 } from "@/features/agent-chat/lib/taskOutcomes";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
+import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 
 const NO_DECISIONS: EditProposalDecisions = {};
@@ -69,6 +70,10 @@ export function useAgentTurn({
   const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
   const [isAgentTurnLoading, setIsAgentTurnLoading] = useState(false);
   const [agentStages, setAgentStages] = useState<RunStageEvent[]>([]);
+  // 진행 연결이 끊겨 turn 조회로 끝을 확인하는 중인지. 진행 카드에 기다림 안내를 띄운다.
+  const [isAgentTurnSlow, setIsAgentTurnSlow] = useState(false);
+  // 결과 확인이 끊긴 turn. '다시 확인'으로 같은 turn의 끝을 이어서 확인한다.
+  const [unconfirmedTurnId, setUnconfirmedTurnId] = useState<string | null>(null);
   const agentRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => agentRequestRef.current?.abort(), []);
   const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
@@ -134,6 +139,62 @@ export function useAgentTurn({
     ? `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`
     : null;
 
+  /**
+   * turn의 끝을 기다린 뒤 대화 목록을 다시 받아 결과를 보여 준다. 결과를 확인하지 못한 채 끝나면(조회 실패·연결 끊김)
+   * 그 turn을 남겨 '다시 확인'으로 이어서 확인할 수 있게 한다.
+   */
+  function followTurnResult(
+    controller: AbortController,
+    question: string,
+    run: () => Promise<AgentTurnResponse>,
+    getTurnId: () => string | null
+  ) {
+    run()
+      .then(async (response) => {
+        if (controller.signal.aborted) return;
+        await refreshMessages({ animateLatest: true });
+        if (controller.signal.aborted) return;
+        setAgentTurnResponse(
+          resolveChatTurnPresentation(response.result.action).kind === "document-command" ? response : null
+        );
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
+        if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
+        const turnId = getTurnId();
+        if (turnId && error instanceof AgentTurnLostError) {
+          setUnconfirmedTurnId(turnId);
+          // 결과를 확인하지 못해도 서버에 남은 진행 기록(진행 중 카드)이 보이도록 목록을 다시 받는다.
+          void refreshMessages({ animateLatest: false }).catch(() => undefined);
+        }
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setIsAgentTurnLoading(false);
+        setIsAgentTurnSlow(false);
+      });
+  }
+
+  /** 결과 확인이 끊긴 turn의 끝을 다시 확인한다. 진행 SSE 없이 turn 조회로만 따라간다. */
+  function recheckAgentTurn() {
+    const turnId = unconfirmedTurnId;
+    if (!turnId || isAgentTurnLoading) return;
+    setUnconfirmedTurnId(null);
+    setAgentTurnErrorMessage(null);
+    setIsAgentTurnLoading(true);
+    setIsAgentTurnSlow(true);
+    agentRequestRef.current?.abort();
+    const controller = new AbortController();
+    agentRequestRef.current = controller;
+    followTurnResult(
+      controller,
+      agentTurnRequest?.message ?? "",
+      () => resumeAgentTurn(turnId, { signal: controller.signal }),
+      () => turnId
+    );
+  }
+
   const submitAgentTurn = useCallback((
     question: string,
     context: ActiveMarkdownEditContext | null,
@@ -156,32 +217,24 @@ export function useAgentTurn({
     setMarkdownCreateErrorMessage(null);
     setIsAgentTurnLoading(true);
     setAgentStages([]);
+    setIsAgentTurnSlow(false);
+    setUnconfirmedTurnId(null);
     agentRequestRef.current?.abort();
     const controller = new AbortController();
     agentRequestRef.current = controller;
-    requestAgentTurn(request, {
+    let acceptedTurnId: string | null = null;
+    followTurnResult(controller, question, () => requestAgentTurn(request, {
       signal: controller.signal,
       onAccepted: (requestId) => {
+        acceptedTurnId = requestId;
         if (!controller.signal.aborted) setTaskRunIds((current) => new Set([...current, requestId]));
       },
       onStage: (stage) => {
         if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
-      }
-    })
-      .then(async (response) => {
-        if (controller.signal.aborted) return;
-        await refreshMessages({ animateLatest: true });
-        if (controller.signal.aborted) return;
-        setAgentTurnResponse(
-          resolveChatTurnPresentation(response.result.action).kind === "document-command" ? response : null
-        );
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
-        if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
-      })
-      .finally(() => { if (!controller.signal.aborted) setIsAgentTurnLoading(false); });
+      },
+      onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
+    }), () => acceptedTurnId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
 
   function dismissAgentTurnResult() {
@@ -308,7 +361,10 @@ export function useAgentTurn({
     agentTurnResponse,
     agentTurnErrorMessage,
     isAgentTurnLoading,
+    isAgentTurnSlow,
     agentStages,
+    canRecheckAgentTurn: unconfirmedTurnId !== null && !isAgentTurnLoading,
+    recheckAgentTurn,
     isCreatingMarkdown,
     markdownCreateErrorMessage,
     editPreviewState,

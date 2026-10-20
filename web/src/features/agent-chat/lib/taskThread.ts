@@ -307,9 +307,18 @@ export function resolveTaskRequest(
  * 폴더 정리도 스킬로 실행했으면 Figma 1656:11824·1656:11856처럼 "문서 : /file-organize"로 쓴다.
  */
 export function describeTaskRequest(action: string | null, request: string): { heading: string; quote: string } {
-  const kind = taskKindLabel(action);
-  const match = request.match(/^\/([^\s/]+)(?:\s+([\s\S]*))?$/);
+  const kind = taskHeadingKind(action, request);
+  const match = request.match(SKILL_REQUEST_PATTERN);
   if (!match) return { heading: kind, quote: request };
-  const skillKind = action === "folder_organize" ? "문서" : kind;
-  return { heading: `${skillKind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
+  return { heading: `${kind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
+}
+
+const SKILL_REQUEST_PATTERN = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/;
+
+/**
+ * 작업 카드 머리글·완료 행 앞의 종류. `/slug` 스킬 실행은 결과 action이 정해지기 전(진행 중)과 뒤(완료·되묻기·실패)가
+ * 같도록 늘 "문서"로 적는다(Figma 1571:27625 "문서 : /file-organize"). 스킬이 아닌 요청은 action별 라벨을 쓴다.
+ */
+export function taskHeadingKind(action: string | null, request: string): string {
+  return SKILL_REQUEST_PATTERN.test(request.trim()) ? "문서" : taskKindLabel(action);
 }

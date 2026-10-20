@@ -86,3 +86,32 @@ for (const event of ["query.failed", "query.cancelled"]) {
     else assert.equal(await pending, "cancelled");
   });
 }
+
+test("진행 SSE가 종료 이벤트 없이 끊기면(signal timed out) 오류 대신 turn 조회로 끝을 확인한다", async (t) => {
+  globalThis.window = { localStorage: { getItem: () => "ws_test", removeItem() {} } };
+  t.after(() => { delete globalThis.window; });
+  saveAccessToken("agent-test-access");
+  const result = { action: "folder_organize", message: "계획을 만들었습니다." };
+  let statusCalls = 0;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init.method === "POST") return Response.json({ requestId: "agent_1", status: "queued" });
+    if (path.endsWith("/events")) {
+      return new Response(new ReadableStream({
+        start(controller) { controller.error(new DOMException("signal timed out", "TimeoutError")); }
+      }));
+    }
+    statusCalls += 1;
+    return statusCalls === 1
+      ? Response.json({ requestId: "agent_1", status: "running", result: null })
+      : Response.json({ requestId: "agent_1", status: "completed", result });
+  });
+  let slow = 0;
+  const response = await requestAgentTurn({ message: "/file-organize" }, {
+    signal: new AbortController().signal,
+    onStage() {},
+    onSlow: () => { slow += 1; }
+  });
+  assert.deepEqual(response.result, result);
+  assert.equal(statusCalls, 2);
+  assert.equal(slow, 1, "조회로 기다리는 동안 기다림 안내를 한 번 띄운다");
+});

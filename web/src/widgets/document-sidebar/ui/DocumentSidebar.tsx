@@ -77,6 +77,7 @@ export function DocumentSidebar({
   onSetPermissionContextTarget,
   onAddMarkdownFromContext,
   onCreateNote,
+  isCreatingNote = false,
   onUploadFromContext,
   onConvertContextTarget,
   onDeleteContextTarget,
@@ -172,6 +173,8 @@ export function DocumentSidebar({
   onAddMarkdownFromContext: () => void;
   /** 사이드바 맨 아래 "새 노트 추가": 최상위에 새 노트를 만들고 바로 연다 */
   onCreateNote: (projectId: string) => void;
+  /** 새 노트를 만드는 중이면 "새 노트 추가"를 막는다(연타·키 반복으로 여러 개 생기지 않게). */
+  isCreatingNote?: boolean;
   onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
@@ -279,6 +282,10 @@ export function DocumentSidebar({
         <button
           type="button"
           className={styles["tree-add-page"]}
+          disabled={isCreatingNote}
+          aria-busy={isCreatingNote || undefined}
+          // 눌러 둔 Enter의 키 반복은 클릭으로 이어지지 않게 한다.
+          onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
           onClick={(event) => {
             event.stopPropagation();
             onCreateNote(rootProject.id);

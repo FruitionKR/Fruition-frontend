@@ -11,6 +11,7 @@ import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
+import { AGENT_TURN_SLOW_MESSAGE } from "@/features/agent-chat/lib/turnFollow";
 import { ProposalDecisionButtons, type InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import { countPendingProposals, countProposals, headingAtLine, proposalSourceLabel } from "@/features/agent-chat/lib/inlineEditReview";
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
@@ -53,6 +54,7 @@ export function AgentPanel({
   onCreateMarkdownDocument,
   markdownEditContext,
   onDocumentExported,
+  onIngestExportedDocument,
   nodes,
   skillRun = null,
   onSkillRunSent,
@@ -72,6 +74,8 @@ export function AgentPanel({
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null) => Promise<void>;
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
+  /** 채팅 편입으로 저장한 문서의 위키 편입을 시작한다. 편입 권한이 없거나 확인 중이면 없어 알림에 버튼을 두지 않는다. */
+  onIngestExportedDocument?: (documentId: string) => void;
   nodes?: GraphNode[];
   /**
    * 스킬 화면에서 대상을 고른 스킬 실행(Figma 1567:25081 '다음'). 작업 탭 요청으로 한 번 보낸다.
@@ -274,6 +278,8 @@ export function AgentPanel({
     sentSkillRunId.current = skillRun.id;
     lastSkillRunDocument.current = skillRun.documentId ? { documentId: skillRun.documentId, folderId: skillRun.documentFolderId ?? null } : null;
     setActiveView("work");
+    // 스킬 시트에서 실행했으면 화면 전환(URL)이 늦게 반영돼 시트가 이 뒤에 닫힐 수 있다. 닫힐 때도 작업 탭에 머물게 한다.
+    if (viewBeforeSkillSheetRef.current !== null) viewBeforeSkillSheetRef.current = "work";
     agentTurn.submitAgentTurn(skillRun.message, skillRunContext, activeSessionId, selectedModel, selectedPairIds, skillRun.folderId);
     onSkillRunSent?.(skillRun.id);
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
@@ -382,10 +388,13 @@ export function AgentPanel({
       setIsPairSelectionMode(false);
       try {
         await onDocumentExported?.(response);
+        const ingest = response.status === "saved" ? onIngestExportedDocument : undefined;
         publishNotice({
           kind: "completed",
           title: "채팅 편입 완료",
-          message: getChatExportSuccessMessage(response.status)
+          message: getChatExportSuccessMessage(response.status, Boolean(ingest)),
+          subjectIds: [response.exportDocumentId],
+          action: ingest ? { label: "위키 편입", onAction: () => ingest(response.exportDocumentId) } : undefined
         });
       } catch (error: unknown) {
         const detail = getErrorMessage(error, "워크스페이스 목록 갱신에 실패했습니다.");
@@ -508,7 +517,11 @@ export function AgentPanel({
           // 작업 탭(Figma 1610:9512): 문서 편집·폴더 정리·스킬 실행 요청과 결과를 상태별로 묶어 보여 준다.
           <AgentTaskBody
             items={taskItems}
-            pendingTask={isAgentTurnLoading && agentTurnRequest ? { request: agentTurnRequest.message, stages: agentTurn.agentStages } : null}
+            pendingTask={isAgentTurnLoading && agentTurnRequest ? {
+              request: agentTurnRequest.message,
+              stages: agentTurn.agentStages,
+              notice: agentTurn.isAgentTurnSlow ? AGENT_TURN_SLOW_MESSAGE : null
+            } : null}
             activePreviewTurnId={agentTurnResponse?.requestId ?? null}
             activePreview={documentCommandPreview}
             activePreviewMeta={inlineReviewMeta}
@@ -522,6 +535,7 @@ export function AgentPanel({
             onOpenFolderOrganize={onOpenFolderOrganize}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
             onRetryTask={isSubmitting ? undefined : retryTask}
+            onRecheck={agentTurn.canRecheckAgentTurn ? agentTurn.recheckAgentTurn : undefined}
           />
         ) : isMeetingViewOpen ? (
           <MeetingNotesView session={meeting} onPickRecording={pickRecording} />

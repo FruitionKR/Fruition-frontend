@@ -5,3 +5,8 @@ export const DEVELOPMENT_VERIFICATION_CODE = "9700";
 export function isDevelopmentVerificationCode(code: string, nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
   return nodeEnv !== "production" && code.trim() === DEVELOPMENT_VERIFICATION_CODE;
 }
+
+/** 이메일 인증번호 입력 라벨. 운영은 6자리만 안내하고, 개발 환경은 고정 인증번호도 받는다는 것을 함께 적는다. */
+export function verificationCodeLabel(nodeEnv: string | undefined = process.env.NODE_ENV): string {
+  return nodeEnv === "production" ? "인증번호 6자리" : `인증번호 6자리 (개발: ${DEVELOPMENT_VERIFICATION_CODE})`;
+}

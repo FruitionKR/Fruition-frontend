@@ -96,6 +96,30 @@ export function isInsufficientCreditError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 402 && error.code === "INSUFFICIENT_CREDIT";
 }
 
+export const REQUEST_TIMEOUT_MESSAGE = "응답이 너무 오래 걸려 확인을 멈췄어요. 잠시 뒤 다시 시도해 주세요.";
+export const REQUEST_ABORTED_MESSAGE = "요청이 중단됐어요. 다시 시도해 주세요.";
+export const CONNECTION_LOST_MESSAGE = "서버와 연결이 끊겨 응답을 받지 못했어요. 다시 시도해 주세요.";
+/**
+ * 404 WORKSPACE_NOT_FOUND 안내. 서버 문구("…: id=ws_…")는 id를 그대로 담는다.
+ * 멤버가 아니거나(내보내짐·삭제) OWNER 전용 변경을 멤버가 요청해도 같은 코드라 둘 다 맞는 문구로 쓴다.
+ */
+export const WORKSPACE_NOT_FOUND_MESSAGE = "워크스페이스를 찾을 수 없거나 접근 권한이 없어요.";
+
+/**
+ * 브라우저가 만든 영어 연결 오류(AbortSignal.timeout의 "signal timed out", fetch 중단·네트워크 끊김)를 한국어 안내로 바꾼다.
+ * 연결 오류가 아니면 null.
+ */
+export function connectionErrorMessage(error: unknown): string | null {
+  if (!(error instanceof Error) && !(typeof DOMException !== "undefined" && error instanceof DOMException)) return null;
+  const { name, message } = error as Error;
+  if (name === "TimeoutError" || /signal timed out/i.test(message)) return REQUEST_TIMEOUT_MESSAGE;
+  if (name === "AbortError" || /(operation|signal) (was|is) aborted|BodyStreamBuffer was aborted/i.test(message)) return REQUEST_ABORTED_MESSAGE;
+  if (error instanceof TypeError && /failed to fetch|networkerror|load failed|network error|network connection was lost|terminated/i.test(message)) {
+    return CONNECTION_LOST_MESSAGE;
+  }
+  return null;
+}
+
 /**
  * unknown 에러에서 사람이 읽을 메시지를 안전하게 추출합니다.
  * Error가 아니면 fallback 문구를 반환합니다.
@@ -109,6 +133,9 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   if (isErrorMessage(error, "agent_turn_route_contract_failed")) {
     return "AI의 작업 분류 응답을 처리하지 못했습니다. 다시 시도해 주세요.";
   }
+  if (error instanceof ApiError && error.status === 404 && error.code === "WORKSPACE_NOT_FOUND") return WORKSPACE_NOT_FOUND_MESSAGE;
+  const connectionMessage = connectionErrorMessage(error);
+  if (connectionMessage) return connectionMessage;
   return error instanceof Error ? error.message : fallback;
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
+import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
@@ -251,7 +252,7 @@ export function PasswordChangeModal({
       )}
       {step === "code" && (
         <div className={styles.field}>
-          <label htmlFor="password-change-code">인증번호 6자리</label>
+          <label htmlFor="password-change-code">{verificationCodeLabel()}</label>
           <div className={styles["field-control"]}>
             <VerificationCodeInput id="password-change-code" value={code} disabled={busy} onChange={setCode} />
             <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>

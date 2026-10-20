@@ -58,3 +58,24 @@ test("첫 편입 대기와 재편입 대상은 겹치지 않는다 — 새 노�
     assert.equal(document.needs_reingest === true && hasBeenIngestedToWiki(document), reingest, document.id);
   }
 });
+
+test("채팅 편입 문서는 채팅 편입 완료 알림이 안내하므로 일반 편입 제안(새 문서·대기·정체 리마인드)에서 뺀다", () => {
+  // 서버는 채팅 편입 문서를 completed·편입 run 없음·needs_reingest=true로 내려 준다.
+  const exported = doc("chatdoc_1", "completed", { ai_origin: "chat_export", needs_reingest: true });
+  assert.equal(isAwaitingFirstIngest(exported), false);
+  assert.deepEqual(selectIngestPromptTargets(["chatdoc_1"], [exported]), []);
+});
+
+test("편입한 적 없는 새 노트는 '수정됨'이 아니라 첫 편입 대기다(pipeline_run_id 규칙)", () => {
+  // 직접 만든 노트: completed·run 없음·needs_reingest=true, 업로드한 새 노트: uploaded.
+  const direct = doc("note_1", "completed", { needs_reingest: true });
+  const uploaded = doc("note_2", "uploaded");
+  for (const note of [direct, uploaded]) {
+    assert.equal(hasBeenIngestedToWiki(note), false);
+    assert.equal(isAwaitingFirstIngest(note), true);
+  }
+  // 자동 편입이 돌아 run이 생긴 노트를 고친 경우만 '마지막 편입 이후 수정'이다.
+  const autoIngested = doc("note_3", "completed", { needs_reingest: true, pipeline_run_id: "run_1" });
+  assert.equal(hasBeenIngestedToWiki(autoIngested), true);
+  assert.equal(isAwaitingFirstIngest(autoIngested), false);
+});

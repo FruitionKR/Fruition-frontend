@@ -23,6 +23,7 @@ const {
   resolveTaskStatus,
   selectionChipLabel,
   splitChatAndTaskMessages,
+  taskHeadingKind,
   taskKindLabel
 } = await import("../src/features/agent-chat/lib/taskThread.ts");
 
@@ -237,4 +238,16 @@ test("초안을 취소한 편집·새 문서 작업은 '제안 완료' 대신 '�
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isApplied: true, isCancelled: true }).label, "저장됨");
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isRejected: true, isCancelled: true }).label, "거절됨");
   assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "제안 완료");
+});
+
+test("스킬 실행 카드 머리글은 action이 정해지기 전(진행 중)과 뒤가 같다", () => {
+  // 진행 중 카드는 action이 아직 없다(null).
+  assert.deepEqual(describeTaskRequest(null, "/file-organize"), { heading: "문서 : /file-organize", quote: "/file-organize" });
+  for (const action of ["folder_organize", "markdown_edit", "markdown_create", "clarify", null]) {
+    assert.equal(taskHeadingKind(action, "/file-organize"), "문서");
+    assert.equal(describeTaskRequest(action, "/file-organize 날짜순").heading, "문서 : /file-organize");
+  }
+  // 스킬이 아닌 요청은 action별 라벨을 그대로 쓴다.
+  assert.equal(taskHeadingKind("folder_organize", "폴더를 정리해줘"), "폴더 정리");
+  assert.equal(taskHeadingKind(null, "폴더를 정리해줘"), "작업");
 });

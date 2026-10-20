@@ -11,3 +11,9 @@ test("개발 환경에서만 고정 인증번호 9700을 받는다", () => {
   assert.equal(isDevelopmentVerificationCode("970", "development"), false);
   assert.equal(isDevelopmentVerificationCode("123456", "development"), false);
 });
+
+test("인증번호 라벨은 운영에서 6자리만, 개발에서는 고정 인증번호도 안내한다", async () => {
+  const { verificationCodeLabel } = await import("../src/shared/lib/developmentVerificationCode.ts");
+  assert.equal(verificationCodeLabel("production"), "인증번호 6자리");
+  assert.equal(verificationCodeLabel("development"), "인증번호 6자리 (개발: 9700)");
+});

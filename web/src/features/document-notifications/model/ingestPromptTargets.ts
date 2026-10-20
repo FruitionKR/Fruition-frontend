@@ -4,7 +4,15 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isWikiReflectEligible } from "@/features/wiki-ingest/model/wikiReflectState";
 
-/** ids 중 아직 목록에 있고 지금 편입을 시작할 수 있는 문서(PDF 원본·진행 중·최신 반영 문서 제외). ids 순서를 지킨다. */
+/**
+ * 채팅 편입으로 만든 문서(ai_origin=chat_export)인지. 채팅 편입 완료 알림이 그 문서의 위키 편입을 따로 안내하므로
+ * 업로드·새 노트용 편입 제안(새 문서·대기·정체 리마인드)에서는 뺀다. 같은 문서에 안내가 두 번 뜨지 않는다.
+ */
+export function isChatExportDocument(document: Pick<DocumentItemResponse, "ai_origin">): boolean {
+  return document.ai_origin === "chat_export";
+}
+
+/** ids 중 아직 목록에 있고 지금 편입을 시작할 수 있는 문서(PDF 원본·진행 중·최신 반영 문서·채팅 편입 문서 제외). ids 순서를 지킨다. */
 export function selectIngestPromptTargets(
   ids: readonly string[],
   documents: readonly DocumentItemResponse[]
@@ -12,7 +20,7 @@ export function selectIngestPromptTargets(
   const byId = new Map(documents.map((document) => [document.id, document]));
   return ids.flatMap((id) => {
     const document = byId.get(id);
-    return document && isWikiReflectEligible(document) ? [document] : [];
+    return document && isWikiReflectEligible(document) && !isChatExportDocument(document) ? [document] : [];
   });
 }
 
@@ -37,10 +45,12 @@ export function hasBeenIngestedToWiki(document: Pick<DocumentItemResponse, "stat
  * 첫 위키 편입을 기다리는 문서인지. 신규 편입 제안("위키 편입 대기 중인 문서가 있습니다")이 다룬다.
  * uploaded 문서와, 편입한 적 없는데 최신 편집본이 반영되지 않은(needs_reingest) 직접 만든 노트·PDF 변환 노트다.
  * 재편입 제안(hasBeenIngestedToWiki)과 겹치지 않아 같은 문서에 카드가 두 장 뜨지 않는다.
+ * 채팅 편입 문서는 채팅 편입 완료 알림이 안내하므로 뺀다.
  */
 export function isAwaitingFirstIngest(
-  document: Pick<DocumentItemResponse, "status" | "pipeline_run_id" | "needs_reingest">
+  document: Pick<DocumentItemResponse, "status" | "pipeline_run_id" | "needs_reingest" | "ai_origin">
 ): boolean {
+  if (isChatExportDocument(document)) return false;
   if (document.status === "uploaded") return true;
   return document.needs_reingest === true && !hasBeenIngestedToWiki(document);
 }
