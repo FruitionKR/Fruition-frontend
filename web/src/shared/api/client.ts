@@ -207,7 +207,8 @@ async function isCredentialRejection(path: string, method: string | undefined, r
 
 /** 입력한 비밀번호·MFA 코드를 확인하는 요청이면, 서버가 불일치를 알리는 code 목록. 아니면 빈 배열. */
 function credentialRejectionCodes(path: string, method: string | undefined): string[] {
-  if (path === "/api/auth/me/password") return ["INVALID_CREDENTIALS"];
+  // 현재 비밀번호 변경은 비밀번호 → (MFA를 켠 계정이면) 인증 코드 순서로 확인한다.
+  if (path === "/api/auth/me/password") return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE"];
   if (path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate") return ["INVALID_MFA_CODE"];
   // 회원 탈퇴의 본인 확인 실패. 소셜 계정의 REAUTHENTICATION_REQUIRED는 refresh로 받은 토큰으로 재시도해도 같은 결과다.
   if (path === "/api/auth/me" && method?.toUpperCase() === "DELETE") {

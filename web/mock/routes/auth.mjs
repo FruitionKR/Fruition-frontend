@@ -426,9 +426,18 @@ export function registerAuthRoutes(router) {
     ctx.bytes(200, target.avatar.buffer, target.avatar.type, headers);
   });
 
+  // 현재 비밀번호를 먼저 확인하고, MFA를 켠 계정은 이어서 인증 코드를 확인한다. 어느 쪽이 틀려도 비밀번호는 바뀌지 않는다.
   router.put("/api/auth/me/password", async (ctx) => {
-    const { current_password, new_password } = await ctx.body();
+    const { current_password, new_password, mfa_code } = await ctx.body();
     if (current_password !== ctx.user.password) return error(ctx, 401, "현재 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS");
+    if (ctx.user.mfa.enabled) {
+      const waitSeconds = rateLimitedSeconds("mfa", ctx.user.id);
+      if (waitSeconds > 0) return rateLimited(ctx, waitSeconds, "인증 코드 확인 시도가 너무 많습니다.", "MFA_RATE_LIMITED");
+      if (!isSixDigits(mfa_code) && !ctx.user.mfa.recovery_codes.includes(mfa_code)) {
+        recordFailure("mfa", ctx.user.id);
+        return error(ctx, 401, "인증 코드가 올바르지 않습니다.", "INVALID_MFA_CODE");
+      }
+    }
     ctx.user.password = new_password;
     ctx.json(204);
   });

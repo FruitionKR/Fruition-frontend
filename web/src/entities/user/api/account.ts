@@ -6,7 +6,7 @@ import {
   type AccountDeletionBody
 } from "@/entities/user/model/accountDeletion";
 import { parseRetryAfterSeconds, type EmailChangeBody } from "@/entities/user/model/emailChange";
-import type { PasswordChangeBody } from "@/entities/user/model/passwordChange";
+import { buildCurrentPasswordChangeBody, type PasswordChangeBody } from "@/entities/user/model/passwordChange";
 
 /** 로그인한 사용자 정보를 가져온다. */
 export async function fetchMe(): Promise<UserMeResponse> {
@@ -44,11 +44,15 @@ export async function fetchUserAvatar(avatarUrl: string): Promise<Blob> {
   return response.blob();
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+/**
+ * 현재 비밀번호로 비밀번호를 바꾼다. MFA를 켠 계정은 인증 코드도 함께 보낸다.
+ * 서버는 현재 비밀번호(401 INVALID_CREDENTIALS) → MFA(401 INVALID_MFA_CODE, 429 MFA_RATE_LIMITED) 순서로 확인한다.
+ */
+export async function changePassword(currentPassword: string, newPassword: string, mfaCode = ""): Promise<void> {
   const response = await apiFetch("/api/auth/me/password", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+    body: JSON.stringify(buildCurrentPasswordChangeBody({ currentPassword, newPassword, mfaCode }))
   });
   await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
 }

@@ -1,5 +1,5 @@
-// 로그인 상태 비밀번호 변경(POST /api/auth/me/password/verification → confirm → PUT /api/auth/me/password/verified)의
-// 요청 본문과 실패 code → 모달 상태 변환. 이 파일은 테스트가 직접 import하므로 다른 모듈을 import하지 않는다.
+// 로그인 상태 비밀번호 변경(POST /api/auth/me/password/verification → confirm → PUT /api/auth/me/password/verified,
+// 또는 현재 비밀번호로 PUT /api/auth/me/password)의 요청 본문과 실패 code → 모달 상태 변환. 이 파일은 테스트가 직접 import하므로 다른 모듈을 import하지 않는다.
 
 export type PasswordChangeBody = {
   new_password: string;
@@ -14,6 +14,23 @@ export function buildPasswordChangeBody(input: {
   mfaCode: string;
 }): PasswordChangeBody {
   const body: PasswordChangeBody = { new_password: input.newPassword, verification_token: input.verificationToken };
+  if (input.mfaCode.trim()) body.mfa_code = input.mfaCode.trim();
+  return body;
+}
+
+export type CurrentPasswordChangeBody = {
+  current_password: string;
+  new_password: string;
+  mfa_code?: string;
+};
+
+/** 현재 비밀번호 방식도 MFA 코드는 입력했을 때만 넣는다. MFA를 끈 계정은 기존 본문 그대로다. */
+export function buildCurrentPasswordChangeBody(input: {
+  currentPassword: string;
+  newPassword: string;
+  mfaCode: string;
+}): CurrentPasswordChangeBody {
+  const body: CurrentPasswordChangeBody = { current_password: input.currentPassword, new_password: input.newPassword };
   if (input.mfaCode.trim()) body.mfa_code = input.mfaCode.trim();
   return body;
 }
