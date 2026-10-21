@@ -1,8 +1,7 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
 import { uploadDocumentFile } from "@/entities/document/api/document";
-import { checkStorageQuota, describeLimitError, fetchWorkspaceStorage } from "@/entities/workspace";
-import { getWorkspaceId } from "@/shared/api/client";
+import { describeLimitError } from "@/entities/workspace";
 import {
   appendItemsToFolder,
   availableDocumentName,
@@ -15,28 +14,6 @@ import {
 } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
-
-// 용량 조회가 이보다 늦으면 사전 검사를 건너뛰고 업로드를 시작한다.
-const STORAGE_CHECK_TIMEOUT_MS = 3_000;
-// 백엔드에 용량 API가 없으면(404) 이 탭에서는 다시 묻지 않는다.
-let isStorageApiMissing = false;
-
-/**
- * 업로드 전에 워크스페이스 남은 용량을 검사해 파일별 거절 문구(통과면 null)를 돌려준다.
- * 빠른 안내용 검사라서 용량을 조회하지 못하면(404·오류·시간 초과) 검사를 건너뛰고 서버 검사에 맡긴다.
- */
-async function loadUploadRejections(files: File[]): Promise<(string | null)[]> {
-  const skipped = files.map(() => null);
-  if (isStorageApiMissing) return skipped;
-  const storage = await fetchWorkspaceStorage(getWorkspaceId(), AbortSignal.timeout(STORAGE_CHECK_TIMEOUT_MS))
-    .then((response) => {
-      if (!response) isStorageApiMissing = true;
-      return response;
-    })
-    .catch(() => null);
-  if (!storage) return skipped;
-  return checkStorageQuota(files.map((file) => file.size), storage);
-}
 
 export function useDocumentUpload({
   projects,
@@ -68,16 +45,8 @@ export function useDocumentUpload({
     dropUploadFiles(target.projectId, target.folderId, files);
   }
 
-  /**
-   * 업로드가 끝나면 파일별 서버 응답(실패면 null)으로 풀린다.
-   * 새 노트처럼 용량에 영향이 거의 없는 업로드는 skipQuotaCheck로 사전 검사 왕복을 건너뛴다(서버가 최종 판단한다).
-   */
-  function dropUploadFiles(
-    projectId: string,
-    folderId: string | null,
-    files: File[],
-    { skipQuotaCheck = false }: { skipQuotaCheck?: boolean } = {}
-  ): Promise<(DocumentItemResponse | null)[]> {
+  /** 업로드가 끝나면 파일별 서버 응답(실패면 null)으로 풀린다. 저장 용량은 서버가 판단한다(STORAGE_QUOTA_EXCEEDED). */
+  function dropUploadFiles(projectId: string, folderId: string | null, files: File[]): Promise<(DocumentItemResponse | null)[]> {
     const uploadFiles = files.filter(isSupportedUploadFile);
     setFileDropTarget(null);
     if (uploadFiles.length < files.length) setHasRejectedFiles(true);
@@ -100,13 +69,8 @@ export function useDocumentUpload({
       return { ...project, items: appendItemsToFolder(project.items, folderId, uploadItems) };
     }));
 
-    const rejectionsPromise: Promise<(string | null)[]> = skipQuotaCheck ? Promise.resolve(uploadFiles.map(() => null)) : loadUploadRejections(uploadFiles);
-    return rejectionsPromise.then((rejections) => Promise.all(uploads.map(({ file, item }, index) => {
-      const rejection = rejections[index];
-      const upload = rejection
-        ? Promise.reject(new Error(rejection))
-        : uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }));
-      return upload
+    return Promise.all(uploads.map(({ file, item }) => {
+      return uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }))
         .then((response) => {
           setDocuments((current) => {
             const withoutCurrent = current.filter((document) => document.id !== response.id);
@@ -124,11 +88,11 @@ export function useDocumentUpload({
             if (!findTreeItem(project.items, item.id)) return project;
             return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", describeLimitError(error) ?? error.message) };
           }));
-          // 서버가 거절한 경우에도 최신 목록으로 맞춘다. 사전 검사로 막은 파일은 서버에 가지 않았으니 다시 받지 않는다.
-          if (!rejection) void refreshBackendData().catch(() => {});
+          // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
+          void refreshBackendData().catch(() => {});
           return null;
         });
-    })));
+    }));
   }
 
   /** 새 노트를 업로드한다. 만들어진 문서(실패면 null)로 풀린다. */
@@ -137,7 +101,7 @@ export function useDocumentUpload({
     // 본문은 비워 두고 편집기 placeholder로 안내한다. 제목은 파일 이름 input이 맡는다.
     const markdown = `<!-- fruition-note: ${noteId} -->\n`;
     const file = new File([markdown], availableDocumentName(projects, "새 노트.md", { projectId, folderId }), { type: "text/markdown" });
-    const [created] = await dropUploadFiles(projectId, folderId, [file], { skipQuotaCheck: true });
+    const [created] = await dropUploadFiles(projectId, folderId, [file]);
     return created ?? null;
   }
 

@@ -13,7 +13,7 @@ registerHooks({
 const { usePendingWorkNotifications } = await import(
   "../src/features/document-notifications/model/usePendingWorkNotifications.ts"
 );
-const { subscribeNotices } = await import("../src/features/document-notifications/model/noticeBus.ts");
+const { setVisibleNoticeSubjects, subscribeNotices } = await import("../src/features/document-notifications/model/noticeBus.ts");
 const { reflectCalls, setReflectFailure } = await import("./fakeDocumentEntity.mjs");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 
@@ -44,7 +44,10 @@ function notificationEnv(t, { needsLint = false } = {}) {
   t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: 1_000_000 });
   const notices = [];
   const unsubscribe = subscribeNotices((notice) => notices.push(notice));
-  t.after(unsubscribe);
+  t.after(() => {
+    unsubscribe();
+    setVisibleNoticeSubjects(new Set());
+  });
   const statusRequests = [];
   t.mock.method(globalThis, "fetch", async (path) => {
     statusRequests.push(path);
@@ -56,12 +59,25 @@ function notificationEnv(t, { needsLint = false } = {}) {
   return { ...env, notices, statusRequests, titles: () => notices.map((notice) => notice.title) };
 }
 
-function renderNotifications(documents) {
-  const props = { documents };
-  const view = render(() => usePendingWorkNotifications(props.documents));
+const ALLOWED = { canIngest: true, canLint: true, workspaceId: "ws_test" };
+const MEMORY_KEY = "fruition.pending_work_prompted.ws_test";
+
+function renderNotifications(documents, permissions = ALLOWED) {
+  const props = { documents, permissions };
+  const view = render(() => usePendingWorkNotifications(props.documents, props.permissions));
   return {
     setDocuments(next) {
       props.documents = next;
+      view.rerender();
+    },
+    setPermissions(next) {
+      props.permissions = next;
+      view.rerender();
+    },
+    /** 문서 목록과 옵션을 한 렌더에서 함께 바꾼다(워크스페이스 전환처럼). */
+    setBoth(documents, permissions) {
+      props.documents = documents;
+      props.permissions = permissions;
       view.rerender();
     },
     unmount: view.unmount
@@ -140,13 +156,13 @@ test("60초 넘게 uploaded에 머문 문서는 한 번만 리마인드하고, �
 
 test("마지막 편입 이후 수정된 문서는 재편입을 제안하고 빈 목록에서는 제안 기록을 지우지 않는다", async (t) => {
   const { titles, storage } = notificationEnv(t);
-  const edited = doc("r1", "completed", { needs_reingest: true });
+  const edited = doc("r1", "completed", { needs_reingest: true, pipeline_run_id: "run_1" });
   const view = renderNotifications([edited]);
   assert.deepEqual(titles(), ["마지막 위키 편입 이후 수정된 문서가 있습니다"]);
 
   view.setDocuments([edited]);
   assert.equal(titles().length, 1, "같은 문서를 다시 제안하지 않는다");
-  assert.match(storage.get("fruition.pending_work_prompted"), /"reingest":\["r1"\]/);
+  assert.match(storage.get(MEMORY_KEY), /"reingest":\["r1"\]/);
 
   // 새로고침 직후 목록이 비어 있는 동안 기록을 지우면 목록 도착 때 같은 카드가 다시 뜬다.
   view.unmount();
@@ -155,9 +171,23 @@ test("마지막 편입 이후 수정된 문서는 재편입을 제안하고 빈 
   assert.equal(titles().length, 1);
 
   // 재편입이 시작돼 needs_reingest가 풀리면 다음 편집에서 다시 제안한다.
-  reloaded.setDocuments([doc("r1", "completed")]);
+  reloaded.setDocuments([doc("r1", "completed", { pipeline_run_id: "run_2" })]);
   reloaded.setDocuments([edited]);
   assert.equal(titles().length, 2);
+});
+
+test("편입한 적 없는 직접 만든 노트(run 없음)는 needs_reingest여도 재편입이 아니라 신규 편입을 제안한다", async (t) => {
+  const { notices, titles } = notificationEnv(t);
+  const note = doc("note1", "completed", { needs_reingest: true });
+  const view = renderNotifications([note]);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+  assert.equal(notices[0].message, '"note1.md" 문서의 위키 편입을 시작해 보세요.');
+
+  // 나중에 새로 만든 노트는 연속 업로드와 같이 묶어 "새 문서" 카드 한 장으로 제안하고, 재편입 카드는 띄우지 않는다.
+  view.setDocuments([note, doc("note2", "completed", { needs_reingest: true })]);
+  await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다", "새 문서가 추가되었습니다"]);
+  assert.equal(notices[1].message, '"note2.md" 문서의 위키 편입을 시작해 보세요.');
 });
 
 test("문서가 completed로 바뀌면 유지보수 상태를 확인해 lint가 필요할 때만 제안한다", async (t) => {
@@ -168,8 +198,8 @@ test("문서가 completed로 바뀌면 유지보수 상태를 확인해 lint가 
   view.setDocuments([doc("l1", "completed")]);
   await advance(t, 0);
   assert.equal(statusRequests.length, 1);
-  assert.deepEqual(titles(), ["Lint 제안"]);
-  assert.equal(notices[0].action.label, "Lint");
+  assert.deepEqual(titles(), ["위키 최신화 제안"]);
+  assert.equal(notices[0].action.label, "위키 최신화");
 
   // 5분 안의 연속 완료는 다시 묻지 않는다.
   view.setDocuments([doc("l1", "completed"), doc("l2", "processing")]);
@@ -216,4 +246,163 @@ test("언마운트하면 디바운스 중인 제안과 정체 점검을 멈춘�
   await advance(t, STALL_MS * 2);
 
   assert.deepEqual(titles(), []);
+});
+
+test("제안 카드는 최신 문서 목록에 맞춰 삭제된 문서를 빼고 바뀐 이름을 반영하며, 다룰 문서가 없으면 내린다", (t) => {
+  const { notices } = notificationEnv(t);
+  renderNotifications([doc("a"), doc("b")]);
+  const card = notices[0];
+  assert.deepEqual(card.subjectIds, ["a", "b"]);
+
+  // b 삭제 + a 이름 변경
+  assert.deepEqual(card.reconcile([doc("a", "uploaded", { filename: "새 이름.md" })]), {
+    message: '"새 이름.md" 문서의 위키 편입을 시작해 보세요.',
+    subjectIds: ["a"]
+  });
+  // 편입이 시작됐거나(processing) 끝난(completed) 문서만 남으면 카드를 내린다.
+  assert.equal(card.reconcile([doc("a", "processing"), doc("b", "completed")]), null);
+  assert.equal(card.reconcile([]), null);
+});
+
+test("제안 카드 버튼은 누르는 시점의 목록으로 대상을 다시 골라 삭제·편입 중인 문서를 건너뛴다", async (t) => {
+  const { notices, titles } = notificationEnv(t);
+  let refreshCount = 0;
+  const view = renderNotifications([doc("a"), doc("b"), doc("c")], { ...ALLOWED, onIngestStarted: () => { refreshCount += 1; } });
+
+  // a는 삭제, b는 다른 경로로 편입 시작
+  view.setDocuments([doc("b", "processing"), doc("c")]);
+  notices[0].action.onAction();
+  await advance(t, 0);
+
+  assert.deepEqual(reflectCalls, [["c", "EDITABLE"]]);
+  assert.equal(refreshCount, 1, "요청이 접수되면 문서 목록을 다시 받아 빠른 폴링으로 바꾼다");
+  assert.ok(!titles().includes("위키 편입 시작 실패"), "삭제된 문서로 404를 내지 않는다");
+});
+
+test("대상 문서가 모두 사라진 카드의 버튼은 아무 요청도 보내지 않는다", async (t) => {
+  const { notices } = notificationEnv(t);
+  const view = renderNotifications([doc("a")]);
+
+  view.setDocuments([doc("a", "completed")]);
+  notices[0].action.onAction();
+  await advance(t, 0);
+
+  assert.deepEqual(reflectCalls, []);
+});
+
+test("편입한 적 없는 문서는 needs_reingest여도 재편입(수정됨) 제안을 띄우지 않는다", (t) => {
+  const { titles } = notificationEnv(t);
+  renderNotifications([
+    doc("new-note", "uploaded", { needs_reingest: true }),
+    doc("converted", "completed", { needs_reingest: true, pipeline_run_id: "convert:converted" })
+  ]);
+
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+});
+
+test("위키 편입 권한이 없으면 편입·재편입 제안을 띄우지 않고, 권한 확인 전에는 기다렸다가 확인되면 제안한다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const denied = renderNotifications([doc("a"), doc("r", "completed", { needs_reingest: true })], { canIngest: false, canLint: false });
+  await advance(t, STALL_MS * 2);
+  assert.deepEqual(titles(), []);
+  denied.unmount();
+
+  const pending = renderNotifications([doc("b")], { canIngest: null, canLint: null });
+  assert.deepEqual(titles(), [], "역할 확인 전에는 첫 스냅샷으로 삼지 않는다");
+  pending.setPermissions(ALLOWED);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+});
+
+test("위키 최신화 권한이 없으면 유지보수 상태를 묻지 않고 최신화 제안도 띄우지 않는다", async (t) => {
+  const { statusRequests, titles } = notificationEnv(t, { needsLint: true });
+  const view = renderNotifications([doc("l1", "processing")], { canIngest: true, canLint: false });
+
+  view.setDocuments([doc("l1", "completed")]);
+  await advance(t, 0);
+
+  assert.deepEqual(statusRequests, []);
+  assert.deepEqual(titles(), []);
+});
+
+test("제안 카드가 내려간 직후에는 리마인드하지 않고, 사라진 뒤 60초가 지나야 다시 본다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const view = renderNotifications([doc("s1")]);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+
+  // 카드가 70초 동안 보이다가(대기열 포함) 사라진다.
+  setVisibleNoticeSubjects(new Set(["s1"]));
+  await advance(t, 70_000);
+  assert.equal(titles().length, 1, "카드가 보이는 동안에는 리마인드하지 않는다");
+  setVisibleNoticeSubjects(new Set());
+
+  // 문서 목록이 바뀔 때마다 점검해도 곧바로 다시 띄우지 않는다.
+  view.setDocuments([doc("s1", "uploaded", { updated_at: "x" })]);
+  await advance(t, 1_000);
+  view.setDocuments([doc("s1", "uploaded", { updated_at: "y" })]);
+  assert.equal(titles().length, 1);
+
+  await advance(t, STALL_MS);
+  view.setDocuments([doc("s1", "uploaded", { updated_at: "z" })]);
+  assert.deepEqual(titles().at(-1), "위키 편입이 아직 시작되지 않았습니다");
+  assert.equal(titles().length, 2);
+});
+
+test("워크스페이스를 바꾸면 새 워크스페이스의 첫 목록을 세션 진입 스냅샷으로 보고 '새 문서'로 알리지 않는다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const view = renderNotifications([doc("a1", "completed")], { ...ALLOWED, workspaceId: "ws_a", isDocumentsLoaded: true });
+  assert.deepEqual(titles(), []);
+
+  // 전환 직후: 새 워크스페이스 목록을 아직 받지 못해 빈 목록이다. 이 빈 목록을 기준으로 삼지 않는다.
+  view.setBoth([], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: false });
+  view.setBoth([doc("b1"), doc("b2", "completed")], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: true });
+  await advance(t, PROMPT_DEBOUNCE_MS);
+
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"]);
+
+  // 이후에 올라온 문서는 그대로 새 문서로 알린다.
+  view.setDocuments([doc("b1"), doc("b2", "completed"), doc("b3")]);
+  await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다", "새 문서가 추가되었습니다"]);
+  view.unmount();
+});
+
+test("워크스페이스를 바꾸면 이전 워크스페이스에서 묶던 새 문서 카드를 버린다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const view = renderNotifications([], { ...ALLOWED, workspaceId: "ws_a", isDocumentsLoaded: true });
+  view.setDocuments([doc("a1")]);
+  view.setBoth([doc("b1", "completed")], { ...ALLOWED, workspaceId: "ws_b", isDocumentsLoaded: true });
+  await advance(t, PROMPT_DEBOUNCE_MS);
+  assert.deepEqual(titles(), []);
+  view.unmount();
+});
+
+test("제안 기록은 워크스페이스별로 두고, 예전 전역 키는 지운다", async (t) => {
+  const { storage, titles } = notificationEnv(t);
+  storage.set("fruition.pending_work_prompted", JSON.stringify({ prompted: ["a1"] }));
+  storage.set("fruition.pending_work_prompted.ws_b", JSON.stringify({ prompted: ["b1"] }));
+
+  const view = renderNotifications([doc("a1")], { ...ALLOWED, workspaceId: "ws_a" });
+  assert.deepEqual(titles(), ["위키 편입 대기 중인 문서가 있습니다"], "예전 전역 기록은 읽지 않는다");
+  assert.equal(storage.has("fruition.pending_work_prompted"), false);
+  assert.match(storage.get("fruition.pending_work_prompted.ws_a"), /"prompted":\["a1"\]/);
+
+  // 다른 워크스페이스로 옮기면 그 워크스페이스의 기록을 읽어 이미 보인 카드를 다시 띄우지 않는다.
+  view.setBoth([doc("b1")], { ...ALLOWED, workspaceId: "ws_b" });
+  assert.equal(titles().length, 1);
+  assert.match(storage.get("fruition.pending_work_prompted.ws_a"), /"prompted":\["a1"\]/, "이전 워크스페이스 기록은 그대로 둔다");
+  view.unmount();
+});
+
+test("제안 기록이 바뀌지 않으면 문서 목록 갱신·정기 점검마다 다시 쓰지 않는다", async (t) => {
+  const { titles } = notificationEnv(t);
+  const writes = [];
+  const setItem = window.localStorage.setItem;
+  window.localStorage.setItem = (key, value) => { writes.push(key); setItem(key, value); };
+  const view = renderNotifications([doc("w1", "completed")]);
+  const initialWrites = writes.length;
+  view.setDocuments([doc("w1", "completed", { updated_at: "x" })]);
+  await advance(t, 30_000 * 3);
+  assert.equal(writes.length, initialWrites);
+  assert.deepEqual(titles(), []);
+  view.unmount();
 });

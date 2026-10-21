@@ -5,6 +5,8 @@ import { AgentResultCard } from "./AgentResultCard";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
+import { messageStatusTitle } from "../lib/statusSteps";
+import { STALLED_QUERY_DETAIL, STALLED_QUERY_RELEASED_DETAIL, STALLED_TURN_TITLE } from "../lib/stalledTurns";
 import { resolveChatTurnPresentation } from "../lib/agentTurn";
 import { formatAnswerMarkdown } from "../lib/answerMarkdown";
 import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
@@ -15,6 +17,43 @@ import type { GraphNode } from "@/entities/wiki/model/wiki";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import { cx } from "@/shared/lib/classNames";
 import styles from "./AgentChat.module.css";
+
+/** 응답을 받지 못한(pending에 머문) 질의. released는 사용자가 닫은 질의다. */
+export type StalledQueryView = {
+  state: "stalled" | "released";
+  /** 닫기(서버 취소 요청) 중 */
+  isClosing: boolean;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+};
+
+/** 질의 말풍선 자리의 '응답을 받지 못했어요' 안내와 다시 질문·닫기(작업 탭 stalled 카드와 같은 모양). */
+function StalledQueryNotice({ stall }: { stall: StalledQueryView }) {
+  if (stall.state === "released") return <p className={styles["task-note"]}>{STALLED_QUERY_RELEASED_DETAIL}</p>;
+  return (
+    <div className={styles["stalled-query"]}>
+      <p className={styles["task-note"]} role="alert">
+        <strong>{STALLED_TURN_TITLE}</strong>
+        {"\n"}
+        {STALLED_QUERY_DETAIL}
+      </p>
+      {(stall.onRetry || stall.onDismiss) && (
+        <div className={styles["task-actions"]}>
+          {stall.onRetry && (
+            <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={stall.isClosing} onClick={stall.onRetry}>
+              다시 질문
+            </button>
+          )}
+          {stall.onDismiss && (
+            <button type="button" className={styles["task-pill"]} disabled={stall.isClosing} aria-busy={stall.isClosing || undefined} onClick={stall.onDismiss}>
+              {stall.isClosing ? "닫는 중…" : "닫기"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // 답변 공개 단계: 1=상태 목록만, 2=결과 카드까지, 3=답변 본문까지 표시
 const STAGE_RESULTS = 2;
@@ -29,7 +68,8 @@ export function AssistantThread({
   onOpenSourceBlocks,
   speechPlayback = null,
   speechErrorMessage = null,
-  onToggleSpeech
+  onToggleSpeech,
+  stall = null
 }: {
   message: ChatMessageResponse;
   isAnimated: boolean;
@@ -41,8 +81,12 @@ export function AssistantThread({
   /** 이 메시지의 음성 재생 실패 안내. */
   speechErrorMessage?: string | null;
   onToggleSpeech?: (messageId: string) => void;
+  /** 응답을 받지 못한 질의면 진행 표시 대신 안내와 다시 질문·닫기를 보인다. */
+  stall?: StalledQueryView | null;
 }) {
   const presentation = resolveChatTurnPresentation(message.action);
+  // 진행 중에 취소돼 서버가 닫은 응답. 본문이 비어 있으면 "요청 취소됨" 상태 목록만 남긴다.
+  const isCancelled = message.status === "cancelled";
   const [isAnswerExpanded, setIsAnswerExpanded] = useState(true);
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
@@ -71,13 +115,14 @@ export function AssistantThread({
 
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
-      {((message.progress?.length ?? 0) > 0 || message.status === "pending") && (
+      {stall && <StalledQueryNotice stall={stall} />}
+      {!stall && ((message.progress?.length ?? 0) > 0 || message.status === "pending" || isCancelled) && (
         <StatusList
-          title={message.status === "pending" ? "요청 처리 중" : message.status === "completed" ? "요청 처리 완료" : "요청 처리 종료"}
+          title={messageStatusTitle(message.status)}
           isLoading={message.status === "pending"}
           hasResponse={message.status === "completed"}
           steps={message.progress?.length ? buildProgressSteps(message.progress, message.status === "pending")
-            : [["요청을 전달하고 있어요.", "active"]]}
+            : isCancelled ? [] : [["요청을 전달하고 있어요.", "active"]]}
         />
       )}
 
@@ -96,7 +141,7 @@ export function AssistantThread({
         </div>
       )}
 
-      {(!isAnimated || visibleAnswerStage >= STAGE_ANSWER) && (
+      {(!isAnimated || visibleAnswerStage >= STAGE_ANSWER) && !((stall || isCancelled) && !message.content.trim()) && (
         <section
           className={cx(styles["agent-answer"], isAnimated && styles["agent-stage"])}
           aria-label={isSearchAnswer ? "실행 중 발견 사항" : "답변"}

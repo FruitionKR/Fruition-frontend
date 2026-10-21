@@ -14,6 +14,8 @@ registerHooks({
 
 const {
   INITIAL_SKILL_CREATE_FORM,
+  showsSourceField,
+  sourceHint,
   skillCapabilities,
   skillExecutionOptions,
   skillPublishRequest,
@@ -109,7 +111,7 @@ test("필수값·커맨드 형식·중복 커맨드를 검증한다", () => {
   assert.match(validateSkillCreateForm({ ...filledForm, description: "가".repeat(501) }, []).description, /500자/);
 });
 
-const { applySkillDraft, kindFromCapabilities, skillAuthorRequest } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+const { applySkillDraft, draftResultModeChange, draftSourceChange, kindFromCapabilities, skillAuthorRequest, skillResultModeLabel } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 
 test("AI 작성 요청은 실행 규칙을 지시문으로 보내고 유효한 이름·설명·참고 문서만 담는다", () => {
   const request = skillAuthorRequest({ ...filledForm, scope: "team" }, "enhance", ["doc_1", "doc_2"]);
@@ -177,4 +179,69 @@ test("Agent 요청으로 연 새 스킬은 요청을 실행 규칙에 채우고 
   assert.equal(form.resultMode, "auto");
   assert.equal(form.kind, "document");
   assert.equal(form.command, "");
+});
+
+test("AI 초안이 문서 스킬의 결과 방식을 바꾸면 이전·이후 값을 알려 되돌릴 수 있게 한다", () => {
+  const draft = { name: "summary-maker", description: "", instructions_markdown: "문서를 요약한 새 문서를 만든다.", capabilities: ["document-edit"] };
+  const chosen = { ...INITIAL_SKILL_CREATE_FORM, resultMode: "create" };
+  const next = applySkillDraft(chosen, draft);
+  assert.equal(next.resultMode, "edit");
+  assert.deepEqual(draftResultModeChange(chosen, next), { from: "create", to: "edit" });
+  assert.equal(skillResultModeLabel("edit"), "열린 문서 고치기");
+  // 바뀌지 않았거나 문서 스킬이 아니면 알릴 것이 없다.
+  assert.equal(draftResultModeChange(chosen, applySkillDraft(chosen, { ...draft, capabilities: ["document-create"] })), null);
+  assert.equal(draftResultModeChange(chosen, { kind: "folder", resultMode: "create" }), null);
+});
+
+test("원문 문서 필드는 새 문서를 만들 수 있는 문서 스킬('새 문서로 만들기'·'상황에 맞게')에만 보인다", () => {
+  assert.equal(showsSourceField("document", "create"), true);
+  assert.equal(showsSourceField("document", "auto"), true);
+  assert.equal(showsSourceField("document", "edit"), false);
+  assert.equal(showsSourceField("folder", "create"), false);
+  assert.equal(showsSourceField("template", "create"), false);
+  assert.equal(showsSourceField(null, "create"), false);
+});
+
+test("원문 문서 안내는 고른 값마다 다르고, 고르기 전에는 {문서} 자리표시자가 있을 때만 읽는다고 알린다", () => {
+  assert.equal(sourceHint(true), "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요");
+  assert.equal(sourceHint(false), "원문 없이 새 문서를 만들어요");
+  assert.match(sourceHint(null), /^고르지 않으면 \{문서\} 자리표시자가 있을 때만 원문을 읽어요/);
+  assert.doesNotMatch(sourceHint(null), /저장할 때 AI가 정해요/);
+});
+
+test("AI 초안의 requires_source로 원문 문서를 채우고, 바뀌었으면 알릴 이전·이후 값을 준다", () => {
+  const draft = { name: "summary-maker", description: "", instructions_markdown: "회의록을 요약한 새 문서를 만든다.", capabilities: ["document-create"] };
+  const unset = { ...INITIAL_SKILL_CREATE_FORM, resultMode: "create" };
+  const read = applySkillDraft(unset, { ...draft, requires_source: true });
+  assert.equal(read.requiresSource, true);
+  assert.deepEqual(draftSourceChange(unset, read), { from: null, to: true });
+  // 사용자가 고른 값과 다르면 바꾸고 알린다(되돌릴 수 있다). 같으면 알릴 것이 없다.
+  const picked = { ...unset, requiresSource: true };
+  const skipped = applySkillDraft(picked, { ...draft, requires_source: false });
+  assert.equal(skipped.requiresSource, false);
+  assert.deepEqual(draftSourceChange(picked, skipped), { from: true, to: false });
+  assert.equal(draftSourceChange(picked, applySkillDraft(picked, { ...draft, requires_source: true })), null);
+  // 초안에 값이 없으면(구버전 AI) 지금 값을 유지한다.
+  assert.equal(applySkillDraft(picked, draft).requiresSource, true);
+  assert.equal(applySkillDraft(unset, { ...draft, requires_source: null }).requiresSource, null);
+  // 필드가 보이지 않는 스킬(고치기 전용)이 되면 알리지 않는다.
+  const edit = applySkillDraft(unset, { ...draft, capabilities: ["document-edit"], requires_source: false });
+  assert.equal(draftSourceChange(unset, edit), null);
+});
+
+test("AI 초안이 정한 원문 문서는 사용자가 손대지 않아도 게시 요청에 실린다(게시는 다시 분류하지 않음)", () => {
+  const draft = { name: "summary-maker", description: "요약", instructions_markdown: "회의록을 요약한 새 문서를 만든다.", capabilities: ["document-create"], requires_source: true };
+  const drafted = applySkillDraft({ ...filledForm, requiresSource: null }, draft);
+  assert.equal(skillPublishRequest(drafted).requires_source, true);
+  assert.equal(skillPublishRequest(applySkillDraft({ ...filledForm, requiresSource: null }, { ...draft, requires_source: false })).requires_source, false);
+});
+
+test("게시 요청은 원문 문서 값이 있을 때만 requires_source를 싣고, 초안도 선택도 없으면 뺀다", () => {
+  assert.equal(INITIAL_SKILL_CREATE_FORM.requiresSource, null);
+  assert.ok(!("requires_source" in skillPublishRequest(filledForm)));
+  assert.equal(skillPublishRequest({ ...filledForm, requiresSource: true }).requires_source, true);
+  assert.equal(skillPublishRequest({ ...filledForm, resultMode: "auto", requiresSource: false }).requires_source, false);
+  // 고른 뒤 고치기 전용·폴더 정리로 바꾸면 필드가 사라져 보내지 않는다.
+  assert.ok(!("requires_source" in skillPublishRequest({ ...filledForm, resultMode: "edit", requiresSource: true })));
+  assert.ok(!("requires_source" in skillPublishRequest({ ...filledForm, kind: "folder", requiresSource: true })));
 });

@@ -20,7 +20,9 @@ export type TreeItem = {
   canEdit?: boolean;
   /** 서버 can_delete. false면 삭제 메뉴를 비활성화한다. */
   canDelete?: boolean;
-  /** 문서에 직접 건 권한(edit·view). null은 상위 폴더·기본값을 따른다. */
+  /** 서버 can_convert. false면 Markdown 변환 메뉴를 비활성화한다. 없으면 지금처럼 요청한다. */
+  canConvert?: boolean;
+  /** 문서·폴더에 직접 건 권한(edit·view). null·없음은 상위 폴더·기본값을 따른다. */
   permission?: "edit" | "view" | null;
   graphNodeId?: string;
   active?: boolean;

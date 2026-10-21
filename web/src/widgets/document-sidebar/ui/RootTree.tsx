@@ -26,13 +26,17 @@ export function RootTree({ project, interaction }: { project: Project; interacti
 
   return (
     <div
+      role="tree"
+      aria-label="문서 트리"
+      // 스킬 대상 고르기에서는 한 항목만 고른다.
+      aria-multiselectable={!interaction.isPickingTarget}
       className={cx(styles["tree-root"], isRootDropTarget && styles["is-tree-drop-target"])}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       {project.items.length > 0
         ? <SidebarTree items={project.items} projectId={project.id} interaction={interaction} />
-        : <p className={styles["tree-root-empty"]}>아직 문서가 없습니다. 파일을 끌어다 놓거나 우클릭 메뉴에서 추가하세요.</p>}
+        : <p className={styles["tree-root-empty"]}>아직 문서가 없습니다</p>}
     </div>
   );
 }

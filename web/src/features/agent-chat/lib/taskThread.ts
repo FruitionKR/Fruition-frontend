@@ -1,6 +1,14 @@
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
+import { SUPERSEDED_PLAN_LABEL } from "@/features/agent-chat/lib/folderPlanSupersede";
+import {
+  isTurnCancelling,
+  STALLED_TURN_TITLE,
+  TURN_CANCELLING_LABEL,
+  TURN_ROLLBACK_FAILED_LABEL,
+  type TurnCancelState
+} from "@/features/agent-chat/lib/stalledTurns";
 
 /**
  * 채팅 탭과 작업 탭의 분리(2026-10-19 계약).
@@ -20,7 +28,8 @@ const AGENT_RUN_PREFIX = "agent_";
 export function isTaskMessage(message: ChatMessageResponse, taskRunIds: ReadonlySet<string> = new Set()): boolean {
   if (message.run_id && taskRunIds.has(message.run_id)) return true;
   if (message.action) return !CHAT_ANSWER_ACTIONS.has(message.action);
-  return message.status === "pending" && Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
+  // action이 없는 agent turn 메시지(진행 중·취소·실패로 끝남)도 상태와 상관없이 작업 탭에 둔다. 실패는 '실패' 묶음에 보인다.
+  return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
 }
 
 export type TaskMessageItem = {
@@ -38,6 +47,13 @@ export type TaskMessageItem = {
   createdAt: string | null;
 };
 
+/** 작업 카드에 보일 AI의 답. 실패로 끝난 turn은 서버 안내 문구(error_message)를 먼저 쓴다. */
+function taskAnswer(assistant: ChatMessageResponse | undefined): string {
+  if (!assistant) return "";
+  if (assistant.status === "failed" && assistant.error_message?.trim()) return assistant.error_message;
+  return assistant.content ?? "";
+}
+
 function toTaskItem(key: string, pairId: string | null, messages: ChatMessageResponse[]): TaskMessageItem {
   const user = messages.find((message) => message.role === "user");
   const assistant = messages.findLast((message) => message.role === "assistant");
@@ -47,7 +63,7 @@ function toTaskItem(key: string, pairId: string | null, messages: ChatMessageRes
     turnId: assistant?.run_id ?? user?.run_id ?? null,
     action: assistant?.action ?? null,
     request: (user?.content ?? "").trim().normalize("NFC"),
-    answer: (assistant?.content ?? "").trim().normalize("NFC"),
+    answer: taskAnswer(assistant).trim().normalize("NFC"),
     messageStatus: assistant?.status ?? user?.status ?? "pending",
     createdAt: user?.created_at ?? assistant?.created_at ?? null
   };
@@ -89,6 +105,35 @@ export function taskKindLabel(action: string | null): string {
   }
 }
 
+const SLASH_COMMAND_PATTERN = /^\/([a-z0-9][a-z0-9-]{0,62})(?:\s|$)/;
+
+/** '상황에 맞게' 스킬의 되묻기("새 문서로 만들까요, 지금 문서를 수정할까요?")에 답하는 두 선택. */
+export const SKILL_MODE_CHOICES = [
+  { label: "새 문서로 만들기", request: "새 문서로 만들어 줘", createsDocument: true },
+  { label: "지금 문서 수정", request: "지금 문서를 수정해 줘", createsDocument: false }
+] as const;
+
+/**
+ * 스킬(`/slug …`)로 보낸 작업에 AI가 새 문서·문서 수정 중 무엇을 할지 되물었으면 그 slug, 아니면 null.
+ * 답도 `/slug 새 문서로 만들어 줘`처럼 커맨드를 붙여 보내야 스킬이 유지된다(ai agent.md).
+ */
+export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "request" | "answer">): string | null {
+  if (item.action !== "clarify") return null;
+  const match = SLASH_COMMAND_PATTERN.exec(item.request);
+  if (!match) return null;
+  return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
+}
+
+/** 입력이 `/slug` 또는 `/slug 요청`으로 시작하면 그 slug, 아니면 null. */
+export function slashCommandSlug(text: string): string | null {
+  return SLASH_COMMAND_PATTERN.exec(text.trim())?.[1] ?? null;
+}
+
+/** 되묻기 선택 → 작업 탭으로 보낼 요청 문장 */
+export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES)[number]): string {
+  return `/${slug} ${choice.request}`;
+}
+
 export type TaskGroup = "running" | "approval" | "clarify" | "failed" | "done";
 
 /** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. */
@@ -108,36 +153,100 @@ export type TaskStatusView = {
   struck: boolean;
 };
 
+const CANCELLED_TASK_STATUS: TaskStatusView = { group: "done", label: "취소됨", tone: "muted", struck: true };
+
 const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
+
+/**
+ * 취소한 turn의 상태. 서버는 말풍선을 바로 cancelled로 닫지만 turn은 되돌리기를 마쳐야 끝나므로,
+ * turn 조회로 받은 진행 상태(cancelState)를 따른다. 아직 모르면 "취소됨"으로 둔다.
+ */
+function cancelledTaskStatus(cancelState: TurnCancelState | null): TaskStatusView {
+  if (isTurnCancelling(cancelState)) return { group: "running", label: TURN_CANCELLING_LABEL, tone: "muted", struck: false };
+  if (cancelState === "rollback_failed") return { group: "failed", label: TURN_ROLLBACK_FAILED_LABEL, tone: "danger", struck: false };
+  return CANCELLED_TASK_STATUS;
+}
 
 export function resolveTaskStatus({
   action,
   messageStatus,
   runStatus,
   operationCount = 0,
+  excludedCount = 0,
+  createdFolderCount = 0,
   hasActivePreview = false,
   isApplied = false,
-  hasLaterTask = false
+  isRejected = false,
+  isCancelled = false,
+  hasLaterTask = false,
+  isSuperseded = false,
+  isStalled = false,
+  isReleased = false,
+  isCancelAccepted = false,
+  cancelState = null,
+  isPlanSuperseded = false
 }: {
   action: string | null;
   messageStatus: string;
   /** 폴더 정리 계획 run 상태. 아직 받지 못했으면 undefined */
   runStatus?: string;
+  /** 실행 완료된 계획에서 실제로 저장된 작업 수(summarizePlanOperationResults.applied) */
   operationCount?: number;
+  /** 고르지 않았거나 건너뛰어 저장하지 않은 작업 수 */
+  excludedCount?: number;
+  /** 실행으로 만들어진 새 폴더 수. 폴더 정리는 저장·제외를 줄(문서) 단위로 세고 새 폴더는 따로 적는다. */
+  createdFolderCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
+  /** 편집안을 모두 거절했는지 */
+  isRejected?: boolean;
+  /** 편집안·새 문서 초안을 적용하지 않고 취소했는지 */
+  isCancelled?: boolean;
   /** 이 작업 뒤에 보낸 작업이 있는지. 되물음은 다음 요청으로 답했거나 지나간 것으로 본다. */
   hasLaterTask?: boolean;
+  /** 같은 요청·스킬을 같은 대상에 뒤에 다시 실행해 끝났는지(supersededTaskKeys). 남은 되물음은 더 답할 필요가 없다. */
+  isSuperseded?: boolean;
+  /** pending에 오래 머물러 응답을 받지 못한 turn(stalledTurns) */
+  isStalled?: boolean;
+  /** 응답을 받지 못한 turn을 사용자가 닫았는지 */
+  isReleased?: boolean;
+  /** 닫기·중지로 보낸 취소를 서버가 받아들였는지(취소 계열 응답). 목록이 아직 pending이어도 "취소됨"으로 본다. */
+  isCancelAccepted?: boolean;
+  /** 취소한 turn을 조회해 받은 취소 진행 상태(취소하는 중·취소됨·복구 실패). 모르면 null */
+  cancelState?: TurnCancelState | null;
+  /** 같은 대상 폴더에 뒤에 실행한 새 계획이 승인 대기에 도달해 이 승인 대기 계획을 대신했는지(거절해 정리한다) */
+  isPlanSuperseded?: boolean;
 }): TaskStatusView {
-  if (messageStatus === "pending") return { group: "running", label: "진행 중", tone: "primary", struck: false };
+  if (messageStatus === "pending") {
+    if (isCancelAccepted) return cancelledTaskStatus(cancelState);
+    if (isReleased) return { group: "done", label: "중단됨", tone: "muted", struck: true };
+    if (isStalled) return { group: "failed", label: STALLED_TURN_TITLE, tone: "danger", struck: false };
+    return { group: "running", label: "진행 중", tone: "primary", struck: false };
+  }
   if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
+  // 진행 중에 취소돼 서버가 닫은 turn(agent turn 취소 API). 편집안 초안을 취소한 것과 같은 "취소됨"으로 보인다.
+  if (messageStatus === "cancelled") return cancelledTaskStatus(cancelState);
   if (isWorkspacePlanAction(action ?? undefined)) {
     if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
+    if (isPlanSuperseded && (runStatus === "awaiting_approval" || runStatus === "rejected")) {
+      return { group: "done", label: SUPERSEDED_PLAN_LABEL, tone: "muted", struck: false };
+    }
     if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };
-    if (runStatus === "clarification_required") return { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false };
-    if (runStatus === "completed") return { group: "done", label: `저장됨(${operationCount})`, tone: "primary", struck: false };
+    if (runStatus === "clarification_required") {
+      return isSuperseded
+        ? { group: "done", label: "다시 실행됨", tone: "muted", struck: false }
+        : { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false };
+    }
+    if (runStatus === "completed") {
+      const label = [
+        `저장됨(${operationCount})`,
+        excludedCount > 0 && `제외 ${excludedCount}`,
+        createdFolderCount > 0 && `새 폴더 ${createdFolderCount}`
+      ].filter(Boolean).join(" · ");
+      return { group: "done", label, tone: "primary", struck: false };
+    }
     if (runStatus === "rejected") return { group: "done", label: "거절됨", tone: "danger", struck: true };
     if (runStatus === "cancelled") return { group: "done", label: "취소됨", tone: "danger", struck: true };
     if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: true };
@@ -152,8 +261,41 @@ export function resolveTaskStatus({
   if (action === "reject") return { group: "failed", label: "처리 불가", tone: "danger", struck: false };
   if (hasActivePreview) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
   if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
+  if (isRejected) return { group: "done", label: "거절됨", tone: "danger", struck: true };
+  if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
   if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
   return { group: "done", label: "답변", tone: "muted", struck: false };
+}
+
+/** 같은 작업을 다시 실행한 것으로 볼 기준: 스킬 요청은 `/slug`, 그 밖에는 요청 문장 그대로. */
+function taskRequestKey(request: string): string {
+  const text = request.trim().normalize("NFC");
+  const slug = slashCommandSlug(text);
+  return slug ? `/${slug}` : text;
+}
+
+/**
+ * 뒤에 같은 요청·스킬을 같은 대상에 다시 보내 끝난(completed) 작업의 key. 그 앞의 되물음("추가 설명 필요")은
+ * 다시 실행으로 지나갔으므로 "선택 필요"에 남기지 않는다. 뒤 작업이 아직 진행 중이거나 실패했으면 그대로 둔다.
+ * targetOf: 작업 대상(폴더 정리 run의 target_folder_id 등). 다른 폴더에 같은 스킬을 실행한 것은 다시 실행이 아니므로,
+ * 대상을 모르는 작업은 대신하지도 대신받지도 않는다.
+ */
+export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "request" | "messageStatus">>(
+  items: ReadonlyArray<T>,
+  targetOf: (item: T) => string | null | undefined
+): Set<string> {
+  const superseded = new Set<string>();
+  const completedLater = new Set<string>();
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    const requestKey = taskRequestKey(item.request);
+    const target = targetOf(item);
+    if (!requestKey || !target) continue;
+    const key = JSON.stringify([requestKey, target]);
+    if (completedLater.has(key)) superseded.add(item.key);
+    if (item.messageStatus === "completed") completedLater.add(key);
+  }
+  return superseded;
 }
 
 /** 서버 버전 기록으로 적용 여부를 확인할 편집 작업(새로 고침 뒤에도 "저장됨"을 지키려고). */
@@ -224,6 +366,19 @@ export function resolveSubmitRoute(view: "chat" | "work", question: string): "qu
   return text === "/" ? null : "task";
 }
 
+/**
+ * 스킬 만들기·상세 시트가 열리고 닫힐 때의 패널 탭(Figma 1671:13573 · 1708:3848).
+ * 열리면 테스트 실행 묶음이 있는 작업 탭으로 옮기고 원래 탭을 기억해 두었다가, 닫히면 그 탭으로 돌려놓는다.
+ */
+export function skillSheetPanelView(
+  isSheetOpen: boolean,
+  current: "chat" | "work",
+  saved: "chat" | "work" | null
+): { view: "chat" | "work"; saved: "chat" | "work" | null } {
+  if (isSheetOpen) return { view: "work", saved: saved ?? current };
+  return { view: saved ?? current, saved: null };
+}
+
 /** 선택 칩 문구(Figma 1627:9923 "선택 : 연구 개요 문단"). 선택한 첫 줄을 짧게 줄인다. */
 export function selectionChipLabel(markdown: string, startLine: number, endLine: number, maxLength = 12): string {
   const lines = markdown.split("\n").slice(Math.max(0, startLine - 1), Math.max(startLine, endLine));
@@ -232,10 +387,39 @@ export function selectionChipLabel(markdown: string, startLine: number, endLine:
   return short ? `선택 : ${short}` : `선택 : ${startLine}~${endLine}줄`;
 }
 
-/** 작업 카드 머리글(Figma 1671:13225 "문서 : /research-summary")과 따옴표 안 요청 문장. "/slug 요청"이면 둘로 나눈다. */
+/**
+ * 작업 카드에 쓸 요청 문장. 사용자가 보낸 요청(itemRequest)과 run이 정리한 요약(request_summary)을 고른다.
+ * 스킬로 실행한 요청("/slug …")은 AI가 요약을 문장으로 다시 써도("'slug' Skill의 지침에 따라 …") 머리글이
+ * "문서 : /slug"로 남도록 사용자가 보낸 원문을 쓰고, 요약은 summary로 따로 돌려준다.
+ * 그 밖의 요청은 지금처럼 요약을 먼저 쓴다.
+ */
+export function resolveTaskRequest(
+  itemRequest: string | null | undefined,
+  runSummary: string | null | undefined
+): { request: string; summary: string | null } {
+  const original = (itemRequest ?? "").trim();
+  const summary = runSummary?.trim().normalize("NFC") || null;
+  if (original.startsWith("/")) return { request: original, summary: summary === original ? null : summary };
+  return { request: summary || original || "요청 내용 없음", summary: null };
+}
+
+/**
+ * 작업 카드 머리글(Figma 1671:13225 "문서 : /research-summary")과 따옴표 안 요청 문장. "/slug 요청"이면 둘로 나눈다.
+ * 폴더 정리도 스킬로 실행했으면 Figma 1656:11824·1656:11856처럼 "문서 : /file-organize"로 쓴다.
+ */
 export function describeTaskRequest(action: string | null, request: string): { heading: string; quote: string } {
-  const kind = taskKindLabel(action);
-  const match = request.match(/^\/([^\s/]+)(?:\s+([\s\S]*))?$/);
+  const kind = taskHeadingKind(action, request);
+  const match = request.match(SKILL_REQUEST_PATTERN);
   if (!match) return { heading: kind, quote: request };
   return { heading: `${kind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
+}
+
+const SKILL_REQUEST_PATTERN = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/;
+
+/**
+ * 작업 카드 머리글·완료 행 앞의 종류. `/slug` 스킬 실행은 결과 action이 정해지기 전(진행 중)과 뒤(완료·되묻기·실패)가
+ * 같도록 늘 "문서"로 적는다(Figma 1571:27625 "문서 : /file-organize"). 스킬이 아닌 요청은 action별 라벨을 쓴다.
+ */
+export function taskHeadingKind(action: string | null, request: string): string {
+  return SKILL_REQUEST_PATTERN.test(request.trim()) ? "문서" : taskKindLabel(action);
 }

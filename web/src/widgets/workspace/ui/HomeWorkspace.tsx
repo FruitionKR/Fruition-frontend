@@ -16,6 +16,7 @@ import { DocumentProcessingNotifications } from "@/features/document-notificatio
 import { railItems } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
 import { DeleteConfirmModal } from "@/shared/ui/modal/DeleteConfirmModal";
+import { BulkDeleteConfirmModal } from "@/shared/ui/modal/BulkDeleteConfirmModal";
 import { MergeConfirmModal } from "@/shared/ui/modal/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
@@ -23,6 +24,7 @@ import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useProjectTree } from "../model/useProjectTree";
+import { createSingleFlight, focusNoteTitleWhenReady } from "../lib/noteCreation";
 import type { DeletedTreeIds } from "../lib/deletedTreeIds";
 import { getSelectionLocation, useTreeSelection, type TreeSelectionState } from "../model/useTreeSelection";
 import {
@@ -40,14 +42,16 @@ import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-inges
 import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
+import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
-import { isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
+import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { uploadDocumentFile } from "@/entities/document";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import type { InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import { createClientId, findTreeItem } from "@/entities/tree";
 import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
 import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
@@ -56,7 +60,9 @@ import { useWorkspaceNavigation } from "../model/useWorkspaceNavigation";
 import { useWorkspacePanels } from "../model/useWorkspacePanels";
 import { useWorkspaceDocumentTitle } from "../model/useWorkspaceDocumentTitle";
 import { useGraphWikiActions } from "../model/useGraphWikiActions";
-import { useSkillRun } from "../model/useSkillRun";
+import { useSkillRun, type SkillRunRequest } from "../model/useSkillRun";
+import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
+import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { canShowAgentPanel } from "../lib/agentPanelVisibility";
@@ -75,7 +81,8 @@ export function HomeWorkspace() {
     const resume = takeSettingsResume();
     if (!resume) return;
     setSettingsResume(resume);
-    navigate({ kind: "view", view: "settings", section: resume === "members" ? "members" : "account" }, "replace");
+    const section = resume === "members" ? "members" : resume === "email-change" ? "profile" : "account";
+    navigate({ kind: "view", view: "settings", section }, "replace");
     // 마운트 때 한 번만 확인한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -83,11 +90,25 @@ export function HomeWorkspace() {
     if (activeView !== "settings") setSettingsResume(null);
   }, [activeView]);
   const [markdownEditContext, setMarkdownEditContext] = useState<ActiveMarkdownEditContext | null>(null);
+  // 채팅 패널이 받은 편집안을 열린 문서 본문에 제안으로 붙인다(Figma 1571:27625).
+  const [editReview, setEditReview] = useState<InlineEditReviewState | null>(null);
   const operationLogFeed = useOperationLogFeed(activeView === "logs");
   // 알림 목록·읽음 상태. 알림 화면 탭의 안 읽음 표시에 쓴다.
   const notificationFeed = useNotificationFeed(activeView === "notifications");
-  const panels = useWorkspacePanels({ activeView, locationKey });
+  // 스킬 만들기·상세 시트(Figma 1671:13573 · 1708:3848)가 열렸는지. 열린 동안 스킬 화면에도 채팅 패널을 띄우고,
+  // 패널 입력창 위 자리(skillTestRunTarget)에 시트의 "테스트 실행"을 그린다.
+  const [isSkillSheetOpen, setIsSkillSheetOpen] = useState(false);
+  const [skillTestRunTarget, setSkillTestRunTarget] = useState<HTMLDivElement | null>(null);
+  const isSkillSheetShown = activeView === "skills" && isSkillSheetOpen;
+  const panels = useWorkspacePanels({ activeView, locationKey, isSkillSheetOpen: isSkillSheetShown });
   const { sidebarLayout, agentPanelLayout, isCompactLayout, isAgentPanelShown } = panels;
+  // 시트를 열면 채팅 패널도 연다. 좁은 화면에서는 패널이 시트를 덮으므로 열지 않고 시트 안에 테스트 실행을 둔다.
+  const openHomeAgentPanel = panels.openHomeAgentPanel;
+  useEffect(() => {
+    if (isSkillSheetShown && !isCompactLayout) openHomeAgentPanel();
+    // 시트가 열릴 때 한 번만 연다. 그 뒤 사용자가 패널을 닫으면 그대로 둔다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSkillSheetShown]);
   // 채팅 패널의 회의 화면(#148)이 열려 있는지. 그동안은 패널을 닫아도 숨긴 채 마운트해 회의록 흐름을 이어 간다.
   const [hasOpenMeeting, setHasOpenMeeting] = useState(false);
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
@@ -107,6 +128,14 @@ export function HomeWorkspace() {
   const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData, documentsUpdatedAt);
   const wikiActions = useGraphWikiActions({ documents, pdfWikiIngest, refreshBackendData });
   const { wikiActionPending, requestGraphIngest } = wikiActions;
+  // 채팅 편입 완료 알림의 '위키 편입'은 알림을 띄운 뒤에 눌리므로, 누를 때의 최신 문서 목록과 편입 요청을 쓴다.
+  const latestIngestRef = useRef({ documents, requestGraphIngest });
+  latestIngestRef.current = { documents, requestGraphIngest };
+  const ingestExportedDocument = useCallback((documentId: string) => {
+    const { documents: latestDocuments, requestGraphIngest: ingest } = latestIngestRef.current;
+    const document = latestDocuments.find((item) => item.id === documentId);
+    if (document) ingest([document]);
+  }, []);
   const graphDocuments = useMemo(() => selectGraphDocuments(documents), [documents]);
   const graphProjects = useMemo(() => filterGraphProjects(projectTree.projects, documents), [projectTree.projects, documents]);
   const documentTitles = useMemo(
@@ -173,6 +202,11 @@ export function HomeWorkspace() {
     () => isDocumentReadOnly(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
   );
+  // 채팅 Wiki page화 문서는 권한과 무관하게 본문 편집기(편집 잠금)를 열지 않는다.
+  const isSelectedDocumentBodyLocked = useMemo(
+    () => isDocumentBodyLocked(documents.find((item) => item.id === selection.selectedDocumentId)),
+    [documents, selection.selectedDocumentId]
+  );
   const selectedDocumentConversion = useMemo(
     () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
@@ -183,6 +217,7 @@ export function HomeWorkspace() {
     [documents, markdownEditContext?.documentId]
   );
   const chatEvidenceNotice = getChatEvidenceNotice(chatContextDocument);
+  const chatIngestGate = getWikiActionGate(wikiActions.canIngest, "ingest");
   const firstSidebarNote = useMemo(() => {
     const documentIds = new Set(documents.map((document) => document.id));
     for (const project of projectTree.projects) {
@@ -299,7 +334,7 @@ export function HomeWorkspace() {
     selection.openGraphNodePreview(node);
   }
 
-  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft) {
+  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null) {
     const noteId = createClientId("ai-note");
     const body = draft.markdown.endsWith("\n") ? draft.markdown : `${draft.markdown}\n`;
     const file = new File(
@@ -307,7 +342,8 @@ export function HomeWorkspace() {
       buildGeneratedMarkdownFilename(draft.title),
       { type: "text/markdown" }
     );
-    const created = await uploadDocumentFile(file).catch(async (error: unknown) => {
+    // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 루트에 만든다.
+    const created = await uploadDocumentFile(file, folderId).catch(async (error: unknown) => {
       // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
       throw error;
@@ -320,17 +356,45 @@ export function HomeWorkspace() {
     openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
   }
 
+  // 새 노트 만들기(사이드바 "새 노트 추가"·파일 메뉴 "새 노트"). 만드는 동안 다시 누르거나 버튼에 남은 포커스로
+  // Space·Enter가 반복돼도 하나만 만들고, 다 만들면 노트를 열어 제목 칸으로 포커스를 옮긴다.
+  const noteCreateFlight = useRef(createSingleFlight());
+  const [isCreatingNote, setIsCreatingNote] = useState(false);
+  function createNoteAndOpen(projectId: string, folderId: string | null) {
+    if (noteCreateFlight.current.isPending()) return;
+    setIsCreatingNote(true);
+    void noteCreateFlight.current.run(() => upload.createMarkdownFile(projectId, folderId))
+      .then((created) => {
+        // 실패는 트리 행이 실패 상태로 보여 준다.
+        if (!created) return;
+        openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
+        focusNoteTitleWhenReady(getMarkdownDocumentTitle(created.filename));
+      })
+      .catch(() => undefined)
+      .finally(() => setIsCreatingNote(false));
+  }
+
+  // 대상을 고른 스킬 실행. 채팅 패널이 작업 탭으로 한 번 보내고 onSkillRunSent로 비운다.
+  const [skillRunRequest, setSkillRunRequest] = useState<SkillRunRequest | null>(null);
   const skillRunState = useSkillRun({
     activeView,
     projects: projectTree.projects,
     documents,
     onStart: panels.expandSidebar,
-    onConfirmed: (item) => {
+    onConfirmed: (request) => {
+      const { target } = request;
+      handleViewChange("home");
       panels.openHomeAgentPanel();
-      openDocument(selection.selectTreeGraphNode(item));
+      // 원문으로 보낼 문서만 연다. 위치만 쓰는 문서(원문 없이 새 문서)는 열지 않는다.
+      if (target.kind === "document" && request.sourceDocumentId != null) {
+        const filename = documents.find((document) => document.id === target.documentId)?.filename ?? target.label;
+        openDocument(selection.openSourceBlockPreview(target.documentId, filename, []));
+      }
+      setSkillRunRequest(request);
     }
   });
   const { skillRun } = skillRunState;
+  const folderOrganize = useFolderOrganizePreview({ locationKey, isHomeView, goHome: () => handleViewChange("home") });
 
   // main 배경을 직접 누르고 뗐을 때만 선택 해제. 자식(사이드바 여백·폴더 헤더 등)에서 버블된 클릭이나
   // 편집기에서 드래그해 바깥에서 놓은 클릭까지 해제하면 노트 선택이 풀려 편집기가 비어 보인다.
@@ -359,8 +423,8 @@ export function HomeWorkspace() {
       <DocumentSidebar
         projects={isGraphView ? graphProjects : projectTree.projects}
         draggedItemId={projectTree.draggedItem?.itemId ?? null}
-        selectedItemId={selection.selectedTreeItemId}
-        selectedItemIds={skillRun ? new Set(skillRun.targetItemId ? [skillRun.targetItemId] : []) : projectTree.selectedItemIds}
+        selectedItemId={skillRun ? null : selection.selectedTreeItemId}
+        selectedItemIds={skillRun ? new Set(skillRun.target ? [skillRun.target.itemId] : []) : projectTree.selectedItemIds}
         isPickingTarget={skillRun !== null}
         dropTarget={projectTree.dropTarget}
         fileDropTarget={projectTree.fileDropTarget}
@@ -411,7 +475,10 @@ export function HomeWorkspace() {
         onDropFiles={upload.dropUploadFiles}
         onDragStart={projectTree.onDragStart}
         onToggleSelectItem={skillRun ? skillRunState.pickSkillTarget : projectTree.toggleSelectedItem}
+        onSelectItemRange={projectTree.selectItemRange}
         onClearSelectedItems={projectTree.clearSelectedItems}
+        onDeleteSelectedItems={projectTree.deleteSelectedItems}
+        selectedContextCount={skillRun ? 0 : projectTree.selectedContextCount}
         onDragOverItem={projectTree.onDragOverItem}
         onFileDragOver={projectTree.setFileDropTarget}
         onFileDragLeave={projectTree.onFileDragLeave}
@@ -429,14 +496,10 @@ export function HomeWorkspace() {
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
-          if (target) void upload.createMarkdownFile(target.projectId, target.folderId);
+          if (target) createNoteAndOpen(target.projectId, target.folderId);
         }}
-        onCreateNote={(projectId) => {
-          // 최상위에 새 노트를 만들고, 업로드가 끝나면 바로 편집 화면으로 연다. 실패는 트리 행이 실패 상태로 보여 준다.
-          void upload.createMarkdownFile(projectId, null).then((created) => {
-            if (created) openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
-          });
-        }}
+        onCreateNote={(projectId) => createNoteAndOpen(projectId, null)}
+        isCreatingNote={isCreatingNote}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
@@ -447,7 +510,7 @@ export function HomeWorkspace() {
         onCloseContextMenu={projectTree.closeContextMenu}
       />
 
-      {/* 좁은 화면에서 겹쳐 연 사이드바 바깥을 누르면 닫는다. 스킬 대상을 고르는 동안에는 안내의 확인 버튼을 가리지 않게 두지 않는다. */}
+      {/* 좁은 화면에서 겹쳐 연 사이드바 바깥을 누르면 닫는다. 스킬 대상을 고르는 동안에는 안내의 버튼을 가리지 않게 두지 않는다. */}
       {isCompactLayout && panels.isCompactSidebarOpen && !skillRun && (
         <button type="button" tabIndex={-1} className="compact-sidebar-backdrop" aria-label="사이드바 닫기" onClick={panels.collapseSidebar} />
       )}
@@ -469,10 +532,12 @@ export function HomeWorkspace() {
             documentId={selection.selectedDocumentId}
             sourceBlockHighlights={selection.selectedPreviewTarget?.sourceBlockHighlights ?? []}
             onMarkdownEditContextChange={setMarkdownEditContext}
+            editReview={editReview}
             onRenameDocument={projectTree.renameDocumentById}
             onRefreshDocuments={() => void refreshBackendData()}
             documentStatus={selectedDocumentStatus}
             readOnly={isSelectedDocumentReadOnly}
+            bodyLocked={isSelectedDocumentBodyLocked}
             documentConversion={selectedDocumentConversion}
             titleHint={`${selectedDocumentParentLabel} / ${selectedDocumentLabel}`}
             titleSuffix={selection.selectedDocumentId ? documentPathSuffixes.get(selection.selectedDocumentId) : undefined}
@@ -483,6 +548,11 @@ export function HomeWorkspace() {
             {isMissingDocument && <p className={styles["blank-view-message"]} role="status">문서를 찾을 수 없습니다</p>}
           </section>
         )
+      )}
+
+      {/* 폴더 정리 스킬 결과는 문서 화면 위에 미리보기 탭으로 띄운다(Figma 1656:11542). 문서 편집 결과는 채팅의 편집 미리보기를 쓴다. */}
+      {isHomeView && folderOrganize.request && (
+        <FolderOrganizePreview key={folderOrganize.request.turnId} request={folderOrganize.request} onClose={folderOrganize.close} />
       )}
 
       {/* 그래프: ?view=graph일 때 그래프 화면을 보여준다. */}
@@ -540,12 +610,27 @@ export function HomeWorkspace() {
           onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
+          openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
+          onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}
+          onIngestExportedDocument={wikiActions.canIngest === true ? ingestExportedDocument : undefined}
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
+          onOpenFolderOrganize={folderOrganize.open}
+          onReplaceFolderOrganize={folderOrganize.replaceSuperseded}
           nodes={graphData.nodes}
-          composerDraft={skillRunState.agentComposerDraft}
+          skillRun={skillRunRequest && {
+            id: skillRunRequest.id,
+            message: skillRunRequest.message,
+            documentId: skillRunRequest.sourceDocumentId,
+            folderId: skillRunRequest.folderId,
+            documentFolderId: skillRunRequest.sourceDocumentId != null && skillRunRequest.target.kind === "document"
+              ? skillRunRequest.target.parentFolderId
+              : null
+          }}
+          onSkillRunSent={(id) => setSkillRunRequest((current) => (current?.id === id ? null : current))}
           onManageSkills={() => handleViewChange("skills")}
+          skillTestRunSlotRef={isSkillSheetShown ? setSkillTestRunTarget : undefined}
           onSaveRequestAsSkill={(request) => {
             // 스킬 화면으로 옮기고, 그 요청으로 채운 새 스킬 탭(prefillRequest)을 연다.
             setSkillCreateRequest({ id: Date.now(), text: request });
@@ -553,8 +638,9 @@ export function HomeWorkspace() {
           }}
           wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
             ...chatEvidenceNotice,
-            // handleGraphIngest는 다른 위키 작업이 진행 중이면 요청을 무시하므로 그동안 버튼을 막는다.
-            isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending,
+            // handleGraphIngest는 다른 위키 작업이 진행 중이거나 편입 권한이 없으면(확인 중 포함) 요청을 무시하므로 그동안 버튼을 막는다.
+            isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending || chatIngestGate.isBlocked,
+            disabledReason: chatIngestGate.hint,
             isIngesting: wikiActionPending === "ingest" && wikiActions.ingestTargetIds.includes(chatContextDocument.id),
             onIngest: () => requestGraphIngest([chatContextDocument])
           } : null}
@@ -568,6 +654,8 @@ export function HomeWorkspace() {
             onRunSkill={skillRunState.startSkillRun}
             createRequest={skillCreateRequest}
             onCreateRequestHandled={clearSkillCreateRequest}
+            onSheetOpenChange={setIsSkillSheetOpen}
+            testRunTarget={isAgentPanelShown ? skillTestRunTarget : null}
           />
         ) : activeView === "logs" ? (
           <LogView
@@ -602,16 +690,32 @@ export function HomeWorkspace() {
 
       {activeView === "skills" && skillRun && (
         <SkillRunCoach
-          hasTarget={skillRun.targetItemId !== null}
+          hasTarget={skillRun.target !== null}
+          preview={skillRun.preview}
           errorMessage={skillRun.errorMessage}
           onCancel={skillRunState.cancelSkillRun}
           onNext={skillRunState.confirmSkillRun}
         />
       )}
 
-      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. */}
-      {(isHomeView || isGraphView) && <DocumentProcessingNotifications documents={documents} />}
+      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
+      {(isHomeView || isGraphView) && (
+        <DocumentProcessingNotifications
+          documents={documents}
+          isAboveLauncher={!isAgentPanelShown}
+          isOverlayOpen={isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
+          onIngestStarted={() => void refreshBackendData().catch(() => {})}
+          isDocumentsLoaded={documentsUpdatedAt !== 0}
+        />
+      )}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
+      {projectTree.bulkDeleteConfirm && (
+        <BulkDeleteConfirmModal
+          target={projectTree.bulkDeleteConfirm}
+          onConfirm={projectTree.confirmBulkDelete}
+          onCancel={projectTree.cancelBulkDelete}
+        />
+      )}
       {projectTree.deleteConfirm && (
         <DeleteConfirmModal
           target={projectTree.deleteConfirm}

@@ -14,7 +14,7 @@ registerHooks({
 
 const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/client.ts");
 const { ApiError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
-const { describeSkillAuthorError, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
+const { describeSkillAuthorError, describeSkillSaveError, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -134,23 +134,55 @@ test("author 응답 status로 되묻기·검토·통과를 나눈다", () => {
   assert.equal(skillAuthoringOutcome({ status: "draft", issues: undefined }), "pass");
 });
 
-test("스킬 수정 요청은 편집한 버전의 이름을 함께 보낸다(백엔드 name 필수)", () => {
-  const version = (name) => ({ id: "v", name, description: "", status: "published", version: 1, allowed_tools: [], capabilities: [], instructions_markdown: "" });
-  const draft = { description: "새 설명", instructionsMarkdown: "새 지침" };
-  assert.deepEqual(
-    skillUpdateRequest({ slug: "meeting-notes", enabled_version: version("enabled-name"), latest_version: version("latest-name") }, draft),
-    { name: "enabled-name", description: "새 설명", instructions_markdown: "새 지침" }
-  );
-  assert.equal(skillUpdateRequest({ slug: "s", enabled_version: null, latest_version: version("latest-name") }, draft).name, "latest-name");
-  assert.equal(skillUpdateRequest({ slug: "fallback-slug", enabled_version: null, latest_version: null }, draft).name, "fallback-slug");
+test("스킬 수정 요청은 상세 시트의 커맨드명을 name으로 보낸다(백엔드 name 필수, slug를 바꾼다)", () => {
+  assert.deepEqual(skillUpdateRequest({ name: "meeting-notes", description: "새 설명", instructionsMarkdown: "새 지침" }), {
+    name: "meeting-notes",
+    description: "새 설명",
+    instructions_markdown: "새 지침"
+  });
 });
 
 test("스킬 수정 요청은 초안의 targets·result_mode를 담고, 없으면 키를 빼 서버가 기존 값을 유지하게 한다", () => {
-  const skill = { slug: "s", enabled_version: null, latest_version: null };
   assert.deepEqual(
-    skillUpdateRequest(skill, { description: "d", instructionsMarkdown: "i", targets: ["selection"], result_mode: "edit" }),
+    skillUpdateRequest({ name: "s", description: "d", instructionsMarkdown: "i", targets: ["selection"], result_mode: "edit" }),
     { name: "s", description: "d", instructions_markdown: "i", targets: ["selection"], result_mode: "edit" }
   );
-  const omitted = skillUpdateRequest(skill, { description: "d", instructionsMarkdown: "i" });
-  assert.ok(!("targets" in omitted) && !("result_mode" in omitted));
+  const omitted = skillUpdateRequest({ name: "s", description: "d", instructionsMarkdown: "i" });
+  assert.ok(!("targets" in omitted) && !("result_mode" in omitted) && !("capabilities" in omitted));
+});
+
+test("스킬 수정 요청은 종류·결과 방식을 바꾼 초안의 capabilities를 담는다", () => {
+  assert.deepEqual(
+    skillUpdateRequest({ name: "s", description: "d", instructionsMarkdown: "i", capabilities: ["folder-organize"] }),
+    { name: "s", description: "d", instructions_markdown: "i", capabilities: ["folder-organize"] }
+  );
+});
+
+test("시트 입력을 고쳤는지는 처음 값과 비교해 정한다(저장 전 닫기 확인)", () => {
+  const initial = { kind: "document", targets: ["current-document"], command: "summarize", rules: "요약한다" };
+  assert.equal(isSkillFormDirty(initial, { ...initial }), false);
+  assert.equal(isSkillFormDirty(initial, { ...initial, rules: "요약한다." }), true);
+  assert.equal(isSkillFormDirty(initial, { ...initial, targets: ["current-document", "selection"] }), true);
+  // 상세 시트의 종류·결과 방식을 바꿔도 고친 것이다.
+  assert.equal(isSkillFormDirty({ ...initial, resultMode: "edit" }, { ...initial, resultMode: "auto" }), true);
+  assert.equal(isSkillFormDirty(initial, { ...initial, kind: "folder" }), true);
+});
+
+test("결과 방식 불일치(모든 표기)·허용되지 않는 종류 거절은 종류·결과 방식을 다시 고르라는 정해 둔 문구다", () => {
+  for (const code of ["invalid_result_mode", "INVALID_RESULT_MODE", "SKILL_INVALID_RESULT_MODE", "SKILL_RESULT_MODE_INVALID"]) {
+    assert.match(describeSkillSaveError(new ApiError("result_mode mismatch", 400, code), "fb"), /결과 방식이 스킬 종류와 맞지 않아/, code);
+  }
+  for (const code of ["SKILL_CAPABILITIES_INVALID", "invalid_capabilities"]) {
+    assert.match(describeSkillSaveError(new ApiError("bad capabilities", 400, code), "fb"), /이 스킬 종류로는 저장할 수 없어요/, code);
+  }
+  // 사유 없는 거절은 서버 문구 그대로다.
+  assert.equal(describeSkillSaveError(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), "fb"), "Skill 요청이 거부되었습니다.");
+});
+
+test("대상 오류(SKILL_TARGETS_INVALID)는 결과 방식 문제가 아니며 서버의 대상 안내를 보여 준다", () => {
+  const error = new ApiError("선택한 부분은 이 스킬의 대상이 될 수 없습니다.", 400, "SKILL_TARGETS_INVALID");
+  assert.equal(describeSkillSaveError(error, "스킬 정의를 수정하지 못했습니다."), "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
+  assert.match(describeSkillSaveError(new ApiError("스킬 정의를 수정하지 못했습니다.", 400, "SKILL_TARGETS_INVALID"), "스킬 정의를 수정하지 못했습니다."), /실행 대상/);
+  assert.equal(describeSkillAuthorError(error).description, "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
+  assert.equal(describeSkillSaveError(new ApiError("기타", 400, "X"), "fb"), "기타");
 });

@@ -7,6 +7,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const { buildWikiWorkSections, formatWorkStartTime } = await import("../src/features/wiki-ingest/model/wikiWorkList.ts");
+const { buildDocumentFolderPaths } = await import("../src/entities/tree/lib/treeQueries.ts");
 
 function makeDocument(overrides) {
   return {
@@ -109,5 +110,27 @@ test("진행 중인 롤백은 롤백 구역에 대상 이름과 시작 시각으
       title: "롤백",
       rows: [{ key: "restore-op_restore", label: "회의록.md", startTime: localHHMM("2026-08-17T03:04:00Z") }]
     }
+  ]);
+});
+
+test("같은 이름 문서는 상위 폴더 경로로 구분하고 최상위 문서에는 경로를 붙이지 않는다", () => {
+  const tree = [
+    { id: "f1", label: "연구", type: "folder", children: [
+      { id: "f2", label: "2026", type: "folder", children: [
+        { id: "document-file-a", label: "회의.md", type: "file", documentId: "a" }
+      ] }
+    ] },
+    { id: "document-file-b", label: "회의.md", type: "file", documentId: "b" }
+  ];
+  const folderPaths = buildDocumentFolderPaths(tree);
+  assert.deepEqual([...folderPaths], [["a", "연구 / 2026"]]);
+
+  const sections = buildWikiWorkSections([
+    makeDocument({ id: "a", filename: "회의.md", status: "processing", processing_started_at: "2026-08-17T02:00:00Z" }),
+    makeDocument({ id: "b", filename: "회의.md", status: "processing", processing_started_at: "2026-08-17T01:00:00Z" })
+  ], null, [], folderPaths);
+  assert.deepEqual(sections[0].rows.map((row) => [row.label, row.folderPath]), [
+    ["회의.md", "연구 / 2026"],
+    ["회의.md", undefined]
   ]);
 });

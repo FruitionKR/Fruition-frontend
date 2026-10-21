@@ -4,7 +4,7 @@ import type { OperationType } from "./operationLog";
 export const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
   document_edit: "AI 편집 반영",
   ingest: "위키 편입",
-  lint: "Lint",
+  lint: "위키 최신화",
   restore: "롤백",
   wiki_edit: "위키 직접 편집"
 };

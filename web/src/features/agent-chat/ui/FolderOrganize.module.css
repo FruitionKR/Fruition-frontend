@@ -1,0 +1,392 @@
+/* 폴더 정리 미리보기 (Figma 1656:11542). 문서 화면 위를 덮어 사이드바와 채팅 패널 사이를 채운다. */
+.preview {
+  /* Figma #fff3e0 · #d1e3fc. 다크 모드에서도 따라가도록 의미 토큰을 섞어 만든다. */
+  --organize-warning-weak: color-mix(in srgb, var(--color-status-warning) 12%, var(--color-canvas));
+  --organize-notice-border: color-mix(in srgb, var(--color-primary) 22%, var(--color-canvas));
+
+  position: absolute;
+  inset: 0 var(--agent-panel-width, 360px) 0 var(--sidebar-width, 320px);
+  z-index: 8;
+  overflow-y: auto;
+  color: var(--color-foreground);
+  background: var(--color-canvas);
+  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+.preview p {
+  margin: 0;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 56px 40px 24px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-foreground);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.64px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 말풍선 꼬리: 10px 칸에서 왼쪽을 가리킨다. */
+.badge-arrow {
+  display: flex;
+  width: 10px;
+  height: 10px;
+  align-items: flex-end;
+  justify-content: center;
+  transform: rotate(-90deg);
+}
+
+.badge-label {
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--color-danger);
+  background: var(--organize-warning-weak);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  white-space: nowrap;
+}
+
+.description {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.command {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-primary);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.32px;
+  white-space: nowrap;
+}
+
+.divider {
+  flex: none;
+}
+
+.rule {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-body);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* AI가 대상 폴더 밖 작업을 뺐다는 안내. 설명 줄은 한 줄로 잘리므로 따로 줄바꿈해 끝까지 보인다 */
+.scope-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 12px 40px 24px;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 180px) 16px minmax(0, 360px) 80px;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-body);
+  background: var(--color-canvas);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.14px;
+}
+
+.row.is-head {
+  color: var(--color-muted);
+}
+
+/* 중복 의심 줄 (Figma 1656:12387): 옅은 빨강 바탕. Figma rgba(255,238,238,0.4)를 의미 토큰으로 섞는다. */
+.row.is-duplicate {
+  background: color-mix(in srgb, var(--color-danger) 5%, var(--color-canvas));
+}
+
+/* 부분 승인에서 제외된 줄 */
+.row.is-excluded {
+  color: var(--color-muted);
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  display: flex;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--duration-fast, 150ms) ease-out;
+}
+
+.check:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.check:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.sort:hover {
+  color: var(--color-body);
+}
+
+/* 원본 에셋은 왼쪽 화살표라 뒤집어 →로 보인다. */
+.arrow {
+  display: flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(180deg);
+}
+
+.destination {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.path {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.folder {
+  flex: none;
+  color: var(--color-primary);
+}
+
+.new-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-body);
+  text-overflow: ellipsis;
+}
+
+.reason {
+  overflow: hidden;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 중복 의심 사유 (Figma 1656:12400, #f04452) */
+.reason.is-warning {
+  color: var(--color-danger);
+}
+
+.reason-note {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change {
+  display: flex;
+}
+
+.chip {
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.notice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 15px;
+  padding: 14px 20px;
+  border: 1.2px solid var(--organize-notice-border);
+  border-radius: 6px;
+  background: var(--color-primary-weak);
+}
+
+.notice-tail {
+  position: absolute;
+  top: -15px;
+  left: 23px;
+}
+
+.notice-text {
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.notice-hint {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.notice-error {
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-on-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  transition: filter var(--duration-fast, 150ms) ease-out, transform var(--duration-fast, 150ms) ease-out;
+}
+
+.action.is-cancel {
+  background: var(--color-danger);
+}
+
+.action.is-primary {
+  background: var(--color-primary);
+}
+
+.action:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.action:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.check:focus-visible,
+.sort:focus-visible,
+.action:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 좁은 화면: 열 너비를 줄이고 화살표 열을 숨긴다. */
+@media (max-width: 960px) {
+  .hero {
+    padding: 32px 16px 16px;
+  }
+
+  .body {
+    padding: 8px 16px 24px;
+  }
+
+  .description {
+    flex-wrap: wrap;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  }
+
+  .row .arrow {
+    display: none;
+  }
+}

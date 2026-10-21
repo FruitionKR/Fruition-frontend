@@ -3,17 +3,15 @@
 import { ChevronRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { clearSessionCache } from "@/entities/chat";
 import {
   AccountDeletionBlockedError,
   accountDeletionErrorMessage,
   buildAccountDeletionBody,
   deleteAccount,
-  fetchMfaStatus,
   getOAuthAuthorizationUrl,
   isReauthenticationRequired,
-  MFA_QUERY_KEY,
   oauthProviderName,
   type OAuthProvider,
   type SoleOwnerWorkspace,
@@ -22,6 +20,7 @@ import {
 import { clearAuth, clearFruitionStorage, setAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
 import { saveSettingsResume } from "../../lib/settingsResume";
+import { useMfaRequirement } from "../../model/useMfaRequirement";
 import styles from "./AccountFlowModal.module.css";
 import { AccountFlowModal } from "./AccountFlowModal";
 
@@ -46,7 +45,7 @@ export function AccountDeleteModal({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: mfaStatus } = useQuery({ queryKey: MFA_QUERY_KEY, queryFn: fetchMfaStatus, retry: false });
+  const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [step, setStep] = useState<Step>(initialStep);
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
@@ -55,7 +54,6 @@ export function AccountDeleteModal({
   const [needsReauth, setNeedsReauth] = useState(false);
   const [blockedWorkspaces, setBlockedWorkspaces] = useState<SoleOwnerWorkspace[] | null>(null);
   const linkedProviders = (me.oauth_providers ?? []) as OAuthProvider[];
-  const isMfaEnabled = mfaStatus?.enabled === true;
 
   async function submitDeletion() {
     setBusy(true);
@@ -72,6 +70,11 @@ export function AccountDeleteModal({
     } catch (cause: unknown) {
       if (cause instanceof AccountDeletionBlockedError) setBlockedWorkspaces(cause.workspaces);
       setNeedsReauth(isReauthenticationRequired(cause));
+      // MFA 상태를 못 읽었거나 낡아 코드 칸이 숨어 있었어도, 서버가 코드를 요구하면 칸을 보이고 다시 받는다.
+      if ((cause as { code?: unknown } | null)?.code === "INVALID_MFA_CODE") {
+        setMfaCode("");
+        requireMfa();
+      }
       setError(accountDeletionErrorMessage(cause, "회원 탈퇴에 실패했습니다."));
       setBusy(false);
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fetchAiModels,
   fetchWorkspaceAiModelSettings,
@@ -12,6 +12,7 @@ import {
 import { UserAvatar, useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useSelectedWorkspace";
 import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import Image, { type StaticImageData } from "next/image";
@@ -105,9 +106,21 @@ export function SettingsNav({
   const { signOut } = useSignOut();
   const { data: me } = useMe();
   const name = me?.display_name || "사용자";
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // 뒤로 가기·본문 안 이동처럼 메뉴를 누르지 않고 섹션이 바뀌면, 전에 누른 메뉴에 포커스가 남는다.
+  // 그 상태로 키보드로 스크롤하면 그 메뉴가 :focus-visible 배경을 받아 활성 메뉴와 함께 강조돼 보이므로
+  // 포커스를 활성 메뉴로 옮겨 강조되는 메뉴를 하나로 맞춘다.
+  useEffect(() => {
+    const nav = navRef.current;
+    const focused = document.activeElement;
+    if (!nav || !(focused instanceof HTMLElement) || !nav.contains(focused)) return;
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    if (active && active !== focused) active.focus({ preventScroll: true });
+  }, [activeSection]);
 
   return (
-    <nav className={styles.nav} aria-label="설정 메뉴">
+    <nav ref={navRef} className={styles.nav} aria-label="설정 메뉴">
       <div className={styles["nav-group"]}>
         <p className={styles["nav-label"]}>계정</p>
         {/* 사용자 설정: 프로필 사진(없으면 이니셜)을 아이콘 자리에 보여 준다 */}
@@ -160,7 +173,7 @@ export function SettingsNav({
 
 /**
  * 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다.
- * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계를 다시 연다(account-delete).
+ * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계(account-delete)나 이메일 변경 창(email-change)을 다시 연다.
  */
 export function SettingsContent({
   section,
@@ -181,6 +194,7 @@ export function SettingsContent({
       return;
     }
     setSelectedWorkspaceId(workspaceId);
+    clearWorkspaceGone(workspaceId);
     saveSettingsResume("members");
     window.location.reload();
   }
@@ -238,7 +252,7 @@ export function SettingsContent({
   return (
     <section className={styles.view} aria-label="설정">
       <div className={styles.content}>
-        {section === "profile" && <ProfilePanel />}
+        {section === "profile" && <ProfilePanel resumeEmailChange={resume === "email-change"} />}
         {section === "account" && (
           <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
         )}

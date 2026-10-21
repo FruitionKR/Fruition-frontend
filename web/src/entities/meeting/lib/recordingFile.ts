@@ -20,7 +20,7 @@ export const MEETING_RECORDING_ACCEPT = "audio/wav,audio/x-wav,audio/mpeg,audio/
 export const MEETING_RECORDING_FILE_MESSAGES = {
   unsupported: "WAV, MP3, M4A, WebM 녹음 파일만 올릴 수 있습니다.",
   empty: "녹음 파일이 비어 있습니다.",
-  tooLarge: "녹음 파일은 500 MiB 이하로 올려 주세요."
+  tooLarge: "녹음 파일은 500MB 이하로 올려 주세요."
 } as const;
 
 export type RecordingFileCheck = { ok: true; contentType: string } | { ok: false; message: string };

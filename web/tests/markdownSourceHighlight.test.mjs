@@ -27,7 +27,9 @@ const aliases = {
   "@/shared/lib/markdown/markdownSourceBlocks": sourceBlocks,
   "@/shared/lib/markdown/remarkCustomTokens": customTokens,
   "@/shared/lib/markdown/externalResources": externalResources,
-  "@/shared/ui/markdown/ManagedImage": { ManagedImage: (props) => React.createElement("img", props) }
+  "@/shared/ui/markdown/ManagedImage": { ManagedImage: (props) => React.createElement("img", props) },
+  // 코드 블록 툴바·줄 번호는 이 트리 검사와 무관해 원래 pre만 남긴다
+  "@/shared/ui/markdown/MarkdownCodeBlock": { MarkdownCodeBlock: ({ children }) => React.createElement("pre", null, children) }
 };
 runInNewContext(output, { exports, require: (id) => aliases[id] ?? require(id) });
 const { MarkdownViewer } = exports;

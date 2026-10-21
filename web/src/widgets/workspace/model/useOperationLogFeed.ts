@@ -18,7 +18,7 @@ const PAGE_SIZE = 30;
 const LOG_POLL_INTERVAL_MS = 5_000;
 
 /**
- * 로그 뷰의 작업 목록. 유형 조건 없이 최신순 한 페이지를 받고 가장 최근 작업을 자동으로 고른다.
+ * 로그 뷰의 작업 목록. 유형 조건 없이 최신순 한 페이지를 받는다. 작업은 사용자가 고를 때만 선택한다.
  * 항목 선택은 목록을 다시 받지 않으며, 더 보기만 커서로 다음 페이지를 이어붙인다.
  */
 export function useOperationLogFeed(isActive: boolean) {
@@ -78,6 +78,8 @@ export function useOperationLogFeed(isActive: boolean) {
       // 화면을 떠난 뒤 도착한 목록 응답이 현재 상태를 덮지 못하게 한다.
       requestIdRef.current += 1;
       silentPollInFlightRef.current = false;
+      // 다음에 로그 화면에 들어올 때 이전 선택이 남아 있지 않게 한다. 알림에서 여는 작업은 화면 전환 직전에 다시 고른다.
+      setChosenOperationId(null);
       setIsLoading(false);
       setIsLoadingMore(false);
       return;
@@ -107,7 +109,7 @@ export function useOperationLogFeed(isActive: boolean) {
     return () => window.clearInterval(intervalId);
   }, [isActive, isPageVisible, refresh]);
 
-  const selectOperation = useCallback((operationId: string) => {
+  const selectOperation = useCallback((operationId: string | null) => {
     setChosenOperationId(operationId);
   }, []);
 

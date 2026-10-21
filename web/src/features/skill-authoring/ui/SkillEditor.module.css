@@ -1,126 +1,4 @@
-/* 스킬 편집 탭 (디자인 '② 새 스킬 탭'). 입력 조각 치수는 Figma 1671:14199 스킬 만들기를 따른다.
-   본문 열 + 오른쪽 '테스트 실행' 열. 탭 폭이 좁으면(컨테이너 880px 미만) 테스트 열이 아래로 내려간다. */
-.editor {
-  container-type: inline-size;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 32px;
-  max-width: 1120px;
-  padding: 32px 40px 56px;
-}
-
-@container (min-width: 880px) {
-  .columns:not(.is-single) {
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 40px;
-  }
-
-  .aside {
-    position: sticky;
-    top: 32px;
-    align-self: start;
-  }
-}
-
-.main {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  min-width: 0;
-}
-
-.aside {
-  min-width: 0;
-}
-
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 경로 "스킬 ›": 누르면 스킬 목록 탭으로 돌아간다 */
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-muted);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.breadcrumb-link {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: color 150ms ease-out;
-}
-
-.breadcrumb-link:hover {
-  color: var(--color-foreground);
-}
-
-.breadcrumb-link:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.breadcrumb-sep {
-  font-size: 16px;
-}
-
-.title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px 24px;
-}
-
-.heading {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.title {
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: var(--color-foreground);
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: -0.64px;
-}
-
-.sub {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: -0.32px;
-}
-
-/* 오른쪽 위 버튼: 취소 텍스트 + 저장 primary */
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-top: 8px;
-}
+/* 스킬 만들기·상세 시트의 입력 조각. 치수는 Figma 1671:14199 스킬 만들기를 따른다. 시트 틀은 SkillSheet.module.css. */
 
 /* Agent 요청으로 채웠다는 안내 띠 */
 .banner {
@@ -143,175 +21,6 @@
   width: 14px;
   height: 14px;
   margin-top: 3px;
-}
-
-/* 스킬 종류 카드 두 장: 고르면 테두리·바탕이 primary로 바뀐다 */
-.kind-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.kind-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
-  border: 1.2px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-canvas);
-  cursor: pointer;
-  transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
-}
-
-.kind-card input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-
-.kind-card:hover {
-  border-color: var(--color-subtle);
-}
-
-.kind-card:has(input:checked) {
-  border-color: var(--color-primary);
-  background: var(--color-primary-weak);
-  box-shadow: 0 0 0 1px var(--color-primary) inset;
-}
-
-.kind-card:has(input:focus-visible) {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.kind-card-title {
-  color: var(--color-foreground);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: -0.32px;
-}
-
-.kind-card-desc {
-  color: var(--color-body);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  letter-spacing: -0.13px;
-}
-
-.kind-cards.is-disabled .kind-card {
-  cursor: default;
-}
-
-.kind-cards.is-disabled .kind-card:not(:has(input:checked)) {
-  opacity: 0.5;
-}
-
-.kind-cards.is-disabled .kind-card:hover:not(:has(input:checked)) {
-  border-color: var(--color-border);
-}
-
-/* 문서 카드 아래 회색 하위 패널: 결과 방식 + 대상 */
-.sub-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 18px 20px;
-  border-radius: 12px;
-  background: var(--color-surface);
-}
-
-/* 세그먼트 선택 (결과 방식·저장범위) */
-.segmented {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  width: fit-content;
-  max-width: 100%;
-  padding: 3px;
-  border-radius: 10px;
-  background: var(--color-surface-strong);
-}
-
-.sub-panel .segmented {
-  background: var(--color-canvas);
-  box-shadow: 0 0 0 1px var(--color-border) inset;
-}
-
-.segment {
-  position: relative;
-  display: inline-flex;
-}
-
-.segment input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.segment span {
-  padding: 6px 14px;
-  border-radius: 8px;
-  color: var(--color-muted);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: -0.14px;
-  white-space: nowrap;
-  transition: color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
-}
-
-.segment:hover span {
-  color: var(--color-body);
-}
-
-.segment:has(input:checked) span {
-  background: var(--color-canvas);
-  color: var(--color-foreground);
-  box-shadow: 0 1px 3px var(--color-shadow);
-}
-
-.sub-panel .segment:has(input:checked) span {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  box-shadow: none;
-}
-
-.segment:has(input:focus-visible) span {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
-}
-
-.segmented.is-disabled .segment input {
-  cursor: default;
-}
-
-.segmented.is-disabled .segment:not(:has(input:checked)) span {
-  opacity: 0.5;
-}
-
-.segmented.is-disabled .segment:hover:not(:has(input:checked)) span {
-  color: var(--color-muted);
-}
-
-/* 커맨드 + 저장범위 나란히 (좁으면 세로) */
-.field-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
-}
-
-@container (min-width: 560px) {
-  .field-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
 }
 
 /* 필드 목록 (Figma 1671:14736): 간격 24, 필드 안 라벨↔입력 12 */
@@ -373,67 +82,7 @@
   height: 16px;
 }
 
-/* 선택 상자 (Figma btn 1671:14745): 테두리 1.2, radius 8, 안쪽 8·12, 화살표 16 */
-.select-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.select {
-  width: 100%;
-  padding: 8px 40px 8px 12px;
-  border: 1.2px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-canvas);
-  color: var(--color-body);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  appearance: none;
-  cursor: pointer;
-  transition: border-color 150ms ease-out;
-}
-
-.select:hover:not(:disabled) {
-  border-color: var(--color-subtle);
-}
-
-.select:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.select:disabled {
-  background: var(--color-surface);
-  color: var(--color-muted);
-  cursor: default;
-}
-
-/* 테스트 실행 카드의 선택 상자 (Figma 1671:14817): 테두리 1, 안쪽 8·8·8·10, 글자 12 Medium */
-.select-compact {
-  padding: 8px 32px 8px 10px;
-  border-width: 1px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.24px;
-}
-
-.select-compact ~ .select-arrow {
-  right: 12px;
-}
-
-.select-arrow {
-  position: absolute;
-  top: 50%;
-  right: 16px;
-  width: 9px;
-  height: 4.5px;
-  color: var(--color-muted);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
+/* 선택 상자 + 아래 도움말 */
 .menu {
   display: flex;
   flex-direction: column;
@@ -447,6 +96,44 @@
   font-weight: 500;
   line-height: 1.4;
   letter-spacing: -0.24px;
+}
+
+/* 결과 방식 알림: AI 초안이 결과 방식을 바꿨거나(만들기), 저장 뒤 결과 방식을 다시 골라야 할 때(상세). 배너와 같은 옅은 바탕. */
+.result-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--color-primary-weak);
+  color: var(--color-primary-weak-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.result-note-undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.result-note-undo:hover {
+  filter: brightness(0.9);
+}
+
+.result-note-undo:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 /* 대상 체크 (Figma 1671:14763): 행 간격 12, 상자↔글자 12 */

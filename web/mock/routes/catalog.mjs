@@ -20,6 +20,13 @@ const SKILL_REJECT_RULES = [
   { pattern: /#AI장애/, status: 503, code: "SKILL_AI_UNAVAILABLE", message: "AI 서버를 사용할 수 없습니다." }
 ];
 
+/** 초안 capability. 지침 표식으로 AI 분류를 재현한다: #새문서 → document-create, #고치기 → document-edit. */
+function draftCapabilities(instruction) {
+  if (/#새문서/.test(instruction)) return ["document-create"];
+  if (/#고치기/.test(instruction)) return ["document-edit"];
+  return ["summarize"];
+}
+
 // ai#122: 문서 Skill(document-create·document-edit)만 targets·result_mode를 가진다.
 const DOCUMENT_CAPABILITIES = new Set(["document-create", "document-edit"]);
 const TARGET_ORDER = ["current_document", "selection"];
@@ -32,9 +39,70 @@ const CAPABILITY_TOOLS = {
   template: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"]
 };
 const usedTestRunIds = new Set();
+const SOURCE_KEYWORD_PATTERN = /요약|정리|비교/;
+
+/**
+ * requires_source(원문 문서 필요 여부) AI 분류 재현: 템플릿·폴더 정리 → false, 지침에 {문서} → true,
+ * 요약·정리·비교 같은 원문이 필요한 말이 있으면 true, 그 밖은 false.
+ */
+export function classifyRequiresSource(capabilities, instructions) {
+  if (!isDocumentSkill(capabilities ?? [])) return false;
+  const text = instructions ?? "";
+  return text.includes("{문서}") || SOURCE_KEYWORD_PATTERN.test(text);
+}
+
+/** 새 문서를 만드는 문서 Skill인지(document-create가 있고 결과 방식이 edit가 아님). 아니면 requires_source는 늘 false다. */
+function createsDocument(capabilities, resultMode) {
+  return (capabilities ?? []).includes("document-create") && resultMode !== "edit";
+}
+
+/**
+ * 게시에서 requires_source를 생략했을 때(ai skills.md): 게시는 의도를 다시 분류하지 않아
+ * 새 문서를 만드는 문서 Skill의 지침에 {문서}가 있을 때만 true, 그 밖(템플릿 포함)은 false다.
+ */
+export function publishRuleRequiresSource(capabilities, resultMode, instructions) {
+  if ((capabilities ?? []).includes("template") || !createsDocument(capabilities, resultMode)) return false;
+  return (instructions ?? "").includes("{문서}");
+}
+
+/**
+ * 이 필드가 생기기 전 버전(seed 등, 저장값 없음)은 조회할 때 계산한다(ai skills.md 예전 Skill 규칙):
+ * template이 있으면 false, document-create가 있고 결과 방식이 edit가 아니면 true, 그 밖은 false.
+ */
+export function legacyRequiresSource(version) {
+  if ((version?.capabilities ?? []).includes("template")) return false;
+  return createsDocument(version?.capabilities, version?.result_mode ?? null);
+}
+
+function withRequiresSource(version) {
+  if (!version || typeof version.requires_source === "boolean") return version;
+  return { ...version, requires_source: legacyRequiresSource(version) };
+}
+
+/** 요청의 requires_source: 사용자가 고른 값(boolean). 생략·null이면 undefined다(형식은 라우트가 먼저 검사한다). */
+function requestedRequiresSource(body) {
+  return typeof body.requires_source === "boolean" ? body.requires_source : undefined;
+}
 
 function isDocumentSkill(capabilities) {
   return capabilities.some((capability) => DOCUMENT_CAPABILITIES.has(capability));
+}
+
+/** 게시와 같은 capabilities 검증: 알려진 값만, 1개 이상, 중복 없음. */
+function validCapabilities(capabilities) {
+  return Array.isArray(capabilities) && capabilities.length > 0
+    && new Set(capabilities).size === capabilities.length
+    && capabilities.every((capability) => Object.hasOwn(CAPABILITY_TOOLS, capability));
+}
+
+/** 문서 Skill capabilities에서 정해지는 결과 방식. 문서 Skill이 아니면 null이다. */
+function resultModeFromCapabilities(capabilities) {
+  const creates = capabilities.includes("document-create");
+  const edits = capabilities.includes("document-edit");
+  if (creates && edits) return "auto";
+  if (creates) return "create";
+  if (edits) return "edit";
+  return null;
 }
 
 function canonicalTools(capabilities) {
@@ -51,16 +119,15 @@ function executionOptions(ctx, capabilities, body, fallback) {
     return error(ctx, 400, "targets must not contain duplicates.", "SKILL_INSTRUCTION_INVALID");
   }
   if (!isDocumentSkill(capabilities)) {
-    if ((targets ?? []).length > 0) return error(ctx, 400, "targets require a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
-    if (result_mode != null) return error(ctx, 400, "result_mode requires a document Skill capability.", "SKILL_INSTRUCTION_INVALID");
+    // document는 AI의 invalid_targets·invalid_result_mode를 SKILL_TARGETS_INVALID·SKILL_RESULT_MODE_INVALID(400)로 옮긴다.
+    if ((targets ?? []).length > 0) return error(ctx, 400, "이 스킬은 문서 대상을 고를 수 없습니다. 대상을 비워 주세요.", "SKILL_TARGETS_INVALID");
+    if (result_mode != null) return error(ctx, 400, "결과 방식이 실행 규칙과 맞지 않습니다.", "SKILL_RESULT_MODE_INVALID");
     return { targets: [], result_mode: null };
   }
   const matches = (value) => value == null || (RESULT_MODE_CAPABILITIES[value] ?? ["?"]).every((capability) => capabilities.includes(capability));
-  if (result_mode !== undefined && !matches(result_mode)) {
-    return error(ctx, 400, `result_mode ${result_mode} does not match capabilities.`, "SKILL_INSTRUCTION_INVALID");
-  }
-  // 생략해 이어받은 값이 capabilities와 맞지 않으면 거절하지 않고 버린다(ai#122).
-  const mode = result_mode !== undefined ? result_mode : matches(fallback.result_mode) ? fallback.result_mode : null;
+  // 보낸 값이든 생략해 이어받은 값이든 다시 분류한 capabilities와 맞지 않으면 거절한다(지금 AI는 null로 버리지 않는다).
+  const mode = result_mode !== undefined ? result_mode : fallback.result_mode;
+  if (!matches(mode)) return error(ctx, 400, "결과 방식이 실행 규칙과 맞지 않습니다.", "SKILL_RESULT_MODE_INVALID");
   const chosen = targets === undefined ? fallback.targets : targets;
   const ordered = TARGET_ORDER.filter((target) => chosen.includes(target));
   return { targets: ordered.length > 0 ? ordered : ["current_document"], result_mode: mode ?? null };
@@ -133,7 +200,8 @@ function toAuthoringResult(skill, version, issues = []) {
     skill_id: skill.id, version_id: version.id, name: version.name, description: version.description,
     instructions_markdown: version.instructions_markdown, skill_markdown: buildSkillMarkdown(version.name, version.description, version.instructions_markdown),
     scope_type: skill.scope_type, status: version.status, allowed_tools: version.allowed_tools, capabilities: version.capabilities,
-    targets: version.targets ?? [], result_mode: version.result_mode ?? null, issues, question: null
+    targets: version.targets ?? [], result_mode: version.result_mode ?? null,
+    requires_source: withRequiresSource(version).requires_source ?? null, issues, question: null
   };
 }
 
@@ -231,7 +299,9 @@ export function registerCatalogRoutes(router) {
   router.get("/api/workspaces/:wid/skills", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    ctx.json(200, state.skills.filter((skill) => skill.workspace_id === workspace.id));
+    ctx.json(200, state.skills
+      .filter((skill) => skill.workspace_id === workspace.id)
+      .map((skill) => ({ ...skill, enabled_version: withRequiresSource(skill.enabled_version), latest_version: withRequiresSource(skill.latest_version) })));
   });
 
   router.post("/api/workspaces/:wid/skills/author", async (ctx) => {
@@ -242,7 +312,9 @@ export function registerCatalogRoutes(router) {
     const reject = SKILL_REJECT_RULES.find((rule) => rule.pattern.test(instruction));
     if (reject) return error(ctx, reject.status, reject.message, reject.code);
     const skillName = (name ?? slugify(instruction.slice(0, 20))).trim();
-    const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities: ["summarize"], instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n` };
+    const capabilities = draftCapabilities(instruction);
+    // 초안의 requires_source는 의도 분류(LLM) 판단이다. 게시는 다시 분류하지 않아 클라이언트가 이 값을 게시에 실어야 유지된다.
+    const version = { id: id("sv"), name: skillName, description: description || instruction.slice(0, 60), status: "draft", version: 1, allowed_tools: ["read_document"], capabilities, instructions_markdown: `# ${skillName}\n\n${instruction.trim()}\n\n## 절차\n\n1. 대상 문서를 읽는다.\n2. 지시에 맞게 결과를 작성한다.\n`, requires_source: classifyRequiresSource(capabilities, instruction) };
     ctx.json(200, toAuthoringResult({ id: id("skill"), scope_type: scope_type ?? "personal" }, version, detectSkillIssues(instruction)));
   });
 
@@ -257,10 +329,15 @@ export function registerCatalogRoutes(router) {
     const slug = slugify(name);
     if (state.skills.some((skill) => skill.workspace_id === workspace.id && skill.slug === slug)) return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
     // 게시에서 targets를 생략하거나 []이면 ["current_document"], result_mode를 생략하면 null이다.
+    if (body.requires_source != null && typeof body.requires_source !== "boolean") return error(ctx, 400, "requires_source는 true·false여야 합니다.", "INVALID_REQUEST");
     const options = executionOptions(ctx, capabilities, body, { targets: [], result_mode: null });
     if (!options) return;
     const tools = Array.isArray(allowed_tools) && allowed_tools.length > 0 ? allowed_tools : canonicalTools(capabilities);
-    const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: tools, capabilities, instructions_markdown: instructions_markdown ?? "", ...options };
+    // 보낸 값(초안 판단·사용자 선택)을 쓴다. 생략하면 다시 분류하지 않고 {문서} 규칙만 적용한다. 새 문서를 만들지 않는 Skill은 늘 false다.
+    const requiresSource = createsDocument(capabilities, options.result_mode)
+      ? requestedRequiresSource(body) ?? publishRuleRequiresSource(capabilities, options.result_mode, instructions_markdown)
+      : false;
+    const version = { id: id("sv"), name: slug, description: description ?? "", status: "published", version: 1, allowed_tools: tools, capabilities, instructions_markdown: instructions_markdown ?? "", ...options, requires_source: requiresSource };
     const skill = { id: id("skill"), workspace_id: workspace.id, owner_user_id: ctx.user.id, slug, scope_type: scope_type ?? "personal", status: "enabled", enabled_version: version, latest_version: version };
     state.skills.push(skill);
     ctx.json(201, toAuthoringResult(skill, version));
@@ -312,12 +389,39 @@ export function registerCatalogRoutes(router) {
     if (!["name", "description", "instructions_markdown"].every((key) => typeof body[key] === "string" && body[key].trim())) {
       return error(ctx, 400, "요청 값이 올바르지 않습니다.");
     }
+    // 실제 백엔드처럼 name으로 커맨드(slug)를 바꾸고, 다른 스킬과 겹치면 409로 막는다.
+    if (state.skills.some((item) => item.workspace_id === workspace.id && item.id !== skill.id && item.slug === body.name)) {
+      return error(ctx, 409, "같은 이름의 스킬이 이미 있습니다.");
+    }
     const base = skill.latest_version ?? skill.enabled_version;
+    const baseCapabilities = base?.capabilities ?? [];
+    // capabilities를 보내면 게시와 같은 규칙으로 검증해 쓰고 allowed_tools를 다시 계산한다. 생략하면 이전 값을 이어받는다(재분류 없음).
+    const sentCapabilities = body.capabilities !== undefined;
+    if (sentCapabilities && !validCapabilities(body.capabilities)) {
+      return error(ctx, 400, "허용되지 않는 스킬 종류입니다.", "SKILL_CAPABILITIES_INVALID");
+    }
+    const capabilities = sentCapabilities ? body.capabilities : baseCapabilities;
     // 생략한 값은 이어받는다. 필드가 생기기 전 문서 Skill(targets 없음)은 두 대상 모두로 읽는다.
-    const inherited = { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
-    const options = executionOptions(ctx, base?.capabilities ?? [], body, inherited);
+    // capabilities를 보냈으면: 이전에도 문서 Skill이면 대상을 이어받고, 새로 문서 Skill이 되면 기본 대상이다.
+    // result_mode는 capabilities에서 정해지는 값(edit/create/auto)이다.
+    const inherited = sentCapabilities
+      ? {
+        targets: isDocumentSkill(baseCapabilities) && base?.targets?.length ? base.targets : ["current_document"],
+        result_mode: resultModeFromCapabilities(capabilities)
+      }
+      : { targets: base?.targets?.length ? base.targets : TARGET_ORDER, result_mode: base?.result_mode ?? null };
+    if (body.requires_source != null && typeof body.requires_source !== "boolean") return error(ctx, 400, "requires_source는 true·false여야 합니다.", "INVALID_REQUEST");
+    const options = executionOptions(ctx, capabilities, body, inherited);
     if (!options) return;
-    const version = { ...base, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options };
+    // 보낸 값이 있으면 그 값을 쓴다. 생략하면 지침이 바뀌었을 때만 AI가 다시 정하고, 아니면 기존 값을 이어받는다.
+    // 새 문서를 만들지 않는 Skill(고치기 전용·폴더 정리·템플릿)이 되면 false다.
+    const inheritedSource = withRequiresSource(base)?.requires_source ?? false;
+    const requiresSource = !createsDocument(capabilities, options.result_mode) ? false
+      : requestedRequiresSource(body)
+        ?? (body.instructions_markdown !== base?.instructions_markdown ? classifyRequiresSource(capabilities, body.instructions_markdown) : inheritedSource);
+    const tools = sentCapabilities ? canonicalTools(capabilities) : base?.allowed_tools ?? canonicalTools(capabilities);
+    const version = { ...base, capabilities, allowed_tools: tools, id: id("sv"), version: (base?.version ?? 0) + 1, name: body.name, description: body.description, instructions_markdown: body.instructions_markdown, ...options, requires_source: requiresSource };
+    skill.slug = body.name;
     skill.latest_version = version;
     if (skill.enabled_version) skill.enabled_version = version;
     ctx.json(200, toAuthoringResult(skill, version));

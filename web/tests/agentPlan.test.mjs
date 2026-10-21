@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanClarificationMessage, agentPlanStatusLabel, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -24,6 +24,22 @@ test("채팅 기록의 turn ID에서 실제 승인 대상 run을 조회한다", 
   assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/turn/turn-1", "/api/workspaces/ws_test/agent/runs/autonomous-1"]);
 });
 
+test("이미 받은 run이 있으면 다음 폴링은 turn을 다시 묻지 않고 run만 조회한다", async (t) => {
+  const paths = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    paths.push(path);
+    return Response.json({ id: "autonomous-1", status: "awaiting_approval", plan });
+  });
+  const previous = { id: "autonomous-1", status: "awaiting_approval", error_code: null, plan };
+  assert.equal(knownPlanRunId(previous, "turn-1"), "autonomous-1");
+  assert.equal((await fetchAgentPlanRun("ws_test", "turn-1", undefined, knownPlanRunId(previous, "turn-1"))).status, "awaiting_approval");
+  assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/runs/autonomous-1"]);
+  // 아직 못 받았거나 turn 취소 상태만 담은 결과(id가 turn ID)는 turn부터 다시 묻는다.
+  assert.equal(knownPlanRunId(undefined, "turn-1"), null);
+  assert.equal(knownPlanRunId(null, "turn-1"), null);
+  assert.equal(knownPlanRunId({ id: "turn-1", status: "cancel_requested", error_code: null, plan: null }, "turn-1"), null);
+});
+
 test("승인은 화면에서 검토한 버전·해시를 전송하고 충돌을 성공으로 처리하지 않는다", async (t) => {
   t.mock.method(globalThis, "fetch", async (path, init) => {
     assert.equal(path, "/api/workspaces/ws_test/agent/runs/autonomous-1/approve");
@@ -33,6 +49,22 @@ test("승인은 화면에서 검토한 버전·해시를 전송하고 충돌을 
     return Response.json({ detail: "계획이 변경되었습니다." }, { status: 409 });
   });
   await assert.rejects(decideAgentPlan("ws_test", "autonomous-1", "approve", plan), /계획이 변경/);
+});
+
+test("부분 승인은 고른 작업 id를 operation_ids로 보내고 400을 선택 오류로 알린다", async (t) => {
+  const bodies = [];
+  t.mock.method(globalThis, "fetch", async (_path, init) => {
+    bodies.push(JSON.parse(init.body));
+    return bodies.length === 1
+      ? Response.json({ id: "autonomous-1", status: "executing", plan: null })
+      : Response.json({ detail: "selected operations depend on unselected" }, { status: 400 });
+  });
+  assert.equal((await decideAgentPlan("ws_test", "autonomous-1", "approve", plan, ["op-1", "op-3"])).status, "executing");
+  await assert.rejects(decideAgentPlan("ws_test", "autonomous-1", "approve", plan, ["op-3"]), /함께 적용해야 하는 항목/);
+  assert.deepEqual(bodies, [
+    { plan_version: 2, operation_hash: "a".repeat(64), operation_ids: ["op-1", "op-3"] },
+    { plan_version: 2, operation_hash: "a".repeat(64), operation_ids: ["op-3"] }
+  ]);
 });
 
 test("거절은 승인 endpoint를 호출하지 않는다", async (t) => {
@@ -149,4 +181,85 @@ test("명확화 요청이면 AI가 되물은 질문을 보이고, 질문이 없�
   }
   assert.equal(agentPlanClarificationMessage({ status: "failed", clarification_question: question, plan: null }), null);
   assert.equal(agentPlanClarificationMessage(undefined), null);
+});
+
+test("완료된 계획은 실제로 저장된 작업만 세고 고르지 않은·실패한 작업은 따로 센다", () => {
+  const op = (status, error_code = null) => ({ status, error_code });
+  assert.deepEqual(
+    summarizePlanOperationResults([op("succeeded"), op("succeeded"), op("completed"), op("skipped", "not_selected")]),
+    { applied: 3, excluded: 1, failed: 0 }
+  );
+  assert.deepEqual(
+    summarizePlanOperationResults([op("succeeded"), op("failed"), op("skipped", "not_selected")]),
+    { applied: 1, excluded: 1, failed: 1 }
+  );
+  // 승인 직후 캐시처럼 결과 상태가 아직 없으면 고르지 않은 작업만 뺀다.
+  assert.deepEqual(
+    summarizePlanOperationResults([op("planned"), op("planned"), op("skipped", "not_selected")]),
+    { applied: 2, excluded: 1, failed: 0 }
+  );
+  assert.deepEqual(summarizePlanOperationResults([]), { applied: 0, excluded: 0, failed: 0 });
+});
+
+test("실패한 run은 error_code별 이유를 보여 주고 모르는 코드는 기본 안내를 쓴다", () => {
+  const failed = (error_code, plan = null) => ({ status: "failed", error_code, plan });
+  assert.equal(
+    agentPlanFailureMessage(failed("plan_out_of_scope")),
+    "선택한 폴더 밖으로 옮기거나 선택한 폴더 자체를 바꾸는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요."
+  );
+  assert.match(agentPlanFailureMessage(failed("input_rejected")), /검증을 통과하지 못해.*다시 시도해 주세요/);
+  assert.match(agentPlanFailureMessage(failed("provider_rate_limited")), /잠시 후 다시 시도/);
+  assert.match(agentPlanFailureMessage(failed("provider_unavailable")), /연결하지 못해/);
+  assert.match(agentPlanFailureMessage(failed("deadline_exceeded")), /오래 걸려/);
+  assert.equal(agentPlanFailureMessage(failed("internal_error")), "작업을 완료하지 못했습니다. 다시 시도해 주세요.");
+  assert.equal(agentPlanFailureMessage(failed(null)), "작업을 완료하지 못했습니다. 다시 시도해 주세요.");
+  assert.match(agentPlanFailureMessage({ status: "partial_failed", error_code: null, plan }), /상세 보기에서 항목별 상태/);
+  assert.equal(agentPlanFailureMessage({ status: "completed", error_code: null, plan }), null);
+  assert.equal(agentPlanFailureMessage(null), null);
+});
+
+test("계획 단계에서 실패해 실행된 작업이 없는 run만 다시 시도할 수 있다", () => {
+  assert.equal(canRetryAgentPlanRun({ status: "failed", plan: null }), true);
+  assert.equal(canRetryAgentPlanRun({ status: "failed", plan }), false, "실행 중 실패는 다시 보내면 중복 변경이 생길 수 있다");
+  assert.equal(canRetryAgentPlanRun({ status: "partial_failed", plan: null }), false);
+  assert.equal(canRetryAgentPlanRun({ status: "completed", plan: null }), false);
+  assert.equal(canRetryAgentPlanRun(null), false);
+});
+
+test("계획 요약 끝의 범위 밖 제외 안내를 따로 떼어 낸다", () => {
+  assert.deepEqual(
+    splitPlanSummary("회의록 3개를 날짜 폴더로 옮깁니다. 대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요."),
+    { body: "회의록 3개를 날짜 폴더로 옮깁니다.", scopeNote: "대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요." }
+  );
+  assert.deepEqual(splitPlanSummary("문서 2개 이동"), { body: "문서 2개 이동", scopeNote: null });
+  assert.deepEqual(splitPlanSummary(undefined), { body: "", scopeNote: null });
+});
+
+test("계획 요약 끝의 대상 폴더 자체 제외 안내도 떼어 내고, 범위 밖 제외 안내와 나온 순서대로 잇는다", () => {
+  const self = "대상 폴더 자체는 바꿀 수 없어 그 폴더의 이름 변경·이동 작업 1개는 계획에서 뺐어요.";
+  assert.deepEqual(
+    splitPlanSummary(`회의록 3개를 날짜 폴더로 옮깁니다. ${self}`),
+    { body: "회의록 3개를 날짜 폴더로 옮깁니다.", scopeNote: self }
+  );
+  const scope = "대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요.";
+  assert.deepEqual(
+    splitPlanSummary(`문서 2개 이동. ${scope} ${self}`),
+    { body: "문서 2개 이동.", scopeNote: `${scope} ${self}` }
+  );
+});
+
+test("계획 요약 끝의 내용 중복 안내 두 문장도 떼어 내고, 이름 속 마침표에서 끊지 않는다", () => {
+  const pairs = "계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: '회의록 v1.2.md'와(과) '회의록.md', '참고.pdf'와(과) '참고 자료.pdf'.";
+  const unchecked = "문서 3개는 내용 중복을 확인하지 못했어요.";
+  assert.deepEqual(
+    splitPlanSummary(`문서 4개를 옮깁니다. ${pairs} ${unchecked}`),
+    { body: "문서 4개를 옮깁니다.", scopeNote: `${pairs} ${unchecked}` }
+  );
+  assert.deepEqual(splitPlanSummary(`문서 1개 이동. ${unchecked}`), { body: "문서 1개 이동.", scopeNote: unchecked });
+  // 범위 밖 제외 안내와 함께 오면 요약에 나온 순서대로 잇는다.
+  const scope = "대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요.";
+  assert.deepEqual(
+    splitPlanSummary(`문서 2개 이동. ${scope} ${pairs}`),
+    { body: "문서 2개 이동.", scopeNote: `${scope} ${pairs}` }
+  );
 });

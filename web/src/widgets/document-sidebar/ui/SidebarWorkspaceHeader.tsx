@@ -7,6 +7,7 @@ import { createWorkspace, deleteWorkspace, describeLimitError, fetchWorkspaces, 
 import { fetchMembers, removeMember } from "@/entities/workspace/api/members";
 import { useMe } from "@/entities/user";
 import { clearSelectedWorkspaceId, getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
@@ -14,13 +15,15 @@ import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import type { WorkspaceResponse } from "@/entities/workspace";
 import { SidebarWorkspaceChevronIcon } from "./SidebarIcons";
+import { workspaceSwitchHref } from "@/widgets/workspace/lib/workspaceLocation";
 import { canLeaveWorkspace, getWorkspaceMenuRole, type WorkspaceMenuRole } from "../model/workspaceMenu";
 import styles from "./DocumentSidebar.module.css";
 
-/** 선택한 워크스페이스로 전환하고 화면을 새로 그린다 */
+/** 선택한 워크스페이스로 전환하고 화면을 새로 그린다. 이전 워크스페이스의 문서 주소(?doc= 등)는 버린다. */
 function switchWorkspace(workspaceId: string) {
   setSelectedWorkspaceId(workspaceId);
-  window.location.reload();
+  clearWorkspaceGone(workspaceId);
+  window.location.assign(workspaceSwitchHref(new URLSearchParams(window.location.search)));
 }
 
 // 행 옵션 메뉴 너비. 채팅 세션 메뉴(.chat-session-menu-list)와 같다.

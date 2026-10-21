@@ -14,11 +14,9 @@ registerHooks({
 
 const { INITIAL_SKILL_CREATE_FORM } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 const {
-  defaultSkillTestRunScope,
   describeSkillTestRunError,
   newSkillTestRunId,
   skillTestRunBlocker,
-  skillTestRunRangeError,
   skillTestRunRequest,
   skillTestRunView
 } = await import("../src/features/skill-authoring/lib/skillTestRun.ts");
@@ -31,22 +29,18 @@ const form = {
   description: " 연구 개요를 정리합니다. ",
   rules: " '연구 개요' 섹션만 고친다. "
 };
-const whole = { documentId: "doc_1", scope: "whole", startLine: 1, endLine: 1 };
+const documentId = "doc_1";
 
-test("테스트 요청은 시트 정의와 문서를 담고, 문서 전체면 target을 뺀다", () => {
-  assert.deepEqual(skillTestRunRequest(form, whole), {
+test("테스트 요청은 시트 정의와 문서만 담고 target을 보내지 않아 문서 전체에 적용한다", () => {
+  assert.deepEqual(skillTestRunRequest(form, documentId), {
     name: "research-summary",
     description: "연구 개요를 정리합니다.",
     instructions_markdown: "'연구 개요' 섹션만 고친다.",
     capabilities: ["document-edit"],
     document_id: "doc_1"
   });
-});
-
-test("줄 범위를 고르면 selection target으로 보낸다", () => {
-  const request = skillTestRunRequest(form, { documentId: "doc_1", scope: "lines", startLine: 3, endLine: 8 });
-  assert.deepEqual(request.target, { type: "selection", start_line: 3, end_line: 8 });
-  assert.ok(!("allowed_tools" in request));
+  assert.ok(!("target" in skillTestRunRequest(form, documentId)));
+  assert.ok(!("allowed_tools" in skillTestRunRequest(form, documentId)));
 });
 
 test("run_id는 매번 새로 만들고 서버 형식을 따른다", () => {
@@ -55,32 +49,18 @@ test("run_id는 매번 새로 만들고 서버 형식을 따른다", () => {
   assert.notEqual(first, newSkillTestRunId());
 });
 
-test("대상이 '선택한 부분'뿐이면 줄 범위로 시작한다", () => {
-  assert.equal(defaultSkillTestRunScope(["selection"]), "lines");
-  assert.equal(defaultSkillTestRunScope(["current-document", "selection"]), "whole");
-  assert.equal(defaultSkillTestRunScope(["current-document"]), "whole");
-});
-
-test("줄 범위는 1 이상의 정수이고 끝이 시작보다 앞서면 막는다", () => {
-  assert.equal(skillTestRunRangeError({ scope: "whole", startLine: 0, endLine: -1 }), null);
-  assert.equal(skillTestRunRangeError({ scope: "lines", startLine: 2, endLine: 2 }), null);
-  assert.match(skillTestRunRangeError({ scope: "lines", startLine: 0, endLine: 2 }), /1 이상/);
-  assert.match(skillTestRunRangeError({ scope: "lines", startLine: Number.NaN, endLine: 2 }), /1 이상/);
-  assert.match(skillTestRunRangeError({ scope: "lines", startLine: 5, endLine: 2 }), /앞설 수 없/);
-});
-
 test("폴더 정리·빈 필드·문서 미선택이면 테스트를 시작하지 않는다", () => {
-  assert.equal(skillTestRunBlocker(form, whole), null);
-  assert.match(skillTestRunBlocker({ ...form, kind: "folder" }, whole), /폴더 정리/);
-  assert.match(skillTestRunBlocker({ ...form, command: "" }, whole), /커맨드명/);
-  assert.match(skillTestRunBlocker(form, { ...whole, documentId: "" }), /문서를 골라/);
+  assert.equal(skillTestRunBlocker(form, documentId), null);
+  assert.match(skillTestRunBlocker({ ...form, kind: "folder" }, documentId), /폴더 정리/);
+  assert.match(skillTestRunBlocker({ ...form, command: "" }, documentId), /커맨드명/);
+  assert.match(skillTestRunBlocker(form, ""), /문서를 골라/);
 });
 
 test("테스트 실행 capability는 고른 결과 방식을 따른다(기본 '상황에 맞게'는 수정 결과로 본다)", () => {
   const base = { ...form, resultMode: INITIAL_SKILL_CREATE_FORM.resultMode };
-  assert.deepEqual(skillTestRunRequest(base, whole).capabilities, ["document-create", "document-edit"]);
-  assert.deepEqual(skillTestRunRequest({ ...form, resultMode: "edit" }, whole).capabilities, ["document-edit"]);
-  assert.deepEqual(skillTestRunRequest({ ...form, resultMode: "create" }, whole).capabilities, ["document-create"]);
+  assert.deepEqual(skillTestRunRequest(base, documentId).capabilities, ["document-create", "document-edit"]);
+  assert.deepEqual(skillTestRunRequest({ ...form, resultMode: "edit" }, documentId).capabilities, ["document-edit"]);
+  assert.deepEqual(skillTestRunRequest({ ...form, resultMode: "create" }, documentId).capabilities, ["document-create"]);
 });
 
 test("응답을 변경/생성/변경 없음/차단 화면으로 나눈다", () => {

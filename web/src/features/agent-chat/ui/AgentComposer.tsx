@@ -76,6 +76,7 @@ export function AgentComposer({
   onSubmit,
   onCancel,
   isCancelling = false,
+  cancelHint = "입력창에서 Esc를 누르면 질문을 취소합니다.",
   statusMessage,
   meetingControl,
   inputLabel = "Query 질문 입력",
@@ -97,6 +98,8 @@ export function AgentComposer({
   onSubmit: () => void;
   onCancel?: () => void;
   isCancelling?: boolean;
+  /** onCancel이 있을 때 입력창 아래에 보이는 Esc 안내(질문 취소·작업 중지·스킬 실행 취소) */
+  cancelHint?: string;
   statusMessage?: string | null;
   meetingControl?: ComposerMeetingControl;
   /** 입력창 접근성 이름. 작업 탭은 작업 요청 입력이다. */
@@ -300,7 +303,7 @@ export function AgentComposer({
       />
       {(statusMessage || onCancel) && (
         <p className={cx(styles["composer-status"], !isLoading && statusMessage && styles["composer-cancelled"])} role="status">
-          {statusMessage ?? "입력창에서 Esc를 누르면 질문을 취소합니다."}
+          {statusMessage ?? cancelHint}
         </p>
       )}
       {dictation.message && (
@@ -435,7 +438,7 @@ export function AgentComposer({
                 isRecording && styles["is-recording"],
                 isMeetingCapturing && styles["is-meeting-recording"]
               )}
-              aria-label={isMeetingCapturing ? "회의 받아쓰기 멈추기" : isRecording ? "녹음 멈추기" : meetingControl ? "음성 입력·회의 받아쓰기" : "음성으로 입력"}
+              aria-label={isMeetingCapturing ? "회의 녹음 멈추기" : isRecording ? "말로 입력 멈추기" : meetingControl ? "음성 기능" : "말로 입력하기"}
               ref={waveButtonRef}
               aria-pressed={opensVoiceMenu ? undefined : isMeetingCapturing || isRecording}
               aria-haspopup={opensVoiceMenu ? "menu" : undefined}
@@ -455,8 +458,8 @@ export function AgentComposer({
                     void dictation.start();
                   }}
                 >
-                  <span>음성으로 입력</span>
-                  <span>말한 내용을 입력창에 채워요(최대 60초)</span>
+                  <span>말로 입력하기</span>
+                  <span>말하면 글자로 바꿔 입력창에 넣어요. 한 번에 60초까지</span>
                 </button>
                 <button
                   type="button"
@@ -467,8 +470,8 @@ export function AgentComposer({
                     meetingControl.onStart();
                   }}
                 >
-                  <span>회의 받아쓰기</span>
-                  <span>{meetingControl.state === "idle" ? "회의를 받아쓰고 회의록을 만들어요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                  <span>회의 녹음하기</span>
+                  <span>{meetingControl.state === "idle" ? "회의를 녹음하면 대화를 글로 옮기고 회의록을 만들어요" : "지금 열린 회의 화면을 닫으면 시작할 수 있어요"}</span>
                 </button>
                 {meetingControl.onPickRecording && (
                   <button
@@ -480,8 +483,8 @@ export function AgentComposer({
                       meetingControl.onPickRecording?.();
                     }}
                   >
-                    <span>녹음 파일로 전사</span>
-                    <span>{meetingControl.state === "idle" ? "WAV·MP3·M4A·WebM(500MB 이하)을 받아써요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                    <span>녹음 파일 올리기</span>
+                    <span>{meetingControl.state === "idle" ? "이미 녹음한 파일로 회의록을 만들어요 (MP3·M4A·WAV·WebM, 500MB까지)" : "지금 열린 회의 화면을 닫으면 시작할 수 있어요"}</span>
                   </button>
                 )}
                 {meetingControl.onOpenMeetingList && (
@@ -494,8 +497,8 @@ export function AgentComposer({
                       meetingControl.onOpenMeetingList?.();
                     }}
                   >
-                    <span>지난 회의</span>
-                    <span>{meetingControl.state === "idle" ? "전사 중이던 회의를 이어 보거나 회의록을 다시 열어요" : "열린 회의 화면을 닫은 뒤 볼 수 있어요"}</span>
+                    <span>지난 회의 보기</span>
+                    <span>{meetingControl.state === "idle" ? "글로 옮기던 회의를 이어서 보거나, 만든 회의록을 다시 열어요" : "지금 열린 회의 화면을 닫으면 볼 수 있어요"}</span>
                   </button>
                 )}
               </div>

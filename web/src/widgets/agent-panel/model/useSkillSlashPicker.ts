@@ -23,10 +23,11 @@ export function useSkillSlashPicker({
   const isOpen = query !== null && dismissedValue !== value;
   const workspaceId = getWorkspaceId();
   // 스킬 화면과 같은 쿼리 키를 써서 목록 캐시를 함께 쓴다.
+  // 고르기 목록이 닫힌 뒤에도 입력한 `/slug`의 결과 방식을 알아야 하므로 "/"로 시작하는 동안 받아 둔다.
   const skills = useQuery({
     queryKey: ["skills", workspaceId],
     queryFn: () => fetchSkills(workspaceId),
-    enabled: isOpen && Boolean(workspaceId),
+    enabled: isEnabled && value.trimStart().startsWith("/") && Boolean(workspaceId),
     staleTime: 30_000
   });
   const groups = useMemo(() => buildSkillPickerGroups(skills.data ?? [], query ?? ""), [skills.data, query]);
@@ -87,5 +88,5 @@ export function useSkillSlashPicker({
     return false;
   }
 
-  return { isOpen, groups, activeSkillId, statusMessage, pick, setActiveSkillId, handleKeyDown };
+  return { isOpen, groups, activeSkillId, statusMessage, skills: skills.data, pick, setActiveSkillId, handleKeyDown };
 }

@@ -1,16 +1,25 @@
 "use client";
 
+import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
+import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import Image from "next/image";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
 import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
-import { confirmEmailVerification, requestEmailVerification, resetPasswordWithVerification } from "@/entities/user";
+import {
+  buildPasswordChangeBody,
+  changePasswordWithVerification,
+  confirmEmailVerification,
+  passwordChangeFailure,
+  requestPasswordChangeVerification
+} from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "@/shared/lib/passwordPolicy";
+import { useMfaRequirement } from "../../model/useMfaRequirement";
 import styles from "./AccountFlowModal.module.css";
-import { CODE_LENGTH, FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, VerificationCodeInput } from "./AccountFlowModal";
+import { FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, isEmailCodeComplete, VerificationCodeInput } from "./AccountFlowModal";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -18,7 +27,7 @@ const SUBTITLES: Record<Step, string> = {
   email: "현재 이메일 계정을 인증합니다.",
   code: "인증번호 6자리를 입력하여 이메일을 인증하세요.",
   password: "최소 15자의 문자 또는\n최소 8자의 문자와 숫자 조합을 비밀번호로 사용하세요.",
-  done: "비밀번호가 변경되었습니다.\n새 비밀번호로 다시 로그인해 주세요."
+  done: "비밀번호가 변경되었습니다.\n다른 기기의 로그인은 해제되었습니다."
 };
 
 function PasswordField({
@@ -65,8 +74,12 @@ function PasswordField({
 
 /**
  * 비밀번호 변경 3단계 모달 (Figma 1131:6030 / 6048 / 6529).
- * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 인증 토큰으로 password-reset 계약을 사용한다.
- * 변경에 성공하면 모달 안에서 재로그인 안내를 보여 주고, 확인(또는 닫기) 후 onSaved로 로그아웃을 맡긴다.
+ * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 로그인 세션 전용 계약을 쓴다:
+ * POST /api/auth/me/password/verification → email-verifications confirm → PUT /api/auth/me/password/verified.
+ * 인증 메일은 서버가 로그인한 계정 이메일로만 보낸다. 이메일 칸은 그 주소를 보여 주는 읽기 전용이다.
+ * MFA를 켠 계정은 새 비밀번호와 함께 인증 코드도 받는다. 코드가 틀리면 같은 토큰으로 코드만 다시 받는다.
+ * 변경해도 현재 세션은 유지되고 다른 세션만 해제되므로, 완료 안내 뒤 onSaved는 창만 닫는다.
+ * 비밀번호가 없는 소셜 전용 계정은 서버가 거절하며(PASSWORD_LOGIN_UNAVAILABLE) 안내만 보여 주고 진행을 막는다.
  */
 export function PasswordChangeModal({
   email: accountEmail,
@@ -77,29 +90,79 @@ export function PasswordChangeModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState(accountEmail);
   const [code, setCode] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState(0);
   const [token, setToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
+  // 인증번호 요청 제한(VERIFICATION_RATE_LIMITED)과 인증 코드 확인 제한(MFA_RATE_LIMITED)은 막는 요청이 달라 타이머를 나눈다.
+  const [blockedUntil, setBlockedUntil] = useState(0);
+  const [submitBlockedUntil, setSubmitBlockedUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const countdown = useExpiryCountdown(expiresAt);
+  const blockedSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
+  const submitBlockedSeconds = Math.max(0, Math.ceil((submitBlockedUntil - now) / 1000));
+  const tickUntil = Math.max(blockedUntil, submitBlockedUntil);
+
+  useEffect(() => {
+    if (!tickUntil) return;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= tickUntil) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [tickUntil]);
+
+  /**
+   * 실패 code에 맞춰 단계를 되돌리거나 요청을 막는다. 토큰이 무효면 인증번호를 새로 받는 단계로 돌아간다.
+   * 시도 제한(wait)은 실패한 요청의 타이머(block)에만 건다.
+   */
+  function applyFailure(cause: unknown, fallback: string, block: (until: number) => void) {
+    const failure = passwordChangeFailure(cause, fallback);
+    setError(failure.message);
+    if (failure.recovery === "unavailable") {
+      setIsUnavailable(true);
+      setStep("email");
+    }
+    if (failure.recovery === "resend") {
+      setVerificationId(null);
+      setToken(null);
+      setCode("");
+      setNewPassword("");
+      setPasswordConfirm("");
+      setMfaCode("");
+      setStep("email");
+    }
+    if (failure.recovery === "mfa") {
+      setMfaCode("");
+      requireMfa();
+    }
+    if (failure.recovery === "wait" && failure.retryAfter) {
+      setNow(Date.now());
+      block(Date.now() + failure.retryAfter * 1000);
+    }
+  }
 
   async function sendCode() {
+    if (Date.now() < blockedUntil) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await requestEmailVerification(email.trim(), "password_reset");
+      const result = await requestPasswordChangeVerification();
       setVerificationId(result.verification_id);
       setExpiresAt(Date.now() + result.expires_in * 1000);
       setCode("");
       setStep("code");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "인증번호를 보내지 못했습니다."));
+      applyFailure(cause, "인증번호를 보내지 못했습니다.", setBlockedUntil);
     } finally {
       setBusy(false);
     }
@@ -121,7 +184,7 @@ export function PasswordChangeModal({
   }
 
   async function savePassword() {
-    if (!token) return;
+    if (!token || Date.now() < submitBlockedUntil) return;
     if (!isPasswordAllowed(newPassword)) {
       setError("최소 15자의 문자 또는 최소 8자의 문자와 숫자 조합이어야 합니다.");
       return;
@@ -133,14 +196,17 @@ export function PasswordChangeModal({
     setBusy(true);
     setError(null);
     try {
-      await resetPasswordWithVerification(email.trim(), newPassword, token);
+      await changePasswordWithVerification(buildPasswordChangeBody({ newPassword, verificationToken: token, mfaCode }));
       setStep("done");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "비밀번호를 변경하지 못했습니다."));
+      applyFailure(cause, "비밀번호를 변경하지 못했습니다.", setSubmitBlockedUntil);
     } finally {
       setBusy(false);
     }
   }
+
+  // 개발 환경의 고정 인증번호(9700)는 가입·비밀번호 찾기처럼 입력하면 바로 확인한다.
+  useDevelopmentVerificationCode(step === "code" ? code : "", () => verifyCode());
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -163,19 +229,20 @@ export function PasswordChangeModal({
     setToken(null);
     setNewPassword("");
     setPasswordConfirm("");
+    setMfaCode("");
     setStep("code");
   }
 
   const canSubmit = !busy && (
     step === "done" ? true
     : step === "email"
-      ? email.trim().length > 0
+      ? accountEmail.length > 0 && !isUnavailable && blockedSeconds === 0
       : step === "code"
-        ? code.trim().length === CODE_LENGTH && !countdown.isExpired
-        : newPassword.length > 0 && passwordConfirm.length > 0
+        ? isEmailCodeComplete(code) && !countdown.isExpired
+        : submitBlockedSeconds === 0 && newPassword.length > 0 && passwordConfirm.length > 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
   );
   const submitLabel = busy ? "처리 중…"
-    : step === "email" ? "다음으로" : step === "code" ? "인증하기" : step === "password" ? "비밀번호 변경" : "확인";
+    : step === "email" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "다음으로") : step === "code" ? "인증하기" : step === "password" ? (submitBlockedSeconds > 0 ? `${submitBlockedSeconds}초 후 가능` : "비밀번호 변경") : "확인";
 
   return (
     <AccountFlowModal
@@ -184,7 +251,6 @@ export function PasswordChangeModal({
       subtitleStyle={{ whiteSpace: "pre-line" }}
       ariaLabel="비밀번호 변경"
       canClose={!busy}
-      // 변경 후에는 기존 세션이 폐기됐으므로 닫아도 로그아웃한다.
       onClose={step === "done" ? onSaved : onClose}
       onSubmit={handleSubmit}
     >
@@ -195,28 +261,26 @@ export function PasswordChangeModal({
             id="password-change-email"
             type="email"
             autoComplete="email"
-            placeholder="example@email.com"
-            autoFocus
-            value={email}
+            readOnly
+            value={accountEmail}
             disabled={busy}
-            onChange={(event) => setEmail(event.target.value)}
           />
           <FlowError error={error} />
         </div>
       )}
       {step === "code" && (
         <div className={styles.field}>
-          <label htmlFor="password-change-code">인증번호 6자리</label>
+          <label htmlFor="password-change-code">{verificationCodeLabel()}</label>
           <div className={styles["field-control"]}>
             <VerificationCodeInput id="password-change-code" value={code} disabled={busy} onChange={setCode} />
             <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>
           </div>
           {countdown.isExpired ? (
-            <button type="button" className={styles.resend} disabled={busy} onClick={() => void sendCode()}>
+            <button type="button" className={styles.resend} disabled={busy || blockedSeconds > 0} onClick={() => void sendCode()}>
               인증번호가 만료되었습니다. 다시 받기
             </button>
           ) : (
-            <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
+            <p className={styles.hint}>{accountEmail} 주소로 인증번호를 보냈습니다.</p>
           )}
           <FlowError error={error} />
         </div>
@@ -225,6 +289,20 @@ export function PasswordChangeModal({
         <div className={styles.fields}>
           <PasswordField id="password-change-new" label="새 비밀번호" value={newPassword} disabled={busy} onChange={setNewPassword} />
           <PasswordField id="password-change-confirm" label="새 비밀번호 확인" value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
+          {isMfaEnabled && (
+            <div className={styles.field}>
+              <label htmlFor="password-change-mfa">인증 코드 또는 복구 코드</label>
+              <input
+                id="password-change-mfa"
+                autoComplete="one-time-code"
+                maxLength={64}
+                placeholder="XXXXXX"
+                value={mfaCode}
+                disabled={busy}
+                onChange={(event) => setMfaCode(event.target.value)}
+              />
+            </div>
+          )}
           <p className={styles.hint}>변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
           <FlowError error={error} />
         </div>
@@ -232,12 +310,13 @@ export function PasswordChangeModal({
 
       <div className={cx(styles.footer, (step === "email" || step === "done") && styles["is-end"])}>
         {(step === "code" || step === "password") && <FlowBackButton disabled={busy} onClick={handleBack} />}
-        {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다. */}
+        {/* autoFocus는 마운트 때만 동작한다. 완료 단계에서 버튼을 새로 마운트해 포커스를 옮겨야 Enter로 확인할 수 있다.
+            이메일 단계는 입력할 칸이 없으므로 처음부터 다음 버튼에 포커스를 둔다. */}
         <FlowNextButton
           key={step === "done" ? "done" : "next"}
           disabled={!canSubmit}
           showChevron={!busy && step !== "done"}
-          autoFocus={step === "done"}
+          autoFocus={step === "email" || step === "done"}
         >
           {submitLabel}
         </FlowNextButton>

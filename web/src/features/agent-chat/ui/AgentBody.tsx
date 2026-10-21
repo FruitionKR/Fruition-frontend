@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { StatusList } from "./StatusList";
-import { AssistantThread, STAGE_ANSWER } from "./AssistantThread";
+import { AssistantThread, STAGE_ANSWER, type StalledQueryView } from "./AssistantThread";
 import { groupMessagesByPair } from "../lib/messageGroups";
 import { buildProgressSteps } from "../lib/progressSteps";
+import { stalledQueryQuestion } from "../lib/stalledTurns";
 import type { QueryStageEvent } from "@/entities/wiki/api/wiki";
 import type { ActiveAgentTurn } from "../model/useChatThread";
 import type { ChatPairSelectionKind } from "../lib/chatPairSelection";
@@ -15,6 +16,7 @@ import { useSpeechPlayback } from "../model/useSpeechPlayback";
 import styles from "./AgentChat.module.css";
 
 const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
+const NO_RUN_IDS: ReadonlySet<string> = new Set();
 
 function getPairSelectionLabel({
   isSelectable,
@@ -51,7 +53,12 @@ export function AgentBody({
   excludedPairIds,
   selectedPairIds,
   onSelectPair,
-  nodes
+  nodes,
+  stalledQueryIds = NO_RUN_IDS,
+  releasedQueryIds = NO_RUN_IDS,
+  closingQueryIds = NO_RUN_IDS,
+  onRetryStalledQuery,
+  onDismissStalledQuery
 }: {
   messages: ChatMessageResponse[];
   isLoading: boolean;
@@ -72,6 +79,15 @@ export function AgentBody({
   selectedPairIds: string[];
   onSelectPair: (pairId: string) => void;
   nodes?: GraphNode[];
+  /** 응답을 받지 못한(pending에 머문) 질의 run */
+  stalledQueryIds?: ReadonlySet<string>;
+  /** 사용자가 닫은 질의 run. 서버 메시지는 pending이어도 진행 중으로 보이지 않는다. */
+  releasedQueryIds?: ReadonlySet<string>;
+  /** 닫기(서버 취소 요청) 중인 질의 run */
+  closingQueryIds?: ReadonlySet<string>;
+  /** 없으면 '다시 질문'을 감춘다(다른 요청이 진행 중일 때 등). */
+  onRetryStalledQuery?: (runId: string, question: string) => void;
+  onDismissStalledQuery?: (runId: string) => void;
 }) {
   const showAgentStatus = isLoading && activeTurn === null;
   const [visibleAnswerStage, setVisibleAnswerStage] = useState(STAGE_ANSWER);
@@ -132,6 +148,19 @@ export function AgentBody({
   }, [messages.length, animatedMessageId, isLoading, queryErrorMessage, scrollToLatestMessage]);
 
   const messageGroups = groupMessagesByPair(messages);
+  function stalledQueryView(message: ChatMessageResponse): StalledQueryView | null {
+    const runId = message.run_id;
+    if (message.status !== "pending" || !runId) return null;
+    if (releasedQueryIds.has(runId)) return { state: "released", isClosing: false };
+    if (!stalledQueryIds.has(runId)) return null;
+    const question = onRetryStalledQuery ? stalledQueryQuestion(messages, runId) : null;
+    return {
+      state: "stalled",
+      isClosing: closingQueryIds.has(runId),
+      onRetry: question && onRetryStalledQuery ? () => onRetryStalledQuery(runId, question) : undefined,
+      onDismiss: onDismissStalledQuery ? () => onDismissStalledQuery(runId) : undefined
+    };
+  }
   const selectablePairIdSet = new Set(selectablePairIds);
   const excludedPairIdSet = new Set(excludedPairIds);
   const selectedPairIdSet = new Set(selectedPairIds);
@@ -222,6 +251,7 @@ export function AgentBody({
                   speechPlayback={speech.playback}
                   speechErrorMessage={speech.error?.messageId === message.id ? speech.error.message : null}
                   onToggleSpeech={speech.toggle}
+                  stall={stalledQueryView(message)}
                 />
               )
               ))}

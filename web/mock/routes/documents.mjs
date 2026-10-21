@@ -1,5 +1,5 @@
 // document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장(자동 병합)·버전 기록·ingest·변환·편집 잠금.
-import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete } from "../state.mjs";
+import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete, mayConvertDocument } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 import { uploadRejection } from "../lib/limits.mjs";
@@ -387,6 +387,9 @@ export function registerDocumentRoutes(router) {
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
     if (doc.document_role === "EDITABLE") return error(ctx, 400, "이미 Markdown 문서입니다.");
+    if (!mayConvertDocument(doc, ctx.user.id)) {
+      return error(ctx, 403, "이 작업에는 'document.convert' 권한이 필요합니다.", "WORKSPACE_PERMISSION_REQUIRED");
+    }
     ctx.json(202, startConvert(workspace, doc));
   });
 
@@ -396,6 +399,7 @@ export function registerDocumentRoutes(router) {
     if (!workspace) return;
     const doc = requireDocument(ctx, workspace);
     if (!doc) return;
+    if (doc.ai_origin === "chat_export") return error(ctx, 400, "채팅 Wiki page화 문서는 편집할 수 없습니다.", "INVALID_MARKDOWN_CONTENT");
     const current = activeEditLock(doc.id);
     if (current && current.holder_user_id !== ctx.user.id) return ctx.json(423, withLockTtl(current));
     const lock = {

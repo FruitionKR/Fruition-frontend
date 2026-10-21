@@ -29,7 +29,7 @@ export type MeetingNotesErrorCode =
   | "INSUFFICIENT_CREDIT";
 
 const MEETING_NOTES_ERROR_MESSAGES: Record<MeetingNotesErrorCode, string> = {
-  MEETING_NOTES_INPUT_REJECTED: "회의 내용을 처리할 수 없는 형식입니다. 녹음이나 전사 내용을 확인해 주세요.",
+  MEETING_NOTES_INPUT_REJECTED: "회의 내용을 처리할 수 없는 형식입니다. 녹음이나 대화 내용을 확인해 주세요.",
   MEETING_NOTES_UNAVAILABLE: "회의록 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
   MEETING_NOTES_FAILED: "회의록을 만들지 못했습니다.",
   MEETING_NOTES_INVALID: "회의록 결과가 올바르지 않아 저장하지 못했습니다.",
@@ -65,16 +65,16 @@ export type MeetingRecordingErrorCode =
   | "MEETING_NOT_FOUND";
 
 const MEETING_RECORDING_ERROR_MESSAGES: Record<MeetingRecordingErrorCode, string> = {
-  MEETING_RECORDING_TOO_LARGE: "녹음 파일은 500 MiB 이하로 올려 주세요.",
+  MEETING_RECORDING_TOO_LARGE: "녹음 파일은 500MB 이하로 올려 주세요.",
   MEETING_RECORDING_UNSUPPORTED: "WAV, MP3, M4A, WebM 녹음 파일만 올릴 수 있습니다.",
   MEETING_RECORDING_EMPTY: "녹음 파일이 비어 있습니다.",
   MEETING_RECORDING_SIZE_MISMATCH: "올린 파일 크기가 맞지 않습니다. 다시 올려 주세요.",
   // ticket 만료·변조, 조각 크기·순서 오류. 처음부터 다시 올리면 새 ticket을 받는다.
   MEETING_UPLOAD_REJECTED: "업로드가 만료되었거나 올바르지 않습니다. 다시 올려 주세요.",
   MEETING_RECORDING_NOT_ALLOWED: "지금은 녹음 파일을 올릴 수 없습니다.",
-  MEETING_LIVE_IN_USE: "받아쓰기 연결이 아직 닫히지 않았습니다. 잠시 후 다시 시도해 주세요.",
-  MEETING_NOT_TRANSCRIBING: "전사가 이미 끝났습니다.",
-  MEETING_TRANSCRIBING: "전사 중에는 삭제할 수 없습니다. 전사를 취소하거나 끝난 뒤 삭제해 주세요.",
+  MEETING_LIVE_IN_USE: "녹음 연결이 아직 닫히지 않았습니다. 잠시 후 다시 시도해 주세요.",
+  MEETING_NOT_TRANSCRIBING: "글로 옮기기가 이미 끝났습니다.",
+  MEETING_TRANSCRIBING: "글로 옮기는 중에는 삭제할 수 없습니다. 글로 옮기기를 취소하거나 끝난 뒤 삭제해 주세요.",
   MEETING_RECORDING_CHANGED: "삭제하는 사이 녹음 파일이 바뀌었습니다. 다시 삭제해 주세요.",
   MEETING_RECORDING_NOT_FOUND: "녹음 파일이 없습니다.",
   MEETING_RECORDING_STORAGE_FAILED: "녹음 파일 저장소에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
@@ -88,5 +88,5 @@ export function describeMeetingRecordingError(code: string | null | undefined): 
 
 /** 녹음 파일 전사 실패(회의 status=failed)의 error 문구. document가 한국어로 주므로 없을 때만 기본 문구를 쓴다. */
 export function describeMeetingTranscriptionFailure(error: string | null | undefined): string {
-  return error?.trim() || "녹음 파일을 전사하지 못했습니다. 다시 올려 주세요.";
+  return error?.trim() || "녹음 파일을 글로 옮기지 못했습니다. 다시 올려 주세요.";
 }

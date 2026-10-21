@@ -13,6 +13,8 @@ export type AgentTurnRequest = {
   allow_web_search: boolean;
   mode: typeof AGENT_TURN_TASK_MODE;
   conversationContext?: { selected_pair_ids: string[] };
+  /** 작업 대상 폴더(폴더 정리 범위·새 문서 위치). 생략하면 루트·워크스페이스 전체(document AgentTurnRequest 계약). */
+  folder_id?: string;
 } & (
   // 문서를 열지 않았거나 작업 대상에서 뺐으면 세 필드를 함께 생략한다(document AgentTurnRequest 계약).
   | { documentId: string; baseVersion: number; editorSnapshot: MarkdownEditorSnapshot }
@@ -31,6 +33,8 @@ type AgentTurnRequestContext = {
   selectedModel: AiModelSelection;
   selectedPairIds: string[];
   allowWebSearch?: boolean;
+  /** 폴더를 대상으로 고른 스킬 실행. 없으면 folder_id를 싣지 않는다. */
+  folderId?: string | null;
 };
 
 export type AgentTurnAction =
@@ -92,9 +96,16 @@ export type AgentTurnResponse = {
   baseVersion: number;
   requestId: string;
   apply_operation_id: string;
+  /** 요청에 실은 작업 대상 폴더. 지정하지 않았으면 null. */
+  folder_id?: string | null;
   status: "completed";
   result: AgentTurnResult;
 };
+
+/** 새 문서 초안(markdown_create)을 만들 폴더. turn에 지정한 대상 폴더를 쓰고, 없으면 루트(null)에 둔다. */
+export function resolveGeneratedDocumentFolderId(response: Pick<AgentTurnResponse, "folder_id"> | null | undefined): string | null {
+  return response?.folder_id ?? null;
+}
 
 export type { MarkdownDiffLine } from "@/shared/lib/lineDiff";
 
@@ -141,7 +152,8 @@ export function buildAgentTurnRequest(
     // 선택한 문답이 있을 때만 서버가 지원하는 pair ID 계약으로 전달한다.
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }
-      : {})
+      : {}),
+    ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {})
   } as const;
   if (!context) return base;
   return { ...base, documentId: context.documentId, baseVersion: context.baseVersion, editorSnapshot: context.editorSnapshot };

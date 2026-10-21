@@ -1,8 +1,10 @@
 import { cx } from "@/shared/lib/classNames";
-import { isFileItem } from "@/entities/tree";
+import { effectivePermission, isFileItem, permissionForChildren } from "@/entities/tree";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import type { DropTarget, TreeItem } from "@/entities/tree";
+import type { DropTarget, InheritedPermission, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
+import { inheritedPermissionLabel, permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
+import { SidebarConvertedCheckIcon, SidebarPermissionIcon } from "./SidebarIcons";
 import { TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
@@ -42,7 +44,8 @@ export function TreeNode({
   onToggle,
   projectId,
   onDropItem,
-  interaction
+  interaction,
+  inheritedPermission = null
 }: {
   item: TreeItem;
   depth: number;
@@ -52,6 +55,8 @@ export function TreeNode({
   onDropItem: (target: DropTarget) => void;
   /** 트리 상호작용 상태·핸들러 묶음. onMoveItem은 onDropItem으로 감싸서 받는다 */
   interaction: Omit<TreeInteractionProps, "onMoveItem">;
+  /** 가장 가까운 상위 폴더의 자기 권한. 상위 설정 따름 항목의 적용 권한 표시에 쓴다 */
+  inheritedPermission?: InheritedPermission;
 }) {
   const { draggedItemId, dropTarget, fileDropTarget, editing, selectedItemIds } = interaction;
   const isSelected = selectedItemIds.has(item.id);
@@ -69,6 +74,19 @@ export function TreeNode({
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
+  // 지금 위키 편입을 시작할 수 있는 문서에만 신규·수정됨·재시도 배지를 붙인다(업로드 중 자리표시 행 제외).
+  const wikiReflectBadge = !isUploading && item.documentId
+    ? interaction.wikiReflectBadges?.get(item.documentId) ?? null
+    : null;
+  // PDF 원본·변환본 MD는 확장자 배지를 짝 관계 배지(PDF✓·PDF→MD)로 바꿔 그린다.
+  const conversionBadge = !isUploading && item.documentId
+    ? interaction.conversionBadges?.get(item.documentId) ?? null
+    : null;
+  // 자기 권한은 그대로, 상위 설정 따름은 가장 가까운 상위 폴더 권한을 흐리게 표시한다.
+  const permission = effectivePermission(item, inheritedPermission);
+  const permissionLabel = permission && (permission.source === "own"
+    ? permissionIndicatorLabel(permission.access)
+    : inheritedPermissionLabel(permission.access, permission.fromFolderName));
   // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
   const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
   const canOpenInNewTab = !isEditing && !isUploading && Boolean(item.graphNodeId || item.documentId);
@@ -103,11 +121,14 @@ export function TreeNode({
           (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
           isFileDropTarget && styles["is-file-drop-target"],
           item.type === "folder" ? styles["is-folder"] : styles["is-note"],
-          depth > 0 && styles["is-nested"],
           isDropTarget && styles[`is-drop-${dropTarget.position}`]
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
-        title={item.errorMessage ?? item.sourceUri}
+        // 저장소 경로(sourceUri)는 내부 정보라 보이지 않는다. 처리 실패 사유만 알려 준다.
+        title={item.errorMessage}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={isSelected}
         aria-expanded={isFolder ? isOpen : undefined}
         aria-busy={isUploading || undefined}
         aria-disabled={isUploading || undefined}
@@ -122,8 +143,10 @@ export function TreeNode({
           interaction.onContextMenuItem(event, projectId, item.id);
         }}
         // 가운데 클릭: 문서를 새 브라우저 탭으로 연다. mousedown 기본 동작(자동 스크롤)은 막는다.
+        // Shift+클릭은 범위 선택이라 글자 선택이 생기지 않게 막는다.
         onMouseDown={(event) => {
           if (event.button === 1 && canOpenInNewTab) event.preventDefault();
+          if (event.button === 0 && event.shiftKey && !interaction.isPickingTarget) event.preventDefault();
         }}
         onAuxClick={(event) => {
           if (event.button !== 1 || !canOpenInNewTab) return;
@@ -131,21 +154,46 @@ export function TreeNode({
           event.stopPropagation();
           interaction.onOpenInNewTab(item);
         }}
+        onKeyDown={(event) => {
+          // 입력 중인 이름 편집 칸의 키는 건드리지 않는다.
+          if (event.target !== event.currentTarget || isEditing || interaction.isPickingTarget) return;
+          // Delete·Backspace: 고른 항목을 묶음 삭제한다(확인 모달).
+          if ((event.key === "Delete" || event.key === "Backspace") && selectedItemIds.size > 0) {
+            event.preventDefault();
+            interaction.onDeleteSelectedItems();
+            return;
+          }
+          // 키보드로도 마우스와 같은 선택: Cmd/Ctrl+Space·Enter는 토글, Shift+Space·Enter는 범위 선택.
+          if ((event.key !== " " && event.key !== "Enter") || isUploading || item.type === "wiki") return;
+          if (event.metaKey || event.ctrlKey) {
+            event.preventDefault();
+            interaction.onToggleSelectItem(item.id);
+          } else if (event.shiftKey) {
+            event.preventDefault();
+            interaction.onSelectItemRange(item.id);
+          }
+        }}
         onClick={(event) => {
           event.stopPropagation();
           if (isUploading || isEditing) return;
-          // 스킬 실행 대상 고르기: 문서 행은 고르고, 폴더 행은 펼치기만 한다.
+          // 스킬 실행 대상 고르기: 문서·폴더 행을 고른다(폴더는 펼치기도 한다). 쓸 수 있는 대상인지는 고르는 쪽이 판단한다.
           if (interaction.isPickingTarget) {
             if (isFolder) onToggle(item.id);
-            else if (item.documentId) interaction.onToggleSelectItem(item.id);
+            interaction.onToggleSelectItem(item.id);
             return;
           }
-          // Cmd/Ctrl+클릭: 열지 않고 이동 대상으로 고른다. 위키 노드는 이동 대상이 아니다.
+          // Cmd/Ctrl+클릭: 열지 않고 묶음 대상으로 고른다. 위키 노드는 이동·삭제 대상이 아니다.
           if ((event.metaKey || event.ctrlKey) && item.type !== "wiki") {
             interaction.onToggleSelectItem(item.id);
             return;
           }
-          if (selectedItemIds.size > 0) interaction.onClearSelectedItems();
+          // Shift+클릭: 마지막으로 누른 행부터 이 행까지 보이는 행을 고른다.
+          if (event.shiftKey && item.type !== "wiki") {
+            interaction.onSelectItemRange(item.id);
+            return;
+          }
+          // 일반 클릭: 묶음 선택을 풀고 지금처럼 연다. 이 행이 다음 Shift+클릭의 시작이 된다.
+          interaction.onClearSelectedItems(item.id);
           if (!isEditing && (item.graphNodeId || item.documentId)) interaction.onSelectGraphNode(item);
           if (!isEditing && isFolder) onToggle(item.id);
         }}
@@ -161,9 +209,36 @@ export function TreeNode({
         ) : (
           <>
             <span>{display.name}</span>
+            {permission && permissionLabel && (
+              <SidebarPermissionIcon
+                permission={permission.access}
+                label={permissionLabel}
+                className={cx(styles["tree-permission-icon"], permission.source === "inherited" && styles["is-inherited"])}
+              />
+            )}
+            {wikiReflectBadge && (
+              <small
+                className={cx(styles["tree-reflect-badge"], styles[`is-${wikiReflectBadge.tone}`])}
+                title={wikiReflectBadge.description}
+                aria-label={wikiReflectBadge.description}
+              >
+                {wikiReflectBadge.label}
+              </small>
+            )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
-              : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
+              : conversionBadge
+                ? (
+                  <small
+                    className={cx(styles["tree-type-badge"], styles["is-conversion"])}
+                    title={conversionBadge.description}
+                    aria-label={conversionBadge.description}
+                  >
+                    {conversionBadge.label}
+                    {conversionBadge.isConverted && <SidebarConvertedCheckIcon className={styles["tree-converted-check"]} />}
+                  </small>
+                )
+                : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
             {isFileDropTarget && <small className={styles["tree-drop-hint"]}>여기에 추가</small>}
           </>
         )}
@@ -196,6 +271,7 @@ export function TreeNode({
           projectId={projectId}
           onDropItem={onDropItem}
           interaction={interaction}
+          inheritedPermission={permissionForChildren(item, inheritedPermission)}
         />
       ))}
     </div>

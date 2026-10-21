@@ -1,6 +1,6 @@
 // access-svc(8081) 워크스페이스·아이콘·멤버·초대 라우트.
 import { state, now, id, error, requireWorkspace, avatarUrlOf } from "../state.mjs";
-import { FREE_WORKSPACE_LIMIT, freeWorkspaceCount, storageOf } from "../lib/limits.mjs";
+import { FREE_WORKSPACE_LIMIT, freeWorkspaceCount } from "../lib/limits.mjs";
 
 // access #32: 멤버 권한 항목. OWNER는 항상 전부, MEMBER는 OWNER가 부여한 항목만.
 const WORKSPACE_PERMISSIONS = ["wiki.ingest", "wiki.lint", "skill.author", "wiki.restore", "document.convert"];
@@ -58,12 +58,6 @@ export function registerWorkspaceRoutes(router) {
     state.members.push({ workspace_id: workspace.id, user_id: ctx.user.id, role: "OWNER", joined_at: timestamp });
     state.chatSessions.push({ id: id("chat"), workspace_id: workspace.id, title: null, created_at: timestamp, last_message_at: timestamp });
     ctx.json(201, toWorkspace(workspace));
-  });
-
-  router.get("/api/workspaces/:wid/storage", (ctx) => {
-    const workspace = requireWorkspace(ctx);
-    if (!workspace) return;
-    ctx.json(200, storageOf(workspace));
   });
 
   router.patch("/api/workspaces/:wid", async (ctx) => {

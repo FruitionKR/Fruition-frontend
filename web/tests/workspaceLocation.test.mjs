@@ -8,7 +8,8 @@ import {
   getWorkspaceLocationView,
   isDocumentLocation,
   parseWorkspaceLocation,
-  toDocumentLocation
+  toDocumentLocation,
+  workspaceSwitchHref
 } from "../src/widgets/workspace/lib/workspaceLocation.ts";
 
 const params = (query) => new URLSearchParams(query);
@@ -103,4 +104,14 @@ test("브라우저 탭 제목은 화면 제목 뒤에 서비스 이름을 붙인
   assert.equal(formatWorkspaceDocumentTitle("그래프"), "그래프 - Fruition Agent");
   assert.equal(formatWorkspaceDocumentTitle(null), "Fruition Agent");
   assert.equal(formatWorkspaceDocumentTitle("  "), "Fruition Agent");
+});
+
+test("워크스페이스를 바꾸면 이전 워크스페이스의 문서·페이지·트리 주소를 버리고 화면 선택만 남긴다", () => {
+  assert.equal(workspaceSwitchHref(params("doc=d1")), "/home");
+  assert.equal(workspaceSwitchHref(params("page=p1")), "/home");
+  assert.equal(workspaceSwitchHref(params("tree=t1&doc=d1")), "/home");
+  assert.equal(workspaceSwitchHref(params("")), "/home");
+  assert.equal(workspaceSwitchHref(null), "/home");
+  assert.equal(workspaceSwitchHref(params("view=graph&doc=d1")), "/home?view=graph");
+  assert.equal(workspaceSwitchHref(params("view=settings&section=members")), "/home?view=settings&section=members");
 });

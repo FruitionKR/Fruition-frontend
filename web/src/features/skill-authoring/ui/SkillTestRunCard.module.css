@@ -1,9 +1,21 @@
-/* 테스트 실행 카드 (Figma 1671:14585): 카드(radius 16, 안쪽 12·16·16) + 다시 테스트 칩. 편집 탭 오른쪽 열에 둔다. */
+/* 테스트 실행 묶음 (Figma 1671:14585): 묶음 이름 · 카드(radius 16, 안쪽 12·16·16) · 다시 테스트 칩. 채팅 패널 입력창 위에 둔다. */
 .container {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
+}
+
+/* 묶음 이름 (Figma 1671:14586 "새 스킬 만들기"): 12 Medium, muted */
+.group {
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card {
@@ -56,44 +68,6 @@
   gap: 8px;
 }
 
-.lines {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.line-field {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.line-field input {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-canvas);
-  color: var(--color-body);
-  font: inherit;
-  font-size: 12px;
-}
-
-.line-field input:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.line-dash {
-  padding-bottom: 8px;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
 .result:empty {
   display: none;
 }
@@ -136,10 +110,10 @@
   text-decoration: line-through;
 }
 
-/* 바뀐 글은 초록(디자인 '② 새 스킬 탭': 지운 글 빨강 취소선 / 새 글 초록) */
+/* 새 글은 파랑 (Figma 1671:14831: primary, 앞에 →) */
 .after {
   margin: 0;
-  color: var(--color-status-success);
+  color: var(--color-primary);
   line-height: 1.4;
 }
 

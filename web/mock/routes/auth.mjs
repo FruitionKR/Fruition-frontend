@@ -125,6 +125,55 @@ function isSixDigits(code) {
   return typeof code === "string" && /^\d{6}$/.test(code);
 }
 
+/** 토큰이 그 주소·목적으로 발급됐는지. 다른 주소·목적의 토큰은 실제 서버처럼 쓸 수 없다. */
+function verificationTokenMatches(token, email, purpose) {
+  const issued = state.verificationTokens.get(token);
+  return Boolean(issued) && issued.purpose === purpose && issued.email === String(email ?? "").trim().toLowerCase();
+}
+
+/** 현재 세션(refresh 쿠키)만 남기고 그 사용자의 나머지 refresh 토큰을 폐기한다. 쿠키가 없으면 모두 폐기한다. */
+function revokeOtherSessions(ctx, user) {
+  const current = ctx.cookies[REFRESH_COOKIE];
+  for (const session of state.loginSessions.filter((item) => item.user_id === user.id && item.refresh !== current)) {
+    state.refreshTokens.delete(session.refresh);
+  }
+  state.loginSessions = state.loginSessions.filter((item) => item.user_id !== user.id || item.refresh === current);
+}
+
+/** 비밀번호로 로그인하는 계정(서버의 provider=local)인지. 소셜 가입 계정은 비밀번호 변경 흐름을 쓸 수 없다. */
+function usesPasswordLogin(user) {
+  return user.provider === "email" && Boolean(user.password);
+}
+
+// 로그인 상태 비밀번호 변경 인증번호의 재요청 쿨다운(사용자 id → 마지막 요청 시각). 실제 서버의 (계정 이메일, password_change) 쿨다운과 같은 역할이다.
+const PASSWORD_CHANGE_RESEND_SECONDS = 30;
+const passwordChangeRequestedAt = new Map();
+
+// 본인 확인 실패 횟수 제한. 실제 서버의 기본값(5분에 5회)과 같다. 비밀번호 실패는 비밀번호 변경·회원 탈퇴와 공유하는 한도다.
+const VERIFY_FAILURE_LIMIT = 5;
+const VERIFY_FAILURE_WINDOW_MS = 5 * 60_000;
+const verifyFailures = new Map();
+
+function failureKey(kind, userId) {
+  return `${kind}:${userId}`;
+}
+
+/** 한도를 넘었으면 남은 초, 아니면 0. */
+function rateLimitedSeconds(kind, userId) {
+  const recent = (verifyFailures.get(failureKey(kind, userId)) ?? []).filter((at) => Date.now() - at < VERIFY_FAILURE_WINDOW_MS);
+  if (recent.length < VERIFY_FAILURE_LIMIT) return 0;
+  return Math.ceil((recent[0] + VERIFY_FAILURE_WINDOW_MS - Date.now()) / 1000);
+}
+
+function recordFailure(kind, userId) {
+  const key = failureKey(kind, userId);
+  verifyFailures.set(key, [...(verifyFailures.get(key) ?? []), Date.now()]);
+}
+
+function rateLimited(ctx, seconds, message, code) {
+  ctx.json(429, { error: { message, code } }, { "Retry-After": String(seconds) });
+}
+
 export function registerAuthRoutes(router) {
   router.post("/api/auth/login", async (ctx) => {
     const { email, password } = await ctx.body();
@@ -240,6 +289,8 @@ export function registerAuthRoutes(router) {
 
   router.post("/api/auth/email-verifications", async (ctx) => {
     const { email, purpose } = await ctx.body();
+    // password_change 코드는 로그인 세션 전용 경로(POST /api/auth/me/password/verification)로만 발급된다.
+    if (purpose === "password_change") return error(ctx, 400, "지원하지 않는 인증 목적입니다.", "INVALID_REQUEST");
     // 가입 목적이면 같은 이메일의 계정이 있을 때 인증번호를 만들지 않고 409로 거절한다. password_reset은 존재 여부를 노출하지 않는다.
     if (purpose === "signup" && rejectRegisteredEmail(ctx, email)) return;
     const verificationId = id("verify");
@@ -253,14 +304,15 @@ export function registerAuthRoutes(router) {
     const { code } = await ctx.body();
     if (!verification || !/^\d{4,6}$/.test(String(code ?? ""))) return error(ctx, 400, "인증번호가 올바르지 않습니다.");
     const token = id("vt");
-    state.verificationTokens.add(token);
+    // 발급한 주소(trim·소문자)와 목적에 묶는다.
+    state.verificationTokens.set(token, { email: String(verification.email ?? "").trim().toLowerCase(), purpose: verification.purpose });
     ctx.json(200, { verification_token: token, expires_in: VERIFICATION_TTL_SECONDS });
   }, { open: true });
 
   router.post("/api/auth/signup", async (ctx) => {
     const body = await ctx.body();
     const { email, password, display_name, verification_token } = body;
-    if (!state.verificationTokens.has(verification_token)) return error(ctx, 400, "이메일 인증이 필요합니다.");
+    if (!verificationTokenMatches(verification_token, email, "signup")) return error(ctx, 400, "이메일 인증이 필요합니다.");
     const normalized = String(email ?? "").toLowerCase();
     if (rejectRegisteredEmail(ctx, normalized)) return;
     // 동의가 빠지거나 약관 버전이 다르면 거절한다. 인증 토큰은 소비하지 않아 동의만 고쳐 다시 보낼 수 있다.
@@ -274,7 +326,7 @@ export function registerAuthRoutes(router) {
   router.post("/api/auth/password-reset", async (ctx) => {
     const { email, new_password, verification_token } = await ctx.body();
     const user = state.users.find((item) => item.email === String(email ?? "").toLowerCase());
-    if (!user || !state.verificationTokens.has(verification_token)) return error(ctx, 400, "비밀번호를 재설정할 수 없습니다.");
+    if (!user || !verificationTokenMatches(verification_token, email, "password_reset")) return error(ctx, 400, "비밀번호를 재설정할 수 없습니다.");
     state.verificationTokens.delete(verification_token);
     user.password = new_password;
     ctx.json(204);
@@ -374,19 +426,101 @@ export function registerAuthRoutes(router) {
     ctx.bytes(200, target.avatar.buffer, target.avatar.type, headers);
   });
 
+  // 현재 비밀번호를 먼저 확인하고, MFA를 켠 계정은 이어서 인증 코드를 확인한다. 어느 쪽이 틀려도 비밀번호는 바뀌지 않는다.
   router.put("/api/auth/me/password", async (ctx) => {
-    const { current_password, new_password } = await ctx.body();
+    const { current_password, new_password, mfa_code } = await ctx.body();
     if (current_password !== ctx.user.password) return error(ctx, 401, "현재 비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS");
+    if (ctx.user.mfa.enabled) {
+      const waitSeconds = rateLimitedSeconds("mfa", ctx.user.id);
+      if (waitSeconds > 0) return rateLimited(ctx, waitSeconds, "인증 코드 확인 시도가 너무 많습니다.", "MFA_RATE_LIMITED");
+      if (!isSixDigits(mfa_code) && !ctx.user.mfa.recovery_codes.includes(mfa_code)) {
+        recordFailure("mfa", ctx.user.id);
+        return error(ctx, 401, "인증 코드가 올바르지 않습니다.", "INVALID_MFA_CODE");
+      }
+    }
     ctx.user.password = new_password;
     ctx.json(204);
   });
 
-  router.put("/api/auth/me/email", async (ctx) => {
-    const { new_email, verification_token } = await ctx.body();
-    if (!state.verificationTokens.has(verification_token)) return error(ctx, 400, "이메일 인증이 필요합니다.");
+  // 로그인 상태 비밀번호 변경 1단계. 받는 주소는 요청이 아니라 로그인한 계정 이메일이다.
+  router.post("/api/auth/me/password/verification", (ctx) => {
+    const user = ctx.user;
+    if (!usesPasswordLogin(user)) return error(ctx, 400, "소셜 로그인 계정은 비밀번호를 사용할 수 없습니다.", "PASSWORD_LOGIN_UNAVAILABLE");
+    const elapsed = (Date.now() - (passwordChangeRequestedAt.get(user.id) ?? 0)) / 1000;
+    if (elapsed < PASSWORD_CHANGE_RESEND_SECONDS) {
+      return rateLimited(ctx, Math.ceil(PASSWORD_CHANGE_RESEND_SECONDS - elapsed), "인증번호를 너무 자주 요청했습니다.", "VERIFICATION_RATE_LIMITED");
+    }
+    passwordChangeRequestedAt.set(user.id, Date.now());
+    const verificationId = id("verify");
+    state.verifications.set(verificationId, { email: user.email, purpose: "password_change" });
+    console.log(`[mock] 이메일 인증번호(password_change) ${user.email}: 아무 6자리 숫자나 입력하면 됩니다 (개발 코드 9700도 허용)`);
+    ctx.json(202, { verification_id: verificationId, expires_in: VERIFICATION_TTL_SECONDS, retry_after: PASSWORD_CHANGE_RESEND_SECONDS });
+  });
+
+  // 로그인 상태 비밀번호 변경 3단계. 토큰은 계정 이메일·password_change에 묶이고, 거절된 요청은 토큰을 소비하지 않는다.
+  // MFA를 켠 계정은 토큰 검증 전에 인증 코드를 확인한다. 코드 실패가 한도를 넘으면 429 MFA_RATE_LIMITED(Retry-After)다.
+  router.put("/api/auth/me/password/verified", async (ctx) => {
+    const { new_password, verification_token, mfa_code } = await ctx.body();
+    const user = ctx.user;
+    if (!usesPasswordLogin(user)) return error(ctx, 400, "소셜 로그인 계정은 비밀번호를 사용할 수 없습니다.", "PASSWORD_LOGIN_UNAVAILABLE");
+    if (typeof new_password !== "string" || new_password.length < 8 || new_password.length > 72) {
+      return error(ctx, 400, "비밀번호는 8~72자여야 합니다.", "INVALID_REQUEST");
+    }
+    if (user.mfa.enabled) {
+      const waitSeconds = rateLimitedSeconds("mfa", user.id);
+      if (waitSeconds > 0) return rateLimited(ctx, waitSeconds, "인증 코드 확인 시도가 너무 많습니다.", "MFA_RATE_LIMITED");
+      if (!isSixDigits(mfa_code) && !user.mfa.recovery_codes.includes(mfa_code)) {
+        recordFailure("mfa", user.id);
+        return error(ctx, 401, "인증 코드가 올바르지 않습니다.", "INVALID_MFA_CODE");
+      }
+    }
+    if (!verificationTokenMatches(verification_token, user.email, "password_change")) {
+      return error(ctx, 400, "이메일 인증이 만료되었거나 이 계정으로 발급되지 않았습니다.", "INVALID_VERIFICATION_TOKEN");
+    }
     state.verificationTokens.delete(verification_token);
-    ctx.user.email = String(new_email).toLowerCase();
-    ctx.json(200, toMe(ctx.user));
+    user.password = new_password;
+    revokeOtherSessions(ctx, user);
+    ctx.json(204);
+  });
+
+  // 이메일 변경. 회원 탈퇴와 같은 본인 확인을 토큰 검증보다 먼저 한다. 본인 확인 실패(401·429)는 토큰을 소비하지 않는다.
+  router.put("/api/auth/me/email", async (ctx) => {
+    const { new_email, verification_token, current_password, mfa_code } = await ctx.body();
+    const user = ctx.user;
+    const normalized = typeof new_email === "string" ? new_email.trim().toLowerCase() : "";
+    if (!/^[^\s@]+@[^\s@]+$/.test(normalized) || normalized.length > 255) {
+      return error(ctx, 400, "이메일 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    }
+    if (user.password) {
+      const waitSeconds = rateLimitedSeconds("password", user.id);
+      if (waitSeconds > 0) return rateLimited(ctx, waitSeconds, "비밀번호 확인 시도가 너무 많습니다.", "PASSWORD_CHANGE_RATE_LIMITED");
+      if (current_password !== user.password) {
+        recordFailure("password", user.id);
+        return error(ctx, 401, "비밀번호가 올바르지 않습니다.", "INVALID_CREDENTIALS");
+      }
+    } else if (!ctx.session.authTime || Date.now() - ctx.session.authTime > REAUTH_WINDOW_MS) {
+      return error(ctx, 401, "본인 확인을 위해 다시 로그인해 주세요.", "REAUTHENTICATION_REQUIRED");
+    }
+    if (user.mfa.enabled) {
+      const waitSeconds = rateLimitedSeconds("mfa", user.id);
+      if (waitSeconds > 0) return rateLimited(ctx, waitSeconds, "인증 코드 확인 시도가 너무 많습니다.", "MFA_RATE_LIMITED");
+      if (!isSixDigits(mfa_code) && !user.mfa.recovery_codes.includes(mfa_code)) {
+        recordFailure("mfa", user.id);
+        return error(ctx, 401, "인증 코드가 올바르지 않습니다.", "INVALID_MFA_CODE");
+      }
+    }
+    if (!verificationTokenMatches(verification_token, normalized, "email_change")) {
+      return error(ctx, 400, "이메일 인증이 만료되었거나 다른 주소로 발급되었습니다.", "INVALID_VERIFICATION_TOKEN");
+    }
+    if (state.users.some((other) => other !== user && other.email === normalized && other.provider === user.provider)) {
+      return error(ctx, 409, "이미 사용 중인 이메일입니다.", "DUPLICATE_EMAIL");
+    }
+    state.verificationTokens.delete(verification_token);
+    const previousEmail = user.email;
+    user.email = normalized;
+    revokeOtherSessions(ctx, user);
+    if (previousEmail !== normalized) console.log(`[mock] 이메일 변경 알림: ${previousEmail} → ${normalized}`);
+    ctx.json(200, toMe(user));
   });
 
   router.post("/api/auth/me/oauth-accounts/:provider/link", (ctx) => {

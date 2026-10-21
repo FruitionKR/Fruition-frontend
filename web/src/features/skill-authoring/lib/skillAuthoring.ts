@@ -1,4 +1,4 @@
-import type { SkillAuthoringResult, SkillExecutionOptions, SkillResponse, SkillUpdateRequest } from "@/entities/skill/model/skill";
+import type { SkillAuthoringResult, SkillExecutionOptions, SkillUpdateRequest } from "@/entities/skill/model/skill";
 import { ApiError, getErrorMessage, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
 
 type SkillAuthorErrorNotice = { title: string; description: string };
@@ -11,11 +11,11 @@ const UNAVAILABLE_DESCRIPTION = "AI 검토가 지금 응답하지 않습니다. 
 const UNSUPPORTED_DESCRIPTION = "스킬로는 불가능한 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중 하나로 적어 주세요.";
 const REFERENCE_TOO_LARGE_DESCRIPTION = "참고 문서는 한 개당 30,000자까지 쓸 수 있습니다. 더 짧은 문서를 골라 주세요.";
 /** 서버 message가 화면용 한국어 안내인 거절 code. 빈 message는 parseApiError가 호출부 fallback으로 채운다. */
-const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTION_INVALID"]);
+const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTION_INVALID", "SKILL_TARGETS_INVALID"]);
 
 /**
  * author 요청 실패를 사유별 안내로 바꾼다.
- * 사유 code(의도 불명확·지침 오류)가 오면 화면용 한국어인 서버 message를 그대로 보여 준다.
+ * 사유 code(의도 불명확·지침 오류·대상 오류)가 오면 화면용 한국어인 서버 message를 그대로 보여 준다.
  * 불가능한 작업(SKILL_INTENT_UNSUPPORTED)은 서버 message 대신 정해 둔 문구로 안내한다.
  * 참고 문서 한 개가 너무 긴 경우(413 REFERENCE_DOCUMENT_TOO_LARGE)는 AI의 내부 용어가 섞인 message 대신 정해 둔 문구로 안내한다.
  * 크레딧 부족(402 INSUFFICIENT_CREDIT)은 공통 문의 안내로 보여 준다(#153).
@@ -64,20 +64,65 @@ export function skillAuthoringOutcome(result: Pick<SkillAuthoringResult, "status
 }
 
 /**
- * 스킬 수정 요청을 만든다. 이름은 편집하지 않으므로 편집 초안을 채운 버전의 이름을 그대로 보낸다.
- * 버전 이름은 slug와 같게 만들어지므로, 버전이 없으면 slug로 대신한다.
- * 대상·결과 방식은 초안에 있을 때만 보낸다(문서 스킬). 빼면 서버가 기존 값을 유지한다.
+ * 스킬 수정 요청을 만든다. name은 상세 시트의 커맨드명이다(PATCH가 name으로 slug를 바꾼다).
+ * capabilities(종류·결과 방식을 바꿨을 때)·대상·결과 방식·원문 문서는 초안에 있을 때만 보낸다.
+ * 빼면 서버가 기존 값을 유지하거나 정한다.
  */
 export function skillUpdateRequest(
-  skill: Pick<SkillResponse, "slug" | "enabled_version" | "latest_version">,
-  draft: { description: string; instructionsMarkdown: string } & SkillExecutionOptions
+  draft: { name: string; description: string; instructionsMarkdown: string; capabilities?: readonly string[] } & SkillExecutionOptions
 ): SkillUpdateRequest {
-  const version = skill.enabled_version ?? skill.latest_version;
   return {
-    name: version?.name ?? skill.slug,
+    name: draft.name,
     description: draft.description,
     instructions_markdown: draft.instructionsMarkdown,
+    ...(draft.capabilities != null ? { capabilities: [...draft.capabilities] } : {}),
     ...(draft.targets != null ? { targets: [...draft.targets] } : {}),
-    ...(draft.result_mode != null ? { result_mode: draft.result_mode } : {})
+    ...(draft.result_mode != null ? { result_mode: draft.result_mode } : {}),
+    ...(draft.requires_source != null ? { requires_source: draft.requires_source } : {})
   };
+}
+
+/**
+ * 시트를 연 뒤 입력을 고쳤는지. 저장(스킬 만들기) 전에는 반영하지 않으므로, 고친 채 닫으면 버릴지 묻는다.
+ * 폼은 문자열·배열·null로만 이루어져 값 비교로 충분하다.
+ */
+export function isSkillFormDirty(initial: object, current: object): boolean {
+  return JSON.stringify(initial) !== JSON.stringify(current);
+}
+
+/**
+ * 결과 방식이 capabilities와 맞지 않을 때의 code. document는 AI의 invalid_result_mode를 400 SKILL_RESULT_MODE_INVALID로 옮긴다.
+ * 그 밖의 표기(AI 원래 code·대문자)도 같은 뜻으로 받는다.
+ */
+const RESULT_MODE_REJECTION_CODES = new Set([
+  "SKILL_RESULT_MODE_INVALID",
+  "invalid_result_mode",
+  "INVALID_RESULT_MODE",
+  "SKILL_INVALID_RESULT_MODE"
+]);
+/** 허용되지 않는 capabilities 값·조합(게시와 같은 검증). document 매핑이 없던 때의 AI 원래 표기도 받는다. */
+const CAPABILITIES_REJECTION_CODES = new Set(["SKILL_CAPABILITIES_INVALID", "invalid_capabilities", "INVALID_CAPABILITIES"]);
+
+const TARGETS_INVALID_FALLBACK = "실행 대상이 이 스킬과 맞지 않아 저장하지 못했어요. 대상을 확인해 주세요.";
+const RESULT_MODE_INVALID_MESSAGE = "결과 방식이 스킬 종류와 맞지 않아 저장하지 못했어요. 스킬 종류·결과 방식을 다시 골라 주세요.";
+const CAPABILITIES_INVALID_MESSAGE = "이 스킬 종류로는 저장할 수 없어요. 스킬 종류·결과 방식을 다시 골라 주세요.";
+
+/**
+ * 스킬 수정(PATCH) 실패 문구.
+ * - 대상이 맞지 않으면(400 SKILL_TARGETS_INVALID, AI invalid_targets) 대상 문제임을 알리는 서버의 한국어 message를,
+ *   비었으면 정해 둔 문구를 보여 준다.
+ * - 결과 방식 불일치(SKILL_RESULT_MODE_INVALID 등)·허용되지 않는 종류(SKILL_CAPABILITIES_INVALID)는 서버 message가
+ *   AI 내부 표현일 수 있어 정해 둔 문구로 종류·결과 방식을 다시 고르게 한다.
+ * 그 밖에는 서버 message나 fallback이다.
+ */
+export function describeSkillSaveError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.code != null) {
+    if (error.code === "SKILL_TARGETS_INVALID") {
+      const message = error.message.trim();
+      return message && message !== fallback ? message : TARGETS_INVALID_FALLBACK;
+    }
+    if (RESULT_MODE_REJECTION_CODES.has(error.code)) return RESULT_MODE_INVALID_MESSAGE;
+    if (CAPABILITIES_REJECTION_CODES.has(error.code)) return CAPABILITIES_INVALID_MESSAGE;
+  }
+  return getErrorMessage(error, fallback);
 }

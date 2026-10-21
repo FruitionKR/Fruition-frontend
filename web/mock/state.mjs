@@ -7,7 +7,8 @@ export const state = {
   refreshTokens: new Map(),
   mfaTokens: new Map(),
   verifications: new Map(),
-  verificationTokens: new Set(),
+  // verification_token → { email, purpose }. 실제 서버처럼 발급한 주소·목적에만 쓸 수 있다.
+  verificationTokens: new Map(),
   loginSessions: [],
   workspaces: [],
   members: [],
@@ -54,7 +55,7 @@ export function error(ctx, status, message, code) {
 export function requireWorkspace(ctx) {
   const workspace = state.workspaces.find((item) => item.id === ctx.params.wid && !item.deleted_at);
   if (!workspace) {
-    error(ctx, 404, "워크스페이스를 찾을 수 없습니다.");
+    error(ctx, 404, `워크스페이스를 찾을 수 없습니다: id=${ctx.params.wid}`, "WORKSPACE_NOT_FOUND");
     return null;
   }
   const isMember = state.members.some((member) => member.workspace_id === workspace.id && member.user_id === ctx.user.id);
@@ -72,7 +73,7 @@ export function findDocument(workspaceId, documentId) {
 const PUBLIC_DOCUMENT_FIELDS = [
   "id", "filename", "mime_type", "byte_size", "status", "source_uri", "uploaded_at", "document_role",
   "extracted_text_uri", "processed_at", "processing_started_at", "updated_at", "error_message",
-  "processing_state", "processing_stage", "needs_reingest", "pipeline_run_id", "source_document_id"
+  "processing_state", "processing_stage", "needs_reingest", "pipeline_run_id", "source_document_id", "ai_origin"
 ];
 
 /** 내부 필드(본문·버전)를 제외한 문서 요약 응답. */
@@ -102,12 +103,30 @@ export function effectivePermission(doc) {
   return "edit";
 }
 
+/** 사용자가 워크스페이스 권한(document.convert 등)을 가졌는지. OWNER는 모든 권한을 가진다. */
+export function hasWorkspacePermission(workspaceId, userId, permission) {
+  const member = state.members.find((item) => item.workspace_id === workspaceId && item.user_id === userId);
+  return member?.role === "OWNER" || member?.permissions?.includes(permission) === true;
+}
+
+/** convert-markdown 권한 규칙: 올린 사람은 자기 문서를, 그 외에는 document.convert 권한(OWNER는 항상)이 있어야 변환한다. */
+export function mayConvertDocument(doc, userId) {
+  return doc.owner_user_id === userId || hasWorkspacePermission(doc.workspace_id, userId, "document.convert");
+}
+
+/** 응답 can_convert: 변환 대상(PDF 원본)이 아니면 false, 대상이면 권한 규칙을 따른다. */
+export function canConvertDocument(doc, userId) {
+  if (doc.mime_type !== "application/pdf" || doc.document_role === "EDITABLE") return false;
+  return mayConvertDocument(doc, userId);
+}
+
 /** 서버 DocumentAccessPolicy 흉내: 소유자·OWNER는 항상 편집·삭제, 그 외 멤버는 적용 권한이 edit일 때만 편집. */
 export function documentAccess(doc, userId) {
   const isPrivileged = doc.owner_user_id === userId || memberRole(doc.workspace_id, userId) === "OWNER";
   return {
     can_edit: isPrivileged || effectivePermission(doc) === "edit",
     can_delete: isPrivileged,
+    can_convert: canConvertDocument(doc, userId),
     permission: doc.permission ?? null,
     updated_by: doc.updated_by ?? doc.owner_user_id ?? null
   };

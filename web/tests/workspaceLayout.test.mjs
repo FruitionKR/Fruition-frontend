@@ -34,6 +34,14 @@ test("그래프 채팅은 채팅 시작 전에는 닫혀 있다", () => {
   assert.equal(isAgentPanelVisible("graph", false), false);
 });
 
+test("스킬 화면은 스킬 시트가 열린 동안만 열린 채팅 패널을 띄운다", () => {
+  assert.equal(canShowAgentPanel("skills"), false);
+  assert.equal(isAgentPanelVisible("skills", true), false);
+  assert.equal(isAgentPanelVisible("skills", true, true), true);
+  assert.equal(isAgentPanelVisible("skills", false, true), false);
+  assert.equal(isAgentPanelVisible("logs", true, true), false);
+});
+
 test("홈 뷰 패널 동작은 그대로 유지한다", () => {
   assert.equal(isAgentPanelVisible("home", true), true);
   assert.equal(isAgentPanelVisible("home", false), false);

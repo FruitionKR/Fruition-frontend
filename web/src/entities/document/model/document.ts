@@ -39,10 +39,14 @@ export type DocumentItemResponse = DocumentUploadResponse & {
   can_edit?: boolean;
   /** 삭제·휴지통 복구 가능 여부(문서 소유자·워크스페이스 OWNER만 true). */
   can_delete?: boolean;
+  /** PDF → Markdown 변환 가능 여부(올린 사람·document.convert 권한·OWNER만 true, 변환 대상이 아니면 false). 구 서버 응답은 생략된다. */
+  can_convert?: boolean;
   /** 이 문서에 직접 건 권한. null이면 상위 폴더·기본값을 따른다. */
   permission?: DocumentPermission | null;
   /** 마지막으로 본문을 저장한 사용자 ID */
   updated_by?: string | null;
+  /** 문서를 처음 만든 AI 경로. chat_export(채팅 Wiki page화 문서)는 확인 전용이라 본문을 편집할 수 없다. */
+  ai_origin?: "agent" | "meeting_notes" | "chat_export" | null;
 };
 
 export type DocumentListResponse = {

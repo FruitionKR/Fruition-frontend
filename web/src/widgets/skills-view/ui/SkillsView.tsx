@@ -20,17 +20,7 @@ import {
   type SkillSortKey,
   type SkillTab
 } from "../lib/skillTable";
-import {
-  activateTab,
-  closeTab,
-  INITIAL_SKILL_EDITOR_TABS,
-  openCreateTab,
-  openCreateTabForRequest,
-  openDetailTab,
-  pruneDetailTabs,
-  SKILL_LIST_TAB_ID,
-  type SkillEditorTab
-} from "../lib/skillEditorTabs";
+import { closeSheetIfSkillGone, openCreateSheet, openDetailSheet, type SkillSheetState } from "../lib/skillSheet";
 import { useSkillCatalog } from "../model/useSkillCatalog";
 import { SkillMoreIcon, SkillSearchIcon, SkillSortIcon } from "./SkillIcons";
 import styles from "./SkillsView.module.css";
@@ -76,19 +66,24 @@ function ColumnHeader({ column, sort, onSort }: {
 
 /**
  * 스킬 화면 (Figma 1482:9848). 레일 번개로 연다.
- * 맨 위 탭 줄: '스킬'(목록) 탭 + 새 스킬·스킬 상세 편집 탭 + '+'(새 스킬). 디자인 '② 새 스킬 탭'.
- * 목록: 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행 클릭·더보기 '수정' = 스킬 상세 탭,
- * 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
- * createRequest가 오면(작업 탭 "이 요청을 스킬로 저장") 그 요청으로 채운 새 스킬 탭을 한 번 열고 onCreateRequestHandled로 알린다.
+ * 목록: 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행·커맨드명 클릭 = 스킬 상세 시트(Figma 1708:3848),
+ * '스킬 만들기' = 스킬 만들기 시트(Figma 1671:13573), 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
+ * createRequest가 오면(작업 탭 "이 요청을 스킬로 저장") 그 요청으로 채운 스킬 만들기 시트를 한 번 열고 onCreateRequestHandled로 알린다.
+ * 시트가 열리고 닫힐 때 onSheetOpenChange로 알린다(채팅 패널을 함께 띄워 테스트 실행 자리 testRunTarget을 받는다).
  */
 export function SkillsView({
   onRunSkill,
   createRequest = null,
-  onCreateRequestHandled
+  onCreateRequestHandled,
+  onSheetOpenChange,
+  testRunTarget = null
 }: {
   onRunSkill: (skill: SkillResponse) => void;
   createRequest?: { id: number; text: string } | null;
   onCreateRequestHandled?: (id: number) => void;
+  onSheetOpenChange?: (isOpen: boolean) => void;
+  /** 채팅 패널 입력창 위의 테스트 실행 자리. 없으면 시트 본문 끝에 둔다. */
+  testRunTarget?: HTMLElement | null;
 }) {
   const workspaceId = getSelectedWorkspaceId();
   const catalog = useSkillCatalog(workspaceId);
@@ -99,12 +94,24 @@ export function SkillsView({
   const [sort, setSort] = useState<SkillSort>(null);
   const [searchText, setSearchText] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [editorTabs, setEditorTabs] = useState(INITIAL_SKILL_EDITOR_TABS);
+  const [sheet, setSheet] = useState<SkillSheetState>(null);
   useEffect(() => {
     if (!createRequest) return;
-    setEditorTabs((current) => openCreateTabForRequest(current, createRequest.text));
+    setSheet((current) => openCreateSheet(current, createRequest.text));
     onCreateRequestHandled?.(createRequest.id);
   }, [createRequest, onCreateRequestHandled]);
+  const isSheetOpen = sheet != null;
+  useEffect(() => {
+    onSheetOpenChange?.(isSheetOpen);
+  }, [isSheetOpen, onSheetOpenChange]);
+  // 화면을 떠나면(언마운트) 시트도 닫힌 것으로 알린다.
+  useEffect(() => () => onSheetOpenChange?.(false), [onSheetOpenChange]);
+  // 시트는 main.workspace에 그려 사이드바까지 덮는다(스킬 화면 섹션은 쌓임 맥락이 사이드바 아래다).
+  const sectionRef = useRef<HTMLElement>(null);
+  const [sheetHost, setSheetHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setSheetHost(sectionRef.current?.closest("main") ?? null);
+  }, []);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
@@ -127,106 +134,35 @@ export function SkillsView({
     return sortSkills(inTab, sort);
   }, [catalog.skills, activeTab, searchText, sort]);
 
-  // 상세 탭은 목록 캐시의 최신 스킬을 본다. 목록에서 사라지면(삭제 등) 그 탭을 닫는다.
+  // 상세 시트는 목록 캐시의 최신 스킬을 본다. 목록에서 사라지면(삭제 등) 시트를 닫는다.
   const isCatalogLoaded = !catalog.isLoading && catalog.loadError == null;
   useEffect(() => {
     if (!isCatalogLoaded) return;
     const skillIds = catalog.skills.map((skill) => skill.id);
-    setEditorTabs((current) => pruneDetailTabs(current, skillIds));
+    setSheet((current) => closeSheetIfSkillGone(current, skillIds));
   }, [isCatalogLoaded, catalog.skills]);
 
   function openDetail(skill: SkillResponse) {
     setOpenMenuId(null);
     updateMutation.reset();
     deleteMutation.reset();
-    setEditorTabs((current) => openDetailTab(current, skill.id));
+    setSheet((current) => openDetailSheet(current, skill.id));
   }
 
   function openCreate() {
     setOpenMenuId(null);
-    setEditorTabs((current) => openCreateTab(current));
+    setSheet((current) => openCreateSheet(current));
   }
 
-  const showList = () => setEditorTabs((current) => activateTab(current, SKILL_LIST_TAB_ID));
-  const closeEditorTab = (id: string) => setEditorTabs((current) => closeTab(current, id));
-  const tabDomId = (id: string) => `${idPrefix}-editor-tab-${id}`;
-  const tabPanelDomId = (id: string) => `${idPrefix}-editor-panel-${id}`;
-  const isListActive = editorTabs.activeId === SKILL_LIST_TAB_ID;
-
-  function editorTabLabel(tab: SkillEditorTab): string {
-    if (tab.kind === "create") return "새 스킬";
-    const skill = catalog.skills.find((item) => item.id === tab.skillId);
-    return skill ? `/${skill.slug}` : "스킬";
-  }
+  const closeSheet = () => setSheet(null);
+  const sheetSkill = sheet?.kind === "detail" ? catalog.skills.find((item) => item.id === sheet.skillId) : undefined;
 
   const panelId = `${idPrefix}-panel`;
   const errorMessage = catalog.loadError ?? catalog.actionError;
 
   return (
-    <section className={styles.skills} aria-label="스킬">
-      {/* 편집 탭 줄: 목록 '스킬' 탭은 늘 있다. 편집 탭은 닫기(×), 맨 끝 '+'는 새 스킬 탭이다. */}
-      <div className={styles["editor-tab-bar"]}>
-        <div role="tablist" aria-label="스킬 편집 탭" className={styles["editor-tab-list"]}>
-          <div className={cx(styles["editor-tab"], isListActive && styles["is-active"])}>
-            <button
-              type="button"
-              role="tab"
-              id={tabDomId(SKILL_LIST_TAB_ID)}
-              aria-selected={isListActive}
-              aria-controls={tabPanelDomId(SKILL_LIST_TAB_ID)}
-              className={styles["editor-tab-button"]}
-              onClick={showList}
-            >
-              스킬
-            </button>
-          </div>
-          {editorTabs.tabs.map((tab) => {
-            const isActive = editorTabs.activeId === tab.id;
-            const label = editorTabLabel(tab);
-            return (
-              <div key={tab.id} className={cx(styles["editor-tab"], isActive && styles["is-active"])}>
-                <button
-                  type="button"
-                  role="tab"
-                  id={tabDomId(tab.id)}
-                  aria-selected={isActive}
-                  aria-controls={tabPanelDomId(tab.id)}
-                  className={styles["editor-tab-button"]}
-                  title={label}
-                  onClick={() => setEditorTabs((current) => activateTab(current, tab.id))}
-                >
-                  {label}
-                </button>
-                <button
-                  type="button"
-                  className={styles["editor-tab-close"]}
-                  aria-label={`${label} 탭 닫기`}
-                  onClick={() => closeEditorTab(tab.id)}
-                >
-                  <span aria-hidden>×</span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <button
-          type="button"
-          className={styles["editor-tab-add"]}
-          aria-label="새 스킬 탭 열기"
-          disabled={workspaceId == null}
-          onClick={openCreate}
-        >
-          <span aria-hidden>+</span>
-        </button>
-      </div>
-
-      <div
-        id={tabPanelDomId(SKILL_LIST_TAB_ID)}
-        role="tabpanel"
-        aria-labelledby={tabDomId(SKILL_LIST_TAB_ID)}
-        hidden={!isListActive}
-        className={styles["list-panel"]}
-      >
+    <section ref={sectionRef} className={styles.skills} aria-label="스킬">
+      <div className={styles["list-panel"]}>
         <header className={styles.hero}>
           <div className={styles.heading}>
             <h1 id={`${idPrefix}-title`}>스킬</h1>
@@ -293,11 +229,13 @@ export function SkillsView({
               const isMenuOpen = openMenuId === skill.id;
               return (
                 <div key={skill.id} role="rowgroup">
-                  {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 더보기 '수정'으로 연다. */}
+                  {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 커맨드명 버튼으로 연다(누르면 행으로 전달된다). */}
                   <div className={cx(styles.row, styles["is-clickable"])} role="row" onClick={() => openDetail(skill)}>
                     {/* 커맨드 (Figma 1708:4537): 일반 텍스트 */}
                     <div className={cx(styles.cell, styles["col-command"], styles.command)} role="cell" title={command}>
-                      {command}
+                      <button type="button" className={styles["command-button"]} aria-label={`${command} 상세 열기`}>
+                        {command}
+                      </button>
                     </div>
                     <div className={cx(styles.cell, styles["col-description"], styles.description)} role="cell">
                       {skillDescription(skill)}
@@ -330,9 +268,6 @@ export function SkillsView({
                       </button>
                       {isMenuOpen && (
                         <div className={styles.menu} role="menu">
-                          <button type="button" role="menuitem" onClick={() => openDetail(skill)}>
-                            수정
-                          </button>
                           <button type="button" role="menuitem" className={styles["is-danger"]} onClick={() => {
                             setOpenMenuId(null);
                             deleteMutation.reset();
@@ -351,45 +286,30 @@ export function SkillsView({
         </div>
       </div>
 
-      {/* 편집 탭 본문. 다른 탭을 보는 동안에도 입력이 남도록 닫을 때까지 마운트해 둔다. */}
-      {workspaceId != null &&
-        editorTabs.tabs.map((tab) => {
-          const isActive = editorTabs.activeId === tab.id;
-          const panelProps = {
-            id: tabPanelDomId(tab.id),
-            role: "tabpanel",
-            "aria-labelledby": tabDomId(tab.id),
-            hidden: !isActive,
-            className: styles["editor-panel"]
-          } as const;
-          if (tab.kind === "create") {
-            return (
-              <div key={tab.id} {...panelProps}>
-                <SkillCreateEditor
-                  workspaceId={workspaceId}
-                  prefillRequest={tab.prefillRequest}
-                  onClose={() => closeEditorTab(tab.id)}
-                  onShowList={showList}
-                  onPublished={() => void catalog.refresh()}
-                />
-              </div>
-            );
-          }
-          const skill = catalog.skills.find((item) => item.id === tab.skillId);
-          if (!skill) return null;
-          return (
-            <div key={tab.id} {...panelProps}>
-              <SkillDetailEditor
-                workspaceId={workspaceId}
-                skill={skill}
-                onClose={() => closeEditorTab(tab.id)}
-                onShowList={showList}
-                onSubmit={(draft) => updateMutation.mutateAsync({ skill, draft })}
-                onDelete={() => deleteMutation.mutateAsync(skill)}
-              />
-            </div>
-          );
-        })}
+      {/* 스킬 만들기·상세 시트. key로 열 때마다 새 입력으로 시작한다. */}
+      {workspaceId != null && sheet?.kind === "create" && (
+        <SkillCreateEditor
+          key={sheet.key}
+          workspaceId={workspaceId}
+          prefillRequest={sheet.prefillRequest}
+          host={sheetHost}
+          testRunTarget={testRunTarget}
+          onClose={closeSheet}
+          onPublished={() => void catalog.refresh()}
+        />
+      )}
+      {workspaceId != null && sheetSkill && (
+        <SkillDetailEditor
+          key={sheetSkill.id}
+          workspaceId={workspaceId}
+          skill={sheetSkill}
+          host={sheetHost}
+          testRunTarget={testRunTarget}
+          onClose={closeSheet}
+          onSubmit={(draft) => updateMutation.mutateAsync({ skill: sheetSkill, draft })}
+          onDelete={() => deleteMutation.mutateAsync(sheetSkill)}
+        />
+      )}
 
       <dialog
         ref={deleteDialogRef}

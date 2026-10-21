@@ -1,13 +1,13 @@
 /* 사용자 설정 > 연동된 계정 (Figma 1691:16834). 행·필드·섹션은 SettingsModal.module.css를 쓴다. */
 
-/* 2열 격자: 열 간격 40, 행마다 py 4 */
+/* 2열 격자: 열 간격 40, 줄 간격 12 (Figma 1691:16940 → 1691:16966), 행마다 py 4 */
 .provider-grid {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 40px;
+  gap: 12px 40px;
 }
 
 .provider-row {
@@ -92,4 +92,31 @@
   .provider-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* 프로필 list (Figma 1691:16602): 닉네임 칸과 프로필 사진 묶음 사이 16. 닉네임 field(1691:16603)는 위아래 여백이 없다. */
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-list > .profile-field {
+  padding: 0;
+}
+
+/* 닉네임 칸 높이 36 (Figma 1691:16605: 글자 줄 20 + 위아래 8, 테두리는 안쪽) */
+.profile-list > .profile-field input {
+  height: 36px;
+}
+
+/* 계정 정보 list (Figma 1691:16618): 행 사이 12, 행 높이 50 (제목 블록이 위아래 6 여백으로 가운데) */
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-list > .account-row {
+  padding: 6px 0;
 }

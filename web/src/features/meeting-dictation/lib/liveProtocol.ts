@@ -20,17 +20,17 @@ export const LIVE_ROLLOVER_MS = 55 * 60_000;
 const FATAL_ERROR_CODES = new Set(["insufficient_credit", "transcript_limit", "meeting_not_open", "live_in_use"]);
 
 const LIVE_ERROR_MESSAGES: Record<string, string> = {
-  invalid_audio: "받아쓰기 연결이 오디오를 받지 못했습니다.",
-  meeting_not_open: "더 이상 받아쓸 수 없는 회의입니다.",
-  transcript_limit: "회의 전사 한도(10만 자)에 도달해 받아쓰기를 멈췄습니다. 지금까지 받아쓴 내용으로 회의록을 만들 수 있습니다.",
-  insufficient_credit: "크레딧이 부족합니다. 받아쓰기를 멈췄고 지금까지 받아쓴 내용은 저장돼 있습니다.",
-  segment_conflict: "받아쓴 문장을 저장하는 중 충돌이 생겼습니다.",
+  invalid_audio: "녹음 연결이 오디오를 받지 못했습니다.",
+  meeting_not_open: "더 이상 녹음할 수 없는 회의입니다.",
+  transcript_limit: "글로 옮길 수 있는 분량(10만 자)을 다 채워 녹음을 멈췄습니다. 지금까지 글로 옮긴 내용으로 회의록을 만들 수 있습니다.",
+  insufficient_credit: "크레딧이 부족합니다. 녹음을 멈췄고 지금까지 글로 옮긴 내용은 저장돼 있습니다.",
+  segment_conflict: "글로 옮긴 문장을 저장하는 중 충돌이 생겼습니다.",
   transcript_incomplete: "일부 문장을 저장하지 못했습니다.",
-  transcript_save_failed: "받아쓴 문장을 저장하지 못했습니다.",
-  backpressure: "네트워크가 느려 받아쓰기 연결이 끊겼습니다.",
-  transcription_failed: "받아쓰기 서비스에 연결하지 못했습니다.",
-  live_in_use: "이 회의는 이미 다른 곳에서 받아쓰고 있습니다.",
-  disconnected: "받아쓰기 연결이 끊겼습니다. 지금까지 받아쓴 내용은 저장돼 있습니다."
+  transcript_save_failed: "글로 옮긴 문장을 저장하지 못했습니다.",
+  backpressure: "네트워크가 느려 녹음 연결이 끊겼습니다.",
+  transcription_failed: "글로 옮기는 서비스에 연결하지 못했습니다.",
+  live_in_use: "이 회의는 이미 다른 곳에서 녹음하고 있습니다.",
+  disconnected: "녹음 연결이 끊겼습니다. 지금까지 글로 옮긴 내용은 저장돼 있습니다."
 };
 
 export function describeLiveError(code: string): string {

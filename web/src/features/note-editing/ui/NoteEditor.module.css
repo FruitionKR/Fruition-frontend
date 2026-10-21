@@ -331,14 +331,125 @@
   transition-delay: 0.5s;
 }
 
-/* 코드 블록을 편집할 때만 줄 번호와 현재 줄을 표시한다. 여백은 유지해 포커스 시 흔들림을 막는다. */
-.note-wysiwyg-editor :global(.milkdown-code-block .cm-editor:not(.cm-focused) .cm-lineNumbers) {
-  visibility: hidden;
+/* 코드 블록: 문서 보기(markdown.css의 .markdown-codeblock)와 같은 토큰(--code-block-*)을 쓴다.
+   박스 경계~툴바, 툴바~코드 첫 줄, 마지막 줄~아래 경계, 양옆 경계~내용을 같은 inset으로 둔다.
+   줄 번호의 왼쪽 시작선은 언어 버튼의 왼쪽 시작선과 같다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block) {
+  padding: var(--code-block-inset);
+  background: var(--code-block-background);
+  border-radius: var(--code-block-radius);
 }
 
-.note-wysiwyg-editor :global(.milkdown-code-block .cm-editor:not(.cm-focused) .cm-activeLine),
-.note-wysiwyg-editor :global(.milkdown-code-block .cm-editor:not(.cm-focused) .cm-activeLineGutter) {
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-editor) {
+  background: var(--code-block-background);
+}
+
+/* crepe 기본 테마(oneDark)의 연회색 글자 대신 문서 보기와 같은 코드 글자색·글꼴·크기·행간을 쓴다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-scroller),
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .milkdown-code-block-placeholder) {
+  font-family: var(--code-block-font-family);
+  font-size: var(--code-block-font-size);
+  line-height: var(--code-block-line-height);
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-content) {
+  color: var(--markdown-code-foreground);
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools) {
+  margin-bottom: var(--code-block-inset);
+}
+
+/* 줄 번호는 포커스와 상관없이 항상 같은 폭으로 보여 코드가 흔들리지 않게 한다.
+   접기 마커 칸은 숨긴다: 코드 블록은 대개 짧아 접을 일이 드물고, 칸이 있으면 줄 번호~코드 간격이 넓어진다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-gutters) {
+  color: var(--code-block-line-number);
+  background: var(--code-block-background);
+  border-right: none;
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-foldGutter) {
+  /* CodeMirror 기본 테마가 .cm-gutter에 display: flex !important를 건다. */
+  display: none !important;
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-lineNumbers .cm-gutterElement) {
+  min-width: var(--code-block-gutter-min-width);
+  padding: 0 var(--code-block-gutter-gap) 0 0;
+}
+
+/* 현재 줄 번호 칸은 칠하지 않는다(oneDark의 어두운 칸이 밝은 배경에서 튀지 않게). */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-activeLineGutter) {
   background-color: transparent;
+}
+
+/* CodeMirror 기본 여백(.cm-content 위아래 4px, .cm-line 왼쪽 6px·오른쪽 2px)을 없애 inset만 남긴다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-content) {
+  padding-block: 0;
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .cm-line) {
+  padding-inline: 0;
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .milkdown-code-block-placeholder) {
+  padding: 0;
+}
+
+/* 편집할 때만 현재 줄을 표시한다. */
+.note-wysiwyg-editor :global(.milkdown-code-block .cm-editor:not(.cm-focused) .cm-activeLine) {
+  background-color: transparent;
+}
+
+/* 언어 선택 버튼과 Copy 버튼을 같은 툴바 버튼 모양(높이·글자·좌우 패딩·모서리·아이콘)으로 맞춘다.
+   hover 때만 보이는 기본 동작(opacity)은 crepe 기본값을 쓰고, 키보드 포커스와 hover 없는 기기에서도 보이게 한다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block:focus-within .tools .language-button),
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block:focus-within .tools .tools-button-group > button) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .language-button),
+  .note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .tools-button-group > button) {
+    opacity: 1;
+  }
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .language-button),
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .tools-button-group button) {
+  box-sizing: border-box;
+  height: var(--code-block-tool-height);
+  margin: 0;
+  padding: 0 var(--code-block-tool-padding-x);
+  gap: var(--code-block-tool-gap);
+  color: var(--crepe-color-on-surface-variant);
+  background: var(--crepe-color-secondary);
+  border-radius: var(--code-block-tool-radius);
+  font-size: var(--code-block-tool-font-size);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .language-button:hover),
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .tools-button-group button:hover) {
+  background-image: linear-gradient(var(--crepe-color-hover), var(--crepe-color-hover));
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .language-button .expand-icon) {
+  width: var(--code-block-tool-icon);
+  height: var(--code-block-tool-icon);
+}
+
+/* 펼침 아이콘은 stroke(currentColor), Copy 아이콘은 fill로 그려진다. 색은 글자색과 같게 맞춘다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .language-button .expand-icon svg),
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .tools-button-group button svg) {
+  width: var(--code-block-tool-icon);
+  height: var(--code-block-tool-icon);
+  color: var(--crepe-color-on-surface-variant);
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-code-block .tools .tools-button-group button svg) {
+  fill: var(--crepe-color-on-surface-variant);
 }
 
 /* 표 행/열 이동: 미리보기를 흐리게 하고 삽입 위치를 밝게 강조한다. */

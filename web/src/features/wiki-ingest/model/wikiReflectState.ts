@@ -12,8 +12,8 @@ type WikiReflectState = "processing" | "changed" | "not-included" | "retry" | "u
 
 const WIKI_REFLECT_LABELS: Partial<Record<WikiReflectState, string>> = {
   changed: "수정됨",
-  "not-included": "신규",
-  retry: "재시도"
+  "not-included": "미편입",
+  retry: "편입 실패"
 };
 
 /**
@@ -37,7 +37,11 @@ export function getWikiReflectState(document: DocumentItemResponse): WikiReflect
     return "not-included";
   }
 
-  if (document.needs_reingest === true) return "changed";
+  // needs_reingest는 "최신 편집본이 위키에 반영돼 있지 않음"이라 한 번도 편입하지 않은 새 노트(run 없음)도 true다.
+  // 편입한 적 있는지는 pipeline_run_id(convert: 제외) 유무로 가린다.
+  if (document.needs_reingest === true) {
+    return document.pipeline_run_id && !document.pipeline_run_id.startsWith("convert:") ? "changed" : "not-included";
+  }
 
   if (document.status === "uploaded") return "not-included";
   if (document.status === "failed") return "retry";

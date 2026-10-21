@@ -6,6 +6,7 @@ import { useSignOut } from "@/entities/user";
 import { acceptInvitation, fetchInvitation } from "@/entities/workspace/api/invitations";
 import { clearAuth, setAfterLoginPath, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
 import styles from "@/views/workspaces/ui/WorkspacesPage.module.css";
 
 export default function InvitationPage({ token }: { token: string }) {
@@ -29,6 +30,8 @@ export default function InvitationPage({ token }: { token: string }) {
       queryClient.clear();
       const accepted = await acceptInvitation(token);
       setSelectedWorkspaceId(accepted.workspace_id);
+      // 내보내졌던 워크스페이스에 다시 초대받았으면 이 탭에 남은 접근 불가 기록을 지운다.
+      clearWorkspaceGone(accepted.workspace_id);
       window.location.assign("/home");
     } catch (cause: unknown) {
       setError(getErrorMessage(cause, "초대를 수락하지 못했습니다."));

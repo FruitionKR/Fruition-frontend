@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AgentChevronIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { cx } from "@/shared/lib/classNames";
 import { transcriptLines } from "../lib/liveTranscript";
+import { meetingCardLines } from "../lib/meetingCardLines";
 import { canCloseMeetingInPhase, canDeleteMeetingInPhase, MEETING_TITLES, meetingProgressText } from "../lib/meetingNotesFlow";
 import type { MeetingSessionState } from "../model/useMeetingSession";
 import { MeetingDeleteConfirm } from "./MeetingDeleteConfirm";
@@ -29,11 +30,16 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
     ? preview.markdown
     : showsNotes ? notes?.markdown ?? "" : transcriptLines(transcript).join("\n");
 
-  // 카드는 아래 정렬이다. 사용자가 위로 올려 읽는 중이 아니면 새 내용이 보이게 맨 아래로 맞춘다.
+  // 완성된 회의록·추가 결과는 위에서부터 읽으므로 위 정렬한다. 받아쓰는 동안만 아래 정렬로 새 문장을 쌓는다.
+  const isTopAligned = showsNotes || (phase === "previewing" && Boolean(preview));
+
+  // 받아쓰는 동안 사용자가 위로 올려 읽는 중이 아니면 새 내용이 보이게 맨 아래로 맞춘다. 위 정렬 내용은 처음부터 보인다.
   useLayoutEffect(() => {
     const card = cardRef.current;
-    if (card && isStuckToBottomRef.current) card.scrollTop = card.scrollHeight;
-  }, [body, isCollapsed]);
+    if (!card) return;
+    if (isTopAligned) card.scrollTop = 0;
+    else if (isStuckToBottomRef.current) card.scrollTop = card.scrollHeight;
+  }, [body, isCollapsed, isTopAligned]);
 
   if (phase === "idle") return null;
   const progressText = meetingProgressText(phase, session.uploadPercent);
@@ -43,13 +49,13 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
   const showsPlayer = Boolean(meeting?.has_recording) && phase !== "uploading" && phase !== "deleting";
   // 회의를 불러오는 중에는 진행 표시만 보여 준다.
   const emptyText = phase === "opening" ? "" : session.source === "upload"
-    ? "녹음 파일을 전사하면 받아쓴 내용이 여기에 보여요."
-    : "말씀을 시작하면 받아쓴 문장이 여기에 쌓여요.";
+    ? "녹음 파일을 글로 옮기면 대화 내용이 여기에 보여요."
+    : "말씀을 시작하면 글로 옮긴 문장이 여기에 쌓여요.";
   const title = MEETING_TITLES[phase];
   const canAppend = Boolean(session.meeting?.document_id);
 
   return (
-    <section className={styles["meeting-view"]} aria-label="회의 받아쓰기">
+    <section className={styles["meeting-view"]} aria-label="회의 녹음">
       <div className={cx(styles["meeting-container"], isCollapsed && styles["is-collapsed"])}>
         <div className={styles["meeting-title-row"]}>
           <button
@@ -80,7 +86,7 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             ref={cardRef}
             className={styles["meeting-card"]}
             tabIndex={0}
-            aria-label={showsNotes ? "회의록" : phase === "previewing" ? "문서 끝에 추가한 결과" : "받아쓴 내용"}
+            aria-label={showsNotes ? "회의록" : phase === "previewing" ? "문서 끝에 추가한 결과" : "대화 내용"}
             aria-live={phase === "recording" ? "polite" : undefined}
             onScroll={(event) => {
               const card = event.currentTarget;
@@ -88,7 +94,19 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             }}
           >
             {body
-              ? <p className={styles["meeting-card-text"]}>{body}</p>
+              ? (
+                <p className={cx(styles["meeting-card-text"], isTopAligned && styles["is-top-aligned"])}>
+                  {meetingCardLines(body).map((line, index) => (
+                    <span
+                      key={index}
+                      className={styles["meeting-card-line"]}
+                      style={{ paddingLeft: `${line.indent + line.hanging}ch`, textIndent: `${-line.hanging}ch` }}
+                    >
+                      {line.text}
+                    </span>
+                  ))}
+                </p>
+              )
               : <p className={styles["meeting-card-empty"]}>{emptyText}</p>}
           </div>
         )}
@@ -142,7 +160,7 @@ function MeetingActions({
   if (phase === "transcribing") {
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" onClick={() => void session.cancelTranscription()}>전사 취소</button>
+        <button type="button" onClick={() => void session.cancelTranscription()}>글로 옮기기 취소</button>
       </div>
     );
   }

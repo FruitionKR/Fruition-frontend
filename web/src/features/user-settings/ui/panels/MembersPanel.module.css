@@ -28,6 +28,11 @@
   font-weight: 600;
 }
 
+.selected-count {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 .toolbar-group {
   min-width: 0;
   display: flex;
@@ -107,6 +112,26 @@
   white-space: nowrap;
 }
 
+/* 삭제 (Figma btn 1742:4215): off는 --color-border 바탕, on은 --color-status-error(#F04452) 바탕. 12 SemiBold 흰 글자, 높이 33 */
+.delete-btn {
+  height: 33px;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  color: var(--color-canvas);
+  background: var(--color-danger);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.delete-btn:disabled {
+  cursor: default;
+  background: var(--color-border);
+}
+
 .invite-btn:disabled {
   cursor: default;
   opacity: 0.5;
@@ -115,6 +140,8 @@
 .icon-btn:focus-visible,
 .filter-btn:focus-visible,
 .invite-btn:focus-visible,
+.delete-btn:focus-visible,
+.check-btn:focus-visible,
 .sort-btn:focus-visible,
 .more-btn:focus-visible,
 .menu-option:focus-visible {
@@ -265,6 +292,41 @@
   border-radius: 6px;
 }
 
+/* 체크 칸을 감싼 버튼(role=checkbox). 20px 칸 그대로 보이고 클릭 영역만 맡는다. */
+.check-btn {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.check-btn:disabled {
+  cursor: default;
+}
+
+.check-btn:hover:not(:disabled) .checkbox {
+  border-color: var(--color-primary);
+}
+
+/* 일부만 고른 머리 칸: primary 바탕 + 흰 가로줄 */
+.checkbox.is-mixed {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.checkbox.is-mixed::after {
+  content: "";
+  width: 9px;
+  height: 1.8px;
+  background: var(--color-on-primary);
+  border-radius: 1px;
+}
+
 .sort-btn {
   display: flex;
   align-items: center;
@@ -319,16 +381,6 @@ img.profile-icon {
   letter-spacing: -0.28px;
 }
 
-.self-badge {
-  padding: 0 4px;
-  color: var(--color-primary);
-  background: var(--color-primary-weak);
-  border-radius: 4px;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 600;
-}
-
 .profile-email {
   overflow: hidden;
   color: var(--color-muted);
@@ -337,49 +389,6 @@ img.profile-icon {
   letter-spacing: -0.24px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 사용 권한 (Figma 1540:22129): 테두리 없는 14 Medium 글자 + 16px 화살표 */
-.role-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-}
-
-.role-select {
-  appearance: none;
-  padding: 2px 20px 2px 0;
-  color: var(--color-body);
-  background: transparent;
-  border: none;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.28px;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.role-select:disabled {
-  cursor: default;
-  opacity: 1;
-}
-
-.role-select:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.role-chevron {
-  position: absolute;
-  right: 0;
-  pointer-events: none;
-}
-
-.role-select:disabled + .role-chevron {
-  opacity: 0.4;
 }
 
 .more-btn {
@@ -417,11 +426,6 @@ img.profile-icon {
   .cell-user {
     gap: 10px;
   }
-
-  .row-head .checkbox,
-  .row .checkbox {
-    display: none;
-  }
 }
 
 /* 다크: 시안 아이콘 자산은 밝은 화면용 고정색(#4E5968·#E5E8EB)이라 어두운 배경에서 밝기만 맞춘다 */
@@ -429,7 +433,6 @@ img.profile-icon {
   :root:not([data-theme="light"]) .icon-btn img,
   :root:not([data-theme="light"]) .filter-btn img,
   :root:not([data-theme="light"]) .sort-btn img,
-  :root:not([data-theme="light"]) .role-chevron,
   :root:not([data-theme="light"]) .more-btn img {
     filter: brightness(2.4);
   }
@@ -442,7 +445,6 @@ img.profile-icon {
 :root[data-theme="dark"] .icon-btn img,
 :root[data-theme="dark"] .filter-btn img,
 :root[data-theme="dark"] .sort-btn img,
-:root[data-theme="dark"] .role-chevron,
 :root[data-theme="dark"] .more-btn img {
   filter: brightness(2.4);
 }

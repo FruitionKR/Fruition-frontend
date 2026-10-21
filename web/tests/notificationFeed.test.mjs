@@ -43,7 +43,7 @@ test("종결된 작업 로그를 작업 알림으로 바꾸고 최신순으로 �
     log({ operation_id: "b", operation_type: "lint", status: "failed", target_display_name: null, summary: "LLM 오류", completed_at: "2026-10-09T02:00:00Z" })
   ]);
   assert.deepEqual(items.map((item) => item.id), ["task:b", "task:a"]);
-  assert.equal(items[0].title, "위키 다듬기 실패");
+  assert.equal(items[0].title, "위키 최신화 실패");
   assert.equal(items[0].description, "LLM 오류");
   assert.equal(items[0].tone, "failure");
   assert.equal(items[0].operationId, "b");

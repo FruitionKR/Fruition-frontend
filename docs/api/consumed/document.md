@@ -14,7 +14,7 @@ document-svc의 문서·폴더·본문 API다. 이 경로군은 전부 직접 �
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `GET /api/workspaces/{workspace_id}/documents` | 문서 평면 목록 | `web/src/entities/document/api/document.ts` `fetchDocuments` / `web/src/entities/wiki/api/wiki.ts` `fetchDocumentData` | `workspacePath(workspaceId, "documents")` | `cache: no-store` | `documents[]` | 두 모듈이 같은 경로를 각자 호출한다 |
-| `GET /api/workspaces/{workspace_id}/document-tree` | 폴더·문서 트리 | `web/src/entities/tree/api/documentTree.ts` `fetchDocumentTree` / `web/src/features/agent-chat/api/agentPlan.ts` `fetchPlanTree` | `workspacePath(workspaceId, "document-tree")` | `cache: no-store` | `items[]` (`id`, `name`, `type`, `children`, `current_version`) | 낙관적 잠금용 `current_version`과 이름 중복 검사의 근거 데이터다. `web/src/features/document-search`는 이 트리를 받아 **클라이언트에서 필터링**하며 backend 검색 API를 쓰지 않는다 |
+| `GET /api/workspaces/{workspace_id}/document-tree` | 폴더·문서 트리 | `web/src/entities/tree/api/documentTree.ts` `fetchDocumentTree` / `web/src/features/agent-chat/api/agentPlan.ts` `fetchPlanTree` | `workspacePath(workspaceId, "document-tree")` | `cache: no-store` | `items[]` (`id`, `name`, `type`, `children`, `current_version`, 폴더 `permission`) | 낙관적 잠금용 `current_version`과 이름 중복 검사의 근거 데이터다. `web/src/features/document-search`는 이 트리를 받아 **클라이언트에서 필터링**하며 backend 검색 API를 쓰지 않는다 |
 
 ## 업로드
 
@@ -33,7 +33,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | `web/src/entities/workspace/api/workspace.ts` `fetchWorkspaceStorage` | `workspacePath(workspaceId, "storage")` | `cache: no-store` | `used_bytes`, `limit_bytes` | **백엔드 미구현(요구사항)**. 404면 `null`을 돌려준다. 업로드 직전(`web/src/features/document-upload/model/useDocumentUpload.ts`)에만 부르며, 404·오류·3초 초과면 사전 검사를 건너뛰고 서버 판단에 맡긴다. 404는 탭 단위로 기억해 다시 묻지 않고, 새 노트 만들기에서는 부르지 않는다. 직접 전송 정규식에 없어 rewrite를 경유한다 |
+| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | 없음(프론트는 호출하지 않는다) | - | - | - | **백엔드 요구사항(보류)**. 플랜·용량 정책을 정할 때 백엔드에서 한도 적용(`STORAGE_QUOTA_EXCEEDED`)과 함께 구현할 요구사항이다. 현재 document-svc에는 이 API와 워크스페이스 용량 한도가 없고 파일당 50MB multipart 제한만 있다. 프론트는 업로드 전 용량 사전 검사를 하지 않고 서버 판단에 맡긴다 |
 
 업로드 실패의 `error.code`가 `STORAGE_QUOTA_EXCEEDED`면 서버 message 대신
 `describeLimitError`(`web/src/entities/workspace/model/workspaceLimits.ts`)의 정해 둔 문구를 보여 준다.
@@ -74,7 +74,27 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `PUT /api/workspaces/{workspace_id}/documents/{document_id}/permission` | 문서 권한 설정 | `web/src/entities/document/api/permission.ts` `setDocumentPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "documents", documentId, "permission")` | `{ access: "edit" \| "view" \| null }` | `access` | 문서 소유자·OWNER만. `403 DOCUMENT_WRITE_FORBIDDEN`은 `describePermissionError`가 역할 안내 문구로 바꾼다 |
-| `PUT /api/workspaces/{workspace_id}/folders/{folder_id}/permission` | 폴더 권한 설정 | `web/src/entities/document/api/permission.ts` `setFolderPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "folders", folderId, "permission")` | `{ access }` | `access` | OWNER만. 폴더 안 문서·하위 폴더가 따른다. 트리 응답에 폴더 권한이 없어 다이얼로그는 `null`(상위 따름)에서 시작한다 |
+| `PUT /api/workspaces/{workspace_id}/folders/{folder_id}/permission` | 폴더 권한 설정 | `web/src/entities/document/api/permission.ts` `setFolderPermission` (`putPermission`) | `workspacePath(getWorkspaceId(), "folders", folderId, "permission")` | `{ access }` | `access` | OWNER만. 폴더 안 문서·하위 폴더가 따른다. 다이얼로그는 트리 응답의 폴더 `permission`에서 시작하고, 없으면 `null`(상위 따름)에서 시작한다 |
+
+### `can_convert` — Markdown 변환 가능 여부
+
+목록·트리·상세 응답의 문서 항목에 `can_convert: boolean`을 `can_edit`·`can_delete`와 같은 자리로 받는다.
+값은 `convert-markdown` 판정과 같은 규칙이다: 올린 사람은 자기 PDF를 변환할 수 있고, 그 외에는 워크스페이스 `document.convert` 권한이 필요하며 OWNER는 항상 가능하다. 변환 대상이 아닌 문서는 `false`다.
+
+- `can_convert === false`면 문서 트리 우클릭 "Markdown으로 변환"을 비활성화하고 "다른 사람이 올린 PDF는 변환 권한이 있어야 해요"를 툴팁·`aria-description`으로 알린다. 요청은 보내지 않는다(`web/src/widgets/workspace/model/useProjectTree.ts`).
+- 위키 편입 선택 트리도 같은 이유로 그 PDF를 고르지 못하게 하고(`getGraphIngestBlockReason`), PDF 편입 흐름(`usePdfWikiIngest.startPdfIngest`)은 convert 요청 전에 같은 이유로 실패시킨다.
+- 필드가 없는 구 응답은 지금처럼 요청을 보내고 서버 판정(403)에 맡긴다(`canConvertDocument`, `web/src/entities/document/lib/documentAccess.ts`).
+- mock(`web/mock/state.mjs` `canConvertDocument`·`mayConvertDocument`)은 같은 규칙으로 `can_convert`를 내려 주고, `convert-markdown`은 권한이 없으면 `403 WORKSPACE_PERMISSION_REQUIRED`를 돌려준다.
+
+### 트리의 폴더 `permission` — 백엔드 추가 필요(제안)
+
+`GET /document-tree`의 `type: "folder"` 항목에 폴더 자기 권한 `permission: "edit" | "view" | null`을 내려 주길 제안한다
+(`null`은 상위 설정 따름, `PUT .../folders/{folder_id}/permission`으로 저장한 값과 같다). 문서 항목은 이미 `document.permission`이 있다.
+
+- 프론트는 이 필드가 있으면 폴더 행에 자기 권한(자물쇠·연필)을, 상위 설정 따름 항목에는 가장 가까운 권한 있는 상위 폴더의 권한을 흐린 아이콘과
+  "보기만 가능 (상위 폴더 '{폴더명}'에서 상속)" 안내로 보여 준다(`web/src/entities/tree/lib/treePermission.ts`).
+- 필드가 없는 현재 백엔드 응답에서는 폴더 권한과 그로부터의 상속 표시가 나오지 않는다(문서 자기 권한 표시만 동작).
+- mock(`web/mock/routes/folders.mjs` `buildTree`)은 이 제안 계약대로 폴더 `permission`을 내려 준다.
 
 ## 편집 충돌
 
@@ -107,7 +127,7 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
 | `POST /api/workspaces/{workspace_id}/documents/{document_id}/ingest` | Wiki 편입 시작 | `web/src/entities/document/api/document.ts` `startDocumentIngest` (비공개) | `workspacePath(workspaceId, "documents", documentId, "ingest")` | 본문 없음 | - (`throwIfNotOk`) | `documentRole === "EDITABLE"`일 때만 호출한다. ingest가 편집 가능 Markdown만 받기 때문 |
-| `POST /api/workspaces/{workspace_id}/documents/{document_id}/convert-markdown` | PDF 등 원본을 Markdown으로 변환 | `web/src/entities/document/api/document.ts` `convertDocumentToMarkdown` | `workspacePath(workspaceId, "documents", documentId, "convert-markdown")` | 본문 없음 | `DocumentItemResponse` (`id`) | `Idempotency-Key`. `EDITABLE`이 아닌 문서의 Wiki 반영 경로이기도 하다. 응답 `id`로 변환 완료 후 자동 열기 이벤트(`publishConvertStarted`)를 발행한다 |
+| `POST /api/workspaces/{workspace_id}/documents/{document_id}/convert-markdown` | PDF 등 원본을 Markdown으로 변환 | `web/src/entities/document/api/document.ts` `convertDocumentToMarkdown` | `workspacePath(workspaceId, "documents", documentId, "convert-markdown")` | 본문 없음 | `DocumentItemResponse` (`id`) | `Idempotency-Key`. `EDITABLE`이 아닌 문서의 Wiki 반영 경로이기도 하다. `can_convert === false`면 보내지 않는다(공동 편집 권한의 `can_convert` 절). 응답 `id`로 변환 완료 후 자동 열기 이벤트(`publishConvertStarted`)를 발행한다 |
 
 ## UI 위치
 

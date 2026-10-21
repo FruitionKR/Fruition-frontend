@@ -5,6 +5,8 @@ import {
   parseSoleOwnerWorkspaces,
   type AccountDeletionBody
 } from "@/entities/user/model/accountDeletion";
+import { parseRetryAfterSeconds, type EmailChangeBody } from "@/entities/user/model/emailChange";
+import { buildCurrentPasswordChangeBody, type PasswordChangeBody } from "@/entities/user/model/passwordChange";
 
 /** 로그인한 사용자 정보를 가져온다. */
 export async function fetchMe(): Promise<UserMeResponse> {
@@ -42,21 +44,72 @@ export async function fetchUserAvatar(avatarUrl: string): Promise<Blob> {
   return response.blob();
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+/**
+ * 현재 비밀번호로 비밀번호를 바꾼다. MFA를 켠 계정은 인증 코드도 함께 보낸다.
+ * 서버는 현재 비밀번호(401 INVALID_CREDENTIALS) → MFA(401 INVALID_MFA_CODE, 429 MFA_RATE_LIMITED) 순서로 확인한다.
+ * 429는 Retry-After를 retryAfter(초)로 실어 던진다.
+ * 현재 설정 화면에서는 쓰지 않는다(설정의 비밀번호 변경은 이메일 인증 방식 changePasswordWithVerification).
+ */
+export async function changePassword(currentPassword: string, newPassword: string, mfaCode = ""): Promise<void> {
   const response = await apiFetch("/api/auth/me/password", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+    body: JSON.stringify(buildCurrentPasswordChangeBody({ currentPassword, newPassword, mfaCode }))
   });
+  if (response.status === 429) return throwRateLimited(response);
   await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
 }
 
-export async function changeEmail(newEmail: string, verificationToken: string): Promise<UserMeResponse> {
+type PasswordChangeVerificationResponse = {
+  verification_id: string;
+  expires_in: number;
+  retry_after: number;
+};
+
+/** 429면 Retry-After(초)를 retryAfter로 실어 던진다. 화면이 그동안 제출을 막을 수 있게 한다. */
+async function throwRateLimited(response: Response): Promise<never> {
+  const apiError = await parseApiError(response, "시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+  throw Object.assign(apiError, { retryAfter: parseRetryAfterSeconds(response.headers.get("Retry-After")) });
+}
+
+/**
+ * 로그인 상태 비밀번호 변경 1단계. 본문 없이 보내며 서버가 로그인한 계정 이메일로 인증번호(password_change)를 보낸다.
+ * 소셜 전용 계정은 400 PASSWORD_LOGIN_UNAVAILABLE, 재요청 제한은 429 VERIFICATION_RATE_LIMITED(retryAfter)다.
+ */
+export async function requestPasswordChangeVerification(): Promise<PasswordChangeVerificationResponse> {
+  const response = await apiFetch("/api/auth/me/password/verification", { method: "POST" });
+  if (response.status === 429) return throwRateLimited(response);
+  return parseJsonOrThrow<PasswordChangeVerificationResponse>(response, "인증번호를 보내지 못했습니다.");
+}
+
+/**
+ * 로그인 상태 비밀번호 변경 3단계. 1단계 코드를 confirm해 받은 토큰과 새 비밀번호로 바꾼다(204).
+ * MFA를 켠 계정은 인증 코드도 함께 보낸다. 틀리면 401 INVALID_MFA_CODE이고 토큰은 소비되지 않는다.
+ * 코드 확인 시도가 너무 많으면 429 MFA_RATE_LIMITED이며 Retry-After를 retryAfter(초)로 실어 던진다.
+ * 현재 세션은 유지되고 다른 세션의 refresh token만 폐기된다.
+ */
+export async function changePasswordWithVerification(body: PasswordChangeBody): Promise<void> {
+  const response = await apiFetch("/api/auth/me/password/verified", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (response.status === 429) return throwRateLimited(response);
+  await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
+}
+
+/**
+ * 이메일 변경. 새 주소로 받은 인증 토큰과 본인 확인 값(비밀번호·MFA 코드)을 함께 보낸다.
+ * 성공하면 서버가 다른 세션을 폐기하고 기존 이메일로 변경 알림을 보낸다.
+ * 429는 Retry-After를 retryAfter(초)로 실어 던져 화면이 그동안 제출을 막을 수 있게 한다.
+ */
+export async function changeEmail(body: EmailChangeBody): Promise<UserMeResponse> {
   const response = await apiFetch("/api/auth/me/email", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ new_email: newEmail, verification_token: verificationToken })
+    body: JSON.stringify(body)
   });
+  if (response.status === 429) return throwRateLimited(response);
   return parseJsonOrThrow<UserMeResponse>(response, "이메일을 변경하지 못했습니다.");
 }
 

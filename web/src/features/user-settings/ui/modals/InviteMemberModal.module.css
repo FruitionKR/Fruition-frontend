@@ -38,8 +38,7 @@
 }
 
 /* 입력 칸 (Figma 1708:5046): surface 배경, 2px surface 테두리, px16 py12, 14 Medium */
-.field input,
-.field select {
+.field input {
   width: 100%;
   padding: 12px 16px;
   color: var(--color-foreground);
@@ -57,33 +56,13 @@
   color: var(--color-muted);
 }
 
-.field input:focus-visible,
-.field select:focus-visible {
+.field input:focus-visible {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.field input:disabled,
-.field select:disabled {
+.field input:disabled {
   opacity: 0.6;
-}
-
-.select-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.field select {
-  appearance: none;
-  padding-right: 44px;
-  cursor: pointer;
-}
-
-.select-arrow {
-  position: absolute;
-  right: 16px;
-  pointer-events: none;
 }
 
 /* 초대하기 (Figma 1708:5055): primary, 반지름 8, px16 py6, 14 SemiBold */
@@ -107,7 +86,7 @@
   outline-offset: 2px;
 }
 
-/* 다크: 시안의 닫기·화살표 자산(#4E5968)을 어두운 배경에서 보이게 밝힌다 */
+/* 다크: 시안의 닫기 자산(#4E5968)을 어두운 배경에서 보이게 밝힌다 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .modal img {
     filter: brightness(2.4);

@@ -32,3 +32,21 @@ test("다른 오류와 Error가 아닌 값은 인증 오류로 판별하지 않�
   assert.equal(isErrorMessage(new Error("서버에 연결할 수 없습니다."), "로그인이 필요합니다."), false);
   assert.equal(isErrorMessage("로그인이 필요합니다.", "로그인이 필요합니다."), false);
 });
+
+test("브라우저의 영어 연결 오류(signal timed out 등)는 그대로 보여 주지 않고 한국어로 바꾼다", async () => {
+  const { CONNECTION_LOST_MESSAGE, REQUEST_ABORTED_MESSAGE, REQUEST_TIMEOUT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
+  assert.equal(getErrorMessage(new DOMException("signal timed out", "TimeoutError"), "실패"), REQUEST_TIMEOUT_MESSAGE);
+  assert.equal(getErrorMessage(new Error("signal timed out"), "실패"), REQUEST_TIMEOUT_MESSAGE);
+  assert.equal(getErrorMessage(new DOMException("The operation was aborted.", "AbortError"), "실패"), REQUEST_ABORTED_MESSAGE);
+  assert.equal(getErrorMessage(new TypeError("Failed to fetch"), "실패"), CONNECTION_LOST_MESSAGE);
+  assert.equal(getErrorMessage(new TypeError("network error"), "실패"), CONNECTION_LOST_MESSAGE);
+  // 한국어 서버 문구와 다른 TypeError는 그대로 둔다.
+  assert.equal(getErrorMessage(new Error("문서를 찾을 수 없습니다."), "실패"), "문서를 찾을 수 없습니다.");
+  assert.equal(getErrorMessage(new TypeError("x is not a function"), "실패"), "x is not a function");
+});
+
+test("404 WORKSPACE_NOT_FOUND는 id가 담긴 서버 문구 대신 접근할 수 없다는 안내로 바꾼다", async () => {
+  const { WORKSPACE_NOT_FOUND_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
+  assert.equal(getErrorMessage(new ApiError("워크스페이스를 찾을 수 없습니다: id=ws_1", 404, "WORKSPACE_NOT_FOUND"), "실패"), WORKSPACE_NOT_FOUND_MESSAGE);
+  assert.equal(getErrorMessage(new ApiError("문서를 찾을 수 없습니다.", 404, "DOCUMENT_NOT_FOUND"), "실패"), "문서를 찾을 수 없습니다.");
+});

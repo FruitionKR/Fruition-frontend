@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../src/widgets/document-sidebar/model/sidebarMenu.ts";
 
-const sidebarMenuRowPath = new URL(
-  "../src/widgets/document-sidebar/ui/SidebarMenuRow.tsx",
+const railNavigationPath = new URL(
+  "../src/widgets/rail-navigation/ui/RailNavigation.tsx",
   import.meta.url
 );
 const contextMenuPath = new URL(
@@ -28,19 +28,22 @@ test("새 폴더 생성은 홈 뷰에서만 허용한다", () => {
   }
 });
 
-test("메뉴 행에는 파일 업로드·새 폴더 버튼을 두지 않는다", async () => {
-  const source = await readFile(sidebarMenuRowPath, "utf8");
+test("문서/그래프 전환은 사이드바 세그먼트 대신 레일 버튼이 맡는다", async () => {
+  const [sidebarSource, railSource] = await Promise.all([
+    readFile(documentSidebarPath, "utf8"),
+    readFile(railNavigationPath, "utf8")
+  ]);
 
-  // 생성은 우클릭 메뉴·폴더 hover + 버튼·새 노트 추가·드롭 업로드로만 제공한다.
-  assert.doesNotMatch(source, /aria-label="파일 업로드"/);
-  assert.doesNotMatch(source, /aria-label="새 폴더 생성"/);
-  assert.doesNotMatch(source, /onAddProject|onUploadFile/);
+  assert.doesNotMatch(sidebarSource, /SidebarMenuRow|문서 화면 전환/);
+  assert.match(railSource, /id: "home", label: "홈", Icon: RailHomeIcon, isActive: \(view\) => view === "home" \}/);
+  assert.match(railSource, /id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
 });
 
-test("홈 뷰 FILE 제목에는 + 버튼이 없고, 맨 아래 새 노트 추가는 최상위에 노트를 바로 만든다", async () => {
+test("홈 뷰 FILE 제목 +는 우클릭과 같은 최상위 메뉴를 열고, 맨 아래 새 노트 추가는 최상위에 노트를 바로 만든다", async () => {
   const source = await readFile(documentSidebarPath, "utf8");
 
-  assert.doesNotMatch(source, /aria-label="최상위에 추가"/);
+  assert.match(source, /aria-label="최상위에 추가"\s*aria-haspopup="menu"\s*aria-expanded=\{isRootMenuOpen\}/);
+  assert.match(source, /onOpenFolderMenuAt\(rootProject\.id, null, event\.currentTarget\)/);
   assert.match(source, /activeView === "home" && rootProject && \(/);
   assert.match(source, /onCreateNote\(rootProject\.id\)/);
   assert.match(source, /새 노트 추가/);

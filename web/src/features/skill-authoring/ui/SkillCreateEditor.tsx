@@ -7,11 +7,14 @@ import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
-import { describeSkillAuthorError, skillAuthoringOutcome } from "../lib/skillAuthoring";
+import { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
   applySkillDraft,
+  draftResultModeChange,
+  draftSourceChange,
   INITIAL_SKILL_CREATE_FORM,
   isDocumentKind,
+  SKILL_KIND_CARDS,
   SKILL_NAME_MAX,
   SKILL_RESULT_OPTIONS,
   SKILL_SCOPE_OPTIONS,
@@ -19,61 +22,77 @@ import {
   skillAuthorRequest,
   skillCreateFormFromRequest,
   rulesPlaceholderHint,
+  showsSourceField,
   skillPublishRequest,
+  skillResultModeLabel,
   validateSkillCreateForm,
   type SkillAuthoringMode,
   type SkillCreateField,
   type SkillCreateForm,
+  type SkillResultMode,
   type SkillTarget
 } from "../lib/skillCreateForm";
 import {
   HelpTip,
+  KIND_HELP,
   RESULT_HELP,
   SCOPE_HELP,
-  SegmentedControl,
+  SelectBox,
   SkillAuthorAssist,
-  SkillEditorLayout,
-  SkillKindCards,
   SkillSafetyIssues,
+  SourceField,
   TargetChecks,
   useReferenceDocuments
 } from "./SkillFormParts";
+import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
 
 const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
+const KIND_OPTIONS = SKILL_KIND_CARDS.map(({ value, label }) => ({ value, label }));
 
 /**
- * 새 스킬 편집 탭 (디자인 '② 새 스킬 탭 · 종류 2개 + 결과 방식 + 테스트 실행').
+ * 스킬 만들기 시트 (Figma 1671:13573). 스킬 화면 위에 열리고, 테스트 실행은 채팅 패널(testRunTarget)에 둔다.
  * 입력값을 그대로 POST /skills/author/publish로 게시한다. 게시 API가 같은 안전 검토를 거쳐,
  * 위험 표현이 있으면 저장하지 않고 status "blocked"와 issues를 돌려준다.
  * 'AI로 작성·보강'은 실행 규칙(+참고 문서)을 POST /skills/author로 보내 받은 초안을 채운다.
- * 오른쪽 열 '테스트 실행'은 지금 입력값을 문서 하나에 저장 없이 적용해 본다.
+ * '테스트 실행'은 지금 입력값을 문서 하나에 저장 없이 적용해 본다(채팅 패널이 없으면 시트 본문 끝).
  * prefillRequest가 있으면 Agent 대화의 요청으로 실행 규칙을 채우고 안내 배너를 보여 준다.
  */
 export function SkillCreateEditor({
   workspaceId,
   prefillRequest,
+  host,
+  testRunTarget,
   onClose,
-  onShowList,
   onPublished
 }: {
   workspaceId: string;
   prefillRequest?: string;
+  /** 시트를 그릴 요소(main.workspace). 없으면 제자리에 그린다. */
+  host: HTMLElement | null;
+  /** 채팅 패널의 테스트 실행 자리. 없으면 시트 본문 끝에 둔다. */
+  testRunTarget: HTMLElement | null;
   onClose: () => void;
-  onShowList: () => void;
   onPublished: () => void;
 }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const prefill = prefillRequest?.trim() ?? "";
-  const [form, setForm] = useState<SkillCreateForm>(() =>
+  const [initialForm] = useState<SkillCreateForm>(() =>
     prefill !== "" ? skillCreateFormFromRequest(prefill) : INITIAL_SKILL_CREATE_FORM
   );
+  const [form, setForm] = useState<SkillCreateForm>(initialForm);
+  // '스킬 만들기'를 누르기 전에는 게시하지 않는다. 고친 채 닫으면 버릴지 묻는다.
+  const sheetClose = useSkillSheetClose(onClose, isSkillFormDirty(initialForm, form));
   const [touched, setTouched] = useState<ReadonlySet<SkillCreateField>>(new Set());
   const [issues, setIssues] = useState<unknown[]>([]);
   const [question, setQuestion] = useState<string | null>(null);
+  // AI 초안이 고른 결과 방식으로 바꿨을 때 알림. 사용자가 고른 값(from)으로 되돌릴 수 있다.
+  const [resultModeNote, setResultModeNote] = useState<{ from: SkillResultMode; to: SkillResultMode } | null>(null);
+  // AI 초안이 원문 문서를 정했을 때 알림. 이전 값(고르지 않음이면 null)으로 되돌릴 수 있다.
+  const [sourceNote, setSourceNote] = useState<{ from: boolean | null; to: boolean } | null>(null);
 
   // 기존 스킬 커맨드와 중복이면 미리 막는다 (서버도 게시 시점에 중복을 차단한다).
   const { data: existingSkills } = useQuery({
@@ -120,7 +139,7 @@ export function SkillCreateEditor({
         return;
       }
       onPublished();
-      onClose();
+      sheetClose.close();
     }
   });
   const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error) : null;
@@ -140,7 +159,10 @@ export function SkillCreateEditor({
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
-      setForm((current) => applySkillDraft(current, result));
+      const drafted = applySkillDraft(form, result);
+      setForm(drafted);
+      setResultModeNote(draftResultModeChange(form, drafted));
+      setSourceNote(draftSourceChange(form, drafted));
       if (outcome === "review") {
         setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
         setAuthorStatus("안전 검토에서 고칠 부분이 발견되었습니다.");
@@ -181,15 +203,24 @@ export function SkillCreateEditor({
     );
   };
 
+  const testRun = <SkillTestRunCard workspaceId={workspaceId} form={form} label="새 스킬 만들기" />;
+
   return (
-    <SkillEditorLayout
+    <SkillSheet
+      host={host}
       titleId={fieldId("title")}
+      headerLabel="스킬 만들기"
       title="새 스킬"
-      onShowList={onShowList}
-      aside={<SkillTestRunCard workspaceId={workspaceId} form={form} />}
+      subtitle="반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다."
+      testRun={testRun}
+      testRunTarget={testRunTarget}
+      isClosable={!publishMutation.isPending}
+      isLeaving={sheetClose.isLeaving}
+      discardConfirm={sheetClose.discardConfirm}
+      onClose={sheetClose.requestClose}
       actions={
         <>
-          <button type="button" className={styles["cancel-button"]} onClick={onClose}>
+          <button type="button" className={styles["cancel-button"]} onClick={sheetClose.requestClose}>
             취소
           </button>
           <button
@@ -199,7 +230,7 @@ export function SkillCreateEditor({
             aria-disabled={isBlocked}
             onClick={submit}
           >
-            {publishMutation.isPending ? "저장 중…" : "저장"}
+            {publishMutation.isPending ? "만드는 중…" : "스킬 만들기"}
           </button>
         </>
       }
@@ -211,106 +242,128 @@ export function SkillCreateEditor({
         </p>
       )}
 
+      {/* 입력 순서·모양은 Figma 1671:14736: 종류 · 결과 방식 · 대상 · (원문 문서) · 저장범위 · 커맨드명 · 설명 · 실행 규칙 */}
       <div className={styles.fields}>
         {/* 스킬 종류 → capability */}
         <div className={styles.field}>
-          <span id={fieldId("kind-label")} className={styles.label}>
-            스킬 종류
-          </span>
-          <SkillKindCards
-            name={fieldId("kind")}
-            labelledBy={fieldId("kind-label")}
-            value={form.kind}
-            onChange={(kind) => update({ kind })}
-          />
-
-          {/* 문서 스킬만: 결과 방식 → capability + result_mode, 대상 → targets */}
-          {isDocument && (
-            <div className={styles["sub-panel"]}>
-              <div className={styles.field}>
-                <div className={styles["label-row"]}>
-                  <span id={fieldId("result-label")} className={styles.label}>
-                    결과 방식
-                  </span>
-                  <HelpTip label="결과 방식" content={RESULT_HELP} />
-                </div>
-                <div className={styles.menu}>
-                  <SegmentedControl
-                    name={fieldId("result")}
-                    labelledBy={fieldId("result-label")}
-                    describedBy={fieldId("result-hint")}
-                    value={form.resultMode}
-                    options={SKILL_RESULT_OPTIONS}
-                    onChange={(resultMode) => update({ resultMode })}
-                  />
-                  <p id={fieldId("result-hint")} className={styles.hint}>
-                    &apos;상황에 맞게&apos;는 대상이 애매하면 Agent가 되물어요.
-                  </p>
-                </div>
-              </div>
-
-              <fieldset className={styles.field} {...errorProps("targets")}>
-                <legend className={cx(styles.label, styles.legend)}>대상</legend>
-                <TargetChecks targets={form.targets} onToggle={toggleTarget} />
-                {errorText("targets")}
-              </fieldset>
-            </div>
-          )}
+          <div className={styles["label-row"]}>
+            <label className={styles.label} htmlFor={fieldId("kind")}>
+              스킬 종류
+            </label>
+            <HelpTip label="스킬 종류" content={KIND_HELP} />
+          </div>
+          <SelectBox id={fieldId("kind")} value={form.kind} options={KIND_OPTIONS} onChange={(kind) => update({ kind })} />
         </div>
 
-        <div className={styles["field-row"]}>
-          {/* 커맨드 → name */}
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={fieldId("command")}>
-              커맨드
-            </label>
-            <div className={cx(styles.input, styles["command-input"])}>
-              <span className={styles["command-prefix"]} aria-hidden>
-                /
-              </span>
-              <input
-                id={fieldId("command")}
-                type="text"
-                maxLength={SKILL_NAME_MAX}
-                placeholder="research-summary"
-                autoComplete="off"
-                spellCheck={false}
-                value={form.command}
-                {...errorProps("command", fieldId("command-hint"))}
-                onChange={(event) => update({ command: event.target.value })}
-                onBlur={() => touch("command")}
-              />
-              <span className={styles.counter}>
-                {form.command.length}/{SKILL_NAME_MAX}
-              </span>
+        {/* 문서 스킬만: 결과 방식 → capability + result_mode, 대상 → targets */}
+        {isDocument && (
+          <>
+            <div className={styles.field}>
+              <div className={styles["label-row"]}>
+                <label className={styles.label} htmlFor={fieldId("result")}>
+                  결과 방식
+                </label>
+                <HelpTip label="결과 방식" content={RESULT_HELP} />
+              </div>
+              <div className={styles.menu}>
+                <SelectBox
+                  id={fieldId("result")}
+                  value={form.resultMode}
+                  options={SKILL_RESULT_OPTIONS}
+                  describedBy={fieldId("result-hint")}
+                  onChange={(resultMode) => {
+                    setResultModeNote(null);
+                    update({ resultMode });
+                  }}
+                />
+                <p id={fieldId("result-hint")} className={styles.hint}>
+                  &apos;상황에 맞게&apos;는 대상이 애매하면 Agent가 되물어요.
+                </p>
+                {resultModeNote && form.resultMode === resultModeNote.to && (
+                  <p className={styles["result-note"]} role="status">
+                    <span>AI 초안에 맞춰 결과 방식을 ‘{skillResultModeLabel(resultModeNote.to)}’로 바꿨어요.</span>
+                    <button
+                      type="button"
+                      className={styles["result-note-undo"]}
+                      onClick={() => {
+                        update({ resultMode: resultModeNote.from });
+                        setResultModeNote(null);
+                      }}
+                    >
+                      ‘{skillResultModeLabel(resultModeNote.from)}’로 되돌리기
+                    </button>
+                  </p>
+                )}
+              </div>
             </div>
-            {errorText("command") ?? (
-              <p id={fieldId("command-hint")} className={styles.hint}>
-                Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.
-              </p>
-            )}
-          </div>
 
-          {/* 저장범위 → scope_type */}
-          <div className={styles.field}>
-            <div className={styles["label-row"]}>
-              <span id={fieldId("scope-label")} className={styles.label}>
-                저장범위
-              </span>
-              <HelpTip label="저장범위" content={SCOPE_HELP} />
-            </div>
-            <div className={styles.menu}>
-              <SegmentedControl
-                name={fieldId("scope")}
-                labelledBy={fieldId("scope-label")}
-                value={form.scope}
-                options={SKILL_SCOPE_OPTIONS}
-                onChange={(scope) => update({ scope })}
-              />
-              {/* 팀 스킬은 지금 있는 워크스페이스 한 곳에만 게시한다(publish를 호출한 워크스페이스에 귀속). */}
-              {form.scope === "team" && <p className={styles.hint}>팀: 현재 워크스페이스에서 사용됩니다.</p>}
-            </div>
+            <fieldset className={styles.field} {...errorProps("targets")}>
+              <legend className={cx(styles.label, styles.legend)}>대상</legend>
+              <TargetChecks targets={form.targets} onToggle={toggleTarget} />
+              {errorText("targets")}
+            </fieldset>
+          </>
+        )}
+
+        {/* 새 문서를 만들 수 있는 문서 스킬만: 원문 문서 → requires_source. AI 초안이 정한 값도 게시에 싣는다(게시는 다시 분류하지 않음). */}
+        {showsSourceField(form.kind, form.resultMode) && (
+          <SourceField
+            id={fieldId("source")}
+            value={form.requiresSource}
+            note={sourceNote}
+            onChange={(requiresSource) => update({ requiresSource })}
+            onUndo={() => {
+              if (sourceNote) update({ requiresSource: sourceNote.from });
+              setSourceNote(null);
+            }}
+          />
+        )}
+
+        {/* 저장범위 → scope_type */}
+        <div className={styles.field}>
+          <div className={styles["label-row"]}>
+            <label className={styles.label} htmlFor={fieldId("scope")}>
+              저장범위
+            </label>
+            <HelpTip label="저장범위" content={SCOPE_HELP} />
           </div>
+          <div className={styles.menu}>
+            <SelectBox id={fieldId("scope")} value={form.scope} options={SKILL_SCOPE_OPTIONS} onChange={(scope) => update({ scope })} />
+            {/* 팀 스킬은 지금 있는 워크스페이스 한 곳에만 게시한다(publish를 호출한 워크스페이스에 귀속). */}
+            {form.scope === "team" && <p className={styles.hint}>팀: 현재 워크스페이스에서 사용됩니다.</p>}
+          </div>
+        </div>
+
+        {/* 커맨드명 → name */}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={fieldId("command")}>
+            커맨드명
+          </label>
+          <div className={cx(styles.input, styles["command-input"])}>
+            <span className={styles["command-prefix"]} aria-hidden>
+              /
+            </span>
+            <input
+              id={fieldId("command")}
+              type="text"
+              maxLength={SKILL_NAME_MAX}
+              placeholder="research-summary"
+              autoComplete="off"
+              spellCheck={false}
+              value={form.command}
+              {...errorProps("command", fieldId("command-hint"))}
+              onChange={(event) => update({ command: event.target.value })}
+              onBlur={() => touch("command")}
+            />
+            <span className={styles.counter}>
+              {form.command.length}/{SKILL_NAME_MAX}
+            </span>
+          </div>
+          {errorText("command") ?? (
+            <p id={fieldId("command-hint")} className={styles.hint}>
+              Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.
+            </p>
+          )}
         </div>
 
         {/* 설명 → description */}
@@ -339,7 +392,7 @@ export function SkillCreateEditor({
           <textarea
             id={fieldId("rules")}
             className={cx(styles.input, styles.textarea)}
-            rows={8}
+            rows={6}
             placeholder={"'연구 개요' 섹션만 고친다. 다른 섹션은 바꾸지 않는다.\n원문에 없는 수치나 사실은 추가하지 않는다."}
             value={form.rules}
             {...errorProps("rules", rulesHint != null ? fieldId("rules-hint") : undefined)}
@@ -414,6 +467,6 @@ export function SkillCreateEditor({
           </button>
         </AlertModal>
       )}
-    </SkillEditorLayout>
+    </SkillSheet>
   );
 }

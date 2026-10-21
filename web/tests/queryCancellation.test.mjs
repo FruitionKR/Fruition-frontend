@@ -11,7 +11,7 @@ registerHooks({
   }
 });
 
-const { cancelQueryRun, QueryCancelledError, runQueryStream } = await import("../src/entities/wiki/api/wiki.ts");
+const { cancelQueryRun, fetchQueryTaskStatus, QueryCancelledError, requestQueryTaskCancel, runQueryStream } = await import("../src/entities/wiki/api/wiki.ts");
 const { setActiveChatSession } = await import("../src/entities/chat/api/chat.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const run = { workspaceId: "ws_test", requestId: "query_test" };
@@ -158,4 +158,26 @@ test("SSE 연결 종료 후 상태 조회가 cancelled이면 실패 알림으로
     return Response.json({ status: "cancelled", result: null });
   });
   await assert.rejects(runQueryStream("질문", model, { onStage() {} }), QueryCancelledError);
+});
+
+test("막힌 질의 확인·닫기는 현재 워크스페이스의 AI task를 조회하고 취소를 한 번만 요청한다", async (t) => {
+  setup(t);
+  const calls = [];
+  const responses = [
+    Response.json({ id: run.requestId, status: "running", error_code: "" }),
+    Response.json({ message: "없음" }, { status: 404 }),
+    Response.json({ id: run.requestId, status: "cancel_requested", error_code: "" })
+  ];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    calls.push([path, init.method ?? "GET"]);
+    return responses.shift();
+  });
+  assert.deepEqual(await fetchQueryTaskStatus(run.requestId), { kind: "status", status: "running" });
+  assert.deepEqual(await fetchQueryTaskStatus(run.requestId), { kind: "missing" });
+  assert.deepEqual(await requestQueryTaskCancel(run.requestId), { kind: "status", status: "cancel_requested" });
+  assert.deepEqual(calls, [
+    ["/api/workspaces/ws_test/ai/tasks/query_test", "GET"],
+    ["/api/workspaces/ws_test/ai/tasks/query_test", "GET"],
+    ["/api/workspaces/ws_test/ai/tasks/query_test/cancel", "POST"]
+  ]);
 });

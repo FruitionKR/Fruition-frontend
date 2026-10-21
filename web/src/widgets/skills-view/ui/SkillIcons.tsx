@@ -34,7 +34,8 @@ export function SkillMoreIcon({ className }: IconProps) {
 }
 
 /**
- * 실행 안내 말풍선 꼬리 (Figma Polygon 2 채움 + Polygon 1 테두리, 왼쪽을 가리키도록 -90° 회전).
+ * 실행 안내 말풍선 꼬리 (Figma 1567:25799: Polygon 2 채움 + Polygon 1 테두리, 왼쪽을 가리키도록 -90° 회전).
+ * 다크 모드에서도 말풍선과 같은 색이 되도록 Figma 경로를 토큰 색으로 그린다.
  * 오른쪽 끝 채움 띠가 말풍선 테두리를 덮어 꼬리와 본문이 이어져 보이게 한다(Figma도 채움이 테두리 위로 겹친다).
  */
 export function SkillCoachArrow({ className }: IconProps) {

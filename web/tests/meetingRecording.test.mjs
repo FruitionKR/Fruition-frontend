@@ -44,7 +44,7 @@ test("회의 이름은 확장자를 뺀 파일 이름이고 200자로 자른다"
 });
 
 test("업로드·전사·재생·삭제 오류 code는 한국어 문구로, 크레딧 부족은 앱 공통 문구로 바꾼다", () => {
-  assert.match(describeMeetingRecordingError("MEETING_TRANSCRIBING"), /전사를 취소하거나/);
+  assert.match(describeMeetingRecordingError("MEETING_TRANSCRIBING"), /글로 옮기기를 취소하거나/);
   assert.match(describeMeetingRecordingError("MEETING_UPLOAD_REJECTED"), /다시 올려 주세요/);
   assert.equal(describeMeetingRecordingError("모르는_코드"), null);
   assert.equal(describeRecordingError(new ApiError("서버 문구", 409, "MEETING_RECORDING_CHANGED"), "기본"), describeMeetingRecordingError("MEETING_RECORDING_CHANGED"));
@@ -62,8 +62,8 @@ test("올리는 중은 닫을 수 없고(전사 중은 회의 목록에서 다�
   for (const phase of ["transcribing", "generating", "uploading", "saving", "recording"]) assert.equal(canDeleteMeetingInPhase(phase), false, phase);
   assert.equal(meetingProgressText("uploading", 42), "녹음 파일을 올리고 있어요… 42%");
   assert.equal(meetingProgressText("uploading"), "녹음 파일을 올리고 있어요…");
-  assert.match(meetingProgressText("transcribing"), /전사하고 있어요/);
-  assert.equal(MEETING_TITLES.transcribing, "녹음 파일 전사 중");
+  assert.match(meetingProgressText("transcribing"), /글로 옮기고 있어요/);
+  assert.equal(MEETING_TITLES.transcribing, "녹음 파일 글로 옮기는 중");
 });
 
 test("녹음 파일 조각을 올리는 중에만 탭을 닫기 전에 확인을 받는다(전사는 서버에서 이어지고 목록에서 다시 연다)", () => {

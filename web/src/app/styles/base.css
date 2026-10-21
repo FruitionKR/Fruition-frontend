@@ -28,6 +28,9 @@
   --color-graph-raw: #4e5968;
   --color-graph-source: #185ac4;
   --color-graph-concept: #fe9800;
+  /* AI 사용량 입력·출력 막대. 같은 색상의 두 단계라 색각 이상에서도 밝기로 구분된다. */
+  --color-usage-input: var(--color-primary);
+  --color-usage-output: #1b4ea6;
 
   /* 기존 이름 호환 별칭. 새 코드는 --color-* 를 쓴다. */
   --bg: var(--color-canvas);
@@ -73,6 +76,7 @@
     --color-graph-raw: #a7a7a7;
     --color-graph-source: #bbcf6c;
     --color-graph-concept: #fffdf0;
+    --color-usage-output: var(--color-primary-default);
     --panel: var(--color-surface);
     --line-soft: #3a3a3a;
   }
@@ -107,6 +111,7 @@
   --color-graph-raw: #a7a7a7;
   --color-graph-source: #bbcf6c;
   --color-graph-concept: #fffdf0;
+  --color-usage-output: var(--color-primary-default);
   --panel: var(--color-surface);
   --line-soft: #3a3a3a;
 }

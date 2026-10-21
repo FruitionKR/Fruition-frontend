@@ -8,6 +8,7 @@ import { fetchMessagesForRequest } from "../lib/chatMessagesForRequest";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
+import { hasBlockingPendingMessages } from "../lib/stalledTurns";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { QueryRelatedPageResponse } from "@/entities/wiki/model/wiki";
 
@@ -26,7 +27,12 @@ type ActiveQueryRequest = {
  * 채팅 스레드 페칭·폴링·질의 상태를 관리하는 훅.
  * AgentPanel에서 추출했습니다.
  */
-export function useChatThread(activeSessionId?: string | null) {
+const NO_RELEASED_TURNS: ReadonlySet<string> = new Set();
+
+/**
+ * releasedTurnIds: 응답을 받지 못해 사용자가 닫은 turn. 서버 메시지가 pending이어도 입력을 막거나 폴링하지 않는다.
+ */
+export function useChatThread(activeSessionId?: string | null, releasedTurnIds: ReadonlySet<string> = NO_RELEASED_TURNS) {
   const { preferences } = useUserPreferences();
   const queryNotifications = preferences.notifications.query;
   const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
@@ -63,7 +69,7 @@ export function useChatThread(activeSessionId?: string | null) {
     return nextMessages;
   }, []);
 
-  const hasPendingMessages = messages.some((message) => message.role === "assistant" && message.status === "pending");
+  const hasPendingMessages = hasBlockingPendingMessages(messages, releasedTurnIds);
   const isPageVisible = usePageVisible();
   // 새로 연 대화는 저장된 진행 단계부터 복원하고, 미완료 문답만 완료될 때까지 갱신한다.
   // 숨김 탭에서는 멈추고, 다시 보이면 effect가 다시 돌며 곧바로 이어 받는다(#66).

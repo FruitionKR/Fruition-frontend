@@ -1,0 +1,151 @@
+/* 본문 안 편집 제안 (Figma 1571:27625). 색은 폴더 정리 미리보기(FolderOrganize.module.css)와 같은 의미 토큰 조합을 쓴다. */
+.review,
+.badge {
+  /* Figma #fff3e0 · #d1e3fc · #f1f8ff */
+  --proposal-warning-weak: color-mix(in srgb, var(--color-status-warning) 12%, var(--color-canvas));
+  --proposal-notice-border: color-mix(in srgb, var(--color-primary) 22%, var(--color-canvas));
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 원문(취소선) + 제안 상자 묶음: Figma 1571:27847 gap 16 */
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 16px;
+}
+
+/* 지울 원문 (Figma 1571:27648): 빨간 글자 + 취소선. 제목·목록 색도 함께 덮는다. */
+.original :global(.markdown-viewer),
+.original :global(.markdown-viewer) * {
+  color: var(--color-danger);
+  text-decoration-line: line-through;
+  text-decoration-color: currentColor;
+}
+
+/* 제안 상자 (Figma 1610:2828): 위 15px 꼬리, radius 6, 1.2px 연파랑 테두리 */
+.notice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 15px;
+  padding: 12px 16px;
+  border: 1.2px solid var(--proposal-notice-border);
+  border-radius: 6px;
+  background: var(--color-primary-weak);
+}
+
+.notice-tail {
+  position: absolute;
+  top: -15px;
+  left: 23px;
+}
+
+.notice-source {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* 편집안 본문 (Figma 1610:2830): 주 색 SemiBold 14 */
+.notice-text :global(.markdown-viewer),
+.notice-text :global(.markdown-viewer) * {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.notice-text :global(.markdown-viewer) p:last-child {
+  margin-bottom: 0;
+}
+
+/* 거절·수락 (Figma 1610:2831): 오른쪽 정렬, gap 6 */
+.decisions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.decision {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  cursor: pointer;
+  transition: filter var(--duration-fast, 150ms) ease-out, transform var(--duration-fast, 150ms) ease-out;
+}
+
+.decision.is-reject {
+  color: #ffffff;
+  background: var(--color-danger);
+}
+
+.decision:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.decision:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.decision:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.decision:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* 제목 옆 배지 (Figma 1610:8929): 느낌표 24 + 왼쪽 꼬리 10 + 주황 바탕 라벨 */
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.badge-arrow {
+  display: flex;
+  width: 10px;
+  height: 10px;
+  align-items: flex-end;
+  justify-content: center;
+  transform: rotate(-90deg);
+}
+
+.badge-label {
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--color-danger);
+  background: var(--proposal-warning-weak);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decision {
+    transition: none;
+  }
+}

@@ -54,10 +54,26 @@ export const SKILL_SCOPE_OPTIONS: ReadonlyArray<{ value: SkillScope; label: stri
   { value: "team", label: "팀" }
 ];
 
+/** 원문 문서: read=읽음, skip=읽지 않음 (requires_source true/false) */
+export type SkillSourceChoice = "read" | "skip";
+
+export const SKILL_SOURCE_OPTIONS: ReadonlyArray<{ value: SkillSourceChoice; label: string }> = [
+  { value: "read", label: "읽음" },
+  { value: "skip", label: "읽지 않음" }
+];
+
+/** 원문 문서를 아직 정하지 않았을 때(만들기 시트에서 고르기 전) 선택 상자에 보이는 문구 */
+export const SOURCE_UNSET_PLACEHOLDER = "고르지 않음";
+
 export interface SkillCreateForm {
   kind: SkillKind;
   resultMode: SkillResultMode;
   targets: readonly SkillTarget[];
+  /**
+   * 원문 문서 필요 여부(requires_source). 'AI로 작성' 초안이 정한 값이나 사용자가 고른 값이다.
+   * null이면 보내지 않아 서버가 규칙으로만 정한다(지침에 {문서}가 있으면 읽음, 아니면 읽지 않음). 게시는 다시 분류하지 않는다.
+   */
+  requiresSource: boolean | null;
   scope: SkillScope;
   command: string;
   description: string;
@@ -72,6 +88,7 @@ export const INITIAL_SKILL_CREATE_FORM: SkillCreateForm = {
   kind: "document",
   resultMode: "auto",
   targets: ["current-document"],
+  requiresSource: null,
   scope: "personal",
   command: "",
   description: "",
@@ -107,6 +124,37 @@ export function skillCapabilities(kind: SkillKind, resultMode: SkillResultMode):
   return ["document-create", "document-edit"];
 }
 
+/**
+ * '원문 문서' 필드를 보여 줄지. 새 문서를 만들 수 있는 문서 스킬('새 문서로 만들기'·'상황에 맞게')에만 의미가 있다.
+ * '열린 문서 고치기'·폴더 정리·템플릿(늘 원문 없음)은 감춘다.
+ */
+export function showsSourceField(kind: SkillKind | null, resultMode: SkillResultMode): boolean {
+  return kind === "document" && resultMode !== "edit";
+}
+
+export function sourceChoice(requiresSource: boolean | null): SkillSourceChoice | null {
+  if (requiresSource == null) return null;
+  return requiresSource ? "read" : "skip";
+}
+
+export function requiresSourceFromChoice(choice: SkillSourceChoice): boolean {
+  return choice === "read";
+}
+
+/**
+ * '원문 문서' 아래 안내. 정하지 않았으면(null) 게시할 때 적용되는 규칙을 알린다.
+ * 게시는 의도를 다시 분류하지 않아, 고르지 않으면 {문서} 자리표시자가 있을 때만 원문을 읽는다(ai skills.md).
+ */
+export function sourceHint(requiresSource: boolean | null): string {
+  if (requiresSource == null) return "고르지 않으면 {문서} 자리표시자가 있을 때만 원문을 읽어요. ‘AI로 작성·보강’을 누르면 AI가 골라 줘요.";
+  return requiresSource ? "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요" : "원문 없이 새 문서를 만들어요";
+}
+
+/** 원문 문서 값 → 화면 라벨('읽음'·'읽지 않음') */
+export function sourceLabel(requiresSource: boolean): string {
+  return requiresSource ? "읽음" : "읽지 않음";
+}
+
 const TARGET_VALUES: Record<SkillTarget, SkillTargetValue> = {
   "current-document": "current_document",
   selection: "selection"
@@ -133,15 +181,21 @@ export function skillExecutionOptions(
   };
 }
 
-/** 시트 입력값 → POST /skills/author/publish 요청. allowed_tools는 서버가 capabilities로 계산한다(ai#121). */
+/**
+ * 시트 입력값 → POST /skills/author/publish 요청. allowed_tools는 서버가 capabilities로 계산한다(ai#121).
+ * requires_source는 '원문 문서' 값이 있고(AI 초안이 정했거나 사용자가 골랐고) 그 필드가 보이는 스킬일 때만 보낸다.
+ * 게시는 의도를 다시 분류하지 않으므로, 초안의 판단을 지키려면 사용자가 손대지 않았어도 보내야 한다. 빼면 {문서}·템플릿 규칙만 적용된다.
+ */
 export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest {
+  const sendsSource = form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
   return {
     name: form.command.trim(),
     description: form.description.trim(),
     instructions_markdown: form.rules.trim(),
     scope_type: form.scope,
     capabilities: skillCapabilities(form.kind, form.resultMode),
-    ...skillExecutionOptions(form.kind, form.resultMode, form.targets)
+    ...skillExecutionOptions(form.kind, form.resultMode, form.targets),
+    ...(sendsSource ? { requires_source: form.requiresSource as boolean } : {})
   };
 }
 
@@ -185,10 +239,11 @@ export function kindFromCapabilities(
 /**
  * AI 초안을 시트에 채운다. 실행 규칙은 초안 지침으로 바꾸고(차단돼 지침이 없으면 유지),
  * 커맨드명·설명은 비어 있을 때만 제안값으로 채운다. 스킬 종류·결과 방식은 AI가 고른 capability를 따른다(템플릿 제외).
+ * 원문 문서는 초안이 requires_source(boolean)를 주면 그 값으로 채운다. 게시에 그대로 실어 AI 판단을 지킨다.
  */
 export function applySkillDraft(
   form: SkillCreateForm,
-  draft: Pick<SkillAuthoringResult, "name" | "description" | "instructions_markdown" | "capabilities">
+  draft: Pick<SkillAuthoringResult, "name" | "description" | "instructions_markdown" | "capabilities" | "requires_source">
 ): SkillCreateForm {
   const suggestedName = (draft.name ?? "").trim();
   const suggestedDescription = (draft.description ?? "").trim();
@@ -197,15 +252,55 @@ export function applySkillDraft(
     ...form,
     // 템플릿은 만들기에서 고를 수 없는 종류라, AI가 템플릿을 골라도 지금 고른 종류를 유지한다.
     ...(drafted != null && drafted.kind !== "template" ? drafted : {}),
+    ...(typeof draft.requires_source === "boolean" ? { requiresSource: draft.requires_source } : {}),
     rules: draft.instructions_markdown?.trim() ? draft.instructions_markdown : form.rules,
     command: form.command.trim() === "" && SKILL_NAME_PATTERN.test(suggestedName) ? suggestedName : form.command,
     description: form.description.trim() === "" ? suggestedDescription.slice(0, SKILL_DESCRIPTION_MAX) : form.description
   };
 }
 
+/** 결과 방식 값 → 화면 라벨('새 문서로 만들기' 등) */
+export function skillResultModeLabel(mode: SkillResultMode): string {
+  return SKILL_RESULT_OPTIONS.find((option) => option.value === mode)?.label ?? mode;
+}
+
+/**
+ * AI 초안을 채우며 문서 스킬의 결과 방식이 바뀌었으면 이전·이후 값, 아니면 null.
+ * 사용자가 고른 값을 말없이 덮지 않도록, 바꾼 사실을 알리고 되돌릴 수 있게 하는 데 쓴다.
+ */
+export function draftResultModeChange(
+  before: Pick<SkillCreateForm, "kind" | "resultMode">,
+  after: Pick<SkillCreateForm, "kind" | "resultMode">
+): { from: SkillResultMode; to: SkillResultMode } | null {
+  if (!isDocumentKind(before.kind) || !isDocumentKind(after.kind) || before.resultMode === after.resultMode) return null;
+  return { from: before.resultMode, to: after.resultMode };
+}
+
+/**
+ * AI 초안을 채우며 '원문 문서' 값이 바뀌었으면 이전·이후 값, 아니면 null. 이전 값은 고르지 않음(null)일 수 있다.
+ * 결과 방식처럼 AI가 정한 사실을 알리고 되돌릴 수 있게 한다. 필드가 보이지 않는 스킬(고치기·폴더 정리)은 알리지 않는다.
+ */
+export function draftSourceChange(
+  before: Pick<SkillCreateForm, "requiresSource">,
+  after: Pick<SkillCreateForm, "kind" | "resultMode" | "requiresSource">
+): { from: boolean | null; to: boolean } | null {
+  if (after.requiresSource == null || before.requiresSource === after.requiresSource) return null;
+  if (!showsSourceField(after.kind, after.resultMode)) return null;
+  return { from: before.requiresSource, to: after.requiresSource };
+}
+
 export type SkillCreateField = "command" | "description" | "rules" | "targets";
 
 export const TARGETS_REQUIRED_MESSAGE = "대상을 하나 이상 골라 주세요.";
+
+/** 커맨드명(→ name·slug) 오류 문구. 문제가 없으면 null. 만들기·상세 시트가 같이 쓴다. */
+export function skillCommandError(value: string, existingSlugs: readonly string[]): string | null {
+  const command = value.trim();
+  if (command === "") return "커맨드명을 입력해 주세요.";
+  if (!SKILL_NAME_PATTERN.test(command)) return "커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)";
+  if (existingSlugs.includes(command)) return "이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.";
+  return null;
+}
 
 /** 필드별 오류 문구. 오류가 없으면 빈 객체다. */
 export function validateSkillCreateForm(
@@ -213,13 +308,8 @@ export function validateSkillCreateForm(
   existingSlugs: readonly string[]
 ): Partial<Record<SkillCreateField, string>> {
   const errors: Partial<Record<SkillCreateField, string>> = {};
-  const command = form.command.trim();
-  if (command === "") errors.command = "커맨드명을 입력해 주세요.";
-  else if (!SKILL_NAME_PATTERN.test(command)) {
-    errors.command = "커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)";
-  } else if (existingSlugs.includes(command)) {
-    errors.command = "이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.";
-  }
+  const commandError = skillCommandError(form.command, existingSlugs);
+  if (commandError != null) errors.command = commandError;
   const description = form.description.trim();
   if (description === "") errors.description = "설명을 입력해 주세요.";
   else if (description.length > SKILL_DESCRIPTION_MAX) {

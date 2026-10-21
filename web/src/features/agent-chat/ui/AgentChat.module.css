@@ -1168,6 +1168,17 @@ button.result-link:focus-visible {
   min-width: 0;
 }
 
+/* 스킬 시트의 "테스트 실행" 자리 (Figma 1671:14585): 좌우 22, 입력창과 16 간격. 결과가 길면 이 안에서 스크롤한다. */
+.skill-test-run-slot {
+  max-height: min(60vh, 560px);
+  padding: 16px 22px 0;
+  overflow-y: auto;
+}
+
+.skill-test-run-slot:empty {
+  display: none;
+}
+
 :global(.agent-panel.is-chat-selecting) .composer-region {
   background: var(--agent-selecting-overlay);
 }
@@ -1614,6 +1625,8 @@ button.result-link:focus-visible {
   border-radius: 6px;
   font-size: 13px;
   text-align: left;
+  /* 좁은 메뉴에서 설명이 낱말 중간에서 끊기지 않게 한다 */
+  word-break: keep-all;
 }
 
 .composer-voice-menu button span + span {
@@ -1912,6 +1925,18 @@ button.result-link:focus-visible {
   margin: 0;
   color: var(--color-body);
   font-size: 11px;
+}
+
+.markdown-create-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-canvas);
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .markdown-create-rendered-preview {
@@ -2239,6 +2264,13 @@ button.result-link:focus-visible {
   margin: 8px 0 12px;
 }
 
+/* 응답을 받지 못한 질의: 안내 아래에 다시 질문·닫기 */
+.stalled-query {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .task-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2520,6 +2552,11 @@ button.result-link:focus-visible {
   line-height: 1.4;
   letter-spacing: -0.24px;
   overflow-wrap: anywhere;
+}
+
+.task-decision-hint {
+  margin: 0;
+  text-align: right;
 }
 
 .task-decisions {
