@@ -47,6 +47,8 @@ export async function fetchUserAvatar(avatarUrl: string): Promise<Blob> {
 /**
  * 현재 비밀번호로 비밀번호를 바꾼다. MFA를 켠 계정은 인증 코드도 함께 보낸다.
  * 서버는 현재 비밀번호(401 INVALID_CREDENTIALS) → MFA(401 INVALID_MFA_CODE, 429 MFA_RATE_LIMITED) 순서로 확인한다.
+ * 429는 Retry-After를 retryAfter(초)로 실어 던진다.
+ * 현재 설정 화면에서는 쓰지 않는다(설정의 비밀번호 변경은 이메일 인증 방식 changePasswordWithVerification).
  */
 export async function changePassword(currentPassword: string, newPassword: string, mfaCode = ""): Promise<void> {
   const response = await apiFetch("/api/auth/me/password", {
@@ -54,6 +56,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildCurrentPasswordChangeBody({ currentPassword, newPassword, mfaCode }))
   });
+  if (response.status === 429) return throwRateLimited(response);
   await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
 }
 

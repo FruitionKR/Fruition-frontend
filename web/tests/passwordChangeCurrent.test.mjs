@@ -66,6 +66,18 @@ test("현재 비밀번호 변경의 MFA 코드 불일치(401 INVALID_MFA_CODE)�
   assert.deepEqual(calls, ["PUT /api/auth/me/password"]);
 });
 
+test("현재 비밀번호 변경의 429 MFA_RATE_LIMITED는 Retry-After를 retryAfter(초)로 실어 던진다", async (t) => {
+  saveAccessToken("password-access");
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ error: { code: "MFA_RATE_LIMITED", message: "많음" } }, { status: 429, headers: { "Retry-After": "120" } }));
+  await assert.rejects(changePassword("old", "newPassword1234", "123456"), (error) => {
+    assert.equal(error.code, "MFA_RATE_LIMITED");
+    assert.equal(error.status, 429);
+    assert.equal(error.retryAfter, 120);
+    return true;
+  });
+});
+
 test("mock은 현재 비밀번호를 먼저 확인하고, MFA를 켠 계정은 이어서 인증 코드를 확인한다", async (t) => {
   const timestamp = new Date().toISOString();
   const mfaOff = { enabled: false, activated_at: null, secret: null, recovery_codes: [] };
