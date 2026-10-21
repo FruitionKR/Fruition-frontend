@@ -104,24 +104,31 @@ export function PasswordChangeModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUnavailable, setIsUnavailable] = useState(false);
+  // 인증번호 요청 제한(VERIFICATION_RATE_LIMITED)과 인증 코드 확인 제한(MFA_RATE_LIMITED)은 막는 요청이 달라 타이머를 나눈다.
   const [blockedUntil, setBlockedUntil] = useState(0);
+  const [submitBlockedUntil, setSubmitBlockedUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const countdown = useExpiryCountdown(expiresAt);
   const blockedSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
+  const submitBlockedSeconds = Math.max(0, Math.ceil((submitBlockedUntil - now) / 1000));
+  const tickUntil = Math.max(blockedUntil, submitBlockedUntil);
   const isMfaEnabled = mfaStatus?.enabled === true;
 
   useEffect(() => {
-    if (!blockedUntil) return;
+    if (!tickUntil) return;
     const timer = window.setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (current >= blockedUntil) window.clearInterval(timer);
+      if (current >= tickUntil) window.clearInterval(timer);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [blockedUntil]);
+  }, [tickUntil]);
 
-  /** 실패 code에 맞춰 단계를 되돌리거나 요청을 막는다. 토큰이 무효면 인증번호를 새로 받는 단계로 돌아간다. */
-  function applyFailure(cause: unknown, fallback: string) {
+  /**
+   * 실패 code에 맞춰 단계를 되돌리거나 요청을 막는다. 토큰이 무효면 인증번호를 새로 받는 단계로 돌아간다.
+   * 시도 제한(wait)은 실패한 요청의 타이머(block)에만 건다.
+   */
+  function applyFailure(cause: unknown, fallback: string, block: (until: number) => void) {
     const failure = passwordChangeFailure(cause, fallback);
     setError(failure.message);
     if (failure.recovery === "unavailable") {
@@ -140,7 +147,7 @@ export function PasswordChangeModal({
     if (failure.recovery === "mfa") setMfaCode("");
     if (failure.recovery === "wait" && failure.retryAfter) {
       setNow(Date.now());
-      setBlockedUntil(Date.now() + failure.retryAfter * 1000);
+      block(Date.now() + failure.retryAfter * 1000);
     }
   }
 
@@ -155,7 +162,7 @@ export function PasswordChangeModal({
       setCode("");
       setStep("code");
     } catch (cause: unknown) {
-      applyFailure(cause, "인증번호를 보내지 못했습니다.");
+      applyFailure(cause, "인증번호를 보내지 못했습니다.", setBlockedUntil);
     } finally {
       setBusy(false);
     }
@@ -177,7 +184,7 @@ export function PasswordChangeModal({
   }
 
   async function savePassword() {
-    if (!token) return;
+    if (!token || Date.now() < submitBlockedUntil) return;
     if (!isPasswordAllowed(newPassword)) {
       setError("최소 15자의 문자 또는 최소 8자의 문자와 숫자 조합이어야 합니다.");
       return;
@@ -192,7 +199,7 @@ export function PasswordChangeModal({
       await changePasswordWithVerification(buildPasswordChangeBody({ newPassword, verificationToken: token, mfaCode }));
       setStep("done");
     } catch (cause: unknown) {
-      applyFailure(cause, "비밀번호를 변경하지 못했습니다.");
+      applyFailure(cause, "비밀번호를 변경하지 못했습니다.", setSubmitBlockedUntil);
     } finally {
       setBusy(false);
     }
@@ -232,10 +239,10 @@ export function PasswordChangeModal({
       ? accountEmail.length > 0 && !isUnavailable && blockedSeconds === 0
       : step === "code"
         ? isEmailCodeComplete(code) && !countdown.isExpired
-        : newPassword.length > 0 && passwordConfirm.length > 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
+        : submitBlockedSeconds === 0 && newPassword.length > 0 && passwordConfirm.length > 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
   );
   const submitLabel = busy ? "처리 중…"
-    : step === "email" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "다음으로") : step === "code" ? "인증하기" : step === "password" ? "비밀번호 변경" : "확인";
+    : step === "email" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "다음으로") : step === "code" ? "인증하기" : step === "password" ? (submitBlockedSeconds > 0 ? `${submitBlockedSeconds}초 후 가능` : "비밀번호 변경") : "확인";
 
   return (
     <AccountFlowModal

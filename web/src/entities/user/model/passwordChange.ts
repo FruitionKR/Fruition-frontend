@@ -40,7 +40,7 @@ export function buildCurrentPasswordChangeBody(input: {
  * unavailable: 비밀번호가 없는 소셜 전용 계정이다. 이 화면에서는 비밀번호를 정할 수 없다고 안내하고 진행을 막는다.
  * resend: 인증 토큰이 만료·소비됐다. 토큰을 버리고 인증번호를 새로 받는 단계로 돌아간다.
  * mfa: 인증 코드가 틀렸다. 토큰은 소비되지 않았으므로 같은 토큰으로 인증 코드만 다시 받는다.
- * wait: 재요청 제한. retryAfter초 동안 인증번호 요청을 막는다.
+ * wait: 시도 제한. retryAfter초 동안 그 단계의 요청을 막는다(인증번호 요청 제한, 인증 코드 확인 제한).
  * retry: 그 밖의 실패(비밀번호 정책 위반·메일 발송 실패 등). 같은 단계에서 다시 시도한다.
  */
 export type PasswordChangeRecovery = "unavailable" | "resend" | "mfa" | "wait" | "retry";
@@ -60,6 +60,7 @@ const FAILURES: Record<string, { recovery: PasswordChangeRecovery; message: stri
   },
   INVALID_MFA_CODE: { recovery: "mfa", message: "인증 코드가 올바르지 않습니다." },
   VERIFICATION_RATE_LIMITED: { recovery: "wait", message: "인증번호 요청이 너무 많습니다." },
+  MFA_RATE_LIMITED: { recovery: "wait", message: "인증 코드 확인 시도가 너무 많습니다." },
   EMAIL_SEND_FAILED: { recovery: "retry", message: "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요." }
 };
 

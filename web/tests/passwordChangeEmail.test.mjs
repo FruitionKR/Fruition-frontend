@@ -98,6 +98,39 @@ test("인증번호 요청 429는 Retry-After를 retryAfter(초)로 실어 던진
   });
 });
 
+test("이메일 인증 비밀번호 변경의 429 MFA_RATE_LIMITED는 서버 Retry-After를 retryAfter(초)로 실어 던진다", async (t) => {
+  saveAccessToken("password-access");
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    calls.push(`${init?.method ?? "GET"} ${path}`);
+    return Response.json({ error: { code: "MFA_RATE_LIMITED", message: "많음" } }, { status: 429, headers: { "Retry-After": "300" } });
+  });
+  const body = buildPasswordChangeBody({ newPassword: "newPassword1234", verificationToken: "vt", mfaCode: "123456" });
+  await assert.rejects(changePasswordWithVerification(body), (error) => {
+    assert.equal(error.code, "MFA_RATE_LIMITED");
+    assert.equal(error.status, 429);
+    assert.equal(error.retryAfter, 300);
+    return true;
+  });
+  assert.deepEqual(calls, ["PUT /api/auth/me/password/verified"]);
+});
+
+test("인증 코드 확인 제한(MFA_RATE_LIMITED)은 서버가 준 초만큼 기다리게 한다", () => {
+  assert.deepEqual(passwordChangeFailure(withCode("MFA_RATE_LIMITED", 429, { retryAfter: 300 }), "fb"), {
+    recovery: "wait",
+    message: "인증 코드 확인 시도가 너무 많습니다. 300초 후 다시 시도해 주세요.",
+    retryAfter: 300
+  });
+});
+
+test("새 비밀번호 단계는 인증 코드 확인 제한 동안 제출을 막고 남은 초를 보여 주며, 인증번호 요청 타이머와 섞지 않는다", () => {
+  assert.match(modalSource, /applyFailure\(cause, "비밀번호를 변경하지 못했습니다\.", setSubmitBlockedUntil\)/);
+  assert.match(modalSource, /applyFailure\(cause, "인증번호를 보내지 못했습니다\.", setBlockedUntil\)/);
+  assert.match(modalSource, /if \(!token \|\| Date\.now\(\) < submitBlockedUntil\) return;/);
+  assert.match(modalSource, /: submitBlockedSeconds === 0 && newPassword\.length > 0/);
+  assert.match(modalSource, /step === "password" \? \(submitBlockedSeconds > 0 \? `\$\{submitBlockedSeconds\}초 후 가능`/);
+});
+
 test("비밀번호 변경 실패 code마다 모달이 할 일을 정한다", () => {
   const unavailable = passwordChangeFailure(withCode("PASSWORD_LOGIN_UNAVAILABLE"), "fb");
   assert.equal(unavailable.recovery, "unavailable");
@@ -202,4 +235,23 @@ test("mock은 password_change 토큰을 계정 이메일·목적에 묶고 소�
   response = await send("PUT", "/api/auth/me/password/verified", { new_password: "mfaPassword1234", verification_token: "vt_mfa", mfa_code: "123456" }, access);
   assert.equal(response.status, 204);
   assert.equal(mfaUser.password, "mfaPassword1234");
+
+  // 코드 실패가 한도(5회)를 넘으면 맞는 코드도 Retry-After와 함께 429 MFA_RATE_LIMITED이고, 토큰은 소비되지 않는다.
+  state.users.push({
+    id: "user_pw_limit", email: "pwlimit@example.test", password: "pw123456", display_name: null, provider: "email", created_at: timestamp,
+    mfa: { enabled: true, activated_at: timestamp, secret: "secret", recovery_codes: [] }
+  });
+  const limitAccess = issueAccessToken(state, "user_pw_limit");
+  state.verificationTokens.set("vt_limit", { email: "pwlimit@example.test", purpose: "password_change" });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    response = await send("PUT", "/api/auth/me/password/verified", { new_password: "limitPassword1234", verification_token: "vt_limit", mfa_code: "bad" }, limitAccess);
+    assert.equal(await codeOf(response), "INVALID_MFA_CODE");
+  }
+  response = await send("PUT", "/api/auth/me/password/verified", { new_password: "limitPassword1234", verification_token: "vt_limit", mfa_code: "123456" }, limitAccess);
+  assert.equal(response.status, 429);
+  assert.equal(await codeOf(response), "MFA_RATE_LIMITED");
+  const retryAfter = Number(response.headers.get("Retry-After"));
+  assert.ok(retryAfter > 0 && retryAfter <= 300);
+  assert.equal(state.users.find((user) => user.id === "user_pw_limit").password, "pw123456");
+  assert.ok(state.verificationTokens.has("vt_limit"), "시도 제한은 토큰을 소비하지 않는다");
 });
