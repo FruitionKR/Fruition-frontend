@@ -3,20 +3,18 @@
 import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import { useEffect, useState, type FormEvent } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   buildEmailChangeBody,
   changeEmail,
   confirmEmailVerification,
   emailChangeFailure,
   emailCodeRequestFailureMessage,
-  fetchMfaStatus,
   getOAuthAuthorizationUrl,
   isSameEmail,
   requestEmailVerification,
   oauthProviderName,
   ME_QUERY_KEY,
-  MFA_QUERY_KEY,
   SESSIONS_QUERY_KEY,
   type OAuthProvider,
   type UserMeResponse
@@ -25,6 +23,7 @@ import { setAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { saveSettingsResume } from "../../lib/settingsResume";
+import { useMfaRequirement } from "../../model/useMfaRequirement";
 import styles from "./AccountFlowModal.module.css";
 import { FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, isEmailCodeComplete, VerificationCodeInput } from "./AccountFlowModal";
 
@@ -46,7 +45,7 @@ export function EmailChangeModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { data: mfaStatus } = useQuery({ queryKey: MFA_QUERY_KEY, queryFn: fetchMfaStatus, retry: false });
+  const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [previousEmail] = useState(me.email);
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
@@ -65,7 +64,6 @@ export function EmailChangeModal({
   const blockedSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
   const tickUntil = Math.max(retryAt, blockedUntil);
   const linkedProviders = (me.oauth_providers ?? []) as OAuthProvider[];
-  const isMfaEnabled = mfaStatus?.enabled === true;
 
   useEffect(() => {
     if (!tickUntil) return;
@@ -146,7 +144,10 @@ export function EmailChangeModal({
       setStep("code");
     }
     if (failure.recovery === "password") setPassword("");
-    if (failure.recovery === "mfa") setMfaCode("");
+    if (failure.recovery === "mfa") {
+      setMfaCode("");
+      requireMfa();
+    }
     if (failure.recovery === "wait" && failure.retryAfter) {
       setNow(Date.now());
       setBlockedUntil(Date.now() + failure.retryAfter * 1000);

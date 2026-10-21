@@ -4,15 +4,12 @@ import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVer
 import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
 import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
 import {
   buildPasswordChangeBody,
   changePasswordWithVerification,
   confirmEmailVerification,
-  fetchMfaStatus,
-  MFA_QUERY_KEY,
   passwordChangeFailure,
   requestPasswordChangeVerification
 } from "@/entities/user";
@@ -20,6 +17,7 @@ import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { isPasswordAllowed, PASSWORD_MAX_LENGTH } from "@/shared/lib/passwordPolicy";
+import { useMfaRequirement } from "../../model/useMfaRequirement";
 import styles from "./AccountFlowModal.module.css";
 import { FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, isEmailCodeComplete, VerificationCodeInput } from "./AccountFlowModal";
 
@@ -92,7 +90,7 @@ export function PasswordChangeModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
-  const { data: mfaStatus } = useQuery({ queryKey: MFA_QUERY_KEY, queryFn: fetchMfaStatus, retry: false });
+  const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [step, setStep] = useState<Step>("email");
   const [code, setCode] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
@@ -112,7 +110,6 @@ export function PasswordChangeModal({
   const blockedSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
   const submitBlockedSeconds = Math.max(0, Math.ceil((submitBlockedUntil - now) / 1000));
   const tickUntil = Math.max(blockedUntil, submitBlockedUntil);
-  const isMfaEnabled = mfaStatus?.enabled === true;
 
   useEffect(() => {
     if (!tickUntil) return;
@@ -144,7 +141,10 @@ export function PasswordChangeModal({
       setMfaCode("");
       setStep("email");
     }
-    if (failure.recovery === "mfa") setMfaCode("");
+    if (failure.recovery === "mfa") {
+      setMfaCode("");
+      requireMfa();
+    }
     if (failure.recovery === "wait" && failure.retryAfter) {
       setNow(Date.now());
       block(Date.now() + failure.retryAfter * 1000);
