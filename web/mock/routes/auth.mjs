@@ -449,12 +449,16 @@ export function registerAuthRoutes(router) {
   });
 
   // 로그인 상태 비밀번호 변경 3단계. 토큰은 계정 이메일·password_change에 묶이고, 거절된 요청은 토큰을 소비하지 않는다.
+  // MFA를 켠 계정은 토큰 검증 전에 인증 코드를 확인한다.
   router.put("/api/auth/me/password/verified", async (ctx) => {
-    const { new_password, verification_token } = await ctx.body();
+    const { new_password, verification_token, mfa_code } = await ctx.body();
     const user = ctx.user;
     if (!usesPasswordLogin(user)) return error(ctx, 400, "소셜 로그인 계정은 비밀번호를 사용할 수 없습니다.", "PASSWORD_LOGIN_UNAVAILABLE");
     if (typeof new_password !== "string" || new_password.length < 8 || new_password.length > 72) {
       return error(ctx, 400, "비밀번호는 8~72자여야 합니다.", "INVALID_REQUEST");
+    }
+    if (user.mfa.enabled && !isSixDigits(mfa_code) && !user.mfa.recovery_codes.includes(mfa_code)) {
+      return error(ctx, 401, "인증 코드가 올바르지 않습니다.", "INVALID_MFA_CODE");
     }
     if (!verificationTokenMatches(verification_token, user.email, "password_change")) {
       return error(ctx, 400, "이메일 인증이 만료되었거나 이 계정으로 발급되지 않았습니다.", "INVALID_VERIFICATION_TOKEN");

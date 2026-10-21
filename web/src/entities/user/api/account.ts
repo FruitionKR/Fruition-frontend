@@ -6,6 +6,7 @@ import {
   type AccountDeletionBody
 } from "@/entities/user/model/accountDeletion";
 import { parseRetryAfterSeconds, type EmailChangeBody } from "@/entities/user/model/emailChange";
+import type { PasswordChangeBody } from "@/entities/user/model/passwordChange";
 
 /** 로그인한 사용자 정보를 가져온다. */
 export async function fetchMe(): Promise<UserMeResponse> {
@@ -76,13 +77,14 @@ export async function requestPasswordChangeVerification(): Promise<PasswordChang
 
 /**
  * 로그인 상태 비밀번호 변경 3단계. 1단계 코드를 confirm해 받은 토큰과 새 비밀번호로 바꾼다(204).
+ * MFA를 켠 계정은 인증 코드도 함께 보낸다. 틀리면 401 INVALID_MFA_CODE이고 토큰은 소비되지 않는다.
  * 현재 세션은 유지되고 다른 세션의 refresh token만 폐기된다.
  */
-export async function changePasswordWithVerification(newPassword: string, verificationToken: string): Promise<void> {
+export async function changePasswordWithVerification(body: PasswordChangeBody): Promise<void> {
   const response = await apiFetch("/api/auth/me/password/verified", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ new_password: newPassword, verification_token: verificationToken })
+    body: JSON.stringify(body)
   });
   await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
 }

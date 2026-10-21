@@ -4,11 +4,15 @@ import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVer
 import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
 import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
 import {
+  buildPasswordChangeBody,
   changePasswordWithVerification,
   confirmEmailVerification,
+  fetchMfaStatus,
+  MFA_QUERY_KEY,
   passwordChangeFailure,
   requestPasswordChangeVerification
 } from "@/entities/user";
@@ -75,6 +79,7 @@ function PasswordField({
  * 현재 이메일 인증 → 인증번호 확인 → 새 비밀번호 입력. 로그인 세션 전용 계약을 쓴다:
  * POST /api/auth/me/password/verification → email-verifications confirm → PUT /api/auth/me/password/verified.
  * 인증 메일은 서버가 로그인한 계정 이메일로만 보낸다. 이메일 칸은 그 주소를 보여 주는 읽기 전용이다.
+ * MFA를 켠 계정은 새 비밀번호와 함께 인증 코드도 받는다. 코드가 틀리면 같은 토큰으로 코드만 다시 받는다.
  * 변경해도 현재 세션은 유지되고 다른 세션만 해제되므로, 완료 안내 뒤 onSaved는 창만 닫는다.
  * 비밀번호가 없는 소셜 전용 계정은 서버가 거절하며(PASSWORD_LOGIN_UNAVAILABLE) 안내만 보여 주고 진행을 막는다.
  */
@@ -87,6 +92,7 @@ export function PasswordChangeModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const { data: mfaStatus } = useQuery({ queryKey: MFA_QUERY_KEY, queryFn: fetchMfaStatus, retry: false });
   const [step, setStep] = useState<Step>("email");
   const [code, setCode] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
@@ -94,6 +100,7 @@ export function PasswordChangeModal({
   const [token, setToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUnavailable, setIsUnavailable] = useState(false);
@@ -101,6 +108,7 @@ export function PasswordChangeModal({
   const [now, setNow] = useState(Date.now());
   const countdown = useExpiryCountdown(expiresAt);
   const blockedSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
+  const isMfaEnabled = mfaStatus?.enabled === true;
 
   useEffect(() => {
     if (!blockedUntil) return;
@@ -126,8 +134,10 @@ export function PasswordChangeModal({
       setCode("");
       setNewPassword("");
       setPasswordConfirm("");
+      setMfaCode("");
       setStep("email");
     }
+    if (failure.recovery === "mfa") setMfaCode("");
     if (failure.recovery === "wait" && failure.retryAfter) {
       setNow(Date.now());
       setBlockedUntil(Date.now() + failure.retryAfter * 1000);
@@ -179,7 +189,7 @@ export function PasswordChangeModal({
     setBusy(true);
     setError(null);
     try {
-      await changePasswordWithVerification(newPassword, token);
+      await changePasswordWithVerification(buildPasswordChangeBody({ newPassword, verificationToken: token, mfaCode }));
       setStep("done");
     } catch (cause: unknown) {
       applyFailure(cause, "비밀번호를 변경하지 못했습니다.");
@@ -212,6 +222,7 @@ export function PasswordChangeModal({
     setToken(null);
     setNewPassword("");
     setPasswordConfirm("");
+    setMfaCode("");
     setStep("code");
   }
 
@@ -221,7 +232,7 @@ export function PasswordChangeModal({
       ? accountEmail.length > 0 && !isUnavailable && blockedSeconds === 0
       : step === "code"
         ? isEmailCodeComplete(code) && !countdown.isExpired
-        : newPassword.length > 0 && passwordConfirm.length > 0
+        : newPassword.length > 0 && passwordConfirm.length > 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
   );
   const submitLabel = busy ? "처리 중…"
     : step === "email" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "다음으로") : step === "code" ? "인증하기" : step === "password" ? "비밀번호 변경" : "확인";
@@ -271,6 +282,20 @@ export function PasswordChangeModal({
         <div className={styles.fields}>
           <PasswordField id="password-change-new" label="새 비밀번호" value={newPassword} disabled={busy} onChange={setNewPassword} />
           <PasswordField id="password-change-confirm" label="새 비밀번호 확인" value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
+          {isMfaEnabled && (
+            <div className={styles.field}>
+              <label htmlFor="password-change-mfa">인증 코드 또는 복구 코드</label>
+              <input
+                id="password-change-mfa"
+                autoComplete="one-time-code"
+                maxLength={64}
+                placeholder="XXXXXX"
+                value={mfaCode}
+                disabled={busy}
+                onChange={(event) => setMfaCode(event.target.value)}
+              />
+            </div>
+          )}
           <p className={styles.hint}>변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
           <FlowError error={error} />
         </div>

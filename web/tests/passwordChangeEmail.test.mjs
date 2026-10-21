@@ -14,7 +14,7 @@ registerHooks({
   }
 });
 
-const { passwordChangeFailure } = await import("../src/entities/user/model/passwordChange.ts");
+const { buildPasswordChangeBody, passwordChangeFailure } = await import("../src/entities/user/model/passwordChange.ts");
 const { requestPasswordChangeVerification, changePasswordWithVerification } = await import("../src/entities/user/api/account.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
@@ -35,7 +35,7 @@ test("비밀번호 변경은 로그인한 계정 이메일만 읽기 전용으�
 
 test("비밀번호 변경은 로그인 세션 전용 계약을 쓰고 비로그인 password-reset 계약은 쓰지 않는다", () => {
   assert.match(modalSource, /requestPasswordChangeVerification\(\)/);
-  assert.match(modalSource, /changePasswordWithVerification\(newPassword, token\)/);
+  assert.match(modalSource, /changePasswordWithVerification\(buildPasswordChangeBody\(\{ newPassword, verificationToken: token, mfaCode \}\)\)/);
   assert.doesNotMatch(modalSource, /requestEmailVerification|resetPasswordWithVerification|password_reset/);
 });
 
@@ -50,7 +50,7 @@ test("비밀번호 변경 API는 본문 없이 인증번호를 요청하고, 새
     return new Response(null, { status: 204 });
   });
   assert.deepEqual(await requestPasswordChangeVerification(), { verification_id: "ev_1", expires_in: 300, retry_after: 60 });
-  await changePasswordWithVerification("newPassword1234", "vt_1");
+  await changePasswordWithVerification(buildPasswordChangeBody({ newPassword: "newPassword1234", verificationToken: "vt_1", mfaCode: "" }));
   assert.deepEqual(calls, [
     { method: "POST", path: "/api/auth/me/password/verification", body: null, auth: "Bearer password-access" },
     {
@@ -60,6 +60,31 @@ test("비밀번호 변경 API는 본문 없이 인증번호를 요청하고, 새
       auth: "Bearer password-access"
     }
   ]);
+});
+
+test("비밀번호 변경 본문은 MFA 코드를 입력했을 때만 mfa_code를 넣는다", () => {
+  assert.deepEqual(buildPasswordChangeBody({ newPassword: "newPassword1234", verificationToken: "vt", mfaCode: " " }), {
+    new_password: "newPassword1234",
+    verification_token: "vt"
+  });
+  assert.deepEqual(buildPasswordChangeBody({ newPassword: "newPassword1234", verificationToken: "vt", mfaCode: " 123456 " }), {
+    new_password: "newPassword1234",
+    verification_token: "vt",
+    mfa_code: "123456"
+  });
+});
+
+test("비밀번호 변경의 MFA 코드 불일치(401 INVALID_MFA_CODE)는 재발급·재전송 없이 호출부에 던진다", async (t) => {
+  saveAccessToken("password-access");
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    calls.push(`${init?.method ?? "GET"} ${path}`);
+    if (path === "/api/auth/refresh") return Response.json({ access_token: "fresh" });
+    return Response.json({ error: { code: "INVALID_MFA_CODE", message: "인증 코드 오류" } }, { status: 401 });
+  });
+  const body = buildPasswordChangeBody({ newPassword: "newPassword1234", verificationToken: "vt", mfaCode: "000000" });
+  await assert.rejects(changePasswordWithVerification(body), (error) => error.code === "INVALID_MFA_CODE" && error.status === 401);
+  assert.deepEqual(calls, ["PUT /api/auth/me/password/verified"]);
 });
 
 test("인증번호 요청 429는 Retry-After를 retryAfter(초)로 실어 던진다", async (t) => {
@@ -78,6 +103,11 @@ test("비밀번호 변경 실패 code마다 모달이 할 일을 정한다", () 
   assert.equal(unavailable.recovery, "unavailable");
   assert.match(unavailable.message, /소셜 계정으로 가입한 계정은 여기서 비밀번호를 설정할 수 없습니다/);
   assert.equal(passwordChangeFailure(withCode("INVALID_VERIFICATION_TOKEN"), "fb").recovery, "resend");
+  // MFA 코드가 틀려도 토큰은 남아 있으므로 인증번호 단계로 돌아가지 않고 코드만 다시 받는다.
+  assert.deepEqual(passwordChangeFailure(withCode("INVALID_MFA_CODE", 401), "fb"), {
+    recovery: "mfa",
+    message: "인증 코드가 올바르지 않습니다."
+  });
   assert.deepEqual(passwordChangeFailure(withCode("EMAIL_SEND_FAILED", 502), "fb"), {
     recovery: "retry",
     message: "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요."
@@ -156,4 +186,20 @@ test("mock은 password_change 토큰을 계정 이메일·목적에 묶고 소�
   assert.equal(state.users.find((user) => user.id === "user_pw").password, "newPassword1234");
   response = await send("PUT", "/api/auth/me/password/verified", { new_password: "otherPassword1234", verification_token: token }, access);
   assert.equal(await codeOf(response), "INVALID_VERIFICATION_TOKEN", "토큰은 한 번만 쓴다");
+
+  // MFA를 켠 계정은 코드가 없거나 틀리면 401 INVALID_MFA_CODE이고, 토큰을 소비하지 않아 같은 토큰으로 다시 시도한다.
+  const mfaUser = state.users.find((user) => user.id === "user_pw");
+  mfaUser.mfa = { enabled: true, activated_at: timestamp, secret: "secret", recovery_codes: ["abcd-1234"] };
+  t.after(() => { mfaUser.mfa = mfa; });
+  // 재요청 쿨다운 안이므로 confirm을 마친 토큰을 직접 둔다.
+  state.verificationTokens.set("vt_mfa", { email: "pw@example.test", purpose: "password_change" });
+  for (const mfa_code of [undefined, "12345", "wrong-code"]) {
+    response = await send("PUT", "/api/auth/me/password/verified", { new_password: "mfaPassword1234", verification_token: "vt_mfa", mfa_code }, access);
+    assert.equal(response.status, 401);
+    assert.equal(await codeOf(response), "INVALID_MFA_CODE");
+  }
+  assert.equal(mfaUser.password, "newPassword1234");
+  response = await send("PUT", "/api/auth/me/password/verified", { new_password: "mfaPassword1234", verification_token: "vt_mfa", mfa_code: "123456" }, access);
+  assert.equal(response.status, 204);
+  assert.equal(mfaUser.password, "mfaPassword1234");
 });

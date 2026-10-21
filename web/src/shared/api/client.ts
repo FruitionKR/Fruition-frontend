@@ -217,6 +217,8 @@ function credentialRejectionCodes(path: string, method: string | undefined): str
   if (path === "/api/auth/me/email" && method?.toUpperCase() === "PUT") {
     return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"];
   }
+  // 이메일 인증 비밀번호 변경은 MFA를 켠 계정이면 인증 코드를 확인한다.
+  if (path === "/api/auth/me/password/verified" && method?.toUpperCase() === "PUT") return ["INVALID_MFA_CODE"];
   return [];
 }
 
