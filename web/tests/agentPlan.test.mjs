@@ -205,7 +205,7 @@ test("실패한 run은 error_code별 이유를 보여 주고 모르는 코드는
   const failed = (error_code, plan = null) => ({ status: "failed", error_code, plan });
   assert.equal(
     agentPlanFailureMessage(failed("plan_out_of_scope")),
-    "선택한 폴더 밖으로 옮기는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요."
+    "선택한 폴더 밖으로 옮기거나 선택한 폴더 자체를 바꾸는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요."
   );
   assert.match(agentPlanFailureMessage(failed("input_rejected")), /검증을 통과하지 못해.*다시 시도해 주세요/);
   assert.match(agentPlanFailureMessage(failed("provider_rate_limited")), /잠시 후 다시 시도/);
@@ -233,6 +233,19 @@ test("계획 요약 끝의 범위 밖 제외 안내를 따로 떼어 낸다", ()
   );
   assert.deepEqual(splitPlanSummary("문서 2개 이동"), { body: "문서 2개 이동", scopeNote: null });
   assert.deepEqual(splitPlanSummary(undefined), { body: "", scopeNote: null });
+});
+
+test("계획 요약 끝의 대상 폴더 자체 제외 안내도 떼어 내고, 범위 밖 제외 안내와 나온 순서대로 잇는다", () => {
+  const self = "대상 폴더 자체는 바꿀 수 없어 그 폴더의 이름 변경·이동 작업 1개는 계획에서 뺐어요.";
+  assert.deepEqual(
+    splitPlanSummary(`회의록 3개를 날짜 폴더로 옮깁니다. ${self}`),
+    { body: "회의록 3개를 날짜 폴더로 옮깁니다.", scopeNote: self }
+  );
+  const scope = "대상 폴더 밖으로 옮기는 작업 2개는 계획에서 뺐어요.";
+  assert.deepEqual(
+    splitPlanSummary(`문서 2개 이동. ${scope} ${self}`),
+    { body: "문서 2개 이동.", scopeNote: `${scope} ${self}` }
+  );
 });
 
 test("계획 요약 끝의 내용 중복 안내 두 문장도 떼어 내고, 이름 속 마침표에서 끊지 않는다", () => {

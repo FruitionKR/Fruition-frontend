@@ -200,7 +200,7 @@ export function summarizePlanOperationResults(operations: ReadonlyArray<Pick<Age
 
 /** 실행 실패(run error_code)별 안내. AI는 예외 원문 없이 코드만 내려준다(ai failure_codes). */
 const PLAN_FAILURE_MESSAGES: Record<string, string> = {
-  plan_out_of_scope: "선택한 폴더 밖으로 옮기는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요.",
+  plan_out_of_scope: "선택한 폴더 밖으로 옮기거나 선택한 폴더 자체를 바꾸는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요.",
   input_rejected: "AI가 만든 계획이 검증을 통과하지 못해 정리 계획을 만들지 못했어요. 규칙을 조정하거나 다시 시도해 주세요.",
   provider_rate_limited: "AI 요청이 많아 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
   provider_unavailable: "AI 서비스에 연결하지 못해 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
@@ -230,17 +230,19 @@ export function canRetryAgentPlanRun(run: Pick<AgentPlanRun, "status" | "plan"> 
 /**
  * AI가 요약 끝에 붙이는 고정 안내 문장(ai folder_organize).
  * - 대상 폴더 밖 작업을 계획에서 뺐을 때
+ * - 대상 폴더 자체의 이름 변경·이동 작업을 계획에서 뺐을 때
  * - 계획에 없는 문서끼리 본문이 거의 같을 때. 이름에 `.`이 들어갈 수 있어 따옴표 쌍 기준으로 맞춘다.
  * - 본문 중복을 확인하지 못한 문서가 있을 때
  */
 const PLAN_SUMMARY_NOTE_PATTERNS = [
   /\s*대상 폴더 밖으로 옮기는 작업 \d+개는 계획에서 뺐어요\.?/,
+  /\s*대상 폴더 자체는 바꿀 수 없어 그 폴더의 이름 변경·이동 작업 \d+개는 계획에서 뺐어요\./,
   /\s*계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: (?:'[^']*'와\(과\) '[^']*'(?:, )?)+\./,
   /\s*문서 \d+개는 내용 중복을 확인하지 못했어요\./
 ];
 
 /**
- * 계획 요약을 본문과 안내(범위 밖 제외·내용 중복)로 나눈다. 안내는 요약이 한 줄로 잘리거나 규칙 텍스트로 가려져도
+ * 계획 요약을 본문과 안내(범위 밖 제외·대상 폴더 자체 제외·내용 중복)로 나눈다. 안내는 요약이 한 줄로 잘리거나 규칙 텍스트로 가려져도
  * 보이도록 따로 보여 준다. 안내가 여럿이면 요약에 나온 순서대로 이어 붙인다.
  */
 export function splitPlanSummary(summary: string | null | undefined): { body: string; scopeNote: string | null } {
