@@ -45,18 +45,21 @@ const MINUTE_MS = 60 * 1000;
 
 /**
  * 기간을 [from, to) 시각으로 바꾼다. 달 경계는 사용자 기기 시간대 기준이다(백엔드 기본값은 UTC 이번 달).
- * 지금 시각은 분 단위로 내린다. 다시 조회할 때마다 끝 시각이 바뀌면 그 범위로 부르는 금액 조회의 키도 매번 달라진다.
+ * 끝 시각은 지금이 속한 분의 다음 분 정각이다. 같은 분 안에서는 범위가 같아 금액 조회 키가 매번 바뀌지 않고,
+ * 방금 쓴 사용량도 바로 들어간다. 지금보다 늘 뒤라 매달 1일 0시 첫 1분에도 이번 달 범위가 비지 않는다(시작 = 끝이면 400).
+ * 달 경계는 올린 끝 시각이 아니라 지금 시각으로 정한다. 말일 23:59에 이번 달이 다음 달로 넘어가지 않게 한다.
+ * 서버(AI usage·document 금액 조회)는 시작 < 끝만 확인하고 미래의 끝 시각을 거절하지 않는다.
  */
 export function resolveUsageRange(period: AiUsagePeriod, at: Date): UsageRange {
-  const now = new Date(Math.floor(at.getTime() / MINUTE_MS) * MINUTE_MS);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(Math.floor(at.getTime() / MINUTE_MS) * MINUTE_MS + MINUTE_MS);
+  const monthStart = new Date(at.getFullYear(), at.getMonth(), 1);
   if (period === "last_month") {
-    return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: monthStart };
+    return { from: new Date(at.getFullYear(), at.getMonth() - 1, 1), to: monthStart };
   }
   if (period === "last_30_days") {
-    return { from: new Date(now.getTime() - 30 * DAY_MS), to: now };
+    return { from: new Date(end.getTime() - 30 * DAY_MS), to: end };
   }
-  return { from: monthStart, to: now };
+  return { from: monthStart, to: end };
 }
 
 export type ModelUsageSummaryRow = {

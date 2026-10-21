@@ -78,27 +78,45 @@ test("이상한 값(음수·null)은 0으로 본다", () => {
 
 test("기간: 이번 달은 1일 0시부터 지금까지, 지난 달은 지난 달 1일부터 이번 달 1일 전까지", () => {
   const now = new Date(2026, 9, 20, 15, 30);
-  assert.deepEqual(resolveUsageRange("this_month", now), { from: new Date(2026, 9, 1), to: now });
+  assert.deepEqual(resolveUsageRange("this_month", now), { from: new Date(2026, 9, 1), to: new Date(2026, 9, 20, 15, 31) });
   assert.deepEqual(resolveUsageRange("last_month", now), { from: new Date(2026, 8, 1), to: new Date(2026, 9, 1) });
   const january = new Date(2026, 0, 5);
   assert.deepEqual(resolveUsageRange("last_month", january), { from: new Date(2025, 11, 1), to: new Date(2026, 0, 1) });
 });
 
-test("기간: 지난 30일은 지금으로부터 30일 전부터", () => {
-  const now = new Date(2026, 9, 20, 15, 30);
-  const range = resolveUsageRange("last_30_days", now);
-  assert.equal(now.getTime() - range.from.getTime(), 30 * 24 * 60 * 60 * 1000);
-  assert.deepEqual(range.to, now);
+test("기간: 지난 30일은 끝 시각으로부터 30일 전부터", () => {
+  const range = resolveUsageRange("last_30_days", new Date(2026, 9, 20, 15, 30));
+  assert.equal(range.to.getTime() - range.from.getTime(), 30 * 24 * 60 * 60 * 1000);
+  assert.deepEqual(range.to, new Date(2026, 9, 20, 15, 31));
 });
 
-test("기간: 끝 시각은 분 단위로 내려 같은 분 안에서는 같은 범위다(금액 조회 키가 매번 바뀌지 않게)", () => {
-  const first = resolveUsageRange("this_month", new Date(2026, 9, 20, 15, 30, 5, 120));
+test("기간: 끝 시각은 다음 분 정각으로 올려 같은 분 안에서는 같은 범위이고 방금 쓴 사용량도 들어간다", () => {
+  const at = new Date(2026, 9, 20, 15, 30, 5, 120);
+  const first = resolveUsageRange("this_month", at);
   const again = resolveUsageRange("this_month", new Date(2026, 9, 20, 15, 30, 59, 999));
-  assert.deepEqual(first.to, new Date(2026, 9, 20, 15, 30));
+  assert.deepEqual(first.to, new Date(2026, 9, 20, 15, 31));
+  assert.ok(first.to.getTime() > at.getTime(), "끝 시각은 지금보다 뒤다([from, to)에 지금 분의 사용량이 들어간다)");
   assert.equal(first.to.getTime(), again.to.getTime());
   const last30 = resolveUsageRange("last_30_days", new Date(2026, 9, 20, 15, 30, 42));
   assert.equal(last30.to.getTime() - last30.from.getTime(), 30 * 24 * 60 * 60 * 1000);
-  assert.deepEqual(last30.to, new Date(2026, 9, 20, 15, 30));
+  assert.deepEqual(last30.to, new Date(2026, 9, 20, 15, 31));
+});
+
+test("기간 경계: 매달 1일 0시 첫 1분에도 이번 달은 시작 < 끝이다", () => {
+  for (const at of [new Date(2026, 10, 1, 0, 0, 0, 0), new Date(2026, 10, 1, 0, 0, 30), new Date(2026, 10, 1, 0, 0, 59, 999)]) {
+    const range = resolveUsageRange("this_month", at);
+    assert.deepEqual(range.from, new Date(2026, 10, 1));
+    assert.deepEqual(range.to, new Date(2026, 10, 1, 0, 1));
+    assert.ok(range.from < range.to);
+  }
+  assert.deepEqual(resolveUsageRange("last_month", new Date(2026, 10, 1, 0, 0, 0, 0)), { from: new Date(2026, 9, 1), to: new Date(2026, 10, 1) });
+});
+
+test("기간 경계: 말일 23:59에 끝 시각이 다음 달로 올라가도 달은 지금 시각 기준이다", () => {
+  const at = new Date(2026, 9, 31, 23, 59, 30);
+  assert.deepEqual(resolveUsageRange("this_month", at), { from: new Date(2026, 9, 1), to: new Date(2026, 10, 1) });
+  assert.deepEqual(resolveUsageRange("last_month", at), { from: new Date(2026, 8, 1), to: new Date(2026, 9, 1) });
+  assert.equal(formatUsageRange(resolveUsageRange("this_month", at)), "10월 1일 ~ 10월 31일");
 });
 
 test("숫자는 ko-KR 천 단위 구분 기호로 보인다", () => {
