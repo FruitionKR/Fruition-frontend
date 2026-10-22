@@ -118,6 +118,10 @@ export function SourcePreviewPanel({
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>("saved");
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
+  const [editorReadOnlyNotice, setEditorReadOnlyNotice] = useState<{ documentId: string; message: string | null } | null>(null);
+  const handleReadOnlyNoticeChange = useCallback((id: string, message: string | null) => {
+    setEditorReadOnlyNotice(current => !message && current?.documentId !== id ? current : { documentId: id, message });
+  }, []);
   // 변환·분석 중(placeholder 본문)에 열어 둔 문서가 완료되거나 변환 묶음이 추가되면 본문을 다시 불러온다.
   const previousStatusRef = useRef<OpenDocumentState>({ id: null, converting: false });
   useEffect(() => {
@@ -484,6 +488,15 @@ export function SourcePreviewPanel({
           </>
         ) : (
         <div ref={contentRef} className={styles["source-preview-content"]}>
+        {isReadOnlyNote && (
+          <p className={styles["source-preview-readonly-notice"]} role="status">
+            <span>{readOnlyTitle}</span>
+            <span>{readOnlyHint}</span>
+          </p>
+        )}
+        {!isBodyReadOnly && isMarkdownFile && !documentConverting && editorReadOnlyNotice?.documentId === documentId && editorReadOnlyNotice.message && (
+          <p className={styles["source-preview-lock-notice"]} role="alert">{editorReadOnlyNotice.message}</p>
+        )}
         <header className={styles["source-preview-heading"]}>
           {isMarkdownFile ? (
             // 제안 배지가 붙으면 제목 칸을 글자 폭에 맞춰 배지를 제목 바로 옆에 둔다(Figma 1610:2850).
@@ -560,10 +573,6 @@ export function SourcePreviewPanel({
         )}
         {isReadOnlyNote && !documentConverting && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && editableNote && (
           <>
-            <p className={styles["source-preview-readonly-notice"]} role="status">
-              <span>{readOnlyTitle}</span>
-              <span>{readOnlyHint}</span>
-            </p>
             <MarkdownViewer markdown={editableNote.body} />
           </>
         )}
@@ -581,6 +590,7 @@ export function SourcePreviewPanel({
             onSaveStatusChange={handleSaveStatusChange}
             onDetachedSaveComplete={handleDetachedSaveComplete}
             onRegisterSave={registerNoteSave}
+            onReadOnlyNoticeChange={handleReadOnlyNoticeChange}
           />
           </div>
         )}

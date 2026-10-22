@@ -99,11 +99,11 @@ test("문서를 가리키는 위치인지 구분한다", () => {
   assert.equal(isDocumentLocation({ kind: "view", view: "graph" }), false);
 });
 
-test("브라우저 탭 제목은 화면 제목 뒤에 서비스 이름을 붙인다", () => {
-  assert.equal(formatWorkspaceDocumentTitle("회의록"), "회의록 - Fruition Agent");
-  assert.equal(formatWorkspaceDocumentTitle("그래프"), "그래프 - Fruition Agent");
-  assert.equal(formatWorkspaceDocumentTitle(null), "Fruition Agent");
-  assert.equal(formatWorkspaceDocumentTitle("  "), "Fruition Agent");
+test("브라우저 탭 제목은 문서·화면 이름과 관계없이 Fruition으로 고정한다", () => {
+  assert.equal(formatWorkspaceDocumentTitle("회의록"), "Fruition");
+  assert.equal(formatWorkspaceDocumentTitle("그래프"), "Fruition");
+  assert.equal(formatWorkspaceDocumentTitle(null), "Fruition");
+  assert.equal(formatWorkspaceDocumentTitle("  "), "Fruition");
 });
 
 test("워크스페이스를 바꾸면 이전 워크스페이스의 문서·페이지·트리 주소를 버리고 화면 선택만 남긴다", () => {

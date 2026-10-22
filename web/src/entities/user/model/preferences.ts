@@ -34,6 +34,7 @@ export const NOTIFICATION_SETTINGS = {
   lintSuggest: notificationSetting("작업 제안", "위키 최신화 제안", ["위키 최신화 제안"], true, "suggest"),
   query: notificationSetting("채팅·AI", "질의 완료", ["질의 완료"], false),
   queryFailed: notificationSetting("채팅·AI", "질의 실패", ["질의 실패"], false, "query"),
+  conversationFailed: notificationSetting("채팅·AI", "대화 준비 실패", ["대화 준비 실패"]),
   chatExported: notificationSetting("채팅·AI", "채팅 문서 저장 완료", ["채팅 편입 완료"]),
   chatExportFailed: notificationSetting("채팅·AI", "채팅 문서 저장 실패", ["채팅 편입 실패"]),
   questionCancelFailed: notificationSetting("채팅·AI", "질문 취소 확인 실패", ["질문 취소 확인 실패"]),

@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import contextChipCloseIcon from "@/shared/assets/svg/agent/context-chip-close.svg";
@@ -34,12 +35,13 @@ import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
 import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
-import { fetchCurrentChatSessionId } from "@/entities/chat";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { getWorkspaceId } from "@/shared/api/client";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
+import { chatSessionTitle, isDefaultChatTitle } from "@/entities/chat/lib/sessionTitle";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import {
   classifyChatExportPairs,
@@ -56,6 +58,8 @@ import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
 import { useComposerStop } from "../model/useComposerStop";
 import { useSkillSlashPicker } from "../model/useSkillSlashPicker";
+import { usePanelSessions } from "../model/usePanelSessions";
+import { usePanelDraft } from "../model/usePanelDraft";
 import { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } from "../lib/openDocumentSource";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
@@ -141,6 +145,13 @@ export function AgentPanel({
   isShown?: boolean;
 }) {
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
+  const sessions = usePanelSessions(activeView);
+  const activeSessionId = sessions.selected[activeView];
+  const chatDraft = usePanelDraft(sessions.scope, "chat", sessions.selected.chat);
+  const workDraft = usePanelDraft(sessions.scope, "work", sessions.selected.work);
+  const setWorkDraft = workDraft.setValue;
+  const composerValue = activeView === "work" ? workDraft.value : chatDraft.value;
+  const setComposerValue = activeView === "work" ? workDraft.setValue : chatDraft.setValue;
   // 회의록은 열린 Markdown 문서가 있으면 그 문서 끝에 추가할 수 있다(회의를 시작할 때의 문서로 고정된다).
   const panelRef = useRef<HTMLElement | null>(null);
   const recordingInputRef = useRef<HTMLInputElement | null>(null);
@@ -176,21 +187,16 @@ export function AgentPanel({
     if (!isShown && isMeetingCapturing) stopMeeting();
   }, [isMeetingCapturing, isShown, stopMeeting]);
   const isChatVisible = activeView === "chat" && !isMeetingAreaOpen;
-  const [composerValue, setComposerValue] = useState("");
   const restoreComposerQuestion = useCallback((question: string) => {
-    setComposerValue((current) => current || question);
-  }, []);
+    setWorkDraft((current) => current || question);
+  }, [setWorkDraft]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
   const [isPairSelectionMode, setIsPairSelectionMode] = useState(false);
   const [pairSelection, setPairSelection] = useState<ChatPairRangeSelection>(EMPTY_CHAT_PAIR_RANGE_SELECTION);
   const [pairSelectionKind, setPairSelectionKind] = useState<ChatPairSelectionKind>("range");
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [activeSessionTitle, setActiveSessionTitle] = useState<string | null>(null);
-  // 마운트 시 현재 활성 세션을 확보해 헤더 강조·메시지 로드의 기준으로 삼는다.
-  useEffect(() => {
-    fetchCurrentChatSessionId().then(setActiveSessionId).catch(() => undefined);
-  }, []);
+  const [sessionTitles, setSessionTitles] = useState<Record<string, string | null>>({});
+  const activeSessionTitle = activeSessionId ? sessionTitles[activeSessionId] : null;
   const {
     aiModels,
     selectedModel,
@@ -201,7 +207,11 @@ export function AgentPanel({
     handleModelChange
   } = useAiModelSelection();
   // 응답을 받지 못해 '닫기'로 잠금을 푼 turn. 서버 메시지가 pending이어도 입력을 막지 않는다.
-  const { releasedTurnIds, releaseTurns } = useReleasedTurns(activeSessionId);
+  const chatReleased = useReleasedTurns(sessions.selected.chat);
+  const workReleased = useReleasedTurns(sessions.selected.work);
+  const { releasedTurnIds, releaseTurns } = activeView === "work" ? workReleased : chatReleased;
+  const chatThread = useChatThread(sessions.selected.chat, chatReleased.releasedTurnIds);
+  const workThread = useChatThread(sessions.selected.work, workReleased.releasedTurnIds);
   // 닫기·Esc 중지로 보낸 취소를 서버가 받아들인 turn. 목록이 아직 pending이어도 "중단됨"이 아니라 취소로 보인다.
   const [cancelAcceptedTurnIds, setCancelAcceptedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
   const {
@@ -216,9 +226,8 @@ export function AgentPanel({
     queryStages,
     hasPendingMessages,
     refreshMessages,
-    submitQuery,
     cancelQuery
-  } = useChatThread(activeSessionId, releasedTurnIds);
+  } = activeView === "work" ? workThread : chatThread;
   // 응답을 받지 못한(pending에 머문) 채팅 질의. 닫으면 서버 취소를 요청하고 같은 저장소에 기억해 다시 잠기지 않는다.
   const { stalledQueryIds, closingQueryIds, closeStalledQuery } = useStalledQueries({
     messages,
@@ -230,11 +239,11 @@ export function AgentPanel({
   const selectedPairIds = pairSelection.selectedPairIds;
   const agentTurn = useAgentTurn({
     markdownEditContext,
-    activeSessionId,
+    activeSessionId: sessions.selected.work,
     selectedModel,
-    selectedPairIds,
+    selectedPairIds: [],
     allowWebSearch,
-    refreshMessages,
+    refreshMessages: workThread.refreshMessages,
     onCreateMarkdownDocument,
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
     onInsufficientCredit: restoreComposerQuestion
@@ -249,7 +258,15 @@ export function AgentPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrivedFolderOrganizeTurnId]);
   // 채팅 탭은 위키 질의 문답만, 작업 탭은 agent turn(문서 편집·폴더 정리·스킬) 문답만 보여 준다(2026-10-19 계약).
-  const { chatMessages, taskItems } = useMemo(() => splitChatAndTaskMessages(messages, taskRunIds), [messages, taskRunIds]);
+  const { chatMessages } = useMemo(() => splitChatAndTaskMessages(chatThread.messages, taskRunIds), [chatThread.messages, taskRunIds]);
+  const isSeparateWorkSession = sessions.channels[sessions.selected.work ?? ""] === "work";
+  const { taskItems } = useMemo(() => {
+    // 작업 전용 세션의 되묻기·대화형 응답도 새로고침 뒤 작업 기록으로 남긴다.
+    const runIds = isSeparateWorkSession
+      ? new Set([...taskRunIds, ...workThread.messages.flatMap(message => message.run_id ? [message.run_id] : [])])
+      : taskRunIds;
+    return splitChatAndTaskMessages(workThread.messages, runIds);
+  }, [isSeparateWorkSession, workThread.messages, taskRunIds]);
   // 취소한 작업(서버가 cancelled로 닫은 말풍선·취소를 받아들인 pending 말풍선)은 turn 조회로 되돌리기가 끝났는지 따라간다.
   // 서버는 말풍선을 취소 요청 즉시 닫으므로, 되돌리는 중이면 "취소하는 중…", 끝나면 "취소됨"·복구 실패로 보인다.
   const cancelledTaskTurnIds = useMemo(() => taskItems.flatMap((item) => (
@@ -312,7 +329,7 @@ export function AgentPanel({
     return { ...markdownEditContext, editorSnapshot: { ...editorSnapshot, target: { type: "whole_document", startLine: 1, endLine: lastLine } } };
   }, [isSelectionKept, markdownEditContext]);
   const taskContext = isDocumentIncluded ? documentContext : null;
-  const isSubmitting = isLoading || isAgentTurnLoading || isCreatingMarkdown || hasPendingMessages;
+  const isSubmitting = isLoading || (isWorkView && (isAgentTurnLoading || isCreatingMarkdown)) || hasPendingMessages;
   // 응답을 받지 못한(pending에 머문) turn. 지금 따라가는 turn과 이미 닫은 turn은 확인하지 않는다.
   const followingTurnId = agentTurn.followingTurnId;
   const ignoredStallTurnIds = useMemo(
@@ -324,7 +341,7 @@ export function AgentPanel({
   // 마지막으로 보낸 스킬 실행의 문서와 그 문서가 있는 폴더. 되묻기에 '새 문서로 만들기'로 답하면 그 폴더를 folder_id로 싣는다.
   const lastSkillRunDocument = useRef<{ documentId: string; folderId: string | null } | null>(null);
   const skillRunContext = skillRun?.documentId && markdownEditContext?.documentId === skillRun.documentId ? markdownEditContext : null;
-  const isSkillRunReady = Boolean(skillRun && (!skillRun.documentId || skillRunContext) && activeSessionId && selectedModel && !isSubmitting);
+  const isSkillRunReady = Boolean(isWorkView && skillRun && (!skillRun.documentId || skillRunContext) && sessions.selected.work && selectedModel && !isSubmitting);
   // 스킬 실행이 앞선 pending 작업에 막혀 기다리는 중이면 그 작업을 바로 확인한다(서버에 없으면 곧바로 풀 수 있게).
   const stalledTurnIds = useStalledAgentTurns({
     messages,
@@ -350,12 +367,14 @@ export function AgentPanel({
     setActiveView("work");
     // 스킬 시트에서 실행했으면 화면 전환(URL)이 늦게 반영돼 시트가 이 뒤에 닫힐 수 있다. 닫힐 때도 작업 탭에 머물게 한다.
     if (viewBeforeSkillSheetRef.current !== null) viewBeforeSkillSheetRef.current = "work";
-    agentTurn.submitAgentTurn(skillRun.message, skillRunContext, activeSessionId, selectedModel, selectedPairIds, skillRun.folderId);
+    void sessions.ensureWritable("work").then((sessionId) => {
+      agentTurn.submitAgentTurn(skillRun.message, skillRunContext, sessionId, selectedModel, [], skillRun.folderId);
+    }).catch((error) => publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "작업 대화를 준비하지 못했습니다.") }));
     onSkillRunSent?.(skillRun.id);
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skillRun?.id, isSkillRunReady]);
-  const sessionTitle = activeSessionTitle ?? "새 채팅";
+  const sessionTitle = chatSessionTitle(activeSessionTitle, messages);
   const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
   useEffect(() => {
     if (!activeSessionId) return;
@@ -364,16 +383,18 @@ export function AgentPanel({
     let attempts = 0;
     async function loadTitle() {
       attempts += 1;
+      let needsTitle = true;
       try {
         const response = await fetchChatSessions();
         if (cancelled) return;
         const title = response.sessions.find((session) => session.id === activeSessionId)?.title ?? null;
-        setActiveSessionTitle(title);
-        if (completedReplies > 0 && (!title || title === "새 채팅") && attempts < 30) {
-          timer = setTimeout(loadTitle, 2000);
-        }
+        setSessionTitles((current) => ({ ...current, [activeSessionId!]: title }));
+        needsTitle = isDefaultChatTitle(title);
       } catch {
         // 제목 조회 실패가 대화 표시를 막지는 않는다.
+      }
+      if (!cancelled && completedReplies > 0 && needsTitle && attempts < 30) {
+        timer = setTimeout(loadTitle, 2000);
       }
     }
     void loadTitle();
@@ -400,10 +421,10 @@ export function AgentPanel({
     [closingQueryIds, closingTurnIds, releasedTurnIds]
   );
   const stopTarget = resolveComposerStopTarget({
-    hasWaitingSkillRun: Boolean(skillRun && waitingSkillRun),
+    hasWaitingSkillRun: Boolean(isWorkView && skillRun && waitingSkillRun),
     isQueryActive: isLoading,
-    isTurnFollowing: isAgentTurnLoading,
-    followingTurnId,
+    isTurnFollowing: isWorkView && isAgentTurnLoading,
+    followingTurnId: isWorkView ? followingTurnId : null,
     pendingRuns: pendingStopCandidates,
     ignoredRunIds: stopIgnoredRunIds
   });
@@ -411,8 +432,8 @@ export function AgentPanel({
     target: stopTarget,
     cancelSkillRun: () => { if (skillRun) onSkillRunSent?.(skillRun.id); },
     cancelQuery,
-    followingTurnId,
-    isTurnFollowing: isAgentTurnLoading,
+    followingTurnId: isWorkView ? followingTurnId : null,
+    isTurnFollowing: isWorkView && isAgentTurnLoading,
     stopFollowing: agentTurn.stopFollowing,
     finishFollowing: agentTurn.finishFollowing,
     resumeFollowing: agentTurn.resumeFollowing,
@@ -425,6 +446,16 @@ export function AgentPanel({
   const composerStopHintTarget = composerStop.stoppingTarget ?? stopTarget;
   const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
 
+  async function submitWorkRequest(request: string, context: ActiveMarkdownEditContext | null, folderId: string | null = null) {
+    if (!selectedModel) return;
+    try {
+      const sessionId = await sessions.ensureWritable("work");
+      agentTurn.submitAgentTurn(request, context, sessionId, selectedModel, [], folderId);
+    } catch (error) {
+      publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "작업 대화를 준비하지 못했습니다.") });
+    }
+  }
+
   /**
    * 스킬 되묻기 답(`/slug …`)을 열린 문서 문맥과 함께 보낸다. '새 문서로 만들기'이고 사이드바에서 같은 문서로 실행했던
    * 스킬이면 새 문서를 그 문서 옆에 두도록 문서가 있는 폴더를 folder_id로 싣는다.
@@ -435,13 +466,13 @@ export function AgentPanel({
     // 되묻기 답은 '상황에 맞게' 스킬이라 입력창의 `/slug`와 상관없이 ×로 빼지 않은 열린 문서를 싣는다.
     const answerContext = excludedDocumentId === openDocumentId ? null : documentContext;
     const folderId = createsDocument && ran && ran.documentId === answerContext?.documentId ? ran.folderId : null;
-    agentTurn.submitAgentTurn(request, answerContext, activeSessionId, selectedModel, selectedPairIds, folderId);
+    void submitWorkRequest(request, answerContext, folderId);
   }
 
   /** 계획 단계에서 실패한 작업(폴더 정리 등)을 같은 요청·대상 폴더로 다시 보낸다. */
   function retryTask(request: string, folderId: string | null) {
     if (isSubmitting || !activeSessionId || !selectedModel) return;
-    agentTurn.submitAgentTurn(request, taskContext, activeSessionId, selectedModel, selectedPairIds, folderId);
+    void submitWorkRequest(request, taskContext, folderId);
   }
 
   /** 응답을 받지 못한 turn의 잠금만 푼다(다시 시도 직전). 서버 기록이 pending으로 남아도 입력·세션 전환을 더 막지 않는다. */
@@ -481,7 +512,7 @@ export function AgentPanel({
       return;
     }
     if (!item.request) return;
-    agentTurn.submitAgentTurn(item.request, taskContext, activeSessionId, selectedModel, selectedPairIds);
+    void submitWorkRequest(item.request, taskContext);
   }
 
   /**
@@ -495,7 +526,7 @@ export function AgentPanel({
       return;
     }
     if (!item.request) return;
-    agentTurn.submitAgentTurn(item.request, taskContext, activeSessionId, selectedModel, selectedPairIds);
+    void submitWorkRequest(item.request, taskContext);
   }
 
   /**
@@ -506,28 +537,36 @@ export function AgentPanel({
     if (isLoading || isAgentTurnLoading || isCreatingMarkdown || !activeSessionId || !selectedModel) return;
     if (hasBlockingPendingMessages(messages, new Set([...releasedTurnIds, runId]))) return;
     await closeStalledQuery(runId);
-    void submitQuery(question, selectedModel, allowWebSearch);
+    const sessionId = await sessions.ensureWritable("chat");
+    void chatThread.submitQuery(question, selectedModel, allowWebSearch, sessionId);
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const question = composerValue.trim();
     const route = resolveSubmitRoute(activeView, question);
     if (!route || isSubmitting) return;
+    if (!activeSessionId || !selectedModel) return;
+    let targetSessionId: string;
+    try { targetSessionId = await sessions.ensureWritable(activeView); }
+    catch (error) {
+      publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "대화를 준비하지 못했습니다.") });
+      return;
+    }
     if (route === "task") {
       // 작업 탭은 항상 agent turn(mode=task)이다. 열린 문서가 없어도 보낸다(폴더 정리·폴더 스킬).
       if (!activeSessionId || !selectedModel) return;
       setComposerValue("");
       setOptedInDocumentId(null);
-      agentTurn.submitAgentTurn(question, taskContext, activeSessionId, selectedModel, selectedPairIds);
+      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, []);
       return;
     }
     // 채팅 탭은 문서가 열려 있어도 위키 질의(Query)만 보낸다.
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
-    void submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch).then((insufficientCredit) => {
+    void chatThread.submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch, targetSessionId).then((insufficientCredit) => {
       // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
-      if (insufficientCredit) setComposerValue((current) => current || question);
+      if (insufficientCredit) chatDraft.setValue((current) => current || question);
     });
   }
 
@@ -561,7 +600,8 @@ export function AgentPanel({
     setExportErrorMessage(null);
     setIsExporting(true);
     try {
-      const response = await exportChatWiki(selectedPairIds);
+      if (!sessions.selected.chat) return;
+      const response = await exportChatWiki(selectedPairIds, { workspaceId: getWorkspaceId(), sessionId: sessions.selected.chat });
       setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
       setIsPairSelectionMode(false);
       try {
@@ -670,17 +710,19 @@ export function AgentPanel({
       onClick={(event) => event.stopPropagation()}
     >
       <AgentHeader
+        key={activeView}
         activeView={activeView}
         onViewChange={setActiveView}
         sessionTitle={sessionTitle}
         onClose={onClose}
         activeSessionId={activeSessionId}
+        loadSessions={sessions.loadSessions}
         isInteractionLocked={isSubmitting || isExporting}
         canStartWikiExport={exportPairIds.length > 0 && !isSubmitting && !isExporting}
         onStartWikiExport={startPairSelection}
         onSelectSession={(sessionId, title) => {
-          setActiveSessionId(sessionId);
-          setActiveSessionTitle(title);
+          sessions.select(activeView, sessionId);
+          setSessionTitles((current) => ({ ...current, [sessionId]: title }));
           // 이전 세션에서 고른 부분 편입 선택이 새 세션으로 새어나가지 않도록 초기화한다.
           setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION);
           setIsPairSelectionMode(false);
@@ -836,6 +878,9 @@ export function AgentPanel({
         </div>
       ) : null}
       <div className={styles["composer-region"]}>
+        {sessions.activeChannel === "legacy" && (
+          <p className={styles["wiki-evidence-notice"]} role="status">이전 통합 대화입니다. 새 요청은 현재 탭의 별도 대화에 저장됩니다.</p>
+        )}
         {/* 테스트 실행 묶음은 작업 탭에만 보인다(Figma 1671:14585). 채팅 탭으로 바꿔도 자리는 남겨 실행 상태를 잃지 않는다. */}
         {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} hidden={!isWorkView} />}
         {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
@@ -905,7 +950,7 @@ export function AgentPanel({
             listId: SKILL_PICKER_LIST_ID,
             activeOptionId: skillPicker.activeSkillId ? skillPickerOptionId(skillPicker.activeSkillId) : null
           } : undefined}
-          isLoading={isSubmitting || isPairSelectionMode || composerStop.isStopping}
+          isLoading={!sessions.ready || activeSessionId === null || isSubmitting || isPairSelectionMode || composerStop.isStopping}
           placeholder={composerPlaceholder}
           models={aiModels}
           selectedModel={selectedModel}
@@ -923,6 +968,7 @@ export function AgentPanel({
           cancelHint={composerStopHintTarget ? composerStopHint(composerStopHintTarget) : undefined}
           statusMessage={composerStoppingMessage(composerStop.stoppingTarget)
             ?? (stopTarget && stopTarget.kind !== "query" ? null : queryStatusMessage)
+            ?? sessions.error
             ?? (stalledTurnIds.size > 0 ? STALLED_TURN_COMPOSER_NOTICE : stalledQueryIds.size > 0 ? STALLED_QUERY_COMPOSER_NOTICE : null)}
           meetingControl={{
             state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",

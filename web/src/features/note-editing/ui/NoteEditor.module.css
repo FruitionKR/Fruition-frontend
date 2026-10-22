@@ -551,13 +551,3 @@
   color: var(--color-on-primary);
   background: var(--color-primary);
 }
-
-/* 다른 사용자가 편집 중이거나 잠금을 확인하지 못해 읽기 전용으로 열었을 때의 안내. */
-.note-editor-readonly-notice {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--color-danger-weak);
-  color: var(--color-danger);
-  font-size: 13px;
-}

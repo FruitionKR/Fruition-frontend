@@ -1,5 +1,6 @@
 import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import type { ChatMessagesResponse, ChatSessionListResponse, ChatSessionResponse } from "@/entities/chat/model/chat";
+import { resolveUntitledSessionTitles } from "@/entities/chat/lib/sessionTitle";
 
 // 세션 선택 UI 도입 전까지 가장 최근 세션을 사용한다(없으면 생성).
 // 워크스페이스가 바뀌면 캐시를 새로 만든다.
@@ -49,6 +50,19 @@ export async function fetchChatSessions(): Promise<ChatSessionListResponse> {
   return parseJsonOrThrow<ChatSessionListResponse>(response, ERROR_MESSAGES.chatSessionFailed);
 }
 
+/** 화면 표시용 제목 보완. 첫 질문으로 만든 제목은 서버의 AI 제목 생성을 막지 않도록 저장하지 않는다. */
+export async function fetchChatSessionsForDisplay(isCancelled?: () => boolean): Promise<ChatSessionListResponse> {
+  const workspaceId = getWorkspaceId();
+  const response = await fetchChatSessions();
+  return {
+    sessions: await resolveUntitledSessionTitles(
+      response.sessions ?? [],
+      (sessionId) => fetchChatSessionMessages(sessionId, workspaceId),
+      isCancelled
+    )
+  };
+}
+
 async function resolveSessionId(workspaceId: string): Promise<string> {
   const listResponse = await apiFetch(workspacePath(workspaceId, "chat", "sessions"), { cache: "no-store" });
   const list = await parseJsonOrThrow<ChatSessionListResponse>(listResponse, ERROR_MESSAGES.chatSessionFailed);
@@ -87,6 +101,10 @@ export async function fetchCurrentChatSessionId(): Promise<string> {
 
 export async function fetchChatMessages(): Promise<ChatMessagesResponse> {
   const { workspaceId, sessionId } = await getSessionContext();
+  return fetchChatSessionMessages(sessionId, workspaceId);
+}
+
+export async function fetchChatSessionMessages(sessionId: string, workspaceId = getWorkspaceId()): Promise<ChatMessagesResponse> {
   const response = await apiFetch(
     workspacePath(workspaceId, "chat", "sessions", sessionId, "messages"),
     { cache: "no-store" }

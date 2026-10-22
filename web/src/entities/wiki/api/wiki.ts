@@ -124,9 +124,10 @@ export async function runQueryStream(
     onStarted?: (run: QueryRun) => void;
     signal?: AbortSignal;
     allowWebSearch?: boolean;
+    sessionContext?: { workspaceId: string; sessionId: string };
   }
 ): Promise<QueryResponse> {
-  const { workspaceId, sessionId } = await getSessionContext();
+  const { workspaceId, sessionId } = handlers.sessionContext ?? await getSessionContext();
 
   const createResponse = await apiFetch(
     workspacePath(workspaceId, "chat", "sessions", sessionId, "query", "runs"),

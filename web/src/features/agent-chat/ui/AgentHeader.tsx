@@ -1,13 +1,13 @@
 import { MoreVertical, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { createChatSession, deleteChatSession, fetchChatSessions } from "@/entities/chat/api/chat";
+import { createChatSession, deleteChatSession } from "@/entities/chat/api/chat";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
 import { chatBubbleIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
-import { AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
+import { AgentAssetIcon, AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
 export type AgentPanelView = "chat" | "work";
@@ -32,6 +32,7 @@ export function AgentHeader({
   activeSessionId,
   isInteractionLocked,
   onSelectSession,
+  loadSessions,
   canStartWikiExport,
   onStartWikiExport
 }: {
@@ -42,6 +43,7 @@ export function AgentHeader({
   activeSessionId: string | null;
   isInteractionLocked: boolean;
   onSelectSession: (sessionId: string, title: string | null) => void;
+  loadSessions: () => Promise<{ sessions: ChatSessionResponse[] }>;
   canStartWikiExport: boolean;
   onStartWikiExport: () => void;
 }) {
@@ -89,7 +91,7 @@ export function AgentHeader({
     setRowMenu(null);
     try {
       await deleteChatSession(sessionId);
-      const response = await fetchChatSessions();
+      const response = await loadSessions();
       const remaining = response.sessions ?? [];
       setSessions(remaining);
       if (sessionId !== activeSessionId) return;
@@ -110,7 +112,7 @@ export function AgentHeader({
     if (!isListOpen) return;
 
     let cancelled = false;
-    fetchChatSessions()
+    loadSessions()
       .then((response) => {
         if (cancelled) return;
         setSessions(response.sessions ?? []);
@@ -123,7 +125,7 @@ export function AgentHeader({
     return () => {
       cancelled = true;
     };
-  }, [isListOpen, sessionTitle]);
+  }, [isListOpen, sessionTitle, loadSessions]);
 
   // 세션 title이 없으면 헤더와 동일하게 "새 채팅"으로 표시한다
   const fallbackTitle = "새 채팅";
@@ -245,9 +247,9 @@ export function AgentHeader({
                     }}
                   >
                     {isActive
-                      ? <SvgIcon src={fruitionLogo} className={styles["chat-session-logo"]} />
+                      ? <AgentAssetIcon src={fruitionLogo} size={14} className={styles["chat-session-logo"]} />
                       : <SvgIcon src={chatBubbleIcon} className={styles["chat-session-icon"]} />}
-                    <span>{session.title ?? fallbackTitle}</span>
+                    <span className={styles["chat-session-label"]}>{session.title ?? fallbackTitle}</span>
                   </button>
                   <div className={styles["chat-session-menu"]}>
                     <button
