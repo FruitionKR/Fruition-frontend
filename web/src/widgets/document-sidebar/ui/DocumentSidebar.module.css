@@ -319,7 +319,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  color: var(--color-foreground);
+  color: var(--color-body);
   background: var(--color-surface);
   border: 1.6px solid var(--color-border);
   border-radius: 8px;
@@ -646,7 +646,7 @@
 }
 
 
-/* --- tree-row (Figma 1486:4411 list): h37, 좌 10 우 10, 간격 12, 14px Medium --- */
+/* --- tree-row (Figma 1540:18070 / 1540:16938): 14px SemiBold, body(#4e5968) --- */
 .tree-row {
   position: relative;
   width: 100%;
@@ -656,11 +656,11 @@
   align-items: center;
   gap: 12px;
   padding-right: 10px;
-  color: var(--color-foreground);
+  color: var(--color-body);
   background: transparent;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.14px;
   line-height: normal;
   text-align: left;
@@ -887,13 +887,13 @@
   width: 100%;
   height: 24px;
   padding: 0 7px;
-  color: var(--color-foreground);
+  color: var(--color-body);
   background: var(--color-canvas);
   border: 1px solid var(--color-border);
   border-radius: 5px;
   outline: 0;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .tree-edit-input:focus {
