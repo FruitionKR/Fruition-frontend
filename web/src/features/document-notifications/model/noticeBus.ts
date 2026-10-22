@@ -4,8 +4,11 @@
 
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { WorkspacePermission } from "@/shared/lib/workspacePermissions";
+import type { NotificationKey } from "@/entities/user/model/preferences";
 
 export type NoticePayload = {
+  /** 제목이 동적인 새 알림은 설정 항목을 명시한다. 고정 제목은 공통 목록에서 분류한다. */
+  notificationKey?: Exclude<NotificationKey, "browser">;
   kind: "completed" | "failed" | "info";
   title: string;
   message: string;

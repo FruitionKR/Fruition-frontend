@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
 import { useUserPreferences } from "@/entities/user";
+import { isNotificationControlEnabled } from "@/entities/user/model/preferences";
+import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
 import { publishNotice, type NoticePayload } from "./noticeBus";
 import { nextOperationPollDelay } from "./operationPolling";
 
@@ -44,12 +45,15 @@ function noticeFor(item: OperationLogItem): NoticePayload {
  */
 export function useOperationNotifications() {
   const { preferences } = useUserPreferences();
-  const { lint: lintEnabled, restore: restoreEnabled } = preferences.notifications;
-  const enabled = lintEnabled || restoreEnabled;
+  const { notifications, notificationControls } = preferences;
+  const watchLint = isNotificationControlEnabled("lint", notificationControls) && (notifications.lint || notifications.lintFailed);
+  const watchRestore = isNotificationControlEnabled("restore", notificationControls) && (notifications.restore || notifications.restoreFailed);
   const knownStatusesRef = useRef<Map<string, string> | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    // 다시 켠 시점의 종결 작업은 새 알림으로 발행하지 않는다.
+    knownStatusesRef.current = null;
+    if (!watchLint && !watchRestore) return;
 
     let cancelled = false;
     let timer = 0;
@@ -63,8 +67,9 @@ export function useOperationNotifications() {
       let logs: OperationLogItem[];
       try {
         const [terminal, ...active] = await Promise.all([
-          fetchOperationLogs(),
-          ...ACTIVE_QUERIES.map((query) => fetchOperationLogs({ ...query, size: 10 }))
+          fetchOperationLogs(watchLint && watchRestore ? {} : { type: watchLint ? "lint" : "restore" }),
+          ...ACTIVE_QUERIES.filter((query) => query.type === "lint" ? watchLint : watchRestore)
+            .map((query) => fetchOperationLogs({ ...query, size: 10 }))
         ]);
         logs = [...terminal.logs, ...active.flatMap((page) => page.logs)];
       } catch {
@@ -80,10 +85,8 @@ export function useOperationNotifications() {
 
       if (previous) {
         for (const log of logs) {
-          const typeEnabled = log.operation_type === "lint" ? lintEnabled
-            : log.operation_type === "restore" ? restoreEnabled
-            : false;
-          if (!typeEnabled || !isTerminal(log.status)) continue;
+          const watched = log.operation_type === "lint" ? watchLint : log.operation_type === "restore" && watchRestore;
+          if (!watched || !isTerminal(log.status)) continue;
           const previousStatus = previous.get(log.operation_id);
           // 진행 중이었다가 종결됐거나, 폴링 사이에 새로 나타나 이미 종결된 작업
           if (!previousStatus || !isTerminal(previousStatus)) {
@@ -122,5 +125,5 @@ export function useOperationNotifications() {
       document.removeEventListener("visibilitychange", resumeWhenVisible);
       window.clearTimeout(timer);
     };
-  }, [enabled, lintEnabled, restoreEnabled]);
+  }, [watchLint, watchRestore]);
 }

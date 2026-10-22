@@ -19,6 +19,12 @@
   bottom: 88px;
 }
 
+/* 설정 화면에는 채팅 패널·런처가 없으므로 회피 여백을 적용하지 않는다. */
+.notice-stack.is-viewport-corner {
+  right: 24px;
+  bottom: 24px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .notice-stack {
     --notice-bg: var(--color-surface);
@@ -42,6 +48,11 @@
 
   .notice-stack.is-above-launcher {
     bottom: 88px;
+  }
+
+  .notice-stack.is-viewport-corner {
+    right: 16px;
+    bottom: 16px;
   }
 }
 

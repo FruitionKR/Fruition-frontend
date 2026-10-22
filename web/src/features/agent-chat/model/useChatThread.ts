@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchChatMessages, setActiveChatSession, getSessionContext } from "@/entities/chat/api/chat";
-import { useUserPreferences } from "@/entities/user";
 import type { AiModelSelection } from "@/entities/ai";
 import { cancelQueryRun, QueryCancelledError, runQueryStream, type QueryRun, type QueryStageEvent } from "@/entities/wiki/api/wiki";
 import { publishNotice } from "@/features/document-notifications";
@@ -33,8 +32,6 @@ const NO_RELEASED_TURNS: ReadonlySet<string> = new Set();
  * releasedTurnIds: 응답을 받지 못해 사용자가 닫은 turn. 서버 메시지가 pending이어도 입력을 막거나 폴링하지 않는다.
  */
 export function useChatThread(activeSessionId?: string | null, releasedTurnIds: ReadonlySet<string> = NO_RELEASED_TURNS) {
-  const { preferences } = useUserPreferences();
-  const queryNotifications = preferences.notifications.query;
   const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null);
   const [chatLoadErrorMessage, setChatLoadErrorMessage] = useState<string | null>(null);
@@ -206,9 +203,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       if (activeQueryRef.current !== request || request.cancelRequested) return false;
       querySucceeded = true;
       queryRelatedPages = queryResponse.related_pages ?? [];
-      if (queryNotifications) {
-        publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
-      }
+      publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
     } catch (error) {
       if (activeQueryRef.current !== request) return false;
       if (error instanceof QueryCancelledError) {
@@ -220,9 +215,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       setQueryErrorMessage(getErrorMessage(error, "질의에 실패했습니다."));
       setActiveTurn(null);
       setQueryStatusMessage(null);
-      if (queryNotifications) {
-        publishNotice({ kind: "failed", title: "질의 실패", message: `"${shortQuestion}" 질의에 실패했습니다.` });
-      }
+      publishNotice({ kind: "failed", title: "질의 실패", message: `"${shortQuestion}" 질의에 실패했습니다.` });
     } finally {
       // 취소를 시작했으면 HTTP/SSE 종료와 무관하게 복구 확인이 진행 상태를 소유한다.
       if (activeQueryRef.current === request && !(request.cancelRequested && request.run)) {
