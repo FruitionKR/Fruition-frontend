@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUserPreferences } from "@/entities/user";
+import { isNotificationControlEnabled } from "@/entities/user/model/preferences";
 import type { DocumentItemResponse } from "@/entities/document";
 import { createClientId, type DocumentStatus } from "@/entities/tree";
 import { isDocumentInFlight, isDocumentPipelineActive } from "@/entities/document/lib/documentKind";
@@ -11,6 +12,7 @@ import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
 import { enqueueNotice, promoteParkedNotices, reconcileNotices, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
+import { isNoticeEnabled } from "./noticePreference";
 
 type DocumentProcessingNotice = NoticePayload & { id: string; leaving?: boolean; parked?: boolean; shownAt?: number };
 
@@ -41,13 +43,9 @@ function completedNoticeText(count: number) {
  */
 export function useDocumentProcessingNotifications(documents: DocumentItemResponse[], isPaused = false) {
   const { preferences, reduceMotion } = useUserPreferences();
-  const {
-    browser: browserNotifications,
-    completed: completedNotifications,
-    failed: failedNotifications,
-    lint: lintNotifications,
-    restore: restoreNotifications
-  } = preferences.notifications;
+  const notificationSettings = preferences.notifications;
+  const notificationControls = preferences.notificationControls;
+  const browserNotifications = notificationSettings.browser && isNotificationControlEnabled("browser", notificationControls);
   const [notices, setNotices] = useState<DocumentProcessingNotice[]>([]);
   const previousStatusesRef = useRef<Map<string, DocumentStatus> | null>(null);
   // documents 폴링이 멈춘(숨김 + 처리 중 문서 없음) 시점의 processed_at 기준점. 다음 갱신 1회에 소비한다.
@@ -69,7 +67,9 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
 
   // 카드 표시 + 백그라운드 탭이면 브라우저 알림까지. 모든 알림이 이 경로를 지난다.
   const pushNotice = useCallback((notice: NoticePayload) => {
-    if (!operationFilterRef.current(notice, { lint: lintNotifications, restore: restoreNotifications })) return;
+    if (!isNoticeEnabled(notice, notificationSettings, notificationControls)) return;
+    // 설정 확인은 위에서 공통 처리하고, 작업 id 중복만 거른다.
+    if (!operationFilterRef.current(notice, { lint: true, restore: true })) return;
     const id = createClientId(notice.kind);
     setNotices((current) => enqueueNotice(current, { id, ...notice }, {
       max: MAX_VISIBLE_NOTICES,
@@ -86,7 +86,12 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     ) {
       new Notification(notice.title, { body: notice.message });
     }
-  }, [browserNotifications, lintNotifications, reduceMotion, restoreNotifications]);
+  }, [browserNotifications, notificationControls, notificationSettings, reduceMotion]);
+
+  // 설정을 끄면 현재 보이는 카드와 대기열 모두에서 해당 종류를 제거한다.
+  useEffect(() => {
+    setNotices((current) => promote(current.filter((notice) => isNoticeEnabled(notice, notificationSettings, notificationControls))));
+  }, [notificationControls, notificationSettings]);
 
   // 대기 작업 감지(usePendingWorkNotifications)가 보이는 카드와 같은 문서로 제안을 겹쳐 띄우지 않도록 알린다.
   useEffect(() => {
@@ -177,17 +182,17 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
       if (document.status === "failed") failedDocuments.push(document);
     });
 
-    if (completedCount > 0 && completedNotifications) {
+    if (completedCount > 0) {
       publishNotice({ kind: "completed", ...completedNoticeText(completedCount) });
     }
-    if (convertedCount > 0 && completedNotifications) {
+    if (convertedCount > 0) {
       publishNotice({ kind: "completed", title: "PDF 변환 완료", message: `${convertedCount}개 PDF의 Markdown 변환이 완료되었습니다.` });
     }
     // 문서별 카드 대신 요약 카드 하나만 발행한다 (대량 실패 시 스택 넘침 방지).
-    if (failedNotifications && failedDocuments.length > 0) {
+    if (failedDocuments.length > 0) {
       publishNotice(buildFailedDocumentsNotice(failedDocuments));
     }
-  }, [documents, completedNotifications, failedNotifications]);
+  }, [documents]);
 
   // 위 effect가 이전 기준점을 소비한 뒤에 다시 기록하도록 뒤에 둔다.
   // 처리 완료 문서가 하나도 없으면(첫 로드 전 빈 목록 포함) 기준점을 두지 않아 전체 문서가 알림으로 뜨지 않게 한다.

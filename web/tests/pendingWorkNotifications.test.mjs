@@ -16,6 +16,8 @@ const { usePendingWorkNotifications } = await import(
 const { setVisibleNoticeSubjects, subscribeNotices } = await import("../src/features/document-notifications/model/noticeBus.ts");
 const { reflectCalls, setReflectFailure } = await import("./fakeDocumentEntity.mjs");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
+const { normalizeNotificationPreferences } = await import("../src/entities/user/model/preferences.ts");
+const { isNoticeEnabled } = await import("../src/features/document-notifications/model/noticePreference.ts");
 
 const PROMPT_DEBOUNCE_MS = 3_000;
 const STALL_MS = 60_000;
@@ -40,10 +42,13 @@ function doc(id, status = "uploaded", overrides = {}) {
 function notificationEnv(t, { needsLint = false } = {}) {
   const env = browserEnv(t);
   saveAccessToken("test-access");
-  fakeUserPreferences.preferences = { notifications: { query: true, suggest: true } };
+  fakeUserPreferences.preferences = { notifications: normalizeNotificationPreferences({ query: true, suggest: true }) };
   t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: 1_000_000 });
   const notices = [];
-  const unsubscribe = subscribeNotices((notice) => notices.push(notice));
+  // 표시 여부는 발행 훅이 아닌 공통 알림 스택에서 판단한다.
+  const unsubscribe = subscribeNotices((notice) => {
+    if (isNoticeEnabled(notice, fakeUserPreferences.preferences.notifications)) notices.push(notice);
+  });
   t.after(() => {
     unsubscribe();
     setVisibleNoticeSubjects(new Set());
@@ -227,7 +232,7 @@ test("lint가 필요 없으면 카드를 띄우지 않고 상태 조회 실패�
 
 test("제안 알림을 끄면 편입 제안과 lint 확인을 하지 않는다", async (t) => {
   const { statusRequests, titles } = notificationEnv(t, { needsLint: true });
-  fakeUserPreferences.preferences = { notifications: { query: true, suggest: false } };
+  fakeUserPreferences.preferences = { notifications: normalizeNotificationPreferences({ query: true, suggest: false }) };
   const view = renderNotifications([doc("q1"), doc("q2", "processing")]);
   assert.deepEqual(titles(), []);
 

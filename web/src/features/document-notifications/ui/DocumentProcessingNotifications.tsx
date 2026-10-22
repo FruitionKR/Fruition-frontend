@@ -26,12 +26,15 @@ export function DocumentProcessingNotifications({
   documents,
   isAboveLauncher,
   isOverlayOpen,
+  isViewportCorner = false,
   onIngestStarted,
   isDocumentsLoaded = true
 }: {
   documents: DocumentItemResponse[];
   isAboveLauncher: boolean;
   isOverlayOpen: boolean;
+  /** 채팅 패널이 없는 설정 화면에서는 화면 우하단에 고정한다. */
+  isViewportCorner?: boolean;
   onIngestStarted?: () => void;
   isDocumentsLoaded?: boolean;
 }) {
@@ -63,7 +66,11 @@ export function DocumentProcessingNotifications({
 
   return (
     <aside
-      className={isAboveLauncher ? `${styles["notice-stack"]} ${styles["is-above-launcher"]}` : styles["notice-stack"]}
+      className={[
+        styles["notice-stack"],
+        isAboveLauncher && !isViewportCorner && styles["is-above-launcher"],
+        isViewportCorner && styles["is-viewport-corner"]
+      ].filter(Boolean).join(" ")}
       aria-label="문서 처리 알림"
     >
       {shownNotices.map((notice) => (

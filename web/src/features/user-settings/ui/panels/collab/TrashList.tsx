@@ -4,13 +4,11 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrashDocuments, restoreTrashDocument } from "@/entities/document/api/trash";
 import { describePurge, describeRestoreError, isRetentionExpired } from "@/entities/document/lib/trashRetention";
+import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
-import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
-import modalStyles from "@/shared/ui/modal/CenteredModal.module.css";
-import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import sectionStyles from "./CollabSections.module.css";
-import styles from "./TrashModal.module.css";
+import styles from "./TrashList.module.css";
 
 const TRASH_QUERY_KEY = (workspaceId: string | null) => ["document-trash", workspaceId] as const;
 
@@ -21,11 +19,11 @@ function formatTime(value: string) {
 }
 
 /**
- * 문서 휴지통 창. 설정의 "휴지통"에서 "휴지통 열기"로 연다.
+ * 설정 화면에 바로 표시하는 문서 휴지통 목록.
  * 삭제 문서의 이름·삭제 시각·영구 삭제 예정일(purge_at)을 보여주고 복구한다. 보관 기간(30일)이 지난 항목은 복구할 수 없다.
  * 복구는 문서 소유자와 OWNER만 할 수 있고, 다른 멤버는 서버 403을 문구로 안내받는다.
  */
-export function TrashModal({ onClose }: { onClose: () => void }) {
+export function TrashList() {
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const trash = useQuery({
@@ -34,17 +32,21 @@ export function TrashModal({ onClose }: { onClose: () => void }) {
     enabled: Boolean(workspaceId)
   });
   const [restoringId, setRestoringId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const items = trash.data ?? [];
 
   async function restore(documentId: string, currentVersion: number, name: string) {
     setRestoringId(documentId);
-    setMessage(null);
+    setRestoreError(null);
     try {
       await restoreTrashDocument(documentId, currentVersion);
-      setMessage(`「${name}」 문서를 복구했습니다. 편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.`);
+      publishNotice({
+        kind: "completed",
+        title: "문서 복구 완료",
+        message: `「${name}」 문서를 복구했습니다. 편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.`
+      });
     } catch (error) {
-      setMessage(describeRestoreError(error));
+      setRestoreError(describeRestoreError(error));
     } finally {
       setRestoringId(null);
       await queryClient.invalidateQueries({ queryKey: TRASH_QUERY_KEY(workspaceId) });
@@ -54,14 +56,7 @@ export function TrashModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CenteredModal ariaLabel="휴지통" className={styles.box} onClose={onClose}>
-      <div className={modalStyles["modal-header"]}>
-        <h2 className={styles.title}>휴지통</h2>
-        <button type="button" className={modalStyles["modal-close"]} aria-label="휴지통 닫기" onClick={onClose}>
-          <SvgIcon src={plusIcon} className={modalStyles["modal-close-icon"]} />
-        </button>
-      </div>
-      <div className={styles.body}>
+      <div className={styles.body} aria-busy={trash.isLoading}>
         <p className={styles.description}>
           삭제한 문서는 30일 동안 보관된 뒤 영구 삭제됩니다. 복구는 문서 소유자와 OWNER만 할 수 있습니다.
         </p>
@@ -93,8 +88,7 @@ export function TrashModal({ onClose }: { onClose: () => void }) {
             );
           })}
         </ul>
-        {message && <p className={sectionStyles["settings-message"]} role="status">{message}</p>}
+        {restoreError && <p className={sectionStyles["settings-message"]} role="alert">{restoreError}</p>}
       </div>
-    </CenteredModal>
   );
 }

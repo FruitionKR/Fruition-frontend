@@ -1,27 +1,10 @@
-/* 휴지통 창 본문. 셸(overlay·박스·헤더·닫기)은 shared/ui/CenteredModal.module.css를 쓴다. */
-
-/* 셸의 고정 높이(680px) 대신 목록 길이만큼만 차지하고, 길어지면 안에서 스크롤한다 */
-.box {
-  width: 640px;
-  height: auto;
-  max-height: calc(100vh - 96px);
-}
-.title {
-  flex: 1;
-  margin: 0;
-  color: var(--color-foreground);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.32px;
-}
+/* 설정 본문 안의 삭제 문서 목록. 스크롤은 설정 화면을 따른다. */
 
 .body {
   min-height: 0;
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
   border-top: 1px solid var(--color-border);
   padding-top: 16px;
 }

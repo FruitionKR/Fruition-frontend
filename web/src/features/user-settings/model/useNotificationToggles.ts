@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
+import { setNotificationSelection } from "./notificationSelection";
+import { isNotificationControlEnabled } from "@/entities/user/model/preferences";
 
 export type NotificationKey = keyof UserPreferences["notifications"];
 
@@ -27,6 +29,7 @@ function browserPermissionMessage(permission: BrowserPermission) {
 export function useNotificationToggles() {
   const { preferences, updatePreferences } = useUserPreferences();
   const notifications = preferences.notifications;
+  const notificationControls = preferences.notificationControls;
   // 마운트 전(SSR)에는 권한을 모르므로 null. 설정이 켜져 있어도 권한이 granted가 아니면 꺼짐으로 표시한다.
   const [browserPermission, setBrowserPermission] = useState<BrowserPermission | null>(null);
   const [browserMessage, setBrowserMessage] = useState<string | null>(null);
@@ -45,10 +48,10 @@ export function useNotificationToggles() {
     browser: notifications.browser && browserPermission === "granted"
   };
 
-  async function toggleNotification(key: NotificationKey) {
-    const nextValue = !checkedValues[key];
+  async function setNotifications(keys: readonly NotificationKey[], nextValue: boolean) {
+    let browserAllowed = true;
     // 브라우저 알림은 켤 때 권한 승인이 선행돼야 한다.
-    if (key === "browser") {
+    if (keys.includes("browser")) {
       setBrowserMessage(null);
       if (nextValue) {
         const current = readBrowserPermission();
@@ -57,15 +60,32 @@ export function useNotificationToggles() {
         if (permission !== "granted") {
           // 권한 요청 창을 닫아 default로 남은 경우도 차단 안내를 보여 준다.
           setBrowserMessage(browserPermissionMessage(permission) ?? BROWSER_DENIED_MESSAGE);
-          return;
+          browserAllowed = false;
         }
       }
     }
     updatePreferences((current) => ({
       ...current,
-      notifications: { ...current.notifications, [key]: nextValue }
+      notifications: setNotificationSelection(current.notifications, keys, nextValue, browserAllowed)
     }));
   }
 
-  return { checkedValues, browserMessage, toggleNotification };
+  async function toggleNotification(key: NotificationKey) {
+    if (!isNotificationControlEnabled(key, notificationControls)) return;
+    await setNotifications([key], !checkedValues[key]);
+  }
+
+  function setAllNotificationsEnabled(enabled: boolean) {
+    updatePreferences((current) => ({ ...current, notificationControls: { ...current.notificationControls, enabled } }));
+  }
+
+  function setGroupNotificationsEnabled(group: string, enabled: boolean) {
+    if (!notificationControls.enabled) return;
+    updatePreferences((current) => ({
+      ...current,
+      notificationControls: { ...current.notificationControls, groups: { ...current.notificationControls.groups, [group]: enabled } }
+    }));
+  }
+
+  return { checkedValues, browserMessage, toggleNotification, setNotifications, notificationControls, setAllNotificationsEnabled, setGroupNotificationsEnabled };
 }

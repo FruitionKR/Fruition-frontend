@@ -140,6 +140,11 @@ button.nav-row.is-danger:focus-visible {
   margin-top: 20px;
 }
 
+/* 설명이 없는 전체 알림은 독립된 큰 섹션 대신 바로 아래 그룹과 기본 간격만 둔다. */
+.detail > .notification-master-section + .section {
+  margin-top: 0;
+}
+
 .title {
   display: flex;
   flex-direction: column;
@@ -197,10 +202,31 @@ button.nav-row.is-danger:focus-visible {
   line-height: 1;
 }
 
+.section-header.is-prominent {
+  color: var(--color-body);
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .section-line {
   flex: 1;
   height: 1.2px;
   background: var(--color-border);
+}
+
+/* 그룹 전체 알림은 제목과 같은 줄에 배치한다. */
+.notification-group-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.notification-group-control.is-disabled {
+  opacity: 0.45;
 }
 
 /* 라벨 + 입력 필드 */
@@ -261,6 +287,15 @@ button.nav-row.is-danger:focus-visible {
   padding: 8px 0;
 }
 
+.row.is-disabled {
+  opacity: 0.45;
+}
+
+/* 한 줄짜리 행은 설명용 최소 높이 없이 기존 상하 패딩(8px)만 유지한다. */
+.row.is-compact {
+  min-height: 0;
+}
+
 .row-title {
   min-width: 0;
   display: flex;
@@ -274,6 +309,11 @@ button.nav-row.is-danger:focus-visible {
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.28px;
+}
+
+.notification-master-section .row-title strong {
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .row-title small {

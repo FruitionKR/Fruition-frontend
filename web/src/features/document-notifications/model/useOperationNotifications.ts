@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
-import { useUserPreferences } from "@/entities/user";
 import { publishNotice, type NoticePayload } from "./noticeBus";
 import { nextOperationPollDelay } from "./operationPolling";
 
@@ -43,14 +42,9 @@ function noticeFor(item: OperationLogItem): NoticePayload {
  * 폴링 사이에 새로 나타난 종결 작업을 모두 잡는다. 유형별로 켜고 끌 수 있다.
  */
 export function useOperationNotifications() {
-  const { preferences } = useUserPreferences();
-  const { lint: lintEnabled, restore: restoreEnabled } = preferences.notifications;
-  const enabled = lintEnabled || restoreEnabled;
   const knownStatusesRef = useRef<Map<string, string> | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
-
     let cancelled = false;
     let timer = 0;
     // 숨김 탭에서 예약을 건너뛰었거나 느린 주기로 예약한 상태. 다시 보이면 즉시 한 번 폴링한다.
@@ -80,10 +74,7 @@ export function useOperationNotifications() {
 
       if (previous) {
         for (const log of logs) {
-          const typeEnabled = log.operation_type === "lint" ? lintEnabled
-            : log.operation_type === "restore" ? restoreEnabled
-            : false;
-          if (!typeEnabled || !isTerminal(log.status)) continue;
+          if (!WATCHED_TYPES[log.operation_type] || !isTerminal(log.status)) continue;
           const previousStatus = previous.get(log.operation_id);
           // 진행 중이었다가 종결됐거나, 폴링 사이에 새로 나타나 이미 종결된 작업
           if (!previousStatus || !isTerminal(previousStatus)) {
@@ -122,5 +113,5 @@ export function useOperationNotifications() {
       document.removeEventListener("visibilitychange", resumeWhenVisible);
       window.clearTimeout(timer);
     };
-  }, [enabled, lintEnabled, restoreEnabled]);
+  }, []);
 }
