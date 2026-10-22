@@ -11,6 +11,7 @@ import { buildWorkspaceHref } from "@/widgets/workspace/lib/workspaceLocation";
 import { TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
+import { describeTreeConversionBadge } from "../model/treeConversionBadge";
 import styles from "./DocumentSidebar.module.css";
 
 // 트리 행 들여쓰기 (Figma 1486:4410): 기본 10px + depth당 22px (pl 10 / 32)
@@ -86,6 +87,7 @@ export function TreeNode({
     ? interaction.conversionBadges?.get(item.documentId) ?? null
     : null;
   const relatedDocumentId = !isEditing && !interaction.isPickingTarget ? conversionBadge?.relatedDocumentId : null;
+  const conversionDescription = conversionBadge ? describeTreeConversionBadge(conversionBadge, Boolean(relatedDocumentId)) : "";
   // 편집 가능은 기본 상태라 표시하지 않고, 직접 설정·상속 모두 보기 전용일 때만 표시한다.
   const permission = effectivePermission(item, inheritedPermission);
   const permissionLabel = permission?.access === "view" && (permission.source === "own"
@@ -114,7 +116,7 @@ export function TreeNode({
 
   return (
     <div className={cx(styles["tree-group"], isFolderBlockTarget && styles["is-drop-inside"])}>
-      <div className={styles["tree-row-wrap"]}>
+      <div className={cx(styles["tree-row-wrap"], draggedItemId !== null && styles["is-dragging-tree"])}>
       <button
         type="button"
         className={cx(
@@ -214,11 +216,11 @@ export function TreeNode({
           />
         ) : (
           <>
-            <Tooltip content={permissionDescription} hint={item.label} placement="right">
+            <Tooltip content={item.label} placement="right">
               <span className={styles["tree-label-text"]}>{display.name}</span>
             </Tooltip>
             {permission && permissionLabel && (
-              <Tooltip content={permissionDescription} placement="right" describe={false} className={styles["tree-permission-indicator"]}>
+              <Tooltip content={permissionLabel} hint={permissionDescription} placement="right" describe={false} className={styles["tree-permission-indicator"]}>
                 <SidebarPermissionIcon
                   permission={permission.access}
                   label={permissionLabel}
@@ -239,10 +241,10 @@ export function TreeNode({
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
               : conversionBadge
                 ? (
-                  <Tooltip content={conversionBadge.description} placement="right" disabled={Boolean(relatedDocumentId)} className={styles["tree-conversion-inline"]}>
+                  <Tooltip content={conversionDescription} placement="right" disabled={Boolean(relatedDocumentId)} className={styles["tree-conversion-inline"]}>
                   <small
                     className={cx(styles["tree-type-badge"], styles["is-conversion"], relatedDocumentId && styles["is-link-placeholder"])}
-                    aria-label={relatedDocumentId ? undefined : conversionBadge.description}
+                    aria-label={relatedDocumentId ? undefined : conversionDescription}
                     aria-hidden={relatedDocumentId ? true : undefined}
                   >
                     {conversionBadge.label}
@@ -256,13 +258,13 @@ export function TreeNode({
         )}
       </button>
       {relatedDocumentId && conversionBadge && (
-        <Tooltip content={conversionBadge.description} placement="right" describe={false} className={styles["tree-conversion-tooltip"]}>
+        <Tooltip content={conversionDescription} placement="right" describe={false} className={styles["tree-conversion-tooltip"]}>
         <Link
           className={cx(styles["tree-type-badge"], styles["is-conversion"], styles["tree-conversion-link"])}
           href={buildWorkspaceHref({ kind: "document", documentId: relatedDocumentId })}
           prefetch={false}
           draggable={false}
-          aria-label={conversionBadge.description}
+          aria-label={conversionDescription}
           onClick={(event) => {
             event.stopPropagation();
             if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) interaction.onClearSelectedItems();

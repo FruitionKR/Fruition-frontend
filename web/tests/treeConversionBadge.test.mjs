@@ -7,7 +7,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 } });
-const { buildTreeConversionBadges, getTreeConversionBadge } = await import("../src/widgets/document-sidebar/model/treeConversionBadge.ts");
+const { buildTreeConversionBadges, getTreeConversionBadge, describeTreeConversionBadge } = await import("../src/widgets/document-sidebar/model/treeConversionBadge.ts");
 
 const pdf = (extra = {}) => ({ id: "pdf", filename: "회의자료.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", status: "completed", ...extra });
 const md = (extra = {}) => ({ id: "md", filename: "회의자료.md", mime_type: "text/markdown", document_role: "EDITABLE", status: "completed", source_document_id: "pdf", pipeline_run_id: "convert:1", ...extra });
@@ -16,7 +16,7 @@ test("변환을 마친 원본 PDF 배지는 변환된 노트로 연결한다", (
   assert.deepEqual(getTreeConversionBadge(pdf(), [pdf(), md()]), {
     label: "원본 PDF",
     isConverted: true,
-    description: "업로드한 원본 PDF입니다. 클릭하면 변환본을 엽니다.\n[회의자료.md]",
+    description: "업로드한 원본 PDF입니다.\n[회의자료.md]",
     relatedDocumentId: "md"
   });
 });
@@ -25,14 +25,14 @@ test("변환된 노트 배지는 원본 PDF로 연결한다", () => {
   assert.deepEqual(getTreeConversionBadge(md(), [pdf(), md()]), {
     label: "변환본",
     isConverted: false,
-    description: "PDF에서 만든 Markdown 문서입니다. 클릭하면 원본 PDF를 엽니다.\n[회의자료.pdf]",
+    description: "PDF에서 만든 Markdown 문서입니다.\n[회의자료.pdf]",
     relatedDocumentId: "pdf"
   });
 });
 
 test("이름이 달라도 source_document_id 관계로 짝을 찾는다", () => {
   const renamed = md({ filename: "정리본.md" });
-  assert.equal(getTreeConversionBadge(pdf(), [pdf(), renamed])?.description, "업로드한 원본 PDF입니다. 클릭하면 변환본을 엽니다.\n[정리본.md]");
+  assert.equal(getTreeConversionBadge(pdf(), [pdf(), renamed])?.description, "업로드한 원본 PDF입니다.\n[정리본.md]");
 });
 
 test("원본이 목록에 없으면 변환본은 일반 문구만 둔다", () => {
@@ -74,4 +74,15 @@ test("문서 id별 맵에는 관계가 있는 문서만 들어간다", () => {
   const plain = md({ id: "plain", source_document_id: undefined });
   const badges = buildTreeConversionBadges([pdf(), md(), plain]);
   assert.deepEqual([...badges.keys()].sort(), ["md", "pdf"]);
+});
+
+
+test("대상 선택 모드에는 역할만 안내하고 실제 링크에만 클릭 안내를 붙인다", () => {
+  const badge = getTreeConversionBadge(md(), [pdf(), md()]);
+  assert.doesNotMatch(describeTreeConversionBadge(badge), /클릭/);
+  assert.match(describeTreeConversionBadge(badge, true), /클릭하면 원본 PDF를 엽니다/);
+  const source = getTreeConversionBadge(pdf(), [pdf(), md()]);
+  assert.match(describeTreeConversionBadge(source, true), /클릭하면 변환본을 엽니다/);
+  const orphan = getTreeConversionBadge(md(), [md()]);
+  assert.doesNotMatch(describeTreeConversionBadge(orphan, true), /클릭/);
 });

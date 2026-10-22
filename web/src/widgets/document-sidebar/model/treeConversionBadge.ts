@@ -40,7 +40,7 @@ export function getTreeConversionBadge(
     return {
       label: CONVERTED_MARKDOWN_LABEL,
       isConverted: false,
-      description: source ? `PDF에서 만든 Markdown 문서입니다. 클릭하면 원본 PDF를 엽니다.\n[${source.filename}]` : UNKNOWN_SOURCE_DESCRIPTION,
+      description: source ? `PDF에서 만든 Markdown 문서입니다.\n[${source.filename}]` : UNKNOWN_SOURCE_DESCRIPTION,
       relatedDocumentId: source?.id ?? null
     };
   }
@@ -55,9 +55,15 @@ export function getTreeConversionBadge(
   return {
     label: CONVERTED_SOURCE_LABEL,
     isConverted: true,
-    description: `업로드한 원본 PDF입니다. 클릭하면 변환본을 엽니다.\n[${latest.filename}]`,
+    description: `업로드한 원본 PDF입니다.\n[${latest.filename}]`,
     relatedDocumentId: latest.id
   };
+}
+
+/** 실제로 이동할 수 있는 링크에만 클릭 안내를 붙인다. */
+export function describeTreeConversionBadge(badge: TreeConversionBadge, linked = false): string {
+  if (!linked || !badge.relatedDocumentId) return badge.description;
+  return `${badge.description}\n클릭하면 ${badge.isConverted ? "변환본을" : "원본 PDF를"} 엽니다.`;
 }
 
 /** 문서 id별 변환 관계 배지. 관계가 없는 문서는 넣지 않는다. */

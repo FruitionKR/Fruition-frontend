@@ -813,6 +813,11 @@
   transform: translateY(-50%);
 }
 
+/* 드래그 중에는 링크가 가리지 않도록 뒤의 행이 드롭 위치를 판정한다. */
+.tree-row-wrap.is-dragging-tree .tree-conversion-tooltip {
+  pointer-events: none;
+}
+
 .tree-row > .tree-conversion-inline {
   flex: 0 0 auto;
   margin-left: auto;
