@@ -10,7 +10,7 @@ import {
 import {
   trackPendingDocumentSave,
   waitForPendingDocumentSave
-} from "../src/features/note-editing/model/pendingDocumentSaveTracker.ts";
+} from "../src/shared/lib/documentSaveBarrier.ts";
 
 test("AI 저장 대기 중 일반 편집이 이어져도 agent source를 보존한다", () => {
   const pending = mergePendingNoteSave(

@@ -109,6 +109,17 @@ export function NoteEditor({
     onDetachedSaveComplete,
     onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved),
     onServerMerge: (merge) => onServerMergeRef.current(merge),
+    beforeFlush: () => {
+      // Milkdown의 markdownUpdated는 지연된다. 클릭 직전 입력은 ProseMirror의 현재 문서에서 읽는다.
+      crepeRef.current?.editor.action((ctx) => {
+        const latestBody = ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc);
+        if (latestBody === bodyRef.current) return;
+        bodyRef.current = latestBody;
+        // 뒤늦게 도착하는 같은 변경 알림이 편입 후 저장을 다시 예약하지 않게 한다.
+        programmaticBodyRef.current = latestBody;
+        queueSaveRef.current(latestBody);
+      });
+    },
     autoSave: preferences.autoSave
   });
   // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
