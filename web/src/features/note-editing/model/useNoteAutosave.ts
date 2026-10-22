@@ -124,10 +124,10 @@ export function useNoteAutosave({
       );
       scheduledSaveRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (scheduled) {
-        if (!isSaveBlocked()) void flushSaveRef.current(scheduled);
-        else trackPendingDocumentSave(documentId, Promise.resolve(false));
-      }
+      if (isSaveBlocked()) {
+        // 진행 중인 이전 저장이 끝나더라도, 잠금 상실로 버린 최신 입력을 저장한 것으로 취급하지 않는다.
+        if (unsavedCandidateRef.current) trackPendingDocumentSave(documentId, Promise.resolve(false));
+      } else if (scheduled) void flushSaveRef.current(scheduled);
     };
   }, [documentId]);
 

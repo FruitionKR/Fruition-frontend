@@ -305,3 +305,19 @@ test("잠금을 잃기 전의 미저장 입력이 있으면 편입을 계속 막
   await assert.rejects(reflectDocumentToWiki(documentId, "EDITABLE"), /저장하지 못해/);
   assert.deepEqual(api.requests, []);
 });
+
+test("이전 저장 도중 잠금을 잃고 이동해도 버려진 최신 입력이 있으면 편입을 막는다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t, { defer: true });
+  const documentId = "doc_lock_pending";
+  const view = renderAutosave({ autoSave: false, documentId });
+  const saving = view.autosave.saveNow("이전 본문");
+  await settle();
+  view.autosave.queueSave("잠금 상실 직전 최신 본문");
+  view.autosave.reportSaveBlock("lock-lost", "잠금을 잃었습니다.");
+  view.unmount();
+  api.saves.shift()();
+  await saving;
+  await assert.rejects(reflectDocumentToWiki(documentId, "EDITABLE"), /저장하지 못해/);
+  assert.deepEqual(api.requests.map((request) => request.method), ["PUT"]);
+});
