@@ -15,6 +15,7 @@ import {
   type PendingNoteSave
 } from "./pendingNoteSaveMerge";
 import { trackPendingDocumentSave } from "./pendingDocumentSaveTracker";
+import { registerDocumentSaveFlusher, waitForPendingDocumentSave } from "@/shared/lib/documentSaveBarrier";
 import { isWriteForbiddenError } from "@/entities/document/lib/documentAccess";
 
 /** 저장 403(DOCUMENT_WRITE_FORBIDDEN): 편집 중 권한이 바뀐 경우다. 서버 원문 대신 할 일을 안내한다. */
@@ -49,6 +50,7 @@ export function useNoteAutosave({
   onDetachedSaveComplete,
   onAttachmentsSaved,
   onServerMerge,
+  beforeFlush,
   autoSave = true
 }: {
   documentId: string;
@@ -59,6 +61,8 @@ export function useNoteAutosave({
   onAttachmentsSaved?: (saved: SavedAttachment[]) => void;
   /** 저장 응답이 자동 병합(merged·overwritten)이거나 구 서버 409 뒤 다시 저장해 덮어썼을 때. */
   onServerMerge?: (merge: NoteServerMerge) => void;
+  /** 편집기의 지연된 변경 알림보다 먼저 현재 본문을 queueSave에 동기화한다. */
+  beforeFlush?: () => void;
   /**
    * 기본 설정의 자동 저장. 끄면 입력 중에는 저장하지 않고 "저장 안 됨"으로 남긴다.
    * Cmd/Ctrl+S(saveNow), 다른 문서로 이동(언마운트), AI 편집 적용은 그대로 저장한다.
@@ -82,6 +86,8 @@ export function useNoteAutosave({
   const revisionRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduledSaveRef = useRef<PendingNoteSave | null>(null);
+  // 실패했거나 디바운스·요청 대기 중인 최신 본문. 편입 전에 반드시 저장한다.
+  const unsavedCandidateRef = useRef<PendingNoteSave | null>(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef<PendingNoteSave | null>(null);
   // 더 이상 서버에 써서는 안 되는 이유. lock-lost(편집 잠금 상실)·session-expired(세션 만료)를 같은 방식으로 막는다.
@@ -97,6 +103,10 @@ export function useNoteAutosave({
   onDetachedSaveCompleteRef.current = onDetachedSaveComplete;
   const autoSaveRef = useRef(autoSave);
   autoSaveRef.current = autoSave;
+  const beforeFlushRef = useRef(beforeFlush);
+  beforeFlushRef.current = beforeFlush;
+  const flushPendingSaveRef = useRef(flushPendingSave);
+  flushPendingSaveRef.current = flushPendingSave;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -109,14 +119,19 @@ export function useNoteAutosave({
 
       // 디바운스·AI 재시도 대기 중 이동해도 마지막 편집분을 잃지 않도록 즉시 저장한다.
       const scheduled = selectDetachedSaveCandidate(
-        scheduledSaveRef.current,
+        scheduledSaveRef.current ?? (!saveInFlightRef.current ? unsavedCandidateRef.current : null),
         agentRetryCandidateRef.current
       );
       scheduledSaveRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (scheduled && !isSaveBlocked()) void flushSaveRef.current(scheduled);
+      if (isSaveBlocked()) {
+        // 진행 중인 이전 저장이 끝나더라도, 잠금 상실로 버린 최신 입력을 저장한 것으로 취급하지 않는다.
+        if (unsavedCandidateRef.current) trackPendingDocumentSave(documentId, Promise.resolve(false));
+      } else if (scheduled) void flushSaveRef.current(scheduled);
     };
-  }, []);
+  }, [documentId]);
+
+  useEffect(() => registerDocumentSaveFlusher(documentId, () => flushPendingSaveRef.current()), [documentId]);
 
   /**
    * 저장을 막아야 하는지. lock-lost는 이 화면에서 풀리지 않지만,
@@ -210,6 +225,7 @@ export function useNoteAutosave({
       const wasLegacyRetry = legacyConflictRetryRef.current;
       legacyConflictRetryRef.current = false;
       reportServerMerge(saved.merge, isLatestEdit ? saved.markdown : null, wasLegacyRetry);
+      if (unsavedCandidateRef.current?.revision === saveCandidate.revision) unsavedCandidateRef.current = null;
       if (saveCandidate.source === "agent") {
         agentRetryApplyOperationIdRef.current = undefined;
         agentRetryRequiredRef.current = false;
@@ -294,11 +310,36 @@ export function useNoteAutosave({
   }
 
   function trackedFlushSave(candidate: PendingNoteSave): Promise<boolean> {
+    const queued = saveInFlightRef.current;
     const save = flushSave(candidate);
-    trackPendingDocumentSave(documentId, save);
+    // 대기열에 넣었다는 응답(true)은 실제 본문 저장 성공으로 기록하지 않는다.
+    if (!queued) trackPendingDocumentSave(documentId, save);
     return save;
   }
   flushSaveRef.current = trackedFlushSave;
+
+  /** 편입은 예약된 최신 본문과 이미 진행 중인 저장 대기열을 모두 반영한 뒤 시작한다. */
+  async function flushPendingSave(): Promise<boolean> {
+    function clearScheduledSave() {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      scheduledSaveRef.current = null;
+      cancelAgentRetry();
+    }
+    beforeFlushRef.current?.();
+    clearScheduledSave();
+    await waitForPendingDocumentSave(documentId);
+    while (true) {
+      beforeFlushRef.current?.();
+      if (!unsavedCandidateRef.current) return true;
+      if (isSaveBlocked()) return false;
+      clearScheduledSave();
+      const saved = await trackedFlushSave(unsavedCandidateRef.current);
+      // flushSave는 진행 중 요청에 밀린 본문을 이어서 저장할 수 있다.
+      await waitForPendingDocumentSave(documentId);
+      if (!saved && unsavedCandidateRef.current) return false;
+    }
+  }
 
   /**
    * 저장을 영구히 멈춘다. useEditLock이 heartbeat 409(잠금 상실)를 받으면 호출한다.
@@ -340,7 +381,7 @@ export function useNoteAutosave({
   // 자동 저장을 끈 채 저장하지 않은 편집분이 있으면 탭을 닫기 전에 브라우저가 묻는다.
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
-      if (autoSaveRef.current || !scheduledSaveRef.current) return;
+      if (autoSaveRef.current || !unsavedCandidateRef.current) return;
       event.preventDefault();
       // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
       event.returnValue = "";
@@ -363,6 +404,7 @@ export function useNoteAutosave({
         ? applyOperationId ?? agentRetryApplyOperationIdRef.current
         : undefined
     };
+    unsavedCandidateRef.current = candidate;
     setStatus("dirty");
     setErrorMessage(null);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -397,6 +439,7 @@ export function useNoteAutosave({
       source: saveSource,
       applyOperationId: saveSource === "agent" ? agentRetryApplyOperationIdRef.current : undefined
     };
+    unsavedCandidateRef.current = candidate;
     setErrorMessage(null);
     return trackedFlushSave(candidate);
   }
