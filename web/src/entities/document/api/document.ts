@@ -7,6 +7,7 @@ import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemR
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
+import { flushPendingDocumentSave } from "@/shared/lib/documentSaveBarrier";
 
 export class DocumentNameConflictError extends Error {
   constructor(filename: string) {
@@ -105,6 +106,8 @@ export async function uploadDocumentFile(file: File, folderId: string | null = n
 /** 문서 ingest를 시작한다. 편집 가능 Markdown 전용이라 reflectDocumentToWiki를 거쳐 호출한다. */
 async function startDocumentIngest(documentId: string): Promise<void> {
   const workspaceId = getWorkspaceId();
+  await flushPendingDocumentSave(documentId);
+  if (getWorkspaceId() !== workspaceId) throw new Error("워크스페이스가 변경되어 위키 편입을 중단했습니다.");
   const response = await apiFetch(
     workspacePath(workspaceId, "documents", documentId, "ingest"),
     { method: "POST" }
