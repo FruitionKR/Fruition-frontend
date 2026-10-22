@@ -1,3 +1,11 @@
+/** 로그인 전 요청의 인증 거절. 세션 만료 알림 없이 로그인 화면으로 안내한다. */
+export class LoginRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LoginRequiredError";
+  }
+}
+
 /**
  * 재발급까지 실패해 세션이 끝났음을 나타낸다.
  * 안내 문구는 언제든 바뀔 수 있으므로 제어 흐름은 문자열 비교가 아니라 이 타입으로 판단한다.

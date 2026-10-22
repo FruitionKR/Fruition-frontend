@@ -1,6 +1,6 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
-import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, SessionExpiredError } from "@/shared/lib/apiErrors";
+import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -164,7 +164,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   if (outcome === "unavailable") throw new Error(ERROR_MESSAGES.authRefreshUnavailable);
   // 로그아웃 상태로 /login·랜딩에서 /me를 물으면 끝난 세션이 없다. 만료 안내·래치 없이 로그인 필요만 알린다.
   // 로그인 전에 시작해 로그인 뒤에 끝난 요청도 여기서 걸러져, 늦은 만료 안내가 로그인 직후 화면을 막지 않는다.
-  if (outcome === "rejected" && !hadAccessToken) throw new Error(ERROR_MESSAGES.loginRequired);
+  if (outcome === "rejected" && !hadAccessToken) throw new LoginRequiredError(ERROR_MESSAGES.loginRequired);
   if (outcome === "refreshed") {
     const retried = await fetchWithToken(requestPath, requestInit);
     if (retried.status !== 401) return retried;
