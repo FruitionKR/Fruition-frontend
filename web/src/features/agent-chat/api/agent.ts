@@ -1,3 +1,4 @@
+import { analyticsSessionHeaders } from "@/shared/lib/analytics/client";
 import { apiFetch, parseJsonOrThrow, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { ApiError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
@@ -55,7 +56,7 @@ export async function requestAgentTurn(
   const response = await apiFetch(workspacePath(workspaceId, "agent", "turn"), {
     method: "POST",
     signal,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...analyticsSessionHeaders() },
     body: JSON.stringify(request)
   });
   const run = await parseJsonOrThrow<AgentTurnRunResponse>(response, ERROR_MESSAGES.agentTurnFailed);

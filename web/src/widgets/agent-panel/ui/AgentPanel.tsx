@@ -1,5 +1,7 @@
 "use client";
 
+import { captureAnalytics } from "@/shared/lib/analytics/client";
+import { analyticsEditType } from "@/shared/lib/analytics/events";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
@@ -645,6 +647,12 @@ export function AgentPanel({
     && reviewDocumentId && reviewDocumentId === openDocumentId
   );
   const isReviewBusy = isAgentTurnLoading || isCreatingMarkdown;
+  const shownReviewIds = useRef(new Set<string>());
+  useEffect(() => {
+    if (!(isInlineReview || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
+    shownReviewIds.current.add(agentTurnResponse.requestId);
+    captureAnalytics("edit_review_shown", { proposal_id: agentTurnResponse.requestId, document_id: agentTurnResponse.documentId, edit_type: analyticsEditType(agentTurnResponse.result.edit) });
+  }, [isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
   const decideProposalRef = useRef(agentTurn.decideProposal);
   decideProposalRef.current = agentTurn.decideProposal;
   const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "");

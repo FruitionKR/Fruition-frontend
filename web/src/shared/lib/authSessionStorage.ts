@@ -32,6 +32,7 @@ export function setSessionExpiredHandler(handler: (() => void) | null) {
 export function notifySessionExpired() {
   if (hasNotifiedSessionExpired) return;
   hasNotifiedSessionExpired = true;
+  if (typeof window !== "undefined") window.dispatchEvent?.(new Event("fruition:auth-cleared"));
   sessionExpiredHandler?.();
 }
 
@@ -61,6 +62,7 @@ export function clearAuth() {
   accessToken = null;
   removeLegacyStoredTokens();
   window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+  window.dispatchEvent?.(new Event("fruition:auth-cleared"));
 }
 
 type KeyedStorage = Pick<Storage, "length" | "key" | "removeItem">;
@@ -70,6 +72,7 @@ type KeyedStorage = Pick<Storage, "length" | "key" | "removeItem">;
  * 설정·트리 열림 상태·최근 문서 등 `fruition.` 접두어 키를 localStorage·sessionStorage에서 모두 제거한다.
  */
 export function clearFruitionStorage(storages: KeyedStorage[] = defaultStorages()) {
+  if (typeof window !== "undefined") window.dispatchEvent?.(new Event("fruition:auth-cleared"));
   for (const storage of storages) {
     const keys: string[] = [];
     for (let index = 0; index < storage.length; index += 1) {
@@ -107,10 +110,12 @@ export function getSelectedWorkspaceId(): string | null {
 
 export function setSelectedWorkspaceId(workspaceId: string) {
   window.localStorage.setItem(WORKSPACE_STORAGE_KEY, workspaceId);
+  window.dispatchEvent?.(new Event("fruition:workspace-changed"));
 }
 
 export function clearSelectedWorkspaceId() {
   window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+  window.dispatchEvent?.(new Event("fruition:workspace-changed"));
 }
 
 /** 로그인을 마친 뒤 돌아올 화면을 남긴다. 로그인이 OAuth로 오리진을 벗어나도 같은 탭이면 유지된다. */

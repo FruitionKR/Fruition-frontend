@@ -1,0 +1,714 @@
+# Fruition 알파 PostHog 적용 계획서
+
+작성 2026-10-22 · 기준 문서 `posthog-alpha-metrics.md`(401줄 전체 확인) · 대상 PostHog US Cloud 프로젝트 658129
+
+> 초안 작성 당시에는 변경하지 않았습니다. 이후 검토 수정과 프론트 구현을 진행했으며, 현재 적용 상태는 아래 기록을 따릅니다. 초안 조사 시점에는 파일 수정, SDK 설치, PostHog 설정 변경, 이벤트 발송, 배포는 하지 않았습니다. `.env`와 비밀값은 열지 않았습니다(`.env.example`은 변수 이름만 확인). 추가 에이전트도 쓰지 않았습니다. 계획서 본문은 Claude 출력이며, 조정 에이전트가 파일로 저장하고 중복 제거·실패 격리·내부 식별자 표현을 검토·보완했습니다.
+>
+> 표기 규칙
+> - **[확인]**: 코드에서 직접 본 사실입니다.
+> - **[문서]**: PostHog 공식 문서로 확인한 사실입니다(출처는 18장).
+> - **[제안]**: 이 계획이 권하는 설계입니다.
+> - **[가정]**: 아직 검증하지 않은 전제입니다.
+
+---
+
+## 0. 요약
+
+2026-10-22 검토 반영: 실패·성공 되돌리기 키 분리, 서버 terminal 결과 상호 배제, D15 행동 마감/D18 후속 관찰 분리, 코호트 밖 팀원의 최초 편입 이력 포함, 질문 접수 시각으로 24h 판정, AI 스킬 생성 원자 기록. 원문의 근거 답변·지표 2 분모·자동 편입 포함 정의를 기본값으로 유지하고 변경안은 보조 분석으로만 사용합니다.
+
+1. **핵심 지표 4개는 전부 서버 이벤트로만 계산합니다.** 브라우저 이벤트는 광고 차단기, CSP, 탭 종료로 빠질 수 있으므로 보조 지표에만 씁니다.
+2. **서버 전송은 서비스별 `analytics_outbox` 테이블을 거칩니다.** 제품 트랜잭션 안에서 이 테이블에 행을 넣고, 커밋된 뒤 relay가 PostHog `/batch`로 보냅니다. 커밋 후 전송과 재시도 시 동일 event_id 유지를 구현합니다. 수신 측은 즉시 exactly-once를 보장하지 않으므로 판정 쿼리에서도 event_id 기준으로 중복을 제거합니다. Document와 Access에는 outbox 선례가 있지만 실패 격리는 별도 구현·검증합니다. AI 스킬 생성도 생성 저장소에서 내구성 있게 기록해야 합니다.
+3. **비동기 결과는 Document 결과 consumer에서 처리합니다.** AI 종료 이벤트에는 이미 `user_id`, `workspace_id`, `operation_id`, 결정적인 `event_id`가 실려 있습니다. Document의 결과 consumer가 이 값을 받아 분석 이벤트를 대신 기록합니다.
+4. **원문의 통계·관찰창·인과 주장 중 그대로 실행하면 틀리는 것이 여럿입니다.** D7 창이 관찰 범위 밖에 있고, 웹 인용이 근거 답변에 섞이며, 결과를 본 뒤 관찰창을 확정하고, 상관관계를 인과로 해석하는 문제 등입니다. 3장에서 수정안과 함께 따로 정리했습니다.
+5. **저장소별 작업을 분리합니다.** 사용자가 2026-10-22 서버·AI·인프라 수정을 명시적으로 허용하고 병렬 에이전트 구현을 요청했습니다. 각 서비스는 독립 작업 공간과 dev 대상 PR로 구현하며 이 저장소는 프론트 코드를 담당합니다.
+
+---
+
+## 0.1 구현 진행 상태 (2026-10-22)
+
+- 프론트 SDK·런타임 토큰·인증 identify/reset·워크스페이스 그룹·수동 페이지뷰·프론트 보조 이벤트·URL/속성 허용 목록 구현. 토큰 미설정이면 비활성.
+- 리플레이는 처리방침 확정 전까지 `disable_session_recording: true`로 강제 중지하고 snapshot 전송도 허용하지 않음. 아래 리플레이 옵션 예시는 후속 활성화 설계이며 현재 배포 기본값이 아님.
+- 서버·AI·인프라 범위가 승인되어 병렬 구현을 완료했습니다. Access PR #47·#48, AI PR #133, platform PR #100·#101은 dev에 병합했습니다. Document PR #158은 최신 dev를 반영한 실제 DB 전체 테스트 1,407개를 통과했으며 원격 CI 확인 중입니다.
+- 공개 수집 키는 기존 저장 위치가 없어 배포 설정에 새로 연결합니다. 로그인된 프로젝트 676020과 원문 프로젝트 658129가 달라 연결 대상 확인 중입니다. 키는 저장소에 넣지 않으며 AWS Secret의 다른 속성을 보존해 병합합니다.
+- 서버·AI 이벤트·운영 프로젝트 설정·dev 통합·main 병합·배포는 아직 완료되지 않음. 프론트 구현만으로 핵심 지표가 준비됐다고 간주하지 않음.
+- 기존 문서 이력은 알파 사용자 필터와 분리해 backfill하거나 canonical 최초 성공 편입 시각을 제공해야 함. 계측 도입 이후 재편입을 과거 문서의 최초 편입으로 오인하지 않도록 배포 전 대조.
+
+## 1. 근거 범위
+
+| 위치 | 확인 방식 |
+|---|---|
+| `/Users/mireutale/Downloads/posthog-alpha-metrics.md` | 전체 읽음 |
+| `design_change/web` (최신 프론트) | 읽기만 함 |
+| `fruition-dev-stack/{frontend,Document,Access,AI,platform}` | 읽기만 함 |
+| AGENTS.md | 프론트 작업 범위만 허용. 백엔드, 인프라, AI 코드는 직접 수정 금지 |
+
+전 저장소를 검색했지만 `posthog` 문자열은 한 군데도 없었습니다. **[확인]** 도입 흔적이 없습니다.
+
+---
+
+## 2. 현재 코드에서 확인한 사실
+
+### 2.1 프론트 (`design_change/web`)
+
+| 주제 | 사실 | 근거 |
+|---|---|---|
+| 루트 렌더링 | `export const dynamic = "force-dynamic"`이고, 요청 때마다 CSP nonce를 읽음 | `app/layout.tsx` |
+| Provider | QueryClient → SessionExpiryGate → UserPreferencesProvider → (ReconsentGate) 순서. 분석 provider는 없음 | `src/app/providers.tsx` |
+| CSP | `script-src 'self' 'nonce-…' 'strict-dynamic'`. `connect-src`는 self, BACKEND_URL, S3만 허용. `worker-src`는 없음 | `src/shared/lib/security/contentSecurityPolicy.ts` `buildContentSecurityPolicy` |
+| 사용자 ID | `GET /api/auth/me`의 `id`. 형식은 `user_<32hex>`인 내부 식별자. 익명 정보로 간주하지 않고 접근·보관 정책을 적용 | `entities/user/model/user.ts`, Access `UserService.signup` |
+| 로그인 상태 | `useMe()`가 react-query 키 `["me"]`로 공유됨 | `entities/user/model/useMe.ts` |
+| 로그아웃 | `useSignOut().signOut`: 채팅 캐시 비우기 → `queryClient.clear()` → `clearAuth()` → `/login` 이동 | `entities/user/model/useSignOut.ts` |
+| 세션 만료 | `setSessionExpiredHandler` / `notifySessionExpired`를 앱 루트에서 등록 | `shared/lib/authSessionStorage.ts` |
+| 워크스페이스 | localStorage `fruition.workspace_id`. URL은 `/home?page=&doc=&tree=&view=&section=` | `shared/lib/authSessionStorage.ts`, `widgets/workspace/lib/workspaceLocation.ts` |
+| 민감한 URL | `/invitations/[token]`(경로에 토큰), `/oauth/callback`(code), `/reset-password`, `/signup/verify` | `app/**/page.tsx` |
+| 채팅 탭 질의 | `runQueryStream` → `POST …/chat/sessions/{sid}/query/runs` → `request_id`(`query_<uuid>`) → SSE → 상태 폴링 | `entities/wiki/api/wiki.ts` |
+| 작업 탭 | 항상 agent turn(`requestAgentTurn`). 응답에 `requestId`와 `apply_operation_id`가 있음 | `widgets/agent-panel/ui/AgentPanel.tsx` `handleSubmit`, `features/agent-chat/lib/agentTurn.ts` |
+| 인용 | 메시지 `references[]`에 `rank`, `source_document_id`, `source_refs[]`가 있음. 클릭은 `openCitation(rank)`에서 처리. 어시스턴트 메시지에 `run_id`가 있음 | `entities/chat/model/chat.ts`, `features/agent-chat/ui/AssistantThread.tsx` |
+| AI 편집 결정 | 단위가 diff 묶음(hunk)임. 하나도 수락하지 않으면 `markOutcome(turnId,"rejected")`. 일부라도 수락하면 `applyEditedMarkdown` → `saveNoteDraft(source="agent", apply_operation_id)` | `widgets/agent-panel/model/useAgentTurn.ts` `settleProposals`, `features/note-editing/api/note.ts` |
+| diff 확인 UI | `InlineEditReview`에 펼치기/접기 상태가 없음. diff가 처음부터 펼쳐져 보임 | `features/agent-chat/ui/InlineEditReview.tsx` |
+| 되돌리기 미리보기 | `fetchRestorePreview(operation_id)` | `widgets/log-view/ui/LogView.tsx` 286행 |
+| 채팅 내보내기 | `exportChatWiki(pairIds)`는 `pair_ids`만 보내고, 전체를 내보낼 때도 모든 pair를 보냄. 편입은 별도 요청 | `features/wiki-export/api/export.ts` |
+| 업로드 실패 | 지원하지 않는 형식만 `UploadErrorModal`로 표시. 그 밖의 실패는 notice로 표시 | `features/document-upload/ui/UploadErrorModal.tsx`, `useDocumentUpload.ts` |
+| 그래프 | `activeView === "graph"`, `onOpenNodePreview(node)` | `widgets/workspace/ui/HomeWorkspace.tsx`, `widgets/graph/ui/GraphCanvas.tsx` |
+| 공개 env | `NEXT_PUBLIC_*`는 빌드 때 고정됨. 운영 Dockerfile에는 ARG가 없음 | `shared/config/legal.ts`, `frontend/web/Dockerfile` |
+| 처리방침 | 제7조 국외 이전, 제11조 쿠키 조항이 "[법률 검토 확정본으로 교체]" 자리표시자로 남아 있음 | `content/legal/privacy/2026-10-01.md` |
+
+### 2.2 Document
+
+| 주제 | 사실 | 근거 |
+|---|---|---|
+| outbox 선례 | `ai_command_outbox`를 `@Scheduled` + `lockPendingBatch()`로 처리. ACK를 받은 뒤 삭제하고, 실패하면 다음 주기에 다시 보냄 | `document/service/AiCommandOutboxPublisher.java` |
+| 커밋 후 훅 선례 | `TransactionSynchronization.afterCommit` 사용 | `DocumentService.enqueueAfterCommit`, `autoIngestAfterCommit` |
+| AI 결과 멱등성 | `ai_task_result_receipts(event_id …) ON CONFLICT DO NOTHING`. 처음 받은 결과만 반영 | `aitask/service/AiTaskResultApplier` `applyIngest`, `applyRestore`, `applyQuery` |
+| 편입 시작 | `enqueueIngest`: `runId=UUID`, 요청자 ID, `ingestOperationStarter.start` → `op_…`(ingest operation) | `DocumentService` 1480행 부근, `aihistory/service/IngestOperationStarter` |
+| 자동 편입 | 업로드 커밋 뒤 설정이 켜져 있으면 자동 편입 | `DocumentService.autoIngestAfterCommit` |
+| 편입 종료 | `applyIngest` → `operationIngestService.accept` + `documentService.applyPipelineResult` | `AiTaskResultApplier` 212행 |
+| OperationLog | workspaceId, userId, operationType, targetDocumentId, status, changedResourceCount, restoredFrom, restoreManifest, createdAt, completedAt | `aihistory/domain/OperationLog` |
+| 되돌릴 수 있는 유형 | `document_edit`, `ingest`, `lint`만 허용. restore를 되돌리는 것은 불가. `wiki_edit` 유형도 존재함 | `RestoreTargetValidator`, `OperationType` |
+| 되돌리기 범위 | 지목한 작업과, 같은 문서에서 그 뒤에 일어난 ingest 전부 | `RestoreScopeResolver.resolve` |
+| 되돌리기 종료 | 위키는 `applyRestore`(비동기, 재작성 후). 문서는 `RestoreOperationLifecycle.finishDocument`(동기) | `AiTaskResultApplier.applyRestore`, `RestoreOperationLifecycle` |
+| 기존 `restore_count` | DTO에서 "이전 revision으로 되돌아갈 **페이지 수**"를 뜻함. 원문이 정의한 "작업 수"와 이름이 겹침 | `aihistory/dto/RestorePreviewResponse`, `RestoreExecuteResponse` |
+| AI 편집 적용 표 | `agent_apply_projections(run_id PK, user_id, document_id, apply_operation_id UNIQUE, status)`. 저장할 때 소비 | `V29__cut_over_agent_storage.sql`, `AgentApplyOperationStore.consume` |
+| AI 편집 기록 | `OperationRecorder.recordDocumentEdit`가 버전 저장과 같은 트랜잭션에서 `document_edit`를 succeeded로 확정 | `aihistory/service/OperationRecorder` |
+| 질의 run | Redis `QueryRun`. TTL은 진행 중 24h, 종료 후 10분. `requestId`, `workspaceId`, `sessionId`, `createdAt`이 있고 **userId 필드는 없음** | `query/domain/QueryRun`, `QueryRunStore` |
+| 질의 요청자 | outbox `begin(runId, workspaceId, userId, "query")`와 `QueryCommand`에는 userId가 있음 | `QueryRunService.start` |
+| 근거 저장 | evidence snippet의 `source_document_id`는 **원본 문서 ID**임. `web:` 접두 근거는 저장하지 않음. 없는 문서, 다른 워크스페이스 문서, 삭제된 문서는 뺌 | `chat/service/ChatEvidenceRecorder.buildReferences` |
+| 채팅 메시지 | `run_id` 컬럼이 있음. 순서는 `findAllBySessionIdInTurnOrder`로 정하며, `turn_index` 컬럼은 없음 | `chat/domain/ChatMessage` |
+| 채팅 내보내기 | 요청은 `pair_ids`만 받음. 응답은 `export_document_id`와 `status`(saved/skipped). export ID와 mode는 없음 | `ChatWikiExportService.export`, `ChatWikiExportRequest`, `ChatWikiExportResponse` |
+| PDF 변환 | run ID는 `convert:<placeholderId>`. 결과는 batch 단위(`applyConvertBatch`) | `DocumentService.convertToMarkdown`, `applyConvertBatch` |
+| 스킬 | 생성(`publish`)은 AI 서비스에 위임함. 실행은 agent turn의 `skill_mode=explicit` + `skill_id` | `skill/service/SkillService`, `agent/dto/AgentTurnRequest` |
+| CORS | `setAllowedHeaders("*")` | `config/SecurityConfig.java` 50행 |
+
+### 2.3 Access
+
+| 주제 | 사실 | 근거 |
+|---|---|---|
+| 이메일 가입 | `UserService.signup`이 users 저장 → 동의 기록 → `workspaceService.createDefault`(개인 워크스페이스) 순서로 처리 | `user/service/UserService` 60~92행 |
+| 소셜 가입 | `OAuthUserService.completeSignup`, `AuthService.issueForNewOAuthUser` | 해당 파일 |
+| 초대 | `invite`가 대기 중 초대를 다시 보내면 **같은 행을 재사용**(`reissue`). ID는 `inv_…`. 커밋 후 메일 발송 | `workspace/service/WorkspaceInvitationService` 75~120행 |
+| 초대 수락 | 멱등. `!alreadyMember`일 때만 멤버 저장, `!invitation.isAccepted()`일 때만 accept | 같은 파일 165행~ |
+| 역할 | `OWNER`, `MEMBER` | `workspace/domain/WorkspaceRole` |
+| outbox 선례 | `EmailChangeNotificationListener`가 `@EventListener` + `Propagation.MANDATORY`로 같은 트랜잭션에서 outbox insert. 발송은 Job이 처리 | `user/service/EmailChangeNotificationListener` |
+
+### 2.4 AI
+
+- **[확인]** 종료 이벤트 `_event()`에 `event_id = "{kind}:{run_id}:{status}"`, `run_id`, `status`, `workspace_id`, `user_id`, `operation_id`, `request`, `payload`, `error`가 들어 있습니다. 근거는 `pipeline/app/workers/task_worker.py` 966행과 `ingest_worker.py` 136행입니다.
+- **[확인]** 실패 코드는 `provider_rate_limited`, `provider_unavailable`, `input_rejected`, `deadline_exceeded`, `cancelled`, `internal_error`이고 원문은 싣지 않습니다. 근거는 `app/core/failure_codes.py`입니다.
+
+### 2.5 platform
+
+- **[확인]** NetworkPolicy `aws-app-https`가 access-svc와 document-svc에 외부 443 egress를 허용합니다. 프론트 Pod는 Fargate라 NetworkPolicy가 적용되지 않습니다. 따라서 **서버에서 PostHog로 나가는 통신에 정책 변경은 필요 없습니다.**
+- **[확인]** `k8s/overlays/aws/frontend.yaml`의 env는 ACCESS_CODE(secret), CSP_S3_ORIGIN 등입니다. 운영은 ALB가 같은 호스트에서 경로로 나누고, `SAME_ORIGIN_API=true`이면 Next rewrite가 없습니다.
+
+---
+
+## 3. 원문 수정 권고 (그대로 실행하지 말 것)
+
+| # | 원문 | 문제 | 수정 권고 |
+|---|---|---|---|
+| R1 | 관찰 범위 `[t0, t0+7일)`, D7 = `[t0+7일, t0+8일)` | D7 창이 관찰 범위 밖에 있음 | 관찰 범위를 **`[t0, t0+8일)`**로 바꿈. "7일 내 활동 일수"는 `[t0, t0+7일)`로 따로 정의 |
+| R2 | D1·D3·D7은 24h 롤링 창인데, "날짜는 Asia/Seoul로 자른다"고도 함 | 두 정의가 충돌함. 밤에 가입한 사람은 D1 창이 실질적으로 짧아짐 | **하나로 고정.** 권장은 롤링 24h 창(`t0 + n×24h`)이며 사람마다 공평함. Asia/Seoul 날짜는 "서로 다른 날짜 수"(지표 2, 활동 일수)에만 씀. PostHog 리텐션 인사이트는 프로젝트 시간대 기준 달력 구간이라 롤링 정의와 다름. 판정은 SQL로 하고, 리텐션 인사이트는 참고용으로만 씀 |
+| R3 | 지표 2 "근거 답변을 받은 날이 3일 이상"(알파 전 기간) | 늦게 가입한 사람은 관찰 일수가 짧아 구조적으로 실패함(우측 검열) | 원문 분모(근거 답변 경험자)를 유지하되 **관찰 완료자**(t0 + 8일 ≤ 알파 종료)로 제한. 분자는 `[t0, t0+7일)` 안에서 근거 답변을 받은 Asia/Seoul 날짜 수 ≥ 3 |
+| R4 | 보고 문장 "D%가 **3일 이상 다시 왔고**" | 지표는 첫날을 포함해 3일임. "다시 3일"이면 4일이 됨 | 문장을 "**서로 다른 3일 이상 근거 답변을 받았고**"로 고침 |
+| R5 | "가입 당일 근거 답변 여부별 D3·D7 비교에서 차이가 나면 근거 답변이 재방문을 만든다고 말할 수 있다" | 인과 추론이 성립하지 않음. 의지가 강한 사람이 두 가지를 다 하는 선택 편향, 역인과, 수십 명 규모의 작은 표본 | **연관으로만 보고**하고 두 그룹 각각 n과 비율, Fisher 정확검정 또는 95% 신뢰구간을 붙임. "당일"은 달력일 대신 `[t0, t0+24h)`. 인과 주장이 필요하면 온보딩 무작위 배정이 필요하지만, 알파 규모로는 검정력이 부족해 이번에는 하지 않음 |
+| R6 | 관찰창(72h)을 "D7에 1주차 `time_since_operation_sec` 분포의 90%로 확정" | ① 결과를 본 뒤 기준을 바꾸는 것이라 원문 1장 원칙과 모순. ② 1주차에 관찰된 되돌리기만 모이므로 긴 꼬리가 잘려 값이 낮게 나옴 | **72h를 사전 고정.** 1주차 분포는 24h/7d 민감도 분석으로 함께 보고하되 판정에는 쓰지 않음 |
+| R7 | `has_citations`에 웹 인용 포함, 근거 답변 = `has_citations=true` | 웹 인용만 있는 답이 "쌓아 둔 지식"으로 집계돼 1-b와 지표 2가 부풀려짐. 서버는 웹 근거를 저장하지도 않음 | 속성을 `internal_citation_count`, `web_citation_count`로 나눔. 기본 판정은 원문대로 **`has_citations = true`**. 내부 근거 답변(`internal_citation_count > 0`)은 비교용 보조 지표로 병기하며 정의·목표값 합의 없이 기본값을 바꾸지 않음 |
+| R8 | 1-a 분모 = 성공 편입이 1회 이상 있는 사람 | 알파 막바지에 처음 편입한 사람은 24시간 뒤 회수를 관찰할 시간이 없음 | 분모를 **첫 성공 편입 + 7일 ≤ 알파 종료인 사람**으로 제한. 분자는 첫 편입 후 7일 안에 묵은 회수가 있는 사람. 이 창은 보조 지표 "첫 성공 편입 → 첫 묵은 회수 중앙값 7일"과 맞춤 |
+| R9 | 지표 3: AI 편집과 편입을 하나의 비율로 합침 | 자동 편입이 대부분이라 편입이 결과를 좌우함. 자동 편입은 사용자의 "신뢰 결정"도 아니고, 되돌리기가 적은 것은 몰라서일 수도 있음 | 핵심 3은 합산값과 함께 **AI 편집 / 수동 편입 / 자동 편입을 따로** 보고. 판정은 원문대로 AI 편집 + 모든 성공 편입으로 하고, 수동·자동 구분은 보조 분석 |
+| R10 | "함께 되돌아간 작업"을 따로 표시만 함 | 유지율 분자에서 어떻게 처리할지 정의가 없음 | 신뢰성(롤백률)에는 지목 + 연쇄 모두 "되돌려짐"으로 셈. 신뢰(핵심 3)는 지목된 작업만 셈. 둘 다 보고 |
+| R11 | 롤백 시각 기준이 불명확함(이벤트는 완료 시점에 발송) | 재작성이 길어지면 72h 경계에서 판정이 바뀜 | 판정 기준 시각을 **되돌리기 요청 시각**(`restore_requested_at` 속성)으로 고정. 이벤트 timestamp는 완료 시각 |
+| R12 | 소규모 비율 | 표본 수십 명이라 비율이 크게 흔들림 | 모든 비율에 분자/분모와 **Wilson 95% 신뢰구간**을 붙임. 목표 달성 여부는 사전 등록한 점추정 기준으로 판정 |
+| R13 | 편입 선택창 이탈: "편입을 시작하지 않은" | 편입 **시작** 이벤트가 명세에 없음 | `wiki_ingest_requested`(서버, enqueue 커밋 후)를 추가 |
+| R14 | 채팅 내보내기 완주 | 내보내기와 편입이 별도 요청이라 `export_id`를 이어 줄 길이 없음 | 계약 C6 추가(6장) |
+| R15 | `edit_diff_viewed`("펼쳤을 때")와 "diff 확인 후 수락" | 현재 UI에 펼치기 동작이 없음(2.1 표) | 이벤트를 **`edit_review_shown`**(제안 검토가 처음 표시됐을 때)으로 바꾸고, "diff 확인 후 수락" 지표는 뺌. 검토 없이 적용하는 경로(`openMarkdownEditAsNewDocument` 등)가 생기면 그때 다시 도입 |
+| R16 | 봇 필터를 모든 인사이트에 적용 | PostHog의 `$virt_is_bot`은 브라우저가 아닌 SDK 이벤트를 봇으로 분류할 수 있음 [문서] | 봇 필터는 **`event_source = frontend` 이벤트에만** 적용. 서버 이벤트에는 걸지 않음 |
+| R17 | 원문 HogQL 예시 | 코호트, 내부 계정, `schema_version` 필터와 event_id 중복 제거가 빠짐. 지표 2는 t0 기준 창이 없음 | 12장의 수정 쿼리를 사용 |
+| R18 | "알파 시작 후 7일 안에 가입" = 관찰 완료 | D14 경계(포함인지)가 정의되지 않음 | 알파 기간을 `[D0 00:00 KST, D15 00:00 KST)`로 명시. 관찰 완료 조건 `t0 + 8일 ≤ D15 00:00` → 가입 마감 **D6 24:00** |
+| R19 | 업로드 → 편입 시간 − `duration_sec` = 망설임 | 자동 편입이면 망설임이 0에 가깝고, 실패 후 재시도는 섞임 | `trigger`(auto/manual) 속성을 추가하고 **manual만** 망설임 분석에 씀 |
+| R20 | `restore_count` = 되돌린 작업 수 | 기존 API의 `restore_count`(페이지 수)와 의미가 충돌함 | 분석 속성 이름을 **`restored_operation_count`**로 바꿈 |
+
+---
+
+## 4. 공통 이벤트 계약 (schema_version = 1)
+
+### 4.1 envelope
+
+**[제안]** 서버와 프론트가 같은 envelope을 씁니다.
+
+| 필드 | 규칙 |
+|---|---|
+| `distinct_id` | `user_<hex>`(Access users.id). 이메일과 닉네임은 쓰지 않음 |
+| `uuid` | **서버는 논리 키로 만든 UUIDv5.** NAMESPACE_URL=`6ba7b811-9dad-11d1-80b4-00c04fd430c8`, 이름은 `fruition.analytics.v1:{event}:{논리키}`. 프론트의 개별 행동은 UUIDv4. PostHog는 uuid, event, timestamp, distinct_id가 모두 같은 이벤트를 결국 중복 제거하지만 즉시 지우지는 않음 [문서] |
+| `timestamp` | 실제 발생 시각(UTC ISO-8601). outbox 행에 저장하고 재전송해도 바꾸지 않음. 같아야 중복 제거가 됨 [문서] |
+| `properties.event_id` | `uuid`와 같은 값의 문자열. 쿼리에서 중복 제거할 때 씀 |
+| `properties.event_source` | `frontend`, `access_server`, `document_server`, `worker`. AI 스킬 생성은 `worker`, Document가 반영하는 AI 비동기 결과는 `document_server` |
+| `properties.environment` | `local`, `staging`, `production` |
+| `properties.schema_version` | `1` |
+| `properties.app_version` | 배포 커밋 SHA. 이미지 태그에서 주입 |
+| `properties.$groups` | `{"workspace": "<id>"}`. 작업의 **대상** 워크스페이스. 가입 이벤트와 워크스페이스가 없는 페이지뷰에서는 생략 |
+| `properties.workspace_id` | 대상 workspace의 일반 문자열 속성. 유료 Group analytics 활성화 없이도 workspace별로 조회할 수 있도록 `$groups`와 함께 보냄. 대상이 없는 개인 스킬·가입·페이지뷰에서는 생략 |
+
+**[제안] 논리 키**
+
+| 이벤트 | 논리 키 |
+|---|---|
+| `user_signed_up` | `user_id` |
+| `member_invited` | `invitation_id`. 재발송은 같은 키라 1건 |
+| `member_joined` | `invitation_id` |
+| `document_uploaded` | `document_id` |
+| `wiki_ingest_requested` / `wiki_ingest_completed` | `ingest_id`(= ingest run_id) |
+| `pdf_convert_completed` | `conversion_id` |
+| `query_answered` / `query_failed` | `query_id`. 이벤트 이름이 달라 UUID도 다르므로 서버의 질문별 terminal receipt에서 성공·실패 상호 배제를 보장 | 
+| `ai_edit_proposed` | `proposal_id` |
+| `ai_edit_decided` | `proposal_id` |
+| `ai_operation_rolled_back` | 성공은 원래 `operation_id`당 최초 1건. 실패는 `restore_attempt_id`(되돌리기 작업 ID)당 1건으로 별도 키 사용. 실패가 성공 기록을 막아서는 안 됨 | 
+| `chat_exported` | `export_id` |
+| `skill_created` | `skill_id` |
+| `skill_run` | `skill_run_id` |
+
+### 4.2 값 규칙
+
+원문 4장을 그대로 따르고, 아래를 추가합니다.
+
+- `failure_reason` 매핑 **[제안]**
+
+  | AI 실패 코드 | `failure_reason` |
+  |---|---|
+  | `provider_rate_limited`, `provider_unavailable` | `provider_error` |
+  | `deadline_exceeded` | `timeout` |
+  | `input_rejected` | `validation` |
+  | `internal_error`, `task_failed` | `internal_error` |
+  | `cancelled` | 이벤트를 보내지 않음 |
+
+  Document 쪽 예외는 `permission`, `storage_error`로 매핑하고, 그 밖은 `unknown`으로 둡니다.
+- `edit_type` 매핑 **[제안]**
+
+  | `AgentTurnEdit` | `edit_type` |
+  |---|---|
+  | `insert_after` | `append` |
+  | `replace` + `whole_document` | `rewrite` |
+  | `replace` + `selection` 또는 `current_section` | `replace` |
+  | 그 밖 | `other` |
+
+- `method`: `email`(PROVIDER_LOCAL), `google`, `naver`, `kakao`
+- `role`: `owner`, `member`(enum 소문자)
+
+---
+
+## 5. 이벤트별 소유 서비스, 발생 시점, 연결 ID, 누락 계약
+
+C1~C9는 6장의 누락 계약 번호입니다.
+
+| 이벤트 | 소유 | 발생 지점 (코드) | 연결 ID 출처 | 누락·주의 |
+|---|---|---|---|---|
+| `user_signed_up` | Access | `UserService.signup`(email), `OAuthUserService.completeSignup`(social)의 같은 트랜잭션에서 outbox insert | `user_id` | 없음. 개인 워크스페이스 생성과 같은 트랜잭션 |
+| `member_invited` | Access | `WorkspaceInvitationService.invite`의 `transactionTemplate` 안에서 insert(새 행일 때만) | `invitation_id`, `role` | 메일 발송 실패는 별도 속성 없이 둠 |
+| `member_joined` | Access | `accept`에서 `!invitation.isAccepted()` 분기, 같은 트랜잭션 | `invitation_id`, `role` | `accept`에 `@Transactional`이 붙어 있는지 확인 필요 [가정] |
+| `document_uploaded` | Document | `DocumentService.upload` / `createMarkdown`, 직접 업로드 complete의 저장 트랜잭션 | `document_id`, `file_type`, `size_bucket` | 채팅 내보내기 문서와 스킬 참조 문서는 `origin` 속성으로 구분하고 핵심 행동에서 뺌 [제안] |
+| `wiki_ingest_requested` (추가) | Document | `enqueueIngest` 트랜잭션 | `ingest_id = runId`, `document_id`, `operation_id`, `trigger`(auto/manual), `source` | C5, C6 |
+| `wiki_ingest_completed` | Document | `AiTaskResultApplier.applyIngest`에서 receipt가 처음 기록될 때, 같은 트랜잭션 | OperationLog(ingest)의 userId, workspaceId, createdAt, completedAt, changedResourceCount | `duration_sec = completedAt − createdAt`. `pages_changed`는 changedResourceCount(**페이지 수인지 확인 필요** [가정]) |
+| `pdf_convert_completed` | Document | `applyConvertBatch`에서 **마지막 batch**를 병합하고 성공·실패가 확정되는 지점 | `conversion_id = convert:<id>`, `document_id`(원본 PDF) | C7 |
+| `query_answered` / `query_failed` | Document | `applyQuery`의 `first` 분기(성공·실패). 작업 탭의 `chat_answer`는 `applyAgent` + `recordAgentChatEvidence` 지점 | `query_id = request_id`(작업 탭은 turn run_id), `conversation_id = session_id`, `entry_point`(chat/task), `query_requested_at`(UTC 접수 시각) | C1, C2, C3 | 
+| `ai_edit_proposed` | Document | `applyAgent`에서 action이 `markdown_edit`이고 `edit.changed=true`인 결과를 반영할 때 | `proposal_id = turn run_id`, `document_id` | 없음 |
+| `ai_edit_decided(accepted)` | Document | `OperationRecorder.recordDocumentEdit`(버전 저장과 같은 트랜잭션) | `operation_id = apply_operation_id`, `proposal_id`는 `agent_apply_projections.run_id`에서 조회 | 일부 수락은 C4 |
+| `ai_edit_decided(rejected)` | 프론트 | `useAgentTurn.settleProposals`에서 수락이 없어 `markOutcome(…,"rejected")`가 되는 지점 | `proposal_id = agentTurnResponse.requestId`, `document_id`, `edit_type` | 취소, 재생성, 화면 이탈은 거절이 아님 |
+| `ai_operation_rolled_back` | Document | 위키는 `applyRestore`의 최종 성공 또는 `restoreLifecycle.fail`. 문서는 `RestoreOperationLifecycle.finishDocument` | `operation_id = restoredFrom`, 연쇄 ID는 `restoreManifest.excludedOperationIds − 지목 ID`, `restored_operation_count` | 성공 키는 `success:<operation_id>`, 실패 키는 `failure:<restore_attempt_id>`. 첫 성공만 보내고 실패는 시도마다 보냄. `restore_requested_at`은 restore 작업의 createdAt |
+| `skill_created` | AI (`worker`) | AI 스킬 생성 저장과 동일 트랜잭션의 내구성 있는 analytics outbox. Document 프록시 성공 응답 직후 기록은 응답 유실·프로세스 종료 시 영구 누락되므로 사용하지 않음 | `skill_id`, `scope` | C8 |
+| `skill_run` | Document | `AgentTurnService`가 `skill_mode=explicit` turn을 접수하고 커밋한 뒤 | `skill_run_id = turn run_id`, `skill_id` | C8(`scope`, `is_creator`) |
+| `chat_exported` | Document | `ChatWikiExportService.export` → `createChatExportDocument` 트랜잭션. `skipped`는 `status=skipped`로 따로 표시 | `export_id`, `document_id`, `conversation_id`, `pair_count`, `mode` | C6 |
+| `wiki_lint_completed` | Document | `applyLint` | `lint_id = operationId` | 후속 |
+| `document_edited` | Document | 사람이 저장할 때(`source != agent`) 문서·사용자·KST 날짜당 1회. 논리 키 = `doc:user:date` | `document_id` | 후속 |
+| `$pageview` | 프론트 | 경로가 바뀔 때 수동 capture(7장) | 정리된 URL | 없음 |
+| `ingest_picker_opened` | 프론트 | `WikiIngestTree`/`GraphRailActions`의 선택창 open 핸들러 | 없음 | open 1회 = 1건 |
+| `citation_opened` | 프론트 | `AssistantThread.openCitation`과 근거 카드 클릭 | `query_id = message.run_id`, `rank`, `citation_type`, `document_id` | `run_id`가 query `request_id`와 같은지 **확인 필요** [가정] |
+| `edit_review_shown` (R15) | 프론트 | `reviewSegments`가 처음 생길 때 turn당 1회 | `proposal_id`, `document_id`, `edit_type` | 없음 |
+| `restore_previewed` | 프론트 | `LogView`의 `fetchRestorePreview`가 성공해 미리보기가 표시될 때 | `operation_id`, `operation_type` | 없음 |
+| `chat_export_started` | 프론트 | `exportChatWiki` 호출 직전 | `export_id`(프론트 생성), `conversation_id`, `mode` | C6 |
+| `upload_failed_shown` | 프론트 | `UploadErrorModal`이 표시되는 지점(`unsupported_type`)과 `useDocumentUpload`의 실패 notice | `upload_attempt_id`(프론트 UUID), `reason` | `ApiError` status → reason 매핑 |
+| `graph_opened`, `graph_node_previewed` | 프론트 | view가 graph로 바뀔 때, `onOpenNodePreview` | `node_type` | 참고용 |
+
+---
+
+## 6. 누락 API·데이터 계약 (백엔드 담당자 요구사항)
+
+| ID | 저장소 | 내용 |
+|---|---|---|
+| C1 | Document | 질의를 요청한 **user_id**를 결과 반영 시점에 알아야 함. `QueryRun`(Redis)에는 없지만 `QueryCommand`에는 있어 AI 이벤트의 `request.user_id` / `user_id`로 받을 수 있음. **API 변경 없이 내부에서 해결 가능** [확인] |
+| C2 | Document | `query_answered` 속성 계산: `cited_document_ids` = 저장된 references의 `source_document_id` ∪ `source_refs[].source_document_id`(중복 제거, `ChatEvidenceRecorder` 필터 후). 웹 근거 수는 `web:` 접두 snippet 수. `related_pages`(위키 페이지)는 인용으로 세지 않음. `turn_index` = 세션 안 user 메시지 순번. `query_requested_at` = `context.createdAt`(UTC), `duration_sec` = 접수 → 반영 시각. 묵은 지식 판정은 완료 시각이 아닌 `query_requested_at` 사용. **원문 9장 "위키 페이지 → 원본 문서 매핑" 미결 사항은 현재 코드로 해결됨** |
+| C3 | Document + 프론트 | `$session_id` 연결: 프론트가 query run 생성 요청과 agent turn 요청에 `X-PostHog-Session-Id` 헤더를 붙임(`posthog.get_session_id()`). 서버는 run command 또는 outbox에 저장해 이벤트에 실음. CORS는 `*`라 추가 설정 없음. **선택 사항**(리플레이 연결용) |
+| C4 | Document | 일부 수락: 저장 요청에 선택 필드 `accepted_hunk_count`, `total_hunk_count`(multipart part)를 추가하고 `ai_edit_decided`에 실음. 없어도 판정은 가능 |
+| C5 | Document | `wiki_ingest_requested.trigger`: `autoIngestAfterCommit` 경로는 `auto`, `/documents/{id}/ingest`와 편입 선택창 경로는 `manual` |
+| C6 | Document + 프론트 | 채팅 내보내기: `ChatWikiExportRequest`에 선택 필드 `export_id`(UUID, 프론트 생성)와 `mode`(all/selected)를 추가. 서버는 export 문서에 `export_id`를 저장(새 컬럼 또는 메타). 이어지는 편입에서 `source=chat`, `export_id`를 실음. 응답에 `export_id`를 되돌려 줌 |
+| C7 | Document | 변환 실행 단위로 `is_reconvert`를 판정(같은 원본에 이전 `convert:` 시도가 있는지), `page_count`, 최종 상태 확정 지점을 정리 |
+| C8 | AI → Document | 스킬의 `scope`와 생성자: AI의 skill get/list 응답에 `scope_type`, `created_by`가 이미 있는지 확인 필요 [가정]. 없으면 **AI 응답 필드 추가가 필요**하며, AI 스킬 생성 outbox와 함께 적용. `scope`, `is_creator`는 원문 필수 속성이므로 확보 전 해당 이벤트를 완료 처리하지 않음 |
+| C9 | 공통 | `analytics_outbox` 스키마(7.2) 마이그레이션. Document는 core_db, Access는 access_db |
+
+---
+
+## 7. 전송 배선
+
+### 7.1 프론트 SDK (posthog-js, 이 저장소에서 할 일)
+
+**설치와 초기화 [제안]**
+
+- `web/package.json`에 `posthog-js`를 추가합니다.
+- `src/shared/lib/analytics/` 아래에 다음을 둡니다.
+  - `client.ts`: `init`, `capture`, `identify`, `reset` 래퍼
+  - `sanitize.ts`: URL과 속성 정리
+  - `events.ts`: 이벤트 이름과 속성 타입. 허용 목록 역할을 함
+- `AnalyticsProvider`를 `Providers` 맨 바깥에 둡니다.
+- 토큰은 **런타임 서버 env**로 받고 프론트 수집 host는 US 공식 도메인으로 고정합니다. `RootLayout`(이미 force-dynamic)에서 `process.env.POSTHOG_PROJECT_TOKEN`, `ANALYTICS_ENVIRONMENT`, `APP_VERSION`을 읽어 Providers에 prop으로 넘깁니다.
+  - 이유: 운영 Dockerfile에 빌드 ARG가 없고, `NEXT_PUBLIC_*`는 빌드할 때 고정되기 때문입니다 [확인].
+  - 공식 가이드는 `instrumentation-client.ts` + `NEXT_PUBLIC_*` 방식입니다 [문서]. 이 방식을 쓰면 빌드 ARG를 추가해야 합니다.
+- 토큰이 비어 있으면 초기화하지 않습니다. 이것이 롤백 스위치입니다.
+
+**init 옵션 [문서] 기준 [제안] 값**
+
+```ts
+posthog.init(token, {
+  api_host: "https://us.i.posthog.com",
+  defaults: "2026-08-30",
+  autocapture: false,
+  capture_pageview: false,          // 정리된 URL로 수동 capture
+  capture_pageleave: false,
+  capture_dead_clicks: false,
+  capture_heatmaps: false,
+  capture_performance: false,
+  capture_exceptions: false,
+  disable_surveys: true,
+  advanced_disable_flags: true,
+  disable_external_dependency_loading: true,
+  disable_session_recording: true,
+  person_profiles: "identified_only",
+  mask_all_text: true,
+  mask_all_element_attributes: true,
+  property_denylist: ["$referrer", "$initial_referrer", "$referring_domain", "$initial_referring_domain"],
+  before_send: sanitizeEvent,       // 이벤트별 허용 속성 외 제거 + $current_url/$pathname 템플릿화
+  prepare_external_dependency_script: (s) => { s.nonce = nonce; return s; },
+  session_recording: {
+    maskAllInputs: true,
+    maskTextSelector: "*",
+    maskCapturedNetworkRequestFn: () => null,
+  },
+});
+```
+
+현재 원격 기능 평가와 외부 확장 로딩은 사용하지 않으므로 `advanced_disable_flags`와 `disable_external_dependency_loading`을 켭니다. 리플레이를 후속 활성화할 때 해당 옵션과 snapshot 허용 목록을 함께 검토하고 staging에서 마스킹을 다시 검증합니다.
+
+**URL 정리 [제안]**
+
+| 실제 경로 | 보내는 값 |
+|---|---|
+| `/invitations/{token}` | `/invitations/:token` |
+| `/oauth/callback`, `/reset-password`, `/signup/verify` | 쿼리 전체 제거 |
+| `/home?page=..&doc=..&tree=..` | `/home` + `$screen` 속성(`page`/`document`/`tree`/`graph`…). ID는 URL에 남기지 않고 필요하면 별도 속성으로 보냄 |
+| 그 밖 | 해시와 쿼리 제거 |
+
+`$current_url`은 `origin + 템플릿 경로`만 남깁니다.
+
+**identify, reset, group [제안]**
+
+- `useMe()`가 성공하면 `posthog.identify(me.id)`를 호출합니다. person 속성은 넣지 않습니다(이메일, 이름 금지).
+- 이미 식별된 다른 ID가 있으면 먼저 `reset()`을 부르고 identify합니다. 계정 전환 대응입니다.
+- `reset()`은 세 곳에서 부릅니다.
+  - `useSignOut.signOut`
+  - `setSessionExpiredHandler`에 등록된 처리기
+  - 회원 탈퇴 `clearFruitionStorage` 경로
+- 워크스페이스를 고르거나 바꿀 때 `posthog.group("workspace", id)`를 부릅니다. 웹 SDK에서는 이후 세션 이벤트가 이 그룹에 묶입니다 [문서].
+- 다만 이벤트의 대상 워크스페이스가 현재 선택과 다를 수 있으면 `$groups`를 명시합니다. 예: 다른 워크스페이스 문서의 인용.
+- 로그인 전 `$pageview`는 `identified_only` 설정 때문에 익명으로 남습니다.
+
+**CSP (`contentSecurityPolicy.ts`, 프론트 변경) [제안]**
+
+- `connect-src`에 `https://us.i.posthog.com`, `https://us-assets.i.posthog.com`을 추가합니다.
+- `worker-src 'self' blob: data:`를 추가합니다(리플레이용).
+- `script-src`는 기존 `'strict-dynamic'` + nonce 주입(`prepare_external_dependency_script`)으로 리플레이 스크립트를 받습니다. **staging에서 CSP 보고(`/csp-report`)로 확인합니다.**
+- 공식 권고는 `*.posthog.com` 와일드카드입니다 [문서]. 범위를 좁힌 위 목록이 깨지면 와일드카드로 바꿉니다.
+
+**리버스 프록시**
+
+알파에서는 쓰지 않습니다 [제안]. 운영 ALB가 경로로 나누고 `SAME_ORIGIN_API`에서 rewrite가 꺼져 있어, 프록시를 넣으려면 ALB 규칙 추가가 필요합니다. 차단기로 빠지는 것은 프론트 보조 지표뿐이고 핵심 지표는 서버 이벤트입니다. 차단율이 문제로 보이면 PostHog managed reverse proxy [문서]를 검토합니다.
+
+**호출 래퍼 규칙**
+
+- 모든 capture는 try/catch로 감싸고, 실패해도 무시합니다(제품 영향 없음).
+- 재렌더링 중복은 `useRef`로 "열림당 1회"를 지킵니다.
+
+### 7.2 서버 outbox (Document·Access 담당자 요구사항)
+
+**테이블 [제안]**
+
+```sql
+analytics_outbox(
+  uuid uuid PRIMARY KEY,               -- 논리 키 UUIDv5
+  event text NOT NULL,
+  distinct_id text NOT NULL,
+  occurred_at timestamptz NOT NULL,    -- = PostHog timestamp
+  properties jsonb NOT NULL,           -- 허용 목록 통과값만
+  attempts int NOT NULL DEFAULT 0,
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  last_error_code text,
+  sent_at timestamptz
+);
+```
+
+insert는 `ON CONFLICT (uuid) DO NOTHING`입니다. 이것이 1차 중복 제거입니다.
+
+**기록**
+
+- 제품 트랜잭션 안에서 `AnalyticsRecorder.record(...)`를 호출합니다.
+- Access는 `EmailChangeNotificationListener`처럼 `@EventListener` + `Propagation.MANDATORY`를 씁니다.
+- Document는 `AiTaskResultApplier` 각 apply의 receipt-first 분기 안에서 직접 호출합니다.
+
+**Relay**
+
+- `AiCommandOutboxPublisher`처럼 `@Scheduled` + `FOR UPDATE SKIP LOCKED`로 최대 100건을 가져옵니다.
+- `POST https://us.i.posthog.com/batch/`로 보내며, body는 `api_key`와 `batch[]`(uuid, event, distinct_id, timestamp, properties)입니다 [문서].
+- 성공하면 `sent_at`을 기록합니다. 실패하면 `attempts++`, 지수 백오프(최대 1h), 24회가 넘으면 `dead`로 두고 경고 로그를 남깁니다.
+- `sent_at` 행은 7일 뒤 삭제합니다.
+- 클러스터가 절전 중이어도 행은 남았다가 깨어난 뒤 발송됩니다.
+
+**SDK 대신 HTTP를 쓰는 이유**
+
+- 공식 Java SDK(`com.posthog:posthog-server`) 문서에는 uuid와 timestamp 지정 방법이 없습니다 [문서].
+- 결정적인 uuid와 원래 발생 시각을 보장해야 중복 제거가 되므로, HTTP를 직접 부르는 것이 확실합니다.
+- 1주 스파이크로 SDK가 두 값을 지원한다고 확인되면 SDK로 바꿀 수 있습니다.
+
+**실패 격리**
+
+- insert는 단순 행 추가라 실패 가능성은 낮습니다. 그래도 같은 트랜잭션이라 insert가 실패하면 제품 작업도 롤백됩니다. 원문의 "분석 실패가 제품 실패가 되면 안 된다"를 충족하지 못하므로, 아래 실패 격리 검증은 선택 사항이 아닌 구현 게이트입니다.
+- 완화책
+  - `ANALYTICS_ENABLED=false`이면 기록을 건너뜁니다.
+  - properties는 기록 전에 직렬화 검증을 합니다.
+  - 테이블에 FK를 두지 않습니다.
+  - 원문의 제품 실패 격리 요구를 충족하려면 insert 실패를 JDBC SAVEPOINT 등으로 격리하는 방식을 기본 설계로 검증해야 합니다. 단순 예외 catch만으로 rollback-only가 해제된다고 가정하지 않습니다. 제품 저장 성공·분석 기록 실패를 재현하는 통합 테스트를 통과해야 적용하며, 누락 이벤트는 운영 지표와 경고로 추적합니다.
+
+**중복 제거 3중 구조**
+
+1. outbox PK
+2. PostHog uuid 기반 결국 중복 제거 [문서]. 즉시가 아니고 보장도 약하다고 명시돼 있습니다.
+3. **모든 판정 쿼리에서 `event_id`로 GROUP BY**
+
+**논리 event_id와 "재시도는 새 행동이 아니다"**
+
+- AI consumer 재전달은 `ai_task_result_receipts`에서 한 번 막히고, 같은 논리 키라 outbox에서 다시 막힙니다.
+- 사용자가 새로 재시도하면 새 run_id라 새 이벤트입니다.
+
+---
+
+## 8. 본문·개인정보·URL·리플레이 보호
+
+- **허용 목록 방식.** 서버는 이벤트 타입별 record 클래스, 프론트는 `before_send`로 정의된 속성만 통과시킵니다. 질문·답변·본문·파일명·워크스페이스명·이메일·토큰·오류 원문은 타입 단계에서 넣을 수 없게 합니다.
+- **AI 실패 정보**는 이미 코드만 오므로(2.4) 그 코드를 매핑해 씁니다.
+- **리플레이**
+  - SDK에서 `maskAllInputs`와 `maskTextSelector:"*"`, 네트워크 요청은 `maskCapturedNetworkRequestFn → null`로 막습니다.
+  - 편집기(Milkdown), 채팅 스레드, 원문 미리보기(iframe blob), 그래프 라벨 컨테이너에는 `ph-no-capture` 클래스를 붙입니다. 블록 처리돼 크기만 보입니다 [문서].
+  - 프로젝트 설정에서는 네트워크 payload와 콘솔 로그 캡처를 끕니다(9장).
+- **IP**: 프로젝트의 클라이언트 IP 폐기 설정을 켤지 결정해야 합니다(16장).
+- **법무**: PostHog US로 데이터가 국외 이전되고 리플레이도 수집되는데, 처리방침 제7조와 제11조가 아직 자리표시자입니다 [확인]. **처리방침 확정 전에는 리플레이를 끈 채 알파를 시작**하는 것을 권합니다. 분석 이벤트는 가명 ID라도 고지가 필요합니다.
+- **본문 누출 검사**
+  - CI에서 이벤트 builder 테스트로 금지 키를 검사합니다.
+  - staging에서 PostHog SQL `SELECT DISTINCT arrayJoin(JSONExtractKeys(properties))`로 속성 키 목록을 뽑아 허용 목록과 대조합니다.
+
+---
+
+## 9. PostHog 프로젝트 658129 설정 (적용 전 체크리스트, 미실행)
+
+| 항목 | 값 | 비고 |
+|---|---|---|
+| 시간대 | Asia/Seoul | 인사이트 구간과 날짜 경계에 영향 [문서]. 저장은 UTC |
+| 환경 분리 | **658129는 production 전용** [제안]. staging은 별도 프로젝트나 미전송 | 원문은 한 프로젝트 + environment 필터. 미결정 |
+| 내부·테스트 필터 | 팀원 `distinct_id` 목록 코호트 제외, `environment = production` | 인사이트마다 켜야 함 [문서] |
+| Autocapture, Heatmaps, Web vitals, Dead clicks, Surveys | 끔 | SDK와 프로젝트 양쪽 |
+| Session replay | 처리방침 확정 전 끔. 확정 후 켜고, 입력·텍스트 마스킹, 네트워크·콘솔 캡처 끔, 최소 길이 설정 | 8장 |
+| Group analytics | 그룹 유형 `workspace` | **유료 add-on**이고, 켜면 프로젝트의 식별 이벤트 전체가 과금 대상 [문서]. 비용 결정 필요(16장) |
+| 봇 필터 | `$pageview`와 프론트 이벤트 인사이트에만 `Is bot = false` | R16 |
+| 프로젝트 토큰 | 공개 쓰기용(phc_) | 7.1, 10장 |
+| 데이터 관리 | 이벤트 정의에 설명과 owner 등록. 명세 밖 이벤트 감시 | 없음 |
+
+---
+
+## 10. 환경변수와 키 역할
+
+| 변수 | 위치 | 성격 | 역할 |
+|---|---|---|---|
+| `POSTHOG_PROJECT_TOKEN` | frontend Pod env, access/document Secret(external-secrets) | 공개 쓰기 키지만 env로 관리 | capture와 batch 전송 |
+| `POSTHOG_HOST` | access/document/AI 서버 전용(프론트는 US 고정) | 설정 | `https://us.i.posthog.com` |
+| `ANALYTICS_ENABLED` | frontend/access/document/AI | 설정 | 기본 false. false면 브라우저 SDK·CSP 허용과 서버 outbox 기록·relay 중지(롤백 스위치) |
+| `ANALYTICS_ENVIRONMENT` | 4개 서비스 | 설정 | `environment` 속성 |
+| `APP_VERSION` | 4개 서비스 | 배포 시 주입(서비스별 소스 SHA) | `app_version` |
+| PostHog personal API key (phx_) | **앱에 넣지 않음.** 운영자 로컬이나 CI 비밀 | 비밀 | 대시보드·코호트를 코드로 관리할 때만 사용(선택) |
+
+**[제안]** 프론트 env는 `k8s/overlays/aws/frontend.yaml`, 서버 env는 각 Deployment와 `external-secrets.yaml`에 추가합니다. `.env.example`에는 변수 이름만 추가합니다. 모두 platform 저장소 PR입니다.
+
+---
+
+## 11. 액션, 코호트, 대시보드
+
+**액션 [제안]**
+
+| 액션 | 정의 |
+|---|---|
+| 근거 답변 | `query_answered` AND `has_citations = true` |
+| 성공 편입 | `wiki_ingest_completed` AND `status = succeeded` |
+| 핵심 행동 | 근거 답변 OR `document_uploaded`(`origin = user_upload`) OR `ai_edit_decided`(`decision = accepted`) |
+
+**코호트 [제안]**
+
+| 코호트 | 정의 |
+|---|---|
+| 알파 참여자 | 알파 기간(R18)에 `user_signed_up`이 있고 내부 코호트가 아닌 사람 |
+| 관찰 완료자 | t0 < D7 00:00 KST |
+| 첫 24h 근거 답변 | `[t0, t0+24h)`에 근거 답변을 받은 사람 |
+| 내부 | 팀원 distinct_id 정적 목록 |
+
+**대시보드 「알파 한눈에」** — 원문의 배치를 유지하고 아래를 바꿉니다.
+
+- 1행 SQL 타일 4개는 모두 "분자 / 분모 (비율, 95% CI)" 형식으로 표시합니다.
+- 4행의 리텐션은 참고용이고, 판정은 SQL 타일 `D1/D3/D7(롤링)`로 합니다.
+- 행을 하나 추가합니다: **수집 상태** — 이벤트별 일 건수, `event_id` 중복 건수, `app_version` 분포, outbox dead 건수(서버 로그와 대조).
+
+---
+
+## 12. 판정 쿼리 (HogQL, staging에서 손 집계와 대조한 뒤 사용)
+
+- 문법은 [가정]입니다. `properties.x`로 접근하는 방식은 [문서]로 확인했지만, `IN COHORT`, 배열 JSON 추출, 시간대 함수는 staging에서 실제로 확인해야 합니다.
+- `{{alpha}}`는 알파 참여자 코호트 ID입니다.
+- `D15`는 제품 행동 포함 마감, `followup_end`는 D18 이후 관찰 마감입니다. 문서 최초 편입 이력은 분석 사용자 코호트와 무관하게 대상 workspace 전체에서 조회합니다.
+- Document는 `query_answered.cited_document_first_ingested_at`에 원문 문서 ID → 최초 성공 편입 UTC 시각 객체를 제공합니다. 이 값은 같은 workspace의 전체 사용자와 기존 변환 문서 계보에서 조회하며, 알파 이전 문서도 포함합니다. `wiki_ingest_completed.first_success_ingested_at`도 동일한 기준입니다. 새 이벤트의 발생 시각으로 과거 편입 시각을 덮어쓰지 않습니다.
+- `D15`는 `toDateTime('YYYY-MM-DD 00:00:00','Asia/Seoul')` 상수로 바꿉니다.
+
+**공통 CTE: 중복 제거된 기본 이벤트**
+
+```sql
+WITH all_events AS (
+  SELECT properties.event_id AS event_id,
+         any(event) AS event, any(person_id) AS person_id, min(timestamp) AS ts,
+         any(properties) AS p
+  FROM events
+  WHERE properties.environment = 'production'
+    AND properties.event_id IS NOT NULL AND properties.event_id != ''
+    AND toInt(properties.schema_version) = 1
+    AND timestamp < {{followup_end}}
+  GROUP BY event_id
+),
+base AS (SELECT * FROM all_events WHERE person_id IN COHORT {{alpha}} AND ts < {{D15}})
+```
+
+**t0 (가입 시각)**
+
+```sql
+t0 AS (SELECT person_id, min(ts) AS t0 FROM base WHERE event = 'user_signed_up' GROUP BY person_id)
+```
+
+**1-a 묵은 지식 회수 (R8)**
+
+```sql
+first_ingest_doc AS (
+  SELECT JSONExtractString(p, 'workspace_id') AS workspace,
+         JSONExtractString(p, 'document_id') AS doc,
+         min(coalesce(parseDateTimeBestEffortOrNull(JSONExtractString(p, 'first_success_ingested_at')), ts)) AS ingested_at
+  FROM all_events WHERE event = 'wiki_ingest_completed' AND JSONExtractString(p,'status') = 'succeeded'
+  GROUP BY workspace, doc),
+first_ingest_person AS (
+  SELECT person_id, min(ts) AS fi FROM base
+  WHERE event = 'wiki_ingest_completed' AND JSONExtractString(p,'status') = 'succeeded'
+  GROUP BY person_id),
+cited AS (
+  SELECT person_id, ts, JSONExtractString(p, 'workspace_id') AS workspace,
+         parseDateTimeBestEffort(JSONExtractString(p, 'query_requested_at')) AS requested_at,
+         arrayJoin(JSONExtract(p, 'cited_document_ids', 'Array(String)')) AS doc,
+         parseDateTimeBestEffortOrNull(JSONExtractString(p, 'cited_document_first_ingested_at', doc)) AS canonical_ingested_at
+  FROM base WHERE event = 'query_answered' AND JSONExtractBool(p,'has_citations')),
+eligible AS (SELECT person_id, fi FROM first_ingest_person WHERE fi + INTERVAL 7 DAY <= {{D15}})
+SELECT countDistinctIf(e.person_id, c.matched = 1) AS numerator, count(DISTINCT e.person_id) AS denominator
+FROM eligible e
+LEFT JOIN (
+  SELECT DISTINCT c.person_id, c.ts, c.requested_at, 1 AS matched FROM cited c
+  LEFT JOIN first_ingest_doc f ON f.workspace = c.workspace AND f.doc = c.doc
+  WHERE (c.canonical_ingested_at IS NOT NULL OR f.doc != '')
+    AND c.requested_at >= coalesce(c.canonical_ingested_at, f.ingested_at) + INTERVAL 24 HOUR) c
+  ON c.person_id = e.person_id AND c.requested_at >= e.fi AND c.requested_at < e.fi + INTERVAL 7 DAY
+```
+
+**1-b 지식 결합 비율**
+
+```sql
+SELECT countIf(length(arrayDistinct(JSONExtract(p,'cited_document_ids','Array(String)'))) >= 2) AS numerator, count() AS denominator
+FROM base WHERE event = 'query_answered' AND JSONExtractBool(p,'has_citations')
+```
+
+**지표 2 (R1, R3)**
+
+```sql
+SELECT countIf(days >= 3) AS numerator, count() AS denominator FROM (
+  SELECT t.person_id, uniqIf(toDate(b.ts, 'Asia/Seoul'),
+           b.event = 'query_answered' AND JSONExtractBool(b.p,'has_citations')
+           AND b.ts >= t.t0 AND b.ts < t.t0 + INTERVAL 7 DAY) AS days
+  FROM t0 t LEFT JOIN base b ON b.person_id = t.person_id
+  WHERE t.t0 + INTERVAL 8 DAY <= {{D15}}
+  GROUP BY t.person_id HAVING days > 0)
+```
+
+분모는 원문대로 관찰 완료자 중 근거 답변 경험자(`HAVING days > 0`)입니다. 전체 가입자 대비 비율은 별도의 활성화 지표로만 보고합니다.
+
+**지표 3 AI 결과 유지율 (R6, R9~R11)**
+
+- 대상: `ai_edit_decided(accepted)`의 `operation_id`와, `wiki_ingest_completed(succeeded)` 모든 `operation_id`(auto/manual 모두 포함). 작업 시각 `op_ts`.
+- 조건: `op_ts < D15` AND `op_ts + 72h ≤ followup_end`인 작업만 분모에 넣습니다.
+- 분자: 후속 관찰까지 포함한 `all_events`의 `ai_operation_rolled_back(status = succeeded)` 중에서
+  - 지목 기준: `operation_id = 대상`이고 `restore_requested_at < op_ts + 72h`인 것이 **없는** 작업
+  - 연쇄 포함 기준: `has(cascaded_operation_ids, 대상)`까지 넣어 같은 방식으로 따로 계산
+- 결과는 유형별(ai_edit / 수동 편입 / 자동 편입)로 `GROUP BY`합니다.
+
+**D1, D3, D7 (R2)**: 롤링 24h 창 `[t0 + n일, t0 + (n+1)일)`에 핵심 행동이 있으면 1로 봅니다. 분모는 `t0 + (n+1)일 ≤ D15`인 사람입니다.
+
+**재방문 보조 비교 (R5)**: 첫 24h 근거 답변 여부 두 그룹의 D3·D7 비율, 각 n, Fisher p값을 **연관으로만** 표기합니다.
+
+**첫 가치 도달 시간**: 사람별로 각 단계의 `min(ts)` 차이를 구해 `median`과 도달률(도달 / 관찰 완료자)을 함께 냅니다. 업로드 → 편입 망설임은 `trigger = manual`인 경우에만 계산합니다.
+
+---
+
+## 13. 관찰창·분모·검열 처리 정리
+
+| 지표 | 시작 시각 | 창 | 분모 포함 조건 | 미관찰 처리 |
+|---|---|---|---|---|
+| 1-a | 사람별 첫 성공 편입 | 7일. 회수 조건은 인용 문서 편입 + 24h 이후 | `fi + 7일 ≤ D15` | 분모에서 제외 |
+| 1-b | 답변 | 없음 | 모든 근거 답변 | 해당 없음 |
+| 2 | t0 | `[t0, t0+7일)`, 날짜는 KST | `t0 + 8일 ≤ D15` | 제외 |
+| 3, 롤백률 | 작업 완료 | 72h(사전 고정). 기준은 되돌리기 요청 시각 | `op < D15` AND `op + 72h ≤ followup_end` | 제외 |
+| AI 편집 유지율 | 제안 | 수락 24h, 이후 72h | 제안·수락은 D15 전, 수락 후 72h는 followup_end 전 | 제외 |
+| 업로드 → 편입 | 업로드 | 24h | `업로드 + 24h ≤ D15` | 제외 |
+| D1, D3, D7 | t0 | 롤링 24h | `t0 + (n+1)일 ≤ D15` | 제외 |
+| 활동 일수 | t0 | 7일, KST 날짜 | `t0 + 7일 ≤ D15` | 제외 |
+| 초대 수락(참고) | 초대 | 72h | `초대 + 72h ≤ D15` | 제외 |
+| 실패율, 처리시간 p95 | 이벤트 | 없음 | 알파 기간 안의 종료 이벤트 | 진행 중인 작업은 제외 |
+
+- 판정 시점은 **D15 00:00 KST 이후 72h + 여유**인 D18 이후입니다. 원문 일정 D15~D17은 마지막 날 작업의 72h를 채우기에 빠듯합니다.
+- 운영 일정(원문 7장)은 이렇게 수정합니다.
+  - 초대 마감: D6 24:00 KST
+  - D7 점검: 수집 누락 확인만 하고 관찰창은 바꾸지 않음(R6)
+  - 판정: D18
+
+---
+
+## 14. 구현 PR 분할과 순서
+
+| 순서 | 저장소 | PR | 담당 | 선행 |
+|---|---|---|---|---|
+| 0 | platform | `docs/adr`: 이 계약(4~6장, 13장) 문서화. 알파 전 확정 항목 서명 | 기획 + 각 서비스 | 없음 |
+| 1 | Document | `analytics_outbox` 마이그레이션, `AnalyticsRecorder`, relay, `ANALYTICS_ENABLED`. 이벤트 0개로 배포 | 백엔드 | 0 |
+| 2 | Access | 같은 인프라 + `user_signed_up`, `member_invited`, `member_joined` | 백엔드 | 0 |
+| 3 | Document | 편입·변환·업로드 이벤트(`document_uploaded`, `wiki_ingest_requested`/`completed`, `pdf_convert_completed`) + C5, C7 | 백엔드 | 1 |
+| 4 | Document | 질의 이벤트(`query_answered`/`failed`) + C1, C2. 작업 탭 `chat_answer` 포함 | 백엔드 | 1 |
+| 5 | Document | AI 편집·되돌리기(`ai_edit_proposed`, `ai_edit_decided(accepted)`, `ai_operation_rolled_back`) + C4(선택) | 백엔드 | 1 |
+| 6 | Document + AI | 채팅 내보내기·스킬(C6, C8, `chat_exported`, `skill_*`), AI 생성 트랜잭션 outbox | 백엔드 + AI | 1 |
+| 7 | frontend | SDK 래퍼, `AnalyticsProvider`, 런타임 설정 prop, identify/reset/group, URL 정리, `$pageview`, CSP 변경. **이벤트 기능 없이 토큰 없으면 비활성** | 프론트(이 저장소) | 0 |
+| 8 | frontend | 프론트 이벤트(`ai_edit_decided(rejected)`, `citation_opened`, `edit_review_shown`, `restore_previewed`, `ingest_picker_opened`, `upload_failed_shown`, `chat_export_started` + `export_id` 전달, `graph_*`), C3 헤더 | 프론트 | 6(C6), 7 |
+| 9 | frontend | `ph-no-capture` 마킹, 리플레이 옵션. 처리방침 확정 뒤 켬 | 프론트 | 7, 법무 |
+| 10 | platform | env와 Secret 배선(10장), `.env.example` 이름 추가 | 인프라 | 1, 2, 7 |
+| 11 | (수동) | PostHog 설정(9장), 액션, 코호트, SQL 인사이트, 대시보드 | 분석 담당 | 3~8 staging 데이터 |
+
+- 이 저장소에서 할 수 있는 것은 PR 7, 8, 9뿐입니다. 이 PR들은 `web/app`, `web/src`, `web/package.json`, `middleware`/CSP 범위라 AGENTS.md를 지킵니다.
+- 나머지는 해당 저장소 담당자에게 요구사항으로 전달합니다.
+- 서버 PR은 7.2의 "이벤트 0개" 인프라 PR을 먼저 배포해, outbox가 제품 경로를 막지 않는지 확인한 뒤 이벤트를 붙입니다.
+
+---
+
+## 15. 검증
+
+**단위**
+
+- 서버: 이벤트 builder가 허용 속성만 내보내는지, UUIDv5가 결정적인지, `failure_reason`/`edit_type` 매핑이 맞는지 확인합니다.
+- 프론트: `sanitize.ts`(토큰, code, ID 제거), `before_send` 허용 목록(전송 필수 공개 `token`은 보존하고 최상위 `$set`/`$set_once`도 제거), "열림당 1회" 훅을 `node --test`로 확인합니다. 기존 `tests/*.test.mjs` 패턴을 따릅니다.
+
+**통합 (Testcontainers, 기존 Document/Access 테스트 체계)**
+
+- 트랜잭션이 롤백되면 outbox 행이 0건이어야 합니다.
+- 같은 AI 결과를 다시 전달해도 행은 1건이어야 합니다(receipt 경유).
+- relay가 실패해도 재시도 뒤 같은 uuid로 보내야 합니다.
+- PostHog 목 서버가 5xx를 줘도 제품 API는 정상이어야 합니다.
+
+**staging E2E (일반 브라우저)**
+
+- 원문 8장 체크리스트 10개
+- 추가 항목
+  - (a) 웹 검색만 있는 답은 `internal_citation_count=0`
+  - (b) 내보내기 → 편입이 `export_id`로 이어짐
+  - (c) 자동 편입과 수동 편입의 `trigger` 구분
+  - (d) 연쇄 되돌리기의 `cascaded_operation_ids`가 `RestoreScopeResolver` 결과와 같음
+  - (e) CSP 위반 보고가 0건
+  - (f) 광고 차단기를 켜도 서버 이벤트만으로 핵심 4지표가 계산됨
+  - (g) 속성 키 목록이 허용 목록과 같음
+- 손 집계 대조: 표본 3명의 1-a, 1-b, 2, 3을 DB 원본(operation_logs, chat_message_references)과 SQL 결과로 비교합니다.
+
+**운영 첫날**
+
+Live events에서 이벤트별 건수와 `app_version`을 보고, outbox dead 행과 relay 경고 로그를 확인합니다.
+
+---
+
+## 16. 롤백
+
+| 수준 | 조치 | 영향 |
+|---|---|---|
+| 프론트 | `ANALYTICS_ENABLED=false` 또는 `POSTHOG_PROJECT_TOKEN`을 비우고 재기동(빌드 불필요) | 브라우저 수집 중지 |
+| 서버 | `ANALYTICS_ENABLED=false` | 기록과 발송 중지. outbox에 쌓인 행은 다시 켜면 발송 |
+| 리플레이 | PostHog 프로젝트 설정에서 끔 | 즉시 |
+| 개인정보 유출 | relay 중지 → PostHog 이벤트·person 삭제 요청 → 원인 수정 후 재개 | 없음 |
+| 코드 | PR 단위 revert. 7.2 인프라 PR은 테이블이 남아도 무해 | 없음 |
+
+---
+
+## 17. 미결정 사항 (알파 전 확정)
+
+1. 핵심·보조 목표값은 원문 제안값을 기본으로 삼고 알파 전에 확정. 정의 변경안은 별도 보조 분석이며 합의 없이 판정에 대입하지 않습니다.
+2. 알파 기간 경계(D0, D15 00:00 KST)와 초대 마감 D6.
+3. 지표 2 분모는 관찰 완료자 중 근거 답변 경험자로 유지. 전체 가입자 대비 비율은 별도 활성화 지표.
+4. 지표 3은 자동 편입을 포함한 모든 성공 편입과 수락된 편집으로 유지. 회의록 포함 여부만 별도 결정.
+5. 일부 수락(C4)을 수락으로 볼지(권고: 1개 이상 수락이면 accepted + hunk 비율 기록). `openMarkdownEditAsNewDocument`(새 문서로 만들기)를 수락으로 볼지.
+6. 658129를 production 전용으로 쓸지, environment 필터로 함께 쓸지.
+7. Group analytics 유료 add-on 사용 여부. 쓰지 않으면 `$groups` 대신 `workspace_id` 일반 속성으로 분류합니다.
+8. 처리방침 제7조와 제11조 확정, 리플레이 시작 시점, 클라이언트 IP 폐기 여부.
+9. 서버 전송을 HTTP batch로 할지, Java SDK(uuid·timestamp 지원 확인 후)로 할지.
+10. C8: AI 스킬 응답에 scope와 생성자가 있는지. 없으면 AI 저장소 요구사항이 생깁니다.
+11. `pages_changed`가 changedResourceCount와 같은 의미인지, 어시스턴트 메시지 `run_id`가 query `request_id`와 같은지 확인.
+12. 판정일(D18)과 보고 문장 수정본(R4).
+
+---
+
+## 18. 출처 (PostHog 공식 문서)
+
+- [Next.js 설치 — `instrumentation-client.ts`, `defaults: '2026-08-30'`, 리버스 프록시](https://posthog.com/docs/libraries/next-js)
+- [JS 설정 옵션 — autocapture, capture_pageview, person_profiles, before_send, property_denylist 등](https://posthog.com/docs/libraries/js/config)
+- [Identify — identify 시점, reset, 백엔드 distinct_id 일치](https://posthog.com/docs/product-analytics/identify)
+- [Group analytics — 그룹 유형 5개 제한, `$groups`, 유료 add-on](https://posthog.com/docs/product-analytics/group-analytics)
+- [Capture / Batch API — `us.i.posthog.com`, `/batch/`, `$groups`, 20MB 제한](https://posthog.com/docs/api/capture)
+- [Java SDK — `com.posthog:posthog-server`, flush/close, uuid·timestamp 언급 없음](https://posthog.com/docs/libraries/java)
+- [Events / 중복 제거(uuid, event, timestamp, distinct_id, 결국 제거)](https://posthog.com/docs/data/events), [CDP FAQ(UUID 기반 중복 제거는 보장되지 않음)](https://posthog.com/docs/cdp/common-questions)
+- [Node `PostHogCaptureOptions`(uuid, timestamp 필드 — Java 참고용)](https://posthog.com/docs/references/posthog-node/types/PostHogCaptureOptions)
+- [Session replay 개인정보 — maskAllInputs, maskTextSelector, ph-no-capture, maskCapturedNetworkRequestFn](https://posthog.com/docs/session-replay/privacy)
+- [CSP — `*.posthog.com`, worker-src blob:, nonce용 prepare_external_dependency_script](https://posthog.com/docs/advanced/content-security-policy)
+- [내부·테스트 사용자 필터](https://posthog.com/docs/data/test-accounts), [봇 감지($virt_is_bot)](https://posthog.com/docs/web-analytics/bot-detection)
+- [SQL 인사이트](https://posthog.com/docs/sql), [지원 ClickHouse 함수(toTimeZone 등)](https://posthog.com/docs/sql/clickhouse-functions), [프로젝트 시간대(Array 1.36)](https://posthog.com/blog/the-posthog-array-1-36-0)
+- [여러 환경 구성 튜토리얼](https://posthog.com/tutorials/multiple-environments)

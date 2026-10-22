@@ -1,3 +1,4 @@
+import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { Loader2, Square, Volume2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
@@ -109,9 +110,10 @@ export function AssistantThread({
   const openCitation = useCallback((rank: number) => {
     const reference = citationReferenceByRank.get(rank);
     if (!reference?.source_document_id || !reference.source_block_ids?.length) return;
+    if (message.run_id) captureAnalytics("citation_opened", { query_id: message.run_id, rank, citation_type: "internal", document_id: reference.source_document_id });
     const highlights = [...new Set(reference.source_block_ids)].map((blockId) => ({ block_id: blockId, rank }));
     onOpenSourceBlocks(reference.source_document_id, sourceTitle(nodes, reference.source_document_id), highlights);
-  }, [citationReferenceByRank, nodes, onOpenSourceBlocks]);
+  }, [citationReferenceByRank, nodes, onOpenSourceBlocks, message.run_id]);
 
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
@@ -135,7 +137,10 @@ export function AssistantThread({
               key={card.key}
               title={card.title}
               meta={card.meta}
-              onClick={() => onOpenSourceBlocks(card.documentId, card.title, card.highlights)}
+              onClick={() => {
+                if (message.run_id) captureAnalytics("citation_opened", { query_id: message.run_id, rank: card.highlights[0]?.rank ?? 1, citation_type: "internal", document_id: card.documentId });
+                onOpenSourceBlocks(card.documentId, card.title, card.highlights);
+              }}
             />
           ))}
         </div>

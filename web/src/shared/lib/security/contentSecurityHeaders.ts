@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildContentSecurityPolicy, buildImageOnlyPolicy } from "./contentSecurityPolicy";
+import { publicAnalyticsToken } from "../analytics/config";
 
 /**
  * 화면 요청에 nonce CSP를 붙인다. 루트 middleware.ts에서 호출한다.
@@ -18,7 +19,8 @@ export function applyContentSecurityPolicy(request: NextRequest): NextResponse {
   const policy = buildContentSecurityPolicy({
     nonce,
     backendUrl: process.env.BACKEND_URL,
-    s3Origin: process.env.CSP_S3_ORIGIN
+    s3Origin: process.env.CSP_S3_ORIGIN,
+    analyticsEnabled: Boolean(publicAnalyticsToken(process.env.ANALYTICS_ENABLED, process.env.POSTHOG_PROJECT_TOKEN)),
   });
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("Content-Security-Policy", policy);
