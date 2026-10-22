@@ -540,19 +540,20 @@ cited AS (
          parseDateTimeBestEffortOrNull(JSONExtractString(p, 'cited_document_first_ingested_at', doc)) AS canonical_ingested_at
   FROM base WHERE event = 'query_answered' AND JSONExtractBool(p,'has_citations')),
 eligible AS (SELECT person_id, fi FROM first_ingest_person WHERE fi + INTERVAL 7 DAY <= {{D15}})
-SELECT countDistinctIf(e.person_id, c.person_id != '') AS numerator, count(DISTINCT e.person_id) AS denominator
+SELECT countDistinctIf(e.person_id, c.matched = 1) AS numerator, count(DISTINCT e.person_id) AS denominator
 FROM eligible e
 LEFT JOIN (
-  SELECT DISTINCT c.person_id, c.ts, c.requested_at FROM cited c
+  SELECT DISTINCT c.person_id, c.ts, c.requested_at, 1 AS matched FROM cited c
   LEFT JOIN first_ingest_doc f ON f.workspace = c.workspace AND f.doc = c.doc
-  WHERE c.requested_at >= coalesce(c.canonical_ingested_at, f.ingested_at) + INTERVAL 24 HOUR) c
+  WHERE (c.canonical_ingested_at IS NOT NULL OR f.doc != '')
+    AND c.requested_at >= coalesce(c.canonical_ingested_at, f.ingested_at) + INTERVAL 24 HOUR) c
   ON c.person_id = e.person_id AND c.requested_at >= e.fi AND c.requested_at < e.fi + INTERVAL 7 DAY
 ```
 
 **1-b 지식 결합 비율**
 
 ```sql
-SELECT countIf(length(JSONExtract(p,'cited_document_ids','Array(String)')) >= 2) AS numerator, count() AS denominator
+SELECT countIf(length(arrayDistinct(JSONExtract(p,'cited_document_ids','Array(String)'))) >= 2) AS numerator, count() AS denominator
 FROM base WHERE event = 'query_answered' AND JSONExtractBool(p,'has_citations')
 ```
 
