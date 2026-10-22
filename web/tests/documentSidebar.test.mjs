@@ -39,11 +39,11 @@ test("문서/그래프 전환은 사이드바 세그먼트 대신 레일 버튼�
   assert.match(railSource, /id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
 });
 
-test("홈 뷰 FILE 제목 +는 우클릭과 같은 최상위 메뉴를 열고, 맨 아래 새 노트 추가는 최상위에 노트를 바로 만든다", async () => {
+test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 유지한다", async () => {
   const source = await readFile(documentSidebarPath, "utf8");
 
-  assert.match(source, /aria-label="최상위에 추가"\s*aria-haspopup="menu"\s*aria-expanded=\{isRootMenuOpen\}/);
-  assert.match(source, /onOpenFolderMenuAt\(rootProject\.id, null, event\.currentTarget\)/);
+  assert.doesNotMatch(source, /aria-label="최상위에 추가"|rootAddButtonRef|isRootMenuOpen/);
+  assert.match(source, /className=\{styles\["tree-root-header"\]\}/);
   assert.match(source, /activeView === "home" && rootProject && \(/);
   assert.match(source, /onCreateNote\(rootProject\.id\)/);
   assert.match(source, /새 노트 추가/);
@@ -139,5 +139,5 @@ test("컨텍스트 메뉴는 click이 아닌 바깥 pointerdown으로 닫힌다"
 test("업로드 스피너는 행 라벨용 flex 규칙에서 빠져 8px 원을 유지한다", async () => {
   const css = await readFile(new URL("../src/widgets/document-sidebar/ui/DocumentSidebar.module.css", import.meta.url), "utf8");
 
-  assert.match(css, /\.tree-row > span:not\(\.tree-folder-slot\):not\(\.tree-upload-spinner\) \{/);
+  assert.match(css, /\.tree-row > span:not\(\.tree-folder-slot\):not\(\.tree-upload-spinner\):not\(\.tree-permission-indicator\):not\(\.tree-conversion-inline\) \{/);
 });

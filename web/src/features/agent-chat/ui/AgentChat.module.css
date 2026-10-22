@@ -1395,11 +1395,15 @@ button.result-link:focus-visible {
 /* 하위 메뉴 칸: 폭만 차지하고 높이는 0이라, 모델이 많아도 왼쪽 메뉴는 트리거 위에 붙은 채 하위 메뉴만 아래로 길어진다. */
 .composer-model-submenu-slot {
   height: 0;
+  flex: 0 0 240px;
+  width: 240px;
+  min-width: 0;
 }
 
 /* 오른쪽 하위 메뉴 (Figma 1691:16196): padding 8/12, 머리글과 목록 사이 6 */
 .composer-model-submenu {
-  min-width: 184px;
+  width: 100%;
+  min-width: 0;
   padding: 8px 12px;
   gap: 6px;
 }
@@ -1426,6 +1430,13 @@ button.result-link:focus-visible {
 /* 모델 행: padding 4/2/4/6, 선택된 모델은 오른쪽에 20px 파란 체크 */
 .composer-model-option {
   padding: 4px 2px 4px 6px;
+}
+
+/* 제공사·선택 체크·잠금 여부가 바뀌어도 메뉴 폭과 행 높이를 바꾸지 않는다. */
+.composer-model-option > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .composer-model-option img {

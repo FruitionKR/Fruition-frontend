@@ -15,7 +15,7 @@ import styles from "./DocumentSidebar.module.css";
  * 그래프 뷰 사이드바 (Figma 1406:13761).
  * 기본 모드는 홈과 같은 문서 트리이고, 위키 편입·위키 최신화 버튼은 좌측 레일(GraphRailActions)에 있다.
  * 레일의 위키 편입을 누르면 체크박스 트리로 바뀌고, 하단 [위키 편입 (n)][취소] 바로 확정한다.
- * 선택 트리는 PDF를 숨긴 그래프 트리가 아니라 원래 폴더 구조 전체를 보여 준다.
+ * 선택 모드도 그래프와 같은 Markdown 전용 트리를 보여 준다. 최신 내용이 이미 편입된 문서는 비활성화한다.
  */
 export function GraphSidebarActions({
   documents,
@@ -26,17 +26,17 @@ export function GraphSidebarActions({
   onExitSelecting,
   onIngestDocuments
 }: {
-  /** 워크스페이스 전체 문서(PDF 포함). 선택 가능 여부 판정에 쓴다. */
+  /** 그래프에 표시하는 Markdown 문서. 선택 가능 여부 판정에 쓴다. */
   documents: DocumentItemResponse[];
   pending: "ingest" | "lint" | null;
-  /** 선택 모드 트리에 보여줄 원래 폴더 구조(PDF·TXT·빈 폴더 포함). */
+  /** 그래프와 동일한 Markdown 전용 폴더 구조(빈 폴더 포함). */
   projects: Project[];
   /** 기본 모드에서 보여줄 문서 트리(홈 뷰와 동일한 RootTree). */
   tree: ReactNode;
   /** 레일의 위키 편입 버튼으로 켜는 문서 선택 모드 */
   isSelecting: boolean;
   onExitSelecting: () => void;
-  /** 선택 모드에서 고른 문서들을 한 번에 위키에 반영한다. 변환 전 PDF가 섞일 수 있다. */
+  /** 선택 가능한 Markdown 문서들을 한 번에 위키에 반영한다. */
   onIngestDocuments: (documents: DocumentItemResponse[]) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -80,7 +80,7 @@ export function GraphSidebarActions({
         <div className={styles["graph-bottom"]}>
           <HoverHint
             className={styles["graph-pill-hint"]}
-            text="선택한 문서를 위키에 편입합니다. 변환 전 PDF는 확인 후 Markdown으로 변환해 편입합니다."
+            text="선택한 Markdown 문서를 위키에 편입합니다. 이미 편입된 뒤 수정이 없는 문서는 선택할 수 없습니다."
           >
           <button
             type="button"
