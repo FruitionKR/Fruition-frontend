@@ -29,3 +29,11 @@ function documentCommandLabel(action: DocumentCommandAction): string {
   return "Skill 작성";
 }
 import type { DocumentCommandAction } from "./agentTurn";
+
+/** 말풍선 상태 목록의 제목. 취소는 작업 탭의 "취소됨"과 맞춰 적는다. */
+export function messageStatusTitle(status: string): string {
+  if (status === "pending") return "요청 처리 중";
+  if (status === "completed") return "요청 처리 완료";
+  if (status === "cancelled") return "요청 취소됨";
+  return "요청 처리 종료";
+}

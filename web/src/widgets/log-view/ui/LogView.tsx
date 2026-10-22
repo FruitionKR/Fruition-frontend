@@ -1,6 +1,9 @@
 "use client";
 
+import { captureAnalytics } from "@/shared/lib/analytics/client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchOperationLogDetail,
@@ -20,6 +23,8 @@ import {
 import addIcon from "@/shared/assets/svg/log/diff-added.svg";
 import deleteIcon from "@/shared/assets/svg/log/diff-removed.svg";
 import { fetchMembers } from "@/entities/workspace/api/members";
+import { UserAvatar } from "@/entities/user";
+import defaultAvatarIcon from "@/shared/assets/svg/settings/member-avatar.svg";
 import { publishNotice } from "@/features/document-notifications";
 import { cx } from "@/shared/lib/classNames";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
@@ -27,6 +32,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { retryIcon, chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { buildLogWorkers, logWorkerOf, type LogWorker } from "../model/logWorker";
 import styles from "./LogView.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -132,6 +138,23 @@ function ChangeDiff({ change }: { change: OperationChange }) {
   );
 }
 
+/** 작업자 (Figma 1485:1725): 20px 원 안에 프로필 사진, 없거나 못 받으면 기본 프로필 이미지 + 이름. */
+function LogWorkerBadge({ worker }: { worker: LogWorker }) {
+  return (
+    <span className={styles["row-worker"]}>
+      <span className={styles["row-worker-icon"]} aria-hidden>
+        <UserAvatar
+          avatarUrl={worker.avatarUrl}
+          name={worker.name}
+          className={styles["row-worker-avatar"]}
+          fallback={<Image src={defaultAvatarIcon} alt="" width={18} height={18} />}
+        />
+      </span>
+      {worker.name}
+    </span>
+  );
+}
+
 /** 로그 화면 목록 상태. HomeWorkspace의 useOperationLogFeed 반환값을 그대로 받는다. */
 type OperationLogFeedState = {
   items: OperationLogItem[];
@@ -140,7 +163,7 @@ type OperationLogFeedState = {
   loadMoreErrorMessage: string | null;
   isLoading: boolean;
   isLoadingMore: boolean;
-  onSelect: (operationId: string) => void;
+  onSelect: (operationId: string | null) => void;
   onLoadMore: () => void;
 };
 
@@ -213,7 +236,7 @@ export function LogView({
   const [locallyRestoredOperationIds, setLocallyRestoredOperationIds] = useState<ReadonlySet<string>>(new Set());
   // 선택이 바뀌면 이전 작업의 응답을 버린다. 늦게 온 응답이 다른 작업을 덮어쓰지 않게 한다.
   const requestIdRef = useRef(0);
-  // 작업자 이름은 멤버 목록에서 찾는다. 멤버 관리 패널·알림 화면과 같은 캐시를 쓴다.
+  // 작업자 이름·프로필 사진은 멤버 목록에서 찾는다. 멤버 관리 패널·알림 화면과 같은 캐시를 쓴다.
   const workspaceId = getSelectedWorkspaceId();
   const membersQuery = useQuery({
     queryKey: ["workspace-members", workspaceId],
@@ -221,10 +244,7 @@ export function LogView({
     enabled: Boolean(workspaceId),
     retry: false
   });
-  const memberNames = useMemo(
-    () => new Map((membersQuery.data ?? []).map((member) => [member.user_id, member.display_name || member.email])),
-    [membersQuery.data]
-  );
+  const workers = useMemo(() => buildLogWorkers(membersQuery.data), [membersQuery.data]);
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
@@ -268,6 +288,9 @@ export function LogView({
       const preview = await fetchRestorePreview(detail.operation_id);
       if (requestIdRef.current !== requestId) return;
       const affectedCount = preview.delete_count + preview.restore_count + preview.rebuild_count;
+      if (detail.operation_type === "document_edit" || detail.operation_type === "ingest" || detail.operation_type === "lint") {
+        captureAnalytics("restore_previewed", { operation_id: detail.operation_id, operation_type: detail.operation_type });
+      }
       setPendingRestore({
         operationId: detail.operation_id,
         previewToken: preview.preview_token,
@@ -329,10 +352,10 @@ export function LogView({
 
   function selectType(type: OperationType | null) {
     setTypeFilter(type);
-    // 고른 작업이 새 탭에 없으면 탭의 가장 최근 작업으로 옮긴다.
+    // 고른 작업이 새 탭에 없으면 선택을 푼다. 보이지 않는 작업이 롤백 대상으로 남지 않게 한다.
     const nextItems = filterOperationLogsByType(allItems, type);
-    if (feed && nextItems.length > 0 && !nextItems.some((item) => item.operation_id === operationId)) {
-      feed.onSelect(nextItems[0].operation_id);
+    if (feed && operationId && !nextItems.some((item) => item.operation_id === operationId)) {
+      feed.onSelect(null);
     }
   }
 
@@ -450,12 +473,9 @@ export function LogView({
                             </span>
                             <span className={styles["row-meta"]}>
                               <span className={styles["row-meta-info"]}>
-                                {/* 작업자 (Figma 1485:1725): 프로필 원 + 이름. 응답에 작업자가 없으면 변경 건수를 둔다. */}
+                                {/* 작업자 (Figma 1485:1725). 응답에 작업자가 없으면 변경 건수를 둔다. */}
                                 {item.user_id ? (
-                                  <span className={styles["row-worker"]}>
-                                    <span className={styles["row-worker-icon"]} aria-hidden />
-                                    {memberNames.get(item.user_id) ?? "알 수 없는 작업자"}
-                                  </span>
+                                  <LogWorkerBadge worker={logWorkerOf(workers, item.user_id)} />
                                 ) : (
                                   <span>변경 {item.changed_resource_count}건</span>
                                 )}

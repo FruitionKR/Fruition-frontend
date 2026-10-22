@@ -1,0 +1,273 @@
+/* Agent 패널 · 본문 제안 조각 (Figma 1540:19718 · 1571:27625). 색은 앱 토큰(--color-*)만 쓴다. */
+.citation {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* 원문 미리보기가 열린 근거 번호 */
+.citation.is-active {
+  padding: 0 3px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+.editor-removed {
+  color: var(--color-danger);
+  line-height: 1.8;
+  text-decoration: line-through;
+}
+
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--color-primary-weak);
+  border: 1px solid var(--color-primary-default);
+  border-radius: 8px;
+}
+
+.suggestion-label,
+.suggestion-text {
+  color: var(--color-primary-weak-foreground);
+  font-weight: 600;
+}
+
+.suggestion-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.agent {
+  display: flex;
+  flex: 0 0 360px;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-canvas);
+  border-left: 1px solid var(--color-border);
+}
+
+/* 조각으로 쓸 때는 패널이 틀 전체를 채운다. */
+.agent[data-width="fill"] {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border-left: 0;
+}
+
+.agent[data-width="hero"] {
+  flex: 0 0 300px;
+}
+
+.agent-header {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  gap: 4px;
+  padding-right: 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.agent-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 140px;
+  height: 100%;
+  padding: 0 10px 0 12px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--color-canvas);
+  border-right: 1px solid var(--color-border);
+}
+
+.agent-tabs {
+  display: flex;
+  margin-left: auto;
+}
+
+.agent-tabs span {
+  width: 44px;
+  padding: 4px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 8px;
+}
+
+.agent-tabs .is-active {
+  color: var(--color-body);
+  background: var(--color-canvas);
+  box-shadow: 0 0 2px var(--color-shadow);
+}
+
+.agent-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 18px;
+  min-height: 0;
+  padding: 24px 22px 16px;
+  overflow: hidden;
+}
+
+.bubble {
+  padding: 14px 16px;
+  line-height: 1.5;
+  background: var(--color-surface);
+  border-radius: 16px 16px 0 16px;
+}
+
+.bubble[data-align="end"] {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 12px 16px;
+}
+
+.agent-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.process,
+.found,
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.answer {
+  line-height: 1.65;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-body);
+  font-size: 12px;
+}
+
+.steps li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.steps li[data-state="done"]::before {
+  background: var(--color-primary);
+}
+
+.steps li[data-state="running"],
+.steps li[data-state="waiting"] {
+  color: var(--color-foreground);
+  font-weight: 500;
+}
+
+.steps li[data-state="running"]::before {
+  border: 1px solid var(--color-primary);
+}
+
+.steps li[data-state="waiting"]::before {
+  border: 1px dashed var(--color-muted);
+}
+
+.found-link {
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+.composer {
+  display: flex;
+  flex: 0 0 120px;
+  flex-direction: column;
+  justify-content: space-between;
+  margin: 0 22px 22px;
+  padding: 16px 16px 12px;
+  border: 1.2px solid var(--color-border);
+  border-radius: 16px;
+}
+
+.agent[data-compact] .composer {
+  flex-basis: 96px;
+  margin: 0 16px 16px;
+  padding: 12px 14px 10px;
+}
+
+.composer-placeholder {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.composer-voice,
+.composer-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.composer-voice {
+  gap: 1.4px;
+  background: var(--color-primary);
+}
+
+.composer-voice i {
+  width: 2px;
+  height: 6px;
+  background: var(--color-on-primary);
+  border-radius: 9px;
+}
+
+.composer-voice i:nth-child(2) {
+  height: 4px;
+}
+
+.composer-voice i:nth-child(4) {
+  height: 7px;
+}
+
+.composer-send {
+  color: var(--color-canvas);
+  font-weight: 700;
+  background: var(--color-placeholder);
+}

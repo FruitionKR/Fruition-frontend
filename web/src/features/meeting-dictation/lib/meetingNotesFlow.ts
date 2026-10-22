@@ -28,18 +28,18 @@ export function isCapturingPhase(phase: MeetingPhase): boolean {
 }
 
 export const MEETING_TITLES: Record<Exclude<MeetingPhase, "idle">, string> = {
-  starting: "받아쓰기 준비 중",
-  recording: "받아쓰는 중",
+  starting: "녹음 준비 중",
+  recording: "녹음하는 중",
   reconnecting: "다시 연결하는 중",
-  finishing: "받아쓰기 마무리 중",
-  stopped: "받아쓴 내용",
+  finishing: "녹음 마무리 중",
+  stopped: "대화 내용",
   generating: "회의록 작성 중",
   ready: "회의록",
   previewing: "문서 끝에 추가 미리보기",
   saving: "회의록 저장 중",
   applied: "회의록 저장됨",
   uploading: "녹음 파일 올리는 중",
-  transcribing: "녹음 파일 전사 중",
+  transcribing: "녹음 파일 글로 옮기는 중",
   deleting: "회의 삭제 중",
   opening: "회의 불러오는 중"
 };
@@ -76,11 +76,11 @@ export function canDeleteMeetingInPhase(phase: MeetingPhase): boolean {
 export function meetingProgressText(phase: MeetingPhase, uploadPercent: number | null = null): string | null {
   switch (phase) {
     case "uploading": return uploadPercent === null ? "녹음 파일을 올리고 있어요…" : `녹음 파일을 올리고 있어요… ${uploadPercent}%`;
-    case "transcribing": return "녹음 파일을 전사하고 있어요. 긴 녹음은 몇 분 걸릴 수 있어요…";
+    case "transcribing": return "녹음 파일을 글로 옮기고 있어요. 긴 녹음은 몇 분 걸릴 수 있어요…";
     case "deleting": return "회의를 삭제하고 있어요…";
     case "opening": return "회의를 불러오고 있어요…";
-    case "starting": return "마이크와 받아쓰기 연결을 준비하고 있어요…";
-    case "recording": return "받아쓰고 있어요…";
+    case "starting": return "마이크를 켜고 녹음을 준비하고 있어요…";
+    case "recording": return "녹음하면서 글로 옮기고 있어요…";
     case "reconnecting": return "연결이 끊겨 다시 연결하고 있어요…";
     case "finishing": return "남은 문장을 저장하고 있어요…";
     case "generating": return "답변을 작성하고 있어요…";
@@ -90,18 +90,18 @@ export function meetingProgressText(phase: MeetingPhase, uploadPercent: number |
 }
 
 export const MEETING_MESSAGES = {
-  unsupported: "이 브라우저는 회의 받아쓰기를 지원하지 않습니다.",
-  emptyTranscript: "받아쓴 내용이 없어 회의록을 만들 수 없습니다.",
+  unsupported: "이 브라우저는 회의 녹음을 지원하지 않습니다.",
+  emptyTranscript: "글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
   incompleteTranscript: "일부 구간이 저장되지 않았습니다. 저장된 내용만으로 회의록을 만들 수 있습니다.",
-  liveStillOpen: "받아쓰기 연결이 아직 닫히지 않았습니다. 잠시 후 다시 시도해 주세요.",
+  liveStillOpen: "녹음 연결이 아직 닫히지 않았습니다. 잠시 후 다시 시도해 주세요.",
   notesCancelled: "회의록 만들기를 취소했습니다.",
   revisionChanged: "미리 본 뒤 문서가 바뀌었습니다. 다시 미리 보고 저장해 주세요.",
   outdated: "더 최근에 만든 회의록이 있습니다. 최신 회의록으로 다시 시도해 주세요.",
   alreadyApplied: "이 회의록은 이미 문서로 저장했습니다.",
   saved: "회의록을 문서로 저장했습니다.",
-  emptyRecordingTranscript: "녹음에서 받아쓴 내용이 없어 회의록을 만들 수 없습니다.",
+  emptyRecordingTranscript: "녹음에서 글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
   uploadCancelled: "녹음 파일 올리기를 취소했습니다.",
-  uploadCancelTooLate: "올리기를 취소하기 전에 전사가 시작됐고 전사를 멈추지 못했어요. 전사 취소를 눌러 주세요."
+  uploadCancelTooLate: "올리기를 취소하기 전에 글로 옮기기가 시작됐고 멈추지 못했어요. 글로 옮기기 취소를 눌러 주세요."
 } as const;
 
 /** 녹음 파일 업로드·전사 취소·재생·삭제 오류 문구. 알려진 code는 화면 문구, 402·권한 등은 앱 공통 문구를 쓴다. */

@@ -42,7 +42,7 @@ export function MeetingListView({
               ))}
             </ul>
           ) : (
-            !list.isPending && !list.isError && <p className={styles["meeting-card-empty"]}>아직 만든 회의가 없어요. 회의 받아쓰기나 녹음 파일 전사로 시작해 보세요.</p>
+            !list.isPending && !list.isError && <p className={styles["meeting-card-empty"]}>아직 만든 회의가 없어요. 회의 녹음하기나 녹음 파일 올리기로 시작해 보세요.</p>
           )}
           {list.hasNextPage && (
             <button
@@ -83,7 +83,7 @@ export function MeetingListView({
 
 function MeetingListRow({ item, onOpen }: { item: MeetingListItem; onOpen: (item: MeetingListItem) => void }) {
   const badge = meetingListBadge(item);
-  const details = [formatRelativeTime(item.created_at), item.source === "upload" ? "녹음 파일" : "실시간 받아쓰기"];
+  const details = [formatRelativeTime(item.created_at), item.source === "upload" ? "녹음 파일" : "실시간 녹음"];
   if (item.has_recording) details.push("녹음 있음");
   return (
     <button type="button" className={styles["meeting-list-item"]} onClick={() => onOpen(item)}>

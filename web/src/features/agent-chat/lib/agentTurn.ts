@@ -1,23 +1,40 @@
 import type { ActiveMarkdownEditContext, MarkdownEditorSnapshot } from "./markdownEditContext";
 import type { AiModelSelection } from "@/entities/ai";
+import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
+
+/** 작업 탭 요청 표시. 서버는 이 값이 있으면 문서 없이도 받고 채팅 답변 갈래를 고르지 않는다(document·ai 계약). */
+export const AGENT_TURN_TASK_MODE = "task";
 
 export type AgentTurnRequest = {
   session_id: string;
-  documentId: string;
-  baseVersion: number;
   message: string;
   provider: string;
   model: string;
   allow_web_search: boolean;
+  mode: typeof AGENT_TURN_TASK_MODE;
   conversationContext?: { selected_pair_ids: string[] };
-  editorSnapshot: MarkdownEditorSnapshot;
-};
+  /** 작업 대상 폴더(폴더 정리 범위·새 문서 위치). 생략하면 루트·워크스페이스 전체(document AgentTurnRequest 계약). */
+  folder_id?: string;
+} & (
+  // 문서를 열지 않았거나 작업 대상에서 뺐으면 세 필드를 함께 생략한다(document AgentTurnRequest 계약).
+  | { documentId: string; baseVersion: number; editorSnapshot: MarkdownEditorSnapshot }
+  | { documentId?: undefined; baseVersion?: undefined; editorSnapshot?: undefined }
+);
+
+/** 문서를 대상으로 보낸 요청. 편집안 검토·적용은 이 요청에만 할 수 있다. */
+export type DocumentAgentTurnRequest = Extract<AgentTurnRequest, { documentId: string }>;
+
+export function isDocumentAgentTurnRequest(request: AgentTurnRequest): request is DocumentAgentTurnRequest {
+  return typeof request.documentId === "string" && request.editorSnapshot !== undefined;
+}
 
 type AgentTurnRequestContext = {
   sessionId: string;
   selectedModel: AiModelSelection;
   selectedPairIds: string[];
   allowWebSearch?: boolean;
+  /** 폴더를 대상으로 고른 스킬 실행. 없으면 folder_id를 싣지 않는다. */
+  folderId?: string | null;
 };
 
 export type AgentTurnAction =
@@ -79,14 +96,18 @@ export type AgentTurnResponse = {
   baseVersion: number;
   requestId: string;
   apply_operation_id: string;
+  /** 요청에 실은 작업 대상 폴더. 지정하지 않았으면 null. */
+  folder_id?: string | null;
   status: "completed";
   result: AgentTurnResult;
 };
 
-export type MarkdownDiffLine = {
-  type: "context" | "delete" | "insert";
-  text: string;
-};
+/** 새 문서 초안(markdown_create)을 만들 폴더. turn에 지정한 대상 폴더를 쓰고, 없으면 루트(null)에 둔다. */
+export function resolveGeneratedDocumentFolderId(response: Pick<AgentTurnResponse, "folder_id"> | null | undefined): string | null {
+  return response?.folder_id ?? null;
+}
+
+export type { MarkdownDiffLine } from "@/shared/lib/lineDiff";
 
 export type MarkdownEditPreview = {
   operation: AgentTurnEdit["operation"];
@@ -99,8 +120,6 @@ export type MarkdownEditPreview = {
 type ChatTurnPresentation =
   | { kind: "query"; grounded: boolean }
   | { kind: "document-command"; action: DocumentCommandAction };
-
-const MAX_LCS_CELLS = 250_000;
 
 export function isDocumentCommandAction(action: string | undefined): action is DocumentCommandAction {
   return action === "markdown_edit"
@@ -117,25 +136,27 @@ export function resolveChatTurnPresentation(action: string | undefined): ChatTur
   return { kind: "query", grounded: !action || action === "chat_answer" };
 }
 
+/** 작업 탭 요청을 만든다. 열린 문서(context)가 없으면 문서 없이 보낸다(폴더 정리·폴더 스킬). */
 export function buildAgentTurnRequest(
   message: string,
-  context: ActiveMarkdownEditContext,
+  context: Pick<ActiveMarkdownEditContext, "documentId" | "baseVersion" | "editorSnapshot"> | null,
   requestContext: AgentTurnRequestContext
 ): AgentTurnRequest {
-  return {
+  const base = {
     session_id: requestContext.sessionId,
-    documentId: context.documentId,
-    baseVersion: context.baseVersion,
     message,
     provider: requestContext.selectedModel.provider,
     model: requestContext.selectedModel.model,
     allow_web_search: requestContext.allowWebSearch ?? false,
+    mode: AGENT_TURN_TASK_MODE,
     // 선택한 문답이 있을 때만 서버가 지원하는 pair ID 계약으로 전달한다.
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }
       : {}),
-    editorSnapshot: context.editorSnapshot
-  };
+    ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {})
+  } as const;
+  if (!context) return base;
+  return { ...base, documentId: context.documentId, baseVersion: context.baseVersion, editorSnapshot: context.editorSnapshot };
 }
 
 export function buildGeneratedMarkdownFilename(title: string): string {
@@ -150,66 +171,21 @@ export function buildGeneratedMarkdownFilename(title: string): string {
   return safeTitle.toLowerCase().endsWith(".md") ? safeTitle : `${safeTitle}.md`;
 }
 
-function targetsMatch(request: AgentTurnRequest, edit: AgentTurnEdit): boolean {
+function targetsMatch(request: DocumentAgentTurnRequest, edit: AgentTurnEdit): boolean {
   const requestTarget = request.editorSnapshot.target;
   return requestTarget.type === edit.requested_target.type
     && requestTarget.startLine === edit.requested_target.start_line
     && requestTarget.endLine === edit.requested_target.end_line;
 }
 
-function lineDiff(before: string, after: string): MarkdownDiffLine[] {
-  const beforeLines = before.split("\n");
-  const afterLines = after.split("\n");
-  if (beforeLines.length * afterLines.length > MAX_LCS_CELLS) {
-    return [
-      ...beforeLines.map((text) => ({ type: "delete" as const, text })),
-      ...afterLines.map((text) => ({ type: "insert" as const, text }))
-    ];
-  }
-  const lengths = Array.from(
-    { length: beforeLines.length + 1 },
-    () => Array<number>(afterLines.length + 1).fill(0)
-  );
-
-  for (let beforeIndex = beforeLines.length - 1; beforeIndex >= 0; beforeIndex -= 1) {
-    for (let afterIndex = afterLines.length - 1; afterIndex >= 0; afterIndex -= 1) {
-      lengths[beforeIndex][afterIndex] = beforeLines[beforeIndex] === afterLines[afterIndex]
-        ? lengths[beforeIndex + 1][afterIndex + 1] + 1
-        : Math.max(lengths[beforeIndex + 1][afterIndex], lengths[beforeIndex][afterIndex + 1]);
-    }
-  }
-
-  const diff: MarkdownDiffLine[] = [];
-  let beforeIndex = 0;
-  let afterIndex = 0;
-  while (beforeIndex < beforeLines.length && afterIndex < afterLines.length) {
-    if (beforeLines[beforeIndex] === afterLines[afterIndex]) {
-      diff.push({ type: "context", text: beforeLines[beforeIndex] });
-      beforeIndex += 1;
-      afterIndex += 1;
-    } else if (lengths[beforeIndex + 1][afterIndex] >= lengths[beforeIndex][afterIndex + 1]) {
-      diff.push({ type: "delete", text: beforeLines[beforeIndex] });
-      beforeIndex += 1;
-    } else {
-      diff.push({ type: "insert", text: afterLines[afterIndex] });
-      afterIndex += 1;
-    }
-  }
-  while (beforeIndex < beforeLines.length) {
-    diff.push({ type: "delete", text: beforeLines[beforeIndex] });
-    beforeIndex += 1;
-  }
-  while (afterIndex < afterLines.length) {
-    diff.push({ type: "insert", text: afterLines[afterIndex] });
-    afterIndex += 1;
-  }
-  return diff;
-}
-
 export function prepareMarkdownEditPreview(
-  request: AgentTurnRequest,
+  anyRequest: AgentTurnRequest,
   response: AgentTurnResponse
 ): MarkdownEditPreview {
+  if (!isDocumentAgentTurnRequest(anyRequest)) {
+    throw new Error("문서를 열지 않은 요청에는 편집안을 적용할 수 없습니다. 문서를 열고 다시 요청해주세요.");
+  }
+  const request = anyRequest;
   if (response.documentId !== request.documentId) {
     throw new Error("응답 문서가 요청 문서와 일치하지 않습니다.");
   }
@@ -267,7 +243,7 @@ export function validateMarkdownEditApplication(
 ): void {
   prepareMarkdownEditPreview(request, response);
   if (currentContext.documentId !== request.documentId
-    || currentContext.editorSnapshot.markdown !== request.editorSnapshot.markdown) {
+    || currentContext.editorSnapshot.markdown !== request.editorSnapshot?.markdown) {
     throw new Error("요청 이후 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
   }
 }

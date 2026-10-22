@@ -26,7 +26,7 @@ export function MeetingDeleteConfirm({
         title="회의를 삭제하시겠습니까?"
         description={
           <>
-            「{meetingName}」 회의의 받아쓴 내용과 회의록 초안{hasRecording ? ", 녹음 파일" : ""}이 삭제됩니다.
+            「{meetingName}」 회의의 대화 내용과 회의록 초안{hasRecording ? ", 녹음 파일" : ""}이 삭제됩니다.
             문서로 저장한 회의록은 남습니다. 이 작업은 되돌릴 수 없습니다.
           </>
         }

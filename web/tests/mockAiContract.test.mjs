@@ -102,7 +102,7 @@ test("mock 대화 내보내기는 pair_ids가 비면 400이고 selection_mode를
   assert.equal((await saved.json()).status, "saved");
 });
 
-test("exportChatWiki는 selection_mode 없이 pair_ids만 보낸다", async (t) => {
+test("exportChatWiki는 문답과 함께 내보내기 연결 UUID·선택 모드를 보낸다", async (t) => {
   globalThis.window = { localStorage: { getItem: () => "ws_front", removeItem() {} } };
   t.after(() => { delete globalThis.window; });
   saveAccessToken("test-access");
@@ -113,5 +113,8 @@ test("exportChatWiki는 selection_mode 없이 pair_ids만 보낸다", async (t) 
     return Response.json({ exportDocumentId: "doc_x", status: "saved" });
   });
   await exportChatWiki(["pair_a", "pair_b"]);
-  assert.deepEqual(body, { pair_ids: ["pair_a", "pair_b"] });
+  assert.deepEqual(body.pair_ids, ["pair_a", "pair_b"]);
+  assert.equal(body.mode, "selected");
+  assert.match(body.export_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(body.selection_mode, undefined);
 });

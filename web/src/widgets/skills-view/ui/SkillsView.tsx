@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SkillResponse } from "@/entities/skill";
-import { SkillCreateSheet, SkillDetailSheet } from "@/features/skill-authoring";
+import { SkillCreateEditor, SkillDetailEditor } from "@/features/skill-authoring";
 import { SkillSearchModal } from "./SkillSearchModal";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
@@ -20,6 +20,7 @@ import {
   type SkillSortKey,
   type SkillTab
 } from "../lib/skillTable";
+import { closeSheetIfSkillGone, openCreateSheet, openDetailSheet, type SkillSheetState } from "../lib/skillSheet";
 import { useSkillCatalog } from "../model/useSkillCatalog";
 import { SkillMoreIcon, SkillSearchIcon, SkillSortIcon } from "./SkillIcons";
 import styles from "./SkillsView.module.css";
@@ -65,10 +66,25 @@ function ColumnHeader({ column, sort, onSort }: {
 
 /**
  * 스킬 화면 (Figma 1482:9848). 레일 번개로 연다.
- * 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행 클릭·더보기 '수정' = 스킬 상세 시트(Figma 1708:4059),
- * 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
+ * 목록: 탭 = 저장범위 필터, 커맨드 머리글 = 정렬, 행·커맨드명 클릭 = 스킬 상세 시트(Figma 1708:3848),
+ * '스킬 만들기' = 스킬 만들기 시트(Figma 1671:13573), 더보기 '삭제' = 삭제 확인, 실행 = 대상 문서 고르기(onRunSkill)로 넘어간다.
+ * createRequest가 오면(작업 탭 "이 요청을 스킬로 저장") 그 요청으로 채운 스킬 만들기 시트를 한 번 열고 onCreateRequestHandled로 알린다.
+ * 시트가 열리고 닫힐 때 onSheetOpenChange로 알린다(채팅 패널을 함께 띄워 테스트 실행 자리 testRunTarget을 받는다).
  */
-export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) => void }) {
+export function SkillsView({
+  onRunSkill,
+  createRequest = null,
+  onCreateRequestHandled,
+  onSheetOpenChange,
+  testRunTarget = null
+}: {
+  onRunSkill: (skill: SkillResponse) => void;
+  createRequest?: { id: number; text: string } | null;
+  onCreateRequestHandled?: (id: number) => void;
+  onSheetOpenChange?: (isOpen: boolean) => void;
+  /** 채팅 패널 입력창 위의 테스트 실행 자리. 없으면 시트 본문 끝에 둔다. */
+  testRunTarget?: HTMLElement | null;
+}) {
   const workspaceId = getSelectedWorkspaceId();
   const catalog = useSkillCatalog(workspaceId);
   const { updateMutation, deleteMutation } = catalog;
@@ -78,10 +94,26 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
   const [sort, setSort] = useState<SkillSort>(null);
   const [searchText, setSearchText] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [sheet, setSheet] = useState<SkillSheetState>(null);
+  useEffect(() => {
+    if (!createRequest) return;
+    setSheet((current) => openCreateSheet(current, createRequest.text));
+    onCreateRequestHandled?.(createRequest.id);
+  }, [createRequest, onCreateRequestHandled]);
+  const isSheetOpen = sheet != null;
+  useEffect(() => {
+    onSheetOpenChange?.(isSheetOpen);
+  }, [isSheetOpen, onSheetOpenChange]);
+  // 화면을 떠나면(언마운트) 시트도 닫힌 것으로 알린다.
+  useEffect(() => () => onSheetOpenChange?.(false), [onSheetOpenChange]);
+  // 시트는 main.workspace에 그려 사이드바까지 덮는다(스킬 화면 섹션은 쌓임 맥락이 사이드바 아래다).
+  const sectionRef = useRef<HTMLElement>(null);
+  const [sheetHost, setSheetHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setSheetHost(sectionRef.current?.closest("main") ?? null);
+  }, []);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
-  const [detailSkillId, setDetailSkillId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
   const deleteDialogRef = useRef<HTMLDialogElement>(null);
 
@@ -102,143 +134,182 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
     return sortSkills(inTab, sort);
   }, [catalog.skills, activeTab, searchText, sort]);
 
-  // 시트는 목록 캐시의 최신 스킬을 본다. 목록에서 사라지면(삭제 등) 시트도 그리지 않는다.
-  const detailSkill = detailSkillId == null ? null : catalog.skills.find((skill) => skill.id === detailSkillId) ?? null;
+  // 상세 시트는 목록 캐시의 최신 스킬을 본다. 목록에서 사라지면(삭제 등) 시트를 닫는다.
+  const isCatalogLoaded = !catalog.isLoading && catalog.loadError == null;
+  useEffect(() => {
+    if (!isCatalogLoaded) return;
+    const skillIds = catalog.skills.map((skill) => skill.id);
+    setSheet((current) => closeSheetIfSkillGone(current, skillIds));
+  }, [isCatalogLoaded, catalog.skills]);
 
   function openDetail(skill: SkillResponse) {
     setOpenMenuId(null);
     updateMutation.reset();
     deleteMutation.reset();
-    setDetailSkillId(skill.id);
+    setSheet((current) => openDetailSheet(current, skill.id));
   }
+
+  function openCreate() {
+    setOpenMenuId(null);
+    setSheet((current) => openCreateSheet(current));
+  }
+
+  const closeSheet = () => setSheet(null);
+  const sheetSkill = sheet?.kind === "detail" ? catalog.skills.find((item) => item.id === sheet.skillId) : undefined;
 
   const panelId = `${idPrefix}-panel`;
   const errorMessage = catalog.loadError ?? catalog.actionError;
 
   return (
-    <section className={styles.skills} aria-labelledby={`${idPrefix}-title`}>
-      <header className={styles.hero}>
-        <div className={styles.heading}>
-          <h1 id={`${idPrefix}-title`}>스킬</h1>
-          <p>반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다.</p>
-        </div>
-        <div className={styles.tabs}>
-          <div role="tablist" aria-label="스킬 저장범위" className={styles["tab-list"]}>
-            {TABS.map((tab) => (
+    <section ref={sectionRef} className={styles.skills} aria-label="스킬">
+      <div className={styles["list-panel"]}>
+        <header className={styles.hero}>
+          <div className={styles.heading}>
+            <h1 id={`${idPrefix}-title`}>스킬</h1>
+            <p>반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다.</p>
+          </div>
+          <div className={styles.tabs}>
+            <div role="tablist" aria-label="스킬 저장범위" className={styles["tab-list"]}>
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`${idPrefix}-tab-${tab.id}`}
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={panelId}
+                  className={cx(styles.tab, activeTab === tab.id && styles["is-active"])}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.actions}>
+              {searchText && (
+                <button type="button" className={styles["search-chip"]} aria-label="스킬 검색 해제" onClick={() => setSearchText("")}>
+                  검색 : {searchText}
+                  <span aria-hidden>✕</span>
+                </button>
+              )}
+              <button type="button" className={styles["icon-button"]} aria-label="스킬 검색" onClick={() => setIsSearchOpen(true)}>
+                <SkillSearchIcon />
+              </button>
               <button
-                key={tab.id}
                 type="button"
-                role="tab"
-                id={`${idPrefix}-tab-${tab.id}`}
-                aria-selected={activeTab === tab.id}
-                aria-controls={panelId}
-                className={cx(styles.tab, activeTab === tab.id && styles["is-active"])}
-                onClick={() => setActiveTab(tab.id)}
+                className={styles["create-button"]}
+                disabled={workspaceId == null}
+                onClick={openCreate}
               >
-                {tab.label}
+                스킬 만들기
               </button>
-            ))}
+            </div>
           </div>
-          <div className={styles.actions}>
-            {searchText && (
-              <button type="button" className={styles["search-chip"]} aria-label="스킬 검색 해제" onClick={() => setSearchText("")}>
-                검색 : {searchText}
-                <span aria-hidden>✕</span>
-              </button>
+        </header>
+
+        <div id={panelId} role="tabpanel" aria-labelledby={`${idPrefix}-tab-${activeTab}`} className={styles.panel}>
+          {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
+          <div className={styles.table} role="table" aria-label="스킬 목록">
+            <div className={cx(styles.row, styles["row-head"])} role="row">
+              {COLUMNS.map((column) => (
+                <ColumnHeader key={column.label} column={column} sort={sort} onSort={(key) => setSort((current) => nextSkillSort(current, key))} />
+              ))}
+              <span className={styles["col-more"]} aria-hidden />
+            </div>
+
+            {catalog.isLoading && <p className={styles.message} role="status">스킬 목록을 불러오는 중입니다.</p>}
+            {!catalog.isLoading && catalog.loadError == null && visibleSkills.length === 0 && (
+              <p className={styles.message}>
+                {catalog.skills.length === 0 ? "등록된 스킬이 없습니다." : "조건에 맞는 스킬이 없습니다."}
+              </p>
             )}
-            <button type="button" className={styles["icon-button"]} aria-label="스킬 검색" onClick={() => setIsSearchOpen(true)}>
-              <SkillSearchIcon />
-            </button>
-            <button
-              type="button"
-              className={styles["create-button"]}
-              disabled={workspaceId == null}
-              onClick={() => setIsCreateOpen(true)}
-            >
-              스킬 만들기
-            </button>
-          </div>
-        </div>
-      </header>
 
-      <div id={panelId} role="tabpanel" aria-labelledby={`${idPrefix}-tab-${activeTab}`} className={styles.panel}>
-        {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
-        <div className={styles.table} role="table" aria-label="스킬 목록">
-          <div className={cx(styles.row, styles["row-head"])} role="row">
-            {COLUMNS.map((column) => (
-              <ColumnHeader key={column.label} column={column} sort={sort} onSort={(key) => setSort((current) => nextSkillSort(current, key))} />
-            ))}
-            <span className={styles["col-more"]} aria-hidden />
-          </div>
-
-          {catalog.isLoading && <p className={styles.message} role="status">스킬 목록을 불러오는 중입니다.</p>}
-          {!catalog.isLoading && catalog.loadError == null && visibleSkills.length === 0 && (
-            <p className={styles.message}>
-              {catalog.skills.length === 0 ? "등록된 스킬이 없습니다." : "조건에 맞는 스킬이 없습니다."}
-            </p>
-          )}
-
-          {visibleSkills.map((skill) => {
-            const command = skillCommand(skill);
-            const isMenuOpen = openMenuId === skill.id;
-            return (
-              <div key={skill.id} role="rowgroup">
-                {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 더보기 '수정'으로 연다. */}
-                <div className={cx(styles.row, styles["is-clickable"])} role="row" onClick={() => openDetail(skill)}>
-                  {/* 커맨드 (Figma 1708:4537): 일반 텍스트 */}
-                  <div className={cx(styles.cell, styles["col-command"], styles.command)} role="cell" title={command}>
-                    {command}
-                  </div>
-                  <div className={cx(styles.cell, styles["col-description"], styles.description)} role="cell">
-                    {skillDescription(skill)}
-                  </div>
-                  <div className={cx(styles.cell, styles["col-scope"])} role="cell">
-                    <span className={styles.scope}>{isPersonalSkill(skill) ? "개인" : "팀"}</span>
-                  </div>
-                  {/* 사용 상태: 실행(Figma 1482:10981). 스킬은 항상 사용 상태다. */}
-                  <div className={cx(styles.cell, styles["col-state"])} role="cell">
-                    <button type="button" className={styles.run} onClick={(event) => {
-                      event.stopPropagation();
-                      onRunSkill(skill);
-                    }}>실행</button>
-                  </div>
-                  <div
-                    className={styles["col-more"]}
-                    role="cell"
-                    ref={isMenuOpen ? menuRef : undefined}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      className={styles["more-button"]}
-                      aria-label={`${command} 더보기`}
-                      aria-haspopup="menu"
-                      aria-expanded={isMenuOpen}
-                      onClick={() => setOpenMenuId(isMenuOpen ? null : skill.id)}
+            {visibleSkills.map((skill) => {
+              const command = skillCommand(skill);
+              const isMenuOpen = openMenuId === skill.id;
+              return (
+                <div key={skill.id} role="rowgroup">
+                  {/* 행을 누르면 스킬 상세 시트가 열린다. 키보드는 커맨드명 버튼으로 연다(누르면 행으로 전달된다). */}
+                  <div className={cx(styles.row, styles["is-clickable"])} role="row" onClick={() => openDetail(skill)}>
+                    {/* 커맨드 (Figma 1708:4537): 일반 텍스트 */}
+                    <div className={cx(styles.cell, styles["col-command"], styles.command)} role="cell" title={command}>
+                      <button type="button" className={styles["command-button"]} aria-label={`${command} 상세 열기`}>
+                        {command}
+                      </button>
+                    </div>
+                    <div className={cx(styles.cell, styles["col-description"], styles.description)} role="cell">
+                      {skillDescription(skill)}
+                    </div>
+                    <div className={cx(styles.cell, styles["col-scope"])} role="cell">
+                      <span className={styles.scope}>{isPersonalSkill(skill) ? "개인" : "팀"}</span>
+                    </div>
+                    {/* 사용 상태: 실행(Figma 1482:10981). 스킬은 항상 사용 상태다. */}
+                    <div className={cx(styles.cell, styles["col-state"])} role="cell">
+                      <button type="button" className={styles.run} onClick={(event) => {
+                        event.stopPropagation();
+                        onRunSkill(skill);
+                      }}>실행</button>
+                    </div>
+                    <div
+                      className={styles["col-more"]}
+                      role="cell"
+                      ref={isMenuOpen ? menuRef : undefined}
+                      onClick={(event) => event.stopPropagation()}
                     >
-                      <SkillMoreIcon />
-                    </button>
-                    {isMenuOpen && (
-                      <div className={styles.menu} role="menu">
-                        <button type="button" role="menuitem" onClick={() => openDetail(skill)}>
-                          수정
-                        </button>
-                        <button type="button" role="menuitem" className={styles["is-danger"]} onClick={() => {
-                          setOpenMenuId(null);
-                          deleteMutation.reset();
-                          setDeleteTarget(skill);
-                        }}>
-                          삭제
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        type="button"
+                        className={styles["more-button"]}
+                        aria-label={`${command} 더보기`}
+                        aria-haspopup="menu"
+                        aria-expanded={isMenuOpen}
+                        onClick={() => setOpenMenuId(isMenuOpen ? null : skill.id)}
+                      >
+                        <SkillMoreIcon />
+                      </button>
+                      {isMenuOpen && (
+                        <div className={styles.menu} role="menu">
+                          <button type="button" role="menuitem" className={styles["is-danger"]} onClick={() => {
+                            setOpenMenuId(null);
+                            deleteMutation.reset();
+                            setDeleteTarget(skill);
+                          }}>
+                            삭제
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
+
+      {/* 스킬 만들기·상세 시트. key로 열 때마다 새 입력으로 시작한다. */}
+      {workspaceId != null && sheet?.kind === "create" && (
+        <SkillCreateEditor
+          key={sheet.key}
+          workspaceId={workspaceId}
+          prefillRequest={sheet.prefillRequest}
+          host={sheetHost}
+          testRunTarget={testRunTarget}
+          onClose={closeSheet}
+          onPublished={() => void catalog.refresh()}
+        />
+      )}
+      {workspaceId != null && sheetSkill && (
+        <SkillDetailEditor
+          key={sheetSkill.id}
+          workspaceId={workspaceId}
+          skill={sheetSkill}
+          host={sheetHost}
+          testRunTarget={testRunTarget}
+          onClose={closeSheet}
+          onSubmit={(draft) => updateMutation.mutateAsync({ skill: sheetSkill, draft })}
+          onDelete={() => deleteMutation.mutateAsync(sheetSkill)}
+        />
+      )}
 
       <dialog
         ref={deleteDialogRef}
@@ -268,19 +339,6 @@ export function SkillsView({ onRunSkill }: { onRunSkill: (skill: SkillResponse) 
         </div>
       </dialog>
 
-      {isCreateOpen && workspaceId != null && (
-        <SkillCreateSheet workspaceId={workspaceId} onClose={() => setIsCreateOpen(false)} onPublished={() => void catalog.refresh()} />
-      )}
-      {detailSkill && workspaceId != null && (
-        <SkillDetailSheet
-          key={detailSkill.id}
-          workspaceId={workspaceId}
-          skill={detailSkill}
-          onClose={() => setDetailSkillId(null)}
-          onSubmit={(draft) => updateMutation.mutateAsync({ skill: detailSkill, draft })}
-          onDelete={() => deleteMutation.mutateAsync(detailSkill)}
-        />
-      )}
       {isSearchOpen && (
         <SkillSearchModal
           skills={catalog.skills}

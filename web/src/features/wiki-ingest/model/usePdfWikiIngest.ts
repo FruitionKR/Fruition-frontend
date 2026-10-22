@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { convertDocumentToMarkdown, reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
+import { canConvertDocument, CONVERT_FORBIDDEN_REASON } from "@/entities/document/lib/documentAccess";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPdfIngestTaskStep } from "./pdfIngestTask";
@@ -66,6 +67,8 @@ export function usePdfWikiIngest(
   }, [workspaceId]);
 
   const startPdfIngest = useCallback(async (document: DocumentItemResponse) => {
+    // 변환 권한이 없으면 403이 날 요청을 보내지 않고 같은 이유로 실패시킨다(호출부가 실패 알림에 싣는다).
+    if (!canConvertDocument(document)) throw new Error(CONVERT_FORBIDDEN_REASON);
     const storageKey = storageKeyRef.current;
     const converted = await convertDocumentToMarkdown(document.id, { openWhenReady: false });
     updatePending((current) => [

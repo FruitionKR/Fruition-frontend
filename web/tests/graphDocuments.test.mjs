@@ -12,10 +12,34 @@ const { selectGraphDocuments, filterGraphProjects, isGraphIngestEligible, getGra
 const pdf = { id: "pdf", filename: "보고서.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", status: "completed" };
 const md = { id: "md", filename: "이름을 바꾼 변환본.md", mime_type: "text/markdown", document_role: "EDITABLE", status: "completed", source_document_id: "pdf", pipeline_run_id: "convert:md", needs_reingest: false };
 
-test("변환 전 PDF는 그래프에 없지만 편입 선택 트리에서는 변환 후 편입 대상으로 고를 수 있다", () => {
+test("PDF는 그래프에서 숨기되 별도의 변환 후 편입 흐름에서는 처리 가능하다", () => {
   assert.deepEqual(selectGraphDocuments([pdf]), []);
   assert.equal(isGraphIngestEligible(pdf, [pdf]), true);
   assert.equal(getGraphIngestBlockReason({ ...pdf, status: "processing" }, [pdf]), GRAPH_INGEST_BLOCK_REASONS.processing);
+});
+
+test("그래프와 편입 선택에 전달하는 트리는 MD만 남기고 PDF·TXT는 숨긴다", () => {
+  const txt = { ...pdf, id: "txt", filename: "메모.txt", mime_type: "text/plain", document_role: "EDITABLE" };
+  const documents = [pdf, txt, md];
+  const projects = [{ id: "p", title: "자료", items: [{ id: "folder", type: "folder", label: "폴더", children:
+    documents.map((document) => ({ id: document.id, type: "file", label: document.filename, documentId: document.id }))
+  }] }];
+  assert.deepEqual(selectGraphDocuments(documents).map((document) => document.id), ["md"]);
+  assert.deepEqual(filterGraphProjects(projects, documents)[0].items[0].children.map((item) => item.documentId), ["md"]);
+  assert.equal(projects[0].items[0].children.length, 3, "홈 원본 트리는 유지한다");
+});
+
+test("편입 완료 후 수정이 없으면 막고, 수정됨·미편입·편입 실패 문서만 다시 허용한다", () => {
+  const ingested = { ...md, pipeline_run_id: "ingest:md", needs_reingest: false };
+  assert.equal(isGraphIngestEligible(ingested, [ingested]), false);
+  assert.equal(getGraphIngestBlockReason(ingested, [ingested]), GRAPH_INGEST_BLOCK_REASONS.upToDate);
+  for (const document of [
+    { ...ingested, needs_reingest: true },
+    { ...ingested, status: "uploaded", pipeline_run_id: null },
+    { ...ingested, status: "failed" }
+  ]) assert.equal(isGraphIngestEligible(document, [document]), true);
+  const processing = { ...ingested, needs_reingest: true, status: "processing" };
+  assert.equal(isGraphIngestEligible(processing, [processing]), false);
 });
 
 test("변환본이 있거나 변환 중인 PDF는 고를 수 없고, 실패한 변환본만 있으면 다시 고를 수 있다", () => {

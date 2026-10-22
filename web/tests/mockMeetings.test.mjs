@@ -173,8 +173,10 @@ test("회의록: 비어 있으면 422, 끊긴 연결이 있으면 allow_partial 
   await new Promise((resolve) => setTimeout(resolve, 20));
   const ready = await (await api(`/meetings/${meeting.meeting_id}/notes`)).json();
   assert.equal(ready.status, "ready");
-  assert.match(ready.markdown, /^# 회의록\n\n## 요약\n- /);
-  assert.match(ready.markdown, /## 미결 사항\n- 확인된 내용 없음$/);
+  assert.match(ready.markdown, /^# 회의록\n\n- 날짜: \d{4}-\d{2}-\d{2}\n\n### 회의 요약\n- /);
+  assert.match(ready.markdown, /### 해야 할 일\n- 확인된 내용 없음\n\n### 다음 일정\n- 확인된 내용 없음$/);
+  assert.match(ready.meeting_date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual([ready.attendees, ready.discussion, ready.action_items, ready.next_schedule], [[], [], [], []]);
 });
 
 async function readyMeeting(post, api, socketUrl, body = {}) {

@@ -5,68 +5,81 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { fetchDocuments } from "@/entities/document";
 import { testRunSkill } from "@/entities/skill";
 import { cx } from "@/shared/lib/classNames";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
 import { documentDisplayName, pickerDocuments } from "../lib/referenceDocumentPicker";
 import { skillCapabilities, type SkillCreateForm } from "../lib/skillCreateForm";
 import {
-  defaultSkillTestRunScope,
   describeSkillTestRunError,
   newSkillTestRunId,
-  SKILL_TEST_RUN_SCOPE_OPTIONS,
+  SKILL_TEST_RUN_FOLDER_NOTE,
+  skillChangeDiffLines,
   skillTestRunBlocker,
   skillTestRunRequest,
   skillTestRunView,
-  type SkillTestRunInput,
-  type SkillTestRunScope
+  supportsSkillTestRun
 } from "../lib/skillTestRun";
-import { issueText, SelectBox } from "./SkillFormParts";
+import { issueText } from "./SkillFormParts";
 import styles from "./SkillTestRunCard.module.css";
 
 const NO_DOCUMENT = "";
+const DIFF_LINE_CLASS = { delete: styles.before, insert: styles.after, context: styles.context } as const;
+// 색만으로 구분하지 않도록 화면 낭독기에 줄 종류를 읽어 준다.
+const DIFF_LINE_LABEL = { delete: "지운 줄: ", insert: "추가한 줄: ", context: "" } as const;
 
 /**
- * 스킬 만들기의 "테스트 실행" 카드 (Figma 1671:14585, 시트 오른쪽 채팅 열).
- * 지금 시트에 적은 정의를 고른 문서 하나에 적용해 섹션별 변경 전/후를 보여 준다. 문서·스킬은 저장하지 않는다.
+ * "테스트 실행" 묶음 (Figma 1671:14585): 묶음 이름(label) · 카드 · 다시 테스트 칩. 스킬 시트가 열린 동안 채팅 패널 입력창 위에 둔다.
+ * 지금 시트에 적은 정의를 고른 문서 하나 전체에 적용해 섹션별 변경 전/후를 보여 준다. 문서·스킬은 저장하지 않는다.
  */
-export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; form: SkillCreateForm }) {
+export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: string; form: SkillCreateForm; label: string }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const [documentId, setDocumentId] = useState(NO_DOCUMENT);
-  // 직접 고르기 전에는 시트의 대상을 따른다('선택한 부분'만이면 줄 범위).
-  const [chosenScope, setChosenScope] = useState<SkillTestRunScope | null>(null);
-  const scope = chosenScope ?? defaultSkillTestRunScope(form.targets);
-  const [startLine, setStartLine] = useState("1");
-  const [endLine, setEndLine] = useState("1");
 
+  const isSupported = supportsSkillTestRun(form.kind);
   const { data: documents, isLoading: isDocumentsLoading } = useQuery({
     queryKey: ["documents", workspaceId],
-    queryFn: fetchDocuments
+    queryFn: fetchDocuments,
+    enabled: isSupported
   });
   // 테스트 실행은 Markdown 문서만 받는다(그 밖의 원본은 400). 참고 문서 피커와 같은 기준으로 고른다.
   const candidates = pickerDocuments(documents ?? [], "");
-  const documentOptions = [
-    { value: NO_DOCUMENT, label: isDocumentsLoading ? "문서를 불러오는 중…" : "테스트할 문서 선택" },
-    ...candidates.map((doc) => ({ value: doc.id, label: documentDisplayName(doc) }))
-  ];
+  const documentOptions = candidates.map((doc) => ({ value: doc.id, label: documentDisplayName(doc) }));
 
-  const input: SkillTestRunInput = { documentId, scope, startLine: Number(startLine), endLine: Number(endLine) };
-  const blocker = skillTestRunBlocker(form, input);
+  const blocker = skillTestRunBlocker(form, documentId);
 
   const runMutation = useMutation({
     // run_id는 한 번만 쓸 수 있어 실행할 때마다 새로 만든다.
     mutationFn: async () => {
       const capabilities = skillCapabilities(form.kind, form.resultMode);
-      const result = await testRunSkill(workspaceId, skillTestRunRequest(form, input), newSkillTestRunId());
+      const result = await testRunSkill(workspaceId, skillTestRunRequest(form, documentId), newSkillTestRunId());
       return skillTestRunView(result, capabilities);
     }
   });
   const view = runMutation.data;
   const hasRun = view != null || runMutation.isError;
 
+  // 폴더 정리 스킬: 테스트할 문서 고르기 없이 안내만 둔다.
+  if (!isSupported) {
+    return (
+      <section className={styles.container} aria-labelledby={fieldId("title")}>
+        <p className={styles.group}>{label}</p>
+        <div className={styles.card}>
+          <div className={styles.heading}>
+            <p id={fieldId("title")} className={styles.title}>
+              테스트 실행
+            </p>
+            <p className={styles.sub}>{SKILL_TEST_RUN_FOLDER_NOTE}</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={styles.container} aria-labelledby={fieldId("title")}>
-      <p className={styles.caption}>새 스킬 만들기</p>
+      <p className={styles.group}>{label}</p>
       <div className={styles.card}>
         <div className={styles.heading}>
           <p id={fieldId("title")} className={styles.title}>
@@ -80,26 +93,13 @@ export function SkillTestRunCard({ workspaceId, form }: { workspaceId: string; f
             <label className={styles["sr-only"]} htmlFor={fieldId("document")}>
               테스트할 문서
             </label>
-            <SelectBox id={fieldId("document")} value={documentId} options={documentOptions} compact onChange={setDocumentId} />
-            <label className={styles["sr-only"]} htmlFor={fieldId("scope")}>
-              적용 범위
-            </label>
-            <SelectBox id={fieldId("scope")} value={scope} options={SKILL_TEST_RUN_SCOPE_OPTIONS} compact onChange={setChosenScope} />
-            {scope === "lines" && (
-              <div className={styles.lines}>
-                <label className={styles["line-field"]}>
-                  <span>시작 줄</span>
-                  <input type="number" min={1} inputMode="numeric" value={startLine} onChange={(event) => setStartLine(event.target.value)} />
-                </label>
-                <span aria-hidden className={styles["line-dash"]}>
-                  –
-                </span>
-                <label className={styles["line-field"]}>
-                  <span>끝 줄</span>
-                  <input type="number" min={1} inputMode="numeric" value={endLine} onChange={(event) => setEndLine(event.target.value)} />
-                </label>
-              </div>
-            )}
+            <OptionSelect
+              id={fieldId("document")}
+              value={documentId}
+              placeholder={isDocumentsLoading ? "문서를 불러오는 중…" : "테스트할 문서 선택"}
+              options={documentOptions}
+              onChange={setDocumentId}
+            />
             {!isDocumentsLoading && candidates.length === 0 && (
               <p className={styles.note}>테스트할 Markdown 문서가 없어요. 문서를 먼저 만들어 주세요.</p>
             )}
@@ -169,9 +169,15 @@ function SkillTestRunResult({ view }: { view: NonNullable<ReturnType<typeof skil
           <p className={styles.section}>
             {change.section} · {change.start_line}–{change.end_line}줄
           </p>
-          <div className={styles.diff}>
-            <p className={styles.before}>{change.before}</p>
-            <p className={styles.after}>→ {change.after}</p>
+          {/* Figma 1671:14822: 지운 줄은 빨강 취소선, 새 줄은 파랑(묶음 첫 줄에 →), 그대로인 줄은 맥락으로 흐리게. */}
+          <div className={styles.diff} aria-label="변경 전후 줄 비교">
+            {skillChangeDiffLines(change).map((line, lineIndex, lines) => (
+              <p key={`${line.type}-${lineIndex}`} className={DIFF_LINE_CLASS[line.type]}>
+                <span className={styles["sr-only"]}>{DIFF_LINE_LABEL[line.type]}</span>
+                {line.type === "insert" && lines[lineIndex - 1]?.type !== "insert" && <span aria-hidden>→ </span>}
+                {line.text || " "}
+              </p>
+            ))}
           </div>
         </div>
       ))}

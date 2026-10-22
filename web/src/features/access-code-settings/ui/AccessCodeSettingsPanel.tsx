@@ -4,9 +4,22 @@ import { useState, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
 import { LegalFooter } from "@/shared/ui/LegalFooter";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { Switch } from "@/shared/ui/Switch";
 import { AccessCodeSection } from "./AccessCodeSection";
 import styles from "./AccessCodeSettingsPanel.module.css";
+
+const MOTION_OPTIONS: ReadonlyArray<{ value: UserPreferences["motion"]; label: string }> = [
+  { value: "system", label: "시스템 설정" },
+  { value: "reduced", label: "줄이기" },
+  { value: "full", label: "모두 사용" }
+];
+
+const DOCUMENT_FONT_OPTIONS: ReadonlyArray<{ value: UserPreferences["documentFont"]; label: string }> = [
+  { value: "system-sans", label: "System Sans" },
+  { value: "readable-sans", label: "Readable Sans" },
+  { value: "serif", label: "Serif" }
+];
 
 function SettingRow({
   title,
@@ -50,7 +63,6 @@ function SettingSwitch({
 export function AccessCodeSettingsPanel() {
   const { preferences, updatePreferences, resetPreferences } = useUserPreferences();
   const [browserNotificationMessage, setBrowserNotificationMessage] = useState<string | null>(null);
-  // 편집 충돌 해결은 OWNER만 할 수 있어(GET .../conflicts가 403) 역할을 확인한 뒤 보여준다.
 
   function updateGraphKind(kind: keyof UserPreferences["graph"]["visibleKinds"], visible: boolean) {
     updatePreferences((current) => {
@@ -111,35 +123,37 @@ export function AccessCodeSettingsPanel() {
             title="Motion"
             description="전환·스크롤·그래프 움직임을 줄입니다."
           >
-            <select
-              aria-label="Motion"
-              value={preferences.motion}
-              onChange={(event) => updatePreferences((current) => ({
-                ...current,
-                motion: event.target.value as UserPreferences["motion"]
-              }))}
-            >
-              <option value="system">시스템 설정</option>
-              <option value="reduced">줄이기</option>
-              <option value="full">모두 사용</option>
-            </select>
+            <div className={styles["settings-select"]}>
+              <OptionSelect
+                ariaLabel="Motion"
+                value={preferences.motion}
+                placeholder=""
+                options={MOTION_OPTIONS}
+                floating
+                onChange={(motion) => updatePreferences((current) => ({
+                  ...current,
+                  motion: motion as UserPreferences["motion"]
+                }))}
+              />
+            </div>
           </SettingRow>
           <SettingRow
             title="문서 Font"
             description="문서 본문과 WYSIWYG 미리보기에 적용합니다."
           >
-            <select
-              aria-label="문서 Font"
-              value={preferences.documentFont}
-              onChange={(event) => updatePreferences((current) => ({
-                ...current,
-                documentFont: event.target.value as UserPreferences["documentFont"]
-              }))}
-            >
-              <option value="system-sans">System Sans</option>
-              <option value="readable-sans">Readable Sans</option>
-              <option value="serif">Serif</option>
-            </select>
+            <div className={styles["settings-select"]}>
+              <OptionSelect
+                ariaLabel="문서 Font"
+                value={preferences.documentFont}
+                placeholder=""
+                options={DOCUMENT_FONT_OPTIONS}
+                floating
+                onChange={(documentFont) => updatePreferences((current) => ({
+                  ...current,
+                  documentFont: documentFont as UserPreferences["documentFont"]
+                }))}
+              />
+            </div>
           </SettingRow>
         </section>
 

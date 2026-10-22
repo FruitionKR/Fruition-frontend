@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
+import { isDevelopmentVerificationCode } from "@/shared/lib/developmentVerificationCode";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { plusIcon, chevronLeftSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
@@ -11,6 +12,16 @@ import styles from "./AccountFlowModal.module.css";
 
 /** 이메일 인증번호·인증 앱 코드 자릿수. */
 export const CODE_LENGTH = 6;
+
+/**
+ * 이메일 인증번호를 다 넣었는지. 운영은 6자리만 받고, 개발 환경은 가입·비밀번호 찾기처럼 고정 인증번호(9700)도 받는다.
+ */
+export function isEmailCodeComplete(code: string): boolean {
+  return code.trim().length === CODE_LENGTH || isDevelopmentVerificationCode(code);
+}
+
+// 개발 환경에서는 4자리 고정 인증번호도 폼 검증을 통과하게 한다.
+const CODE_PATTERN = process.env.NODE_ENV === "production" ? "[0-9]{6}" : "[0-9]{6}|[0-9]{4}";
 
 /** 계정 흐름 모달 공통 셸: 제목·부제·닫기 버튼. */
 export function AccountFlowModal({
@@ -22,6 +33,8 @@ export function AccountFlowModal({
   canClose,
   onClose,
   onSubmit,
+  className,
+  closeIcon,
   children
 }: {
   title: string;
@@ -33,6 +46,10 @@ export function AccountFlowModal({
   canClose: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
+  /** 모달 상자에 덧붙일 클래스(시안별 크기·반지름) */
+  className?: string;
+  /** 닫기 버튼 그림. 없으면 기본 X(+ 45도 회전)를 쓴다. */
+  closeIcon?: ReactNode;
   children: ReactNode;
 }) {
   // 닫을 수 없는 동안에도 레이어는 유지해 Escape가 아래 설정 창으로 넘어가지 않게 한다.
@@ -43,7 +60,7 @@ export function AccountFlowModal({
   return createPortal(
     <div className={styles.overlay} {...backdropClick}>
       <form
-        className={styles.modal}
+        className={cx(styles.modal, className)}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
@@ -57,7 +74,7 @@ export function AccountFlowModal({
               <h2 className={styles.title}>{title}</h2>
             </div>
             <button type="button" className={styles.close} aria-label="닫기" disabled={!canClose} onClick={onClose}>
-              <SvgIcon src={plusIcon} className={styles["close-icon"]} />
+              {closeIcon ?? <SvgIcon src={plusIcon} className={styles["close-icon"]} />}
             </button>
           </div>
           <p className={styles.subtitle} style={subtitleStyle}>{subtitle}</p>
@@ -92,7 +109,7 @@ export function VerificationCodeInput({
       id={id}
       inputMode="numeric"
       autoComplete="one-time-code"
-      pattern="[0-9]{6}"
+      pattern={CODE_PATTERN}
       maxLength={CODE_LENGTH}
       placeholder="XXXXXX"
       autoFocus

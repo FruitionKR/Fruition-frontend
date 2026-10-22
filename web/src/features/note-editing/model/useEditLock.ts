@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { SessionExpiredError } from "@/shared/lib/apiErrors";
-import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
+import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, EditLockUnsupportedError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
+import { createEditLockHandoffs, type HeldEditLock } from "./editLockHandoff";
 import { HEARTBEAT_RETRY_MS, resolveHeartbeatDelayMs, resolveHeartbeatFailure, resolveLockElapsedMs, resolveLockRemainingMs, type LockClockAnchor } from "./editLockSchedule";
 
 type EditLockPhase =
@@ -24,6 +25,25 @@ type EditLockState = {
 };
 
 /**
+ * 편집 잠금을 쓸 수 없다고 서버가 답한 문서(400)와 그 안내 문구.
+ * 편집기가 다시 마운트돼도(본문 재로드·목록 갱신) 같은 400을 반복 요청하지 않는다.
+ */
+const unsupportedLockDocuments = new Map<string, string>();
+
+/**
+ * 사라진 편집기의 잠금을 잠깐 맡아 두는 곳. 같은 문서의 편집기가 곧바로 다시 마운트되면(StrictMode 이중 마운트·재로드)
+ * 해제·재획득 없이 넘겨받고, 아니면 잠시 뒤 해제한다. 페이지를 떠날 때(pagehide)는 기다리지 않고 해제한다.
+ */
+const editLockHandoffs = createEditLockHandoffs({ release: releaseEditLock });
+// 마운트된 편집기가 보유한 잠금은 useEditLock이 pagehide에서 직접 해제한다.
+if (typeof window !== "undefined") window.addEventListener("pagehide", () => editLockHandoffs.flush());
+
+/** 맡겨 둔 잠금을 해제하지 않고 잊는다. 테스트끼리 넘겨받기가 섞이지 않게 할 때만 쓴다. */
+export function discardEditLockHandoffs() {
+  editLockHandoffs.discard();
+}
+
+/**
  * 문서 편집 잠금을 진입 시 획득하고, 편집 중 주기적으로 연장하고, 종료 시 해제한다.
  * heartbeat가 409를 받으면 재획득을 시도하고, 그래도 받지 못하면 onLockLost로 autosave를 멈춘다.
  */
@@ -35,11 +55,19 @@ export function useEditLock({
   /** 잠금을 잃어 더 이상 저장해서는 안 될 때. useNoteAutosave의 reportSaveBlock에 연결한다. */
   onLockLost: (message: string) => void;
 }): EditLockState {
-  const [state, setState] = useState<EditLockState>({ phase: "acquiring", message: null });
+  const [state, setState] = useState<EditLockState>(() => {
+    const unsupported = unsupportedLockDocuments.get(documentId);
+    return unsupported ? { phase: "error", message: unsupported } : { phase: "acquiring", message: null };
+  });
   const onLockLostRef = useRef(onLockLost);
   onLockLostRef.current = onLockLost;
 
   useEffect(() => {
+    const unsupported = unsupportedLockDocuments.get(documentId);
+    if (unsupported) {
+      setState({ phase: "error", message: unsupported });
+      return;
+    }
     let disposed = false;
     let holding = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -48,22 +76,36 @@ export function useEditLock({
     // 클라이언트 벽시계가 서버와 어긋나도 흔들리지 않는다.
     let remainingMs: number | null = null;
     let anchor: LockClockAnchor = { monoMs: 0, wallMs: 0 };
+    // 마지막으로 받은(연장한) 잠금. 편집기가 사라질 때 다음 편집기에 넘겨주려고 둔다.
+    let lastHeld: HeldEditLock | null = null;
+    // 처음 획득이 진행 중이면 그 요청. 끝나기 전에 사라지면 그대로 맡긴다.
+    let acquiring: Promise<HeldEditLock> | null = null;
     // heartbeat(재획득 포함)가 진행 중인지. 탭 복귀 즉시 heartbeat가 예약 heartbeat와 겹치지 않게 한다.
     let beating = false;
+    // 페이지를 떠나며(pagehide) 잠금을 해제했는지. 그 뒤 응답이 와도 보유를 주장하지 않고,
+    // 뒤로 가기 캐시(bfcache)로 돌아오면 다시 받는다.
+    let releasedOnLeave = false;
+    // 처음 획득 요청을 받는 중에 떠나 그 해제를 releaseOnLeave에 맡겼는지. 그 응답은 이 편집기가 쓰지 않는다.
+    let initialReleasedOnLeave = false;
+    // 떠날 때 보낸 해제. 돌아와 다시 받을 때 이 해제가 새 잠금을 지우지 않도록 끝난 뒤 획득한다.
+    let leaveRelease: Promise<void> = Promise.resolve();
 
     /** 요청 직전에 기준점을 잡는다. 응답 지연만큼 마감이 늦게 잡히지 않게 한다. */
     function markSent(): LockClockAnchor {
       return { monoMs: performance.now(), wallMs: Date.now() };
     }
 
-    function scheduleHeartbeat(lock: EditLockResponse, sentAt: LockClockAnchor) {
+    /** elapsedMs는 넘겨받은 잠금처럼 받은 지 이미 시간이 흐른 경우, 그만큼 heartbeat를 당긴다. */
+    function scheduleHeartbeat(lock: EditLockResponse, sentAt: LockClockAnchor, elapsedMs = 0) {
       remainingMs = resolveLockRemainingMs(lock, sentAt.wallMs);
       anchor = sentAt;
-      timer = setTimeout(beat, resolveHeartbeatDelayMs(lock.expires_at, sentAt.wallMs, lock.ttl_ms));
+      lastHeld = { lock, sentAt };
+      timer = setTimeout(beat, Math.max(0, resolveHeartbeatDelayMs(lock.expires_at, sentAt.wallMs, lock.ttl_ms) - elapsedMs));
     }
 
     function loseLock(message: string) {
       holding = false;
+      lastHeld = null;
       timer = null;
       if (disposed) return;
       setState({ phase: "lost", message });
@@ -84,7 +126,7 @@ export function useEditLock({
       try {
         const sentAt = markSent();
         const lock = await sendEditLockHeartbeat(documentId);
-        if (disposed) return;
+        if (disposed || releasedOnLeave) return;
         scheduleHeartbeat(lock, sentAt);
       } catch (error) {
         // 409는 만료 또는 타인 보유다. 백그라운드 탭 타이머 지연·절전으로 heartbeat가 늦으면
@@ -118,8 +160,8 @@ export function useEditLock({
       try {
         const sentAt = markSent();
         const lock = await acquireEditLock(documentId);
-        if (disposed) {
-          void releaseEditLock(documentId).catch(() => {});
+        if (disposed || releasedOnLeave) {
+          void releaseEditLock(documentId, { keepalive: releasedOnLeave }).catch(() => {});
           return;
         }
         holding = true;
@@ -151,22 +193,60 @@ export function useEditLock({
       void beat();
     }
 
+    /**
+     * 탭을 닫거나 다른 페이지로 떠나면 편집기가 정리되지 않으므로, 지금 보유하거나 받는 중인 잠금을
+     * keepalive로 바로 해제한다(맡겨 둔 잠금은 editLockHandoffs.flush가 해제한다). 이후 정리에서는 다시 맡기지 않는다.
+     */
+    function releaseOnLeave() {
+      if (disposed || releasedOnLeave || (!holding && !acquiring)) return;
+      releasedOnLeave = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      const held = acquiring;
+      acquiring = null;
+      holding = false;
+      lastHeld = null;
+      initialReleasedOnLeave = held !== null;
+      leaveRelease = (held ?? Promise.resolve())
+        .then(() => releaseEditLock(documentId, { keepalive: true }))
+        .catch(() => {});
+    }
+
+    /** 뒤로 가기 캐시로 페이지가 돌아오면 떠날 때 해제한 잠금을 다시 받는다. */
+    function reacquireOnReturn(event: PageTransitionEvent) {
+      if (!event.persisted || !releasedOnLeave || disposed) return;
+      void leaveRelease.then(() => {
+        if (disposed || !releasedOnLeave) return;
+        releasedOnLeave = false;
+        return reacquire(new Error(ERROR_MESSAGES.editLockExpired));
+      });
+    }
+
     document.addEventListener("visibilitychange", beatNow);
     window.addEventListener("online", beatNow);
+    window.addEventListener("pagehide", releaseOnLeave);
+    window.addEventListener("pageshow", reacquireOnReturn);
 
+    // 방금 사라진 같은 문서의 편집기가 맡긴 잠금이 있으면 넘겨받는다. 없으면 새로 획득한다.
+    const claimed = editLockHandoffs.claim(documentId);
     const initialSentAt = markSent();
-    acquireEditLock(documentId).then(
-      (lock) => {
-        if (disposed) {
-          // 획득 응답이 늦게 와도 떠난 문서의 잠금을 쥐고 있지 않는다.
-          void releaseEditLock(documentId).catch(() => {});
-          return;
-        }
+    const initial: Promise<HeldEditLock> = claimed
+      ?? acquireEditLock(documentId).then((lock) => ({ lock, sentAt: initialSentAt }));
+    acquiring = initial;
+    initial.then(
+      ({ lock, sentAt }) => {
+        // 페이지를 떠나며 해제를 맡긴 요청이면 releaseOnLeave가 해제한다.
+        if (initialReleasedOnLeave) return;
+        acquiring = null;
+        // 떠난 편집기의 잠금은 editLockHandoffs가 맡아 넘겨주거나 해제한다.
+        if (disposed) return;
         holding = true;
         setState({ phase: "granted", message: null });
-        scheduleHeartbeat(lock, initialSentAt);
+        scheduleHeartbeat(lock, sentAt, claimed ? resolveLockElapsedMs(sentAt, performance.now(), Date.now()) : 0);
       },
       (error) => {
+        acquiring = null;
+        if (error instanceof EditLockUnsupportedError) unsupportedLockDocuments.set(documentId, error.message);
         if (disposed) return;
         setState(
           error instanceof EditLockHeldError
@@ -180,10 +260,14 @@ export function useEditLock({
       disposed = true;
       document.removeEventListener("visibilitychange", beatNow);
       window.removeEventListener("online", beatNow);
+      window.removeEventListener("pagehide", releaseOnLeave);
+      window.removeEventListener("pageshow", reacquireOnReturn);
       if (timer) clearTimeout(timer);
       timer = null;
-      // 보유 중일 때만 해제한다. 423·409 상태에서는 우리 잠금이 아니다.
-      if (holding) void releaseEditLock(documentId).catch(() => {});
+      // 보유 중이거나 획득 중인 잠금만 맡긴다(곧 다시 마운트되면 넘겨주고, 아니면 잠시 뒤 해제한다).
+      // 423·409 상태에서는 우리 잠금이 아니다.
+      if (acquiring) editLockHandoffs.defer(documentId, acquiring);
+      else if (holding && lastHeld) editLockHandoffs.defer(documentId, Promise.resolve(lastHeld));
     };
   }, [documentId]);
 

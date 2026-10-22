@@ -8,13 +8,25 @@ import {
   uploadSkillReferenceDocument,
   type DocumentItemResponse
 } from "@/entities/document";
+import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { chevronDownSmallIcon, menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { ReferenceDocumentPickerModal } from "./ReferenceDocumentPickerModal";
 import { documentDisplayName } from "../lib/referenceDocumentPicker";
-import styles from "./SkillCreateSheet.module.css";
+import {
+  requiresSourceFromChoice,
+  SKILL_KIND_CARDS,
+  SKILL_SOURCE_OPTIONS,
+  SKILL_TARGET_OPTIONS,
+  SOURCE_UNSET_PLACEHOLDER,
+  sourceChoice,
+  sourceHint,
+  sourceLabel,
+  type SkillTarget
+} from "../lib/skillCreateForm";
+import styles from "./SkillEditor.module.css";
 
-/** 스킬 만들기(Figma 1671:14199)·스킬 상세(Figma 1708:4059) 시트가 함께 쓰는 입력 조각. */
+/** 스킬 만들기·스킬 상세 시트가 함께 쓰는 입력 조각. */
 
 export const REFERENCE_DOC_MAX = 3;
 
@@ -64,41 +76,63 @@ export function HelpTip({ label, content }: { label: string; content: ReactNode 
   );
 }
 
-/** Figma btn(선택 상자): 네이티브 select에 Figma 화살표를 겹친다. compact는 테스트 실행 카드의 작은 선택 상자(Figma 1671:14817)다. */
+/** Figma 드롭다운(1610:9350) 선택 상자. 목록은 아래 필드를 밀지 않게 띄운다. */
 export function SelectBox<T extends string>({
   id,
   value,
   options,
+  placeholder = "",
   disabled,
   describedBy,
-  compact,
   onChange
 }: {
   id: string;
-  value: T;
+  /** null이면 아직 고르지 않아 placeholder를 보여 준다. */
+  value: T | null;
   options: ReadonlyArray<{ value: T; label: string }>;
+  placeholder?: string;
   disabled?: boolean;
   describedBy?: string;
-  compact?: boolean;
   onChange: (value: T) => void;
 }) {
   return (
-    <div className={styles["select-wrap"]}>
-      <select
-        id={id}
-        className={compact ? `${styles.select} ${styles["select-compact"]}` : styles.select}
-        value={value}
-        disabled={disabled}
-        aria-describedby={describedBy}
-        onChange={(event) => onChange(event.target.value as T)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <SvgIcon src={chevronDownSmallIcon} className={styles["select-arrow"]} />
+    <OptionSelect
+      id={id}
+      value={value}
+      placeholder={placeholder}
+      options={options}
+      disabled={disabled}
+      describedBy={describedBy}
+      size="md"
+      floating
+      onChange={(next) => onChange(next as T)}
+    />
+  );
+}
+
+/** 대상 체크 (현재 문서 / 선택한 부분) */
+export function TargetChecks({
+  targets,
+  onToggle
+}: {
+  targets: readonly SkillTarget[];
+  onToggle: (target: SkillTarget, checked: boolean) => void;
+}) {
+  return (
+    <div className={styles.checks}>
+      {SKILL_TARGET_OPTIONS.map((option) => (
+        <label key={option.value} className={styles["check-row"]}>
+          <span className={styles.check}>
+            <input
+              type="checkbox"
+              checked={targets.includes(option.value)}
+              onChange={(event) => onToggle(option.value, event.target.checked)}
+            />
+            <CheckMark />
+          </span>
+          <span className={styles["check-label"]}>{option.label}</span>
+        </label>
+      ))}
     </div>
   );
 }
@@ -111,15 +145,86 @@ export const SCOPE_HELP = (
   </>
 );
 
+/** 스킬 종류 물음표 설명 (종류별 한 줄) */
+export const KIND_HELP = (
+  <>
+    {SKILL_KIND_CARDS.map((card, index) => (
+      <span key={card.value}>
+        {index > 0 && <br />}
+        {card.label} - {card.description}
+      </span>
+    ))}
+  </>
+);
+
 export const RESULT_HELP = (
   <>
     새 문서로 만들기 - 결과를 새 문서로 저장합니다.
     <br />
-    현재 문서 수정 - 실행한 문서를 바로 고칩니다.
+    열린 문서 고치기 - 실행한 문서를 바로 고칩니다.
     <br />
     상황에 맞게 - 요청에 따라 Agent가 고릅니다.
   </>
 );
+
+export const SOURCE_HELP = (
+  <>
+    읽음 - 폴더에 실행하면 폴더 안 Markdown 문서(최근 20개)를, 문서에 실행하면 그 문서를 원문으로 읽습니다.
+    <br />
+    읽지 않음 - 원문 없이 실행 규칙만으로 새 문서를 만듭니다.
+  </>
+);
+
+/**
+ * '원문 문서' 필드(requires_source). 읽음·읽지 않음을 고르고, 고르기 전(null)에는 '고르지 않음'과 게시 규칙 안내를 보인다.
+ * note가 있으면 AI가 값을 정했다고 알리고 이전 값(고르지 않음일 수 있다)으로 되돌리는 버튼을 둔다.
+ */
+export function SourceField({
+  id,
+  value,
+  note,
+  onChange,
+  onUndo
+}: {
+  id: string;
+  value: boolean | null;
+  note?: { from: boolean | null; to: boolean } | null;
+  onChange: (value: boolean) => void;
+  onUndo?: () => void;
+}) {
+  const hintId = `${id}-hint`;
+  return (
+    <div className={styles.field}>
+      <div className={styles["label-row"]}>
+        <label className={styles.label} htmlFor={id}>
+          원문 문서
+        </label>
+        <HelpTip label="원문 문서" content={SOURCE_HELP} />
+      </div>
+      <div className={styles.menu}>
+        <SelectBox
+          id={id}
+          value={sourceChoice(value)}
+          options={SKILL_SOURCE_OPTIONS}
+          placeholder={SOURCE_UNSET_PLACEHOLDER}
+          describedBy={hintId}
+          onChange={(choice) => onChange(requiresSourceFromChoice(choice))}
+        />
+        <p id={hintId} className={styles.hint}>
+          {sourceHint(value)}
+        </p>
+        {note && onUndo && value === note.to && (
+          <p className={styles["result-note"]} role="status">
+            <span>실행 규칙에 맞춰 AI가 원문 문서를 ‘{sourceLabel(note.to)}’으로 정했어요.</span>
+            <button type="button" className={styles["result-note-undo"]} onClick={onUndo}>
+              ‘{note.from == null ? SOURCE_UNSET_PLACEHOLDER : sourceLabel(note.from)}’으로 되돌리기
+            </button>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * 참고 문서 선택 상태(최대 3개)와 선택 모달. AI 작성 요청에만 쓰인다(게시·수정 API는 참고 문서를 받지 않는다).
@@ -247,8 +352,9 @@ export function SkillSafetyIssues({
 }: {
   issues: readonly unknown[];
   isBusy: boolean;
-  onRegenerate: () => void;
-  onPreserve: () => void;
+  /** 없으면(상세 시트) AI 다시 만들기 버튼 없이 지적만 보여 준다. 실행 규칙을 고쳐 다시 저장하면 다시 검토한다. */
+  onRegenerate?: () => void;
+  onPreserve?: () => void;
 }) {
   if (issues.length === 0) return null;
   return (
@@ -259,15 +365,17 @@ export function SkillSafetyIssues({
           <li key={index}>{issueText(issue)}</li>
         ))}
       </ul>
-      <div className={styles["issue-actions"]}>
-        <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={onRegenerate}>
-          <span aria-hidden>✦</span>
-          AI로 안전하게 다시 만들기
-        </button>
-        <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={onPreserve}>
-          고친 내용 다시 검토
-        </button>
-      </div>
+      {onRegenerate != null && onPreserve != null && (
+        <div className={styles["issue-actions"]}>
+          <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={onRegenerate}>
+            <span aria-hidden>✦</span>
+            AI로 안전하게 다시 만들기
+          </button>
+          <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={onPreserve}>
+            고친 내용 다시 검토
+          </button>
+        </div>
+      )}
     </div>
   );
 }

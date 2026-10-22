@@ -1,4 +1,5 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
+import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
 import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
@@ -7,6 +8,13 @@ import {
   saveAccessToken,
   withAuthRefreshLock
 } from "@/shared/lib/authSessionStorage";
+import {
+  WORKSPACE_NOT_FOUND_CODE,
+  isRequestToGoneWorkspace,
+  isWorkspaceGoneResponse,
+  markWorkspaceGone,
+  workspaceIdFromPath
+} from "@/shared/lib/workspaceAccess";
 
 // 공통 에러 메시지 상수
 export const ERROR_MESSAGES = {
@@ -24,6 +32,7 @@ export const ERROR_MESSAGES = {
   editLockExpired: "연결이 끊긴 동안 편집 권한이 만료되었습니다. 이후 변경은 저장되지 않습니다.",
   editLockForbidden: "문서 소유자만 편집할 수 있습니다.",
   editLockMissing: "문서를 찾을 수 없습니다.",
+  editLockUnsupported: "편집할 수 없는 문서입니다.",
   editLockFailed: "편집 잠금을 확인하지 못해 읽기 전용으로 열었습니다.",
   noteDraftLoadFailed: "노트 draft를 불러오지 못했습니다.",
   noteDraftSaveFailed: "노트 draft를 저장하지 못했습니다.",
@@ -32,7 +41,7 @@ export const ERROR_MESSAGES = {
   queryFailed: "질의에 실패했습니다.",
   aiModelsLoadFailed: "AI 모델 목록을 불러오지 못했습니다.",
   agentTurnFailed: "AI 편집 요청에 실패했습니다.",
-  speechTranscribeFailed: "음성을 텍스트로 바꾸지 못했습니다.",
+  speechTranscribeFailed: "말한 내용을 글로 바꾸지 못했습니다.",
   chatLoadFailed: "채팅 기록을 불러오지 못했습니다.",
   chatSessionFailed: "채팅 세션을 준비하지 못했습니다.",
   documentsLoadFailed: "문서 목록을 불러오지 못했습니다.",
@@ -123,6 +132,10 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
  * 재발급이 일시적으로 실패하면 세션 만료가 아니므로 일반 에러를 던져 호출부가 다시 시도하게 한다.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  // 접근할 수 없게 된 워크스페이스로 가는 요청(남은 폴링 등)은 보내지 않는다. 화면은 안내로 바뀐다.
+  if (isRequestToGoneWorkspace(path)) {
+    throw new ApiError("워크스페이스를 찾을 수 없습니다.", 404, WORKSPACE_NOT_FOUND_CODE);
+  }
   let requestPath = path;
   let requestInit = init;
   if (typeof window !== "undefined" && usesDocumentTransport(path)) {
@@ -136,6 +149,8 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   // 이 요청을 보낼 때 세션이 있었는지 기억한다. 없었다면 refresh 거절은 만료가 아니라 로그인 전 상태다.
   const hadAccessToken = Boolean(getAccessToken());
   const response = await fetchWithToken(requestPath, requestInit);
+  if (response.status === 404) await detectGoneWorkspace(path, init?.method, response);
+  if (response.status === 403) await detectPermissionDenied(path, response);
   if (response.status !== 401) return response;
   // 비밀번호·MFA 코드 불일치를 서버가 code로 밝히면 재발급을 시도할 이유가 없다.
   // 다만 본문이 비어 있거나 code가 없어도 세션 만료로 단정하지 않는다(아래 재발급 성공 분기).
@@ -162,6 +177,25 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   throw new SessionExpiredError(ERROR_MESSAGES.loginRequired);
 }
 
+/** 선택한 워크스페이스 조회가 404 WORKSPACE_NOT_FOUND면 그 워크스페이스를 접근 불가로 기록한다(내보내짐·삭제). */
+async function detectGoneWorkspace(path: string, method: string | undefined, response: Response): Promise<void> {
+  const selectedWorkspaceId = getSelectedWorkspaceId();
+  if (!selectedWorkspaceId || workspaceIdFromPath(path) !== selectedWorkspaceId) return;
+  const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
+  const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
+  if (isWorkspaceGoneResponse({ path, method, status: response.status, code, selectedWorkspaceId })) {
+    markWorkspaceGone(selectedWorkspaceId);
+  }
+}
+
+/** 권한 부족 403이면 본인 역할·권한을 다시 받도록 알린다(OWNER가 권한을 회수한 직후에도 버튼이 열려 있지 않게). */
+async function detectPermissionDenied(path: string, response: Response): Promise<void> {
+  const body = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
+  const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
+  const workspaceId = permissionDeniedWorkspaceId(path, response.status, code);
+  if (workspaceId) notifyWorkspacePermissionDenied(workspaceId);
+}
+
 /** 서버가 code로 밝힌 자격 증명 확인 실패. 참이면 재발급 없이 응답을 호출부에 넘긴다. */
 async function isCredentialRejection(path: string, method: string | undefined, response: Response): Promise<boolean> {
   const expectedCodes = credentialRejectionCodes(path, method);
@@ -173,12 +207,19 @@ async function isCredentialRejection(path: string, method: string | undefined, r
 
 /** 입력한 비밀번호·MFA 코드를 확인하는 요청이면, 서버가 불일치를 알리는 code 목록. 아니면 빈 배열. */
 function credentialRejectionCodes(path: string, method: string | undefined): string[] {
-  if (path === "/api/auth/me/password") return ["INVALID_CREDENTIALS"];
+  // 현재 비밀번호 변경은 비밀번호 → (MFA를 켠 계정이면) 인증 코드 순서로 확인한다.
+  if (path === "/api/auth/me/password") return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE"];
   if (path === "/api/auth/me/mfa" || path === "/api/auth/me/mfa/activate") return ["INVALID_MFA_CODE"];
   // 회원 탈퇴의 본인 확인 실패. 소셜 계정의 REAUTHENTICATION_REQUIRED는 refresh로 받은 토큰으로 재시도해도 같은 결과다.
   if (path === "/api/auth/me" && method?.toUpperCase() === "DELETE") {
     return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"];
   }
+  // 이메일 변경도 탈퇴와 같은 본인 확인을 거친다.
+  if (path === "/api/auth/me/email" && method?.toUpperCase() === "PUT") {
+    return ["INVALID_CREDENTIALS", "INVALID_MFA_CODE", "REAUTHENTICATION_REQUIRED"];
+  }
+  // 이메일 인증 비밀번호 변경은 MFA를 켠 계정이면 인증 코드를 확인한다.
+  if (path === "/api/auth/me/password/verified" && method?.toUpperCase() === "PUT") return ["INVALID_MFA_CODE"];
   return [];
 }
 

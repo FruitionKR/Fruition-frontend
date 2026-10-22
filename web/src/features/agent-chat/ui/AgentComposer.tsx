@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Lock, Square } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   buildChatModelOptions,
   getAiModelLockMessage,
@@ -76,8 +76,13 @@ export function AgentComposer({
   onSubmit,
   onCancel,
   isCancelling = false,
+  cancelHint = "입력창에서 Esc를 누르면 질문을 취소합니다.",
   statusMessage,
-  meetingControl
+  meetingControl,
+  inputLabel = "Query 질문 입력",
+  header,
+  onInputKeyDown,
+  inputPopup
 }: {
   value: string;
   isLoading: boolean;
@@ -93,8 +98,18 @@ export function AgentComposer({
   onSubmit: () => void;
   onCancel?: () => void;
   isCancelling?: boolean;
+  /** onCancel이 있을 때 입력창 아래에 보이는 Esc 안내(질문 취소·작업 중지·스킬 실행 취소) */
+  cancelHint?: string;
   statusMessage?: string | null;
   meetingControl?: ComposerMeetingControl;
+  /** 입력창 접근성 이름. 작업 탭은 작업 요청 입력이다. */
+  inputLabel?: string;
+  /** 입력창 위에 놓는 칩(Figma 1627:9925 "현재 문서"·"선택 : …") */
+  header?: ReactNode;
+  /** 입력창 키 처리를 먼저 가로챈다(스킬 고르기 방향키·Enter). 처리했으면 true */
+  onInputKeyDown?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
+  /** 입력창이 여는 목록(스킬 고르기)의 combobox 속성 */
+  inputPopup?: { isOpen: boolean; listId: string; activeOptionId: string | null };
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
   // 오른쪽 하위 메뉴에 모델을 보여 주는 provider. 메뉴를 열 때 선택된 모델의 provider로 맞춘다.
@@ -247,6 +262,7 @@ export function AgentComposer({
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (onInputKeyDown?.(event)) return;
     if (event.key === "Escape" && onCancel && !event.nativeEvent.isComposing) {
       event.preventDefault();
       event.stopPropagation();
@@ -268,12 +284,18 @@ export function AgentComposer({
 
   return (
     <form className={styles.composer} ref={formRef} onSubmit={submitComposer}>
+      {header}
       <textarea
         value={value}
         placeholder={placeholder}
         disabled={isLoading && !onCancel}
         readOnly={isLoading}
-        aria-label="Query 질문 입력"
+        aria-label={inputLabel}
+        role={inputPopup ? "combobox" : undefined}
+        aria-autocomplete={inputPopup ? "list" : undefined}
+        aria-expanded={inputPopup ? inputPopup.isOpen : undefined}
+        aria-controls={inputPopup?.isOpen ? inputPopup.listId : undefined}
+        aria-activedescendant={inputPopup?.isOpen ? inputPopup.activeOptionId ?? undefined : undefined}
         aria-keyshortcuts={onCancel ? "Escape" : undefined}
         rows={4}
         onChange={(event) => onChange(event.target.value)}
@@ -281,7 +303,7 @@ export function AgentComposer({
       />
       {(statusMessage || onCancel) && (
         <p className={cx(styles["composer-status"], !isLoading && statusMessage && styles["composer-cancelled"])} role="status">
-          {statusMessage ?? "입력창에서 Esc를 누르면 질문을 취소합니다."}
+          {statusMessage ?? cancelHint}
         </p>
       )}
       {dictation.message && (
@@ -314,7 +336,8 @@ export function AgentComposer({
           </button>
           {/* Figma 1691:16177: 왼쪽 provider 메뉴(1691:16178, 아래 웹 서칭) + 오른쪽 하위 메뉴(1691:16196, provider의 모델) */}
           {isModelListOpen && modelMenuPosition && (
-            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef}>
+            // data-agent-floating-menu: 메뉴가 열린 동안 채팅 패널을 알림 카드(z 50) 위로 올린다(agent-panel-shell.css).
+            <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef} data-agent-floating-menu>
               <div className={styles["composer-model-list"]}>
                 <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label="모델 제공사">
                   {modelGroups.map((group) => {
@@ -386,7 +409,7 @@ export function AgentComposer({
                             aria-selected={isSelected}
                             aria-disabled={lockMessage ? true : undefined}
                             aria-label={lockMessage ? `${model.display_name}, ${lockMessage}` : undefined}
-                            title={lockMessage ?? undefined}
+                            title={lockMessage ? `${model.display_name} · ${lockMessage}` : model.display_name}
                             className={cx(styles["composer-model-option"], lockMessage && styles["is-locked"])}
                             onClick={() => chooseModel(model)}
                             onKeyDown={handleModelKeyDown}
@@ -415,7 +438,7 @@ export function AgentComposer({
                 isRecording && styles["is-recording"],
                 isMeetingCapturing && styles["is-meeting-recording"]
               )}
-              aria-label={isMeetingCapturing ? "회의 받아쓰기 멈추기" : isRecording ? "녹음 멈추기" : meetingControl ? "음성 입력·회의 받아쓰기" : "음성으로 입력"}
+              aria-label={isMeetingCapturing ? "회의 녹음 멈추기" : isRecording ? "말로 입력 멈추기" : meetingControl ? "음성 기능" : "말로 입력하기"}
               ref={waveButtonRef}
               aria-pressed={opensVoiceMenu ? undefined : isMeetingCapturing || isRecording}
               aria-haspopup={opensVoiceMenu ? "menu" : undefined}
@@ -435,8 +458,8 @@ export function AgentComposer({
                     void dictation.start();
                   }}
                 >
-                  <span>음성으로 입력</span>
-                  <span>말한 내용을 입력창에 채워요(최대 60초)</span>
+                  <span>말로 입력하기</span>
+                  <span>말하면 글자로 바꿔 입력창에 넣어요. 한 번에 60초까지</span>
                 </button>
                 <button
                   type="button"
@@ -447,8 +470,8 @@ export function AgentComposer({
                     meetingControl.onStart();
                   }}
                 >
-                  <span>회의 받아쓰기</span>
-                  <span>{meetingControl.state === "idle" ? "회의를 받아쓰고 회의록을 만들어요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                  <span>회의 녹음하기</span>
+                  <span>{meetingControl.state === "idle" ? "회의를 녹음하면 대화를 글로 옮기고 회의록을 만들어요" : "지금 열린 회의 화면을 닫으면 시작할 수 있어요"}</span>
                 </button>
                 {meetingControl.onPickRecording && (
                   <button
@@ -460,8 +483,8 @@ export function AgentComposer({
                       meetingControl.onPickRecording?.();
                     }}
                   >
-                    <span>녹음 파일로 전사</span>
-                    <span>{meetingControl.state === "idle" ? "WAV·MP3·M4A·WebM(500MB 이하)을 받아써요" : "열린 회의 화면을 닫은 뒤 시작할 수 있어요"}</span>
+                    <span>녹음 파일 올리기</span>
+                    <span>{meetingControl.state === "idle" ? "이미 녹음한 파일로 회의록을 만들어요 (MP3·M4A·WAV·WebM, 500MB까지)" : "지금 열린 회의 화면을 닫으면 시작할 수 있어요"}</span>
                   </button>
                 )}
                 {meetingControl.onOpenMeetingList && (
@@ -474,8 +497,8 @@ export function AgentComposer({
                       meetingControl.onOpenMeetingList?.();
                     }}
                   >
-                    <span>지난 회의</span>
-                    <span>{meetingControl.state === "idle" ? "전사 중이던 회의를 이어 보거나 회의록을 다시 열어요" : "열린 회의 화면을 닫은 뒤 볼 수 있어요"}</span>
+                    <span>지난 회의 보기</span>
+                    <span>{meetingControl.state === "idle" ? "글로 옮기던 회의를 이어서 보거나, 만든 회의록을 다시 열어요" : "지금 열린 회의 화면을 닫으면 볼 수 있어요"}</span>
                   </button>
                 )}
               </div>

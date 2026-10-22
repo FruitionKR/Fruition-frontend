@@ -291,10 +291,21 @@
 
 .row-worker-icon {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
   height: 20px;
-  background: var(--color-border);
   border: 1px solid var(--color-canvas);
+  border-radius: 9999px;
+}
+
+/* 프로필 사진(또는 기본 프로필 이미지) 18px 원. 테두리 1px 안쪽에 둔다. */
+.row-worker-avatar {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  overflow: hidden;
   border-radius: 9999px;
 }
 

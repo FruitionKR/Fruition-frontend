@@ -2,10 +2,10 @@
 
 const SETTINGS_RESUME_STORAGE_KEY = "fruition.settings_resume";
 
-/** 돌아와서 열 설정 위치. account-delete는 계정 설정의 탈퇴 확인 단계를 다시 연다. */
-export type SettingsResume = "members" | "account-delete";
+/** 돌아와서 열 설정 위치. account-delete는 계정 설정의 탈퇴 확인 단계를, email-change는 사용자 설정의 이메일 변경 창을 다시 연다. */
+export type SettingsResume = "members" | "account-delete" | "email-change";
 
-const RESUME_VALUES: readonly SettingsResume[] = ["members", "account-delete"];
+const RESUME_VALUES: readonly SettingsResume[] = ["members", "account-delete", "email-change"];
 
 type ResumeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 

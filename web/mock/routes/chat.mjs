@@ -89,7 +89,8 @@ export function registerChatRoutes(router) {
     const timestamp = now();
     const buffer = Buffer.from(markdown, "utf8");
     const doc = {
-      id: id("doc"), workspace_id: workspace.id, filename: `${session.title ?? "채팅"} 내보내기.md`, mime_type: "text/markdown", byte_size: buffer.length,
+      // 실제 서버는 chatdoc_ 접두 ID와 ai_origin=chat_export로 만들고, 확인 전용이라 편집 잠금을 거절한다.
+      id: id("chatdoc"), ai_origin: "chat_export", workspace_id: workspace.id, filename: `${session.title ?? "채팅"} 내보내기.md`, mime_type: "text/markdown", byte_size: buffer.length,
       status: "uploaded", source_uri: `mock://chat/${session.id}`, uploaded_at: timestamp, updated_at: timestamp, document_role: "EDITABLE",
       markdown, content: buffer, current_version: 1, edit_revision: 1, export_hash: contentHash,
       versions: [{ version: 1, content_hash: contentHash, created_by: ctx.user.id, created_at: timestamp, markdown }]

@@ -55,7 +55,7 @@ function renderFeed(isActive = true) {
   };
 }
 
-test("로그 뷰를 열면 한 페이지를 받아 가장 최근 작업을 자동으로 고른다", async (t) => {
+test("로그 뷰를 열면 한 페이지를 받고 작업은 자동으로 고르지 않는다", async (t) => {
   const server = logServer(t, [log("op3"), log("op2"), log("op1")], { nextCursor: "c1" });
   const view = renderFeed();
 
@@ -65,7 +65,7 @@ test("로그 뷰를 열면 한 페이지를 받아 가장 최근 작업을 자�
   const feed = view.feed;
   assert.equal(feed.isLoading, false);
   assert.deepEqual(feed.items.map((item) => item.operation_id), ["op3", "op2", "op1"]);
-  assert.equal(feed.selectedOperationId, "op3");
+  assert.equal(feed.selectedOperationId, null, "맨 위 작업을 선택한 상태로 열면 안 된다");
   assert.equal(feed.hasMore, true);
   assert.equal(feed.errorMessage, null);
   assert.deepEqual(server.requests, [{ size: "30" }]);
@@ -89,7 +89,7 @@ test("5초 폴링으로 새 작업이 위에 들어와도 사용자가 고른 �
   assert.equal(feed.isLoading, false, "조용한 폴링은 로딩 표시를 켜지 않는다");
 });
 
-test("고른 작업이 목록에서 사라지면 가장 최근 작업으로 돌아간다", async (t) => {
+test("고른 작업이 목록에서 사라지면 선택을 해제한다", async (t) => {
   const server = logServer(t, [log("op2"), log("op1", { operation_type: "lint", status: "processing", changed_resource_count: 0 })]);
   const view = renderFeed();
   await advance(t, 0);
@@ -100,7 +100,43 @@ test("고른 작업이 목록에서 사라지면 가장 최근 작업으로 돌�
   await advance(t, POLL_MS);
 
   assert.deepEqual(view.feed.items.map((item) => item.operation_id), ["op2"]);
-  assert.equal(view.feed.selectedOperationId, "op2");
+  assert.equal(view.feed.selectedOperationId, null);
+});
+
+test("로그 뷰를 떠났다 다시 들어오면 이전 선택 없이 연다", async (t) => {
+  logServer(t, [log("op2"), log("op1")]);
+  const view = renderFeed();
+  await advance(t, 0);
+  view.feed.onSelect("op1");
+  assert.equal(view.feed.selectedOperationId, "op1");
+
+  view.setActive(false);
+  view.setActive(true);
+  await advance(t, 0);
+
+  assert.equal(view.feed.selectedOperationId, null);
+});
+
+test("알림에서 연 작업은 로그 뷰에 들어갈 때 그대로 고른다", async (t) => {
+  logServer(t, [log("op2"), log("op1")]);
+  const view = renderFeed(false);
+  view.feed.onSelect("op1");
+
+  view.setActive(true);
+  await advance(t, 0);
+
+  assert.equal(view.feed.selectedOperationId, "op1");
+});
+
+test("선택을 비우면 아무 작업도 고르지 않는다", async (t) => {
+  logServer(t, [log("op2"), log("op1")]);
+  const view = renderFeed();
+  await advance(t, 0);
+  view.feed.onSelect("op2");
+
+  view.feed.onSelect(null);
+
+  assert.equal(view.feed.selectedOperationId, null);
 });
 
 test("복구를 마치면 지정한 작업을 다시 받아 그 작업을 고른다", async (t) => {

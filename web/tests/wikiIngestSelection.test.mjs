@@ -68,6 +68,15 @@ test("폴더는 하위 폴더까지 선택 가능한 Markdown만 모으고 PDF·
   assert.deepEqual(collectFolderMarkdownIds([], reasons), []);
 });
 
+test("편입 후 수정 없는 문서는 개별 선택과 폴더 일괄 선택 모두에서 제외한다", () => {
+  const upToDateReasons = new Map(reasons);
+  upToDateReasons.set("doc-1", "이미 최신 내용이 위키에 반영돼 있어요");
+  assert.equal(isSelectableTreeItem(tree[0].children[0], upToDateReasons), false);
+  assert.deepEqual(collectFolderMarkdownIds(tree[0].children, upToDateReasons), ["doc-2"]);
+  upToDateReasons.set("doc-1", null);
+  assert.equal(isSelectableTreeItem(tree[0].children[0], upToDateReasons), true);
+});
+
 test("폴더 선택 상태는 전부·일부·없음을 checked·mixed·unchecked로 나눈다", () => {
   const ids = ["doc-1", "doc-2"];
   assert.equal(getSelectionState(new Set(), ids), "unchecked");

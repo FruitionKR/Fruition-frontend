@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fetchAiModels,
   fetchWorkspaceAiModelSettings,
@@ -12,9 +12,15 @@ import {
 import { UserAvatar, useMe, useSignOut } from "@/entities/user";
 import { useWorkspaceName } from "@/entities/workspace/model/useSelectedWorkspace";
 import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
-import { bellIcon, settingIcon, SvgIcon, userCircleOutlineIcon } from "@/shared/ui/SvgIcon";
+import Image, { type StaticImageData } from "next/image";
+import navBellIcon from "@/shared/assets/svg/settings/nav-bell.svg";
+import navDisplayIcon from "@/shared/assets/svg/settings/nav-display.svg";
+import navMembersIcon from "@/shared/assets/svg/settings/nav-members.svg";
+import navSecurityIcon from "@/shared/assets/svg/settings/nav-security.svg";
+import navWorkspaceIcon from "@/shared/assets/svg/settings/nav-workspace.svg";
 import type { SettingsSection } from "@/widgets/workspace/lib/workspaceLocation";
 import { saveSettingsResume, type SettingsResume } from "../lib/settingsResume";
 import { AccountPanel } from "./panels/AccountPanel";
@@ -28,40 +34,7 @@ import styles from "./SettingsModal.module.css";
 
 export type { SettingsSection };
 
-/** 계정 보안 아이콘: 열린 자물쇠 (Figma 1577:3579 LockOpenOutline, 24×24). */
-function LockIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <rect x="5" y="10.5" width="14" height="9.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M8.5 10.5V7.75C8.5 5.68 10.07 4 12 4C13.93 4 15.5 5.68 15.5 7.75V10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M12 14.25V16.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** 워크스페이스 설정 아이콘: 네 칸 격자 (24×24). 톱니는 디스플레이(개인 기본 설정)에 쓴다. */
-function WorkspaceIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <rect x="4.5" y="4.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="13.5" y="4.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="4.5" y="13.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="13.5" y="13.5" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
-/** 디스플레이 아이콘: 모니터 (Figma 1577:3539, 24×24). */
-function DisplayIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <rect x="4.05" y="5.9" width="15.9" height="12" rx="2.1" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M2.5 17.2H21.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** 문서 관리 아이콘: 접힌 모서리가 있는 문서 (24×24). */
+/** 휴지통(문서 관리) 아이콘: 접힌 모서리가 있는 문서 (24×24). */
 function DocumentsIcon({ className }: { className?: string }) {
   return (
     <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -79,6 +52,15 @@ function LogoutIcon({ className }: { className?: string }) {
       <path d="M14 4H6.8C6.36 4 6 4.36 6 4.8V19.2C6 19.64 6.36 20 6.8 20H14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       <path d="M11 12H20M20 12L16.8 8.8M20 12L16.8 15.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/** Figma SNB(1577:3242) 메뉴 아이콘: 24px 칸 가운데에 Figma 자산을 원래 크기로 둔다. */
+function NavIcon({ src }: { src: StaticImageData }) {
+  return (
+    <span className={styles["nav-icon"]} aria-hidden>
+      <Image src={src} alt="" />
+    </span>
   );
 }
 
@@ -110,8 +92,9 @@ function NavRow({
 }
 
 /**
- * 설정 화면의 왼쪽 메뉴 (Figma 1540:22452 SNB). 사이드바의 문서 트리 자리에 들어간다.
- * 계정: 사용자 설정·계정 보안·알림 설정 / 설정: 워크스페이스 설정·디스플레이·멤버 관리·문서 관리. 로그아웃은 맨 아래.
+ * 설정 화면의 왼쪽 메뉴 (Figma 1577:3242 SNB). 사이드바의 문서 트리 자리에 들어간다.
+ * 계정: 사용자 설정·계정 보안·알림 설정 / 설정: 워크스페이스 설정·디스플레이 설정·멤버 관리.
+ * 휴지통과 로그아웃은 시안에 없지만 다른 진입점이 없어 시안 항목 뒤에 남긴다.
  */
 export function SettingsNav({
   activeSection,
@@ -123,9 +106,21 @@ export function SettingsNav({
   const { signOut } = useSignOut();
   const { data: me } = useMe();
   const name = me?.display_name || "사용자";
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // 뒤로 가기·본문 안 이동처럼 메뉴를 누르지 않고 섹션이 바뀌면, 전에 누른 메뉴에 포커스가 남는다.
+  // 그 상태로 키보드로 스크롤하면 그 메뉴가 :focus-visible 배경을 받아 활성 메뉴와 함께 강조돼 보이므로
+  // 포커스를 활성 메뉴로 옮겨 강조되는 메뉴를 하나로 맞춘다.
+  useEffect(() => {
+    const nav = navRef.current;
+    const focused = document.activeElement;
+    if (!nav || !(focused instanceof HTMLElement) || !nav.contains(focused)) return;
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    if (active && active !== focused) active.focus({ preventScroll: true });
+  }, [activeSection]);
 
   return (
-    <nav className={styles.nav} aria-label="설정 메뉴">
+    <nav ref={navRef} className={styles.nav} aria-label="설정 메뉴">
       <div className={styles["nav-group"]}>
         <p className={styles["nav-label"]}>계정</p>
         {/* 사용자 설정: 프로필 사진(없으면 이니셜)을 아이콘 자리에 보여 준다 */}
@@ -134,31 +129,31 @@ export function SettingsNav({
           <span>사용자 설정</span>
         </NavRow>
         <NavRow section="account" activeSection={activeSection} onSelect={onSelect}>
-          <LockIcon className={styles["nav-icon"]} />
+          <NavIcon src={navSecurityIcon} />
           <span>계정 보안</span>
         </NavRow>
         <NavRow section="notifications" activeSection={activeSection} onSelect={onSelect}>
-          <SvgIcon src={bellIcon} className={styles["nav-icon"]} />
+          <NavIcon src={navBellIcon} />
           <span>알림 설정</span>
         </NavRow>
       </div>
       <div className={styles["nav-group"]}>
         <p className={styles["nav-label"]}>설정</p>
         <NavRow section="general" activeSection={activeSection} onSelect={onSelect}>
-          <WorkspaceIcon className={styles["nav-icon"]} />
+          <NavIcon src={navWorkspaceIcon} />
           <span>워크스페이스 설정</span>
         </NavRow>
         <NavRow section="preferences" activeSection={activeSection} onSelect={onSelect}>
-          <DisplayIcon className={styles["nav-icon"]} />
-          <span>디스플레이</span>
+          <NavIcon src={navDisplayIcon} />
+          <span>디스플레이 설정</span>
         </NavRow>
         <NavRow section="members" activeSection={activeSection} onSelect={onSelect}>
-          <SvgIcon src={userCircleOutlineIcon} className={styles["nav-icon"]} />
+          <NavIcon src={navMembersIcon} />
           <span>멤버 관리</span>
         </NavRow>
         <NavRow section="documents" activeSection={activeSection} onSelect={onSelect}>
           <DocumentsIcon className={styles["nav-icon"]} />
-          <span>문서 관리</span>
+          <span>휴지통</span>
         </NavRow>
       </div>
       {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}
@@ -178,7 +173,7 @@ export function SettingsNav({
 
 /**
  * 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다.
- * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계를 다시 연다(account-delete).
+ * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계(account-delete)나 이메일 변경 창(email-change)을 다시 연다.
  */
 export function SettingsContent({
   section,
@@ -199,6 +194,7 @@ export function SettingsContent({
       return;
     }
     setSelectedWorkspaceId(workspaceId);
+    clearWorkspaceGone(workspaceId);
     saveSettingsResume("members");
     window.location.reload();
   }
@@ -256,7 +252,7 @@ export function SettingsContent({
   return (
     <section className={styles.view} aria-label="설정">
       <div className={styles.content}>
-        {section === "profile" && <ProfilePanel />}
+        {section === "profile" && <ProfilePanel resumeEmailChange={resume === "email-change"} />}
         {section === "account" && (
           <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
         )}

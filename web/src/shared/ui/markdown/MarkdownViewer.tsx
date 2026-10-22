@@ -21,6 +21,7 @@ import { rankColorClass, remarkCustomTokens } from "@/shared/lib/markdown/remark
 import { classifyLinkHref } from "@/shared/lib/markdown/externalResources";
 import type { SourceBlockHighlight } from "@/entities/document";
 import { ManagedImage } from "@/shared/ui/markdown/ManagedImage";
+import { MarkdownCodeBlock } from "@/shared/ui/markdown/MarkdownCodeBlock";
 
 // 렌더마다 배열 참조가 바뀌면 react-markdown이 재파싱하므로 모듈 상수로 유지한다.
 const REMARK_PLUGINS: PluggableList = [
@@ -110,14 +111,10 @@ function SourceBlock({ node, children }: { node?: Element; children?: ReactNode 
   );
 }
 
-function CodeBlock({ children }: { children?: ReactNode }) {
-  return <pre className="markdown-codeblock">{children}</pre>;
-}
-
 // 링크 정책별 컴포넌트 맵. 렌더마다 객체가 바뀌면 react-markdown이 트리를 다시 만들므로 모듈 상수로 둔다.
 const COMPONENTS_BY_LINK_POLICY: Record<MarkdownLinkPolicy, Components> = {
-  default: { pre: CodeBlock, img: ManagedImage, a: DEFAULT_LINK, "citation-ref": CitationRef, "source-block": SourceBlock } as Components,
-  "inert-external": { pre: CodeBlock, img: ManagedImage, a: INERT_EXTERNAL_LINK, "citation-ref": CitationRef, "source-block": SourceBlock } as Components
+  default: { pre: MarkdownCodeBlock, img: ManagedImage, a: DEFAULT_LINK, "citation-ref": CitationRef, "source-block": SourceBlock } as Components,
+  "inert-external": { pre: MarkdownCodeBlock, img: ManagedImage, a: INERT_EXTERNAL_LINK, "citation-ref": CitationRef, "source-block": SourceBlock } as Components
 };
 
 function MarkdownViewerContent({

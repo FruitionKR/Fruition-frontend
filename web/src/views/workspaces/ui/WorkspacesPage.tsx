@@ -7,6 +7,7 @@ import { clearSessionCache } from "@/entities/chat";
 import { fetchMe, useSignOut } from "@/entities/user";
 import { createWorkspace, fetchWorkspaces } from "@/entities/workspace";
 import { setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
 import { getErrorMessage, SessionExpiredError } from "@/shared/lib/apiErrors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import styles from "./WorkspacesPage.module.css";
@@ -27,6 +28,7 @@ export default function WorkspacesPage() {
       const workspace = response.workspaces?.[0] ?? await createWorkspace(DEFAULT_WORKSPACE_NAME);
       clearSessionCache();
       setSelectedWorkspaceId(workspace.id);
+      clearWorkspaceGone(workspace.id);
       router.replace("/home");
     } catch (error: unknown) {
       if (error instanceof SessionExpiredError) {

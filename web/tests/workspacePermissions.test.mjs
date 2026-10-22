@@ -14,7 +14,7 @@ registerHooks({
 });
 
 const { ApiError, getErrorMessage, isWorkspacePermissionRequiredError } = await import("../src/shared/lib/apiErrors.ts");
-const { ALL_WORKSPACE_PERMISSIONS, findRequiredPermission, workspacePermissionLabel } = await import("../src/shared/lib/workspacePermissions.ts");
+const { ALL_WORKSPACE_PERMISSIONS, findRequiredPermission, hasWorkspacePermission, workspacePermissionLabel } = await import("../src/shared/lib/workspacePermissions.ts");
 const { updateMemberPermissions } = await import("../src/entities/workspace/api/members.ts");
 const { updateWorkspaceAutoIngest } = await import("../src/entities/workspace/api/workspace.ts");
 
@@ -78,4 +78,19 @@ test("403 WORKSPACE_PERMISSION_REQUIRED는 필요한 권한 라벨과 OWNER 요�
   assert.equal(isWorkspacePermissionRequiredError(new ApiError("거절", 403, "WORKSPACE_ACCESS_DENIED")), false);
   assert.equal(getErrorMessage(new ApiError("거절", 403, "WORKSPACE_ACCESS_DENIED"), "실패"), "거절");
   assert.equal(isWorkspacePermissionRequiredError(new ApiError("거절", 400, "WORKSPACE_PERMISSION_REQUIRED")), false);
+});
+
+test("OWNER는 모든 권한, MEMBER는 부여된 항목만 가지며 역할 확인 전은 null이다", () => {
+  const owner = { role: "OWNER", permissions: [], isLoading: false };
+  const memberWithIngest = { role: "MEMBER", permissions: ["wiki.ingest"], isLoading: false };
+  assert.equal(hasWorkspacePermission(owner, "wiki.lint"), true);
+  assert.equal(hasWorkspacePermission(memberWithIngest, "wiki.ingest"), true);
+  assert.equal(hasWorkspacePermission(memberWithIngest, "wiki.lint"), false);
+  assert.equal(hasWorkspacePermission({ role: null, permissions: [], isLoading: true }, "wiki.ingest"), null);
+  // 확인이 끝났는데 역할을 모르면(멤버 아님·조회 실패) 막는다.
+  assert.equal(hasWorkspacePermission({ role: null, permissions: [], isLoading: false }, "wiki.ingest"), false);
+});
+
+test("위키 최신화 권한 라벨은 레일 버튼과 같은 문구다", () => {
+  assert.equal(workspacePermissionLabel("wiki.lint"), "위키 최신화");
 });

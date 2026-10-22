@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchChatMessages, setActiveChatSession, getSessionContext } from "@/entities/chat/api/chat";
-import { useUserPreferences } from "@/entities/user";
+import { fetchChatMessages, fetchChatSessionMessages, getSessionContext } from "@/entities/chat/api/chat";
+import { getWorkspaceId } from "@/shared/api/client";
 import type { AiModelSelection } from "@/entities/ai";
 import { cancelQueryRun, QueryCancelledError, runQueryStream, type QueryRun, type QueryStageEvent } from "@/entities/wiki/api/wiki";
 import { publishNotice } from "@/features/document-notifications";
@@ -8,6 +8,7 @@ import { fetchMessagesForRequest } from "../lib/chatMessagesForRequest";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
+import { hasBlockingPendingMessages } from "../lib/stalledTurns";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { QueryRelatedPageResponse } from "@/entities/wiki/model/wiki";
 
@@ -26,9 +27,14 @@ type ActiveQueryRequest = {
  * 채팅 스레드 페칭·폴링·질의 상태를 관리하는 훅.
  * AgentPanel에서 추출했습니다.
  */
-export function useChatThread(activeSessionId?: string | null) {
-  const { preferences } = useUserPreferences();
-  const queryNotifications = preferences.notifications.query;
+const NO_RELEASED_TURNS: ReadonlySet<string> = new Set();
+
+/**
+ * releasedTurnIds: 응답을 받지 못해 사용자가 닫은 turn. 서버 메시지가 pending이어도 입력을 막거나 폴링하지 않는다.
+ */
+export function useChatThread(activeSessionId?: string | null, releasedTurnIds: ReadonlySet<string> = NO_RELEASED_TURNS) {
+  const sessionRef = useRef(activeSessionId);
+  sessionRef.current = activeSessionId;
   const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
   const [queryErrorMessage, setQueryErrorMessage] = useState<string | null>(null);
   const [chatLoadErrorMessage, setChatLoadErrorMessage] = useState<string | null>(null);
@@ -50,7 +56,10 @@ export function useChatThread(activeSessionId?: string | null) {
 
   // 무효화된 요청은 정상 빈 목록([])과 구분하도록 null을 반환한다. 호출부는 null이면 상태를 갱신하지 않는다.
   const refreshMessages = useCallback(async ({ animateLatest = false } = {}) => {
-    const nextMessages = await fetchMessagesForRequest(messageRequestRef, fetchChatMessages);
+    const sessionId = sessionRef.current;
+    if (sessionId === null) return null;
+    const nextMessages = await fetchMessagesForRequest(messageRequestRef,
+      () => sessionId ? fetchChatSessionMessages(sessionId) : fetchChatMessages());
     if (nextMessages === null) return null;
     setMessages(nextMessages);
     if (animateLatest) {
@@ -63,7 +72,7 @@ export function useChatThread(activeSessionId?: string | null) {
     return nextMessages;
   }, []);
 
-  const hasPendingMessages = messages.some((message) => message.role === "assistant" && message.status === "pending");
+  const hasPendingMessages = hasBlockingPendingMessages(messages, releasedTurnIds);
   const isPageVisible = usePageVisible();
   // 새로 연 대화는 저장된 진행 단계부터 복원하고, 미완료 문답만 완료될 때까지 갱신한다.
   // 숨김 탭에서는 멈추고, 다시 보이면 effect가 다시 돌며 곧바로 이어 받는다(#66).
@@ -89,14 +98,14 @@ export function useChatThread(activeSessionId?: string | null) {
     let cancelled = false;
 
     async function loadSessionMessages() {
-      if (activeSessionId) setActiveChatSession(activeSessionId);
       messageRequestRef.current += 1;
       if (!activeSessionId || loadedSessionRef.current !== activeSessionId) {
         setMessages([]);
         setChatLoadErrorMessage(null);
       }
       // 실제 대상 세션을 확정한다. 이미 이 세션을 로드했으면(null→id 확정 등) 재요청하지 않는다.
-      const { sessionId } = await getSessionContext();
+      if (activeSessionId === null) return;
+      const sessionId = activeSessionId ?? (await getSessionContext()).sessionId;
       if (cancelled || loadedSessionRef.current === sessionId) return;
 
       setActiveTurn(null);
@@ -106,7 +115,7 @@ export function useChatThread(activeSessionId?: string | null) {
       const nextMessages = await refreshMessages();
       if (cancelled || nextMessages === null) return;
       if (nextMessages.length === 0) {
-        const { sessionId: currentSessionId } = await getSessionContext();
+        const currentSessionId = sessionRef.current ?? (await getSessionContext()).sessionId;
         if (currentSessionId !== sessionId) return;
       }
       loadedSessionRef.current = sessionId;
@@ -158,8 +167,8 @@ export function useChatThread(activeSessionId?: string | null) {
   }
 
   /** 크레딧 부족으로 서버가 질의를 시작하지 않았으면 true를 돌려준다. 호출부가 입력을 지우지 않고 되돌린다(#153). */
-  async function submitQuery(question: string, selection: AiModelSelection, allowWebSearch = false): Promise<boolean> {
-    if (!question || activeQueryRef.current || isLoading) return false;
+  async function submitQuery(question: string, selection: AiModelSelection, allowWebSearch = false, targetSessionId?: string): Promise<boolean> {
+    if (!question || activeQueryRef.current || isLoading || (sessionRef.current === null && !targetSessionId)) return false;
     const request: ActiveQueryRequest = {
       run: null, controller: new AbortController(), cancelRequested: false, cancellation: null
     };
@@ -183,8 +192,12 @@ export function useChatThread(activeSessionId?: string | null) {
     const shortQuestion = question.length > 30 ? `${question.slice(0, 30)}…` : question;
     try {
       // 질의 대상 세션을 고정해 두고, refresh 반영 시점에 세션이 바뀌었으면 turn을 갱신하지 않는다.
-      querySessionId = (await getSessionContext()).sessionId;
+      const sessionContext = targetSessionId || sessionRef.current
+        ? { workspaceId: getWorkspaceId(), sessionId: (targetSessionId ?? sessionRef.current)! }
+        : await getSessionContext();
+      querySessionId = sessionContext.sessionId;
       const queryResponse = await runQueryStream(question, selection, {
+        sessionContext,
         allowWebSearch,
         signal: request.controller.signal,
         onStarted: (run) => {
@@ -200,9 +213,7 @@ export function useChatThread(activeSessionId?: string | null) {
       if (activeQueryRef.current !== request || request.cancelRequested) return false;
       querySucceeded = true;
       queryRelatedPages = queryResponse.related_pages ?? [];
-      if (queryNotifications) {
-        publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
-      }
+      publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
     } catch (error) {
       if (activeQueryRef.current !== request) return false;
       if (error instanceof QueryCancelledError) {
@@ -214,9 +225,7 @@ export function useChatThread(activeSessionId?: string | null) {
       setQueryErrorMessage(getErrorMessage(error, "질의에 실패했습니다."));
       setActiveTurn(null);
       setQueryStatusMessage(null);
-      if (queryNotifications) {
-        publishNotice({ kind: "failed", title: "질의 실패", message: `"${shortQuestion}" 질의에 실패했습니다.` });
-      }
+      publishNotice({ kind: "failed", title: "질의 실패", message: `"${shortQuestion}" 질의에 실패했습니다.` });
     } finally {
       // 취소를 시작했으면 HTTP/SSE 종료와 무관하게 복구 확인이 진행 상태를 소유한다.
       if (activeQueryRef.current === request && !(request.cancelRequested && request.run)) {
@@ -230,7 +239,7 @@ export function useChatThread(activeSessionId?: string | null) {
     await refreshMessages().then(async (nextMessages) => {
       // 무효화된 refresh거나 다른 세션으로 전환된 뒤라면 이 질의의 turn을 화면에 남기지 않는다.
       if (nextMessages === null) return;
-      const { sessionId: currentSessionId } = await getSessionContext();
+      const currentSessionId = sessionRef.current ?? (await getSessionContext()).sessionId;
       if (currentSessionId !== querySessionId) return;
       // 완료된 문답은 목록 안에서 다른 문답과 같이 그린다. 따로 그리면 편입 범위로 선택할 수 없다.
       const merged = mergeQueryAnswer(nextMessages, previousAssistantMessageIds, queryRelatedPages);

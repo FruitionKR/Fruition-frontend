@@ -117,17 +117,12 @@
   color: var(--color-body);
 }
 
-.settings-field select {
-  min-width: 164px;
-  padding: 8px 30px 8px 10px;
-  border: 1px solid var(--color-surface-strong);
-  border-radius: 8px;
-  color: var(--color-foreground);
-  background: var(--settings-field-bg);
-  font-size: 12px;
+/* Figma 드롭다운(OptionSelect) 폭. 목록은 아래 행 위에 띄운다 */
+.settings-select {
+  flex: 0 0 auto;
+  width: 164px;
 }
 
-.settings-field select:focus-visible,
 .settings-reset:focus-visible,
 .settings-toggle:focus-visible {
   outline: 2px solid var(--color-primary);
@@ -303,7 +298,7 @@
     flex-direction: column;
   }
 
-  .settings-field select {
+  .settings-select {
     width: 100%;
   }
 

@@ -7,7 +7,7 @@ import "@milkdown/crepe/theme/frame.css";
 import { useCallback, useEffect, useRef } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
-import { editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
+import { EditorStatus, editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
 import type { KeymapItem } from "@milkdown/core";
 import { closeHistory, history as prosemirrorHistory } from "@milkdown/prose/history";
 import { listItemSchema } from "@milkdown/kit/preset/commonmark";
@@ -18,7 +18,9 @@ import { CellSelection } from "@milkdown/prose/tables";
 import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownEditContext";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
-import { useNoteAutosave, type DetachedNoteSaveResult } from "../model/useNoteAutosave";
+import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
+import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
+import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/strikethroughInputRule";
@@ -84,7 +86,8 @@ export function NoteEditor({
   onMarkdownEditContextChange,
   onSaveStatusChange,
   onDetachedSaveComplete,
-  onRegisterSave
+  onRegisterSave,
+  onReadOnlyNoticeChange
 }: {
   documentId: string;
   marker: string;
@@ -95,9 +98,11 @@ export function NoteEditor({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
+  onReadOnlyNoticeChange?: (documentId: string, message: string | null) => void;
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
+  const onServerMergeRef = useRef<(merge: NoteServerMerge) => void>(() => {});
   const { preferences } = useUserPreferences();
   const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
     documentId,
@@ -105,6 +110,20 @@ export function NoteEditor({
     initialVersion,
     onDetachedSaveComplete,
     onAttachmentsSaved: (saved) => onAttachmentsSavedRef.current(saved),
+    onServerMerge: (merge) => onServerMergeRef.current(merge),
+    beforeFlush: () => {
+      // Milkdown의 markdownUpdated는 지연된다. 클릭 직전 입력은 ProseMirror의 현재 문서에서 읽는다.
+      const editor = crepeRef.current?.editor;
+      if (!editor || editor.status !== EditorStatus.Created) return;
+      editor.action((ctx) => {
+        const latestBody = ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc);
+        if (latestBody === bodyRef.current) return;
+        bodyRef.current = latestBody;
+        // 뒤늦게 도착하는 같은 변경 알림이 편입 후 저장을 다시 예약하지 않게 한다.
+        programmaticBodyRef.current = latestBody;
+        queueSaveRef.current(latestBody);
+      });
+    },
     autoSave: preferences.autoSave
   });
   // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
@@ -118,6 +137,13 @@ export function NoteEditor({
   });
   // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
   const canEdit = editLock.phase === "granted" || editLock.phase === "lost";
+  useEffect(() => {
+    const message = !canEdit && editLock.phase !== "acquiring"
+      ? `${editLock.message} 읽기 전용으로 열었습니다.`
+      : null;
+    onReadOnlyNoticeChange?.(documentId, message);
+    return () => onReadOnlyNoticeChange?.(documentId, null);
+  }, [canEdit, documentId, editLock.message, editLock.phase, onReadOnlyNoticeChange]);
   const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const bodyRef = useRef(initialBody);
@@ -163,6 +189,57 @@ export function NoteEditor({
       view.dispatch(tr);
     });
   }, []);
+
+  /**
+   * 서버가 다른 곳의 저장과 합친 본문을 편집기에 넣는다. 달라진 구간만 바꿔 캐럿·선택은 ProseMirror 매핑으로 따라가고,
+   * 바뀌지 않은 블록(이미지·표 등)은 다시 그리지 않는다. 서버 상태와 같으므로 다시 저장하지 않고 undo 히스토리에서도 뺀다.
+   */
+  const mergeEditorMarkdown = useCallback((nextMarkdown: string) => {
+    const crepe = crepeRef.current;
+    if (!crepe) {
+      replaceEditorMarkdown(nextMarkdown);
+      return;
+    }
+    crepe.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const nextDoc = ctx.get(parserCtx)(nextMarkdown);
+      if (!nextDoc) return;
+      const nextBody = ctx.get(serializerCtx)(nextDoc);
+      const { doc } = view.state;
+      const start = doc.content.findDiffStart(nextDoc.content);
+      const end = doc.content.findDiffEnd(nextDoc.content);
+      bodyRef.current = nextBody;
+      if (start === null || !end) return;
+      // 반복되는 내용에서는 끝 비교가 시작보다 앞설 수 있어 겹친 만큼 뒤로 민다.
+      const overlap = start - Math.min(end.a, end.b);
+      const endA = overlap > 0 ? end.a + overlap : end.a;
+      const endB = overlap > 0 ? end.b + overlap : end.b;
+      const tr = view.state.tr.replace(start, endA, nextDoc.slice(start, endB));
+      tr.setMeta("addToHistory", false);
+      tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
+      view.dispatch(tr);
+      // 편집기 plugin이 덧붙인 변경(끝 빈 문단 등)까지 반영된 본문을 반향으로 표시해 다시 저장하지 않는다.
+      const appliedBody = ctx.get(serializerCtx)(view.state.doc);
+      bodyRef.current = appliedBody;
+      programmaticBodyRef.current = appliedBody;
+    });
+  }, [replaceEditorMarkdown]);
+
+  onServerMergeRef.current = (merge) => {
+    if (merge.markdown !== null) {
+      const body = stripPageComments(splitEditableNoteMarkdown(merge.markdown)?.body ?? merge.markdown);
+      if (body !== bodyRef.current) {
+        mergeEditorMarkdown(body);
+        publishMarkdownEditContextRef.current(bodyRef.current, 0, 0, true);
+      }
+    }
+    if (!merge.notify) return;
+    publishNotice({
+      kind: "info",
+      title: OVERWRITTEN_NOTICE_TITLE,
+      message: OVERWRITTEN_NOTICE_MESSAGE
+    });
+  };
 
   const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
     if (bodyRef.current !== expectedMarkdown) return false;
@@ -578,9 +655,6 @@ export function NoteEditor({
           <DocumentLoading>편집 권한을 확인하는 중입니다.</DocumentLoading>
         ) : (
           <>
-            <p className={styles["note-editor-readonly-notice"]} role="alert">
-              {editLock.message} 읽기 전용으로 열었습니다.
-            </p>
             <MarkdownViewer markdown={initialBody} />
           </>
         )}

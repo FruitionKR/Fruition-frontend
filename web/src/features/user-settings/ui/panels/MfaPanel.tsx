@@ -47,7 +47,7 @@ export function MfaPanel() {
       <Switch checked={status?.enabled ?? false} label="다단계 인증"
         disabled={!status || busy || isFetching} onClick={() => void toggle()} />
     </div>
-    {(error || loadError) && <small className={styles["model-error"]} role="alert">{error || getErrorMessage(loadError, "다단계 인증 상태를 불러오지 못했습니다.")}</small>}
+    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, "다단계 인증 상태를 불러오지 못했습니다.")}</small>}
     {loadError && <button type="button" className={styles.btn} disabled={isFetching} onClick={() => void refetch()}>다시 확인</button>}
 
     {registration && (

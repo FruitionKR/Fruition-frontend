@@ -19,7 +19,7 @@ registerHooks({
 });
 
 const { changePassword, updateDisplayName, requestEmailVerification, confirmEmailVerification, changeEmail, fetchSessions, revokeSession } = await import("../src/entities/user/api/auth.ts");
-const { updateWorkspaceIcon, uploadWorkspaceIcon, fetchWorkspaceIcon } = await import("../src/entities/workspace/api/workspace.ts");
+const { uploadWorkspaceIcon, fetchWorkspaceIcon } = await import("../src/entities/workspace/api/workspace.ts");
 const { fetchMembers, changeMemberRole, inviteMember, removeMember } = await import("../src/entities/workspace/api/members.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { fetchInvitation, acceptInvitation } = await import("../src/entities/workspace/api/invitations.ts");
@@ -114,6 +114,10 @@ test("초대 확인은 공개 조회, 수락은 인증 요청으로 처리한다
 
 test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 계정을 사용한다", async (t) => {
   const auth = await import("../src/shared/lib/authSessionStorage.ts");
+  const workspaceAccess = await import("../src/shared/lib/workspaceAccess.ts");
+  // 이 탭에서 내보내졌던 워크스페이스에 다시 초대받은 경우다. 수락하면 접근 불가 기록을 지운다.
+  workspaceAccess.markWorkspaceGone("invited-workspace");
+  t.after(() => workspaceAccess.resetWorkspaceGone());
   const originalWindow = globalThis.window;
   const selected = [];
   const navigated = [];
@@ -146,6 +150,7 @@ test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 
     "@/entities/workspace/api/invitations": { acceptInvitation, fetchInvitation },
     "@/entities/user": { useSignOut: () => ({ signOut: async () => {} }) },
     "@/shared/lib/apiErrors": {},
+    "@/shared/lib/workspaceAccess": workspaceAccess,
     "@/views/workspaces/ui/WorkspacesPage.module.css": { default: {} }
   };
   runInNewContext(outputText, { exports, require: (name) => modules[name], window: globalThis.window });
@@ -160,6 +165,7 @@ test("초대 화면의 수락은 다른 탭에서 로그인한 현재 쿠키의 
   assert.equal(queryClient.getQueryCache().getAll().length, 0);
   assert.deepEqual(selected, [["fruition.workspace_id", "invited-workspace"]]);
   assert.deepEqual(navigated, ["/home"]);
+  assert.equal(workspaceAccess.isWorkspaceGone("invited-workspace"), false);
   assert.deepEqual(requests, [
     ["/api/invitations/invite-token/accept", "Bearer previous-user-access"],
     ["/api/invitations/invite-token/accept", null],
@@ -180,17 +186,18 @@ test("이메일 변경은 전용 목적의 인증번호를 확인한 뒤 인증�
   });
   const sent = await requestEmailVerification("new@example.test", "email_change");
   const confirmed = await confirmEmailVerification(sent.verification_id, "123456");
-  assert.equal((await changeEmail("new@example.test", confirmed.verification_token)).email, "new@example.test");
+  const body = { new_email: "new@example.test", verification_token: confirmed.verification_token, current_password: "current-password" };
+  assert.equal((await changeEmail(body)).email, "new@example.test");
   assert.deepEqual(calls, [
     ["/api/auth/email-verifications", "POST", { email: "new@example.test", purpose: "email_change" }],
     ["/api/auth/email-verifications/verify_test/confirm", "POST", { code: "123456" }],
-    ["/api/auth/me/email", "PUT", { new_email: "new@example.test", verification_token: "verified-test-token" }]
+    ["/api/auth/me/email", "PUT", { new_email: "new@example.test", verification_token: "verified-test-token", current_password: "current-password" }]
   ]);
 });
 
 test("이메일 중복과 만료된 인증은 성공으로 처리하지 않는다", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json({ error: { message: "이미 사용 중인 이메일입니다." } }, { status: 409 }));
-  await assert.rejects(changeEmail("used@example.test", "test-token"), /이미 사용 중/);
+  await assert.rejects(changeEmail({ new_email: "used@example.test", verification_token: "test-token" }), /이미 사용 중/);
   t.mock.method(globalThis, "fetch", async () => Response.json({ error: { message: "인증이 만료되었습니다." } }, { status: 400 }));
   await assert.rejects(confirmEmailVerification("expired", "123456"), /인증이 만료/);
 });
@@ -209,7 +216,7 @@ test("세션 목록은 현재 기기와 알 수 없는 기기를 보존하고 �
   await revokeSession(42);
 });
 
-test("아이콘 이모지·초기화·multipart 업로드·인증 이미지 조회 계약을 따른다", async (t) => {
+test("아이콘 multipart 업로드·인증 이미지 조회 계약을 따른다", async (t) => {
   saveAccessToken("icon-test-access");
   const file = new File([new Uint8Array([137, 80, 78, 71])], "icon.png", { type: "image/png" });
   const calls = [];
@@ -220,22 +227,16 @@ test("아이콘 이모지·초기화·multipart 업로드·인증 이미지 조�
       assert.equal(init.headers.has("Content-Type"), false);
       assert.equal(init.body.get("file").name, "icon.png");
       assert.equal(init.body.get("file").size, file.size);
-    } else if (init.body) {
-      assert.deepEqual(JSON.parse(init.body), { icon_emoji: calls.length === 1 ? "📁" : null });
     } else {
       return new Response(file, { headers: { "Content-Type": "image/png" } });
     }
     return Response.json({ id: "ws_test", icon_emoji: null, icon_url: null });
   });
-  await updateWorkspaceIcon("ws_test", "📁");
-  await updateWorkspaceIcon("ws_test", null);
   await uploadWorkspaceIcon("ws_test", file);
   const blob = await fetchWorkspaceIcon("ws_test");
   assert.equal(blob.type, "image/png");
   assert.equal(blob.size, file.size);
   assert.deepEqual(calls, [
-    ["/api/workspaces/ws_test/icon", "PUT"],
-    ["/api/workspaces/ws_test/icon", "PUT"],
     ["/api/workspaces/ws_test/icon/image", "PUT"],
     ["/api/workspaces/ws_test/icon/image", "GET"]
   ]);

@@ -16,6 +16,6 @@ export function formatLintProgressLabel(
 ): string | null {
   if (!log && !isRequested) return null;
   return log
-    ? `Lint · ${formatElapsedMinutes(log.created_at, now)}`
-    : "Lint 진행 중";
+    ? `위키 최신화 · ${formatElapsedMinutes(log.created_at, now)}`
+    : "위키 최신화 진행 중";
 }

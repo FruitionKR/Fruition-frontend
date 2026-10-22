@@ -1,98 +1,545 @@
+/*
+ * 랜딩 화면 공통: 토큰 · 헤더 · 글자 단계 · 버튼 · 히어로 · 하단. 섹션별 배치는 LandingSections.module.css.
+ * 바탕·포인트 색은 앱 토큰(--color-canvas, --color-primary 계열)을 그대로 써서 라이트는 서비스 파랑(#3182f6),
+ * 다크는 앱 다크 primary가 포인트가 된다. 작은 글자의 포인트 색은 대비가 충분한 --color-primary-weak-foreground를 쓴다.
+ * 장마다 깔리는 옅은 바탕(--lp-tint-*)과 히어로 빛(--lp-hero-*)만 랜딩 전용 값이다.
+ * 라이트·다크는 base.css와 같은 규칙(OS 설정 또는 html[data-theme])으로 바뀐다.
+ */
 .landing-page {
+  --lp-bg: var(--color-canvas);
+  --lp-card: var(--color-canvas);
+  --lp-panel: #f7f8fa;
+  --lp-panel-strong: #eef0f3;
+  --lp-line: var(--color-border);
+  --lp-ink: var(--color-foreground);
+  --lp-body: var(--color-body);
+  --lp-muted: #5f6977;
+  --lp-invert-bg: var(--color-foreground);
+  --lp-invert-ink: var(--color-canvas);
+  --lp-accent: var(--color-primary);
+  --lp-on-accent: var(--color-on-primary);
+  --lp-accent-ink: var(--color-primary-weak-foreground);
+  --lp-accent-weak: var(--color-primary-weak);
+  --lp-header-bg: color-mix(in srgb, var(--color-canvas) 80%, transparent);
+  --lp-pill-bg: color-mix(in srgb, var(--lp-card) 90%, transparent);
+
+  /* 장 바탕: 같은 밝기(98.5%)에 색상만 다른 아주 옅은 띠 */
+  --lp-tint-capture: oklch(98.5% 0.01 250);
+  --lp-tint-connect: oklch(98.5% 0.01 200);
+  --lp-tint-discover: oklch(98.5% 0.01 280);
+  --lp-tint-together: oklch(98.5% 0.01 160);
+
+  /* 히어로·마지막 안내 바탕: 빛 두 개 + 위쪽에서 사라지는 48px 격자 */
+  --lp-hero-glow-a: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  --lp-hero-glow-b: oklch(94% 0.04 215 / 55%);
+  --lp-grid-line: rgb(15 23 42 / 5%);
+
+  --lp-shadow-window: 0 1px 2px rgb(0 0 0 / 6%), 0 24px 60px -20px rgb(15 23 42 / 25%);
+  --lp-shadow-float: 0 18px 40px -16px rgb(15 23 42 / 22%);
+  --lp-shadow-cta: 0 10px 24px -10px color-mix(in srgb, var(--color-primary) 70%, transparent);
+
+  --lp-wrap: 1200px;
+  --lp-gutter: 24px;
+  --lp-section-pad: 112px;
+  --lp-header-height: 72px;
+  /* 떠 있는 장 탭(높이 44) + 헤더와의 간격(12) */
+  --lp-tabs-height: 56px;
+  --lp-radius: 14px;
+  --lp-radius-window: 22px;
+  --lp-radius-card: 22px;
+  --lp-radius-cta: 26px;
+  --lp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 글자 단계: 제목1 64 · 제목2 40 · 강조 부제 20 · 본문 18 · 작은 글 14 (1440 기준, 모바일 40 · 30) */
+  --lp-text-h1: clamp(2.5rem, 1.6rem + 3vw, 4rem);
+  --lp-text-h2: clamp(1.875rem, 1.5rem + 1.2vw, 2.5rem);
+  --lp-text-sub: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);
+  --lp-text-body: clamp(1rem, 0.95rem + 0.2vw, 1.125rem);
+  --lp-text-small: 0.875rem;
+
   min-height: 100vh;
-  padding: 0 7vw;
-  color: #f8fafc;
-  background:
-    radial-gradient(circle at 75% 25%, rgb(99 102 241 / 24%), transparent 32rem),
-    linear-gradient(145deg, #0f172a, #111827 58%, #172554);
+  overflow-x: clip;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  color: var(--lp-ink);
+  font-size: var(--lp-text-body);
+  background: var(--lp-bg);
 }
 
-.landing-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1180px;
-  height: 80px;
-  margin: 0 auto;
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .landing-page {
+    --lp-card: #141416;
+    --lp-panel: #141416;
+    --lp-panel-strong: #1e1e1e;
+    --lp-line: #2a2a2d;
+    --lp-muted: #8a8a8a;
+    --lp-tint-capture: oklch(16% 0.008 250);
+    --lp-tint-connect: oklch(16% 0.008 200);
+    --lp-tint-discover: oklch(16% 0.008 280);
+    --lp-tint-together: oklch(16% 0.008 160);
+    --lp-hero-glow-a: oklch(32% 0.06 255 / 35%);
+    --lp-hero-glow-b: color-mix(in srgb, var(--color-primary) 7%, transparent);
+    --lp-grid-line: rgb(255 255 255 / 4%);
+    --lp-shadow-window: 0 1px 2px rgb(0 0 0 / 40%), 0 24px 60px -20px rgb(0 0 0 / 70%);
+    --lp-shadow-float: 0 18px 40px -16px rgb(0 0 0 / 70%);
+    --lp-shadow-cta: 0 10px 24px -10px color-mix(in srgb, var(--color-primary) 45%, transparent);
+  }
 }
 
-.landing-brand {
-  font-size: 1.25rem;
-  font-weight: 750;
-  letter-spacing: -0.03em;
+:global(:root[data-theme="dark"]) .landing-page {
+  --lp-card: #141416;
+  --lp-panel: #141416;
+  --lp-panel-strong: #1e1e1e;
+  --lp-line: #2a2a2d;
+  --lp-muted: #8a8a8a;
+  --lp-tint-capture: oklch(16% 0.008 250);
+  --lp-tint-connect: oklch(16% 0.008 200);
+  --lp-tint-discover: oklch(16% 0.008 280);
+  --lp-tint-together: oklch(16% 0.008 160);
+  --lp-hero-glow-a: oklch(32% 0.06 255 / 35%);
+  --lp-hero-glow-b: color-mix(in srgb, var(--color-primary) 7%, transparent);
+  --lp-grid-line: rgb(255 255 255 / 4%);
+  --lp-shadow-window: 0 1px 2px rgb(0 0 0 / 40%), 0 24px 60px -20px rgb(0 0 0 / 70%);
+  --lp-shadow-float: 0 18px 40px -16px rgb(0 0 0 / 70%);
+  --lp-shadow-cta: 0 10px 24px -10px color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
-.landing-login-link {
-  padding: 10px 18px;
-  color: #e2e8f0;
-  text-decoration: none;
-  border: 1px solid rgb(148 163 184 / 40%);
-  border-radius: 999px;
+/* 앵커 이동은 고정 헤더와 떠 있는 장 탭(--lp-tabs-height) 아래로 맞춘다. */
+.landing-page :is(section, nav)[id] {
+  scroll-margin-top: calc(var(--lp-header-height) + var(--lp-tabs-height) + 16px);
 }
 
-.landing-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  max-width: 1180px;
-  min-height: calc(100vh - 80px);
-  margin: 0 auto;
-  padding: 80px 0 140px;
+/* 장 띠는 헤더 바로 아래에서 시작한다. 띠 안쪽 여백(--lp-section-pad ≥ 80px)이 떠 있는 장 탭(56px)보다 커서
+ * 장 제목이 탭에 가리지 않는다. */
+.landing-page section[data-chapter] {
+  scroll-margin-top: var(--lp-header-height);
 }
 
-.landing-eyebrow {
-  margin: 0 0 18px;
-  color: #a5b4fc;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+@media (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-reduce-motion="true"])):has(.landing-page) {
+    scroll-behavior: smooth;
+  }
 }
 
-.landing-hero h1 {
-  max-width: 760px;
-  margin: 0;
-  font-size: clamp(3rem, 7vw, 5.8rem);
-  line-height: 1.04;
-  letter-spacing: -0.065em;
-}
-
-.landing-description {
-  max-width: 610px;
-  margin: 28px 0 0;
-  color: #cbd5e1;
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  line-height: 1.8;
-}
-
-.landing-login-link:hover {
-  border-color: #c7d2fe;
-}
-
-.landing-login-link:focus-visible {
-  outline: 3px solid #818cf8;
+.landing-page a:focus-visible,
+.landing-page button:focus-visible,
+.landing-page summary:focus-visible,
+.landing-page [role="tabpanel"]:focus-visible {
+  outline: 2px solid var(--lp-accent);
   outline-offset: 3px;
 }
 
-/* 하단 약관·운영자 정보(이슈 #130)는 히어로와 같은 폭으로 맞춘다. */
-.landing-page :global(.legal-footer) {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding-bottom: 32px;
-  color: #94a3b8;
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 10px 14px;
+  color: var(--lp-invert-ink);
+  background: var(--lp-invert-bg);
+  border-radius: var(--lp-radius);
+  transform: translateY(-160%);
 }
 
-@media (max-width: 640px) {
+.skip-link:focus-visible {
+  transform: none;
+}
+
+/* ───── 헤더 ───── */
+.landing-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--lp-header-bg);
+  border-bottom: 1px solid var(--lp-line);
+  backdrop-filter: blur(24px);
+}
+
+.header-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  max-width: var(--lp-wrap);
+  height: var(--lp-header-height);
+  margin: 0 auto;
+  padding: 0 var(--lp-gutter);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  color: var(--lp-ink);
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+/* /home 레일 로고(.rail-logo)와 같은 글리프 · 같은 색(--color-foreground) */
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: var(--color-foreground);
+}
+
+.brand-word {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.header-nav ul {
+  display: flex;
+  gap: clamp(16px, 2.6vw, 36px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.header-nav a {
+  position: relative;
+  display: block;
+  padding: 8px 0;
+  color: var(--lp-ink);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.header-nav a:hover {
+  color: var(--lp-accent-ink);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-self: end;
+}
+
+.login-link {
+  padding: 9px 16px;
+  color: var(--lp-ink);
+  font-size: var(--lp-text-small);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.login-link:hover {
+  background: var(--lp-panel);
+  border-color: var(--lp-muted);
+}
+
+/* ───── 글자 단계 ───── */
+.h1,
+.h2 {
+  margin: 0;
+  text-wrap: balance;
+}
+
+.h1 {
+  font-size: var(--lp-text-h1);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+}
+
+.h2 {
+  font-size: var(--lp-text-h2);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* ───── 버튼 ───── */
+.button-primary,
+.button-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 0 24px;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--lp-radius);
+  transition:
+    transform 200ms var(--lp-ease-out),
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+/* 흰 글자와 #3182f6의 대비는 3.7:1이라, 버튼 글자를 큰 글자 기준(굵게 18.66px 이상, AA 3:1)으로 맞춘다. */
+.button-primary {
+  color: var(--lp-on-accent);
+  font-size: 1.1875rem;
+  font-weight: 700;
+  background: var(--lp-accent);
+  box-shadow: var(--lp-shadow-cta);
+}
+
+.button-primary:hover {
+  transform: translateY(-2px);
+}
+
+.button-ghost {
+  color: var(--lp-ink);
+  font-size: var(--lp-text-body);
+  font-weight: 600;
+}
+
+.button-ghost:hover {
+  background: color-mix(in srgb, var(--lp-ink) 5%, transparent);
+}
+
+.button-primary span,
+.button-ghost span {
+  display: inline-block;
+  transition: transform 200ms var(--lp-ease-out);
+}
+
+.button-primary:hover span {
+  transform: translateX(3px);
+}
+
+.button-ghost:hover span {
+  transform: translateY(3px);
+}
+
+.button-primary:active,
+.button-ghost:active {
+  transform: scale(0.98);
+}
+
+/* ───── 히어로 바탕: 빛 두 개 + 위에서 아래로 사라지는 48px 격자 (마지막 안내 상자도 함께 쓴다) ───── */
+.hero-backdrop {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.hero-backdrop::before,
+.hero-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.hero-backdrop::before {
+  background:
+    radial-gradient(55% 60% at 12% 0%, var(--lp-hero-glow-a), transparent 70%),
+    radial-gradient(45% 55% at 92% 8%, var(--lp-hero-glow-b), transparent 70%);
+}
+
+.hero-backdrop::after {
+  background-image:
+    linear-gradient(to right, var(--lp-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--lp-grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 75%);
+}
+
+/* ───── 히어로: 왼쪽 문구 + 오른쪽 큰 실제 화면(평면, 컨테이너 안) ───── */
+.hero {
+  overflow: visible;
+}
+
+.hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 56px;
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: clamp(48px, 6vw, 88px) var(--lp-gutter) clamp(56px, 6vw, 80px);
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.hero-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 32em;
+  margin: 0;
+}
+
+.hero-sub {
+  margin: 0;
+  color: var(--lp-ink);
+  font-size: var(--lp-text-sub);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.hero-text {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body);
+  line-height: 1.6;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.hero-visual {
+  min-width: 0;
+  margin: 0;
+}
+
+.hero-visual figcaption {
+  margin-top: 20px;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-small);
+}
+
+/* ───── 하단 ───── */
+.landing-bottom {
+  border-top: 1px solid var(--lp-line);
+}
+
+.landing-bottom-inner {
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: 36px var(--lp-gutter) 40px;
+}
+
+.landing-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.footer-brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.footer-brand .brand-mark {
+  width: 24px;
+  height: 24px;
+}
+
+.footer-brand .brand-word {
+  font-size: 1.0625rem;
+}
+
+.footer-brand p,
+.footer-copy {
+  margin: 0;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-small);
+}
+
+.landing-bottom :global(.legal-footer) {
+  margin-top: 24px;
+  color: var(--lp-muted);
+}
+
+/* ───── 등장 모션: transform·opacity만 움직인다(0.8s · 16px) ───── */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy > *,
+  .hero-visual {
+    animation: rise-in 800ms var(--lp-ease-out) both;
+  }
+
+  .hero-copy > :nth-child(2) {
+    animation-delay: 80ms;
+  }
+
+  .hero-copy > :nth-child(3) {
+    animation-delay: 160ms;
+  }
+
+  .hero-visual {
+    animation-delay: 200ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-page *,
+  .landing-page *::before,
+  .landing-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ───── 반응형 ───── */
+@media (max-width: 1023px) {
+  .hero-inner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-visual {
+    max-width: 760px;
+  }
+}
+
+@media (max-width: 767px) {
   .landing-page {
-    padding: 0 24px;
+    --lp-section-pad: 80px;
+  }
+}
+
+@media (max-width: 760px) {
+  .header-inner {
+    grid-template-columns: 1fr auto;
   }
 
-  .landing-nav {
-    height: 72px;
+  .header-nav {
+    display: none;
   }
+}
 
-  .landing-hero {
-    min-height: calc(100vh - 72px);
-    padding: 56px 0 96px;
+/* 320px대에서는 로고 글리프만 남겨 테마 선택과 로그인 버튼이 한 줄에 들어가게 한다. */
+@media (max-width: 359px) {
+  .brand-word {
+    display: none;
   }
 }

@@ -8,7 +8,7 @@ export { findRequiredPermission, workspacePermissionLabel, type WorkspacePermiss
  */
 const WORKSPACE_PERMISSION_DESCRIPTIONS: Record<WorkspacePermission, string> = {
   "wiki.ingest": "문서를 팀 위키에 편입합니다. 채팅 내보내기 문서의 편입도 포함됩니다.",
-  "wiki.lint": "팀 위키 전체를 정리(lint)합니다.",
+  "wiki.lint": "팀 위키 전체를 최신 상태로 정리합니다(위키 최신화).",
   "skill.author": "팀 스킬을 작성하고 게시합니다.",
   "wiki.restore": "다른 멤버가 실행한 AI 작업을 되돌립니다. 본인 작업은 항상 되돌릴 수 있습니다.",
   "document.convert": "다른 멤버가 올린 PDF를 변환합니다. 본인이 올린 파일은 항상 변환할 수 있습니다."
@@ -18,3 +18,17 @@ export const ALL_WORKSPACE_PERMISSIONS = Object.keys(WORKSPACE_PERMISSION_LABELS
 
 export const WORKSPACE_PERMISSIONS: readonly { value: WorkspacePermission; label: string; description: string }[] =
   ALL_WORKSPACE_PERMISSIONS.map((value) => ({ value, label: WORKSPACE_PERMISSION_LABELS[value], description: WORKSPACE_PERMISSION_DESCRIPTIONS[value] }));
+
+/**
+ * 본인이 이 워크스페이스에서 그 권한을 가졌는지. OWNER는 항상 가지고, MEMBER는 부여된 항목만 가진다.
+ * 역할을 확인하는 중이면 null(호출부가 기다리거나 일단 열어 둔다), 확인했는데 역할을 모르면(멤버 아님·조회 실패) false다.
+ * 화면 표시용이며 최종 판단은 서버 403이다.
+ */
+export function hasWorkspacePermission(
+  { role, permissions, isLoading }: { role: string | null; permissions: readonly string[]; isLoading: boolean },
+  permission: WorkspacePermission
+): boolean | null {
+  if (role === "OWNER") return true;
+  if (role === null) return isLoading ? null : false;
+  return permissions.includes(permission);
+}

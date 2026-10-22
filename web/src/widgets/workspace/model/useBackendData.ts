@@ -6,7 +6,7 @@ import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { projectsFromServerTree } from "@/entities/tree/lib/projectsFromServerTree";
 import type { DocumentItemResponse } from "@/entities/document";
-import { isDocumentInFlight } from "@/entities/document/lib/documentKind";
+import { isDocumentPipelineActive } from "@/entities/document/lib/documentKind";
 import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
@@ -17,8 +17,9 @@ const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 const EMPTY_DOCUMENTS: DocumentItemResponse[] = [];
 type DocumentData = Pick<BackendData, "documents" | "tree">;
 
+// 편입을 미룬 uploaded 문서만 있으면 대기 주기로 폴링한다. 짧은 주기는 파이프라인이 도는 동안만이다.
 function hasProcessingDocuments(data: DocumentData | undefined) {
-  return (data?.documents ?? []).some((document) => isDocumentInFlight(document.status));
+  return (data?.documents ?? []).some(isDocumentPipelineActive);
 }
 
 export function useBackendData({

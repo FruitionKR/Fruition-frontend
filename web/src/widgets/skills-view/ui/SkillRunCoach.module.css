@@ -1,19 +1,19 @@
-/* 스킬 실행 대상 고르기 안내 (Figma 1527:15924 tutorial_1). 메인 영역만 덮고 사이드바는 그대로 쓸 수 있게 둔다. */
+/* 스킬 실행 대상 고르기 안내 (Figma 1567:25081 tutorial_1). 메인 영역만 덮고 사이드바는 그대로 쓸 수 있게 둔다. */
 .coach {
   position: absolute;
   inset: 0 var(--agent-panel-width, 0px) 0 var(--sidebar-width, 320px);
   z-index: 30;
 }
 
-/* dimmed (Figma 1527:16213): rgba(0,0,0,0.2) */
+/* dimmed (Figma 1567:25786): rgba(0,0,0,0.2) */
 .dim {
   position: absolute;
   inset: 0;
   background: rgb(0 0 0 / 20%);
 }
 
-/* 말풍선 (Figma 1527:16242): 320 폭, 안쪽 16/20, 테두리 1.5, radius 12, 그림자 0 2 12 #0000001F.
-   꼬리(16:16253)가 메인 왼쪽 끝에서 16px 떨어져 사이드바를 가리킨다. */
+/* 말풍선 (Figma 1567:25789): 320 폭, 안쪽 16/20, 테두리 1.5, radius 12, 그림자 0 2 12 #0000001F.
+   꼬리(1567:25799)가 메인 왼쪽 끝에서 16px 떨어져 사이드바를 가리킨다. */
 .popover {
   position: absolute;
   top: 177px;
@@ -64,13 +64,22 @@
   color: var(--color-body);
 }
 
+/* 고른 대상 미리보기: 강조색으로 안내 본문과 구분한다. */
+.text .preview {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  overflow-wrap: anywhere;
+}
+
 .text .error {
   margin-top: 4px;
   font-size: 13px;
   color: var(--color-danger);
 }
 
-/* btn (Figma 1527:16247): 오른쪽 정렬, 간격 8, 버튼 8/16 · radius 8 · 12px */
+/* btn (Figma 1567:25794): 오른쪽 정렬, 간격 8, 버튼 8/16 · radius 8 · 12px */
 .actions {
   display: flex;
   justify-content: flex-end;

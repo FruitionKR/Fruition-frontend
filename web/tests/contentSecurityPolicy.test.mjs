@@ -97,8 +97,8 @@ test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·화면 �
   const matchers = middlewareConfig.matcher.map((source) => getPathMatch(source));
   const matched = (path) => matchers.some((matches) => matches(path) !== false);
   // 화면 아닌 경로와 이름이 같은 접두어로 시작하는 화면은 그대로 CSP를 받는다
-  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/icon.svgx"]) assert.ok(matched(path), path);
-  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/a.woff2", "/fonts/pretendard/a.woff2", "/healthz", "/wake", "/csp-report", "/icon.svg"]) {
+  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/favicons"]) assert.ok(matched(path), path);
+  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/a.woff2", "/fonts/pretendard/a.woff2", "/healthz", "/wake", "/csp-report", "/favicon/icon-dark.svg"]) {
     assert.equal(matched(path), false, path);
   }
   // /api 요청은 CSP 대신 접근 코드 게이트를 거친다

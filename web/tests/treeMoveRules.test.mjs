@@ -55,10 +55,12 @@ test("묶음 이동은 문서 위 드롭도 merge 대신 부모 폴더로 옮긴
   assert.equal(result.folderId, "folder");
 });
 
-test("묶음 이동에서 이름이 겹치면 conflict를 돌려준다", () => {
+test("묶음 이동에서 이름이 겹치는 항목은 이유와 함께 건너뛰고 나머지는 옮긴다", () => {
   const selected = new Set(["a", "dup"]);
   const result = resolveTreeMove(projects(), { projectId: ROOT, itemId: "a" }, { projectId: ROOT, targetId: "folder", position: "inside" }, selected);
-  assert.deepEqual(result, { kind: "conflict" });
+  assert.equal(result.kind, "move-many");
+  assert.deepEqual(result.items.map((item) => item.id), ["a"]);
+  assert.deepEqual(result.skipped, [{ label: "inner.md", reason: "대상 폴더에 같은 이름의 항목이 있습니다" }]);
 });
 
 test("위키 항목이나 documentId 없는 파일은 invalid다", () => {
@@ -79,9 +81,11 @@ test("폴더를 자기 자신이나 하위 폴더 안으로 옮기면 cycle을 �
   const drag = { projectId: ROOT, itemId: "outer" };
   assert.equal(resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "cycle");
   assert.equal(resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "outer", position: "inside" }, none).kind, "invalid");
-  // 묶음 이동에서도 하나라도 순환이면 전체를 막는다
-  const many = new Set(["outer", "a"]);
-  assert.equal(resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "inner", position: "inside" }, many).kind, "cycle");
+  // 묶음 이동에서는 순환이 되는 폴더만 이유와 함께 건너뛰고 나머지는 옮긴다
+  const many = resolveTreeMove(nested, drag, { projectId: ROOT, targetId: "inner", position: "inside" }, new Set(["outer", "a"]));
+  assert.equal(many.kind, "move-many");
+  assert.deepEqual(many.items.map((item) => item.id), ["a"]);
+  assert.deepEqual(many.skipped, [{ label: "바깥", reason: "자기 자신이나 하위 폴더 안으로 옮길 수 없습니다" }]);
   // 다른 폴더로는 정상 이동
   assert.equal(resolveTreeMove(nested, { projectId: ROOT, itemId: "a" }, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "move");
 });

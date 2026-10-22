@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import {
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    return nextResolve(specifier, context);
+  }
+});
+
+const {
   buildAgentTurnRequest,
   buildGeneratedMarkdownFilename,
   isDocumentCommandAction,
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
+  resolveGeneratedDocumentFolderId,
   validateMarkdownEditApplication
-} from "../src/features/agent-chat/lib/agentTurn.ts";
+} = await import("../src/features/agent-chat/lib/agentTurn.ts");
 
 test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", () => {
   assert.deepEqual(resolveChatTurnPresentation("chat_answer"), { kind: "query", grounded: true });
@@ -42,7 +52,7 @@ const agentRequestContext = {
   selectedPairIds: []
 };
 
-test("Agent turn 요청에 문서 version과 editor snapshot을 고정한다", () => {
+test("Agent turn 요청에 작업 모드와 문서 version·editor snapshot을 고정한다", () => {
   assert.deepEqual(buildAgentTurnRequest("본문을 다듬어줘", markdownEditContext, agentRequestContext), {
     session_id: "session-1",
     documentId: "document-1",
@@ -51,8 +61,28 @@ test("Agent turn 요청에 문서 version과 editor snapshot을 고정한다", (
     provider: "openai",
     model: "gpt-5-nano",
     allow_web_search: false,
+    mode: "task",
     editorSnapshot: markdownEditContext.editorSnapshot
   });
+});
+
+test("열린 문서가 없으면 문서 필드를 모두 빼고 작업 모드로 보낸다", () => {
+  const request = buildAgentTurnRequest("문서를 주제별 폴더로 정리해줘", null, agentRequestContext);
+  assert.deepEqual(request, {
+    session_id: "session-1",
+    message: "문서를 주제별 폴더로 정리해줘",
+    provider: "openai",
+    model: "gpt-5-nano",
+    allow_web_search: false,
+    mode: "task"
+  });
+  assert.equal("documentId" in request, false);
+  assert.equal("editorSnapshot" in request, false);
+});
+
+test("문서 없이 보낸 요청의 편집 응답은 미리보기를 만들지 않는다", () => {
+  const request = buildAgentTurnRequest("다듬어줘", null, agentRequestContext);
+  assert.throws(() => prepareMarkdownEditPreview(request, markdownEditResponse()), /문서를 열고 다시 요청/);
 });
 
 test("선택한 문답은 서버 계약인 selected_pair_ids로 전달한다", () => {
@@ -62,6 +92,29 @@ test("선택한 문답은 서버 계약인 selected_pair_ids로 전달한다", (
   });
 
   assert.deepEqual(request.conversationContext, { selected_pair_ids: ["pair-1", "pair-2"] });
+});
+
+test("폴더를 대상으로 고른 요청은 folder_id를 싣고, 폴더가 없으면 키를 싣지 않는다", () => {
+  const folderId = "6f1c2a3b-4d5e-4f60-8a71-9b2c3d4e5f60";
+  const request = buildAgentTurnRequest("/tidy", null, { ...agentRequestContext, folderId });
+  assert.deepEqual(request, {
+    session_id: "session-1",
+    message: "/tidy",
+    provider: "openai",
+    model: "gpt-5-nano",
+    allow_web_search: false,
+    mode: "task",
+    folder_id: folderId
+  });
+  assert.equal("folder_id" in buildAgentTurnRequest("/tidy", null, { ...agentRequestContext, folderId: null }), false);
+  assert.equal("folder_id" in buildAgentTurnRequest("/polish", markdownEditContext, agentRequestContext), false);
+});
+
+test("새 문서 초안은 turn 응답의 folder_id 폴더에 만들고, 없으면 루트에 만든다", () => {
+  assert.equal(resolveGeneratedDocumentFolderId({ folder_id: "folder-uuid" }), "folder-uuid");
+  assert.equal(resolveGeneratedDocumentFolderId({ folder_id: null }), null);
+  assert.equal(resolveGeneratedDocumentFolderId({}), null);
+  assert.equal(resolveGeneratedDocumentFolderId(null), null);
 });
 
 test("AI 생성 문서 제목을 안전한 Markdown 파일명으로 변환한다", () => {

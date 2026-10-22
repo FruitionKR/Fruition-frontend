@@ -34,7 +34,7 @@ export async function requestWikiLint(
   // operation_id는 실제 실행(dry_run=false)에서만 온다. AI 작업 로그 알림과 중복을 거르는 데 쓴다.
   const queued = await parseJsonOrThrow<{ run_id: string; operation_id?: string }>(
     response,
-    "Lint 요청에 실패했습니다."
+    "위키 최신화 요청에 실패했습니다."
   );
   return pollUntil({
     poll: async () => {
@@ -51,16 +51,16 @@ export async function requestWikiLint(
         /** 실패 코드(document #119 이후). */
         error_code?: string;
         manifest?: { task_result?: { changed_pages?: unknown[] } };
-      }>(polled, "Lint 상태를 불러오지 못했습니다.");
+      }>(polled, "위키 최신화 상태를 불러오지 못했습니다.");
       if (run.status === "succeeded") {
         return {
           changedPageCount: run.manifest?.task_result?.changed_pages?.length ?? 0,
           operationId: queued.operation_id
         };
       }
-      if (run.status === "failed") throw new Error(run.error || "Lint에 실패했습니다.");
+      if (run.status === "failed") throw new Error(run.error || "위키 최신화에 실패했습니다.");
       return null;
     },
-    timeoutMessage: "Lint 처리 시간이 초과되었습니다."
+    timeoutMessage: "위키 최신화 처리 시간이 초과되었습니다."
   });
 }

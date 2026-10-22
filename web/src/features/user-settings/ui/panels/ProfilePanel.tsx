@@ -7,14 +7,31 @@ import {
   validateAvatarFile, type UserMeResponse
 } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { cx } from "@/shared/lib/classNames";
 import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
-import panelStyles from "./ProfilePanel.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
+import { EmailChangeModal } from "../modals/EmailChangeModal";
+import { PasswordChangeModal } from "../modals/PasswordChangeModal";
+import { AiUsageSection } from "./AiUsageSection";
+import { LinkedAccountsSection } from "./LinkedAccountsSection";
+import panelStyles from "./ProfilePanel.module.css";
 
-/** 프로필 설정 패널: 다른 멤버에게 보이는 사진과 닉네임. 이메일·비밀번호·보안은 계정 설정 패널에 있다. */
-export function ProfilePanel() {
+/**
+ * 사용자 설정 (Figma 1691:16583): 프로필(닉네임·프로필 사진) + 계정 정보(이메일·비밀번호) + 연동된 계정.
+ * 맨 아래 AI 사용량(토큰)은 시안 밖에서 같은 섹션 머리말·간격으로 덧붙였다.
+ * 예전 프로필 설정과 계정 설정(이메일·비밀번호·소셜 연동)을 시안대로 한 화면에 합쳤다. 탈퇴·다단계 인증·기기는 계정 보안에 있다.
+ */
+export function ProfilePanel({
+  resumeEmailChange = false
+}: {
+  /** 소셜 재로그인에서 돌아와 이메일 변경 창을 바로 다시 열 때 */
+  resumeEmailChange?: boolean;
+}) {
   const { data: me, error: loadError } = useMe();
+  const [showEmail, setShowEmail] = useState(resumeEmailChange);
+  const [emailSaved, setEmailSaved] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const queryClient = useQueryClient();
   const [nicknameDraft, setNicknameDraft] = useState<string | null>(null);
   const nickname = nicknameDraft ?? me?.display_name ?? "";
@@ -94,50 +111,101 @@ export function ProfilePanel() {
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="프로필 설정" description="워크스페이스 멤버에게 보이는 프로필을 관리합니다." />
+      <SettingsPanelTitle title="사용자 설정" description="개인 계정 설정을 관리합니다." />
 
       <div className={styles.section}>
-        <SettingsSectionHeader>프로필 사진</SettingsSectionHeader>
-        <div className={panelStyles.photo}>
-          <button type="button" className={panelStyles["avatar-button"]} aria-label="프로필 사진 업로드"
-            disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
-            <UserAvatar avatarUrl={me?.avatar_url} name={avatarName} className={panelStyles.avatar} />
-          </button>
-          <input ref={photoInput} type="file" hidden accept={AVATAR_ACCEPT} disabled={!me || photoBusy}
-            onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) savePhoto(file); }} />
-          <div className={panelStyles["photo-actions"]}>
-            <small className={panelStyles["photo-note"]}>PNG·JPEG·WebP·GIF, 1MB 이하. 사진이 없으면 닉네임의 첫 글자로 표시됩니다.</small>
-            <div className={panelStyles["photo-buttons"]}>
-              <button type="button" className={panelStyles["photo-button"]} disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
-                사진 올리기
-              </button>
-              {me?.avatar_url && (
-                <button type="button" className={panelStyles["photo-button"]} disabled={photoBusy}
-                  onClick={() => void applyPhoto(deleteAvatar, "프로필 사진을 지웠습니다.", "프로필 사진을 지우지 못했습니다.")}>
-                  사진 삭제
-                </button>
-              )}
+        <SettingsSectionHeader>프로필</SettingsSectionHeader>
+        <div className={panelStyles["profile-list"]}>
+          <div className={cx(styles.field, panelStyles["profile-field"])}>
+            <label htmlFor="profile-nickname">닉네임</label>
+            <input id="profile-nickname" type="text" value={nickname} maxLength={255} required
+              aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "profile-nickname-error" : undefined}
+              disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
+              onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
+              onBlur={() => void saveName()} />
+            {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
+            {savingName ? <small role="status">저장 중…</small> : nameSaved && nicknameDraft === null && <small role="status">닉네임을 변경했습니다.</small>}
+          </div>
+
+          <div className={styles["tile-field"]}>
+            <div className={styles["row-title"]}>
+              <strong>프로필 사진</strong>
+              {/* 시안 문구는 "업로드 미지원"이지만 사진 업로드 API(#avatar)가 있어 실제 동작을 안내한다. */}
+              {/* 사진이 있으면 첫 글자 대신 사진이 보이므로 바꾸기·삭제를 안내한다. */}
+              <small>
+                {me?.avatar_url
+                  ? "올린 사진으로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)로 바꾸거나, 사진 삭제로 닉네임 첫 글자 표시로 돌아갈 수 있습니다."
+                  : "닉네임의 첫 글자로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)를 올릴 수 있습니다."}
+              </small>
             </div>
-            {photoBusy && <small role="status">사진 저장 중…</small>}
-            {photoMessage && <small role="status">{photoMessage}</small>}
-            {photoError && <small className={styles["model-error"]} role="alert">{photoError}</small>}
+            <button type="button" className={styles["tile-button"]} aria-label="프로필 사진 업로드"
+              disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
+              <UserAvatar avatarUrl={me?.avatar_url} name={avatarName} className={styles["tile-face"]} />
+            </button>
+            <input ref={photoInput} type="file" hidden accept={AVATAR_ACCEPT} disabled={!me || photoBusy}
+              onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) savePhoto(file); }} />
+            {(me?.avatar_url || photoBusy || photoMessage || photoError) && (
+              <div className={styles["tile-actions"]}>
+                {me?.avatar_url && (
+                  <button type="button" className={styles.btn} disabled={photoBusy}
+                    onClick={() => void applyPhoto(deleteAvatar, "프로필 사진을 지웠습니다.", "프로필 사진을 지우지 못했습니다.")}>
+                    사진 삭제
+                  </button>
+                )}
+                {photoBusy && <small className={styles["status-text"]} role="status">사진 저장 중…</small>}
+                {photoMessage && <small className={styles["status-text"]} role="status">{photoMessage}</small>}
+                {photoError && <small className={styles["field-error"]} role="alert">{photoError}</small>}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>닉네임</SettingsSectionHeader>
-        <div className={styles.field}>
-          <label htmlFor="profile-nickname">닉네임</label>
-          <input id="profile-nickname" type="text" value={nickname} maxLength={255} required
-            aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "profile-nickname-error" : undefined}
-            disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
-            onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
-            onBlur={() => void saveName()} />
-          {(nameError || loadError) && <small id="profile-nickname-error" className={styles["model-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
-          {savingName ? <small role="status">저장 중…</small> : nameSaved && nicknameDraft === null && <small role="status">닉네임을 변경했습니다.</small>}
+        <SettingsSectionHeader>계정 정보</SettingsSectionHeader>
+        <div className={panelStyles["account-list"]}>
+          <div className={cx(styles.row, panelStyles["account-row"])}>
+            <div className={styles["row-title"]}>
+              <strong>이메일</strong>
+              <small>{me?.email || "이메일 정보를 불러오지 못했습니다."}</small>
+            </div>
+            <button type="button" className={styles.btn} disabled={!me}
+              onClick={() => { setShowEmail(true); setEmailSaved(false); }}>
+              이메일 변경
+            </button>
+          </div>
+          {emailSaved && <small className={styles["status-text"]} role="status">이메일을 변경했습니다.</small>}
+          <div className={cx(styles.row, panelStyles["account-row"])}>
+            <div className={styles["row-title"]}>
+              <strong>비밀번호</strong>
+              <small>로그인에 사용하는 비밀번호를 변경하세요.</small>
+            </div>
+            <button type="button" className={styles.btn} disabled={!me} onClick={() => setShowPassword(true)}>
+              비밀번호 변경
+            </button>
+          </div>
         </div>
       </div>
+
+      <LinkedAccountsSection me={me} />
+
+      <AiUsageSection />
+
+      {showEmail && me && (
+        <EmailChangeModal
+          me={me}
+          onSaved={() => { setShowEmail(false); setEmailSaved(true); }}
+          onClose={() => setShowEmail(false)}
+        />
+      )}
+      {showPassword && me && (
+        <PasswordChangeModal
+          email={me.email}
+          // 비밀번호를 바꿔도 현재 세션은 유지된다(다른 세션만 폐기). 완료 안내 뒤 창만 닫는다.
+          onSaved={() => setShowPassword(false)}
+          onClose={() => setShowPassword(false)}
+        />
+      )}
     </div>
   );
 }

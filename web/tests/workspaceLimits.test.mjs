@@ -7,23 +7,8 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { checkStorageQuota, describeLimitError, isFreeWorkspaceLimitReached } = await import("../src/entities/workspace/model/workspaceLimits.ts");
+const { describeLimitError, isFreeWorkspaceLimitReached } = await import("../src/entities/workspace/model/workspaceLimits.ts");
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
-
-const MB = 1024 * 1024;
-const GB = 1024 * MB;
-const freeStorage = (usedBytes) => ({ plan: "FREE", used_bytes: usedBytes, limit_bytes: 1 * GB });
-
-test("파일 하나의 크기는 막지 않고 남은 용량만 본다", () => {
-  assert.deepEqual(checkStorageQuota([900 * MB], freeStorage(0)), [null]);
-});
-
-test("한 번에 올린 파일들이 남은 용량을 나눠 쓰고, 넘치는 파일만 막는다", () => {
-  const result = checkStorageQuota([40 * MB, 40 * MB, 10 * MB], freeStorage(1 * GB - 60 * MB));
-  assert.equal(result[0], null);
-  assert.match(result[1], /저장 공간이 부족합니다/);
-  assert.equal(result[2], null);
-});
 
 test("용량·개수 제한 에러 code만 정해 둔 문구로 바꾼다", () => {
   assert.match(describeLimitError(new ApiError("server", 413, "STORAGE_QUOTA_EXCEEDED")), /저장 공간이 부족합니다/);

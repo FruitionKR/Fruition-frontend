@@ -34,6 +34,14 @@ test("그래프 채팅은 채팅 시작 전에는 닫혀 있다", () => {
   assert.equal(isAgentPanelVisible("graph", false), false);
 });
 
+test("스킬 화면은 스킬 시트가 열린 동안만 열린 채팅 패널을 띄운다", () => {
+  assert.equal(canShowAgentPanel("skills"), false);
+  assert.equal(isAgentPanelVisible("skills", true), false);
+  assert.equal(isAgentPanelVisible("skills", true, true), true);
+  assert.equal(isAgentPanelVisible("skills", false, true), false);
+  assert.equal(isAgentPanelVisible("logs", true, true), false);
+});
+
 test("홈 뷰 패널 동작은 그대로 유지한다", () => {
   assert.equal(isAgentPanelVisible("home", true), true);
   assert.equal(isAgentPanelVisible("home", false), false);
@@ -61,10 +69,10 @@ test("레일 프로필은 메뉴 없이 설정 화면을 바로 열고, 로그�
   assert.doesNotMatch(source, /isNotificationsOpen/);
   // 프로필은 팝업 메뉴를 두지 않는다.
   assert.doesNotMatch(source, /role="menu"/);
-  // 톱니는 디스플레이, 프로필은 사용자 설정을 설정 화면으로 연다. 소셜 연동에서 돌아오면 계정 보안을 연다. 모달은 띄우지 않는다.
+  // 톱니는 디스플레이, 프로필은 사용자 설정을 설정 화면으로 연다. 소셜 연동에서 돌아와도 연동된 계정이 있는 사용자 설정을 연다.
   assert.match(source, /onOpenSettings\("preferences"\)/);
   assert.match(source, /onOpenSettings\("profile"\)/);
-  assert.match(source, /onOpenSettings\("account"\)/);
+  assert.doesNotMatch(source, /onOpenSettings\("account"\)/);
   assert.doesNotMatch(source, /SettingsModal|createPortal/);
   // 로그아웃은 설정 화면 메뉴에서 한다.
   assert.match(viewSource, /signOut\(\{ callLogout: true \}\)/);

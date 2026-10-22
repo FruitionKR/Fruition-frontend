@@ -64,17 +64,37 @@ export type MeetingNotesStatus = "generating" | "ready" | "failed" | "applied";
 
 export type MeetingNoteItem = { text: string; source_segment_ids: string[] };
 
+/** 주요 논의의 주제(`#### 주제`)와 그 아래 항목 */
+export type MeetingNoteDiscussion = { topic: string; items: MeetingNoteItem[] };
+
+/** 해야 할 일. 담당자·기한은 발언으로 확인된 경우만 문자열이다. */
+export type MeetingNoteActionItem = MeetingNoteItem & { owner: string | null; due: string | null };
+
 export type MeetingNotesResponse = {
   meeting_id: string;
   version: number;
   status: MeetingNotesStatus;
   partial: boolean;
   display_name: string;
-  /** document가 네 배열로 다시 만든 본문. 생성 중·실패면 비어 있을 수 있다. */
+  /**
+   * AI가 Figma 시안 구성으로 만든 본문(`# 이름`, `- 날짜:`·`- 참석자:`, `### 회의 요약`·`### 주요 논의`(`####` 주제)·
+   * `### 결정 사항`·`### 해야 할 일`(`- [ ] 할 일 · 담당자 · 기한`)·`### 다음 일정`). 이 변경 전 초안은 document가
+   * 네 배열로 옛 구성(`## 요약` …)을 다시 만든다. 생성 중·실패면 비어 있을 수 있다.
+   */
   markdown: string | null;
+  /** 회의 날짜(`YYYY-MM-DD`, 한국 날짜). 옛 초안은 null */
+  meeting_date: string | null;
+  /** 참석자 이름. 옛 초안은 빈 배열 */
+  attendees: string[];
   summary: MeetingNoteItem[];
+  /** 옛 초안은 빈 배열 */
+  discussion: MeetingNoteDiscussion[];
   decisions: MeetingNoteItem[];
-  action_items: MeetingNoteItem[];
+  /** 옛 초안은 owner·due가 null */
+  action_items: MeetingNoteActionItem[];
+  /** 옛 초안은 빈 배열 */
+  next_schedule: MeetingNoteItem[];
+  /** 미결 사항. 시안 본문에는 없지만 계속 준다. */
   open_questions: MeetingNoteItem[];
   applied: { mode: "create" | "append"; document_id: string; applied_at: string } | null;
   error_code: string | null;

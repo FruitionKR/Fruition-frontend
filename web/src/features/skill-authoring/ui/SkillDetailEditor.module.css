@@ -1,0 +1,35 @@
+/* 스킬 상세 시트. 본문 조각은 SkillEditor.module.css를 함께 쓴다. */
+
+/* 스킬 삭제 (Figma 1708:4125): 붉은 옅은 바탕, radius 8, 안쪽 6·16. 아래 버튼 줄 왼쪽에 둔다. */
+.delete-button {
+  height: 32px;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-danger-weak);
+  color: var(--color-danger);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: filter 150ms ease-out, transform 150ms ease-out;
+}
+
+.delete-button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.delete-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.delete-button:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
+.delete-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

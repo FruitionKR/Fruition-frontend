@@ -3,7 +3,7 @@ import test from "node:test";
 
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
 const { state } = await import("../mock/state.mjs");
-const { registerCatalogRoutes } = await import("../mock/routes/catalog.mjs");
+const { registerCatalogRoutes, classifyRequiresSource, legacyRequiresSource } = await import("../mock/routes/catalog.mjs");
 
 const WORKSPACE_ID = "ws_skill_exec";
 const USER_ID = "user_skill_exec";
@@ -63,6 +63,44 @@ test("mock 게시·수정은 targets·result_mode를 저장하고 allowed_tools�
   assert.equal((await call("POST", "/author/publish", folder)).status, 400);
 });
 
+test("mock 수정은 capabilities를 받아 종류·결과 방식을 바꾸고 allowed_tools·targets·result_mode를 다시 정한다", async (t) => {
+  const call = await startMock(t);
+  const published = await call("POST", "/author/publish", { ...definition, name: "kind-check", scope_type: "personal", targets: ["selection"], result_mode: "edit" });
+  const path = `/${published.body.skill_id}`;
+  const patch = { name: "kind-check", description: "점검", instructions_markdown: "연구 개요만 고친다." };
+
+  // 문서 결과 방식 변경: result_mode를 생략하면 capabilities에서 정하고, 문서 Skill끼리면 대상을 이어받는다.
+  const auto = (await call("PATCH", path, { ...patch, capabilities: ["document-create", "document-edit"] })).body;
+  assert.deepEqual(auto.capabilities, ["document-create", "document-edit"]);
+  assert.equal(auto.result_mode, "auto");
+  assert.deepEqual(auto.targets, ["selection"]);
+  assert.ok(auto.allowed_tools.includes("create_document"));
+
+  // 폴더 정리로 바꾸면 targets·result_mode를 비우고 requires_source는 false다. 함께 보낸 대상은 거절한다.
+  assert.equal((await call("PATCH", path, { ...patch, capabilities: ["folder-organize"], targets: ["selection"] })).body.error.code, "SKILL_TARGETS_INVALID");
+  const folder = (await call("PATCH", path, { ...patch, capabilities: ["folder-organize"] })).body;
+  assert.deepEqual(folder.targets, []);
+  assert.equal(folder.result_mode, null);
+  assert.equal(folder.requires_source, false);
+  assert.ok(folder.allowed_tools.includes("move_document") && !folder.allowed_tools.includes("apply_document_edit"));
+  // capabilities를 생략하면 이어받는다(재분류 없음).
+  assert.deepEqual((await call("PATCH", path, { ...patch, instructions_markdown: "#새문서 다시 쓴다." })).body.capabilities, ["folder-organize"]);
+
+  // 다시 문서로: 대상은 기본값, 보낸 result_mode가 capabilities와 맞지 않으면 거절한다.
+  assert.equal((await call("PATCH", path, { ...patch, capabilities: ["document-edit"], result_mode: "create" })).body.error.code, "SKILL_RESULT_MODE_INVALID");
+  const doc = (await call("PATCH", path, { ...patch, capabilities: ["document-create"], result_mode: "create", requires_source: true })).body;
+  assert.deepEqual(doc.targets, ["current_document"]);
+  assert.equal(doc.result_mode, "create");
+  assert.equal(doc.requires_source, true);
+
+  // 허용되지 않는 값·빈 목록·중복은 SKILL_CAPABILITIES_INVALID다.
+  for (const capabilities of [["unknown"], [], ["document-edit", "document-edit"]]) {
+    const rejected = await call("PATCH", path, { ...patch, capabilities });
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.error.code, "SKILL_CAPABILITIES_INVALID");
+  }
+});
+
 test("mock 테스트 실행은 섹션 변경 전/후를 돌려주고 같은 run_id는 409로 거절한다", async (t) => {
   const call = await startMock(t);
   const result = await call("POST", "/test-run?run_id=skill_test_mock_1", { ...definition, document_id: DOC_ID, target: { type: "selection", start_line: 1, end_line: 3 } });
@@ -81,4 +119,50 @@ test("mock 테스트 실행은 섹션 변경 전/후를 돌려주고 같은 run_
   const unavailable = await call("POST", "/test-run?run_id=skill_test_mock_4", { ...definition, instructions_markdown: "#테스트불가", document_id: DOC_ID });
   assert.equal(unavailable.status, 503);
   assert.equal(unavailable.body.error.code, "SKILL_TEST_RUN_UNAVAILABLE");
+});
+
+test("mock requires_source 분류: {문서} → true, 템플릿·폴더 정리 → false, 요약·정리·비교 → true", () => {
+  assert.equal(classifyRequiresSource(["document-create"], "{문서}를 바탕으로 보고서를 쓴다."), true);
+  assert.equal(classifyRequiresSource(["document-create"], "회의 내용을 요약한다."), true);
+  assert.equal(classifyRequiresSource(["document-create", "document-edit"], "두 안을 비교한다."), true);
+  assert.equal(classifyRequiresSource(["document-create"], "빈 주간 보고 양식을 만든다."), false);
+  assert.equal(classifyRequiresSource(["template"], "{문서} 요약"), false);
+  assert.equal(classifyRequiresSource(["folder-organize"], "폴더를 정리한다."), false);
+});
+
+test("mock 예전 Skill(requires_source 없음)은 조회 규칙으로 계산한다: 템플릿 false, 새 문서를 만들면 true", () => {
+  assert.equal(legacyRequiresSource({ capabilities: ["document-create"], result_mode: null }), true);
+  assert.equal(legacyRequiresSource({ capabilities: ["document-create", "document-edit"], result_mode: "auto" }), true);
+  assert.equal(legacyRequiresSource({ capabilities: ["document-create", "document-edit"], result_mode: "edit" }), false);
+  assert.equal(legacyRequiresSource({ capabilities: ["document-edit"], result_mode: null }), false);
+  assert.equal(legacyRequiresSource({ capabilities: ["template"], result_mode: null }), false);
+  assert.equal(legacyRequiresSource({ capabilities: ["folder-organize"] }), false);
+});
+
+test("mock 게시·수정은 requires_source를 보낸 값으로 저장하고, 게시에서 생략하면 다시 분류하지 않고 {문서} 규칙만 쓴다", async (t) => {
+  const call = await startMock(t);
+  const base = { description: "점검", scope_type: "personal", capabilities: ["document-create"], result_mode: "create" };
+  // 초안은 분류로 판단하지만, 게시는 생략하면 {문서}가 없는 한 false다(초안 판단을 지키려면 클라이언트가 보내야 한다).
+  const draft = await call("POST", "/author", { instruction: "#새문서 회의를 요약한다.", scope_type: "personal" });
+  assert.equal(draft.body.requires_source, true);
+  const omitted = await call("POST", "/author/publish", { ...base, name: "src-auto", instructions_markdown: "회의를 요약한다." });
+  assert.equal(omitted.body.requires_source, false);
+  const placeholder = await call("POST", "/author/publish", { ...base, name: "src-placeholder", instructions_markdown: "{문서}를 요약한다." });
+  assert.equal(placeholder.body.requires_source, true);
+  const kept = await call("POST", "/author/publish", { ...base, name: "src-kept", instructions_markdown: "회의를 요약한다.", requires_source: draft.body.requires_source });
+  assert.equal(kept.body.requires_source, true);
+  const editOnly = await call("POST", "/author/publish", { ...base, name: "src-edit", capabilities: ["document-edit"], result_mode: "edit", instructions_markdown: "{문서}를 고친다.", requires_source: true });
+  assert.equal(editOnly.body.requires_source, false);
+  const picked = await call("POST", "/author/publish", { ...base, name: "src-picked", instructions_markdown: "회의를 요약한다.", requires_source: false });
+  assert.equal(picked.body.requires_source, false);
+  assert.equal((await call("POST", "/author/publish", { ...base, name: "src-bad", instructions_markdown: "x", requires_source: "yes" })).status, 400);
+  const listed = (await call("GET", "")).body.find((skill) => skill.id === picked.body.skill_id);
+  assert.equal(listed.enabled_version.requires_source, false);
+
+  // 지침을 그대로 두고 생략하면 이어받고, 지침을 고치면 다시 정하고, 보내면 그 값을 쓴다.
+  const patch = { name: "src-picked", description: "점검", instructions_markdown: "회의를 요약한다." };
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, patch)).body.requires_source, false);
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, { ...patch, instructions_markdown: "빈 양식을 만든다." })).body.requires_source, false);
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, { ...patch, instructions_markdown: "{문서}를 다시 쓴다." })).body.requires_source, true);
+  assert.equal((await call("PATCH", `/${picked.body.skill_id}`, { ...patch, requires_source: false })).body.requires_source, false);
 });

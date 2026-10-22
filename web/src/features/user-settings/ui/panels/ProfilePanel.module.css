@@ -1,82 +1,122 @@
-/* 프로필 설정 패널 전용 스타일. 행·필드·섹션은 SettingsModal.module.css를 쓴다. */
+/* 사용자 설정 > 연동된 계정 (Figma 1691:16834). 행·필드·섹션은 SettingsModal.module.css를 쓴다. */
 
-/* 프로필 사진: 64px 사진·이니셜 상자 + 안내·버튼. 설정 메뉴의 24px 아바타(.nav-avatar)를 키운 모양이다. */
-.photo {
+/* 2열 격자: 열 간격 40, 줄 간격 12 (Figma 1691:16940 → 1691:16966), 행마다 py 4 */
+.provider-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 40px;
+}
+
+.provider-row {
+  min-width: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.provider-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
   gap: 16px;
 }
 
-/* 상자 자체가 파일 선택 버튼이다(워크스페이스 아이콘 설정과 같다). */
-.avatar-button {
-  padding: 0;
-  border: 0;
-  background: none;
-  border-radius: 16px;
-  cursor: pointer;
-}
-
-.avatar-button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.avatar-button:focus-visible {
-  outline: 2px solid var(--color-primary-default);
-  outline-offset: 2px;
-}
-
-.photo-actions {
+.provider-text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 0;
+  gap: 6px;
+  line-height: 1.2;
 }
 
-.photo-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.photo-button {
-  padding: 6px 12px;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  font-size: 12px;
+.provider-text strong {
+  color: var(--color-body);
+  font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
+  letter-spacing: -0.28px;
 }
 
-.photo-button:hover:not(:disabled) {
-  background: var(--color-border);
-}
-
-.photo-button:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.avatar {
-  width: 64px;
-  height: 64px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-foreground);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  overflow: hidden;
-  font-size: 26px;
-  font-weight: 700;
-}
-
-.photo-note {
-  min-width: 0;
+.provider-text small {
   color: var(--color-muted);
   font-size: 12px;
-  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: -0.24px;
+}
+
+/* 로고 칸 52px, 반지름 12, 1px 테두리 (네이버는 시안 자산 자체가 칸이다) */
+.provider-logo {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.provider-logo.is-kakao,
+.provider-logo.is-google {
+  border: 1px solid var(--color-border);
+}
+
+.provider-logo.is-kakao {
+  /* 카카오 브랜드 노랑: 테마와 상관없이 고정 */
+  background: #fee500;
+}
+
+.provider-logo.is-google {
+  background: #ffffff;
+}
+
+/* 카카오 말풍선 (Figma 1691:16963: 위 23.21%, 좌우 18.24%, 아래 18.17%) */
+.kakao-symbol {
+  position: absolute;
+  top: calc(23.21% - 0.54px);
+  left: calc(18.24% - 0.64px);
+}
+
+/* 구글 G 조각 4개를 28.7px 칸 가운데에 겹친다 (Figma 1691:16988) */
+.google-part {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@media (max-width: 700px) {
+  .provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 프로필 list (Figma 1691:16602): 닉네임 칸과 프로필 사진 묶음 사이 16. 닉네임 field(1691:16603)는 위아래 여백이 없다. */
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-list > .profile-field {
+  padding: 0;
+}
+
+/* 닉네임 칸 높이 36 (Figma 1691:16605: 글자 줄 20 + 위아래 8, 테두리는 안쪽) */
+.profile-list > .profile-field input {
+  height: 36px;
+}
+
+/* 계정 정보 list (Figma 1691:16618): 행 사이 12, 행 높이 50 (제목 블록이 위아래 6 여백으로 가운데) */
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-list > .account-row {
+  padding: 6px 0;
 }

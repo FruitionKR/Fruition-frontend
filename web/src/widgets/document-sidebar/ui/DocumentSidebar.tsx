@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
@@ -9,7 +9,6 @@ import { ContextMenu } from "./ContextMenu";
 import { GraphRailActions } from "./GraphRailActions";
 import { GraphSidebarActions } from "./GraphSidebarActions";
 import { RootTree } from "./RootTree";
-import { SidebarMenuRow } from "./SidebarMenuRow";
 import { SidebarProfile } from "./SidebarProfile";
 import { SidebarWorkspaceHeader } from "./SidebarWorkspaceHeader";
 import { sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
@@ -18,7 +17,10 @@ import { WikiWorkButton } from "./WikiWorkButton";
 import { DocumentSearch } from "@/features/document-search/ui/DocumentSearch";
 import type { SelectableTreeItem, TreeInteractionProps } from "../model/treeInteraction";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
+import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
+import { buildTreeWikiReflectBadges } from "../model/treeWikiReflectBadge";
+import { buildTreeConversionBadges } from "../model/treeConversionBadge";
 import styles from "./DocumentSidebar.module.css";
 
 export function DocumentSidebar({
@@ -57,7 +59,10 @@ export function DocumentSidebar({
   onDropFiles,
   onDragStart,
   onToggleSelectItem,
+  onSelectItemRange,
   onClearSelectedItems,
+  onDeleteSelectedItems,
+  selectedContextCount = 0,
   onDragOverItem,
   onFileDragOver,
   onFileDragLeave,
@@ -74,6 +79,7 @@ export function DocumentSidebar({
   onSetPermissionContextTarget,
   onAddMarkdownFromContext,
   onCreateNote,
+  isCreatingNote = false,
   onUploadFromContext,
   onConvertContextTarget,
   onDeleteContextTarget,
@@ -92,7 +98,7 @@ export function DocumentSidebar({
   onToggleOpen: (id: string) => void;
   onOpenMany: (ids: readonly string[]) => void;
   contextMenu: ContextMenuState | null;
-  convertContextTarget: { isDisabled: boolean } | null;
+  convertContextTarget: { isDisabled: boolean; disabledReason?: string } | null;
   /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
   canRenameContextTarget: boolean;
   /** 서버 can_delete=false면 삭제 메뉴를 비활성화한다. */
@@ -145,7 +151,13 @@ export function DocumentSidebar({
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
   onToggleSelectItem: (itemId: string) => void;
-  onClearSelectedItems: () => void;
+  /** Shift+클릭 범위 선택. 지금 보이는 행 순서(visibleIds)와 지금 열린 행(selectedItemId)을 함께 넘긴다 */
+  onSelectItemRange: (itemId: string, visibleIds: readonly string[], fallbackAnchorId: string | null) => void;
+  onClearSelectedItems: (anchorItemId?: string) => void;
+  /** 고른 항목 묶음 삭제(우클릭 메뉴·Delete 키). 확인 모달을 연다 */
+  onDeleteSelectedItems: () => void;
+  /** 우클릭한 행이 2개 이상 묶음 선택에 들면 그 개수. 컨텍스트 메뉴가 묶음 메뉴로 바뀐다 */
+  selectedContextCount?: number;
   onDragOverItem: (target: DropTarget) => void;
   onFileDragOver: (target: FileDropTarget) => void;
   onFileDragLeave: () => void;
@@ -163,6 +175,8 @@ export function DocumentSidebar({
   onAddMarkdownFromContext: () => void;
   /** 사이드바 맨 아래 "새 노트 추가": 최상위에 새 노트를 만들고 바로 연다 */
   onCreateNote: (projectId: string) => void;
+  /** 새 노트를 만드는 중이면 "새 노트 추가"를 막는다(연타·키 반복으로 여러 개 생기지 않게). */
+  isCreatingNote?: boolean;
   onUploadFromContext: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
@@ -186,6 +200,10 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDropFiles
   });
+  // 문서 행 우측 위키 반영 배지. 문서 목록이 바뀔 때만 다시 계산한다.
+  const wikiReflectBadges = useMemo(() => buildTreeWikiReflectBadges(documents ?? []), [documents]);
+  // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
+  const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
   const interaction: TreeInteractionProps = {
     draggedItemId,
@@ -195,6 +213,8 @@ export function DocumentSidebar({
     dropTarget,
     fileDropTarget,
     editing,
+    wikiReflectBadges,
+    conversionBadges,
     openIds,
     onToggleOpen,
     onOpenMany,
@@ -202,7 +222,9 @@ export function DocumentSidebar({
     onDropFiles,
     onDragStart,
     onToggleSelectItem,
+    onSelectItemRange: (itemId) => onSelectItemRange(itemId, visibleSelectableIds(rootProject?.items ?? [], openIds), selectedItemId),
     onClearSelectedItems,
+    onDeleteSelectedItems,
     onDragOverItem,
     onFileDragOver,
     onFileDragLeave,
@@ -216,7 +238,7 @@ export function DocumentSidebar({
     onCancelEditing
   };
 
-  // 그래프 밖으로 나가면(레일·세그먼트·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
+  // 그래프 밖으로 나가면(레일·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
   useEffect(() => {
     if (activeView !== "graph") setIsIngestSelecting(false);
   }, [activeView]);
@@ -224,7 +246,7 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 위키 편입 선택 모드와 함께 감싼다.
   const projectTree = (
     <>
-      {/* FILE 제목 (Figma 1486:4167). 최상위 생성은 아래 새 노트 추가와 빈 영역 우클릭 메뉴가 맡는다. */}
+      {/* FILE 제목 (Figma 1540:17028). 홈·그래프 모두 정적인 제목으로 표시한다. */}
       {rootProject && (
         <div className={styles["tree-root-header"]}>
           <span>File</span>
@@ -237,6 +259,10 @@ export function DocumentSidebar({
         <button
           type="button"
           className={styles["tree-add-page"]}
+          disabled={isCreatingNote}
+          aria-busy={isCreatingNote || undefined}
+          // 눌러 둔 Enter의 키 반복은 클릭으로 이어지지 않게 한다.
+          onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
           onClick={(event) => {
             event.stopPropagation();
             onCreateNote(rootProject.id);
@@ -255,6 +281,8 @@ export function DocumentSidebar({
           canRenameTarget={canRenameContextTarget}
           canDeleteTarget={canDeleteContextTarget}
           canSetPermissionTarget={canSetPermissionContextTarget}
+          selectedCount={selectedContextCount}
+          onDeleteSelected={onDeleteSelectedItems}
           onRenameContextTarget={onRenameContextTarget}
           onSetPermissionContextTarget={onSetPermissionContextTarget}
           onAddProject={onAddProject}
@@ -297,7 +325,7 @@ export function DocumentSidebar({
           tools={(
             <>
               <RailGroup>
-                <WikiWorkButton documents={documents} />
+                <WikiWorkButton documents={documents} treeItems={rootProject?.items} />
               </RailGroup>
               {activeView === "graph" && graphActions && (
                 <>
@@ -341,7 +369,6 @@ export function DocumentSidebar({
               <SidebarSearchIcon className={styles["sidebar-search-icon"]} />
               <span>통합 검색</span>
             </button>
-            {!settingsNav && <SidebarMenuRow activeView={activeView} onViewChange={onViewChange} />}
           </div>
           {isSearchOpen && (
             <DocumentSearch
@@ -363,6 +390,8 @@ export function DocumentSidebar({
           {settingsNav ?? (
           <div
             className={styles["sidebar-content"]}
+            // 트리 행 밖 빈 영역을 누르면 묶음 선택을 푼다(행 클릭은 전파를 막는다).
+            onClick={() => onClearSelectedItems()}
             onContextMenu={(event) => {
               // 문서 관리 뷰에서는 트리 밖 빈 영역 우클릭도 프로젝트 메뉴(새 노트 등)를 연다.
               // 폴더·프로젝트에서 이미 연 메뉴(preventDefault됨)는 덮어쓰지 않는다.

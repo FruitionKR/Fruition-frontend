@@ -4,6 +4,14 @@ export type RunStageEvent = { stage: string; message: string; sequence: number }
 /** query.failed 이벤트 데이터. error는 한국어 문구, code는 실패 코드(document #119 이후). */
 export type RunFailedEventData = { error?: string; code?: string };
 
+/** 서버가 query.failed로 알린 실패. 연결이 끊긴 오류와 달리 다시 확인해도 결과가 바뀌지 않는다. */
+export class RunFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RunFailedError";
+  }
+}
+
 /** SSE 프레임(event/data 줄) 한 개를 파싱한다. heartbeat(':' 주석)는 무시한다. */
 function parseSseFrame(raw: string): { event: string; data: unknown } | null {
   let event = "message";
@@ -53,7 +61,7 @@ export async function readRunEvents(
         } else if (frame?.event === "query.cancelled") {
           return "cancelled";
         } else if (frame?.event === "query.failed") {
-          throw new Error((frame.data as RunFailedEventData).error || failureMessage);
+          throw new RunFailedError((frame.data as RunFailedEventData).error || failureMessage);
         }
         separator = /\r?\n\r?\n/.exec(buffer);
       }

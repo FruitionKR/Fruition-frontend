@@ -74,12 +74,12 @@ test("진행 중인 lint 로그가 있으면 진행 라벨을 만든다", () => 
   assert.equal(
     formatLintProgressLabel(makeLog({ created_at: "2026-08-17T00:00:00Z" }), false,
       Date.parse("2026-08-17T00:04:20Z")),
-    "Lint · 4분째 실행 중"
+    "위키 최신화 · 4분째 실행 중"
   );
 });
 
 test("로그가 아직 안 보여도 방금 보낸 요청은 진행 중으로 표시한다", () => {
-  assert.equal(formatLintProgressLabel(null, true), "Lint 진행 중");
+  assert.equal(formatLintProgressLabel(null, true), "위키 최신화 진행 중");
 });
 
 test("진행 중인 lint가 없으면 라벨이 없다", () => {

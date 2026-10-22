@@ -1,3 +1,4 @@
+import { analyticsSessionHeaders } from "@/shared/lib/analytics/client";
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { apiFetch, parseJsonOrThrow, parseErrorResponse, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
@@ -90,6 +91,27 @@ export async function cancelQueryRun(run: QueryRun, signal: AbortSignal): Promis
   }
 }
 
+/** 질의 AI task 조회·취소 요청 결과. missing은 404(서버에 task가 없음). */
+export type QueryTaskCheck = { kind: "status"; status: string } | { kind: "missing" };
+
+async function readQueryTask(response: Response): Promise<QueryTaskCheck> {
+  if (response.status === 404) return { kind: "missing" };
+  const task = await parseJsonOrThrow<{ status?: string }>(response, "질의 상태를 확인하지 못했습니다.");
+  return { kind: "status", status: task.status ?? "" };
+}
+
+/** 현재 워크스페이스의 질의 run(=AI task) 상태. pending에 오래 머문 질의가 끝났는지 확인할 때 쓴다. */
+export async function fetchQueryTaskStatus(requestId: string, signal?: AbortSignal): Promise<QueryTaskCheck> {
+  const response = await apiFetch(workspacePath(getWorkspaceId(), "ai", "tasks", requestId), { cache: "no-store", signal });
+  return readQueryTask(response);
+}
+
+/** 현재 워크스페이스의 질의 run 취소를 요청만 한다(복구 완료까지 기다리지 않는다). 응답을 받지 못한 질의를 닫을 때 쓴다. */
+export async function requestQueryTaskCancel(requestId: string, signal?: AbortSignal): Promise<QueryTaskCheck> {
+  const response = await apiFetch(`${workspacePath(getWorkspaceId(), "ai", "tasks", requestId)}/cancel`, { method: "POST", signal });
+  return readQueryTask(response);
+}
+
 /**
  * 비동기 질의(run)를 시작하고 SSE로 진행 단계를 소비한 뒤 최종 결과를 반환한다.
  * 백엔드: POST /chat/sessions/{id}/query/runs → GET /api/query/runs/{id}/events(SSE) → GET /api/query/runs/{id}.
@@ -103,16 +125,17 @@ export async function runQueryStream(
     onStarted?: (run: QueryRun) => void;
     signal?: AbortSignal;
     allowWebSearch?: boolean;
+    sessionContext?: { workspaceId: string; sessionId: string };
   }
 ): Promise<QueryResponse> {
-  const { workspaceId, sessionId } = await getSessionContext();
+  const { workspaceId, sessionId } = handlers.sessionContext ?? await getSessionContext();
 
   const createResponse = await apiFetch(
     workspacePath(workspaceId, "chat", "sessions", sessionId, "query", "runs"),
     {
       method: "POST",
       signal: handlers.signal,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...analyticsSessionHeaders() },
       // provider/model은 백엔드 카탈로그 검증 대상이라 쌍으로 보내야 한다.
       // allow_web_search는 @NotNull 필수 필드라 항상 명시한다. composer의 웹 서칭 토글 값.
       body: JSON.stringify({

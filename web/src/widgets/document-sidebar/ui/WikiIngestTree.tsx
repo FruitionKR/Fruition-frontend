@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { captureAnalytics } from "@/shared/lib/analytics/client";
+import { useEffect, useRef, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { Project, TreeItem } from "@/entities/tree";
 import { SidebarCheckOnIcon, SidebarChevronIcon } from "./SidebarIcons";
@@ -36,6 +37,12 @@ export function WikiIngestTree({
   onToggle: (documentIds: string[]) => void;
 }) {
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const reportedOpen = useRef(false);
+  useEffect(() => {
+    if (reportedOpen.current) return;
+    reportedOpen.current = true;
+    captureAnalytics("ingest_picker_opened", {});
+  }, []);
 
   function toggleOpen(itemId: string) {
     setCollapsedIds((current) => {

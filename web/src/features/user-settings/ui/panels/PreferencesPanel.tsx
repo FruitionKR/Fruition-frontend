@@ -82,7 +82,10 @@ function ChoiceCards<T extends string>({ labelId, choices, value, onSelect }: {
   );
 }
 
-/** 기본 설정 패널: 이 계정에만 적용되는 화면·편집·채팅 설정. 워크스페이스 공용 설정은 워크스페이스 설정에 있다. */
+/**
+ * 디스플레이 설정: 이 계정에만 적용되는 화면·채팅 설정. 시안(SNB 1577:3515)은 메뉴 이름만 있어 기존 구성을 유지한다.
+ * 자동 저장은 시안대로 워크스페이스 설정 화면으로 옮겼다.
+ */
 export function PreferencesPanel() {
   const { preferences, updatePreferences } = useUserPreferences();
 
@@ -92,7 +95,7 @@ export function PreferencesPanel() {
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="기본 설정" description="이 계정에서 보는 화면과 편집·채팅 방식을 설정합니다." />
+      <SettingsPanelTitle title="디스플레이 설정" description="이 계정에서 보는 화면과 채팅 방식을 설정합니다." />
 
       <div className={styles.section}>
         <SettingsSectionHeader id="preferences-theme-label">화면 테마</SettingsSectionHeader>
@@ -110,14 +113,7 @@ export function PreferencesPanel() {
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>편집과 채팅</SettingsSectionHeader>
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>자동 저장</strong>
-            <small>편집한 내용을 자동으로 저장합니다. 끄면 Cmd/Ctrl+S로 저장합니다.</small>
-          </div>
-          <Switch checked={preferences.autoSave} label="자동 저장" onClick={() => update("autoSave", !preferences.autoSave)} />
-        </div>
+        <SettingsSectionHeader>채팅</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>웹 검색 기본으로 켜기</strong>

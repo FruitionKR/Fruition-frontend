@@ -7,6 +7,9 @@ export const DEMO_PASSWORD = "demo1234";
 export const WORKSPACE_ID = "ws_fruition";
 const USER_ID = "user_demo";
 const MEMBER_ID = "user_jihyun";
+// 폴더 ID는 실제 백엔드처럼 UUID다(agent turn의 folder_id 검증).
+const RESEARCH_FOLDER_ID = "6f1c2a3b-4d5e-4f60-8a71-9b2c3d4e5f60";
+const EMPTY_FOLDER_ID = "7a2b3c4d-5e6f-4071-8b82-ac3d4e5f6071";
 
 const INTRO_MD = `# Fruition 프로젝트 소개
 
@@ -119,6 +122,8 @@ function document(partial) {
     owner_user_id: USER_ID,
     permission: null,
     versions: [{ version: 1, content_hash: hash(content.toString("utf8")), created_by: USER_ID, created_at: uploadedAt, markdown }],
+    // completed 시드 문서는 위키에 편입된 문서다. 화면은 편입 run(pipeline_run_id) 유무로 "편입한 적 있음"을 가린다.
+    pipeline_run_id: (partial.status ?? "completed") === "completed" ? `run_seed_${partial.id}` : undefined,
     ...partial,
     markdown,
     content
@@ -150,18 +155,18 @@ export function seed() {
   );
 
   // 루트 폴더 예시: 논문 PDF와 변환본을 묶는다. 나머지 문서는 루트에 둔다.
-  state.folders.push({ id: "folder_research", workspace_id: WORKSPACE_ID, name: "연구 자료", parent_folder_id: null, sort_order: 0, current_version: 1, created_at: minutesAgo(90) });
+  state.folders.push({ id: RESEARCH_FOLDER_ID, workspace_id: WORKSPACE_ID, name: "연구 자료", parent_folder_id: null, sort_order: 0, current_version: 1, created_at: minutesAgo(90) });
   // 빈 폴더 예시: 위키 편입 선택 트리에서도 폴더 구조가 그대로 보이는지 확인한다.
-  state.folders.push({ id: "folder_empty", workspace_id: WORKSPACE_ID, name: "빈 폴더", parent_folder_id: null, sort_order: 1, current_version: 1, created_at: minutesAgo(85) });
+  state.folders.push({ id: EMPTY_FOLDER_ID, workspace_id: WORKSPACE_ID, name: "빈 폴더", parent_folder_id: null, sort_order: 1, current_version: 1, created_at: minutesAgo(85) });
 
   state.documents.push(
     document({ id: "doc_intro", filename: "프로젝트 소개.md", markdown: INTRO_MD, processed_at: minutesAgo(100) }),
     document({ id: "doc_arch", filename: "아키텍처 개요.md", markdown: ARCH_MD, processed_at: minutesAgo(95), needs_reingest: true, updated_at: minutesAgo(30), current_version: 2, edit_revision: 2,
       source_snapshot: ingestSourceBlocks(ARCH_INGESTED_MD, [], ARCH_BLOCK_IDS) }),
-    document({ id: "doc_paper", filename: "지식 그래프 검색 논문.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Knowledge Graph Retrieval - Fruition mock PDF"), processed_at: minutesAgo(80), folder_id: "folder_research" }),
-    document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", source_document_id: "doc_paper", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: "folder_research" }),
+    document({ id: "doc_paper", filename: "지식 그래프 검색 논문.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Knowledge Graph Retrieval - Fruition mock PDF"), processed_at: minutesAgo(80), folder_id: RESEARCH_FOLDER_ID }),
+    document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", source_document_id: "doc_paper", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: RESEARCH_FOLDER_ID }),
     // 아직 Markdown으로 변환하지 않은 PDF: 위키 편입 선택 트리에서 변환 후 편입으로 고를 수 있다.
-    document({ id: "doc_survey", filename: "그래프 RAG 서베이.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Graph RAG Survey - Fruition mock PDF"), status: "uploaded", uploaded_at: minutesAgo(70), folder_id: "folder_research" }),
+    document({ id: "doc_survey", filename: "그래프 RAG 서베이.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Graph RAG Survey - Fruition mock PDF"), status: "uploaded", uploaded_at: minutesAgo(70), folder_id: RESEARCH_FOLDER_ID }),
     document({ id: "doc_notes", filename: "회의 노트 초안.md", markdown: NOTES_MD, status: "processing", processing_state: "running", processing_stage: "concept_extraction", processing_started_at: minutesAgo(1), uploaded_at: minutesAgo(3) }),
     document({ id: "doc_failed", filename: "깨진 문서.md", markdown: "# 제목만 있는 문서\n", status: "failed", processing_state: "failed", error_message: "LLM 응답 파싱에 실패했습니다.", uploaded_at: minutesAgo(50) }),
     document({ id: "doc_todo", filename: "할 일.md", markdown: TODO_MD, status: "uploaded", uploaded_at: minutesAgo(5) }),
@@ -172,21 +177,6 @@ export function seed() {
     document({ id: "doc_trashed", filename: "지난 분기 회고.md", markdown: "# 지난 분기 회고\n\n정리 끝.\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 40), deleted_at: minutesAgo(60 * 24 * 3), deleted_by: USER_ID }),
     document({ id: "doc_expired", filename: "오래된 메모.md", markdown: "# 오래된 메모\n", status: "uploaded", uploaded_at: minutesAgo(60 * 24 * 90), deleted_at: minutesAgo(60 * 24 * 45), deleted_by: USER_ID })
   );
-  // 미해결 편집 충돌 예시: 김지현이 '할 일.md'를 revision 1 기준으로 고쳤는데 서버는 이미 2다. OWNER 설정 화면에서 해결한다.
-  const todoDoc = state.documents.find((doc) => doc.id === "doc_todo");
-  todoDoc.current_version = 2;
-  todoDoc.edit_revision = 2;
-  todoDoc.updated_by = USER_ID;
-  state.editConflicts.push({
-    id: "conflict_todo", workspace_id: WORKSPACE_ID, document_id: "doc_todo", client_conflict_id: "seed-conflict-1", base_revision: 1,
-    markdown: `${TODO_MD}\n- [ ] 김지현: 충돌 본에서 추가한 항목\n`, author_user_id: MEMBER_ID,
-    status: "open", resolution: null, resolved_by: null, resolved_revision: null, created_at: minutesAgo(12), resolved_at: null
-  });
-  state.notifications.push({
-    id: "ntf_conflict_todo", workspace_id: WORKSPACE_ID, type: "edit_conflict_registered", audience: "workspace_owners", recipient_user_id: null, read_by: new Set(), created_at: minutesAgo(12),
-    payload: { conflict_id: "conflict_todo", document_id: "doc_todo", document_name: "할 일.md", author_user_id: MEMBER_ID }
-  });
-
   // ingest가 끝난 Markdown 문서는 현재 본문 그대로 block 스냅샷을 가진다(stale 아님).
   state.documents
     .filter((doc) => doc.status === "completed" && doc.markdown && !doc.source_snapshot)
@@ -221,20 +211,38 @@ export function seed() {
         { id: 2, reference_type: "evidence", rank: 2, source_document_id: "doc_arch", source_block_ids: ["B0004"], text: "PDF 등 원본 문서는 먼저 Markdown 변환을 거칩니다." }
       ] }
   );
+  // 테스트용 시나리오: 작업자가 멈춰 10분째 running인 채팅 질의(메시지는 pending). 기본 데이터에는 넣지 않는다.
+  if (process.env.MOCK_STALLED_QUERY === "1") {
+    state.chatMessages.push(
+      { id: "msg_stalled_q", session_id: "chat_1", role: "user", content: "Lint는 언제 실행되나요?", status: "completed", created_at: minutesAgo(10), pair_id: "pair_stalled", run_id: "query_stalled_seed", references: [] },
+      { id: "msg_stalled_a", session_id: "chat_1", role: "assistant", content: "", status: "pending", created_at: minutesAgo(10), pair_id: "pair_stalled", run_id: "query_stalled_seed", references: [] }
+    );
+    state.queryRuns.set("query_stalled_seed", { id: "query_stalled_seed", workspace_id: WORKSPACE_ID, session_id: "chat_1", status: "running", error_code: null, result: null, question: "Lint는 언제 실행되나요?", options: { allow_web_search: false }, sequence: 0 });
+  }
 
+  // 테스트용 시나리오: 작업자가 멈춰 11분째 running인 작업 turn(메시지는 pending). 기본 데이터에는 넣지 않는다.
+  if (process.env.MOCK_STALLED_TURN === "1") {
+    state.chatMessages.push(
+      { id: "msg_stalled_turn_q", session_id: "chat_1", role: "user", content: "회의록 폴더 정리해줘", status: "completed", created_at: minutesAgo(11), pair_id: "pair_stalled_turn", run_id: "agent_stalled_seed", references: [] },
+      { id: "msg_stalled_turn_a", session_id: "chat_1", role: "assistant", content: "", status: "pending", created_at: minutesAgo(11), pair_id: "pair_stalled_turn", run_id: "agent_stalled_seed", references: [] }
+    );
+    state.agentTurns.set("agent_stalled_seed", { id: "agent_stalled_seed", workspace_id: WORKSPACE_ID, documentId: null, baseVersion: null, apply_operation_id: "apply_stalled_seed", folder_id: null, status: "running", result: null, error_code: null });
+  }
+
+  // 작업자(user_id) 예시: 데모 사용자(설정에서 사진을 올리면 사진), 김지현(사진 없음 → 기본 이미지), 멤버 목록에 없는 사용자.
   state.operationLogs.push(
-    { operation_id: "op_ingest_intro", workspace_id: WORKSPACE_ID, operation_type: "ingest", status: "succeeded", target_document_id: "doc_intro", target_display_name: "프로젝트 소개.md", summary: "source 1개, concept 2개 생성", changed_resource_count: 3, restored_from: null, created_at: minutesAgo(101), completed_at: minutesAgo(100),
+    { operation_id: "op_ingest_intro", workspace_id: WORKSPACE_ID, user_id: "user_removed", operation_type: "ingest", status: "succeeded", target_document_id: "doc_intro", target_display_name: "프로젝트 소개.md", summary: "source 1개, concept 2개 생성", changed_resource_count: 3, restored_from: null, created_at: minutesAgo(101), completed_at: minutesAgo(100),
       changes: [
         { id: 1, resource_type: "wiki_page", resource_id: "page_src_intro", resource_display_name: "프로젝트 소개", page_type: "source", before_revision: null, after_revision: 1, change_type: "created", change_summary: "source 페이지 생성", additions: 12, deletions: 0 },
         { id: 2, resource_type: "wiki_page", resource_id: "page_c_ingest", resource_display_name: "Ingest", page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성", additions: 6, deletions: 0 },
         { id: 3, resource_type: "wiki_page", resource_id: "page_c_workspace", resource_display_name: "워크스페이스", page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성", additions: 4, deletions: 0 }
       ] },
-    { operation_id: "op_ingest_arch", workspace_id: WORKSPACE_ID, operation_type: "ingest", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "source 1개, concept 1개 생성", changed_resource_count: 2, restored_from: null, created_at: minutesAgo(96), completed_at: minutesAgo(95),
+    { operation_id: "op_ingest_arch", workspace_id: WORKSPACE_ID, user_id: MEMBER_ID, operation_type: "ingest", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "source 1개, concept 1개 생성", changed_resource_count: 2, restored_from: null, created_at: minutesAgo(96), completed_at: minutesAgo(95),
       changes: [
         { id: 4, resource_type: "wiki_page", resource_id: "page_src_arch", resource_display_name: "아키텍처 개요", page_type: "source", before_revision: null, after_revision: 1, change_type: "created", change_summary: "source 페이지 생성", additions: 9, deletions: 0 },
         { id: 5, resource_type: "wiki_page", resource_id: "page_c_lint", resource_display_name: "Lint", page_type: "concept", before_revision: null, after_revision: 1, change_type: "created", change_summary: "concept 페이지 생성", additions: 5, deletions: 0 }
       ] },
-    { operation_id: "op_edit_arch", workspace_id: WORKSPACE_ID, operation_type: "document_edit", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "Lint 섹션 설명 보강", changed_resource_count: 1, restored_from: null, created_at: minutesAgo(31), completed_at: minutesAgo(30),
+    { operation_id: "op_edit_arch", workspace_id: WORKSPACE_ID, user_id: USER_ID, operation_type: "document_edit", status: "succeeded", target_document_id: "doc_arch", target_display_name: "아키텍처 개요.md", summary: "Lint 섹션 설명 보강", changed_resource_count: 1, restored_from: null, created_at: minutesAgo(31), completed_at: minutesAgo(30),
       changes: [{ id: 6, resource_type: "document", resource_id: "doc_arch", resource_display_name: "아키텍처 개요.md", before_revision: 1, after_revision: 2, change_type: "updated", change_summary: "Lint 설명 한 줄 추가", additions: 1, deletions: 1,
         hunks: [{ old_start: 11, old_lines: 1, new_start: 11, new_lines: 1, lines: [
           { type: "DELETE", old_line: 11, new_line: null, content: "Lint는 위키 페이지를 다듬습니다." },
@@ -269,7 +277,11 @@ export function seed() {
     // targets·result_mode 필드가 생기기 전 프론트가 대상을 지침 끝 "## 실행 대상" 절로 붙여 게시한 문서 Skill(ai#122 이전 행).
     { id: "skill_legacy_polish", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "polish-selection", scope_type: "personal", status: "enabled",
       enabled_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" },
-      latest_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" } }
+      latest_version: { id: "sv_3", name: "polish-selection", description: "선택한 문단의 문장을 다듬는다.", status: "published", version: 1, allowed_tools: ["get_document_content", "apply_document_edit"], capabilities: ["document-edit"], instructions_markdown: "선택한 문단의 문장을 간결하게 다듬는다. 사실은 바꾸지 않는다.\n\n## 실행 대상\n\n- 사용자가 선택한 부분 (선택한 부분이 있으면 그 부분만 다룬다)" } },
+    // 스킬 만들기에서 템플릿 종류를 뺀 뒤에도 예전에 만든 템플릿 스킬은 상세 탭에서 읽기 전용 카드로 보인다.
+    { id: "skill_weekly_template", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "weekly-report", scope_type: "personal", status: "enabled",
+      enabled_version: { id: "sv_4", name: "weekly-report", description: "주간 보고서 양식으로 새 문서를 만든다.", status: "published", version: 1, allowed_tools: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"], capabilities: ["template"], targets: [], result_mode: null, instructions_markdown: "# 주간 보고\n\n## 이번 주 한 일\n\n## 다음 주 할 일\n" },
+      latest_version: { id: "sv_4", name: "weekly-report", description: "주간 보고서 양식으로 새 문서를 만든다.", status: "published", version: 1, allowed_tools: ["list_root_items", "list_folder_children", "get_document_content", "create_document", "apply_document_edit"], capabilities: ["template"], targets: [], result_mode: null, instructions_markdown: "# 주간 보고\n\n## 이번 주 한 일\n\n## 다음 주 할 일\n" } }
   );
 
   state.aiModels.push(

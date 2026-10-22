@@ -25,7 +25,7 @@ export const WORKSPACE_HOME_LOCATION: WorkspaceLocation = { kind: "home" };
 
 const WORKSPACE_PATH = "/home";
 const WORKSPACE_VIEWS: readonly WorkspaceView[] = ["graph", "skills", "logs", "notifications", "settings"];
-const APP_TITLE = "Fruition Agent";
+const APP_TITLE = "Fruition";
 
 type SearchParamsLike = { get: (name: string) => string | null };
 
@@ -75,6 +75,15 @@ export function buildWorkspaceHref(location: WorkspaceLocation): string {
   return `${WORKSPACE_PATH}?${new URLSearchParams(params).toString()}`;
 }
 
+/**
+ * 워크스페이스를 바꿀 때 갈 주소. 문서·위키 페이지·트리 항목(doc·page·tree)은 이전 워크스페이스 것이라 버리고,
+ * 그래프·스킬·설정 같은 화면 선택만 남긴다. 새 워크스페이스에서 "문서를 찾을 수 없습니다"가 뜨지 않게 한다.
+ */
+export function workspaceSwitchHref(params: SearchParamsLike | null): string {
+  const location = parseWorkspaceLocation(params);
+  return buildWorkspaceHref(location.kind === "view" ? location : WORKSPACE_HOME_LOCATION);
+}
+
 /** 같은 대상인지 비교하는 키. 선택 상태와 URL이 이미 맞는지 볼 때 쓴다. */
 export function getWorkspaceLocationKey(location: WorkspaceLocation): string {
   const params = toSearchParams(location);
@@ -108,8 +117,7 @@ export function getWorkspaceLocationView(location: WorkspaceLocation): RailView 
   return location.kind === "view" ? location.view : "home";
 }
 
-/** 브라우저 탭 제목. 앱 metadata 제목(Fruition Agent)을 뒤에 붙인다. */
-export function formatWorkspaceDocumentTitle(screenTitle: string | null): string {
-  const title = screenTitle?.trim();
-  return title ? `${title} - ${APP_TITLE}` : APP_TITLE;
+/** 문서와 화면을 바꿔도 브라우저 탭은 서비스 이름으로 고정한다. */
+export function formatWorkspaceDocumentTitle(_screenTitle: string | null): string {
+  return APP_TITLE;
 }

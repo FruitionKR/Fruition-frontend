@@ -1,4 +1,4 @@
-import { apiFetch, ERROR_MESSAGES, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
+import { apiFetch, ERROR_MESSAGES, getWorkspaceId, parseApiError, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import { describeEditLockHolder } from "../model/editLockSchedule";
 
 /** 편집 잠금 상태. 잠금이 없으면 필드 자체가 빠진다. */
@@ -27,6 +27,15 @@ export class EditLockLostError extends Error {}
 /** 잠글 수 없는 문서다(403 권한 없음·404 없음). 네트워크 오류와 달리 기다려도 달라지지 않는다. */
 export class EditLockDeniedError extends Error {}
 
+/**
+ * 편집 잠금을 쓸 수 없는 문서다(400 INVALID_MARKDOWN_CONTENT: 채팅 Wiki page화 문서·Markdown이 아닌 문서).
+ * 권한과 달리 문서 성격이라 다시 열어도 달라지지 않으므로 같은 문서에 다시 요청하지 않는다.
+ */
+export class EditLockUnsupportedError extends EditLockDeniedError {}
+
+/** 편집 잠금을 쓸 수 없는 문서에 서버가 주는 400 코드. */
+const EDIT_LOCK_UNSUPPORTED_CODE = "INVALID_MARKDOWN_CONTENT";
+
 function editLockPath(documentId: string): string {
   return `${workspacePath(getWorkspaceId(), "documents", documentId)}/edit-lock`;
 }
@@ -42,6 +51,13 @@ export async function acquireEditLock(documentId: string): Promise<EditLockRespo
   }
   if (response.status === 403) throw new EditLockDeniedError(ERROR_MESSAGES.editLockForbidden);
   if (response.status === 404) throw new EditLockDeniedError(ERROR_MESSAGES.editLockMissing);
+  if (response.status === 400) {
+    const error = await parseApiError(response, ERROR_MESSAGES.editLockUnsupported);
+    // 문서 성격으로 잠글 수 없다고 밝힌 400만 다시 요청하지 않는다. 다른 400은 다시 열면 달라질 수 있는 실패라
+    // 기억하지 않고, 403·404처럼 서버 상세 대신 정해진 문구를 던진다.
+    if (error.code === EDIT_LOCK_UNSUPPORTED_CODE) throw new EditLockUnsupportedError(error.message);
+    throw new Error(ERROR_MESSAGES.editLockFailed);
+  }
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }
 
@@ -53,8 +69,11 @@ export async function sendEditLockHeartbeat(documentId: string): Promise<EditLoc
   return parseJsonOrThrow<EditLockResponse>(response, ERROR_MESSAGES.editLockFailed);
 }
 
-/** 편집기 종료 시 호출한다. 보유자 본인의 잠금만 해제하며 멱등이다. */
-export async function releaseEditLock(documentId: string): Promise<void> {
+/**
+ * 편집기 종료 시 호출한다. 보유자 본인의 잠금만 해제하며 멱등이다.
+ * keepalive는 페이지를 떠나는 중(pagehide)에도 요청이 끝까지 가게 한다.
+ */
+export async function releaseEditLock(documentId: string, { keepalive = false }: { keepalive?: boolean } = {}): Promise<void> {
   // 해제 실패는 사용자가 할 수 있는 일이 없고, 서버의 expires_at 만료가 최종 안전장치라 상태를 따지지 않는다.
-  await apiFetch(editLockPath(documentId), { method: "DELETE" });
+  await apiFetch(editLockPath(documentId), { method: "DELETE", ...(keepalive ? { keepalive: true } : {}) });
 }

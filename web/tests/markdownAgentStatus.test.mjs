@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDocumentCommandSteps, buildStatusSteps } from "../src/features/agent-chat/lib/statusSteps.ts";
+import { buildDocumentCommandSteps, buildStatusSteps, messageStatusTitle } from "../src/features/agent-chat/lib/statusSteps.ts";
 
 test("일반 Query는 Wiki 검색과 근거 답변 단계를 유지한다", () => {
   assert.deepEqual(buildStatusSteps(false, true), [
@@ -24,4 +24,11 @@ test("새 문서 명령은 마지막 단계를 생성으로 구분한다", () =>
     ["LLM 답변 생성", "active"],
     ["새 문서 생성", "pending"]
   ]);
+});
+
+test("말풍선 상태 제목은 진행·완료·취소를 구분하고 그 밖의 종료는 '요청 처리 종료'로 둔다", () => {
+  assert.equal(messageStatusTitle("pending"), "요청 처리 중");
+  assert.equal(messageStatusTitle("completed"), "요청 처리 완료");
+  assert.equal(messageStatusTitle("cancelled"), "요청 취소됨");
+  assert.equal(messageStatusTitle("failed"), "요청 처리 종료");
 });

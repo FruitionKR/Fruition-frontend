@@ -17,6 +17,7 @@ registerHooks({
 });
 
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
+const { reflectDocumentToWiki } = await import("../src/entities/document/api/document.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { render } = await import("./reactHookShim.mjs");
 
@@ -62,11 +63,20 @@ async function advance(t, ms) {
 function renderAutosave(props) {
   const current = { autoSave: props.autoSave };
   const box = render(() => useNoteAutosave({
-    documentId: DOCUMENT_ID,
+    documentId: props.documentId ?? DOCUMENT_ID,
     marker: "<!-- note -->",
     initialVersion: 7,
+    beforeFlush: props.beforeFlush,
     autoSave: current.autoSave
   }));
+  if (props.t) {
+    const testWindow = globalThis.window;
+    props.t.after(() => {
+      const previous = globalThis.window;
+      globalThis.window = testWindow;
+      try { box.unmount(); } finally { globalThis.window = previous; }
+    });
+  }
   return {
     get autosave() {
       return box.result;
@@ -90,6 +100,89 @@ test("자동 저장이 켜져 있으면 입력 뒤 디바운스가 지나면 저
 
   assert.equal(saved.length, 1);
   assert.match(saved[0], /켜진 상태 입력/);
+});
+
+function mockIngestSaveApi(t, { defer = false, fail = false } = {}) {
+  const requests = [];
+  const saves = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    requests.push({ path: String(path), method: init.method, body: init.body });
+    if (init.method === "PUT") {
+      if (defer) await new Promise((resolve) => saves.push(resolve));
+      if (fail) return Response.json({ error: { code: "SAVE_FAILED", message: "저장 실패" } }, { status: 500 });
+      return Response.json({ document_id: DOCUMENT_ID, current_version: 8 + requests.length, updated_at: "2026-10-21T00:00:00Z" });
+    }
+    return new Response(null, { status: 202 });
+  });
+  return { requests, saves };
+}
+
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test("편집 직후 위키 편입은 디바운스 본문 저장이 성공한 뒤에 요청한다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t, { defer: true });
+  const view = renderAutosave({ autoSave: true, t });
+  view.autosave.queueSave("편입할 최신 본문");
+  const ingest = reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE");
+  await settle();
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT"]);
+  api.saves.shift()();
+  await ingest;
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT", "POST"]);
+  assert.match(api.requests[1].path, /\/ingest$/);
+});
+
+test("위키 편입은 이미 진행 중인 저장과 그 뒤의 최신 입력까지 기다린다", async (t) => {
+  workspaceEnv(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const api = mockIngestSaveApi(t, { defer: true });
+  const view = renderAutosave({ autoSave: true, t });
+  view.autosave.queueSave("먼저 저장 중인 본문");
+  await advance(t, PAST_DEBOUNCE_MS);
+  view.autosave.queueSave("저장 중 더 고친 본문");
+  const ingest = reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE");
+  await settle();
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT"]);
+  api.saves.shift()();
+  await settle();
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT", "PUT"]);
+  assert.match(await api.requests[1].body.get("markdown").text(), /저장 중 더 고친 본문/);
+  api.saves.shift()();
+  await ingest;
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT", "PUT", "POST"]);
+});
+
+test("자동 저장을 꺼도 위키 편입 전에 미저장 본문을 저장한다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t);
+  const view = renderAutosave({ autoSave: false, t });
+  view.autosave.queueSave("수동 저장 모드의 본문");
+  await reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE");
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT", "POST"]);
+});
+
+test("저장에 실패하면 이전 본문으로 위키 편입을 시작하지 않는다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t, { fail: true });
+  const view = renderAutosave({ autoSave: true, t });
+  view.autosave.queueSave("저장 실패하는 본문");
+  await assert.rejects(reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE"), /저장하지 못해 위키 편입/);
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT"]);
+});
+
+test("편집기 변경 알림이 아직 오지 않아도 최신 본문을 읽어 저장한 뒤 편입한다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t);
+  let synchronized = false;
+  const view = renderAutosave({ autoSave: true, t, beforeFlush() {
+    if (synchronized) return;
+    synchronized = true;
+    view.autosave.queueSave("변경 알림 전 편집기의 최신 본문");
+  } });
+  await reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE");
+  assert.deepEqual(api.requests.map((r) => r.method), ["PUT", "POST"]);
+  assert.match(await api.requests[0].body.get("markdown").text(), /편집기의 최신 본문/);
 });
 
 test("자동 저장을 끄면 입력해도 디바운스가 지나도 저장하지 않는다", async (t) => {
@@ -171,4 +264,60 @@ test("자동 저장을 끈 채 저장하지 않은 입력이 있을 때만 탭�
   onView.autosave.queueSave("자동 저장 대기 입력");
   assert.equal(closeTab(), false, "자동 저장이 켜져 있으면 묻지 않는다");
   onView.unmount();
+});
+
+test("편입 전 저장 실패 후에도 이탈 경고와 문서 이동 저장을 유지한다", async (t) => {
+  workspaceEnv(t);
+  const bodies = [];
+  t.mock.method(globalThis, "fetch", async (_path, init) => {
+    bodies.push(await init.body.get("markdown").text());
+    if (bodies.length === 1) return Response.json({ error: { message: "저장 실패" } }, { status: 500 });
+    return Response.json({ document_id: DOCUMENT_ID, current_version: 8 });
+  });
+  const view = renderAutosave({ autoSave: false });
+  view.autosave.queueSave("잃으면 안 되는 최신 본문");
+  await assert.rejects(reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE"), /저장하지 못해/);
+  const close = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(close);
+  assert.equal(close.defaultPrevented, true);
+  view.unmount();
+  await settle();
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[1], bodies[0]);
+});
+
+test("미저장 입력이 없으면 편집 잠금 상실과 관계없이 서버 본문을 편입한다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t);
+  const view = renderAutosave({ autoSave: true, t });
+  view.autosave.reportSaveBlock("lock-lost", "잠금을 잃었습니다.");
+  await reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE");
+  assert.deepEqual(api.requests.map((request) => request.method), ["POST"]);
+});
+
+test("잠금을 잃기 전의 미저장 입력이 있으면 편입을 계속 막는다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t);
+  const documentId = "doc_lock_dirty";
+  const view = renderAutosave({ autoSave: false, documentId, t });
+  view.autosave.queueSave("아직 저장되지 않은 본문");
+  view.autosave.reportSaveBlock("lock-lost", "잠금을 잃었습니다.");
+  await assert.rejects(reflectDocumentToWiki(documentId, "EDITABLE"), /저장하지 못해/);
+  assert.deepEqual(api.requests, []);
+});
+
+test("이전 저장 도중 잠금을 잃고 이동해도 버려진 최신 입력이 있으면 편입을 막는다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t, { defer: true });
+  const documentId = "doc_lock_pending";
+  const view = renderAutosave({ autoSave: false, documentId });
+  const saving = view.autosave.saveNow("이전 본문");
+  await settle();
+  view.autosave.queueSave("잠금 상실 직전 최신 본문");
+  view.autosave.reportSaveBlock("lock-lost", "잠금을 잃었습니다.");
+  view.unmount();
+  api.saves.shift()();
+  await saving;
+  await assert.rejects(reflectDocumentToWiki(documentId, "EDITABLE"), /저장하지 못해/);
+  assert.deepEqual(api.requests.map((request) => request.method), ["PUT"]);
 });
