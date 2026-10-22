@@ -1,3 +1,4 @@
+import { analyticsSessionHeaders } from "@/shared/lib/analytics/client";
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { apiFetch, parseJsonOrThrow, parseErrorResponse, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
@@ -134,7 +135,7 @@ export async function runQueryStream(
     {
       method: "POST",
       signal: handlers.signal,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...analyticsSessionHeaders() },
       // provider/model은 백엔드 카탈로그 검증 대상이라 쌍으로 보내야 한다.
       // allow_web_search는 @NotNull 필수 필드라 항상 명시한다. composer의 웹 서칭 토글 값.
       body: JSON.stringify({

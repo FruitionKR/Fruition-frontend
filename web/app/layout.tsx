@@ -40,7 +40,12 @@ export default async function RootLayout({
       </head>
       <body>
         <FaviconSync />
-        <Providers>{children}</Providers>
+        <Providers analytics={{
+          token: process.env.POSTHOG_PROJECT_TOKEN ?? "",
+          environment: process.env.ANALYTICS_ENVIRONMENT === "production" ? "production" : process.env.ANALYTICS_ENVIRONMENT === "staging" ? "staging" : "local",
+          appVersion: process.env.APP_VERSION ?? "local",
+          nonce,
+        }}>{children}</Providers>
       </body>
     </html>
   );

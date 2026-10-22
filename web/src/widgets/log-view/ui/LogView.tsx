@@ -1,5 +1,7 @@
 "use client";
 
+import { captureAnalytics } from "@/shared/lib/analytics/client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
@@ -286,6 +288,9 @@ export function LogView({
       const preview = await fetchRestorePreview(detail.operation_id);
       if (requestIdRef.current !== requestId) return;
       const affectedCount = preview.delete_count + preview.restore_count + preview.rebuild_count;
+      if (detail.operation_type === "document_edit" || detail.operation_type === "ingest" || detail.operation_type === "lint") {
+        captureAnalytics("restore_previewed", { operation_id: detail.operation_id, operation_type: detail.operation_type });
+      }
       setPendingRestore({
         operationId: detail.operation_id,
         previewToken: preview.preview_token,

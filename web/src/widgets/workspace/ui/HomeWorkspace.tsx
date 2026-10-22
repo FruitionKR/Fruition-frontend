@@ -1,5 +1,7 @@
 "use client";
 
+import { captureAnalytics } from "@/shared/lib/analytics/client";
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree";
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
@@ -165,6 +167,11 @@ export function HomeWorkspace() {
   const selection = useTreeSelection(projectTree.projects, graphData.nodes);
   const isHomeView = activeView === "home";
   const isGraphView = activeView === "graph";
+  const previousGraphView = useRef(false);
+  useEffect(() => {
+    if (isGraphView && !previousGraphView.current) captureAnalytics("graph_opened", {});
+    previousGraphView.current = isGraphView;
+  }, [isGraphView]);
   const isSettingsView = activeView === "settings";
   // 작업 탭 "이 요청을 스킬로 저장"(Figma 1671:13245): 스킬 화면이 받아 새 스킬 탭을 열면 비운다.
   const [skillCreateRequest, setSkillCreateRequest] = useState<{ id: number; text: string } | null>(null);
@@ -327,6 +334,7 @@ export function HomeWorkspace() {
 
   // 그래프 노드 더블클릭: 원본(raw) 노드는 문서 탭으로 열고, 그 외 노드는 그래프 포커스만 옮긴다.
   function openGraphNode(node: GraphNode) {
+    captureAnalytics("graph_node_previewed", { node_type: node.kind === "raw" ? "document" : "wiki_page" });
     if (node.kind === "raw" && node.documentId) {
       openDocument(openSourceBlocks(node.documentId, node.label, []));
       return;

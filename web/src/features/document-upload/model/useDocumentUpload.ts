@@ -14,6 +14,8 @@ import {
 } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
+import { captureAnalytics } from "@/shared/lib/analytics/client";
+import { ApiError } from "@/shared/lib/apiErrors";
 
 export function useDocumentUpload({
   projects,
@@ -49,12 +51,16 @@ export function useDocumentUpload({
   function dropUploadFiles(projectId: string, folderId: string | null, files: File[]): Promise<(DocumentItemResponse | null)[]> {
     const uploadFiles = files.filter(isSupportedUploadFile);
     setFileDropTarget(null);
-    if (uploadFiles.length < files.length) setHasRejectedFiles(true);
+    if (uploadFiles.length < files.length) {
+      setHasRejectedFiles(true);
+      captureAnalytics("upload_failed_shown", { upload_attempt_id: crypto.randomUUID(), reason: "unsupported_type" });
+    }
     if (uploadFiles.length === 0) return Promise.resolve([]);
 
     // 파일과 업로드 항목을 쌍으로 묶어 인덱스 기반 병렬 배열 접근을 피한다.
     const uploads = uploadFiles.map((file) => ({
       file,
+      attemptId: crypto.randomUUID(),
       item: {
         id: createClientId("upload"),
         label: file.name,
@@ -69,7 +75,7 @@ export function useDocumentUpload({
       return { ...project, items: appendItemsToFolder(project.items, folderId, uploadItems) };
     }));
 
-    return Promise.all(uploads.map(({ file, item }) => {
+    return Promise.all(uploads.map(({ file, item, attemptId }) => {
       return uploadDocumentFile(file, serverFolderId(projects, { projectId, folderId }))
         .then((response) => {
           setDocuments((current) => {
@@ -84,6 +90,9 @@ export function useDocumentUpload({
           return response;
         })
         .catch((error: Error) => {
+          captureAnalytics("upload_failed_shown", { upload_attempt_id: attemptId, reason: error instanceof ApiError
+            ? error.status === 413 ? "file_too_large" : error.status === 403 ? "permission" : error.status >= 500 ? "server_error" : "unknown"
+            : error instanceof TypeError ? "network" : "unknown" });
           setProjects((current) => current.map((project) => {
             if (!findTreeItem(project.items, item.id)) return project;
             return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", describeLimitError(error) ?? error.message) };

@@ -1,3 +1,5 @@
+import { analyticsEditType } from "@/shared/lib/analytics/events";
+import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import type { AiModel } from "@/entities/ai";
@@ -335,6 +337,7 @@ export function useAgentTurn({
       return;
     }
     if (!hasAcceptedProposal(decisions)) {
+      if (agentTurnResponse) captureAnalytics("ai_edit_decided", { proposal_id: turnId, document_id: agentTurnResponse.documentId, edit_type: analyticsEditType(agentTurnResponse.result.edit), decision: "rejected" });
       markOutcome(turnId, "rejected");
       setReviewDecisions(null);
       dismissAgentTurnResult();

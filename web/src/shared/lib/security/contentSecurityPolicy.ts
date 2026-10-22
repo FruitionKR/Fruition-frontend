@@ -15,6 +15,8 @@ type ContentSecurityPolicyOptions = {
   backendUrl?: string;
   /** CSP_S3_ORIGIN. 직접 업로드 버킷 오리진 */
   s3Origin?: string;
+  /** 토큰이 있을 때만 PostHog US 수집·설정 도메인을 허용한다. */
+  analyticsEnabled?: boolean;
 };
 
 // 요청마다 불리므로 같은 잘못된 값은 한 번만 로그를 남긴다.
@@ -41,7 +43,7 @@ function toWebSocketOrigin(origin: string): string {
   return origin.replace(/^http(s?):/, "ws$1:");
 }
 
-export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: ContentSecurityPolicyOptions): string {
+export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin, analyticsEnabled = false }: ContentSecurityPolicyOptions): string {
   // 잘못된 BACKEND_URL은 출처를 빼고, 잘못된 CSP_S3_ORIGIN은 기본 S3 와일드카드로 돌아간다.
   const backendOrigin = backendUrl ? parseOrigin("BACKEND_URL", backendUrl) : null;
   const s3 = (s3Origin ? parseOrigin("CSP_S3_ORIGIN", s3Origin) : null) ?? DEFAULT_S3_ORIGIN;
@@ -55,7 +57,8 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin }: Cont
     // KaTeX·Pretendard 폰트는 Next가 같은 출처(/_next/static, /fonts)로 서비스한다.
     ["font-src", "'self'", "data:"],
     // 회의 실시간 받아쓰기 WebSocket(#148)은 rewrite를 거치지 않고 문서 API 오리진에 ws(s)로 붙는다. 같은 오리진은 'self'가 허용한다.
-    ["connect-src", "'self'", ...(backendOrigin ? [backendOrigin, toWebSocketOrigin(backendOrigin)] : []), s3],
+    ["connect-src", "'self'", ...(backendOrigin ? [backendOrigin, toWebSocketOrigin(backendOrigin)] : []), s3,
+      ...(analyticsEnabled ? ["https://us.i.posthog.com", "https://us-assets.i.posthog.com"] : [])],
     // 회의 녹음 재생(#148)은 <audio>가 recording-url의 S3 presigned GET 주소를 직접 연다. 지정하지 않으면 default-src 'self'로 막힌다.
     ["media-src", "'self'", s3],
     // PDF 등 텍스트가 아닌 원본 보기 iframe은 인증 fetch로 받은 blob:이다(S3 URL을 직접 열지 않는다).
