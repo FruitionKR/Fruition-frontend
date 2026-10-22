@@ -9,7 +9,8 @@ import {
 } from "../src/features/note-editing/model/pendingNoteSaveMerge.ts";
 import {
   trackPendingDocumentSave,
-  waitForPendingDocumentSave
+  waitForPendingDocumentSave,
+  flushPendingDocumentSave
 } from "../src/shared/lib/documentSaveBarrier.ts";
 
 test("AI 저장 대기 중 일반 편집이 이어져도 agent source를 보존한다", () => {
@@ -162,4 +163,32 @@ test("같은 문서를 다시 열 때 진행 중인 저장 완료를 기다린�
   resolveSave();
   await reopen;
   assert.equal(reopened, true);
+});
+
+test("문서 이동 뒤 종료된 저장 실패는 다음 저장이 성공할 때까지 편입을 막는다", async () => {
+  trackPendingDocumentSave("failed-detached", Promise.resolve(false));
+  await waitForPendingDocumentSave("failed-detached");
+  await assert.rejects(flushPendingDocumentSave("failed-detached"), /저장하지 못해/);
+  trackPendingDocumentSave("failed-detached", Promise.resolve(true));
+  await flushPendingDocumentSave("failed-detached");
+});
+
+test("앞선 저장 실패 뒤 최신 본문 저장이 성공하면 편입을 허용한다", async () => {
+  let finishLatest;
+  const latest = new Promise((resolve) => { finishLatest = resolve; });
+  trackPendingDocumentSave("latest-wins", Promise.resolve(false));
+  trackPendingDocumentSave("latest-wins", latest);
+  const ingest = flushPendingDocumentSave("latest-wins");
+  finishLatest(true);
+  await ingest;
+});
+
+test("늦게 끝난 이전 저장 성공이 최신 저장 실패를 덮어쓰지 않는다", async () => {
+  let finishPrevious;
+  const previous = new Promise((resolve) => { finishPrevious = resolve; });
+  trackPendingDocumentSave("stale-result", previous);
+  trackPendingDocumentSave("stale-result", Promise.resolve(false));
+  const ingest = flushPendingDocumentSave("stale-result");
+  finishPrevious(true);
+  await assert.rejects(ingest, /저장하지 못해/);
 });

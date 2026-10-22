@@ -63,7 +63,7 @@ async function advance(t, ms) {
 function renderAutosave(props) {
   const current = { autoSave: props.autoSave };
   const box = render(() => useNoteAutosave({
-    documentId: DOCUMENT_ID,
+    documentId: props.documentId ?? DOCUMENT_ID,
     marker: "<!-- note -->",
     initialVersion: 7,
     beforeFlush: props.beforeFlush,
@@ -264,4 +264,44 @@ test("자동 저장을 끈 채 저장하지 않은 입력이 있을 때만 탭�
   onView.autosave.queueSave("자동 저장 대기 입력");
   assert.equal(closeTab(), false, "자동 저장이 켜져 있으면 묻지 않는다");
   onView.unmount();
+});
+
+test("편입 전 저장 실패 후에도 이탈 경고와 문서 이동 저장을 유지한다", async (t) => {
+  workspaceEnv(t);
+  const bodies = [];
+  t.mock.method(globalThis, "fetch", async (_path, init) => {
+    bodies.push(await init.body.get("markdown").text());
+    if (bodies.length === 1) return Response.json({ error: { message: "저장 실패" } }, { status: 500 });
+    return Response.json({ document_id: DOCUMENT_ID, current_version: 8 });
+  });
+  const view = renderAutosave({ autoSave: false });
+  view.autosave.queueSave("잃으면 안 되는 최신 본문");
+  await assert.rejects(reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE"), /저장하지 못해/);
+  const close = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(close);
+  assert.equal(close.defaultPrevented, true);
+  view.unmount();
+  await settle();
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[1], bodies[0]);
+});
+
+test("미저장 입력이 없으면 편집 잠금 상실과 관계없이 서버 본문을 편입한다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t);
+  const view = renderAutosave({ autoSave: true, t });
+  view.autosave.reportSaveBlock("lock-lost", "잠금을 잃었습니다.");
+  await reflectDocumentToWiki(DOCUMENT_ID, "EDITABLE");
+  assert.deepEqual(api.requests.map((request) => request.method), ["POST"]);
+});
+
+test("잠금을 잃기 전의 미저장 입력이 있으면 편입을 계속 막는다", async (t) => {
+  workspaceEnv(t);
+  const api = mockIngestSaveApi(t);
+  const documentId = "doc_lock_dirty";
+  const view = renderAutosave({ autoSave: false, documentId, t });
+  view.autosave.queueSave("아직 저장되지 않은 본문");
+  view.autosave.reportSaveBlock("lock-lost", "잠금을 잃었습니다.");
+  await assert.rejects(reflectDocumentToWiki(documentId, "EDITABLE"), /저장하지 못해/);
+  assert.deepEqual(api.requests, []);
 });

@@ -119,14 +119,17 @@ export function useNoteAutosave({
 
       // 디바운스·AI 재시도 대기 중 이동해도 마지막 편집분을 잃지 않도록 즉시 저장한다.
       const scheduled = selectDetachedSaveCandidate(
-        scheduledSaveRef.current,
+        scheduledSaveRef.current ?? (!saveInFlightRef.current ? unsavedCandidateRef.current : null),
         agentRetryCandidateRef.current
       );
       scheduledSaveRef.current = null;
       agentRetryCandidateRef.current = null;
-      if (scheduled && !isSaveBlocked()) void flushSaveRef.current(scheduled);
+      if (scheduled) {
+        if (!isSaveBlocked()) void flushSaveRef.current(scheduled);
+        else trackPendingDocumentSave(documentId, Promise.resolve(false));
+      }
     };
-  }, []);
+  }, [documentId]);
 
   useEffect(() => registerDocumentSaveFlusher(documentId, () => flushPendingSaveRef.current()), [documentId]);
 
@@ -307,8 +310,10 @@ export function useNoteAutosave({
   }
 
   function trackedFlushSave(candidate: PendingNoteSave): Promise<boolean> {
+    const queued = saveInFlightRef.current;
     const save = flushSave(candidate);
-    trackPendingDocumentSave(documentId, save);
+    // 대기열에 넣었다는 응답(true)은 실제 본문 저장 성공으로 기록하지 않는다.
+    if (!queued) trackPendingDocumentSave(documentId, save);
     return save;
   }
   flushSaveRef.current = trackedFlushSave;
@@ -326,7 +331,7 @@ export function useNoteAutosave({
     await waitForPendingDocumentSave(documentId);
     while (true) {
       beforeFlushRef.current?.();
-      if (!unsavedCandidateRef.current) return !isSaveBlocked();
+      if (!unsavedCandidateRef.current) return true;
       if (isSaveBlocked()) return false;
       clearScheduledSave();
       const saved = await trackedFlushSave(unsavedCandidateRef.current);
@@ -376,7 +381,7 @@ export function useNoteAutosave({
   // 자동 저장을 끈 채 저장하지 않은 편집분이 있으면 탭을 닫기 전에 브라우저가 묻는다.
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
-      if (autoSaveRef.current || !scheduledSaveRef.current) return;
+      if (autoSaveRef.current || !unsavedCandidateRef.current) return;
       event.preventDefault();
       // 일부 브라우저(구형 Safari 등)는 returnValue가 있어야 확인창을 띄운다.
       event.returnValue = "";

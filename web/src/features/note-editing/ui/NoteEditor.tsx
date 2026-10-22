@@ -7,7 +7,7 @@ import "@milkdown/crepe/theme/frame.css";
 import { useCallback, useEffect, useRef } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
-import { editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
+import { EditorStatus, editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
 import type { KeymapItem } from "@milkdown/core";
 import { closeHistory, history as prosemirrorHistory } from "@milkdown/prose/history";
 import { listItemSchema } from "@milkdown/kit/preset/commonmark";
@@ -111,7 +111,9 @@ export function NoteEditor({
     onServerMerge: (merge) => onServerMergeRef.current(merge),
     beforeFlush: () => {
       // Milkdown의 markdownUpdated는 지연된다. 클릭 직전 입력은 ProseMirror의 현재 문서에서 읽는다.
-      crepeRef.current?.editor.action((ctx) => {
+      const editor = crepeRef.current?.editor;
+      if (!editor || editor.status !== EditorStatus.Created) return;
+      editor.action((ctx) => {
         const latestBody = ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc);
         if (latestBody === bodyRef.current) return;
         bodyRef.current = latestBody;
