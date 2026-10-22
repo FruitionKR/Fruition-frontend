@@ -8,7 +8,7 @@ import { fetchMe, useSignOut } from "@/entities/user";
 import { createWorkspace, fetchWorkspaces } from "@/entities/workspace";
 import { setSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { clearWorkspaceGone } from "@/shared/lib/workspaceAccess";
-import { getErrorMessage, SessionExpiredError } from "@/shared/lib/apiErrors";
+import { getErrorMessage, LoginRequiredError, SessionExpiredError } from "@/shared/lib/apiErrors";
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import styles from "./WorkspacesPage.module.css";
 
@@ -31,7 +31,7 @@ export default function WorkspacesPage() {
       clearWorkspaceGone(workspace.id);
       router.replace("/home");
     } catch (error: unknown) {
-      if (error instanceof SessionExpiredError) {
+      if (error instanceof SessionExpiredError || error instanceof LoginRequiredError) {
         void signOut();
         return;
       }
