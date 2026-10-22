@@ -46,7 +46,11 @@ function toWebSocketOrigin(origin: string): string {
 export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin, analyticsEnabled = false }: ContentSecurityPolicyOptions): string {
   // 잘못된 BACKEND_URL은 출처를 빼고, 잘못된 CSP_S3_ORIGIN은 기본 S3 와일드카드로 돌아간다.
   const backendOrigin = backendUrl ? parseOrigin("BACKEND_URL", backendUrl) : null;
-  const s3 = (s3Origin ? parseOrigin("CSP_S3_ORIGIN", s3Origin) : null) ?? DEFAULT_S3_ORIGIN;
+  const configuredS3 = s3Origin ? parseOrigin("CSP_S3_ORIGIN", s3Origin) : null;
+  const s3 = configuredS3 ?? DEFAULT_S3_ORIGIN;
+  // PDF 임시 읽기 URL은 지정한 저장소만 허용한다. 기본 AWS 와일드카드는 iframe에 쓰지 않는다.
+  const frameStorage = configuredS3 && /^https?:\/\//.test(configuredS3) && !configuredS3.includes("*")
+    ? [configuredS3] : [];
   const directives = [
     ["default-src", "'self'"],
     // Next 인라인 부트스트랩 스크립트는 nonce로 허용하고, 그 스크립트가 넣는 청크는 'strict-dynamic'으로 이어받는다.
@@ -61,8 +65,8 @@ export function buildContentSecurityPolicy({ nonce, backendUrl, s3Origin, analyt
       ...(analyticsEnabled ? ["https://us.i.posthog.com", "https://us-assets.i.posthog.com"] : [])],
     // 회의 녹음 재생(#148)은 <audio>가 recording-url의 S3 presigned GET 주소를 직접 연다. 지정하지 않으면 default-src 'self'로 막힌다.
     ["media-src", "'self'", s3],
-    // PDF 등 텍스트가 아닌 원본 보기 iframe은 인증 fetch로 받은 blob:이다(S3 URL을 직접 열지 않는다).
-    ["frame-src", "'self'", "blob:"],
+    // PDF는 권한 검사를 거친 저장소 임시 URL 또는 인증 fetch로 받은 blob:으로 연다.
+    ["frame-src", "'self'", "blob:", ...frameStorage],
     ["object-src", "'none'"],
     ["base-uri", "'self'"],
     ["form-action", "'self'"],

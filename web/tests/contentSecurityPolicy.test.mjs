@@ -30,7 +30,7 @@ test("이미지는 같은 출처·data:·blob:만 허용하고 위반은 /csp-re
   assert.deepEqual(policy["base-uri"], ["'self'"]);
   assert.deepEqual(policy["form-action"], ["'self'"]);
   assert.deepEqual(policy["font-src"], ["'self'", "data:"]);
-  // 원본 보기 iframe은 blob:만 쓴다. S3 URL을 iframe으로 열지 않는다.
+  // 저장소 오리진을 지정하지 않았을 때 iframe은 같은 출처와 blob:만 허용한다.
   assert.deepEqual(policy["frame-src"], ["'self'", "blob:"]);
   assert.deepEqual(policy["report-uri"], [CSP_REPORT_PATH]);
   assert.deepEqual(policy["connect-src"], ["'self'", "https://*.amazonaws.com"]);
@@ -217,4 +217,15 @@ test("layout의 테마 스크립트가 쓰는 nonce를 실제로 만든 CSP에�
   const nonce = btoa(crypto.randomUUID());
   assert.equal(readCspNonce(buildContentSecurityPolicy({ nonce })), nonce);
   assert.equal(readCspNonce(null), undefined);
+});
+
+
+test("PDF iframe은 지정한 저장소 오리진만 허용하고 AWS 전체 와일드카드는 허용하지 않는다", () => {
+  const policy = directives(buildContentSecurityPolicy({ nonce: "abc", s3Origin: "https://bucket.s3.ap-northeast-2.amazonaws.com/path" }));
+  assert.deepEqual(policy["frame-src"], ["'self'", "blob:", "https://bucket.s3.ap-northeast-2.amazonaws.com"]);
+  assert.deepEqual(policy["frame-ancestors"], ["'none'"]);
+  assert.deepEqual(policy["object-src"], ["'none'"]);
+  for (const s3Origin of [undefined, "bucket.s3.amazonaws.com", "https://*.amazonaws.com", "ftp://bucket.example"]) {
+    assert.deepEqual(directives(buildContentSecurityPolicy({ nonce: "abc", s3Origin }))["frame-src"], ["'self'", "blob:"]);
+  }
 });
