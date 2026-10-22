@@ -7,12 +7,12 @@ import { newAnalyticsId } from "@/shared/lib/analytics/events";
 export type ChatWikiExportResponse = {
   exportDocumentId: string;
   status: ChatWikiExportStatus;
-  exportId?: string;
+  export_id?: string;
 };
 
 /**
  * 선택한 채팅 내용을 원문 문서로 저장한다. Ingest는 별도로 요청한다.
- * 서버 계약(ChatWikiExportRequest)은 pair_ids만 받고 비어 있으면 400이라, 세션 전체를 내보낼 때도 모든 pair id를 넘긴다.
+ * pair_ids는 필수라 세션 전체를 내보낼 때도 모든 pair id를 넘긴다. export_id와 mode는 후속 편입에 연결된다.
  */
 export async function exportChatWiki(pairIds: string[], sessionContext?: { workspaceId: string; sessionId: string }, mode: "all" | "selected" = "selected"): Promise<ChatWikiExportResponse> {
   const { workspaceId, sessionId } = sessionContext ?? await getSessionContext();
