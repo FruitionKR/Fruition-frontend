@@ -21,7 +21,7 @@ const { clearAuth, isSessionExpired, saveAccessToken, setSessionExpiredHandler }
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { HEARTBEAT_RETRY_MS } = await import("../src/features/note-editing/model/editLockSchedule.ts");
 const { useEditLock } = await import("../src/features/note-editing/model/useEditLock.ts");
-const { SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
+const { LoginRequiredError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
 const { render } = await import("./reactHookShim.mjs");
 
 const DOCUMENT_ID = "doc_session_expiry";
@@ -450,6 +450,7 @@ test("access token 없이 보낸 요청의 refresh 거절은 세션 만료가 �
   });
 
   await assert.rejects(apiFetch("/api/auth/me"), (error) => {
+    assert.ok(error instanceof LoginRequiredError, "보호 화면이 로그인으로 안내할 수 있는 인증 오류다");
     assert.ok(!(error instanceof SessionExpiredError), "끝난 세션이 없으므로 만료로 구분하지 않는다");
     assert.equal(error.message, ERROR_MESSAGES.loginRequired);
     return true;
