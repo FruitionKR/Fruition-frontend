@@ -157,14 +157,15 @@
 | 필드 | 규칙 |
 |---|---|
 | `distinct_id` | `user_<hex>`(Access users.id). 이메일과 닉네임은 쓰지 않음 |
-| `uuid` | **논리 키로 만든 UUIDv5.** 네임스페이스는 고정 UUID 하나, 이름은 `"{event}:{논리키}"`. PostHog는 uuid, event, timestamp, distinct_id가 모두 같은 이벤트를 결국 중복 제거하지만 즉시 지우지는 않음 [문서] |
+| `uuid` | **서버는 논리 키로 만든 UUIDv5.** NAMESPACE_URL=`6ba7b811-9dad-11d1-80b4-00c04fd430c8`, 이름은 `fruition.analytics.v1:{event}:{논리키}`. 프론트의 개별 행동은 UUIDv4. PostHog는 uuid, event, timestamp, distinct_id가 모두 같은 이벤트를 결국 중복 제거하지만 즉시 지우지는 않음 [문서] |
 | `timestamp` | 실제 발생 시각(UTC ISO-8601). outbox 행에 저장하고 재전송해도 바꾸지 않음. 같아야 중복 제거가 됨 [문서] |
 | `properties.event_id` | `uuid`와 같은 값의 문자열. 쿼리에서 중복 제거할 때 씀 |
-| `properties.event_source` | `frontend`, `access_server`, `document_server`. 원문의 `worker`는 쓰지 않음. AI 결과도 Document가 기록하기 때문 |
+| `properties.event_source` | `frontend`, `access_server`, `document_server`, `worker`. AI 스킬 생성은 `worker`, Document가 반영하는 AI 비동기 결과는 `document_server` |
 | `properties.environment` | `local`, `staging`, `production` |
 | `properties.schema_version` | `1` |
 | `properties.app_version` | 배포 커밋 SHA. 이미지 태그에서 주입 |
 | `properties.$groups` | `{"workspace": "<id>"}`. 작업의 **대상** 워크스페이스. 가입 이벤트와 워크스페이스가 없는 페이지뷰에서는 생략 |
+| `properties.workspace_id` | 대상 workspace의 일반 문자열 속성. 유료 Group analytics 활성화 없이도 workspace별로 조회할 수 있도록 `$groups`와 함께 보냄. 대상이 없는 개인 스킬·가입·페이지뷰에서는 생략 |
 
 **[제안] 논리 키**
 
@@ -231,7 +232,7 @@ C1~C9는 6장의 누락 계약 번호입니다.
 | `ai_edit_decided(accepted)` | Document | `OperationRecorder.recordDocumentEdit`(버전 저장과 같은 트랜잭션) | `operation_id = apply_operation_id`, `proposal_id`는 `agent_apply_projections.run_id`에서 조회 | 일부 수락은 C4 |
 | `ai_edit_decided(rejected)` | 프론트 | `useAgentTurn.settleProposals`에서 수락이 없어 `markOutcome(…,"rejected")`가 되는 지점 | `proposal_id = agentTurnResponse.requestId`, `document_id`, `edit_type` | 취소, 재생성, 화면 이탈은 거절이 아님 |
 | `ai_operation_rolled_back` | Document | 위키는 `applyRestore`의 최종 성공 또는 `restoreLifecycle.fail`. 문서는 `RestoreOperationLifecycle.finishDocument` | `operation_id = restoredFrom`, 연쇄 ID는 `restoreManifest.excludedOperationIds − 지목 ID`, `restored_operation_count` | 성공 키는 `success:<operation_id>`, 실패 키는 `failure:<restore_attempt_id>`. 첫 성공만 보내고 실패는 시도마다 보냄. `restore_requested_at`은 restore 작업의 createdAt |
-| `skill_created` | Document | AI 스킬 생성 저장과 동일 트랜잭션의 내구성 있는 analytics outbox. Document 프록시 성공 응답 직후 기록은 응답 유실·프로세스 종료 시 영구 누락되므로 사용하지 않음 | `skill_id`, `scope` | C8 |
+| `skill_created` | AI (`worker`) | AI 스킬 생성 저장과 동일 트랜잭션의 내구성 있는 analytics outbox. Document 프록시 성공 응답 직후 기록은 응답 유실·프로세스 종료 시 영구 누락되므로 사용하지 않음 | `skill_id`, `scope` | C8 |
 | `skill_run` | Document | `AgentTurnService`가 `skill_mode=explicit` turn을 접수하고 커밋한 뒤 | `skill_run_id = turn run_id`, `skill_id` | C8(`scope`, `is_creator`) |
 | `chat_exported` | Document | `ChatWikiExportService.export` → `createChatExportDocument` 트랜잭션. `skipped`는 `status=skipped`로 따로 표시 | `export_id`, `document_id`, `conversation_id`, `pair_count`, `mode` | C6 |
 | `wiki_lint_completed` | Document | `applyLint` | `lint_id = operationId` | 후속 |
@@ -454,7 +455,7 @@ insert는 `ON CONFLICT (uuid) DO NOTHING`입니다. 이것이 1차 중복 제거
 | `POSTHOG_HOST` | access/document/AI 서버 전용(프론트는 US 고정) | 설정 | `https://us.i.posthog.com` |
 | `ANALYTICS_ENABLED` | frontend/access/document/AI | 설정 | 기본 false. false면 브라우저 SDK·CSP 허용과 서버 outbox 기록·relay 중지(롤백 스위치) |
 | `ANALYTICS_ENVIRONMENT` | 4개 서비스 | 설정 | `environment` 속성 |
-| `APP_VERSION` | 3개 서비스 | 배포 시 주입(이미지 SHA) | `app_version` |
+| `APP_VERSION` | 4개 서비스 | 배포 시 주입(서비스별 소스 SHA) | `app_version` |
 | PostHog personal API key (phx_) | **앱에 넣지 않음.** 운영자 로컬이나 CI 비밀 | 비밀 | 대시보드·코호트를 코드로 관리할 때만 사용(선택) |
 
 **[제안]** 프론트 env는 `k8s/overlays/aws/frontend.yaml`, 서버 env는 각 Deployment와 `external-secrets.yaml`에 추가합니다. `.env.example`에는 변수 이름만 추가합니다. 모두 platform 저장소 PR입니다.
@@ -493,6 +494,7 @@ insert는 `ON CONFLICT (uuid) DO NOTHING`입니다. 이것이 1차 중복 제거
 - 문법은 [가정]입니다. `properties.x`로 접근하는 방식은 [문서]로 확인했지만, `IN COHORT`, 배열 JSON 추출, 시간대 함수는 staging에서 실제로 확인해야 합니다.
 - `{{alpha}}`는 알파 참여자 코호트 ID입니다.
 - `D15`는 제품 행동 포함 마감, `followup_end`는 D18 이후 관찰 마감입니다. 문서 최초 편입 이력은 분석 사용자 코호트와 무관하게 대상 workspace 전체에서 조회합니다.
+- Document는 `query_answered.cited_document_first_ingested_at`에 원문 문서 ID → 최초 성공 편입 UTC 시각 객체를 제공합니다. 이 값은 같은 workspace의 전체 사용자와 기존 변환 문서 계보에서 조회하며, 알파 이전 문서도 포함합니다. `wiki_ingest_completed.first_success_ingested_at`도 동일한 기준입니다. 새 이벤트의 발생 시각으로 과거 편입 시각을 덮어쓰지 않습니다.
 - `D15`는 `toDateTime('YYYY-MM-DD 00:00:00','Asia/Seoul')` 상수로 바꿉니다.
 
 **공통 CTE: 중복 제거된 기본 이벤트**
@@ -504,6 +506,7 @@ WITH all_events AS (
          any(properties) AS p
   FROM events
   WHERE properties.environment = 'production'
+    AND properties.event_id IS NOT NULL AND properties.event_id != ''
     AND toInt(properties.schema_version) = 1
     AND timestamp < {{followup_end}}
   GROUP BY event_id
@@ -521,22 +524,28 @@ t0 AS (SELECT person_id, min(ts) AS t0 FROM base WHERE event = 'user_signed_up' 
 
 ```sql
 first_ingest_doc AS (
-  SELECT JSONExtractString(p, 'document_id') AS doc, min(ts) AS ingested_at
+  SELECT JSONExtractString(p, 'workspace_id') AS workspace,
+         JSONExtractString(p, 'document_id') AS doc,
+         min(coalesce(parseDateTimeBestEffortOrNull(JSONExtractString(p, 'first_success_ingested_at')), ts)) AS ingested_at
   FROM all_events WHERE event = 'wiki_ingest_completed' AND JSONExtractString(p,'status') = 'succeeded'
-  GROUP BY doc),
+  GROUP BY workspace, doc),
 first_ingest_person AS (
   SELECT person_id, min(ts) AS fi FROM base
   WHERE event = 'wiki_ingest_completed' AND JSONExtractString(p,'status') = 'succeeded'
   GROUP BY person_id),
 cited AS (
-  SELECT person_id, ts, parseDateTimeBestEffort(JSONExtractString(p, 'query_requested_at')) AS requested_at, arrayJoin(JSONExtract(p, 'cited_document_ids', 'Array(String)')) AS doc
+  SELECT person_id, ts, JSONExtractString(p, 'workspace_id') AS workspace,
+         parseDateTimeBestEffort(JSONExtractString(p, 'query_requested_at')) AS requested_at,
+         arrayJoin(JSONExtract(p, 'cited_document_ids', 'Array(String)')) AS doc,
+         parseDateTimeBestEffortOrNull(JSONExtractString(p, 'cited_document_first_ingested_at', doc)) AS canonical_ingested_at
   FROM base WHERE event = 'query_answered' AND JSONExtractBool(p,'has_citations')),
 eligible AS (SELECT person_id, fi FROM first_ingest_person WHERE fi + INTERVAL 7 DAY <= {{D15}})
 SELECT countDistinctIf(e.person_id, c.person_id != '') AS numerator, count(DISTINCT e.person_id) AS denominator
 FROM eligible e
 LEFT JOIN (
-  SELECT DISTINCT c.person_id, c.ts, c.requested_at FROM cited c JOIN first_ingest_doc f ON f.doc = c.doc
-  WHERE c.requested_at >= f.ingested_at + INTERVAL 24 HOUR) c
+  SELECT DISTINCT c.person_id, c.ts, c.requested_at FROM cited c
+  LEFT JOIN first_ingest_doc f ON f.workspace = c.workspace AND f.doc = c.doc
+  WHERE c.requested_at >= coalesce(c.canonical_ingested_at, f.ingested_at) + INTERVAL 24 HOUR) c
   ON c.person_id = e.person_id AND c.requested_at >= e.fi AND c.requested_at < e.fi + INTERVAL 7 DAY
 ```
 
