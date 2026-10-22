@@ -698,12 +698,13 @@ export function HomeWorkspace() {
         />
       )}
 
-      {/* 위키 편입 안내 토스트는 문서를 다루는 홈·그래프 화면에서만 보여 준다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
-      {(isHomeView || isGraphView) && (
+      {/* 홈·그래프의 문서 처리와 설정의 휴지통 복구 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
+      {(isHomeView || isGraphView || activeView === "settings") && (
         <DocumentProcessingNotifications
           documents={documents}
+          isViewportCorner={activeView === "settings"}
           isAboveLauncher={!isAgentPanelShown}
-          isOverlayOpen={isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
+          isOverlayOpen={activeView !== "settings" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
           onIngestStarted={() => void refreshBackendData().catch(() => {})}
           isDocumentsLoaded={documentsUpdatedAt !== 0}
         />

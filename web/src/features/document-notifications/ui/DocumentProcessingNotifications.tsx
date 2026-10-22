@@ -26,24 +26,27 @@ export function DocumentProcessingNotifications({
   documents,
   isAboveLauncher,
   isOverlayOpen,
+  isViewportCorner = false,
   onIngestStarted,
   isDocumentsLoaded = true
 }: {
   documents: DocumentItemResponse[];
   isAboveLauncher: boolean;
   isOverlayOpen: boolean;
+  /** 채팅 패널이 없는 설정 화면에서는 화면 우하단에 고정한다. */
+  isViewportCorner?: boolean;
   onIngestStarted?: () => void;
   isDocumentsLoaded?: boolean;
 }) {
   const isNarrow = useIsNarrowViewport();
   const isDeferred = isOverlayOpen && isNarrow;
-  const { notices, dismissNotice } = useDocumentProcessingNotifications(documents, isDeferred);
+  const { notices, dismissNotice } = useDocumentProcessingNotifications(documents, isDeferred, !isViewportCorner);
   useOperationNotifications();
   // 위키 편입·최신화 제안은 그 권한이 있는 사람에게만 띄운다(없으면 눌러도 403 WORKSPACE_PERMISSION_REQUIRED).
   const workspaceRole = useWorkspaceRole();
   usePendingWorkNotifications(documents, {
-    canIngest: hasWorkspacePermission(workspaceRole, "wiki.ingest"),
-    canLint: hasWorkspacePermission(workspaceRole, "wiki.lint"),
+    canIngest: !isViewportCorner && hasWorkspacePermission(workspaceRole, "wiki.ingest"),
+    canLint: !isViewportCorner && hasWorkspacePermission(workspaceRole, "wiki.lint"),
     onIngestStarted,
     workspaceId: getSelectedWorkspaceId(),
     isDocumentsLoaded
@@ -63,7 +66,11 @@ export function DocumentProcessingNotifications({
 
   return (
     <aside
-      className={isAboveLauncher ? `${styles["notice-stack"]} ${styles["is-above-launcher"]}` : styles["notice-stack"]}
+      className={[
+        styles["notice-stack"],
+        isAboveLauncher && !isViewportCorner && styles["is-above-launcher"],
+        isViewportCorner && styles["is-viewport-corner"]
+      ].filter(Boolean).join(" ")}
       aria-label="문서 처리 알림"
     >
       {shownNotices.map((notice) => (
