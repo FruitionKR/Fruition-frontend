@@ -40,13 +40,13 @@ export function DocumentProcessingNotifications({
 }) {
   const isNarrow = useIsNarrowViewport();
   const isDeferred = isOverlayOpen && isNarrow;
-  const { notices, dismissNotice } = useDocumentProcessingNotifications(documents, isDeferred);
+  const { notices, dismissNotice } = useDocumentProcessingNotifications(documents, isDeferred, !isViewportCorner);
   useOperationNotifications();
   // 위키 편입·최신화 제안은 그 권한이 있는 사람에게만 띄운다(없으면 눌러도 403 WORKSPACE_PERMISSION_REQUIRED).
   const workspaceRole = useWorkspaceRole();
   usePendingWorkNotifications(documents, {
-    canIngest: hasWorkspacePermission(workspaceRole, "wiki.ingest"),
-    canLint: hasWorkspacePermission(workspaceRole, "wiki.lint"),
+    canIngest: !isViewportCorner && hasWorkspacePermission(workspaceRole, "wiki.ingest"),
+    canLint: !isViewportCorner && hasWorkspacePermission(workspaceRole, "wiki.lint"),
     onIngestStarted,
     workspaceId: getSelectedWorkspaceId(),
     isDocumentsLoaded

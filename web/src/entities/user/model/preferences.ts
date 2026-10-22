@@ -21,10 +21,12 @@ export const NOTIFICATION_SETTINGS = {
   pdfIngestRequested: notificationSetting("위키", "PDF 변환 후 위키 편입 요청", ["PDF 위키 편입 요청"]),
   pdfIngestFailed: notificationSetting("위키", "PDF 변환 후 위키 편입 실패", ["PDF 위키 편입 실패"]),
   lint: notificationSetting("위키", "위키 최신화 완료", ["위키 최신화 완료"]),
-  lintFailed: notificationSetting("위키", "위키 최신화 실패", ["위키 최신화 실패"], true, "lint"),
+  lintFailed: notificationSetting("위키", "위키 최신화 작업 실패", [], true, "lint"),
+  lintRequestFailed: notificationSetting("위키", "위키 최신화 요청 실패", ["위키 최신화 실패"]),
   lintUpToDate: notificationSetting("위키", "위키 최신 상태 안내", ["Wiki 최신 상태"]),
   restore: notificationSetting("위키", "AI 작업 롤백 완료·요청", ["롤백 요청 완료"]),
-  restoreFailed: notificationSetting("위키", "AI 작업 롤백 실패", ["롤백 실패"], true, "restore"),
+  restoreFailed: notificationSetting("위키", "AI 롤백 작업 실패", [], true, "restore"),
+  restoreRequestFailed: notificationSetting("위키", "AI 롤백 요청 실패", ["롤백 실패"]),
   suggest: notificationSetting("작업 제안", "미편입 문서 안내", ["위키 편입 대기 중인 문서가 있습니다"]),
   newDocument: notificationSetting("작업 제안", "새 문서 편입 제안", ["새 문서가 추가되었습니다"], true, "suggest"),
   ingestStalled: notificationSetting("작업 제안", "편입 대기 리마인드", ["위키 편입이 아직 시작되지 않았습니다"], true, "suggest"),
@@ -57,7 +59,7 @@ export const NOTIFICATION_SETTINGS = {
   server: notificationSetting("기타", "워크스페이스 서버 알림", ["알림"]),
   other: notificationSetting("기타", "기타 안내", []),
   browser: {
-    ...notificationSetting("기타", "브라우저 알림", [], false),
+    ...notificationSetting("전달 방식", "브라우저 알림", [], false),
     description: "켜 둔 종류의 알림만, 탭이 백그라운드일 때 브라우저 알림으로도 보냅니다."
   }
 };

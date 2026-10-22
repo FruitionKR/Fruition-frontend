@@ -41,7 +41,7 @@ function completedNoticeText(count: number) {
  * isPaused: 스택을 잠시 화면에서 뺀 동안(좁은 화면에서 겹친 채팅 패널·사이드바가 열림) 카드를 쌓아 두기만 하고
  * 자동 닫힘 타이머를 멈춘다. 다시 보이면 남은 일반 카드에 타이머를 새로 건다.
  */
-export function useDocumentProcessingNotifications(documents: DocumentItemResponse[], isPaused = false) {
+export function useDocumentProcessingNotifications(documents: DocumentItemResponse[], isPaused = false, allowWorkSuggestions = true) {
   const { preferences, reduceMotion } = useUserPreferences();
   const notificationSettings = preferences.notifications;
   const notificationControls = preferences.notificationControls;
@@ -67,6 +67,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
 
   // 카드 표시 + 백그라운드 탭이면 브라우저 알림까지. 모든 알림이 이 경로를 지난다.
   const pushNotice = useCallback((notice: NoticePayload) => {
+    if (!allowWorkSuggestions && notice.action) return;
     if (!isNoticeEnabled(notice, notificationSettings, notificationControls)) return;
     // 설정 확인은 위에서 공통 처리하고, 작업 id 중복만 거른다.
     if (!operationFilterRef.current(notice, { lint: true, restore: true })) return;
@@ -86,12 +87,14 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     ) {
       new Notification(notice.title, { body: notice.message });
     }
-  }, [browserNotifications, notificationControls, notificationSettings, reduceMotion]);
+  }, [allowWorkSuggestions, browserNotifications, notificationControls, notificationSettings, reduceMotion]);
 
   // 설정을 끄면 현재 보이는 카드와 대기열 모두에서 해당 종류를 제거한다.
   useEffect(() => {
-    setNotices((current) => promote(current.filter((notice) => isNoticeEnabled(notice, notificationSettings, notificationControls))));
-  }, [notificationControls, notificationSettings]);
+    setNotices((current) => promote(current.filter((notice) =>
+      (allowWorkSuggestions || !notice.action) && isNoticeEnabled(notice, notificationSettings, notificationControls)
+    )));
+  }, [allowWorkSuggestions, notificationControls, notificationSettings]);
 
   // 대기 작업 감지(usePendingWorkNotifications)가 보이는 카드와 같은 문서로 제안을 겹쳐 띄우지 않도록 알린다.
   useEffect(() => {

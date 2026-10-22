@@ -33,17 +33,21 @@ export function TrashList() {
   });
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const items = trash.data ?? [];
 
   async function restore(documentId: string, currentVersion: number, name: string) {
     setRestoringId(documentId);
     setRestoreError(null);
+    setRestoreMessage(null);
     try {
       await restoreTrashDocument(documentId, currentVersion);
+      const message = `「${name}」 문서를 복구했습니다. 편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.`;
+      setRestoreMessage(message);
       publishNotice({
         kind: "completed",
         title: "문서 복구 완료",
-        message: `「${name}」 문서를 복구했습니다. 편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.`
+        message
       });
     } catch (error) {
       setRestoreError(describeRestoreError(error));
@@ -89,6 +93,7 @@ export function TrashList() {
           })}
         </ul>
         {restoreError && <p className={sectionStyles["settings-message"]} role="alert">{restoreError}</p>}
+        {restoreMessage && <p className={sectionStyles["settings-message"]} role="status">{restoreMessage}</p>}
       </div>
   );
 }

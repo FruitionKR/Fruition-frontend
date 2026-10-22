@@ -75,6 +75,25 @@ test("구버전 설정을 분리한 종류에 이어받고 명시적으로 바�
   assert.deepEqual(normalizeNotificationPreferences(null), DEFAULT_NOTIFICATION_PREFERENCES);
 });
 
+test("구 완료 알림을 꺼도 직접 실행한 요청 실패는 표시하고 비동기 작업 실패만 이전 설정을 따른다", () => {
+  const settings = normalizeNotificationPreferences({ lint: false, restore: false });
+  for (const [type, title, key] of [["lint", "위키 최신화 실패", "lintRequestFailed"], ["restore", "롤백 실패", "restoreRequestFailed"]]) {
+    const failed = notice(title, { kind: "failed" });
+    assert.equal(noticeNotificationKey(failed), key);
+    assert.equal(isNoticeEnabled(failed, settings), true);
+    assert.equal(isNoticeEnabled({ ...failed, operation: { type } }, settings), false);
+    assert.equal(isNoticeEnabled(failed, { ...settings, [key]: false }), false, "명시적으로 끈 요청 실패는 숨긴다");
+  }
+});
+
+test("기타 그룹을 꺼도 전달 방식과 다른 그룹의 브라우저 발송은 유지한다", () => {
+  const controls = { ...DEFAULT_NOTIFICATION_CONTROLS, groups: { ...DEFAULT_NOTIFICATION_CONTROLS.groups, 기타: false } };
+  const settings = { ...DEFAULT_NOTIFICATION_PREFERENCES, browser: true };
+  assert.equal(isNoticeEnabled(notice("문서 처리 완료"), settings, controls), true);
+  assert.equal(isNoticeEnabled({ notificationKey: "browser" }, settings, controls), true);
+  assert.equal(isNoticeEnabled({ notificationKey: "browser" }, settings, { ...controls, enabled: false }), false);
+});
+
 test("실제 발행 코드의 고정 제목은 빠짐없이 설정 목록에 등록한다", () => {
   const root = new URL("../src/", import.meta.url);
   let checked = 0;
