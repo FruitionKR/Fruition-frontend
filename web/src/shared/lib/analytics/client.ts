@@ -1,5 +1,6 @@
 import type { PostHog } from "posthog-js";
 import type { AnalyticsEvents } from "./events";
+import { newAnalyticsId } from "@/shared/lib/analytics/events";
 import { analyticsLocation, sanitizeAnalyticsEvent } from "@/shared/lib/analytics/sanitize";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 
@@ -49,7 +50,7 @@ export function initializeAnalytics(options: AnalyticsConfig): Promise<void> {
 }
 
 function common() {
-  return { event_id: crypto.randomUUID(), event_source: "frontend", environment: config?.environment, schema_version: 1, app_version: config?.appVersion, ...(workspaceId ? { workspace_id: workspaceId } : {}) };
+  return { event_id: newAnalyticsId(), event_source: "frontend", environment: config?.environment, schema_version: 1, app_version: config?.appVersion, ...(workspaceId ? { workspace_id: workspaceId } : {}) };
 }
 
 /** 분석이 차단·실패해도 제품 동작에 영향을 주지 않는다. */

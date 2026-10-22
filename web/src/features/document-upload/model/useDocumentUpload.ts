@@ -15,6 +15,7 @@ import {
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
+import { newAnalyticsId } from "@/shared/lib/analytics/events";
 import { ApiError } from "@/shared/lib/apiErrors";
 
 export function useDocumentUpload({
@@ -53,14 +54,14 @@ export function useDocumentUpload({
     setFileDropTarget(null);
     if (uploadFiles.length < files.length) {
       setHasRejectedFiles(true);
-      captureAnalytics("upload_failed_shown", { upload_attempt_id: crypto.randomUUID(), reason: "unsupported_type" });
+      captureAnalytics("upload_failed_shown", { upload_attempt_id: newAnalyticsId(), reason: "unsupported_type" });
     }
     if (uploadFiles.length === 0) return Promise.resolve([]);
 
     // 파일과 업로드 항목을 쌍으로 묶어 인덱스 기반 병렬 배열 접근을 피한다.
     const uploads = uploadFiles.map((file) => ({
       file,
-      attemptId: crypto.randomUUID(),
+      attemptId: newAnalyticsId(),
       item: {
         id: createClientId("upload"),
         label: file.name,

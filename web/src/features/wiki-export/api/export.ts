@@ -2,6 +2,7 @@ import { apiFetch, parseJsonOrThrow, workspacePath, ERROR_MESSAGES } from "@/sha
 import { getSessionContext } from "@/entities/chat/api/chat";
 import type { ChatWikiExportStatus } from "../lib/exportStatus";
 import { captureAnalytics, analyticsSessionHeaders } from "@/shared/lib/analytics/client";
+import { newAnalyticsId } from "@/shared/lib/analytics/events";
 
 export type ChatWikiExportResponse = {
   exportDocumentId: string;
@@ -15,7 +16,7 @@ export type ChatWikiExportResponse = {
  */
 export async function exportChatWiki(pairIds: string[], sessionContext?: { workspaceId: string; sessionId: string }, mode: "all" | "selected" = "selected"): Promise<ChatWikiExportResponse> {
   const { workspaceId, sessionId } = sessionContext ?? await getSessionContext();
-  const exportId = crypto.randomUUID();
+  const exportId = newAnalyticsId();
   captureAnalytics("chat_export_started", { export_id: exportId, conversation_id: sessionId, mode }, workspaceId);
   const response = await apiFetch(
     workspacePath(workspaceId, "chat", "sessions", sessionId, "wiki"),

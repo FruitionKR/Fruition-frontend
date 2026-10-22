@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyticsLocation, sanitizeAnalyticsEvent } from "../src/shared/lib/analytics/sanitize.ts";
-import { analyticsEditType } from "../src/shared/lib/analytics/events.ts";
+import { analyticsEditType, newAnalyticsId } from "../src/shared/lib/analytics/events.ts";
 import { buildContentSecurityPolicy } from "../src/shared/lib/security/contentSecurityPolicy.ts";
 
 test("초대 경로·인증 쿼리·문서 ID·알 수 없는 경로를 수집 URL에 남기지 않는다", () => {
@@ -60,6 +60,11 @@ test("편집 제안과 결정에 같은 편집 유형 매핑을 쓴다", () => {
   assert.equal(analyticsEditType({ operation: "replace", requested_target: { type: "whole_document" } }), "rewrite");
   assert.equal(analyticsEditType({ operation: "replace", requested_target: { type: "selection" } }), "replace");
   assert.equal(analyticsEditType(null), "other");
+});
+
+test("브라우저의 UUID API가 막혀도 업로드·내보내기용 분석 식별자는 생성한다", (t) => {
+  t.mock.method(globalThis.crypto, "randomUUID", () => { throw new Error("browser policy"); });
+  assert.match(newAnalyticsId(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
 test("CSP는 수집이 켜졌을 때만 PostHog 수집·설정 도메인을 허용한다", () => {
