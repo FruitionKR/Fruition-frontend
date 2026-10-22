@@ -19,7 +19,7 @@ export function applyContentSecurityPolicy(request: NextRequest): NextResponse {
     nonce,
     backendUrl: process.env.BACKEND_URL,
     s3Origin: process.env.CSP_S3_ORIGIN,
-    analyticsEnabled: Boolean(process.env.POSTHOG_PROJECT_TOKEN?.startsWith("phc_")),
+    analyticsEnabled: process.env.ANALYTICS_ENABLED === "true" && Boolean(process.env.POSTHOG_PROJECT_TOKEN?.startsWith("phc_")),
   });
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("Content-Security-Policy", policy);

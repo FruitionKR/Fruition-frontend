@@ -20,7 +20,7 @@
 2. **서버 전송은 서비스별 `analytics_outbox` 테이블을 거칩니다.** 제품 트랜잭션 안에서 이 테이블에 행을 넣고, 커밋된 뒤 relay가 PostHog `/batch`로 보냅니다. 커밋 후 전송과 재시도 시 동일 event_id 유지를 구현합니다. 수신 측은 즉시 exactly-once를 보장하지 않으므로 판정 쿼리에서도 event_id 기준으로 중복을 제거합니다. Document와 Access에는 outbox 선례가 있지만 실패 격리는 별도 구현·검증합니다. AI 스킬 생성도 생성 저장소에서 내구성 있게 기록해야 합니다.
 3. **비동기 결과는 Document 결과 consumer에서 처리합니다.** AI 종료 이벤트에는 이미 `user_id`, `workspace_id`, `operation_id`, 결정적인 `event_id`가 실려 있습니다. Document의 결과 consumer가 이 값을 받아 분석 이벤트를 대신 기록합니다.
 4. **원문의 통계·관찰창·인과 주장 중 그대로 실행하면 틀리는 것이 여럿입니다.** D7 창이 관찰 범위 밖에 있고, 웹 인용이 근거 답변에 섞이며, 결과를 본 뒤 관찰창을 확정하고, 상관관계를 인과로 해석하는 문제 등입니다. 3장에서 수정안과 함께 따로 정리했습니다.
-5. **이 저장소는 프론트만 고칩니다(AGENTS.md).** Document, Access, platform 변경은 각 저장소 담당자의 요구사항으로 넘깁니다. AI 스킬 생성 outbox와 C8 필수 속성도 AI 저장소 변경 범위입니다.
+5. **저장소별 작업을 분리합니다.** 사용자가 2026-10-22 서버·AI·인프라 수정을 명시적으로 허용하고 병렬 에이전트 구현을 요청했습니다. 각 서비스는 독립 작업 공간과 dev 대상 PR로 구현하며 이 저장소는 프론트 코드를 담당합니다.
 
 ---
 
@@ -28,7 +28,7 @@
 
 - 프론트 SDK·런타임 토큰·인증 identify/reset·워크스페이스 그룹·수동 페이지뷰·프론트 보조 이벤트·URL/속성 허용 목록 구현. 토큰 미설정이면 비활성.
 - 리플레이는 처리방침 확정 전까지 `disable_session_recording: true`로 강제 중지하고 snapshot 전송도 허용하지 않음. 아래 리플레이 옵션 예시는 후속 활성화 설계이며 현재 배포 기본값이 아님.
-- 현재 AGENTS.md의 프론트 전용 제한 때문에 서버·AI·인프라 변경은 범위 승인 전 미실행. PostHog 수집 토큰 위치 확인 대기.
+- 서버·AI·인프라 범위가 승인되어 병렬 구현 중입니다. 공개 수집 키는 기존 저장 위치가 없어 배포 설정에 새로 연결합니다. 로그인된 프로젝트 676020과 원문 프로젝트 658129가 달라 연결 대상 확인 중입니다.
 - 서버·AI 이벤트·운영 프로젝트 설정·dev 통합·main 병합·배포는 아직 완료되지 않음. 프론트 구현만으로 핵심 지표가 준비됐다고 간주하지 않음.
 - 기존 문서 이력은 알파 사용자 필터와 분리해 backfill하거나 canonical 최초 성공 편입 시각을 제공해야 함. 계측 도입 이후 재편입을 과거 문서의 최초 편입으로 오인하지 않도록 배포 전 대조.
 
@@ -452,8 +452,8 @@ insert는 `ON CONFLICT (uuid) DO NOTHING`입니다. 이것이 1차 중복 제거
 |---|---|---|---|
 | `POSTHOG_PROJECT_TOKEN` | frontend Pod env, access/document Secret(external-secrets) | 공개 쓰기 키지만 env로 관리 | capture와 batch 전송 |
 | `POSTHOG_HOST` | access/document/AI 서버 전용(프론트는 US 고정) | 설정 | `https://us.i.posthog.com` |
-| `ANALYTICS_ENABLED` | access/document | 설정 | false면 outbox 기록과 relay 중지(롤백 스위치) |
-| `ANALYTICS_ENVIRONMENT` | 3개 서비스 | 설정 | `environment` 속성 |
+| `ANALYTICS_ENABLED` | frontend/access/document/AI | 설정 | 기본 false. false면 브라우저 SDK·CSP 허용과 서버 outbox 기록·relay 중지(롤백 스위치) |
+| `ANALYTICS_ENVIRONMENT` | 4개 서비스 | 설정 | `environment` 속성 |
 | `APP_VERSION` | 3개 서비스 | 배포 시 주입(이미지 SHA) | `app_version` |
 | PostHog personal API key (phx_) | **앱에 넣지 않음.** 운영자 로컬이나 CI 비밀 | 비밀 | 대시보드·코호트를 코드로 관리할 때만 사용(선택) |
 
@@ -661,7 +661,7 @@ Live events에서 이벤트별 건수와 `app_version`을 보고, outbox dead �
 
 | 수준 | 조치 | 영향 |
 |---|---|---|
-| 프론트 | `POSTHOG_PROJECT_TOKEN`을 비우고 재기동(빌드 불필요) | 브라우저 수집 중지 |
+| 프론트 | `ANALYTICS_ENABLED=false` 또는 `POSTHOG_PROJECT_TOKEN`을 비우고 재기동(빌드 불필요) | 브라우저 수집 중지 |
 | 서버 | `ANALYTICS_ENABLED=false` | 기록과 발송 중지. outbox에 쌓인 행은 다시 켜면 발송 |
 | 리플레이 | PostHog 프로젝트 설정에서 끔 | 즉시 |
 | 개인정보 유출 | relay 중지 → PostHog 이벤트·person 삭제 요청 → 원인 수정 후 재개 | 없음 |

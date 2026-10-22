@@ -41,7 +41,7 @@ export default async function RootLayout({
       <body>
         <FaviconSync />
         <Providers analytics={{
-          token: process.env.POSTHOG_PROJECT_TOKEN ?? "",
+          token: process.env.ANALYTICS_ENABLED === "true" ? process.env.POSTHOG_PROJECT_TOKEN ?? "" : "",
           environment: process.env.ANALYTICS_ENVIRONMENT === "production" ? "production" : process.env.ANALYTICS_ENVIRONMENT === "staging" ? "staging" : "local",
           appVersion: process.env.APP_VERSION ?? "local",
           nonce,
