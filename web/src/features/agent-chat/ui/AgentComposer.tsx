@@ -409,7 +409,7 @@ export function AgentComposer({
                             aria-selected={isSelected}
                             aria-disabled={lockMessage ? true : undefined}
                             aria-label={lockMessage ? `${model.display_name}, ${lockMessage}` : undefined}
-                            title={lockMessage ?? undefined}
+                            title={lockMessage ? `${model.display_name} · ${lockMessage}` : model.display_name}
                             className={cx(styles["composer-model-option"], lockMessage && styles["is-locked"])}
                             onClick={() => chooseModel(model)}
                             onKeyDown={handleModelKeyDown}

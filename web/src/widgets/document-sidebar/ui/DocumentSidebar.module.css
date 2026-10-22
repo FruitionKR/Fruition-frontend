@@ -580,43 +580,6 @@
   text-transform: uppercase;
 }
 
-/* FILE 제목 hover (Figma 1540:17027): surface 배경 + 오른쪽 + 버튼. 키보드 포커스도 같은 상태를 보인다. */
-.tree-root-header.is-actionable {
-  border-radius: 8px;
-}
-
-.tree-root-header.is-actionable:hover,
-.tree-root-header.is-actionable:has(:focus-visible) {
-  background: var(--color-surface);
-}
-
-.tree-root-add {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--color-muted);
-  background: transparent;
-  border-radius: 4px;
-  --button-hover-overlay: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.tree-root-header.is-actionable:hover .tree-root-add,
-.tree-root-add:focus-visible,
-.tree-root-add[aria-expanded="true"] {
-  opacity: 1;
-}
-
-.tree-root-add:focus-visible {
-  outline: 2px solid var(--color-primary-default);
-  outline-offset: 0;
-}
-
 /* 빈 트리 안내: 트리 행(h37) 한 줄 높이로 고정해, 문서가 1개일 때와 "새 노트 추가" 위치가 같게 한다 */
 .tree-root-empty {
   height: 37px;
@@ -783,11 +746,24 @@
   outline: 1px solid var(--sidebar-accent-line);
 }
 
-.tree-row > span:not(.tree-folder-slot):not(.tree-upload-spinner) {
+.tree-row > span:not(.tree-folder-slot):not(.tree-upload-spinner):not(.tree-permission-indicator):not(.tree-conversion-inline) {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tree-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-row > .tree-permission-indicator {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  align-items: center;
 }
 
 .tree-drop-hint {
@@ -812,18 +788,52 @@
   line-height: 1.2;
 }
 
-/* PDF 원본(PDF✓)·변환본(PDF→MD) 관계 배지. 확장자 배지 자리를 그대로 쓰고 줄바꿈·축소 없이 그린다. */
+/* 원본 PDF·변환본 관계 배지. 기존 확장자 배지 자리를 그대로 쓴다. */
 .tree-type-badge.is-conversion {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 3px;
   white-space: nowrap;
 }
 
-/* .tree-row svg의 muted 색보다 앞서도록 행 선택자를 함께 쓴다 */
-.tree-row .tree-converted-check {
+.tree-conversion-icon {
   flex: 0 0 auto;
-  color: var(--color-status-success);
+  color: currentColor;
+}
+
+/* 행 버튼 안에 링크를 중첩하지 않고, 같은 자리에 형제 링크를 올린다. */
+.tree-type-badge.is-link-placeholder {
+  visibility: hidden;
+}
+
+.tree-conversion-tooltip {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.tree-row > .tree-conversion-inline {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.tree-conversion-link {
+  min-height: 24px;
+  text-decoration: none;
+}
+
+.tree-conversion-link:hover,
+.tree-conversion-link:focus-visible {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tree-conversion-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 /* 문서 행 위키 반영 배지(신규·수정됨·재시도). 이름은 말줄임되고 배지는 줄지 않는다. */
@@ -842,7 +852,8 @@
 }
 
 /* 우측 확장자 배지가 margin-left:auto로 밀려나지 않도록 위키 배지가 먼저 오른쪽으로 붙는다 */
-.tree-reflect-badge + .tree-type-badge {
+.tree-reflect-badge + .tree-type-badge,
+.tree-reflect-badge + .tree-conversion-inline {
   margin-left: 0;
 }
 
@@ -901,6 +912,11 @@
 /* 행 버튼과 폴더 + 버튼을 형제로 감싼다. 자식 행은 바깥이라 부모 +가 뜨지 않는다 */
 .tree-row-wrap {
   position: relative;
+}
+
+/* +는 행 밖에 겹쳐 놓으므로 이름·권한 아이콘이 침범하지 않게 자리를 항상 확보한다. */
+.tree-row.has-folder-action {
+  padding-right: 42px;
 }
 
 /* + 버튼에 올려도 행 hover 배경을 유지한다 */
@@ -1299,15 +1315,10 @@
   text-overflow: ellipsis;
 }
 
-/* 트리 행의 자체 권한 표시(보기만·편집 가능). 이름 오른쪽, 확장자 배지 앞에 흐리게 둔다. */
+/* 직접 설정·상속 모두 보기 전용일 때만 표시한다. 이름 오른쪽, 확장자 배지 앞에 둔다. */
 .tree-permission-icon {
   flex: 0 0 auto;
   width: 14px;
   height: 14px;
   color: var(--color-muted);
-}
-
-/* 상위 폴더 설정을 따르는(상속) 권한 표시는 자기 설정보다 더 흐리게 둔다. */
-.tree-permission-icon.is-inherited {
-  opacity: 0.45;
 }

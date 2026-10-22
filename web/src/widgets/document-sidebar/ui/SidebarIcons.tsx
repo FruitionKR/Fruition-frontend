@@ -47,11 +47,11 @@ export function SidebarCheckOnIcon({ className }: IconProps) {
   );
 }
 
-/** 변환을 마친 PDF 배지 옆 작은 체크(10×10). 색은 currentColor로 CSS가 정한다. */
-export function SidebarConvertedCheckIcon({ className }: IconProps) {
+/** 원본 PDF와 변환된 노트 사이의 이동을 나타내는 작은 연결 아이콘. */
+export function SidebarConversionLinkIcon({ className }: IconProps) {
   return (
-    <svg aria-hidden className={className} width="10" height="10" viewBox="0 0 10 10" fill="none">
-      <path d="M2 5.2L4.1 7.2L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg aria-hidden className={className} width="12" height="12" viewBox="0 0 24 24" fill="none">
+      <path d="m10 13 4-4M8 15l-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m2 2 1-1a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -67,26 +67,15 @@ export function SidebarWorkspaceChevronIcon({ className }: IconProps) {
 
 
 /**
- * 트리 행의 자체 권한 표시. 보기만은 자물쇠(설정 내비 nav-security.svg 패스), 편집 가능은 연필.
- * 행 버튼의 접근 이름에 포함되도록 role="img" + aria-label을 주고, hover 안내는 <title>로 띄운다.
+ * 보기 전용 권한만 눈 아이콘으로 표시한다. 편집 가능은 기본 상태로 아이콘을 생략한다.
+ * 행 버튼의 접근 이름에 포함되도록 role="img" + aria-label을 준다. hover 안내는 호출부의 Tooltip으로 표시한다.
  */
 export function SidebarPermissionIcon({ className, permission, label }: IconProps & { permission: "view" | "edit"; label: string }) {
-  if (permission === "view") {
-    return (
-      <svg role="img" aria-label={label} className={className} width="14" height="16" viewBox="0 0 15.6 17.28" fill="none">
-        <title>{label}</title>
-        <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M7.8 10.4797V12.4797" />
-          <path d="M3.8 6.47969V4.80032C3.8 3.73945 4.22143 2.72204 4.97157 1.97189C5.72172 1.22175 6.73913 0.80032 7.8 0.80032C8.86087 0.80032 9.87828 1.22143 10.6284 1.97157C11.3786 2.72172 11.8 3.73913 11.8 4.8V6.47937" />
-          <rect x="0.8" y="6.47969" width="14" height="10" rx="2" />
-        </g>
-      </svg>
-    );
-  }
+  if (permission !== "view") return null;
   return (
     <svg role="img" aria-label={label} className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <title>{label}</title>
-      <path d="M10.6 3.2L12.8 5.4M3 13L3.6 10.2L11.1 2.7C11.5 2.3 12.1 2.3 12.5 2.7L13.3 3.5C13.7 3.9 13.7 4.5 13.3 4.9L5.8 12.4L3 13Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1 8S3.5 3.5 8 3.5 15 8 15 8 12.5 12.5 8 12.5 1 8 1 8Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.4" />
     </svg>
   );
 }

@@ -442,8 +442,8 @@ export function HomeWorkspace() {
         activeView={activeView}
         documents={documents}
         graphActions={{
-          documents,
-          projects: projectTree.projects,
+          documents: graphDocuments,
+          projects: graphProjects,
           pending: wikiActionPending ?? (pdfWikiIngest.isPending ? "ingest" : null),
           onIngestDocuments: requestGraphIngest,
           onLint: () => void wikiActions.handleGraphLint()

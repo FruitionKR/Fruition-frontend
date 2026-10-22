@@ -39,6 +39,7 @@ export function Tooltip({
   placement = "right",
   disabled = false,
   describe = true,
+  className,
   children
 }: {
   content: ReactNode;
@@ -49,6 +50,8 @@ export function Tooltip({
   disabled?: boolean;
   /** aria-label과 같은 문구라 읽어 줄 필요가 없으면 false로 aria-describedby를 생략한다. */
   describe?: boolean;
+  /** 레이아웃을 유지해야 하는 트리 행 등의 트리거 래퍼 스타일. */
+  className?: string;
   children: ReactElement<{ "aria-describedby"?: string }>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -147,7 +150,7 @@ export function Tooltip({
   return (
     <span
       ref={anchorRef}
-      className={styles["tooltip-anchor"]}
+      className={cx(styles["tooltip-anchor"], className)}
       onPointerEnter={scheduleShow}
       onPointerLeave={hide}
       onPointerDown={hide}

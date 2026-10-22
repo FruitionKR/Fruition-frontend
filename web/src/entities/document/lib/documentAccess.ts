@@ -57,7 +57,7 @@ export function canConvertDocument(document: DocumentAccessFields): boolean {
 /** 권한 선택 UI에 보여줄 항목 */
 export const PERMISSION_OPTIONS: { value: DocumentPermission | null; label: string; description: string }[] = [
   { value: null, label: "상위 설정 따름", description: "상위 폴더 설정이 없으면 워크스페이스 기본값(편집 가능)을 따릅니다." },
-  { value: "edit", label: "편집 가능", description: "워크스페이스 멤버 누구나 본문을 고치고 이름을 바꿀 수 있습니다." },
+  { value: "edit", label: "편집 가능", description: "상위 폴더 설정과 관계없이 워크스페이스 멤버 누구나 본문을 고치고 이름을 바꿀 수 있습니다." },
   { value: "view", label: "보기만", description: "문서 소유자와 OWNER만 편집하고, 다른 멤버는 읽기 전용으로 봅니다." }
 ];
 

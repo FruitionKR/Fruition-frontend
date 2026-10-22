@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
@@ -202,7 +202,7 @@ export function DocumentSidebar({
   });
   // 문서 행 우측 위키 반영 배지. 문서 목록이 바뀔 때만 다시 계산한다.
   const wikiReflectBadges = useMemo(() => buildTreeWikiReflectBadges(documents ?? []), [documents]);
-  // PDF 원본·변환본 MD의 확장자 배지(PDF✓·PDF→MD). 같은 문서 목록에서 짝을 찾는다.
+  // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
   const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
   const interaction: TreeInteractionProps = {
@@ -238,18 +238,6 @@ export function DocumentSidebar({
     onCancelEditing
   };
 
-  // FILE + 버튼이 연 최상위 메뉴. Esc 등으로 닫혀 포커스가 갈 곳을 잃으면 + 버튼으로 되돌린다.
-  const isRootMenuOpen = Boolean(rootProject && contextMenu?.projectId === rootProject.id && contextMenu.itemId === null);
-  const rootAddButtonRef = useRef<HTMLButtonElement>(null);
-  const wasRootMenuOpenRef = useRef(false);
-  useEffect(() => {
-    const wasOpen = wasRootMenuOpenRef.current;
-    wasRootMenuOpenRef.current = isRootMenuOpen;
-    if (!wasOpen || isRootMenuOpen) return;
-    const active = document.activeElement;
-    if (active === null || active === document.body) rootAddButtonRef.current?.focus();
-  }, [isRootMenuOpen]);
-
   // 그래프 밖으로 나가면(레일·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
   useEffect(() => {
     if (activeView !== "graph") setIsIngestSelecting(false);
@@ -258,29 +246,10 @@ export function DocumentSidebar({
   // 홈·그래프 뷰가 함께 쓰는 문서 트리. 그래프 뷰는 위키 편입 선택 모드와 함께 감싼다.
   const projectTree = (
     <>
-      {/* FILE 제목 (Figma 1540:17028). 홈 뷰에서는 hover·포커스 시 배경과 +(최상위 추가 메뉴)가 나타난다. */}
+      {/* FILE 제목 (Figma 1540:17028). 홈·그래프 모두 정적인 제목으로 표시한다. */}
       {rootProject && (
-        <div className={cx(styles["tree-root-header"], activeView === "home" && styles["is-actionable"])}>
+        <div className={styles["tree-root-header"]}>
           <span>File</span>
-          {activeView === "home" && (
-            <button
-              ref={rootAddButtonRef}
-              type="button"
-              className={styles["tree-root-add"]}
-              aria-label="최상위에 추가"
-              aria-haspopup="menu"
-              aria-expanded={isRootMenuOpen}
-              // 메뉴의 바깥 클릭 감지가 이 버튼을 바깥으로 보지 않게 해, 다시 누르면 토글로 닫힌다.
-              data-folder-menu-trigger=""
-              onClick={(event) => {
-                // 빈 영역 우클릭과 같은 최상위 메뉴(새 폴더·새 노트·파일 업로드)를 버튼 바로 아래에 연다.
-                event.stopPropagation();
-                onOpenFolderMenuAt(rootProject.id, null, event.currentTarget);
-              }}
-            >
-              <SidebarPlusIcon size={16} />
-            </button>
-          )}
         </div>
       )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
