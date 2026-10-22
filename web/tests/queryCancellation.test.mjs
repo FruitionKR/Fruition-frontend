@@ -28,6 +28,22 @@ function events(text) {
   return new Response(text, { headers: { "Content-Type": "text/event-stream" } });
 }
 
+test("다른 탭의 활성 세션이 바뀌어도 질의는 명시한 채팅 세션에 저장한다", async (t) => {
+  setup(t);
+  setActiveChatSession("work-session");
+  const paths = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    paths.push(path);
+    if (init.method === "POST") return Response.json({ request_id: run.requestId, status: "queued" });
+    if (path.endsWith("/events")) return events("event: query.completed\ndata: {}\n\n");
+    return Response.json({ status: "completed", result: { answer: "채팅 답변" } });
+  });
+  const response = await runQueryStream("질문", model, { onStage() {}, sessionContext: { workspaceId: run.workspaceId, sessionId: "chat-session" } });
+  assert.equal(response.answer, "채팅 답변");
+  assert.equal(paths[0], `/api/workspaces/${run.workspaceId}/chat/sessions/chat-session/query/runs`);
+  assert.equal(paths.some(path => path.includes("work-session")), false);
+});
+
 test("취소는 생성한 작업의 workspace와 ID를 사용하고 복구 완료까지 조회한다", async (t) => {
   setup(t);
   t.mock.method(globalThis, "setTimeout", (callback) => { callback(); return 0; });

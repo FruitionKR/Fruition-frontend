@@ -25,7 +25,7 @@ export const WORKSPACE_HOME_LOCATION: WorkspaceLocation = { kind: "home" };
 
 const WORKSPACE_PATH = "/home";
 const WORKSPACE_VIEWS: readonly WorkspaceView[] = ["graph", "skills", "logs", "notifications", "settings"];
-const APP_TITLE = "Fruition Agent";
+const APP_TITLE = "Fruition";
 
 type SearchParamsLike = { get: (name: string) => string | null };
 
@@ -117,8 +117,7 @@ export function getWorkspaceLocationView(location: WorkspaceLocation): RailView 
   return location.kind === "view" ? location.view : "home";
 }
 
-/** 브라우저 탭 제목. 앱 metadata 제목(Fruition Agent)을 뒤에 붙인다. */
-export function formatWorkspaceDocumentTitle(screenTitle: string | null): string {
-  const title = screenTitle?.trim();
-  return title ? `${title} - ${APP_TITLE}` : APP_TITLE;
+/** 문서와 화면을 바꿔도 브라우저 탭은 서비스 이름으로 고정한다. */
+export function formatWorkspaceDocumentTitle(_screenTitle: string | null): string {
+  return APP_TITLE;
 }

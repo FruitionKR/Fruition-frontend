@@ -11,7 +11,7 @@ import { FaviconSync } from "@/shared/ui/FaviconSync";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Fruition Agent",
+  title: "Fruition",
   description: "Research workspace prototype"
 };
 

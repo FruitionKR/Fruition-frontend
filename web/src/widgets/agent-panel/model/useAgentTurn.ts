@@ -82,6 +82,18 @@ export function useAgentTurn({
   const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
   // 이 화면에서 작업 탭으로 보낸 turn ID. 서버가 채팅 답변으로 돌려줘도 작업 탭에 남긴다.
   const [taskRunIds, setTaskRunIds] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    // 다른 작업 대화의 제안·오류를 새 세션의 기록 위에 표시하지 않는다.
+    // 이전 통합 기록에서 새 세션으로 첫 요청을 보낸 직후에는 그 요청을 유지한다.
+    if (agentTurnRequest && agentTurnRequest.session_id !== activeSessionId && !isAgentTurnLoading) {
+      setAgentTurnRequest(null);
+      setAgentTurnResponse(null);
+      setAgentTurnErrorMessage(null);
+      setMarkdownCreateErrorMessage(null);
+      setRequestTurnId(null);
+      setUnconfirmedTurnId(null);
+    }
+  }, [activeSessionId, agentTurnRequest, isAgentTurnLoading]);
   // 편집안을 적용·새 문서로 만들었거나(저장됨) 모두 거절했거나(거절됨, Figma 1610:9421) 초안을 취소한(취소됨) turn.
   // 새로 고침 뒤에도 남게 워크스페이스·세션별 localStorage에 적어 두고, 세션을 열 때 읽어 합친다.
   const [taskOutcomes, setTaskOutcomes] = useState<TaskOutcomes>(() => new Map());

@@ -67,6 +67,15 @@
 }
 
 /* 편집기 자리에 보여주는 읽기 전용 사유. NoteEditor의 잠금 안내(.note-editor-readonly-notice)와 같은 톤 */
+.source-preview-lock-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-danger-weak);
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
 .source-preview-readonly-notice {
   margin: 0 0 12px;
   padding: 10px 12px;

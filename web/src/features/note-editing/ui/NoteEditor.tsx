@@ -86,7 +86,8 @@ export function NoteEditor({
   onMarkdownEditContextChange,
   onSaveStatusChange,
   onDetachedSaveComplete,
-  onRegisterSave
+  onRegisterSave,
+  onReadOnlyNoticeChange
 }: {
   documentId: string;
   marker: string;
@@ -97,6 +98,7 @@ export function NoteEditor({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
+  onReadOnlyNoticeChange?: (documentId: string, message: string | null) => void;
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
@@ -135,6 +137,13 @@ export function NoteEditor({
   });
   // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
   const canEdit = editLock.phase === "granted" || editLock.phase === "lost";
+  useEffect(() => {
+    const message = !canEdit && editLock.phase !== "acquiring"
+      ? `${editLock.message} 읽기 전용으로 열었습니다.`
+      : null;
+    onReadOnlyNoticeChange?.(documentId, message);
+    return () => onReadOnlyNoticeChange?.(documentId, null);
+  }, [canEdit, documentId, editLock.message, editLock.phase, onReadOnlyNoticeChange]);
   const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const bodyRef = useRef(initialBody);
@@ -646,9 +655,6 @@ export function NoteEditor({
           <DocumentLoading>편집 권한을 확인하는 중입니다.</DocumentLoading>
         ) : (
           <>
-            <p className={styles["note-editor-readonly-notice"]} role="alert">
-              {editLock.message} 읽기 전용으로 열었습니다.
-            </p>
             <MarkdownViewer markdown={initialBody} />
           </>
         )}
