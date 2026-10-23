@@ -1,7 +1,6 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { DropTarget, EditingState, FileDropTarget } from "@/entities/tree";
 import type { TreeConversionBadge } from "./treeConversionBadge";
-import type { TreeWikiReflectBadge } from "./treeWikiReflectBadge";
 
 /** 트리에서 선택 가능한 항목(그래프 노드/문서 연결 정보 포함) */
 export type SelectableTreeItem = {
@@ -21,8 +20,6 @@ export type TreeInteractionProps = {
   dropTarget: DropTarget | null;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
-  /** 문서 id별 위키 반영 배지(신규·수정됨·재시도). 없는 문서는 배지를 그리지 않는다 */
-  wikiReflectBadges?: ReadonlyMap<string, TreeWikiReflectBadge>;
   /** 문서 id별 PDF ↔ 변환본 관계 배지. 있으면 확장자 배지 대신 그린다 */
   conversionBadges?: ReadonlyMap<string, TreeConversionBadge>;
   /** 펼친 폴더 id. 뷰 전환으로 트리가 다시 마운트돼도 유지되도록 HomeWorkspace가 소유한다 */

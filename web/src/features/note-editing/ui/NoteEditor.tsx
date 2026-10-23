@@ -4,7 +4,7 @@ import "@milkdown/crepe/theme/common/style.css";
 // 라이트 frame 테마를 기본으로 두고, 색 변수는 NoteEditor.module.css에서 앱 토큰으로 덮어 다크 모드도 맞춘다.
 import "@milkdown/crepe/theme/frame.css";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
 import { EditorStatus, editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
@@ -36,7 +36,8 @@ import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUr
 import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { useUserPreferences } from "@/entities/user";
-import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
+import { DocumentMarkdownViewer as MarkdownViewer } from "@/shared/ui/markdown/DocumentMarkdownViewer";
+import { afterPaint } from "@/shared/lib/afterPaint";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { configureMathEditor } from "../model/mathEditorConfig";
 import styles from "./NoteEditor.module.css";
@@ -144,6 +145,10 @@ export function NoteEditor({
     onReadOnlyNoticeChange?.(documentId, message);
     return () => onReadOnlyNoticeChange?.(documentId, null);
   }, [canEdit, documentId, editLock.message, editLock.phase, onReadOnlyNoticeChange]);
+  const [editorLoad, setEditorLoad] = useState<{ documentId: string; phase: "loading" | "ready" | "failed" }>({ documentId, phase: "loading" });
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const editorReady = editorLoad.documentId === documentId && editorLoad.phase === "ready";
+  const editorFailed = editorLoad.documentId === documentId && editorLoad.phase === "failed";
   const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const bodyRef = useRef(initialBody);
@@ -452,6 +457,7 @@ export function NoteEditor({
     if (!root) return;
 
     let isDisposed = false;
+    setEditorLoad({ documentId, phase: "loading" });
     // Crepe의 create/destroy가 비동기라 root를 공유하면 이전 인스턴스 DOM이 남은 채
     // 다음 인스턴스가 붙어 편집기 높이가 잠깐 두 배가 된다(문서 전환·StrictMode 재실행).
     // 인스턴스마다 전용 host를 두고 정리 때 동기로 떼어내 겹침을 없앤다.
@@ -593,7 +599,7 @@ export function NoteEditor({
       new Promise<void>((resolve) => setTimeout(resolve, PREFETCH_CAP_MS))
     ]);
     // 미리 받기 도중 정리됐으면(StrictMode 이중 실행·빠른 문서 전환) 만들지 않는다. 만들면 캐시가 비어 원본 경로(401)를 요청한다.
-    const ready = prefetchAssets.then(() => (isDisposed ? crepe.editor : crepe.create()));
+    const ready = Promise.all([prefetchAssets, afterPaint()]).then(() => (isDisposed ? crepe.editor : crepe.create()));
     // 입력 하나가 되돌리기 한 단계가 되도록 history의 그룹 병합을 사실상 끈다.
     // editor.config로 historyProviderConfig를 넣으면 plugin이 만들어질 때 이미 읽힌 뒤라
     // 반영되지 않으므로, 생성이 끝난 뒤 ProseMirror state에서 plugin을 교체한다.
@@ -630,6 +636,9 @@ export function NoteEditor({
           original(tr);
         };
       });
+      setEditorLoad({ documentId, phase: "ready" });
+    }).catch(() => {
+      if (!isDisposed) setEditorLoad({ documentId, phase: "failed" });
     });
 
     return () => {
@@ -646,13 +655,13 @@ export function NoteEditor({
         .catch(() => {})
         .finally(() => host.remove());
     };
-  }, [canEdit, documentId]);
+  }, [canEdit, documentId, loadAttempt]);
 
   if (!canEdit) {
     return (
       <div className={styles["note-editor-shell"]}>
         {editLock.phase === "acquiring" ? (
-          <DocumentLoading>편집 권한을 확인하는 중입니다.</DocumentLoading>
+          <DocumentLoading inline>편집 권한을 확인하는 중입니다.</DocumentLoading>
         ) : (
           <>
             <MarkdownViewer markdown={initialBody} />
@@ -664,8 +673,23 @@ export function NoteEditor({
 
   return (
     <div className={styles["note-editor-shell"]}>
+        {!editorReady && !editorFailed && (
+          <DocumentLoading inline detail="내용이 많거나 표·수식이 포함된 문서는 준비에 시간이 걸릴 수 있습니다.">
+            문서를 편집 화면으로 준비하는 중입니다.
+          </DocumentLoading>
+        )}
+        {editorFailed && (
+          <div className={styles["note-editor-load-error"]} role="alert">
+            <p>문서 화면을 준비하지 못했습니다. 다시 시도해 주세요.</p>
+            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>다시 시도</button>
+          </div>
+        )}
         <div
           ref={wysiwygRootRef}
+          data-loading={!editorReady || undefined}
+          aria-hidden={!editorReady}
+          aria-busy={!editorReady && !editorFailed}
+          inert={!editorReady}
           className={styles["note-wysiwyg-editor"]}
           onMouseDownCapture={(event) => {
             if (event.target instanceof Element && event.target.closest(".milkdown-table-block .cell-handle")) {
