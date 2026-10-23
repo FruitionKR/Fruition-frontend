@@ -8,7 +8,7 @@ Fruition의 Next.js 웹 프론트엔드입니다. 이 저장소는 화면·API �
 
 ### 로컬 실행
 
-Node.js 24를 사용합니다.
+Node.js 24.22.1 이상 24.x를 사용합니다. CI의 정확한 버전은 `web/.node-version`을 따릅니다.
 
 ```bash
 cd web
@@ -60,7 +60,7 @@ Fruition's Next.js web frontend. This repository owns the UI, API calls, UI test
 
 ### Local development
 
-Use Node.js 24.
+Use Node.js 24.x, version 24.22.1 or later. The exact CI version is defined in `web/.node-version`.
 
 ```bash
 cd web

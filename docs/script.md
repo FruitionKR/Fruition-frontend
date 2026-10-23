@@ -1,6 +1,6 @@
 # Frontend 빌드·실행
 
-모든 명령은 이 저장소 루트에서 Node.js 24로 실행합니다. 설치 버전은 `package-lock.json`을 따릅니다.
+모든 npm 명령은 이 저장소의 `web/` 디렉터리에서 Node.js 24.22.1 이상 24.x로 실행합니다. CI의 정확한 Node 버전은 `web/.node-version`을, 의존성 설치 버전은 `web/package-lock.json`을 따릅니다.
 
 ```bash
 npm ci
@@ -40,7 +40,7 @@ npm run build
 npm start
 ```
 
-같은 폴더의 개발 서버를 종료한 뒤 프로덕션 빌드를 실행합니다. GitHub Actions는 Node.js 24에서 `npm ci` → `npm test` → `npm run build` 순서로 검증합니다.
+같은 폴더의 개발 서버를 종료한 뒤 프로덕션 빌드를 실행합니다. GitHub Actions는 `web/.node-version`에 지정된 Node.js 버전(현재 24.22.1)에서 `npm ci` → `npm test` → `npm run build` 순서로 검증합니다.
 
 운영 이미지는 루트 `Dockerfile`로 빌드합니다. `SAME_ORIGIN_API=true` 빌드는 rewrite·redirect를 비우고 Next standalone 서버를 만들며, API 경로 분기는 ALB가 맡습니다. 컨테이너는 uid 10001로 3000번 포트를 열고 `/healthz`로 상태를 확인합니다. `/app/.next/cache`는 쓰기 가능한 볼륨이 필요합니다.
 
