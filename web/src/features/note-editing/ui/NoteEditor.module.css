@@ -551,3 +551,15 @@
   color: var(--color-on-primary);
   background: var(--color-primary);
 }
+
+/* 레이아웃 폭은 유지해 표·이미지가 초기화될 때 올바른 크기를 읽게 한다. */
+.note-wysiwyg-editor[data-loading] {
+  visibility: hidden;
+  max-height: 0;
+  overflow: hidden;
+}
+
+.note-editor-load-error {
+  padding: 32px 16px;
+  text-align: center;
+}

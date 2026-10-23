@@ -19,7 +19,6 @@ import type { SelectableTreeItem, TreeInteractionProps } from "../model/treeInte
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
 import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
-import { buildTreeWikiReflectBadges } from "../model/treeWikiReflectBadge";
 import { buildTreeConversionBadges } from "../model/treeConversionBadge";
 import styles from "./DocumentSidebar.module.css";
 
@@ -200,8 +199,6 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDropFiles
   });
-  // 문서 행 우측 위키 반영 배지. 문서 목록이 바뀔 때만 다시 계산한다.
-  const wikiReflectBadges = useMemo(() => buildTreeWikiReflectBadges(documents ?? []), [documents]);
   // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
   const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
@@ -213,7 +210,6 @@ export function DocumentSidebar({
     dropTarget,
     fileDropTarget,
     editing,
-    wikiReflectBadges,
     conversionBadges,
     openIds,
     onToggleOpen,
