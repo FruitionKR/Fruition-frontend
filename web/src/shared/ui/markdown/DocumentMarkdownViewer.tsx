@@ -14,12 +14,20 @@ function RenderingNotice() {
   );
 }
 
-const Viewer = dynamic(() => import("./MarkdownViewer").then((module) => module.MarkdownViewer), {
+type Props = ComponentProps<typeof MarkdownViewerComponent> & { onReady?: () => void };
+
+const Viewer = dynamic<Props>(() => import("./MarkdownViewer").then((module) => {
+  return function LoadedDocumentMarkdown({ onReady, ...props }: Props) {
+    // 동적 청크 로드와 본문 DOM 반영이 끝난 뒤에만 근거 위치 이동 등을 허용한다.
+    useEffect(() => { onReady?.(); }, [props.markdown, onReady]);
+    return <module.MarkdownViewer {...props} />;
+  };
+}), {
   loading: RenderingNotice
 });
 
 /** 전체 본문은 그대로 유지한다. 파싱 전에 안내를 먼저 그려 긴 동기 렌더링도 빈 화면으로 보이지 않게 한다. */
-export function DocumentMarkdownViewer(props: ComponentProps<typeof MarkdownViewerComponent>) {
+export function DocumentMarkdownViewer(props: Props) {
   const [preparedMarkdown, setPreparedMarkdown] = useState<string | null>(null);
   useEffect(() => {
     let disposed = false;

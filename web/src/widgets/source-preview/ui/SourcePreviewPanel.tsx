@@ -96,6 +96,8 @@ export function SourcePreviewPanel({
   // 화면 본문을 불러온 문서와 로드 ID. 근거 block 조회 키로 써서 본문이 바뀌면(복원·재편입 등) block도 다시 받는다.
   // 로드 ID는 문서를 바꿔도 다시 세지 않아, 이전 로드의 키(캐시)를 재사용하지 않는다.
   const [markdownLoad, setMarkdownLoad] = useState<MarkdownLoad | null>(null);
+  const [renderedMarkdownLoad, setRenderedMarkdownLoad] = useState<MarkdownLoad | null>(null);
+  const handleMarkdownReady = useCallback(() => setRenderedMarkdownLoad(markdownLoad), [markdownLoad]);
   // 순번 함수는 처음 한 번만 만든다(렌더마다 만들고 버리지 않게).
   const [nextMarkdownLoad] = useState(createMarkdownLoadSequence);
   const [noteContentVersion, setNoteContentVersion] = useState(0);
@@ -417,7 +419,7 @@ export function SourcePreviewPanel({
   });
 
   useEffect(() => {
-    if (!showHighlightedMarkdown) return;
+    if (!showHighlightedMarkdown || renderedMarkdownLoad !== markdownLoad) return;
 
     // scrollIntoView는 조상 요소·페이지까지 밀 수 있어(#64) 미리보기 스크롤 영역만 직접 스크롤한다.
     const frameId = window.requestAnimationFrame(() => {
@@ -442,7 +444,7 @@ export function SourcePreviewPanel({
       });
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [showHighlightedMarkdown, rawMarkdown, selectedBlockHighlights, scrollTargetBlockId, scrollTargetKey]);
+  }, [showHighlightedMarkdown, renderedMarkdownLoad, markdownLoad, rawMarkdown, selectedBlockHighlights, scrollTargetBlockId, scrollTargetKey]);
 
   return (
     <section
@@ -560,6 +562,7 @@ export function SourcePreviewPanel({
               highlightedBlocks={selectedBlockHighlights}
               highlightRanges={highlightRanges}
               onBlockRef={registerBlockRef}
+              onReady={handleMarkdownReady}
             />
           </>
         )}
