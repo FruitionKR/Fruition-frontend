@@ -78,10 +78,6 @@ export function TreeNode({
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
   const display = fileDisplay(item);
-  // 지금 위키 편입을 시작할 수 있는 문서에만 신규·수정됨·재시도 배지를 붙인다(업로드 중 자리표시 행 제외).
-  const wikiReflectBadge = !isUploading && item.documentId
-    ? interaction.wikiReflectBadges?.get(item.documentId) ?? null
-    : null;
   // 기존 확장자 배지 자리에서 원본 PDF와 변환된 노트의 역할·연결을 보여준다.
   const conversionBadge = !isUploading && item.documentId
     ? interaction.conversionBadges?.get(item.documentId) ?? null
@@ -227,15 +223,6 @@ export function TreeNode({
                   className={styles["tree-permission-icon"]}
                 />
               </Tooltip>
-            )}
-            {wikiReflectBadge && (
-              <small
-                className={cx(styles["tree-reflect-badge"], styles[`is-${wikiReflectBadge.tone}`])}
-                title={wikiReflectBadge.description}
-                aria-label={wikiReflectBadge.description}
-              >
-                {wikiReflectBadge.label}
-              </small>
             )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
