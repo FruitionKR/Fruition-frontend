@@ -15,7 +15,7 @@ export function ChapterCards() {
       <ol>
         {LANDING_CHAPTERS.map((chapter) => (
           <li key={chapter.id}>
-            <a className={sections["chapter-card"]} href={`#${chapter.id}`}>
+            <Link className={sections["chapter-card"]} href={`#${chapter.id}`}>
               <span className={sections["card-top"]}>
                 <span className={sections["card-icon"]} aria-hidden="true">
                   {CHAPTER_ICONS[chapter.id]}
@@ -28,7 +28,7 @@ export function ChapterCards() {
               <span className={sections["card-arrow"]} aria-hidden="true">
                 ↓
               </span>
-            </a>
+            </Link>
           </li>
         ))}
       </ol>

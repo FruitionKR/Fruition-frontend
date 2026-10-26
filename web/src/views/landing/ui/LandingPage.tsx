@@ -26,14 +26,14 @@ function LandingHeader() {
   return (
     <header className={styles["landing-header"]}>
       <div className={styles["header-inner"]}>
-        <a className={styles["brand"]} href="#top" aria-label="Fruition 처음으로">
+        <Link className={styles["brand"]} href="#top" aria-label="Fruition 처음으로">
           <BrandMark />
-        </a>
+        </Link>
         <nav className={styles["header-nav"]} aria-label="주요 메뉴">
           <ul>
             {LANDING_NAV.map((item) => (
               <li key={item.href}>
-                <a href={item.href}>{item.label}</a>
+                <Link href={item.href}>{item.label}</Link>
               </li>
             ))}
           </ul>
@@ -68,10 +68,10 @@ function LandingHero() {
               시작하기
               <span aria-hidden="true">→</span>
             </Link>
-            <a className={styles["button-ghost"]} href="#capture">
+            <Link className={styles["button-ghost"]} href="#capture">
               기능 둘러보기
               <span aria-hidden="true">↓</span>
-            </a>
+            </Link>
           </div>
         </div>
         <figure className={styles["hero-visual"]}>
@@ -87,9 +87,9 @@ export default function LandingPage() {
   return (
     <div className={styles["landing-page"]}>
       <LandingRedirect />
-      <a className={styles["skip-link"]} href="#capture">
+      <Link className={styles["skip-link"]} href="#capture">
         본문으로 건너뛰기
-      </a>
+      </Link>
       <LandingHeader />
       <main>
         <LandingHero />

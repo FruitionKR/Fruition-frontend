@@ -120,6 +120,7 @@ export function SocialLoginButtons({ disabled = false }: { disabled?: boolean })
         <p>간편 로그인</p>
         <span />
       </div>
+      {disabled ? <p className="auth-prompt auth-prompt--wrap" role="status">접근 코드를 먼저 확인하면 간편 로그인을 사용할 수 있어요.</p> : null}
       <div className="auth-social-buttons">
         {providers.map(({ logo, name, provider }) => (
           <button
