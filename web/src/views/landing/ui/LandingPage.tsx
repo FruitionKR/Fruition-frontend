@@ -5,7 +5,6 @@ import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_NAV } from "../model/landingContent";
 import { LandingRedirect } from "./LandingRedirect";
 import { ChapterCards, LandingChapters, LandingFaq, LandingStart } from "./LandingSections";
-import { SectionTabs } from "./SectionTabs";
 import { HeroPreview } from "./preview/FeatureFragments";
 import { ThemeSwitch } from "./ThemeSwitch";
 import styles from "./LandingPage.module.css";
@@ -26,14 +25,14 @@ function LandingHeader() {
   return (
     <header className={styles["landing-header"]}>
       <div className={styles["header-inner"]}>
-        <Link className={styles["brand"]} href="#top" aria-label="Fruition 처음으로">
+        <Link className={styles["brand"]} href="#top" replace aria-label="Fruition 처음으로">
           <BrandMark />
         </Link>
         <nav className={styles["header-nav"]} aria-label="주요 메뉴">
           <ul>
             {LANDING_NAV.map((item) => (
               <li key={item.href}>
-                <Link href={item.href}>{item.label}</Link>
+                <Link href={item.href} replace>{item.label}</Link>
               </li>
             ))}
           </ul>
@@ -68,7 +67,7 @@ function LandingHero() {
               시작하기
               <span aria-hidden="true">→</span>
             </Link>
-            <Link className={styles["button-ghost"]} href="#capture">
+            <Link className={styles["button-ghost"]} href="#capture" replace>
               기능 둘러보기
               <span aria-hidden="true">↓</span>
             </Link>
@@ -87,14 +86,13 @@ export default function LandingPage() {
   return (
     <div className={styles["landing-page"]}>
       <LandingRedirect />
-      <Link className={styles["skip-link"]} href="#capture">
+      <Link className={styles["skip-link"]} href="#capture" replace>
         본문으로 건너뛰기
       </Link>
       <LandingHeader />
       <main>
         <LandingHero />
         <ChapterCards />
-        <SectionTabs />
         <LandingChapters />
         <LandingFaq />
         <LandingStart />

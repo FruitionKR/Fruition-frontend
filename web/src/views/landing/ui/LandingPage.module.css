@@ -42,8 +42,6 @@
   --lp-gutter: 24px;
   --lp-section-pad: 112px;
   --lp-header-height: 72px;
-  /* 떠 있는 장 탭(높이 44) + 헤더와의 간격(12) */
-  --lp-tabs-height: 56px;
   --lp-radius: 14px;
   --lp-radius-window: 22px;
   --lp-radius-card: 22px;
@@ -104,13 +102,12 @@
   --lp-shadow-cta: 0 10px 24px -10px color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
-/* 앵커 이동은 고정 헤더와 떠 있는 장 탭(--lp-tabs-height) 아래로 맞춘다. */
+/* 앵커 이동은 고정 헤더 아래로 맞춘다. */
 .landing-page :is(section, nav)[id] {
-  scroll-margin-top: calc(var(--lp-header-height) + var(--lp-tabs-height) + 16px);
+  scroll-margin-top: calc(var(--lp-header-height) + 16px);
 }
 
-/* 장 띠는 헤더 바로 아래에서 시작한다. 띠 안쪽 여백(--lp-section-pad ≥ 80px)이 떠 있는 장 탭(56px)보다 커서
- * 장 제목이 탭에 가리지 않는다. */
+/* 장 띠는 헤더 바로 아래에서 시작하고, 제목은 띠 안쪽 여백에 놓인다. */
 .landing-page section[data-chapter] {
   scroll-margin-top: var(--lp-header-height);
 }
