@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { LANDING_CHAPTERS, type LandingChapterId } from "../model/landingContent";
@@ -56,14 +58,14 @@ export function SectionTabs() {
           const isActive = active === chapter.id;
           return (
             <li key={chapter.id}>
-              <a
+              <Link
                 href={`#${chapter.id}`}
                 className={cx(styles["tab"], isActive && styles["is-active"])}
                 aria-current={isActive ? "true" : undefined}
                 tabIndex={isShown ? undefined : -1}
               >
                 {chapter.tabLabel}
-              </a>
+              </Link>
             </li>
           );
         })}
