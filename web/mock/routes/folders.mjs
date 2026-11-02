@@ -2,6 +2,7 @@
 // 실제 백엔드처럼 base_version 낙관적 잠금을 검사하고 변경마다 current_version을 올린다.
 import { randomUUID } from "node:crypto";
 import { state, now, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, memberRole } from "../state.mjs";
+import { rememberIdempotent, replayIdempotent, useImportSession } from "./imports.mjs";
 
 function liveFolders(workspaceId) {
   return state.folders.filter((folder) => folder.workspace_id === workspaceId && !folder.deleted_at);
@@ -79,11 +80,16 @@ export function registerFolderRoutes(router) {
   router.post("/api/workspaces/:wid/folders", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
+    const scope = `POST:/api/workspaces/${workspace.id}/folders`;
+    if (replayIdempotent(ctx, scope)) return;
     const { name, parent_folder_id: parentId = null } = await ctx.body();
     if (typeof name !== "string" || !name.trim()) return error(ctx, 400, "폴더 이름을 입력해주세요.");
     if (!requireParent(ctx, workspace, parentId)) return;
+    // Notion 가져오기 헤더가 있으면 세션을 확인한다. 폴더는 item 수에 넣지 않는다.
+    if (useImportSession(ctx, workspace, 0) === false) return;
     const folder = { id: randomUUID(), workspace_id: workspace.id, name: name.trim(), parent_folder_id: parentId, sort_order: nextSortOrder(workspace.id, parentId), current_version: 1, created_at: now() };
     state.folders.push(folder);
+    rememberIdempotent(ctx, scope, 201, toFolderResponse(folder));
     ctx.json(201, toFolderResponse(folder));
   });
 

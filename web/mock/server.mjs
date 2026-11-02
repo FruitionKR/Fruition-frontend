@@ -17,6 +17,7 @@ import { registerNotificationRoutes } from "./routes/notifications.mjs";
 import { registerSpeechRoutes } from "./routes/speech.mjs";
 import { registerMeetingRoutes } from "./routes/meetings.mjs";
 import { registerUsageRoutes } from "./routes/usage.mjs";
+import { registerImportRoutes } from "./routes/imports.mjs";
 
 const ACCESS_PORT = Number(process.env.MOCK_ACCESS_PORT ?? 8081);
 const DOCUMENT_PORT = Number(process.env.MOCK_DOCUMENT_PORT ?? 8080);
@@ -29,6 +30,8 @@ const router = createRouter(state);
 registerAuthRoutes(router);
 registerWorkspaceRoutes(router);
 // document-svc 담당 경로. next.config rewrite가 경로별로 포트를 고르므로 두 포트 모두 같은 라우터를 쓴다.
+// Notion 가져오기: /documents/markdown이 /documents/:id 라우트보다 먼저 매칭되도록 앞에 둔다.
+registerImportRoutes(router);
 registerDocumentRoutes(router);
 registerWikiRoutes(router);
 registerChatRoutes(router);

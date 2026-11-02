@@ -1,0 +1,266 @@
+/**
+ * Notion "Markdown & CSV" 내보내기 파일 목록을 Fruition 폴더·문서 계획으로 바꾼다(서버에 쓰기 전 미리보기 겸 실행 계획).
+ *
+ * 매핑 규칙
+ * - `페이지 <id>.md` → 문서 "페이지". 같은 이름의 폴더 `페이지 <id>/`에 하위 페이지가 있으면
+ *   폴더 "페이지"를 만들고 그 폴더의 첫 문서로 같은 이름의 문서를 둔다.
+ * - `DB <id>.csv`(`_all.csv`가 있으면 그쪽) → GFM 표 문서 하나. 행 폴더 `DB <id>/`의 행 페이지는 가져오지 않는다.
+ * - 이름 끝 ` <32 hex>`를 떼고 NFC로 맞춘 뒤, 같은 폴더 안 중복은 ` (2)`로 피한다.
+ * - 이미지는 본문에서 참조할 때만 그 문서의 첨부로 올린다(PNG·JPEG·GIF·WebP, 매직 바이트로 확인).
+ */
+import { csvToMarkdownTable } from "./csvTable";
+import { sniffImageMime, type ImageMime } from "./imageSniff";
+import { sanitizeNotionMarkdown } from "./notionHtml";
+import { dirname, tokenizeLinks, type LinkTarget, type RewrittenLinks } from "./notionLinks";
+import { cleanNotionName, nameKey, splitExtension, uniqueName } from "./notionNames";
+import { ATTACHMENT_MAX_BYTES } from "./attachmentBatches";
+
+const MIB = 1024 * 1024;
+/** 서버 Markdown 본문 상한(UTF-8) */
+export const MARKDOWN_MAX_BYTES = 5 * MIB;
+
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+const utf8Decoder = new TextDecoder("utf-8");
+const utf8Encoder = new TextEncoder();
+
+/** readHead가 없으면 read()로 전부 푼 뒤 앞부분만 본다. */
+export type SourceFile = { path: string; size: number; read: () => Uint8Array; readHead?: (length: number) => Uint8Array };
+
+export type PlanFolder = { key: string; name: string; parentKey: string | null };
+
+export type PlanImage = { path: string; alt: string; size: number; mime: ImageMime; fileName: string; read: () => Uint8Array };
+
+export type PlanDocument = {
+  key: string;
+  name: string;
+  folderKey: string | null;
+  kind: "page" | "table";
+  /** 링크·이미지가 토큰으로 남은 본문 */
+  markdown: string;
+  links: RewrittenLinks["links"];
+  images: PlanImage[];
+  /** 토큰을 채우기 전 본문 바이트(UTF-8) */
+  bytes: number;
+};
+
+export type SkippedItem = { path: string; reason: string };
+
+export type ImportPlan = {
+  /** 상위 폴더가 먼저 오는 순서 */
+  folders: PlanFolder[];
+  documents: PlanDocument[];
+  skipped: SkippedItem[];
+  /** zip 안에 없는 대상을 가리켜 글자만 남긴 링크 */
+  brokenLinks: { documentKey: string; href: string }[];
+  /** 가져오지 않은 데이터베이스 행 페이지 수 */
+  skippedRowPages: number;
+  tableCount: number;
+  imageCount: number;
+  /** 문서 본문 + 이미지 바이트 */
+  totalBytes: number;
+  /** 문서 + 이미지 수(서버 item_count) */
+  itemCount: number;
+};
+
+export type ExistingNames = { folders: Iterable<string>; documents: Iterable<string> };
+
+function decodeText(bytes: Uint8Array): string {
+  return utf8Decoder.decode(bytes);
+}
+
+function byteLength(text: string): number {
+  return utf8Encoder.encode(text).length;
+}
+
+function lastSegment(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+/** Notion 일부 내보내기는 모든 파일을 `Export-<id>/` 아래에 둔다. 그 껍데기 폴더는 벗긴다. */
+export function stripExportRoot(files: SourceFile[]): SourceFile[] {
+  const first = files[0]?.path.split("/")[0];
+  if (!first || !/^Export-/i.test(first)) return files;
+  if (!files.every((file) => file.path.startsWith(`${first}/`))) return files;
+  return files.map((file) => ({ ...file, path: file.path.slice(first.length + 1) }));
+}
+
+/** csv 경로에서 `_all` 꼬리를 뗀 데이터베이스 기준 경로(확장자 없음) */
+function databaseBase(path: string): string {
+  return path.replace(/\.csv$/i, "").replace(/_all$/i, "");
+}
+
+const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+type ImageInfo = { size: number; mime: ImageMime | null; read: () => Uint8Array };
+
+/** 파일 목록으로 가져오기 계획을 만든다. 서버에는 아무것도 보내지 않는다. */
+export async function buildImportPlan(input: SourceFile[], existing: ExistingNames = { folders: [], documents: [] }): Promise<ImportPlan> {
+  const files = stripExportRoot(input);
+  const skipped: SkippedItem[] = [];
+  const pages = new Map<string, SourceFile>();
+  const images = new Map<string, SourceFile>();
+  const databases = new Map<string, SourceFile>();
+
+  // 데이터베이스: 기준 경로마다 _all.csv를 우선한다.
+  for (const file of files) {
+    if (splitExtension(lastSegment(file.path)).extension !== ".csv") continue;
+    const base = databaseBase(file.path);
+    const current = databases.get(base);
+    if (!current || /_all\.csv$/i.test(file.path)) databases.set(base, file);
+  }
+  const rowDirectories = [...databases.keys()].map((base) => `${base}/`);
+  const csvToDatabase = new Map<string, string>();
+  for (const file of files) {
+    if (/\.csv$/i.test(file.path)) csvToDatabase.set(file.path, databaseBase(file.path));
+  }
+
+  let skippedRowPages = 0;
+  for (const file of files) {
+    const { extension } = splitExtension(lastSegment(file.path));
+    if (extension === ".csv") continue;
+    if (rowDirectories.some((directory) => file.path.startsWith(directory))) {
+      if (extension === ".md") skippedRowPages += 1;
+      else skipped.push({ path: file.path, reason: "데이터베이스 행 페이지의 첨부" });
+      continue;
+    }
+    if (extension === ".md") {
+      if (file.size > MARKDOWN_MAX_BYTES) skipped.push({ path: file.path, reason: "5MB를 넘는 문서" });
+      else pages.set(file.path, file);
+    } else if (IMAGE_EXTENSIONS.has(extension)) images.set(file.path, file);
+    else skipped.push({ path: file.path, reason: "지원하지 않는 첨부 파일" });
+  }
+
+  // 문서가 들어 있는 폴더만 만든다(이미지뿐인 페이지 폴더는 만들지 않는다).
+  const documentPaths = [...pages.keys(), ...[...databases.values()].map((file) => file.path)];
+  const folderPaths = new Set<string>();
+  for (const path of documentPaths) {
+    for (let directory = dirname(path); directory; directory = dirname(directory)) folderPaths.add(directory);
+  }
+  // 하위 페이지가 있는 페이지: 그 페이지가 같은 이름 폴더의 첫 문서가 된다.
+  for (const path of pages.keys()) {
+    const directory = path.replace(/\.md$/i, "");
+    if (documentPaths.some((other) => other !== path && other.startsWith(`${directory}/`))) folderPaths.add(directory);
+  }
+
+  const sortedFolders = [...folderPaths].sort((a, b) => (a.split("/").length - b.split("/").length) || a.localeCompare(b));
+  const folderNamesTaken = new Map<string | null, Set<string>>([[null, new Set([...existing.folders].map(nameKey))]]);
+  const documentNamesTaken = new Map<string | null, Set<string>>([[null, new Set([...existing.documents].map(nameKey))]]);
+  const takenIn = (map: Map<string | null, Set<string>>, key: string | null) => {
+    let set = map.get(key);
+    if (!set) { set = new Set(); map.set(key, set); }
+    return set;
+  };
+
+  const folders: PlanFolder[] = [];
+  const documentNames = new Map<string, { name: string; folderKey: string | null }>();
+  for (const path of sortedFolders) {
+    const parentKey = dirname(path) || null;
+    const name = uniqueName(cleanNotionName(lastSegment(path)), takenIn(folderNamesTaken, parentKey));
+    folders.push({ key: path, name, parentKey });
+    const indexPage = `${path}.md`;
+    if (pages.has(indexPage)) documentNames.set(indexPage, { name: uniqueName(name, takenIn(documentNamesTaken, path)), folderKey: path });
+  }
+  for (const path of [...documentPaths].sort((a, b) => a.localeCompare(b))) {
+    if (documentNames.has(path)) continue;
+    const folderKey = dirname(path) || null;
+    const base = /\.csv$/i.test(path) ? lastSegment(databaseBase(path)) : splitExtension(lastSegment(path)).base;
+    documentNames.set(path, { name: uniqueName(cleanNotionName(base), takenIn(documentNamesTaken, folderKey)), folderKey });
+  }
+
+  const allPaths = new Set(files.map((file) => file.path));
+  const imageInfo = new Map<string, ImageInfo>();
+  const inspectImage = (path: string): ImageInfo | null => {
+    const cached = imageInfo.get(path);
+    if (cached) return cached;
+    const file = images.get(path);
+    if (!file) return null;
+    const mime = file.size > ATTACHMENT_MAX_BYTES ? null : sniffImageMime(file.readHead ? file.readHead(16) : file.read().slice(0, 16));
+    const info = { size: file.size, mime, read: file.read };
+    imageInfo.set(path, info);
+    return info;
+  };
+
+  const brokenLinks: ImportPlan["brokenLinks"] = [];
+  const referencedImages = new Set<string>();
+  const documents: PlanDocument[] = [];
+  let tableCount = 0;
+
+  for (const [path, file] of databases) {
+    const named = documentNames.get(file.path);
+    if (!named) continue;
+    const rows = files.some((entry) => entry.path.startsWith(`${path}/`) && /\.md$/i.test(entry.path));
+    const table = csvToMarkdownTable(decodeText(file.read()));
+    const note = rows ? "\n\n> Notion 데이터베이스의 표만 가져왔어요. 각 행의 페이지 본문은 가져오지 않았어요." : "";
+    const markdown = `# ${named.name}\n\n${table}${note}\n`;
+    const bytes = byteLength(markdown);
+    if (bytes > MARKDOWN_MAX_BYTES) {
+      skipped.push({ path: file.path, reason: "5MB를 넘는 표" });
+      continue;
+    }
+    tableCount += 1;
+    documents.push({ key: file.path, name: named.name, folderKey: named.folderKey, kind: "table", markdown, links: [], images: [], bytes });
+    await pause();
+  }
+
+  for (const [path, file] of pages) {
+    const named = documentNames.get(path);
+    if (!named) continue;
+    const resolve = (target: string, isImage: boolean): LinkTarget => {
+      if (pages.has(target) && documentNames.has(target)) return { kind: "document", key: target };
+      const database = csvToDatabase.get(target);
+      if (database !== undefined) {
+        const databaseFile = databases.get(database);
+        if (databaseFile && documentNames.has(databaseFile.path)) return { kind: "document", key: databaseFile.path };
+      }
+      if (isImage) {
+        const info = inspectImage(target);
+        if (info?.mime) return { kind: "image", path: target };
+      }
+      if (!allPaths.has(target)) brokenLinks.push({ documentKey: path, href: target });
+      return { kind: "broken" };
+    };
+    const tokenized = tokenizeLinks(sanitizeNotionMarkdown(decodeText(file.read())), path, resolve);
+    const bytes = byteLength(tokenized.markdown);
+    if (bytes > MARKDOWN_MAX_BYTES) {
+      skipped.push({ path, reason: "5MB를 넘는 문서" });
+      continue;
+    }
+    const planImages: PlanImage[] = tokenized.images.map(({ path: imagePath, alt }) => {
+      const info = imageInfo.get(imagePath)!;
+      referencedImages.add(imagePath);
+      return { path: imagePath, alt, size: info.size, mime: info.mime!, fileName: lastSegment(imagePath), read: info.read };
+    });
+    documents.push({ key: path, name: named.name, folderKey: named.folderKey, kind: "page", markdown: tokenized.markdown, links: tokenized.links, images: planImages, bytes });
+    await pause();
+  }
+
+  for (const [path, file] of images) {
+    if (referencedImages.has(path)) continue;
+    const info = inspectImage(path);
+    if (file.size > ATTACHMENT_MAX_BYTES) skipped.push({ path, reason: "10MB를 넘는 이미지" });
+    else if (!info?.mime) skipped.push({ path, reason: "PNG·JPEG·GIF·WebP가 아닌 이미지" });
+    else skipped.push({ path, reason: "본문에서 쓰지 않는 이미지" });
+  }
+
+  // 건너뛴 문서를 가리키던 폴더 계획은 그대로 둔다(폴더 안 다른 문서가 있을 수 있다). 빈 폴더만 뺀다.
+  const usedFolders = new Set<string>();
+  for (const document of documents) {
+    for (let key = document.folderKey; key; key = dirname(key) || null) usedFolders.add(key);
+  }
+  const keptFolders = folders.filter((folder) => usedFolders.has(folder.key));
+
+  documents.sort((a, b) => a.key.localeCompare(b.key));
+  const imageCount = documents.reduce((sum, document) => sum + document.images.length, 0);
+  const totalBytes = documents.reduce((sum, document) => sum + document.bytes + document.images.reduce((total, image) => total + image.size, 0), 0);
+  return {
+    folders: keptFolders,
+    documents,
+    skipped,
+    brokenLinks,
+    skippedRowPages,
+    tableCount,
+    imageCount,
+    totalBytes,
+    itemCount: documents.length + imageCount
+  };
+}
