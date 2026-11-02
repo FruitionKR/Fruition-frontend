@@ -120,21 +120,44 @@ export const UPLOAD_LIMIT_MESSAGES = {
 /** 서버 error 본문에서 함께 오는 한도 정보. snake_case(document 서비스 관례)와 camelCase를 모두 받는다. */
 export type UsageLimitDetail = { limit_type?: unknown; limitType?: unknown; reset_at?: unknown; resetAt?: unknown };
 
-function formatResetTime(value: unknown): string | null {
+const SEOUL = "Asia/Seoul";
+
+/** 한국 시간 기준 날짜·시각 조각. 한도 초기화는 서버가 Asia/Seoul 0시로 정한다. */
+function seoulParts(date: Date): { year: number; month: number; day: number; hour: number; minute: number } {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: SEOUL, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23"
+  }).formatToParts(date).map((part) => [part.type, Number(part.value)]));
+  return { year: parts.year, month: parts.month, day: parts.day, hour: parts.hour % 24, minute: parts.minute };
+}
+
+/**
+ * 초기화 시각 문구(한국 시간). 다음 날 0시면 "내일(11월 3일) 0시", 다른 날 0시면 "11월 5일 0시",
+ * 그 밖에는 "11월 3일 오후 3:00"이다. 잘못된 값이면 null.
+ */
+export function formatResetTime(value: unknown, now: Date = new Date()): string | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const reset = seoulParts(date);
+  const dayLabel = `${reset.month}월 ${reset.day}일`;
+  if (reset.hour === 0 && reset.minute === 0) {
+    const today = seoulParts(now);
+    const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
+    const isTomorrow = reset.year === tomorrow.getUTCFullYear() && reset.month === tomorrow.getUTCMonth() + 1 && reset.day === tomorrow.getUTCDate();
+    return isTomorrow ? `내일(${dayLabel}) 0시` : `${dayLabel} 0시`;
+  }
+  const time = date.toLocaleTimeString("ko-KR", { timeZone: SEOUL, hour: "numeric", minute: "2-digit" });
+  return `${dayLabel} ${time}`;
 }
 
 /**
  * AI 사용량 한도 안내. CONCURRENT만 동시 실행 안내이고 나머지(DAILY_COST·DAILY_TOKENS·모르는 값·없음)는 하루 한도 안내다.
  * 하루 한도에 초기화 시각이 오면 "내일" 대신 그 시각을 알려 준다.
  */
-export function aiUsageLimitMessage(detail?: UsageLimitDetail | null): string {
+export function aiUsageLimitMessage(detail?: UsageLimitDetail | null, now: Date = new Date()): string {
   const limitType = detail?.limit_type ?? detail?.limitType;
   if (limitType === "CONCURRENT") return AI_CONCURRENT_LIMIT_MESSAGE;
-  const resetAt = formatResetTime(detail?.reset_at ?? detail?.resetAt);
+  const resetAt = formatResetTime(detail?.reset_at ?? detail?.resetAt, now);
   if (!resetAt) return AI_DAILY_LIMIT_MESSAGE;
   return `오늘 사용할 수 있는 AI 사용량을 모두 썼어요. ${resetAt}부터 다시 이용할 수 있어요.`;
 }
