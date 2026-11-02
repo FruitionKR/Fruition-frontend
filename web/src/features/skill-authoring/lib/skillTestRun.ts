@@ -1,7 +1,7 @@
 import type { SkillTestRunRequest, SkillTestRunResponse } from "@/entities/skill/model/skill";
 import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
 import { ApiError, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
-import { skillCapabilities, validateSkillCreateForm, type SkillCreateForm } from "./skillCreateForm";
+import { skillCapabilities, skillRequiresSourceOption, validateSkillCreateForm, type SkillCreateForm } from "./skillCreateForm";
 
 /**
  * 스킬 만들기 시트의 "테스트 실행" 카드(Figma 1671:14585). 게시 전 정의를 문서 하나에 적용해 보고 아무것도 저장하지 않는다.
@@ -37,6 +37,7 @@ export function skillTestRunBlocker(form: SkillCreateForm, documentId: string): 
 /**
  * 시트 입력값 + 테스트 문서 → POST /skills/test-run 요청. Tool 허용 목록은 서버가 capabilities로 계산한다.
  * target을 보내지 않아 서버가 문서 전체에 적용한다.
+ * requires_source는 게시(skillPublishRequest)와 같은 조건·값으로 실어 테스트 결과가 게시 후 실행과 같게 한다.
  */
 export function skillTestRunRequest(form: SkillCreateForm, documentId: string): SkillTestRunRequest {
   return {
@@ -44,7 +45,8 @@ export function skillTestRunRequest(form: SkillCreateForm, documentId: string): 
     description: form.description.trim(),
     instructions_markdown: form.rules.trim(),
     capabilities: skillCapabilities(form.kind, form.resultMode),
-    document_id: documentId
+    document_id: documentId,
+    ...skillRequiresSourceOption(form)
   };
 }
 

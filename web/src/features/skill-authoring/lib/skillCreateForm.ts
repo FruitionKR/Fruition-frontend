@@ -187,7 +187,6 @@ export function skillExecutionOptions(
  * 게시는 의도를 다시 분류하지 않으므로, 초안의 판단을 지키려면 사용자가 손대지 않았어도 보내야 한다. 빼면 {문서}·템플릿 규칙만 적용된다.
  */
 export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest {
-  const sendsSource = form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
   return {
     name: form.command.trim(),
     description: form.description.trim(),
@@ -195,8 +194,14 @@ export function skillPublishRequest(form: SkillCreateForm): SkillPublishRequest 
     scope_type: form.scope,
     capabilities: skillCapabilities(form.kind, form.resultMode),
     ...skillExecutionOptions(form.kind, form.resultMode, form.targets),
-    ...(sendsSource ? { requires_source: form.requiresSource as boolean } : {})
+    ...skillRequiresSourceOption(form)
   };
+}
+
+/** 게시·테스트 실행에 싣는 requires_source. '원문 문서' 값이 있고 그 필드가 보이는 스킬일 때만 담고, 아니면 키를 뺀다. */
+export function skillRequiresSourceOption(form: SkillCreateForm): { requires_source?: boolean } {
+  const sendsSource = form.requiresSource != null && showsSourceField(form.kind, form.resultMode);
+  return sendsSource ? { requires_source: form.requiresSource as boolean } : {};
 }
 
 export type SkillAuthoringMode = "enhance" | "preserve" | "regenerate";

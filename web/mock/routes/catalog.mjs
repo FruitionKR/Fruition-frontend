@@ -357,6 +357,7 @@ export function registerCatalogRoutes(router) {
     const capabilities = Array.isArray(body.capabilities) ? body.capabilities : [];
     const hasRequired = [name, description, instructions_markdown, document_id].every((value) => typeof value === "string" && value.trim());
     if (!hasRequired || capabilities.length === 0) return error(ctx, 400, "요청 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    if (body.requires_source != null && typeof body.requires_source !== "boolean") return error(ctx, 400, "requires_source는 true·false여야 합니다.", "INVALID_REQUEST");
     const doc = findDocument(workspace.id, document_id);
     if (!doc) return error(ctx, 404, "문서를 찾을 수 없습니다.", "DOCUMENT_NOT_FOUND");
     if (!isMarkdownDocument(doc) || typeof doc.markdown !== "string") return error(ctx, 400, "Markdown 문서만 테스트할 수 있습니다.", "INVALID_REQUEST");
