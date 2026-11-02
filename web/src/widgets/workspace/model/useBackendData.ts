@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentDataQueryKey, fetchDocumentData, fetchWikiGraph } from "@/entities/wiki";
@@ -11,6 +11,8 @@ import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
+import { useObservedActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
+import { GRAPH_IDLE_POLL_INTERVAL_MS, GRAPH_REFRESH_DEBOUNCE_MS, hasNewlyCompletedDocuments } from "./graphRefreshTriggers";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 // 로딩 중 렌더마다 새 []를 돌려주면 documents에 묶인 memo·effect가 매번 무효화된다.
@@ -45,7 +47,9 @@ export function useBackendData({
     queryKey: ["backendData", workspaceId, "graph"],
     queryFn: fetchWikiGraph,
     enabled: Boolean(workspaceId),
-    refetchInterval: getWikiWorkPollInterval(hasProcessingDocuments(query.data), isPageVisible),
+    // 편입 중 3초 주기로 받으면 노드가 임의의 시점에 조금씩 끼어든다. 그래프는 아래 완료 이벤트로 한 번에 받고,
+    // 이 폴링은 다른 멤버의 변경처럼 이벤트로 못 잡는 경우만 느리게 메운다.
+    refetchInterval: isPageVisible ? GRAPH_IDLE_POLL_INTERVAL_MS : false,
     // 그래프는 알림에 쓰이지 않으므로 숨김 탭에서는 멈추고, 복귀할 때 오래된 경우만 다시 받는다(#66).
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
@@ -61,6 +65,35 @@ export function useBackendData({
 
   const { refetch } = query;
   const { refetch: refetchGraph } = graphQuery;
+
+  // 편입 완료·Lint 완료가 한꺼번에 몰려도 그래프는 한 번만 다시 받아 새 노드가 한 묶음으로 들어오게 한다.
+  const graphRefreshTimerRef = useRef<number | null>(null);
+  const scheduleGraphRefresh = useCallback(() => {
+    if (graphRefreshTimerRef.current !== null) window.clearTimeout(graphRefreshTimerRef.current);
+    graphRefreshTimerRef.current = window.setTimeout(() => {
+      graphRefreshTimerRef.current = null;
+      void refetchGraph();
+    }, GRAPH_REFRESH_DEBOUNCE_MS);
+  }, [refetchGraph]);
+  useEffect(() => () => {
+    if (graphRefreshTimerRef.current !== null) window.clearTimeout(graphRefreshTimerRef.current);
+  }, []);
+
+  const previousDocumentsRef = useRef(backendData?.documents ?? EMPTY_DOCUMENTS);
+  useEffect(() => {
+    const currentDocuments = backendData?.documents ?? EMPTY_DOCUMENTS;
+    const previousDocuments = previousDocumentsRef.current;
+    previousDocumentsRef.current = currentDocuments;
+    if (hasNewlyCompletedDocuments(previousDocuments, currentDocuments)) scheduleGraphRefresh();
+  }, [backendData, scheduleGraphRefresh]);
+
+  const isLintActive = useObservedActiveLintOperation() !== null;
+  const wasLintActiveRef = useRef(isLintActive);
+  useEffect(() => {
+    const wasLintActive = wasLintActiveRef.current;
+    wasLintActiveRef.current = isLintActive;
+    if (wasLintActive && !isLintActive) scheduleGraphRefresh();
+  }, [isLintActive, scheduleGraphRefresh]);
   const refreshBackendData = useCallback(async (options?: { throwOnError?: boolean }) => {
     const [documentsResult] = await Promise.all([refetch({ throwOnError: options?.throwOnError }), refetchGraph()]);
     // 트리 변경 큐의 다음 작업이 렌더를 기다리지 않고 최신 트리를 보도록 바로 병합한다.

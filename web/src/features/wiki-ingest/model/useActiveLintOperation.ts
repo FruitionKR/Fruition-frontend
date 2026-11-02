@@ -30,3 +30,16 @@ export function useActiveLintOperation(isLintRequested: boolean): OperationLogIt
 
   return query.data?.logs[0] ?? null;
 }
+
+/**
+ * 진행 중 lint를 직접 폴링하지 않고, 다른 구독자(위키 작업 버튼 등)가 받아 둔 값만 본다.
+ * lint 종료를 감지해 그래프를 다시 받는 곳처럼 요청을 늘리면 안 되는 곳에서 쓴다.
+ */
+export function useObservedActiveLintOperation(): OperationLogItem | null {
+  const query = useQuery({
+    queryKey: ACTIVE_LINT_QUERY_KEY,
+    queryFn: () => fetchOperationLogs({ type: "lint", status: "processing", size: 1 }),
+    enabled: false
+  });
+  return query.data?.logs[0] ?? null;
+}

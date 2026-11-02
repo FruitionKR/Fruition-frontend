@@ -10,11 +10,14 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 
 const {
   GRAPH_ENTER_MOTION,
-  nodeEnterAmount,
+  nodeEntryFrame,
   planGraphUpdate,
+  revealPan,
   scheduleNodeEntries,
   spawnNearNeighbors
 } = await import("../src/widgets/graph/lib/graphEnter.ts");
+const { GRAPH_CENTER } = await import("../src/entities/graph/lib/graphBuilder.ts");
+const { viewportWorldScale } = await import("../src/widgets/graph/lib/graphGeometry.ts");
 
 const node = (id, kind = "concept") => ({ id, label: id, kind });
 const link = (from, to) => ({ from, to });
@@ -80,21 +83,81 @@ test("spawnNearNeighbors는 같은 id면 같은 좌표, 다른 id면 다른 방�
   assert.notDeepEqual(spawnNearNeighbors("page_x", neighbors), spawnNearNeighbors("page_y", neighbors));
 });
 
+test("새 노드끼리 이어지면 기존 노드에 가까운 순서(배치된 순서)로 돌려준다", () => {
+  const plan = planGraphUpdate({
+    nodes: [node("concept"), node("src", "source"), node("raw", "raw")],
+    links: [link("raw", "src"), link("src", "concept")],
+    previousPositions: { raw: { x: 0, y: 0 } },
+    previousOrigins: {},
+    layoutPositions: {}
+  });
+  assert.deepEqual(plan.addedNodeIds, ["src", "concept"]);
+});
+
 test("scheduleNodeEntries는 노드를 차례로 시작하되 큰 묶음도 상한 안에 시작을 끝낸다", () => {
+  const { staggerMs, maxStaggerTotalMs, edgeDrawMs, bloomMs } = GRAPH_ENTER_MOTION;
+  assert.ok(staggerMs >= 60 && staggerMs <= 90);
   const few = scheduleNodeEntries(["a", "b", "c"], 1000);
-  assert.deepEqual(few, { a: 1000, b: 1000 + GRAPH_ENTER_MOTION.staggerMs, c: 1000 + GRAPH_ENTER_MOTION.staggerMs * 2 });
+  assert.deepEqual(few, { a: 1000, b: 1000 + staggerMs, c: 1000 + staggerMs * 2 });
 
   const many = scheduleNodeEntries(Array.from({ length: 100 }, (_, index) => `n${index}`), 0);
   assert.equal(many.n0, 0);
-  assert.ok(Math.abs(many.n99 - GRAPH_ENTER_MOTION.maxStaggerTotalMs) < 1e-9);
-  assert.ok(many.n99 + GRAPH_ENTER_MOTION.durationMs <= 1500, "큰 묶음도 1.5초 안에 다 나타난다");
+  assert.ok(Math.abs(many.n99 - maxStaggerTotalMs) < 1e-9);
+  assert.ok(many.n99 + edgeDrawMs + bloomMs <= 2000, "큰 묶음도 약 2초 안에 다 피어난다");
 
   assert.deepEqual(scheduleNodeEntries(["solo"], 5), { solo: 5 });
 });
 
-test("nodeEnterAmount는 시작 전 0, 끝나면 1이고 ease-out으로 앞쪽이 빠르다", () => {
-  assert.equal(nodeEnterAmount(undefined, 0), 1, "등장 대상이 아니면 완전히 보인다");
-  assert.equal(nodeEnterAmount(100, 50), 0);
-  assert.equal(nodeEnterAmount(0, GRAPH_ENTER_MOTION.durationMs), 1);
-  assert.ok(nodeEnterAmount(0, GRAPH_ENTER_MOTION.durationMs / 2) > 0.5);
+test("nodeEntryFrame: 링크가 먼저 뻗고, 노드가 피어나고, 라벨이 뒤따르고, 강조가 서서히 사라진다", () => {
+  const { edgeDrawMs, bloomMs, labelDelayMs, labelFadeMs, glowMs } = GRAPH_ENTER_MOTION;
+  const at = (elapsed) => nodeEntryFrame(0, elapsed, false);
+
+  assert.equal(nodeEntryFrame(100, 50, false).edge, 0, "시작 전에는 아무것도 없다");
+  const drawing = at(edgeDrawMs / 2);
+  assert.ok(drawing.edge > 0 && drawing.edge < 1);
+  assert.equal(drawing.opacity, 0, "링크가 뻗는 동안 노드는 아직 안 보인다");
+
+  const blooming = at(edgeDrawMs + bloomMs * 0.6);
+  assert.equal(blooming.edge, 1);
+  assert.ok(blooming.opacity > 0.5);
+  assert.ok(blooming.scale > 1, "easeOutBack으로 살짝 넘쳤다 돌아온다");
+  assert.equal(at(edgeDrawMs + labelDelayMs - 1).label, 0, "라벨은 노드보다 늦게 나온다");
+
+  const settled = at(edgeDrawMs + Math.max(bloomMs, labelDelayMs + labelFadeMs));
+  assert.deepEqual([settled.opacity, settled.scale, settled.label], [1, 1, 1]);
+  assert.ok(settled.glow > 0, "강조는 노드가 다 핀 뒤에도 남아 있다");
+  assert.equal(at(edgeDrawMs + glowMs).glow, 0);
+  assert.equal(at(edgeDrawMs + glowMs).done, true);
+  assert.equal(at(edgeDrawMs + glowMs - 1).done, false);
+});
+
+test("nodeEntryFrame(동작 줄이기): 곧바로 제자리에 나타나고 고정 강조 링만 잠시 보인다", () => {
+  const { reducedHighlightMs } = GRAPH_ENTER_MOTION;
+  const frame = nodeEntryFrame(0, 0, true);
+  assert.deepEqual(
+    [frame.edge, frame.opacity, frame.scale, frame.label, frame.glow, frame.staticRing],
+    [1, 1, 1, 1, 1, true]
+  );
+  assert.equal(nodeEntryFrame(0, reducedHighlightMs - 1, true).glow, 1, "강조가 깜빡이거나 줄어들지 않는다");
+  assert.equal(nodeEntryFrame(0, reducedHighlightMs, true).done, true);
+});
+
+test("revealPan: 새 노드가 하나라도 보이면 카메라를 움직이지 않는다", () => {
+  const viewport = { width: 1000, height: 700 };
+  const pan = { x: 0, y: 0 };
+  assert.equal(revealPan({ viewport, pan, zoom: 1, positions: [GRAPH_CENTER, { x: 1e5, y: 0 }] }), null);
+  assert.equal(revealPan({ viewport, pan, zoom: 1, positions: [] }), null);
+});
+
+test("revealPan: 새 노드가 모두 화면 밖이면 확대 없이 중심이 화면 안 여백까지만 오도록 옮긴다", () => {
+  const viewport = { width: 1000, height: 700 };
+  const pan = { x: 0, y: 0 };
+  const zoom = 2;
+  const far = { x: GRAPH_CENTER.x + 1000, y: GRAPH_CENTER.y };
+  const next = revealPan({ viewport, pan, zoom, positions: [far] });
+  assert.ok(next);
+  assert.equal(next.y, 0, "세로로는 이미 화면 안이라 움직이지 않는다");
+  const scale = viewportWorldScale(viewport, zoom);
+  const screenX = viewport.width / 2 + next.x + (far.x - GRAPH_CENTER.x) * scale;
+  assert.ok(Math.abs(screenX - viewport.width * (1 - GRAPH_ENTER_MOTION.revealMargin)) < 1e-6);
 });

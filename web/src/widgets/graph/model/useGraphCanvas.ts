@@ -29,8 +29,11 @@ import type { GraphSimNode, GraphSimulation } from "../lib/graphPhysics";
 import {
   GRAPH_ENTER_MOTION,
   GRAPH_UPDATE_ALPHA,
-  nodeEnterAmount,
+  GRAPH_UPDATE_VELOCITY_DECAY,
+  easeInOutCubic,
+  nodeEntryFrame,
   planGraphUpdate,
+  revealPan,
   scheduleNodeEntries
 } from "../lib/graphEnter";
 import { useUserPreferences } from "@/entities/user";
@@ -130,6 +133,10 @@ export function useGraphCanvas({
   const originPositionsRef = useRef<NodePositionMap>({});
   /** 첫 렌더 뒤 추가된 노드의 등장 시작 시각(performance.now 기준). 등장이 끝나면 지운다. */
   const nodeEnterStartsRef = useRef<Record<string, number>>({});
+  /** 새 노드가 모두 화면 밖일 때 카메라를 옮기는 중이면 그 시작·목표 pan */
+  const revealPanRef = useRef<{ from: NodePosition; to: NodePosition; startTime: number } | null>(null);
+  /** 사용자가 마지막으로 pan·zoom·노드 드래그한 시각. 최근에 움직였으면 카메라를 대신 옮기지 않는다. */
+  const lastUserInteractionRef = useRef(Number.NEGATIVE_INFINITY);
   const { reduceMotion } = useUserPreferences();
   const reduceMotionRef = useRef(reduceMotion);
   reduceMotionRef.current = reduceMotion;
@@ -170,6 +177,7 @@ export function useGraphCanvas({
     // 남아 있는 노드가 하나도 없으면(첫 로드·워크스페이스 전환) 갱신이 아니라 첫 표시로 본다.
     const isUpdate = nodes.some((node) => previousPositions[node.id]);
 
+    let addedPositions: NodePosition[] = [];
     if (isUpdate) {
       const { startPositions, originPositions, addedNodeIds } = planGraphUpdate({
         nodes,
@@ -183,12 +191,13 @@ export function useGraphCanvas({
         links,
         startPositions,
         originPositions,
-        initialAlpha: addedNodeIds.length > 0 ? GRAPH_UPDATE_ALPHA.nodesAdded : GRAPH_UPDATE_ALPHA.linksOnly
+        initialAlpha: addedNodeIds.length > 0 ? GRAPH_UPDATE_ALPHA.nodesAdded : GRAPH_UPDATE_ALPHA.linksOnly,
+        velocityDecay: GRAPH_UPDATE_VELOCITY_DECAY
       });
       originPositionsRef.current = originPositions;
-      nodeEnterStartsRef.current = reduceMotionRef.current
-        ? {}
-        : { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
+      // 동작 줄이기여도 시작 시각은 남긴다. 그때는 nodeEntryFrame이 고정 강조 링만 잠시 보여 준다.
+      nodeEnterStartsRef.current = { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
+      addedPositions = addedNodeIds.map((nodeId) => startPositions[nodeId]);
     } else {
       const startPositions = Object.fromEntries(
         nodes.map((node) => [node.id, cached?.positions[node.id] ?? initialNodePositions[node.id]])
@@ -203,18 +212,42 @@ export function useGraphCanvas({
       nodeEnterStartsRef.current = {};
     }
 
-    const nextZoom = clampGraphZoom(cached?.zoom ?? graphZoomRef.current);
-    const nextPan = clampPan(cached?.pan ?? graphPanRef.current, nextZoom);
+    // 갱신 때는 저장된 화면 대신 지금 보는 화면을 유지한다.
+    const nextZoom = clampGraphZoom((isUpdate ? null : cached?.zoom) ?? graphZoomRef.current);
+    const nextPan = clampPan((isUpdate ? null : cached?.pan) ?? graphPanRef.current, nextZoom);
     applyViewState(nextPan, nextZoom);
     setVisibleNodeCount(nodes.length);
-    const externalId = externalFocusedNodeIdRef.current;
-    selectedNodeIdRef.current = externalId;
-    hoveredNodeIdRef.current = externalId;
-    nodeHoverAmountsRef.current = externalId ? { [externalId]: nodeHoverAmountsRef.current[externalId] ?? 1 } : {};
+    if (isUpdate) {
+      // 데이터 갱신으로 사용자가 고른·올려 둔 노드가 풀리지 않게, 아직 있는 노드면 그대로 둔다.
+      const nodeIds = new Set(nodes.map((node) => node.id));
+      const keepExisting = (nodeId: string | null) => (nodeId && nodeIds.has(nodeId) ? nodeId : null);
+      selectedNodeIdRef.current = keepExisting(selectedNodeIdRef.current);
+      hoveredNodeIdRef.current = keepExisting(hoveredNodeIdRef.current);
+      startRevealPan(addedPositions);
+    } else {
+      const externalId = externalFocusedNodeIdRef.current;
+      selectedNodeIdRef.current = externalId;
+      hoveredNodeIdRef.current = externalId;
+      nodeHoverAmountsRef.current = externalId ? { [externalId]: nodeHoverAmountsRef.current[externalId] ?? 1 } : {};
+      revealPanRef.current = null;
+    }
     drawGraphRef.current();
     requestAnimationRef.current();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphSignature, initialNodePositions]);
+
+  /**
+   * 새 노드가 모두 화면 밖이면 확대는 그대로 두고 그쪽으로 천천히 화면을 옮긴다.
+   * 동작 줄이기이거나 사용자가 최근에 화면을 움직였으면 아무것도 하지 않는다.
+   */
+  function startRevealPan(positions: NodePosition[]) {
+    const canvas = canvasRef.current;
+    const now = performance.now();
+    if (!canvas || reduceMotionRef.current) return;
+    if (now - lastUserInteractionRef.current < GRAPH_ENTER_MOTION.revealIdleMs) return;
+    const target = revealPan({ viewport: canvasViewport(canvas), pan: graphPanRef.current, zoom: graphZoomRef.current, positions });
+    if (target) revealPanRef.current = { from: graphPanRef.current, to: target, startTime: now };
+  }
 
   /** pan/zoom 상태와 d3-zoom 내부 transform을 함께 갱신한다. */
   function applyViewState(nextPan: NodePosition, nextZoom: number) {
@@ -252,6 +285,7 @@ export function useGraphCanvas({
 
   useEffect(() => {
     draggingNodeIdRef.current = draggingNodeId;
+    if (draggingNodeId) lastUserInteractionRef.current = performance.now();
     requestAnimationRef.current();
   }, [draggingNodeId]);
 
@@ -309,6 +343,11 @@ export function useGraphCanvas({
       .on("zoom", (event) => {
         const canvasEl = canvasRef.current;
         if (!canvasEl) return;
+        // 사용자가 직접 움직인 경우(sourceEvent가 있음)에는 진행 중인 자동 화면 이동을 멈춘다.
+        if (event.sourceEvent) {
+          lastUserInteractionRef.current = performance.now();
+          revealPanRef.current = null;
+        }
         const nextPan = transformToPan(event.transform, canvasEl);
         graphZoomRef.current = event.transform.k;
         graphPanRef.current = nextPan;
@@ -463,8 +502,10 @@ export function useGraphCanvas({
       nodeSize,
       isRawSourceLink,
       getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId),
-      getNodeEnterAmount: (nodeId) => nodeEnterAmount(nodeEnterStartsRef.current[nodeId], now),
-      enterStartScale: GRAPH_ENTER_MOTION.startScale
+      getNodeEntry: (nodeId) => {
+        const startTime = nodeEnterStartsRef.current[nodeId];
+        return startTime === undefined ? null : nodeEntryFrame(startTime, now, reduceMotionRef.current);
+      }
     });
   }
 
@@ -509,7 +550,7 @@ export function useGraphCanvas({
     return changed;
   }
 
-  /** 등장 중인 노드가 있으면 true(다음 프레임도 그려야 함). 끝난 노드는 목록에서 뺀다. */
+  /** 등장 중인 노드가 있으면 true(다음 프레임도 그려야 함). 연출이 끝난 노드는 목록에서 뺀다. */
   function advanceNodeEnterAnimation() {
     const starts = nodeEnterStartsRef.current;
     const nodeIds = Object.keys(starts);
@@ -517,16 +558,32 @@ export function useGraphCanvas({
     const now = performance.now();
     nodeEnterStartsRef.current = Object.fromEntries(
       nodeIds
-        .filter((nodeId) => nodeById.has(nodeId) && nodeEnterAmount(starts[nodeId], now) < 1)
+        .filter((nodeId) => nodeById.has(nodeId) && !nodeEntryFrame(starts[nodeId], now, reduceMotionRef.current).done)
         .map((nodeId) => [nodeId, starts[nodeId]])
     );
     return true;
   }
 
+  /** 자동 화면 이동을 한 프레임 진행한다. 진행 중이면 true. */
+  function advanceRevealPan() {
+    const reveal = revealPanRef.current;
+    if (!reveal) return false;
+    const amount = Math.min(1, (performance.now() - reveal.startTime) / GRAPH_ENTER_MOTION.revealPanMs);
+    const eased = easeInOutCubic(amount);
+    if (amount >= 1) revealPanRef.current = null;
+    applyViewState(
+      { x: reveal.from.x + (reveal.to.x - reveal.from.x) * eased, y: reveal.from.y + (reveal.to.y - reveal.from.y) * eased },
+      graphZoomRef.current
+    );
+    return true;
+  }
+
+  // hover·선택 전환과 함께 새 노드 등장·자동 화면 이동도 같은 RAF 루프에서 진행한다.
   advanceHoverAnimationRef.current = (deltaMs) => {
     const hoverChanged = advanceHoverAnimation(deltaMs);
     const entering = advanceNodeEnterAnimation();
-    return hoverChanged || entering;
+    const panning = advanceRevealPan();
+    return hoverChanged || entering || panning;
   };
 
   /** pan 제한 기준: 현재 노드들의 실제 분포(bbox). 고정 GRAPH_WIDTH 상자가 아니다. */
