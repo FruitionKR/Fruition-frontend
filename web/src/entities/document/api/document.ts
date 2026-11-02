@@ -9,6 +9,7 @@ import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
 import { DOCUMENT_DIRECT_UPLOAD_MAX_BYTES, DOCUMENT_FORM_UPLOAD_MAX_BYTES, uploadSizeLimitMessage } from "@/shared/config/uploadLimits";
 import { flushPendingDocumentSave } from "@/shared/lib/documentSaveBarrier";
+import { createConcurrencyLimiter } from "@/shared/lib/concurrencyLimit";
 
 export class DocumentNameConflictError extends Error {
   constructor(filename: string) {
@@ -86,7 +87,18 @@ export async function uploadSkillReferenceDocument(file: File) {
  * 파일을 업로드한다. 같은 폴더에 같은 이름이 있어도 서버가 `이름 (2).pdf`처럼 번호를 붙여 저장하므로
  * 이름 중복을 미리 막지 않는다. 실제 저장된 이름은 응답의 filename이다.
  */
-export async function uploadDocumentFile(file: File, folderId: string | null = null) {
+/**
+ * 이 탭에서 동시에 보내는 문서 업로드 수. 서버는 사용자별 저장 용량·업로드 한도 확인을 직렬로 처리하므로
+ * 여러 파일을 한꺼번에 놓아도 2개씩만 보내고 나머지는 순서대로 기다린다(트리 행은 그동안 "업로드 중"으로 남는다).
+ */
+export const DOCUMENT_UPLOAD_CONCURRENCY = 2;
+const limitDocumentUpload = createConcurrencyLimiter(DOCUMENT_UPLOAD_CONCURRENCY);
+
+export function uploadDocumentFile(file: File, folderId: string | null = null): Promise<DocumentUploadResponse> {
+  return limitDocumentUpload(() => sendDocumentUpload(file, folderId));
+}
+
+async function sendDocumentUpload(file: File, folderId: string | null): Promise<DocumentUploadResponse> {
   const workspaceId = getWorkspaceId();
   const transport = await getDocumentTransport();
   if (transport.directUpload && hasPdfExtension(file.name)) {
