@@ -103,6 +103,7 @@ function Preview({ step, controller }: { step: Extract<NotionImportStep, { kind:
       </p>
       <ul className={styles.notes}>
         {plan.skippedRowPages > 0 && <li>데이터베이스는 표 문서로만 가져와요. 행 페이지 {plan.skippedRowPages.toLocaleString()}개는 가져오지 않아요.</li>}
+        {plan.folders.some((folder) => folder.pageDocumentKey) && <li>하위 페이지가 있는 페이지는 같은 이름의 문서와 폴더로 나눠요. 문서 옆 폴더에 하위 페이지가 들어가요.</li>}
         {plan.notionLinkCount > 0 && <li>Notion 링크 {plan.notionLinkCount.toLocaleString()}개 → 앱 문서로 연결해요.</li>}
         {plan.brokenLinks.length > 0 && <li>zip 안에서 대상을 찾지 못한 링크 {plan.brokenLinks.length.toLocaleString()}개는 글자만 남겨요.</li>}
         <li>가져온 문서는 바로 위키에 편입하지 않아요. 가져오기가 끝나면 편입할지 고를 수 있어요.</li>

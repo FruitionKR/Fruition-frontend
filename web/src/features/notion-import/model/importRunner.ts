@@ -190,8 +190,7 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
   }
 
   try {
-    // 1) 폴더를 위에서 아래로. 폴더를 만들자마자 같은 이름의 첫 문서를 만들어 폴더 맨 앞에 오게 한다.
-    const documentsByKey = new Map(plan.documents.map((document) => [document.key, document]));
+    // 1) 폴더를 위에서 아래로
     for (const folder of plan.folders) {
       if (!state.folderIds.has(folder.key)) {
         const parent = parentId(folder.parentKey);
@@ -205,11 +204,9 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
         });
         report("folders");
       }
-      const index = folder.indexDocumentKey ? documentsByKey.get(folder.indexDocumentKey) : undefined;
-      if (index) await createDocument(index);
     }
 
-    // 2) 나머지 문서 생성(동시 2개)
+    // 2) 문서 생성(동시 2개)
     const limit = createConcurrencyLimiter(IMPORT_CONCURRENCY);
     await settleAll(plan.documents.map((document) => limit(() => createDocument(document))));
 

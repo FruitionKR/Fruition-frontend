@@ -49,12 +49,13 @@ for (const folderIds of [true, false]) test(`내보내기 zip을 폴더·문서�
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles({ folderIds })));
   const homePage = `홈 ${ID.home}`;
   const home = folderIds ? homePage : "홈";
-  assert.deepEqual(plan.folders, [{ key: home, name: "홈", parentKey: null, indexDocumentKey: `${homePage}.md` }]);
+  assert.deepEqual(plan.folders, [{ key: home, name: "홈", parentKey: null, pageDocumentKey: `${homePage}.md` }]);
   const summary = plan.documents.map(({ key, name, folderKey, kind }) => ({ key, name, folderKey, kind }));
   assert.deepEqual(summary, [
     { key: `메모 ${ID.memo2}.md`, name: "메모", folderKey: null, kind: "page" },
     { key: `메모 ${ID.memo}.md`, name: "메모 (2)", folderKey: null, kind: "page" },
-    { key: `${homePage}.md`, name: "홈", folderKey: home, kind: "page" },
+    // Obsidian처럼 페이지 문서는 같은 이름 폴더의 옆(같은 부모)에 둔다.
+    { key: `${homePage}.md`, name: "홈", folderKey: null, kind: "page" },
     { key: `${home}/하위 ${ID.child}.md`, name: "하위", folderKey: home, kind: "page" },
     { key: `${home}/할일 ${ID.db}_all.csv`, name: "할일", folderKey: home, kind: "table" }
   ]);
@@ -101,9 +102,38 @@ for (const folderIds of [true, false]) test(`내보내기 zip을 폴더·문서�
 test("대상 폴더에 이미 있는 이름과 겹치는 최상위 항목은 번호를 붙인다", async () => {
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()), { folders: ["홈"], documents: ["메모"] });
   assert.equal(plan.folders[0].name, "홈 (2)");
-  assert.deepEqual(plan.documents.filter((document) => document.folderKey === null).map((document) => document.name), ["메모 (2)", "메모 (3)"]);
+  // 페이지 문서와 그 폴더는 같은 이름을 쓴다(이름 공간이 달라 서버도 함께 둘 수 있다).
+  assert.deepEqual(plan.documents.filter((document) => document.folderKey === null).map((document) => document.name), ["메모 (2)", "메모 (3)", "홈 (2)"]);
   // 폴더 첫 문서는 폴더 이름을 따른다.
   assert.equal(plan.documents.find((document) => document.key === `홈 ${ID.home}.md`).name, "홈 (2)");
+});
+
+test("페이지 문서와 폴더는 같은 이름으로 짝을 맞추고, 문서는 문서끼리·폴더는 폴더끼리만 겹침을 피한다", async () => {
+  // 같은 위치의 기존 문서 "홈"만 있어도 짝 이름을 함께 바꾼다.
+  const onlyDocument = await analyzeNotionZip(zipFiles(notionExportFiles()), { folders: [], documents: ["홈"] });
+  assert.equal(onlyDocument.folders[0].name, "홈 (2)");
+  assert.equal(onlyDocument.documents.find((document) => document.key === `홈 ${ID.home}.md`).name, "홈 (2)");
+  // 하위 페이지 없는 문서는 같은 이름의 기존 폴더가 있어도 이름을 그대로 쓴다.
+  const plain = await analyzeNotionZip(zipFiles({ [`메모 ${ID.memo}.md`]: "본문" }), { folders: ["메모"], documents: [] });
+  assert.equal(plain.documents[0].name, "메모");
+});
+
+test("부모 본문에 링크가 없는 하위 페이지는 맨 끝 '하위 페이지' 목록에 링크로 붙인다", async () => {
+  const plan = await analyzeNotionZip(zipFiles({
+    [`부모 ${ID.home}.md`]: `# 부모\n\n[첫째](${encodeURIComponent(`부모/첫째 ${ID.child}.md`)})\n`,
+    [`부모/첫째 ${ID.child}.md`]: "# 첫째\n",
+    [`부모/둘째 ${ID.memo}.md`]: "# 둘째\n",
+    [`부모/표 ${ID.db}.csv`]: "a\n1\n"
+  }));
+  assert.deepEqual(plan.folders.map(({ key, name, parentKey }) => ({ key, name, parentKey })), [{ key: "부모", name: "부모", parentKey: null }]);
+  const parent = plan.documents.find((document) => document.name === "부모");
+  assert.equal(parent.folderKey, null);
+  assert.deepEqual(parent.links.map((link) => [link.text, link.key]), [
+    ["첫째", `부모/첫째 ${ID.child}.md`],
+    ["둘째", `부모/둘째 ${ID.memo}.md`],
+    ["표", `부모/표 ${ID.db}.csv`]
+  ]);
+  assert.match(parent.markdown, /\n## 하위 페이지\n\n- \u0000L1\u0000\n- \u0000L2\u0000\n$/);
 });
 
 test("하위 페이지 없이 이미지만 있는 페이지는 폴더를 만들지 않는다", async () => {

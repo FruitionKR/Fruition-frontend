@@ -50,7 +50,7 @@ function fakeWriter({ fail = () => null } = {}) {
   };
 }
 
-test("폴더 → 폴더 첫 문서 → 나머지 문서 → 링크·이미지 본문 순서로 보낸다", async () => {
+test("폴더 → 문서 → 링크·이미지 본문 순서로 보내고, 하위 페이지가 있는 페이지는 폴더 옆에 만든다", async () => {
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
   const writer = fakeWriter();
   const state = createRunState();
@@ -58,9 +58,11 @@ test("폴더 → 폴더 첫 문서 → 나머지 문서 → 링크·이미지 �
   const result = await runImport(plan, { importId: "imp_1", writer, state, onProgress: (value) => progress.push(value) });
   assert.deepEqual(result, { fatalMessage: null, cancelled: false });
 
-  assert.deepEqual(writer.calls.slice(0, 2).map((call) => [call.kind, call.name]), [["folder", "홈"], ["document", "홈"]]);
-  assert.equal(writer.calls[1].folderId, "folder_홈");
-  assert.equal(writer.calls[1].markdown, "", "링크가 있는 문서는 빈 본문으로 먼저 만든다");
+  assert.deepEqual([writer.calls[0].kind, writer.calls[0].name], ["folder", "홈"]);
+  const homeCreate = writer.calls.find((call) => call.kind === "document" && call.name === "홈");
+  assert.equal(homeCreate.folderId, null, "페이지 문서는 폴더 안이 아니라 폴더와 같은 위치에 둔다");
+  assert.equal(homeCreate.markdown, "", "링크가 있는 문서는 빈 본문으로 먼저 만든다");
+  assert.equal(writer.calls.find((call) => call.kind === "document" && call.name === "하위").folderId, "folder_홈");
   const memo = writer.calls.find((call) => call.kind === "document" && call.name === "메모");
   assert.equal(memo.markdown, "# 메모 둘\n", "링크·이미지가 없는 문서는 만들 때 본문을 넣고 다시 저장하지 않는다");
 
@@ -134,7 +136,8 @@ test("저장 용량 초과면 남은 요청을 멈추고 그 이유를 돌려준
   const state = createRunState();
   const result = await runImport(plan, { importId: "imp_4", writer, state });
   assert.equal(result.fatalMessage, "저장 공간 부족");
-  assert.equal(writer.calls.filter((call) => call.kind === "document").length, 1);
+  // 이미 보낸 동시 요청(최대 2개)만 끝나고 더 보내지 않는다.
+  assert.ok(writer.calls.filter((call) => call.kind === "document").length <= 2);
   assert.equal(writer.calls.filter((call) => call.kind === "content").length, 0);
 });
 

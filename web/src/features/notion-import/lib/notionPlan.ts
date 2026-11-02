@@ -3,7 +3,8 @@
  *
  * 매핑 규칙
  * - `페이지 <id>.md` → 문서 "페이지". 같은 이름의 폴더(`페이지 <id>/` 또는 id 없는 `페이지/`)에 하위 페이지가 있으면
- *   폴더 "페이지"를 만들고 그 폴더의 첫 문서로 같은 이름의 문서를 둔다.
+ *   Obsidian처럼 문서 "페이지" 옆(같은 부모)에 폴더 "페이지"를 만들고 하위 페이지는 그 폴더에 둔다.
+ *   부모 본문이 링크하지 않은 하위 페이지는 본문 끝 "하위 페이지" 목록에 링크로 붙인다.
  * - `DB <id>.csv`(`_all.csv`가 있으면 그쪽) → GFM 표 문서 하나. 행 폴더(`DB <id>/` 또는 `DB/`)의 행 페이지는 가져오지 않는다.
  * - 이름 끝 ` <32 hex>`를 떼고 NFC로 맞춘 뒤, 같은 폴더 안 중복은 ` (2)`로 피한다.
  * - 이미지는 본문에서 참조할 때만 그 문서의 첨부로 올린다(PNG·JPEG·GIF·WebP, 매직 바이트로 확인).
@@ -30,8 +31,8 @@ export type PlanFolder = {
   key: string;
   name: string;
   parentKey: string | null;
-  /** 이 폴더의 첫 문서가 될 같은 이름 페이지(zip 경로). 없으면 생략 */
-  indexDocumentKey?: string;
+  /** 이 폴더와 같은 이름으로 폴더 옆(같은 부모)에 두는 페이지 문서(zip 경로). 없으면 생략 */
+  pageDocumentKey?: string;
 };
 
 export type PlanImage = { path: string; alt: string; size: number; mime: ImageMime; fileName: string; read: () => Uint8Array };
@@ -109,6 +110,28 @@ export function stripLeadingTitle(markdown: string, titles: readonly string[]): 
   return markdown.slice(match[0].length).replace(/^(?:[ \t]*\r?\n)+/, "");
 }
 
+/** 모든 집합에서 비어 있는 이름을 고르고 각 집합에 넣는다. */
+function uniqueNameAcross(name: string, takenSets: Set<string>[]): string {
+  let candidate = name;
+  for (let number = 2; takenSets.some((taken) => taken.has(nameKey(candidate))); number += 1) candidate = `${name} (${number})`;
+  takenSets.forEach((taken) => taken.add(nameKey(candidate)));
+  return candidate;
+}
+
+/**
+ * 부모 페이지 본문이 링크하지 않은 하위 문서를 본문 끝 "하위 페이지" 목록에 링크 토큰으로 붙인다.
+ * 하위 페이지가 폴더 안으로 옮겨져도 부모 문서에서 모두 찾아갈 수 있게 한다.
+ */
+export function appendChildLinks(tokenized: RewrittenLinks, children: readonly { key: string; name: string }[]): RewrittenLinks {
+  const linked = new Set(tokenized.links.map((link) => link.key));
+  const missing = children.filter((child) => !linked.has(child.key));
+  if (missing.length === 0) return tokenized;
+  const links = [...tokenized.links];
+  const items = missing.map((child) => `- \u0000L${links.push({ text: child.name, key: child.key }) - 1}\u0000`);
+  const body = tokenized.markdown.replace(/\s+$/, "");
+  return { ...tokenized, links, markdown: `${body}${body ? "\n\n" : ""}## 하위 페이지\n\n${items.join("\n")}\n` };
+}
+
 /** 파일 경로들의 모든 상위 폴더 경로 */
 function directoriesOf(paths: Iterable<string>): Set<string> {
   const directories = new Set<string>();
@@ -181,7 +204,7 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   // 문서가 들어 있는 폴더만 만든다(이미지뿐인 페이지 폴더는 만들지 않는다).
   const documentPaths = [...pages.keys(), ...[...databases.values()].map((file) => file.path)];
   const folderPaths = directoriesOf(documentPaths);
-  // 하위 페이지가 있는 페이지: 그 페이지가 같은 이름 폴더의 첫 문서가 된다. 한 폴더에는 첫 문서 하나만 둔다.
+  // 하위 페이지가 있는 페이지: 같은 이름 폴더 옆에 둔다. 폴더 하나에 페이지 하나만 짝짓는다.
   const indexPageOf = new Map<string, string>();
   for (const path of [...pages.keys()].sort((a, b) => a.localeCompare(b))) {
     const directory = childDirectoryOf(path.replace(/\.md$/i, ""), allDirectories);
@@ -205,10 +228,16 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   const documentNames = new Map<string, { name: string; folderKey: string | null }>();
   for (const path of sortedFolders) {
     const parentKey = dirname(path) || null;
-    const name = uniqueName(cleanNotionName(lastSegment(path)), takenIn(folderNamesTaken, parentKey));
     const indexPage = indexPageOf.get(path);
-    folders.push(indexPage ? { key: path, name, parentKey, indexDocumentKey: indexPage } : { key: path, name, parentKey });
-    if (indexPage) documentNames.set(indexPage, { name: uniqueName(name, takenIn(documentNamesTaken, path)), folderKey: path });
+    const folderTaken = takenIn(folderNamesTaken, parentKey);
+    if (!indexPage) {
+      folders.push({ key: path, name: uniqueName(cleanNotionName(lastSegment(path)), folderTaken), parentKey });
+      continue;
+    }
+    // 페이지 문서와 폴더는 같은 부모에 같은 이름으로 둔다. 문서는 문서끼리, 폴더는 폴더끼리만 겹치면 안 되므로 둘 다 비는 이름을 고른다.
+    const name = uniqueNameAcross(cleanNotionName(lastSegment(path)), [folderTaken, takenIn(documentNamesTaken, parentKey)]);
+    folders.push({ key: path, name, parentKey, pageDocumentKey: indexPage });
+    documentNames.set(indexPage, { name, folderKey: parentKey });
   }
   for (const path of [...documentPaths].sort((a, b) => a.localeCompare(b))) {
     if (documentNames.has(path)) continue;
@@ -218,6 +247,12 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   }
 
   const allPaths = new Set(files.map((file) => file.path));
+  // 페이지 → 그 하위 페이지 폴더, 폴더 → 바로 아래 문서(이름순)
+  const pageFolderOf = new Map([...indexPageOf].map(([directory, page]) => [page, directory]));
+  const childrenOf = (folderKey: string | undefined) => folderKey === undefined ? [] : [...documentNames]
+    .filter(([, named]) => named.folderKey === folderKey)
+    .map(([key, named]) => ({ key, name: named.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
   // Notion 페이지 id → 가져오는 문서 key. 절대 링크(notion.so·app.notion.com)를 앱 문서로 잇는다.
   const documentKeyById = new Map<string, string>();
   for (const [path, file] of [...pages, ...[...databases.values()].map((database) => [database.path, database] as const)]) {
@@ -282,7 +317,7 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     };
     const titles = [named.name, cleanNotionName(splitExtension(lastSegment(path)).base)];
     const body = stripLeadingTitle(sanitizeNotionMarkdown(decodeText(file.read())), titles);
-    const tokenized = tokenizeLinks(body, path, resolve, (id) => documentKeyById.get(id));
+    const tokenized = appendChildLinks(tokenizeLinks(body, path, resolve, (id) => documentKeyById.get(id)), childrenOf(pageFolderOf.get(path)));
     notionLinkCount += tokenized.notionLinks;
     const bytes = byteLength(tokenized.markdown);
     if (bytes > MARKDOWN_MAX_BYTES) {
