@@ -2245,6 +2245,32 @@ button.result-link:focus-visible {
   white-space: pre-wrap;
 }
 
+/* 작업 탭 답변(폴더 내용 조회): 안내 상자와 같은 바탕에 본문색 글자, 문단 줄바꿈과 목록 */
+.task-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border-radius: 16px;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.task-answer p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.task-answer-list {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
 .task-error {
   margin: 0;
   color: var(--color-danger);

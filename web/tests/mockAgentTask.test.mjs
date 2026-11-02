@@ -227,3 +227,34 @@ test("mock turn 취소는 진행 중 turn의 pending 응답을 바로 cancelled�
   assert.equal(missing.status, 404);
   assert.equal(missing.body.error.code, "AGENT_RUN_NOT_FOUND");
 });
+
+test("mock 작업 탭은 폴더 내용 질문에 folder_lookup으로 바로 아래 폴더·문서 이름을 답한다", async (t) => {
+  const request = await startMock(t);
+  const childId = "2d8b4f60-3c5e-4a71-9c9d-0e1f2a3b4c5d";
+  if (!state.folders.some((folder) => folder.id === childId)) {
+    const timestamp = new Date().toISOString();
+    state.folders.push({ id: childId, workspace_id: WORKSPACE_ID, name: "2026 회의록", parent_folder_id: FOLDER_ID, sort_order: 0, current_version: 1, created_at: timestamp });
+    state.documents.push({ id: "doc_task_lookup", workspace_id: WORKSPACE_ID, folder_id: FOLDER_ID, filename: "킥오프.md", status: "completed", document_role: "EDITABLE", markdown: "# 킥오프" });
+  }
+  const turn = await submitTask(request, "회의록 폴더에 뭐가 있어?");
+  assert.equal(turn.result.action, "folder_lookup");
+  assert.equal(turn.result.route.action, "folder_lookup");
+  assert.equal(turn.result.run_id, undefined);
+  assert.equal(turn.result.edit, null);
+  assert.equal(turn.result.message.split("\n\n")[0], "'회의록' 폴더(회의록)에 하위 폴더 1개, 문서 1개가 있어요.");
+  assert.match(turn.result.message, /^- 📁 2026 회의록$/m);
+  assert.match(turn.result.message, /^- 킥오프$/m);
+  const saved = state.chatMessages.find((item) => item.run_id === turn.requestId && item.role === "assistant");
+  assert.equal(saved.action, "folder_lookup");
+  assert.equal(saved.content, turn.result.message);
+
+  const missing = await submitTask(request, "없는폴더 폴더에 뭐가 있어?");
+  assert.equal(missing.result.action, "folder_lookup");
+  assert.match(missing.result.message, /폴더 이름을 정확히 적거나 사이드바에서 폴더를 고른/);
+
+  // 메시지에 폴더 이름이 없으면 사이드바에서 고른 폴더를 쓴다.
+  const accepted = await request("POST", "/turn", { session_id: SESSION_ID, message: "이 폴더에 뭐가 있어?", mode: "task", folder_id: FOLDER_ID, ...MODEL });
+  const selected = await waitForTurn(request, accepted.body.requestId);
+  assert.equal(selected.result.action, "folder_lookup");
+  assert.match(selected.result.message, /^'회의록' 폴더/);
+});

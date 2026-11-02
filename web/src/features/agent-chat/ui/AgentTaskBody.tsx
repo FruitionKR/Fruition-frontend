@@ -19,6 +19,7 @@ import { newAttentionKeys, revealScrollDelta } from "../lib/revealScroll";
 import {
   describeTaskRequest,
   groupTaskEntries,
+  isAnswerTask,
   resolveTaskRequest,
   resolveTaskStatus,
   SKILL_MODE_CHOICES,
@@ -33,6 +34,7 @@ import {
 } from "../lib/taskThread";
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
+import { TaskAnswer } from "./TaskAnswer";
 import { AgentAssetIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
@@ -387,6 +389,7 @@ export function AgentTaskBody({
     }
     if (status.group === "failed" && item.answer) return <TaskNote role="alert">{item.answer}</TaskNote>;
     if (item.messageStatus === "failed") return <TaskNote role="alert">{FAILED_TASK_FALLBACK}</TaskNote>;
+    if (isAnswerTask(item)) return <TaskAnswer text={item.answer} />;
     return null;
   }
 
@@ -522,9 +525,12 @@ export function AgentTaskBody({
             <p className={styles["task-section-label"]}>{label}</p>
             {group === "done" ? (
               <>
-                <div className={styles["task-rows"]}>
-                  {groupEntries.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
-                </div>
+                {/* 답이 곧 결과인 작업(폴더 내용 조회)은 한 줄 대신 답을 담은 카드로, 나머지는 이어진 행끼리 묶는다. */}
+                {chunkDoneEntries(groupEntries).map((chunk) => "answer" in chunk ? renderCard(chunk.answer) : (
+                  <div key={chunk.rows[0].item.key} className={styles["task-rows"]}>
+                    {chunk.rows.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
+                  </div>
+                ))}
                 <TaskNote>{DONE_NOTICE}</TaskNote>
               </>
             ) : groupEntries.map(renderCard)}
@@ -543,6 +549,16 @@ export function AgentTaskBody({
       )}
     </div>
   );
+}
+
+/** 완료 묶음을 보낸 순서대로 답 카드 하나씩과 이어진 한 줄 행 묶음으로 나눈다. */
+function chunkDoneEntries(entries: TaskEntry[]): ({ answer: TaskEntry } | { rows: TaskEntry[] })[] {
+  return entries.reduce<({ answer: TaskEntry } | { rows: TaskEntry[] })[]>((chunks, entry) => {
+    if (isAnswerTask(entry.item)) return [...chunks, { answer: entry }];
+    const last = chunks.at(-1);
+    if (last && "rows" in last) return [...chunks.slice(0, -1), { rows: [...last.rows, entry] }];
+    return [...chunks, { rows: [entry] }];
+  }, []);
 }
 
 function findAttentionCard(body: HTMLElement, key: string): HTMLElement | null {

@@ -16,3 +16,8 @@ test("재작성 뒤의 두 번째 검토와 실제 스킬 안내를 지우지 �
   assert.equal(buildProgressSteps(steps, true).length, 4);
   assert.equal(buildProgressSteps(events("answer_generated", "agent.finalizing"), true).length, 1);
 });
+
+test("폴더 내용 조회 진행 이벤트는 AI 문구 그대로 보인다", () => {
+  const steps = [{ stage: "agent.routing", message: "" }, { stage: "agent.routed", message: "폴더 내용을 확인하고 있어요." }];
+  assert.deepEqual(buildProgressSteps(steps, true), [["질문의 의도를 파악하고 있어요.", "done"], ["폴더 내용을 확인하고 있어요.", "active"]]);
+});

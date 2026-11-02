@@ -14,6 +14,7 @@ const {
   collectServerAppliedTurnIds,
   describeTaskRequest,
   groupTaskEntries,
+  isAnswerTask,
   isServerAppliableTask,
   isTaskMessage,
   parseSkillSlashQuery,
@@ -46,7 +47,7 @@ test("질의 메시지(action 없음)와 옛 agent 채팅 답변은 채팅 탭, 
   assert.equal(isTaskMessage(message({ run_id: "query_1" })), false);
   assert.equal(isTaskMessage(message({ action: "chat_answer", run_id: "agent_1" })), false);
   assert.equal(isTaskMessage(message({ action: "conversation_reply", run_id: "agent_1" })), false);
-  for (const action of ["markdown_edit", "markdown_create", "folder_organize", "workspace_workflow", "clarify", "reject", "skill_authoring"]) {
+  for (const action of ["markdown_edit", "markdown_create", "folder_organize", "folder_lookup", "workspace_workflow", "clarify", "reject", "skill_authoring"]) {
     assert.equal(isTaskMessage(message({ action, run_id: "agent_1" })), true, action);
   }
   // 진행 중인 agent turn은 action이 아직 없다.
@@ -133,6 +134,28 @@ test("작업 종류 라벨", () => {
   assert.equal(taskKindLabel("folder_organize"), "폴더 정리");
   assert.equal(taskKindLabel("markdown_edit"), "문서");
   assert.equal(taskKindLabel(null), "작업");
+  assert.equal(taskKindLabel("folder_lookup"), "폴더 내용 확인");
+});
+
+test("폴더 내용 조회(folder_lookup)는 완료 묶음의 답변으로 두고, 답을 카드로 보일 작업으로 고른다", () => {
+  const answer = "'회의록' 폴더(회의록)에 문서 1개가 있어요.\n\n- 킥오프";
+  const messages = [
+    message({ id: "u1", role: "user", content: "회의록 폴더에 뭐가 있어?", pair_id: "p1", run_id: "agent_1" }),
+    message({ id: "a1", content: answer, pair_id: "p1", run_id: "agent_1", action: "folder_lookup" })
+  ];
+  const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
+  assert.deepEqual(chatMessages, []);
+  assert.equal(taskItems[0].action, "folder_lookup");
+  assert.equal(taskItems[0].answer, answer);
+  assert.deepEqual(
+    resolveTaskStatus({ action: "folder_lookup", messageStatus: "completed", hasLaterTask: true }),
+    { group: "done", label: "답변", tone: "muted", struck: false }
+  );
+  assert.equal(isAnswerTask(taskItems[0]), true);
+  assert.equal(isAnswerTask({ ...taskItems[0], answer: "" }), false);
+  assert.equal(isAnswerTask({ ...taskItems[0], messageStatus: "failed" }), false);
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "clarify" }), false);
+  assert.equal(taskHeadingKind("folder_lookup", "회의록 폴더에 뭐가 있어?"), "폴더 내용 확인");
 });
 
 test("입력이 / 또는 /검색어뿐일 때만 스킬 고르기를 연다", () => {

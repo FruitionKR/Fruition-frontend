@@ -45,11 +45,13 @@ export type AgentTurnAction =
   | "clarify"
   | "reject"
   | "folder_organize"
+  /** 작업 탭 폴더 내용 조회. 읽기 전용 답변이라 run·미리보기·승인이 없고 답은 message에만 온다(ai agent.md). */
+  | "folder_lookup"
   | "workspace_workflow"
   | "skill_authoring"
   | "skill_draft_proposal";
 
-export type DocumentCommandAction = Exclude<AgentTurnAction, "chat_answer" | "conversation_reply" | "clarify" | "reject">;
+export type DocumentCommandAction = Exclude<AgentTurnAction, "chat_answer" | "conversation_reply" | "clarify" | "reject" | "folder_lookup">;
 
 export type AgentTurnEdit = {
   operation: "replace" | "insert_after";
