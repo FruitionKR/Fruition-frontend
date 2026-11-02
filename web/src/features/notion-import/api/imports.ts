@@ -25,6 +25,11 @@ export type ImportIngestEstimate = {
   estimated_credits: number | null;
   /** 아직 Markdown 변환 중이라 document_count에서 빠진 PDF 변환본 수(구 서버는 없음) */
   converting_count?: number;
+  /** 아직 변환하지 않은 가져온 PDF 수(구 서버는 없음) */
+  pdf_unconverted_count?: number;
+  convert_estimated_cost_usd?: number | null;
+  /** PDF 변환 예상 크레딧(milli-KRW) */
+  convert_estimated_credits?: number | null;
 };
 
 type CreatedFolder = { id: string };
@@ -67,6 +72,15 @@ export async function startImportIngest(importId: string, workspaceId = getWorks
   return parseJsonOrThrow(response, "위키 편입을 시작하지 못했어요.");
 }
 
+/**
+ * 아직 변환하지 않은 가져온 PDF를 앞에서부터 20개까지 Markdown 변환 대기열에 넣는다.
+ * remaining이 0이 될 때까지 다시 부른다(runIngestLoop). 변환본은 가져오기 문서로 표시되고 자동 편입하지 않는다.
+ */
+export async function startImportConvert(importId: string, workspaceId = getWorkspaceId()): Promise<{ queued: number; remaining: number }> {
+  const response = await apiFetch(importPath(workspaceId, importId, "convert"), { method: "POST" });
+  return parseJsonOrThrow(response, "PDF 변환을 시작하지 못했어요.");
+}
+
 /** 가져오기 쓰기 요청 묶음. 같은 import_id·같은 zip 경로는 같은 Idempotency-Key라 재시도가 안전하다. */
 export function importWriter(importId: string, workspaceId: string, signal?: AbortSignal) {
   const headers = (idempotencyKey: string) => ({ [IMPORT_ID_HEADER]: importId, "Idempotency-Key": idempotencyKey });
@@ -92,15 +106,6 @@ export function importWriter(importId: string, workspaceId: string, signal?: Abo
         idempotencyKey,
         headers: { [IMPORT_ID_HEADER]: importId }
       });
-    },
-    /** 올린 PDF의 Markdown 변환을 요청한다. 변환본도 가져오기 문서로 표시되고 자동 편입하지 않는다(서버). */
-    async convertPdf(documentId: string, idempotencyKey: string): Promise<void> {
-      const response = await apiFetch(workspacePath(workspaceId, "documents", documentId, "convert-markdown"), {
-        method: "POST",
-        headers: { "Idempotency-Key": idempotencyKey },
-        signal
-      });
-      await parseJsonOrThrow<unknown>(response, "PDF 변환을 시작하지 못했어요.");
     },
     /**
      * 본문 저장. 이미지가 있으면 metadata + attachment_<uuid> part, 없으면 markdown part + base_revision.

@@ -13,13 +13,14 @@ import {
   createImportSession,
   fetchImportIngestEstimate,
   importWriter,
+  startImportConvert,
   startImportIngest,
   type ImportIngestEstimate
 } from "../api/imports";
 import type { ImportPlan } from "../lib/notionPlan";
 import { ZipSafetyError } from "../lib/zipArchive";
 import { analyzeNotionZip } from "./analyzeNotionZip";
-import { needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
+import { CONVERT_MESSAGES, convertEstimateOf, needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
 import { createRunState, importErrorMessage, runImport, summarizeRun, type ImportFailure, type ImportProgress, type RunState } from "./importRunner";
 
 export type StorageQuota = { usedBytes: number; limitBytes: number | null };
@@ -39,12 +40,18 @@ export type NotionImportStep =
     createdPages: number;
     createdTables: number;
     createdPdfs: number;
-    /** 변환을 요청한 PDF 수. 변환이 끝날 때까지 트리에 '변환 중'으로 보이고 편입 대상에서 빠진다. */
-    convertingPdfs: number;
     failedCount: number;
     cancelled: boolean;
     estimate: ImportIngestEstimate | null;
     estimateError: string | null;
+    /**
+     * 가져온 PDF의 Markdown 변환(편입 전에 묻는다). idle: 변환할지 묻는 중, confirm: 큰 비용 확인, running: 20개씩 요청 중,
+     * stopped: 오류로 멈춤(다시 시도 가능), done: 모두 대기열에 넣음, skipped: 변환하지 않음 또는 변환할 PDF 없음.
+     * 변환하지 않은 PDF는 원본 PDF 문서로 남고 편입 대상이 아니다.
+     */
+    convert: "idle" | "confirm" | "running" | "stopped" | "done" | "skipped";
+    convertProgress: IngestProgress | null;
+    convertError: string | null;
     /**
      * idle: 편입할지 묻는 중, confirm: 큰 비용을 한 번 더 확인, running: 20개씩 요청 중,
      * stopped: 오류·AI 한도로 멈춤(다시 시도 가능), done: 모두 대기열에 넣음, skipped: 편입하지 않음
@@ -59,6 +66,11 @@ export function previewBlocker(plan: ImportPlan, quota: StorageQuota | null): st
   if (plan.documents.length === 0 && plan.pdfs.length === 0) return "가져올 Notion 페이지나 데이터베이스가 없어요.";
   if (quota?.limitBytes != null && quota.usedBytes + plan.totalBytes > quota.limitBytes) return "저장 공간이 부족해 가져올 수 없어요. 사용하지 않는 문서를 삭제한 뒤 다시 시도해 주세요.";
   return null;
+}
+
+/** 편입할 수 있는 문서 수: 서버 예상치(PDF 원본·변환 중 제외)가 있으면 그 값, 없으면 만든 문서 수 */
+function ingestTarget(estimate: ImportIngestEstimate | null, createdCount: number): number {
+  return estimate ? estimate.document_count : createdCount;
 }
 
 /** 대상 폴더에 이미 있는 이름. 가져오는 최상위 항목이 같은 이름이면 ` (2)`를 붙인다. */
@@ -164,13 +176,51 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     } catch (error) {
       estimateError = importErrorMessage(error, "위키 편입 비용을 계산하지 못했어요.");
     }
-    setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, createdPdfs: counts.createdPdfs, convertingPdfs: counts.convertingPdfs, failedCount: counts.failed, cancelled, estimate, estimateError, ingest: counts.created > 0 ? "idle" : "skipped", ingestProgress: null, ingestError: null });
+    setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, createdPdfs: counts.createdPdfs, failedCount: counts.failed, cancelled, estimate, estimateError,
+      convert: convertEstimateOf(estimate) ? "idle" : "skipped", convertProgress: null, convertError: null,
+      ingest: ingestTarget(estimate, counts.created) > 0 ? "idle" : "skipped", ingestProgress: null, ingestError: null });
   }
 
   function cancel() {
     if (step.kind !== "running") return;
     setStep({ ...step, isCancelling: true });
     abortRef.current?.abort();
+  }
+
+  /**
+   * PDF 변환 버튼. 예상 비용이 크면(편입과 같은 기준) 먼저 확인 단계로 간다. 다 넣으면 편입 예상치를 다시 받아
+   * 변환 중인 PDF 수를 보여 준다(변환이 끝난 노트는 나중에 편입할 수 있다).
+   */
+  async function convertPdfs(confirmed = false) {
+    const session = sessionRef.current;
+    if (step.kind !== "summary" || !session) return;
+    const convertEstimate = convertEstimateOf(step.estimate);
+    if (!confirmed && step.convert === "idle" && needsIngestConfirmation(convertEstimate)) {
+      setStep({ ...step, convert: "confirm" });
+      return;
+    }
+    const alreadyQueued = step.convertProgress?.queued ?? 0;
+    const total = Math.max(0, (convertEstimate?.document_count ?? step.createdPdfs) - alreadyQueued);
+    const update = (patch: Partial<Extract<NotionImportStep, { kind: "summary" }>>) =>
+      setStep((current) => current.kind === "summary" ? { ...current, ...patch } : current);
+    update({ convert: "running", convertError: null, convertProgress: { queued: alreadyQueued, total: alreadyQueued + total } });
+    const result = await runIngestLoop(() => startImportConvert(session.importId, session.workspaceId), {
+      total,
+      messages: CONVERT_MESSAGES,
+      onProgress: (progress) => update({ convertProgress: { queued: alreadyQueued + progress.queued, total: alreadyQueued + progress.total } })
+    });
+    void refreshBackendData().catch(() => {});
+    if (result.status !== "done") {
+      update({ convert: "stopped", convertError: result.message });
+      return;
+    }
+    const estimate = await fetchImportIngestEstimate(session.importId, session.workspaceId).catch(() => null);
+    setStep((current) => current.kind !== "summary" ? current : {
+      ...current,
+      convert: "done",
+      estimate: estimate ?? current.estimate,
+      ingest: current.ingest === "idle" && estimate && ingestTarget(estimate, 0) === 0 ? "skipped" : current.ingest
+    });
   }
 
   /** 편입 버튼. 예상 비용이 크면 먼저 확인 단계로 간다(확인에서 confirmed=true로 다시 부른다). */
@@ -204,7 +254,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
   }
 
   function close() {
-    if (step.kind === "running" || step.kind === "analyzing" || (step.kind === "summary" && step.ingest === "running")) return;
+    if (step.kind === "running" || step.kind === "analyzing" || (step.kind === "summary" && (step.ingest === "running" || step.convert === "running"))) return;
     sessionRef.current = null;
     setStep({ kind: "idle" });
   }
@@ -218,6 +268,10 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     cancel,
     retry: () => { if (step.kind === "review") void execute(step.plan); },
     finishWithFailures: () => { if (step.kind === "review") void finish(step.plan, false); },
+    convertPdfs: () => void convertPdfs(false),
+    confirmConvert: () => void convertPdfs(true),
+    cancelConvertConfirm: () => setStep((current) => current.kind === "summary" && current.convert === "confirm" ? { ...current, convert: "idle" } : current),
+    skipConvert: () => setStep((current) => current.kind === "summary" ? { ...current, convert: "skipped" } : current),
     ingest: () => void ingest(false),
     confirmIngest: () => void ingest(true),
     cancelIngestConfirm: () => setStep((current) => current.kind === "summary" && current.ingest === "confirm" ? { ...current, ingest: "idle" } : current),

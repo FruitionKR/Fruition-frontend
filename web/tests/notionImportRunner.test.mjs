@@ -54,11 +54,6 @@ function fakeWriter({ fail = () => null } = {}) {
       const id = `pdf_${++sequence}`;
       documents.set(id, { name: file.name, version: 1 });
       return { id };
-    },
-    async convertPdf(documentId, key) {
-      calls.push({ kind: "convert", documentId, key });
-      const error = fail("convert", documents.get(documentId).name);
-      if (error) throw error;
     }
   };
 }
@@ -95,7 +90,7 @@ test("폴더 → 문서 → 링크·이미지 본문 순서로 보내고, 하위
   assert.deepEqual(progress.at(-1), { done: countImportSteps(plan), total: countImportSteps(plan), phase: "content" });
   const counts = summarizeRun(plan, state);
   // 미리보기(문서·표·PDF를 나눠 셈)와 같은 기준으로 완료 화면에 보인다. 행 페이지는 문서에 들어간다.
-  assert.deepEqual([counts.created, counts.createdPages, counts.createdTables, counts.createdPdfs, counts.convertingPdfs], [7, 5, 1, 1, 1]);
+  assert.deepEqual([counts.created, counts.createdPages, counts.createdTables, counts.createdPdfs], [7, 5, 1, 1]);
   assert.equal(counts.createdPages, plan.documents.length - plan.tableCount);
   assert.equal(counts.failed, 0);
 });
@@ -170,7 +165,7 @@ test("멈추면 더 보내지 않는다", async () => {
   assert.deepEqual(writer.calls.map((call) => call.kind), ["folder"]);
 });
 
-test("PDF는 행 문서 옆 폴더에 결정적 키로 올리고 변환을 요청하며, 표·본문 링크를 행 문서·PDF 문서로 채운다", async () => {
+test("PDF는 행 문서 옆 폴더에 결정적 키로 올리고(변환은 요청하지 않는다), 표·본문 링크를 행 문서·PDF 문서로 채운다", async () => {
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
   const writer = fakeWriter();
   const state = createRunState();
@@ -179,7 +174,7 @@ test("PDF는 행 문서 옆 폴더에 결정적 키로 올리고 변환을 요�
   const upload = writer.calls.find((call) => call.kind === "pdf");
   assert.deepEqual(upload, { kind: "pdf", name: "첨부.pdf", folderId: `folder_행`, key: await importKey("imp_6", `${rowDir}/첨부.pdf`, "pdf"), type: "application/pdf", size: PDF.length });
   const pdfId = state.documents.get(`${rowDir}/첨부.pdf`).id;
-  assert.deepEqual(writer.calls.filter((call) => call.kind === "convert"), [{ kind: "convert", documentId: pdfId, key: await importKey("imp_6", `${rowDir}/첨부.pdf`, "convert") }]);
+  assert.deepEqual(writer.calls.filter((call) => call.kind === "convert"), []);
   // PDF 업로드는 본문 저장(링크 채우기)보다 먼저 끝난다.
   assert.ok(writer.calls.findIndex((call) => call.kind === "pdf") < writer.calls.findIndex((call) => call.kind === "content"));
 
@@ -191,25 +186,28 @@ test("PDF는 행 문서 옆 폴더에 결정적 키로 올리고 변환을 요�
   assert.match(table, new RegExp(`\\| \\[행\\]\\(/home\\?doc=${rowId}\\) \\| 진행 \\|`));
 });
 
-test("PDF 변환 요청만 실패하면 다시 시도할 때 올리지 않고 변환만 다시 보낸다", async () => {
+test("PDF는 원본으로만 올리고 변환은 요청하지 않으며, 업로드에 실패한 PDF만 같은 키로 다시 올린다", async () => {
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
   let failOnce = true;
   const writer = fakeWriter({
     fail: (kind) => {
-      if (kind !== "convert" || !failOnce) return null;
+      if (kind !== "pdf" || !failOnce) return null;
       failOnce = false;
-      return new ApiError("크레딧이 부족해 작업을 시작하지 않았습니다.", 402, "INSUFFICIENT_CREDIT");
+      return new ApiError("일시적 오류", 503);
     }
   });
+  assert.equal("convertPdf" in writer, false);
   const state = createRunState();
   await runImport(plan, { importId: "imp_7", writer, state });
   assert.deepEqual([...state.failures.values()].map((failure) => failure.label), ["첨부.pdf"]);
-  assert.equal(summarizeRun(plan, state).createdPdfs, 1);
-  assert.equal(summarizeRun(plan, state).convertingPdfs, 0);
+  const firstKey = writer.calls.find((call) => call.kind === "pdf").key;
   writer.calls.length = 0;
   await runImport(plan, { importId: "imp_7", writer, state });
-  assert.deepEqual(writer.calls.map((call) => call.kind), ["convert"]);
+  // 본문은 이미 저장돼 다시 보내지 않는다(실패했던 PDF 링크는 글자로 남는다. 문서 재시도와 같은 동작).
+  assert.deepEqual(writer.calls.map((call) => call.kind), ["pdf"]);
+  assert.equal(writer.calls[0].key, firstKey);
   assert.equal(state.failures.size, 0);
+  assert.equal(summarizeRun(plan, state).createdPdfs, 1);
 });
 
 test("PDF 업로드가 저장 용량을 넘으면 멈추고, 너무 큰 PDF는 그 항목만 실패로 남긴다", async () => {

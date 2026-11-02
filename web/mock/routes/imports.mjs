@@ -3,13 +3,16 @@
 import { randomUUID } from "node:crypto";
 import { state, now, id, hash, error, requireWorkspace, toDocumentItem, isSkillReference } from "../state.mjs";
 import { storageOf, uploadRejection } from "../lib/limits.mjs";
-import { startIngest } from "../pipeline.mjs";
+import { startConvert, startIngest } from "../pipeline.mjs";
 
 const IMPORT_TTL_MS = 24 * 60 * 60 * 1000;
 const MARKDOWN_MAX_BYTES = 5 * 1024 * 1024;
 // 편입 비용 흉내: 문서 하나에 0.02 USD, 30원(= 30,000 milli-KRW). MOCK_INGEST_ESTIMATE_KRW_MILLI로 바꾼다.
 const INGEST_COST_PER_DOCUMENT_USD = 0.02;
 const INGEST_COST_PER_DOCUMENT_KRW_MILLI = Number(process.env.MOCK_INGEST_ESTIMATE_KRW_MILLI ?? 30_000);
+// PDF 변환 비용 흉내: PDF 하나에 0.35 USD, 500원(백엔드 convert 기본 예상치). MOCK_CONVERT_ESTIMATE_KRW_MILLI로 바꾼다.
+const CONVERT_COST_PER_PDF_USD = 0.35;
+const CONVERT_COST_PER_PDF_KRW_MILLI = Number(process.env.MOCK_CONVERT_ESTIMATE_KRW_MILLI ?? 500_000);
 // 백엔드처럼 편입 요청 한 번에 20개까지 큐에 넣는다.
 const INGEST_BATCH = 20;
 
@@ -69,6 +72,10 @@ function importedDocuments(session) {
 const isConverting = (doc) => doc.status === "processing" && String(doc.pipeline_run_id ?? "").startsWith("convert:");
 /** 편입 대상: 편집 가능 Markdown(PDF 원본 제외) 중 변환이 끝난 것 */
 const isIngestTarget = (doc) => doc.document_role === "EDITABLE" && !isConverting(doc);
+
+/** 아직 변환하지 않은 가져온 PDF: 변환 중이거나 끝난 변환본이 없다(실패한 변환본만 있으면 다시 변환할 수 있다). */
+const isUnconvertedPdf = (doc) => doc.mime_type === "application/pdf" && !state.documents.some((other) =>
+  other.source_document_id === doc.id && !other.deleted_at && other.status !== "failed");
 
 /** 가져온 PDF를 변환하면 변환본도 같은 가져오기 문서로 표시한다(백엔드 convertToMarkdown). */
 export function tagImportedConversion(source, convertedId) {
@@ -133,8 +140,22 @@ export function registerImportRoutes(router) {
       document_count: count,
       estimated_cost_usd: Math.round(count * INGEST_COST_PER_DOCUMENT_USD * 100) / 100,
       estimated_credits: count * INGEST_COST_PER_DOCUMENT_KRW_MILLI,
-      converting_count: documents.filter(isConverting).length
+      converting_count: documents.filter(isConverting).length,
+      pdf_unconverted_count: documents.filter(isUnconvertedPdf).length,
+      convert_estimated_cost_usd: Math.round(documents.filter(isUnconvertedPdf).length * CONVERT_COST_PER_PDF_USD * 100) / 100,
+      convert_estimated_credits: documents.filter(isUnconvertedPdf).length * CONVERT_COST_PER_PDF_KRW_MILLI
     });
+  });
+
+  // 가져온 PDF 일괄 변환: 아직 변환하지 않은 PDF를 20개까지 변환하고 남은 수를 돌려준다.
+  router.post("/api/workspaces/:wid/imports/:importId/convert", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const session = requireImport(ctx, workspace);
+    if (!session) return;
+    const batch = importedDocuments(session).filter(isUnconvertedPdf).slice(0, INGEST_BATCH);
+    for (const doc of batch) tagImportedConversion(doc, startConvert(workspace, doc).id);
+    ctx.json(202, { queued: batch.length, remaining: importedDocuments(session).filter(isUnconvertedPdf).length });
   });
 
   router.post("/api/workspaces/:wid/imports/:importId/ingest", async (ctx) => {

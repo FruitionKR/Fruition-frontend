@@ -4,7 +4,7 @@ import { formatBytes } from "@/entities/workspace/model/storageUsage";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import { previewBlocker, type NotionImportController, type NotionImportStep } from "../model/useNotionImport";
 import type { ImportPlan } from "../lib/notionPlan";
-import { estimateLabel, formatKrw } from "../model/importIngest";
+import { convertEstimateOf, estimateLabel, formatKrw } from "../model/importIngest";
 import styles from "./NotionImportDialog.module.css";
 
 const TITLE_ID = "notion-import-title";
@@ -105,7 +105,7 @@ function Preview({ step, controller }: { step: Extract<NotionImportStep, { kind:
       </p>
       <ul className={styles.notes}>
         {plan.rowPageCount > 0 && <li>행 페이지 {plan.rowPageCount.toLocaleString()}개 → 문서. 데이터베이스는 표 문서 옆 같은 이름 폴더에 행마다 문서로 넣고, 표의 제목 칸을 그 문서로 연결해요.</li>}
-        {plan.pdfs.length > 0 && <li>PDF {plan.pdfs.length.toLocaleString()}개 → 문서로 변환. PDF를 올리고 Markdown 변환을 시작해요(AI 크레딧 사용). PPTX 등 다른 첨부는 가져오지 않고 본문 링크 글자만 남겨요.</li>}
+        {plan.pdfs.length > 0 && <li>PDF {plan.pdfs.length.toLocaleString()}개 → PDF 문서. PDF는 원본으로 가져오고, 변환은 가져오기 후 선택할 수 있어요. PPTX 등 다른 첨부는 가져오지 않고 본문 링크 글자만 남겨요.</li>}
         {plan.folders.some((folder) => folder.pageDocumentKey) && <li>하위 페이지가 있는 페이지는 같은 이름의 문서와 폴더로 나눠요. 문서 옆 폴더에 하위 페이지가 들어가요.</li>}
         {plan.notionLinkCount > 0 && <li>Notion 링크 {plan.notionLinkCount.toLocaleString()}개 → 앱 문서로 연결해요.</li>}
         {plan.brokenLinks.length > 0 && <li>zip 안에서 대상을 찾지 못한 링크 {plan.brokenLinks.length.toLocaleString()}개는 글자만 남겨요.</li>}
@@ -147,7 +147,85 @@ function Running({ step, controller }: { step: Extract<NotionImportStep, { kind:
   );
 }
 
-function Summary({ step, controller }: { step: Extract<NotionImportStep, { kind: "summary" }>; controller: NotionImportController }) {
+type SummaryStep = Extract<NotionImportStep, { kind: "summary" }>;
+
+function Summary({ step, controller }: { step: SummaryStep; controller: NotionImportController }) {
+  // PDF 변환을 먼저 묻는다(변환이 편입의 전제). 정하고 나면 편입을 묻는다.
+  const isConverting = step.convert === "idle" || step.convert === "confirm" || step.convert === "running" || step.convert === "stopped";
+  const converting = step.estimate?.converting_count ?? 0;
+  const unconverted = step.convert === "skipped" ? step.estimate?.pdf_unconverted_count ?? 0 : 0;
+  return (
+    <>
+      <p className={styles.status} role="status">
+        {step.cancelled ? "가져오기를 멈췄어요. " : "가져오기를 마쳤어요. "}
+        문서 {step.createdPages.toLocaleString()}개{step.createdTables > 0 ? `, 표 ${step.createdTables.toLocaleString()}개` : ""}{step.createdPdfs > 0 ? `, PDF ${step.createdPdfs.toLocaleString()}개` : ""}를 만들었어요{step.failedCount > 0 ? `(가져오지 못한 항목 ${step.failedCount.toLocaleString()}개)` : ""}.
+      </p>
+      {isConverting ? <ConvertStep step={step} controller={controller} /> : (
+        <>
+          {converting > 0 && (
+            <p className={styles.meta}>
+              PDF {converting.toLocaleString()}개는 Markdown으로 변환하는 동안 문서 목록에 ‘변환 중’으로 보여요. 변환이 끝난 노트는 자동 편입하지 않으니 끝난 뒤 문서에서 편입해 주세요.
+            </p>
+          )}
+          {unconverted > 0 && (
+            <p className={styles.meta}>PDF {unconverted.toLocaleString()}개는 원본 PDF로 남겨 두었어요. 나중에 문서에서 Markdown으로 변환하면 위키에 편입할 수 있어요.</p>
+          )}
+          <IngestStep step={step} controller={controller} />
+        </>
+      )}
+    </>
+  );
+}
+
+function ConvertStep({ step, controller }: { step: SummaryStep; controller: NotionImportController }) {
+  const estimate = convertEstimateOf(step.estimate);
+  const count = estimate?.document_count ?? step.createdPdfs;
+  const progress = step.convertProgress;
+  const askCount = step.convert === "stopped" && progress ? Math.max(0, progress.total - progress.queued) : count;
+  const label = estimate ? estimateLabel(estimate) : "예상 비용을 아직 알 수 없어요";
+  if (step.convert === "confirm" && estimate) {
+    return (
+      <>
+        <section className={styles.ingest} role="alertdialog" aria-labelledby="notion-import-convert-confirm">
+          <h3 id="notion-import-convert-confirm">
+            {formatKrw(estimate.estimated_credits) ? `${formatKrw(estimate.estimated_credits)}이 사용될 수 있어요. 계속할까요?` : `PDF ${count.toLocaleString()}개를 변환하면 비용이 많이 들 수 있어요. 계속할까요?`}
+          </h3>
+          <p className={styles.meta}>{label} · PDF {count.toLocaleString()}개. 실제 비용은 쪽수에 따라 달라요.</p>
+        </section>
+        <div className={styles.actions}>
+          <button type="button" className={styles.secondary} onClick={controller.cancelConvertConfirm}>취소</button>
+          <button type="button" className={styles.primary} onClick={controller.confirmConvert}>계속 변환</button>
+        </div>
+      </>
+    );
+  }
+  const running = step.convert === "running";
+  return (
+    <>
+      <section className={styles.ingest} aria-labelledby="notion-import-convert">
+        <h3 id="notion-import-convert">PDF {askCount.toLocaleString()}개를 문서로 변환할까요? ({label})</h3>
+        <p className={styles.meta}>변환해야 위키에 편입할 수 있어요. 변환하지 않으면 원본 PDF로 남고, 나중에 문서에서 변환할 수 있어요.</p>
+        {running && progress && (
+          <>
+            <p className={styles.status} aria-live="polite">변환 요청 중 {progress.queued.toLocaleString()}/{progress.total.toLocaleString()}</p>
+            <progress className={styles.progress} max={Math.max(1, progress.total)} value={progress.queued} aria-label="PDF 변환 요청 진행률" />
+          </>
+        )}
+        {step.convertError && <p className={styles.error} role="alert">{step.convertError}</p>}
+      </section>
+      <div className={styles.actions}>
+        <button type="button" className={styles.secondary} disabled={running} onClick={controller.skipConvert}>
+          {step.convert === "stopped" ? "나중에 하기" : "변환하지 않기"}
+        </button>
+        <button type="button" className={styles.primary} disabled={running} aria-busy={running || undefined} onClick={controller.convertPdfs}>
+          {step.convert === "stopped" ? "남은 PDF 변환 다시 시도" : `PDF ${count.toLocaleString()}개 모두 변환`}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function IngestStep({ step, controller }: { step: SummaryStep; controller: NotionImportController }) {
   const count = step.estimate?.document_count ?? step.createdCount;
   const progress = step.ingestProgress;
   const isAsking = step.ingest === "idle" || step.ingest === "stopped";
@@ -155,15 +233,6 @@ function Summary({ step, controller }: { step: Extract<NotionImportStep, { kind:
   const askCount = step.ingest === "stopped" && progress ? Math.max(0, progress.total - progress.queued) : count;
   return (
     <>
-      <p className={styles.status} role="status">
-        {step.cancelled ? "가져오기를 멈췄어요. " : "가져오기를 마쳤어요. "}
-        문서 {step.createdPages.toLocaleString()}개{step.createdTables > 0 ? `, 표 ${step.createdTables.toLocaleString()}개` : ""}{step.createdPdfs > 0 ? `, PDF ${step.createdPdfs.toLocaleString()}개` : ""}를 만들었어요{step.failedCount > 0 ? `(가져오지 못한 항목 ${step.failedCount.toLocaleString()}개)` : ""}.
-      </p>
-      {step.convertingPdfs > 0 && (
-        <p className={styles.meta}>
-          PDF {step.convertingPdfs.toLocaleString()}개는 Markdown으로 변환하는 동안 문서 목록에 ‘변환 중’으로 보여요. 변환이 끝난 노트는 위키에 자동 편입하지 않으니, 끝난 뒤 문서에서 직접 편입해 주세요.
-        </p>
-      )}
       {step.ingest === "done" && <p className={styles.status} role="status">위키 편입 대기열에 {(progress?.queued ?? count).toLocaleString()}개를 넣었어요. 진행 상황은 위키 작업에서 볼 수 있어요.</p>}
       {step.ingest === "skipped" && step.createdCount > 0 && <p className={styles.meta}>위키 편입은 나중에 그래프 화면에서 문서를 골라 할 수 있어요.</p>}
       {(isAsking || step.ingest === "running") && (

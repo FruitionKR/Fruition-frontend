@@ -1,5 +1,6 @@
 /**
- * 가져오기 계획을 서버에 쓴다. 폴더(위에서 아래로) → 문서 생성·PDF 업로드와 변환 요청(ID 확보) → 링크·이미지를 채운 본문 저장 순서다.
+ * 가져오기 계획을 서버에 쓴다. 폴더(위에서 아래로) → 문서 생성·PDF 업로드(ID 확보) → 링크·이미지를 채운 본문 저장 순서다.
+ * PDF는 원본으로만 올린다. Markdown 변환은 가져오기가 끝난 뒤 사용자가 고를 때만 요청한다(useNotionImport).
  * 결과는 RunState에 쌓이므로 같은 state로 다시 부르면 실패한 항목만 다시 보낸다(멱등 키가 같아 중복 생성되지 않는다).
  */
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
@@ -37,7 +38,6 @@ export type ImportWriterPort = {
     writeId: string
   ): Promise<{ current_version: number; attachments?: { attachment_id: string; content_path: string }[] }>;
   uploadPdf(file: File, folderId: string | null, idempotencyKey: string): Promise<{ id: string }>;
-  convertPdf(documentId: string, idempotencyKey: string): Promise<void>;
 };
 
 export type ImportFailure = { key: string; label: string; message: string };
@@ -49,13 +49,11 @@ export type RunState = {
   contentDone: Set<string>;
   /** 문서 key → 이미지 순번 → 서버 경로. 나눠 저장하다 실패해도 앞 묶음은 다시 보내지 않는다. */
   savedImages: Map<string, Map<number, string>>;
-  /** 변환을 요청한 PDF key */
-  convertStarted: Set<string>;
   failures: Map<string, ImportFailure>;
 };
 
 export function createRunState(): RunState {
-  return { folderIds: new Map(), documents: new Map(), contentDone: new Set(), savedImages: new Map(), convertStarted: new Set(), failures: new Map() };
+  return { folderIds: new Map(), documents: new Map(), contentDone: new Set(), savedImages: new Map(), failures: new Map() };
 }
 
 export type ImportProgress = { done: number; total: number; phase: "folders" | "documents" | "content" };
@@ -90,8 +88,7 @@ function initialMarkdown(document: PlanDocument): string {
 }
 
 export function countImportSteps(plan: ImportPlan): number {
-  // PDF는 업로드와 변환 요청 두 단계다.
-  return plan.folders.length + plan.documents.length + plan.documents.filter(needsContentPass).length + plan.pdfs.length * 2;
+  return plan.folders.length + plan.documents.length + plan.documents.filter(needsContentPass).length + plan.pdfs.length;
 }
 
 export type RunOptions = {
@@ -122,7 +119,7 @@ async function settleAll(tasks: Promise<void>[]): Promise<void> {
 export async function runImport(plan: ImportPlan, { importId, writer, state, signal, onProgress }: RunOptions): Promise<RunResult> {
   const total = countImportSteps(plan);
   let fatalMessage: string | null = null;
-  const doneCount = () => state.folderIds.size + state.documents.size + state.contentDone.size + state.convertStarted.size;
+  const doneCount = () => state.folderIds.size + state.documents.size + state.contentDone.size;
   const report = (phase: ImportProgress["phase"]) => onProgress?.({ done: Math.min(total, doneCount()), total, phase });
   const folderNames = new Map(plan.folders.map((folder) => [folder.key, folder.name]));
   const isStopped = () => Boolean(signal?.aborted) || fatalMessage !== null;
@@ -162,26 +159,18 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
     report("documents");
   }
 
-  /** PDF를 올리고(본문은 이때 푼다) 변환을 요청한다. 올린 뒤 변환 요청만 실패하면 다시 시도할 때 변환만 다시 보낸다. */
+  /** PDF 원본을 올린다(본문은 이때 푼다). 변환은 하지 않는다. */
   async function uploadPdf(pdf: PlanPdf) {
-    if (!state.documents.has(pdf.key)) {
-      const folderId = parentId(pdf.folderKey);
-      if (folderId === undefined) {
-        state.failures.set(pdf.key, { key: pdf.key, label: pdf.name, message: "상위 폴더를 만들지 못해 건너뛰었어요." });
-        return;
-      }
-      await attempt(pdf.key, pdf.name, "PDF를 올리지 못했어요.", async () => {
-        const file = new File([pdf.read() as Uint8Array<ArrayBuffer>], pdf.name, { type: "application/pdf" });
-        const created = await writer.uploadPdf(file, folderId, await importKey(importId, pdf.key, "pdf"));
-        state.documents.set(pdf.key, { id: created.id, version: 1 });
-      });
-      report("documents");
+    if (state.documents.has(pdf.key)) return;
+    const folderId = parentId(pdf.folderKey);
+    if (folderId === undefined) {
+      state.failures.set(pdf.key, { key: pdf.key, label: pdf.name, message: "상위 폴더를 만들지 못해 건너뛰었어요." });
+      return;
     }
-    const uploaded = state.documents.get(pdf.key);
-    if (!uploaded || state.convertStarted.has(pdf.key)) return;
-    await attempt(`${pdf.key}#convert`, pdf.name, "PDF는 올렸지만 Markdown 변환을 시작하지 못했어요.", async () => {
-      await writer.convertPdf(uploaded.id, await importKey(importId, pdf.key, "convert"));
-      state.convertStarted.add(pdf.key);
+    await attempt(pdf.key, pdf.name, "PDF를 올리지 못했어요.", async () => {
+      const file = new File([pdf.read() as Uint8Array<ArrayBuffer>], pdf.name, { type: "application/pdf" });
+      const created = await writer.uploadPdf(file, folderId, await importKey(importId, pdf.key, "pdf"));
+      state.documents.set(pdf.key, { id: created.id, version: 1 });
     });
     report("documents");
   }
@@ -263,8 +252,6 @@ export function summarizeRun(plan: ImportPlan, state: RunState) {
     createdPages: created - createdTables - createdPdfs,
     createdTables,
     createdPdfs,
-    /** 변환을 요청한 PDF 수. 변환이 끝날 때까지 '변환 중'으로 보인다. */
-    convertingPdfs: state.convertStarted.size,
     failed: plan.documents.length + plan.pdfs.length - created + plan.folders.filter((folder) => !state.folderIds.has(folder.key)).length,
     skipped: plan.skipped.length,
     documentIds: [...state.documents.values()].map(({ id }) => id)
