@@ -32,31 +32,37 @@ export function zipFiles(files, options = {}) {
   return zipSync(entries, options);
 }
 
-/** 하위 페이지·이미지·데이터베이스·행 페이지·중복 이름·NFD 한글 이름을 담은 내보내기 */
-export function notionExportFiles() {
+/**
+ * 하위 페이지·이미지·데이터베이스·행 페이지·중복 이름·NFD 한글 이름을 담은 내보내기.
+ * folderIds=false면 실제 최근 Notion 내보내기처럼 폴더 이름에는 id가 없다(`홈 <id>.md` + `홈/`).
+ */
+export function notionExportFiles({ folderIds = true } = {}) {
   const home = `홈 ${ID.home}`;
-  const db = `${home}/할일 ${ID.db}`;
+  const homeDir = folderIds ? home : "홈";
+  const db = `${homeDir}/할일 ${ID.db}`;
+  const dbDir = folderIds ? db : `${homeDir}/할일`;
   return {
     [`Export-1234/${home}.md`]: [
       "# 홈",
       "",
-      `[하위](${enc(`${home}/하위 ${ID.child}.md`)}) 와 [표](${enc(`${db}.csv`)})`,
-      `![사진](${enc(`${home}/photo.png`)})`,
-      `![가짜](${enc(`${home}/fake.png`)})`,
+      `[하위](${enc(`${homeDir}/하위 ${ID.child}.md`)}) 와 [표](${enc(`${db}.csv`)})`,
+      `![사진](${enc(`${homeDir}/photo.png`)})`,
+      `![가짜](${enc(`${homeDir}/fake.png`)})`,
       "[외부](https://example.com/a)",
+      `[절대](https://www.notion.so/team/Sub-${ID.child}?pvs=4) [밖 노션](https://www.notion.so/Else-${"9".repeat(32)})`,
       `[깨짐](${enc(`없음 ${"d".repeat(32)}.md`)})`,
       "<aside>💡 알림 <script>alert(1)</script></aside>",
       "```",
       "<b>코드 안 HTML</b>",
       "```"
     ].join("\n"),
-    [`Export-1234/${home}/하위 ${ID.child}.md`]: `# 하위\n\n[위로](${enc(`../${home}.md`)}#heading)\n`,
-    [`Export-1234/${home}/photo.png`]: PNG,
-    [`Export-1234/${home}/fake.png`]: "not an image",
+    [`Export-1234/${homeDir}/하위 ${ID.child}.md`]: `# 하위\n\n[위로](${enc(`../${home}.md`)}#heading)\n`,
+    [`Export-1234/${homeDir}/photo.png`]: PNG,
+    [`Export-1234/${homeDir}/fake.png`]: "not an image",
     [`Export-1234/${db}.csv`]: "이름,상태\n일부,완료\n",
-    [`Export-1234/${db}_all.csv`]: "﻿이름,상태,메모\n첫 일,완료,\"쉼표, 있음\"\n",
-    [`Export-1234/${db}/행 ${ID.row}.md`]: "# 행\n\n상태: 완료\n",
-    [`Export-1234/${db}/행 ${ID.row}/첨부.pdf`]: "%PDF",
+    [`Export-1234/${db}_all.csv`]: "\ufeff이름,상태,메모\n첫 일,완료,\"쉼표, 있음\"\n",
+    [`Export-1234/${dbDir}/행 ${ID.row}.md`]: "# 행\n\n상태: 완료\n",
+    [`Export-1234/${dbDir}/행 ${ID.row}/첨부.pdf`]: "%PDF",
     // macOS에서 만든 zip은 한글 이름이 NFD로 들어올 수 있다.
     [`Export-1234/${`메모 ${ID.memo}.md`.normalize("NFD")}`]: "# 메모\n",
     [`Export-1234/메모 ${ID.memo2}.md`]: "# 메모 둘\n",

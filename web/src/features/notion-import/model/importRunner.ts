@@ -12,11 +12,12 @@ import type { ImportPlan, PlanDocument } from "../lib/notionPlan";
 export const IMPORT_CONCURRENCY = 2;
 
 /** 이 오류가 나면 남은 요청도 같은 이유로 실패하므로 멈춘다. */
-const FATAL_CODES = new Set(["STORAGE_QUOTA_EXCEEDED", "IMPORT_INVALID", "IMPORT_TOO_LARGE"]);
+const FATAL_CODES = new Set(["STORAGE_QUOTA_EXCEEDED", "IMPORT_INVALID", "IMPORT_NOT_FOUND"]);
 
 const IMPORT_ERROR_MESSAGES: Record<string, string> = {
   IMPORT_INVALID: "가져오기 세션이 끝났거나 올바르지 않아요. 처음부터 다시 가져와 주세요.",
-  IMPORT_TOO_LARGE: "가져오기가 너무 커서 서버가 받지 않았어요. Notion에서 나눠서 내보내 주세요."
+  IMPORT_NOT_FOUND: "가져오기 기록을 찾을 수 없어요. 처음부터 다시 가져와 주세요.",
+  INVALID_REQUEST: "요청 내용이 올바르지 않아 서버가 받지 않았어요."
 };
 
 export function importErrorMessage(error: unknown, fallback: string): string {
@@ -190,7 +191,7 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
 
   try {
     // 1) 폴더를 위에서 아래로. 폴더를 만들자마자 같은 이름의 첫 문서를 만들어 폴더 맨 앞에 오게 한다.
-    const indexDocuments = new Map(plan.documents.filter((document) => document.key === `${document.folderKey}.md`).map((document) => [document.folderKey, document]));
+    const documentsByKey = new Map(plan.documents.map((document) => [document.key, document]));
     for (const folder of plan.folders) {
       if (!state.folderIds.has(folder.key)) {
         const parent = parentId(folder.parentKey);
@@ -204,7 +205,7 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
         });
         report("folders");
       }
-      const index = indexDocuments.get(folder.key);
+      const index = folder.indexDocumentKey ? documentsByKey.get(folder.indexDocumentKey) : undefined;
       if (index) await createDocument(index);
     }
 
@@ -224,8 +225,12 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
 /** complete 요청에 보낼 개수. 본문 저장까지 실패한 문서도 서버에는 만들어졌으므로 created에 넣는다. */
 export function summarizeRun(plan: ImportPlan, state: RunState) {
   const created = state.documents.size;
+  const createdTables = plan.documents.filter((document) => document.kind === "table" && state.documents.has(document.key)).length;
   return {
     created,
+    /** 화면 표시용: 미리보기처럼 문서와 표를 나눠 센다 */
+    createdPages: created - createdTables,
+    createdTables,
     failed: plan.documents.length - created + plan.folders.filter((folder) => !state.folderIds.has(folder.key)).length,
     skipped: plan.skipped.length + plan.skippedRowPages,
     documentIds: [...state.documents.values()].map(({ id }) => id)

@@ -2,9 +2,9 @@
  * Notion "Markdown & CSV" 내보내기 파일 목록을 Fruition 폴더·문서 계획으로 바꾼다(서버에 쓰기 전 미리보기 겸 실행 계획).
  *
  * 매핑 규칙
- * - `페이지 <id>.md` → 문서 "페이지". 같은 이름의 폴더 `페이지 <id>/`에 하위 페이지가 있으면
+ * - `페이지 <id>.md` → 문서 "페이지". 같은 이름의 폴더(`페이지 <id>/` 또는 id 없는 `페이지/`)에 하위 페이지가 있으면
  *   폴더 "페이지"를 만들고 그 폴더의 첫 문서로 같은 이름의 문서를 둔다.
- * - `DB <id>.csv`(`_all.csv`가 있으면 그쪽) → GFM 표 문서 하나. 행 폴더 `DB <id>/`의 행 페이지는 가져오지 않는다.
+ * - `DB <id>.csv`(`_all.csv`가 있으면 그쪽) → GFM 표 문서 하나. 행 폴더(`DB <id>/` 또는 `DB/`)의 행 페이지는 가져오지 않는다.
  * - 이름 끝 ` <32 hex>`를 떼고 NFC로 맞춘 뒤, 같은 폴더 안 중복은 ` (2)`로 피한다.
  * - 이미지는 본문에서 참조할 때만 그 문서의 첨부로 올린다(PNG·JPEG·GIF·WebP, 매직 바이트로 확인).
  */
@@ -26,7 +26,13 @@ const utf8Encoder = new TextEncoder();
 /** readHead가 없으면 read()로 전부 푼 뒤 앞부분만 본다. */
 export type SourceFile = { path: string; size: number; read: () => Uint8Array; readHead?: (length: number) => Uint8Array };
 
-export type PlanFolder = { key: string; name: string; parentKey: string | null };
+export type PlanFolder = {
+  key: string;
+  name: string;
+  parentKey: string | null;
+  /** 이 폴더의 첫 문서가 될 같은 이름 페이지(zip 경로). 없으면 생략 */
+  indexDocumentKey?: string;
+};
 
 export type PlanImage = { path: string; alt: string; size: number; mime: ImageMime; fileName: string; read: () => Uint8Array };
 
@@ -52,6 +58,8 @@ export type ImportPlan = {
   skipped: SkippedItem[];
   /** zip 안에 없는 대상을 가리켜 글자만 남긴 링크 */
   brokenLinks: { documentKey: string; href: string }[];
+  /** 앱 문서 링크로 바꾼 Notion 절대 링크 수 */
+  notionLinkCount: number;
   /** 가져오지 않은 데이터베이스 행 페이지 수 */
   skippedRowPages: number;
   tableCount: number;
@@ -89,6 +97,27 @@ function databaseBase(path: string): string {
   return path.replace(/\.csv$/i, "").replace(/_all$/i, "");
 }
 
+/** 파일 경로들의 모든 상위 폴더 경로 */
+function directoriesOf(paths: Iterable<string>): Set<string> {
+  const directories = new Set<string>();
+  for (const path of paths) {
+    for (let directory = dirname(path); directory; directory = dirname(directory)) directories.add(directory);
+  }
+  return directories;
+}
+
+/**
+ * 페이지·데이터베이스(확장자를 뗀 경로)에 딸린 폴더. Notion은 `이름 <id>/`로도, id 없이 `이름/`으로도 내보낸다.
+ * 둘 다 없으면 null.
+ */
+export function childDirectoryOf(basePath: string, directories: ReadonlySet<string>): string | null {
+  if (directories.has(basePath)) return basePath;
+  const parent = dirname(basePath);
+  const cleaned = cleanNotionName(lastSegment(basePath));
+  const withoutId = parent ? `${parent}/${cleaned}` : cleaned;
+  return withoutId !== basePath && directories.has(withoutId) ? withoutId : null;
+}
+
 const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 type ImageInfo = { size: number; mime: ImageMime | null; read: () => Uint8Array };
@@ -108,7 +137,14 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     const current = databases.get(base);
     if (!current || /_all\.csv$/i.test(file.path)) databases.set(base, file);
   }
-  const rowDirectories = [...databases.keys()].map((base) => `${base}/`);
+  const allDirectories = directoriesOf(files.map((file) => file.path));
+  // 데이터베이스 기준 경로 → 행 폴더
+  const rowDirectoryOf = new Map<string, string>();
+  for (const base of databases.keys()) {
+    const directory = childDirectoryOf(base, allDirectories);
+    if (directory) rowDirectoryOf.set(base, directory);
+  }
+  const rowDirectories = [...rowDirectoryOf.values()].map((directory) => `${directory}/`);
   const csvToDatabase = new Map<string, string>();
   for (const file of files) {
     if (/\.csv$/i.test(file.path)) csvToDatabase.set(file.path, databaseBase(file.path));
@@ -132,14 +168,16 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
 
   // 문서가 들어 있는 폴더만 만든다(이미지뿐인 페이지 폴더는 만들지 않는다).
   const documentPaths = [...pages.keys(), ...[...databases.values()].map((file) => file.path)];
-  const folderPaths = new Set<string>();
-  for (const path of documentPaths) {
-    for (let directory = dirname(path); directory; directory = dirname(directory)) folderPaths.add(directory);
-  }
-  // 하위 페이지가 있는 페이지: 그 페이지가 같은 이름 폴더의 첫 문서가 된다.
-  for (const path of pages.keys()) {
-    const directory = path.replace(/\.md$/i, "");
-    if (documentPaths.some((other) => other !== path && other.startsWith(`${directory}/`))) folderPaths.add(directory);
+  const folderPaths = directoriesOf(documentPaths);
+  // 하위 페이지가 있는 페이지: 그 페이지가 같은 이름 폴더의 첫 문서가 된다. 한 폴더에는 첫 문서 하나만 둔다.
+  const indexPageOf = new Map<string, string>();
+  for (const path of [...pages.keys()].sort((a, b) => a.localeCompare(b))) {
+    const directory = childDirectoryOf(path.replace(/\.md$/i, ""), allDirectories);
+    if (!directory || indexPageOf.has(directory)) continue;
+    if (documentPaths.some((other) => other !== path && other.startsWith(`${directory}/`))) {
+      folderPaths.add(directory);
+      indexPageOf.set(directory, path);
+    }
   }
 
   const sortedFolders = [...folderPaths].sort((a, b) => (a.split("/").length - b.split("/").length) || a.localeCompare(b));
@@ -156,9 +194,9 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   for (const path of sortedFolders) {
     const parentKey = dirname(path) || null;
     const name = uniqueName(cleanNotionName(lastSegment(path)), takenIn(folderNamesTaken, parentKey));
-    folders.push({ key: path, name, parentKey });
-    const indexPage = `${path}.md`;
-    if (pages.has(indexPage)) documentNames.set(indexPage, { name: uniqueName(name, takenIn(documentNamesTaken, path)), folderKey: path });
+    const indexPage = indexPageOf.get(path);
+    folders.push(indexPage ? { key: path, name, parentKey, indexDocumentKey: indexPage } : { key: path, name, parentKey });
+    if (indexPage) documentNames.set(indexPage, { name: uniqueName(name, takenIn(documentNamesTaken, path)), folderKey: path });
   }
   for (const path of [...documentPaths].sort((a, b) => a.localeCompare(b))) {
     if (documentNames.has(path)) continue;
@@ -168,6 +206,15 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   }
 
   const allPaths = new Set(files.map((file) => file.path));
+  // Notion 페이지 id → 가져오는 문서 key. 절대 링크(notion.so·app.notion.com)를 앱 문서로 잇는다.
+  const documentKeyById = new Map<string, string>();
+  for (const [path, file] of [...pages, ...[...databases.values()].map((database) => [database.path, database] as const)]) {
+    if (!documentNames.has(file.path)) continue;
+    const base = /\.csv$/i.test(path) ? lastSegment(databaseBase(path)) : splitExtension(lastSegment(path)).base;
+    const id = /\s([0-9a-f]{32})$/i.exec(base.normalize("NFC"))?.[1].toLowerCase();
+    if (id && !documentKeyById.has(id)) documentKeyById.set(id, file.path);
+  }
+  let notionLinkCount = 0;
   const imageInfo = new Map<string, ImageInfo>();
   const inspectImage = (path: string): ImageInfo | null => {
     const cached = imageInfo.get(path);
@@ -188,7 +235,8 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   for (const [path, file] of databases) {
     const named = documentNames.get(file.path);
     if (!named) continue;
-    const rows = files.some((entry) => entry.path.startsWith(`${path}/`) && /\.md$/i.test(entry.path));
+    const rowDirectory = rowDirectoryOf.get(path);
+    const rows = Boolean(rowDirectory) && files.some((entry) => entry.path.startsWith(`${rowDirectory}/`) && /\.md$/i.test(entry.path));
     const table = csvToMarkdownTable(decodeText(file.read()));
     const note = rows ? "\n\n> Notion 데이터베이스의 표만 가져왔어요. 각 행의 페이지 본문은 가져오지 않았어요." : "";
     const markdown = `# ${named.name}\n\n${table}${note}\n`;
@@ -219,7 +267,8 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
       if (!allPaths.has(target)) brokenLinks.push({ documentKey: path, href: target });
       return { kind: "broken" };
     };
-    const tokenized = tokenizeLinks(sanitizeNotionMarkdown(decodeText(file.read())), path, resolve);
+    const tokenized = tokenizeLinks(sanitizeNotionMarkdown(decodeText(file.read())), path, resolve, (id) => documentKeyById.get(id));
+    notionLinkCount += tokenized.notionLinks;
     const bytes = byteLength(tokenized.markdown);
     if (bytes > MARKDOWN_MAX_BYTES) {
       skipped.push({ path, reason: "5MB를 넘는 문서" });
@@ -257,6 +306,7 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     documents,
     skipped,
     brokenLinks,
+    notionLinkCount,
     skippedRowPages,
     tableCount,
     imageCount,

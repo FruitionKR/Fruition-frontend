@@ -46,6 +46,28 @@ export function resolveRelativeLink(fromPath: string, href: string): string | nu
   return segments.join("/");
 }
 
+const NOTION_HOST = /(^|\.)(notion\.so|notion\.site|notion\.com)$/i;
+const DASHED_ID = /([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i;
+const PLAIN_ID = /(?:^|-)([0-9a-f]{32})$/i;
+
+/**
+ * Notion 절대 링크(`https://app.notion.com/p/<slug>-<id>`, `https://www.notion.so/<워크스페이스>/<slug>-<id>?pvs=4` 등)의
+ * 페이지 id(소문자 32자리 hex). Notion 링크가 아니거나 id가 없으면 null.
+ */
+export function notionPageIdFromUrl(href: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(href.trim().replace(/^<|>$/g, ""));
+  } catch {
+    return null;
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || !NOTION_HOST.test(url.hostname)) return null;
+  const last = url.pathname.split("/").filter(Boolean).pop() ?? "";
+  const dashed = DASHED_ID.exec(last);
+  if (dashed) return dashed.slice(1).join("").toLowerCase();
+  return PLAIN_ID.exec(last)?.[1].toLowerCase() ?? null;
+}
+
 export type LinkTarget =
   /** 가져오는 문서. key는 그 문서의 zip 경로 */
   | { kind: "document"; key: string }
@@ -63,15 +85,34 @@ export type RewrittenLinks = {
   images: { path: string; alt: string }[];
   /** 대상을 찾지 못해 글자만 남긴 링크·이미지의 원래 주소 */
   broken: string[];
+  /** 앱 문서 링크로 바꾼 Notion 절대 링크 수 */
+  notionLinks: number;
 };
 
-/** 본문의 상대 링크·이미지를 토큰으로 바꾼다. 외부 링크와 코드 안은 그대로 둔다. */
-export function tokenizeLinks(markdown: string, fromPath: string, resolve: (path: string, isImage: boolean) => LinkTarget): RewrittenLinks {
+/**
+ * 본문의 상대 링크·이미지를 토큰으로 바꾼다. Notion 절대 링크는 resolveNotionId가 zip 안 페이지를 찾을 때만 바꾸고,
+ * 나머지 외부 링크와 코드 안은 그대로 둔다.
+ */
+export function tokenizeLinks(
+  markdown: string,
+  fromPath: string,
+  resolve: (path: string, isImage: boolean) => LinkTarget,
+  resolveNotionId: (id: string) => string | undefined = () => undefined
+): RewrittenLinks {
   const links: RewrittenLinks["links"] = [];
   const images: RewrittenLinks["images"] = [];
   const broken: string[] = [];
   const imageIndex = new Map<string, number>();
+  let notionLinks = 0;
   const result = mapOutsideCode(markdown, (text) => text.replace(LINK, (whole, bang: string, label: string, href: string) => {
+    if (bang !== "!") {
+      const notionId = notionPageIdFromUrl(href);
+      const key = notionId ? resolveNotionId(notionId) : undefined;
+      if (key) {
+        notionLinks += 1;
+        return `\u0000L${links.push({ text: label, key }) - 1}\u0000`;
+      }
+    }
     const path = resolveRelativeLink(fromPath, href);
     if (path === null) return whole;
     const target = resolve(path, bang === "!");
@@ -90,7 +131,7 @@ export function tokenizeLinks(markdown: string, fromPath: string, resolve: (path
     // 이미지는 대체 글자만, 링크는 글자만 남긴다.
     return label;
   }));
-  return { markdown: result, links, images, broken };
+  return { markdown: result, links, images, broken, notionLinks };
 }
 
 /** Markdown 링크 글자·주소 안에서 문법을 깨는 문자를 이스케이프한다. */

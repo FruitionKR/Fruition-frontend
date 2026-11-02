@@ -78,7 +78,10 @@ test("폴더 → 폴더 첫 문서 → 나머지 문서 → 링크·이미지 �
 
   assert.equal(state.failures.size, 0);
   assert.deepEqual(progress.at(-1), { done: countImportSteps(plan), total: countImportSteps(plan), phase: "content" });
-  assert.deepEqual(summarizeRun(plan, state).created, 5);
+  const counts = summarizeRun(plan, state);
+  // 미리보기(문서·표를 나눠 셈)와 같은 기준으로 완료 화면에 보인다.
+  assert.deepEqual([counts.created, counts.createdPages, counts.createdTables], [5, 4, 1]);
+  assert.equal(counts.createdPages, plan.documents.length - plan.tableCount);
 });
 
 test("이미지가 20개를 넘으면 저장을 나누고 앞 저장의 서버 경로를 이어 쓴다", async () => {

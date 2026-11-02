@@ -45,15 +45,16 @@ test("최상위 Part zip은 한 단계만 풀고, 그 안의 zip은 건너뛴다
   assert.equal(new TextDecoder().decode(entries.find((entry) => entry.path === "a.md").read()), "# a");
 });
 
-test("내보내기 zip을 폴더·문서·표·이미지 계획으로 바꾼다(첫 문서 규칙·행 건너뜀·NFC·중복 이름)", async () => {
-  const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
-  const home = `홈 ${ID.home}`;
-  assert.deepEqual(plan.folders, [{ key: home, name: "홈", parentKey: null }]);
+for (const folderIds of [true, false]) test(`내보내기 zip을 폴더·문서·표·이미지 계획으로 바꾼다(첫 문서 규칙·행 건너뜀·NFC·중복 이름, 폴더 id ${folderIds ? "있음" : "없음"})`, async () => {
+  const plan = await analyzeNotionZip(zipFiles(notionExportFiles({ folderIds })));
+  const homePage = `홈 ${ID.home}`;
+  const home = folderIds ? homePage : "홈";
+  assert.deepEqual(plan.folders, [{ key: home, name: "홈", parentKey: null, indexDocumentKey: `${homePage}.md` }]);
   const summary = plan.documents.map(({ key, name, folderKey, kind }) => ({ key, name, folderKey, kind }));
   assert.deepEqual(summary, [
     { key: `메모 ${ID.memo2}.md`, name: "메모", folderKey: null, kind: "page" },
     { key: `메모 ${ID.memo}.md`, name: "메모 (2)", folderKey: null, kind: "page" },
-    { key: `${home}.md`, name: "홈", folderKey: home, kind: "page" },
+    { key: `${homePage}.md`, name: "홈", folderKey: home, kind: "page" },
     { key: `${home}/하위 ${ID.child}.md`, name: "하위", folderKey: home, kind: "page" },
     { key: `${home}/할일 ${ID.db}_all.csv`, name: "할일", folderKey: home, kind: "table" }
   ]);
@@ -72,8 +73,10 @@ test("내보내기 zip을 폴더·문서·표·이미지 계획으로 바꾼다(
   assert.match(table.markdown, /\| 이름 \| 상태 \| 메모 \|\n\| --- \| --- \| --- \|\n\| 첫 일 \| 완료 \| 쉼표, 있음 \|/);
   assert.match(table.markdown, /행의 페이지 본문은 가져오지 않았어요/);
 
-  const page = plan.documents.find((document) => document.key === `${home}.md`);
-  assert.deepEqual(page.links.map((link) => link.key), [`${home}/하위 ${ID.child}.md`, `${home}/할일 ${ID.db}_all.csv`]);
+  const page = plan.documents.find((document) => document.key === `${homePage}.md`);
+  assert.deepEqual(page.links.map((link) => link.key), [`${home}/하위 ${ID.child}.md`, `${home}/할일 ${ID.db}_all.csv`, `${home}/하위 ${ID.child}.md`]);
+  assert.equal(plan.notionLinkCount, 1);
+  assert.match(page.markdown, /\[밖 노션\]\(https:\/\/www\.notion\.so\/Else-9{32}\)/);
   assert.equal(page.images.length, 1);
   assert.equal(page.images[0].mime, "image/png");
   assert.deepEqual([...page.images[0].read()], [...PNG]);
@@ -83,7 +86,7 @@ test("내보내기 zip을 폴더·문서·표·이미지 계획으로 바꾼다(
   assert.match(page.markdown, /^가짜$/m);
 
   const child = plan.documents.find((document) => document.key.endsWith(`하위 ${ID.child}.md`));
-  assert.deepEqual(child.links.map((link) => link.key), [`${home}.md`]);
+  assert.deepEqual(child.links.map((link) => link.key), [`${homePage}.md`]);
 });
 
 test("대상 폴더에 이미 있는 이름과 겹치는 최상위 항목은 번호를 붙인다", async () => {

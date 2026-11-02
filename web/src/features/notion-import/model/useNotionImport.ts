@@ -19,6 +19,7 @@ import {
 import type { ImportPlan } from "../lib/notionPlan";
 import { ZipSafetyError } from "../lib/zipArchive";
 import { analyzeNotionZip } from "./analyzeNotionZip";
+import { needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
 import { createRunState, importErrorMessage, runImport, summarizeRun, type ImportFailure, type ImportProgress, type RunState } from "./importRunner";
 
 export type StorageQuota = { usedBytes: number; limitBytes: number | null };
@@ -30,7 +31,25 @@ export type NotionImportStep =
   | { kind: "preview"; fileName: string; plan: ImportPlan; quota: StorageQuota | null }
   | { kind: "running"; plan: ImportPlan; progress: ImportProgress; isCancelling: boolean }
   | { kind: "review"; plan: ImportPlan; failures: ImportFailure[]; fatalMessage: string | null; cancelled: boolean }
-  | { kind: "summary"; plan: ImportPlan; createdCount: number; failedCount: number; cancelled: boolean; estimate: ImportIngestEstimate | null; estimateError: string | null; ingest: "idle" | "pending" | "queued" | "skipped"; ingestError: string | null };
+  | {
+    kind: "summary";
+    plan: ImportPlan;
+    /** 만든 문서 수(표 포함). 편입 대상 수의 기본값 */
+    createdCount: number;
+    createdPages: number;
+    createdTables: number;
+    failedCount: number;
+    cancelled: boolean;
+    estimate: ImportIngestEstimate | null;
+    estimateError: string | null;
+    /**
+     * idle: 편입할지 묻는 중, confirm: 큰 비용을 한 번 더 확인, running: 20개씩 요청 중,
+     * stopped: 오류·AI 한도로 멈춤(다시 시도 가능), done: 모두 대기열에 넣음, skipped: 편입하지 않음
+     */
+    ingest: "idle" | "confirm" | "running" | "stopped" | "done" | "skipped";
+    ingestProgress: IngestProgress | null;
+    ingestError: string | null;
+  };
 
 /** 미리보기에서 시작을 막는 이유. 없으면 null */
 export function previewBlocker(plan: ImportPlan, quota: StorageQuota | null): string | null {
@@ -89,7 +108,8 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
 
   async function execute(plan: ImportPlan) {
     const session = sessionRef.current;
-    if (!session) return;
+    // complete 뒤에는 이 세션으로 쓰면 서버가 IMPORT_INVALID로 거절한다. 다시 보내지 않는다.
+    if (!session || session.completed) return;
     const controller = new AbortController();
     abortRef.current = controller;
     setStep({ kind: "running", plan, progress: { done: 0, total: 1, phase: "folders" }, isCancelling: false });
@@ -141,7 +161,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     } catch (error) {
       estimateError = importErrorMessage(error, "위키 편입 비용을 계산하지 못했어요.");
     }
-    setStep({ kind: "summary", plan, createdCount: counts.created, failedCount: counts.failed, cancelled, estimate, estimateError, ingest: counts.created > 0 ? "idle" : "skipped", ingestError: null });
+    setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, failedCount: counts.failed, cancelled, estimate, estimateError, ingest: counts.created > 0 ? "idle" : "skipped", ingestProgress: null, ingestError: null });
   }
 
   function cancel() {
@@ -150,22 +170,38 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     abortRef.current?.abort();
   }
 
-  async function ingest() {
+  /** 편입 버튼. 예상 비용이 크면 먼저 확인 단계로 간다(확인에서 confirmed=true로 다시 부른다). */
+  async function ingest(confirmed = false) {
     const session = sessionRef.current;
     if (step.kind !== "summary" || !session) return;
-    setStep({ ...step, ingest: "pending", ingestError: null });
-    try {
-      await startImportIngest(session.importId, undefined, session.workspaceId);
-      setStep((current) => current.kind === "summary" ? { ...current, ingest: "queued" } : current);
-      void refreshBackendData().catch(() => {});
-    } catch (error) {
-      const message = importErrorMessage(error, "위키 편입을 시작하지 못했어요.");
-      setStep((current) => current.kind === "summary" ? { ...current, ingest: "idle", ingestError: message } : current);
+    if (!confirmed && step.ingest === "idle" && needsIngestConfirmation(step.estimate)) {
+      setStep({ ...step, ingest: "confirm" });
+      return;
     }
+    // 멈춘 뒤 다시 시도하면 서버가 아직 편입하지 않은 문서부터 이어서 넣는다.
+    const alreadyQueued = step.ingestProgress?.queued ?? 0;
+    const total = Math.max(0, (step.estimate?.document_count ?? step.createdCount) - alreadyQueued);
+    const update = (patch: Partial<Extract<NotionImportStep, { kind: "summary" }>>) =>
+      setStep((current) => current.kind === "summary" ? { ...current, ...patch } : current);
+    update({ ingest: "running", ingestError: null, ingestProgress: { queued: alreadyQueued, total: alreadyQueued + total } });
+    const result = await runIngestLoop(() => startImportIngest(session.importId, session.workspaceId), {
+      total,
+      onProgress: (progress) => update({ ingestProgress: { queued: alreadyQueued + progress.queued, total: alreadyQueued + progress.total } })
+    });
+    void refreshBackendData().catch(() => {});
+    if (result.status === "done") {
+      update({ ingest: "done" });
+      return;
+    }
+    const queuedSoFar = alreadyQueued + result.queued;
+    const message = result.status === "limited"
+      ? `${result.message} 지금까지 ${queuedSoFar.toLocaleString()}개를 편입 대기열에 넣었어요. 나머지는 나중에 다시 시도할 수 있어요.`
+      : result.message;
+    update({ ingest: "stopped", ingestError: message });
   }
 
   function close() {
-    if (step.kind === "running" || step.kind === "analyzing") return;
+    if (step.kind === "running" || step.kind === "analyzing" || (step.kind === "summary" && step.ingest === "running")) return;
     sessionRef.current = null;
     setStep({ kind: "idle" });
   }
@@ -179,7 +215,9 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     cancel,
     retry: () => { if (step.kind === "review") void execute(step.plan); },
     finishWithFailures: () => { if (step.kind === "review") void finish(step.plan, false); },
-    ingest,
+    ingest: () => void ingest(false),
+    confirmIngest: () => void ingest(true),
+    cancelIngestConfirm: () => setStep((current) => current.kind === "summary" && current.ingest === "confirm" ? { ...current, ingest: "idle" } : current),
     skipIngest: () => setStep((current) => current.kind === "summary" ? { ...current, ingest: "skipped" } : current),
     close
   };

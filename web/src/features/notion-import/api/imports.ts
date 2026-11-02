@@ -11,13 +11,16 @@ export type ImportSession = {
   import_id: string;
   status: string;
   expires_at?: string;
+  /** 항목 상한이 없어 항상 null. 화면에서 쓰지 않는다. */
   max_items?: number | null;
   quota?: { used_bytes: number; limit_bytes: number | null };
 };
 
 export type ImportIngestEstimate = {
+  /** 아직 편입하지 않은 가져온 문서 수 */
   document_count: number;
   estimated_cost_usd: number | null;
+  /** 예상 크레딧(milli-KRW) */
   estimated_credits: number | null;
 };
 
@@ -52,9 +55,12 @@ export async function fetchImportIngestEstimate(importId: string, workspaceId = 
   return parseJsonOrThrow<ImportIngestEstimate>(response, "위키 편입 비용을 계산하지 못했어요.");
 }
 
-/** 가져온 문서를 위키에 편입한다. document_ids를 생략하면 가져온 문서 전부다. */
-export async function startImportIngest(importId: string, documentIds?: string[], workspaceId = getWorkspaceId()): Promise<{ queued: number }> {
-  const response = await apiFetch(importPath(workspaceId, importId, "ingest"), jsonInit("POST", documentIds ? { document_ids: documentIds } : {}, {}));
+/**
+ * 아직 편입하지 않은 가져온 문서를 앞에서부터 20개까지 편입 대기열에 넣는다.
+ * remaining이 0이 될 때까지 다시 부른다(runIngestLoop).
+ */
+export async function startImportIngest(importId: string, workspaceId = getWorkspaceId()): Promise<{ queued: number; remaining: number }> {
+  const response = await apiFetch(importPath(workspaceId, importId, "ingest"), { method: "POST" });
   return parseJsonOrThrow(response, "위키 편입을 시작하지 못했어요.");
 }
 

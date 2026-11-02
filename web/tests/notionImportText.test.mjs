@@ -111,3 +111,27 @@ test("첨부 묶음: 20개·요청 100MB를 넘지 않게 순서대로 나눈다
   const big = planAttachmentBatches(Array.from({ length: 12 }, () => 9 * MIB), { markdownBytes: 2 * MIB });
   assert.deepEqual(big.map((batch) => batch.length), [10, 2]);
 });
+
+test("Notion 절대 링크에서 32자리 페이지 id를 찾는다", async () => {
+  const { notionPageIdFromUrl } = await import("../src/features/notion-import/lib/notionLinks.ts");
+  assert.equal(notionPageIdFromUrl(`https://app.notion.com/p/Meeting-Notes-${HEX}`), HEX);
+  assert.equal(notionPageIdFromUrl(`https://www.notion.so/myteam/${encodeURIComponent("회의록")}-${HEX}?pvs=4`), HEX);
+  assert.equal(notionPageIdFromUrl(`https://notion.so/${HEX}#heading`), HEX);
+  assert.equal(notionPageIdFromUrl("https://www.notion.so/0123abcd-0123-4567-89ab-0123456789ab"), "0123abcd0123456789ab0123456789ab");
+  assert.equal(notionPageIdFromUrl(`https://team.notion.site/Page-${HEX.toUpperCase()}`), HEX);
+  assert.equal(notionPageIdFromUrl(`https://example.com/Page-${HEX}`), null);
+  assert.equal(notionPageIdFromUrl("https://www.notion.so/no-id-here"), null);
+  assert.equal(notionPageIdFromUrl("relative.md"), null);
+});
+
+test("zip에 있는 페이지를 가리키는 Notion 절대 링크만 앱 문서 링크로 바꾸고 나머지는 그대로 둔다", () => {
+  const markdown = `[회의](https://app.notion.com/p/Meeting-${HEX}?pvs=21) [밖](https://www.notion.so/Other-${"9".repeat(32)})`;
+  const tokenized = tokenizeLinks(markdown, "page.md", () => ({ kind: "broken" }), (id) => (id === HEX ? "meeting.md" : undefined));
+  assert.equal(tokenized.notionLinks, 1);
+  assert.deepEqual(tokenized.links, [{ text: "회의", key: "meeting.md" }]);
+  assert.equal(
+    renderLinks(tokenized.markdown, tokenized.links, () => "doc_9"),
+    `[회의](/home?doc=doc_9) [밖](https://www.notion.so/Other-${"9".repeat(32)})`
+  );
+  assert.deepEqual(tokenized.broken, []);
+});

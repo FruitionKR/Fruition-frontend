@@ -4,6 +4,7 @@ import { formatBytes } from "@/entities/workspace/model/storageUsage";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import { previewBlocker, type NotionImportController, type NotionImportStep } from "../model/useNotionImport";
 import type { ImportPlan } from "../lib/notionPlan";
+import { estimateLabel, formatKrw } from "../model/importIngest";
 import styles from "./NotionImportDialog.module.css";
 
 const TITLE_ID = "notion-import-title";
@@ -102,6 +103,7 @@ function Preview({ step, controller }: { step: Extract<NotionImportStep, { kind:
       </p>
       <ul className={styles.notes}>
         {plan.skippedRowPages > 0 && <li>데이터베이스는 표 문서로만 가져와요. 행 페이지 {plan.skippedRowPages.toLocaleString()}개는 가져오지 않아요.</li>}
+        {plan.notionLinkCount > 0 && <li>Notion 링크 {plan.notionLinkCount.toLocaleString()}개 → 앱 문서로 연결해요.</li>}
         {plan.brokenLinks.length > 0 && <li>zip 안에서 대상을 찾지 못한 링크 {plan.brokenLinks.length.toLocaleString()}개는 글자만 남겨요.</li>}
         <li>가져온 문서는 바로 위키에 편입하지 않아요. 가져오기가 끝나면 편입할지 고를 수 있어요.</li>
       </ul>
@@ -141,35 +143,54 @@ function Running({ step, controller }: { step: Extract<NotionImportStep, { kind:
   );
 }
 
-function costLabel(estimate: { estimated_cost_usd: number | null; estimated_credits: number | null }): string {
-  if (estimate.estimated_credits != null) return `예상 ${estimate.estimated_credits.toLocaleString()} 크레딧`;
-  if (estimate.estimated_cost_usd != null) return `예상 비용 약 $${estimate.estimated_cost_usd.toFixed(2)}`;
-  return "예상 비용을 아직 알 수 없어요";
-}
-
 function Summary({ step, controller }: { step: Extract<NotionImportStep, { kind: "summary" }>; controller: NotionImportController }) {
   const count = step.estimate?.document_count ?? step.createdCount;
+  const progress = step.ingestProgress;
+  const isAsking = step.ingest === "idle" || step.ingest === "stopped";
+  // 멈춘 뒤에는 아직 대기열에 넣지 못한 문서 수를 묻는다.
+  const askCount = step.ingest === "stopped" && progress ? Math.max(0, progress.total - progress.queued) : count;
   return (
     <>
       <p className={styles.status} role="status">
         {step.cancelled ? "가져오기를 멈췄어요. " : "가져오기를 마쳤어요. "}
-        문서 {step.createdCount.toLocaleString()}개를 만들었어요{step.failedCount > 0 ? `(가져오지 못한 항목 ${step.failedCount.toLocaleString()}개)` : ""}.
+        문서 {step.createdPages.toLocaleString()}개{step.createdTables > 0 ? `, 표 ${step.createdTables.toLocaleString()}개` : ""}를 만들었어요{step.failedCount > 0 ? `(가져오지 못한 항목 ${step.failedCount.toLocaleString()}개)` : ""}.
       </p>
-      {step.ingest === "queued" && <p className={styles.status} role="status">위키 편입을 시작했어요. 진행 상황은 위키 작업에서 볼 수 있어요.</p>}
+      {step.ingest === "done" && <p className={styles.status} role="status">위키 편입 대기열에 {(progress?.queued ?? count).toLocaleString()}개를 넣었어요. 진행 상황은 위키 작업에서 볼 수 있어요.</p>}
       {step.ingest === "skipped" && step.createdCount > 0 && <p className={styles.meta}>위키 편입은 나중에 그래프 화면에서 문서를 골라 할 수 있어요.</p>}
-      {(step.ingest === "idle" || step.ingest === "pending") && (
+      {(isAsking || step.ingest === "running") && (
         <section className={styles.ingest} aria-labelledby="notion-import-ingest">
-          <h3 id="notion-import-ingest">{count.toLocaleString()}개 문서를 위키에 편입할까요?</h3>
-          <p className={styles.meta}>{step.estimate ? costLabel(step.estimate) : step.estimateError ?? "예상 비용을 아직 알 수 없어요"}</p>
+          <h3 id="notion-import-ingest">{askCount.toLocaleString()}개 문서를 위키에 편입할까요?</h3>
+          <p className={styles.meta}>{step.estimate ? estimateLabel(step.estimate) : step.estimateError ?? "예상 비용을 아직 알 수 없어요"}</p>
+          {step.ingest === "running" && progress && (
+            <>
+              <p className={styles.status} aria-live="polite">편입 요청 중 {progress.queued.toLocaleString()}/{progress.total.toLocaleString()}</p>
+              <progress className={styles.progress} max={Math.max(1, progress.total)} value={progress.queued} aria-label="위키 편입 요청 진행률" />
+            </>
+          )}
           {step.ingestError && <p className={styles.error} role="alert">{step.ingestError}</p>}
         </section>
       )}
+      {step.ingest === "confirm" && step.estimate && (
+        <section className={styles.ingest} role="alertdialog" aria-labelledby="notion-import-confirm">
+          <h3 id="notion-import-confirm">
+            {formatKrw(step.estimate.estimated_credits) ? `${formatKrw(step.estimate.estimated_credits)}이 사용될 수 있어요. 계속할까요?` : `문서 ${count.toLocaleString()}개를 편입하면 비용이 많이 들 수 있어요. 계속할까요?`}
+          </h3>
+          <p className={styles.meta}>{estimateLabel(step.estimate)} · 문서 {count.toLocaleString()}개. 실제 비용은 문서 길이에 따라 달라요.</p>
+        </section>
+      )}
       <div className={styles.actions}>
-        {(step.ingest === "idle" || step.ingest === "pending") ? (
+        {step.ingest === "confirm" ? (
           <>
-            <button type="button" className={styles.secondary} disabled={step.ingest === "pending"} onClick={controller.skipIngest}>편입하지 않기</button>
-            <button type="button" className={styles.primary} disabled={step.ingest === "pending"} aria-busy={step.ingest === "pending" || undefined} onClick={() => void controller.ingest()}>
-              {count.toLocaleString()}개 문서를 위키에 편입
+            <button type="button" className={styles.secondary} onClick={controller.cancelIngestConfirm}>취소</button>
+            <button type="button" className={styles.primary} onClick={controller.confirmIngest}>계속 편입</button>
+          </>
+        ) : isAsking || step.ingest === "running" ? (
+          <>
+            <button type="button" className={styles.secondary} disabled={step.ingest === "running"} onClick={controller.skipIngest}>
+              {step.ingest === "stopped" ? "나중에 하기" : "편입하지 않기"}
+            </button>
+            <button type="button" className={styles.primary} disabled={step.ingest === "running"} aria-busy={step.ingest === "running" || undefined} onClick={controller.ingest}>
+              {step.ingest === "stopped" ? "남은 문서 편입 다시 시도" : `${count.toLocaleString()}개 문서를 위키에 편입`}
             </button>
           </>
         ) : (

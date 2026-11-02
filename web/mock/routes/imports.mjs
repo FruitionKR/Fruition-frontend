@@ -7,8 +7,11 @@ import { startIngest } from "../pipeline.mjs";
 
 const IMPORT_TTL_MS = 24 * 60 * 60 * 1000;
 const MARKDOWN_MAX_BYTES = 5 * 1024 * 1024;
-// 편입 비용 흉내: 문서 하나에 0.02 USD
+// 편입 비용 흉내: 문서 하나에 0.02 USD, 30원(= 30,000 milli-KRW). MOCK_INGEST_ESTIMATE_KRW_MILLI로 바꾼다.
 const INGEST_COST_PER_DOCUMENT_USD = 0.02;
+const INGEST_COST_PER_DOCUMENT_KRW_MILLI = Number(process.env.MOCK_INGEST_ESTIMATE_KRW_MILLI ?? 30_000);
+// 백엔드처럼 편입 요청 한 번에 20개까지 큐에 넣는다.
+const INGEST_BATCH = 20;
 
 // import_id → 세션
 const imports = new Map();
@@ -67,8 +70,8 @@ export function registerImportRoutes(router) {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
     const { source, item_count: itemCount, total_bytes: totalBytes } = await ctx.body();
-    if (source !== "notion") return error(ctx, 400, "source는 notion이어야 합니다.", "IMPORT_INVALID");
-    if (!Number.isInteger(itemCount) || itemCount < 0 || !Number.isFinite(totalBytes) || totalBytes < 0) return error(ctx, 400, "item_count와 total_bytes가 필요합니다.", "IMPORT_INVALID");
+    if (source !== "notion") return error(ctx, 400, "source는 notion이어야 합니다.", "INVALID_REQUEST");
+    if (!Number.isInteger(itemCount) || itemCount < 0 || !Number.isFinite(totalBytes) || totalBytes < 0) return error(ctx, 400, "item_count와 total_bytes가 필요합니다.", "INVALID_REQUEST");
     const rejection = uploadRejection(ctx.user.id, totalBytes);
     if (rejection) return error(ctx, rejection.status, rejection.message, rejection.code);
     const session = {
@@ -94,8 +97,12 @@ export function registerImportRoutes(router) {
     const session = requireImport(ctx, workspace);
     if (!session) return;
     const { created = 0, failed = 0, skipped = 0 } = await ctx.body();
-    session.status = "completed";
-    session.result = { created, failed, skipped };
+    if ([created, failed, skipped].some((value) => typeof value !== "number" || value < 0)) return error(ctx, 400, "개수는 0 이상이어야 합니다.", "INVALID_REQUEST");
+    // 이미 완료한 세션은 처음 결과를 그대로 돌려준다.
+    if (session.status !== "completed") {
+      session.status = "completed";
+      session.result = { created, failed, skipped };
+    }
     ctx.json(200, { import_id: session.id, status: session.status, document_count: importedDocuments(session).length });
   });
 
@@ -104,8 +111,13 @@ export function registerImportRoutes(router) {
     if (!workspace) return;
     const session = requireImport(ctx, workspace);
     if (!session) return;
-    const count = importedDocuments(session).length;
-    ctx.json(200, { document_count: count, estimated_cost_usd: Math.round(count * INGEST_COST_PER_DOCUMENT_USD * 100) / 100, estimated_credits: null });
+    // 아직 편입을 요청하지 않은 문서만 센다. estimated_credits는 milli-KRW다.
+    const count = importedDocuments(session).filter((doc) => !doc.import_ingest_requested).length;
+    ctx.json(200, {
+      document_count: count,
+      estimated_cost_usd: Math.round(count * INGEST_COST_PER_DOCUMENT_USD * 100) / 100,
+      estimated_credits: count * INGEST_COST_PER_DOCUMENT_KRW_MILLI
+    });
   });
 
   router.post("/api/workspaces/:wid/imports/:importId/ingest", async (ctx) => {
@@ -114,10 +126,26 @@ export function registerImportRoutes(router) {
     const session = requireImport(ctx, workspace);
     if (!session) return;
     const { document_ids: documentIds } = await ctx.body();
-    const targets = importedDocuments(session).filter((doc) => !Array.isArray(documentIds) || documentIds.includes(doc.id));
-    const queued = targets.filter((doc) => doc.status !== "processing");
-    for (const doc of queued) startIngest(workspace, doc);
-    ctx.json(202, { queued: queued.length });
+    const documents = importedDocuments(session);
+    if (documentIds !== undefined) {
+      const valid = Array.isArray(documentIds) && documentIds.length > 0 && documentIds.length <= INGEST_BATCH
+        && documentIds.every((documentId) => documents.some((doc) => doc.id === documentId));
+      if (!valid) return error(ctx, 400, "document_ids는 이 가져오기의 문서 1~20개여야 합니다.", "INVALID_REQUEST");
+    }
+    // MOCK_IMPORT_INGEST_LIMIT_AFTER=N이면 N개를 넣은 뒤 AI 사용 한도(429)를 흉내 낸다.
+    const limitAfter = Number(process.env.MOCK_IMPORT_INGEST_LIMIT_AFTER ?? Infinity);
+    const requestedSoFar = documents.filter((doc) => doc.import_ingest_requested).length;
+    const pending = documents.filter((doc) => !doc.import_ingest_requested && (documentIds === undefined || documentIds.includes(doc.id)));
+    if (pending.length > 0 && requestedSoFar >= limitAfter) {
+      return error(ctx, 429, "AI 사용 한도를 넘었습니다.", "AI_USAGE_LIMIT_EXCEEDED");
+    }
+    const batch = pending.slice(0, INGEST_BATCH);
+    for (const doc of batch) {
+      doc.import_ingest_requested = true;
+      if (doc.status !== "processing") startIngest(workspace, doc);
+    }
+    const remaining = documents.filter((doc) => !doc.import_ingest_requested).length;
+    ctx.json(202, { queued: batch.length, remaining });
   });
 
   // 일반 Markdown 문서 생성(JSON). 가져오기 헤더가 있으면 세션에 묶고 item 수를 센다.
