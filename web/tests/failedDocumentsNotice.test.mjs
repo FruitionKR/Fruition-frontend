@@ -53,3 +53,8 @@ test("AI 사용량 한도로 자동 편입을 시작하지 못한 문서는 하�
   const notice = buildFailedDocumentsNotice([{ filename: "a.pdf", error_message: "AI 사용 한도에 도달해 작업을 시작하지 않았습니다. 잠시 후 또는 내일 다시 시도해 주세요." }]);
   assert.match(notice.message, /오늘 사용할 수 있는 AI 사용량을 모두 썼어요/);
 });
+
+test("error_code가 AI_USAGE_LIMIT_EXCEEDED면 문구가 달라도 하루 한도 안내로 보인다", () => {
+  const notice = buildFailedDocumentsNotice([{ filename: "a.pdf", error_code: "AI_USAGE_LIMIT_EXCEEDED", error_message: "서버가 바꾼 새 문구" }]);
+  assert.equal(notice.message, '"a.pdf" 처리에 실패했습니다. 오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일 다시 이용해 주세요.');
+});

@@ -97,7 +97,7 @@ export function usePdfWikiIngest(
             throw new Error("변환 문서가 목록에서 사라져 위키에 편입하지 못했습니다.");
           }
           if (step === "failed") {
-            throw new Error(describeDocumentFailure(document.error_message) || "PDF 변환에 실패하여 위키에 편입하지 못했습니다.");
+            throw new Error(describeDocumentFailure(document.error_message, document.error_code) || "PDF 변환에 실패하여 위키에 편입하지 못했습니다.");
           }
           // 편입 요청 직후 새로고침한 경우 서버에서 이미 완료된 작업을 다시 보내지 않는다.
           const alreadyIngested = document.status === "completed"

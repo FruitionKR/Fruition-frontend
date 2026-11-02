@@ -72,7 +72,7 @@ export function findDocument(workspaceId, documentId) {
 
 const PUBLIC_DOCUMENT_FIELDS = [
   "id", "filename", "mime_type", "byte_size", "status", "source_uri", "uploaded_at", "document_role",
-  "extracted_text_uri", "processed_at", "processing_started_at", "updated_at", "error_message",
+  "extracted_text_uri", "processed_at", "processing_started_at", "updated_at", "error_message", "error_code",
   "processing_state", "processing_stage", "needs_reingest", "pipeline_run_id", "source_document_id", "ai_origin"
 ];
 

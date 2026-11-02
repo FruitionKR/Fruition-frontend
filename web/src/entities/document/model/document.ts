@@ -31,6 +31,8 @@ export type DocumentItemResponse = DocumentUploadResponse & {
   processing_started_at?: string;
   updated_at?: string;
   error_message?: string;
+  /** 실패 종류 코드(예: AI_USAGE_LIMIT_EXCEEDED). 코드 없이 실패했거나 구 서버 응답이면 생략된다. */
+  error_code?: string;
   processing_state?: DocumentProcessingState;
   processing_stage?: string;
   /** 마지막 ingest 이후 편집본이 바뀌어 재분석이 필요한지 */

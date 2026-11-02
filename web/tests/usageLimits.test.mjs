@@ -72,6 +72,11 @@ test("비동기 실패(회의록 error_code·문서 error_message·실시간 받
   assert.equal(describeDocumentFailure("AI_USAGE_LIMIT_EXCEEDED"), AI_DAILY_LIMIT_MESSAGE);
   assert.equal(describeDocumentFailure("페이지를 추출하지 못했습니다."), "페이지를 추출하지 못했습니다.");
   assert.equal(describeDocumentFailure(undefined), undefined);
+  // 서버가 error_code를 주면 문구와 관계없이 코드로 판정한다. 문구 비교는 이전 서버 응답용 대체 경로다.
+  assert.equal(describeDocumentFailure("문구가 바뀐 한도 안내", "AI_USAGE_LIMIT_EXCEEDED"), AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(describeDocumentFailure(undefined, "AI_USAGE_LIMIT_EXCEEDED"), AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(describeDocumentFailure("크레딧이 부족해 작업을 시작하지 않았습니다.", "INSUFFICIENT_CREDIT"), "크레딧이 부족해 작업을 시작하지 않았습니다.");
+  assert.equal(describeDocumentFailure("페이지를 추출하지 못했습니다.", null), "페이지를 추출하지 못했습니다.");
   assert.equal(describeLiveError("ai_usage_limit_exceeded"), AI_DAILY_LIMIT_MESSAGE);
   // 다시 연결해도 같은 결과라 재연결하지 않는다.
   assert.equal(isFatalLiveError("ai_usage_limit_exceeded"), true);

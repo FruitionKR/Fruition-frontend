@@ -48,7 +48,7 @@ function completeIngest(workspace, doc, log) {
   }
   // 성공한 ingest 입력으로 block 스냅샷을 갱신한다. 같은 텍스트 block은 이전 ID를 유지한다.
   doc.source_snapshot = ingestSourceBlocks(doc.markdown ?? "", doc.source_snapshot?.blocks);
-  Object.assign(doc, { status: "completed", processing_state: "completed", processing_stage: "done", processed_at: now(), needs_reingest: false, error_message: undefined, extracted_text_uri: `mock://extracted/${doc.id}.txt` });
+  Object.assign(doc, { status: "completed", processing_state: "completed", processing_stage: "done", processed_at: now(), needs_reingest: false, error_message: undefined, error_code: undefined, extracted_text_uri: `mock://extracted/${doc.id}.txt` });
   Object.assign(log, {
     status: "succeeded", completed_at: now(), changed_resource_count: changes.length,
     summary: `source ${changes.filter((change) => change.page_type === "source").length}개, concept ${changes.filter((change) => change.page_type === "concept").length}개 생성`,
@@ -58,7 +58,7 @@ function completeIngest(workspace, doc, log) {
 }
 
 export function startIngest(workspace, doc) {
-  Object.assign(doc, { status: "processing", processing_state: "starting", processing_stage: "queued", processing_started_at: now(), pipeline_run_id: id("run"), error_message: undefined });
+  Object.assign(doc, { status: "processing", processing_state: "starting", processing_stage: "queued", processing_started_at: now(), pipeline_run_id: id("run"), error_message: undefined, error_code: undefined });
   const log = addOperationLog(workspace.id, { operation_type: "ingest", target_document_id: doc.id, target_display_name: doc.filename, summary: "위키 페이지 생성 중" });
   setTimeout(() => { doc.processing_state = "running"; doc.processing_stage = "concept_extraction"; }, INGEST_DELAY_MS / 3);
   setTimeout(() => completeIngest(workspace, doc, log), INGEST_DELAY_MS);
