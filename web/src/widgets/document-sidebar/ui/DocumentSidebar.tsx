@@ -81,6 +81,7 @@ export function DocumentSidebar({
   onCreateNote,
   isCreatingNote = false,
   onUploadFromContext,
+  onImportNotionFromContext,
   onConvertContextTarget,
   onDeleteContextTarget,
   onCloseContextMenu
@@ -178,6 +179,8 @@ export function DocumentSidebar({
   /** 새 노트를 만드는 중이면 "새 노트 추가"를 막는다(연타·키 반복으로 여러 개 생기지 않게). */
   isCreatingNote?: boolean;
   onUploadFromContext: () => void;
+  /** 컨텍스트 메뉴 "Notion에서 가져오기". 없으면 메뉴 항목을 숨긴다. */
+  onImportNotionFromContext?: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
   onCloseContextMenu: () => void;
@@ -285,6 +288,7 @@ export function DocumentSidebar({
           onAddProject={onAddProject}
           onAddMarkdownFromContext={onAddMarkdownFromContext}
           onUploadFromContext={onUploadFromContext}
+          onImportNotionFromContext={onImportNotionFromContext}
           onConvertContextTarget={onConvertContextTarget}
           onDeleteContextTarget={onDeleteContextTarget}
           onClose={onCloseContextMenu}

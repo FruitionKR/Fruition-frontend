@@ -14,3 +14,19 @@ export function splitImageAlt(alt: string | null | undefined): { alt: string; ra
 export function formatImageAlt(alt: string, ratio: number): string {
   return alt || `${Number.parseFloat(String(ratio)).toFixed(2)}`;
 }
+
+/** remark 이미지 노드(mdast). 제목 없는 `![alt](src)`는 title이 null이다. */
+type MarkdownImageNode = { readonly [key: string]: unknown };
+
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+/** image-block 노드 속성. 스키마가 문자열만 받으므로 null·없는 값은 빈 문자열로 바꾼다. */
+export function imageBlockAttrsFromMarkdown(node: MarkdownImageNode): { src: string; caption: string; ratio: number; alt: string } {
+  const { alt, ratio } = splitImageAlt(text(node.alt));
+  return { src: text(node.url), caption: text(node.title), ratio, alt };
+}
+
+/** 인라인 image 노드 속성. 위와 같이 null을 빈 문자열로 바꾼다. */
+export function inlineImageAttrsFromMarkdown(node: MarkdownImageNode): { src: string; alt: string; title: string } {
+  return { src: text(node.url), alt: text(node.alt), title: text(node.title) };
+}

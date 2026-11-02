@@ -16,12 +16,15 @@ import styles from "./CenteredModal.module.css";
 export function CenteredModal({
   ariaLabel,
   className,
+  overlayClassName,
   onClose,
   children
 }: {
   ariaLabel: string;
   /** 모달 박스(.modal-box)에 덧붙일 소비자 측 클래스 */
   className?: string;
+  /** 오버레이(.modal-overlay)에 덧붙일 클래스. 알림 카드보다 위에 떠야 하는 모달이 z-index를 올린다. */
+  overlayClassName?: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -31,7 +34,7 @@ export function CenteredModal({
   useModalFocus(boxRef);
 
   return createPortal(
-    <div className={styles["modal-overlay"]} {...backdropClick}>
+    <div className={cx(styles["modal-overlay"], overlayClassName)} {...backdropClick}>
       <div
         ref={boxRef}
         className={cx(styles["modal-box"], className)}

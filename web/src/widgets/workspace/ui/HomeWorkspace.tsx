@@ -26,6 +26,9 @@ import { cx } from "@/shared/lib/classNames";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
+import { useNotionImport } from "@/features/notion-import/model/useNotionImport";
+import { NotionImportHost } from "@/features/notion-import/ui/NotionImportDialog";
+import { serverFolderId } from "@/entities/tree/lib/treeNames";
 import { useProjectTree } from "../model/useProjectTree";
 import { createSingleFlight, focusNoteTitleWhenReady } from "../lib/noteCreation";
 import type { DeletedTreeIds } from "../lib/deletedTreeIds";
@@ -160,6 +163,7 @@ export function HomeWorkspace() {
     setFileDropTarget: projectTree.setFileDropTarget,
     refreshBackendData
   });
+  const notionImport = useNotionImport({ refreshBackendData });
   // 같은 이름의 Markdown 문서는 폴더 경로로 구분한다(#150). 그래프 라벨과 미리보기 제목이 같은 접미사를 쓴다.
   const documentPathSuffixes = useMemo(
     () => buildDocumentPathSuffixes(graphDocuments, projectTree.projects),
@@ -530,6 +534,10 @@ export function HomeWorkspace() {
           if (target?.folderId) treeOpen.open(target.folderId);
           if (target) upload.openUploadPicker(target.projectId, target.folderId);
         }}
+        onImportNotionFromContext={() => {
+          const target = projectTree.takeFolderTargetFromContext();
+          if (target) notionImport.openPicker(serverFolderId(projectTree.projects, target));
+        }}
         onConvertContextTarget={projectTree.convertContextTargetToMarkdown}
         onDeleteContextTarget={projectTree.deleteContextTarget}
         onCloseContextMenu={projectTree.closeContextMenu}
@@ -736,6 +744,7 @@ export function HomeWorkspace() {
         />
       )}
       {upload.hasRejectedFiles && <UploadErrorModal onConfirm={upload.clearRejectedFiles} />}
+      <NotionImportHost controller={notionImport} />
       {projectTree.bulkDeleteConfirm && (
         <BulkDeleteConfirmModal
           target={projectTree.bulkDeleteConfirm}

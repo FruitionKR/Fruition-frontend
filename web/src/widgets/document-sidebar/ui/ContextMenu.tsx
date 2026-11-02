@@ -21,6 +21,7 @@ export function ContextMenu({
   onAddProject,
   onAddMarkdownFromContext,
   onUploadFromContext,
+  onImportNotionFromContext,
   onConvertContextTarget,
   onDeleteContextTarget,
   onClose
@@ -46,6 +47,8 @@ export function ContextMenu({
   onAddProject: () => void;
   onAddMarkdownFromContext: () => void;
   onUploadFromContext: () => void;
+  /** Notion 내보내기 zip을 이 폴더(최상위면 루트)로 가져온다. */
+  onImportNotionFromContext?: () => void;
   onConvertContextTarget: () => void;
   onDeleteContextTarget: () => void;
   onClose: () => void;
@@ -109,6 +112,9 @@ export function ContextMenu({
           )}
           <button type="button" role="menuitem" tabIndex={-1} onClick={onAddMarkdownFromContext}>새 노트</button>
           <button type="button" role="menuitem" tabIndex={-1} onClick={onUploadFromContext}>파일 업로드</button>
+          {onImportNotionFromContext && (
+            <button type="button" role="menuitem" tabIndex={-1} onClick={onImportNotionFromContext}>Notion에서 가져오기</button>
+          )}
         </>
       )}
       {canRenameTarget && (

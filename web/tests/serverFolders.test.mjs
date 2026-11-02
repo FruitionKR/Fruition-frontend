@@ -44,6 +44,14 @@ test("루트 파일과 실제 폴더는 이름 공간을 공유하고 가상 업
   assert.equal(folderNames(projects, undefined, { projectId: ROOT_DOCUMENTS_PROJECT_ID, folderId: null }).has("폴더"), true);
 });
 
+test("확장자를 뺀 이름이 같은 문서와 폴더는 문서를 폴더보다 먼저 둔다", () => {
+  const projects = projectsFromServerTree([folder("f", "Notion"), doc("d", "Notion.md"), folder("g", "Alpha"), doc("e", "Zeta.md")]);
+  // 같은 이름 문서·폴더 쌍만 문서가 앞이고, 나머지 순서는 그대로 이름순이다.
+  assert.deepEqual(projects[0].items.map(i => i.label), ["Alpha", "Notion.md", "Notion", "Zeta.md"]);
+  const nested = projectsFromServerTree([folder("p", "P", [folder("c", "Child"), doc("c2", "Child.md")])]);
+  assert.deepEqual(nested[0].items[0].children.map(i => i.label), ["Child.md", "Child"]);
+});
+
 function workspace(t) {
   const old = globalThis.window;
   globalThis.window = { localStorage: { getItem: () => "ws_test", removeItem() {} } };

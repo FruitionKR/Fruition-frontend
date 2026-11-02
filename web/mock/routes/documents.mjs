@@ -4,6 +4,7 @@ import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 import { storageOf, uploadRejection } from "../lib/limits.mjs";
 import { merge3 } from "../lib/merge3.mjs";
+import { useImportSession } from "./imports.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
 // 편집기 이미지 첨부 계약: 본문의 attachment://<uuid> placeholder와 attachment_<uuid> file part
@@ -299,8 +300,13 @@ export function registerDocumentRoutes(router) {
       for (const [, file] of files) {
         if (!ALLOWED_IMAGE_TYPES.has(file?.type)) return error(ctx, 415, "PNG, JPEG, WebP, GIF만 허용합니다.");
         if (!file.buffer?.length) return error(ctx, 400, "빈 이미지 파일입니다.");
-        if (file.buffer.length > 10 * 1024 * 1024) return error(ctx, 413, "이미지당 10MB를 넘을 수 없습니다.");
+        if (file.buffer.length > 10 * 1024 * 1024) return error(ctx, 413, "이미지당 10MB를 넘을 수 없습니다.", "FILE_TOO_LARGE");
       }
+      // Notion 가져오기 저장이면 이미지 수를 가져오기 item으로 센다.
+      const importSession = useImportSession(ctx, workspace, files.length);
+      if (importSession === false) return;
+      const rejection = importSession ? uploadRejection(ctx.user.id, files.reduce((sum, [, file]) => sum + file.buffer.length, 0)) : null;
+      if (rejection) return error(ctx, rejection.status, rejection.message, rejection.code);
       const attachments = files.map(([attachmentId, file]) => {
         const asset = { id: id("asset"), workspace_id: workspace.id, owner_user_id: ctx.user.id, content_type: file.type, buffer: file.buffer, created_at: now() };
         state.assets.push(asset);
