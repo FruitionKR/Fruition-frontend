@@ -3,7 +3,7 @@ import { select } from "d3-selection";
 import { zoom, ZoomTransform } from "d3-zoom";
 import type { ZoomBehavior } from "d3-zoom";
 import type { GraphRect } from "../lib/graphGeometry";
-import type { GraphCache, GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
+import type { GraphCache, GraphLink, GraphNode, NodePosition, NodePositionMap } from "@/entities/wiki";
 import { GRAPH_CENTER, GRAPH_ZOOM, linkKey } from "@/entities/graph/lib/graphBuilder";
 import { readStoredGraphCache, writeStoredGraphCache } from "./graphCache";
 import { drawGraphFrame, preloadRawNodeIcon } from "../lib/graphDrawing";
@@ -26,6 +26,14 @@ import {
   tickGraphSimulation
 } from "../lib/graphPhysics";
 import type { GraphSimNode, GraphSimulation } from "../lib/graphPhysics";
+import {
+  GRAPH_ENTER_MOTION,
+  GRAPH_UPDATE_ALPHA,
+  nodeEnterAmount,
+  planGraphUpdate,
+  scheduleNodeEntries
+} from "../lib/graphEnter";
+import { useUserPreferences } from "@/entities/user";
 import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { useGraphAnimation } from "./useGraphAnimation";
 import { useGraphIngestProgress } from "./useGraphIngestProgress";
@@ -118,6 +126,13 @@ export function useGraphCanvas({
   const currentNodePositionsRef = useRef<() => NodePosition[]>(() => []);
   // 생성 중 노드 진행률은 매 프레임 바뀌므로 React 상태가 아니라 ref로 그리기에 전달한다.
   const ingestProgressRef = useGraphIngestProgress({ inputs: ingestProgressInputs, drawGraphRef });
+  /** 현재 simulation이 쓰는 기준점(origin). 데이터 갱신 때 기존 노드에 그대로 넘겨 레이아웃이 다시 섞이지 않게 한다. */
+  const originPositionsRef = useRef<NodePositionMap>({});
+  /** 첫 렌더 뒤 추가된 노드의 등장 시작 시각(performance.now 기준). 등장이 끝나면 지운다. */
+  const nodeEnterStartsRef = useRef<Record<string, number>>({});
+  const { reduceMotion } = useUserPreferences();
+  const reduceMotionRef = useRef(reduceMotion);
+  reduceMotionRef.current = reduceMotion;
 
   function getSimNode(nodeId: string): GraphSimNode | null {
     return simulationRef.current?.nodeById.get(nodeId) ?? null;
@@ -145,23 +160,48 @@ export function useGraphCanvas({
     );
   }
 
-  // graph 데이터가 바뀌면 simulation을 새로 만든다. 기존/캐시 좌표는 이어받는다.
+  // graph 데이터가 바뀌면 simulation을 새로 만든다.
+  // 첫 표시는 캐시/초기 배치로 바로 그리고, 이미 그려진 그래프의 갱신(Lint·편입 완료 등)은
+  // 기존 노드 위치·기준점을 이어받고 새 노드만 이웃 근처에서 서서히 나타나게 한다.
   useEffect(() => {
     const cached = readGraphCacheForCurrentGraph();
     const previousPositions = simulationRef.current ? simulationPositions(simulationRef.current) : {};
-    const startPositions = Object.fromEntries(
-      nodes.map((node) => [
-        node.id,
-        cached?.positions[node.id] ?? previousPositions[node.id] ?? initialNodePositions[node.id]
-      ])
-    );
     simulationRef.current?.simulation.stop();
-    simulationRef.current = createGraphSimulation({
-      nodes,
-      links,
-      startPositions,
-      originPositions: initialNodePositions
-    });
+    // 남아 있는 노드가 하나도 없으면(첫 로드·워크스페이스 전환) 갱신이 아니라 첫 표시로 본다.
+    const isUpdate = nodes.some((node) => previousPositions[node.id]);
+
+    if (isUpdate) {
+      const { startPositions, originPositions, addedNodeIds } = planGraphUpdate({
+        nodes,
+        links,
+        previousPositions,
+        previousOrigins: originPositionsRef.current,
+        layoutPositions: initialNodePositions
+      });
+      simulationRef.current = createGraphSimulation({
+        nodes,
+        links,
+        startPositions,
+        originPositions,
+        initialAlpha: addedNodeIds.length > 0 ? GRAPH_UPDATE_ALPHA.nodesAdded : GRAPH_UPDATE_ALPHA.linksOnly
+      });
+      originPositionsRef.current = originPositions;
+      nodeEnterStartsRef.current = reduceMotionRef.current
+        ? {}
+        : { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
+    } else {
+      const startPositions = Object.fromEntries(
+        nodes.map((node) => [node.id, cached?.positions[node.id] ?? initialNodePositions[node.id]])
+      );
+      simulationRef.current = createGraphSimulation({
+        nodes,
+        links,
+        startPositions,
+        originPositions: initialNodePositions
+      });
+      originPositionsRef.current = initialNodePositions;
+      nodeEnterStartsRef.current = {};
+    }
 
     const nextZoom = clampGraphZoom(cached?.zoom ?? graphZoomRef.current);
     const nextPan = clampPan(cached?.pan ?? graphPanRef.current, nextZoom);
@@ -410,6 +450,7 @@ export function useGraphCanvas({
   function drawGraph() {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const now = performance.now();
 
     drawGraphFrame({
       canvas,
@@ -421,7 +462,9 @@ export function useGraphCanvas({
       graphToCanvas,
       nodeSize,
       isRawSourceLink,
-      getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId)
+      getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId),
+      getNodeEnterAmount: (nodeId) => nodeEnterAmount(nodeEnterStartsRef.current[nodeId], now),
+      enterStartScale: GRAPH_ENTER_MOTION.startScale
     });
   }
 
@@ -466,7 +509,25 @@ export function useGraphCanvas({
     return changed;
   }
 
-  advanceHoverAnimationRef.current = advanceHoverAnimation;
+  /** 등장 중인 노드가 있으면 true(다음 프레임도 그려야 함). 끝난 노드는 목록에서 뺀다. */
+  function advanceNodeEnterAnimation() {
+    const starts = nodeEnterStartsRef.current;
+    const nodeIds = Object.keys(starts);
+    if (nodeIds.length === 0) return false;
+    const now = performance.now();
+    nodeEnterStartsRef.current = Object.fromEntries(
+      nodeIds
+        .filter((nodeId) => nodeById.has(nodeId) && nodeEnterAmount(starts[nodeId], now) < 1)
+        .map((nodeId) => [nodeId, starts[nodeId]])
+    );
+    return true;
+  }
+
+  advanceHoverAnimationRef.current = (deltaMs) => {
+    const hoverChanged = advanceHoverAnimation(deltaMs);
+    const entering = advanceNodeEnterAnimation();
+    return hoverChanged || entering;
+  };
 
   /** pan 제한 기준: 현재 노드들의 실제 분포(bbox). 고정 GRAPH_WIDTH 상자가 아니다. */
   function currentNodeBounds() {

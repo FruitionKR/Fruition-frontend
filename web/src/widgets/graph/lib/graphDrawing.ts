@@ -40,7 +40,9 @@ export function drawGraphFrame({
   graphToCanvas,
   nodeSize,
   isRawSourceLink,
-  getNodeProgress
+  getNodeProgress,
+  getNodeEnterAmount,
+  enterStartScale = 1
 }: {
   canvas: HTMLCanvasElement;
   nodes: GraphNode[];
@@ -53,7 +55,12 @@ export function drawGraphFrame({
   isRawSourceLink: (link: GraphLink) => boolean;
   /** 연출형 진행률(0~1). 값이 있으면 node.progress보다 우선한다. */
   getNodeProgress?: (nodeId: string) => number | undefined;
+  /** 새 노드 등장 진행도(0~1). 없거나 1이면 평소대로 그린다. */
+  getNodeEnterAmount?: (nodeId: string) => number;
+  /** 등장 진행도 0일 때의 크기 비율 */
+  enterStartScale?: number;
 }) {
+  const enterAmount = (nodeId: string) => getNodeEnterAmount?.(nodeId) ?? 1;
   ensureCanvasSize(canvas);
   const pixelRatio = window.devicePixelRatio || 1;
   const cssWidth = canvas.clientWidth;
@@ -93,9 +100,12 @@ export function drawGraphFrame({
     const fadedAlpha = rawSourceLink || generatingLink ? 0.14 : 0.08;
     const linkHoverAmount = Math.max(nodeHoverAmounts[link.from] ?? 0, nodeHoverAmounts[link.to] ?? 0);
     const focusAmount = focusAmountFromHover(linkHoverAmount);
+    // 링크는 양 끝 노드가 모두 나타난 만큼만 보인다.
+    const linkEnterAmount = Math.min(enterAmount(link.from), enterAmount(link.to));
+    if (linkEnterAmount <= 0) continue;
 
     context.save();
-    context.globalAlpha = fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount;
+    context.globalAlpha = (fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount) * linkEnterAmount;
     context.beginPath();
     context.moveTo(fromScreen.x, fromScreen.y);
     context.lineTo(toScreen.x, toScreen.y);
@@ -116,7 +126,7 @@ export function drawGraphFrame({
     context.stroke();
 
     if (linkHoverAmount > 0.01) {
-      context.globalAlpha = 0.98 * linkHoverAmount;
+      context.globalAlpha = 0.98 * linkHoverAmount * linkEnterAmount;
       context.setLineDash([]);
       context.lineWidth = 2.6;
       context.strokeStyle = palette.hoverNode;
@@ -137,10 +147,19 @@ export function drawGraphFrame({
     const radius = nodeSize(node) / 2;
     const hoverAmount = nodeHoverAmounts[node.id] ?? 0;
     const focusAmount = focusAmountFromHover(linkedHoverAmounts.get(node.id) ?? 0);
-    const nodeAlpha = 0.16 + 0.84 * focusAmount;
+    const nodeEnterAmount = enterAmount(node.id);
+    if (nodeEnterAmount <= 0) continue;
+    const nodeAlpha = (0.16 + 0.84 * focusAmount) * nodeEnterAmount;
 
     context.save();
     context.globalAlpha = nodeAlpha;
+    if (nodeEnterAmount < 1) {
+      // 노드 중심을 기준으로 작게 시작해 원래 크기로 커진다(라벨·마커 포함).
+      const scale = enterStartScale + (1 - enterStartScale) * nodeEnterAmount;
+      context.translate(screenPosition.x, screenPosition.y);
+      context.scale(scale, scale);
+      context.translate(-screenPosition.x, -screenPosition.y);
+    }
 
     const progress = nodeProgress(node, getNodeProgress);
     if (progress !== null) {
@@ -150,7 +169,7 @@ export function drawGraphFrame({
     }
 
     if (hoverAmount > 0.01) {
-      drawSelectedNodeMarker(context, palette, screenPosition.x, screenPosition.y, hoverAmount);
+      drawSelectedNodeMarker(context, palette, screenPosition.x, screenPosition.y, hoverAmount * nodeEnterAmount);
       context.globalAlpha = nodeAlpha;
     }
 
