@@ -77,13 +77,15 @@ function StepBody({ step, controller }: { step: NotionImportStep; controller: No
 }
 
 function PlanCounts({ plan }: { plan: ImportPlan }) {
-  const pages = plan.documents.length - plan.tableCount;
+  const pages = plan.documents.length - plan.tableCount - plan.rowPageCount;
   return (
     <dl className={styles.counts}>
       <div><dt>폴더</dt><dd>{plan.folders.length.toLocaleString()}</dd></div>
       <div><dt>문서</dt><dd>{pages.toLocaleString()}</dd></div>
       <div><dt>표(데이터베이스)</dt><dd>{plan.tableCount.toLocaleString()}</dd></div>
+      {plan.rowPageCount > 0 && <div><dt>행 페이지</dt><dd>{plan.rowPageCount.toLocaleString()}</dd></div>}
       <div><dt>이미지</dt><dd>{plan.imageCount.toLocaleString()}</dd></div>
+      {plan.pdfs.length > 0 && <div><dt>PDF</dt><dd>{plan.pdfs.length.toLocaleString()}</dd></div>}
     </dl>
   );
 }
@@ -99,10 +101,11 @@ function Preview({ step, controller }: { step: Extract<NotionImportStep, { kind:
       <p className={styles.meta}>
         올릴 크기 {formatBytes(plan.totalBytes)}
         {quota?.limitBytes != null && ` · 남은 저장 공간 ${formatBytes(Math.max(0, quota.limitBytes - quota.usedBytes))}`}
-        {` · 문서와 이미지 ${plan.itemCount.toLocaleString()}개`}
+        {` · ${plan.pdfs.length > 0 ? "문서·이미지·PDF" : "문서와 이미지"} ${plan.itemCount.toLocaleString()}개`}
       </p>
       <ul className={styles.notes}>
-        {plan.skippedRowPages > 0 && <li>데이터베이스는 표 문서로만 가져와요. 행 페이지 {plan.skippedRowPages.toLocaleString()}개는 가져오지 않아요.</li>}
+        {plan.rowPageCount > 0 && <li>행 페이지 {plan.rowPageCount.toLocaleString()}개 → 문서. 데이터베이스는 표 문서 옆 같은 이름 폴더에 행마다 문서로 넣고, 표의 제목 칸을 그 문서로 연결해요.</li>}
+        {plan.pdfs.length > 0 && <li>PDF {plan.pdfs.length.toLocaleString()}개 → 문서로 변환. PDF를 올리고 Markdown 변환을 시작해요(AI 크레딧 사용). PPTX 등 다른 첨부는 가져오지 않고 본문 링크 글자만 남겨요.</li>}
         {plan.folders.some((folder) => folder.pageDocumentKey) && <li>하위 페이지가 있는 페이지는 같은 이름의 문서와 폴더로 나눠요. 문서 옆 폴더에 하위 페이지가 들어가요.</li>}
         {plan.notionLinkCount > 0 && <li>Notion 링크 {plan.notionLinkCount.toLocaleString()}개 → 앱 문서로 연결해요.</li>}
         {plan.brokenLinks.length > 0 && <li>zip 안에서 대상을 찾지 못한 링크 {plan.brokenLinks.length.toLocaleString()}개는 글자만 남겨요.</li>}
@@ -154,8 +157,13 @@ function Summary({ step, controller }: { step: Extract<NotionImportStep, { kind:
     <>
       <p className={styles.status} role="status">
         {step.cancelled ? "가져오기를 멈췄어요. " : "가져오기를 마쳤어요. "}
-        문서 {step.createdPages.toLocaleString()}개{step.createdTables > 0 ? `, 표 ${step.createdTables.toLocaleString()}개` : ""}를 만들었어요{step.failedCount > 0 ? `(가져오지 못한 항목 ${step.failedCount.toLocaleString()}개)` : ""}.
+        문서 {step.createdPages.toLocaleString()}개{step.createdTables > 0 ? `, 표 ${step.createdTables.toLocaleString()}개` : ""}{step.createdPdfs > 0 ? `, PDF ${step.createdPdfs.toLocaleString()}개` : ""}를 만들었어요{step.failedCount > 0 ? `(가져오지 못한 항목 ${step.failedCount.toLocaleString()}개)` : ""}.
       </p>
+      {step.convertingPdfs > 0 && (
+        <p className={styles.meta}>
+          PDF {step.convertingPdfs.toLocaleString()}개는 Markdown으로 변환하는 동안 문서 목록에 ‘변환 중’으로 보여요. 변환이 끝난 노트는 위키에 자동 편입하지 않으니, 끝난 뒤 문서에서 직접 편입해 주세요.
+        </p>
+      )}
       {step.ingest === "done" && <p className={styles.status} role="status">위키 편입 대기열에 {(progress?.queued ?? count).toLocaleString()}개를 넣었어요. 진행 상황은 위키 작업에서 볼 수 있어요.</p>}
       {step.ingest === "skipped" && step.createdCount > 0 && <p className={styles.meta}>위키 편입은 나중에 그래프 화면에서 문서를 골라 할 수 있어요.</p>}
       {(isAsking || step.ingest === "running") && (

@@ -4,7 +4,7 @@ import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 import { storageOf, uploadRejection } from "../lib/limits.mjs";
 import { merge3 } from "../lib/merge3.mjs";
-import { useImportSession } from "./imports.mjs";
+import { tagImportedConversion, useImportSession } from "./imports.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
 // 편집기 이미지 첨부 계약: 본문의 attachment://<uuid> placeholder와 attachment_<uuid> file part
@@ -402,7 +402,9 @@ export function registerDocumentRoutes(router) {
     if (!mayConvertDocument(doc, ctx.user.id)) {
       return error(ctx, 403, "이 작업에는 'document.convert' 권한이 필요합니다.", "WORKSPACE_PERMISSION_REQUIRED");
     }
-    ctx.json(202, startConvert(workspace, doc));
+    const created = startConvert(workspace, doc);
+    tagImportedConversion(doc, created.id);
+    ctx.json(202, created);
   });
 
   // 편집 잠금: 비었거나 만료됐거나 본인 보유면 획득, 타인 보유면 423(보유자 정보 포함).

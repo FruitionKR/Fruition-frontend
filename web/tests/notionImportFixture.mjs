@@ -21,6 +21,8 @@ export const ID = {
 };
 
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
+/** `%PDF-`로 시작하는 작은 PDF 흉내 */
+export const PDF = "%PDF-1.4\n%test\n";
 
 const enc = (path) => path.split("/").map(encodeURIComponent).join("/");
 
@@ -33,7 +35,7 @@ export function zipFiles(files, options = {}) {
 }
 
 /**
- * 하위 페이지·이미지·데이터베이스·행 페이지·중복 이름·NFD 한글 이름을 담은 내보내기.
+ * 하위 페이지·이미지·데이터베이스·행 페이지(속성·PDF 첨부)·PPTX·중복 이름·NFD 한글 이름을 담은 내보내기.
  * folderIds=false면 실제 최근 Notion 내보내기처럼 폴더 이름에는 id가 없다(`홈 <id>.md` + `홈/`).
  */
 export function notionExportFiles({ folderIds = true } = {}) {
@@ -41,6 +43,8 @@ export function notionExportFiles({ folderIds = true } = {}) {
   const homeDir = folderIds ? home : "홈";
   const db = `${homeDir}/할일 ${ID.db}`;
   const dbDir = folderIds ? db : `${homeDir}/할일`;
+  const row = `행 ${ID.row}`;
+  const rowDir = folderIds ? row : "행";
   return {
     [`Export-1234/${home}.md`]: [
       "# 홈",
@@ -59,10 +63,11 @@ export function notionExportFiles({ folderIds = true } = {}) {
     [`Export-1234/${homeDir}/하위 ${ID.child}.md`]: `# 하위\n\n[위로](${enc(`../${home}.md`)}#heading)\n`,
     [`Export-1234/${homeDir}/photo.png`]: PNG,
     [`Export-1234/${homeDir}/fake.png`]: "not an image",
+    [`Export-1234/${homeDir}/slides.pptx`]: "PK",
     [`Export-1234/${db}.csv`]: "이름,상태\n일부,완료\n",
-    [`Export-1234/${db}_all.csv`]: "\ufeff이름,상태,메모\n첫 일,완료,\"쉼표, 있음\"\n",
-    [`Export-1234/${dbDir}/행 ${ID.row}.md`]: "# 행\n\n상태: 완료\n",
-    [`Export-1234/${dbDir}/행 ${ID.row}/첨부.pdf`]: "%PDF",
+    [`Export-1234/${db}_all.csv`]: "\ufeff이름,상태,메모\n첫 일,완료,\"쉼표, 있음\"\n행,진행,\n",
+    [`Export-1234/${dbDir}/${row}.md`]: `# 행\n\n상태: 완료\n담당: 홈 (https://www.notion.so/Home-${ID.home}?pvs=21)\n\n[첨부](${enc(`${rowDir}/첨부.pdf`)})\n`,
+    [`Export-1234/${dbDir}/${rowDir}/첨부.pdf`]: PDF,
     // macOS에서 만든 zip은 한글 이름이 NFD로 들어올 수 있다.
     [`Export-1234/${`메모 ${ID.memo}.md`.normalize("NFD")}`]: "# 메모\n",
     [`Export-1234/메모 ${ID.memo2}.md`]: "# 메모 둘\n",

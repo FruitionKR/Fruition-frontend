@@ -68,6 +68,18 @@ export function notionPageIdFromUrl(href: string): string | null {
   return PLAIN_ID.exec(last)?.[1].toLowerCase() ?? null;
 }
 
+/**
+ * Notion 데이터베이스 값(CSV 칸·행 페이지 속성)은 관계·링크를 `이름 (주소)`로 적는다(여러 개면 `, `로 잇는다).
+ * 주소가 Notion 절대 링크이거나 zip 안 상대 경로(.md·.csv·.pdf)이면 Markdown 링크 `[이름](주소)`로 바꿔 tokenizeLinks가
+ * 앱 문서 링크로 잇게 한다. 이름에 `[`·`]`·`|`·`\`가 있으면 표·링크 문법을 깨므로 그대로 둔다.
+ */
+export function linkifyNotionReferences(text: string): string {
+  return text.replace(
+    /(^|, )([^,()[\]|\\]+?) \(((?:https?:\/\/[^\s()]+)|(?:[^\s()]+\.(?:md|csv|pdf)))\)(?=$|, )/gi,
+    (whole, lead: string, label: string, href: string) => (/^https?:/i.test(href) && !notionPageIdFromUrl(href) ? whole : `${lead}[${label}](${href})`)
+  );
+}
+
 export type LinkTarget =
   /** 가져오는 문서. key는 그 문서의 zip 경로 */
   | { kind: "document"; key: string }

@@ -45,15 +45,24 @@ export function escapeTableCell(value: string): string {
     .trim();
 }
 
-/** CSV 본문을 GFM 표 Markdown으로 바꾼다. 행이 없으면 머리글만 있는 표가 된다. */
-export function csvToMarkdownTable(text: string): string {
+/**
+ * CSV 본문을 GFM 표 Markdown으로 바꾼다. 행이 없으면 머리글만 있는 표가 된다.
+ * decorateCell은 본문 칸(머리글 제외)을 이스케이프한 뒤 바꿀 때 쓴다(행 번호는 본문 기준 0부터).
+ */
+export function csvToMarkdownTable(
+  text: string,
+  decorateCell: (row: number, column: number, escaped: string) => string = (_row, _column, escaped) => escaped
+): string {
   const rows = parseCsv(text);
   if (rows.length === 0) return "";
   const width = Math.max(...rows.map((cells) => cells.length));
-  const line = (cells: string[]) => {
-    const padded = Array.from({ length: width }, (_, index) => escapeTableCell(cells[index] ?? ""));
+  const line = (cells: string[], row: number | null) => {
+    const padded = Array.from({ length: width }, (_, index) => {
+      const escaped = escapeTableCell(cells[index] ?? "");
+      return row === null ? escaped : decorateCell(row, index, escaped);
+    });
     return `| ${padded.map((cell) => cell || " ").join(" | ")} |`;
   };
   const [header, ...body] = rows;
-  return [line(header), `|${" --- |".repeat(width)}`, ...body.map(line)].join("\n");
+  return [line(header, null), `|${" --- |".repeat(width)}`, ...body.map((cells, row) => line(cells, row))].join("\n");
 }

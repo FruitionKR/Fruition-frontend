@@ -38,6 +38,9 @@ export type NotionImportStep =
     createdCount: number;
     createdPages: number;
     createdTables: number;
+    createdPdfs: number;
+    /** 변환을 요청한 PDF 수. 변환이 끝날 때까지 트리에 '변환 중'으로 보이고 편입 대상에서 빠진다. */
+    convertingPdfs: number;
     failedCount: number;
     cancelled: boolean;
     estimate: ImportIngestEstimate | null;
@@ -53,7 +56,7 @@ export type NotionImportStep =
 
 /** 미리보기에서 시작을 막는 이유. 없으면 null */
 export function previewBlocker(plan: ImportPlan, quota: StorageQuota | null): string | null {
-  if (plan.documents.length === 0) return "가져올 Notion 페이지나 데이터베이스가 없어요.";
+  if (plan.documents.length === 0 && plan.pdfs.length === 0) return "가져올 Notion 페이지나 데이터베이스가 없어요.";
   if (quota?.limitBytes != null && quota.usedBytes + plan.totalBytes > quota.limitBytes) return "저장 공간이 부족해 가져올 수 없어요. 사용하지 않는 문서를 삭제한 뒤 다시 시도해 주세요.";
   return null;
 }
@@ -161,7 +164,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     } catch (error) {
       estimateError = importErrorMessage(error, "위키 편입 비용을 계산하지 못했어요.");
     }
-    setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, failedCount: counts.failed, cancelled, estimate, estimateError, ingest: counts.created > 0 ? "idle" : "skipped", ingestProgress: null, ingestError: null });
+    setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, createdPdfs: counts.createdPdfs, convertingPdfs: counts.convertingPdfs, failedCount: counts.failed, cancelled, estimate, estimateError, ingest: counts.created > 0 ? "idle" : "skipped", ingestProgress: null, ingestError: null });
   }
 
   function cancel() {
