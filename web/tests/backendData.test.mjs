@@ -183,6 +183,40 @@ test("Lint가 끝나면 그래프를 다시 받는다", (t) => {
   assert.deepEqual(refetchCalls, [["graph", undefined]]);
 });
 
+test("진행 중이던 롤백이 끝나면 그래프를 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  queries.activeRestoreOperations = { data: [{ operation_id: "r1", status: "rebuilding" }], error: null, isLoading: false, dataUpdatedAt: 1 };
+  view.data;
+  assert.equal(lastOptions.activeRestoreOperations.enabled, false, "롤백 상태는 다른 구독자가 받은 값만 보고 직접 요청하지 않는다");
+  queries.activeRestoreOperations = { data: [], error: null, isLoading: false, dataUpdatedAt: 2 };
+  view.data;
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
+test("scheduleGraphRefresh는 몰린 호출을 debounce해 그래프만 한 번 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  const data = view.data;
+  data.scheduleGraphRefresh();
+  data.scheduleGraphRefresh();
+  assert.deepEqual(refetchCalls, []);
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
+test("편입이 실패로 끝나도 그래프를 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  queries.documents = { data: { documents: [doc("d1", "processing")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  view.data;
+  queries.documents = { data: { documents: [doc("d1", "failed")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 2 };
+  view.data;
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
 test("refreshGraph는 문서·그래프를 오류를 던지게 다시 받고 바뀌었는지 돌려준다", async (t) => {
   const view = renderBackendData(t);
   const d1 = doc("d1");

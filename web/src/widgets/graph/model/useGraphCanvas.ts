@@ -31,7 +31,9 @@ import {
   GRAPH_UPDATE_ALPHA,
   GRAPH_UPDATE_VELOCITY_DECAY,
   easeInOutCubic,
+  entryFramesAt,
   nodeEntryFrame,
+  shouldSuppressEntryGlow,
   planGraphUpdate,
   revealPan,
   scheduleNodeEntries
@@ -133,6 +135,8 @@ export function useGraphCanvas({
   const originPositionsRef = useRef<NodePositionMap>({});
   /** 첫 렌더 뒤 추가된 노드의 등장 시작 시각(performance.now 기준). 등장이 끝나면 지운다. */
   const nodeEnterStartsRef = useRef<Record<string, number>>({});
+  // 지금 등장 중인 묶음의 강조를 끌지(큰 묶음). 대기열이 빌 때 풀린다.
+  const suppressEntryGlowRef = useRef(false);
   /** 새 노드가 모두 화면 밖일 때 카메라를 옮기는 중이면 그 시작·목표 pan */
   const revealPanRef = useRef<{ from: NodePosition; to: NodePosition; startTime: number } | null>(null);
   /** 사용자가 마지막으로 pan·zoom·노드 드래그한 시각. 최근에 움직였으면 카메라를 대신 옮기지 않는다. */
@@ -197,6 +201,10 @@ export function useGraphCanvas({
       originPositionsRef.current = originPositions;
       // 동작 줄이기여도 시작 시각은 남긴다. 그때는 nodeEntryFrame이 고정 강조 링만 잠시 보여 준다.
       nodeEnterStartsRef.current = { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
+      suppressEntryGlowRef.current = shouldSuppressEntryGlow(
+        Object.keys(nodeEnterStartsRef.current).length,
+        suppressEntryGlowRef.current
+      );
       addedPositions = addedNodeIds.map((nodeId) => startPositions[nodeId]);
     } else {
       const startPositions = Object.fromEntries(
@@ -210,6 +218,7 @@ export function useGraphCanvas({
       });
       originPositionsRef.current = initialNodePositions;
       nodeEnterStartsRef.current = {};
+      suppressEntryGlowRef.current = false;
     }
 
     // 갱신 때는 저장된 화면 대신 지금 보는 화면을 유지한다.
@@ -490,6 +499,8 @@ export function useGraphCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const now = performance.now();
+    // 등장 중인 노드의 모습은 프레임마다 한 번만 계산한다(링크마다 양 끝을 다시 계산하지 않는다).
+    const entryFrames = entryFramesAt(nodeEnterStartsRef.current, now, reduceMotionRef.current, suppressEntryGlowRef.current);
 
     drawGraphFrame({
       canvas,
@@ -502,10 +513,7 @@ export function useGraphCanvas({
       nodeSize,
       isRawSourceLink,
       getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId),
-      getNodeEntry: (nodeId) => {
-        const startTime = nodeEnterStartsRef.current[nodeId];
-        return startTime === undefined ? null : nodeEntryFrame(startTime, now, reduceMotionRef.current);
-      }
+      getNodeEntry: (nodeId) => entryFrames.get(nodeId) ?? null
     });
   }
 
@@ -560,6 +568,10 @@ export function useGraphCanvas({
       nodeIds
         .filter((nodeId) => nodeById.has(nodeId) && !nodeEntryFrame(starts[nodeId], now, reduceMotionRef.current).done)
         .map((nodeId) => [nodeId, starts[nodeId]])
+    );
+    suppressEntryGlowRef.current = shouldSuppressEntryGlow(
+      Object.keys(nodeEnterStartsRef.current).length,
+      suppressEntryGlowRef.current
     );
     return true;
   }

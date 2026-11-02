@@ -9,8 +9,11 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 
 const {
+  entryFramesAt,
   GRAPH_ENTER_MOTION,
+  NEW_NODE_GLOW_LIMIT,
   nodeEntryFrame,
+  shouldSuppressEntryGlow,
   planGraphUpdate,
   revealPan,
   scheduleNodeEntries,
@@ -160,4 +163,27 @@ test("revealPan: 새 노드가 모두 화면 밖이면 확대 없이 중심이 �
   const scale = viewportWorldScale(viewport, zoom);
   const screenX = viewport.width / 2 + next.x + (far.x - GRAPH_CENTER.x) * scale;
   assert.ok(Math.abs(screenX - viewport.width * (1 - GRAPH_ENTER_MOTION.revealMargin)) < 1e-6);
+});
+
+test("entryFramesAt은 등장 중인 노드마다 nodeEntryFrame과 같은 모습을 한 번씩 계산한다", () => {
+  const starts = { a: 0, b: 100 };
+  const frames = entryFramesAt(starts, 400, false, false);
+  assert.equal(frames.size, 2);
+  assert.deepEqual(frames.get("a"), nodeEntryFrame(0, 400, false));
+  assert.deepEqual(frames.get("b"), nodeEntryFrame(100, 400, false));
+  assert.ok(frames.get("a").glow > 0, "작은 묶음은 강조를 그대로 그린다");
+});
+
+test("강조를 끄면 glow만 0이고 피어나는 연출(scale·opacity·edge·label)은 그대로다", () => {
+  const frame = entryFramesAt({ a: 0 }, 400, false, true).get("a");
+  const original = nodeEntryFrame(0, 400, false);
+  assert.deepEqual(frame, { ...original, glow: 0 });
+  assert.equal(entryFramesAt({ a: 0 }, 400, true, true).get("a").glow, 0, "동작 줄이기의 고정 링도 끈다");
+});
+
+test("한 번에 등장하는 노드가 한도를 넘으면 강조를 끄고, 대기열이 빌 때까지 끈 채로 둔다", () => {
+  assert.equal(shouldSuppressEntryGlow(NEW_NODE_GLOW_LIMIT, false), false);
+  assert.equal(shouldSuppressEntryGlow(NEW_NODE_GLOW_LIMIT + 1, false), true);
+  assert.equal(shouldSuppressEntryGlow(3, true), true, "끝나는 노드가 빠져 수가 줄어도 남은 노드에 강조가 갑자기 켜지지 않는다");
+  assert.equal(shouldSuppressEntryGlow(0, true), false, "대기열이 비면 다음 묶음은 다시 판단한다");
 });

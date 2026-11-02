@@ -140,6 +140,33 @@ export function scheduleNodeEntries(nodeIds: string[], now: number): Record<stri
   return Object.fromEntries(nodeIds.map((nodeId, index) => [nodeId, now + index * step]));
 }
 
+/**
+ * 한 번에 이보다 많은 노드가 등장 중이면 광채·링 강조를 그리지 않는다(피어나는 연출은 그대로).
+ * 큰 묶음에서는 강조가 화면을 덮을 뿐 아니라 노드마다 그라데이션을 칠하는 비용이 프레임을 잡아먹는다.
+ */
+export const NEW_NODE_GLOW_LIMIT = 40;
+
+/** 등장 대기열 크기로 강조를 끌지 정한다. 이미 끈 묶음은 대기열이 비기 전까지 끈 채로 둔다(중간에 강조가 켜지며 튀지 않게). */
+export function shouldSuppressEntryGlow(enteringCount: number, alreadySuppressed: boolean) {
+  if (enteringCount === 0) return false;
+  return alreadySuppressed || enteringCount > NEW_NODE_GLOW_LIMIT;
+}
+
+/** 이번 프레임에 등장 중인 노드들의 모습을 한 번에 계산한다. 그리기는 노드·링크마다 이 Map만 찾아 본다. */
+export function entryFramesAt(
+  starts: Readonly<Record<string, number>>,
+  now: number,
+  reduceMotion: boolean,
+  suppressGlow: boolean
+): Map<string, NodeEntryFrame> {
+  const frames = new Map<string, NodeEntryFrame>();
+  for (const nodeId in starts) {
+    const frame = nodeEntryFrame(starts[nodeId], now, reduceMotion);
+    frames.set(nodeId, suppressGlow ? { ...frame, glow: 0 } : frame);
+  }
+  return frames;
+}
+
 /** 시작 시각과 현재 시각으로 새 노드의 이번 프레임 모습을 계산한다. */
 export function nodeEntryFrame(startTime: number, now: number, reduceMotion: boolean): NodeEntryFrame {
   const motion = GRAPH_ENTER_MOTION;

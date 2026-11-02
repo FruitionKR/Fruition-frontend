@@ -146,6 +146,8 @@ export function drawGraphFrame({
   }
   context.setLineDash([]);
 
+  // 새 노드 광채 그라데이션은 반지름별로 원점 기준 하나만 만들어 이번 프레임 안에서 다시 쓴다.
+  const glowGradients = new Map<number, CanvasGradient>();
   for (let index = 0; index < drawableNodeCount; index += 1) {
     const node = nodes[index];
     const position = getNodePosition(node.id);
@@ -161,7 +163,7 @@ export function drawGraphFrame({
 
     context.save();
     if (entry && entry.glow > 0) {
-      drawNewNodeHighlight(context, palette, screenPosition.x, screenPosition.y, radius, entry, focusAlpha);
+      drawNewNodeHighlight(context, palette, screenPosition.x, screenPosition.y, radius, entry, focusAlpha, glowGradients);
     }
     context.globalAlpha = nodeAlpha;
     if (entry && entry.scale !== 1) {
@@ -234,20 +236,28 @@ function drawNewNodeHighlight(
   y: number,
   radius: number,
   entry: NodeEntryFrame,
-  focusAlpha: number
+  focusAlpha: number,
+  glowGradients: Map<number, CanvasGradient>
 ) {
   context.save();
   if (!entry.staticRing) {
-    const glowRgb = hexToRgb(palette.hoverNode).join(", ");
     const outerRadius = radius + NEW_NODE_GLOW_WIDTH;
-    const gradient = context.createRadialGradient(x, y, radius, x, y, outerRadius);
-    gradient.addColorStop(0, `rgba(${glowRgb}, ${palette.hoverGlowAlpha})`);
-    gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
+    let gradient = glowGradients.get(radius);
+    if (!gradient) {
+      const glowRgb = hexToRgb(palette.hoverNode).join(", ");
+      gradient = context.createRadialGradient(0, 0, radius, 0, 0, outerRadius);
+      gradient.addColorStop(0, `rgba(${glowRgb}, ${palette.hoverGlowAlpha})`);
+      gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
+      glowGradients.set(radius, gradient);
+    }
     context.globalAlpha = focusAlpha * entry.glow;
     context.fillStyle = gradient;
+    // 원점 기준 그라데이션을 노드 위치로 옮겨 칠한다(노드마다 새로 만들지 않는다).
+    context.translate(x, y);
     context.beginPath();
-    context.arc(x, y, outerRadius, 0, Math.PI * 2);
+    context.arc(0, 0, outerRadius, 0, Math.PI * 2);
     context.fill();
+    context.translate(-x, -y);
   }
   context.globalAlpha = focusAlpha * (entry.staticRing ? 0.85 : 0.7 * entry.glow);
   context.strokeStyle = palette.hoverNode;

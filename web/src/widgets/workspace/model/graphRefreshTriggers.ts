@@ -14,16 +14,19 @@ export const GRAPH_REFRESH_DEBOUNCE_MS = 800;
 type DocumentState = Pick<DocumentItemResponse, "id" | "status" | "processing_state" | "processed_at">;
 
 /**
- * 이전 목록과 비교해 편입이 새로 끝난(completed) 문서가 있는지.
- * 폴링 사이에 진행 중 상태를 놓친 경우(다른 멤버·다른 탭의 편입)도 status·processed_at 변화로 잡는다.
+ * 이전 목록과 비교해 그래프를 다시 받아야 할 문서 전환이 있는지.
+ * - 파이프라인이 돌다가 멈춘 문서는 결과(completed·failed·uploaded)와 상관없이 잡는다. 실패한 편입도 그 전에
+ *   일부 페이지를 만들었을 수 있고, 다시 받는 비용은 debounce로 묶인 한 번의 그래프 요청뿐이라 결과를 가리지 않는다.
+ * - 폴링 사이에 진행 중 상태를 놓친 경우(다른 멤버·다른 탭의 편입)는 completed로 바뀌었거나 processed_at이 바뀐 것으로 잡는다.
  * 처음 보는 문서는 비교할 이전 상태가 없어 제외한다.
  */
-export function hasNewlyCompletedDocuments(previous: readonly DocumentState[], current: readonly DocumentState[]) {
+export function hasSettledDocuments(previous: readonly DocumentState[], current: readonly DocumentState[]) {
   const previousById = new Map(previous.map((document) => [document.id, document]));
   return current.some((document) => {
     const before = previousById.get(document.id);
-    if (!before || document.status !== "completed" || isDocumentPipelineActive(document)) return false;
-    return isDocumentPipelineActive(before) || before.status !== "completed" || before.processed_at !== document.processed_at;
+    if (!before || isDocumentPipelineActive(document)) return false;
+    if (isDocumentPipelineActive(before)) return true;
+    return document.status === "completed" && (before.status !== "completed" || before.processed_at !== document.processed_at);
   });
 }
 

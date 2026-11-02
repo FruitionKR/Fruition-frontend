@@ -51,6 +51,7 @@ import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { uploadDocumentFile } from "@/entities/document";
 import { invalidateStorageUsage } from "@/entities/workspace";
+import { invalidateActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
@@ -129,7 +130,8 @@ export function HomeWorkspace() {
     isGraphLoading,
     apiError,
     refreshBackendData,
-    refreshGraph
+    refreshGraph,
+    scheduleGraphRefresh
   } = useBackendData({ setProjects: projectTree.setProjects });
   const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData, documentsUpdatedAt);
   const wikiActions = useGraphWikiActions({ documents, pdfWikiIngest, refreshBackendData });
@@ -320,6 +322,14 @@ export function HomeWorkspace() {
       staleDocumentsAtRef.current = documentsUpdatedAt;
       navigate(WORKSPACE_HOME_LOCATION, "replace");
     }
+  }
+
+  // 롤백은 위키 페이지를 지우거나 되살리므로 로그 목록과 함께 그래프도 다시 받는다(지운 노드가 60초 폴링까지 남지 않게).
+  // 바로 끝나지 않은 롤백은 진행 중 목록을 다시 받아 두면, 끝날 때 useBackendData가 그래프를 한 번 더 받는다.
+  async function handleRestoreComplete(operationId: string) {
+    scheduleGraphRefresh();
+    void invalidateActiveRestoreOperations(queryClient);
+    await operationLogFeed.refresh(operationId);
   }
 
   // 트리 이름 변경이 바로 보이도록 선택 상태의 최신 트리 이름을 쓴다.
@@ -679,7 +689,7 @@ export function HomeWorkspace() {
             operationId={operationLogFeed.selectedOperationId}
             restoredOperationIds={operationLogFeed.restoredOperationIds}
             documentTitles={documentTitles}
-            onRestoreComplete={operationLogFeed.refresh}
+            onRestoreComplete={handleRestoreComplete}
           />
         ) : activeView === "notifications" ? (
           <NotificationsView

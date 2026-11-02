@@ -12,11 +12,12 @@ import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { useObservedActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
+import { useObservedActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import {
   GRAPH_IDLE_POLL_INTERVAL_MS,
   GRAPH_REFRESH_DEBOUNCE_MS,
   hasGraphDataChanged,
-  hasNewlyCompletedDocuments
+  hasSettledDocuments
 } from "./graphRefreshTriggers";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
@@ -89,7 +90,7 @@ export function useBackendData({
     const currentDocuments = backendData?.documents ?? EMPTY_DOCUMENTS;
     const previousDocuments = previousDocumentsRef.current;
     previousDocumentsRef.current = currentDocuments;
-    if (hasNewlyCompletedDocuments(previousDocuments, currentDocuments)) scheduleGraphRefresh();
+    if (hasSettledDocuments(previousDocuments, currentDocuments)) scheduleGraphRefresh();
   }, [backendData, scheduleGraphRefresh]);
 
   const isLintActive = useObservedActiveLintOperation() !== null;
@@ -99,6 +100,15 @@ export function useBackendData({
     wasLintActiveRef.current = isLintActive;
     if (wasLintActive && !isLintActive) scheduleGraphRefresh();
   }, [isLintActive, scheduleGraphRefresh]);
+
+  // 비동기 롤백(applying → rebuilding)도 위키 페이지를 지우거나 되살리므로 끝나면 그래프를 다시 받는다.
+  const isRestoreActive = useObservedActiveRestoreOperations().length > 0;
+  const wasRestoreActiveRef = useRef(isRestoreActive);
+  useEffect(() => {
+    const wasRestoreActive = wasRestoreActiveRef.current;
+    wasRestoreActiveRef.current = isRestoreActive;
+    if (wasRestoreActive && !isRestoreActive) scheduleGraphRefresh();
+  }, [isRestoreActive, scheduleGraphRefresh]);
   const refreshBackendData = useCallback(async (options?: { throwOnError?: boolean }) => {
     const [documentsResult] = await Promise.all([refetch({ throwOnError: options?.throwOnError }), refetchGraph()]);
     // 트리 변경 큐의 다음 작업이 렌더를 기다리지 않고 최신 트리를 보도록 바로 병합한다.
@@ -151,6 +161,8 @@ export function useBackendData({
     isGraphLoading: graphQuery.isLoading,
     apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, "백엔드 데이터를 불러오지 못했습니다.") : null,
     refreshBackendData,
-    refreshGraph
+    refreshGraph,
+    /** 위키 페이지를 바꾼 작업(롤백 등)이 끝났을 때 그래프만 조용히 다시 받는다. 몰린 호출은 한 번으로 묶인다. */
+    scheduleGraphRefresh
   };
 }
