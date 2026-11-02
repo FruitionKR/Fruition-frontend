@@ -33,10 +33,10 @@ backend API가 아니므로 표에 넣지 않는다. 동시 3개, 조각별 최�
 
 | 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
 |---|---|---|---|---|---|---|
-| `GET /api/workspaces/{workspace_id}/storage` | 플랜·사용량·용량 조회 | 없음(프론트는 호출하지 않는다) | - | - | - | **백엔드 요구사항(보류)**. 플랜·용량 정책을 정할 때 백엔드에서 한도 적용(`STORAGE_QUOTA_EXCEEDED`)과 함께 구현할 요구사항이다. 현재 document-svc에는 이 API와 워크스페이스 용량 한도가 없고 파일당 50MB multipart 제한만 있다. 프론트는 업로드 전 용량 사전 검사를 하지 않고 서버 판단에 맡긴다 |
+| `GET /api/workspaces/{workspace_id}/storage` | 내 저장 공간 사용량·한도 조회 | `web/src/entities/workspace/api/storage.ts` (`fetchStorageUsage`) | `workspacePath(workspaceId, "storage")` | - | `used_bytes`, `limit_bytes`, `scope` | 용량은 사용자 단위(`scope: "user"`)이고 `used_bytes`는 내가 모든 워크스페이스에 올린 합계다. 기본 한도는 5GB이며 `limit_bytes: null`이면 한도가 꺼져 사용량만 보인다. 문서 패널 맨 아래 `StorageUsageMeter`(`web/src/widgets/document-sidebar/ui/StorageUsageMeter.tsx`)가 보여 주고 90% 이상이면 경고 색이다. 업로드 성공·문서/폴더 삭제·`STORAGE_QUOTA_EXCEEDED` 거절 뒤 다시 조회한다. 조회가 실패하면 표시만 숨기고 업로드는 막지 않는다(한도 판단은 서버) |
 
 업로드 실패의 `error.code`가 `STORAGE_QUOTA_EXCEEDED`면 서버 message 대신
-`describeLimitError`(`web/src/entities/workspace/model/workspaceLimits.ts`)의 정해 둔 문구를 보여 준다.
+`parseApiError`가 `UPLOAD_LIMIT_MESSAGES`(`web/src/shared/lib/apiErrors.ts`)의 정해 둔 문구("내 저장 공간을 모두 사용했어요…")를 쓴다.
 
 ## 문서 상세·조작
 

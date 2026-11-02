@@ -687,6 +687,16 @@
   cursor: progress;
 }
 
+/* 업로드가 거절된 자리표시 행: 경고 아이콘 + "업로드 실패" 배지 + 위험 색. 색만으로 구분하지 않는다 */
+.tree-row.is-upload-failed {
+  color: var(--color-danger);
+}
+
+.tree-upload-failed-icon,
+.tree-type-badge.is-upload-failed {
+  color: var(--color-danger);
+}
+
 /* 폴더 슬롯 자리에 도는 8px 링 (keyframes는 base.css 전역 spin) */
 .tree-upload-spinner {
   width: 8px;

@@ -4,14 +4,16 @@
  * 저장 시 metadata + attachment_<uuid> file part로 함께 보낸다. 서버가 관리 경로로 치환해 돌려준다.
  */
 
+import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_SAVE_MAX } from "@/shared/config/uploadLimits";
+
 export const ATTACHMENT_SCHEME = "attachment://";
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const ATTACHMENT_PATTERN = new RegExp(`${ATTACHMENT_SCHEME}(${UUID})`, "g");
 
 // 백엔드 검증기와 같은 제한 (REQ-002). 여기서 먼저 걸러 왕복을 줄인다.
 const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-export const MAX_IMAGES_PER_SAVE = 20;
+const MAX_IMAGE_BYTES = ATTACHMENT_MAX_BYTES;
+export const MAX_IMAGES_PER_SAVE = ATTACHMENTS_PER_SAVE_MAX;
 
 export type PendingImage = { id: string; file: File; objectUrl: string };
 export type SavedAttachment = { attachment_id: string; content_path: string };

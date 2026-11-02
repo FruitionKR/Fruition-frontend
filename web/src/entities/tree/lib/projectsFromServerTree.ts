@@ -1,3 +1,4 @@
+import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
 import type { Project, TreeItem } from "../model/tree";
 import type { ServerTreeItem } from "../model/serverTree";
 import { makeRawId } from "@/entities/graph/lib/graphBuilder";
@@ -18,7 +19,7 @@ export function projectsFromServerTree(items: ServerTreeItem[], previous: Projec
       : { id: `document-file-${item.id}`, label: item.name, type: "file", documentId: item.id, graphNodeId: makeRawId(item.id),
           currentVersion: item.current_version, status: doc?.status, mimeType: doc?.mime_type,
           processingState: doc?.processing_state, processingStage: doc?.processing_stage,
-          errorMessage: doc?.error_message, sourceUri: doc?.source_uri, byteSize: doc?.byte_size,
+          errorMessage: describeDocumentFailure(doc?.error_message, doc?.error_code), sourceUri: doc?.source_uri, byteSize: doc?.byte_size,
           uploadedAt: doc?.uploaded_at, updatedAt: doc?.updated_at,
           canEdit: doc?.can_edit, canDelete: doc?.can_delete, canConvert: doc?.can_convert, permission: doc?.permission };
   };

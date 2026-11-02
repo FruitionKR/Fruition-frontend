@@ -11,7 +11,7 @@ const { describeLimitError, isFreeWorkspaceLimitReached } = await import("../src
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 
 test("용량·개수 제한 에러 code만 정해 둔 문구로 바꾼다", () => {
-  assert.match(describeLimitError(new ApiError("server", 413, "STORAGE_QUOTA_EXCEEDED")), /저장 공간이 부족합니다/);
+  assert.match(describeLimitError(new ApiError("server", 413, "STORAGE_QUOTA_EXCEEDED")), /저장 공간을 모두 사용했어요/);
   assert.match(describeLimitError(new ApiError("server", 409, "WORKSPACE_LIMIT_EXCEEDED")), /무료 워크스페이스/);
   assert.equal(describeLimitError(new ApiError("server", 409, "OTHER")), null);
   assert.equal(describeLimitError(new Error("plain")), null);

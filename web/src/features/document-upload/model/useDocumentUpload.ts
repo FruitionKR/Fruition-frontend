@@ -1,7 +1,8 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { uploadDocumentFile } from "@/entities/document/api/document";
-import { describeLimitError } from "@/entities/workspace";
+import { describeLimitError, invalidateStorageUsage } from "@/entities/workspace";
 import {
   appendItemsToFolder,
   availableDocumentName,
@@ -17,6 +18,8 @@ import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tre
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { newAnalyticsId } from "@/shared/lib/analytics/events";
 import { ApiError } from "@/shared/lib/apiErrors";
+import { publishNotice } from "@/features/document-notifications";
+import { uploadFailureMessage } from "../lib/uploadFailure";
 
 export function useDocumentUpload({
   projects,
@@ -31,6 +34,7 @@ export function useDocumentUpload({
   setFileDropTarget: React.Dispatch<React.SetStateAction<FileDropTarget | null>>;
   refreshBackendData: () => Promise<void>;
 }) {
+  const queryClient = useQueryClient();
   const uploadPickerTargetRef = useRef<UploadPickerTarget | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [hasRejectedFiles, setHasRejectedFiles] = useState(false);
@@ -88,16 +92,21 @@ export function useDocumentUpload({
             return { ...project, items: applyUploadedDocument(project.items, item.id, response) };
           }));
           void refreshBackendData();
+          invalidateStorageUsage(queryClient);
           return response;
         })
         .catch((error: Error) => {
           captureAnalytics("upload_failed_shown", { upload_attempt_id: attemptId, reason: error instanceof ApiError
             ? error.status === 413 ? "file_too_large" : error.status === 403 ? "permission" : error.status >= 500 ? "server_error" : "unknown"
             : error instanceof TypeError ? "network" : "unknown" });
+          const message = describeLimitError(error) ?? error.message;
           setProjects((current) => current.map((project) => {
             if (!findTreeItem(project.items, item.id)) return project;
-            return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", describeLimitError(error) ?? error.message) };
+            return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", message) };
           }));
+          // 행 tooltip만으로는 실패 사유가 보이지 않으므로 알림 카드(role=alert)로 파일 이름과 함께 띄운다.
+          publishNotice({ kind: "failed", title: "업로드 실패", message: uploadFailureMessage(file.name, message) });
+          if (error instanceof ApiError && error.code === "STORAGE_QUOTA_EXCEEDED") invalidateStorageUsage(queryClient);
           // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
           void refreshBackendData().catch(() => {});
           return null;

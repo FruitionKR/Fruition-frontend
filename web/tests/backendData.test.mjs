@@ -18,6 +18,8 @@ const {
   HIDDEN_ACTIVE_WIKI_WORK_POLL_INTERVAL_MS,
   IDLE_WIKI_WORK_POLL_INTERVAL_MS
 } = await import("../src/features/wiki-ingest/model/wikiWorkPolling.ts");
+const { GRAPH_IDLE_POLL_INTERVAL_MS, GRAPH_REFRESH_DEBOUNCE_MS } =
+  await import("../src/widgets/workspace/model/graphRefreshTriggers.ts");
 const { ROOT_DOCUMENTS_PROJECT_ID } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
 
 function doc(id, status = "completed") {
@@ -72,14 +74,14 @@ test("워크스페이스를 고르지 않았으면 두 쿼리를 모두 끈다",
   assert.equal(lastOptions.graph.enabled, false);
 });
 
-test("처리 중인 문서가 있으면 짧게 폴링하고 숨김 탭에서는 문서 쿼리만 느리게 이어 간다", (t) => {
+test("처리 중인 문서가 있으면 문서만 짧게 폴링하고 그래프는 완료 때 한 번에 받는다", (t) => {
   const view = renderBackendData(t);
   queries.documents = { data: { documents: [doc("d1", "processing")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
   view.data;
 
   const activeQuery = { state: queries.documents };
   assert.equal(lastOptions.documents.refetchInterval(activeQuery), ACTIVE_WIKI_WORK_POLL_INTERVAL_MS);
-  assert.equal(lastOptions.graph.refetchInterval, ACTIVE_WIKI_WORK_POLL_INTERVAL_MS);
+  assert.equal(lastOptions.graph.refetchInterval, GRAPH_IDLE_POLL_INTERVAL_MS, "편입 중에도 그래프는 3초마다 받지 않는다");
   assert.equal(lastOptions.documents.refetchIntervalInBackground, true, "완료 브라우저 알림을 위해 숨김 탭에서도 받는다");
   assert.equal(lastOptions.graph.refetchIntervalInBackground, false, "그래프는 알림에 쓰이지 않아 숨김 탭에서 멈춘다");
 
@@ -89,13 +91,14 @@ test("처리 중인 문서가 있으면 짧게 폴링하고 숨김 탭에서는 
 });
 
 test("처리 중인 문서가 없으면 보이는 탭에서만 느리게 폴링하고 복귀 시 오래된 데이터만 다시 받는다", (t) => {
+  // 그래프는 이벤트로 받으므로 idle 안전 폴링만 문서 목록보다 길게 둔다.
   const view = renderBackendData(t);
   queries.documents = { data: { documents: [doc("d1")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
   view.data;
 
   const activeQuery = { state: queries.documents };
   assert.equal(lastOptions.documents.refetchInterval(activeQuery), IDLE_WIKI_WORK_POLL_INTERVAL_MS);
-  assert.equal(lastOptions.graph.refetchInterval, IDLE_WIKI_WORK_POLL_INTERVAL_MS);
+  assert.equal(lastOptions.graph.refetchInterval, GRAPH_IDLE_POLL_INTERVAL_MS);
 
   setPageVisible(false);
   view.data;
@@ -146,6 +149,86 @@ test("refreshBackendData는 문서·그래프를 함께 다시 받고 받은 트
   assert.deepEqual(refetchCalls, [["documents", { throwOnError: true }], ["graph", undefined]]);
   assert.equal(view.projectUpdates.length, before + 1, "트리 변경 큐가 렌더를 기다리지 않도록 바로 병합한다");
   assert.deepEqual(view.projectUpdates.at(-1)([])[0].items.map((item) => item.documentId), ["d1"]);
+});
+
+test("편입 중이던 문서들이 완료되면 그래프를 한 번만 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  queries.documents = { data: { documents: [doc("d1", "processing"), doc("d2", "processing")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  view.data;
+  queries.documents = { data: { documents: [doc("d1"), doc("d2", "processing")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 2 };
+  view.data;
+  queries.documents = { data: { documents: [doc("d1"), doc("d2")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 3 };
+  view.data;
+  assert.deepEqual(refetchCalls, [], "debounce 동안은 아직 받지 않는다");
+
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]], "몰린 완료는 한 번의 그래프 요청으로 묶인다");
+
+  queries.documents = { data: { documents: [doc("d1"), doc("d2")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 4 };
+  view.data;
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.equal(refetchCalls.length, 1, "상태 변화가 없으면 다시 받지 않는다");
+});
+
+test("Lint가 끝나면 그래프를 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  queries.activeLintOperation = { data: { logs: [{ operation_id: "op1", status: "processing" }] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  view.data;
+  assert.equal(lastOptions.activeLintOperation.enabled, false, "lint 상태는 다른 구독자가 받은 값만 보고 직접 요청하지 않는다");
+  queries.activeLintOperation = { data: { logs: [] }, error: null, isLoading: false, dataUpdatedAt: 2 };
+  view.data;
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
+test("진행 중이던 롤백이 끝나면 그래프를 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  queries.activeRestoreOperations = { data: [{ operation_id: "r1", status: "rebuilding" }], error: null, isLoading: false, dataUpdatedAt: 1 };
+  view.data;
+  assert.equal(lastOptions.activeRestoreOperations.enabled, false, "롤백 상태는 다른 구독자가 받은 값만 보고 직접 요청하지 않는다");
+  queries.activeRestoreOperations = { data: [], error: null, isLoading: false, dataUpdatedAt: 2 };
+  view.data;
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
+test("scheduleGraphRefresh는 몰린 호출을 debounce해 그래프만 한 번 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  const data = view.data;
+  data.scheduleGraphRefresh();
+  data.scheduleGraphRefresh();
+  assert.deepEqual(refetchCalls, []);
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
+test("편입이 실패로 끝나도 그래프를 다시 받는다", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = renderBackendData(t);
+  queries.documents = { data: { documents: [doc("d1", "processing")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  view.data;
+  queries.documents = { data: { documents: [doc("d1", "failed")], tree: [] }, error: null, isLoading: false, dataUpdatedAt: 2 };
+  view.data;
+  t.mock.timers.tick(GRAPH_REFRESH_DEBOUNCE_MS);
+  assert.deepEqual(refetchCalls, [["graph", undefined]]);
+});
+
+test("refreshGraph는 문서·그래프를 오류를 던지게 다시 받고 바뀌었는지 돌려준다", async (t) => {
+  const view = renderBackendData(t);
+  const d1 = doc("d1");
+  queries.documents = { data: { documents: [d1], tree: [treeItem(d1)] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  queries.graph = { data: { nodes: [{ id: "p1" }], edges: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  const data = view.data;
+
+  assert.deepEqual(await data.refreshGraph(), { changed: false });
+  assert.deepEqual(refetchCalls, [["documents", { throwOnError: true }], ["graph", { throwOnError: true }]]);
+
+  queries.graph = { ...queries.graph, data: { nodes: [{ id: "p1" }, { id: "p2" }], edges: [] } };
+  assert.deepEqual(await data.refreshGraph(), { changed: true });
 });
 
 test("setDocuments는 query cache의 documents만 바꾸고 캐시가 비어 있으면 빈 목록에서 시작한다", (t) => {

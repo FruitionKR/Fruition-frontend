@@ -10,6 +10,7 @@ const { GET: transportRoute } = await import("../app/api/document-transport/rout
 const { apiFetch } = await import("../src/shared/api/client.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { uploadDocumentFile } = await import("../src/entities/document/api/document.ts");
+const { uploadPdfMultipart } = await import("../src/entities/document/api/multipartUpload.ts");
 const { saveNoteDraft, NoteContentConflictError } = await import("../src/features/note-editing/api/note.ts");
 function browser(t) {
   const old = globalThis.window;
@@ -191,6 +192,23 @@ test("failed storage PUT aborts without registering a document", async t => {
 });
 
 
+test("직접 업로드 상한(100MB)을 넘는 PDF는 서버에 요청하지 않고 바로 거절한다", async t => {
+  browser(t);
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    calls.push(path);
+    if (path === "/api/document-transport") return transport();
+    throw new Error(`unexpected request: ${path}`);
+  });
+  const file = { name: "big.pdf", size: 100 * 1024 ** 2 + 1, slice() { throw new Error("must not slice"); } };
+  await assert.rejects(uploadDocumentFile(file), /100MB 이하 파일만/);
+  assert.deepEqual(calls, ["/api/document-transport"]);
+  // PDF가 아니면 form 업로드 경로라 상한이 50MB다.
+  await assert.rejects(uploadDocumentFile({ name: "big.md", size: 50 * 1024 ** 2 + 1 }), /50MB 이하 파일만/);
+  assert.ok(calls.every(path => path === "/api/document-transport"));
+});
+
+// 업로드 상한(100MB)은 uploadDocumentFile이 먼저 막는다. 조각 계산은 서버 한도가 커져도 맞아야 하므로 helper를 직접 검증한다.
 test("3GiB upload slices at long offsets with at most three concurrent PUTs and renews expired URLs", async t => {
   browser(t);
   const size = 3 * 1024 ** 3;
@@ -222,9 +240,55 @@ test("3GiB upload slices at long offsets with at most three concurrent PUTs and 
     assert.equal(uploaded.size, 48);
     return Response.json({ id: "huge" });
   });
-  assert.equal((await uploadDocumentFile(file)).id, "huge");
+  assert.equal((await uploadPdfMultipart("/api/workspaces/ws_test/documents/uploads", file, null)).id, "huge");
   assert.equal(offsets.at(-1)[1], size);
   assert.ok(offsets.some(([start]) => start > 2 * 1024 ** 3));
   assert.equal(maxConcurrent, 3);
   assert.equal(retries, 1);
+});
+
+test("편집기 이미지 첨부 저장이 400 TOO_MANY_FILES로 거절되면 한국어 안내 문구로 보인다", async t => {
+  browser(t);
+  const { getErrorMessage, UPLOAD_LIMIT_MESSAGES } = await import("../src/shared/lib/apiErrors.ts");
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path === "/api/document-transport") return transport();
+    assert.equal(path, "https://api.example.test/api/workspaces/ws_test/documents/doc_test/content");
+    assert.ok(init.body.get("metadata"), "이미지가 있으면 metadata + attachment part 계약을 쓴다");
+    return Response.json({ error: { code: "TOO_MANY_FILES", message: "too many attachments: 21 > 20" } }, { status: 400 });
+  });
+  const images = Array.from({ length: 21 }, (_, index) => ({ id: `img${index}`, file: new File(["x"], `${index}.png`, { type: "image/png" }) }));
+  const error = await saveNoteDraft("doc_test", "# with images", 3, undefined, undefined, images).then(
+    () => assert.fail("저장이 거절돼야 한다"),
+    (rejected) => rejected
+  );
+  assert.equal(error.status, 400);
+  assert.equal(error.code, "TOO_MANY_FILES");
+  // useNoteAutosave는 저장 실패를 getErrorMessage로 보여 준다.
+  assert.equal(getErrorMessage(error, "노트를 저장하지 못했습니다."), UPLOAD_LIMIT_MESSAGES.TOO_MANY_FILES);
+});
+
+test("문서 업로드는 한 탭에서 동시에 2개까지만 보내고 나머지는 순서대로 이어 보낸다", async t => {
+  browser(t);
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const order = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path === "/api/document-transport") return transport();
+    if (path === "https://api.example.test/api/workspaces/ws_test/document-tree" && (!init?.method || init.method === "GET")) return Response.json({ items: [] });
+    assert.equal(path, "https://api.example.test/api/workspaces/ws_test/documents");
+    const name = init.body.get("file").name;
+    order.push(name);
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    inFlight -= 1;
+    if (name === "b.md") return Response.json({ error: { code: "STORAGE_QUOTA_EXCEEDED", message: "quota" } }, { status: 413 });
+    return Response.json({ id: name, filename: name }, { status: 201 });
+  });
+  const names = ["a.md", "b.md", "c.md", "d.md", "e.md"];
+  const results = await Promise.allSettled(names.map((name) => uploadDocumentFile(new File(["x"], name))));
+  assert.equal(maxInFlight, 2);
+  assert.deepEqual(order, names, "기다린 업로드는 받은 순서대로 보낸다");
+  assert.deepEqual(results.map((result) => result.status), ["fulfilled", "rejected", "fulfilled", "fulfilled", "fulfilled"],
+    "한 파일이 실패해도 대기 중인 업로드는 이어 간다");
 });

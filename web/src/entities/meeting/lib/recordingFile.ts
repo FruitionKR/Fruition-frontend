@@ -1,7 +1,9 @@
 // 녹음 파일 업로드 전 확인(document MeetingRecordingService 검증 값과 같다, docs/api/meetings.md#meeting-recording).
 
+import { MEETING_RECORDING_MAX_BYTES } from "@/shared/config/uploadLimits";
+
 /** 녹음 원본 상한 500 MiB. 녹음 길이 한도(3시간)는 전사 단계에서 AI가 확인한다. */
-export const MEETING_RECORDING_MAX_BYTES = 500 * 1024 * 1024;
+export { MEETING_RECORDING_MAX_BYTES };
 
 /** 서버가 받는 형식(type/subtype). audio/x-wav·audio/x-m4a는 서버가 audio/wav·audio/mp4로 바꾼다. */
 const ACCEPTED_TYPES = new Set(["audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/webm"]);

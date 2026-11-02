@@ -3,3 +3,6 @@ export * from "./model/workspace";
 export * from "./model/useSelectedWorkspace";
 export * from "./model/useWorkspaceRole";
 export * from "./model/workspaceLimits";
+export * from "./api/storage";
+export * from "./model/storageUsage";
+export * from "./model/useStorageUsage";

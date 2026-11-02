@@ -1,7 +1,8 @@
+import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { NoticePayload } from "./noticeBus";
 
-type FailedDocumentSummary = Pick<DocumentItemResponse, "filename" | "error_message">;
+type FailedDocumentSummary = Pick<DocumentItemResponse, "filename" | "error_message" | "error_code">;
 
 // 요약 메시지에 나열하는 파일명 상한. 넘치는 문서는 "외 N개"로 줄인다.
 const MAX_LISTED_FILENAMES = 3;
@@ -13,7 +14,7 @@ export function buildFailedDocumentsNotice(failedDocuments: FailedDocumentSummar
     return {
       kind: "failed",
       title: "문서 처리 실패",
-      message: `"${failed.filename}" 처리에 실패했습니다. ${failed.error_message ?? "실패 사유를 확인해 주세요."}`
+      message: `"${failed.filename}" 처리에 실패했습니다. ${describeDocumentFailure(failed.error_message, failed.error_code) ?? "실패 사유를 확인해 주세요."}`
     };
   }
 

@@ -9,7 +9,7 @@ export const GRAPH_PAN_MIN_VISIBLE = 80;
 export const GRAPH_RESIZE_PADDING = { x: 72, y: 36 } as const;
 
 /** 캔버스 CSS 픽셀 크기 */
-type GraphViewport = { width: number; height: number };
+export type GraphViewport = { width: number; height: number };
 
 /** 그래프 좌표계의 축 정렬 사각형 */
 export type GraphRect = { minX: number; minY: number; maxX: number; maxY: number };

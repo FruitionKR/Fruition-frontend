@@ -1,9 +1,10 @@
 // 채팅 입력창 음성 받아쓰기(#147)의 순수 규칙. 브라우저 API를 다루는 쪽은 model/useDictation.ts다.
+import { SPEECH_MAX_BYTES } from "@/shared/config/uploadLimits";
 
 /** 발화 길이 상한. 서버 계약상 클라이언트가 60초로 제한한다. */
 export const DICTATION_MAX_MS = 60_000;
 /** 서버가 받는 오디오 본문 상한(24 MiB). */
-export const DICTATION_MAX_BYTES = 24 * 1024 * 1024;
+export const DICTATION_MAX_BYTES = SPEECH_MAX_BYTES;
 
 // 서버가 받는 형식 순서대로. Chrome·Firefox는 webm/opus, Safari는 mp4를 고른다.
 const RECORDING_MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/mpeg", "audio/wav"];

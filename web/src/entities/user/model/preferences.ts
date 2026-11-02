@@ -16,6 +16,7 @@ export const NOTIFICATION_SETTINGS = {
   pdfCompleted: notificationSetting("문서·PDF", "PDF 변환 완료", ["PDF 변환 완료"], true, "completed"),
   pdfConvertFailed: notificationSetting("문서·PDF", "PDF 변환 요청 실패", ["Markdown 변환 실패"]),
   trashRestore: notificationSetting("문서·PDF", "휴지통 문서 복구", ["문서 복구 완료"]),
+  uploadFailed: notificationSetting("문서·PDF", "파일 업로드 실패", ["업로드 실패"]),
   ingestRequested: notificationSetting("위키", "위키 편입 요청", ["위키 편입 요청"]),
   ingestFailed: notificationSetting("위키", "위키 편입 요청 실패", ["위키 편입 실패", "위키 편입 시작 실패"]),
   pdfIngestRequested: notificationSetting("위키", "PDF 변환 후 위키 편입 요청", ["PDF 위키 편입 요청"]),

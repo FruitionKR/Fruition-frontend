@@ -104,6 +104,76 @@ export function isInsufficientCreditError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 402 && error.code === "INSUFFICIENT_CREDIT";
 }
 
+/** AI 사용량 한도 초과(429)의 서버 code. 하루 비용·토큰 한도나 동시 실행 한도에 걸리면 온다. */
+export const AI_USAGE_LIMIT_EXCEEDED_CODE = "AI_USAGE_LIMIT_EXCEEDED";
+export const AI_DAILY_LIMIT_MESSAGE = "오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일 다시 이용해 주세요.";
+export const AI_CONCURRENT_LIMIT_MESSAGE = "AI 작업이 동시에 너무 많이 실행 중이에요. 진행 중인 작업이 끝난 뒤 다시 시도해 주세요.";
+
+/** 업로드 제한 거절 code별 안내. 한도 값은 서버 설정이라 문구에 숫자를 넣지 않는다. */
+export const UPLOAD_LIMIT_MESSAGES = {
+  FILE_TOO_LARGE: "파일이 너무 커서 올릴 수 없어요. 더 작은 파일로 다시 올려 주세요.",
+  TOO_MANY_FILES: "한 번에 올릴 수 있는 파일 수를 넘었어요. 나눠서 다시 올려 주세요.",
+  STORAGE_QUOTA_EXCEEDED: "내 저장 공간을 모두 사용했어요. 사용하지 않는 문서를 삭제한 뒤 다시 올려 주세요.",
+  UPLOAD_DAILY_LIMIT_EXCEEDED: "오늘 올릴 수 있는 파일 수를 넘었어요. 내일 다시 올려 주세요."
+} as const;
+
+/** 서버 error 본문에서 함께 오는 한도 정보. snake_case(document 서비스 관례)와 camelCase를 모두 받는다. */
+export type UsageLimitDetail = { limit_type?: unknown; limitType?: unknown; reset_at?: unknown; resetAt?: unknown };
+
+const SEOUL = "Asia/Seoul";
+
+/** 한국 시간 기준 날짜·시각 조각. 한도 초기화는 서버가 Asia/Seoul 0시로 정한다. */
+function seoulParts(date: Date): { year: number; month: number; day: number; hour: number; minute: number } {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: SEOUL, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23"
+  }).formatToParts(date).map((part) => [part.type, Number(part.value)]));
+  return { year: parts.year, month: parts.month, day: parts.day, hour: parts.hour % 24, minute: parts.minute };
+}
+
+/**
+ * 초기화 시각 문구(한국 시간). 다음 날 0시면 "내일(11월 3일) 0시", 다른 날 0시면 "11월 5일 0시",
+ * 그 밖에는 "11월 3일 오후 3:00"이다. 잘못된 값이면 null.
+ */
+export function formatResetTime(value: unknown, now: Date = new Date()): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const reset = seoulParts(date);
+  const dayLabel = `${reset.month}월 ${reset.day}일`;
+  if (reset.hour === 0 && reset.minute === 0) {
+    const today = seoulParts(now);
+    const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
+    const isTomorrow = reset.year === tomorrow.getUTCFullYear() && reset.month === tomorrow.getUTCMonth() + 1 && reset.day === tomorrow.getUTCDate();
+    return isTomorrow ? `내일(${dayLabel}) 0시` : `${dayLabel} 0시`;
+  }
+  const time = date.toLocaleTimeString("ko-KR", { timeZone: SEOUL, hour: "numeric", minute: "2-digit" });
+  return `${dayLabel} ${time}`;
+}
+
+/**
+ * AI 사용량 한도 안내. CONCURRENT만 동시 실행 안내이고 나머지(DAILY_COST·DAILY_TOKENS·모르는 값·없음)는 하루 한도 안내다.
+ * 하루 한도에 초기화 시각이 오면 "내일" 대신 그 시각을 알려 준다.
+ */
+export function aiUsageLimitMessage(detail?: UsageLimitDetail | null, now: Date = new Date()): string {
+  const limitType = detail?.limit_type ?? detail?.limitType;
+  if (limitType === "CONCURRENT") return AI_CONCURRENT_LIMIT_MESSAGE;
+  const resetAt = formatResetTime(detail?.reset_at ?? detail?.resetAt, now);
+  if (!resetAt) return AI_DAILY_LIMIT_MESSAGE;
+  return `오늘 사용할 수 있는 AI 사용량을 모두 썼어요. ${resetAt}부터 다시 이용할 수 있어요.`;
+}
+
+/** 사용량·업로드 제한 code면 화면 안내 문구를, 아니면 null을 돌려준다. parseApiError가 서버 문구 대신 쓴다. */
+export function usageLimitMessage(code: string | undefined, detail?: UsageLimitDetail | null): string | null {
+  if (!code) return null;
+  if (code === AI_USAGE_LIMIT_EXCEEDED_CODE) return aiUsageLimitMessage(detail);
+  return (UPLOAD_LIMIT_MESSAGES as Record<string, string>)[code] ?? null;
+}
+
+/** AI 사용량 한도로 거절됐는지. 다시 조회해도 결과가 바뀌지 않으므로 재시도하지 않는다. */
+export function isAiUsageLimitError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === AI_USAGE_LIMIT_EXCEEDED_CODE;
+}
+
 export const REQUEST_TIMEOUT_MESSAGE = "응답이 너무 오래 걸려 확인을 멈췄어요. 잠시 뒤 다시 시도해 주세요.";
 export const REQUEST_ABORTED_MESSAGE = "요청이 중단됐어요. 다시 시도해 주세요.";
 export const CONNECTION_LOST_MESSAGE = "서버와 연결이 끊겨 응답을 받지 못했어요. 다시 시도해 주세요.";

@@ -1,6 +1,6 @@
 import { analyticsSessionHeaders } from "@/shared/lib/analytics/client";
 import { apiFetch, parseJsonOrThrow, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
-import { ApiError } from "@/shared/lib/apiErrors";
+import { ApiError, isAiUsageLimitError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { followAgentTurn } from "@/features/agent-chat/lib/turnFollow";
 import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
@@ -26,6 +26,7 @@ function toTerminalResult(run: AgentTurnRunResponse): AgentTurnResponse | null {
 /** 다시 확인해도 결과가 바뀌지 않는 오류: 서버가 알린 실패·취소, 4xx(권한·없는 turn). 네트워크·5xx는 다시 조회한다. */
 function isFatalTurnError(error: unknown): boolean {
   if (error instanceof AgentTurnSettledError || error instanceof RunFailedError) return true;
+  if (isAiUsageLimitError(error)) return true;
   return error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429;
 }
 

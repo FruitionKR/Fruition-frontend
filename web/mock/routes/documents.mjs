@@ -2,7 +2,7 @@
 import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete, mayConvertDocument } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
-import { uploadRejection } from "../lib/limits.mjs";
+import { storageOf, uploadRejection } from "../lib/limits.mjs";
 import { merge3 } from "../lib/merge3.mjs";
 
 const MIME_BY_EXTENSION = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
@@ -112,6 +112,12 @@ function uniqueUploadFilename(workspaceId, folderId, filename, isReference = fal
 }
 
 export function registerDocumentRoutes(router) {
+  // 내 저장 공간: 사용량은 이 사용자가 모든 워크스페이스에 올린 합계다. 워크스페이스는 멤버 확인에만 쓴다.
+  router.get("/api/workspaces/:wid/storage", (ctx) => {
+    if (!requireWorkspace(ctx)) return;
+    ctx.json(200, storageOf(ctx.user.id));
+  });
+
   router.get("/api/workspaces/:wid/documents", (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
@@ -136,7 +142,7 @@ export function registerDocumentRoutes(router) {
     const extension = requestedName.split(".").pop()?.toLowerCase() ?? "";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
     if (isReference && extension === "pdf") return error(ctx, 415, "스킬 참고 문서는 Markdown·txt만 올릴 수 있습니다.", "UNSUPPORTED_FILE_TYPE");
-    const rejection = uploadRejection(workspace, file.buffer.length);
+    const rejection = uploadRejection(ctx.user.id, file.buffer.length);
     if (rejection) return error(ctx, rejection.status, rejection.message, rejection.code);
     // 서버처럼 참고 문서 txt는 .md 이름의 편집 가능 Markdown으로 저장한다.
     if (isReference && extension === "txt") requestedName = requestedName.replace(/\.txt$/i, ".md");
@@ -296,7 +302,7 @@ export function registerDocumentRoutes(router) {
         if (file.buffer.length > 10 * 1024 * 1024) return error(ctx, 413, "이미지당 10MB를 넘을 수 없습니다.");
       }
       const attachments = files.map(([attachmentId, file]) => {
-        const asset = { id: id("asset"), workspace_id: workspace.id, content_type: file.type, buffer: file.buffer, created_at: now() };
+        const asset = { id: id("asset"), workspace_id: workspace.id, owner_user_id: ctx.user.id, content_type: file.type, buffer: file.buffer, created_at: now() };
         state.assets.push(asset);
         return { attachment_id: attachmentId, asset_id: asset.id, content_path: `/api/workspaces/${workspace.id}/assets/${asset.id}/content` };
       });

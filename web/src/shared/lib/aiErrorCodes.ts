@@ -17,6 +17,33 @@ export function describeTtsStreamError(code: string | null | undefined): string 
   return (code && TTS_STREAM_ERROR_MESSAGES[code as TtsStreamErrorCode]) || TTS_STREAM_ERROR_MESSAGES.internal_error;
 }
 
+/**
+ * AI 사용량 하루 한도 안내. apiErrors.ts의 AI_DAILY_LIMIT_MESSAGE와 같은 문구다(테스트가 hook 없이 import해 다른 모듈을 import하지 않는다).
+ * 비동기 작업이 한도로 시작하지 못한 실패(회의록·문서 error_code, 실시간 받아쓰기 종료 사유)에 쓴다.
+ */
+export const AI_USAGE_LIMIT_FAILURE_MESSAGE = "오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일 다시 이용해 주세요.";
+
+/** 변환 뒤 자동 편입을 AI 사용 한도로 시작하지 못한 문서의 error_code(document Document.errorCode). */
+const DOCUMENT_AI_USAGE_LIMIT_CODE = "AI_USAGE_LIMIT_EXCEEDED";
+
+/**
+ * error_code가 없던 이전 document 응답은 이 문구만 error_message에 남긴다
+ * (document AiErrorMessages.AI_USAGE_LIMIT_EXCEEDED). 코드가 없을 때만 쓰는 대체 판정이다.
+ */
+const LEGACY_DOCUMENT_AI_USAGE_LIMIT_MESSAGES = new Set([
+  DOCUMENT_AI_USAGE_LIMIT_CODE,
+  "AI 사용 한도에 도달해 작업을 시작하지 않았습니다. 잠시 후 또는 내일 다시 시도해 주세요."
+]);
+
+/**
+ * 문서 처리 실패 사유 표시. AI 사용량 한도 거절만 정해 둔 문구로 바꾸고 나머지는 error_message 그대로 둔다.
+ * error_code를 먼저 보고, 코드가 없는 이전 응답만 문구로 판정한다.
+ */
+export function describeDocumentFailure<T extends string | null | undefined>(message: T, code?: string | null): T | string {
+  if (code) return code === DOCUMENT_AI_USAGE_LIMIT_CODE ? AI_USAGE_LIMIT_FAILURE_MESSAGE : message;
+  return message && LEGACY_DOCUMENT_AI_USAGE_LIMIT_MESSAGES.has(message.trim()) ? AI_USAGE_LIMIT_FAILURE_MESSAGE : message;
+}
+
 /** 회의록 생성 실패 error_code와 요청이 겹칠 때의 409 code(#148). */
 export type MeetingNotesErrorCode =
   | "MEETING_NOTES_INPUT_REJECTED"
@@ -26,7 +53,8 @@ export type MeetingNotesErrorCode =
   | "MEETING_NOTES_TIMEOUT"
   | "MEETING_NOTES_CANCELLED"
   | "MEETING_NOTES_BUSY"
-  | "INSUFFICIENT_CREDIT";
+  | "INSUFFICIENT_CREDIT"
+  | "AI_USAGE_LIMIT_EXCEEDED";
 
 const MEETING_NOTES_ERROR_MESSAGES: Record<MeetingNotesErrorCode, string> = {
   MEETING_NOTES_INPUT_REJECTED: "회의 내용을 처리할 수 없는 형식입니다. 녹음이나 대화 내용을 확인해 주세요.",
@@ -38,7 +66,9 @@ const MEETING_NOTES_ERROR_MESSAGES: Record<MeetingNotesErrorCode, string> = {
   // 생성은 워크스페이스당 하나라 다른 회의의 회의록이 만들어지는 중이어도 409다(document meetings.md).
   MEETING_NOTES_BUSY: "이 워크스페이스에서 다른 회의록을 만들고 있습니다. 끝난 뒤 다시 시도해 주세요.",
   // 실패한 초안 버전의 error_code로 온다. 문구는 앱 공통 크레딧 부족 안내(INSUFFICIENT_CREDIT_MESSAGE)와 같다.
-  INSUFFICIENT_CREDIT: "크레딧이 부족합니다."
+  INSUFFICIENT_CREDIT: "크레딧이 부족합니다.",
+  // 사용자별 AI 사용 한도로 초안 생성을 시작하지 못한 실패 버전의 error_code(document MeetingNotesService).
+  AI_USAGE_LIMIT_EXCEEDED: AI_USAGE_LIMIT_FAILURE_MESSAGE
 };
 
 export function describeMeetingNotesError(code: string | null | undefined): string {

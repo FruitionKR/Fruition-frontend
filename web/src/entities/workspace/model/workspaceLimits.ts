@@ -1,10 +1,8 @@
-import { ApiError } from "@/shared/lib/apiErrors";
-
-const STORAGE_QUOTA_MESSAGE = "워크스페이스 저장 공간이 부족합니다. 사용하지 않는 문서를 삭제한 뒤 다시 올려 주세요.";
+import { ApiError, UPLOAD_LIMIT_MESSAGES } from "@/shared/lib/apiErrors";
 
 /** 서버 제한 에러 code별 안내 문구. 서버 message 대신 정해 둔 문구로 안내한다. */
 const LIMIT_ERROR_MESSAGES: Record<string, string> = {
-  STORAGE_QUOTA_EXCEEDED: STORAGE_QUOTA_MESSAGE,
+  ...UPLOAD_LIMIT_MESSAGES,
   WORKSPACE_LIMIT_EXCEEDED: "무료 워크스페이스를 더 만들 수 없습니다. 사용하지 않는 워크스페이스를 삭제한 뒤 다시 시도해 주세요."
 };
 

@@ -1,10 +1,7 @@
-// 플랜별 저장 용량·무료 워크스페이스 소유 한도. 파일 하나의 크기는 제한하지 않는다. 백엔드 요구사항 문서의 제안값을 흉내 낸다.
+// 사용자별 저장 용량·무료 워크스페이스 소유 한도. 파일 하나의 크기는 제한하지 않는다. 백엔드 기본값을 흉내 낸다.
 import { state } from "../state.mjs";
 
 const GB = 1024 * 1024 * 1024;
-
-// PRO·TEAM은 가격과 함께 정할 초안 값이다.
-const PLAN_LIMIT_BYTES = { FREE: 1 * GB, PRO: 20 * GB, TEAM: 100 * GB };
 
 export const FREE_WORKSPACE_LIMIT = 3;
 
@@ -22,28 +19,36 @@ export function freeWorkspaceCount(userId) {
   }).length;
 }
 
-/** 삭제되지 않은 문서 원본과 본문 첨부 이미지 바이트 합 */
-function usedBytes(workspaceId) {
+/** 사용자별 저장 용량 기본값. MOCK_STORAGE_LIMIT_BYTES로 바꾸고, "none"이면 한도를 끈다(limit_bytes: null). */
+function storageLimitBytes() {
+  const configured = process.env.MOCK_STORAGE_LIMIT_BYTES;
+  if (configured === "none") return null;
+  const value = Number(configured);
+  return configured && Number.isFinite(value) && value >= 0 ? value : 5 * GB;
+}
+
+/** 삭제되지 않은 워크스페이스에서 이 사용자가 올린 문서 원본과 본문 첨부 이미지 바이트 합(모든 워크스페이스 합산) */
+function usedBytes(userId) {
+  const isLive = (workspaceId) => state.workspaces.some((workspace) => workspace.id === workspaceId && !workspace.deleted_at);
   const documents = state.documents
-    .filter((doc) => doc.workspace_id === workspaceId && !doc.deleted_at)
+    .filter((doc) => doc.owner_user_id === userId && !doc.deleted_at && isLive(doc.workspace_id))
     .reduce((sum, doc) => sum + (doc.byte_size ?? 0), 0);
   const assets = state.assets
-    .filter((asset) => asset.workspace_id === workspaceId)
+    .filter((asset) => asset.owner_user_id === userId && isLive(asset.workspace_id))
     .reduce((sum, asset) => sum + (asset.buffer?.length ?? 0), 0);
   return documents + assets;
 }
 
-/** 플랜·사용량·용량. 업로드 거절(STORAGE_QUOTA_EXCEEDED) 판단에 쓴다. */
-function storageOf(workspace) {
-  const plan = planOf(workspace);
-  return { plan, used_bytes: usedBytes(workspace.id), limit_bytes: PLAN_LIMIT_BYTES[plan] };
+/** GET /api/workspaces/:wid/storage 응답. 용량은 워크스페이스가 아니라 사용자 단위다. */
+export function storageOf(userId) {
+  return { used_bytes: usedBytes(userId), limit_bytes: storageLimitBytes(), scope: "user" };
 }
 
 /** 업로드 거절 사유. 통과하면 null이다. */
-export function uploadRejection(workspace, byteSize) {
-  const storage = storageOf(workspace);
-  if (storage.used_bytes + byteSize > storage.limit_bytes) {
-    return { status: 413, code: "STORAGE_QUOTA_EXCEEDED", message: "워크스페이스 저장 공간이 부족합니다." };
+export function uploadRejection(userId, byteSize) {
+  const storage = storageOf(userId);
+  if (storage.limit_bytes !== null && storage.used_bytes + byteSize > storage.limit_bytes) {
+    return { status: 413, code: "STORAGE_QUOTA_EXCEEDED", message: "저장 공간이 부족합니다." };
   }
   return null;
 }
