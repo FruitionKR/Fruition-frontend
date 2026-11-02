@@ -1,4 +1,5 @@
 // 실시간 받아쓰기 WebSocket 계약(document docs/api/meetings.md `WS /api/meetings/{id}/live`)의 순수 규칙.
+import { AI_USAGE_LIMIT_FAILURE_MESSAGE } from "@/shared/lib/aiErrorCodes";
 // 브라우저 API를 다루는 쪽은 model/liveSession.ts다.
 
 export type LiveServerEvent =
@@ -17,13 +18,15 @@ export const LIVE_CLOSE_IN_USE = 4409;
 /** 연결당 최대 60분(AI 제한). 그 전에 finish하고 새 ticket으로 이어 간다. */
 export const LIVE_ROLLOVER_MS = 55 * 60_000;
 
-const FATAL_ERROR_CODES = new Set(["insufficient_credit", "transcript_limit", "meeting_not_open", "live_in_use"]);
+// ai_usage_limit_exceeded: 사용자별 AI 사용 한도로 연결을 받자마자 닫는다(document MeetingLiveHandler).
+const FATAL_ERROR_CODES = new Set(["insufficient_credit", "ai_usage_limit_exceeded", "transcript_limit", "meeting_not_open", "live_in_use"]);
 
 const LIVE_ERROR_MESSAGES: Record<string, string> = {
   invalid_audio: "녹음 연결이 오디오를 받지 못했습니다.",
   meeting_not_open: "더 이상 녹음할 수 없는 회의입니다.",
   transcript_limit: "글로 옮길 수 있는 분량(10만 자)을 다 채워 녹음을 멈췄습니다. 지금까지 글로 옮긴 내용으로 회의록을 만들 수 있습니다.",
   insufficient_credit: "크레딧이 부족합니다. 녹음을 멈췄고 지금까지 글로 옮긴 내용은 저장돼 있습니다.",
+  ai_usage_limit_exceeded: AI_USAGE_LIMIT_FAILURE_MESSAGE,
   segment_conflict: "글로 옮긴 문장을 저장하는 중 충돌이 생겼습니다.",
   transcript_incomplete: "일부 문장을 저장하지 못했습니다.",
   transcript_save_failed: "글로 옮긴 문장을 저장하지 못했습니다.",

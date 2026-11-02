@@ -10,7 +10,9 @@ registerHooks({ resolve(specifier, context, next) {
 const {
   AI_CONCURRENT_LIMIT_MESSAGE,
   AI_DAILY_LIMIT_MESSAGE,
+  aiUsageLimitMessage,
   ApiError,
+  formatResetTime,
   getErrorMessage,
   isAiUsageLimitError,
   UPLOAD_LIMIT_MESSAGES,
@@ -41,13 +43,44 @@ test("AI 사용량 한도: 하루 비용·토큰 한도와 모르는 값은 하�
   assert.equal(usageLimitMessage(code, { limitType: "CONCURRENT" }), AI_CONCURRENT_LIMIT_MESSAGE);
 });
 
-test("하루 한도에 초기화 시각이 있으면 '내일' 대신 그 시각을 알려 주고, 잘못된 시각은 무시한다", () => {
-  const withReset = usageLimitMessage("AI_USAGE_LIMIT_EXCEEDED", { limit_type: "DAILY_COST", reset_at: "2026-11-03T00:00:00+09:00" });
-  assert.match(withReset, /^오늘 사용할 수 있는 AI 사용량을 모두 썼어요\. .+부터 다시 이용할 수 있어요\.$/);
-  assert.doesNotMatch(withReset, /내일/);
+test("초기화 시각은 한국 시간으로: 다음 날 0시는 '내일(11월 3일) 0시', 그 밖은 날짜와 오전·오후 시각", () => {
+  // 한국 시간 11월 2일 오후 3시(UTC 06:00)
+  const now = new Date("2026-11-02T06:00:00Z");
+  const message = aiUsageLimitMessage({ limit_type: "DAILY_COST", reset_at: "2026-11-03T00:00:00+09:00" }, now);
+  assert.equal(message, "오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일(11월 3일) 0시부터 다시 이용할 수 있어요.");
+  // UTC로 같은 순간을 보내도 한국 시간으로 읽는다.
+  assert.equal(formatResetTime("2026-11-02T15:00:00Z", now), "내일(11월 3일) 0시");
+  // 한국 시간 자정 직전(11월 2일 23:30)에도 다음 날 0시는 내일이다.
+  assert.equal(formatResetTime("2026-11-03T00:00:00+09:00", new Date("2026-11-02T14:30:00Z")), "내일(11월 3일) 0시");
+  // 다음 날이 아닌 0시와 0시가 아닌 시각
+  assert.equal(formatResetTime("2026-11-05T00:00:00+09:00", now), "11월 5일 0시");
+  assert.equal(formatResetTime("2026-11-03T15:00:00+09:00", now), "11월 3일 오후 3:00");
+  assert.doesNotMatch(message, /오전 12:00/);
+});
+
+test("잘못된 초기화 시각은 무시하고, 동시 실행 한도는 초기화 시각과 관계없다", () => {
   assert.equal(usageLimitMessage("AI_USAGE_LIMIT_EXCEEDED", { resetAt: "not-a-date" }), AI_DAILY_LIMIT_MESSAGE);
-  // 동시 실행 한도는 초기화 시각과 관계없다.
   assert.equal(usageLimitMessage("AI_USAGE_LIMIT_EXCEEDED", { limit_type: "CONCURRENT", reset_at: "2026-11-03T00:00:00Z" }), AI_CONCURRENT_LIMIT_MESSAGE);
+});
+
+test("비동기 실패(회의록 error_code·문서 error_message·실시간 받아쓰기 종료 사유)도 하루 한도 안내를 쓴다", async () => {
+  const { AI_USAGE_LIMIT_FAILURE_MESSAGE, describeDocumentFailure, describeMeetingNotesError } = await import("../src/shared/lib/aiErrorCodes.ts");
+  const { describeLiveError, isFatalLiveError } = await import("../src/features/meeting-dictation/lib/liveProtocol.ts");
+  assert.equal(AI_USAGE_LIMIT_FAILURE_MESSAGE, AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(describeMeetingNotesError("AI_USAGE_LIMIT_EXCEEDED"), AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(describeDocumentFailure("AI 사용 한도에 도달해 작업을 시작하지 않았습니다. 잠시 후 또는 내일 다시 시도해 주세요."), AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(describeDocumentFailure("AI_USAGE_LIMIT_EXCEEDED"), AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(describeDocumentFailure("페이지를 추출하지 못했습니다."), "페이지를 추출하지 못했습니다.");
+  assert.equal(describeDocumentFailure(undefined), undefined);
+  assert.equal(describeLiveError("ai_usage_limit_exceeded"), AI_DAILY_LIMIT_MESSAGE);
+  // 다시 연결해도 같은 결과라 재연결하지 않는다.
+  assert.equal(isFatalLiveError("ai_usage_limit_exceeded"), true);
+});
+
+test("업로드 실패 알림 문구는 파일 이름과 사유를 함께 보인다", async () => {
+  const { uploadFailureMessage } = await import("../src/features/document-upload/lib/uploadFailure.ts");
+  assert.equal(uploadFailureMessage("big.pdf", "파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요."),
+    '"big.pdf" 파일을 올리지 못했어요. 파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요.');
 });
 
 test("업로드 제한 code는 정해 둔 문구로, 그 밖의 code는 null로 둔다", () => {
@@ -96,4 +129,30 @@ test("uploadSizeLimitMessage는 상한까지는 통과시키고 넘으면 MB 단
   assert.equal(uploadSizeLimitMessage({ size: DOCUMENT_FORM_UPLOAD_MAX_BYTES + 1 }, DOCUMENT_FORM_UPLOAD_MAX_BYTES),
     "파일이 너무 커요. 50MB 이하 파일만 올릴 수 있어요.");
   assert.match(uploadSizeLimitMessage({ size: DOCUMENT_DIRECT_UPLOAD_MAX_BYTES + 1 }, DOCUMENT_DIRECT_UPLOAD_MAX_BYTES), /100MB 이하/);
+});
+
+test("업로드가 거절된 자리표시 행은 경고 아이콘으로 표시하고, 서버 문서가 있는 실패 행은 건드리지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { runInNewContext } = await import("node:vm");
+  const ts = (await import("typescript")).default;
+  const source = readFileSync(new URL("../src/widgets/document-sidebar/ui/TreeNodeIcon.tsx", import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } });
+  const exports = {};
+  const element = (type, props) => ({ type, props });
+  const modules = {
+    "react/jsx-runtime": { jsx: element, jsxs: element },
+    "@/entities/tree": { isFileItem: (item) => item.type === "file" },
+    "@/shared/ui/SvgIcon": { fileIcon: "", sourceIcon: "", SvgIcon: () => null },
+    "@/shared/lib/classNames": { cx: (...names) => names.filter(Boolean).join(" ") },
+    "./SidebarIcons": { SidebarChevronIcon: () => null },
+    "./DocumentSidebar.module.css": { default: { "tree-folder-slot": "slot", "tree-upload-failed-icon": "failed-icon", "tree-upload-spinner": "spinner" } }
+  };
+  runInNewContext(outputText, { exports, require: (name) => modules[name] });
+  const failed = { id: "u1", label: "big.pdf", type: "file", status: "failed" };
+  assert.equal(exports.isUploadFailedItem(failed), true);
+  assert.equal(exports.isUploadFailedItem({ ...failed, documentId: "doc_1" }), false);
+  assert.equal(exports.isUploadFailedItem({ ...failed, status: "uploading" }), false);
+  const icon = exports.TreeNodeIcon({ item: failed, isExpandable: false, isOpen: false });
+  assert.equal(icon.props.className, "slot failed-icon");
+  assert.equal(icon.props.children.type, "svg");
 });

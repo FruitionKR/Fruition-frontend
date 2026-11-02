@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import { buildFailedDocumentsNotice } from "../src/features/document-notifications/model/failedDocumentsNotice.ts";
+
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  return next(specifier, context);
+} });
+
+const { buildFailedDocumentsNotice } = await import("../src/features/document-notifications/model/failedDocumentsNotice.ts");
 
 test("실패 1건은 파일명과 실패 사유를 그대로 보여준다", () => {
   const notice = buildFailedDocumentsNotice([
@@ -40,4 +47,9 @@ test("파일명이 많으면 3개까지만 나열하고 나머지는 외 N개로
     notice.message,
     '5개 문서를 처리하지 못했습니다. ("a.pdf", "b.pdf", "c.pdf" 외 2개) 실패 사유는 각 문서에서 확인해 주세요.'
   );
+});
+
+test("AI 사용량 한도로 자동 편입을 시작하지 못한 문서는 하루 한도 안내로 보인다", () => {
+  const notice = buildFailedDocumentsNotice([{ filename: "a.pdf", error_message: "AI 사용 한도에 도달해 작업을 시작하지 않았습니다. 잠시 후 또는 내일 다시 시도해 주세요." }]);
+  assert.match(notice.message, /오늘 사용할 수 있는 AI 사용량을 모두 썼어요/);
 });

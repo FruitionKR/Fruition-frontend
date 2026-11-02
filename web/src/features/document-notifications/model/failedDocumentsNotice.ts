@@ -1,3 +1,4 @@
+import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { NoticePayload } from "./noticeBus";
 
@@ -13,7 +14,7 @@ export function buildFailedDocumentsNotice(failedDocuments: FailedDocumentSummar
     return {
       kind: "failed",
       title: "문서 처리 실패",
-      message: `"${failed.filename}" 처리에 실패했습니다. ${failed.error_message ?? "실패 사유를 확인해 주세요."}`
+      message: `"${failed.filename}" 처리에 실패했습니다. ${describeDocumentFailure(failed.error_message) ?? "실패 사유를 확인해 주세요."}`
     };
   }
 
