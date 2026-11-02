@@ -1,5 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document";
 import { isDocumentPipelineActive } from "@/entities/document/lib/documentKind";
+import type { WikiGraphResponse } from "@/entities/wiki";
 
 /**
  * 그래프 idle 안전 폴링 주기. 그래프는 편입 완료·Lint 완료·명시적 새로고침 때 바로 다시 받으므로,
@@ -24,4 +25,24 @@ export function hasNewlyCompletedDocuments(previous: readonly DocumentState[], c
     if (!before || document.status !== "completed" || isDocumentPipelineActive(document)) return false;
     return isDocumentPipelineActive(before) || before.status !== "completed" || before.processed_at !== document.processed_at;
   });
+}
+
+type GraphDataSnapshot = {
+  graph: Pick<WikiGraphResponse, "nodes" | "edges">;
+  documents: readonly DocumentState[];
+};
+
+/** 그래프 새로고침 전후로 그래프(노드·링크)나 그래프에 쓰이는 문서 상태가 달라졌는지. 순서는 무시한다. */
+export function hasGraphDataChanged(before: GraphDataSnapshot | undefined, after: GraphDataSnapshot) {
+  if (!before) return true;
+  return graphDataSignature(before) !== graphDataSignature(after);
+}
+
+function graphDataSignature({ graph, documents }: GraphDataSnapshot) {
+  const nodes = graph.nodes.map((node) => node.id).sort();
+  const edges = graph.edges.map((edge) => `${edge.from_page_id}>${edge.to_page_id}:${edge.link_type}`).sort();
+  const documentStates = documents
+    .map((document) => `${document.id}:${document.status}:${document.processing_state ?? ""}:${document.processed_at ?? ""}`)
+    .sort();
+  return JSON.stringify([nodes, edges, documentStates]);
 }

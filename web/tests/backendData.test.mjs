@@ -183,6 +183,20 @@ test("Lint가 끝나면 그래프를 다시 받는다", (t) => {
   assert.deepEqual(refetchCalls, [["graph", undefined]]);
 });
 
+test("refreshGraph는 문서·그래프를 오류를 던지게 다시 받고 바뀌었는지 돌려준다", async (t) => {
+  const view = renderBackendData(t);
+  const d1 = doc("d1");
+  queries.documents = { data: { documents: [d1], tree: [treeItem(d1)] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  queries.graph = { data: { nodes: [{ id: "p1" }], edges: [] }, error: null, isLoading: false, dataUpdatedAt: 1 };
+  const data = view.data;
+
+  assert.deepEqual(await data.refreshGraph(), { changed: false });
+  assert.deepEqual(refetchCalls, [["documents", { throwOnError: true }], ["graph", { throwOnError: true }]]);
+
+  queries.graph = { ...queries.graph, data: { nodes: [{ id: "p1" }, { id: "p2" }], edges: [] } };
+  assert.deepEqual(await data.refreshGraph(), { changed: true });
+});
+
 test("setDocuments는 query cache의 documents만 바꾸고 캐시가 비어 있으면 빈 목록에서 시작한다", (t) => {
   const view = renderBackendData(t);
   const data = view.data;

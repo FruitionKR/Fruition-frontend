@@ -125,7 +125,8 @@ export function HomeWorkspace() {
     wikiGraph,
     isGraphLoading,
     apiError,
-    refreshBackendData
+    refreshBackendData,
+    refreshGraph
   } = useBackendData({ setProjects: projectTree.setProjects });
   const pdfWikiIngest = usePdfWikiIngest(documents, refreshBackendData, documentsUpdatedAt);
   const wikiActions = useGraphWikiActions({ documents, pdfWikiIngest, refreshBackendData });
@@ -575,6 +576,7 @@ export function HomeWorkspace() {
           loading={isGraphLoading}
           errorMessage={apiError}
           ingestProgressInputs={graphIngestProgressInputs}
+          onRefreshGraph={refreshGraph}
         />
       )}
 

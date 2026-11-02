@@ -54,3 +54,26 @@ test("idle 안전 폴링은 문서 목록 idle 주기(15초)보다 길고, 묶�
   assert.ok(GRAPH_IDLE_POLL_INTERVAL_MS >= 15_000);
   assert.ok(GRAPH_REFRESH_DEBOUNCE_MS > 0 && GRAPH_REFRESH_DEBOUNCE_MS <= 1_000);
 });
+
+const { hasGraphDataChanged } = await import("../src/widgets/workspace/model/graphRefreshTriggers.ts");
+
+test("hasGraphDataChanged: 노드·링크·문서 상태가 같으면 순서가 달라도 바뀌지 않은 것으로 본다", () => {
+  const before = {
+    graph: { nodes: [{ id: "p1" }, { id: "p2" }], edges: [{ from_page_id: "p1", to_page_id: "p2", link_type: "related" }] },
+    documents: [doc("a", "completed", "completed", "t1"), doc("b", "uploaded")]
+  };
+  const after = {
+    graph: { nodes: [{ id: "p2" }, { id: "p1" }], edges: [{ from_page_id: "p1", to_page_id: "p2", link_type: "related" }] },
+    documents: [doc("b", "uploaded"), doc("a", "completed", "completed", "t1")]
+  };
+  assert.equal(hasGraphDataChanged(before, after), false);
+});
+
+test("hasGraphDataChanged: 노드·링크가 늘거나 문서가 추가·완료되면 바뀐 것으로 본다", () => {
+  const base = { graph: { nodes: [{ id: "p1" }], edges: [] }, documents: [doc("a", "uploaded")] };
+  assert.equal(hasGraphDataChanged(base, { ...base, graph: { nodes: [{ id: "p1" }, { id: "p2" }], edges: [] } }), true);
+  assert.equal(hasGraphDataChanged(base, { ...base, graph: { nodes: [{ id: "p1" }], edges: [{ from_page_id: "p1", to_page_id: "p1", link_type: "x" }] } }), true);
+  assert.equal(hasGraphDataChanged(base, { ...base, documents: [doc("a", "completed", "completed")] }), true);
+  assert.equal(hasGraphDataChanged(base, { ...base, documents: [doc("a", "uploaded"), doc("c", "uploaded")] }), true);
+  assert.equal(hasGraphDataChanged(undefined, base), true, "이전 데이터가 없으면 바뀐 것으로 본다");
+});

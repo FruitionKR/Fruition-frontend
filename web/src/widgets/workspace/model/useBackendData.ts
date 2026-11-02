@@ -12,7 +12,12 @@ import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { useObservedActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
-import { GRAPH_IDLE_POLL_INTERVAL_MS, GRAPH_REFRESH_DEBOUNCE_MS, hasNewlyCompletedDocuments } from "./graphRefreshTriggers";
+import {
+  GRAPH_IDLE_POLL_INTERVAL_MS,
+  GRAPH_REFRESH_DEBOUNCE_MS,
+  hasGraphDataChanged,
+  hasNewlyCompletedDocuments
+} from "./graphRefreshTriggers";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 // 로딩 중 렌더마다 새 []를 돌려주면 documents에 묶인 memo·effect가 매번 무효화된다.
@@ -102,6 +107,29 @@ export function useBackendData({
     if (tree) setProjects((current) => projectsFromServerTree(tree, current));
   }, [refetch, refetchGraph, setProjects]);
 
+  // 그래프 새로고침 버튼은 렌더 시점이 아니라 누른 시점의 데이터와 비교해야 하므로 ref로 최신값을 둔다.
+  const latestGraphDataRef = useRef({ graph: graphQuery.data, documents: backendData?.documents });
+  latestGraphDataRef.current = { graph: graphQuery.data, documents: backendData?.documents };
+
+  /**
+   * 그래프 화면의 새로고침 버튼용. 그래프와 함께 문서 목록도 받아 편입 완료·새 원본(raw 노드)이 같이 반영되게 하고,
+   * 실패는 호출부가 알림을 띄우도록 던진다(기존 데이터는 react-query가 그대로 둔다). 바뀐 내용이 있었는지 돌려준다.
+   */
+  const refreshGraph = useCallback(async () => {
+    const before = latestGraphDataRef.current;
+    const [documentsResult, graphResult] = await Promise.all([
+      refetch({ throwOnError: true }),
+      refetchGraph({ throwOnError: true })
+    ]);
+    const tree = documentsResult.data?.tree;
+    if (tree) setProjects((current) => projectsFromServerTree(tree, current));
+    const changed = hasGraphDataChanged(
+      before.graph ? { graph: before.graph, documents: before.documents ?? EMPTY_DOCUMENTS } : undefined,
+      { graph: graphResult.data ?? EMPTY_GRAPH, documents: documentsResult.data?.documents ?? EMPTY_DOCUMENTS }
+    );
+    return { changed };
+  }, [refetch, refetchGraph, setProjects]);
+
   /** 업로드 낙관적 갱신용: query cache의 documents를 직접 수정한다. */
   const setDocuments = useCallback(
     (action: SetStateAction<DocumentItemResponse[]>) => {
@@ -122,6 +150,7 @@ export function useBackendData({
     wikiGraph: graphQuery.data ?? EMPTY_GRAPH,
     isGraphLoading: graphQuery.isLoading,
     apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, "백엔드 데이터를 불러오지 못했습니다.") : null,
-    refreshBackendData
+    refreshBackendData,
+    refreshGraph
   };
 }
