@@ -8,7 +8,7 @@ import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
-import { isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
+import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
@@ -30,7 +30,8 @@ import {
   taskHeadingKind,
   type TaskGroup,
   type TaskMessageItem,
-  type TaskStatusView
+  type TaskStatusView,
+  withAutoApprovalLabel
 } from "../lib/taskThread";
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
@@ -78,16 +79,20 @@ function countPlanResults(action: string | null, run: AgentPlanRun | null): { ap
 }
 
 /** 작업 한 줄(Figma 1610:9596): 번개 아이콘 + "종류 : 요청" 왼쪽, 상태 오른쪽. 거절·실패는 빨간 취소선 */
-function TaskRow({ title, status }: { title: string; status: TaskStatusView }) {
+function TaskRow({ title, status, note = null }: { title: string; status: TaskStatusView; note?: string | null }) {
   const isDanger = status.tone === "danger";
   return (
-    <div className={cx(styles["task-row"], isDanger && styles["is-danger"], status.struck && styles["is-struck"], status.tone === "muted" && styles["is-muted"])}>
-      <span className={styles["task-row-title"]} title={title}>
-        <AgentAssetIcon src={isDanger ? taskBoltDangerIcon : taskBoltIcon} size={12} />
-        <span>{title}</span>
-      </span>
-      <span className={styles["task-row-status"]}>{status.label}</span>
-    </div>
+    <>
+      <div className={cx(styles["task-row"], isDanger && styles["is-danger"], status.struck && styles["is-struck"], status.tone === "muted" && styles["is-muted"])}>
+        <span className={styles["task-row-title"]} title={title}>
+          <AgentAssetIcon src={isDanger ? taskBoltDangerIcon : taskBoltIcon} size={12} />
+          <span>{title}</span>
+        </span>
+        <span className={styles["task-row-status"]}>{status.label}</span>
+      </div>
+      {/* 자동 승인으로 실행한 작업은 되돌리는 방법을 행 아래에 바로 적는다. */}
+      {note && <TaskNote>{note}</TaskNote>}
+    </>
   );
 }
 
@@ -286,7 +291,7 @@ export function AgentTaskBody({
     // 계획 전체 수가 아니라 실제로 저장된 작업만 센다(고르지 않은·실패한 작업 제외).
     // 폴더 정리는 미리보기("4개 중 3개 선택")처럼 줄(문서·항목) 단위로 세고 새 폴더는 따로 적는다.
     const results = countPlanResults(item.action, run);
-    const status = resolveTaskStatus({
+    const status = withAutoApprovalLabel(resolveTaskStatus({
       action: item.action,
       messageStatus: item.messageStatus,
       runStatus: run?.status,
@@ -304,7 +309,7 @@ export function AgentTaskBody({
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),
       hasLaterTask: index < visibleItems.length - 1 || Boolean(pendingTask)
-    });
+    }), isAutoApprovedPlan(run));
     const { request, summary } = resolveTaskRequest(item.request, run?.request_summary);
     return {
       item,
@@ -528,7 +533,12 @@ export function AgentTaskBody({
                 {/* 답이 곧 결과인 작업(폴더 내용 조회)은 한 줄 대신 답을 담은 카드로, 나머지는 이어진 행끼리 묶는다. */}
                 {chunkDoneEntries(groupEntries).map((chunk) => "answer" in chunk ? renderCard(chunk.answer) : (
                   <div key={chunk.rows[0].item.key} className={styles["task-rows"]}>
-                    {chunk.rows.map((entry) => <TaskRow key={entry.item.key} title={entry.title} status={entry.status} />)}
+                    {chunk.rows.map((entry) => <TaskRow
+                      key={entry.item.key}
+                      title={entry.title}
+                      status={entry.status}
+                      note={entry.run?.plan && isAutoApprovedPlan(entry.run) && entry.run.status === "completed" ? autoApprovedPlanNote(entry.run.plan) : null}
+                    />)}
                   </div>
                 ))}
                 <TaskNote>{DONE_NOTICE}</TaskNote>

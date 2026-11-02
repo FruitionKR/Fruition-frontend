@@ -6,7 +6,7 @@ import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isOperationNotSelected, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, isOperationNotSelected, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import { cx } from "@/shared/lib/classNames";
@@ -114,7 +114,8 @@ export function AgentPlanTaskDetail({
   const planSummary = splitPlanSummary(plan?.summary);
   const note = clarificationMessage
     ?? failureMessage
-    ?? (canDecide ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null);
+    ?? (canDecide ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null)
+    ?? (plan && isAutoApprovedPlan(run) ? autoApprovedPlanNote(plan) : null);
 
   return (
     <div className={styles["task-plan"]} aria-label={action === "folder_organize" ? "폴더 정리 계획" : "워크스페이스 작업 계획"}>

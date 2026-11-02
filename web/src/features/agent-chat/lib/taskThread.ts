@@ -268,6 +268,14 @@ export function resolveTaskStatus({
   return { group: "done", label: "답변", tone: "muted", struck: false };
 }
 
+export const AUTO_APPROVED_LABEL = "자동 승인됨";
+
+/** 자동 승인으로 실행한 계획은 상태 뒤에 "자동 승인됨"을 붙여 직접 승인한 작업과 구별한다. */
+export function withAutoApprovalLabel(status: TaskStatusView, isAutoApproved: boolean): TaskStatusView {
+  if (!isAutoApproved || status.group === "approval") return status;
+  return { ...status, label: `${status.label} · ${AUTO_APPROVED_LABEL}` };
+}
+
 /** 같은 작업을 다시 실행한 것으로 볼 기준: 스킬 요청은 `/slug`, 그 밖에는 요청 문장 그대로. */
 function taskRequestKey(request: string): string {
   const text = request.trim().normalize("NFC");
