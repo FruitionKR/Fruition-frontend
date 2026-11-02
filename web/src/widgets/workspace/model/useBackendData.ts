@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentDataQueryKey, fetchDocumentData, fetchWikiGraph } from "@/entities/wiki";
@@ -11,6 +11,13 @@ import type { Project } from "@/entities/tree";
 import type { BackendData, WikiGraphResponse } from "@/entities/wiki";
 import { getWikiWorkPollInterval, isStaleForIdlePoll } from "@/features/wiki-ingest/model/wikiWorkPolling";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
+import { useObservedActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
+import {
+  GRAPH_IDLE_POLL_INTERVAL_MS,
+  GRAPH_REFRESH_DEBOUNCE_MS,
+  hasGraphDataChanged,
+  hasNewlyCompletedDocuments
+} from "./graphRefreshTriggers";
 
 const EMPTY_GRAPH: WikiGraphResponse = { nodes: [], edges: [] };
 // 로딩 중 렌더마다 새 []를 돌려주면 documents에 묶인 memo·effect가 매번 무효화된다.
@@ -45,7 +52,9 @@ export function useBackendData({
     queryKey: ["backendData", workspaceId, "graph"],
     queryFn: fetchWikiGraph,
     enabled: Boolean(workspaceId),
-    refetchInterval: getWikiWorkPollInterval(hasProcessingDocuments(query.data), isPageVisible),
+    // 편입 중 3초 주기로 받으면 노드가 임의의 시점에 조금씩 끼어든다. 그래프는 아래 완료 이벤트로 한 번에 받고,
+    // 이 폴링은 다른 멤버의 변경처럼 이벤트로 못 잡는 경우만 느리게 메운다.
+    refetchInterval: isPageVisible ? GRAPH_IDLE_POLL_INTERVAL_MS : false,
     // 그래프는 알림에 쓰이지 않으므로 숨김 탭에서는 멈추고, 복귀할 때 오래된 경우만 다시 받는다(#66).
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: (activeQuery) => isStaleForIdlePoll(activeQuery.state.dataUpdatedAt)
@@ -61,12 +70,64 @@ export function useBackendData({
 
   const { refetch } = query;
   const { refetch: refetchGraph } = graphQuery;
+
+  // 편입 완료·Lint 완료가 한꺼번에 몰려도 그래프는 한 번만 다시 받아 새 노드가 한 묶음으로 들어오게 한다.
+  const graphRefreshTimerRef = useRef<number | null>(null);
+  const scheduleGraphRefresh = useCallback(() => {
+    if (graphRefreshTimerRef.current !== null) window.clearTimeout(graphRefreshTimerRef.current);
+    graphRefreshTimerRef.current = window.setTimeout(() => {
+      graphRefreshTimerRef.current = null;
+      void refetchGraph();
+    }, GRAPH_REFRESH_DEBOUNCE_MS);
+  }, [refetchGraph]);
+  useEffect(() => () => {
+    if (graphRefreshTimerRef.current !== null) window.clearTimeout(graphRefreshTimerRef.current);
+  }, []);
+
+  const previousDocumentsRef = useRef(backendData?.documents ?? EMPTY_DOCUMENTS);
+  useEffect(() => {
+    const currentDocuments = backendData?.documents ?? EMPTY_DOCUMENTS;
+    const previousDocuments = previousDocumentsRef.current;
+    previousDocumentsRef.current = currentDocuments;
+    if (hasNewlyCompletedDocuments(previousDocuments, currentDocuments)) scheduleGraphRefresh();
+  }, [backendData, scheduleGraphRefresh]);
+
+  const isLintActive = useObservedActiveLintOperation() !== null;
+  const wasLintActiveRef = useRef(isLintActive);
+  useEffect(() => {
+    const wasLintActive = wasLintActiveRef.current;
+    wasLintActiveRef.current = isLintActive;
+    if (wasLintActive && !isLintActive) scheduleGraphRefresh();
+  }, [isLintActive, scheduleGraphRefresh]);
   const refreshBackendData = useCallback(async (options?: { throwOnError?: boolean }) => {
     const [documentsResult] = await Promise.all([refetch({ throwOnError: options?.throwOnError }), refetchGraph()]);
     // 트리 변경 큐의 다음 작업이 렌더를 기다리지 않고 최신 트리를 보도록 바로 병합한다.
     // 위 effect가 같은 데이터로 다시 병합해도 결과는 같다.
     const tree = documentsResult.data?.tree;
     if (tree) setProjects((current) => projectsFromServerTree(tree, current));
+  }, [refetch, refetchGraph, setProjects]);
+
+  // 그래프 새로고침 버튼은 렌더 시점이 아니라 누른 시점의 데이터와 비교해야 하므로 ref로 최신값을 둔다.
+  const latestGraphDataRef = useRef({ graph: graphQuery.data, documents: backendData?.documents });
+  latestGraphDataRef.current = { graph: graphQuery.data, documents: backendData?.documents };
+
+  /**
+   * 그래프 화면의 새로고침 버튼용. 그래프와 함께 문서 목록도 받아 편입 완료·새 원본(raw 노드)이 같이 반영되게 하고,
+   * 실패는 호출부가 알림을 띄우도록 던진다(기존 데이터는 react-query가 그대로 둔다). 바뀐 내용이 있었는지 돌려준다.
+   */
+  const refreshGraph = useCallback(async () => {
+    const before = latestGraphDataRef.current;
+    const [documentsResult, graphResult] = await Promise.all([
+      refetch({ throwOnError: true }),
+      refetchGraph({ throwOnError: true })
+    ]);
+    const tree = documentsResult.data?.tree;
+    if (tree) setProjects((current) => projectsFromServerTree(tree, current));
+    const changed = hasGraphDataChanged(
+      before.graph ? { graph: before.graph, documents: before.documents ?? EMPTY_DOCUMENTS } : undefined,
+      { graph: graphResult.data ?? EMPTY_GRAPH, documents: documentsResult.data?.documents ?? EMPTY_DOCUMENTS }
+    );
+    return { changed };
   }, [refetch, refetchGraph, setProjects]);
 
   /** 업로드 낙관적 갱신용: query cache의 documents를 직접 수정한다. */
@@ -89,6 +150,7 @@ export function useBackendData({
     wikiGraph: graphQuery.data ?? EMPTY_GRAPH,
     isGraphLoading: graphQuery.isLoading,
     apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, "백엔드 데이터를 불러오지 못했습니다.") : null,
-    refreshBackendData
+    refreshBackendData,
+    refreshGraph
   };
 }

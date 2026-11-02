@@ -4,6 +4,7 @@ import { DEFAULT_USER_PREFERENCES } from "@/entities/user/model/preferences";
 import type { GraphFilterKind, GraphNode } from "@/entities/wiki";
 import { GraphCanvas, type GraphCanvasProps } from "./GraphCanvas";
 import { GraphFilterChips } from "./GraphFilterChips";
+import { GraphRefreshButton } from "./GraphRefreshButton";
 import styles from "./Graph.module.css";
 
 function nodeFilterKind(node: GraphNode): GraphFilterKind {
@@ -19,8 +20,13 @@ export function Graph({
   onClearNodeFocus,
   loading = false,
   errorMessage = null,
-  ingestProgressInputs
-}: GraphCanvasProps & { rawDocumentCount: number }) {
+  ingestProgressInputs,
+  onRefreshGraph
+}: GraphCanvasProps & {
+  rawDocumentCount: number;
+  /** 있으면 범례 옆에 새로고침 버튼을 둔다. 바뀐 내용이 있었는지 돌려준다. */
+  onRefreshGraph?: () => Promise<{ changed: boolean }>;
+}) {
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
   const [filtersReady, setFiltersReady] = useState(false);
 
@@ -70,7 +76,9 @@ export function Graph({
         conceptNodeCount={conceptNodeCount}
         visibleKinds={visibleKinds}
         onToggleKind={toggleKind}
-      />
+      >
+        {onRefreshGraph && <GraphRefreshButton onRefresh={onRefreshGraph} />}
+      </GraphFilterChips>
       <GraphCanvas
         nodes={visibleNodes}
         links={visibleLinks}

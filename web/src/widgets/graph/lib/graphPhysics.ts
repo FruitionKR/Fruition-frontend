@@ -53,12 +53,18 @@ export function createGraphSimulation({
   nodes,
   links,
   startPositions,
-  originPositions
+  originPositions,
+  initialAlpha = 1,
+  velocityDecay
 }: {
   nodes: GraphNode[];
   links: GraphLink[];
   startPositions: NodePositionMap;
   originPositions: NodePositionMap;
+  /** 데이터 갱신으로 다시 만들 때는 낮게 줘서 기존 레이아웃이 크게 흔들리지 않게 한다. */
+  initialAlpha?: number;
+  /** 지정하면 d3 기본 속도 감쇠(0.4) 대신 쓴다. 갱신 뒤 settle을 차분하게 할 때 높인다. */
+  velocityDecay?: number;
 }): GraphSimulation {
   const simNodes: GraphSimNode[] = nodes.map((node) => ({
     id: node.id,
@@ -101,7 +107,9 @@ export function createGraphSimulation({
       forceY<GraphSimNode>((node) => originPositions[node.id]?.y ?? GRAPH_CENTER.y).strength(SIM_FORCES.originStrength)
     )
     .alphaMin(SIM_FORCES.alphaMin)
+    .alpha(initialAlpha)
     .stop(); // 내부 타이머 대신 RAF 루프에서 수동 tick
+  if (velocityDecay !== undefined) simulation.velocityDecay(velocityDecay);
 
   return { simulation, nodeById };
 }

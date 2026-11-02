@@ -140,3 +140,65 @@
   color: var(--color-foreground);
   font-weight: 600;
 }
+
+/* --- refresh (범례 칩 줄 끝) --- */
+.graph-refresh {
+  position: relative;
+  display: inline-flex;
+}
+
+/* 바뀐 것이 없을 때만 잠깐 보이는 조용한 문구. 칩 줄이 밀리지 않게 버튼 아래에 띄운다.
+   비어 있어도 role=status 영역은 남겨 둔다. */
+.graph-refresh-status {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.graph-refresh-status:empty {
+  display: none;
+}
+
+.graph-refresh-button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.graph-refresh-button:hover {
+  --button-hover-overlay: none;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+}
+
+.graph-refresh-button:active:not([aria-disabled="true"]) {
+  transform: scale(0.94);
+}
+
+.graph-refresh-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 받는 중: 반복 클릭을 막고(aria-disabled) 흐리게 둔다. 동작 줄이기면 아이콘은 돌지 않는다. */
+.graph-refresh-button.is-loading {
+  color: var(--color-muted);
+  cursor: progress;
+}
+
+.graph-refresh-icon.is-spinning {
+  animation: global(spin) 0.9s linear infinite;
+}

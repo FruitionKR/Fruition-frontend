@@ -1,5 +1,6 @@
 import type { GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
 import { getGraphPalette, hexToRgb, mixHexColor, type GraphPalette } from "./graphColors";
+import type { NodeEntryFrame } from "./graphEnter";
 import rawNodeIcon from "@/shared/assets/svg/graph/raw-document-node.svg";
 
 const RAW_NODE_ICON_SRC = rawNodeIcon.src;
@@ -13,6 +14,10 @@ const BASE_LINK_WIDTH = 1.4;
 const RAW_SOURCE_LINK_WIDTH = 1.6;
 const RAW_SOURCE_LINK_DASH = [3, 2.5];
 const GENERATING_LINK_DASH = [4, 3];
+
+// 새 노드 강조 geometry: 노드 바깥 광채 폭과 링 간격
+const NEW_NODE_GLOW_WIDTH = 22;
+const NEW_NODE_RING_GAP = 5;
 
 // 생성 중 노드 geometry (Figma 1406:15752: 52px 진행률 링, 34px 점선 원)
 const PROGRESS_RING_RADIUS = 23.4;
@@ -40,7 +45,8 @@ export function drawGraphFrame({
   graphToCanvas,
   nodeSize,
   isRawSourceLink,
-  getNodeProgress
+  getNodeProgress,
+  getNodeEntry
 }: {
   canvas: HTMLCanvasElement;
   nodes: GraphNode[];
@@ -53,6 +59,8 @@ export function drawGraphFrame({
   isRawSourceLink: (link: GraphLink) => boolean;
   /** 연출형 진행률(0~1). 값이 있으면 node.progress보다 우선한다. */
   getNodeProgress?: (nodeId: string) => number | undefined;
+  /** 첫 렌더 뒤 추가돼 등장 중인 노드의 이번 프레임 모습. null이면 평소대로 그린다. */
+  getNodeEntry?: (nodeId: string) => NodeEntryFrame | null;
 }) {
   ensureCanvasSize(canvas);
   const pixelRatio = window.devicePixelRatio || 1;
@@ -93,12 +101,20 @@ export function drawGraphFrame({
     const fadedAlpha = rawSourceLink || generatingLink ? 0.14 : 0.08;
     const linkHoverAmount = Math.max(nodeHoverAmounts[link.from] ?? 0, nodeHoverAmounts[link.to] ?? 0);
     const focusAmount = focusAmountFromHover(linkHoverAmount);
+    // 새 노드로 가는 링크는 먼저 자리 잡은 끝에서 새 노드 쪽으로 뻗어 나간다(덜 진행된 쪽이 나중에 온 노드).
+    const fromEntry = getNodeEntry?.(link.from) ?? null;
+    const toEntry = getNodeEntry?.(link.to) ?? null;
+    const growsTowardFrom = fromEntry !== null && (toEntry === null || fromEntry.edge < toEntry.edge);
+    const linkGrowth = (growsTowardFrom ? fromEntry : toEntry)?.edge ?? 1;
+    if (linkGrowth <= 0) continue;
+    const lineStart = growsTowardFrom ? lerpPosition(toScreen, fromScreen, linkGrowth) : fromScreen;
+    const lineEnd = growsTowardFrom ? toScreen : lerpPosition(fromScreen, toScreen, linkGrowth);
 
     context.save();
     context.globalAlpha = fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount;
     context.beginPath();
-    context.moveTo(fromScreen.x, fromScreen.y);
-    context.lineTo(toScreen.x, toScreen.y);
+    context.moveTo(lineStart.x, lineStart.y);
+    context.lineTo(lineEnd.x, lineEnd.y);
     if (generatingLink) {
       // 생성 중 노드로 가는 링크: primary 그라데이션 점선 (생성 중 쪽이 옅다)
       const generatingAtEnd = nodeProgress(nodeById.get(link.to), getNodeProgress) !== null;
@@ -121,8 +137,8 @@ export function drawGraphFrame({
       context.lineWidth = 2.6;
       context.strokeStyle = palette.hoverNode;
       context.beginPath();
-      context.moveTo(fromScreen.x, fromScreen.y);
-      context.lineTo(toScreen.x, toScreen.y);
+      context.moveTo(lineStart.x, lineStart.y);
+      context.lineTo(lineEnd.x, lineEnd.y);
       context.stroke();
     }
 
@@ -137,10 +153,23 @@ export function drawGraphFrame({
     const radius = nodeSize(node) / 2;
     const hoverAmount = nodeHoverAmounts[node.id] ?? 0;
     const focusAmount = focusAmountFromHover(linkedHoverAmounts.get(node.id) ?? 0);
-    const nodeAlpha = 0.16 + 0.84 * focusAmount;
+    const entry = getNodeEntry?.(node.id) ?? null;
+    const entryOpacity = entry?.opacity ?? 1;
+    if (entryOpacity <= 0) continue;
+    const focusAlpha = 0.16 + 0.84 * focusAmount;
+    const nodeAlpha = focusAlpha * entryOpacity;
 
     context.save();
+    if (entry && entry.glow > 0) {
+      drawNewNodeHighlight(context, palette, screenPosition.x, screenPosition.y, radius, entry, focusAlpha);
+    }
     context.globalAlpha = nodeAlpha;
+    if (entry && entry.scale !== 1) {
+      // 노드 중심을 기준으로 작게 시작해 살짝 넘쳤다가 원래 크기로 돌아온다(라벨·마커 포함).
+      context.translate(screenPosition.x, screenPosition.y);
+      context.scale(entry.scale, entry.scale);
+      context.translate(-screenPosition.x, -screenPosition.y);
+    }
 
     const progress = nodeProgress(node, getNodeProgress);
     if (progress !== null) {
@@ -150,7 +179,7 @@ export function drawGraphFrame({
     }
 
     if (hoverAmount > 0.01) {
-      drawSelectedNodeMarker(context, palette, screenPosition.x, screenPosition.y, hoverAmount);
+      drawSelectedNodeMarker(context, palette, screenPosition.x, screenPosition.y, hoverAmount * entryOpacity);
       context.globalAlpha = nodeAlpha;
     }
 
@@ -186,9 +215,47 @@ export function drawGraphFrame({
       context.fill();
     }
 
+    // 새 노드의 라벨은 노드가 핀 뒤에 따라 나타난다.
+    context.globalAlpha = focusAlpha * (entry?.label ?? 1);
     drawNodeLabel(context, palette, node, screenPosition.x, screenPosition.y);
     context.restore();
   }
+}
+
+function lerpPosition(from: NodePosition, to: NodePosition, amount: number): NodePosition {
+  return { x: from.x + (to.x - from.x) * amount, y: from.y + (to.y - from.y) * amount };
+}
+
+/** 새로 들어온 노드 강조: 옅은 광채와 얇은 링. 동작 줄이기면 움직임 없는 링만 그린다. */
+function drawNewNodeHighlight(
+  context: CanvasRenderingContext2D,
+  palette: GraphPalette,
+  x: number,
+  y: number,
+  radius: number,
+  entry: NodeEntryFrame,
+  focusAlpha: number
+) {
+  context.save();
+  if (!entry.staticRing) {
+    const glowRgb = hexToRgb(palette.hoverNode).join(", ");
+    const outerRadius = radius + NEW_NODE_GLOW_WIDTH;
+    const gradient = context.createRadialGradient(x, y, radius, x, y, outerRadius);
+    gradient.addColorStop(0, `rgba(${glowRgb}, ${palette.hoverGlowAlpha})`);
+    gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
+    context.globalAlpha = focusAlpha * entry.glow;
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(x, y, outerRadius, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.globalAlpha = focusAlpha * (entry.staticRing ? 0.85 : 0.7 * entry.glow);
+  context.strokeStyle = palette.hoverNode;
+  context.lineWidth = 1.5;
+  context.beginPath();
+  context.arc(x, y, radius + NEW_NODE_RING_GAP, 0, Math.PI * 2);
+  context.stroke();
+  context.restore();
 }
 
 /** canvas 크기를 devicePixelRatio에 맞춰 갱신한다. 크기가 바뀌었으면 true를 반환한다. */
