@@ -8,7 +8,7 @@ import { InlineEditInput } from "./InlineEditInput";
 import { inheritedPermissionLabel, permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
 import { SidebarConversionLinkIcon, SidebarPermissionIcon } from "./SidebarIcons";
 import { buildWorkspaceHref } from "@/widgets/workspace/lib/workspaceLocation";
-import { TreeNodeIcon } from "./TreeNodeIcon";
+import { isUploadFailedItem, TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
 import { describeTreeConversionBadge } from "../model/treeConversionBadge";
@@ -77,6 +77,8 @@ export function TreeNode({
   const isFolderBlockTarget = isFolder && (isDropInside || isFileDropTarget);
   // 업로드가 끝나기 전 자리표시 행: 열기·드래그·메뉴를 막고 진행 중임을 표시한다.
   const isUploading = item.status === "uploading";
+  // 서버에 문서가 만들어지지 않은 업로드 자리표시 행의 실패. 사유는 알림 카드와 행 title로 보인다.
+  const isUploadFailed = isUploadFailedItem(item);
   const display = fileDisplay(item);
   // 기존 확장자 배지 자리에서 원본 PDF와 변환된 노트의 역할·연결을 보여준다.
   const conversionBadge = !isUploading && item.documentId
@@ -120,6 +122,7 @@ export function TreeNode({
           // 지금 열린 문서(URL 대상)의 행을 강조한다.
           (item.active || interaction.selectedItemId === item.id) && styles["is-active"],
           isUploading && styles["is-uploading"],
+          isUploadFailed && styles["is-upload-failed"],
           isSelected && styles["is-selected"],
           (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
           isFileDropTarget && styles["is-file-drop-target"],
@@ -226,6 +229,8 @@ export function TreeNode({
             )}
             {isUploading
               ? <small className={styles["tree-type-badge"]}>업로드 중</small>
+              : isUploadFailed
+                ? <small className={cx(styles["tree-type-badge"], styles["is-upload-failed"])}>업로드 실패</small>
               : conversionBadge
                 ? (
                   <Tooltip content={conversionDescription} placement="right" disabled={Boolean(relatedDocumentId)} className={styles["tree-conversion-inline"]}>
