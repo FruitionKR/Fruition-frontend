@@ -5,6 +5,7 @@ import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
 import { EditorStatus, editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
@@ -40,6 +41,7 @@ import { DocumentMarkdownViewer as MarkdownViewer } from "@/shared/ui/markdown/D
 import { afterPaint } from "@/shared/lib/afterPaint";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { configureMathEditor } from "../model/mathEditorConfig";
+import { internalAppHref, shouldOpenInApp } from "../model/internalAppLinks";
 import styles from "./NoteEditor.module.css";
 
 /** Backspace로 리스트 항목의 첫 문단 맨 앞을 지우면 문단을 리스트 밖으로 빼낸다 (Shift+Tab과 동일).
@@ -150,6 +152,7 @@ export function NoteEditor({
   const editorReady = editorLoad.documentId === documentId && editorLoad.phase === "ready";
   const editorFailed = editorLoad.documentId === documentId && editorLoad.phase === "failed";
   const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
   const crepeRef = useRef<Crepe | null>(null);
   const bodyRef = useRef(initialBody);
   const queueSaveRef = useRef(queueSave);
@@ -385,6 +388,53 @@ export function NoteEditor({
       cancelAnimationFrame(frame);
     };
   }, [canEdit, documentId]);
+
+  // 앱 문서 링크(/home?doc=…)는 앱 안에서 연다(새로고침 없이 URL만 바꾼다). 외부 링크는 지금처럼 툴팁 주소로만 새 탭에 연다.
+  // - 링크 툴팁에 "열기" 버튼을 붙이고, 툴팁의 주소 글자를 눌러도 새 탭 대신 앱 안에서 연다.
+  // - 본문에서 Cmd/Ctrl+클릭하면 연다. 그냥 클릭은 편집(캐럿 이동)으로 둔다.
+  useEffect(() => {
+    const root = wysiwygRootRef.current;
+    if (!root) return;
+    const OPEN_ATTRIBUTE = "data-fruition-open-link";
+    const appHref = (href: string | null | undefined) => internalAppHref(href, window.location.origin);
+    const onClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      const openButton = target.closest<HTMLElement>(`[${OPEN_ATTRIBUTE}]`);
+      const tooltipLink = target.closest<HTMLAnchorElement>(".milkdown-link-preview a.link-display");
+      const bodyLink = shouldOpenInApp(event) ? target.closest<HTMLAnchorElement>(".ProseMirror a[href]") : null;
+      const href = openButton ? appHref(openButton.getAttribute(OPEN_ATTRIBUTE)) : appHref((tooltipLink ?? bodyLink)?.getAttribute("href"));
+      if (!href) return;
+      event.preventDefault();
+      event.stopPropagation();
+      router.push(href, { scroll: false });
+    };
+    root.addEventListener("click", onClick, true);
+    const stopObserving = observeMutations(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["href"] }, () => {
+      root.querySelectorAll<HTMLElement>(".milkdown-link-preview .link-preview").forEach((preview) => {
+        const display = preview.querySelector<HTMLAnchorElement>("a.link-display");
+        const href = appHref(display?.getAttribute("href"));
+        let button = preview.querySelector<HTMLButtonElement>(`[${OPEN_ATTRIBUTE}]`);
+        if (!href || !display) {
+          button?.remove();
+          return;
+        }
+        if (!button) {
+          button = document.createElement("button");
+          button.type = "button";
+          button.className = "link-open-button";
+          button.textContent = "열기";
+          button.setAttribute("aria-label", "링크한 문서 열기");
+          display.after(button);
+        }
+        if (button.getAttribute(OPEN_ATTRIBUTE) !== href) button.setAttribute(OPEN_ATTRIBUTE, href);
+      });
+    });
+    return () => {
+      root.removeEventListener("click", onClick, true);
+      stopObserving();
+    };
+  }, [canEdit, documentId, router]);
 
   // 선택 툴바 버튼에 hover 설명(0.5초 뒤 표시되는 커스텀 tooltip)을 붙인다.
   // (Crepe가 버튼에 라벨·식별 속성을 넣지 않아 렌더 순서로 매핑한다: 볼드→기울임→취소선→코드→[수식]→링크)

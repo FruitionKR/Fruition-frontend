@@ -563,3 +563,21 @@
   padding: 32px 16px;
   text-align: center;
 }
+
+/* 링크 툴팁의 "열기": 앱 문서 링크(/home?doc=…)에만 붙는다. Crepe 툴팁 버튼과 같은 높이로 둔다. */
+.note-wysiwyg-editor :global(.milkdown .milkdown-link-preview .link-open-button) {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.note-wysiwyg-editor :global(.milkdown .milkdown-link-preview .link-open-button:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
