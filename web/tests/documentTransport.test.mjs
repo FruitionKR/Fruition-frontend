@@ -10,6 +10,7 @@ const { GET: transportRoute } = await import("../app/api/document-transport/rout
 const { apiFetch } = await import("../src/shared/api/client.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { uploadDocumentFile } = await import("../src/entities/document/api/document.ts");
+const { uploadPdfMultipart } = await import("../src/entities/document/api/multipartUpload.ts");
 const { saveNoteDraft, NoteContentConflictError } = await import("../src/features/note-editing/api/note.ts");
 function browser(t) {
   const old = globalThis.window;
@@ -191,6 +192,23 @@ test("failed storage PUT aborts without registering a document", async t => {
 });
 
 
+test("직접 업로드 상한(100MB)을 넘는 PDF는 서버에 요청하지 않고 바로 거절한다", async t => {
+  browser(t);
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    calls.push(path);
+    if (path === "/api/document-transport") return transport();
+    throw new Error(`unexpected request: ${path}`);
+  });
+  const file = { name: "big.pdf", size: 100 * 1024 ** 2 + 1, slice() { throw new Error("must not slice"); } };
+  await assert.rejects(uploadDocumentFile(file), /100MB 이하 파일만/);
+  assert.deepEqual(calls, ["/api/document-transport"]);
+  // PDF가 아니면 form 업로드 경로라 상한이 50MB다.
+  await assert.rejects(uploadDocumentFile({ name: "big.md", size: 50 * 1024 ** 2 + 1 }), /50MB 이하 파일만/);
+  assert.ok(calls.every(path => path === "/api/document-transport"));
+});
+
+// 업로드 상한(100MB)은 uploadDocumentFile이 먼저 막는다. 조각 계산은 서버 한도가 커져도 맞아야 하므로 helper를 직접 검증한다.
 test("3GiB upload slices at long offsets with at most three concurrent PUTs and renews expired URLs", async t => {
   browser(t);
   const size = 3 * 1024 ** 3;
@@ -222,7 +240,7 @@ test("3GiB upload slices at long offsets with at most three concurrent PUTs and 
     assert.equal(uploaded.size, 48);
     return Response.json({ id: "huge" });
   });
-  assert.equal((await uploadDocumentFile(file)).id, "huge");
+  assert.equal((await uploadPdfMultipart("/api/workspaces/ws_test/documents/uploads", file, null)).id, "huge");
   assert.equal(offsets.at(-1)[1], size);
   assert.ok(offsets.some(([start]) => start > 2 * 1024 ** 3));
   assert.equal(maxConcurrent, 3);

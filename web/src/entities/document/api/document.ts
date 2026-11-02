@@ -7,6 +7,7 @@ import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemR
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
+import { DOCUMENT_DIRECT_UPLOAD_MAX_BYTES, DOCUMENT_FORM_UPLOAD_MAX_BYTES, uploadSizeLimitMessage } from "@/shared/config/uploadLimits";
 import { flushPendingDocumentSave } from "@/shared/lib/documentSaveBarrier";
 
 export class DocumentNameConflictError extends Error {
@@ -67,6 +68,7 @@ export async function fetchSkillReferenceDocuments() {
  * 이름은 참고 문서끼리만 비교해 서버가 `(2)`처럼 번호를 붙인다.
  */
 export async function uploadSkillReferenceDocument(file: File) {
+  assertUploadSize(file, DOCUMENT_FORM_UPLOAD_MAX_BYTES);
   const workspaceId = getWorkspaceId();
   const formData = new FormData();
   formData.append("file", file);
@@ -88,8 +90,10 @@ export async function uploadDocumentFile(file: File, folderId: string | null = n
   const workspaceId = getWorkspaceId();
   const transport = await getDocumentTransport();
   if (transport.directUpload && hasPdfExtension(file.name)) {
+    assertUploadSize(file, DOCUMENT_DIRECT_UPLOAD_MAX_BYTES);
     return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId);
   }
+  assertUploadSize(file, DOCUMENT_FORM_UPLOAD_MAX_BYTES);
   const formData = new FormData();
   formData.append("file", file);
   if (folderId) formData.append("folder_id", folderId);
@@ -101,6 +105,12 @@ export async function uploadDocumentFile(file: File, folderId: string | null = n
   });
 
   return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
+}
+
+/** 서버 상한을 명백히 넘는 파일은 전송하지 않고 바로 실패시킨다. 최종 판단은 서버(FILE_TOO_LARGE)가 한다. */
+function assertUploadSize(file: { size: number }, maxBytes: number): void {
+  const message = uploadSizeLimitMessage(file, maxBytes);
+  if (message) throw new Error(message);
 }
 
 /** 문서 ingest를 시작한다. 편집 가능 Markdown 전용이라 reflectDocumentToWiki를 거쳐 호출한다. */
