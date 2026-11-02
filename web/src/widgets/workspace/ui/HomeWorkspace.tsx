@@ -52,11 +52,11 @@ import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermis
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
-import { uploadDocumentFile } from "@/entities/document";
+import { createMarkdownDocument } from "@/entities/document";
 import { invalidateStorageUsage } from "@/entities/workspace";
 import { invalidateActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
-import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
+import { buildGeneratedMarkdownDocument } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
@@ -362,16 +362,14 @@ export function HomeWorkspace() {
     selection.openGraphNodePreview(node);
   }
 
-  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null) {
-    const noteId = createClientId("ai-note");
-    const body = draft.markdown.endsWith("\n") ? draft.markdown : `${draft.markdown}\n`;
-    const file = new File(
-      [`<!-- fruition-note: ${noteId} -->\n${body}`],
-      buildGeneratedMarkdownFilename(draft.title),
-      { type: "text/markdown" }
-    );
+  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) {
     // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 루트에 만든다.
-    const created = await uploadDocumentFile(file, folderId).catch(async (error: unknown) => {
+    // agentRunId를 넘기면 서버가 AI 생성 문서로 만들고 분석 이벤트(document_uploaded·ai_document_created)를 남긴다.
+    const created = await createMarkdownDocument({
+      ...buildGeneratedMarkdownDocument(draft, createClientId("ai-note")),
+      folderId,
+      agentRunId
+    }).catch(async (error: unknown) => {
       // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
       throw error;

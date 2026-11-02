@@ -1,4 +1,4 @@
-import { analyticsEditType } from "@/shared/lib/analytics/events";
+import { analyticsEditType, newAnalyticsId } from "@/shared/lib/analytics/events";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
@@ -36,6 +36,7 @@ import {
 } from "@/features/agent-chat/lib/taskOutcomes";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
+import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 
 const NO_DECISIONS: EditProposalDecisions = {};
@@ -62,8 +63,8 @@ export function useAgentTurn({
   allowWebSearch: boolean;
   /** 응답이 오면 대화 목록을 다시 받아 새 문답을 이어 붙인다. */
   refreshMessages: (options: { animateLatest: boolean }) => Promise<unknown>;
-  /** folderId는 새 문서를 둘 폴더(null이면 루트). */
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null) => Promise<void>;
+  /** folderId는 새 문서를 둘 폴더(null이면 루트). agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID다. */
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
   onInsufficientCredit?: (question: string) => void;
 }) {
@@ -80,6 +81,8 @@ export function useAgentTurn({
   const [requestTurnId, setRequestTurnId] = useState<string | null>(null);
   const agentRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => agentRequestRef.current?.abort(), []);
+  // 서버가 모르는 실패(응답 없음 확정·서버에 닿지 않은 요청)만 보낸다. 같은 turn은 한 번만.
+  const reportAiTaskFailure = useRef(createAiTaskFailureReporter((properties) => captureAnalytics("ai_task_failed", properties))).current;
   const [isCreatingMarkdown, setIsCreatingMarkdown] = useState(false);
   const [markdownCreateErrorMessage, setMarkdownCreateErrorMessage] = useState<string | null>(null);
   // 이 화면에서 작업 탭으로 보낸 turn ID. 서버가 채팅 답변으로 돌려줘도 작업 탭에 남긴다.
@@ -163,7 +166,8 @@ export function useAgentTurn({
     controller: AbortController,
     question: string,
     run: () => Promise<AgentTurnResponse>,
-    getTurnId: () => string | null
+    getTurnId: () => string | null,
+    clientTaskId: string
   ) {
     run()
       .then(async (response) => {
@@ -180,6 +184,7 @@ export function useAgentTurn({
         setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
+        reportAiTaskFailure(agentTurnFailure(error, { turnId, clientTaskId }));
         if (!turnId) return;
         if (error instanceof AgentTurnLostError) setUnconfirmedTurnId(turnId);
         // 결과를 확인하지 못했으면 서버에 남은 진행 기록(진행 중 카드)이, 실패로 끝났으면 그 turn이
@@ -213,7 +218,8 @@ export function useAgentTurn({
       controller,
       agentTurnRequest?.message ?? "",
       () => resumeAgentTurn(turnId, { signal: controller.signal }),
-      () => turnId
+      () => turnId,
+      turnId
     );
   }
 
@@ -258,7 +264,7 @@ export function useAgentTurn({
         if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
       },
       onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
-    }), () => acceptedTurnId);
+    }), () => acceptedTurnId, newAnalyticsId());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
 
@@ -374,7 +380,8 @@ export function useAgentTurn({
     };
     setIsCreatingMarkdown(true);
     setAgentTurnErrorMessage(null);
-    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse))
+    // 편집 turn(markdown_edit)은 서버가 AI 초안으로 보지 않으므로 run ID를 넘기지 않는다.
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), null)
       .then(() => {
         markApplied(agentTurnResponse?.requestId);
         setAgentTurnRequest(null);
@@ -389,15 +396,17 @@ export function useAgentTurn({
   function createMarkdownDocument() {
     const draft = agentTurnResponse?.result.generated_markdown;
     if (!draft) return;
+    const runId = agentTurnResponse.requestId;
     setIsCreatingMarkdown(true);
     setMarkdownCreateErrorMessage(null);
-    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse))
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId)
       .then(() => {
-        markApplied(agentTurnResponse?.requestId);
+        markApplied(runId);
         setAgentTurnRequest(null);
         setAgentTurnResponse(null);
       })
       .catch((error: unknown) => {
+        reportAiTaskFailure(markdownCreateFailure(error, runId));
         setMarkdownCreateErrorMessage(getErrorMessage(error, "새 Markdown 문서를 만들지 못했습니다."));
       })
       .finally(() => setIsCreatingMarkdown(false));

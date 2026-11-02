@@ -173,6 +173,15 @@ export function buildGeneratedMarkdownFilename(title: string): string {
   return safeTitle.toLowerCase().endsWith(".md") ? safeTitle : `${safeTitle}.md`;
 }
 
+/** AI 초안 새 문서의 생성 요청 값. 본문 앞에 노트 표시를 붙이고, 서버가 `.md`를 붙이므로 표시 이름에서는 뺀다. */
+export function buildGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, noteId: string): { displayName: string; markdown: string } {
+  const body = draft.markdown.endsWith("\n") ? draft.markdown : `${draft.markdown}\n`;
+  return {
+    displayName: buildGeneratedMarkdownFilename(draft.title).slice(0, -".md".length),
+    markdown: `<!-- fruition-note: ${noteId} -->\n${body}`
+  };
+}
+
 function targetsMatch(request: DocumentAgentTurnRequest, edit: AgentTurnEdit): boolean {
   const requestTarget = request.editorSnapshot.target;
   return requestTarget.type === edit.requested_target.type

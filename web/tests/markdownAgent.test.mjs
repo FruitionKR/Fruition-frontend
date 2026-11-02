@@ -11,6 +11,7 @@ registerHooks({
 
 const {
   buildAgentTurnRequest,
+  buildGeneratedMarkdownDocument,
   buildGeneratedMarkdownFilename,
   isDocumentCommandAction,
   prepareMarkdownEditPreview,
@@ -126,6 +127,17 @@ test("AI 생성 문서 제목을 안전한 Markdown 파일명으로 변환한다
   assert.equal(buildGeneratedMarkdownFilename(" API/계약: 초안? "), "API-계약-초안.md");
   assert.equal(buildGeneratedMarkdownFilename("회의록.md"), "회의록.md");
   assert.equal(buildGeneratedMarkdownFilename("   "), "AI 문서.md");
+});
+
+test("AI 초안 새 문서는 노트 표시를 붙인 본문과 확장자 없는 표시 이름으로 만든다", () => {
+  assert.deepEqual(buildGeneratedMarkdownDocument({ title: " API/계약: 초안? ", summary: "", markdown: "# 초안" }, "ai-note-1"), {
+    displayName: "API-계약-초안",
+    markdown: "<!-- fruition-note: ai-note-1 -->\n# 초안\n"
+  });
+  assert.deepEqual(buildGeneratedMarkdownDocument({ title: "회의록.MD", summary: "", markdown: "본문\n" }, "ai-note-2"), {
+    displayName: "회의록",
+    markdown: "<!-- fruition-note: ai-note-2 -->\n본문\n"
+  });
 });
 
 function markdownEditResponse(overrides = {}) {

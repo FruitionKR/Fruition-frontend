@@ -119,6 +119,32 @@ async function sendDocumentUpload(file: File, folderId: string | null): Promise<
   return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
 }
 
+/**
+ * Markdown 본문으로 새 문서를 만든다(`POST /documents/markdown`). 업로드처럼 저장 용량 한도를 적용한다(STORAGE_QUOTA_EXCEEDED).
+ * 서버가 표시 이름 뒤에 `.md`를 붙이므로 displayName에는 확장자를 넣지 않는다.
+ * agentRunId가 요청자 본인의 작업 탭 초안(markdown_create) run이면 서버가 AI 생성 문서로 만든다. 맞지 않으면 일반 문서다.
+ */
+export function createMarkdownDocument(request: {
+  displayName: string;
+  markdown: string;
+  folderId: string | null;
+  agentRunId: string | null;
+}): Promise<DocumentUploadResponse> {
+  return limitDocumentUpload(async () => {
+    const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", "markdown"), {
+      method: "POST",
+      headers: idempotentJsonHeaders(),
+      body: JSON.stringify({
+        display_name: request.displayName,
+        markdown: request.markdown,
+        folder_id: request.folderId,
+        agent_run_id: request.agentRunId
+      })
+    });
+    return parseJsonOrThrow<DocumentUploadResponse>(response, ERROR_MESSAGES.uploadFailed);
+  });
+}
+
 /** 서버 상한을 명백히 넘는 파일은 전송하지 않고 바로 실패시킨다. 최종 판단은 서버(FILE_TOO_LARGE)가 한다. */
 function assertUploadSize(file: { size: number }, maxBytes: number): void {
   const message = uploadSizeLimitMessage(file, maxBytes);
