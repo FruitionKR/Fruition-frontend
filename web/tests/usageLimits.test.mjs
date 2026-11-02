@@ -8,7 +8,6 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 const {
-  AI_CONCURRENT_LIMIT_MESSAGE,
   AI_DAILY_LIMIT_MESSAGE,
   aiUsageLimitMessage,
   ApiError,
@@ -32,21 +31,21 @@ const {
 const MIB = 1024 * 1024;
 const errorBody = (status, error) => new Response(JSON.stringify({ error }), { status, headers: { "Content-Type": "application/json" } });
 
-test("AI 사용량 한도: 하루 비용·토큰 한도와 모르는 값은 하루 한도 안내, CONCURRENT는 동시 실행 안내", () => {
+test("AI 사용량 한도: 하루 토큰 한도와 모르는 limit_type·없음은 모두 하루 한도 안내", () => {
   const code = "AI_USAGE_LIMIT_EXCEEDED";
-  assert.equal(usageLimitMessage(code, { limit_type: "DAILY_COST" }), AI_DAILY_LIMIT_MESSAGE);
   assert.equal(usageLimitMessage(code, { limit_type: "DAILY_TOKENS" }), AI_DAILY_LIMIT_MESSAGE);
+  assert.equal(usageLimitMessage(code, { limitType: "DAILY_TOKENS" }), AI_DAILY_LIMIT_MESSAGE);
+  // 이전 서버가 보내던 값이나 새로 생길 값도 안전하게 하루 한도 안내로 둔다.
+  assert.equal(usageLimitMessage(code, { limit_type: "CONCURRENT" }), AI_DAILY_LIMIT_MESSAGE);
   assert.equal(usageLimitMessage(code, { limit_type: "SOMETHING_NEW" }), AI_DAILY_LIMIT_MESSAGE);
   assert.equal(usageLimitMessage(code, {}), AI_DAILY_LIMIT_MESSAGE);
   assert.equal(usageLimitMessage(code), AI_DAILY_LIMIT_MESSAGE);
-  assert.equal(usageLimitMessage(code, { limit_type: "CONCURRENT" }), AI_CONCURRENT_LIMIT_MESSAGE);
-  assert.equal(usageLimitMessage(code, { limitType: "CONCURRENT" }), AI_CONCURRENT_LIMIT_MESSAGE);
 });
 
 test("초기화 시각은 한국 시간으로: 다음 날 0시는 '내일(11월 3일) 0시', 그 밖은 날짜와 오전·오후 시각", () => {
   // 한국 시간 11월 2일 오후 3시(UTC 06:00)
   const now = new Date("2026-11-02T06:00:00Z");
-  const message = aiUsageLimitMessage({ limit_type: "DAILY_COST", reset_at: "2026-11-03T00:00:00+09:00" }, now);
+  const message = aiUsageLimitMessage({ limit_type: "DAILY_TOKENS", reset_at: "2026-11-03T00:00:00+09:00" }, now);
   assert.equal(message, "오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일(11월 3일) 0시부터 다시 이용할 수 있어요.");
   // UTC로 같은 순간을 보내도 한국 시간으로 읽는다.
   assert.equal(formatResetTime("2026-11-02T15:00:00Z", now), "내일(11월 3일) 0시");
@@ -58,9 +57,8 @@ test("초기화 시각은 한국 시간으로: 다음 날 0시는 '내일(11월 
   assert.doesNotMatch(message, /오전 12:00/);
 });
 
-test("잘못된 초기화 시각은 무시하고, 동시 실행 한도는 초기화 시각과 관계없다", () => {
+test("잘못된 초기화 시각은 무시한다", () => {
   assert.equal(usageLimitMessage("AI_USAGE_LIMIT_EXCEEDED", { resetAt: "not-a-date" }), AI_DAILY_LIMIT_MESSAGE);
-  assert.equal(usageLimitMessage("AI_USAGE_LIMIT_EXCEEDED", { limit_type: "CONCURRENT", reset_at: "2026-11-03T00:00:00Z" }), AI_CONCURRENT_LIMIT_MESSAGE);
 });
 
 test("비동기 실패(회의록 error_code·문서 error_message·실시간 받아쓰기 종료 사유)도 하루 한도 안내를 쓴다", async () => {
@@ -100,11 +98,11 @@ test("업로드 제한 code는 정해 둔 문구로, 그 밖의 code는 null로 
 });
 
 test("parseApiError는 한도 거절의 서버 문구를 안내 문구로 바꾸고 status·code는 보존한다", async () => {
-  const concurrent = await parseApiError(errorBody(429, { code: "AI_USAGE_LIMIT_EXCEEDED", message: "limit", limit_type: "CONCURRENT" }), "실패");
-  assert.equal(concurrent.message, AI_CONCURRENT_LIMIT_MESSAGE);
-  assert.equal(concurrent.status, 429);
-  assert.equal(isAiUsageLimitError(concurrent), true);
-  assert.equal(getErrorMessage(concurrent, "실패"), AI_CONCURRENT_LIMIT_MESSAGE);
+  const tokens = await parseApiError(errorBody(429, { code: "AI_USAGE_LIMIT_EXCEEDED", message: "limit", limit_type: "DAILY_TOKENS", reset_at: "2026-11-03T00:00:00+09:00" }), "실패");
+  assert.match(tokens.message, /^오늘 사용할 수 있는 AI 사용량을 모두 썼어요\. .+0시부터 다시 이용할 수 있어요\.$/);
+  assert.equal(tokens.status, 429);
+  assert.equal(isAiUsageLimitError(tokens), true);
+  assert.equal(getErrorMessage(tokens, "실패"), tokens.message);
 
   const daily = await parseApiError(errorBody(429, { code: "AI_USAGE_LIMIT_EXCEEDED", message: "limit" }), "실패");
   assert.equal(daily.message, AI_DAILY_LIMIT_MESSAGE);

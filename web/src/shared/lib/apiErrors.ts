@@ -104,10 +104,9 @@ export function isInsufficientCreditError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 402 && error.code === "INSUFFICIENT_CREDIT";
 }
 
-/** AI 사용량 한도 초과(429)의 서버 code. 하루 비용·토큰 한도나 동시 실행 한도에 걸리면 온다. */
+/** AI 사용량 한도 초과(429)의 서버 code. 하루 토큰 한도(limit_type DAILY_TOKENS)에 걸리면 온다. */
 export const AI_USAGE_LIMIT_EXCEEDED_CODE = "AI_USAGE_LIMIT_EXCEEDED";
 export const AI_DAILY_LIMIT_MESSAGE = "오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일 다시 이용해 주세요.";
-export const AI_CONCURRENT_LIMIT_MESSAGE = "AI 작업이 동시에 너무 많이 실행 중이에요. 진행 중인 작업이 끝난 뒤 다시 시도해 주세요.";
 
 /** 업로드 제한 거절 code별 안내. 한도 값은 서버 설정이라 문구에 숫자를 넣지 않는다. */
 export const UPLOAD_LIMIT_MESSAGES = {
@@ -151,12 +150,10 @@ export function formatResetTime(value: unknown, now: Date = new Date()): string 
 }
 
 /**
- * AI 사용량 한도 안내. CONCURRENT만 동시 실행 안내이고 나머지(DAILY_COST·DAILY_TOKENS·모르는 값·없음)는 하루 한도 안내다.
- * 하루 한도에 초기화 시각이 오면 "내일" 대신 그 시각을 알려 준다.
+ * AI 사용량 한도 안내. 서버 한도는 하루 토큰뿐이라 limit_type과 관계없이(모르는 값·없음 포함) 하루 한도 안내다.
+ * 초기화 시각이 오면 "내일" 대신 그 시각을 알려 준다.
  */
 export function aiUsageLimitMessage(detail?: UsageLimitDetail | null, now: Date = new Date()): string {
-  const limitType = detail?.limit_type ?? detail?.limitType;
-  if (limitType === "CONCURRENT") return AI_CONCURRENT_LIMIT_MESSAGE;
   const resetAt = formatResetTime(detail?.reset_at ?? detail?.resetAt, now);
   if (!resetAt) return AI_DAILY_LIMIT_MESSAGE;
   return `오늘 사용할 수 있는 AI 사용량을 모두 썼어요. ${resetAt}부터 다시 이용할 수 있어요.`;
