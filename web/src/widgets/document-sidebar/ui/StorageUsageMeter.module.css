@@ -1,0 +1,44 @@
+/* 문서 패널 맨 아래 내 저장 공간. 트리 스크롤 영역 밖에 고정된다. */
+.meter {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.label {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+
+.track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-surface-strong);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  transform-origin: left center;
+  transition: transform 300ms ease-out;
+}
+
+.is-warning .label {
+  color: var(--color-danger);
+}
+
+.is-warning .fill {
+  background: var(--color-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}

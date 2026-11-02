@@ -3,6 +3,7 @@
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree";
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
@@ -49,6 +50,7 @@ import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfir
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { uploadDocumentFile } from "@/entities/document";
+import { invalidateStorageUsage } from "@/entities/workspace";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownFilename } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
@@ -74,6 +76,7 @@ import styles from "./HomeWorkspace.module.css";
 
 
 export function HomeWorkspace() {
+  const queryClient = useQueryClient();
   const { location, locationKey, activeView, isAccessLocked, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
     useWorkspaceNavigation();
   // 설정에서 시작한 소셜 재로그인·워크스페이스 전환을 마치고 돌아오면 설정 화면을 떠났던 자리(탈퇴 확인·멤버 관리)로 다시 연다.
@@ -302,6 +305,8 @@ export function HomeWorkspace() {
 
   // 열린 문서나 그 상위 폴더가 삭제되면 문서 화면은 /home(첫 노트)으로 바꾸고, 그래프 화면은 선택(포커스)만 지운다.
   function handleTreeDeleted({ documentIds, treeItemIds }: DeletedTreeIds) {
+    // 문서·폴더를 지우면 내 저장 공간 사용량이 바뀐다.
+    invalidateStorageUsage(queryClient);
     const isDeleted = (target: WorkspaceLocation | null) =>
       (target?.kind === "document" && documentIds.includes(target.documentId))
       || (target?.kind === "tree" && treeItemIds.includes(target.treeItemId));
@@ -361,6 +366,7 @@ export function HomeWorkspace() {
       created
     ]);
     void refreshBackendData();
+    invalidateStorageUsage(queryClient);
     openDocument(selection.openSourceBlockPreview(created.id, created.filename, []));
   }
 

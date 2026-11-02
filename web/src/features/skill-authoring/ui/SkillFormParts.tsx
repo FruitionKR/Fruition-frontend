@@ -8,6 +8,7 @@ import {
   uploadSkillReferenceDocument,
   type DocumentItemResponse
 } from "@/entities/document";
+import { invalidateStorageUsage } from "@/entities/workspace";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { menuSearchIcon, questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
@@ -249,6 +250,7 @@ export function useReferenceDocuments(workspaceId: string) {
   /** 피커에서 올린 참고 문서를 목록 맨 앞에 넣고 선택한다. */
   async function uploadReferenceDocument(file: File): Promise<DocumentItemResponse> {
     const uploaded = await uploadSkillReferenceDocument(file);
+    invalidateStorageUsage(queryClient);
     queryClient.setQueryData<DocumentItemResponse[]>(referenceDocumentsKey, (current = []) => [
       uploaded,
       ...current.filter((doc) => doc.id !== uploaded.id)

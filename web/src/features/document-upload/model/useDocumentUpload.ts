@@ -1,7 +1,8 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { uploadDocumentFile } from "@/entities/document/api/document";
-import { describeLimitError } from "@/entities/workspace";
+import { describeLimitError, invalidateStorageUsage } from "@/entities/workspace";
 import {
   appendItemsToFolder,
   availableDocumentName,
@@ -31,6 +32,7 @@ export function useDocumentUpload({
   setFileDropTarget: React.Dispatch<React.SetStateAction<FileDropTarget | null>>;
   refreshBackendData: () => Promise<void>;
 }) {
+  const queryClient = useQueryClient();
   const uploadPickerTargetRef = useRef<UploadPickerTarget | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [hasRejectedFiles, setHasRejectedFiles] = useState(false);
@@ -88,6 +90,7 @@ export function useDocumentUpload({
             return { ...project, items: applyUploadedDocument(project.items, item.id, response) };
           }));
           void refreshBackendData();
+          invalidateStorageUsage(queryClient);
           return response;
         })
         .catch((error: Error) => {
@@ -98,6 +101,7 @@ export function useDocumentUpload({
             if (!findTreeItem(project.items, item.id)) return project;
             return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", describeLimitError(error) ?? error.message) };
           }));
+          if (error instanceof ApiError && error.code === "STORAGE_QUOTA_EXCEEDED") invalidateStorageUsage(queryClient);
           // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
           void refreshBackendData().catch(() => {});
           return null;

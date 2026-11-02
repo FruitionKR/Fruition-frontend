@@ -21,6 +21,7 @@ import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection"
 import { useFileDropZone } from "../model/useFileDropZone";
 import { buildTreeConversionBadges } from "../model/treeConversionBadge";
 import styles from "./DocumentSidebar.module.css";
+import { StorageUsageMeter } from "./StorageUsageMeter";
 
 export function DocumentSidebar({
   projects,
@@ -409,6 +410,7 @@ export function DocumentSidebar({
             ) : projectTree}
           </div>
           )}
+          {!settingsNav && <StorageUsageMeter />}
         </div>
       </div>
     </aside>
