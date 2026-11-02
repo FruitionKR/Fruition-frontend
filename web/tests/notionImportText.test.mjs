@@ -49,6 +49,13 @@ test("CSV를 GFM 표로 바꾸며 | 와 \\ 를 이스케이프하고 짧은 행�
   assert.equal(csvToMarkdownTable(""), "");
 });
 
+test("값이 모두 빈 행도 표에 남기고, 마지막 줄바꿈 뒤 빈 줄만 버린다", () => {
+  assert.deepEqual(parseCsv("a,b\n,\n1,2\n"), [["a", "b"], ["", ""], ["1", "2"]]);
+  assert.deepEqual(parseCsv("a,b\n1,2\n,\n"), [["a", "b"], ["1", "2"], ["", ""]]);
+  assert.deepEqual(parseCsv("a,b\r\n1,2\r\n\r\n"), [["a", "b"], ["1", "2"]]);
+  assert.equal(csvToMarkdownTable("이름,값\n,\n끝,1\n"), ["| 이름 | 값 |", "| --- | --- |", "|   |   |", "| 끝 | 1 |"].join("\n"));
+});
+
 test("콜아웃·토글 HTML은 인용문으로, script·이벤트 속성은 지우고 코드 안은 그대로 둔다", () => {
   const input = [
     "<aside>💡 <strong>알림</strong> 내용<br>둘째 줄</aside>",

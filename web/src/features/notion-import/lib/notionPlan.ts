@@ -97,6 +97,18 @@ function databaseBase(path: string): string {
   return path.replace(/\.csv$/i, "").replace(/_all$/i, "");
 }
 
+/**
+ * Notion 페이지는 본문 첫 줄에 `# 제목`을 둔다. 앱은 문서 이름을 편집기 위에 따로 보여 주므로,
+ * 첫 줄 H1이 문서 이름(또는 중복을 피하기 전 이름)과 같으면 그 줄과 뒤 빈 줄을 지운다.
+ */
+export function stripLeadingTitle(markdown: string, titles: readonly string[]): string {
+  const match = /^\s*#[ \t]+(.+?)[ \t]*#*[ \t]*(?:\r?\n|$)/.exec(markdown);
+  if (!match) return markdown;
+  const heading = nameKey(match[1].trim());
+  if (!titles.some((title) => nameKey(title) === heading)) return markdown;
+  return markdown.slice(match[0].length).replace(/^(?:[ \t]*\r?\n)+/, "");
+}
+
 /** 파일 경로들의 모든 상위 폴더 경로 */
 function directoriesOf(paths: Iterable<string>): Set<string> {
   const directories = new Set<string>();
@@ -239,7 +251,8 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     const rows = Boolean(rowDirectory) && files.some((entry) => entry.path.startsWith(`${rowDirectory}/`) && /\.md$/i.test(entry.path));
     const table = csvToMarkdownTable(decodeText(file.read()));
     const note = rows ? "\n\n> Notion 데이터베이스의 표만 가져왔어요. 각 행의 페이지 본문은 가져오지 않았어요." : "";
-    const markdown = `# ${named.name}\n\n${table}${note}\n`;
+    // 문서 이름은 편집기 위에 따로 보이므로 제목을 붙이지 않는다.
+    const markdown = `${table}${note}\n`;
     const bytes = byteLength(markdown);
     if (bytes > MARKDOWN_MAX_BYTES) {
       skipped.push({ path: file.path, reason: "5MB를 넘는 표" });
@@ -267,7 +280,9 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
       if (!allPaths.has(target)) brokenLinks.push({ documentKey: path, href: target });
       return { kind: "broken" };
     };
-    const tokenized = tokenizeLinks(sanitizeNotionMarkdown(decodeText(file.read())), path, resolve, (id) => documentKeyById.get(id));
+    const titles = [named.name, cleanNotionName(splitExtension(lastSegment(path)).base)];
+    const body = stripLeadingTitle(sanitizeNotionMarkdown(decodeText(file.read())), titles);
+    const tokenized = tokenizeLinks(body, path, resolve, (id) => documentKeyById.get(id));
     notionLinkCount += tokenized.notionLinks;
     const bytes = byteLength(tokenized.markdown);
     if (bytes > MARKDOWN_MAX_BYTES) {

@@ -31,8 +31,9 @@ export function parseCsv(text: string): string[][] {
     row.push(cell);
     rows.push(row);
   }
-  // 빈 줄은 버린다.
-  return rows.filter((cells) => cells.some((value) => value.trim() !== ""));
+  // 값이 모두 빈 행(`,,`)도 데이터라 남긴다. 파일 끝 줄바꿈 뒤에 생긴 빈 줄(칸 하나짜리 빈 행)만 버린다.
+  while (rows.length > 0 && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") rows.pop();
+  return rows;
 }
 
 /** 표 칸 하나: 줄바꿈은 공백으로 합치고 `|`·`\`는 이스케이프한다. 편집기가 HTML을 그리지 않아 <br>은 쓰지 않는다. */

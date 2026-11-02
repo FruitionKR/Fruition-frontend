@@ -72,6 +72,8 @@ for (const folderIds of [true, false]) test(`내보내기 zip을 폴더·문서�
   const table = plan.documents.find((document) => document.kind === "table");
   assert.match(table.markdown, /\| 이름 \| 상태 \| 메모 \|\n\| --- \| --- \| --- \|\n\| 첫 일 \| 완료 \| 쉼표, 있음 \|/);
   assert.match(table.markdown, /행의 페이지 본문은 가져오지 않았어요/);
+  // 문서 이름은 편집기 위에 따로 보이므로 본문 맨 앞 제목을 붙이거나 남기지 않는다.
+  assert.match(table.markdown, /^\| 이름 /);
 
   const page = plan.documents.find((document) => document.key === `${homePage}.md`);
   assert.deepEqual(page.links.map((link) => link.key), [`${home}/하위 ${ID.child}.md`, `${home}/할일 ${ID.db}_all.csv`, `${home}/하위 ${ID.child}.md`]);
@@ -85,7 +87,14 @@ for (const folderIds of [true, false]) test(`내보내기 zip을 폴더·문서�
   assert.match(page.markdown, /<b>코드 안 HTML<\/b>/);
   assert.match(page.markdown, /^가짜$/m);
 
+  assert.doesNotMatch(page.markdown, /^# 홈/);
+  assert.match(page.markdown, /^\[하위\]|^\u0000L0\u0000/);
+  const memos = plan.documents.filter((document) => document.name.startsWith("메모"));
+  // "메모 (2)"도 중복을 피하기 전 이름이 같으므로 제목을 지우고, 이름과 다른 제목("메모 둘")은 남긴다.
+  assert.deepEqual(memos.map((document) => [document.name, document.markdown]), [["메모", "# 메모 둘\n"], ["메모 (2)", ""]]);
+
   const child = plan.documents.find((document) => document.key.endsWith(`하위 ${ID.child}.md`));
+  assert.match(child.markdown, /^\u0000L0\u0000/);
   assert.deepEqual(child.links.map((link) => link.key), [`${homePage}.md`]);
 });
 
