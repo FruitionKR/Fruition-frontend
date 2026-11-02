@@ -1,6 +1,6 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
-import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError } from "@/shared/lib/apiErrors";
+import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -67,14 +67,15 @@ function providerList(value: unknown): string[] {
 export async function parseApiError(response: Response, fallback: string): Promise<ApiError> {
   try {
     const body = await response.json() as {
-      error?: { message?: string; code?: string };
+      error?: { message?: string; code?: string } & UsageLimitDetail;
       detail?: string | { message?: string };
       oauth_providers?: unknown;
       providers?: unknown;
     } | undefined;
     const detailMessage = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
     const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
-    const message = body?.error?.message || detailMessage || fallback;
+    // 사용량·업로드 한도 거절은 서버 문구 대신 정해 둔 안내를 쓴다. 화면마다 따로 고치지 않고 모든 호출부가 같은 문구를 받는다.
+    const message = usageLimitMessage(code, body?.error) || body?.error?.message || detailMessage || fallback;
     // 같은 이메일의 계정이 있어 가입을 막은 409는 로그인 수단 목록을 함께 보존해 화면이 그 방법으로 로그인하도록 안내한다.
     if (code && (EMAIL_REGISTERED_ERROR_CODES as readonly string[]).includes(code)) {
       return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
