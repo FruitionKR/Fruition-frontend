@@ -38,6 +38,16 @@ test("SDK 자동 속성과 호출자 임의 속성에 섞인 개인정보를 최
   assert.equal(result.$set_once, undefined);
 });
 
+test("ai_task_failed는 허용한 다섯 속성만 남기고 오류 원문은 보내지 않는다", () => {
+  const result = sanitizeAnalyticsEvent({ event: "ai_task_failed", properties: {
+    task_id: "agent_1", task_kind: "agent_turn", stage: "apply", failure_reason: "unknown", action: "markdown_create",
+    error: "Failed to fetch", message: "비공개 오류", title: "비공개 문서", markdown: "비공개 본문",
+  } });
+  assert.deepEqual(result.properties, {
+    task_id: "agent_1", task_kind: "agent_turn", stage: "apply", failure_reason: "unknown", action: "markdown_create",
+  });
+});
+
 test("명세 밖 자동 이벤트·오류 수집·리플레이 스냅샷을 전송하지 않는다", () => {
   for (const event of ["$autocapture", "$exception", "$snapshot", "arbitrary_event"]) {
     assert.equal(sanitizeAnalyticsEvent({ event, properties: { text: "private" } }), null);

@@ -94,7 +94,7 @@ export function AgentPanel({
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null) => Promise<void>;
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
   markdownEditContext?: ActiveMarkdownEditContext | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   /** 채팅 편입으로 저장한 문서의 위키 편입을 시작한다. 편입 권한이 없거나 확인 중이면 없어 알림에 버튼을 두지 않는다. */

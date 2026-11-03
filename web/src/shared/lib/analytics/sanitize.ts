@@ -9,6 +9,7 @@ const eventKeys: Record<string, readonly string[]> = {
   upload_failed_shown: ["upload_attempt_id", "reason"],
   graph_opened: [],
   graph_node_previewed: ["node_type"],
+  ai_task_failed: ["task_id", "task_kind", "stage", "failure_reason", "action"],
   $identify: ["$anon_distinct_id"],
   $groupidentify: ["$group_type", "$group_key"],
 };

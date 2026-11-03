@@ -9,6 +9,8 @@ export type AnalyticsEvents = {
   upload_failed_shown: { upload_attempt_id: string; reason: "file_too_large" | "unsupported_type" | "network" | "permission" | "server_error" | "unknown" };
   graph_opened: Record<string, never>;
   graph_node_previewed: { node_type: "document" | "wiki_page" | "other" };
+  /** 서버가 모르는 AI 작업 실패만 보낸다(응답 없음 확정·서버에 닿지 않은 요청). 서버가 받은 실패는 document가 보낸다. */
+  ai_task_failed: { task_id: string; task_kind: "agent_turn"; stage: "timeout" | "result" | "apply"; failure_reason: "timeout" | "unknown"; action?: "markdown_create" };
 };
 
 /** 분석 연결용 UUID. 보안 토큰 용도가 아니며, 제한된 브라우저에서도 제품 동작을 막지 않는다. */
