@@ -20,6 +20,8 @@ const PUBLIC_AUTH_PATHS = new Set([
 let accessToken: string | null = null;
 // 동시에 터진 401이 처리기를 N번 호출해 queryClient.clear()·router.replace를 반복하지 않게 하는 래치.
 let hasNotifiedSessionExpired = false;
+// 사용자가 이 탭에서 직접 로그아웃했으면 참. 랜딩이 남은 refresh 쿠키로 앱에 되돌려 보내지 않게 한다.
+let hasSignedOutByUser = false;
 // 재발급까지 실패해 세션이 끝난 순간을 앱 전체가 한 곳에서 처리하도록 등록하는 처리기.
 let sessionExpiredHandler: (() => void) | null = null;
 
@@ -56,6 +58,16 @@ export function saveAccessToken(token: string) {
   accessToken = token;
   // 로그인·재발급이 성공했으면 다음 만료는 다시 알려야 한다.
   hasNotifiedSessionExpired = false;
+  hasSignedOutByUser = false;
+}
+
+/** 사용자가 직접 로그아웃했음을 페이지 수명 동안 기억한다. 다시 로그인하면 풀린다. */
+export function markSignedOutByUser() {
+  hasSignedOutByUser = true;
+}
+
+export function isSignedOutByUser(): boolean {
+  return hasSignedOutByUser;
 }
 
 export function clearAuth() {

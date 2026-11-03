@@ -74,8 +74,8 @@ test("레일 프로필은 메뉴 없이 설정 화면을 바로 열고, 로그�
   assert.match(source, /onOpenSettings\("profile"\)/);
   assert.doesNotMatch(source, /onOpenSettings\("account"\)/);
   assert.doesNotMatch(source, /SettingsModal|createPortal/);
-  // 로그아웃은 설정 화면 메뉴에서 한다.
-  assert.match(viewSource, /signOut\(\{ callLogout: true \}\)/);
+  // 로그아웃은 설정 화면 메뉴에서 하고, 직접 로그아웃이라 랜딩으로 간다.
+  assert.match(viewSource, /signOut\(\{ callLogout: true, reason: "user" \}\)/);
   assert.match(viewSource, /<span>로그아웃<\/span>/);
 });
 

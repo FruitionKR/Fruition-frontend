@@ -77,7 +77,7 @@ function ReconsentScreen() {
               </div>
               <AuthSubmitButton disabled={busy || !isConsentComplete(choices)}>{busy ? "저장 중…" : "동의하고 계속"}</AuthSubmitButton>
             </form>
-            <p className="auth-prompt">동의하지 않으시겠어요?<button disabled={busy} onClick={() => void signOut({ callLogout: true })} type="button">로그아웃</button></p>
+            <p className="auth-prompt">동의하지 않으시겠어요?<button disabled={busy} onClick={() => void signOut({ callLogout: true, reason: "user" })} type="button">로그아웃</button></p>
           </div>
         </div>
       </section>

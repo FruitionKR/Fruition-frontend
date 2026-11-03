@@ -161,7 +161,7 @@ export function SettingsNav({
         <button
           type="button"
           className={cx(styles["nav-row"], styles["is-danger"])}
-          onClick={() => void signOut({ callLogout: true })}
+          onClick={() => void signOut({ callLogout: true, reason: "user" })}
         >
           <LogoutIcon className={styles["nav-icon"]} />
           <span>로그아웃</span>
