@@ -39,13 +39,13 @@ test("문서/그래프 전환은 사이드바 세그먼트 대신 레일 버튼�
   assert.match(railSource, /id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
 });
 
-test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 유지한다", async () => {
+test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 최상위 생성 메뉴를 연다", async () => {
   const source = await readFile(documentSidebarPath, "utf8");
 
   assert.doesNotMatch(source, /aria-label="최상위에 추가"|rootAddButtonRef|isRootMenuOpen/);
   assert.match(source, /className=\{styles\["tree-root-header"\]\}/);
   assert.match(source, /activeView === "home" && rootProject && \(/);
-  assert.match(source, /onCreateNote\(rootProject\.id\)/);
+  assert.match(source, /onOpenFolderMenuAt\(rootProject\.id, null, event\.currentTarget, "add-button"\)/);
   assert.match(source, /새 노트 추가/);
 });
 
@@ -73,11 +73,10 @@ test("파일 컨텍스트 메뉴에서는 생성 항목을 숨긴다", async () 
   assert.match(sidebarSource, /canCreateInTarget=\{canCreateInContextTarget\}/);
 });
 
-test("폴더 행 + 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 전파하지 않는다", async () => {
+test("행 ⋯ 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 전파하지 않는다", async () => {
   const source = await readFile(treeNodePath, "utf8");
 
   assert.match(source, /aria-haspopup="menu"/);
-  assert.match(source, /aria-label=\{`\$\{item\.label\}에 추가`\}/);
   assert.match(source, /event\.stopPropagation\(\);\s*interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
 });
 
@@ -131,7 +130,7 @@ test("컨텍스트 메뉴는 click이 아닌 바깥 pointerdown으로 닫힌다"
   assert.match(menuSource, /useDismissOnOutside\(menuRef, true, onClose, isFolderMenuTrigger\)/);
   assert.match(menuSource, /ref=\{menuRef\}/);
   assert.doesNotMatch(projectTreeSource, /addEventListener\("click"/);
-  // + 버튼은 바깥 판정에서 빠져 자체 onClick으로 토글한다.
+  // ⋯·새 노트 추가 버튼은 바깥 판정에서 빠져 자체 onClick으로 토글한다.
   assert.match(treeNodeSource, /data-folder-menu-trigger=""/);
   assert.match(menuSource, /closest\("\[data-folder-menu-trigger\]"\)/);
 });

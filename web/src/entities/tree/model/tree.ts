@@ -51,6 +51,8 @@ export type ContextMenuState = {
   itemId: string | null;
   x: number;
   y: number;
+  /** 사이드바 "새 노트 추가" 버튼으로 열었으면 "add-button". 이때 메뉴는 새 노트 항목에 포커스를 둔다. */
+  source?: "add-button";
 };
 
 export type EditingState = {

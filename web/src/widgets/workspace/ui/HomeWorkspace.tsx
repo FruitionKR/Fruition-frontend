@@ -520,12 +520,12 @@ export function HomeWorkspace() {
         onCancelEditing={projectTree.cancelEditing}
         onRenameContextTarget={projectTree.renameContextTarget}
         onSetPermissionContextTarget={projectTree.openPermissionContextTarget}
+        onTreeItemAction={projectTree.runTreeItemAction}
         onAddMarkdownFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();
           if (target?.folderId) treeOpen.open(target.folderId);
           if (target) createNoteAndOpen(target.projectId, target.folderId);
         }}
-        onCreateNote={(projectId) => createNoteAndOpen(projectId, null)}
         isCreatingNote={isCreatingNote}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();

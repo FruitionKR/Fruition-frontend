@@ -77,8 +77,8 @@ export function DocumentSidebar({
   onCancelEditing,
   onRenameContextTarget,
   onSetPermissionContextTarget,
+  onTreeItemAction,
   onAddMarkdownFromContext,
-  onCreateNote,
   isCreatingNote = false,
   onUploadFromContext,
   onImportNotionFromContext,
@@ -165,7 +165,7 @@ export function DocumentSidebar({
   onDragEnd: () => void;
   onContextMenuProject: (event: ReactMouseEvent<HTMLElement>, projectId: string) => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
-  onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement) => void;
+  onOpenFolderMenuAt: TreeInteractionProps["onOpenFolderMenuAt"];
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onOpenInNewTab: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
@@ -173,9 +173,9 @@ export function DocumentSidebar({
   onCancelEditing: () => void;
   onRenameContextTarget: () => void;
   onSetPermissionContextTarget?: () => void;
+  /** 트리 행 오른쪽 hover 버튼(이름 변경·권한 설정·삭제) */
+  onTreeItemAction: TreeInteractionProps["onTreeItemAction"];
   onAddMarkdownFromContext: () => void;
-  /** 사이드바 맨 아래 "새 노트 추가": 최상위에 새 노트를 만들고 바로 연다 */
-  onCreateNote: (projectId: string) => void;
   /** 새 노트를 만드는 중이면 "새 노트 추가"를 막는다(연타·키 반복으로 여러 개 생기지 않게). */
   isCreatingNote?: boolean;
   onUploadFromContext: () => void;
@@ -203,6 +203,7 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDropFiles
   });
+  const isAddMenuOpen = contextMenu?.source === "add-button";
   // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
   const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
@@ -231,6 +232,7 @@ export function DocumentSidebar({
     onDragEnd,
     onContextMenuItem,
     onOpenFolderMenuAt,
+    onTreeItemAction,
     onSelectGraphNode,
     onOpenInNewTab,
     onEditingChange,
@@ -253,19 +255,23 @@ export function DocumentSidebar({
         </div>
       )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
-      {/* 새 노트 추가 (Figma 1486:4480 자리): 최상위에 새 노트를 바로 만들고 연다.
-          우클릭은 sidebar-content로 올라가 최상위 생성 메뉴(새 폴더·파일 업로드)를 연다. */}
+      {/* 새 노트 추가 (Figma 1486:4480 자리): 최상위 우클릭과 같은 생성 메뉴(새 폴더·새 노트·파일 업로드·Notion)를 연다.
+          메뉴는 새 노트에 포커스를 두어 Enter 한 번이면 지금처럼 바로 만든다. 같은 버튼으로 다시 누르면 닫는다. */}
       {activeView === "home" && rootProject && (
         <button
           type="button"
           className={styles["tree-add-page"]}
           disabled={isCreatingNote}
           aria-busy={isCreatingNote || undefined}
+          aria-haspopup="menu"
+          aria-expanded={isAddMenuOpen}
+          // 바깥 pointerdown으로 먼저 닫히지 않고 자체 onClick으로 토글한다.
+          data-folder-menu-trigger=""
           // 눌러 둔 Enter의 키 반복은 클릭으로 이어지지 않게 한다.
           onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
           onClick={(event) => {
             event.stopPropagation();
-            onCreateNote(rootProject.id);
+            onOpenFolderMenuAt(rootProject.id, null, event.currentTarget, "add-button");
           }}
         >
           <SidebarPlusIcon size={20} />
@@ -274,7 +280,10 @@ export function DocumentSidebar({
       )}
       {contextMenu && (
         <ContextMenu
+          // 다른 대상·버튼으로 다시 열면 새로 마운트해 첫 포커스를 다시 잡는다.
+          key={`${contextMenu.projectId}:${contextMenu.itemId ?? ""}:${contextMenu.source ?? ""}`}
           contextMenu={contextMenu}
+          focusNewNote={contextMenu.source === "add-button"}
           canCreateProject={canCreateProjectFromView(activeView)}
           canCreateInTarget={canCreateInContextTarget}
           convertTarget={convertContextTarget}
