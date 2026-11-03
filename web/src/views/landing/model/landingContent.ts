@@ -1,12 +1,12 @@
 /**
  * 랜딩 화면 문구와 구조. 히어로 → 장 목차 → 01 모으고 쓰기 → 02 지식으로 연결 → 03 활용 → 04 팀으로 확장
- * → FAQ → 마지막 안내 순서다. 장 제목·본문·기능 칩은 사용자가 정한 문구를 그대로 쓴다(영어 부제·괄호 병기 포함).
+ * → 문서 보호 → FAQ → 마지막 안내 순서다. 헤더 메뉴가 가리키는 섹션의 제목은 메뉴 이름과 같다(landingNavLabel). 장 제목·본문·기능 칩은 사용자가 정한 문구를 그대로 쓴다(영어 부제·괄호 병기 포함).
  */
 
 export type LandingChapterId = "capture" | "connect" | "discover" | "together";
 
 export interface LandingNavItem {
-  readonly href: `#${LandingChapterId}`;
+  readonly href: `#${LandingChapterId | "data-handling"}`;
   readonly label: string;
 }
 
@@ -14,8 +14,16 @@ export const LANDING_NAV: readonly LandingNavItem[] = [
   { href: "#capture", label: "모으기" },
   { href: "#connect", label: "연결하기" },
   { href: "#discover", label: "활용하기" },
-  { href: "#together", label: "함께하기" }
+  { href: "#together", label: "함께하기" },
+  { href: "#data-handling", label: "문서 보호" }
 ];
+
+/** 헤더 메뉴 이름. 메뉴가 가리키는 섹션의 h2로도 쓴다. */
+export function landingNavLabel(href: LandingNavItem["href"]): string {
+  const item = LANDING_NAV.find((navItem) => navItem.href === href);
+  if (!item) throw new Error(`헤더 메뉴에 없는 앵커: ${href}`);
+  return item.label;
+}
 
 export interface LandingChapter {
   readonly id: LandingChapterId;
@@ -29,9 +37,8 @@ export interface LandingChapter {
   /** 장 이름과 영어 부제: "01. 지식 작성 및 편집 (CAPTURE & ORGANIZE)" */
   readonly name: string;
   readonly english: string;
+  /** 섹션 제목(메뉴 이름) 아래 한 줄 설명 */
   readonly headline: string;
-  /** 제목 옆 괄호 부제: "(모으고 쓰기)" */
-  readonly headlineNote: string;
   readonly body: string;
   readonly chips: readonly string[];
   /** 화면 조각 위치. 01·03은 왼쪽, 02·04는 오른쪽 */
@@ -48,7 +55,6 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     name: "지식 작성 및 편집",
     english: "CAPTURE & ORGANIZE",
     headline: "흩어진 기록을 한곳에 모으고",
-    headlineNote: "모으고 쓰기",
     body:
       "PDF·Markdown·TXT 문서를 올리고, PDF는 편집 가능한 Markdown으로 변환하세요. 아이디어부터 회의록까지 자유롭게 기록하세요. 모든 자료를 한곳에서 작성하고 체계적으로 정리할 수 있습니다.",
     chips: ["문서 업로드", "PDF Markdown으로 변환", "Markdown 편집", "회의 받아쓰기 및 AI 회의록", "폴더 관리"],
@@ -63,7 +69,6 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     name: "LLM Wiki 기반 지식 관리",
     english: "CONNECT THE DOTS",
     headline: "개별 기록을 연결된 지식으로 만들고",
-    headlineNote: "지식으로 연결하기",
     body:
       "문서 속 개념과 관계를 발견해 나만의 지식 위키를 구축하세요. 지식 그래프로 연결된 맥락을 탐색하고, 품질 검사와 변경 이력 관리로 신뢰할 수 있는 지식을 유지합니다.",
     chips: ["문서와 채팅 위키 편입(Ingest)", "지식 그래프(Graph)", "지식 품질 검사(Lint)", "AI 로그 이력", "롤백(History)"],
@@ -78,7 +83,6 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     name: "AI로 지식 활용",
     english: "PUT KNOWLEDGE TO WORK",
     headline: "필요한 순간, 지식을 찾아 활용하고",
-    headlineNote: "근거있는 지식 찾고 활용하기",
     body:
       "쌓아둔 지식에 질문하고, 관련된 정보를 빠르게 찾아보세요. AI 스킬과 편집 기능을 활용하면 단순한 정보 검색을 넘어 새로운 콘텐츠와 실질적인 결과물로 발전시킬 수 있습니다.",
     chips: ["자연어 질의응답(Query)", "답변 근거 확인", "AI 문서 편집(Edit)", "스킬 생성 및 실행(Skill)"],
@@ -93,7 +97,6 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
     name: "협업",
     english: "BUILD TOGETHER",
     headline: "개인의 기록을 팀의 지식으로 확장하세요",
-    headlineNote: "팀의 지식으로 확장하기",
     body:
       "팀원을 초대해 워크스페이스 내에서 지식을 공유하고 함께 발전시키세요. 역할별 접근 권한과 자동 병합·버전 기록으로 여러 사람이 안전하게 지식을 축적하고 관리할 수 있습니다.",
     chips: ["팀 워크스페이스", "멤버 초대", "권한 관리", "안전한 공동 편집", "팀 스킬 공유"],

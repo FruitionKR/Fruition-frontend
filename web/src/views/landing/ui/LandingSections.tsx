@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { ReactElement } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import { LANDING_CHAPTERS, LANDING_FAQ, type LandingChapter } from "../model/landingContent";
+import { DATA_HANDLING_GROUPS } from "../model/dataHandlingContent";
+import { LANDING_CHAPTERS, LANDING_FAQ, landingNavLabel, type LandingChapter } from "../model/landingContent";
 import { CHAPTER_ICONS, CHIP_ICONS } from "./LandingIcons";
 import { CaptureVisual, ConnectVisual, DiscoverVisual, TogetherVisual } from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
@@ -61,9 +62,9 @@ function ChapterSection({ chapter }: { chapter: LandingChapter }) {
             <span className={sections["chapter-english"]}>({chapter.english})</span>
           </p>
           <h2 id={headingId} className={styles["h2"]}>
-            {chapter.headline}
+            {landingNavLabel(`#${chapter.id}`)}
           </h2>
-          <p className={sections["chapter-note"]}>({chapter.headlineNote})</p>
+          <p className={sections["chapter-note"]}>{chapter.headline}</p>
           <p className={styles["lead"]}>{chapter.body}</p>
           <ul className={sections["chips"]} aria-label={`${chapter.name} 기능`}>
             {chapter.chips.map((chip) => (
@@ -91,6 +92,36 @@ export function LandingChapters() {
         <ChapterSection key={chapter.id} chapter={chapter} />
       ))}
     </div>
+  );
+}
+
+/** 문서 보관·접근·AI 처리·삭제 방식. 문구는 근거와 함께 dataHandlingContent.ts에 있다. */
+export function LandingDataHandling() {
+  return (
+    <section id="data-handling" className={sections["data-handling"]} aria-labelledby="data-handling-title">
+      <h2 id="data-handling-title" className={styles["h2"]}>
+        {landingNavLabel("#data-handling")}
+      </h2>
+      <div className={sections["data-handling-grid"]}>
+        {DATA_HANDLING_GROUPS.map((group) => (
+          <article key={group.id} className={sections["data-handling-group"]} aria-labelledby={`data-handling-${group.id}`}>
+            <div className={sections["data-handling-group-head"]}>
+              <p className={sections["card-english"]}>
+                {group.english} · {group.title}
+              </p>
+              <h3 id={`data-handling-${group.id}`} className={sections["data-handling-group-title"]}>
+                {group.headline}
+              </h3>
+            </div>
+            <ul className={sections["data-handling-list"]}>
+              {group.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
