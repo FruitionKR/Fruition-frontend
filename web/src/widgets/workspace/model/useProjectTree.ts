@@ -1,7 +1,7 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useRef, useState } from "react";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
-import { canConvertDocument, canDeleteDocument, CONVERT_FORBIDDEN_REASON, permissionChangedMessage } from "@/entities/document/lib/documentAccess";
+import { canConvertDocument, CONVERT_FORBIDDEN_REASON, permissionChangedMessage } from "@/entities/document/lib/documentAccess";
 import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
 import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
@@ -22,8 +22,7 @@ import {
   serverFolderId,
   normalizeTreeName,
   initialProjects,
-  isFileItem,
-  isWikiItem
+  isFileItem
 } from "@/entities/tree";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
 
@@ -146,7 +145,7 @@ export function useProjectTree({
     const target = project && context?.itemId ? findTreeItem(project.items, context.itemId) : null;
     const location = context && project ? target && isFileItem(target) ? findItemLocation(projects, target.id) ?? undefined : {
       projectId: project.id,
-      folderId: target && !isFileItem(target) && !isWikiItem(target) ? target.id : null
+      folderId: target && !isFileItem(target) ? target.id : null
     } : undefined;
     setContextMenu(null);
     void runTreeMutation(async (latest) => {
@@ -247,14 +246,17 @@ export function useProjectTree({
     setContextMenu({ projectId, itemId, x: event.clientX, y: event.clientY });
   }
 
-  /** 폴더 행·트리 상단의 + 버튼: 버튼 아래에 우클릭과 같은 메뉴를 열고, 같은 대상에서 다시 누르면 닫는다. itemId가 null이면 최상위다. */
-  function openFolderMenuAt(projectId: string, itemId: string | null, anchor: HTMLElement) {
-    if (contextMenu?.projectId === projectId && contextMenu.itemId === itemId) {
+  /**
+   * 행 ⋯ 버튼·새 노트 추가 버튼: 버튼 아래에 우클릭과 같은 메뉴를 열고, 같은 버튼으로 다시 누르면 닫는다. itemId가 null이면 최상위다.
+   * source로 연 버튼을 기록해 새 노트 추가 메뉴는 새 노트 항목에 포커스를 둔다.
+   */
+  function openFolderMenuAt(projectId: string, itemId: string | null, anchor: HTMLElement, source?: ContextMenuState["source"]) {
+    if (contextMenu?.projectId === projectId && contextMenu.itemId === itemId && contextMenu.source === source) {
       setContextMenu(null);
       return;
     }
     const rect = anchor.getBoundingClientRect();
-    setContextMenu({ projectId, itemId, x: rect.left, y: rect.bottom + FOLDER_MENU_ANCHOR_GAP_PX });
+    setContextMenu({ projectId, itemId, x: rect.left, y: rect.bottom + FOLDER_MENU_ANCHOR_GAP_PX, source });
   }
 
   function openProjectMenu(event: ReactMouseEvent<HTMLElement>, projectId: string) {
@@ -271,8 +273,8 @@ export function useProjectTree({
       setEditing({ projectId: contextMenu.projectId, itemId: null, label: project.title });
     } else {
       const item = findTreeItem(project.items, contextMenu.itemId);
-      // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다. 보기 권한만 있는 문서도 같다.
-      if (!item || item.generated || item.mimeType === "application/pdf" || item.canEdit === false) return;
+      // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다. 보기 권한만 있는 문서와 채팅에서 만든 문서도 같다.
+      if (!item || item.generated || item.mimeType === "application/pdf" || item.canEdit === false || item.titleLocked) return;
       setEditing({ projectId: contextMenu.projectId, itemId: contextMenu.itemId, label: item.label });
     }
     setContextMenu(null);
@@ -285,7 +287,7 @@ export function useProjectTree({
     const item = contextMenu.itemId && project ? findTreeItem(project.items, contextMenu.itemId) : null;
     const target = item && isFileItem(item) ? findItemLocation(projects, item.id) : {
       projectId: contextMenu.projectId,
-      folderId: item && !isFileItem(item) && !isWikiItem(item) ? item.id : null
+      folderId: item && !isFileItem(item) ? item.id : null
     };
     setContextMenu(null);
     return target ?? null;
@@ -296,16 +298,7 @@ export function useProjectTree({
   const contextMenuItem = contextMenu?.itemId && contextMenuProject
     ? findTreeItem(contextMenuProject.items, contextMenu.itemId)
     : null;
-  // PDF 원본은 편집 불가 문서라 컨텍스트 메뉴에서 이름 변경을 숨긴다.
-  // 파일(노트·PDF) 메뉴에서는 새 폴더·새 노트·파일 업로드를 숨긴다. 생성은 폴더·빈 영역에서만 한다.
-  const canCreateInContextTarget = !contextMenuItem || !isFileItem(contextMenuItem);
-  // 보기 권한만 있는 문서(can_edit=false)는 이름 변경에도 편집 권한이 필요해 메뉴를 숨긴다.
-  const canRenameContextTarget = !(contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null)
-    && contextMenuItem?.mimeType !== "application/pdf" && contextMenuItem?.canEdit !== false;
-  // 삭제는 문서 소유자·OWNER만 할 수 있다(can_delete). 폴더는 서버가 판정하므로 그대로 둔다.
-  const canDeleteContextTarget = canDeleteDocument(contextMenuItem ? { can_delete: contextMenuItem.canDelete } : null);
-  // 권한 설정은 문서·폴더 항목에서만. 누가 바꿀 수 있는지는 서버가 판정한다(403이면 다이얼로그가 안내).
-  const canSetPermissionContextTarget = Boolean(contextMenuItem && !isWikiItem(contextMenuItem) && contextMenuItem.status !== "uploading");
+  // 메뉴 항목 노출은 사이드바가 treeItemMenuAccess로 판정한다. 여기 핸들러는 실행 직전에 다시 확인한다.
 
   /** 컨텍스트 메뉴 → 권한 설정: 대상을 스냅샷해 다이얼로그를 연다. */
   function openPermissionContextTarget() {
@@ -344,6 +337,7 @@ export function useProjectTree({
     }
     : null;
 
+
   // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
   // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
   function convertContextTargetToMarkdown() {
@@ -369,7 +363,7 @@ export function useProjectTree({
       return;
     }
     const item = project ? findTreeItem(project.items, contextMenu.itemId) : null;
-    const isFolder = item ? (!isFileItem(item) && !isWikiItem(item)) : false;
+    const isFolder = item ? !isFileItem(item) : false;
     setDeleteConfirm({
       projectId,
       itemId: contextMenu.itemId,
@@ -544,14 +538,10 @@ export function useProjectTree({
     openProjectMenu,
     renameContextTarget,
     takeFolderTargetFromContext,
-    canRenameContextTarget,
-    canDeleteContextTarget,
-    canSetPermissionContextTarget,
     openPermissionContextTarget,
     permissionTarget,
     closePermissionDialog: () => setPermissionTarget(null),
     applyPermission,
-    canCreateInContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,
     deleteContextTarget,

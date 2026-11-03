@@ -39,46 +39,30 @@ test("문서/그래프 전환은 사이드바 세그먼트 대신 레일 버튼�
   assert.match(railSource, /id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
 });
 
-test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 유지한다", async () => {
+test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 최상위 생성 메뉴를 연다", async () => {
   const source = await readFile(documentSidebarPath, "utf8");
 
   assert.doesNotMatch(source, /aria-label="최상위에 추가"|rootAddButtonRef|isRootMenuOpen/);
   assert.match(source, /className=\{styles\["tree-root-header"\]\}/);
   assert.match(source, /activeView === "home" && rootProject && \(/);
-  assert.match(source, /onCreateNote\(rootProject\.id\)/);
+  assert.match(source, /onOpenFolderMenuAt\(rootProject\.id, null, event\.currentTarget, "add-button"\)/);
   assert.match(source, /새 노트 추가/);
 });
 
-test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따른다", async () => {
-  const [menuSource, sidebarSource] = await Promise.all([
-    readFile(contextMenuPath, "utf8"),
-    readFile(documentSidebarPath, "utf8")
-  ]);
+test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따르고, 메뉴 구성은 treeContextMenuSections가 정한다", async () => {
+  const sidebarSource = await readFile(documentSidebarPath, "utf8");
 
-  assert.match(menuSource, /canCreateProject\s*&&\s*\(\s*<button[^>]*>새 폴더<\/button>/);
-  assert.match(sidebarSource, /canCreateProject=\{canCreateProjectFromView\(activeView\)\}/);
+  // 파일 메뉴의 생성 항목 숨김·구역 구성은 tests/treeItemActions.test.mjs에서 구성 함수로 검증한다.
+  assert.match(sidebarSource, /canCreateProject: canCreateProjectFromView\(activeView\)/);
+  assert.match(sidebarSource, /sections=\{contextMenuSections\}/);
 });
 
-test("파일 컨텍스트 메뉴에서는 생성 항목을 숨긴다", async () => {
-  const [menuSource, sidebarSource] = await Promise.all([
-    readFile(contextMenuPath, "utf8"),
-    readFile(documentSidebarPath, "utf8")
-  ]);
-
-  // 새 폴더·새 노트·파일 업로드가 모두 canCreateInTarget 게이트 안에 있어야 한다.
-  const gated = menuSource.match(/\{canCreateInTarget && \([\s\S]*?\n      \)\}/)?.[0] ?? "";
-  for (const label of ["새 폴더", "새 노트", "파일 업로드"]) {
-    assert.match(gated, new RegExp(`>${label}</button>`));
-  }
-  assert.match(sidebarSource, /canCreateInTarget=\{canCreateInContextTarget\}/);
-});
-
-test("폴더 행 + 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 전파하지 않는다", async () => {
+test("행 ⋯ 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 전파하지 않는다", async () => {
   const source = await readFile(treeNodePath, "utf8");
 
   assert.match(source, /aria-haspopup="menu"/);
-  assert.match(source, /aria-label=\{`\$\{item\.label\}에 추가`\}/);
-  assert.match(source, /event\.stopPropagation\(\);\s*interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
+  // 메뉴가 닫히면 포커스를 돌려받도록 클릭한 ⋯ 버튼에 먼저 포커스를 둔다.
+  assert.match(source, /event\.stopPropagation\(\);[\s\S]{0,200}?event\.currentTarget\.focus\(\);\s*interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
 });
 
 test("빈 영역 우클릭은 문서 뷰에서만 첫 프로젝트 메뉴를 연다", () => {
@@ -131,7 +115,7 @@ test("컨텍스트 메뉴는 click이 아닌 바깥 pointerdown으로 닫힌다"
   assert.match(menuSource, /useDismissOnOutside\(menuRef, true, onClose, isFolderMenuTrigger\)/);
   assert.match(menuSource, /ref=\{menuRef\}/);
   assert.doesNotMatch(projectTreeSource, /addEventListener\("click"/);
-  // + 버튼은 바깥 판정에서 빠져 자체 onClick으로 토글한다.
+  // ⋯·새 노트 추가 버튼은 바깥 판정에서 빠져 자체 onClick으로 토글한다.
   assert.match(treeNodeSource, /data-folder-menu-trigger=""/);
   assert.match(menuSource, /closest\("\[data-folder-menu-trigger\]"\)/);
 });
@@ -140,4 +124,13 @@ test("업로드 스피너는 행 라벨용 flex 규칙에서 빠져 8px 원을 �
   const css = await readFile(new URL("../src/widgets/document-sidebar/ui/DocumentSidebar.module.css", import.meta.url), "utf8");
 
   assert.match(css, /\.tree-row > span:not\(\.tree-folder-slot\):not\(\.tree-upload-spinner\):not\(\.tree-permission-indicator\):not\(\.tree-conversion-inline\) \{/);
+});
+
+test("트리 행 이름에는 전체 파일명 말풍선을 띄우지 않고, 이름 글자가 행의 접근성 이름이 된다", async () => {
+  const source = await readFile(treeNodePath, "utf8");
+
+  assert.doesNotMatch(source, /<Tooltip content=\{item\.label\}/);
+  assert.match(source, /<span className=\{styles\["tree-label-text"\]\}>\{display\.name\}<\/span>/);
+  // ⋯ 버튼의 "항목 메뉴 열기" 툴팁은 유지한다.
+  assert.match(source, /<Tooltip content=\{ROW_MENU_LABEL\}/);
 });

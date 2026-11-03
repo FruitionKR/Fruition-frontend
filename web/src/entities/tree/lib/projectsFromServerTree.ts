@@ -2,6 +2,7 @@ import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
 import type { Project, TreeItem } from "../model/tree";
 import type { ServerTreeItem } from "../model/serverTree";
 import { makeRawId } from "@/entities/graph/lib/graphBuilder";
+import { isDocumentBodyLocked } from "@/entities/document/lib/documentAccess";
 
 export const ROOT_DOCUMENTS_PROJECT_ID = "project-uploaded-documents";
 export const ROOT_DOCUMENTS_TITLE = "문서";
@@ -29,7 +30,7 @@ export function projectsFromServerTree(items: ServerTreeItem[], previous: Projec
           processingState: doc?.processing_state, processingStage: doc?.processing_stage,
           errorMessage: describeDocumentFailure(doc?.error_message, doc?.error_code), sourceUri: doc?.source_uri, byteSize: doc?.byte_size,
           uploadedAt: doc?.uploaded_at, updatedAt: doc?.updated_at,
-          canEdit: doc?.can_edit, canDelete: doc?.can_delete, canConvert: doc?.can_convert, permission: doc?.permission };
+          canEdit: doc?.can_edit, titleLocked: isDocumentBodyLocked(doc), canDelete: doc?.can_delete, canConvert: doc?.can_convert, permission: doc?.permission };
   };
   const projects: Project[] = [
     { id: ROOT_DOCUMENTS_PROJECT_ID, folderId: null, title: ROOT_DOCUMENTS_TITLE, items: items.map(mapItem).sort(byName) }

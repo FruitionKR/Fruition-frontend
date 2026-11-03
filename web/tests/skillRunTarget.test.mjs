@@ -91,10 +91,9 @@ test("상황에 맞게 스킬은 문서와 폴더를 모두 받는다", () => {
   assert.equal(resolve(AUTO_SKILL, folder).target.kind, "folder");
 });
 
-test("편집 권한이 없는 문서·폴더와 위키 페이지는 고를 수 없다", () => {
+test("편집 권한이 없는 문서·폴더는 고를 수 없다", () => {
   assert.equal(resolve(EDIT_SKILL, { ...markdownItem, canEdit: false }).status, "invalid");
   assert.equal(resolve(FOLDER_SKILL, { ...folder, canEdit: false }).status, "invalid");
-  assert.equal(resolve(AUTO_SKILL, { id: "w1", label: "개념", type: "wiki" }).status, "invalid");
 });
 
 test("대상이 '선택한 부분'뿐인 문서 스킬은 사이드바에서 문서를 고르지 못하게 막는다", () => {
@@ -133,8 +132,7 @@ test("folderMarkdownCount는 폴더 바로 아래 Markdown 문서만 센다", ()
       { id: "a", label: "회의.md", documentId: "d1" },
       { id: "b", label: "논문.pdf", documentId: "d2" },
       { id: "c", label: "새 노트.md", documentId: "d-unknown", mimeType: "text/markdown" },
-      { id: "sub", label: "하위", type: "folder", children: [{ id: "d", label: "메모.md", documentId: "d3" }] },
-      { id: "w", label: "개념", type: "wiki" }
+      { id: "sub", label: "하위", type: "folder", children: [{ id: "d", label: "메모.md", documentId: "d3" }] }
     ]
   };
   assert.equal(folderMarkdownCount(nested, documents), 2);

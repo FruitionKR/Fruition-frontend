@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
-import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
+import { findTreeItem, type ContextMenuState, type DropTarget, type EditingState, type FileDropTarget, type Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { RailDivider, RailGroup, RailNavigation, type RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
@@ -20,6 +20,8 @@ import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model
 import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
 import { buildTreeConversionBadges } from "../model/treeConversionBadge";
+import { treeContextMenuSections, type TreeMenuActionId } from "../model/treeItemActions";
+import { downloadTreeItemOriginal } from "../model/downloadTreeItem";
 import styles from "./DocumentSidebar.module.css";
 import { StorageUsageMeter } from "./StorageUsageMeter";
 
@@ -37,10 +39,6 @@ export function DocumentSidebar({
   onOpenMany,
   contextMenu,
   convertContextTarget,
-  canRenameContextTarget,
-  canDeleteContextTarget = true,
-  canSetPermissionContextTarget = false,
-  canCreateInContextTarget,
   uploadInputRef,
   activeView,
   documents,
@@ -78,7 +76,6 @@ export function DocumentSidebar({
   onRenameContextTarget,
   onSetPermissionContextTarget,
   onAddMarkdownFromContext,
-  onCreateNote,
   isCreatingNote = false,
   onUploadFromContext,
   onImportNotionFromContext,
@@ -99,15 +96,8 @@ export function DocumentSidebar({
   onToggleOpen: (id: string) => void;
   onOpenMany: (ids: readonly string[]) => void;
   contextMenu: ContextMenuState | null;
+  /** PDF 원본 메뉴의 Markdown 변환 상태. 처리 중이거나 변환 권한이 없으면 이유와 함께 비활성화한다. */
   convertContextTarget: { isDisabled: boolean; disabledReason?: string } | null;
-  /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
-  canRenameContextTarget: boolean;
-  /** 서버 can_delete=false면 삭제 메뉴를 비활성화한다. */
-  canDeleteContextTarget?: boolean;
-  /** 문서·폴더 항목 메뉴에 공동 편집 권한 설정을 보인다. */
-  canSetPermissionContextTarget?: boolean;
-  /** 파일 메뉴에서는 생성 항목(새 폴더·새 노트·파일 업로드)을 숨긴다. */
-  canCreateInContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
   activeView: RailView;
   /** 워크스페이스 문서 목록. 헤더의 진행 중 작업 팝오버가 여기서 ingest 진행 문서를 고른다. */
@@ -165,7 +155,7 @@ export function DocumentSidebar({
   onDragEnd: () => void;
   onContextMenuProject: (event: ReactMouseEvent<HTMLElement>, projectId: string) => void;
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
-  onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement) => void;
+  onOpenFolderMenuAt: TreeInteractionProps["onOpenFolderMenuAt"];
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   onOpenInNewTab: (item: SelectableTreeItem) => void;
   onEditingChange: (label: string) => void;
@@ -174,8 +164,6 @@ export function DocumentSidebar({
   onRenameContextTarget: () => void;
   onSetPermissionContextTarget?: () => void;
   onAddMarkdownFromContext: () => void;
-  /** 사이드바 맨 아래 "새 노트 추가": 최상위에 새 노트를 만들고 바로 연다 */
-  onCreateNote: (projectId: string) => void;
   /** 새 노트를 만드는 중이면 "새 노트 추가"를 막는다(연타·키 반복으로 여러 개 생기지 않게). */
   isCreatingNote?: boolean;
   onUploadFromContext: () => void;
@@ -203,6 +191,37 @@ export function DocumentSidebar({
     onFileDragLeave,
     onDropFiles
   });
+  const isAddMenuOpen = contextMenu?.source === "add-button";
+  // 메뉴 대상은 사이드바가 그리는 트리(그래프 뷰면 위키 페이지가 섞인 트리)에서 찾는다. itemId가 null이면 최상위다.
+  const contextMenuProject = contextMenu ? projects.find((project) => project.id === contextMenu.projectId) : undefined;
+  const contextMenuItem = contextMenu?.itemId && contextMenuProject ? findTreeItem(contextMenuProject.items, contextMenu.itemId) : null;
+  const isRootContextTarget = contextMenu?.itemId === null;
+  const contextMenuSections = contextMenu
+    ? treeContextMenuSections(contextMenuItem, {
+      isRootTarget: isRootContextTarget,
+      canCreateProject: canCreateProjectFromView(activeView),
+      canImportNotion: Boolean(onImportNotionFromContext)
+    })
+    : [];
+  const hasContextMenuItems = selectedContextCount > 1 || contextMenuSections.length > 0;
+  // 보일 항목이 하나도 없는 대상(찾지 못한 행 등)은 빈 메뉴를 띄우지 않고 닫는다.
+  useEffect(() => {
+    if (contextMenu && !hasContextMenuItems) onCloseContextMenu();
+  }, [contextMenu, hasContextMenuItems, onCloseContextMenu]);
+  const contextMenuActions: Record<TreeMenuActionId, () => void> = {
+    "new-note": onAddMarkdownFromContext,
+    "new-folder": onAddProject,
+    upload: onUploadFromContext,
+    "import-notion": () => onImportNotionFromContext?.(),
+    convert: onConvertContextTarget,
+    rename: onRenameContextTarget,
+    permission: () => onSetPermissionContextTarget?.(),
+    download: () => {
+      onCloseContextMenu();
+      if (contextMenuItem) void downloadTreeItemOriginal(contextMenuItem);
+    },
+    delete: onDeleteContextTarget
+  };
   // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
   const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
@@ -231,6 +250,7 @@ export function DocumentSidebar({
     onDragEnd,
     onContextMenuItem,
     onOpenFolderMenuAt,
+    menuOpenItemId: contextMenu && !contextMenu.source ? contextMenu.itemId : null,
     onSelectGraphNode,
     onOpenInNewTab,
     onEditingChange,
@@ -253,44 +273,42 @@ export function DocumentSidebar({
         </div>
       )}
       {rootProject && <RootTree project={rootProject} interaction={interaction} />}
-      {/* 새 노트 추가 (Figma 1486:4480 자리): 최상위에 새 노트를 바로 만들고 연다.
-          우클릭은 sidebar-content로 올라가 최상위 생성 메뉴(새 폴더·파일 업로드)를 연다. */}
+      {/* 새 노트 추가 (Figma 1486:4480 자리): 최상위 우클릭과 같은 생성 메뉴(새 폴더·새 노트·파일 업로드·Notion)를 연다.
+          메뉴는 새 노트에 포커스를 두어 Enter 한 번이면 지금처럼 바로 만든다. 같은 버튼으로 다시 누르면 닫는다. */}
       {activeView === "home" && rootProject && (
         <button
           type="button"
           className={styles["tree-add-page"]}
           disabled={isCreatingNote}
           aria-busy={isCreatingNote || undefined}
+          aria-haspopup="menu"
+          aria-expanded={isAddMenuOpen}
+          // 바깥 pointerdown으로 먼저 닫히지 않고 자체 onClick으로 토글한다.
+          data-folder-menu-trigger=""
           // 눌러 둔 Enter의 키 반복은 클릭으로 이어지지 않게 한다.
           onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
           onClick={(event) => {
             event.stopPropagation();
-            onCreateNote(rootProject.id);
+            // 메뉴가 닫히면 이 버튼으로 포커스를 돌려받도록 먼저 잡는다(마우스 클릭은 포커스를 주지 않는 브라우저가 있다).
+            event.currentTarget.focus();
+            onOpenFolderMenuAt(rootProject.id, null, event.currentTarget, "add-button");
           }}
         >
           <SidebarPlusIcon size={20} />
           새 노트 추가
         </button>
       )}
-      {contextMenu && (
+      {contextMenu && hasContextMenuItems && (
         <ContextMenu
+          // 다른 대상·버튼으로 다시 열면 새로 마운트해 첫 포커스를 다시 잡는다.
+          key={`${contextMenu.projectId}:${contextMenu.itemId ?? ""}:${contextMenu.source ?? ""}`}
           contextMenu={contextMenu}
-          canCreateProject={canCreateProjectFromView(activeView)}
-          canCreateInTarget={canCreateInContextTarget}
+          focusNewNote={contextMenu.source === "add-button"}
+          sections={contextMenuSections}
           convertTarget={convertContextTarget}
-          canRenameTarget={canRenameContextTarget}
-          canDeleteTarget={canDeleteContextTarget}
-          canSetPermissionTarget={canSetPermissionContextTarget}
           selectedCount={selectedContextCount}
           onDeleteSelected={onDeleteSelectedItems}
-          onRenameContextTarget={onRenameContextTarget}
-          onSetPermissionContextTarget={onSetPermissionContextTarget}
-          onAddProject={onAddProject}
-          onAddMarkdownFromContext={onAddMarkdownFromContext}
-          onUploadFromContext={onUploadFromContext}
-          onImportNotionFromContext={onImportNotionFromContext}
-          onConvertContextTarget={onConvertContextTarget}
-          onDeleteContextTarget={onDeleteContextTarget}
+          onAction={(action) => contextMenuActions[action]()}
           onClose={onCloseContextMenu}
         />
       )}

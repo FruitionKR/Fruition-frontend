@@ -1,4 +1,4 @@
-import { isFileItem, isWikiItem } from "@/entities/tree/lib/treeGuards";
+import { isFileItem } from "@/entities/tree/lib/treeGuards";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
 
 /** 묶음 작업에서 건너뛴(또는 실패한) 항목과 그 이유. 요약 알림에 그대로 쓴다. */
@@ -9,13 +9,12 @@ const SUMMARY_LIST_LIMIT = 5;
 
 /**
  * 화면에 보이는 행(펼친 폴더의 자식까지)을 위에서 아래 순서로 모은다. Shift+클릭 범위 선택의 기준이다.
- * 위키 행은 이동·삭제 대상이 아니라 범위에 넣지 않지만, 펼쳐져 있으면 그 아래는 계속 본다.
  */
 export function visibleSelectableIds(items: readonly TreeItem[], openIds: ReadonlySet<string>): string[] {
   const result: string[] = [];
   const visit = (entries: readonly TreeItem[]) => {
     for (const item of entries) {
-      if (!isWikiItem(item)) result.push(item.id);
+      result.push(item.id);
       if (item.children && openIds.has(item.id)) visit(item.children);
     }
   };
@@ -58,7 +57,7 @@ export function planBulkDelete(projects: readonly Project[], selectedIds: Readon
   const items: TreeItem[] = [];
   const skipped: SkippedTreeItem[] = [];
   for (const item of selectedRootItems(projects, selectedIds)) {
-    if (isWikiItem(item) || item.generated) skipped.push({ label: item.label, reason: "자동 생성 항목은 삭제할 수 없습니다" });
+    if (item.generated) skipped.push({ label: item.label, reason: "자동 생성 항목은 삭제할 수 없습니다" });
     else if (isPendingUpload(item)) skipped.push({ label: item.label, reason: "업로드가 끝나지 않았습니다" });
     else if (item.canDelete === false) skipped.push({ label: item.label, reason: "삭제 권한이 없습니다" });
     else items.push(item);

@@ -2,8 +2,7 @@ export type TreeItem = {
   id: string;
   label: string;
   currentVersion?: number;
-  type?: "folder" | "file" | "wiki";
-  wikiKind?: "source" | "concept";
+  type?: "folder" | "file";
   generated?: boolean;
   customLabel?: boolean;
   status?: "uploading" | DocumentStatus;
@@ -18,6 +17,8 @@ export type TreeItem = {
   updatedAt?: string;
   /** 서버 can_edit. false면 이름 변경·이동을 막는다. 없으면 편집 가능으로 본다. */
   canEdit?: boolean;
+  /** 채팅 Wiki page화 문서(ai_origin=chat_export). 권한과 무관하게 이름 변경을 막는다. 이동·삭제는 그대로 둔다. */
+  titleLocked?: boolean;
   /** 서버 can_delete. false면 삭제 메뉴를 비활성화한다. */
   canDelete?: boolean;
   /** 서버 can_convert. false면 Markdown 변환 메뉴를 비활성화한다. 없으면 지금처럼 요청한다. */
@@ -51,6 +52,8 @@ export type ContextMenuState = {
   itemId: string | null;
   x: number;
   y: number;
+  /** 사이드바 "새 노트 추가" 버튼으로 열었으면 "add-button". 이때 메뉴는 새 노트 항목에 포커스를 둔다. */
+  source?: "add-button";
 };
 
 export type EditingState = {

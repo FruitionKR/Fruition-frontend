@@ -1,12 +1,11 @@
 import { cx } from "@/shared/lib/classNames";
 import Link from "next/link";
 import { effectivePermission, isFileItem, permissionForChildren } from "@/entities/tree";
-import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import type { DropTarget, InheritedPermission, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
 import { inheritedPermissionLabel, permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
-import { SidebarConversionLinkIcon, SidebarPermissionIcon } from "./SidebarIcons";
+import { SidebarConversionLinkIcon, SidebarMoreIcon, SidebarPermissionIcon } from "./SidebarIcons";
 import { buildWorkspaceHref } from "@/widgets/workspace/lib/workspaceLocation";
 import { isUploadFailedItem, TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
@@ -17,6 +16,9 @@ import styles from "./DocumentSidebar.module.css";
 // 트리 행 들여쓰기 (Figma 1486:4410): 기본 10px + depth당 22px (pl 10 / 32)
 const TREE_ROW_BASE_PADDING_PX = 10;
 const TREE_ROW_INDENT_PER_DEPTH_PX = 22;
+
+/** 행 ⋯ 버튼 툴팁·접근성 이름 */
+const ROW_MENU_LABEL = "항목 메뉴 열기";
 
 // mime type → 시안의 우측 파일 타입 배지 문구
 const MIME_TYPE_BADGES: [pattern: string, label: string][] = [
@@ -92,8 +94,10 @@ export function TreeNode({
     ? permissionIndicatorLabel(permission.access)
     : inheritedPermissionLabel(permission.access, permission.fromFolderName));
   const permissionDescription = "편집 권한이 없으면 읽기만 가능";
-  // 폴더 hover·포커스 시 우측 + 버튼으로 우클릭과 같은 생성 메뉴를 연다. 편집·업로드·드래그 중에는 숨긴다.
-  const canShowFolderAction = isFolder && !isEditing && !isUploading && draggedItemId === null;
+  // 파일·폴더 행 hover·키보드 포커스 시 우측에 ⋯ 버튼을 띄워 우클릭과 같은 메뉴(권한에 맞는 항목만)를 연다.
+  // 편집·업로드·드래그·스킬 대상 고르기 중에는 숨긴다.
+  const canShowRowActions = (isFolder || isFileItem(item))
+    && !isEditing && !isUploading && draggedItemId === null && !interaction.isPickingTarget;
   const canOpenInNewTab = !isEditing && !isUploading && Boolean(item.graphNodeId || item.documentId);
   const {
     canDrag,
@@ -127,7 +131,7 @@ export function TreeNode({
           (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
           isFileDropTarget && styles["is-file-drop-target"],
           item.type === "folder" ? styles["is-folder"] : styles["is-note"],
-          canShowFolderAction && styles["has-folder-action"],
+          canShowRowActions && styles["has-row-actions"],
           isDropTarget && styles[`is-drop-${dropTarget.position}`]
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
@@ -171,7 +175,7 @@ export function TreeNode({
             return;
           }
           // 키보드로도 마우스와 같은 선택: Cmd/Ctrl+Space·Enter는 토글, Shift+Space·Enter는 범위 선택.
-          if ((event.key !== " " && event.key !== "Enter") || isUploading || item.type === "wiki") return;
+          if ((event.key !== " " && event.key !== "Enter") || isUploading) return;
           if (event.metaKey || event.ctrlKey) {
             event.preventDefault();
             interaction.onToggleSelectItem(item.id);
@@ -190,12 +194,12 @@ export function TreeNode({
             return;
           }
           // Cmd/Ctrl+클릭: 열지 않고 묶음 대상으로 고른다. 위키 노드는 이동·삭제 대상이 아니다.
-          if ((event.metaKey || event.ctrlKey) && item.type !== "wiki") {
+          if (event.metaKey || event.ctrlKey) {
             interaction.onToggleSelectItem(item.id);
             return;
           }
           // Shift+클릭: 마지막으로 누른 행부터 이 행까지 보이는 행을 고른다.
-          if (event.shiftKey && item.type !== "wiki") {
+          if (event.shiftKey) {
             interaction.onSelectItemRange(item.id);
             return;
           }
@@ -215,9 +219,8 @@ export function TreeNode({
           />
         ) : (
           <>
-            <Tooltip content={item.label} placement="right">
-              <span className={styles["tree-label-text"]}>{display.name}</span>
-            </Tooltip>
+            {/* 전체 파일명(확장자 포함) 말풍선은 두지 않는다. 확장자는 오른쪽 배지가, 긴 이름은 이름 변경 칸·열린 문서 제목이 보여 준다. */}
+            <span className={styles["tree-label-text"]}>{display.name}</span>
             {permission && permissionLabel && (
               <Tooltip content={permissionLabel} hint={permissionDescription} placement="right" describe={false} className={styles["tree-permission-indicator"]}>
                 <SidebarPermissionIcon
@@ -249,6 +252,33 @@ export function TreeNode({
           </>
         )}
       </button>
+      {(canShowRowActions || Boolean(relatedDocumentId && conversionBadge)) && (
+      // 행 버튼 안에 버튼·링크를 중첩하지 않고, 행 오른쪽 위에 형제로 겹쳐 놓는다. ⋯ 버튼은 배지를 덮고 배지 링크는 그 오른쪽에 남는다.
+      <div className={styles["tree-row-trailing"]}>
+      {canShowRowActions && (
+        <div className={styles["tree-row-actions"]}>
+          <Tooltip content={ROW_MENU_LABEL} placement="bottom" describe={false}>
+            <button
+              type="button"
+              className={styles["tree-row-action"]}
+              aria-label="항목 메뉴 열기"
+              aria-haspopup="menu"
+              aria-expanded={interaction.menuOpenItemId === item.id}
+              data-folder-menu-trigger=""
+              draggable={false}
+              onClick={(event) => {
+                event.stopPropagation();
+                // Safari 등은 마우스 클릭으로 버튼에 포커스를 주지 않는다. 메뉴가 닫히면 이 버튼으로 포커스를 돌려받도록 먼저 잡는다.
+                event.currentTarget.focus();
+                interaction.onOpenFolderMenuAt(projectId, item.id, event.currentTarget);
+              }}
+              onContextMenu={(event) => interaction.onContextMenuItem(event, projectId, item.id)}
+            >
+              <SidebarMoreIcon className={styles["tree-row-action-icon"]} />
+            </button>
+          </Tooltip>
+        </div>
+      )}
       {relatedDocumentId && conversionBadge && (
         <Tooltip content={conversionDescription} placement="right" describe={false} className={styles["tree-conversion-tooltip"]}>
         <Link
@@ -267,22 +297,7 @@ export function TreeNode({
         </Link>
         </Tooltip>
       )}
-      {canShowFolderAction && (
-        <button
-          type="button"
-          className={styles["tree-row-action"]}
-          aria-label={`${item.label}에 추가`}
-          aria-haspopup="menu"
-          data-folder-menu-trigger=""
-          onClick={(event) => {
-            // 행 토글·선택 해제로 전파되지 않게 막는다.
-            event.stopPropagation();
-            interaction.onOpenFolderMenuAt(projectId, item.id, event.currentTarget);
-          }}
-          onContextMenu={(event) => interaction.onContextMenuItem(event, projectId, item.id)}
-        >
-          <SvgIcon src={plusIcon} className={styles["tree-row-action-icon"]} />
-        </button>
+      </div>
       )}
       </div>
       {isFolder && isOpen && item.children?.map((child) => (

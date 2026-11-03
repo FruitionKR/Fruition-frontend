@@ -1,5 +1,4 @@
 import type { Project, TreeItem } from "../model/tree";
-import { isWikiItem } from "./treeGuards";
 import { findTreeItem } from "./treeQueries";
 
 export type FolderLocation = { projectId: string; folderId: string | null };
@@ -31,11 +30,11 @@ export function findItemLocation(projects: Project[], itemId: string): FolderLoc
 /** 파일과 폴더는 같은 부모 안에서 하나의 이름 공간을 공유한다. */
 export function folderNames(projects: Project[], excludedId?: string, location?: FolderLocation): Set<string> {
   const rootNames = () => projects.flatMap((project) => project.folderId === null
-    ? project.items.filter((item) => item.id !== excludedId && !isWikiItem(item)).map((item) => item.label)
+    ? project.items.filter((item) => item.id !== excludedId).map((item) => item.label)
     : project.id !== excludedId ? [project.title] : []);
   const isRoot = !location || location.folderId === null && projects.find((project) => project.id === location.projectId)?.folderId === null;
   return new Set((isRoot ? rootNames()
-    : folderItems(projects, location!).filter((item) => item.id !== excludedId && !isWikiItem(item)).map((item) => item.label))
+    : folderItems(projects, location!).filter((item) => item.id !== excludedId).map((item) => item.label))
     .map(normalizeTreeName));
 }
 

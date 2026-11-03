@@ -1,4 +1,4 @@
-import { isFileItem, isWikiItem } from "@/entities/tree/lib/treeGuards";
+import { isFileItem } from "@/entities/tree/lib/treeGuards";
 import { findItemLocation, folderItems, normalizeTreeName, serverFolderId } from "@/entities/tree/lib/treeNames";
 import { findTreeItem } from "@/entities/tree/lib/treeQueries";
 import type { FolderLocation } from "@/entities/tree/lib/treeNames";
@@ -30,7 +30,7 @@ export function resolveTreeMove(
   const item = source && findTreeItem(source.items, dragged.itemId);
   const targetProject = projects.find((project) => project.id === target.projectId);
   const targetItem = targetProject && target.targetId ? findTreeItem(targetProject.items, target.targetId) : null;
-  if (!item || !targetProject || isWikiItem(item) || item.id === targetItem?.id) return { kind: "invalid" };
+  if (!item || !targetProject || item.id === targetItem?.id) return { kind: "invalid" };
   if (isFileItem(item) && !item.documentId) return { kind: "invalid" };
   const parent = targetItem ? findItemLocation(projects, targetItem.id) : { projectId: target.projectId, folderId: null };
   if (!parent) return { kind: "invalid" };
@@ -87,7 +87,7 @@ function resolveManyMove(
 
 /** 묶음 이동에서 이 항목을 건너뛸 이유. 옮길 수 있으면 null. */
 function manyMoveSkipReason(item: TreeItem, destination: FolderLocation, takenNames: ReadonlySet<string>): string | null {
-  if (isWikiItem(item) || item.generated) return "자동 생성 항목은 옮길 수 없습니다";
+  if (item.generated) return "자동 생성 항목은 옮길 수 없습니다";
   if (item.status === "uploading" || (isFileItem(item) && !item.documentId)) return "업로드가 끝나지 않았습니다";
   if (item.canEdit === false) return "편집 권한이 없습니다";
   if (movesIntoOwnSubtree(item, destination)) return "자기 자신이나 하위 폴더 안으로 옮길 수 없습니다";

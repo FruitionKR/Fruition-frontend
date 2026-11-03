@@ -16,15 +16,14 @@ const file = (id, label, extra = {}) => ({ id, label, type: "file", documentId: 
 const tree = () => [{ id: ROOT, folderId: null, title: "문서", items: [
   { id: "f1", label: "폴더1", type: "folder", children: [file("c1", "c1.md"), file("c2", "c2.md")] },
   file("a", "a.md"),
-  { id: "w", label: "위키", type: "wiki", children: [file("wc", "wc.md")] },
   file("b", "b.md"),
   { id: "f2", label: "폴더2", type: "folder", children: [] }
 ] }];
 
-test("보이는 행은 펼친 폴더의 자식까지 위에서 아래 순서이고 위키 행은 빠진다", () => {
+test("보이는 행은 펼친 폴더의 자식까지 위에서 아래 순서다", () => {
   const items = tree()[0].items;
   assert.deepEqual(visibleSelectableIds(items, new Set()), ["f1", "a", "b", "f2"]);
-  assert.deepEqual(visibleSelectableIds(items, new Set(["f1", "w"])), ["f1", "c1", "c2", "a", "wc", "b", "f2"]);
+  assert.deepEqual(visibleSelectableIds(items, new Set(["f1"])), ["f1", "c1", "c2", "a", "b", "f2"]);
 });
 
 test("범위 선택은 기준 행과 대상 행 사이를 방향과 관계없이 고른다", () => {
@@ -47,16 +46,17 @@ test("선택한 폴더의 하위 항목은 빼고 트리 순서로 돌려준다"
   assert.deepEqual(selectedRootItems(tree(), new Set(["c2", "c1"])).map((item) => item.id), ["c1", "c2"]);
 });
 
-test("묶음 삭제는 위키·업로드 중·삭제 권한 없는 항목을 이유와 함께 건너뛴다", () => {
+test("묶음 삭제는 자동 생성·업로드 중·삭제 권한 없는 항목을 이유와 함께 건너뛴다", () => {
   const projects = tree();
   projects[0].items.push(
+    file("gen", "자동.md", { generated: true }),
     { id: "up", label: "up.md", type: "file", status: "uploading" },
     file("locked", "locked.md", { canDelete: false })
   );
-  const plan = planBulkDelete(projects, new Set(["f1", "c1", "w", "up", "locked", "b"]));
+  const plan = planBulkDelete(projects, new Set(["f1", "c1", "gen", "up", "locked", "b"]));
   assert.deepEqual(plan.items.map((item) => item.id), ["f1", "b"]);
   assert.deepEqual(plan.skipped, [
-    { label: "위키", reason: "자동 생성 항목은 삭제할 수 없습니다" },
+    { label: "자동.md", reason: "자동 생성 항목은 삭제할 수 없습니다" },
     { label: "up.md", reason: "업로드가 끝나지 않았습니다" },
     { label: "locked.md", reason: "삭제 권한이 없습니다" }
   ]);

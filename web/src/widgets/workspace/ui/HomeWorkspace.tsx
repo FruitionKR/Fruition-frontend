@@ -461,10 +461,6 @@ export function HomeWorkspace() {
         onOpenMany={treeOpen.openMany}
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
-        canRenameContextTarget={projectTree.canRenameContextTarget}
-        canDeleteContextTarget={projectTree.canDeleteContextTarget}
-        canSetPermissionContextTarget={projectTree.canSetPermissionContextTarget}
-        canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
         documents={documents}
@@ -525,7 +521,6 @@ export function HomeWorkspace() {
           if (target?.folderId) treeOpen.open(target.folderId);
           if (target) createNoteAndOpen(target.projectId, target.folderId);
         }}
-        onCreateNote={(projectId) => createNoteAndOpen(projectId, null)}
         isCreatingNote={isCreatingNote}
         onUploadFromContext={() => {
           const target = projectTree.takeFolderTargetFromContext();

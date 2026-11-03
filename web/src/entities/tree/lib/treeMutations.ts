@@ -1,7 +1,7 @@
 import { makeRawId } from "@/entities/graph/lib/graphBuilder";
 import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 import type { DocumentUploadResponse } from "@/entities/document/model/document";
-import { createClientId, isFileItem, isWikiItem } from "./treeGuards";
+import { createClientId, isFileItem } from "./treeGuards";
 import { findTreeItem } from "./treeQueries";
 import { availableFolderName, findItemLocation } from "./treeNames";
 
@@ -123,7 +123,7 @@ export function moveProjectTreeItem(
 
   const sourceResult = removeTreeItem(sourceProject.items, itemId);
   const movedItem = sourceResult.removed;
-  if (!movedItem || isWikiItem(movedItem)) return projects;
+  if (!movedItem) return projects;
 
   let nextTargetItems: TreeItem[];
   if (target.targetId === null) {

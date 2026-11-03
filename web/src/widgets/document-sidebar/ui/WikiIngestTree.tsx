@@ -91,7 +91,6 @@ function IngestRow({
   onToggle: (documentIds: string[]) => void;
   onToggleOpen: (itemId: string) => void;
 }) {
-  if (item.type === "wiki") return null;
   const isFolder = item.type === "folder";
   const isOpen = isFolder && !collapsedIds.has(item.id);
   const fileReason = getTreeItemBlockReason(item, blockReasons);

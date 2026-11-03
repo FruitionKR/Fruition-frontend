@@ -79,3 +79,14 @@ export function SidebarPermissionIcon({ className, permission, label }: IconProp
     </svg>
   );
 }
+
+/** 트리 행 hover ⋯ 버튼: 우클릭과 같은 메뉴를 연다 (16×16) */
+export function SidebarMoreIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden className={className} width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="3.5" cy="8" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="12.5" cy="8" r="1.25" />
+    </svg>
+  );
+}
