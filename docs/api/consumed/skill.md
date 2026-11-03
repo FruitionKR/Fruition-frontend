@@ -83,6 +83,8 @@ document-svc의 Skill 작성·게시·설정 API다. `skills`는 직접 전송 �
     'AI로 작성·보강' 초안이 `requires_source`(boolean)를 주면 그 값으로 채우고, 바뀌었으면 "실행 규칙에 맞춰 AI가 원문 문서를 ‘…’으로 정했어요"와
     이전 값(고르지 않음일 수 있다)으로 되돌리기 버튼을 보인다(`applySkillDraft`·`draftSourceChange`).
     게시에는 값이 있으면(초안이 정했거나 사용자가 골랐으면) 사용자가 손대지 않았어도 `requires_source`를 싣고, 둘 다 없으면 뺀다(`skillPublishRequest`).
+  - 테스트 실행(`POST .../skills/test-run`)도 게시와 같은 조건·값으로 `requires_source`를 싣는다(`skillRequiresSourceOption`, document#180).
+    문서 Skill(`create`·`auto`)에서 값이 있을 때만 보내고 `edit`·폴더 정리·값 없음이면 키를 뺀다. 생략하면 AI가 `{문서}` 규칙으로 정하고, 정할 수 없으면 `false`다.
   - 상세 시트: 서버 값을 기본으로 보여 주고, 필드가 보이면 화면 값을 늘 싣는다(`skillDetailDraft`). 보내지 않은 저장에서 응답 값이
     저장 전 값과 다르면(AI가 바꿈) 시트를 닫지 않고 "실행 규칙에 맞춰 AI가 원문 문서를 ‘…’으로 정했어요"와 되돌리기 버튼을 보인다(`requiresSourceDrift`).
 - **필드는 새 문서를 만들 수 있는 문서 Skill에만 보인다**: 결과 방식 `create`·`auto`. `edit`·폴더 정리·템플릿에서는 감추고 보내지 않는다(`showsSourceField`).

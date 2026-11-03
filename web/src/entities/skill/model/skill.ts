@@ -92,6 +92,8 @@ export interface SkillTestRunRequest {
   capabilities: string[];
   document_id: string;
   markdown?: string;
+  // 원문 문서 필요 여부. 게시 요청과 같은 조건으로만 싣는다(document#180). 생략하면 AI가 지침 {문서} 규칙으로 정한다.
+  requires_source?: boolean;
 }
 
 export interface SkillTestRunChange {

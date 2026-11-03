@@ -12,7 +12,7 @@ registerHooks({
   }
 });
 
-const { INITIAL_SKILL_CREATE_FORM } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+const { INITIAL_SKILL_CREATE_FORM, skillPublishRequest } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 const {
   describeSkillTestRunError,
   newSkillTestRunId,
@@ -41,6 +41,29 @@ test("테스트 요청은 시트 정의와 문서만 담고 target을 보내지 
   });
   assert.ok(!("target" in skillTestRunRequest(form, documentId)));
   assert.ok(!("allowed_tools" in skillTestRunRequest(form, documentId)));
+});
+
+test("문서 Skill(create·auto)은 원문 문서 값이 있으면 게시와 같은 requires_source를 보낸다", () => {
+  for (const resultMode of ["create", "auto"]) {
+    for (const requiresSource of [true, false]) {
+      const sourceForm = { ...form, kind: "document", resultMode, requiresSource };
+      assert.equal(skillTestRunRequest(sourceForm, documentId).requires_source, requiresSource);
+      assert.equal(skillTestRunRequest(sourceForm, documentId).requires_source, skillPublishRequest(sourceForm).requires_source);
+    }
+  }
+});
+
+test("edit·폴더 정리·원문 문서 값 없음이면 requires_source 키를 보내지 않는다", () => {
+  const cases = [
+    { ...form, kind: "document", resultMode: "edit", requiresSource: true },
+    { ...form, kind: "folder", requiresSource: true },
+    { ...form, kind: "document", resultMode: "create", requiresSource: null },
+    { ...form, kind: "document", resultMode: "auto", requiresSource: null }
+  ];
+  for (const sourceForm of cases) {
+    assert.ok(!("requires_source" in skillTestRunRequest(sourceForm, documentId)));
+    assert.ok(!("requires_source" in skillPublishRequest(sourceForm)));
+  }
 });
 
 test("run_id는 매번 새로 만들고 서버 형식을 따른다", () => {
