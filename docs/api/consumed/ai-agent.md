@@ -87,6 +87,12 @@ Query와 Wiki 내보내기가 이 컨텍스트를 공유한다.
 문서를 빼고 보낸 '새 문서로 만들기' 요청의 새 문서 위치는 기존대로 `folder_id` 없이(루트) 둔다. 스킬 화면에서 사이드바로 문서를 골라
 실행하는 경로는 이 규칙과 무관하게 고른 문서를 싣는다([skill.md](skill.md) "스킬 화면에서 실행").
 
+폴더 내용 조회(`result.action: "folder_lookup"`, ai FruitionKR/Fruition-ai#136 · document FruitionKR/Fruition-document#166)는
+읽기 전용 답변이라 `run_id`·미리보기·승인이 없고 답은 `result.message`(채팅 메시지 `content`, `action: "folder_lookup"`)에만 온다.
+작업 탭 '완료' 묶음에서 한 줄 대신 "폴더 내용 확인 : 요청" 카드에 답을 보인다(`isAnswerTask` → `TaskAnswer`).
+답은 빈 줄로 나눈 문단과 `- ` 목록만 살려 텍스트로 그린다(`taskAnswerBlocks`, HTML·Markdown 해석 없음). 같은 이름 폴더 되묻기·
+폴더를 못 찾은 안내도 같은 action이라 같은 카드로 보인다. 사이드바에서 고른 폴더는 기존처럼 `folder_id`로 보낸다.
+
 계획 패널은 문서·폴더 이름 표시를 위해 `document-tree`도 조회한다
 (`fetchPlanTree`, [document.md](document.md) 참조).
 

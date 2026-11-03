@@ -26,6 +26,10 @@ const TURN_STAGES = [
 ];
 const EDIT_PATTERN = /(편집|수정|바꿔|고쳐|다듬|추가해|이어|rewrite|edit|improve)/i;
 const ORGANIZE_PATTERN = /(폴더|정리|organize|folder)/i;
+// 폴더 내용 질문("회의록 폴더에 뭐가 있어?"). 폴더 정리보다 먼저 본다(ai folder_lookup).
+const FOLDER_LOOKUP_PATTERN = /폴더.*(뭐가 있|무엇이 있|뭐 있|뭐뭐 있|들어 있)/;
+const FOLDER_NOT_FOUND_MESSAGE = "어느 폴더인지 찾지 못했어요. 폴더 이름을 정확히 적거나 사이드바에서 폴더를 고른 뒤 다시 요청해 주세요.";
+const FOLDER_CONTENT_HINT = "문서 내용이 궁금하면 채팅 탭에서 질문해 주세요.";
 const CREATE_PATTERN = /(새 문서|문서 만들|문서를 만들|작성해|create document)/i;
 const SLASH_SKILL_PATTERN = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/;
 const TASK_MODE = "task";
@@ -185,7 +189,39 @@ function createResult(message, sourceName = null) {
   return { action: "markdown_create", route: route("markdown_create", "새 문서 생성 요청"), message: null, chat: null, edit: null, generated_markdown: { title: "AI 초안", summary: message, markdown: `# AI 초안\n\n${source}요청: ${message}\n\n## 내용\n\nmock 서버가 생성한 초안입니다.\n` } };
 }
 
-/** 작업 탭 요청: 문서 편집·폴더 정리·스킬만 고르고, 채팅 답변 갈래는 clarify로 돌린다. */
+function folderPath(folders, folder) {
+  const parent = folders.find((item) => item.id === folder.parent_folder_id);
+  return parent ? [...folderPath(folders, parent), folder.name] : [folder.name];
+}
+
+/**
+ * 폴더 내용 조회(ai folder_lookup 메시지 형식): 메시지에 나온 폴더(없으면 고른 폴더) 바로 아래 하위 폴더·문서 이름.
+ * 같은 이름이 여러 곳이면 경로로 되묻고, 못 찾으면 안내한다. mock 문서 이름은 파일명에서 .md를 뗀 것이다.
+ */
+function folderLookupResult(workspace, turn, message) {
+  const folders = state.folders.filter((folder) => folder.workspace_id === workspace.id && !folder.deleted_at);
+  const named = folders.filter((folder) => message.includes(folder.name));
+  // "2026 회의록"이 나오면 그 안의 "회의록"만 따로 지목한 것으로 보지 않는다.
+  const referenced = named.filter((folder) => !named.some((other) => other.name !== folder.name && other.name.includes(folder.name)));
+  const matches = referenced.length > 0 ? referenced : folders.filter((folder) => folder.id === turn.folder_id);
+  const result = (text) => ({ action: "folder_lookup", route: route("folder_lookup", "폴더 내용 조회"), message: text, chat: null, edit: null, generated_markdown: null });
+  if (matches.length === 0) return result(FOLDER_NOT_FOUND_MESSAGE);
+  if (matches.length > 1) {
+    const paths = matches.map((folder) => `- ${folderPath(folders, folder).join(" / ")}`).join("\n");
+    return result(`해당하는 폴더가 여러 개예요. 어느 폴더인지 경로를 적어 다시 요청해 주세요.\n\n${paths}`);
+  }
+  const [folder] = matches;
+  const childFolders = folders.filter((item) => item.parent_folder_id === folder.id).map((item) => item.name);
+  const childDocuments = state.documents
+    .filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && (doc.folder_id ?? null) === folder.id)
+    .map((doc) => doc.filename.replace(/\.md$/i, ""));
+  if (childFolders.length === 0 && childDocuments.length === 0) return result(`'${folder.name}' 폴더는 비어 있어요.`);
+  const items = [...childFolders.map((name) => `- 📁 ${name}`), ...childDocuments.map((name) => `- ${name}`)].join("\n");
+  const summary = `'${folder.name}' 폴더(${folderPath(folders, folder).join(" / ")})에 하위 폴더 ${childFolders.length}개, 문서 ${childDocuments.length}개가 있어요.`;
+  return result([summary, items, FOLDER_CONTENT_HINT].join("\n\n"));
+}
+
+/** 작업 탭 요청: 문서 편집·폴더 정리·폴더 내용 조회·스킬만 고르고, 채팅 답변 갈래는 clarify로 돌린다. */
 function taskResult(workspace, turn, request) {
   const message = request.message;
   const hasDocument = Boolean(request.documentId && request.editorSnapshot);
@@ -209,6 +245,7 @@ function taskResult(workspace, turn, request) {
     if (!slash.rest && mode === "auto") return clarify("새 문서로 만들까요, 지금 문서를 수정할까요?");
     return buildEditResult(request);
   }
+  if (FOLDER_LOOKUP_PATTERN.test(message)) return folderLookupResult(workspace, turn, message);
   if (ORGANIZE_PATTERN.test(message)) return organizeResult(workspace, turn, message);
   if (CREATE_PATTERN.test(message)) return createResult(message);
   if (EDIT_PATTERN.test(message)) {

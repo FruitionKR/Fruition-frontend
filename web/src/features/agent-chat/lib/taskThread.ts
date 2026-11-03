@@ -96,6 +96,7 @@ export function splitChatAndTaskMessages(
 export function taskKindLabel(action: string | null): string {
   switch (action) {
     case "folder_organize": return "폴더 정리";
+    case "folder_lookup": return "폴더 내용 확인";
     case "workspace_workflow": return "워크스페이스";
     case "markdown_edit":
     case "markdown_create": return "문서";
@@ -296,6 +297,11 @@ export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "requ
     if (item.messageStatus === "completed") completedLater.add(key);
   }
   return superseded;
+}
+
+/** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회(folder_lookup)는 답(message)이 곧 결과다. */
+export function isAnswerTask(item: Pick<TaskMessageItem, "action" | "messageStatus" | "answer">): boolean {
+  return item.action === "folder_lookup" && item.messageStatus === "completed" && item.answer !== "";
 }
 
 /** 서버 버전 기록으로 적용 여부를 확인할 편집 작업(새로 고침 뒤에도 "저장됨"을 지키려고). */

@@ -33,6 +33,11 @@ test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", ()
   assert.equal(isDocumentCommandAction("chat_answer"), false);
 });
 
+test("폴더 내용 조회(folder_lookup)는 문서 명령이 아닌 답변 갈래다", () => {
+  assert.equal(isDocumentCommandAction("folder_lookup"), false);
+  assert.deepEqual(resolveChatTurnPresentation("folder_lookup"), { kind: "query", grounded: false });
+});
+
 const markdownEditContext = {
   documentId: "document-1",
   baseVersion: 3,
