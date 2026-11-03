@@ -51,7 +51,7 @@ export function SessionsPanel() {
     try {
       await revokeSession(session.session_id);
       if (session.current) {
-        await signOut({ callLogout: true });
+        await signOut({ callLogout: true, reason: "user" });
         return;
       }
       setMessage("기기의 로그인 갱신을 해제했습니다.");
