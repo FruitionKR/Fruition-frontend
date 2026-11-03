@@ -4,7 +4,7 @@ import { formatBytes } from "@/entities/workspace/model/storageUsage";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import { previewBlocker, type NotionImportController, type NotionImportStep } from "../model/useNotionImport";
 import type { ImportPlan } from "../lib/notionPlan";
-import { convertEstimateOf, estimateLabel, formatKrw } from "../model/importIngest";
+import { CONVERT_COST_HINT, convertEstimateOf, estimateLabel, formatKrw, maxEstimateLabel } from "../model/importIngest";
 import styles from "./NotionImportDialog.module.css";
 
 const TITLE_ID = "notion-import-title";
@@ -182,15 +182,16 @@ function ConvertStep({ step, controller }: { step: SummaryStep; controller: Noti
   const count = estimate?.document_count ?? step.createdPdfs;
   const progress = step.convertProgress;
   const askCount = step.convert === "stopped" && progress ? Math.max(0, progress.total - progress.queued) : count;
-  const label = estimate ? estimateLabel(estimate) : "예상 비용을 아직 알 수 없어요";
+  // 변환 예상치는 예약 상한이라 "최대"로 보여 준다(편입 예상 문구는 그대로).
+  const label = estimate ? maxEstimateLabel(estimate) : "예상 비용을 아직 알 수 없어요";
   if (step.convert === "confirm" && estimate) {
     return (
       <>
         <section className={styles.ingest} role="alertdialog" aria-labelledby="notion-import-convert-confirm">
           <h3 id="notion-import-convert-confirm">
-            {formatKrw(estimate.estimated_credits) ? `${formatKrw(estimate.estimated_credits)}이 사용될 수 있어요. 계속할까요?` : `PDF ${count.toLocaleString()}개를 변환하면 비용이 많이 들 수 있어요. 계속할까요?`}
+            {formatKrw(estimate.estimated_credits) ? `최대 ${formatKrw(estimate.estimated_credits)}이 사용될 수 있어요. 계속할까요?` : `PDF ${count.toLocaleString()}개를 변환하면 비용이 많이 들 수 있어요. 계속할까요?`}
           </h3>
-          <p className={styles.meta}>{label} · PDF {count.toLocaleString()}개. 실제 비용은 쪽수에 따라 달라요.</p>
+          <p className={styles.meta}>{label} · PDF {count.toLocaleString()}개. {CONVERT_COST_HINT}</p>
         </section>
         <div className={styles.actions}>
           <button type="button" className={styles.secondary} onClick={controller.cancelConvertConfirm}>취소</button>
@@ -204,6 +205,7 @@ function ConvertStep({ step, controller }: { step: SummaryStep; controller: Noti
     <>
       <section className={styles.ingest} aria-labelledby="notion-import-convert">
         <h3 id="notion-import-convert">PDF {askCount.toLocaleString()}개를 문서로 변환할까요? ({label})</h3>
+        <p className={styles.meta}>{CONVERT_COST_HINT}</p>
         <p className={styles.meta}>변환해야 위키에 편입할 수 있어요. 변환하지 않으면 원본 PDF로 남고, 나중에 문서에서 변환할 수 있어요.</p>
         {running && progress && (
           <>

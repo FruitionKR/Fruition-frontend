@@ -34,6 +34,20 @@ export function estimateLabel(estimate: Pick<IngestEstimate, "estimated_cost_usd
   return "예상 비용을 아직 알 수 없어요";
 }
 
+/**
+ * PDF 변환 예상치 한 줄. 서버 값은 예약 상한(변환 1건 상한 × 수)이라 "최대"로 보여 준다. 예: "최대 약 1,000원 (약 $0.70)"
+ */
+export function maxEstimateLabel(estimate: Pick<IngestEstimate, "estimated_cost_usd" | "estimated_credits">): string {
+  const krw = formatKrw(estimate.estimated_credits);
+  const usd = typeof estimate.estimated_cost_usd === "number" ? `약 $${estimate.estimated_cost_usd.toFixed(2)}` : null;
+  if (krw && usd) return `최대 ${krw} (${usd})`;
+  if (krw ?? usd) return `최대 ${krw ?? usd}`;
+  return "예상 비용을 아직 알 수 없어요";
+}
+
+/** PDF 변환 비용 안내. 상한과 실제 비용의 차이를 알린다. */
+export const CONVERT_COST_HINT = "실제 비용은 대부분 이보다 적어요. 글자가 깨진 페이지만 AI로 고쳐요.";
+
 /** 편입 전에 비용 확인을 한 번 더 받아야 하는지 */
 export function needsIngestConfirmation(estimate: IngestEstimate | null): boolean {
   if (!estimate) return false;
