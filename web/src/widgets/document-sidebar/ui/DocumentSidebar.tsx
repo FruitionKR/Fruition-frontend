@@ -213,11 +213,6 @@ export function DocumentSidebar({
     "new-folder": onAddProject,
     upload: onUploadFromContext,
     "import-notion": () => onImportNotionFromContext?.(),
-    "open-new-tab": () => {
-      onCloseContextMenu();
-      // 가운데 클릭과 같은 경로로 연다.
-      if (contextMenuItem) onOpenInNewTab(contextMenuItem);
-    },
     convert: onConvertContextTarget,
     rename: onRenameContextTarget,
     permission: () => onSetPermissionContextTarget?.(),

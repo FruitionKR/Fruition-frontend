@@ -34,21 +34,21 @@ test("폴더 메뉴: 새 노트 · 새 폴더 | 파일 업로드 | 이름 변경
   assert.equal(menu(folder), "새 노트 · 새 폴더 | 파일 업로드 | 이름 변경 · 권한 설정 | 삭제");
 });
 
-test("노트·기타 파일 메뉴: 새 탭에서 열기 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제 (생성 항목 없음)", () => {
-  assert.equal(menu(note), "새 탭에서 열기 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
-  assert.equal(menu(text), "새 탭에서 열기 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
+test("노트·기타 파일 메뉴: 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제 (생성 항목 없음)", () => {
+  assert.equal(menu(note), "이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
+  assert.equal(menu(text), "이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
 });
 
-test("PDF 메뉴: 새 탭에서 열기 · Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제", () => {
-  assert.equal(menu(pdf), "새 탭에서 열기 · Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제");
+test("PDF 메뉴: Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제", () => {
+  assert.equal(menu(pdf), "Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제");
 });
 
-test("채팅에서 만든 문서(이름 잠김) 메뉴: 새 탭에서 열기 | 권한 설정 | 삭제", () => {
-  assert.equal(menu(chat), "새 탭에서 열기 | 권한 설정 | 삭제");
+test("채팅에서 만든 문서(이름 잠김) 메뉴: 권한 설정 | 삭제", () => {
+  assert.equal(menu(chat), "권한 설정 | 삭제");
 });
 
-test("위키 페이지에는 생성 항목을 두지 않는다", () => {
-  assert.equal(menu(wiki), "새 탭에서 열기");
+test("위키 페이지는 메뉴 항목이 없어 메뉴를 열지 않는다(생성 항목도 없다)", () => {
+  assert.deepEqual(treeContextMenuSections(wiki, { isRootTarget: false, ...full }), []);
   assert.equal(treeItemMenuAccess(wiki, { isRootTarget: false }).canCreateIn, false);
 });
 
@@ -57,13 +57,13 @@ test("트리에서 찾지 못한 항목은 빈 메뉴다(최상위 생성 메뉴
 });
 
 test("권한이 없는 항목은 숨기고 빈 구역의 구분선도 함께 빠진다", () => {
-  assert.equal(menu({ ...note, canEdit: false, canDelete: false }), "새 탭에서 열기 | 권한 설정 · 원본 다운로드");
+  assert.equal(menu({ ...note, canEdit: false, canDelete: false }), "권한 설정 · 원본 다운로드");
   // 변환 권한이 없는 PDF는 변환 항목을 남기고 이유와 함께 비활성화한다(기존 안내 유지, documentConvertAccess 테스트).
-  assert.equal(menu({ ...pdf, canConvert: false }), "새 탭에서 열기 · Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제");
+  assert.equal(menu({ ...pdf, canConvert: false }), "Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제");
   assert.equal(menu({ ...folder, canEdit: false }), "새 노트 · 새 폴더 | 파일 업로드 | 권한 설정 | 삭제");
 });
 
-test("업로드 중 문서는 열기·변환·다운로드·권한 설정을 두지 않는다", () => {
+test("업로드 중 문서는 변환·다운로드·권한 설정을 두지 않는다", () => {
   assert.equal(menu({ ...note, status: "uploading", documentId: undefined }), "이름 변경 | 삭제");
 });
 
@@ -86,15 +86,26 @@ test("우클릭·⋯·새 노트 추가 메뉴는 사이드바가 보여 주는 
   assert.match(sidebar, /findTreeItem\(/);
 });
 
-test("새 탭에서 열기는 가운데 클릭과 같은 경로, 원본 다운로드는 원본 API로 받는다", async () => {
+test("원본 다운로드는 원본 API로 받고, 메뉴에는 새 탭에서 열기가 없다", async () => {
   const [sidebar, download] = await Promise.all([
     source("widgets/document-sidebar/ui/DocumentSidebar.tsx"),
     source("widgets/document-sidebar/model/downloadTreeItem.ts")
   ]);
-  assert.match(sidebar, /if \(contextMenuItem\) onOpenInNewTab\(contextMenuItem\)/);
+  assert.doesNotMatch(sidebar, /open-new-tab/);
+  assert.equal(Object.values(TREE_MENU_LABELS).includes("새 탭에서 열기"), false);
   assert.match(download, /fetchDocumentOriginal\(/);
   assert.match(download, /fetchNoteDraft\(/);
   assert.match(download, /link\.download = filename/);
+});
+
+test("위키 행에는 ⋯ 버튼을 두지 않고, 항목이 없는 메뉴는 그리지 않고 닫는다", async () => {
+  const [treeNode, sidebar] = await Promise.all([
+    source("widgets/document-sidebar/ui/TreeNode.tsx"),
+    source("widgets/document-sidebar/ui/DocumentSidebar.tsx")
+  ]);
+  assert.match(treeNode, /const canShowRowActions = \(isFolder \|\| isFileItem\(item\)\)/);
+  assert.match(sidebar, /if \(contextMenu && !hasContextMenuItems\) onCloseContextMenu\(\);/);
+  assert.match(sidebar, /\{contextMenu && hasContextMenuItems && \(/);
 });
 
 test("새 노트 추가 버튼은 바로 만들지 않고 최상위 컨텍스트 메뉴를 연다", async () => {

@@ -8,7 +8,6 @@ export type TreeMenuActionId =
   | "new-folder"
   | "upload"
   | "import-notion"
-  | "open-new-tab"
   | "convert"
   | "rename"
   | "permission"
@@ -20,7 +19,6 @@ export const TREE_MENU_LABELS: Record<TreeMenuActionId, string> = {
   "new-folder": "새 폴더",
   upload: "파일 업로드",
   "import-notion": "Notion에서 가져오기",
-  "open-new-tab": "새 탭에서 열기",
   convert: "Markdown으로 변환",
   rename: "이름 변경",
   permission: "권한 설정",
@@ -37,8 +35,6 @@ export type TreeItemMenuAccess = {
   canDelete: boolean;
   /** 문서·폴더 항목에서만. 누가 바꿀 수 있는지는 서버가 판정한다(403이면 다이얼로그가 안내). */
   canSetPermission: boolean;
-  /** 문서·위키 페이지 주소가 있으면 새 브라우저 탭으로 연다(가운데 클릭과 같다). */
-  canOpenInNewTab: boolean;
   /** 올라간 PDF 원본이면 Markdown 변환을 보인다. 처리 중·변환 권한 없음은 이유와 함께 비활성으로 둔다(convertContextTarget). */
   canConvert: boolean;
   /** 서버에 올라간 파일의 원본을 내려받는다. 채팅에서 만든 문서는 출처 보존용이라 두지 않는다. */
@@ -59,7 +55,6 @@ export function treeItemMenuAccess(item: TreeItem | null, { isRootTarget }: { is
       && !item.titleLocked,
     canDelete: item !== null && !isWikiItem(item) && canDeleteDocument({ can_delete: item.canDelete }),
     canSetPermission: Boolean(item && !isWikiItem(item) && item.status !== "uploading"),
-    canOpenInNewTab: Boolean(item && item.status !== "uploading" && (item.graphNodeId || item.documentId)),
     canConvert: isPdf && isUploaded,
     canDownload: isFile && isUploaded && !item?.titleLocked
   };
@@ -69,7 +64,8 @@ export function treeItemMenuAccess(item: TreeItem | null, { isRootTarget }: { is
  * 컨텍스트 메뉴 구성. 구역 사이에 구분선을 두고, 권한이 없는 항목과 빈 구역은 뺀다. 삭제는 늘 마지막 구역이다.
  * - 최상위: 새 노트 · 새 폴더 | 파일 업로드 · Notion에서 가져오기
  * - 폴더: 새 노트 · 새 폴더 | 파일 업로드 | 이름 변경 · 권한 설정 | 삭제
- * - 파일: 새 탭에서 열기 · (PDF) Markdown으로 변환 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제
+ * - 파일: (PDF) Markdown으로 변환 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제
+ * - 위키 페이지: 항목 없음(메뉴를 열지 않는다)
  */
 export function treeContextMenuSections(
   item: TreeItem | null,
@@ -82,7 +78,7 @@ export function treeContextMenuSections(
     : [
       createSection,
       pick({ upload: access.canCreateIn }),
-      pick({ "open-new-tab": access.canOpenInNewTab, convert: access.canConvert }),
+      pick({ convert: access.canConvert }),
       pick({ rename: access.canRename, permission: access.canSetPermission, download: access.canDownload }),
       pick({ delete: access.canDelete })
     ];
