@@ -22,7 +22,7 @@ export function findTreeItemInProjects(projects: ReadonlyArray<{ items: TreeItem
 
 export function findFirstSelectableNote(items: TreeItem[], documentIds: Set<string>): TreeItem | null {
   for (const item of items) {
-    if ((item.documentId && documentIds.has(item.documentId)) || (!item.documentId && item.graphNodeId)) return item;
+    if (item.documentId && documentIds.has(item.documentId)) return item;
     const nested = item.children?.length ? findFirstSelectableNote(item.children, documentIds) : null;
     if (nested) return nested;
   }

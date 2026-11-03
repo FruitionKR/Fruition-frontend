@@ -10,8 +10,7 @@ const { findParentLabel, findTreeItemInProjects, findFirstSelectableNote } = awa
 
 const items = [
   { id: "f", label: "폴더", type: "folder", children: [
-    { id: "a", label: "a.md", type: "file", documentId: "doc-a" },
-    { id: "n", label: "노트", type: "wiki", graphNodeId: "node-n" }
+    { id: "a", label: "a.md", type: "file", documentId: "doc-a" }
   ] },
   { id: "b", label: "b.md", type: "file", documentId: "doc-b" }
 ];
@@ -28,8 +27,8 @@ test("findTreeItemInProjects는 여러 프로젝트에서 documentId로 항목�
   assert.equal(findTreeItemInProjects(projects, "doc-x"), null);
 });
 
-test("findFirstSelectableNote는 허용 문서 또는 그래프 노드가 있는 첫 항목을 고른다", () => {
-  assert.equal(findFirstSelectableNote(items, new Set(["doc-b"]))?.id, "n");
+test("findFirstSelectableNote는 허용 문서가 있는 첫 항목을 고른다", () => {
+  assert.equal(findFirstSelectableNote(items, new Set(["doc-b"]))?.id, "b");
   assert.equal(findFirstSelectableNote(items, new Set(["doc-a"]))?.id, "a");
   assert.equal(findFirstSelectableNote([items[1]], new Set()), null);
 });
