@@ -984,16 +984,9 @@
   }
 }
 
-.tree-row svg,
-.tree-asset {
+.tree-row svg {
   flex: 0 0 auto;
   color: var(--color-muted);
-}
-
-.tree-asset {
-  width: 8px;
-  height: 8px;
-  margin: 0 4px;
 }
 
 /* 셰브론(폴더)·빈 자리(파일)가 같은 16px 칸을 차지해 이름 시작점을 맞춘다 */
@@ -1004,18 +997,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.tree-asset.raw {
-  color: var(--color-graph-raw);
-}
-
-.tree-asset.source {
-  color: var(--color-graph-source);
-}
-
-.tree-asset.concept {
-  color: var(--color-graph-concept);
 }
 
 /* --- context-menu --- */

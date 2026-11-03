@@ -1,5 +1,5 @@
 import { canDeleteDocument } from "@/entities/document/lib/documentAccess";
-import { isFileItem, isWikiItem } from "@/entities/tree/lib/treeGuards";
+import { isFileItem } from "@/entities/tree/lib/treeGuards";
 import type { TreeItem } from "@/entities/tree/model/tree";
 
 /** 트리 컨텍스트 메뉴(우클릭·행 ⋯·새 노트 추가) 항목. */
@@ -27,11 +27,11 @@ export const TREE_MENU_LABELS: Record<TreeMenuActionId, string> = {
 };
 
 export type TreeItemMenuAccess = {
-  /** 새 노트·새 폴더·파일 업로드 등 생성 항목. 폴더·최상위에서만 연다(파일·위키 페이지에는 없다). */
+  /** 새 노트·새 폴더·파일 업로드 등 생성 항목. 폴더·최상위에서만 연다(파일에는 없다). */
   canCreateIn: boolean;
   /** PDF 원본·보기 전용·자동 생성·이름 잠김(채팅에서 만든 문서) 항목과 최상위는 이름을 바꿀 수 없다. */
   canRename: boolean;
-  /** 서버 can_delete=false(문서 소유자·OWNER가 아님)면 막는다. 폴더는 서버가 판정한다. 위키 페이지는 트리에서 지우지 않는다. */
+  /** 서버 can_delete=false(문서 소유자·OWNER가 아님)면 막는다. 폴더는 서버가 판정한다. */
   canDelete: boolean;
   /** 문서·폴더 항목에서만. 누가 바꿀 수 있는지는 서버가 판정한다(403이면 다이얼로그가 안내). */
   canSetPermission: boolean;
@@ -53,8 +53,8 @@ export function treeItemMenuAccess(item: TreeItem | null, { isRootTarget }: { is
       && item.canEdit !== false
       && !item.generated
       && !item.titleLocked,
-    canDelete: item !== null && !isWikiItem(item) && canDeleteDocument({ can_delete: item.canDelete }),
-    canSetPermission: Boolean(item && !isWikiItem(item) && item.status !== "uploading"),
+    canDelete: item !== null && canDeleteDocument({ can_delete: item.canDelete }),
+    canSetPermission: Boolean(item && item.status !== "uploading"),
     canConvert: isPdf && isUploaded,
     canDownload: isFile && isUploaded && !item?.titleLocked
   };
@@ -65,7 +65,6 @@ export function treeItemMenuAccess(item: TreeItem | null, { isRootTarget }: { is
  * - 최상위: 새 노트 · 새 폴더 | 파일 업로드 · Notion에서 가져오기
  * - 폴더: 새 노트 · 새 폴더 | 파일 업로드 | 이름 변경 · 권한 설정 | 삭제
  * - 파일: (PDF) Markdown으로 변환 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제
- * - 위키 페이지: 항목 없음(메뉴를 열지 않는다)
  */
 export function treeContextMenuSections(
   item: TreeItem | null,

@@ -175,7 +175,7 @@ export function TreeNode({
             return;
           }
           // 키보드로도 마우스와 같은 선택: Cmd/Ctrl+Space·Enter는 토글, Shift+Space·Enter는 범위 선택.
-          if ((event.key !== " " && event.key !== "Enter") || isUploading || item.type === "wiki") return;
+          if ((event.key !== " " && event.key !== "Enter") || isUploading) return;
           if (event.metaKey || event.ctrlKey) {
             event.preventDefault();
             interaction.onToggleSelectItem(item.id);
@@ -194,12 +194,12 @@ export function TreeNode({
             return;
           }
           // Cmd/Ctrl+클릭: 열지 않고 묶음 대상으로 고른다. 위키 노드는 이동·삭제 대상이 아니다.
-          if ((event.metaKey || event.ctrlKey) && item.type !== "wiki") {
+          if (event.metaKey || event.ctrlKey) {
             interaction.onToggleSelectItem(item.id);
             return;
           }
           // Shift+클릭: 마지막으로 누른 행부터 이 행까지 보이는 행을 고른다.
-          if (event.shiftKey && item.type !== "wiki") {
+          if (event.shiftKey) {
             interaction.onSelectItemRange(item.id);
             return;
           }

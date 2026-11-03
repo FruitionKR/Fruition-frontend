@@ -16,7 +16,6 @@ const text = { id: "t1", label: "메모.txt", type: "file", documentId: "d2", mi
 const pdf = { id: "p1", label: "논문.pdf", type: "file", documentId: "d3", mimeType: "application/pdf", status: "completed" };
 const chat = { ...note, id: "c1", label: "채팅 정리.md", titleLocked: true };
 const folder = { id: "f1", label: "자료", type: "folder" };
-const wiki = { id: "w1", label: "개념", type: "wiki", generated: true, graphNodeId: "concept:1" };
 const full = { canCreateProject: true, canImportNotion: true };
 
 /** 메뉴 구성을 "새 노트 · 새 폴더 | 파일 업로드" 꼴 문자열로 바꾼다(｜는 구분선). */
@@ -45,11 +44,6 @@ test("PDF 메뉴: Markdown으로 변환 | 권한 설정 · 원본 다운로드 |
 
 test("채팅에서 만든 문서(이름 잠김) 메뉴: 권한 설정 | 삭제", () => {
   assert.equal(menu(chat), "권한 설정 | 삭제");
-});
-
-test("위키 페이지는 메뉴 항목이 없어 메뉴를 열지 않는다(생성 항목도 없다)", () => {
-  assert.deepEqual(treeContextMenuSections(wiki, { isRootTarget: false, ...full }), []);
-  assert.equal(treeItemMenuAccess(wiki, { isRootTarget: false }).canCreateIn, false);
 });
 
 test("트리에서 찾지 못한 항목은 빈 메뉴다(최상위 생성 메뉴로 잘못 열지 않는다)", () => {
@@ -98,7 +92,7 @@ test("원본 다운로드는 원본 API로 받고, 메뉴에는 새 탭에서 �
   assert.match(download, /link\.download = filename/);
 });
 
-test("위키 행에는 ⋯ 버튼을 두지 않고, 항목이 없는 메뉴는 그리지 않고 닫는다", async () => {
+test("⋯ 버튼은 파일·폴더 행에만 두고, 항목이 없는 메뉴는 그리지 않고 닫는다", async () => {
   const [treeNode, sidebar] = await Promise.all([
     source("widgets/document-sidebar/ui/TreeNode.tsx"),
     source("widgets/document-sidebar/ui/DocumentSidebar.tsx")

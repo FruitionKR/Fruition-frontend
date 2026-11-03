@@ -2,8 +2,7 @@ export type TreeItem = {
   id: string;
   label: string;
   currentVersion?: number;
-  type?: "folder" | "file" | "wiki";
-  wikiKind?: "source" | "concept";
+  type?: "folder" | "file";
   generated?: boolean;
   customLabel?: boolean;
   status?: "uploading" | DocumentStatus;

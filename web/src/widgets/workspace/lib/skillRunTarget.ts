@@ -93,7 +93,6 @@ export function resolveSkillRunTarget(
   if (blocked != null) return { status: "invalid", message: blocked };
   const intent = skillRunIntent(version);
   const kind = skillRunTargetKind(version);
-  if (item.type === "wiki") return { status: "invalid", message: "위키 페이지가 아닌 문서나 폴더를 골라 주세요." };
   if (item.type === "folder") {
     // 문서만 받는 스킬에서 폴더를 누르면 펼치기만 한다.
     if (kind === "document") return { status: "ignore" };
@@ -151,7 +150,7 @@ export function skillRunSourceDocumentId(version: SkillVersionLike, target: Skil
 /** 폴더 바로 아래 Markdown 문서 수(하위 폴더 안은 세지 않는다). 문서 목록에 있으면 그 판단을, 없으면 트리 항목 이름·형식을 쓴다. */
 export function folderMarkdownCount(folder: TreeItem, documents: readonly DocumentItemResponse[]): number {
   return (folder.children ?? []).filter((child) => {
-    if (child.type === "folder" || child.type === "wiki" || !child.documentId) return false;
+    if (child.type === "folder" || !child.documentId) return false;
     const document = documents.find((entry) => entry.id === child.documentId);
     return document ? isMarkdownDocument(document) : isMarkdownTreeItem(child);
   }).length;

@@ -22,8 +22,7 @@ import {
   serverFolderId,
   normalizeTreeName,
   initialProjects,
-  isFileItem,
-  isWikiItem
+  isFileItem
 } from "@/entities/tree";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
 
@@ -146,7 +145,7 @@ export function useProjectTree({
     const target = project && context?.itemId ? findTreeItem(project.items, context.itemId) : null;
     const location = context && project ? target && isFileItem(target) ? findItemLocation(projects, target.id) ?? undefined : {
       projectId: project.id,
-      folderId: target && !isFileItem(target) && !isWikiItem(target) ? target.id : null
+      folderId: target && !isFileItem(target) ? target.id : null
     } : undefined;
     setContextMenu(null);
     void runTreeMutation(async (latest) => {
@@ -288,7 +287,7 @@ export function useProjectTree({
     const item = contextMenu.itemId && project ? findTreeItem(project.items, contextMenu.itemId) : null;
     const target = item && isFileItem(item) ? findItemLocation(projects, item.id) : {
       projectId: contextMenu.projectId,
-      folderId: item && !isFileItem(item) && !isWikiItem(item) ? item.id : null
+      folderId: item && !isFileItem(item) ? item.id : null
     };
     setContextMenu(null);
     return target ?? null;
@@ -364,7 +363,7 @@ export function useProjectTree({
       return;
     }
     const item = project ? findTreeItem(project.items, contextMenu.itemId) : null;
-    const isFolder = item ? (!isFileItem(item) && !isWikiItem(item)) : false;
+    const isFolder = item ? !isFileItem(item) : false;
     setDeleteConfirm({
       projectId,
       itemId: contextMenu.itemId,

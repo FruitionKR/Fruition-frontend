@@ -63,10 +63,9 @@ test("묶음 이동에서 이름이 겹치는 항목은 이유와 함께 건너�
   assert.deepEqual(result.skipped, [{ label: "inner.md", reason: "대상 폴더에 같은 이름의 항목이 있습니다" }]);
 });
 
-test("위키 항목이나 documentId 없는 파일은 invalid다", () => {
+test("documentId 없는 파일은 invalid다", () => {
   const p = projects();
-  p[0].items.push({ id: "w", label: "위키", type: "wiki" }, { id: "pending", label: "p.md", type: "file" });
-  assert.deepEqual(resolveTreeMove(p, { projectId: ROOT, itemId: "w" }, { projectId: ROOT, targetId: "folder", position: "inside" }, none), { kind: "invalid" });
+  p[0].items.push({ id: "pending", label: "p.md", type: "file" });
   assert.deepEqual(resolveTreeMove(p, { projectId: ROOT, itemId: "pending" }, { projectId: ROOT, targetId: "folder", position: "inside" }, none), { kind: "invalid" });
   assert.deepEqual(resolveTreeMove(p, null, { projectId: ROOT, targetId: "folder", position: "inside" }, none), { kind: "invalid" });
 });
