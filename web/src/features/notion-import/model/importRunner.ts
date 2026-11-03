@@ -5,7 +5,7 @@
  */
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { createConcurrencyLimiter } from "@/shared/lib/concurrencyLimit";
-import { planAttachmentBatches } from "../lib/attachmentBatches";
+import { planAttachmentBatches } from "@/shared/lib/markdown-import/attachmentBatches";
 import { renderImages, renderLinks } from "../lib/notionLinks";
 import type { ImportPlan, PlanDocument, PlanPdf } from "../lib/notionPlan";
 

@@ -120,6 +120,15 @@ export function startConvert(workspace, source) {
       setConvertedBody(created, text);
       Object.assign(created, {
         status: "uploaded", processing_state: "completed", current_version: 1, edit_revision: 1,
+        // AI 변환 결과의 복원 요약·그림 설명 집계(Fruition-ai#196). 파일명에 "broken"이 있으면 2쪽을 원문으로 대신한다.
+        ...(isPdf ? {
+          restoration_summary: /broken/i.test(source.filename)
+            ? { broken_pages: 2, repaired_pages: 1, fallback_pages: [{ page: 2, reason: "repair_rejected", causes: ["font_mapping", "repair_rejected"] }] }
+            : { broken_pages: 0, repaired_pages: 0, fallback_pages: [] },
+          figure_descriptions: workspace.describe_pdf_figures === true
+            ? { requested: true, described: 3, failed: 0, skipped: 1 }
+            : { requested: false, described: 0, failed: 0, skipped: 0 }
+        } : {}),
         versions: [{ version: 1, content_hash: hash(text), created_by: "system", created_at: now(), markdown: text }]
       });
       source.status = "completed";

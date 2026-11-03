@@ -17,11 +17,11 @@
  * - PPTX 등 그 밖의 첨부는 가져오지 않는다(본문의 링크 글자는 남긴다).
  */
 import { csvToMarkdownTable, parseCsv } from "./csvTable";
-import { sniffImageMime, type ImageMime } from "./imageSniff";
+import { sniffImageMime, type ImageMime } from "@/shared/lib/markdown-import/imageSniff";
 import { sanitizeNotionMarkdown } from "./notionHtml";
 import { dirname, linkifyNotionReferences, tokenizeLinks, type LinkTarget, type RewrittenLinks } from "./notionLinks";
 import { cleanNotionName, nameKey, splitExtension, uniqueName } from "./notionNames";
-import { ATTACHMENT_MAX_BYTES } from "./attachmentBatches";
+import { ATTACHMENT_MAX_BYTES } from "@/shared/lib/markdown-import/attachmentBatches";
 
 const MIB = 1024 * 1024;
 /** 서버 Markdown 본문 상한(UTF-8) */

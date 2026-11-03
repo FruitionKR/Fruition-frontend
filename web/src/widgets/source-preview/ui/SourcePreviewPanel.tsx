@@ -17,6 +17,8 @@ import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entit
 import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
+import type { ConversionReportView } from "@/entities/document/lib/conversionReport";
+import { ConversionReportNotice } from "./ConversionReportNotice";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
 import { canShowHighlightedMarkdown, findHighlightedScrollTarget, getHighlightScrollKey } from "../lib/highlightScroll";
 import {
@@ -55,6 +57,7 @@ export function SourcePreviewPanel({
   onRefreshDocuments,
   documentStatus,
   documentConversion = null,
+  conversionReport = null,
   readOnly = false,
   bodyLocked = false,
   titleHint,
@@ -76,6 +79,8 @@ export function SourcePreviewPanel({
   documentStatus?: DocumentStatus;
   /** PDF 변환이 진행 중이면 그 상태. 변환 중에는 편집기 대신 읽기 전용으로 보여준다. */
   documentConversion?: DocumentConversionView | null;
+  /** 변환이 끝난 PDF 변환 문서의 복원·그림 설명 안내. 없으면 띄우지 않는다. */
+  conversionReport?: ConversionReportView | null;
   /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경을 막는다. */
   readOnly?: boolean;
   /** 권한과 무관하게 본문을 고칠 수 없는 문서(채팅 Wiki page화 문서). 편집기·편집 잠금 없이 읽기 전용 본문만 보여준다. 이름 변경은 readOnly를 따른다. */
@@ -496,6 +501,7 @@ export function SourcePreviewPanel({
             <span>{readOnlyHint}</span>
           </p>
         )}
+        {isMarkdownFile && !documentConverting && conversionReport && <ConversionReportNotice report={conversionReport} />}
         {!isBodyReadOnly && isMarkdownFile && !documentConverting && editorReadOnlyNotice?.documentId === documentId && editorReadOnlyNotice.message && (
           <p className={styles["source-preview-lock-notice"]} role="alert">{editorReadOnlyNotice.message}</p>
         )}

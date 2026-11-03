@@ -401,7 +401,7 @@ export function DocumentSidebar({
             ref={uploadInputRef}
             className={styles["upload-picker"]}
             type="file"
-            accept=".pdf,.md,application/pdf,text/markdown,text/plain"
+            accept=".pdf,.md,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,application/pdf,text/markdown,text/plain,application/zip,image/png,image/jpeg,image/gif,image/webp"
             multiple
             onChange={onUploadPickerChange}
           />

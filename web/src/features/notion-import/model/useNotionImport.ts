@@ -18,7 +18,7 @@ import {
   type ImportIngestEstimate
 } from "../api/imports";
 import type { ImportPlan } from "../lib/notionPlan";
-import { ZipSafetyError } from "../lib/zipArchive";
+import { ZipSafetyError } from "@/shared/lib/markdown-import/zipArchive";
 import { analyzeNotionZip } from "./analyzeNotionZip";
 import { CONVERT_MESSAGES, convertEstimateOf, needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
 import { createRunState, importErrorMessage, runImport, summarizeRun, type ImportFailure, type ImportProgress, type RunState } from "./importRunner";
@@ -101,6 +101,16 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    await analyzeFile(file);
+  }
+
+  /** 문서 업로드로 들어온 Notion 내보내기 zip을 그 폴더(null이면 최상위)로 가져오기 미리보기에 연다. */
+  function importFile(file: File, folderId: string | null) {
+    targetFolderRef.current = folderId;
+    void analyzeFile(file);
+  }
+
+  async function analyzeFile(file: File) {
     if (!/\.zip$/i.test(file.name)) {
       setStep({ kind: "error", message: "Notion에서 'Markdown & CSV'로 내보낸 zip 파일을 골라 주세요." });
       return;
@@ -264,6 +274,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     step,
     openPicker,
     handleFileChange,
+    importFile,
     start,
     cancel,
     retry: () => { if (step.kind === "review") void execute(step.plan); },

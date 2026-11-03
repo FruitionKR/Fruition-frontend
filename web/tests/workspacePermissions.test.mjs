@@ -16,7 +16,7 @@ registerHooks({
 const { ApiError, getErrorMessage, isWorkspacePermissionRequiredError } = await import("../src/shared/lib/apiErrors.ts");
 const { ALL_WORKSPACE_PERMISSIONS, findRequiredPermission, hasWorkspacePermission, workspacePermissionLabel } = await import("../src/shared/lib/workspacePermissions.ts");
 const { updateMemberPermissions } = await import("../src/entities/workspace/api/members.ts");
-const { updateWorkspaceAutoIngest } = await import("../src/entities/workspace/api/workspace.ts");
+const { updateWorkspaceAutoIngest, updateWorkspaceDescribePdfFigures } = await import("../src/entities/workspace/api/workspace.ts");
 
 const member = { user_id: "user_2", email: "m@example.com", display_name: "멤버", provider: "local", role: "MEMBER", permissions: ["wiki.ingest", "wiki.lint"], joined_at: "2026-10-01T00:00:00Z" };
 
@@ -64,6 +64,19 @@ test("자동 편입 토글은 PATCH workspaces/{id}에 auto_ingest_on_upload만 
   assert.equal(calls[0].init.method, "PATCH");
   assert.deepEqual(JSON.parse(calls[0].init.body), { auto_ingest_on_upload: true });
   assert.equal(workspace.auto_ingest_on_upload, true);
+});
+
+test("PDF 그림 설명 토글은 PATCH workspaces/{id}에 describe_pdf_figures만 보낸다", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    calls.push({ url: String(url), init });
+    return Response.json({ id: "ws_1", name: "팀", icon_emoji: null, icon_url: null, auto_ingest_on_upload: false, describe_pdf_figures: true, created_at: "", updated_at: "" });
+  });
+  const workspace = await updateWorkspaceDescribePdfFigures("ws_1", true);
+  assert.ok(calls[0].url.endsWith("/api/workspaces/ws_1"));
+  assert.equal(calls[0].init.method, "PATCH");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { describe_pdf_figures: true });
+  assert.equal(workspace.describe_pdf_figures, true);
 });
 
 test("403 WORKSPACE_PERMISSION_REQUIRED는 필요한 권한 라벨과 OWNER 요청 안내로 바꾼다(document #116)", () => {

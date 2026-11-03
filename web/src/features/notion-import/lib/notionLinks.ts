@@ -3,48 +3,16 @@
  * 링크 대상은 URL 인코딩된 상대 경로(`Sub%20Page%20<id>.md`)이며, 그 Markdown 파일 위치 기준으로 푼다.
  * 이 단계에서는 문서 ID를 모르므로 자리표시 토큰을 남기고, 실제 주소는 renderLinks/renderImages가 채운다.
  */
-import { mapOutsideCode } from "./markdownText";
+import { mapOutsideCode } from "@/shared/lib/markdown-import/markdownText";
+import { resolveRelativeLink } from "@/shared/lib/markdown-import/relativePath";
+
+export { dirname, resolveRelativeLink } from "@/shared/lib/markdown-import/relativePath";
 
 // [text](dest "title") / ![alt](dest). dest는 <...> 또는 괄호 한 단계까지 허용한다.
 const LINK = /(!?)\[((?:[^[\]\n]|\[[^\]\n]*\])*)\]\((<[^>\n]*>|[^()\s]*(?:\([^()\s]*\)[^()\s]*)*)(?:\s+"[^"\n]*")?\)/g;
-const SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 
 export const LINK_TOKEN = /\u0000L(\d+)\u0000/g;
 export const IMAGE_TOKEN = /\u0000I(\d+)\u0000/g;
-
-function safeDecode(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-/** 파일 경로의 폴더 부분("a/b/c.md" → "a/b") */
-export function dirname(path: string): string {
-  const slash = path.lastIndexOf("/");
-  return slash < 0 ? "" : path.slice(0, slash);
-}
-
-/**
- * 문서 안 링크를 zip 안 경로로 푼다. 외부 주소·같은 문서 앵커·zip 밖으로 나가는 경로는 null.
- * `#앵커`와 `?query`는 버린다(앱은 문서 안 블록 위치로 이동하지 않는다).
- */
-export function resolveRelativeLink(fromPath: string, href: string): string | null {
-  const raw = href.trim().replace(/^<|>$/g, "");
-  if (!raw || raw.startsWith("#") || raw.startsWith("/") || raw.startsWith("\\") || SCHEME.test(raw)) return null;
-  const withoutFragment = raw.replace(/[#?].*$/, "");
-  if (!withoutFragment) return null;
-  const segments = dirname(fromPath).split("/").filter(Boolean);
-  for (const segment of safeDecode(withoutFragment).normalize("NFC").split("/")) {
-    if (segment === "" || segment === ".") continue;
-    if (segment === "..") {
-      if (segments.length === 0) return null;
-      segments.pop();
-    } else segments.push(segment);
-  }
-  return segments.join("/");
-}
 
 const NOTION_HOST = /(^|\.)(notion\.so|notion\.site|notion\.com)$/i;
 const DASHED_ID = /([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i;

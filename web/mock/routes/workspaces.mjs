@@ -7,7 +7,7 @@ const WORKSPACE_PERMISSIONS = ["wiki.ingest", "wiki.lint", "skill.author", "wiki
 
 function toWorkspace(workspace) {
   const { id: wid, name, icon_emoji, icon_url, created_at, updated_at } = workspace;
-  return { id: wid, name, icon_emoji, icon_url, auto_ingest_on_upload: workspace.auto_ingest_on_upload === true, created_at, updated_at };
+  return { id: wid, name, icon_emoji, icon_url, auto_ingest_on_upload: workspace.auto_ingest_on_upload === true, describe_pdf_figures: workspace.describe_pdf_figures === true, created_at, updated_at };
 }
 
 function toMember(member) {
@@ -63,15 +63,17 @@ export function registerWorkspaceRoutes(router) {
   router.patch("/api/workspaces/:wid", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
-    const { name, auto_ingest_on_upload } = await ctx.body();
+    const { name, auto_ingest_on_upload, describe_pdf_figures } = await ctx.body();
     const hasName = typeof name === "string" && name.trim();
     const hasAutoIngest = typeof auto_ingest_on_upload === "boolean";
-    if (!hasName && !hasAutoIngest) return error(ctx, 400, "요청 형식이 올바르지 않습니다.", "INVALID_REQUEST");
+    const hasDescribeFigures = typeof describe_pdf_figures === "boolean";
+    if (!hasName && !hasAutoIngest && !hasDescribeFigures) return error(ctx, 400, "요청 형식이 올바르지 않습니다.", "INVALID_REQUEST");
     // access는 소유자가 아니면 이름 변경과 같은 규칙으로 404를 준다.
     const caller = state.members.find((item) => item.workspace_id === workspace.id && item.user_id === ctx.user.id);
     if (caller?.role !== "OWNER") return error(ctx, 404, "워크스페이스를 찾을 수 없습니다.", "WORKSPACE_NOT_FOUND");
     if (hasName) workspace.name = name.trim();
     if (hasAutoIngest) workspace.auto_ingest_on_upload = auto_ingest_on_upload;
+    if (hasDescribeFigures) workspace.describe_pdf_figures = describe_pdf_figures;
     workspace.updated_at = now();
     ctx.json(200, toWorkspace(workspace));
   });

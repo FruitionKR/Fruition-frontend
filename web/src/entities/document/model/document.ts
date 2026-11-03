@@ -49,6 +49,34 @@ export type DocumentItemResponse = DocumentUploadResponse & {
   updated_by?: string | null;
   /** 문서를 처음 만든 AI 경로. chat_export(채팅 Wiki page화 문서)는 확인 전용이라 본문을 편집할 수 없다. */
   ai_origin?: "agent" | "meeting_notes" | "chat_export" | null;
+  /** PDF 변환 문서의 복원 요약. 변환 문서가 아니거나 구 서버 응답이면 생략된다. */
+  restoration_summary?: RestorationSummary;
+  /** PDF 변환의 그림 설명 집계. requested=false면 그림 설명을 요청하지 않았다. */
+  figure_descriptions?: FigureDescriptions;
+};
+
+/** 원문 텍스트로 대신한 사유 코드(AI 계약). 모르는 값은 서버가 unknown으로 바꾼다. */
+export type FallbackReason =
+  | "font_mapping"
+  | "replacement_character"
+  | "token_mismatch"
+  | "extract_failed"
+  | "repair_rejected"
+  | "provider_error"
+  | "unknown";
+
+export type RestorationSummary = {
+  broken_pages: number;
+  repaired_pages: number;
+  /** page는 원본 PDF 기준 1부터. reason은 대표 사유, causes는 그 쪽의 모든 사유(없으면 생략). */
+  fallback_pages: { page: number; reason: FallbackReason | string; causes?: string[] }[];
+};
+
+export type FigureDescriptions = {
+  requested: boolean;
+  described: number;
+  failed: number;
+  skipped: number;
 };
 
 export type DocumentListResponse = {

@@ -7,7 +7,7 @@ const { cleanNotionName, uniqueName, splitExtension } = await import("../src/fea
 const { parseCsv, csvToMarkdownTable, escapeTableCell } = await import("../src/features/notion-import/lib/csvTable.ts");
 const { sanitizeNotionMarkdown } = await import("../src/features/notion-import/lib/notionHtml.ts");
 const { resolveRelativeLink, tokenizeLinks, renderLinks, renderImages, documentHref } = await import("../src/features/notion-import/lib/notionLinks.ts");
-const { planAttachmentBatches } = await import("../src/features/notion-import/lib/attachmentBatches.ts");
+const { planAttachmentBatches } = await import("../src/shared/lib/markdown-import/attachmentBatches.ts");
 
 const HEX = "0123456789abcdef0123456789abcdef";
 

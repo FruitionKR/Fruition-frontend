@@ -363,3 +363,62 @@
     font-size: 28px;
   }
 }
+
+/* PDF 변환 결과 안내: 원문으로 대신한 쪽(펼침)과 그림 설명 집계 */
+.source-preview-conversion-report {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-status-warning);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.source-preview-conversion-report summary {
+  cursor: pointer;
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.source-preview-conversion-report summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.source-preview-conversion-report p {
+  margin: 6px 0 0;
+}
+
+.source-preview-conversion-report ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-preview-conversion-report li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.source-preview-conversion-report li strong {
+  min-width: 3em;
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.source-preview-conversion-report li small {
+  flex-basis: 100%;
+  padding-left: calc(3em + 8px);
+  font-size: 12px;
+}
+
+.source-preview-conversion-report > .source-preview-conversion-figures:first-child {
+  margin-top: 0;
+}

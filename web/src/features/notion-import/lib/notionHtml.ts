@@ -4,7 +4,7 @@
  * 콜아웃·토글은 인용문으로, <script>·<style> 등은 내용째 지운다. 태그를 지우면 on* 속성도 함께 사라진다.
  * 코드 블록·인라인 코드 안은 건드리지 않는다.
  */
-import { mapOutsideCode, stripNul } from "./markdownText";
+import { mapOutsideCode, stripNul } from "@/shared/lib/markdown-import/markdownText";
 
 const DROP_WITH_CONTENT = /<(script|style|iframe|object|embed|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
 const DANGLING_DROP = /<(script|style|iframe|object|embed|template|noscript)\b[^>]*\/?>/gi;
