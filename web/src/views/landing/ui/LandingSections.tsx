@@ -106,9 +106,11 @@ export function LandingDataHandling() {
         {DATA_HANDLING_GROUPS.map((group) => (
           <article key={group.id} className={sections["data-handling-group"]} aria-labelledby={`data-handling-${group.id}`}>
             <div className={sections["data-handling-group-head"]}>
-              <p className={sections["card-english"]}>{group.english}</p>
+              <p className={sections["card-english"]}>
+                {group.english} · {group.title}
+              </p>
               <h3 id={`data-handling-${group.id}`} className={sections["data-handling-group-title"]}>
-                {group.title}
+                {group.headline}
               </h3>
             </div>
             <ul className={sections["data-handling-list"]}>
