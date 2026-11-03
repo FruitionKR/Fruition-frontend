@@ -57,6 +57,10 @@ export function registerSpeechRoutes(router) {
   router.post("/api/workspaces/:wid/speech/synthesis", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
+    // 운영에서 끈 상태(document app.speech.synthesis.enabled=false)는 조회 전에 403이다.
+    if (process.env.MOCK_SPEECH_SYNTHESIS_ENABLED === "false") {
+      return error(ctx, 403, "지금은 답변 듣기를 쓸 수 없어요.", "SPEECH_SYNTHESIS_DISABLED");
+    }
     const { message_id } = await ctx.body();
     if (typeof message_id !== "string" || !message_id) return error(ctx, 400, "message_id가 필요합니다.");
     const message = state.chatMessages.find((item) => item.id === message_id);

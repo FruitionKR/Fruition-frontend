@@ -1,6 +1,6 @@
 // 채팅 답변 듣기(#149)의 순수 규칙: NDJSON 이벤트 파싱, PCM 조각 이어 붙이기, 오류 문구.
 // Web Audio와 fetch를 다루는 쪽은 model/useSpeechPlayback.ts와 api/speech.ts다.
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { describeTtsStreamError } from "@/shared/lib/aiErrorCodes";
 
 /** 서버가 보내는 PCM 형식: 16비트 little-endian 모노 24kHz. */
@@ -25,8 +25,16 @@ export class SpeechStreamError extends Error {
 export const SPEECH_PLAYBACK_MESSAGES = {
   unsupported: "이 브라우저는 음성 재생을 지원하지 않습니다.",
   network: "네트워크 연결을 확인하고 다시 시도해 주세요.",
-  failed: "음성을 만들지 못했습니다."
+  failed: "음성을 만들지 못했습니다.",
+  disabled: "지금은 답변 듣기를 쓸 수 없어요."
 } as const;
+
+/** 운영에서 답변 듣기를 끈 403(document SPEECH_SYNTHESIS_DISABLED). 받으면 듣기 버튼을 숨긴다. */
+export const SPEECH_SYNTHESIS_DISABLED_CODE = "SPEECH_SYNTHESIS_DISABLED";
+
+export function isSpeechSynthesisDisabledError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === SPEECH_SYNTHESIS_DISABLED_CODE;
+}
 
 function parseSpeechEventLine(line: string): SpeechStreamEvent | null {
   const trimmed = line.trim();
@@ -109,5 +117,6 @@ export function describeSpeechPlaybackError(error: unknown): string | null {
   if (error instanceof Error && error.name === "AbortError") return null;
   // fetch가 연결 자체에 실패하면 문구 없는 TypeError를 던진다.
   if (error instanceof TypeError) return SPEECH_PLAYBACK_MESSAGES.network;
+  if (isSpeechSynthesisDisabledError(error)) return SPEECH_PLAYBACK_MESSAGES.disabled;
   return getErrorMessage(error, SPEECH_PLAYBACK_MESSAGES.failed);
 }

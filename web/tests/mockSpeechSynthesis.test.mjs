@@ -3,6 +3,7 @@ import test from "node:test";
 import { createRouter, issueAccessToken, listen } from "../mock/lib/http.mjs";
 import { state } from "../mock/state.mjs";
 import { registerSpeechRoutes, speechText } from "../mock/routes/speech.mjs";
+import { registerCatalogRoutes } from "../mock/routes/catalog.mjs";
 
 /** mock 답변 듣기 라우트(#149)가 document 계약대로 NDJSON PCM 스트림과 사전 오류를 돌려주는지 확인한다. */
 async function startMock(t) {
@@ -18,17 +19,20 @@ async function startMock(t) {
   );
   const router = createRouter(state);
   registerSpeechRoutes(router);
+  registerCatalogRoutes(router);
   const server = await listen(router, 0);
   const token = issueAccessToken(state, "user_tts");
   t.mock.method(console, "log", () => {});
   t.after(() => server.close());
   const port = server.address().port;
-  return (messageId, init = {}) => fetch(`http://localhost:${port}/api/workspaces/ws_tts/speech/synthesis`, {
+  const request = (messageId, init = {}) => fetch(`http://localhost:${port}/api/workspaces/ws_tts/speech/synthesis`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ message_id: messageId }),
     ...init
   });
+  request.catalog = () => fetch(`http://localhost:${port}/api/ai-models`, { headers: { Authorization: `Bearer ${token}` } });
+  return request;
 }
 
 test("읽을 글 정리는 코드·인용 번호·기호를 걷어 낸다", () => {
@@ -74,4 +78,16 @@ test("MOCK_SPEECH_ERROR를 두면 첫 조각 뒤에 error 이벤트로 끝난다
   const events = (await (await request("msg_tts_done")).text()).trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(events[0].type, "audio");
   assert.deepEqual(events.at(-1), { type: "error", code: "provider_unavailable" });
+});
+
+test("MOCK_SPEECH_SYNTHESIS_ENABLED=false면 카탈로그가 꺼짐을 알리고 합성은 403 SPEECH_SYNTHESIS_DISABLED다", async (t) => {
+  const request = await startMock(t);
+  assert.equal((await (await request.catalog()).json()).speech_synthesis_enabled, true);
+
+  process.env.MOCK_SPEECH_SYNTHESIS_ENABLED = "false";
+  t.after(() => { delete process.env.MOCK_SPEECH_SYNTHESIS_ENABLED; });
+  assert.equal((await (await request.catalog()).json()).speech_synthesis_enabled, false);
+  const rejected = await request("msg_tts_done");
+  assert.equal(rejected.status, 403);
+  assert.deepEqual((await rejected.json()).error, { code: "SPEECH_SYNTHESIS_DISABLED", message: "지금은 답변 듣기를 쓸 수 없어요." });
 });

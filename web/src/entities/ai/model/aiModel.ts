@@ -5,7 +5,14 @@ export type AiModel = {
   display_name: string;
 };
 
-export type AiModelsResponse = { models: AiModel[] };
+export type AiModelsResponse = {
+  models: AiModel[];
+  /** 채팅 답변 듣기를 쓸 수 있는지(document 운영 스위치 SPEECH_SYNTHESIS_ENABLED). 없으면 꺼진 것으로 본다. */
+  speech_synthesis_enabled?: boolean;
+};
+
+/** 모델 카탈로그와 카탈로그가 함께 알려 주는 채팅 기능 사용 가능 여부. */
+export type AiModelCatalog = { models: AiModel[]; isSpeechSynthesisEnabled: boolean };
 
 /** 질의 요청에 실을 provider/model 쌍. 반드시 함께 전달해야 한다. */
 export type AiModelSelection = { provider: string; model: string };
