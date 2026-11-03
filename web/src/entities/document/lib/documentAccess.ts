@@ -28,11 +28,18 @@ export function isDocumentReadOnly(document: DocumentAccessFields): boolean {
 export const CHAT_EXPORT_READ_ONLY_TITLE = "채팅 Wiki page화 문서는 확인 전용이라 읽기 전용으로 열었습니다.";
 
 /** 채팅 Wiki page화 문서 안내 둘째 줄. */
-export const CHAT_EXPORT_READ_ONLY_HINT = "문답 출처를 지키기 위해 본문은 고칠 수 없습니다. 내용을 바꾸려면 새 문서로 옮겨 적어 주세요.";
+export const CHAT_EXPORT_READ_ONLY_HINT = "문답 출처를 지키기 위해 이름과 본문은 고칠 수 없습니다. 내용을 바꾸려면 새 문서로 옮겨 적어 주세요.";
+
+/** 채팅 Wiki page화 문서의 제목 칸 안내·이름 변경 거절(409 DOCUMENT_TITLE_LOCKED) 문구. */
+export const CHAT_EXPORT_TITLE_LOCKED_MESSAGE = "채팅에서 만든 문서는 이름과 본문을 바꿀 수 없습니다.";
+
+/** 서버가 채팅에서 만든 문서의 이름 변경을 거절할 때 보내는 error.code. */
+export const DOCUMENT_TITLE_LOCKED_CODE = "DOCUMENT_TITLE_LOCKED";
 
 /**
- * 권한과 무관하게 본문을 편집할 수 없는 문서인지. 채팅 Wiki page화 문서(ai_origin=chat_export)는
- * 서버가 편집 잠금·저장을 400으로 거절하므로 편집기를 열지 않는다. 이름 변경은 권한(can_edit)을 따른다.
+ * 권한과 무관하게 본문과 이름을 고칠 수 없는 문서인지. 채팅 Wiki page화 문서(ai_origin=chat_export)는
+ * 서버가 편집 잠금·저장을 400, 이름 변경을 409(DOCUMENT_TITLE_LOCKED)로 거절하므로 편집기·이름 변경을 열지 않는다.
+ * 이동·삭제는 권한(can_edit·can_delete)을 따른다.
  */
 export function isDocumentBodyLocked(document: DocumentAccessFields): boolean {
   return document?.ai_origin === "chat_export";

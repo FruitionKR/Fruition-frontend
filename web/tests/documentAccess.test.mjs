@@ -16,6 +16,8 @@ const {
   canDeleteDocument,
   describePermissionError,
   isDocumentBodyLocked,
+  CHAT_EXPORT_READ_ONLY_HINT,
+  CHAT_EXPORT_TITLE_LOCKED_MESSAGE,
   isDocumentReadOnly,
   isWriteForbiddenError,
   permissionChangedMessage,
@@ -121,4 +123,20 @@ test("채팅 Wiki page화 문서(ai_origin=chat_export)만 권한과 무관하�
   assert.equal(isDocumentBodyLocked({ can_edit: true, ai_origin: null }), false);
   assert.equal(isDocumentBodyLocked({ can_edit: true }), false, "구 서버 응답은 편집 가능으로 본다");
   assert.equal(isDocumentBodyLocked(undefined), false, "목록에서 아직 못 찾은 문서는 편집 잠금 응답으로 판단한다");
+});
+
+test("채팅에서 만든 문서는 트리에서 이름이 잠기고 안내 문구도 이름과 본문을 함께 말한다", () => {
+  const [project] = projectsFromServerTree([
+    { type: "document", id: "doc_chat", name: "[채팅] 질문.md", current_version: 1,
+      document: { id: "doc_chat", can_edit: true, ai_origin: "chat_export" } },
+    { type: "document", id: "doc_note", name: "노트.md", current_version: 1,
+      document: { id: "doc_note", can_edit: true, ai_origin: null } }
+  ]);
+  const chat = project.items.find((item) => item.documentId === "doc_chat");
+  const note = project.items.find((item) => item.documentId === "doc_note");
+  assert.equal(chat.titleLocked, true);
+  assert.equal(chat.canEdit, true, "이동은 권한을 그대로 따른다");
+  assert.equal(note.titleLocked, false);
+  assert.match(CHAT_EXPORT_READ_ONLY_HINT, /이름과 본문은 고칠 수 없습니다/);
+  assert.equal(CHAT_EXPORT_TITLE_LOCKED_MESSAGE, "채팅에서 만든 문서는 이름과 본문을 바꿀 수 없습니다.");
 });

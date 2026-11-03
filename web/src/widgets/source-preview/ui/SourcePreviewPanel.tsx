@@ -14,7 +14,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
-import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
+import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, CHAT_EXPORT_TITLE_LOCKED_MESSAGE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
 import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
@@ -78,7 +78,7 @@ export function SourcePreviewPanel({
   documentConversion?: DocumentConversionView | null;
   /** 서버 can_edit=false. 편집기 대신 읽기 전용 본문을 보여주고 이름 변경을 막는다. */
   readOnly?: boolean;
-  /** 권한과 무관하게 본문을 고칠 수 없는 문서(채팅 Wiki page화 문서). 편집기·편집 잠금 없이 읽기 전용 본문만 보여준다. 이름 변경은 readOnly를 따른다. */
+  /** 권한과 무관하게 본문과 이름을 고칠 수 없는 문서(채팅 Wiki page화 문서). 편집기·편집 잠금 없이 읽기 전용 본문만 보여주고 제목 칸도 잠근다. */
   bodyLocked?: boolean;
   /** 제목 hover 설명(상위 폴더 경로 등). 없으면 제목을 쓴다 */
   titleHint?: string;
@@ -160,6 +160,8 @@ export function SourcePreviewPanel({
     : SAVE_STATUS_LABELS[noteSaveStatus];
   // 읽기 전용 노트: 저장 상태 대신 배지를 보여주고 편집기를 열지 않는다.
   const isBodyReadOnly = readOnly || bodyLocked;
+  // 채팅에서 만든 문서는 문답 출처를 지키려고 서버가 이름도 잠근다(409 DOCUMENT_TITLE_LOCKED).
+  const isTitleReadOnly = readOnly || bodyLocked;
   const isReadOnlyNote = isMarkdownFile && isBodyReadOnly;
   // 보기 권한이 없으면 권한 안내를, 채팅 Wiki page화 문서면 확인 전용 안내를 보여준다.
   const readOnlyTitle = readOnly ? READ_ONLY_DOCUMENT_TITLE : CHAT_EXPORT_READ_ONLY_TITLE;
@@ -229,7 +231,7 @@ export function SourcePreviewPanel({
   }, [onRefreshDocuments]);
 
   async function commitTitle() {
-    if (!isMarkdownFile || readOnly || !documentId || !onRenameDocument || isRenaming) return;
+    if (!isMarkdownFile || isTitleReadOnly || !documentId || !onRenameDocument || isRenaming) return;
     const nextFilename = buildMarkdownDocumentFilename(titleInput, title);
     if (nextFilename === title) {
       setTitleInput(getMarkdownDocumentTitle(title));
@@ -506,11 +508,11 @@ export function SourcePreviewPanel({
             <input
               className={styles["source-preview-title-input"]}
               aria-label="문서 이름"
-              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : titleHint}
+              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : bodyLocked ? CHAT_EXPORT_TITLE_LOCKED_MESSAGE : titleHint}
               placeholder="제목을 입력하세요"
               value={titleInput}
               disabled={isRenaming}
-              readOnly={readOnly}
+              readOnly={isTitleReadOnly}
               spellCheck={false}
               onChange={(event) => {
                 skipNextTitleCommitRef.current = false;
