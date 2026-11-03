@@ -77,7 +77,6 @@ export function DocumentSidebar({
   onCancelEditing,
   onRenameContextTarget,
   onSetPermissionContextTarget,
-  onTreeItemAction,
   onAddMarkdownFromContext,
   isCreatingNote = false,
   onUploadFromContext,
@@ -173,8 +172,6 @@ export function DocumentSidebar({
   onCancelEditing: () => void;
   onRenameContextTarget: () => void;
   onSetPermissionContextTarget?: () => void;
-  /** 트리 행 오른쪽 hover 버튼(이름 변경·권한 설정·삭제) */
-  onTreeItemAction: TreeInteractionProps["onTreeItemAction"];
   onAddMarkdownFromContext: () => void;
   /** 새 노트를 만드는 중이면 "새 노트 추가"를 막는다(연타·키 반복으로 여러 개 생기지 않게). */
   isCreatingNote?: boolean;
@@ -232,7 +229,7 @@ export function DocumentSidebar({
     onDragEnd,
     onContextMenuItem,
     onOpenFolderMenuAt,
-    onTreeItemAction,
+    menuOpenItemId: contextMenu && !contextMenu.source ? contextMenu.itemId : null,
     onSelectGraphNode,
     onOpenInNewTab,
     onEditingChange,
@@ -271,6 +268,8 @@ export function DocumentSidebar({
           onKeyDown={(event) => { if (event.repeat) event.preventDefault(); }}
           onClick={(event) => {
             event.stopPropagation();
+            // 메뉴가 닫히면 이 버튼으로 포커스를 돌려받도록 먼저 잡는다(마우스 클릭은 포커스를 주지 않는 브라우저가 있다).
+            event.currentTarget.focus();
             onOpenFolderMenuAt(rootProject.id, null, event.currentTarget, "add-button");
           }}
         >

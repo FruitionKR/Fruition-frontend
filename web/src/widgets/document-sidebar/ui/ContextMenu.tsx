@@ -1,10 +1,9 @@
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import type { ContextMenuState } from "@/entities/tree";
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import { nextMenuItemIndex } from "../model/menuKeyboard";
-import { TREE_ITEM_ACTION_LABELS } from "../model/treeItemActions";
 import styles from "./DocumentSidebar.module.css";
 
 export function ContextMenu({
@@ -75,17 +74,18 @@ export function ContextMenu({
 
   // 열리면 첫 항목에 포커스를 둔다(body에 portal돼 Tab으로는 닿기 어렵다). 닫힐 때 포커스가 메뉴와 함께 사라졌으면
   // (Esc 등) 연 요소로 되돌린다. 항목이 다른 곳(이름 편집 칸 등)으로 포커스를 옮겼으면 건드리지 않는다.
+  // 연 요소는 첫 렌더에서 잡는다. effect에서 읽으면 개발 모드 StrictMode의 재실행 때 이미 메뉴 항목으로 옮긴 포커스를 잡는다.
+  const [opener] = useState(() =>
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+  );
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
-      ? document.activeElement
-      : null;
     const preferred = menuRef.current?.querySelector<HTMLButtonElement>("[data-menu-autofocus]");
     (preferred ?? menuItems(menuRef.current)[0])?.focus();
     return () => {
       const active = document.activeElement;
       if ((active === null || active === document.body) && opener?.isConnected) opener.focus();
     };
-  }, []);
+  }, [opener]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // 메뉴를 연 Enter를 누르고 있으면 키 반복이 포커스된 항목을 연달아 실행하지 않게 막는다.
@@ -139,10 +139,10 @@ export function ContextMenu({
         </>
       )}
       {canRenameTarget && (
-        <button type="button" role="menuitem" tabIndex={-1} onClick={onRenameContextTarget}>{TREE_ITEM_ACTION_LABELS.rename}</button>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={onRenameContextTarget}>이름 변경</button>
       )}
       {canSetPermissionTarget && onSetPermissionContextTarget && (
-        <button type="button" role="menuitem" tabIndex={-1} onClick={onSetPermissionContextTarget}>{TREE_ITEM_ACTION_LABELS.permission}</button>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={onSetPermissionContextTarget}>권한 설정</button>
       )}
       {convertTarget && (
         <button
@@ -167,7 +167,7 @@ export function ContextMenu({
           title={canDeleteTarget ? undefined : "문서 소유자와 워크스페이스 OWNER만 삭제할 수 있습니다."}
           onClick={onDeleteContextTarget}
         >
-          {TREE_ITEM_ACTION_LABELS.delete}
+          삭제
         </button>
       )}
       </>

@@ -876,24 +876,24 @@
   outline-offset: -2px;
 }
 
-/* 행 버튼과 오른쪽 hover 버튼·배지 링크를 형제로 감싼다. 자식 행은 바깥이라 부모 버튼이 뜨지 않는다 */
+/* 행 버튼과 오른쪽 ⋯ 버튼·배지 링크를 형제로 감싼다. 자식 행은 바깥이라 부모 버튼이 뜨지 않는다 */
 .tree-row-wrap {
   position: relative;
   --tree-row-actions-bg: var(--color-surface);
 }
 
-/* hover 버튼에 올려도 행 hover 배경을 유지한다 */
+/* ⋯ 버튼에 올려도 행 hover 배경을 유지한다 */
 .tree-row-wrap:hover > .tree-row:not(.is-selected) {
   --button-hover-overlay: none;
   background: var(--color-surface);
 }
 
-/* 묶음 선택된 행은 hover 버튼 바탕도 선택 색을 따른다 */
+/* 묶음 선택된 행은 ⋯ 버튼 바탕도 선택 색을 따른다 */
 .tree-row-wrap:has(> .tree-row.is-selected) {
   --tree-row-actions-bg: var(--color-primary-weak);
 }
 
-/* 행 오른쪽 겹침 영역: hover 버튼 묶음 + 원본 PDF·변환본 배지 링크. 행 오른쪽 여백(10px)에 맞춘다. */
+/* 행 오른쪽 겹침 영역: ⋯ 버튼 + 원본 PDF·변환본 배지 링크. 행 오른쪽 여백(10px)에 맞춘다. */
 .tree-row-trailing {
   position: absolute;
   top: 50%;
@@ -905,7 +905,7 @@
 }
 
 /*
- * 이름 변경·권한 설정·삭제·⋯ 버튼. 평소엔 숨기고 행 hover·키보드 포커스 시 확장자 배지 위에 겹쳐 나타난다.
+ * ⋯ 버튼(우클릭과 같은 메뉴). 평소엔 숨기고 행 hover·키보드 포커스 시 확장자 배지 위에 겹쳐 나타난다.
  * 자리를 미리 잡지 않고 행 배경색으로 덮어 hover 때 이름·배지가 밀리지 않는다(긴 이름은 왼쪽 그라데이션 뒤로 사라진다).
  */
 .tree-row-actions {
@@ -968,7 +968,7 @@
   height: 16px;
 }
 
-/* 터치 기기(hover 없음): ⋯ 버튼만 늘 보이고, 이름 변경·권한 설정·삭제는 ⋯ 메뉴에서 고른다. 이름이 겹치지 않게 자리를 잡는다. */
+/* 터치 기기(hover 없음): ⋯ 버튼을 늘 보인다. 이름이 겹치지 않게 자리를 잡는다. */
 @media (hover: none) {
   .tree-row.has-row-actions {
     padding-right: 38px;
@@ -979,8 +979,7 @@
     background: transparent;
   }
 
-  .tree-row-actions::before,
-  .tree-row-action-slot {
+  .tree-row-actions::before {
     display: none;
   }
 }

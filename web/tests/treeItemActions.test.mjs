@@ -7,7 +7,7 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
-const { treeItemMenuAccess, treeRowActions, TREE_ITEM_ACTION_LABELS } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
+const { treeItemMenuAccess } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
 
 const source = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -55,30 +55,9 @@ test("업로드 중·위키 항목은 권한 설정을 열지 않는다", () => 
   assert.equal(treeItemMenuAccess({ id: "w", label: "개념", type: "wiki" }, { isRootTarget: false }).canSetPermission, false);
 });
 
-test("행 hover 버튼은 권한이 있는 동작만 이름 변경·권한 설정·삭제 순으로 보인다", () => {
-  assert.deepEqual(treeRowActions(note).map((action) => action.id), ["rename", "permission", "delete"]);
-  assert.deepEqual(treeRowActions(folder).map((action) => action.id), ["rename", "permission", "delete"]);
-  assert.deepEqual(treeRowActions({ ...note, canEdit: false, canDelete: false }).map((action) => action.id), ["permission"]);
-  assert.deepEqual(treeRowActions({ ...note, mimeType: "application/pdf" }).map((action) => action.id), ["permission", "delete"]);
-});
-
-test("행 hover 버튼 문구는 컨텍스트 메뉴와 같은 한국어 라벨을 쓴다", () => {
-  assert.deepEqual(treeRowActions(note).map((action) => action.label), ["이름 변경", "권한 설정", "삭제"]);
-  assert.equal(TREE_ITEM_ACTION_LABELS.more, "더 보기");
-});
-
-test("업로드 중·위키 행에는 hover 버튼을 두지 않는다", () => {
-  assert.deepEqual(treeRowActions({ ...note, status: "uploading" }), []);
-  assert.deepEqual(treeRowActions({ id: "w", label: "개념", type: "wiki" }), []);
-});
-
-test("컨텍스트 메뉴와 행 hover 버튼이 같은 권한 판정을 쓴다", async () => {
-  const [projectTree, treeNode] = await Promise.all([
-    source("widgets/workspace/model/useProjectTree.ts"),
-    source("widgets/document-sidebar/ui/TreeNode.tsx")
-  ]);
+test("우클릭·⋯·새 노트 추가 메뉴는 같은 권한 판정을 쓴다", async () => {
+  const projectTree = await source("widgets/workspace/model/useProjectTree.ts");
   assert.match(projectTree, /treeItemMenuAccess\(contextMenuItem/);
-  assert.match(treeNode, /treeRowActions\(item\)/);
 });
 
 test("새 노트 추가 버튼은 바로 만들지 않고 최상위 컨텍스트 메뉴를 연다", async () => {
@@ -96,16 +75,26 @@ test("새 노트 추가 메뉴는 새 노트 항목에 포커스를 두어 Enter
   assert.match(menu, /querySelector<HTMLButtonElement>\("\[data-menu-autofocus\]"\)/);
 });
 
-test("행 hover 버튼은 aria-label과 ⋯ 메뉴 버튼(aria-haspopup)을 가진다", async () => {
+test("행 hover에는 ⋯ 버튼 하나만 두고 우클릭과 같은 메뉴를 연다", async () => {
   const treeNode = await source("widgets/document-sidebar/ui/TreeNode.tsx");
-  assert.match(treeNode, /aria-label=\{`\$\{item\.label\} \$\{action\.label\}`\}/);
-  assert.match(treeNode, /aria-label=\{`\$\{item\.label\} \$\{TREE_ITEM_ACTION_LABELS\.more\}`\}/);
+  assert.match(treeNode, /aria-label="항목 메뉴 열기"/);
   assert.match(treeNode, /aria-haspopup="menu"/);
-  assert.match(treeNode, /interaction\.onTreeItemAction\(projectId, item\.id, action\.id\)/);
+  assert.match(treeNode, /aria-expanded=\{interaction\.menuOpenItemId === item\.id\}/);
+  assert.match(treeNode, /interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
+  // 이름 변경·권한 설정·삭제는 hover 버튼으로 따로 두지 않는다.
+  assert.doesNotMatch(treeNode, /onTreeItemAction|treeRowActions|SidebarTrashIcon|SidebarRenameIcon|SidebarLockIcon/);
 });
 
-test("hover가 없는 터치 기기에서는 ⋯ 버튼을 늘 보인다", async () => {
+test("⋯ 버튼은 hover·키보드 포커스에 보이고 hover가 없는 터치 기기에서는 늘 보인다", async () => {
   const css = await source("widgets/document-sidebar/ui/DocumentSidebar.module.css");
   assert.match(css, /@media \(hover: none\)\s*\{[\s\S]*?\.tree-row-actions\s*\{[^}]*opacity:\s*1/);
+  assert.match(css, /\.tree-row-wrap:hover > \.tree-row-trailing > \.tree-row-actions/);
   assert.match(css, /\.tree-row-wrap:has\(:focus-visible\) > \.tree-row-trailing > \.tree-row-actions/);
+  assert.doesNotMatch(css, /tree-row-action-slot/);
+});
+
+test("메뉴를 닫으면 연 버튼으로 포커스를 돌려준다(연 요소는 첫 렌더에서 잡는다)", async () => {
+  const menu = await source("widgets/document-sidebar/ui/ContextMenu.tsx");
+  assert.match(menu, /const \[opener\] = useState\(\(\) =>/);
+  assert.match(menu, /opener\?\.isConnected\) opener\.focus\(\)/);
 });

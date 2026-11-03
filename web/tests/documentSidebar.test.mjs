@@ -77,7 +77,8 @@ test("행 ⋯ 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 �
   const source = await readFile(treeNodePath, "utf8");
 
   assert.match(source, /aria-haspopup="menu"/);
-  assert.match(source, /event\.stopPropagation\(\);\s*interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
+  // 메뉴가 닫히면 포커스를 돌려받도록 클릭한 ⋯ 버튼에 먼저 포커스를 둔다.
+  assert.match(source, /event\.stopPropagation\(\);[\s\S]{0,200}?event\.currentTarget\.focus\(\);\s*interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);
 });
 
 test("빈 영역 우클릭은 문서 뷰에서만 첫 프로젝트 메뉴를 연다", () => {

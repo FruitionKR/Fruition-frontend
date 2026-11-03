@@ -1,7 +1,6 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget } from "@/entities/tree";
 import type { TreeConversionBadge } from "./treeConversionBadge";
-import type { TreeItemActionId } from "./treeItemActions";
 
 /** 트리에서 선택 가능한 항목(그래프 노드/문서 연결 정보 포함) */
 export type SelectableTreeItem = {
@@ -44,8 +43,8 @@ export type TreeInteractionProps = {
   onContextMenuItem: (event: ReactMouseEvent<HTMLButtonElement>, projectId: string, itemId: string) => void;
   /** 행 ⋯ 버튼·새 노트 추가 버튼으로 버튼 아래에 우클릭과 같은 메뉴를 연다(itemId가 null이면 최상위, 같은 버튼이면 닫는다) */
   onOpenFolderMenuAt: (projectId: string, itemId: string | null, anchor: HTMLElement, source?: ContextMenuState["source"]) => void;
-  /** 행 오른쪽 hover 버튼(이름 변경·권한 설정·삭제). 컨텍스트 메뉴와 같은 동작을 그 행에 바로 실행한다 */
-  onTreeItemAction: (projectId: string, itemId: string, action: TreeItemActionId) => void;
+  /** 지금 컨텍스트 메뉴가 열린 행 id. 행 ⋯ 버튼의 aria-expanded에 쓴다 */
+  menuOpenItemId: string | null;
   onSelectGraphNode: (item: SelectableTreeItem) => void;
   /** 문서 행 가운데 클릭: 그 문서를 새 브라우저 탭으로 연다 */
   onOpenInNewTab: (item: SelectableTreeItem) => void;

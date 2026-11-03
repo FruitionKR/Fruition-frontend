@@ -80,35 +80,7 @@ export function SidebarPermissionIcon({ className, permission, label }: IconProp
   );
 }
 
-/** 트리 행 hover 버튼: 이름 변경 연필 (16×16) */
-export function SidebarRenameIcon({ className }: IconProps) {
-  return (
-    <svg aria-hidden className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M9.5 3.5L12.5 6.5M2.5 13.5L3 10.5L10.6 2.9C11.2 2.3 12.1 2.3 12.7 2.9L13.1 3.3C13.7 3.9 13.7 4.8 13.1 5.4L5.5 13L2.5 13.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** 트리 행 hover 버튼: 권한 설정 자물쇠 (16×16) */
-export function SidebarLockIcon({ className }: IconProps) {
-  return (
-    <svg aria-hidden className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M5.5 7V5C5.5 3.6 6.6 2.5 8 2.5C9.4 2.5 10.5 3.6 10.5 5V7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** 트리 행 hover 버튼: 삭제 휴지통 (16×16) */
-export function SidebarTrashIcon({ className }: IconProps) {
-  return (
-    <svg aria-hidden className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2.5 4.5H13.5M6.5 4.5V3C6.5 2.7 6.7 2.5 7 2.5H9C9.3 2.5 9.5 2.7 9.5 3V4.5M4 4.5L4.6 12.6C4.7 13.1 5.1 13.5 5.6 13.5H10.4C10.9 13.5 11.3 13.1 11.4 12.6L12 4.5M6.8 7V11M9.2 7V11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** 트리 행 hover 버튼: 우클릭 메뉴를 여는 ⋯ (16×16) */
+/** 트리 행 hover ⋯ 버튼: 우클릭과 같은 메뉴를 연다 (16×16) */
 export function SidebarMoreIcon({ className }: IconProps) {
   return (
     <svg aria-hidden className={className} width="16" height="16" viewBox="0 0 16 16" fill="currentColor">

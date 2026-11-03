@@ -5,7 +5,7 @@ import { canConvertDocument, CONVERT_FORBIDDEN_REASON, permissionChangedMessage 
 import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
 import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
-import { treeItemMenuAccess, type TreeItemActionId } from "@/widgets/document-sidebar/model/treeItemActions";
+import { treeItemMenuAccess } from "@/widgets/document-sidebar/model/treeItemActions";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/documentTree";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import { publishNotice } from "@/features/document-notifications";
@@ -26,7 +26,7 @@ import {
   isFileItem,
   isWikiItem
 } from "@/entities/tree";
-import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project, TreeItem } from "@/entities/tree";
+import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
 
 /** + 버튼 아래로 메뉴를 띄울 때 버튼과의 간격 (px) */
 const FOLDER_MENU_ANCHOR_GAP_PX = 4;
@@ -43,9 +43,6 @@ function hasFolderLocation(projects: Project[], location: FolderLocation) {
   return Boolean(project && (location.folderId === null || findTreeItem(project.items, location.folderId)));
 }
 
-
-/** 메뉴·hover 버튼 동작의 대상 행. itemId가 null이면 프로젝트(최상위)다. */
-type TreeTarget = { projectId: string; itemId: string | null };
 
 /** 삭제 확인 모달이 필요로 하는 대상 정보. contextMenu가 닫힌 뒤에도 삭제를 실행할 수 있도록 스냅샷한다. */
 type DeleteConfirmTarget = {
@@ -269,25 +266,20 @@ export function useProjectTree({
     setContextMenu({ projectId, itemId: null, x: event.clientX, y: event.clientY });
   }
 
-  /** 컨텍스트 메뉴·행 hover 버튼의 이름 변경: 대상 행을 인라인 편집 칸으로 바꾼다. */
-  function renameTarget(target: TreeTarget | null) {
-    if (!target || target.projectId === ROOT_DOCUMENTS_PROJECT_ID && target.itemId === null) return;
-    const project = projects.find((project) => project.id === target.projectId);
+  function renameContextTarget() {
+    if (!contextMenu || contextMenu.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) return;
+    const project = projects.find((project) => project.id === contextMenu.projectId);
     if (!project) return;
     editingCancelRef.current = false;
-    if (target.itemId === null) {
-      setEditing({ projectId: target.projectId, itemId: null, label: project.title });
+    if (contextMenu.itemId === null) {
+      setEditing({ projectId: contextMenu.projectId, itemId: null, label: project.title });
     } else {
-      const item = findTreeItem(project.items, target.itemId);
+      const item = findTreeItem(project.items, contextMenu.itemId);
       // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다. 보기 권한만 있는 문서도 같다.
       if (!item || item.generated || item.mimeType === "application/pdf" || item.canEdit === false) return;
-      setEditing({ projectId: target.projectId, itemId: target.itemId, label: item.label });
+      setEditing({ projectId: contextMenu.projectId, itemId: contextMenu.itemId, label: item.label });
     }
     setContextMenu(null);
-  }
-
-  function renameContextTarget() {
-    renameTarget(contextMenu);
   }
 
   /** 컨텍스트 메뉴가 가리키는 폴더 위치(새 노트·파일 업로드 대상). 파일 위면 그 파일의 부모 폴더다. */
@@ -308,7 +300,7 @@ export function useProjectTree({
   const contextMenuItem = contextMenu?.itemId && contextMenuProject
     ? findTreeItem(contextMenuProject.items, contextMenu.itemId)
     : null;
-  // 생성·이름 변경·삭제·권한 설정 노출은 행 hover 버튼과 같은 판정(treeItemMenuAccess)을 쓴다.
+  // 생성·이름 변경·삭제·권한 설정 노출은 treeItemMenuAccess 한 곳에서 판정한다(우클릭·⋯·새 노트 추가 메뉴 공통).
   const {
     canCreateIn: canCreateInContextTarget,
     canRename: canRenameContextTarget,
@@ -318,20 +310,16 @@ export function useProjectTree({
     isRootTarget: contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null
   });
 
-  /** 권한 설정: 대상을 스냅샷해 다이얼로그를 연다. */
-  function openPermissionTarget(item: TreeItem | null) {
-    if (!item) return;
+  /** 컨텍스트 메뉴 → 권한 설정: 대상을 스냅샷해 다이얼로그를 연다. */
+  function openPermissionContextTarget() {
+    if (!contextMenuItem) return;
     setPermissionTarget({
-      kind: isFileItem(item) ? "document" : "folder",
-      id: item.documentId ?? item.id,
-      label: item.label,
-      permission: item.permission ?? null
+      kind: isFileItem(contextMenuItem) ? "document" : "folder",
+      id: contextMenuItem.documentId ?? contextMenuItem.id,
+      label: contextMenuItem.label,
+      permission: contextMenuItem.permission ?? null
     });
     setContextMenu(null);
-  }
-
-  function openPermissionContextTarget() {
-    openPermissionTarget(contextMenuItem ?? null);
   }
 
   /** 다이얼로그 저장: 실패는 다이얼로그가 보여주도록 그대로 던지고, 성공·실패 모두 트리를 다시 받는다. 성공하면 알림으로 결과를 알린다. */
@@ -372,44 +360,27 @@ export function useProjectTree({
     }, "Markdown 변환 실패");
   }
 
-  // 컨텍스트 메뉴·행 hover 버튼의 삭제는 즉시 실행하지 않고 확인 모달을 연다. 실제 삭제는 confirmDelete에서 수행한다.
-  function deleteTarget(target: TreeTarget | null) {
-    if (!target) return;
-    if (target.projectId === ROOT_DOCUMENTS_PROJECT_ID && target.itemId === null) return;
-    const projectId = target.projectId;
+  // 컨텍스트 메뉴의 삭제는 즉시 실행하지 않고 확인 모달을 연다. 실제 삭제는 confirmDelete에서 수행한다.
+  function deleteContextTarget() {
+    if (!contextMenu) return;
+    if (contextMenu.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null) return;
+    const projectId = contextMenu.projectId;
     const project = projects.find((project) => project.id === projectId);
-    if (target.itemId === null) {
+    if (contextMenu.itemId === null) {
       setDeleteConfirm({ projectId, itemId: null, label: project?.title ?? "폴더", kind: "folder" });
       setContextMenu(null);
       return;
     }
-    const item = project ? findTreeItem(project.items, target.itemId) : null;
-    // 삭제 권한이 없으면(can_delete=false) 확인 모달을 열지 않는다. 메뉴·hover 버튼도 막혀 있다.
-    if (item && !treeItemMenuAccess(item, { isRootTarget: false }).canDelete) return;
+    const item = project ? findTreeItem(project.items, contextMenu.itemId) : null;
     const isFolder = item ? (!isFileItem(item) && !isWikiItem(item)) : false;
     setDeleteConfirm({
       projectId,
-      itemId: target.itemId,
+      itemId: contextMenu.itemId,
       documentId: item?.documentId,
       label: item?.label ?? "항목",
       kind: isFolder ? "folder" : "document"
     });
     setContextMenu(null);
-  }
-
-  function deleteContextTarget() {
-    deleteTarget(contextMenu);
-  }
-
-  /** 트리 행 오른쪽 hover 버튼: 메뉴를 거치지 않고 그 행에 컨텍스트 메뉴와 같은 동작을 실행한다. */
-  function runTreeItemAction(projectId: string, itemId: string, action: TreeItemActionId) {
-    const target = { projectId, itemId };
-    if (action === "rename") renameTarget(target);
-    else if (action === "delete") deleteTarget(target);
-    else {
-      const project = projects.find((entry) => entry.id === projectId);
-      openPermissionTarget(project ? findTreeItem(project.items, itemId) ?? null : null);
-    }
   }
 
   function confirmDelete() {
@@ -587,7 +558,6 @@ export function useProjectTree({
     convertContextTarget,
     convertContextTargetToMarkdown,
     deleteContextTarget,
-    runTreeItemAction,
     confirmDelete,
     cancelDelete,
     commitEditing,
