@@ -1,5 +1,6 @@
 "use client";
 
+import { getConversionReportView } from "@/entities/document/lib/conversionReport";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -156,14 +157,16 @@ export function HomeWorkspace() {
   useEffect(() => {
     refreshRef.current = refreshBackendData;
   }, [refreshBackendData]);
+  const notionImport = useNotionImport({ refreshBackendData });
   const upload = useDocumentUpload({
     projects: projectTree.projects,
     setProjects: projectTree.setProjects,
     setDocuments,
     setFileDropTarget: projectTree.setFileDropTarget,
-    refreshBackendData
+    refreshBackendData,
+    // 업로드로 들어온 Notion 내보내기 zip은 Notion 가져오기 미리보기로 연다.
+    onNotionZip: notionImport.importFile
   });
-  const notionImport = useNotionImport({ refreshBackendData });
   // 같은 이름의 Markdown 문서는 폴더 경로로 구분한다(#150). 그래프 라벨과 미리보기 제목이 같은 접미사를 쓴다.
   const documentPathSuffixes = useMemo(
     () => buildDocumentPathSuffixes(graphDocuments, projectTree.projects),
@@ -226,6 +229,10 @@ export function HomeWorkspace() {
   );
   const selectedDocumentConversion = useMemo(
     () => getDocumentConversionView(documents.find((item) => item.id === selection.selectedDocumentId)),
+    [documents, selection.selectedDocumentId]
+  );
+  const selectedConversionReport = useMemo(
+    () => getConversionReportView(documents.find((item) => item.id === selection.selectedDocumentId)),
     [documents, selection.selectedDocumentId]
   );
   // 채팅이 editorSnapshot으로 함께 보내는 노트. 답변 근거는 위키만 검색하므로 미편입·변경 상태를 안내한다.
@@ -570,6 +577,7 @@ export function HomeWorkspace() {
             readOnly={isSelectedDocumentReadOnly}
             bodyLocked={isSelectedDocumentBodyLocked}
             documentConversion={selectedDocumentConversion}
+            conversionReport={selectedConversionReport}
             titleHint={`${selectedDocumentParentLabel} / ${selectedDocumentLabel}`}
             titleSuffix={selection.selectedDocumentId ? documentPathSuffixes.get(selection.selectedDocumentId) : undefined}
             fillMain

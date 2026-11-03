@@ -1,4 +1,4 @@
-import { readZipArchive } from "../lib/zipArchive";
+import { readZipArchive } from "@/shared/lib/markdown-import/zipArchive";
 import { buildImportPlan, type ExistingNames, type ImportPlan } from "../lib/notionPlan";
 
 /** zip 바이트를 읽어 가져오기 계획을 만든다. 안전 검사에 걸리면 ZipSafetyError를 던진다. */

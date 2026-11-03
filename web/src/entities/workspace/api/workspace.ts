@@ -25,6 +25,16 @@ export async function updateWorkspaceAutoIngest(workspaceId: string, enabled: bo
   return parseJsonOrThrow<WorkspaceResponse>(response, "자동 편입 설정을 변경하지 못했습니다.");
 }
 
+/** PDF 그림 설명(외부 AI 전송) 설정을 바꾼다. 자동 편입 설정과 같이 OWNER만 바꿀 수 있다. */
+export async function updateWorkspaceDescribePdfFigures(workspaceId: string, enabled: boolean): Promise<WorkspaceResponse> {
+  const response = await apiFetch(workspacePath(workspaceId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ describe_pdf_figures: enabled })
+  });
+  return parseJsonOrThrow<WorkspaceResponse>(response, "PDF 그림 설명 설정을 변경하지 못했습니다.");
+}
+
 /** 워크스페이스를 삭제한다. OWNER만 가능하다. */
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
   const response = await apiFetch(workspacePath(workspaceId), {

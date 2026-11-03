@@ -3,7 +3,7 @@ import test from "node:test";
 import { ID, PDF, PNG, notionExportFiles, registerSrcHooks, zipFiles } from "./notionImportFixture.mjs";
 
 registerSrcHooks();
-const { readZipArchive, isUnsafeZipPath, ZipSafetyError, MAX_ENTRY_COUNT } = await import("../src/features/notion-import/lib/zipArchive.ts");
+const { readZipArchive, isUnsafeZipPath, ZipSafetyError, MAX_ENTRY_COUNT } = await import("../src/shared/lib/markdown-import/zipArchive.ts");
 const { analyzeNotionZip } = await import("../src/features/notion-import/model/analyzeNotionZip.ts");
 
 test("zip 경로 검사: .. ·절대 경로·드라이브 문자를 막는다", () => {

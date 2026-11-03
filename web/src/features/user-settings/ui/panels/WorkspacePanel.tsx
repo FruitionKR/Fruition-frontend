@@ -12,7 +12,7 @@ import {
   type AiModelSelection
 } from "@/entities/ai";
 import { useUserPreferences } from "@/entities/user";
-import { renameWorkspace, updateWorkspaceAutoIngest, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
+import { renameWorkspace, updateWorkspaceAutoIngest, updateWorkspaceDescribePdfFigures, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { Switch } from "@/shared/ui/Switch";
@@ -76,6 +76,26 @@ export function WorkspacePanel({
       setAutoIngestError(getErrorMessage(error, "자동 편입 설정을 변경하지 못했습니다."));
     } finally {
       setIsAutoIngestSaving(false);
+    }
+  }
+
+  // PDF 그림 설명(외부 AI 전송). 비용·외부 전송이 생겨 기본은 끄고, 자동 편입처럼 OWNER만 바꾼다.
+  const describePdfFigures = workspace?.describe_pdf_figures === true;
+  const [isDescribeFiguresSaving, setIsDescribeFiguresSaving] = useState(false);
+  const [describeFiguresError, setDescribeFiguresError] = useState<string | null>(null);
+
+  async function toggleDescribePdfFigures() {
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId || !isOwner || isDescribeFiguresSaving) return;
+    setIsDescribeFiguresSaving(true);
+    setDescribeFiguresError(null);
+    try {
+      await updateWorkspaceDescribePdfFigures(workspaceId, !describePdfFigures);
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    } catch (error: unknown) {
+      setDescribeFiguresError(getErrorMessage(error, "PDF 그림 설명 설정을 변경하지 못했습니다."));
+    } finally {
+      setIsDescribeFiguresSaving(false);
     }
   }
 
@@ -207,6 +227,27 @@ export function WorkspacePanel({
             // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 isAutoIngestSaving 검사가 막는다.
             disabled={!isOwner || !workspace}
             onClick={() => void toggleAutoIngest()}
+          />
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        <SettingsSectionHeader>PDF 그림 설명 (외부 AI 사용)</SettingsSectionHeader>
+        <div className={styles.row}>
+          <div className={styles["row-title"]}>
+            <strong>PDF를 변환할 때 그림에 설명 붙이기</strong>
+            <small>
+              PDF 속 그림을 외부 AI(현재 워크스페이스 AI 모델)로 보내 대체 텍스트와 설명을 붙입니다.
+              그림당 약 2원(추정)이 들고, 기본은 꺼져 있습니다. 켠 뒤 시작한 변환부터 적용됩니다.
+            </small>
+            {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
+            {describeFiguresError && <small className={styles["row-error"]} role="alert">{describeFiguresError}</small>}
+          </div>
+          <Switch
+            checked={describePdfFigures}
+            label="PDF를 변환할 때 그림에 설명 붙이기"
+            disabled={!isOwner || !workspace}
+            onClick={() => void toggleDescribePdfFigures()}
           />
         </div>
       </div>

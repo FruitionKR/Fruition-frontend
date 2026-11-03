@@ -8,7 +8,7 @@ export function UploadErrorModal({ onConfirm }: { onConfirm: () => void }) {
     <ConfirmModal
       titleId="upload-error-title"
       title="지원하지 않는 파일입니다."
-      description="현재는 md, txt, pdf 파일만 지원합니다."
+      description="현재는 md, txt, pdf, zip 파일과 .md와 함께 고른 그림(png·jpg·gif·webp)만 지원합니다."
       confirmLabel="확인"
       hideCancel
       onConfirm={onConfirm}

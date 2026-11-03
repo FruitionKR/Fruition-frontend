@@ -164,7 +164,13 @@ export function seed() {
     document({ id: "doc_arch", filename: "아키텍처 개요.md", markdown: ARCH_MD, processed_at: minutesAgo(95), needs_reingest: true, updated_at: minutesAgo(30), current_version: 2, edit_revision: 2,
       source_snapshot: ingestSourceBlocks(ARCH_INGESTED_MD, [], ARCH_BLOCK_IDS) }),
     document({ id: "doc_paper", filename: "지식 그래프 검색 논문.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Knowledge Graph Retrieval - Fruition mock PDF"), processed_at: minutesAgo(80), folder_id: RESEARCH_FOLDER_ID }),
-    document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", source_document_id: "doc_paper", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: RESEARCH_FOLDER_ID }),
+    document({ id: "doc_paper_md", filename: "지식 그래프 검색 논문.md", source_document_id: "doc_paper", markdown: PAPER_MD, processed_at: minutesAgo(78), folder_id: RESEARCH_FOLDER_ID,
+      // 변환 결과 안내 확인용: 두 쪽을 원문 텍스트로 대신했고 그림 설명을 붙인 변환본
+      restoration_summary: { broken_pages: 4, repaired_pages: 2, fallback_pages: [
+        { page: 3, reason: "repair_rejected", causes: ["font_mapping", "repair_rejected"] },
+        { page: 7, reason: "token_mismatch", causes: ["token_mismatch"] }
+      ] },
+      figure_descriptions: { requested: true, described: 4, failed: 1, skipped: 2 } }),
     // 아직 Markdown으로 변환하지 않은 PDF: 위키 편입 선택 트리에서 변환 후 편입으로 고를 수 있다.
     document({ id: "doc_survey", filename: "그래프 RAG 서베이.pdf", mime_type: "application/pdf", document_role: "ORIGINAL", content: buildPdf("Graph RAG Survey - Fruition mock PDF"), status: "uploaded", uploaded_at: minutesAgo(70), folder_id: RESEARCH_FOLDER_ID }),
     document({ id: "doc_notes", filename: "회의 노트 초안.md", markdown: NOTES_MD, status: "processing", processing_state: "running", processing_stage: "concept_extraction", processing_started_at: minutesAgo(1), uploaded_at: minutesAgo(3) }),
