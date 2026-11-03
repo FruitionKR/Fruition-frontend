@@ -212,7 +212,11 @@ function findSkill(ctx, workspace) {
 }
 
 export function registerCatalogRoutes(router) {
-  router.get("/api/ai-models", (ctx) => ctx.json(200, { models: state.aiModels }));
+  // 답변 듣기 비용 스위치(document SPEECH_SYNTHESIS_ENABLED). MOCK_SPEECH_SYNTHESIS_ENABLED=false로 꺼진 화면을 본다.
+  router.get("/api/ai-models", (ctx) => ctx.json(200, {
+    models: state.aiModels,
+    speech_synthesis_enabled: process.env.MOCK_SPEECH_SYNTHESIS_ENABLED !== "false"
+  }));
 
   router.get("/api/workspaces/:wid/ai-model-settings", (ctx) => {
     const workspace = requireWorkspace(ctx);

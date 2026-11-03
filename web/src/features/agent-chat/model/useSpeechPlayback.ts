@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamSpeechSynthesis } from "../api/speech";
-import { describeSpeechPlaybackError, SPEECH_PLAYBACK_MESSAGES, SPEECH_SAMPLE_RATE } from "../lib/speechPlayback";
+import {
+  describeSpeechPlaybackError,
+  isSpeechSynthesisDisabledError,
+  SPEECH_PLAYBACK_MESSAGES,
+  SPEECH_SAMPLE_RATE
+} from "../lib/speechPlayback";
 
 export type SpeechPlaybackStatus = "loading" | "playing";
 
@@ -45,6 +50,8 @@ function abortPlayback(active: ActivePlayback) {
 export function useSpeechPlayback(activeSessionId: string | null, isVisible = true) {
   const [playback, setPlayback] = useState<SpeechPlaybackState>(null);
   const [error, setError] = useState<SpeechPlaybackError | null>(null);
+  // 서버가 답변 듣기를 껐다고 알렸다(403 SPEECH_SYNTHESIS_DISABLED). 화면이 듣기 버튼을 숨긴다.
+  const [isDisabled, setIsDisabled] = useState(false);
   const activeRef = useRef<ActivePlayback | null>(null);
 
   useEffect(() => () => {
@@ -129,6 +136,7 @@ export function useSpeechPlayback(activeSessionId: string | null, isVisible = tr
     } catch (caught) {
       if (activeRef.current !== active) return;
       stop();
+      if (isSpeechSynthesisDisabledError(caught)) setIsDisabled(true);
       const message = describeSpeechPlaybackError(caught);
       if (message) setError({ messageId, message });
     }
@@ -139,5 +147,5 @@ export function useSpeechPlayback(activeSessionId: string | null, isVisible = tr
     else void play(messageId);
   }
 
-  return { playback, error, toggle };
+  return { playback, error, isDisabled, toggle };
 }

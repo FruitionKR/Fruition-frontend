@@ -20,6 +20,7 @@ const {
   createPcmAssembler,
   createSpeechEventParser,
   describeSpeechPlaybackError,
+  isSpeechSynthesisDisabledError,
   SPEECH_PLAYBACK_MESSAGES,
   SpeechStreamError
 } = await import("../src/features/agent-chat/lib/speechPlayback.ts");
@@ -27,6 +28,7 @@ const { streamSpeechSynthesis } = await import("../src/features/agent-chat/api/s
 const { useSpeechPlayback } = await import("../src/features/agent-chat/model/useSpeechPlayback.ts");
 const { ApiError, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
+const { fetchAiModelCatalog } = await import("../src/entities/ai/api/aiModels.ts");
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -293,4 +295,37 @@ test("AudioContext가 없는 브라우저는 요청 없이 미지원 안내만 �
   hook.rerender();
   assert.equal(hook.result.playback, null);
   assert.deepEqual(hook.result.error, { messageId: "msg_2", message: SPEECH_PLAYBACK_MESSAGES.unsupported });
+});
+
+const DISABLED_BODY = { error: { code: "SPEECH_SYNTHESIS_DISABLED", message: "지금은 답변 듣기를 쓸 수 없어요." } };
+
+test("403 SPEECH_SYNTHESIS_DISABLED는 꺼짐 안내로 바꾸고, 다른 403은 꺼짐으로 보지 않는다", () => {
+  const disabled = new ApiError("server text", 403, "SPEECH_SYNTHESIS_DISABLED");
+  assert.equal(isSpeechSynthesisDisabledError(disabled), true);
+  assert.equal(describeSpeechPlaybackError(disabled), "지금은 답변 듣기를 쓸 수 없어요.");
+  assert.equal(isSpeechSynthesisDisabledError(new ApiError("권한 없음", 403, "WORKSPACE_PERMISSION_REQUIRED")), false);
+  assert.equal(isSpeechSynthesisDisabledError(new SpeechStreamError("internal_error")), false);
+});
+
+test("합성이 403 SPEECH_SYNTHESIS_DISABLED면 안내를 붙이고 isDisabled로 듣기 버튼을 숨기게 한다", async (t) => {
+  saveAccessToken("test-access");
+  installFakeAudio(t);
+  t.mock.method(globalThis, "fetch", async () => Response.json(DISABLED_BODY, { status: 403 }));
+  const hook = render(() => useSpeechPlayback("chat_1"));
+  assert.equal(hook.result.isDisabled, false);
+  hook.result.toggle("msg_2");
+  await flush();
+  hook.rerender();
+  assert.equal(hook.result.playback, null);
+  assert.equal(hook.result.isDisabled, true);
+  assert.deepEqual(hook.result.error, { messageId: "msg_2", message: SPEECH_PLAYBACK_MESSAGES.disabled });
+});
+
+test("모델 카탈로그의 speech_synthesis_enabled가 true일 때만 답변 듣기를 켠다(없으면 꺼짐)", async (t) => {
+  saveAccessToken("test-access");
+  const models = [{ provider: "openai", model: "gpt-6-luna", display_name: "GPT-6 Luna" }];
+  for (const [flag, expected] of [[true, true], [false, false], [undefined, false]]) {
+    t.mock.method(globalThis, "fetch", async () => Response.json({ models, speech_synthesis_enabled: flag }));
+    assert.deepEqual(await fetchAiModelCatalog(), { models, isSpeechSynthesisEnabled: expected });
+  }
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AiModelCatalogStatus } from "@/features/agent-chat/ui/AgentComposer";
-import { fetchAiModels, resolveInitialModel, type AiModel } from "@/entities/ai";
+import { fetchAiModelCatalog, resolveInitialModel, type AiModel } from "@/entities/ai";
 import { useUserPreferences } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 
@@ -10,14 +10,17 @@ export function useAiModelSelection() {
   const [selectedModel, setSelectedModel] = useState<AiModel | null>(null);
   const [aiModelCatalogStatus, setAiModelCatalogStatus] = useState<AiModelCatalogStatus>("loading");
   const [aiModelsErrorMessage, setAiModelsErrorMessage] = useState<string | null>(null);
+  // 답변 듣기는 카탈로그가 켜져 있다고 알린 뒤에만 보인다(비용 스위치, document SPEECH_SYNTHESIS_ENABLED).
+  const [isSpeechSynthesisEnabled, setIsSpeechSynthesisEnabled] = useState(false);
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
   const allowWebSearch = preferences.webSearch;
 
   // 선택 가능한 모델은 백엔드 카탈로그가 정한다. 프론트에 목록을 고정하지 않는다.
   useEffect(() => {
-    fetchAiModels()
-      .then((models) => {
+    fetchAiModelCatalog()
+      .then(({ models, isSpeechSynthesisEnabled: speechEnabled }) => {
         setAiModels(models);
+        setIsSpeechSynthesisEnabled(speechEnabled);
         if (models.length === 0) {
           setAiModelCatalogStatus("empty");
           setAiModelsErrorMessage("사용 가능한 AI 모델이 없습니다.");
@@ -53,6 +56,7 @@ export function useAiModelSelection() {
     selectedModel,
     aiModelCatalogStatus,
     aiModelsErrorMessage,
+    isSpeechSynthesisEnabled,
     allowWebSearch,
     handleWebSearchChange,
     handleModelChange

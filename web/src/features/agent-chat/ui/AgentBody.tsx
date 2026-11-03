@@ -41,6 +41,7 @@ export function AgentBody({
   isCancelling = false,
   activeSessionId,
   isShown = true,
+  isSpeechSynthesisEnabled = false,
   activeTurn,
   queryErrorMessage,
   chatLoadErrorMessage,
@@ -66,6 +67,8 @@ export function AgentBody({
   activeSessionId: string | null;
   /** 패널이 화면에 보이는지. 숨겨지면(마운트 유지) 답변 듣기를 멈춘다. */
   isShown?: boolean;
+  /** 답변 듣기 버튼을 보일지. 운영 비용 스위치로 꺼지면 숨긴다. */
+  isSpeechSynthesisEnabled?: boolean;
   activeTurn: ActiveAgentTurn | null;
   queryErrorMessage: string | null;
   chatLoadErrorMessage: string | null;
@@ -96,6 +99,8 @@ export function AgentBody({
   const { scrollToPosition } = useSmoothScroll(bodyRef);
   // 답변 듣기(#149)는 한 번에 하나만 재생하므로 메시지 목록 위에서 상태를 가진다. 세션이 바뀌거나 패널이 숨겨지면 멈춘다.
   const speech = useSpeechPlayback(activeSessionId, isShown);
+  // 서버가 꺼졌다고 알리면(403 SPEECH_SYNTHESIS_DISABLED) 카탈로그를 다시 받기 전에도 버튼을 숨긴다.
+  const canListen = isSpeechSynthesisEnabled && !speech.isDisabled;
 
   useEffect(() => {
     hasScrolledInitialMessagesRef.current = false;
@@ -250,7 +255,7 @@ export function AgentBody({
                   onOpenSourceBlocks={onOpenSourceBlocks}
                   speechPlayback={speech.playback}
                   speechErrorMessage={speech.error?.messageId === message.id ? speech.error.message : null}
-                  onToggleSpeech={speech.toggle}
+                  onToggleSpeech={canListen ? speech.toggle : undefined}
                   stall={stalledQueryView(message)}
                 />
               )

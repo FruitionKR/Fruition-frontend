@@ -204,6 +204,7 @@ export function AgentPanel({
     selectedModel,
     aiModelCatalogStatus,
     aiModelsErrorMessage,
+    isSpeechSynthesisEnabled,
     allowWebSearch,
     handleWebSearchChange,
     handleModelChange
@@ -818,6 +819,7 @@ export function AgentPanel({
             isCancelling={isCancelling}
             activeSessionId={activeSessionId}
             isShown={isShown && isChatVisible}
+            isSpeechSynthesisEnabled={isSpeechSynthesisEnabled}
             activeTurn={activeTurn}
             queryErrorMessage={aiModelsErrorMessage ?? queryErrorMessage}
             chatLoadErrorMessage={chatLoadErrorMessage}
