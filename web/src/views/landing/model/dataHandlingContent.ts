@@ -1,5 +1,5 @@
 /**
- * 랜딩 "내 문서는 이렇게 다뤄집니다" 문구. 법무·운영 검토가 쉽도록 문구를 이 파일 한 곳에만 둔다.
+ * 랜딩 "문서 보호" 섹션 문구(섹션 제목은 헤더 메뉴 이름을 쓴다). 법무·운영 검토가 쉽도록 문구를 이 파일 한 곳에만 둔다.
  * 운영 설정과 코드로 확인한 내용만 쓴다. 근거(2026-11-03, 각 저장소 origin/main 기준):
  *
  * 보관
@@ -34,10 +34,6 @@ export interface DataHandlingGroup {
   readonly english: string;
   readonly items: readonly string[];
 }
-
-export const DATA_HANDLING_TITLE = "내 문서는 이렇게 다뤄집니다";
-
-export const DATA_HANDLING_LEAD = "올린 문서를 어디에 두고, 누가 보고, 언제 AI에 보내고, 어떻게 지우는지 적었습니다.";
 
 export const DATA_HANDLING_GROUPS: readonly DataHandlingGroup[] = [
   {

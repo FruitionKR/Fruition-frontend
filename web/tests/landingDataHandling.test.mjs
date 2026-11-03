@@ -2,14 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const { DATA_HANDLING_GROUPS, DATA_HANDLING_TITLE } = await import("../src/views/landing/model/dataHandlingContent.ts");
+const { DATA_HANDLING_GROUPS } = await import("../src/views/landing/model/dataHandlingContent.ts");
 
 const UI_DIR = new URL("../src/views/landing/ui/", import.meta.url);
 const read = (name) => readFileSync(new URL(name, UI_DIR), "utf8");
-const allCopy = () => [DATA_HANDLING_TITLE, ...DATA_HANDLING_GROUPS.flatMap((group) => group.items)].join("\n");
+const allCopy = () => DATA_HANDLING_GROUPS.flatMap((group) => group.items).join("\n");
 
 test("문서 보호 섹션은 보관·접근·AI 처리·삭제 순서다", () => {
-  assert.equal(DATA_HANDLING_TITLE, "내 문서는 이렇게 다뤄집니다");
   assert.deepEqual(
     DATA_HANDLING_GROUPS.map((group) => group.title),
     ["보관", "접근", "AI 처리", "삭제"]
@@ -47,7 +46,10 @@ test("확인하지 않은 보장 문구를 쓰지 않는다", () => {
 test("섹션은 제목에 연결된 section이고 묶음마다 h3과 목록을 쓴다", () => {
   const ui = read("LandingSections.tsx");
   assert.match(ui, /<section id="data-handling"[^>]*aria-labelledby="data-handling-title"/);
-  assert.match(ui, /<h2 id="data-handling-title"/);
+  assert.match(ui, /<h2 id="data-handling-title"[^>]*>\s*\{landingNavLabel\("#data-handling"\)\}\s*<\/h2>/);
+  // 제목은 메뉴 이름 하나만 쓰고 부제는 두지 않는다.
+  const section = ui.split("export function LandingDataHandling")[1].split("export function")[0];
+  assert.doesNotMatch(section, /styles\["lead"\]/);
   assert.match(ui, /<h3 id=\{`data-handling-\$\{group\.id\}`\}/);
   assert.match(ui, /<ul className=\{sections\["data-handling-list"\]\}>/);
   assert.match(read("LandingPage.tsx"), /<LandingChapters \/>\s*<LandingDataHandling \/>\s*<LandingFaq \/>/);

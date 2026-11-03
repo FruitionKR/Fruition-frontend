@@ -301,13 +301,6 @@
   padding: var(--lp-section-pad) var(--lp-gutter) 0;
 }
 
-.data-handling-head {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 752px;
-}
-
 /* 묶음마다 한 줄: 왼쪽 이름, 오른쪽 항목. 항목 수가 달라도 줄 맞춤이 흐트러지지 않는다. */
 .data-handling-grid {
   border-top: 1px solid var(--lp-line);

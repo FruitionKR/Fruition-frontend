@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const { LANDING_CHAPTERS, LANDING_FAQ, LANDING_NAV } = await import("../src/views/landing/model/landingContent.ts");
+const { LANDING_CHAPTERS, LANDING_FAQ, LANDING_NAV, landingNavLabel } = await import("../src/views/landing/model/landingContent.ts");
 
 const UI_DIR = new URL("../src/views/landing/ui/", import.meta.url);
 const read = (name) => readFileSync(new URL(name, UI_DIR), "utf8");
@@ -36,6 +36,18 @@ test("헤더 메뉴는 모으기·연결하기·활용하기·함께하기·문�
       ["문서 보호", "#data-handling"]
     ]
   );
+});
+
+test("메뉴가 가리키는 섹션의 제목은 메뉴 이름과 같다", () => {
+  assert.deepEqual(
+    LANDING_CHAPTERS.map((chapter) => landingNavLabel(`#${chapter.id}`)),
+    ["모으기", "연결하기", "활용하기", "함께하기"]
+  );
+  assert.equal(landingNavLabel("#data-handling"), "문서 보호");
+  const ui = read("LandingSections.tsx");
+  assert.match(ui, /<h2 id=\{headingId\}[^>]*>\s*\{landingNavLabel\(`#\$\{chapter\.id\}`\)\}\s*<\/h2>/);
+  // 기존 긴 제목은 제목 아래 한 줄 설명으로 남는다.
+  assert.match(ui, /<p className=\{sections\["chapter-note"\]\}>\{chapter\.headline\}<\/p>/);
 });
 
 test("화면 조각은 01·03이 왼쪽, 02·04가 오른쪽이다", () => {
