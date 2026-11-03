@@ -4,7 +4,7 @@ import { LegalFooter } from "@/shared/ui/LegalFooter";
 import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_NAV } from "../model/landingContent";
 import { LandingRedirect } from "./LandingRedirect";
-import { ChapterCards, LandingChapters, LandingFaq, LandingStart } from "./LandingSections";
+import { ChapterCards, LandingChapters, LandingDataHandling, LandingFaq, LandingStart } from "./LandingSections";
 import { HeroPreview } from "./preview/FeatureFragments";
 import { ThemeSwitch } from "./ThemeSwitch";
 import styles from "./LandingPage.module.css";
@@ -94,6 +94,7 @@ export default function LandingPage() {
         <LandingHero />
         <ChapterCards />
         <LandingChapters />
+        <LandingDataHandling />
         <LandingFaq />
         <LandingStart />
       </main>

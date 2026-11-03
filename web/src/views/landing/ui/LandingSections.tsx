@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactElement } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { DATA_HANDLING_GROUPS, DATA_HANDLING_LEAD, DATA_HANDLING_TITLE } from "../model/dataHandlingContent";
 import { LANDING_CHAPTERS, LANDING_FAQ, type LandingChapter } from "../model/landingContent";
 import { CHAPTER_ICONS, CHIP_ICONS } from "./LandingIcons";
 import { CaptureVisual, ConnectVisual, DiscoverVisual, TogetherVisual } from "./preview/FeatureFragments";
@@ -91,6 +92,37 @@ export function LandingChapters() {
         <ChapterSection key={chapter.id} chapter={chapter} />
       ))}
     </div>
+  );
+}
+
+/** 문서 보관·접근·AI 처리·삭제 방식. 문구는 근거와 함께 dataHandlingContent.ts에 있다. */
+export function LandingDataHandling() {
+  return (
+    <section id="data-handling" className={sections["data-handling"]} aria-labelledby="data-handling-title">
+      <div className={sections["data-handling-head"]}>
+        <h2 id="data-handling-title" className={styles["h2"]}>
+          {DATA_HANDLING_TITLE}
+        </h2>
+        <p className={styles["lead"]}>{DATA_HANDLING_LEAD}</p>
+      </div>
+      <div className={sections["data-handling-grid"]}>
+        {DATA_HANDLING_GROUPS.map((group) => (
+          <article key={group.id} className={sections["data-handling-group"]} aria-labelledby={`data-handling-${group.id}`}>
+            <div className={sections["data-handling-group-head"]}>
+              <p className={sections["card-english"]}>{group.english}</p>
+              <h3 id={`data-handling-${group.id}`} className={sections["data-handling-group-title"]}>
+                {group.title}
+              </h3>
+            </div>
+            <ul className={sections["data-handling-list"]}>
+              {group.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

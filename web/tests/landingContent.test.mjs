@@ -25,14 +25,15 @@ test("장은 01 모으고 쓰기 → 02 지식으로 연결 → 03 활용 → 04
   );
 });
 
-test("헤더 메뉴는 모으기·연결하기·활용하기·함께하기이고 각 장 앵커로 간다", () => {
+test("헤더 메뉴는 모으기·연결하기·활용하기·함께하기·문서 보호이고 각 앵커로 간다", () => {
   assert.deepEqual(
     LANDING_NAV.map((item) => [item.label, item.href]),
     [
       ["모으기", "#capture"],
       ["연결하기", "#connect"],
       ["활용하기", "#discover"],
-      ["함께하기", "#together"]
+      ["함께하기", "#together"],
+      ["문서 보호", "#data-handling"]
     ]
   );
 });

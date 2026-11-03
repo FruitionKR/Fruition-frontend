@@ -6,7 +6,7 @@
 export type LandingChapterId = "capture" | "connect" | "discover" | "together";
 
 export interface LandingNavItem {
-  readonly href: `#${LandingChapterId}`;
+  readonly href: `#${LandingChapterId | "data-handling"}`;
   readonly label: string;
 }
 
@@ -14,7 +14,8 @@ export const LANDING_NAV: readonly LandingNavItem[] = [
   { href: "#capture", label: "모으기" },
   { href: "#connect", label: "연결하기" },
   { href: "#discover", label: "활용하기" },
-  { href: "#together", label: "함께하기" }
+  { href: "#together", label: "함께하기" },
+  { href: "#data-handling", label: "문서 보호" }
 ];
 
 export interface LandingChapter {
