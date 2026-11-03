@@ -1,12 +1,13 @@
 /**
- * 가져오기 계획을 서버에 쓴다. 폴더(위에서 아래로) → 문서 생성(ID 확보) → 링크·이미지를 채운 본문 저장 순서다.
+ * 가져오기 계획을 서버에 쓴다. 폴더(위에서 아래로) → 문서 생성·PDF 업로드(ID 확보) → 링크·이미지를 채운 본문 저장 순서다.
+ * PDF는 원본으로만 올린다. Markdown 변환은 가져오기가 끝난 뒤 사용자가 고를 때만 요청한다(useNotionImport).
  * 결과는 RunState에 쌓이므로 같은 state로 다시 부르면 실패한 항목만 다시 보낸다(멱등 키가 같아 중복 생성되지 않는다).
  */
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { createConcurrencyLimiter } from "@/shared/lib/concurrencyLimit";
 import { planAttachmentBatches } from "../lib/attachmentBatches";
 import { renderImages, renderLinks } from "../lib/notionLinks";
-import type { ImportPlan, PlanDocument } from "../lib/notionPlan";
+import type { ImportPlan, PlanDocument, PlanPdf } from "../lib/notionPlan";
 
 /** 문서 생성·본문 저장 동시 요청 수. 문서 업로드와 같이 2개씩 보낸다. */
 export const IMPORT_CONCURRENCY = 2;
@@ -17,7 +18,8 @@ const FATAL_CODES = new Set(["STORAGE_QUOTA_EXCEEDED", "IMPORT_INVALID", "IMPORT
 const IMPORT_ERROR_MESSAGES: Record<string, string> = {
   IMPORT_INVALID: "가져오기 세션이 끝났거나 올바르지 않아요. 처음부터 다시 가져와 주세요.",
   IMPORT_NOT_FOUND: "가져오기 기록을 찾을 수 없어요. 처음부터 다시 가져와 주세요.",
-  INVALID_REQUEST: "요청 내용이 올바르지 않아 서버가 받지 않았어요."
+  INVALID_REQUEST: "요청 내용이 올바르지 않아 서버가 받지 않았어요.",
+  FILE_TOO_LARGE: "파일이 너무 커서 올리지 못했어요. PDF는 100MB 이하만 가져올 수 있어요."
 };
 
 export function importErrorMessage(error: unknown, fallback: string): string {
@@ -35,6 +37,7 @@ export type ImportWriterPort = {
     attachments: { id: string; file: File }[],
     writeId: string
   ): Promise<{ current_version: number; attachments?: { attachment_id: string; content_path: string }[] }>;
+  uploadPdf(file: File, folderId: string | null, idempotencyKey: string): Promise<{ id: string }>;
 };
 
 export type ImportFailure = { key: string; label: string; message: string };
@@ -85,7 +88,7 @@ function initialMarkdown(document: PlanDocument): string {
 }
 
 export function countImportSteps(plan: ImportPlan): number {
-  return plan.folders.length + plan.documents.length + plan.documents.filter(needsContentPass).length;
+  return plan.folders.length + plan.documents.length + plan.documents.filter(needsContentPass).length + plan.pdfs.length;
 }
 
 export type RunOptions = {
@@ -156,6 +159,22 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
     report("documents");
   }
 
+  /** PDF 원본을 올린다(본문은 이때 푼다). 변환은 하지 않는다. */
+  async function uploadPdf(pdf: PlanPdf) {
+    if (state.documents.has(pdf.key)) return;
+    const folderId = parentId(pdf.folderKey);
+    if (folderId === undefined) {
+      state.failures.set(pdf.key, { key: pdf.key, label: pdf.name, message: "상위 폴더를 만들지 못해 건너뛰었어요." });
+      return;
+    }
+    await attempt(pdf.key, pdf.name, "PDF를 올리지 못했어요.", async () => {
+      const file = new File([pdf.read() as Uint8Array<ArrayBuffer>], pdf.name, { type: "application/pdf" });
+      const created = await writer.uploadPdf(file, folderId, await importKey(importId, pdf.key, "pdf"));
+      state.documents.set(pdf.key, { id: created.id, version: 1 });
+    });
+    report("documents");
+  }
+
   async function saveDocumentContent(document: PlanDocument) {
     const created = state.documents.get(document.key);
     if (!created || state.contentDone.has(document.key)) return;
@@ -206,9 +225,12 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
       }
     }
 
-    // 2) 문서 생성(동시 2개)
+    // 2) 문서 생성·PDF 업로드(합쳐서 동시 2개). 본문의 PDF 링크를 채우려면 PDF 문서 ID가 먼저 있어야 한다.
     const limit = createConcurrencyLimiter(IMPORT_CONCURRENCY);
-    await settleAll(plan.documents.map((document) => limit(() => createDocument(document))));
+    await settleAll([
+      ...plan.documents.map((document) => limit(() => createDocument(document))),
+      ...plan.pdfs.map((pdf) => limit(() => uploadPdf(pdf)))
+    ]);
 
     // 3) 링크·이미지를 채운 본문 저장(동시 2개)
     await settleAll(plan.documents.filter(needsContentPass).map((document) => limit(() => saveDocumentContent(document))));
@@ -223,13 +245,15 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
 export function summarizeRun(plan: ImportPlan, state: RunState) {
   const created = state.documents.size;
   const createdTables = plan.documents.filter((document) => document.kind === "table" && state.documents.has(document.key)).length;
+  const createdPdfs = plan.pdfs.filter((pdf) => state.documents.has(pdf.key)).length;
   return {
     created,
-    /** 화면 표시용: 미리보기처럼 문서와 표를 나눠 센다 */
-    createdPages: created - createdTables,
+    /** 화면 표시용: 미리보기처럼 문서·표·PDF를 나눠 센다 */
+    createdPages: created - createdTables - createdPdfs,
     createdTables,
-    failed: plan.documents.length - created + plan.folders.filter((folder) => !state.folderIds.has(folder.key)).length,
-    skipped: plan.skipped.length + plan.skippedRowPages,
+    createdPdfs,
+    failed: plan.documents.length + plan.pdfs.length - created + plan.folders.filter((folder) => !state.folderIds.has(folder.key)).length,
+    skipped: plan.skipped.length,
     documentIds: [...state.documents.values()].map(({ id }) => id)
   };
 }

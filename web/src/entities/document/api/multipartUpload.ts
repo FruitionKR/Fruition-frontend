@@ -6,8 +6,13 @@ type Start = { ticket: string; part_size: number; part_count: number };
 type PartUrl = { part_number: number; url: string };
 
 /** 본문을 메모리에 복제하지 않고 Blob.slice를 전송한다. 동시에 최대 3개, 실패한 조각만 최대 3회 재시도한다. */
-export async function uploadPdfMultipart(endpoint: string, file: File, folderId: string | null = null): Promise<DocumentUploadResponse> {
-  return uploadDirectMultipart<DocumentUploadResponse>(endpoint, file, { filename: file.name, size: file.size, folder_id: folderId });
+export async function uploadPdfMultipart(
+  endpoint: string,
+  file: File,
+  folderId: string | null = null,
+  options: DirectMultipartOptions = {}
+): Promise<DocumentUploadResponse> {
+  return uploadDirectMultipart<DocumentUploadResponse>(endpoint, file, { filename: file.name, size: file.size, folder_id: folderId }, options);
 }
 
 export type DirectMultipartOptions = {
@@ -15,6 +20,10 @@ export type DirectMultipartOptions = {
   signal?: AbortSignal;
   /** 조각 안에서 바이트가 올라갈 때와 조각이 끝날 때 지금까지 올린 바이트 수를 알린다(재시도하면 그 조각만큼 줄 수 있다). */
   onProgress?: (uploadedBytes: number, totalBytes: number) => void;
+  /** 시작·확정 요청에 더 붙일 헤더(예: 가져오기 세션 X-Fruition-Import-Id) */
+  headers?: Record<string, string>;
+  /** 확정 Idempotency-Key. 없으면 업로드마다 새로 만든다. 같은 키로 다시 올리면 서버가 처음 문서를 돌려준다. */
+  idempotencyKey?: string;
 };
 
 /**
@@ -27,17 +36,17 @@ export async function uploadDirectMultipart<T>(
   startBody: Record<string, unknown>,
   options: DirectMultipartOptions = {}
 ): Promise<T> {
-  const { signal, onProgress } = options;
+  const { signal, onProgress, headers = {} } = options;
   const throwIfCancelled = () => {
     if (signal?.aborted) throw new Error("파일 업로드가 중단되었습니다.");
   };
   throwIfCancelled();
   const started = await apiFetch(endpoint, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(startBody)
   });
   const upload = await parseJsonOrThrow<Start>(started, ERROR_MESSAGES.uploadFailed);
-  const idempotencyKey = crypto.randomUUID();
+  const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
@@ -111,7 +120,7 @@ export async function uploadDirectMultipart<T>(
       try {
         const completed = await apiFetch(`${endpoint}/complete`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+          headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey, ...headers },
           body: JSON.stringify({ ticket: upload.ticket })
         });
         if (completed.status < 500 || attempt === 2) {

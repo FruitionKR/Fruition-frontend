@@ -3,6 +3,7 @@
  * 가져오기 쓰기 요청에는 모두 X-Fruition-Import-Id를 붙인다. 서버는 이 헤더로 요청을 가져오기 세션에 묶고
  * 저장 용량(5GB)·파일별 한도를 검사한다. 가져오기 item 수 상한은 없다(max_items: null).
  */
+import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 
 export const IMPORT_ID_HEADER = "X-Fruition-Import-Id";
@@ -22,6 +23,13 @@ export type ImportIngestEstimate = {
   estimated_cost_usd: number | null;
   /** 예상 크레딧(milli-KRW) */
   estimated_credits: number | null;
+  /** 아직 Markdown 변환 중이라 document_count에서 빠진 PDF 변환본 수(구 서버는 없음) */
+  converting_count?: number;
+  /** 아직 변환하지 않은 가져온 PDF 수(구 서버는 없음) */
+  pdf_unconverted_count?: number;
+  convert_estimated_cost_usd?: number | null;
+  /** PDF 변환 예상 크레딧(milli-KRW) */
+  convert_estimated_credits?: number | null;
 };
 
 type CreatedFolder = { id: string };
@@ -64,6 +72,15 @@ export async function startImportIngest(importId: string, workspaceId = getWorks
   return parseJsonOrThrow(response, "위키 편입을 시작하지 못했어요.");
 }
 
+/**
+ * 아직 변환하지 않은 가져온 PDF를 앞에서부터 20개까지 Markdown 변환 대기열에 넣는다.
+ * remaining이 0이 될 때까지 다시 부른다(runIngestLoop). 변환본은 가져오기 문서로 표시되고 자동 편입하지 않는다.
+ */
+export async function startImportConvert(importId: string, workspaceId = getWorkspaceId()): Promise<{ queued: number; remaining: number }> {
+  const response = await apiFetch(importPath(workspaceId, importId, "convert"), { method: "POST" });
+  return parseJsonOrThrow(response, "PDF 변환을 시작하지 못했어요.");
+}
+
 /** 가져오기 쓰기 요청 묶음. 같은 import_id·같은 zip 경로는 같은 Idempotency-Key라 재시도가 안전하다. */
 export function importWriter(importId: string, workspaceId: string, signal?: AbortSignal) {
   const headers = (idempotencyKey: string) => ({ [IMPORT_ID_HEADER]: importId, "Idempotency-Key": idempotencyKey });
@@ -81,6 +98,14 @@ export function importWriter(importId: string, workspaceId: string, signal?: Abo
         jsonInit("POST", { display_name: displayName, markdown, folder_id: folderId }, headers(idempotencyKey), signal)
       );
       return parseJsonOrThrow<CreatedDocument>(response, "문서를 만들지 못했어요.");
+    },
+    /** PDF 직접 업로드(start·parts·조각 PUT·complete). 시작과 확정에 가져오기 헤더를 붙이고 확정 키는 결정적이다. */
+    async uploadPdf(file: File, folderId: string | null, idempotencyKey: string): Promise<CreatedFolder> {
+      return uploadPdfMultipart(workspacePath(workspaceId, "documents", "uploads"), file, folderId, {
+        signal,
+        idempotencyKey,
+        headers: { [IMPORT_ID_HEADER]: importId }
+      });
     },
     /**
      * 본문 저장. 이미지가 있으면 metadata + attachment_<uuid> part, 없으면 markdown part + base_revision.

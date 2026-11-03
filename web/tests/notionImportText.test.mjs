@@ -142,3 +142,16 @@ test("zip에 있는 페이지를 가리키는 Notion 절대 링크만 앱 문서
   );
   assert.deepEqual(tokenized.broken, []);
 });
+
+test("행 속성 줄: 빈 줄 전까지 `이름: 값`이면 속성 표로 바꾸고 | 를 이스케이프하며, 아니면 그대로 둔다", async () => {
+  const { propertiesToTable } = await import("../src/features/notion-import/lib/notionPlan.ts");
+  assert.equal(propertiesToTable("기간: 2025/03 → 2025/12\n태그: a|b\n빈 값:\n\n## 본문\n"),
+    "| 속성 | 값 |\n| --- | --- |\n| 기간 | 2025/03 → 2025/12 |\n| 태그 | a\\|b |\n| 빈 값 |   |\n\n## 본문\n");
+  assert.equal(propertiesToTable("상태: 완료"), "| 속성 | 값 |\n| --- | --- |\n| 상태 | 완료 |\n");
+  // 여러 줄 값은 앞 값에 잇는다(Notion은 줄바꿈이 든 속성 값을 그대로 여러 줄로 내보낸다).
+  assert.equal(propertiesToTable("역할: 참여도 - 상\nBackend\n기관: 부산\n\n본문"),
+    "| 속성 | 값 |\n| --- | --- |\n| 역할 | 참여도 - 상 Backend |\n| 기관 | 부산 |\n\n본문");
+  // 첫 줄이 목록·제목·일반 문장이면 속성 블록이 아니다.
+  assert.equal(propertiesToTable("- 항목: 값\n"), "- 항목: 값\n");
+  assert.equal(propertiesToTable("본문 줄\n상태: 완료"), "본문 줄\n상태: 완료");
+});

@@ -34,6 +34,20 @@ export function estimateLabel(estimate: Pick<IngestEstimate, "estimated_cost_usd
   return "예상 비용을 아직 알 수 없어요";
 }
 
+/**
+ * PDF 변환 예상치 한 줄. 서버 값은 예약 상한(변환 1건 상한 × 수)이라 "최대"로 보여 준다. 예: "최대 약 1,000원 (약 $0.70)"
+ */
+export function maxEstimateLabel(estimate: Pick<IngestEstimate, "estimated_cost_usd" | "estimated_credits">): string {
+  const krw = formatKrw(estimate.estimated_credits);
+  const usd = typeof estimate.estimated_cost_usd === "number" ? `약 $${estimate.estimated_cost_usd.toFixed(2)}` : null;
+  if (krw && usd) return `최대 ${krw} (${usd})`;
+  if (krw ?? usd) return `최대 ${krw ?? usd}`;
+  return "예상 비용을 아직 알 수 없어요";
+}
+
+/** PDF 변환 비용 안내. 상한과 실제 비용의 차이를 알린다. */
+export const CONVERT_COST_HINT = "실제 비용은 대부분 이보다 적어요. 글자가 깨진 페이지만 AI로 고쳐요.";
+
 /** 편입 전에 비용 확인을 한 번 더 받아야 하는지 */
 export function needsIngestConfirmation(estimate: IngestEstimate | null): boolean {
   if (!estimate) return false;
@@ -51,13 +65,38 @@ export type IngestResult =
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** 가져온 PDF 변환 예상치를 편입 예상치 모양으로 바꾼다(같은 비용 표시·확인 규칙을 쓴다). 변환할 PDF가 없으면 null */
+export function convertEstimateOf(estimate: {
+  pdf_unconverted_count?: number;
+  convert_estimated_cost_usd?: number | null;
+  convert_estimated_credits?: number | null;
+} | null): IngestEstimate | null {
+  const count = estimate?.pdf_unconverted_count ?? 0;
+  if (count <= 0) return null;
+  return { document_count: count, estimated_cost_usd: estimate?.convert_estimated_cost_usd ?? null, estimated_credits: estimate?.convert_estimated_credits ?? null };
+}
+
+/** 편입·변환 루프의 오류 문구 */
+export type LoopMessages = { failed: string; stalled: string };
+
+const INGEST_MESSAGES: LoopMessages = {
+  failed: "위키 편입을 요청하지 못했어요.",
+  stalled: "남은 문서를 위키 편입 대기열에 넣지 못했어요. 잠시 뒤 다시 시도해 주세요."
+};
+
+export const CONVERT_MESSAGES: LoopMessages = {
+  failed: "PDF 변환을 요청하지 못했어요.",
+  stalled: "남은 PDF를 변환 대기열에 넣지 못했어요. 잠시 뒤 다시 시도해 주세요."
+};
+
 /**
- * remaining이 0이 될 때까지 편입을 요청한다. 오류가 나면 거기서 멈추고 그때까지 넣은 수를 돌려준다.
+ * remaining이 0이 될 때까지 편입(또는 PDF 변환)을 요청한다. 오류가 나면 거기서 멈추고 그때까지 넣은 수를 돌려준다.
  * total은 진행 표시의 분모(예상치의 문서 수)이며, 서버가 알려 준 남은 수로 고쳐 간다.
  */
 export async function runIngestLoop(
   ingestOnce: () => Promise<{ queued: number; remaining: number }>,
-  { total, onProgress, delayMs = INGEST_REQUEST_DELAY_MS }: { total: number; onProgress?: (progress: IngestProgress) => void; delayMs?: number }
+  { total, onProgress, delayMs = INGEST_REQUEST_DELAY_MS, messages = INGEST_MESSAGES }:
+    { total: number; onProgress?: (progress: IngestProgress) => void; delayMs?: number; messages?: LoopMessages }
 ): Promise<IngestResult> {
   let queued = 0;
   let remaining: number | null = null;
@@ -68,7 +107,7 @@ export async function runIngestLoop(
       response = await ingestOnce();
     } catch (error) {
       const isLimit = error instanceof ApiError && (error.status === 429 || error.code === AI_USAGE_LIMIT_EXCEEDED_CODE);
-      const message = importErrorMessage(error, "위키 편입을 요청하지 못했어요.");
+      const message = importErrorMessage(error, messages.failed);
       return isLimit ? { status: "limited", queued, remaining, message } : { status: "error", queued, remaining, message };
     }
     queued += response.queued;
@@ -76,7 +115,7 @@ export async function runIngestLoop(
     onProgress?.({ queued, total: queued + remaining });
     if (remaining <= 0) return { status: "done", queued };
     // 남았는데 하나도 넣지 못하면 다시 불러도 같다. 멈추고 알린다.
-    if (response.queued <= 0) return { status: "error", queued, remaining, message: "남은 문서를 위키 편입 대기열에 넣지 못했어요. 잠시 뒤 다시 시도해 주세요." };
+    if (response.queued <= 0) return { status: "error", queued, remaining, message: messages.stalled };
     await wait(delayMs);
   }
 }

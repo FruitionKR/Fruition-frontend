@@ -3,7 +3,7 @@ import test from "node:test";
 import { notionExportFiles, registerSrcHooks, zipFiles } from "./notionImportFixture.mjs";
 
 registerSrcHooks();
-const { formatKrw, milliKrwToWon, estimateLabel, needsIngestConfirmation, runIngestLoop, INGEST_CONFIRM_KRW, INGEST_CONFIRM_DOCUMENTS } =
+const { formatKrw, milliKrwToWon, estimateLabel, needsIngestConfirmation, runIngestLoop, convertEstimateOf, maxEstimateLabel, CONVERT_COST_HINT, CONVERT_MESSAGES, INGEST_CONFIRM_KRW, INGEST_CONFIRM_DOCUMENTS } =
   await import("../src/features/notion-import/model/importIngest.ts");
 const { importErrorMessage, runImport, createRunState } = await import("../src/features/notion-import/model/importRunner.ts");
 const { analyzeNotionZip } = await import("../src/features/notion-import/model/analyzeNotionZip.ts");
@@ -78,4 +78,30 @@ test("새 오류 코드: IMPORT_NOT_FOUND는 한국어 안내와 함께 가져�
   const result = await runImport(plan, { importId: "imp", writer, state: createRunState() });
   assert.equal(result.fatalMessage, "가져오기 기록을 찾을 수 없어요. 처음부터 다시 가져와 주세요.");
   assert.deepEqual(calls, ["홈"]);
+});
+
+test("PDF 변환 예상치는 편입 예상치 모양으로 바꿔 같은 비용 표시·확인 기준(5만 원·50개)을 쓴다", () => {
+  const server = (count, won) => ({ document_count: 3, estimated_cost_usd: 0.1, estimated_credits: 90_000, converting_count: 0,
+    pdf_unconverted_count: count, convert_estimated_cost_usd: 0.5, convert_estimated_credits: won * 1000 });
+  assert.equal(convertEstimateOf(null), null);
+  assert.equal(convertEstimateOf(server(0, 0)), null);
+  // 구 서버(필드 없음)는 변환 단계를 건너뛴다.
+  assert.equal(convertEstimateOf({ document_count: 3, estimated_cost_usd: null, estimated_credits: null }), null);
+  assert.deepEqual(convertEstimateOf(server(2, 1_000)), { document_count: 2, estimated_cost_usd: 0.5, estimated_credits: 1_000_000 });
+  // 변환 예상치는 예약 상한이라 "최대"로 보이고, 편입 예상 문구(estimateLabel)는 그대로다.
+  assert.equal(maxEstimateLabel(convertEstimateOf(server(2, 1_000))), "최대 약 1,000원 (약 $0.50)");
+  assert.equal(maxEstimateLabel({ estimated_credits: 1_000_000, estimated_cost_usd: null }), "최대 약 1,000원");
+  assert.equal(maxEstimateLabel({ estimated_credits: null, estimated_cost_usd: null }), "예상 비용을 아직 알 수 없어요");
+  assert.equal(estimateLabel(convertEstimateOf(server(2, 1_000))), "예상 비용 약 1,000원 (약 $0.50)");
+  assert.match(CONVERT_COST_HINT, /대부분 이보다 적어요/);
+  assert.equal(needsIngestConfirmation(convertEstimateOf(server(2, 1_000))), false);
+  assert.equal(needsIngestConfirmation(convertEstimateOf(server(2, INGEST_CONFIRM_KRW))), true);
+  assert.equal(needsIngestConfirmation(convertEstimateOf(server(INGEST_CONFIRM_DOCUMENTS, 0))), true);
+});
+
+test("PDF 변환 루프는 변환 문구로 멈춘 이유를 알린다", async () => {
+  const failed = await runIngestLoop(async () => { throw new Error("boom"); }, { total: 2, delayMs: 0, messages: CONVERT_MESSAGES });
+  assert.equal(failed.status, "error");
+  const stalled = await runIngestLoop(async () => ({ queued: 0, remaining: 2 }), { total: 2, delayMs: 0, messages: CONVERT_MESSAGES });
+  assert.deepEqual(stalled, { status: "error", queued: 0, remaining: 2, message: CONVERT_MESSAGES.stalled });
 });
