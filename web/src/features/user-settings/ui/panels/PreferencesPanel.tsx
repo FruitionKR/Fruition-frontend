@@ -9,6 +9,7 @@ import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import panelStyles from "./PreferencesPanel.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
+import { AgentAutoApprovalSection } from "./AgentAutoApprovalSection";
 
 type Choice<T extends string> = { value: T; label: string; description: string; preview?: ReactNode };
 
@@ -122,6 +123,8 @@ export function PreferencesPanel() {
           <Switch checked={preferences.webSearch} label="웹 검색 기본으로 켜기" onClick={() => update("webSearch", !preferences.webSearch)} />
         </div>
       </div>
+
+      <AgentAutoApprovalSection />
     </div>
   );
 }

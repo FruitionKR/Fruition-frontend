@@ -31,6 +31,8 @@ export type AgentPlan = {
   summary: string;
   status: string;
   operations: AgentPlanOperation[];
+  /** 승인 주체. "user"(직접 승인) 또는 "auto:user-setting"(설정의 자동 승인). 승인 전이거나 옛 응답이면 없다. */
+  approved_by?: string | null;
 };
 
 export type AgentPlanRun = {
@@ -257,6 +259,28 @@ export function splitPlanSummary(summary: string | null | undefined): { body: st
   }
   const scopeNote = notes.sort((a, b) => a.index - b.index).map((note) => note.text).join(" ") || null;
   return { body: body.trim(), scopeNote };
+}
+
+/** 사용자의 자동 승인 설정에 따라 서버가 확인 없이 승인한 계획의 승인 주체 */
+export const AUTO_APPROVED_BY = "auto:user-setting";
+
+export function isAutoApprovedPlan(run: Pick<AgentPlanRun, "plan"> | null | undefined): boolean {
+  return run?.plan?.approved_by === AUTO_APPROVED_BY;
+}
+
+/**
+ * 자동 승인으로 실행한 계획에 보일 안내. 계획에 든 작업 종류별로 되돌리는 방법을 덧붙인다.
+ * 자동 승인 대상은 서버가 편집·생성·이동·이름 변경으로 제한하므로 모두 되돌릴 수 있다.
+ */
+export function autoApprovedPlanNote(plan: Pick<AgentPlan, "operations">): string {
+  const tools = new Set(plan.operations.map((operation) => operation.tool_name));
+  const hints = [
+    tools.has("apply_document_edit") && "편집한 문서는 버전 기록에서 이전 버전으로 복원할 수 있어요.",
+    tools.has("create_document") && "새로 만든 문서는 휴지통으로 옮길 수 있어요.",
+    [...tools].some((tool) => tool.startsWith("move_") || tool.startsWith("rename_") || tool === "create_folder")
+      && "옮기거나 바꾼 이름, 새 폴더는 문서 목록에서 다시 정리할 수 있어요."
+  ].filter(Boolean);
+  return ["설정의 'AI 에이전트 자동 승인'에 따라 확인 없이 실행했어요.", ...hints].join(" ");
 }
 
 export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boolean {
