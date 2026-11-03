@@ -1,7 +1,9 @@
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serverTree";
-import { apiFetch, throwIfNotOk, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
+import { apiFetch, throwIfNotOk, parseApiError, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
 import { hasPdfExtension } from "@/entities/document/lib/documentKind";
+import { CHAT_EXPORT_TITLE_LOCKED_MESSAGE, DOCUMENT_TITLE_LOCKED_CODE } from "@/entities/document/lib/documentAccess";
+import { ApiError } from "@/shared/lib/apiErrors";
 import { publishConvertStarted } from "@/entities/document/model/documentConvertEvents";
 import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentListResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
 
@@ -251,7 +253,12 @@ export async function renameDocument(documentId: string, filename: string, folde
         body: JSON.stringify({ display_name: displayName, base_version: detail.current_version })
       }
     );
-    await throwIfNotOk(response, ERROR_MESSAGES.documentRenameFailed);
+    if (!response.ok) {
+      const error = await parseApiError(response, ERROR_MESSAGES.documentRenameFailed);
+      // 채팅에서 만든 문서는 서버가 이름을 잠근다. 화면 안내와 같은 문구로 보여 준다.
+      if (error.code === DOCUMENT_TITLE_LOCKED_CODE) throw new ApiError(CHAT_EXPORT_TITLE_LOCKED_MESSAGE, error.status, error.code);
+      throw error;
+    }
   }, folderId);
 }
 

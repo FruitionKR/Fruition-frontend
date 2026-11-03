@@ -108,6 +108,23 @@ test("확장자를 생략한 이름 변경도 최종 파일명의 중복을 검�
   assert.equal(patches, 0);
 });
 
+test("채팅에서 만든 문서의 이름 변경 거절(DOCUMENT_TITLE_LOCKED)은 잠금 안내 문구로 바꿔 전달한다", async (t) => {
+  selectWorkspace(t);
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init?.method === "PATCH") {
+      return Response.json({ error: { code: "DOCUMENT_TITLE_LOCKED", message: "채팅에서 만든 문서는 이름을 바꿀 수 없습니다." } }, { status: 409 });
+    }
+    if (path.endsWith("/doc_test")) return Response.json({ filename: "[채팅] 질문.md", current_version: 3 });
+    return Response.json({ items: [{ type: "document", id: "doc_test", name: "[채팅] 질문.md" }] });
+  });
+  await assert.rejects(renameDocument("doc_test", "새 이름.md"), (error) => {
+    assert.equal(error.status, 409);
+    assert.equal(error.code, "DOCUMENT_TITLE_LOCKED");
+    assert.equal(error.message, "채팅에서 만든 문서는 이름과 본문을 바꿀 수 없습니다.");
+    return true;
+  });
+});
+
 test("자기 이름은 중복에서 제외하고 확장자가 다른 문서는 허용한다", async (t) => {
   selectWorkspace(t);
   let patches = 0;
