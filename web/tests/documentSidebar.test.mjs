@@ -141,3 +141,12 @@ test("업로드 스피너는 행 라벨용 flex 규칙에서 빠져 8px 원을 �
 
   assert.match(css, /\.tree-row > span:not\(\.tree-folder-slot\):not\(\.tree-upload-spinner\):not\(\.tree-permission-indicator\):not\(\.tree-conversion-inline\) \{/);
 });
+
+test("트리 행 이름에는 전체 파일명 말풍선을 띄우지 않고, 이름 글자가 행의 접근성 이름이 된다", async () => {
+  const source = await readFile(treeNodePath, "utf8");
+
+  assert.doesNotMatch(source, /<Tooltip content=\{item\.label\}/);
+  assert.match(source, /<span className=\{styles\["tree-label-text"\]\}>\{display\.name\}<\/span>/);
+  // ⋯ 버튼의 "항목 메뉴 열기" 툴팁은 유지한다.
+  assert.match(source, /<Tooltip content=\{ROW_MENU_LABEL\}/);
+});

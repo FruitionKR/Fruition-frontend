@@ -219,9 +219,8 @@ export function TreeNode({
           />
         ) : (
           <>
-            <Tooltip content={item.label} placement="right">
-              <span className={styles["tree-label-text"]}>{display.name}</span>
-            </Tooltip>
+            {/* 전체 파일명(확장자 포함) 말풍선은 두지 않는다. 확장자는 오른쪽 배지가, 긴 이름은 이름 변경 칸·열린 문서 제목이 보여 준다. */}
+            <span className={styles["tree-label-text"]}>{display.name}</span>
             {permission && permissionLabel && (
               <Tooltip content={permissionLabel} hint={permissionDescription} placement="right" describe={false} className={styles["tree-permission-indicator"]}>
                 <SidebarPermissionIcon
