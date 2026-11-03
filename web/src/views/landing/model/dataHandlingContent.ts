@@ -1,6 +1,7 @@
 /**
  * 랜딩 "문서 보호" 섹션 문구(섹션 제목은 헤더 메뉴 이름을 쓴다). 법무·운영 검토가 쉽도록 문구를 이 파일 한 곳에만 둔다.
- * 운영 설정과 코드로 확인한 내용만 쓴다. 근거(2026-11-03, 각 저장소 origin/main 기준):
+ * 운영 설정과 코드로 확인한 내용 중 문서를 지키는 방식만 쓴다. 외부 AI 제공사 전송 고지는
+ * 개인정보 처리방침·AI 사전 고지에서 다룬다(랜딩에서는 제외). 근거(2026-11-03, 각 저장소 origin/main 기준):
  *
  * 보관
  * - 서울 리전: Fruition-flatform infra/terraform/variables.tf(region은 ap-northeast-2만 허용)
@@ -15,11 +16,9 @@
  * - 원본 링크 1시간: DocumentService.originalReadUrl(expiry 3600)
  * AI 처리
  * - 임베딩: Fruition-ai pipeline/Dockerfile(BGE-M3 이미지 내장), Fruition-flatform k8s/base/embedding-server.yaml
- * - 외부 AI 제공사: Fruition-ai pipeline/app/core/llm_env.py(openai·gemini·claude)
- * - 음성: pipeline/app/modules/speech/infrastructure/openai_speech.py
  * - 숫자 개인정보 가림: pipeline/app/core/llm_prompt.py(redact_numeric_personal_data),
  *   wiki_generation/infrastructure/chat_completions_llm.py(complete_text의 user 입력).
- *   PDF 복원(페이지 이미지)과 음성은 이 처리를 거치지 않는다.
+ *   PDF 복원(페이지 이미지)과 음성은 이 처리를 거치지 않아 "글자로 보내는 AI 요청"으로 범위를 적는다.
  * - 자동 편입 기본 꺼짐·소유자만 변경: Fruition-access V25 마이그레이션(DEFAULT false),
  *   WorkspaceService.rename(findOwned)
  * 삭제
@@ -62,9 +61,7 @@ export const DATA_HANDLING_GROUPS: readonly DataHandlingGroup[] = [
     english: "AI PROCESSING",
     items: [
       "검색용 임베딩은 Fruition 서버 안의 모델로 만듭니다.",
-      "질문 답변, 위키 편입·정리, AI 편집, PDF 변환, 회의록 같은 AI 기능을 쓰면 필요한 내용이 선택한 AI 제공사(Google·OpenAI·Anthropic)로 전송됩니다.",
-      "음성 받아쓰기와 읽어 주기는 OpenAI를 거칩니다.",
-      "글자 기반 AI 기능에 보낼 때는 주민등록번호·전화번호·카드번호·계좌번호 같은 숫자 형태 개인정보를 가린 뒤 보냅니다. 이름·주소 같은 다른 정보와 PDF 이미지·음성은 가리지 않습니다.",
+      "글자로 보내는 AI 요청에서는 주민등록번호·전화번호·카드번호·계좌번호 같은 숫자 형태 개인정보를 가린 뒤 보냅니다.",
       "올리자마자 위키에 넣는 자동 편입은 기본으로 꺼져 있고, 워크스페이스 소유자만 켤 수 있습니다."
     ]
   },
