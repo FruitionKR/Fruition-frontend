@@ -5,7 +5,6 @@ import { canConvertDocument, CONVERT_FORBIDDEN_REASON, permissionChangedMessage 
 import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
 import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
-import { treeItemMenuAccess } from "@/widgets/document-sidebar/model/treeItemActions";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/documentTree";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import { publishNotice } from "@/features/document-notifications";
@@ -275,8 +274,8 @@ export function useProjectTree({
       setEditing({ projectId: contextMenu.projectId, itemId: null, label: project.title });
     } else {
       const item = findTreeItem(project.items, contextMenu.itemId);
-      // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다. 보기 권한만 있는 문서도 같다.
-      if (!item || item.generated || item.mimeType === "application/pdf" || item.canEdit === false) return;
+      // PDF 원본은 편집 불가 문서라 이름 변경을 허용하지 않는다. 보기 권한만 있는 문서와 채팅에서 만든 문서도 같다.
+      if (!item || item.generated || item.mimeType === "application/pdf" || item.canEdit === false || item.titleLocked) return;
       setEditing({ projectId: contextMenu.projectId, itemId: contextMenu.itemId, label: item.label });
     }
     setContextMenu(null);
@@ -300,15 +299,7 @@ export function useProjectTree({
   const contextMenuItem = contextMenu?.itemId && contextMenuProject
     ? findTreeItem(contextMenuProject.items, contextMenu.itemId)
     : null;
-  // 생성·이름 변경·삭제·권한 설정 노출은 treeItemMenuAccess 한 곳에서 판정한다(우클릭·⋯·새 노트 추가 메뉴 공통).
-  const {
-    canCreateIn: canCreateInContextTarget,
-    canRename: canRenameContextTarget,
-    canDelete: canDeleteContextTarget,
-    canSetPermission: canSetPermissionContextTarget
-  } = treeItemMenuAccess(contextMenuItem ?? null, {
-    isRootTarget: contextMenu?.projectId === ROOT_DOCUMENTS_PROJECT_ID && contextMenu.itemId === null
-  });
+  // 메뉴 항목 노출은 사이드바가 treeItemMenuAccess로 판정한다. 여기 핸들러는 실행 직전에 다시 확인한다.
 
   /** 컨텍스트 메뉴 → 권한 설정: 대상을 스냅샷해 다이얼로그를 연다. */
   function openPermissionContextTarget() {
@@ -346,6 +337,7 @@ export function useProjectTree({
       disabledReason: canConvertContextItem ? undefined : CONVERT_FORBIDDEN_REASON
     }
     : null;
+
 
   // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
   // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
@@ -547,14 +539,10 @@ export function useProjectTree({
     openProjectMenu,
     renameContextTarget,
     takeFolderTargetFromContext,
-    canRenameContextTarget,
-    canDeleteContextTarget,
-    canSetPermissionContextTarget,
     openPermissionContextTarget,
     permissionTarget,
     closePermissionDialog: () => setPermissionTarget(null),
     applyPermission,
-    canCreateInContextTarget,
     convertContextTarget,
     convertContextTargetToMarkdown,
     deleteContextTarget,

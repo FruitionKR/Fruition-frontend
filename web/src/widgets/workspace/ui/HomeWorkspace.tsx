@@ -461,10 +461,6 @@ export function HomeWorkspace() {
         onOpenMany={treeOpen.openMany}
         contextMenu={projectTree.contextMenu}
         convertContextTarget={projectTree.convertContextTarget}
-        canRenameContextTarget={projectTree.canRenameContextTarget}
-        canDeleteContextTarget={projectTree.canDeleteContextTarget}
-        canSetPermissionContextTarget={projectTree.canSetPermissionContextTarget}
-        canCreateInContextTarget={projectTree.canCreateInContextTarget}
         uploadInputRef={upload.uploadInputRef}
         activeView={activeView}
         documents={documents}

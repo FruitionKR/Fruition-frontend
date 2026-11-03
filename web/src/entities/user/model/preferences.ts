@@ -56,6 +56,7 @@ export const NOTIFICATION_SETTINGS = {
   folderCreateFailed: notificationSetting("파일·폴더", "폴더 생성 실패", ["폴더 생성 실패"]),
   documentGroupFailed: notificationSetting("파일·폴더", "문서 묶음 생성 실패", ["문서 묶음 생성 실패"]),
   renameFailed: notificationSetting("파일·폴더", "이름 변경 실패", ["이름 변경 실패"]),
+  downloadFailed: notificationSetting("파일·폴더", "원본 다운로드 실패", ["원본 다운로드 실패"]),
   documentListFailed: notificationSetting("기타", "문서 목록 갱신 실패", ["문서 목록 갱신 실패"]),
   notificationReadFailed: notificationSetting("기타", "알림 읽음 처리 실패", ["알림 읽음 처리 실패"]),
   server: notificationSetting("기타", "워크스페이스 서버 알림", ["알림"]),

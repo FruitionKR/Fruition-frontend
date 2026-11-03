@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { cx } from "@/shared/lib/classNames";
-import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Project } from "@/entities/tree";
+import { findTreeItem, type ContextMenuState, type DropTarget, type EditingState, type FileDropTarget, type Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { RailDivider, RailGroup, RailNavigation, type RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
@@ -20,6 +20,8 @@ import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model
 import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
 import { buildTreeConversionBadges } from "../model/treeConversionBadge";
+import { treeContextMenuSections, type TreeMenuActionId } from "../model/treeItemActions";
+import { downloadTreeItemOriginal } from "../model/downloadTreeItem";
 import styles from "./DocumentSidebar.module.css";
 import { StorageUsageMeter } from "./StorageUsageMeter";
 
@@ -37,10 +39,6 @@ export function DocumentSidebar({
   onOpenMany,
   contextMenu,
   convertContextTarget,
-  canRenameContextTarget,
-  canDeleteContextTarget = true,
-  canSetPermissionContextTarget = false,
-  canCreateInContextTarget,
   uploadInputRef,
   activeView,
   documents,
@@ -98,15 +96,8 @@ export function DocumentSidebar({
   onToggleOpen: (id: string) => void;
   onOpenMany: (ids: readonly string[]) => void;
   contextMenu: ContextMenuState | null;
+  /** PDF 원본 메뉴의 Markdown 변환 상태. 처리 중이거나 변환 권한이 없으면 이유와 함께 비활성화한다. */
   convertContextTarget: { isDisabled: boolean; disabledReason?: string } | null;
-  /** PDF 원본은 편집 불가 문서라 이름 변경 메뉴를 숨긴다. */
-  canRenameContextTarget: boolean;
-  /** 서버 can_delete=false면 삭제 메뉴를 비활성화한다. */
-  canDeleteContextTarget?: boolean;
-  /** 문서·폴더 항목 메뉴에 공동 편집 권한 설정을 보인다. */
-  canSetPermissionContextTarget?: boolean;
-  /** 파일 메뉴에서는 생성 항목(새 폴더·새 노트·파일 업로드)을 숨긴다. */
-  canCreateInContextTarget: boolean;
   uploadInputRef: RefObject<HTMLInputElement | null>;
   activeView: RailView;
   /** 워크스페이스 문서 목록. 헤더의 진행 중 작업 팝오버가 여기서 ingest 진행 문서를 고른다. */
@@ -201,6 +192,41 @@ export function DocumentSidebar({
     onDropFiles
   });
   const isAddMenuOpen = contextMenu?.source === "add-button";
+  // 메뉴 대상은 사이드바가 그리는 트리(그래프 뷰면 위키 페이지가 섞인 트리)에서 찾는다. itemId가 null이면 최상위다.
+  const contextMenuProject = contextMenu ? projects.find((project) => project.id === contextMenu.projectId) : undefined;
+  const contextMenuItem = contextMenu?.itemId && contextMenuProject ? findTreeItem(contextMenuProject.items, contextMenu.itemId) : null;
+  const isRootContextTarget = contextMenu?.itemId === null;
+  const contextMenuSections = contextMenu
+    ? treeContextMenuSections(contextMenuItem, {
+      isRootTarget: isRootContextTarget,
+      canCreateProject: canCreateProjectFromView(activeView),
+      canImportNotion: Boolean(onImportNotionFromContext)
+    })
+    : [];
+  const hasContextMenuItems = selectedContextCount > 1 || contextMenuSections.length > 0;
+  // 보일 항목이 하나도 없는 대상(찾지 못한 행 등)은 빈 메뉴를 띄우지 않고 닫는다.
+  useEffect(() => {
+    if (contextMenu && !hasContextMenuItems) onCloseContextMenu();
+  }, [contextMenu, hasContextMenuItems, onCloseContextMenu]);
+  const contextMenuActions: Record<TreeMenuActionId, () => void> = {
+    "new-note": onAddMarkdownFromContext,
+    "new-folder": onAddProject,
+    upload: onUploadFromContext,
+    "import-notion": () => onImportNotionFromContext?.(),
+    "open-new-tab": () => {
+      onCloseContextMenu();
+      // 가운데 클릭과 같은 경로로 연다.
+      if (contextMenuItem) onOpenInNewTab(contextMenuItem);
+    },
+    convert: onConvertContextTarget,
+    rename: onRenameContextTarget,
+    permission: () => onSetPermissionContextTarget?.(),
+    download: () => {
+      onCloseContextMenu();
+      if (contextMenuItem) void downloadTreeItemOriginal(contextMenuItem);
+    },
+    delete: onDeleteContextTarget
+  };
   // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
   const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
@@ -277,28 +303,17 @@ export function DocumentSidebar({
           새 노트 추가
         </button>
       )}
-      {contextMenu && (
+      {contextMenu && hasContextMenuItems && (
         <ContextMenu
           // 다른 대상·버튼으로 다시 열면 새로 마운트해 첫 포커스를 다시 잡는다.
           key={`${contextMenu.projectId}:${contextMenu.itemId ?? ""}:${contextMenu.source ?? ""}`}
           contextMenu={contextMenu}
           focusNewNote={contextMenu.source === "add-button"}
-          canCreateProject={canCreateProjectFromView(activeView)}
-          canCreateInTarget={canCreateInContextTarget}
+          sections={contextMenuSections}
           convertTarget={convertContextTarget}
-          canRenameTarget={canRenameContextTarget}
-          canDeleteTarget={canDeleteContextTarget}
-          canSetPermissionTarget={canSetPermissionContextTarget}
           selectedCount={selectedContextCount}
           onDeleteSelected={onDeleteSelectedItems}
-          onRenameContextTarget={onRenameContextTarget}
-          onSetPermissionContextTarget={onSetPermissionContextTarget}
-          onAddProject={onAddProject}
-          onAddMarkdownFromContext={onAddMarkdownFromContext}
-          onUploadFromContext={onUploadFromContext}
-          onImportNotionFromContext={onImportNotionFromContext}
-          onConvertContextTarget={onConvertContextTarget}
-          onDeleteContextTarget={onDeleteContextTarget}
+          onAction={(action) => contextMenuActions[action]()}
           onClose={onCloseContextMenu}
         />
       )}

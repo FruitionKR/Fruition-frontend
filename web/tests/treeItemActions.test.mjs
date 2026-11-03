@@ -7,57 +7,94 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
-const { treeItemMenuAccess } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
+const { treeItemMenuAccess, treeContextMenuSections, TREE_MENU_LABELS } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
 
 const source = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
 
 const note = { id: "n1", label: "회의.md", type: "file", documentId: "d1", mimeType: "text/markdown" };
+const text = { id: "t1", label: "메모.txt", type: "file", documentId: "d2", mimeType: "text/plain" };
+const pdf = { id: "p1", label: "논문.pdf", type: "file", documentId: "d3", mimeType: "application/pdf", status: "completed" };
+const chat = { ...note, id: "c1", label: "채팅 정리.md", titleLocked: true };
 const folder = { id: "f1", label: "자료", type: "folder" };
+const wiki = { id: "w1", label: "개념", type: "wiki", generated: true, graphNodeId: "concept:1" };
+const full = { canCreateProject: true, canImportNotion: true };
 
-test("최상위(루트) 메뉴는 생성 항목만 연다", () => {
-  assert.deepEqual(treeItemMenuAccess(null, { isRootTarget: true }), {
-    canCreateIn: true,
-    canRename: false,
-    canDelete: true,
-    canSetPermission: false
-  });
+/** 메뉴 구성을 "새 노트 · 새 폴더 | 파일 업로드" 꼴 문자열로 바꾼다(｜는 구분선). */
+const menu = (item, options = full) => treeContextMenuSections(item, { isRootTarget: item === null, ...options })
+  .map((section) => section.map((id) => TREE_MENU_LABELS[id]).join(" · "))
+  .join(" | ");
+
+test("최상위·빈 영역·새 노트 추가 메뉴: 새 노트 · 새 폴더 | 파일 업로드 · Notion에서 가져오기", () => {
+  assert.equal(menu(null), "새 노트 · 새 폴더 | 파일 업로드 · Notion에서 가져오기");
+  // 새 폴더는 뷰 정책을, Notion은 가져오기 연결 여부를 따른다.
+  assert.equal(menu(null, { canCreateProject: false, canImportNotion: false }), "새 노트 | 파일 업로드");
 });
 
-test("폴더는 생성·이름 변경·권한 설정·삭제를 모두 허용한다", () => {
-  assert.deepEqual(treeItemMenuAccess(folder, { isRootTarget: false }), {
-    canCreateIn: true,
-    canRename: true,
-    canDelete: true,
-    canSetPermission: true
-  });
+test("폴더 메뉴: 새 노트 · 새 폴더 | 파일 업로드 | 이름 변경 · 권한 설정 | 삭제 (Notion 가져오기 없음)", () => {
+  assert.equal(menu(folder), "새 노트 · 새 폴더 | 파일 업로드 | 이름 변경 · 권한 설정 | 삭제");
 });
 
-test("파일 메뉴는 생성 항목을 숨긴다", () => {
-  assert.equal(treeItemMenuAccess(note, { isRootTarget: false }).canCreateIn, false);
+test("노트·기타 파일 메뉴: 새 탭에서 열기 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제 (생성 항목 없음)", () => {
+  assert.equal(menu(note), "새 탭에서 열기 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
+  assert.equal(menu(text), "새 탭에서 열기 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
 });
 
-test("PDF 원본·보기 전용·자동 생성 항목은 이름을 바꿀 수 없다", () => {
-  for (const item of [
-    { ...note, mimeType: "application/pdf" },
-    { ...note, canEdit: false },
-    { ...note, generated: true }
-  ]) {
+test("PDF 메뉴: 새 탭에서 열기 · Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제", () => {
+  assert.equal(menu(pdf), "새 탭에서 열기 · Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제");
+});
+
+test("채팅에서 만든 문서(이름 잠김) 메뉴: 새 탭에서 열기 | 권한 설정 | 삭제", () => {
+  assert.equal(menu(chat), "새 탭에서 열기 | 권한 설정 | 삭제");
+});
+
+test("위키 페이지에는 생성 항목을 두지 않는다", () => {
+  assert.equal(menu(wiki), "새 탭에서 열기");
+  assert.equal(treeItemMenuAccess(wiki, { isRootTarget: false }).canCreateIn, false);
+});
+
+test("트리에서 찾지 못한 항목은 빈 메뉴다(최상위 생성 메뉴로 잘못 열지 않는다)", () => {
+  assert.deepEqual(treeContextMenuSections(null, { isRootTarget: false, ...full }), []);
+});
+
+test("권한이 없는 항목은 숨기고 빈 구역의 구분선도 함께 빠진다", () => {
+  assert.equal(menu({ ...note, canEdit: false, canDelete: false }), "새 탭에서 열기 | 권한 설정 · 원본 다운로드");
+  // 변환 권한이 없는 PDF는 변환 항목을 남기고 이유와 함께 비활성화한다(기존 안내 유지, documentConvertAccess 테스트).
+  assert.equal(menu({ ...pdf, canConvert: false }), "새 탭에서 열기 · Markdown으로 변환 | 권한 설정 · 원본 다운로드 | 삭제");
+  assert.equal(menu({ ...folder, canEdit: false }), "새 노트 · 새 폴더 | 파일 업로드 | 권한 설정 | 삭제");
+});
+
+test("업로드 중 문서는 열기·변환·다운로드·권한 설정을 두지 않는다", () => {
+  assert.equal(menu({ ...note, status: "uploading", documentId: undefined }), "이름 변경 | 삭제");
+});
+
+test("PDF 원본·보기 전용·자동 생성·이름 잠김 항목은 이름을 바꿀 수 없다", () => {
+  for (const item of [pdf, { ...note, canEdit: false }, { ...note, generated: true }, chat]) {
     assert.equal(treeItemMenuAccess(item, { isRootTarget: false }).canRename, false, item.label);
   }
 });
 
-test("서버 can_delete=false면 삭제할 수 없다", () => {
-  assert.equal(treeItemMenuAccess({ ...note, canDelete: false }, { isRootTarget: false }).canDelete, false);
+test("컨텍스트 메뉴는 구역 사이에 role=separator를 두고 방향키는 menuitem만 오간다", async () => {
+  const menuSource = await source("widgets/document-sidebar/ui/ContextMenu.tsx");
+  assert.match(menuSource, /role="separator"/);
+  assert.match(menuSource, /'\[role="menuitem"\]:not\(:disabled\)'/);
+  assert.match(menuSource, /styles\.danger/);
 });
 
-test("업로드 중·위키 항목은 권한 설정을 열지 않는다", () => {
-  assert.equal(treeItemMenuAccess({ ...note, status: "uploading" }, { isRootTarget: false }).canSetPermission, false);
-  assert.equal(treeItemMenuAccess({ id: "w", label: "개념", type: "wiki" }, { isRootTarget: false }).canSetPermission, false);
+test("우클릭·⋯·새 노트 추가 메뉴는 사이드바가 보여 주는 트리에서 항목을 찾아 같은 구성 함수를 쓴다", async () => {
+  const sidebar = await source("widgets/document-sidebar/ui/DocumentSidebar.tsx");
+  assert.match(sidebar, /treeContextMenuSections\(/);
+  assert.match(sidebar, /findTreeItem\(/);
 });
 
-test("우클릭·⋯·새 노트 추가 메뉴는 같은 권한 판정을 쓴다", async () => {
-  const projectTree = await source("widgets/workspace/model/useProjectTree.ts");
-  assert.match(projectTree, /treeItemMenuAccess\(contextMenuItem/);
+test("새 탭에서 열기는 가운데 클릭과 같은 경로, 원본 다운로드는 원본 API로 받는다", async () => {
+  const [sidebar, download] = await Promise.all([
+    source("widgets/document-sidebar/ui/DocumentSidebar.tsx"),
+    source("widgets/document-sidebar/model/downloadTreeItem.ts")
+  ]);
+  assert.match(sidebar, /if \(contextMenuItem\) onOpenInNewTab\(contextMenuItem\)/);
+  assert.match(download, /fetchDocumentOriginal\(/);
+  assert.match(download, /fetchNoteDraft\(/);
+  assert.match(download, /link\.download = filename/);
 });
 
 test("새 노트 추가 버튼은 바로 만들지 않고 최상위 컨텍스트 메뉴를 연다", async () => {
@@ -71,7 +108,7 @@ test("새 노트 추가 버튼은 바로 만들지 않고 최상위 컨텍스트
 
 test("새 노트 추가 메뉴는 새 노트 항목에 포커스를 두어 Enter 한 번으로 만든다", async () => {
   const menu = await source("widgets/document-sidebar/ui/ContextMenu.tsx");
-  assert.match(menu, /data-menu-autofocus=\{focusNewNote \|\| undefined\}[^>]*>새 노트<\/button>/);
+  assert.match(menu, /data-menu-autofocus=\{\(action === "new-note" && focusNewNote\) \|\| undefined\}/);
   assert.match(menu, /querySelector<HTMLButtonElement>\("\[data-menu-autofocus\]"\)/);
 });
 

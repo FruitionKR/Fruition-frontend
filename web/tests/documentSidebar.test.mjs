@@ -49,28 +49,12 @@ test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 
   assert.match(source, /새 노트 추가/);
 });
 
-test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따른다", async () => {
-  const [menuSource, sidebarSource] = await Promise.all([
-    readFile(contextMenuPath, "utf8"),
-    readFile(documentSidebarPath, "utf8")
-  ]);
+test("컨텍스트 메뉴의 새 폴더도 같은 생성 정책을 따르고, 메뉴 구성은 treeContextMenuSections가 정한다", async () => {
+  const sidebarSource = await readFile(documentSidebarPath, "utf8");
 
-  assert.match(menuSource, /canCreateProject\s*&&\s*\(\s*<button[^>]*>새 폴더<\/button>/);
-  assert.match(sidebarSource, /canCreateProject=\{canCreateProjectFromView\(activeView\)\}/);
-});
-
-test("파일 컨텍스트 메뉴에서는 생성 항목을 숨긴다", async () => {
-  const [menuSource, sidebarSource] = await Promise.all([
-    readFile(contextMenuPath, "utf8"),
-    readFile(documentSidebarPath, "utf8")
-  ]);
-
-  // 새 폴더·새 노트·파일 업로드가 모두 canCreateInTarget 게이트 안에 있어야 한다.
-  const gated = menuSource.match(/\{canCreateInTarget && \([\s\S]*?\n      \)\}/)?.[0] ?? "";
-  for (const label of ["새 폴더", "새 노트", "파일 업로드"]) {
-    assert.match(gated, new RegExp(`>${label}</button>`));
-  }
-  assert.match(sidebarSource, /canCreateInTarget=\{canCreateInContextTarget\}/);
+  // 파일 메뉴의 생성 항목 숨김·구역 구성은 tests/treeItemActions.test.mjs에서 구성 함수로 검증한다.
+  assert.match(sidebarSource, /canCreateProject: canCreateProjectFromView\(activeView\)/);
+  assert.match(sidebarSource, /sections=\{contextMenuSections\}/);
 });
 
 test("행 ⋯ 버튼은 메뉴를 여는 별도 버튼이고 행 클릭으로 전파하지 않는다", async () => {

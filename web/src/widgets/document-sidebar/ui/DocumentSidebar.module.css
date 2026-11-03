@@ -1060,9 +1060,11 @@
   color: var(--color-danger);
 }
 
-/* 막힌 삭제(권한 없음)는 빨간색 대신 다른 막힌 항목과 같은 흐린 색으로 둔다. */
-.folder-context-menu button.danger:disabled {
-  color: var(--color-subtle);
+/* 메뉴 구역 구분선(role="separator"). 생성 · 열기 · 편집 · 삭제 묶음을 나눈다. */
+.menu-separator {
+  height: 1px;
+  margin: 4px 4px;
+  background: var(--color-border);
 }
 
 /* 권한 설정 다이얼로그(컨텍스트 메뉴 → 권한 설정). modal-card 안에 라디오 목록을 둔다. */
