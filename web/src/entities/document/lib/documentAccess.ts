@@ -51,7 +51,7 @@ export function canDeleteDocument(document: DocumentAccessFields): boolean {
 }
 
 /** Markdown 변환을 막을 때(can_convert=false) 메뉴·편입 선택·알림에 함께 보여줄 이유 */
-export const CONVERT_FORBIDDEN_REASON = "다른 사람이 올린 PDF는 변환 권한이 있어야 해요";
+export const CONVERT_FORBIDDEN_REASON = "이 PDF를 변환할 권한이 없어요. 다른 사람이 올린 PDF는 변환 권한이, 보기 폴더 안 PDF는 폴더 편집 권한이 있어야 해요";
 
 /**
  * PDF → Markdown 변환은 올린 사람, document.convert 권한이 있는 멤버, OWNER만 한다(can_convert).
