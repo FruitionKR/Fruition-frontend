@@ -137,7 +137,7 @@ test("mock 작업 탭은 채팅 답변 대신 되묻고, 문서 없는 편집 �
   assert.match(question.result.chat.answer, /채팅 탭/);
   const edit = await submitTask(request, "이 문단을 수정해줘");
   assert.equal(edit.result.action, "clarify");
-  assert.match(edit.result.chat.answer, /문서를 열고/);
+  assert.match(edit.result.chat.answer, /문서를 연 뒤/);
 });
 
 test("mock은 문서 필드를 일부만 보내거나 모르는 mode를 거절한다", async (t) => {
