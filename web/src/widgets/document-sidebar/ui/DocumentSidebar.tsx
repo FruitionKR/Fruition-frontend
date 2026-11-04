@@ -48,6 +48,7 @@ export function DocumentSidebar({
   settingsNav,
   isCollapsed = false,
   isOverlay = false,
+  phoneTitle = null,
   onCollapseSidebar,
   onExpandSidebar,
   onAddProject,
@@ -124,6 +125,8 @@ export function DocumentSidebar({
   isCollapsed?: boolean;
   /** 좁은 화면: 펼치면 콘텐츠를 밀지 않고 위에 겹친다. 폭은 고정이라 폭 조절 핸들을 두지 않는다. */
   isOverlay?: boolean;
+  /** 휴대폰 상단 바에 보이는 지금 화면 이름(열린 문서 제목 등). 넓은 화면에서는 보이지 않는다. */
+  phoneTitle?: string | null;
   /** 상단 바 사이드바 접기 (Figma 1527:16284). 없으면 버튼을 비활성으로 둔다. */
   onCollapseSidebar?: () => void;
   /** 접힌 레일 맨 위 펼치기 (Figma 1540:17915) */
@@ -318,7 +321,7 @@ export function DocumentSidebar({
   return (
     <>
     <aside
-      className={cx(styles.sidebar, isCollapsed && styles["is-collapsed"], isOverlay && styles["is-overlay"], isSidebarFileDropTarget && styles["is-file-drop-target"])}
+      className={cx(styles.sidebar, isCollapsed && styles["is-collapsed"], isOverlay && styles["is-overlay"], activeView === "graph" && styles["is-graph-view"], isSidebarFileDropTarget && styles["is-file-drop-target"])}
       onDragOver={rootProject ? handleDragOver : undefined}
       onDragLeave={rootProject ? handleDragLeave : undefined}
       onDrop={rootProject ? handleDrop : undefined}
@@ -327,7 +330,23 @@ export function DocumentSidebar({
           접힌 상태(Figma 1540:17907)에서는 같은 45px 줄에 펼치기 버튼만 남는다. */}
       <div className={styles["sidebar-topbar"]}>
         {isCollapsed ? (
-          <SidebarToggleButton label="사이드바 펼치기" onToggle={onExpandSidebar} />
+          <>
+            <SidebarToggleButton label="사이드바 펼치기" onToggle={onExpandSidebar} />
+            <span className={styles["phone-title"]}>{phoneTitle}</span>
+            <button
+              type="button"
+              className={styles["phone-search"]}
+              aria-label="통합 검색"
+              aria-haspopup="dialog"
+              aria-expanded={isSearchOpen}
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsSearchOpen(true);
+              }}
+            >
+              <SidebarSearchIcon />
+            </button>
+          </>
         ) : (
           <>
             <SidebarWorkspaceHeader />
@@ -335,6 +354,16 @@ export function DocumentSidebar({
           </>
         )}
       </div>
+
+      {/* 휴대폰은 접힌 상단 바에서도 검색을 열므로 숨겨지는 문서 패널 밖에 둔다. */}
+      {isSearchOpen && (
+        <DocumentSearch
+          projects={projects}
+          // 로그·스킬 등 문서 트리가 없는 화면에서 고르면 그 문서 URL로 이동해 홈 화면에서 연다.
+          onSelectGraphNode={onSelectGraphNode}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
 
       <div className={styles["sidebar-body"]}>
         <RailNavigation
@@ -389,14 +418,6 @@ export function DocumentSidebar({
               <span>통합 검색</span>
             </button>
           </div>
-          {isSearchOpen && (
-            <DocumentSearch
-              projects={projects}
-              // 로그·스킬 등 문서 트리가 없는 화면에서 고르면 그 문서 URL로 이동해 홈 화면에서 연다.
-              onSelectGraphNode={onSelectGraphNode}
-              onClose={() => setIsSearchOpen(false)}
-            />
-          )}
           <input
             ref={uploadInputRef}
             className={styles["upload-picker"]}

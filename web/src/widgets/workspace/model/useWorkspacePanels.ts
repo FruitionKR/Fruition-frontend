@@ -6,6 +6,7 @@ import { useCompactLayout } from "./useCompactLayout";
 import { writePanelWidths } from "../lib/panelWidthCssVars";
 import { SIDEBAR_BASE_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
 import { isAgentPanelVisible } from "../lib/agentPanelVisibility";
+import { useHistoryDismiss } from "@/shared/hooks/useHistoryDismiss";
 
 /**
  * 사이드바·채팅 패널의 열림/폭/좁은 화면 겹침을 한곳에서 조합한다.
@@ -52,6 +53,9 @@ export function useWorkspacePanels({
     sidebarWidth: sidebarLayout.visibleWidth,
     onCollapse: closeAgentPanel
   });
+  // 좁은 화면에서 겹쳐 연 패널은 브라우저 뒤로 가기로 닫는다.
+  useHistoryDismiss(isCompactLayout && isCompactSidebarOpen, () => setIsCompactSidebarOpen(false));
+  useHistoryDismiss(isCompactLayout && isAgentPanelShown, closeAgentPanel);
   // 콘텐츠 오른쪽 여백과 채팅 패널 자체 폭. 좁은 화면에서는 패널이 콘텐츠 위에 겹치므로 콘텐츠는 오른쪽 끝까지 쓴다.
   const contentRight = isCompactLayout ? 0 : agentPanelLayout.visibleWidth;
   const agentPanelSelfWidth = isAgentPanelShown && isCompactLayout ? compactAgentPanelWidth : agentPanelLayout.visibleWidth;
@@ -97,6 +101,8 @@ export function useWorkspacePanels({
 
   /** 현재 뷰(홈/그래프)의 채팅 패널을 연다(우하단 런처 버튼). */
   function openAgentPanel() {
+    // 좁은 화면에서는 패널을 한 번에 하나만 연다.
+    setIsCompactSidebarOpen(false);
     if (isGraphView) setIsGraphAgentPanelOpen(true);
     else setIsHomeAgentPanelOpen(true);
   }

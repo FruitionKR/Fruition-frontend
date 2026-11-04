@@ -25,6 +25,7 @@ import { MergeConfirmModal } from "@/shared/ui/modal/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
+import { useKeyboardInset } from "@/shared/hooks/useKeyboardInset";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useNotionImport } from "@/features/notion-import/model/useNotionImport";
@@ -112,6 +113,13 @@ export function HomeWorkspace() {
   const isSkillSheetShown = activeView === "skills" && isSkillSheetOpen;
   const panels = useWorkspacePanels({ activeView, locationKey, isSkillSheetOpen: isSkillSheetShown });
   const { sidebarLayout, agentPanelLayout, isCompactLayout, isAgentPanelShown } = panels;
+  useKeyboardInset();
+  // 좁은 화면에서 패널은 문서를 덮으므로 편집 제안을 문서에서 보려면 패널을 닫아야 한다. 한 번 연 뒤에는 숨긴 채 마운트해
+  // 진행 중인 답변·제안(문서 본문의 수락·거절)을 잃지 않게 한다.
+  const [isCompactAgentPanelKept, setIsCompactAgentPanelKept] = useState(false);
+  useEffect(() => {
+    setIsCompactAgentPanelKept((kept) => isCompactLayout && (kept || isAgentPanelShown));
+  }, [isCompactLayout, isAgentPanelShown]);
   // 시트를 열면 채팅 패널도 연다. 좁은 화면에서는 패널이 시트를 덮으므로 열지 않고 시트 안에 테스트 실행을 둔다.
   const openHomeAgentPanel = panels.openHomeAgentPanel;
   useEffect(() => {
@@ -485,6 +493,7 @@ export function HomeWorkspace() {
         ) : undefined}
         isCollapsed={panels.isSidebarCollapsed}
         isOverlay={isCompactLayout}
+        phoneTitle={screenTitle}
         onCollapseSidebar={panels.collapseSidebar}
         onExpandSidebar={panels.expandSidebar}
         onAddProject={() => {
@@ -637,12 +646,16 @@ export function HomeWorkspace() {
 
       {/* 스킬·알림 등 패널이 없는 화면으로 가도 열려 있던 패널은 숨겨서 유지한다.
           돌아올 때 대화·모델 목록을 다시 받느라 비었다 채워지는(새로고침처럼 보이는) 것을 막는다. */}
-      {(panels.isAgentPanelOpen || hasOpenMeeting) && (
+      {(panels.isAgentPanelOpen || hasOpenMeeting || isCompactAgentPanelKept) && (
         <div className={cx("agent-panel-host", !isAgentPanelShown && "is-hidden")}>
         <AgentPanel
           isShown={isAgentPanelShown}
           onClose={panels.closeAgentPanel}
-          onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
+          onOpenSourceBlocks={(documentId, title, highlights) => {
+            openSelectedPreview(openSourceBlocks(documentId, title, highlights));
+            // 좁은 화면에서는 패널이 문서를 덮으므로 닫아서 연 근거를 보여 준다.
+            if (isCompactLayout) panels.closeAgentPanel();
+          }}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
           isOpenDocumentReadOnly={isSelectedDocumentReadOnly}
@@ -717,6 +730,7 @@ export function HomeWorkspace() {
               section={settingsSection}
               resume={settingsResume}
               onOpenSection={(section) => navigate({ kind: "view", view: "settings", section })}
+              phoneNav={<SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />}
             />
           )
         ) : (

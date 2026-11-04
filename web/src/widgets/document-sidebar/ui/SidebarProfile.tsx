@@ -32,6 +32,7 @@ export function SidebarProfile({
     <>
       <RailButton
         label="설정"
+        phoneLabel="설정"
         isActive={isActive}
         aria-current={isActive ? "page" : undefined}
         onClick={(event) => {
@@ -45,6 +46,7 @@ export function SidebarProfile({
       <RailButton
         label={`사용자 설정 (${name})`}
         tooltip={name}
+        className={railStyles["rail-profile"]}
         onClick={(event) => {
           event.stopPropagation();
           onOpenSettings("profile");
