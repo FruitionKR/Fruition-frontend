@@ -24,6 +24,15 @@ export function shouldCheckRestoreDocument(error: unknown, documentId: string | 
   return (error.status === 404 && error.code === "DOCUMENT_NOT_FOUND") || (error.status === 400 && error.code === "INVALID_RESTORE_REQUEST");
 }
 
+/**
+ * 인제스트 작업은 항상 문서를 대상으로 시작하므로, 문서 ID가 비었는데 표시 이름이 남은 행은 문서가 영구 삭제된 것이다(FK ON DELETE SET NULL).
+ * 표시 이름도 없으면 어떤 문서였는지 몰라 단정하지 않는다.
+ */
+export function isPurgedIngestRestore(error: unknown, detail: Pick<OperationLogDetail, "operation_type" | "target_document_id" | "target_display_name"> | null): boolean {
+  if (!detail || !(error instanceof ApiError) || error.status !== 400 || error.code !== "INVALID_RESTORE_REQUEST") return false;
+  return detail.operation_type === "ingest" && detail.target_document_id === null && Boolean(detail.target_display_name);
+}
+
 /** 롤백 실패 안내. location은 shouldCheckRestoreDocument가 참일 때 확인한 문서 위치이고, 확인하지 않았으면 null이다. */
 export function restoreFailureMessage(error: unknown, location: RestoreDocumentLocation | null): string {
   if (location === "purged") return PURGED_DOCUMENT_MESSAGE;

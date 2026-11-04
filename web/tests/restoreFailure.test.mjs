@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
-const { restoreFailureMessage, restoreTargetDocumentId, shouldCheckRestoreDocument } = await import("../src/entities/operation-log/model/restoreFailure.ts");
+const { isPurgedIngestRestore, restoreFailureMessage, restoreTargetDocumentId, shouldCheckRestoreDocument } = await import("../src/entities/operation-log/model/restoreFailure.ts");
 const change = (overrides) => ({ resource_type: "document", resource_id: "doc_1", ...overrides });
 const PURGED = "영구 삭제된 문서의 변경은 되돌릴 수 없어요.";
 const notFound = new ApiError("문서를 찾을 수 없습니다.", 404, "DOCUMENT_NOT_FOUND");
@@ -45,4 +45,15 @@ test("되돌릴 문서는 작업 대상을 먼저 보고 없으면 변경 내역
   assert.equal(restoreTargetDocumentId({ target_document_id: "doc_t", changes: [change()] }), "doc_t");
   assert.equal(restoreTargetDocumentId({ target_document_id: null, changes: [change({ resource_type: "wiki_page", resource_id: "p" }), change({ resource_id: "doc_c" })] }), "doc_c");
   assert.equal(restoreTargetDocumentId({ target_document_id: null, changes: [] }), null);
+});
+
+test("문서 ID가 사라진 인제스트 행은 영구 삭제로 안내한다", () => {
+  const noPages = new ApiError("되돌릴 Wiki 페이지가 없습니다.", 400, "INVALID_RESTORE_REQUEST");
+  const row = { operation_type: "ingest", target_document_id: null, target_display_name: "회의록.md", changes: [] };
+  assert.equal(isPurgedIngestRestore(noPages, row), true);
+  assert.equal(isPurgedIngestRestore(noPages, { ...row, target_display_name: null }), false, "어떤 문서였는지 모르면 단정하지 않는다");
+  assert.equal(isPurgedIngestRestore(noPages, { ...row, target_document_id: "doc_1" }), false, "문서 ID가 있으면 위치를 확인한다");
+  assert.equal(isPurgedIngestRestore(noPages, { ...row, operation_type: "lint" }), false, "lint는 원래 문서가 없다");
+  assert.equal(isPurgedIngestRestore(new ApiError("서버 오류", 500), row), false);
+  assert.equal(isPurgedIngestRestore(noPages, null), false);
 });

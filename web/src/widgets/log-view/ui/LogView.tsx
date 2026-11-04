@@ -9,6 +9,7 @@ import {
   documentRestoreMessage,
   fetchOperationLogDetail,
   fetchRestorePreview,
+  isPurgedIngestRestore,
   restoreFailureMessage,
   restoreTargetDocumentId,
   shouldCheckRestoreDocument,
@@ -216,6 +217,7 @@ function OperationDetailBody({
 /** 실패 안내 문구. 문서가 없어진 실패면 문서가 휴지통에 있는지 영구 삭제됐는지 확인해 이유를 말한다. */
 async function describeRestoreFailure(error: unknown, detail: OperationLogDetail | null): Promise<string> {
   const documentId = detail ? restoreTargetDocumentId(detail) : null;
+  if (!documentId && isPurgedIngestRestore(error, detail)) return restoreFailureMessage(error, "purged");
   if (!documentId || !shouldCheckRestoreDocument(error, documentId)) return restoreFailureMessage(error, null);
   return restoreFailureMessage(error, await fetchRestoreDocumentLocation(documentId));
 }
