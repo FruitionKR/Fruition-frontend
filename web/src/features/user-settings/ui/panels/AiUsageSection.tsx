@@ -50,7 +50,7 @@ export function AiUsageSection() {
         <div className={styles["row-title"]}>
           <span className={usageStyles["title-row"]}>
             <strong>내 계정에서 쓴 토큰</strong>
-            <Tooltip content={USAGE_LAG_NOTE} placement="top" describe={false}>
+            <Tooltip content={USAGE_LAG_NOTE} placement="top" describe={false} openOnTap>
               <button type="button" className={usageStyles["help-button"]} aria-label={`사용량 반영 시점 설명: ${USAGE_LAG_NOTE}`}>
                 <SvgIcon src={questionMarkIcon} className={usageStyles["help-icon"]} />
               </button>
