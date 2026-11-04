@@ -10,6 +10,20 @@ export type OpenDocumentState = { id: string | null; status?: DocumentStatus; co
  *   변환 중에는 편집기가 없어 미저장 편집이 없으므로 항상 다시 불러온다.
  * - 변환 진행: 서버가 페이지 묶음마다 본문을 이어 붙이므로 revision이 바뀌면 다시 불러온다.
  */
+/**
+ * AI 계획이 서버에서 저장한 문서를 열어 두고 있으면 본문을 다시 읽을지. 편집기를 다시 만들므로 저장 안 된 입력이나 검토 중인 제안이 있으면 건드리지 않는다.
+ * 그때는 다음 저장에서 서버가 합친 본문을 받는다(useNoteAutosave onServerMerge).
+ */
+export function shouldReloadForSavedPlan({ openDocumentId, savedDocumentIds, isSaved, hasUnsyncedInput, hasActiveReview }: {
+  openDocumentId: string | null;
+  savedDocumentIds: readonly string[];
+  isSaved: boolean;
+  hasUnsyncedInput: boolean;
+  hasActiveReview: boolean;
+}): boolean {
+  return openDocumentId !== null && savedDocumentIds.includes(openDocumentId) && isSaved && !hasUnsyncedInput && !hasActiveReview;
+}
+
 export function shouldReloadOpenDocument(previous: OpenDocumentState, current: OpenDocumentState, saved: boolean): boolean {
   if (previous.id !== current.id) return false;
   if (previous.converting && !current.converting) return true;

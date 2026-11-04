@@ -5,6 +5,7 @@ import { useUserPreferences } from "@/entities/user";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import { DynamicNoteEditor } from "@/features/note-editing/ui/DynamicNoteEditor";
 import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl } from "@/entities/document";
+import { subscribeDocumentContentSaved } from "@/entities/document/model/documentContentBus";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
 import { useWorkspaceRole } from "@/entities/workspace";
@@ -15,7 +16,7 @@ import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, CHAT_EXPORT_TITLE_LOCKED_MESSAGE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
-import { shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
+import { shouldReloadForSavedPlan, shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import type { ConversionReportView } from "@/entities/document/lib/conversionReport";
 import { ConversionReportNotice } from "./ConversionReportNotice";
@@ -122,6 +123,12 @@ export function SourcePreviewPanel({
   const registerNoteSave = useCallback((save: () => Promise<boolean>) => {
     noteSaveRef.current = save;
   }, []);
+  // 편집기에 아직 저장 대기열에 오르지 않은 입력이 있는지 묻는 함수
+  const noteUnsyncedInputRef = useRef<(() => boolean) | null>(null);
+  const registerUnsyncedInputCheck = useCallback((check: () => boolean) => {
+    noteUnsyncedInputRef.current = check;
+  }, []);
+  const hasActiveReviewRef = useRef(false);
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>("saved");
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
@@ -139,6 +146,16 @@ export function SourcePreviewPanel({
       setDocumentReloadCount((count) => count + 1);
     }
   }, [documentId, documentStatus, documentConverting, conversionRevision]);
+  // AI 계획이 이 문서를 서버에서 저장했으면 바로 다시 읽는다. 저장 안 된 입력이 있으면 기존 병합에 맡긴다.
+  useEffect(() => subscribeDocumentContentSaved((savedDocumentIds) => {
+    if (shouldReloadForSavedPlan({
+      openDocumentId: documentId ?? null,
+      savedDocumentIds,
+      isSaved: noteSaveStatusRef.current === "saved",
+      hasUnsyncedInput: noteUnsyncedInputRef.current?.() ?? false,
+      hasActiveReview: hasActiveReviewRef.current
+    })) setDocumentReloadCount((count) => count + 1);
+  }), [documentId]);
   const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   // MarkdownViewer가 memo라 identity를 고정한다. ref만 쓰므로 의존성이 없다.
   const registerBlockRef = useCallback((blockId: string, node: HTMLDivElement | null) => {
@@ -183,6 +200,7 @@ export function SourcePreviewPanel({
   const activeEditReview = editReview && isMarkdownFile && !isBodyReadOnly && editableNote && editReview.documentId === documentId
     ? editReview
     : null;
+  hasActiveReviewRef.current = Boolean(activeEditReview);
 
   useEffect(() => {
     setTitleInput(getMarkdownDocumentTitle(title));
@@ -602,6 +620,7 @@ export function SourcePreviewPanel({
             onSaveStatusChange={handleSaveStatusChange}
             onDetachedSaveComplete={handleDetachedSaveComplete}
             onRegisterSave={registerNoteSave}
+            onRegisterUnsyncedInputCheck={registerUnsyncedInputCheck}
             onReadOnlyNoticeChange={handleReadOnlyNoticeChange}
           />
           </div>

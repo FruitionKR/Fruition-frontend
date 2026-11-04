@@ -284,6 +284,15 @@ export function withRollbackPurgedOperations<T extends Pick<AgentPlanRun, "statu
   };
 }
 
+/** 계획이 실제로 본문을 저장한 문서. 되돌렸거나 실패·제외한 작업은 넣지 않는다. */
+export function savedEditDocumentIds(plan: Pick<AgentPlan, "operations"> | null | undefined): string[] {
+  const saved = (plan?.operations ?? []).filter((operation) => operation.tool_name === "apply_document_edit" && SUCCEEDED_OPERATION_STATUSES.has(operation.status));
+  return [...new Set(saved.flatMap((operation) => {
+    const documentId = operation.arguments.document_id ?? operation.target_id;
+    return typeof documentId === "string" ? [documentId] : [];
+  }))];
+}
+
 const OPERATION_STATUS_LABELS: Record<string, string> = {
   succeeded: "완료", completed: "완료", running: "실행 중", failed: "실패", skipped: "건너뜀", forbidden: "권한 없음",
   conflicted: "변경 충돌", verification_failed: "결과 확인 실패", cancelled: "취소됨", rolled_back: "복구됨"

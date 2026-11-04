@@ -9,7 +9,8 @@ import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
 import { appliedTaskNote } from "../lib/autoApply";
-import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
+import { publishDocumentContentSaved } from "@/entities/document/model/documentContentBus";
+import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, savedEditDocumentIds, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
@@ -301,10 +302,13 @@ export function AgentTaskBody({
   // 실행이 끝나는 전이를 볼 때만 문서·트리·그래프를 다시 받는다(#66).
   const runStatusSignature = runQueries.map((query) => query.data?.status ?? "").join("|");
   const previousStatuses = useRef<string[]>([]);
+  const runQueriesRef = useRef(runQueries);
+  runQueriesRef.current = runQueries;
   useEffect(() => {
     const statuses = runStatusSignature.split("|");
-    const settled = statuses.some((status, index) => isPlanRunSettled(previousStatuses.current[index] || undefined, status || undefined));
-    if (settled) void client.invalidateQueries({ queryKey: ["backendData"] });
+    const settledIndexes = statuses.flatMap((status, index) => (isPlanRunSettled(previousStatuses.current[index] || undefined, status || undefined) ? [index] : []));
+    if (settledIndexes.length > 0) void client.invalidateQueries({ queryKey: ["backendData"] });
+    publishDocumentContentSaved(settledIndexes.flatMap((index) => savedEditDocumentIds(runQueriesRef.current[index]?.data?.plan)));
     previousStatuses.current = statuses;
   }, [client, runStatusSignature]);
 

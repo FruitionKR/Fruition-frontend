@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -411,4 +411,19 @@ test("일부 복구 카드는 복구한 수와 되돌리지 못한 수를 말하
   const { plan: marked } = withRollbackPurgedOperations(partialRollbackRun);
   assert.equal(buildPlanPreviewTree(marked, []).summary, "복구 2개 · 영구 삭제로 되돌리지 못함 1개");
   assert.equal(buildPlanPreviewTree(partialRollbackRun.plan, []).summary, "문서 1개 편집 · 복구 2개", "표시 전 계획이어도 복구를 실패로 세지 않는다");
+});
+
+test("계획이 실제로 저장한 문서만 고른다", () => {
+  const op = (id, tool_name, status, args, error_code = null) => ({ id, sequence: 1, tool_name, target_id: null, source_parent_id: null, destination_parent_id: null, arguments: args, reason: "", status, error_code });
+  const operations = [
+    op("1", "apply_document_edit", "succeeded", { document_id: "doc_a" }),
+    op("2", "apply_document_edit", "completed", { document_id: "doc_b" }),
+    op("3", "apply_document_edit", "failed", { document_id: "doc_c" }),
+    op("4", "apply_document_edit", "rolled_back", { document_id: "doc_d" }),
+    op("5", "apply_document_edit", "skipped", { document_id: "doc_e" }, "not_selected"),
+    op("6", "move_document", "succeeded", { document_id: "doc_f" }),
+    op("7", "apply_document_edit", "succeeded", { document_id: "doc_a" })
+  ];
+  assert.deepEqual(savedEditDocumentIds({ operations }), ["doc_a", "doc_b"]);
+  assert.deepEqual(savedEditDocumentIds(null), []);
 });

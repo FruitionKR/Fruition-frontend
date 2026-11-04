@@ -90,6 +90,7 @@ export function NoteEditor({
   onSaveStatusChange,
   onDetachedSaveComplete,
   onRegisterSave,
+  onRegisterUnsyncedInputCheck,
   onReadOnlyNoticeChange
 }: {
   documentId: string;
@@ -101,6 +102,8 @@ export function NoteEditor({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
+  /** 아직 저장 대기열에 오르지 않은 입력이 있는지 묻는 함수를 넘긴다. 편집기를 다시 만들어도 되는지 판단할 때 쓴다. */
+  onRegisterUnsyncedInputCheck?: (check: () => boolean) => void;
   onReadOnlyNoticeChange?: (documentId: string, message: string | null) => void;
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
@@ -264,6 +267,10 @@ export function NoteEditor({
       return view.composing || ctx.get(serializerCtx)(view.state.doc) !== serializedBodyRef.current;
     });
   }, []);
+
+  useEffect(() => {
+    onRegisterUnsyncedInputCheck?.(hasUnsyncedEditorInput);
+  }, [hasUnsyncedEditorInput, onRegisterUnsyncedInputCheck]);
 
   const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
     if (bodyRef.current !== expectedMarkdown || hasUnsyncedEditorInput()) return false;

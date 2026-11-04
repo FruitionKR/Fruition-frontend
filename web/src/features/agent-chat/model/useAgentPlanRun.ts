@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { readWorkspaceId } from "@/shared/api/client";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
-import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
+import { publishDocumentContentSaved } from "@/entities/document/model/documentContentBus";
+import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, savedEditDocumentIds, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
 
 /**
  * 작업 turn의 계획(run)과 승인·거절. 작업 탭 카드(AgentTaskBody)와 폴더 정리 미리보기 화면이 같은 쿼리 키를 공유해
@@ -48,9 +49,12 @@ export function useAgentPlanRun(turnId: string | undefined) {
   });
   // 이미 끝난 계획이 다시 마운트될 때마다 문서·트리·그래프를 다시 받지 않도록 전이를 볼 때만 갱신한다(#66).
   const previousStatus = useRef<string | undefined>(undefined);
+  const planRef = useRef(plan);
+  planRef.current = plan;
   useEffect(() => {
     if (isPlanRunSettled(previousStatus.current, runStatus)) {
       void client.invalidateQueries({ queryKey: ["backendData"] });
+      publishDocumentContentSaved(savedEditDocumentIds(planRef.current));
     }
     previousStatus.current = runStatus;
   }, [client, runStatus]);
