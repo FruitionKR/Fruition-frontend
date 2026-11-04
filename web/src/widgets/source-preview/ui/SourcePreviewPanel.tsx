@@ -16,7 +16,7 @@ import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
 import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, CHAT_EXPORT_TITLE_LOCKED_MESSAGE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
-import { shouldReloadForSavedPlan, shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
+import { shouldApplyReloadedNote, shouldReloadForSavedPlan, shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
 import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import type { ConversionReportView } from "@/entities/document/lib/conversionReport";
 import { ConversionReportNotice } from "./ConversionReportNotice";
@@ -131,6 +131,10 @@ export function SourcePreviewPanel({
   const hasActiveReviewRef = useRef(false);
   const [noteSaveStatus, setNoteSaveStatus] = useState<NoteSaveStatus>("saved");
   const noteSaveStatusRef = useRef<NoteSaveStatus>("saved");
+  // 편집 입력으로 저장이 시작된 횟수. 본문을 요청한 뒤 입력이 있었는지 응답 도착 시점에 비교한다.
+  const noteEditCountRef = useRef(0);
+  // 입력과 상관없이 응답을 적용해야 하는 재조회(변환 종료·처리 완료)가 남아 있는지.
+  const isForcedReloadRef = useRef(false);
   const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
   const [editorReadOnlyNotice, setEditorReadOnlyNotice] = useState<{ documentId: string; message: string | null } | null>(null);
   const handleReadOnlyNoticeChange = useCallback((id: string, message: string | null) => {
@@ -143,6 +147,7 @@ export function SourcePreviewPanel({
     const current = { id: documentId ?? null, status: documentStatus, converting: documentConverting, revision: conversionRevision };
     previousStatusRef.current = current;
     if (shouldReloadOpenDocument(previous, current, noteSaveStatusRef.current === "saved")) {
+      isForcedReloadRef.current = true;
       setDocumentReloadCount((count) => count + 1);
     }
   }, [documentId, documentStatus, documentConverting, conversionRevision]);
@@ -235,6 +240,7 @@ export function SourcePreviewPanel({
 
   const handleSaveStatusChange = useCallback((status: NoteSaveStatus, message: string | null) => {
     const previousStatus = noteSaveStatusRef.current;
+    if (status !== "saved") noteEditCountRef.current += 1;
     noteSaveStatusRef.current = status;
     setNoteSaveStatus(status);
     setNoteSaveError(message);
@@ -329,9 +335,18 @@ export function SourcePreviewPanel({
       if (isMarkdownFile) {
         await waitForPendingDocumentSave(documentId);
         if (ignore) return;
+        const editCountAtRequest = noteEditCountRef.current;
+        const canApply = () => !ignore && shouldApplyReloadedNote({
+          isSameDocumentReload,
+          isForced: isForcedReloadRef.current,
+          isSaved: noteSaveStatusRef.current === "saved",
+          hasUnsyncedInput: noteUnsyncedInputRef.current?.() ?? false,
+          hasActiveReview: hasActiveReviewRef.current,
+          hasEditedSinceRequest: noteEditCountRef.current !== editCountAtRequest
+        });
         const draft = await fetchNoteDraft(documentId);
         if (draft) {
-          if (!ignore) {
+          if (canApply()) {
             setRawMarkdown(draft.markdown);
             setMarkdownLoad(nextMarkdownLoad(documentId));
             setNoteContentVersion(draft.content_version);
@@ -340,7 +355,7 @@ export function SourcePreviewPanel({
         }
         const blob = await fetchDocumentOriginal(documentId);
         const text = await blob.text();
-        if (!ignore) {
+        if (canApply()) {
           setRawMarkdown(text);
           setMarkdownLoad(nextMarkdownLoad(documentId));
           setNoteContentVersion(0);
@@ -383,6 +398,7 @@ export function SourcePreviewPanel({
       })
       .finally(() => {
         if (ignore) return;
+        isForcedReloadRef.current = false;
         loadedDocumentIdRef.current = documentId;
         setIsLoading(false);
       });
@@ -611,7 +627,8 @@ export function SourcePreviewPanel({
           // 검토 중에는 편집기를 숨기되 마운트해 둔다. 수락하면 이 편집기로 적용·저장한다.
           <div className={styles["source-preview-editor-slot"]} hidden={Boolean(activeEditReview)}>
           <DynamicNoteEditor
-            key={`${documentId}:${documentReloadCount}:${noteContentVersion}`}
+            // 새 본문이 실제로 적용될 때(새 로드 ID) 한 번만 다시 만든다. 재조회를 시작하거나 응답을 버릴 때는 편집기와 입력을 그대로 둔다.
+            key={`${documentId}:${markdownLoad?.loadId}`}
             documentId={documentId}
             marker={editableNote.marker}
             initialBody={editableNote.body}

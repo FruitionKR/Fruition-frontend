@@ -18,7 +18,7 @@ import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, Markd
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
 import { editResultNotice } from "@/features/agent-chat/lib/taskThread";
-import { documentLockedTurnMessage, shouldRestoreAttachments } from "../lib/composerDocuments";
+import { documentLockedTurnMessage, sendTurnDroppingOpenDocument, shouldRestoreAttachments } from "../lib/composerDocuments";
 import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
 import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
 import {
@@ -76,7 +76,8 @@ export function useAgentTurn({
   onCreateMarkdownDocument,
   openDocumentTitle = null,
   onInsufficientCredit,
-  onReferencesRestored
+  onReferencesRestored,
+  onOpenDocumentDropped
 }: {
   markdownEditContext: ActiveMarkdownEditContext | null | undefined;
   /** 지금 열린 보기 권한 문서. 요청을 보낼 때의 값을 turn과 묶어 기억한다. */
@@ -97,6 +98,8 @@ export function useAgentTurn({
   onInsufficientCredit?: (question: string) => void;
   /** 첨부를 실은 요청이 시작되지 못했다. 다시 고르거나 보낼 수 있게 입력과 첨부를 되돌리는 데 쓴다. */
   onReferencesRestored?: (question: string, referenceDocumentIds: string[]) => void;
+  /** 자동으로 실은 열린 문서를 뺀 요청이 받아들여졌다. 다음 요청에 다시 싣지 않고 안내하는 데 쓴다. */
+  onOpenDocumentDropped?: (documentId: string) => void;
 }) {
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
@@ -322,19 +325,21 @@ export function useAgentTurn({
     /** 폴더를 대상으로 고른 스킬 실행이면 그 폴더. */
     folderId: string | null = null,
     /** 근거로 첨부한 문서. */
-    referenceDocumentIds: string[] = []
+    referenceDocumentIds: string[] = [],
+    /** referenceDocumentIds 중 입력창이 자동으로 실은 열린 문서. 이 문서 때문에 거절되면 빼고 다시 보낸다. */
+    autoReferenceDocumentId: string | null = null
   ) => {
     const requestReadOnlyDocumentId = readOnlyDocumentIdRef.current;
-    const request = buildAgentTurnRequest(question, context, {
+    const buildRequest = (documentIds: string[]) => buildAgentTurnRequest(question, context, {
       readOnlyDocumentId: requestReadOnlyDocumentId,
       sessionId,
       selectedModel: { provider: model.provider, model: model.model },
       selectedPairIds: conversationPairIds,
       allowWebSearch,
       folderId,
-      referenceDocumentIds
+      referenceDocumentIds: documentIds
     });
-    setAgentTurnRequest(request);
+    setAgentTurnRequest(buildRequest(referenceDocumentIds));
     setAgentTurnResponse(null);
     setAgentTurnErrorMessage(null);
     setMarkdownCreateErrorMessage(null);
@@ -349,22 +354,34 @@ export function useAgentTurn({
     const controller = new AbortController();
     agentRequestRef.current = controller;
     let acceptedTurnId: string | null = null;
-    followTurnResult(controller, question, () => requestAgentTurn(request, {
-      signal: controller.signal,
-      onAccepted: (requestId) => {
-        acceptedTurnId = requestId;
-        rememberReadOnlyRequest(requestId, requestReadOnlyDocumentId);
-        if (controller.signal.aborted) return;
-        setRequestTurnId(requestId);
-        setTaskRunIds((current) => new Set([...current, requestId]));
-      },
-      onStage: (stage) => {
-        if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
-      },
-      onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
+    followTurnResult(controller, question, () => sendTurnDroppingOpenDocument({
+      referenceDocumentIds,
+      autoDocumentId: autoReferenceDocumentId,
+      hasStarted: () => acceptedTurnId !== null,
+      send: (documentIds) => {
+        const request = buildRequest(documentIds);
+        return requestAgentTurn(request, {
+          signal: controller.signal,
+          onAccepted: (requestId) => {
+            acceptedTurnId = requestId;
+            rememberReadOnlyRequest(requestId, requestReadOnlyDocumentId);
+            if (controller.signal.aborted) return;
+            setRequestTurnId(requestId);
+            setTaskRunIds((current) => new Set([...current, requestId]));
+            if (autoReferenceDocumentId === null || documentIds.includes(autoReferenceDocumentId)) return;
+            // 빼고 보낸 요청을 기억해 재생성·이어 묻기가 거절된 문서를 다시 싣지 않게 한다.
+            setAgentTurnRequest(request);
+            onOpenDocumentDropped?.(autoReferenceDocumentId);
+          },
+          onStage: (stage) => {
+            if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
+          },
+          onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
+        });
+      }
     }), () => acceptedTurnId, newAnalyticsId(), referenceDocumentIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, rememberReadOnlyRequest]);
+  }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, onOpenDocumentDropped, rememberReadOnlyRequest]);
 
   /** 지금 열린, 아직 결정하지 않은 제안. 자동으로 처리하는 중이거나 미리 보기를 만들 수 없는 응답은 뺀다. */
   function openProposal(): SetAsideProposal | null {

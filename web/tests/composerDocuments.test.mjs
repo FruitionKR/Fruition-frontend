@@ -20,7 +20,10 @@ const {
   referenceDocuments,
   turnReferenceDocumentIds,
   removeDocumentMention,
+  autoIncludedOpenDocumentId,
+  droppedOpenDocumentMessage,
   documentLockedTurnMessage,
+  sendTurnDroppingOpenDocument,
   shouldRestoreAttachments
 } = await import("../src/widgets/agent-panel/lib/composerDocuments.ts");
 const { ApiError, DocumentLockedError } = await import("../src/shared/lib/apiErrors.ts");
@@ -221,4 +224,64 @@ test("보낼 근거에 보기 권한 문서를 겹치지 않게 넣는다", () =
   assert.deepEqual(turnReferenceDocumentIds(attachments, "9"), ["9", "1"]);
   assert.deepEqual(turnReferenceDocumentIds(attachments, "1"), ["1"]);
   assert.deepEqual(turnReferenceDocumentIds(attachments, null), ["1"]);
+});
+
+test("자동으로 실린 열린 문서만 뺄 수 있는 문서로 본다", () => {
+  const options = { attachments: [doc("1", "a.md")], optedInDocumentId: null };
+  assert.equal(autoIncludedOpenDocumentId("9", options), "9");
+  assert.equal(autoIncludedOpenDocumentId(null, options), null, "실리지 않았으면 없다");
+  assert.equal(autoIncludedOpenDocumentId("1", options), null, "직접 첨부한 문서를 연 경우");
+  assert.equal(autoIncludedOpenDocumentId("9", { ...options, optedInDocumentId: "9" }), null, "칩을 눌러 직접 고른 경우");
+});
+
+const badRequest = () => new ApiError("고른 문서 중 사용할 수 없는 문서가 있습니다. 다시 골라 주세요.", 400, "INVALID_REQUEST");
+
+function fakeSend(results) {
+  const calls = [];
+  return { calls, send: async (ids) => {
+    calls.push(ids);
+    const result = results[calls.length - 1];
+    if (result instanceof Error) throw result;
+    return result;
+  } };
+}
+
+test("자동으로 실은 문서 때문에 시작되지 못한 요청은 그 문서를 빼고 한 번만 다시 보낸다", async () => {
+  const { calls, send } = fakeSend([badRequest(), "ok"]);
+  const result = await sendTurnDroppingOpenDocument({ referenceDocumentIds: ["9", "1"], autoDocumentId: "9", hasStarted: () => false, send });
+  assert.equal(result, "ok");
+  assert.deepEqual(calls, [["9", "1"], ["1"]]);
+});
+
+test("빼고 보내도 400이면 더 보내지 않고 그 오류를 그대로 준다", async () => {
+  const second = badRequest();
+  const { calls, send } = fakeSend([badRequest(), second, "never"]);
+  await assert.rejects(sendTurnDroppingOpenDocument({ referenceDocumentIds: ["9", "1"], autoDocumentId: "9", hasStarted: () => false, send }), (error) => error === second);
+  assert.equal(calls.length, 2);
+});
+
+test("직접 첨부한 문서만 실은 요청의 400은 다시 보내지 않는다", async () => {
+  const first = badRequest();
+  const { calls, send } = fakeSend([first, "never"]);
+  await assert.rejects(sendTurnDroppingOpenDocument({ referenceDocumentIds: ["1"], autoDocumentId: null, hasStarted: () => false, send }), (error) => error === first);
+  assert.equal(calls.length, 1);
+});
+
+test("서버가 받은 turn의 실패와 400이 아닌 거절은 다시 보내지 않아 두 번 처리되지 않는다", async () => {
+  for (const [error, hasStarted] of [
+    [badRequest(), true],
+    [new ApiError("크레딧 부족", 402, "INSUFFICIENT_CREDIT"), false],
+    [new ApiError("잠김", 423), false],
+    [new ApiError("서버 오류", 500), false],
+    [new TypeError("Failed to fetch"), false]
+  ]) {
+    const { calls, send } = fakeSend([error, "never"]);
+    await assert.rejects(sendTurnDroppingOpenDocument({ referenceDocumentIds: ["9"], autoDocumentId: "9", hasStarted: () => hasStarted, send }), (thrown) => thrown === error);
+    assert.equal(calls.length, 1, `${error.message}`);
+  }
+});
+
+test("문서를 빼고 보냈다는 안내에 어느 문서인지 밝힌다", () => {
+  assert.match(droppedOpenDocumentMessage("회의록"), /'회의록'/);
+  assert.match(droppedOpenDocumentMessage(null), /현재 문서/);
 });

@@ -68,7 +68,7 @@ import { useDocumentPicker } from "../model/useDocumentPicker";
 import { usePanelSessions } from "../model/usePanelSessions";
 import { usePanelDraft } from "../model/usePanelDraft";
 import { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } from "../lib/openDocumentSource";
-import { followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
+import { autoIncludedOpenDocumentId, composerDocumentChipLabel, droppedOpenDocumentMessage, followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
 import { filterPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
 import { ReferenceDocumentPickerModal } from "@/features/skill-authoring/ui/ReferenceDocumentPickerModal";
 import { ComposerDocumentChips } from "./ComposerDocumentChips";
@@ -274,6 +274,13 @@ export function AgentPanel({
     restoreComposerQuestion(question);
     restoreComposerAttachments(referenceDocumentIds);
   }, [restoreComposerAttachments, restoreComposerQuestion]);
+  // 작업 대상 칩에서 뺀 열린 문서. 같은 문서인 동안만 빠진다.
+  const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
+  const handleOpenDocumentDropped = useCallback((documentId: string) => {
+    setExcludedDocumentId(documentId);
+    const title = readOnlyOpenDocument?.id === documentId ? composerDocumentChipLabel(readOnlyOpenDocument) : null;
+    publishNotice({ kind: "info", title: "현재 문서를 빼고 보냈어요", message: droppedOpenDocumentMessage(title) });
+  }, [readOnlyOpenDocument]);
   const agentTurn = useAgentTurn({
     markdownEditContext,
     readOnlyDocumentId,
@@ -287,6 +294,7 @@ export function AgentPanel({
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
     onInsufficientCredit: restoreComposerQuestion,
     onReferencesRestored: restoreRejectedReferences,
+    onOpenDocumentDropped: handleOpenDocumentDropped,
     openDocumentTitle
   });
   const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState, taskRunIds } = agentTurn;
@@ -350,7 +358,6 @@ export function AgentPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSkillSheetOpen]);
   // 작업 대상 칩(Figma 1627:9925). ×로 뺀 문서·선택은 같은 문서·같은 선택인 동안만 빠진다.
-  const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
   const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
   // '새 문서로 만들기' 스킬에서 "현재 문서" 칩을 눌러 원문으로 쓰기로 한 문서. 보내면 비운다.
   const [optedInDocumentId, setOptedInDocumentId] = useState<string | null>(null);
@@ -631,7 +638,8 @@ export function AgentPanel({
       setComposerValue("");
       setOptedInDocumentId(null);
       composerAttachments.markSent();
-      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, [], null, turnReferenceDocumentIds(attachedDocuments, isDocumentIncluded ? readOnlySourceId : null));
+      const includedReadOnlyId = isDocumentIncluded ? readOnlySourceId : null;
+      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, [], null, turnReferenceDocumentIds(attachedDocuments, includedReadOnlyId), autoIncludedOpenDocumentId(includedReadOnlyId, { attachments: composerAttachments.attachments, optedInDocumentId }));
       return;
     }
     // 채팅 탭은 문서가 열려 있어도 위키 질의(Query)만 보낸다.

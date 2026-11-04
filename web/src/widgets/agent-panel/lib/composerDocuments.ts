@@ -61,6 +61,41 @@ export function turnReferenceDocumentIds(attachments: readonly Pick<DocumentItem
   return readOnlyDocumentId && !ids.includes(readOnlyDocumentId) ? [readOnlyDocumentId, ...ids] : ids;
 }
 
+/** 입력창이 자동으로 실은 열린 문서. 사용자가 직접 첨부했거나 칩을 눌러 고른 문서면 null이다. */
+export function autoIncludedOpenDocumentId(
+  includedOpenDocumentId: string | null,
+  { attachments, optedInDocumentId }: { attachments: readonly Pick<DocumentItemResponse, "id">[]; optedInDocumentId: string | null }
+): string | null {
+  if (includedOpenDocumentId === optedInDocumentId || attachments.some((document) => document.id === includedOpenDocumentId)) return null;
+  return includedOpenDocumentId;
+}
+
+/**
+ * 요청을 보내고, 시작되지 못한 400이면 자동으로 실은 열린 문서를 빼고 한 번만 다시 보낸다.
+ * 서버는 어느 문서가 문제인지 알려 주지 않으므로(사유를 나누지 않는 400) 빼고 보낸 결과로 가린다. 직접 첨부한 문서가 문제면 다시 400이 되어 그 오류를 그대로 준다.
+ * turn이 만들어지기 전의 400만 다시 보내므로 요청이 두 번 처리되지 않는다.
+ */
+export async function sendTurnDroppingOpenDocument<T>({ referenceDocumentIds, autoDocumentId, hasStarted, send }: {
+  referenceDocumentIds: readonly string[];
+  autoDocumentId: string | null;
+  /** 서버가 turn을 받았는지. 받은 뒤의 실패는 다시 보내지 않는다. */
+  hasStarted: () => boolean;
+  send: (documentIds: string[]) => Promise<T>;
+}): Promise<T> {
+  try {
+    return await send([...referenceDocumentIds]);
+  } catch (error) {
+    const isRejected = !hasStarted() && error instanceof ApiError && error.status === 400;
+    if (!isRejected || autoDocumentId === null || !referenceDocumentIds.includes(autoDocumentId)) throw error;
+    return send(referenceDocumentIds.filter((id) => id !== autoDocumentId));
+  }
+}
+
+/** 자동으로 실은 열린 문서를 빼고 보냈을 때의 안내. */
+export function droppedOpenDocumentMessage(title: string | null): string {
+  return `${title ? `현재 문서 '${title}'` : "현재 문서"} 내용을 읽을 수 없어 빼고 요청을 보냈어요. 이 문서 없이 작업합니다.`;
+}
+
 /**
  * 고를 수 있는 문서.
  * 이미 고른 문서는 빼고, 현재 문서는 칩이 붙어 있지 않을 때만 맨 앞에 넣는다.
