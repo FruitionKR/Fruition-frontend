@@ -15,6 +15,7 @@ import { ConsentForm } from "@/features/legal-consent";
 import { LEGAL_PAGES_ENABLED } from "@/shared/config/legal";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
+import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen } from "@/shared/ui/auth/AuthScreen";
@@ -29,6 +30,7 @@ export default function SignupPage() {
   const [consent, setConsent] = useState<ConsentChoices>(signupDraft?.consent ?? EMPTY_CONSENT);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useTypedFormValues({ nickname: setNickname, email: setEmail, password: setPassword });
   const draftError = signupDraft?.email === email.trim().toLowerCase()
     ? signupDraft.verificationRequestError ?? null
     : null;
@@ -104,7 +106,7 @@ export default function SignupPage() {
 
   return (
     <AuthScreen title="회원가입">
-      <form className="auth-form" method="post" onSubmit={handleVerificationRequest}>
+      <form className="auth-form" method="post" onSubmit={handleVerificationRequest} ref={formRef}>
         <div className="auth-field-with-error">
           <div className="auth-field-stack">
             <AuthField label="닉네임" name="nickname" onChange={(event) => setNickname(event.target.value)} placeholder="name" value={nickname} />

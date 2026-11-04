@@ -21,6 +21,7 @@ import {
   type OAuthLinkCallback,
   type OAuthLinkResult
 } from "@/entities/user";
+import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/auth/AuthControls";
@@ -90,15 +91,7 @@ function LoginPageContent() {
   // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
   const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken && !signupToken && !isAccountDeleted });
 
-  // 스크립트가 붙기 전에 입력·자동 완성한 값은 화면에만 있다. 상태로 옮겨 입력을 다시 받지 않고 그대로 제출되게 한다.
-  const formRef = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    const form = formRef.current;
-    if (!form) return;
-    const typed = new FormData(form);
-    setEmail((current) => current || String(typed.get("email") ?? ""));
-    setPassword((current) => current || String(typed.get("password") ?? ""));
-  }, []);
+  const formRef = useTypedFormValues({ email: setEmail, password: setPassword });
 
   useEffect(() => {
     if (isAlreadySignedIn) router.replace(takeAfterLoginPath());
