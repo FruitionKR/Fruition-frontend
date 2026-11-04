@@ -77,7 +77,7 @@ import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
 import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
-import { canShowAgentPanel } from "../lib/agentPanelVisibility";
+import { canShowAgentPanel, noticeStackPlacement } from "../lib/agentPanelVisibility";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -197,6 +197,7 @@ export function HomeWorkspace() {
     previousGraphView.current = isGraphView;
   }, [isGraphView]);
   const isSettingsView = activeView === "settings";
+  const noticePlacement = noticeStackPlacement(activeView);
   // 작업 탭 "이 요청을 스킬로 저장"(Figma 1671:13245): 스킬 화면이 받아 새 스킬 탭을 열면 비운다.
   const [skillCreateRequest, setSkillCreateRequest] = useState<{ id: number; text: string } | null>(null);
   const clearSkillCreateRequest = useCallback((id: number) => {
@@ -778,13 +779,13 @@ export function HomeWorkspace() {
         />
       )}
 
-      {/* 홈·그래프의 문서 처리와 설정의 휴지통 복구 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
-      {(isHomeView || isGraphView || activeView === "settings") && (
+      {/* 홈·그래프의 문서 처리, 설정의 휴지통 복구, 로그의 롤백 결과 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
+      {noticePlacement && (
         <DocumentProcessingNotifications
           documents={documents}
-          isViewportCorner={activeView === "settings"}
+          isViewportCorner={noticePlacement === "corner"}
           isAboveLauncher={!isAgentPanelShown}
-          isOverlayOpen={activeView !== "settings" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
+          isOverlayOpen={noticePlacement === "panel" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
           onIngestStarted={() => void refreshBackendData().catch(() => {})}
           isDocumentsLoaded={documentsUpdatedAt !== 0}
         />

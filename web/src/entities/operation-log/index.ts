@@ -16,6 +16,7 @@ export {
   pickSelectedOperationId
 } from "./model/operationLogPage";
 export { documentRestoreMessage } from "./model/restoreMessage";
+export { restoreFailureMessage, restoreTargetDocumentId, shouldCheckRestoreDocument, type RestoreDocumentLocation } from "./model/restoreFailure";
 export { formatOperationLogTitle, OPERATION_TYPE_LABELS } from "./model/operationType";
 export type {
   OperationChange,
