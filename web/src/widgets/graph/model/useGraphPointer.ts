@@ -31,6 +31,7 @@ export function useGraphPointer({
   setDraggingNodeId,
   onOpenNodePreview,
   onClearNodeFocus,
+  onNodeGrab,
   setHoveredNode,
   setSelectedNode,
   stopDragging
@@ -51,6 +52,8 @@ export function useGraphPointer({
   setDraggingNodeId: Dispatch<SetStateAction<string | null>>;
   onOpenNodePreview: (node: GraphNode) => void;
   onClearNodeFocus?: () => void;
+  /** 노드를 눌렀을 때. 등장 연출 중이면 남은 노드를 바로 보여 준다. */
+  onNodeGrab: () => void;
   setHoveredNode: (nodeId: string | null) => void;
   setSelectedNode: (nodeId: string | null) => void;
   stopDragging: (pointerId?: number) => void;
@@ -112,6 +115,7 @@ export function useGraphPointer({
 
     const hitNode = hitTestNode(event.clientX, event.clientY);
     if (hitNode) {
+      onNodeGrab();
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
       isPointerHeldRef.current = true;

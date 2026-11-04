@@ -46,7 +46,8 @@ export function drawGraphFrame({
   nodeSize,
   isRawSourceLink,
   getNodeProgress,
-  getNodeEntry
+  getNodeEntry,
+  getLinkOpacity
 }: {
   canvas: HTMLCanvasElement;
   nodes: GraphNode[];
@@ -61,6 +62,8 @@ export function drawGraphFrame({
   getNodeProgress?: (nodeId: string) => number | undefined;
   /** 첫 렌더 뒤 추가돼 등장 중인 노드의 이번 프레임 모습. null이면 평소대로 그린다. */
   getNodeEntry?: (nodeId: string) => NodeEntryFrame | null;
+  /** 전체 등장 연출 중인 링크의 불투명도 배수(0~1). 없으면 1이다. */
+  getLinkOpacity?: (link: GraphLink) => number;
 }) {
   ensureCanvasSize(canvas);
   const pixelRatio = window.devicePixelRatio || 1;
@@ -90,6 +93,8 @@ export function drawGraphFrame({
 
   for (const link of links) {
     if (!visibleNodeIds.has(link.from) || !visibleNodeIds.has(link.to)) continue;
+    const linkOpacity = getLinkOpacity?.(link) ?? 1;
+    if (linkOpacity <= 0) continue;
     const from = getNodePosition(link.from);
     const to = getNodePosition(link.to);
     const fromScreen = graphToCanvas(from, canvas);
@@ -111,7 +116,7 @@ export function drawGraphFrame({
     const lineEnd = growsTowardFrom ? toScreen : lerpPosition(fromScreen, toScreen, linkGrowth);
 
     context.save();
-    context.globalAlpha = fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount;
+    context.globalAlpha = (fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount) * linkOpacity;
     context.beginPath();
     context.moveTo(lineStart.x, lineStart.y);
     context.lineTo(lineEnd.x, lineEnd.y);
@@ -132,7 +137,7 @@ export function drawGraphFrame({
     context.stroke();
 
     if (linkHoverAmount > 0.01) {
-      context.globalAlpha = 0.98 * linkHoverAmount;
+      context.globalAlpha = 0.98 * linkHoverAmount * linkOpacity;
       context.setLineDash([]);
       context.lineWidth = 2.6;
       context.strokeStyle = palette.hoverNode;

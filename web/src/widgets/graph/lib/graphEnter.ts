@@ -236,11 +236,11 @@ function progress(elapsed: number, delay: number, duration: number) {
   return Math.min(1, Math.max(0, (elapsed - delay) / duration));
 }
 
-function easeOutCubic(value: number) {
+export function easeOutCubic(value: number) {
   return 1 - (1 - value) ** 3;
 }
 
-function easeOutBack(value: number, overshoot: number) {
+export function easeOutBack(value: number, overshoot: number) {
   const shifted = value - 1;
   return 1 + (overshoot + 1) * shifted ** 3 + overshoot * shifted ** 2;
 }

@@ -43,6 +43,7 @@ import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/grap
 import { useGraphAnimation } from "./useGraphAnimation";
 import { useGraphIngestProgress } from "./useGraphIngestProgress";
 import { useGraphPointer } from "./useGraphPointer";
+import { useGraphReveal } from "./useGraphReveal";
 
 const HOVER_SMOOTHING_MS = 320;
 const HOVER_SETTLE_THRESHOLD = 0.002;
@@ -57,7 +58,9 @@ export function useGraphCanvas({
   focusedNodeId,
   onOpenNodePreview,
   onClearNodeFocus,
-  ingestProgressInputs = NO_INGEST_PROGRESS_INPUTS
+  ingestProgressInputs = NO_INGEST_PROGRESS_INPUTS,
+  loading = false,
+  revealRequest = 0
 }: {
   nodes: GraphNode[];
   links: GraphLink[];
@@ -65,6 +68,10 @@ export function useGraphCanvas({
   onOpenNodePreview: (node: GraphNode) => void;
   onClearNodeFocus?: () => void;
   ingestProgressInputs?: readonly GraphIngestProgressInput[];
+  /** 첫 표시 연출을 시작하기 전까지 기다릴 데이터가 남아 있으면 true */
+  loading?: boolean;
+  /** 값이 바뀌면 노드가 하나씩 나타나는 연출을 처음부터 다시 재생한다. */
+  revealRequest?: number;
 }) {
   const graphSignature = useMemo(
     () => {
@@ -141,7 +148,7 @@ export function useGraphCanvas({
   const revealPanRef = useRef<{ from: NodePosition; to: NodePosition; startTime: number } | null>(null);
   /** 사용자가 마지막으로 pan·zoom·노드 드래그한 시각. 최근에 움직였으면 카메라를 대신 옮기지 않는다. */
   const lastUserInteractionRef = useRef(Number.NEGATIVE_INFINITY);
-  const { reduceMotion } = useUserPreferences();
+  const { reduceMotion, preferencesReady } = useUserPreferences();
   const reduceMotionRef = useRef(reduceMotion);
   reduceMotionRef.current = reduceMotion;
 
@@ -150,6 +157,8 @@ export function useGraphCanvas({
   }
 
   function getNodePosition(nodeId: string): NodePosition {
+    const revealPosition = reveal.displayPosition(nodeId);
+    if (revealPosition) return revealPosition;
     const simNode = getSimNode(nodeId);
     if (simNode) return { x: simNode.x, y: simNode.y };
     return initialNodePositions[nodeId] ?? GRAPH_CENTER;
@@ -199,14 +208,20 @@ export function useGraphCanvas({
         velocityDecay: GRAPH_UPDATE_VELOCITY_DECAY
       });
       originPositionsRef.current = originPositions;
-      // 동작 줄이기여도 시작 시각은 남긴다. 그때는 nodeEntryFrame이 고정 강조 링만 잠시 보여 준다.
-      nodeEnterStartsRef.current = { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
-      suppressEntryGlowRef.current = shouldSuppressEntryGlow(
-        Object.keys(nodeEnterStartsRef.current).length,
-        suppressEntryGlowRef.current
-      );
-      addedPositions = addedNodeIds.map((nodeId) => startPositions[nodeId]);
+      if (reveal.isActive()) {
+        // 전체 연출 중에 들어온 노드는 따로 피어나지 않고 그 연출의 남은 순서에 합류한다.
+        reveal.mergeAfterGraphChange();
+      } else {
+        // 동작 줄이기여도 시작 시각은 남긴다. 그때는 nodeEntryFrame이 고정 강조 링만 잠시 보여 준다.
+        nodeEnterStartsRef.current = { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
+        suppressEntryGlowRef.current = shouldSuppressEntryGlow(
+          Object.keys(nodeEnterStartsRef.current).length,
+          suppressEntryGlowRef.current
+        );
+        addedPositions = addedNodeIds.map((nodeId) => startPositions[nodeId]);
+      }
     } else {
+      reveal.cancel();
       const startPositions = Object.fromEntries(
         nodes.map((node) => [node.id, cached?.positions[node.id] ?? initialNodePositions[node.id]])
       );
@@ -226,6 +241,8 @@ export function useGraphCanvas({
     const nextPan = clampPan((isUpdate ? null : cached?.pan) ?? graphPanRef.current, nextZoom);
     applyViewState(nextPan, nextZoom);
     setVisibleNodeCount(nodes.length);
+    // 곧이어 그리는 프레임이 이전 개수로 일부만 그리지 않게 ref도 바로 맞춘다.
+    visibleNodeCountRef.current = nodes.length;
     if (isUpdate) {
       // 데이터 갱신으로 사용자가 고른·올려 둔 노드가 풀리지 않게, 아직 있는 노드면 그대로 둔다.
       const nodeIds = new Set(nodes.map((node) => node.id));
@@ -244,6 +261,26 @@ export function useGraphCanvas({
     requestAnimationRef.current();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphSignature, initialNodePositions]);
+
+  // 위 effect가 새 데이터로 simulation을 만든 뒤에 재생이 시작되도록 그 다음에 호출한다.
+  const reveal = useGraphReveal({
+    nodes,
+    links,
+    graphSignature,
+    loading,
+    preferencesReady,
+    reduceMotion,
+    revealRequest,
+    simulationRef,
+    draggingNodeIdRef,
+    drawGraphRef,
+    requestAnimationRef,
+    onStart: () => {
+      nodeEnterStartsRef.current = {};
+      suppressEntryGlowRef.current = false;
+      revealPanRef.current = null;
+    }
+  });
 
   /**
    * 새 노드가 모두 화면 밖이면 확대는 그대로 두고 그쪽으로 천천히 화면을 옮긴다.
@@ -478,7 +515,7 @@ export function useGraphCanvas({
 
   function hitTestNode(clientX: number, clientY: number): GraphNode | null {
     const canvas = canvasRef.current;
-    if (!canvas) return null;
+    if (!canvas || reveal.isHoldingNodes()) return null;
 
     const rect = canvas.getBoundingClientRect();
     const pointerX = clientX - rect.left;
@@ -486,6 +523,7 @@ export function useGraphCanvas({
 
     for (let index = visibleNodeCountRef.current - 1; index >= 0; index -= 1) {
       const node = nodes[index];
+      if (reveal.isNodeHidden(node.id)) continue;
       const screenPosition = graphToCanvas(getNodePosition(node.id), canvas);
       const radius = nodeSize(node) / 2;
       const distance = Math.hypot(pointerX - screenPosition.x, pointerY - screenPosition.y);
@@ -501,11 +539,13 @@ export function useGraphCanvas({
     const now = performance.now();
     // 등장 중인 노드의 모습은 프레임마다 한 번만 계산한다(링크마다 양 끝을 다시 계산하지 않는다).
     const entryFrames = entryFramesAt(nodeEnterStartsRef.current, now, reduceMotionRef.current, suppressEntryGlowRef.current);
+    const revealFrames = reveal.framesAt(now);
+    const isHolding = reveal.isHoldingNodes();
 
     drawGraphFrame({
       canvas,
-      nodes,
-      links,
+      nodes: isHolding ? [] : nodes,
+      links: isHolding ? [] : links,
       visibleNodeCount: visibleNodeCountRef.current,
       getNodePosition,
       nodeHoverAmounts: nodeHoverAmountsRef.current,
@@ -513,7 +553,8 @@ export function useGraphCanvas({
       nodeSize,
       isRawSourceLink,
       getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId),
-      getNodeEntry: (nodeId) => entryFrames.get(nodeId) ?? null
+      getNodeEntry: (nodeId) => revealFrames?.get(nodeId) ?? entryFrames.get(nodeId) ?? null,
+      getLinkOpacity: revealFrames ? (link) => reveal.linkOpacity(link, now) : undefined
     });
   }
 
@@ -595,7 +636,8 @@ export function useGraphCanvas({
     const hoverChanged = advanceHoverAnimation(deltaMs);
     const entering = advanceNodeEnterAnimation();
     const panning = advanceRevealPan();
-    return hoverChanged || entering || panning;
+    const revealing = reveal.advance();
+    return hoverChanged || entering || panning || revealing;
   };
 
   /** pan 제한 기준: 현재 노드들의 실제 분포(bbox). 고정 GRAPH_WIDTH 상자가 아니다. */
@@ -628,6 +670,7 @@ export function useGraphCanvas({
   }
 
   function tickGraph(): boolean {
+    if (reveal.tick()) return true;
     const graphSimulation = simulationRef.current;
     if (!graphSimulation) return false;
     return tickGraphSimulation(graphSimulation, draggingNodeIdRef.current !== null);
@@ -665,6 +708,7 @@ export function useGraphCanvas({
     setDraggingNodeId,
     onOpenNodePreview,
     onClearNodeFocus,
+    onNodeGrab: () => reveal.finish({ keepDisplayed: true }),
     setHoveredNode,
     setSelectedNode,
     stopDragging
