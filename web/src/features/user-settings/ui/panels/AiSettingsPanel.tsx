@@ -24,7 +24,7 @@ export function AiSettingsPanel() {
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>웹 검색 기본으로 켜기</strong>
-            <small>채팅에서 질문할 때 웹 검색을 함께 씁니다. 채팅 모델 메뉴의 웹 서칭과 같은 설정입니다.</small>
+            <small>채팅에서 질문할 때 웹 검색을 함께 씁니다.</small>
           </div>
           <Switch
             checked={preferences.webSearch}
