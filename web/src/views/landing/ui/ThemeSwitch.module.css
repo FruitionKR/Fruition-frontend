@@ -44,6 +44,13 @@
   outline-offset: 1px;
 }
 
+@media (max-width: 1023px), (pointer: coarse) {
+  .option {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

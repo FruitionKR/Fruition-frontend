@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useId, useSyncExternalStore } from "react";
 import {
   applyThemePreference,
   parseThemePreference,
@@ -21,6 +21,15 @@ function readStoredPreference(): ThemePreference {
   } catch {
     return "system";
   }
+}
+
+const preferenceListeners = new Set<() => void>();
+
+function subscribeToPreference(listener: () => void) {
+  preferenceListeners.add(listener);
+  return () => {
+    preferenceListeners.delete(listener);
+  };
 }
 
 function ThemeIcon({ value }: { value: ThemePreference }) {
@@ -58,16 +67,14 @@ function ThemeIcon({ value }: { value: ThemePreference }) {
  * 네이티브 라디오 버튼이라 화살표 키로 고르고 Tab으로 빠져나간다.
  */
 export function ThemeSwitch() {
-  const [preference, setPreference] = useState<ThemePreference>("system");
-
   // 서버에서는 저장 값을 모르므로 시스템으로 그린 뒤, 브라우저에서 저장 값으로 맞춘다(테마 자체는 첫 화면 스크립트가 이미 적용).
-  useEffect(() => {
-    setPreference(readStoredPreference());
-  }, []);
+  // 헤더와 휴대폰 메뉴에 하나씩 있으므로 저장 값을 함께 구독해 둘이 어긋나지 않게 한다.
+  const preference = useSyncExternalStore(subscribeToPreference, readStoredPreference, () => "system" as const);
+  const groupName = useId();
 
   const select = (value: ThemePreference) => {
-    setPreference(value);
     applyThemePreference(value);
+    preferenceListeners.forEach((listener) => listener());
   };
 
   return (
@@ -77,7 +84,7 @@ export function ThemeSwitch() {
         <label key={option.value} className={styles["option"]} title={option.label}>
           <input
             type="radio"
-            name="landing-theme"
+            name={groupName}
             value={option.value}
             checked={preference === option.value}
             onChange={() => select(option.value)}

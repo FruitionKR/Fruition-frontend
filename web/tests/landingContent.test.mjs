@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const { LANDING_CHAPTERS, LANDING_FAQ, LANDING_NAV, landingNavLabel } = await import("../src/views/landing/model/landingContent.ts");
+const { LANDING_CHAPTERS, LANDING_DEMO_SLOTS, LANDING_FAQ, LANDING_NAV, landingNavLabel } = await import("../src/views/landing/model/landingContent.ts");
 
 const UI_DIR = new URL("../src/views/landing/ui/", import.meta.url);
 const read = (name) => readFileSync(new URL(name, UI_DIR), "utf8");
@@ -48,6 +48,41 @@ test("메뉴가 가리키는 섹션의 제목은 메뉴 이름과 같다", () =>
   assert.match(ui, /<h2 id=\{headingId\}[^>]*>\s*\{landingNavLabel\(`#\$\{chapter\.id\}`\)\}\s*<\/h2>/);
   // 기존 긴 제목은 제목 아래 한 줄 설명으로 남는다.
   assert.match(ui, /<p className=\{sections\["chapter-note"\]\}>\{chapter\.headline\}<\/p>/);
+});
+
+test("시연 자리는 올리기 → 편입·질의 → AI 편집·스킬 순서이고 제목과 설명이 있다", () => {
+  assert.deepEqual(
+    LANDING_DEMO_SLOTS.map((slot) => [slot.index, slot.id]),
+    [
+      ["01", "upload"],
+      ["02", "connect-ask"],
+      ["03", "edit-skill"]
+    ]
+  );
+  for (const slot of LANDING_DEMO_SLOTS) {
+    assert.ok(slot.title.length > 0, `${slot.id} 제목`);
+    assert.ok(slot.body.length > 0, `${slot.id} 설명`);
+  }
+});
+
+test("시연 자리는 3:2로 고정하고, 영상이 오기 전까지 재생 UI 없는 임시 화면만 그린다", () => {
+  const sectionsCss = read("LandingSections.module.css");
+  assert.match(sectionsCss, /\.demo-screen\s*\{[^}]*aspect-ratio:\s*3 \/ 2;/s);
+  const fragmentsCss = read("preview/Fragments.module.css");
+  assert.match(fragmentsCss, /\.demo-frame\s*\{\s*--preview-w:\s*780;\s*--preview-h:\s*520;/);
+  assert.match(fragmentsCss, /\.demo-frame\s*\{\s*--preview-w:\s*480;\s*--preview-h:\s*320;/);
+  // 영상을 넣을 때 이 검사도 함께 바꾼다. 경로만 넣고 그리는 코드가 없으면 조용히 무시되므로 막아 둔다.
+  assert.ok(LANDING_DEMO_SLOTS.every((slot) => slot.videoSrc === null));
+  const ui = listFiles(".tsx").map(read).join("\n");
+  assert.doesNotMatch(ui, /<video|재생/);
+});
+
+test("좁은 화면 메뉴는 헤더 메뉴와 같은 항목을 쓰고 Escape로 닫힌다", () => {
+  const menu = read("LandingMobileMenu.tsx");
+  assert.match(menu, /LANDING_NAV\.map/);
+  assert.match(menu, /aria-expanded=\{isOpen\}/);
+  assert.match(menu, /event\.key !== "Escape"/);
+  assert.match(read("LandingPage.tsx"), /<LandingMobileMenu \/>/);
 });
 
 test("화면 조각은 01·03이 왼쪽, 02·04가 오른쪽이다", () => {

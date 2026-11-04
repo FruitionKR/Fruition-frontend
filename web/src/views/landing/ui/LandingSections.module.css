@@ -291,6 +291,107 @@
   }
 }
 
+/* ───── 시연 흐름: 왼쪽 번호 줄기를 따라 세 자리가 이어진다. 화면은 3:2로 고정해 영상으로 바꿔도 밀리지 않는다 ───── */
+.demo-inner {
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: var(--lp-section-pad) var(--lp-gutter);
+}
+
+.demo-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 56px;
+}
+
+.demo-note {
+  margin: 0;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-small);
+}
+
+.demo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-slot {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 48px;
+  padding-bottom: 72px;
+}
+
+.demo-slot:last-child {
+  padding-bottom: 0;
+}
+
+.demo-slot:not(:last-child)::before {
+  position: absolute;
+  top: 56px;
+  bottom: 8px;
+  left: 23px;
+  width: 1px;
+  content: "";
+  background: var(--lp-line);
+}
+
+/* 번호는 왼쪽 줄기 위에 놓고, 글은 줄기 오른쪽에 둔다. */
+.demo-copy {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
+  padding: 4px 0 0 68px;
+}
+
+.demo-number {
+  display: inline-grid;
+  place-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 48px;
+  color: var(--lp-accent-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--lp-accent-weak);
+  border-radius: 50%;
+}
+
+.demo-copy .card-english {
+  margin: 0;
+}
+
+.demo-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.demo-body {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.demo-screen {
+  min-width: 0;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: var(--lp-shadow-window);
+}
+
 /* ───── 문서 보호: 보관·접근·AI 처리·삭제 네 묶음 ───── */
 .data-handling {
   display: flex;
@@ -468,6 +569,26 @@
   .data-handling-group {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+  }
+
+  .demo-slot {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding-bottom: 56px;
+  }
+
+  .demo-slot:not(:last-child)::before {
+    display: none;
+  }
+
+  /* 한 칸으로 쌓이면 줄기가 없으므로 번호를 글 위로 올린다. */
+  .demo-copy {
+    padding: 0;
+  }
+
+  .demo-number {
+    position: static;
+    margin-bottom: 8px;
   }
 }
 

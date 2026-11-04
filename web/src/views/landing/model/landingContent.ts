@@ -104,6 +104,44 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
   }
 ];
 
+export interface LandingDemoSlot {
+  readonly id: "upload" | "connect-ask" | "edit-skill";
+  readonly index: string;
+  readonly english: string;
+  readonly title: string;
+  readonly body: string;
+  /** 시연 영상 경로(web/public 기준). 영상이 오기 전까지 null이고, 그동안 코드로 그린 예시 화면을 보여 준다. */
+  readonly videoSrc: string | null;
+}
+
+/** 시연 흐름: 올리기 → 편입·질의 → AI 편집·스킬. 자리마다 시연 영상이 하나씩 들어간다. */
+export const LANDING_DEMO_SLOTS: readonly LandingDemoSlot[] = [
+  {
+    id: "upload",
+    index: "01",
+    english: "UPLOAD",
+    title: "올리기",
+    body: "PDF를 올리면 고칠 수 있는 Markdown 문서로 바꿉니다. 표까지 옮겨 오므로 바로 이어서 쓸 수 있습니다.",
+    videoSrc: null
+  },
+  {
+    id: "connect-ask",
+    index: "02",
+    english: "INGEST & ASK",
+    title: "편입하고 묻기",
+    body: "문서를 위키에 편입하면 그래프로 연결됩니다. 질문하면 위키에서 찾은 자료를 근거로 답합니다.",
+    videoSrc: null
+  },
+  {
+    id: "edit-skill",
+    index: "03",
+    english: "EDIT & SKILL",
+    title: "AI로 고치고 스킬로 저장하기",
+    body: "고칠 내용을 요청하면 AI가 본문에 제안을 표시하고, 수락한 제안만 반영합니다. 자주 하는 요청은 스킬로 저장해 다시 씁니다.",
+    videoSrc: null
+  }
+];
+
 export interface LandingFaq {
   readonly question: string;
   readonly answer: string;

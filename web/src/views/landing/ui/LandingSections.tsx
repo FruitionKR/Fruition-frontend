@@ -3,8 +3,16 @@ import type { ReactElement } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DATA_HANDLING_GROUPS } from "../model/dataHandlingContent";
-import { LANDING_CHAPTERS, LANDING_FAQ, landingNavLabel, type LandingChapter } from "../model/landingContent";
+import {
+  LANDING_CHAPTERS,
+  LANDING_DEMO_SLOTS,
+  LANDING_FAQ,
+  landingNavLabel,
+  type LandingChapter,
+  type LandingDemoSlot
+} from "../model/landingContent";
 import { CHAPTER_ICONS, CHIP_ICONS } from "./LandingIcons";
+import { ConnectAskDemoScreen, EditSkillDemoScreen, UploadDemoScreen } from "./preview/DemoScreens";
 import { CaptureVisual, ConnectVisual, DiscoverVisual, TogetherVisual } from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
@@ -92,6 +100,51 @@ export function LandingChapters() {
         <ChapterSection key={chapter.id} chapter={chapter} />
       ))}
     </div>
+  );
+}
+
+const DEMO_SCREENS: Record<LandingDemoSlot["id"], () => ReactElement> = {
+  upload: UploadDemoScreen,
+  "connect-ask": ConnectAskDemoScreen,
+  "edit-skill": EditSkillDemoScreen
+};
+
+/** 시연 흐름의 한 자리. demo-screen이 3:2 비율을 고정하므로 안의 임시 화면을 영상으로 바꿔도 레이아웃이 밀리지 않는다. */
+function DemoSlot({ slot }: { slot: LandingDemoSlot }) {
+  const Screen = DEMO_SCREENS[slot.id];
+  return (
+    <li className={sections["demo-slot"]}>
+      <div className={sections["demo-copy"]}>
+        <span className={sections["demo-number"]}>{slot.index}</span>
+        <p className={sections["card-english"]}>{slot.english}</p>
+        <h3 className={sections["demo-title"]}>{slot.title}</h3>
+        <p className={sections["demo-body"]}>{slot.body}</p>
+      </div>
+      <div className={sections["demo-screen"]}>
+        <Screen />
+      </div>
+    </li>
+  );
+}
+
+/** 올리기 → 편입·질의 → AI 편집·스킬 흐름. 시연 영상이 들어갈 자리이고, 지금은 예시 화면을 보여 준다. */
+export function LandingDemo() {
+  return (
+    <section id="demo" className={cx(sections["demo"], styles["hero-backdrop"])} aria-labelledby="demo-title">
+      <div className={sections["demo-inner"]}>
+        <div className={sections["demo-head"]}>
+          <h2 id="demo-title" className={styles["h2"]}>
+            기록이 지식이 되는 과정
+          </h2>
+          <p className={sections["demo-note"]}>화면은 예시입니다. 시연 영상은 준비 중입니다.</p>
+        </div>
+        <ol className={sections["demo-list"]}>
+          {LANDING_DEMO_SLOTS.map((slot) => (
+            <DemoSlot key={slot.id} slot={slot} />
+          ))}
+        </ol>
+      </div>
+    </section>
   );
 }
 

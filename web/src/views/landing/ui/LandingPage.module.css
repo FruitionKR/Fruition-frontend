@@ -237,6 +237,65 @@
   border-color: var(--lp-muted);
 }
 
+/* 좁은 화면 전용 메뉴(반응형 절에서 보인다). 패널은 고정 헤더 바로 아래에 펼친다. */
+.mobile-menu {
+  display: none;
+}
+
+.menu-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--lp-ink);
+  cursor: pointer;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+}
+
+.menu-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  padding: 8px var(--lp-gutter) 16px;
+  background: var(--lp-bg);
+  border-bottom: 1px solid var(--lp-line);
+  box-shadow: var(--lp-shadow-float);
+}
+
+.menu-panel[hidden] {
+  display: none;
+}
+
+.menu-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu-panel li a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--lp-ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.menu-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  color: var(--lp-body);
+  font-size: var(--lp-text-small);
+}
+
 /* ───── 글자 단계 ───── */
 .h1,
 .h2 {
@@ -524,19 +583,41 @@
   }
 }
 
-@media (max-width: 760px) {
+/* 터치 화면: 누르는 대상을 44px 이상으로 키운다. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .brand,
+  .header-nav a,
+  .login-link,
+  .landing-bottom :global(.legal-footer-links a) {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 좁은 화면: 메뉴와 테마 선택은 메뉴 버튼 안으로 옮긴다. */
+@media (max-width: 900px) {
   .header-inner {
     grid-template-columns: 1fr auto;
   }
 
-  .header-nav {
+  .header-nav,
+  .header-actions > fieldset {
     display: none;
+  }
+
+  .header-actions {
+    gap: 8px;
+  }
+
+  .mobile-menu {
+    display: block;
   }
 }
 
-/* 320px대에서는 로고 글리프만 남겨 테마 선택과 로그인 버튼이 한 줄에 들어가게 한다. */
-@media (max-width: 359px) {
-  .brand-word {
-    display: none;
+@media (max-width: 559px) {
+  .landing-page {
+    --lp-gutter: 16px;
   }
 }

@@ -4,7 +4,8 @@ import { LegalFooter } from "@/shared/ui/LegalFooter";
 import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_NAV } from "../model/landingContent";
 import { LandingRedirect } from "./LandingRedirect";
-import { ChapterCards, LandingChapters, LandingDataHandling, LandingFaq, LandingStart } from "./LandingSections";
+import { LandingMobileMenu } from "./LandingMobileMenu";
+import { ChapterCards, LandingChapters, LandingDataHandling, LandingDemo, LandingFaq, LandingStart } from "./LandingSections";
 import { HeroPreview } from "./preview/FeatureFragments";
 import { ThemeSwitch } from "./ThemeSwitch";
 import styles from "./LandingPage.module.css";
@@ -42,6 +43,7 @@ function LandingHeader() {
           <Link className={styles["login-link"]} href="/login">
             로그인
           </Link>
+          <LandingMobileMenu />
         </div>
       </div>
     </header>
@@ -93,6 +95,7 @@ export default function LandingPage() {
       <main>
         <LandingHero />
         <ChapterCards />
+        <LandingDemo />
         <LandingChapters />
         <LandingDataHandling />
         <LandingFaq />
