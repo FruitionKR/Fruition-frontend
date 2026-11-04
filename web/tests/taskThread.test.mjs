@@ -15,6 +15,7 @@ const {
   describeTaskRequest,
   groupTaskEntries,
   isAnswerTask,
+  withReadOnlyDocumentClarification,
   isServerAppliableTask,
   isTaskMessage,
   parseSkillSlashQuery,
@@ -394,4 +395,20 @@ test("같은 폴더의 새 계획에 대체된 승인 대기·거절 계획은 �
   assert.equal(resolveTaskStatus({ ...base, runStatus: "executing" }).label, "실행 중");
   assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "rejected" }).label, "거절됨");
   assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "awaiting_approval" }).group, "approval");
+});
+
+test("보기 권한 문서를 연 채 AI가 문서를 열라고 되물으면 보기 권한 안내로 바꾼다", () => {
+  const openDocumentQuestion = { key: "a", action: "clarify", answer: "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요." };
+  const otherQuestion = { key: "b", action: "clarify", answer: "어떤 기준으로 정리할까요?" };
+  const answered = { key: "c", action: "folder_lookup", answer: "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요." };
+  const result = withReadOnlyDocumentClarification([openDocumentQuestion, otherQuestion, answered], true);
+  assert.match(result[0].answer, /^이 문서는 보기 권한만 있어 수정할 수 없어요\./);
+  assert.equal(result[1], otherQuestion);
+  assert.equal(result[2], answered);
+  assert.equal(openDocumentQuestion.answer, "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.");
+});
+
+test("열린 문서가 보기 권한이 아니면 AI 되묻기를 그대로 둔다", () => {
+  const items = [{ key: "a", action: "clarify", answer: "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요." }];
+  assert.equal(withReadOnlyDocumentClarification(items, false), items);
 });

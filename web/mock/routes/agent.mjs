@@ -249,7 +249,7 @@ function taskResult(workspace, turn, request) {
   if (ORGANIZE_PATTERN.test(message)) return organizeResult(workspace, turn, message);
   if (CREATE_PATTERN.test(message)) return createResult(message);
   if (EDIT_PATTERN.test(message)) {
-    return hasDocument ? buildEditResult(request) : clarify("어느 문서를 고칠까요? 고칠 문서를 열고 다시 요청해 주세요.");
+    return hasDocument ? buildEditResult(request) : clarify("수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.");
   }
   return clarify("작업 탭은 문서 편집·폴더 정리·스킬 실행을 맡아요. 위키 내용 질문은 채팅 탭에서 해 주세요.");
 }

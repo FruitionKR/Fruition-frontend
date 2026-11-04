@@ -35,7 +35,7 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
+import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
@@ -89,6 +89,7 @@ export function AgentPanel({
   onReplaceFolderOrganize,
   skillTestRunSlotRef,
   openDocumentTitle = null,
+  isOpenDocumentReadOnly = false,
   onEditReviewChange,
   isShown = true
 }: {
@@ -96,6 +97,8 @@ export function AgentPanel({
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
   markdownEditContext?: ActiveMarkdownEditContext | null;
+  /** 지금 열린 문서가 보기 권한이다. 편집 문맥이 없어 AI가 "문서를 열라"고 되물어도 이유를 알려 주는 문장으로 보인다. */
+  isOpenDocumentReadOnly?: boolean;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   /** 채팅 편입으로 저장한 문서의 위키 편입을 시작한다. 편입 권한이 없거나 확인 중이면 없어 알림에 버튼을 두지 않는다. */
   onIngestExportedDocument?: (documentId: string) => void;
@@ -270,6 +273,7 @@ export function AgentPanel({
       : taskRunIds;
     return splitChatAndTaskMessages(workThread.messages, runIds);
   }, [isSeparateWorkSession, workThread.messages, taskRunIds]);
+  const displayedTaskItems = useMemo(() => withReadOnlyDocumentClarification(taskItems, isOpenDocumentReadOnly), [isOpenDocumentReadOnly, taskItems]);
   // 취소한 작업(서버가 cancelled로 닫은 말풍선·취소를 받아들인 pending 말풍선)은 turn 조회로 되돌리기가 끝났는지 따라간다.
   // 서버는 말풍선을 취소 요청 즉시 닫으므로, 되돌리는 중이면 "취소하는 중…", 끝나면 "취소됨"·복구 실패로 보인다.
   const cancelledTaskTurnIds = useMemo(() => taskItems.flatMap((item) => (
@@ -748,7 +752,7 @@ export function AgentPanel({
         {isWorkView ? (
           // 작업 탭(Figma 1610:9512): 문서 편집·폴더 정리·스킬 실행 요청과 결과를 상태별로 묶어 보여 준다.
           <AgentTaskBody
-            items={taskItems}
+            items={displayedTaskItems}
             pendingTask={isAgentTurnLoading && agentTurnRequest ? {
               request: agentTurnRequest.message,
               stages: agentTurn.agentStages,

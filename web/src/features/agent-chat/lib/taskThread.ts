@@ -1,4 +1,5 @@
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
+import { READ_ONLY_DOCUMENT_HINT } from "@/entities/document/lib/documentAccess";
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
 import { SUPERSEDED_PLAN_LABEL } from "@/features/agent-chat/lib/folderPlanSupersede";
@@ -123,6 +124,23 @@ export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "re
   const match = SLASH_COMMAND_PATTERN.exec(item.request);
   if (!match) return null;
   return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
+}
+
+/** AI가 편집 문맥 없는 수정 요청에 되묻는 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE). */
+const OPEN_DOCUMENT_CLARIFICATION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+const READ_ONLY_DOCUMENT_CLARIFICATION = `이 문서는 보기 권한만 있어 수정할 수 없어요. ${READ_ONLY_DOCUMENT_HINT}`;
+
+/**
+ * 보기 권한 문서는 편집기를 열지 않아 편집 문맥 없이 요청이 나가고, AI는 문서를 열라고 되묻는다. 문서를 연 사용자에게 맞지 않으니
+ * 그 문서가 열려 있는 동안 이유를 알려 주는 문장으로 바꾼다. AI가 이유 코드를 주지 않아 문장으로 맞추고, 문장이 바뀌면 원문을 그대로 보인다.
+ */
+export function withReadOnlyDocumentClarification<T extends Pick<TaskMessageItem, "action" | "answer">>(items: T[], isOpenDocumentReadOnly: boolean): T[] {
+  if (!isOpenDocumentReadOnly) return items;
+  return items.map((item) => (
+    item.action === "clarify" && item.answer.trim().normalize("NFC") === OPEN_DOCUMENT_CLARIFICATION
+      ? { ...item, answer: READ_ONLY_DOCUMENT_CLARIFICATION }
+      : item
+  ));
 }
 
 /** 입력이 `/slug` 또는 `/slug 요청`으로 시작하면 그 slug, 아니면 null. */

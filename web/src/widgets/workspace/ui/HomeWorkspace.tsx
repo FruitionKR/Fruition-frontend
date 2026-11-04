@@ -645,6 +645,7 @@ export function HomeWorkspace() {
           onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
+          isOpenDocumentReadOnly={isSelectedDocumentReadOnly}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
           onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}
