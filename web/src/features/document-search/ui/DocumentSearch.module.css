@@ -82,3 +82,10 @@
   color: var(--color-body);
   font-size: 11px;
 }
+
+/* 터치 기기: 결과 행을 44px까지 키운다. */
+@media (pointer: coarse) {
+  .search-result {
+    min-height: 44px;
+  }
+}

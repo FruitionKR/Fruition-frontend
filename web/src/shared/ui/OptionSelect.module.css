@@ -177,3 +177,11 @@
 .is-md .trigger:disabled {
   color: var(--color-muted);
 }
+
+/* 터치 기기: 닫힌 상자와 목록 행을 44px까지 키운다. */
+@media (pointer: coarse) {
+  .trigger,
+  .option {
+    min-height: 44px;
+  }
+}

@@ -1,7 +1,7 @@
 // document-svc(8080) 폴더 라우트: 문서 트리, 폴더 생성·이름 변경·삭제·이동, 문서 이동.
 // 실제 백엔드처럼 base_version 낙관적 잠금을 검사하고 변경마다 current_version을 올린다.
 import { randomUUID } from "node:crypto";
-import { state, now, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, memberRole } from "../state.mjs";
+import { state, now, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, requireFolderWrite, memberRole } from "../state.mjs";
 import { rememberIdempotent, replayIdempotent, useImportSession } from "./imports.mjs";
 
 function liveFolders(workspaceId) {
@@ -85,6 +85,7 @@ export function registerFolderRoutes(router) {
     const { name, parent_folder_id: parentId = null } = await ctx.body();
     if (typeof name !== "string" || !name.trim()) return error(ctx, 400, "폴더 이름을 입력해주세요.");
     if (!requireParent(ctx, workspace, parentId)) return;
+    if (!requireFolderWrite(ctx, workspace.id, parentId)) return;
     // Notion 가져오기 헤더가 있으면 세션을 확인한다. 폴더는 item 수에 넣지 않는다.
     if (useImportSession(ctx, workspace, 0) === false) return;
     const folder = { id: randomUUID(), workspace_id: workspace.id, name: name.trim(), parent_folder_id: parentId, sort_order: nextSortOrder(workspace.id, parentId), current_version: 1, created_at: now() };
@@ -125,6 +126,7 @@ export function registerFolderRoutes(router) {
     const { parent_folder_id: parentId = null, position, base_version } = await ctx.body();
     if (base_version !== folder.current_version) return error(ctx, 409, "폴더가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     if (!requireParent(ctx, workspace, parentId)) return;
+    if (!requireFolderWrite(ctx, workspace.id, folder.id) || !requireFolderWrite(ctx, workspace.id, folder.parent_folder_id) || !requireFolderWrite(ctx, workspace.id, parentId)) return;
     if (parentId !== null && (parentId === folder.id || isDescendant(workspace.id, parentId, folder.id))) return error(ctx, 400, "폴더를 자기 자신이나 하위 폴더로 옮길 수 없습니다.");
     folder.parent_folder_id = parentId;
     folder.sort_order = typeof position === "number" ? position : nextSortOrder(workspace.id, parentId);
@@ -141,6 +143,7 @@ export function registerFolderRoutes(router) {
     const { folder_id: folderId = null, position, base_version } = await ctx.body();
     if (base_version !== doc.current_version) return error(ctx, 409, "문서가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     if (!requireParent(ctx, workspace, folderId)) return;
+    if (!requireFolderWrite(ctx, workspace.id, doc.folder_id ?? null) || !requireFolderWrite(ctx, workspace.id, folderId)) return;
     doc.folder_id = folderId;
     doc.sort_order = typeof position === "number" ? position : nextSortOrder(workspace.id, folderId);
     doc.current_version += 1;

@@ -1,6 +1,7 @@
 import type { GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
 import { getGraphPalette, hexToRgb, mixHexColor, type GraphPalette } from "./graphColors";
 import type { NodeEntryFrame } from "./graphEnter";
+import { isSmallGraphViewport, pickVisibleLabels } from "./graphLabelVisibility";
 import rawNodeIcon from "@/shared/assets/svg/graph/raw-document-node.svg";
 
 const RAW_NODE_ICON_SRC = rawNodeIcon.src;
@@ -153,6 +154,13 @@ export function drawGraphFrame({
 
   // 새 노드 광채 그라데이션은 반지름별로 원점 기준 하나만 만들어 이번 프레임 안에서 다시 쓴다.
   const glowGradients = new Map<number, CanvasGradient>();
+  // 작은 화면에서는 고정 크기 라벨이 서로 겹치므로 겹치지 않는 것만 그린다. 누른 노드의 라벨은 항상 먼저 놓는다.
+  const visibleLabelIds = isSmallGraphViewport({ width: cssWidth, height: cssHeight })
+    ? pickVisibleLabels(nodes.slice(0, drawableNodeCount).filter((node) => (getNodeEntry?.(node.id)?.opacity ?? 1) > 0).map((node) => {
+      const { x, y } = graphToCanvas(getNodePosition(node.id), canvas);
+      return measureNodeLabel(context, node, x, y, nodeHoverAmounts[node.id] ?? 0);
+    }))
+    : null;
   for (let index = 0; index < drawableNodeCount; index += 1) {
     const node = nodes[index];
     const position = getNodePosition(node.id);
@@ -224,7 +232,7 @@ export function drawGraphFrame({
 
     // 새 노드의 라벨은 노드가 핀 뒤에 따라 나타난다.
     context.globalAlpha = focusAlpha * (entry?.label ?? 1);
-    drawNodeLabel(context, palette, node, screenPosition.x, screenPosition.y);
+    if (!visibleLabelIds || visibleLabelIds.has(node.id)) drawNodeLabel(context, palette, node, screenPosition.x, screenPosition.y);
     context.restore();
   }
 }
@@ -329,13 +337,28 @@ function computeLinkedHoverAmounts({
 // 라벨 서체 (Figma: Pretendard Medium — source 14px, concept 12px, raw 10px)
 const LABEL_FONT_FAMILY = "\"Fruition Chat Pretendard\", Pretendard, Inter, sans-serif";
 
+function labelStyle(node: GraphNode) {
+  if (node.kind === "source") return { offset: 24, size: 14, priority: 2 };
+  if (node.kind === "raw") return { offset: 15, size: 10, priority: 0 };
+  return { offset: 20, size: 12, priority: 1 };
+}
+
+function labelFont(size: number) {
+  return `500 ${size}px ${LABEL_FONT_FAMILY}`;
+}
+
+function measureNodeLabel(context: CanvasRenderingContext2D, node: GraphNode, x: number, y: number, hoverAmount: number) {
+  const { offset, size, priority } = labelStyle(node);
+  context.font = labelFont(size);
+  const halfWidth = context.measureText(node.label).width / 2;
+  const labelY = y + offset;
+  return { id: node.id, left: x - halfWidth, right: x + halfWidth, top: labelY - size / 2, bottom: labelY + size / 2, priority: priority + (hoverAmount > 0 ? 3 : 0) };
+}
+
 function drawNodeLabel(context: CanvasRenderingContext2D, palette: GraphPalette, node: GraphNode, x: number, y: number) {
-  const labelY = node.kind === "source" ? y + 24 : node.kind === "raw" ? y + 15 : y + 20;
-  context.font = node.kind === "source"
-    ? `500 14px ${LABEL_FONT_FAMILY}`
-    : node.kind === "raw"
-      ? `500 10px ${LABEL_FONT_FAMILY}`
-      : `500 12px ${LABEL_FONT_FAMILY}`;
+  const { offset, size } = labelStyle(node);
+  const labelY = y + offset;
+  context.font = labelFont(size);
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillStyle = node.kind === "source"

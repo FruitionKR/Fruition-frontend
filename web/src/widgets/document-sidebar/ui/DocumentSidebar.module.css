@@ -733,6 +733,27 @@
   outline: 1px solid var(--sidebar-accent-line);
 }
 
+/* 권한이 없어 놓을 수 없는 대상. 끌어다 놓는 동안 이유를 행 아래에 보여 준다. */
+.tree-row.is-drop-denied {
+  outline: 1px dashed var(--color-danger);
+  outline-offset: -1px;
+}
+
+.tree-drop-denied {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--color-danger);
+  background: var(--color-canvas);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 16%);
+  font-size: 12px;
+  pointer-events: none;
+}
+
 /* 폴더 행 + 자식 행 묶음. 폴더 안으로 넣는 드롭이면 블록 전체를 한 상자로 강조한다 */
 .tree-group {
   position: relative;
@@ -1039,6 +1060,16 @@
 
 .folder-context-menu button.danger {
   color: var(--color-danger);
+}
+
+/* 폴더 권한이 없어 막힌 항목이 있을 때 메뉴 맨 위에 보이는 이유. 터치에는 툴팁이 없어 글자로 둔다. */
+.menu-blocked-reason {
+  max-width: 220px;
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 /* 메뉴 구역 구분선(role="separator"). 생성 · 열기 · 편집 · 삭제 묶음을 나눈다. */
@@ -1489,6 +1520,11 @@
   font-size: 14px;
   font-weight: 500;
   text-align: left;
+}
+
+.move-destinations button:disabled {
+  color: var(--color-subtle);
+  cursor: default;
 }
 
 .move-cancel {

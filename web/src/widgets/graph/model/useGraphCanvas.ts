@@ -5,6 +5,7 @@ import type { ZoomBehavior } from "d3-zoom";
 import type { GraphRect } from "../lib/graphGeometry";
 import type { GraphCache, GraphLink, GraphNode, NodePosition, NodePositionMap } from "@/entities/wiki";
 import { GRAPH_CENTER, GRAPH_ZOOM, linkKey } from "@/entities/graph/lib/graphBuilder";
+import { initialGraphZoom } from "../lib/graphLabelVisibility";
 import { readStoredGraphCache, writeStoredGraphCache } from "./graphCache";
 import { drawGraphFrame, preloadRawNodeIcon } from "../lib/graphDrawing";
 import { DARK_SCHEME_QUERY } from "../lib/graphColors";
@@ -237,7 +238,8 @@ export function useGraphCanvas({
     }
 
     // 갱신 때는 저장된 화면 대신 지금 보는 화면을 유지한다.
-    const nextZoom = clampGraphZoom((isUpdate ? null : cached?.zoom) ?? graphZoomRef.current);
+    const firstZoom = !isUpdate && !cached && canvasRef.current ? initialGraphZoom(canvasViewport(canvasRef.current)) : null;
+    const nextZoom = clampGraphZoom((isUpdate ? null : cached?.zoom) ?? firstZoom ?? graphZoomRef.current);
     const nextPan = clampPan((isUpdate ? null : cached?.pan) ?? graphPanRef.current, nextZoom);
     applyViewState(nextPan, nextZoom);
     setVisibleNodeCount(nodes.length);

@@ -70,6 +70,13 @@
   outline-offset: -2px;
 }
 
+/* 터치 기기: 머리줄 조작부를 44px로 키우므로 줄도 높인다. 휴대폰은 아래 규칙이 안전 영역까지 더한다. */
+@media (pointer: coarse) {
+  .agent-panel {
+    grid-template-rows: 48px 1fr auto auto;
+  }
+}
+
 /* 휴대폰: 채팅 패널은 전체 화면이다. 위아래 안전 영역을 비키고, iOS 키보드에 입력창이 가리지 않게 그 위에 놓는다. */
 @media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
   .agent-panel,

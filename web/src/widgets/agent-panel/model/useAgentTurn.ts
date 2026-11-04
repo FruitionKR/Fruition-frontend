@@ -137,7 +137,7 @@ export function useAgentTurn({
     () => new Set([...turnIdsWithOutcome(taskOutcomes, "applied"), ...autoAppliedTurnIds]),
     [autoAppliedTurnIds, taskOutcomes]
   );
-  // 보기 권한 문서를 연 채 보낸 turn과 그 문서. 그 요청의 되묻기만 보기 권한 안내로 바꾼다.
+  // 보기 권한 문서를 연 채 보낸 turn과 그 문서. 서버 값이 없는 메시지(구 서버·과거 메시지)의 되묻기를 판단할 때 쓴다.
   const [readOnlyRequests, setReadOnlyRequests] = useState<ReadOnlyRequests>(() => new Map());
   useEffect(() => {
     const workspaceId = getSelectedWorkspaceId();
@@ -295,7 +295,9 @@ export function useAgentTurn({
     /** 폴더를 대상으로 고른 스킬 실행이면 그 폴더. */
     folderId: string | null = null
   ) => {
+    const requestReadOnlyDocumentId = readOnlyDocumentIdRef.current;
     const request = buildAgentTurnRequest(question, context, {
+      readOnlyDocumentId: requestReadOnlyDocumentId,
       sessionId,
       selectedModel: { provider: model.provider, model: model.model },
       selectedPairIds: conversationPairIds,
@@ -317,7 +319,6 @@ export function useAgentTurn({
     const controller = new AbortController();
     agentRequestRef.current = controller;
     let acceptedTurnId: string | null = null;
-    const requestReadOnlyDocumentId = readOnlyDocumentIdRef.current;
     followTurnResult(controller, question, () => requestAgentTurn(request, {
       signal: controller.signal,
       onAccepted: (requestId) => {
