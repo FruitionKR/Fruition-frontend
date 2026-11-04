@@ -233,6 +233,23 @@ test("새 문서로 저장(create)하면 Markdown 문서가 생기고 같은 키
   assert.equal((await again.json()).error.code, "MEETING_NOTES_ALREADY_APPLIED");
 });
 
+test("새 문서로 저장할 때 이름이 겹치면 문서를 만들지 않고 409 DUPLICATE_NAME, 다른 이름은 저장한다", async (t) => {
+  const { post, api, socketUrl } = await startMock(t);
+  const first = await readyMeeting(post, api, socketUrl);
+  const firstSaved = await post(`/meetings/${first.meeting.meeting_id}/notes/${first.notes.version}/apply`, { mode: "create", display_name: "같은 이름" }, { "Idempotency-Key": "name-1" });
+  assert.equal(firstSaved.status, 200);
+  const count = state.documents.length;
+  const second = await readyMeeting(post, api, socketUrl);
+  const apply = (display_name, key) => post(`/meetings/${second.meeting.meeting_id}/notes/${second.notes.version}/apply`, { mode: "create", display_name }, { "Idempotency-Key": key });
+  const conflict = await apply("같은 이름", "name-2");
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error.code, "DUPLICATE_NAME");
+  assert.equal(state.documents.length, count);
+  const saved = await (await apply("같은 이름 (2)", "name-3")).json();
+  assert.equal(saved.status, "applied");
+  assert.equal(state.documents.find((item) => item.id === saved.applied.document_id).filename, "같은 이름 (2).md");
+});
+
 test("기존 문서 끝에 추가: 미리보기의 base_revision으로 저장하고, 그사이 문서가 바뀌면 409 DOCUMENT_REVISION_CHANGED", async (t) => {
   const { post, api, socketUrl, documentId } = await startMock(t);
   const { meeting, notes } = await readyMeeting(post, api, socketUrl, { document_id: documentId });

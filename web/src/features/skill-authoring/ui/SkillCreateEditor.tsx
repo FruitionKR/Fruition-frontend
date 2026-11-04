@@ -10,6 +10,7 @@ import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
 import { describeSkillAuthorError, isSkillFormDirty, shouldAutoPublishSkillDraft, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
+  applyReviewedSkillDraft,
   applySkillDraft,
   draftResultModeChange,
   draftSourceChange,
@@ -171,7 +172,7 @@ export function SkillCreateEditor({
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
-      const drafted = applySkillDraft(form, result);
+      const drafted = outcome === "review" ? applyReviewedSkillDraft(form, result) : applySkillDraft(form, result);
       setForm(drafted);
       setResultModeNote(draftResultModeChange(form, drafted));
       setSourceNote(draftSourceChange(form, drafted));
