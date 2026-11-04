@@ -140,3 +140,8 @@ test("메뉴를 닫으면 연 버튼으로 포커스를 돌려준다(연 요소�
   assert.match(menu, /const \[opener\] = useState\(\(\) =>/);
   assert.match(menu, /opener\?\.isConnected\) opener\.focus\(\)/);
 });
+
+test("터치 기기에서만 파일·폴더 메뉴에 이동·여러 항목 선택을 더한다", () => {
+  assert.equal(menu(note, { ...full, canUseTouchActions: true }), "이름 변경 · 권한 설정 · 원본 다운로드 | 다른 폴더로 이동 · 여러 항목 선택 | 삭제");
+  assert.equal(menu(note), "이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
+});

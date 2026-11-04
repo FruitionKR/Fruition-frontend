@@ -233,3 +233,13 @@ function clampPanAxis(pan: number, viewportSize: number, minOffset: number, maxO
   const maxPan = viewportSize / 2 - visible - minOffset;
   return Math.min(maxPan, Math.max(minPan, pan));
 }
+
+/** 같은 노드를 이 시간 안에 두 번 탭하면 더블클릭처럼 연다. */
+export const GRAPH_DOUBLE_TAP_MS = 350;
+
+export function isGraphDoubleTap(
+  previous: { nodeId: string; at: number } | null,
+  next: { nodeId: string; at: number }
+): boolean {
+  return previous !== null && previous.nodeId === next.nodeId && next.at - previous.at <= GRAPH_DOUBLE_TAP_MS;
+}

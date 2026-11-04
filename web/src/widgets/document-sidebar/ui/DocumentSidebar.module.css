@@ -1469,3 +1469,80 @@
     border-radius: 16px 16px 0 0;
   }
 }
+
+/* 터치 기기의 이동 대상 목록(MoveDialog): 폴더가 많으면 목록 안에서 스크롤한다. */
+.move-destinations {
+  max-height: 50dvh;
+  margin: 12px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.move-destinations button {
+  width: 100%;
+  min-height: 44px;
+  padding-right: 12px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.move-cancel {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 터치 선택 모드 하단 줄: 개수 + 이동·삭제·완료 */
+.touch-selection-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.touch-selection-bar > span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.touch-selection-bar button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.touch-selection-bar button:disabled {
+  color: var(--color-subtle);
+}
+
+.touch-selection-bar button.danger:not(:disabled) {
+  color: var(--color-danger);
+}
+
+/* 길게 눌러도 글자 선택·콜아웃이 끼어들지 않게 한다 */
+@media (pointer: coarse) {
+  .tree-row {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}

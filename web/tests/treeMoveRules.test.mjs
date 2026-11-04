@@ -88,3 +88,23 @@ test("폴더를 자기 자신이나 하위 폴더 안으로 옮기면 cycle을 �
   // 다른 폴더로는 정상 이동
   assert.equal(resolveTreeMove(nested, { projectId: ROOT, itemId: "a" }, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "move");
 });
+
+const { listMoveDestinations } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
+const tree = [
+  { id: "f1", label: "연구", type: "folder", children: [{ id: "f2", label: "논문", type: "folder", children: [] }, file("n1", "n1.md")] },
+  { id: "gen", label: "자동", type: "folder", generated: true, children: [] },
+  file("n2", "n2.md")
+];
+const summary = (list) => list.map((entry) => `${entry.depth}:${entry.label}`);
+
+test("이동 대상은 최상위와 폴더를 트리 순서로 나열하고 자동 생성 폴더는 뺀다", () => {
+  assert.deepEqual(summary(listMoveDestinations(tree, new Set(["n2"]), undefined, "문서")), ["0:문서", "1:연구", "2:논문"]);
+});
+
+test("옮길 폴더 자신과 그 하위는 대상에서 뺀다", () => {
+  assert.deepEqual(summary(listMoveDestinations(tree, new Set(["f1"]), null, "문서")), []);
+});
+
+test("지금 있는 폴더는 고를 수 없고 그 하위는 고를 수 있다", () => {
+  assert.deepEqual(summary(listMoveDestinations(tree, new Set(["n1"]), "f1", "문서")), ["0:문서", "2:논문"]);
+});

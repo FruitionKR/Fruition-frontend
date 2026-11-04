@@ -55,6 +55,8 @@ export function DocumentSidebar({
   resizeHandle,
   onUploadPickerChange,
   onMoveItem,
+  onMoveContextTarget,
+  onMoveSelectedItems,
   onDropFiles,
   onDragStart,
   onToggleSelectItem,
@@ -142,6 +144,10 @@ export function DocumentSidebar({
   };
   onUploadPickerChange: (event: ReactChangeEvent<HTMLInputElement>) => void;
   onMoveItem: (target: DropTarget) => void;
+  /** 터치 기기 메뉴의 "다른 폴더로 이동" */
+  onMoveContextTarget?: () => void;
+  /** 터치 기기 선택 모드의 묶음 이동 */
+  onMoveSelectedItems?: (projectId: string) => void;
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
   onToggleSelectItem: (itemId: string) => void;
@@ -177,6 +183,8 @@ export function DocumentSidebar({
   onCloseContextMenu: () => void;
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // 터치 기기의 여러 항목 선택 모드. Cmd/Shift+클릭 대신 행을 눌러 고른다.
+  const [isTouchSelecting, setIsTouchSelecting] = useState(false);
   // 그래프 뷰 위키 편입 문서 선택 모드. 레일 버튼으로 켜고 사이드바 하단 바·Esc로 끈다.
   const [isIngestSelecting, setIsIngestSelecting] = useState(false);
   const isGraphSelecting = activeView === "graph" && isIngestSelecting;
@@ -203,7 +211,9 @@ export function DocumentSidebar({
     ? treeContextMenuSections(contextMenuItem, {
       isRootTarget: isRootContextTarget,
       canCreateProject: canCreateProjectFromView(activeView),
-      canImportNotion: Boolean(onImportNotionFromContext)
+      canImportNotion: Boolean(onImportNotionFromContext),
+      // 메뉴는 사용자 조작 뒤에만 열려 하이드레이션과 무관하다.
+      canUseTouchActions: canCreateProjectFromView(activeView) && window.matchMedia("(pointer: coarse)").matches
     })
     : [];
   const hasContextMenuItems = selectedContextCount > 1 || contextMenuSections.length > 0;
@@ -218,6 +228,12 @@ export function DocumentSidebar({
     "import-notion": () => onImportNotionFromContext?.(),
     convert: onConvertContextTarget,
     rename: onRenameContextTarget,
+    move: () => onMoveContextTarget?.(),
+    select: () => {
+      if (contextMenu?.itemId && !selectedItemIds.has(contextMenu.itemId)) onToggleSelectItem(contextMenu.itemId);
+      setIsTouchSelecting(true);
+      onCloseContextMenu();
+    },
     permission: () => onSetPermissionContextTarget?.(),
     download: () => {
       onCloseContextMenu();
@@ -232,7 +248,7 @@ export function DocumentSidebar({
     draggedItemId,
     selectedItemId,
     selectedItemIds,
-    isPickingTarget,
+    isPickingTarget: isPickingTarget || isTouchSelecting,
     dropTarget,
     fileDropTarget,
     editing,
@@ -260,6 +276,11 @@ export function DocumentSidebar({
     onCommitEditing,
     onCancelEditing
   };
+
+  // 사이드바를 닫거나 다른 화면으로 가면 터치 선택 모드도 끝낸다.
+  useEffect(() => {
+    setIsTouchSelecting(false);
+  }, [isCollapsed, activeView]);
 
   // 그래프 밖으로 나가면(레일·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
   useEffect(() => {
@@ -453,7 +474,23 @@ export function DocumentSidebar({
             ) : projectTree}
           </div>
           )}
-          {!settingsNav && <StorageUsageMeter />}
+          {isTouchSelecting && (
+            <div className={styles["touch-selection-bar"]} role="toolbar" aria-label="여러 항목 선택">
+              <span role="status">{selectedItemIds.size}개 선택</span>
+              <button type="button" disabled={selectedItemIds.size === 0} onClick={() => rootProject && onMoveSelectedItems?.(rootProject.id)}>이동</button>
+              <button type="button" className={styles.danger} disabled={selectedItemIds.size === 0} onClick={onDeleteSelectedItems}>삭제</button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearSelectedItems();
+                  setIsTouchSelecting(false);
+                }}
+              >
+                완료
+              </button>
+            </div>
+          )}
+          {!settingsNav && !isTouchSelecting && <StorageUsageMeter />}
         </div>
       </div>
     </aside>

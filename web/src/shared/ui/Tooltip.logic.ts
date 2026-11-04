@@ -13,6 +13,19 @@ const TOOLTIP_VIEWPORT_MARGIN_PX = 8;
 /** 꼬리가 말풍선 모서리(radius 8px)에 걸리지 않도록 두는 최소 거리 */
 const ARROW_EDGE_PX = 10;
 
+/** 터치에서 말풍선을 띄우는 길게 누르기 시간 */
+export const TOOLTIP_LONG_PRESS_MS = 500;
+/** 터치로 띄운 말풍선은 호버 이탈이 없으므로 이 시간 뒤 스스로 닫는다. */
+export const TOOLTIP_TOUCH_VISIBLE_MS = 3000;
+
+/**
+ * 터치 입력에서 말풍선을 띄우기까지의 지연. 눌러도 동작하지 않는 비활성 버튼(사유 안내)과
+ * 설명 전용 버튼(showOnTap)은 탭하면 바로, 나머지는 탭 동작을 방해하지 않게 길게 눌러야 띄운다.
+ */
+export function getTouchTooltipDelay({ isTriggerDisabled, showOnTap }: { isTriggerDisabled: boolean; showOnTap: boolean }): number {
+  return isTriggerDisabled || showOnTap ? 0 : TOOLTIP_LONG_PRESS_MS;
+}
+
 export function getTooltipOpenDelay({
   now,
   lastClosedAt,

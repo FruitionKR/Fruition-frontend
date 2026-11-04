@@ -9,6 +9,7 @@ import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
+import { MoveDialog } from "@/widgets/document-sidebar/ui/MoveDialog";
 import { PermissionDialog } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { Graph } from "@/widgets/graph/ui/Graph";
 import { SkillRunCoach, SkillsView } from "@/widgets/skills-view";
@@ -62,13 +63,14 @@ import { buildGeneratedMarkdownDocument } from "@/features/agent-chat/lib/agentT
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
-import { createClientId, findTreeItem } from "@/entities/tree";
+import { createClientId, findItemLocation, findTreeItem } from "@/entities/tree";
 import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
 import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
 import { useOperationLogFeed } from "../model/useOperationLogFeed";
 import { useWorkspaceNavigation } from "../model/useWorkspaceNavigation";
 import { useWorkspacePanels } from "../model/useWorkspacePanels";
 import { useWorkspaceDocumentTitle } from "../model/useWorkspaceDocumentTitle";
+import { listMoveDestinations } from "../lib/treeMoveRules";
 import { useGraphWikiActions } from "../model/useGraphWikiActions";
 import { useSkillRun, type SkillRunRequest } from "../model/useSkillRun";
 import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
@@ -510,7 +512,9 @@ export function HomeWorkspace() {
           onKeyDown: sidebarLayout.handleKeyDown
         }}
         onUploadPickerChange={upload.handleUploadPickerChange}
-        onMoveItem={projectTree.moveTreeEntry}
+        onMoveItem={(target) => projectTree.moveTreeEntry(target)}
+        onMoveContextTarget={projectTree.openMoveContextTarget}
+        onMoveSelectedItems={projectTree.openMoveSelectedItems}
         onDropFiles={upload.dropUploadFiles}
         onDragStart={projectTree.onDragStart}
         onToggleSelectItem={skillRun ? skillRunState.pickSkillTarget : projectTree.toggleSelectedItem}
@@ -775,6 +779,22 @@ export function HomeWorkspace() {
           onCancel={projectTree.cancelDelete}
         />
       )}
+      {projectTree.moveTarget && (() => {
+        const { projectId, itemId } = projectTree.moveTarget;
+        const project = projectTree.projects.find((candidate) => candidate.id === projectId);
+        // 묶음에 든 항목이면 묶음 전체가 옮겨지므로, 그 항목들을 대상에서 빼고 이름도 개수로 보인다.
+        const isBulk = projectTree.selectedItemIds.has(itemId) && projectTree.selectedItemIds.size > 1;
+        const movingIds = isBulk ? projectTree.selectedItemIds : new Set([itemId]);
+        const currentFolderId = isBulk ? undefined : findItemLocation(projectTree.projects, itemId)?.folderId;
+        return (
+          <MoveDialog
+            label={isBulk ? `${movingIds.size}개 항목` : `"${(project && findTreeItem(project.items, itemId)?.label) ?? "항목"}"`}
+            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE)}
+            onSelect={projectTree.confirmMoveTo}
+            onClose={projectTree.closeMoveDialog}
+          />
+        );
+      })()}
       {projectTree.permissionTarget && (
         <PermissionDialog
           target={projectTree.permissionTarget}

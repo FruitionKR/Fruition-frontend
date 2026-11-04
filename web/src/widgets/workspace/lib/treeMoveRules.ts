@@ -100,3 +100,28 @@ function movesIntoOwnSubtree(item: TreeItem, destination: FolderLocation): boole
   if (isFileItem(item) || !destination.folderId) return false;
   return destination.folderId === item.id || Boolean(findTreeItem(item.children ?? [], destination.folderId));
 }
+
+/** 항목을 옮길 수 있는 폴더 한 줄. folderId가 null이면 최상위다. */
+export type MoveDestination = { folderId: string | null; label: string; depth: number };
+
+/**
+ * 터치 기기의 이동 대상 목록. 트리 순서대로 폴더만 고르고, 옮길 항목 자신과 그 하위, 자동 생성 폴더는 뺀다.
+ * currentFolderId(지금 있는 폴더)도 빼서 제자리 이동을 고를 수 없게 한다. 최상위는 rootLabel로 맨 위에 둔다.
+ */
+export function listMoveDestinations(
+  items: TreeItem[],
+  movingIds: ReadonlySet<string>,
+  currentFolderId: string | null | undefined,
+  rootLabel: string
+): MoveDestination[] {
+  const destinations: MoveDestination[] = currentFolderId === null ? [] : [{ folderId: null, label: rootLabel, depth: 0 }];
+  const visit = (entries: TreeItem[], depth: number) => {
+    for (const entry of entries) {
+      if (entry.type !== "folder" || entry.generated || movingIds.has(entry.id)) continue;
+      if (entry.id !== currentFolderId) destinations.push({ folderId: entry.id, label: entry.label, depth });
+      visit(entry.children ?? [], depth + 1);
+    }
+  };
+  visit(items, 1);
+  return destinations;
+}
