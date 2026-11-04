@@ -1,3 +1,4 @@
+import { folderWritable } from "@/entities/tree/lib/treePermission";
 import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
 import type { AgentPlan, AgentPlanOperation } from "./agentPlan";
 
@@ -22,7 +23,7 @@ function indexTree(items: readonly ServerTreeItem[], parentId: string | null, in
 /**
  * 계획을 실행해도 권한(403)으로 실패할 작업을 찾는다. 서버의 작업별 권한 검사(document AgentAutoApprovalPolicy.permitted,
  * DocumentAccessPolicy)와 같은 규칙이다. 문서는 서버가 계산한 can_edit을 쓰고, 폴더는 트리에 실제 권한 필드가 없어
- * 자기 설정 → 가장 가까운 상위 설정 → 기본 편집 순으로 따지며 워크스페이스 OWNER는 항상 편집할 수 있다.
+ * folderWritable로 따진다. 옮기는 작업은 목적지와 출발 폴더를 모두 쓸 수 있어야 하고 문서 소유자 예외가 없다.
  * 알 수 없는 경우(구 서버 응답, 트리에 없는 항목, 모르는 도구, 역할 확인 전)는 막지 않고 서버 판단에 맡긴다.
  *
  * @param isWorkspaceOwner 역할을 아직 모르면 null
@@ -43,17 +44,14 @@ export function checkPlanAccess(
   }
 
   function canEditFolder(folderId: unknown): TriState {
-    if (isWorkspaceOwner === null) return null;
-    if (isWorkspaceOwner) return true;
     let current = typeof folderId === "string" ? index.get(folderId) : undefined;
     if (!current) return null;
+    const chain: ServerTreeItem["permission"][] = [];
     while (current) {
-      const { permission } = current.item;
-      if (permission === undefined) return null;
-      if (permission !== null) return permission === "edit";
+      chain.push(current.item.permission);
       current = current.parentId === null ? undefined : index.get(current.parentId);
     }
-    return true;
+    return folderWritable(chain, isWorkspaceOwner);
   }
 
   /** 옮기거나 만들 위치. null·생략은 최상위(멤버면 쓸 수 있다)이고, 이 계획이 만드는 폴더는 그 생성 작업에서 따진다. */
@@ -63,17 +61,30 @@ export function checkPlanAccess(
     return canEditFolder(folder);
   }
 
+  /** 옮길 항목이 지금 있는 폴더에서 꺼낼 수 있는지. 트리에서 상위를 알 때만 판단한다. 최상위는 멤버면 된다. */
+  function canLeaveSource(itemId: unknown): TriState {
+    const entry = typeof itemId === "string" ? index.get(itemId) : undefined;
+    if (!entry) return null;
+    return entry.parentId === null ? true : canEditFolder(entry.parentId);
+  }
+
   function isForbidden(operation: AgentPlanOperation): boolean {
     const args = operation.arguments;
     const checks: TriState[] = (() => {
       switch (operation.tool_name) {
         case "apply_document_edit":
         case "rename_document": return [canEditDocument(operation.target_id ?? args.document_id)];
-        case "move_document": return [canEditDocument(operation.target_id ?? args.document_id), canUseDestination(args.folder_id)];
+        case "move_document": {
+          const documentId = operation.target_id ?? args.document_id;
+          return [canEditDocument(documentId), canLeaveSource(documentId), canUseDestination(args.folder_id)];
+        }
         case "create_document": return [canUseDestination(args.folder_id)];
         case "create_folder": return [canUseDestination(args.parent_folder_id)];
         case "rename_folder": return [canEditFolder(operation.target_id ?? args.folder_id)];
-        case "move_folder": return [canEditFolder(operation.target_id ?? args.folder_id), canUseDestination(args.parent_folder_id)];
+        case "move_folder": {
+          const folderId = operation.target_id ?? args.folder_id;
+          return [canEditFolder(folderId), canLeaveSource(folderId), canUseDestination(args.parent_folder_id)];
+        }
         default: return [];
       }
     })();
@@ -104,13 +115,13 @@ export function checkPlanAccess(
 /** 수락 전에 보여 줄 권한 안내. 막힌 작업이 없으면 null이다. */
 export function planAccessMessage({ verdict, blockedCount }: Pick<PlanAccess, "verdict" | "blockedCount">): string | null {
   if (verdict === "all_blocked") {
-    return "대상 문서·폴더에 편집 권한이 없어 수락해도 실행할 수 없어요. 편집하려면 문서 소유자나 워크스페이스 OWNER에게 편집 권한을 요청해 주세요.";
+    return "대상 문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 수락해도 실행할 수 없어요. 문서 소유자나 워크스페이스 OWNER에게 권한을 요청해 주세요.";
   }
   if (verdict === "some_blocked") {
-    return `작업 ${blockedCount}개는 대상 문서·폴더에 편집 권한이 없어 실행되지 않아요. 나머지 작업만 실행돼요.`;
+    return `작업 ${blockedCount}개는 대상 문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 실행되지 않아요. 나머지 작업만 실행돼요.`;
   }
   return null;
 }
 
 /** 항목별 안내 문구 */
-export const PLAN_OPERATION_BLOCKED_NOTE = "편집 권한이 없어 실행되지 않아요.";
+export const PLAN_OPERATION_BLOCKED_NOTE = "문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 실행되지 않아요.";

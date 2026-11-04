@@ -139,6 +139,26 @@ export function toDocumentItemFor(doc, userId) {
 }
 
 /** 편집 권한이 없으면 403 DOCUMENT_WRITE_FORBIDDEN을 보내고 false를 돌려준다. */
+/**
+ * 서버 규칙 흉내: 폴더를 편집할 수 없는 사람은 그 폴더에 넣거나 꺼낼 수 없다. 문서 소유자 예외 없음, OWNER는 항상 된다.
+ * 최상위(null)는 멤버면 된다. 자기 설정 → 가장 가까운 상위 설정 → 기본 편집 순으로 따진다.
+ */
+export function canWriteFolder(workspaceId, userId, folderId) {
+  if (!folderId || memberRole(workspaceId, userId) === "OWNER") return true;
+  let current = state.folders.find((item) => item.id === folderId && item.workspace_id === workspaceId);
+  while (current) {
+    if (current.permission) return current.permission === "edit";
+    current = current.parent_folder_id ? state.folders.find((item) => item.id === current.parent_folder_id && item.workspace_id === workspaceId) : undefined;
+  }
+  return true;
+}
+
+export function requireFolderWrite(ctx, workspaceId, folderId) {
+  if (canWriteFolder(workspaceId, ctx.user.id, folderId)) return true;
+  error(ctx, 403, "이 폴더에 넣거나 꺼낼 권한이 없습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+  return false;
+}
+
 export function requireDocumentEdit(ctx, doc) {
   if (documentAccess(doc, ctx.user.id).can_edit) return true;
   error(ctx, 403, "이 문서를 편집할 권한이 없습니다.", "DOCUMENT_WRITE_FORBIDDEN");

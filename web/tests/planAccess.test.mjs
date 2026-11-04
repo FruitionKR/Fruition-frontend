@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import { checkPlanAccess, planAccessMessage } from "../src/features/agent-chat/lib/planAccess.ts";
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  return next(specifier, context);
+} });
+const { checkPlanAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } = await import("../src/features/agent-chat/lib/planAccess.ts");
 
 function folder(id, permission, children = []) {
   return { type: "folder", id, name: id, sort_order: 0, current_version: 1, permission, children };
@@ -65,6 +70,29 @@ test("옮기거나 만들 위치도 편집할 수 있어야 하고 최상위는 
   assert.equal(verdictOf([op("a", "create_folder", null, { parent_folder_id: null })]), "clear");
 });
 
+test("보기 전용 폴더에서는 소유 문서도 꺼낼 수 없다(소유자 예외 없음)", () => {
+  const tree = [folder("folder_view", "view", [doc("doc_mine", true), folder("folder_child", "edit")]), folder("folder_open", null), doc("doc_root", true)];
+  const verdict = (operation, isOwner = MEMBER) => checkPlanAccess(plan([operation]), tree, isOwner, null).verdict;
+  assert.equal(verdict(op("a", "move_document", "doc_mine", { folder_id: "folder_open" })), "all_blocked");
+  assert.equal(verdict(op("a", "move_document", "doc_mine", { folder_id: null })), "all_blocked", "최상위로도 꺼낼 수 없다");
+  assert.equal(verdict(op("a", "move_folder", "folder_child", { parent_folder_id: "folder_open" })), "all_blocked", "폴더 자신이 편집 가능해도 출발 폴더가 막히면 막는다");
+  assert.equal(verdict(op("a", "move_document", null, { document_id: "doc_mine", folder_id: "folder_open" })), "all_blocked", "target_id가 없으면 인자의 대상을 본다");
+  assert.equal(verdict(op("a", "move_document", "doc_root", { folder_id: "folder_open" })), "clear", "최상위에서 꺼내는 것은 멤버면 된다");
+  assert.equal(verdict(op("a", "move_document", "doc_mine", { folder_id: "folder_open" }), OWNER), "clear", "OWNER는 항상 된다");
+  assert.equal(verdict(op("a", "rename_document", "doc_mine", { display_name: "x" })), "clear", "이름 변경의 소유자 예외는 그대로다");
+  assert.equal(verdict(op("a", "apply_document_edit", "doc_mine")), "clear", "내용 편집의 소유자 예외는 그대로다");
+});
+
+test("출발 폴더를 알 수 없으면 막지 않고 서버에 맡긴다", () => {
+  const verdict = (operation, isOwner = MEMBER) => checkPlanAccess(plan([operation]), TREE, isOwner, null).verdict;
+  assert.equal(verdict(op("a", "move_document", "doc_not_in_tree", { folder_id: "folder_open" })), "clear", "트리에 없는 문서");
+  assert.equal(verdict(op("a", "move_folder", "folder_not_in_tree", { parent_folder_id: "folder_open" })), "clear", "트리에 없는 폴더");
+  const legacy = [{ type: "folder", id: "folder_old_server", name: "x", sort_order: 0, current_version: 1, children: [doc("doc_in_old", true)] }, folder("folder_open", null)];
+  assert.equal(checkPlanAccess(plan([op("a", "move_document", "doc_in_old", { folder_id: "folder_open" })]), legacy, MEMBER, null).verdict, "clear", "permission 키가 없는 구 서버 응답");
+  const inView = [folder("folder_view", "view", [doc("doc_mine", true)]), folder("folder_open", null)];
+  assert.equal(checkPlanAccess(plan([op("a", "move_document", "doc_mine", { folder_id: "folder_open" })]), inView, ROLE_UNKNOWN, null).verdict, "clear", "역할 확인 전·실패");
+});
+
 test("워크스페이스 OWNER는 폴더 설정과 관계없이 편집할 수 있다", () => {
   assert.equal(verdictOf([op("a", "rename_folder", "folder_view")], OWNER), "clear");
   assert.equal(verdictOf([op("a", "move_document", "doc_editable", { folder_id: "folder_inherit_view" })], OWNER), "clear");
@@ -126,4 +154,10 @@ test("안내 문구는 전부 막힘과 일부 막힘을 구분하고 막힘이 
   assert.match(partial, /작업 2개는/);
   assert.match(partial, /나머지 작업만 실행돼요/);
   assert.equal(planAccessMessage({ verdict: "clear", blockedCount: 0 }), null);
+});
+
+test("안내 문구와 항목별 문구는 폴더에 넣기·꺼내기 권한까지 말한다", () => {
+  assert.match(planAccessMessage({ verdict: "all_blocked", blockedCount: 1 }), /넣거나 꺼낼/);
+  assert.match(planAccessMessage({ verdict: "some_blocked", blockedCount: 1 }), /넣거나 꺼낼/);
+  assert.match(PLAN_OPERATION_BLOCKED_NOTE, /넣거나 꺼낼/);
 });
