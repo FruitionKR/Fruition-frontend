@@ -122,7 +122,7 @@ export function AgentPlanTaskDetail({
   const planSummary = splitPlanSummary(plan?.summary);
   const note = clarificationMessage
     ?? failureMessage
-    ?? (canDecide ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null)
+    ?? (canDecide && access?.verdict !== "all_blocked" ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null)
     ?? (plan && isAutoApprovedPlan(run) ? autoApprovedPlanNote(plan) : null);
 
   return (
