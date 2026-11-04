@@ -8,6 +8,8 @@ import {
   formatPercentShare,
   formatTokenCount,
   formatUsageRange,
+  usageRefetchInterval,
+  AI_USAGE_REFETCH_INTERVAL_MS,
   resolveUsageRange,
   summarizeModelUsage,
   toPercentShares
@@ -278,4 +280,20 @@ test("formatKrwMilli rounds to whole won and shows ₩1 미만 for sub-won amoun
   assert.equal(formatKrwMilli(500), "₩1");
   assert.equal(formatKrwMilli(1_240_400), "₩1,240");
   assert.equal(formatKrwMilli(Number.NaN), "₩0");
+});
+
+test("사용량 재조회는 실패 전까지 정해진 주기로 돌고 실패하면 멈춘다", () => {
+  assert.equal(AI_USAGE_REFETCH_INTERVAL_MS, 60_000);
+  assert.equal(usageRefetchInterval(null), AI_USAGE_REFETCH_INTERVAL_MS);
+  assert.equal(usageRefetchInterval(new Error("503")), false);
+});
+
+test("재조회 때 범위를 다시 계산하면 끝 시각이 지금 쪽으로 옮겨 간다", () => {
+  const first = new Date(2026, 10, 4, 12, 0, 30);
+  const later = new Date(first.getTime() + AI_USAGE_REFETCH_INTERVAL_MS);
+  for (const period of ["this_month", "last_30_days"]) {
+    const before = resolveUsageRange(period, first);
+    const after = resolveUsageRange(period, later);
+    assert.equal(after.to.getTime() - before.to.getTime(), AI_USAGE_REFETCH_INTERVAL_MS, period);
+  }
 });

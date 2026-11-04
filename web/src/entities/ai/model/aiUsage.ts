@@ -32,6 +32,14 @@ export function resolveUsageRange(period: AiUsagePeriod, at: Date): UsageRange {
   return { from: monthStart, to: end };
 }
 
+/** 사용량 화면을 보는 동안 다시 조회하는 주기. 청구가 수집되는 대로 화면에 올린다. */
+export const AI_USAGE_REFETCH_INTERVAL_MS = 60_000;
+
+/** 다음 재조회까지의 시간. 실패하면 멈춘다(창 복귀·다시 시도 때 다시 받고, 성공하면 주기가 돌아온다). */
+export function usageRefetchInterval(error: unknown): number | false {
+  return error ? false : AI_USAGE_REFETCH_INTERVAL_MS;
+}
+
 export type ModelUsageSummaryRow = {
   key: string;
   label: string;
