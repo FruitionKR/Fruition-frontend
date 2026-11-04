@@ -264,6 +264,17 @@ export function applySkillDraft(
   };
 }
 
+/**
+ * 안전 검토에 걸린 응답을 시트에 채운다. 이때의 원문 문서·종류·결과 방식은 AI의 판단으로 볼 수 없어 사용자가 고른 값을 유지한다
+ * (blocked 응답도 requires_source:false를 실어 보낸다). 고칠 실행 규칙과 비어 있던 이름·설명 제안만 채운다.
+ */
+export function applyReviewedSkillDraft(
+  form: SkillCreateForm,
+  draft: Pick<SkillAuthoringResult, "name" | "description" | "instructions_markdown">
+): SkillCreateForm {
+  return applySkillDraft(form, { name: draft.name, description: draft.description, instructions_markdown: draft.instructions_markdown, capabilities: [] });
+}
+
 /** 결과 방식 값 → 화면 라벨('새 문서로 만들기' 등) */
 export function skillResultModeLabel(mode: SkillResultMode): string {
   return SKILL_RESULT_OPTIONS.find((option) => option.value === mode)?.label ?? mode;
