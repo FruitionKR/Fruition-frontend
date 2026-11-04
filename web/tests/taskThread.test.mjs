@@ -116,7 +116,7 @@ test("문서 편집·되물음·실패 작업의 상태를 정한다", () => {
   assert.equal(resolveTaskStatus({ ...base, action: "markdown_edit", hasActivePreview: true }).group, "approval");
   assert.deepEqual(resolveTaskStatus({ ...base, action: "markdown_edit", isApplied: true }), { group: "done", label: "저장됨", tone: "primary", struck: false });
   assert.deepEqual(resolveTaskStatus({ ...base, action: "markdown_edit", isRejected: true }), { group: "done", label: "거절됨", tone: "danger", struck: true });
-  assert.equal(resolveTaskStatus({ ...base, action: "markdown_create" }).label, "제안 완료");
+  assert.equal(resolveTaskStatus({ ...base, action: "markdown_create", isProposalHeld: true }).label, "제안 완료");
   assert.equal(resolveTaskStatus({ ...base, action: "clarify" }).group, "clarify");
   assert.equal(resolveTaskStatus({ ...base, action: "reject" }).group, "failed");
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "pending" }).group, "running");
@@ -217,7 +217,7 @@ test("되물음 뒤에 다른 작업을 보냈으면 선택 필요에 남기지 
   assert.equal(resolveTaskStatus({ ...base, hasLaterTask: false }).label, "답변 필요");
   assert.deepEqual(resolveTaskStatus({ ...base, hasLaterTask: true }), { group: "done", label: "지난 질문", tone: "muted", struck: false });
   // 되물음이 아닌 작업은 뒤 작업과 상관없이 같은 상태다.
-  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", hasLaterTask: true }).label, "제안 완료");
+  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", hasLaterTask: true, isProposalHeld: true }).label, "제안 완료");
 });
 
 test("서버 버전 기록의 operation_id가 turn의 apply_operation_id와 같으면 적용(저장됨)으로 본다", () => {
@@ -279,14 +279,14 @@ test("resolveTaskRequest는 스킬 요청이면 AI가 다시 쓴 요약 대신 �
   assert.deepEqual(resolveTaskRequest("", "  "), { request: "요청 내용 없음", summary: null });
 });
 
-test("초안을 취소한 편집·새 문서 작업은 '제안 완료' 대신 '취소됨'으로 보인다", () => {
+test("초안을 취소한 편집·새 문서 작업은 '수락하지 않음' 대신 '취소됨'으로 보인다", () => {
   const cancelled = resolveTaskStatus({ action: "markdown_create", messageStatus: "completed", isCancelled: true });
   assert.equal(cancelled.label, "취소됨");
   assert.equal(cancelled.group, "done");
   // 저장·거절 기록이 있으면 그쪽이 먼저다.
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isApplied: true, isCancelled: true }).label, "저장됨");
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isRejected: true, isCancelled: true }).label, "거절됨");
-  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "제안 완료");
+  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "수락하지 않음");
 });
 
 test("스킬 실행 카드 머리글은 action이 정해지기 전(진행 중)과 뒤가 같다", () => {
@@ -656,4 +656,31 @@ test("편집 결과 메시지에서 첨부를 다 읽지 못했다는 안내만 
   assert.equal(editResultNotice("편집안을 작성했어요.\n\n첨부한 문서를 근거로 고쳤어요.\n\n아직 문서에 적용하지 않았어요."), null);
   assert.equal(editResultNotice(null), null);
   assert.equal(editResultNotice(undefined), null);
+});
+
+test("결정하지 않은 제안은 내려 둔 동안 검토 대기로, 화면에서 없어지면 수락하지 않음으로 보인다", () => {
+  const base = { action: "markdown_edit", messageStatus: "completed" };
+  // 응답이 아직 화면에 있으면(자동 적용 처리 중 등) 결정 전이라 단정하지 않는다.
+  assert.equal(resolveTaskStatus({ ...base, isProposalHeld: true }).label, "제안 완료");
+  assert.deepEqual(resolveTaskStatus({ ...base, isProposalSetAside: true }), { group: "approval", label: "검토 대기", tone: "primary", struck: false });
+  // 재생성으로 바꿨거나 새로 고침으로 사라진 제안
+  assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "수락하지 않음", tone: "muted", struck: false });
+  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "수락하지 않음");
+  // 결과가 정해졌으면 그 결과가 먼저다.
+  assert.equal(resolveTaskStatus({ ...base, isProposalSetAside: true, isApplied: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
+  assert.equal(resolveTaskStatus({ ...base, isCancelled: true }).label, "취소됨");
+});
+
+test("내려 둔 제안은 다시 열면 빠지고, 그때 열려 있던 제안이 대신 들어간다", async () => {
+  const { setAsideProposal, takeSetAsideProposal } = await import("../src/features/agent-chat/lib/setAsideProposals.ts");
+  const proposal = (id) => ({ request: { message: id }, response: { requestId: id } });
+  const first = setAsideProposal(new Map(), proposal("a"));
+  assert.deepEqual([...first.keys()], ["a"]);
+  assert.equal(setAsideProposal(first, null), first);
+  const { taken, rest } = takeSetAsideProposal(setAsideProposal(first, proposal("b")), "a", proposal("c"));
+  assert.equal(taken.response.requestId, "a");
+  assert.deepEqual([...rest.keys()], ["b", "c"]);
+  assert.equal(takeSetAsideProposal(first, "없음", null).taken, null);
+  assert.equal(first.size, 1, "원본은 바꾸지 않는다");
 });

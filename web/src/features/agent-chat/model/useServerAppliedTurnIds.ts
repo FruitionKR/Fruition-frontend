@@ -8,7 +8,7 @@ import { collectServerAppliedTurnIds, isServerAppliableTask, type TaskApplyTarge
  * turn에서 대상 문서·apply_operation_id를 받고, 그 문서 버전 목록에 같은 operation_id가 있으면 적용된 것이다.
  * 이 화면에서 적용한 기록(appliedTurnIds)은 새로 고침하면 사라지므로 이것으로 "저장됨"을 다시 세운다.
  */
-export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageItem[], isShown: boolean): ReadonlySet<string> {
+export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageItem[], isShown: boolean): { appliedTurnIds: ReadonlySet<string>; checkingTurnIds: ReadonlySet<string> } {
   const editItems = items.filter(isServerAppliableTask);
   const turnQueries = useQueries({
     queries: editItems.map((item) => ({
@@ -39,5 +39,12 @@ export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageI
       return data ? [[documentId, data.versions] as const] : [];
     })
   );
-  return collectServerAppliedTurnIds(targets, versionsByDocument);
+  // 아직 답을 받지 못한 turn. 저장됐는지 모르므로 "수락하지 않음"으로 단정하지 않는다.
+  const checkingTurnIds = new Set(editItems.flatMap((item, index) => {
+    const query = turnQueries[index];
+    if (query?.isPending) return [item.turnId!];
+    const documentIndex = query?.data?.documentId && query.data.applyOperationId ? documentIds.indexOf(query.data.documentId) : -1;
+    return documentIndex >= 0 && versionQueries[documentIndex]?.isPending ? [item.turnId!] : [];
+  }));
+  return { appliedTurnIds: collectServerAppliedTurnIds(targets, versionsByDocument), checkingTurnIds };
 }

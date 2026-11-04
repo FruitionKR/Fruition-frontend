@@ -265,6 +265,8 @@ export function resolveTaskStatus({
   excludedCount = 0,
   createdFolderCount = 0,
   hasActivePreview = false,
+  isProposalHeld = false,
+  isProposalSetAside = false,
   isApplied = false,
   isRejected = false,
   isCancelled = false,
@@ -288,6 +290,10 @@ export function resolveTaskStatus({
   createdFolderCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
+  /** 이 turn의 응답이 아직 화면에 있거나(자동 적용을 처리하는 중 등) 저장 여부를 확인하는 중인지. 아직 수락하지 않았다고 단정할 수 없다. */
+  isProposalHeld?: boolean;
+  /** 후속 요청에 자리를 내줘 내려 둔 제안인지. 다시 열어 결정할 수 있다. */
+  isProposalSetAside?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
   /** 편집안을 모두 거절했는지 */
@@ -355,7 +361,11 @@ export function resolveTaskStatus({
   if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
   if (isRejected) return { group: "done", label: "거절됨", tone: "danger", struck: true };
   if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
-  if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
+  if (action === "markdown_edit" || action === "markdown_create") {
+    if (isProposalSetAside) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
+    // 응답이 화면을 떠났고(재생성·새로 고침) 저장·거절·취소 기록도 없다. 제안은 문서에 들어가지 않았다.
+    return { group: "done", label: isProposalHeld ? "제안 완료" : "수락하지 않음", tone: "muted", struck: false };
+  }
   return { group: "done", label: "답변", tone: "muted", struck: false };
 }
 

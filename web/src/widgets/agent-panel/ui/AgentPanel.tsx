@@ -854,6 +854,8 @@ export function AgentPanel({
             autoAppliedNotice={agentTurn.autoAppliedNotice}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
+            setAsideTurnIds={agentTurn.setAsideTurnIds}
+            onReopenProposal={isSubmitting ? undefined : agentTurn.reopenProposal}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
             errorMessage={(isRequestFailureListed ? null : agentTurn.agentTurnErrorMessage) ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}

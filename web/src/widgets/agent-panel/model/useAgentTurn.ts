@@ -51,9 +51,11 @@ import {
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
+import { setAsideProposal, takeSetAsideProposal, type SetAsideProposal, type SetAsideProposals } from "@/features/agent-chat/lib/setAsideProposals";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 
 const NO_DECISIONS: EditProposalDecisions = {};
+const NO_SET_ASIDE_PROPOSALS: SetAsideProposals = new Map();
 
 /**
  * 작업 탭 요청(agent turn, mode=task): 요청·진행 단계·응답과
@@ -171,6 +173,8 @@ export function useAgentTurn({
   const cancelledTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "cancelled"), [taskOutcomes]);
   // 본문에 붙인 제안(Figma 1571:27625)마다 고른 거절·수락. 다른 turn의 결정은 쓰지 않는다.
   const [reviewDecisions, setReviewDecisions] = useState<{ turnId: string; decisions: EditProposalDecisions } | null>(null);
+  // 후속 요청에 자리를 내준 제안. 미리 보기는 한 번에 하나만 열리므로 내려 두었다가 다시 열 수 있게 한다.
+  const [setAsideProposals, setSetAsideProposals] = useState<SetAsideProposals>(NO_SET_ASIDE_PROPOSALS);
 
   const editPreviewState = useMemo<{
     preview: MarkdownEditPreviewData | null;
@@ -305,7 +309,7 @@ export function useAgentTurn({
     );
   }
 
-  const submitAgentTurn = useCallback((
+  const startAgentTurn = useCallback((
     question: string,
     context: ActiveMarkdownEditContext | null,
     sessionId: string,
@@ -358,6 +362,32 @@ export function useAgentTurn({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, rememberReadOnlyRequest]);
 
+  /** 지금 열린, 아직 결정하지 않은 제안. 자동으로 처리하는 중이거나 미리 보기를 만들 수 없는 응답은 뺀다. */
+  function openProposal(): SetAsideProposal | null {
+    if (!agentTurnRequest || !agentTurnResponse || autoApplyKind !== null) return null;
+    const isOpen = editPreviewState?.preview || (agentTurnResponse.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown);
+    return isOpen ? { request: agentTurnRequest, response: agentTurnResponse } : null;
+  }
+
+  /** 새 요청을 보낸다. 열려 있던 제안은 잃지 않게 내려 둔다. 재생성·"더 짧게"는 그 제안을 바꾸는 요청이라 startAgentTurn을 바로 쓴다. */
+  function submitAgentTurn(...args: Parameters<typeof startAgentTurn>) {
+    setSetAsideProposals((current) => setAsideProposal(current, openProposal()));
+    startAgentTurn(...args);
+  }
+
+  /** 내려 둔 제안을 다시 연다. 지금 열린 제안이 있으면 그 제안을 내려 둔다. 문서가 그새 바뀌었으면 미리 보기가 재생성을 안내한다. */
+  function reopenProposal(turnId: string) {
+    if (isAgentTurnLoading) return;
+    const { taken, rest } = takeSetAsideProposal(setAsideProposals, turnId, openProposal());
+    if (!taken) return;
+    setSetAsideProposals(rest);
+    setAgentTurnRequest(taken.request);
+    setAgentTurnResponse(taken.response);
+    setRequestTurnId(turnId);
+    setAgentTurnErrorMessage(null);
+    setMarkdownCreateErrorMessage(null);
+  }
+
   /**
    * 지금 따라가는 turn의 진행 SSE·조회를 멈춘다(Esc 중지). 서버 취소는 호출부가 요청하고, 결과를 받을 때까지
    * 진행 카드는 그대로 둔다. 취소가 받아들여지면 finishFollowing으로 진행 카드를 내린다.
@@ -399,7 +429,7 @@ export function useAgentTurn({
       setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
       return;
     }
-    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
+    startAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
   }
 
   function applyMarkdownEdit() {
@@ -462,7 +492,7 @@ export function useAgentTurn({
   /** "더 짧게"처럼 같은 요청에 지시를 덧붙여 다시 받는다(Figma 1610:9183). */
   function refineAgentTurn(instruction: string) {
     if (!agentTurnRequest || !markdownEditContext || !activeSessionId || !selectedModel) return;
-    submitAgentTurn(`${agentTurnRequest.message}\n${instruction}`, markdownEditContext, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
+    startAgentTurn(`${agentTurnRequest.message}\n${instruction}`, markdownEditContext, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
   }
 
   function openMarkdownEditAsNewDocument() {
@@ -536,6 +566,11 @@ export function useAgentTurn({
     else setManualTurnIds((current) => new Set([...current, responseTurnId]));
   }, [autoApplyKind, isAgentTurnLoading, isCommandResponse, responseTurnId]);
 
+  const setAsideTurnIds = useMemo(
+    () => new Set([...setAsideProposals.values()].filter(({ request }) => request.session_id === activeSessionId).map(({ response }) => response.requestId)),
+    [activeSessionId, setAsideProposals]
+  );
+
   return {
     agentTurnRequest,
     agentTurnResponse,
@@ -566,6 +601,9 @@ export function useAgentTurn({
     readOnlyRequests,
     rejectedTurnIds,
     cancelledTurnIds,
+    /** 이 세션에서 후속 요청에 자리를 내줘 다시 열 수 있는 제안의 turn */
+    setAsideTurnIds,
+    reopenProposal,
     reviewSegments,
     proposalDecisions,
     decideProposal,

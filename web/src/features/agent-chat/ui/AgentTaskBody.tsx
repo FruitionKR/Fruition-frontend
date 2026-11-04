@@ -47,6 +47,8 @@ import styles from "./AgentChat.module.css";
 const DONE_NOTICE = "작업기록은 LLM Wiki에 들어가지 않습니다. 문서·파일의 변경 이력으로만 남습니다.";
 /** 실패한 turn에 서버 안내 문구가 없을 때 */
 const FAILED_TASK_FALLBACK = "작업을 처리하지 못했어요. 다시 시도해 주세요.";
+/** 후속 요청에 자리를 내준 제안의 안내 */
+const SET_ASIDE_PROPOSAL_NOTE = "아직 문서에 적용하지 않았어요. 다시 검토하면 수락하거나 거절할 수 있어요.";
 /** 새로 생기면 보이도록 굴려 줄 카드 묶음(할 일이 남은 묶음과, 진행 카드가 실패로 끝나 옮겨 간 '일부 실패'·'실패') */
 const ATTENTION_GROUPS: ReadonlySet<TaskGroup> = new Set(["running", "approval", "clarify", "partial_failed", "failed"]);
 const PENDING_ATTENTION_KEY = "pending";
@@ -173,6 +175,8 @@ export function AgentTaskBody({
   autoAppliedNotice = null,
   rejectedTurnIds,
   cancelledTurnIds,
+  setAsideTurnIds = NO_TURN_IDS,
+  onReopenProposal,
   errorMessage,
   isShown,
   onSaveRequestAsSkill,
@@ -209,6 +213,10 @@ export function AgentTaskBody({
   rejectedTurnIds: ReadonlySet<string>;
   /** 편집안·새 문서 초안을 취소한 turn */
   cancelledTurnIds: ReadonlySet<string>;
+  /** 후속 요청에 자리를 내줘 내려 둔 제안의 turn */
+  setAsideTurnIds?: ReadonlySet<string>;
+  /** 내려 둔 제안을 다시 연다. 없으면 버튼을 막는다(다른 요청을 처리하는 중). */
+  onReopenProposal?: (turnId: string) => void;
   errorMessage: string | null;
   isShown: boolean;
   /** "이 요청을 스킬로 저장"(Figma 1671:13245). 없으면 버튼을 숨긴다. */
@@ -288,7 +296,7 @@ export function AgentTaskBody({
   // 거절 응답 전(승인 대기)에도, 거절된 뒤 새로 고침해도 같은 폴더의 새 계획에 대체된 계획은 "새 실행으로 대체됨"으로 보인다.
   const supersededPlanTurnIds = new Set(supersededFolderPlans(planEntries, { includeRejected: true }).map(({ turnId }) => turnId));
   // 새로 고침 뒤에도 적용한 편집안이 "저장됨"으로 남게 서버 버전 기록으로 다시 확인한다.
-  const serverAppliedTurnIds = useServerAppliedTurnIds(workspaceId, visibleItems, isShown);
+  const { appliedTurnIds: serverAppliedTurnIds, checkingTurnIds } = useServerAppliedTurnIds(workspaceId, visibleItems, isShown);
 
   // 실행이 끝나는 전이를 볼 때만 문서·트리·그래프를 다시 받는다(#66).
   const runStatusSignature = runQueries.map((query) => query.data?.status ?? "").join("|");
@@ -320,6 +328,8 @@ export function AgentTaskBody({
       cancelState: item.turnId !== null ? cancelStates.get(item.turnId) ?? null : null,
       isPlanSuperseded: item.turnId !== null && supersededPlanTurnIds.has(item.turnId),
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
+      isProposalHeld: item.turnId !== null && (item.turnId === activePreviewTurnId || checkingTurnIds.has(item.turnId)),
+      isProposalSetAside: item.turnId !== null && setAsideTurnIds.has(item.turnId),
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),
@@ -405,6 +415,7 @@ export function AgentTaskBody({
       );
     }
     if (status.group === "approval" && item.turnId === activePreviewTurnId) return activePreview;
+    if (status.group === "approval" && item.turnId !== null && setAsideTurnIds.has(item.turnId)) return <TaskNote>{SET_ASIDE_PROPOSAL_NOTE}</TaskNote>;
     if (item.turnId !== null && stalledTurnIds.has(item.turnId) && item.messageStatus === "pending") {
       return <TaskNote role="alert">{STALLED_TURN_DETAIL}</TaskNote>;
     }
@@ -422,6 +433,7 @@ export function AgentTaskBody({
     // 되묻는 작업은 AI 질문을 제목으로, 원래 요청을 보조 설명으로 둔다(Figma 1671:13261).
     const isQuestion = status.group === "clarify" && item.action === "clarify" && Boolean(item.answer);
     const isActivePreview = status.group === "approval" && item.turnId === activePreviewTurnId;
+    const setAsideTurnId = status.group === "approval" && item.turnId !== null && !isActivePreview && setAsideTurnIds.has(item.turnId) ? item.turnId : null;
     const questionSlug = isQuestion ? skillModeQuestionSlug(item) : null;
     const stalledTurnId = status.group === "failed" && item.messageStatus === "pending" && item.turnId !== null && stalledTurnIds.has(item.turnId)
       ? item.turnId
@@ -489,8 +501,14 @@ export function AgentTaskBody({
             )}
           </div>
         )}
-        {status.group === "approval" && (onSaveRequestAsSkill || (isActivePreview && onShortenActivePreview)) && (
+        {status.group === "approval" && (onSaveRequestAsSkill || setAsideTurnId || (isActivePreview && onShortenActivePreview)) && (
           <div className={styles["task-actions"]}>
+            {setAsideTurnId && (
+              <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={!onReopenProposal} onClick={() => onReopenProposal?.(setAsideTurnId)}>
+                <AgentAssetIcon src={taskBoltIcon} size={12} />
+                다시 검토
+              </button>
+            )}
             {isActivePreview && onShortenActivePreview && (
               <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onShortenActivePreview}>
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
