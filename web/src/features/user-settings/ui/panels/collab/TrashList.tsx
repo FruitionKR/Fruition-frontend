@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrashDocuments, restoreTrashDocument } from "@/entities/document/api/trash";
-import { describePurge, describeRestoreError, isRetentionExpired } from "@/entities/document/lib/trashRetention";
+import { describePurge, describeRestoreError, documentRestoredMessage, isRetentionExpired, restoredDocumentFolderName } from "@/entities/document/lib/trashRetention";
+import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
@@ -42,7 +43,9 @@ export function TrashList() {
     setRestoreMessage(null);
     try {
       await restoreTrashDocument(documentId, currentVersion);
-      const message = `「${name}」 문서를 복구했습니다. 편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.`;
+      // 원래 폴더가 지워졌으면 최상위로 돌아가므로 실제 위치를 트리에서 찾는다. 찾지 못해도 복구는 끝났다.
+      const folderName = await fetchDocumentTree().then((tree) => restoredDocumentFolderName(tree.items, documentId)).catch(() => undefined);
+      const message = documentRestoredMessage(name, folderName);
       setRestoreMessage(message);
       publishNotice({
         kind: "completed",

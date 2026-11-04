@@ -150,6 +150,9 @@ test("부분 선택이면 고른 작업만 기준으로 판단한다", () => {
 
 test("안내 문구는 전부 막힘과 일부 막힘을 구분하고 막힘이 없으면 없다", () => {
   assert.match(planAccessMessage({ verdict: "all_blocked", blockedCount: 2 }), /수락해도 실행할 수 없어요/);
+  // 폴더 넣기·꺼내기에는 문서 소유자 예외가 없어 소유자도 이 안내를 본다. 권한을 풀어 줄 수 있는 OWNER를 가리킨다.
+  assert.match(planAccessMessage({ verdict: "all_blocked", blockedCount: 2 }), /워크스페이스 OWNER에게/);
+  assert.doesNotMatch(planAccessMessage({ verdict: "all_blocked", blockedCount: 2 }), /문서 소유자/);
   const partial = planAccessMessage({ verdict: "some_blocked", blockedCount: 2 });
   assert.match(partial, /작업 2개는/);
   assert.match(partial, /나머지 작업만 실행돼요/);

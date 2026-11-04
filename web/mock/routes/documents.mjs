@@ -197,7 +197,8 @@ export function registerDocumentRoutes(router) {
     if (Date.parse(purgeAt(doc)) <= Date.now()) return error(ctx, 409, "휴지통 보관 기간이 지났습니다.", "TRASH_RETENTION_EXPIRED");
     const deletedAt = doc.deleted_at;
     doc.deleted_at = null;
-    doc.folder_id = null;
+    // 원래 폴더로 돌아간다. 폴더가 지워졌거나 없을 때만 최상위로 간다.
+    if (!state.folders.some((folder) => folder.id === doc.folder_id && !folder.deleted_at)) doc.folder_id = null;
     doc.current_version += 1;
     if (doc.document_role === "EDITABLE" && doc.status === "completed") doc.needs_reingest = true;
     ctx.json(200, { id: doc.id, current_version: doc.current_version, deleted: false, deleted_at: deletedAt, sort_order: doc.sort_order ?? 0 });
