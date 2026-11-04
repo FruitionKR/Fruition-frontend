@@ -8,7 +8,7 @@ import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
-import { autoAppliedTaskNote } from "../lib/autoApply";
+import { appliedTaskNote } from "../lib/autoApply";
 import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
@@ -578,8 +578,16 @@ export function AgentTaskBody({
                       status={entry.status}
                       note={entry.run?.plan && isAutoApprovedPlan(entry.run) && entry.run.status === "completed"
                         ? autoApprovedPlanNote(entry.run.plan)
-                        : entry.item.turnId !== null && autoAppliedTurnIds.has(entry.item.turnId)
-                          ? [autoAppliedTaskNote(entry.item.action), entry.item.turnId === autoAppliedNotice?.turnId ? autoAppliedNotice.text : null].filter(Boolean).join(" ")
+                        : entry.item.turnId !== null
+                          ? [
+                              appliedTaskNote({
+                                action: entry.item.action,
+                                isAutoApplied: autoAppliedTurnIds.has(entry.item.turnId),
+                                isAppliedHere: appliedTurnIds.has(entry.item.turnId),
+                                isServerApplied: serverAppliedTurnIds.has(entry.item.turnId)
+                              }),
+                              entry.item.turnId === autoAppliedNotice?.turnId ? autoAppliedNotice.text : null
+                            ].filter(Boolean).join(" ") || null
                           : null}
                     />)}
                   </div>

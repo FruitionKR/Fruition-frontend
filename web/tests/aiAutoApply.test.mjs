@@ -11,6 +11,7 @@ registerHooks({
 });
 
 const {
+  appliedTaskNote,
   autoAppliedTaskNote,
   isContentEditAutoApproved,
   resolveTurnAutoApply
@@ -126,6 +127,24 @@ test("자동 처리한 작업에는 되돌리는 방법을 알린다", () => {
   assert.match(autoAppliedTaskNote("markdown_edit"), /로그 화면/);
   assert.match(autoAppliedTaskNote("markdown_edit"), /그 뒤에 고친 내용/);
   assert.match(autoAppliedTaskNote("markdown_create"), /휴지통/);
+});
+
+test("서버 기록으로만 저장을 확인한 편집은 자동 승인이라 단정하지 않고 되돌리는 방법을 알린다", () => {
+  // 새 브라우저: 이 화면의 기록(localStorage)은 없고 문서 버전에 적용 ID가 있다.
+  const note = appliedTaskNote({ action: "markdown_edit", isAutoApplied: false, isAppliedHere: false, isServerApplied: true });
+  assert.match(note, /로그 화면/);
+  assert.match(note, /그 뒤에 고친 내용/);
+  assert.doesNotMatch(note, /자동 승인/);
+  assert.doesNotMatch(note, /아직/);
+});
+
+test("완료 행 안내는 저장 사실을 아는 경우에만 붙인다", () => {
+  const base = { action: "markdown_edit", isAutoApplied: false, isAppliedHere: false, isServerApplied: false };
+  assert.equal(appliedTaskNote(base), null);
+  // 이 화면에서 직접 수락한 편집은 지금처럼 안내하지 않는다. 서버 기록이 뒤따라와도 같다.
+  assert.equal(appliedTaskNote({ ...base, isAppliedHere: true, isServerApplied: true }), null);
+  assert.equal(appliedTaskNote({ ...base, isAutoApplied: true, isAppliedHere: true }), autoAppliedTaskNote("markdown_edit"));
+  assert.equal(appliedTaskNote({ ...base, action: "markdown_create", isAutoApplied: true, isAppliedHere: true }), autoAppliedTaskNote("markdown_create"));
 });
 
 test("자동 처리 기록은 새로 고침 뒤에도 적용으로 남는다", () => {

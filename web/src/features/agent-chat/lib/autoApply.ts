@@ -47,10 +47,27 @@ export function resolveTurnAutoApply(input: {
 }
 
 const AUTO_APPLIED_PREFIX = "설정의 'AI 에이전트 자동 승인'에 따라 확인 없이 적용했어요.";
+const EDIT_ROLLBACK_HINT = "이전 내용으로 돌아가려면 로그 화면에서 이 작업을 롤백하세요. 그 뒤에 고친 내용도 함께 되돌아갑니다.";
 
 /** 자동 처리한 작업 줄에 보일 안내. 되돌리는 방법을 함께 적는다. */
 export function autoAppliedTaskNote(action: string | null | undefined): string {
   return action === "markdown_create"
     ? `${AUTO_APPLIED_PREFIX} 새로 만든 문서가 필요 없으면 휴지통으로 옮기세요.`
-    : `${AUTO_APPLIED_PREFIX} 이전 내용으로 돌아가려면 로그 화면에서 이 작업을 롤백하세요. 그 뒤에 고친 내용도 함께 되돌아갑니다.`;
+    : `${AUTO_APPLIED_PREFIX} ${EDIT_ROLLBACK_HINT}`;
+}
+
+/**
+ * 저장된 편집·초안 작업 줄의 안내. 자동 처리 기록은 이 브라우저에만 있고 서버 버전 기록은 자동·직접 적용을 가리지 않으므로,
+ * 다른 브라우저에서는 자동 승인이라 단정하지 않고 되돌리는 방법만 알린다. 턴 결과 메시지의 "아직 적용하지 않았어요"는 쓰지 않는다.
+ */
+export function appliedTaskNote({ action, isAutoApplied, isAppliedHere, isServerApplied }: {
+  action: string | null | undefined;
+  isAutoApplied: boolean;
+  /** 이 브라우저에 적용 기록이 있다. */
+  isAppliedHere: boolean;
+  /** 서버 버전 기록으로 저장을 확인했다. */
+  isServerApplied: boolean;
+}): string | null {
+  if (isAutoApplied) return autoAppliedTaskNote(action);
+  return isServerApplied && !isAppliedHere ? EDIT_ROLLBACK_HINT : null;
 }
