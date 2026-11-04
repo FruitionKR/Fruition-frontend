@@ -8,10 +8,15 @@ import {
 } from "@/entities/ai";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
+import { questionMarkIcon, SvgIcon } from "@/shared/ui/SvgIcon";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import styles from "../SettingsModal.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
-import { AiUsageBreakdown, USAGE_LAG_NOTE } from "./AiUsageBreakdown";
+import { AiUsageBreakdown } from "./AiUsageBreakdown";
 import usageStyles from "./AiUsageSection.module.css";
+
+/** 사용량은 실행이 끝난 뒤 수집된다. 제목 옆 물음표에 띄운다(스킬 입력의 HelpTip과 같은 모양). */
+const USAGE_LAG_NOTE = "방금 쓴 사용량은 늦게 보일 수 있어요. 일부 작업은 최대 하루 정도 걸려요.";
 
 /**
  * AI 설정의 AI 사용량: 참여한 모든 워크스페이스에서 내 계정으로 실행한 AI 작업의 모델별 토큰과 실제 금액.
@@ -43,7 +48,14 @@ export function AiUsageSection() {
       <SettingsSectionHeader id="ai-usage-heading">AI 사용량</SettingsSectionHeader>
       <div className={usageStyles.head}>
         <div className={styles["row-title"]}>
-          <strong>내 계정에서 쓴 토큰</strong>
+          <span className={usageStyles["title-row"]}>
+            <strong>내 계정에서 쓴 토큰</strong>
+            <Tooltip content={USAGE_LAG_NOTE} placement="top" describe={false}>
+              <button type="button" className={usageStyles["help-button"]} aria-label={`사용량 반영 시점 설명: ${USAGE_LAG_NOTE}`}>
+                <SvgIcon src={questionMarkIcon} className={usageStyles["help-icon"]} />
+              </button>
+            </Tooltip>
+          </span>
           <small>참여한 모든 워크스페이스에서 내 계정으로 실행한 AI 작업을 합산합니다.</small>
         </div>
         <div className={usageStyles.period}>
@@ -58,7 +70,7 @@ export function AiUsageSection() {
       ) : !summary || !usage.data ? (
         <UsageSkeleton />
       ) : summary.models.length === 0 ? (
-        <UsageEmpty title="이 기간에 AI 사용 기록이 없어요." description={`AI 작업을 실행하면 모델별 사용량이 여기에 쌓여요. ${USAGE_LAG_NOTE}`} />
+        <UsageEmpty title="이 기간에 AI 사용 기록이 없어요." description="AI 작업을 실행하면 모델별 사용량이 여기에 쌓여요." />
       ) : (
         <div className={usageStyles.body}>
           <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range)} />

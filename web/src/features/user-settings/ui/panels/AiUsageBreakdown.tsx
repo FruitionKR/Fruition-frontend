@@ -13,9 +13,6 @@ const providerIcons: Record<string, SvgAsset> = {
   claude: claudeIcon
 };
 
-/** 사용량은 실행이 끝난 뒤 수집된다. 빈 화면에서도 같은 안내를 보인다. */
-export const USAGE_LAG_NOTE = "방금 쓴 사용량은 늦게 보일 수 있어요. 일부 작업은 최대 하루 정도 걸려요.";
-
 /**
  * AI 사용량 시각화: 합계 카드(입력·출력 100% 막대) + 모델별 순위 막대.
  * 입력·출력은 같은 색의 두 단계(--color-usage-input/output)로, 카드의 범례가 모델 막대에도 그대로 적용된다.
@@ -78,12 +75,11 @@ export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageS
 
 function UsageNotes({ summary, hasCache }: { summary: ModelUsageSummary; hasCache: boolean }) {
   const notes = [
-    USAGE_LAG_NOTE,
     hasCache ? "캐시 토큰은 입력에 포함되어 합계에 따로 더하지 않아요." : null,
     summary.unpricedCalls > 0 ? `단가를 확인하지 못한 호출 ${formatTokenCount(summary.unpricedCalls)}건은 금액에서 빠졌어요.` : null,
     summary.needsReviewCalls > 0 ? `사용량을 알 수 없는 호출 ${formatTokenCount(summary.needsReviewCalls)}건은 0원으로 처리됐어요.` : null
   ].filter(Boolean);
-  return <p className={styles.note}>{notes.join(" ")}</p>;
+  return notes.length > 0 ? <p className={styles.note}>{notes.join(" ")}</p> : null;
 }
 
 function UsageHero({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeLabel: string }) {
