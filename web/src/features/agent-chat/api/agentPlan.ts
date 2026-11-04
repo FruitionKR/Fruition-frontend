@@ -18,12 +18,13 @@ export async function fetchAgentPlanRun(
   const turn = await parseJsonOrThrow<{
     status: string;
     result: { run_id?: string | null } | null;
-    error_code?: string | null;
+    /** 실패 코드. run 조회와 달리 turn 조회의 코드 필드는 error다(document AgentTurnResponse). */
+    error?: string | null;
   }>(response, "작업 계획을 불러오지 못했습니다.");
   if (turn.status === "failed") throw new Error("계획 생성 요청이 실패했습니다.");
   // 문서 삭제 등으로 turn이 취소되면 run 없이 turn 상태만 온다. 취소 중은 폴링을 이어 가고, 종결(취소됨·복구 실패)은 폴링을 멈춘다(#141).
   if (TURN_CANCEL_STATUSES.has(turn.status)) {
-    return { id: turnId, status: turn.status, plan: null, error_code: turn.error_code ?? null };
+    return { id: turnId, status: turn.status, plan: null, error_code: turn.error ?? null };
   }
   if (turn.status !== "completed") return null;
   if (!turn.result?.run_id) throw new Error("이 답변의 계획 정보를 찾을 수 없습니다. 다시 요청해주세요.");

@@ -87,7 +87,7 @@ test("turn이 취소 중이면 폴링을 이어 가고, 취소됨·복구 실패
   let turnStatus = "cancel_requested";
   t.mock.method(globalThis, "fetch", async (path) => {
     assert.equal(path, "/api/workspaces/ws_test/agent/turn/turn-1");
-    return Response.json({ status: turnStatus, result: null, error_code: turnStatus === "rollback_failed" ? "rollback_conflict" : null });
+    return Response.json({ status: turnStatus, result: null, error: turnStatus === "rollback_failed" ? "rollback_conflict" : null, error_message: turnStatus === "rollback_failed" ? "변경을 되돌리지 못했습니다." : null });
   });
   for (const status of ["cancel_requested", "rolling_back"]) {
     turnStatus = status;
@@ -357,6 +357,18 @@ test("영구 삭제로 건너뛴 작업은 고르지 않은 작업과 다른 말
   assert.equal(planOperationResultLabel({ status: "skipped", error_code: "not_selected" }), "제외됨");
   assert.equal(planOperationResultLabel({ status: "failed", error_code: null }), "실패");
   assert.equal(planOperationOutcome(purged), "excluded");
+});
+
+test("turn 조회의 실패 코드(error)로 영구 삭제 때문에 일부만 되돌린 것을 알아본다", async (t) => {
+  // document AgentTurnResponse: 실패 코드는 error, 문구는 error_message다. error_code 필드는 없다.
+  t.mock.method(globalThis, "fetch", async () => Response.json({ status: "rollback_failed", result: null, error: "rollback_document_purged", error_message: "영구 삭제된 문서의 변경은 되돌릴 수 없습니다. 나머지 변경은 되돌렸습니다." }));
+  const run = await fetchAgentPlanRun("ws_test", "turn-1");
+  assert.equal(run.error_code, "rollback_document_purged");
+  const message = agentPlanFailureMessage(run);
+  assert.match(message, /영구 삭제된 문서/);
+  assert.match(message, /나머지 변경은 되돌렸어요/);
+  assert.doesNotMatch(message, /다시 시도/);
+  assert.equal(canRetryAgentPlanRun(run), false);
 });
 
 test("영구 삭제 문서가 있어 되돌리지 못한 run은 이유를 말한다", () => {

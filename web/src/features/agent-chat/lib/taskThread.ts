@@ -9,6 +9,7 @@ import {
   STALLED_TURN_TITLE,
   TURN_CANCELLING_LABEL,
   TURN_ROLLBACK_FAILED_LABEL,
+  TURN_ROLLBACK_PARTIAL_LABEL,
   type TurnCancelState
 } from "@/features/agent-chat/lib/stalledTurns";
 
@@ -256,6 +257,7 @@ const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "
 function cancelledTaskStatus(cancelState: TurnCancelState | null): TaskStatusView {
   if (isTurnCancelling(cancelState)) return { group: "running", label: TURN_CANCELLING_LABEL, tone: "muted", struck: false };
   if (cancelState === "rollback_failed") return { group: "failed", label: TURN_ROLLBACK_FAILED_LABEL, tone: "danger", struck: false };
+  if (cancelState === "rollback_partial") return { group: "failed", label: TURN_ROLLBACK_PARTIAL_LABEL, tone: "danger", struck: false };
   return CANCELLED_TASK_STATUS;
 }
 

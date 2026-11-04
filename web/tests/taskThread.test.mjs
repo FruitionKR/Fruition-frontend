@@ -397,6 +397,9 @@ test("취소한 turn은 되돌리는 동안 '진행 중' 묶음의 '취소하는
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rolling_back" }), cancelling);
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "cancelled" }), cancelled);
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_failed" }), rollbackFailed);
+  // 영구 삭제 문서 때문에 일부만 되돌린 끝은 복구 실패와 다르게 적는다.
+  assert.equal(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_partial" }).label, "일부 되돌리지 못함");
+  assert.equal(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_partial" }).group, "failed");
   // 목록이 아직 pending이어도 취소 응답 상태로 같게 보인다.
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, cancelState: "rolling_back" }), cancelling);
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, cancelState: "rollback_failed" }), rollbackFailed);

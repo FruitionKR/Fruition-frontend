@@ -324,7 +324,7 @@ export function AgentPanel({
   )), [cancelAcceptedTurnIds, taskItems]);
   const { cancelStates, seedCancelState } = useTurnCancelStates(cancelledTaskTurnIds);
   const markCancelAccepted = useCallback((accepted: readonly CancelAcceptedTurn[]) => {
-    accepted.forEach(({ turnId, status }) => seedCancelState(turnId, { kind: "status", status }));
+    accepted.forEach(({ turnId, status, error }) => seedCancelState(turnId, { kind: "status", status, error }));
     setCancelAcceptedTurnIds((current) => new Set([...current, ...accepted.map(({ turnId }) => turnId)]));
   }, [seedCancelState]);  // 방금 보낸 요청이 실패로 끝나 작업 탭 '실패' 묶음에 서버 문구와 '다시 시도'로 보이면 입력창 위 빨간 오류는 겹쳐 띄우지 않는다.
   const requestTurnId = agentTurn.requestTurnId;

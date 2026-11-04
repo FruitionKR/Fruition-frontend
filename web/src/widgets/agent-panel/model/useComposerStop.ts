@@ -60,7 +60,7 @@ export function useComposerStop({
   async function cancelFollowingTurn(turnId: string) {
     stopFollowing();
     const result = await requestCancel(turnId);
-    if (isTurnCancelAccepted(result)) onCancelAccepted?.([{ turnId, status: result.status }]);
+    if (isTurnCancelAccepted(result)) onCancelAccepted?.([{ turnId, status: result.status, error: result.error }]);
     const outcome = activeTurnStopOutcome(result);
     if (outcome.refresh) await refreshMessages().catch(() => undefined);
     if (outcome.release) releaseTurns([turnId]);

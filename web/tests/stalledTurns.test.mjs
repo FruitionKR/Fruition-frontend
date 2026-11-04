@@ -136,6 +136,7 @@ test("막힌 작업 닫기: 취소 계열이면 목록만 다시 받고, 복구 
   assert.match(rollbackFailed.notice, /복구하지 못했어요/);
   assert.equal(rollbackFailed.refresh, true);
   assert.equal(rollbackFailed.showResult, false);
+  assert.match(stalledTurnCancelOutcome({ kind: "status", status: "rollback_failed", error: "rollback_document_purged" }).notice, /나머지 변경은 되돌렸어요/);
 });
 
 test("막힌 작업 닫기: 404는 조용히, 409(이미 끝남)는 결과를 다시 받고, 전하지 못하면 알린다", () => {
@@ -162,6 +163,7 @@ test("진행 중인 작업을 Esc로 중지한 결과: 취소되면 목록을 �
   const rollbackFailed = activeTurnStopOutcome({ kind: "status", status: "rollback_failed" });
   assert.equal(rollbackFailed.release, true);
   assert.match(rollbackFailed.notice, /복구하지 못했어요/);
+  assert.match(activeTurnStopOutcome({ kind: "status", status: "rollback_failed", error: "rollback_document_purged" }).notice, /나머지 변경은 되돌렸어요/);
   assert.deepEqual(activeTurnStopOutcome({ kind: "missing" }), { notice: null, refresh: false, release: true, resume: false });
   assert.deepEqual(activeTurnStopOutcome({ kind: "finished" }), { notice: null, refresh: false, release: false, resume: true });
   assert.deepEqual(activeTurnStopOutcome({ kind: "status", status: "completed" }), { notice: null, refresh: false, release: false, resume: true });
@@ -193,6 +195,9 @@ test("취소한 turn 조회 결과를 취소 진행 상태로 바꾼다", () => 
   assert.equal(turnCancelState({ kind: "status", status: "cancel_requested" }), "requested");
   assert.equal(turnCancelState({ kind: "status", status: "rolling_back" }), "rolling_back");
   assert.equal(turnCancelState({ kind: "status", status: "rollback_failed" }), "rollback_failed");
+  assert.equal(turnCancelState({ kind: "status", status: "rollback_failed", error: "rollback_conflict" }), "rollback_failed");
+  // 영구 삭제 문서만 못 되돌린 끝이다. 다시 요청해도 같다(document tasks.md).
+  assert.equal(turnCancelState({ kind: "status", status: "rollback_failed", error: "rollback_document_purged" }), "rollback_partial");
   assert.equal(turnCancelState({ kind: "status", status: "cancelled" }), "cancelled");
   // 서버에 없거나 취소 계열이 아닌 상태는 더 기다릴 것이 없다.
   assert.equal(turnCancelState({ kind: "missing" }), "cancelled");
@@ -216,6 +221,8 @@ test("취소하는 중인 turn만 상한까지 다시 조회한다", () => {
 
 test("이 화면에서 취소하는 중이던 turn이 복구 실패로 끝날 때만 알린다", () => {
   assert.equal(turnCancelSettledNotice("rolling_back", "rollback_failed"), TURN_ROLLBACK_FAILED_DETAIL);
+  assert.match(turnCancelSettledNotice("rolling_back", "rollback_partial"), /나머지 변경은 되돌렸어요/);
+  assert.equal(turnCancelSettledNotice(undefined, "rollback_partial"), null);
   assert.equal(turnCancelSettledNotice("requested", "rollback_failed"), TURN_ROLLBACK_FAILED_DETAIL);
   assert.equal(turnCancelSettledNotice("rolling_back", "cancelled"), null);
   // 새로 고침 뒤 처음 받은 상태·이미 알린 상태로는 다시 알리지 않는다.

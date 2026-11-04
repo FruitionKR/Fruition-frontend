@@ -112,8 +112,8 @@ function followAgentTurnRun(workspaceId: string, turnId: string, handlers: Agent
 export async function checkAgentTurnStatus(turnId: string, signal?: AbortSignal): Promise<TurnCheckResult> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId), { cache: "no-store", signal });
   if (response.status === 404) return { kind: "missing" };
-  const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
-  return { kind: "status", status: run.status ?? "" };
+  const run = await parseJsonOrThrow<{ status?: string; error?: string | null }>(response, ERROR_MESSAGES.agentTurnFailed);
+  return { kind: "status", status: run.status ?? "", error: run.error ?? null };
 }
 
 /**
@@ -125,8 +125,8 @@ export async function requestAgentTurnCancel(turnId: string, signal?: AbortSigna
   const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId, "cancel"), { method: "POST", signal });
   if (response.status === 404) return { kind: "missing" };
   if (response.status === 409) return { kind: "finished" };
-  const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
-  return { kind: "status", status: run.status ?? "" };
+  const run = await parseJsonOrThrow<{ status?: string; error?: string | null }>(response, ERROR_MESSAGES.agentTurnFailed);
+  return { kind: "status", status: run.status ?? "", error: run.error ?? null };
 }
 
 /** 끝난 편집 turn의 대상 문서와 적용 ID. 새로 고침 뒤 버전 기록과 맞춰 적용 여부를 알아낸다. */

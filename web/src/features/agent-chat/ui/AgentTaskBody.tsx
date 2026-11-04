@@ -13,7 +13,7 @@ import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspace
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
-import { STALLED_TURN_DETAIL, TURN_CANCELLING_DETAIL, TURN_ROLLBACK_FAILED_DETAIL, type TurnCancelState } from "../lib/stalledTurns";
+import { STALLED_TURN_DETAIL, TURN_CANCELLING_DETAIL, TURN_ROLLBACK_FAILED_DETAIL, TURN_ROLLBACK_PARTIAL_DETAIL, type TurnCancelState } from "../lib/stalledTurns";
 import { supersededFolderPlans, type FolderPlanSupersession } from "../lib/folderPlanSupersede";
 import { useSupersedeFolderPlans } from "../model/useSupersedeFolderPlans";
 import { newAttentionKeys, revealScrollDelta } from "../lib/revealScroll";
@@ -396,6 +396,7 @@ export function AgentTaskBody({
       return <TaskNote role="status">{TURN_CANCELLING_DETAIL[cancelState]}</TaskNote>;
     }
     if (isCancelledTurn && cancelState === "rollback_failed") return <TaskNote role="alert">{TURN_ROLLBACK_FAILED_DETAIL}</TaskNote>;
+    if (isCancelledTurn && cancelState === "rollback_partial") return <TaskNote role="alert">{TURN_ROLLBACK_PARTIAL_DETAIL}</TaskNote>;
     if (isWorkspacePlanAction(item.action ?? undefined) && status.group !== "done") {
       return (
         <AgentPlanTaskDetail
