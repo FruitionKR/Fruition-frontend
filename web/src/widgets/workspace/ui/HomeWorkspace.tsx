@@ -634,7 +634,7 @@ export function HomeWorkspace() {
 
       {/* 채팅 패널이 닫혀 있으면 우하단 원형 버튼으로 연다 (Figma 1426:15877 / 1406:14202). */}
       {!isAgentPanelShown && canShowAgentPanel(activeView) && (
-        <AgentLauncher onOpen={panels.openAgentPanel} />
+        <AgentLauncher onOpen={panels.openAgentPanel} isAvoidingProposals={isCompactLayout && (editReview?.pendingCount ?? 0) > 0} />
       )}
 
       {/* 채팅 패널 폭 조절 핸들: 왼쪽으로 끌면 넓어지고, 최소 폭 미만이면 패널을 닫는다. ←/→ 16px, Enter 닫기 */}

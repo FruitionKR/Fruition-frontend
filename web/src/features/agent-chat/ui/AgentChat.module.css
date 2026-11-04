@@ -2686,6 +2686,12 @@ button.result-link:focus-visible {
     right: 16px;
     bottom: 16px;
   }
+
+  /* 본문 제안의 거절·수락은 오른쪽에 붙으므로 그동안 왼쪽으로 비켜 선다. */
+  .agent-launcher.is-avoiding-proposals {
+    right: auto;
+    left: 16px;
+  }
 }
 
 /* 터치 기기: 입력창 버튼·작업 카드 버튼을 키우고, hover로만 보이던 세션 옵션을 늘 보인다. */
