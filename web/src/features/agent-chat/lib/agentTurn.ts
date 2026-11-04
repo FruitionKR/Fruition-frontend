@@ -117,6 +117,38 @@ export function resolveGeneratedDocumentFolderId(response: Pick<AgentTurnRespons
   return response?.folder_id ?? null;
 }
 
+export type DraftPlacement = {
+  folderId: string | null;
+  /** 원문 옆으로 고른 폴더라 서버가 거절해도 기본 위치에 만들 수 있다. 사용자가 지정한 폴더는 옮기지 않는다. */
+  canFallBackToRoot: boolean;
+};
+
+/**
+ * 새 문서 초안을 둘 위치. turn에 지정한 대상 폴더가 먼저이고, 없으면 원문(열린 문서) 옆이다.
+ * 문서를 열지 않고 만든 초안이나 쓸 수 없는 원문 폴더면 기본 위치(루트)다.
+ */
+export function resolveDraftPlacement({ targetFolderId, sourceFolderId, isFolderWriteDenied }: {
+  targetFolderId: string | null;
+  /** 원문이 있는 폴더. 루트면 null, 원문이 없거나 트리에서 못 찾으면 undefined */
+  sourceFolderId: string | null | undefined;
+  isFolderWriteDenied: (folderId: string) => boolean;
+}): DraftPlacement {
+  if (targetFolderId) return { folderId: targetFolderId, canFallBackToRoot: false };
+  if (!sourceFolderId || isFolderWriteDenied(sourceFolderId)) return { folderId: null, canFallBackToRoot: false };
+  return { folderId: sourceFolderId, canFallBackToRoot: true };
+}
+
+/** 트리가 오래돼 원문 폴더가 없어졌거나 권한이 바뀌었으면(403·404) 기본 위치에 다시 만든다. 그 밖의 실패는 그대로 던진다. */
+export async function createInDraftPlacement<T>({ folderId, canFallBackToRoot }: DraftPlacement, create: (folderId: string | null) => Promise<T>): Promise<T> {
+  try {
+    return await create(folderId);
+  } catch (error) {
+    const status = (error as { status?: unknown } | null)?.status;
+    if (!canFallBackToRoot || (status !== 403 && status !== 404)) throw error;
+    return create(null);
+  }
+}
+
 export type { MarkdownDiffLine } from "@/shared/lib/lineDiff";
 
 export type MarkdownEditPreview = {

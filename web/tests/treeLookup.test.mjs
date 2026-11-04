@@ -6,7 +6,7 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
-const { findParentLabel, findTreeItemInProjects, findFirstSelectableNote } = await import("../src/widgets/workspace/lib/treeLookup.ts");
+const { findDocumentFolderId, findParentLabel, findTreeItemInProjects, findFirstSelectableNote } = await import("../src/widgets/workspace/lib/treeLookup.ts");
 
 const items = [
   { id: "f", label: "폴더", type: "folder", children: [
@@ -31,4 +31,18 @@ test("findFirstSelectableNote는 허용 문서가 있는 첫 항목을 고른다
   assert.equal(findFirstSelectableNote(items, new Set(["doc-b"]))?.id, "b");
   assert.equal(findFirstSelectableNote(items, new Set(["doc-a"]))?.id, "a");
   assert.equal(findFirstSelectableNote([items[1]], new Set()), null);
+});
+
+test("문서가 있는 폴더를 트리 위치로 찾는다", () => {
+  const projects = [
+    { id: "root", folderId: null, title: "", items: [
+      { id: "doc-root", label: "루트 문서", documentId: "d-root" },
+      { id: "f1", label: "폴더", children: [{ id: "f2", label: "안쪽", children: [{ id: "doc-in", label: "안쪽 문서", documentId: "d-in" }] }] }
+    ] },
+    { id: "proj", folderId: "project-folder", title: "", items: [{ id: "doc-top", label: "프로젝트 문서", documentId: "d-top" }] }
+  ];
+  assert.equal(findDocumentFolderId(projects, "d-in"), "f2");
+  assert.equal(findDocumentFolderId(projects, "d-root"), null);
+  assert.equal(findDocumentFolderId(projects, "d-top"), "project-folder");
+  assert.equal(findDocumentFolderId(projects, "없는 문서"), undefined);
 });

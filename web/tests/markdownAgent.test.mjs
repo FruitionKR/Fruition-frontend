@@ -13,6 +13,8 @@ const {
   buildAgentTurnRequest,
   buildGeneratedMarkdownDocument,
   buildGeneratedMarkdownFilename,
+  createInDraftPlacement,
+  resolveDraftPlacement,
   isDocumentCommandAction,
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
@@ -419,4 +421,44 @@ test("웹 서칭 토글이 켜지면 allow_web_search를 true로 보낸다", () 
     allowWebSearch: true
   });
   assert.equal(request.allow_web_search, true);
+});
+
+test("새 문서 위치: turn의 대상 폴더가 먼저이고, 없으면 원문 폴더, 원문이 없으면 지금처럼 루트다", () => {
+  const allowed = () => false;
+  assert.deepEqual(resolveDraftPlacement({ targetFolderId: "target", sourceFolderId: "source", isFolderWriteDenied: allowed }), { folderId: "target", canFallBackToRoot: false });
+  assert.deepEqual(resolveDraftPlacement({ targetFolderId: null, sourceFolderId: "source", isFolderWriteDenied: allowed }), { folderId: "source", canFallBackToRoot: true });
+  // 원문이 루트에 있거나, 문서를 열지 않았거나, 트리에서 못 찾으면 루트다.
+  for (const sourceFolderId of [null, undefined]) {
+    assert.deepEqual(resolveDraftPlacement({ targetFolderId: null, sourceFolderId, isFolderWriteDenied: allowed }), { folderId: null, canFallBackToRoot: false });
+  }
+});
+
+test("원문 폴더에 쓸 수 없으면 기본 위치로 만들고, 지정한 대상 폴더는 바꾸지 않는다", () => {
+  const denied = () => true;
+  assert.deepEqual(resolveDraftPlacement({ targetFolderId: null, sourceFolderId: "source", isFolderWriteDenied: denied }), { folderId: null, canFallBackToRoot: false });
+  // 대상 폴더 권한은 수락 화면이 막고 이유를 보여 준다(지금 동작).
+  assert.equal(resolveDraftPlacement({ targetFolderId: "target", sourceFolderId: "source", isFolderWriteDenied: denied }).folderId, "target");
+});
+
+test("원문 폴더가 서버에서 거절되면(403·404) 기본 위치로 한 번 더 만들어 저장을 지킨다", async () => {
+  for (const status of [403, 404]) {
+    const calls = [];
+    const created = await createInDraftPlacement({ folderId: "source", canFallBackToRoot: true }, async (folderId) => {
+      calls.push(folderId);
+      if (folderId) throw Object.assign(new Error("거절"), { status });
+      return "doc";
+    });
+    assert.equal(created, "doc");
+    assert.deepEqual(calls, ["source", null]);
+  }
+});
+
+test("다른 실패와 사용자가 지정한 폴더의 실패는 다른 곳에 만들지 않고 그대로 알린다", async () => {
+  const failing = (status, calls) => async (folderId) => { calls.push(folderId); throw Object.assign(new Error("실패"), { status }); };
+  const serverError = [];
+  await assert.rejects(createInDraftPlacement({ folderId: "source", canFallBackToRoot: true }, failing(500, serverError)), /실패/);
+  assert.deepEqual(serverError, ["source"]);
+  const explicit = [];
+  await assert.rejects(createInDraftPlacement({ folderId: "target", canFallBackToRoot: false }, failing(403, explicit)), /실패/);
+  assert.deepEqual(explicit, ["target"]);
 });

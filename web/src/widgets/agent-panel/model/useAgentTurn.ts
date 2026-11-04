@@ -88,8 +88,8 @@ export function useAgentTurn({
   refreshMessages: (options: { animateLatest: boolean }) => Promise<unknown>;
   /** 이 폴더에 쓸 수 없다고 알고 있는지. 권한을 모르면 false다. */
   isFolderWriteDenied: (folderId: string) => boolean;
-  /** folderId는 새 문서를 둘 폴더(null이면 루트). agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID다. */
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  /** folderId는 turn의 대상 폴더. agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID, sourceDocumentId는 그 초안의 원문(열린 문서)이다. */
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null, sourceDocumentId?: string | null) => Promise<void>;
   /** 현재 문서 제목. 잠금(423) 안내에 쓴다. */
   openDocumentTitle?: string | null;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
@@ -527,7 +527,7 @@ export function useAgentTurn({
     const runId = agentTurnResponse.requestId;
     setIsCreatingMarkdown(true);
     setMarkdownCreateErrorMessage(null);
-    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId)
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId, agentTurnResponse.documentId)
       .then(() => {
         markOutcome(runId, outcome);
         setAgentTurnRequest(null);

@@ -106,7 +106,7 @@ export function AgentPanel({
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null, sourceDocumentId?: string | null) => Promise<void>;
   /** 이 폴더에 새 문서를 넣을 권한이 없으면 true. 권한을 모르면 false이고 서버가 판단한다. */
   isFolderWriteDenied: (folderId: string) => boolean;
   markdownEditContext?: ActiveMarkdownEditContext | null;
