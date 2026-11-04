@@ -21,6 +21,13 @@ export function isOpenDocumentOptIn(intent: SkillRunIntent | null): boolean {
 }
 
 /**
+ * 보기 권한으로 연 문서는 첨부로 실리는데 서버 한도(3개)가 차면 빠진다. "모두 고쳐 줘" 같은 요청에서 조용히 빠지지 않게 입력창에 알린다.
+ */
+export function readOnlyOverflowNotice({ isReadOnlyOpen, hasRoom }: { isReadOnlyOpen: boolean; hasRoom: boolean }): string | null {
+  return isReadOnlyOpen && !hasRoom ? "첨부가 가득 차 현재 문서는 보기 권한 문서로 함께 보내지 않아요." : null;
+}
+
+/**
  * 작업 탭 요청에 열린 문서(active_markdown_context·document_id·base_version)를 실을지.
  * `@문서`로 첨부한 문서와는 상관없다. 칩이 붙어 있으면 첨부와 함께 싣는다.
  * - '새 문서로 만들기' 스킬은 칩을 눌러 원문으로 쓰겠다고 했을 때만 싣는다.

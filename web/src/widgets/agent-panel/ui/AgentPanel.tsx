@@ -67,7 +67,7 @@ import { useComposerAttachments } from "../model/useComposerAttachments";
 import { useDocumentPicker } from "../model/useDocumentPicker";
 import { usePanelSessions } from "../model/usePanelSessions";
 import { usePanelDraft } from "../model/usePanelDraft";
-import { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } from "../lib/openDocumentSource";
+import { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } from "../lib/openDocumentSource";
 import { followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
 import { filterPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
 import { ReferenceDocumentPickerModal } from "@/features/skill-authoring/ui/ReferenceDocumentPickerModal";
@@ -364,12 +364,14 @@ export function AgentPanel({
   const selectionKey = openDocumentId && editorTarget?.type === "selection"
     ? `${openDocumentId}:${editorTarget.startLine}-${editorTarget.endLine}`
     : null;
+  const hasRoomForOpenDocument = readOnlySourceId === null || composerAttachments.attachments.filter((document) => document.id !== readOnlySourceId).length < REFERENCE_DOCUMENT_MAX;
   const isDocumentIncluded = openDocumentId !== null && shouldSendOpenDocument({
     intent: composerIntent,
     isExcluded: excludedDocumentId === openDocumentId,
     isOptedIn: optedInDocumentId === openDocumentId,
-    hasRoom: readOnlySourceId === null || composerAttachments.attachments.filter((document) => document.id !== readOnlySourceId).length < REFERENCE_DOCUMENT_MAX
+    hasRoom: hasRoomForOpenDocument
   });
+  const openDocumentOverflowNotice = readOnlyOverflowNotice({ isReadOnlyOpen: readOnlySourceId !== null, hasRoom: hasRoomForOpenDocument });
   const attachedDocuments = referenceDocuments(composerAttachments.attachments, isDocumentIncluded ? openDocumentId : null);
   const documentPicker = useDocumentPicker({
     value: composerValue,
@@ -1084,6 +1086,7 @@ export function AgentPanel({
                 onRemove={composerAttachments.remove}
                 onAdd={documentPicker.openDialog}
               />
+              {openDocumentOverflowNotice && <p className={styles["task-card-meta"]} role="status">{openDocumentOverflowNotice}</p>}
             </div>
           ) : null}
           onInputKeyDown={isWorkView ? (event) => documentPicker.handleKeyDown(event) || skillPicker.handleKeyDown(event) : undefined}

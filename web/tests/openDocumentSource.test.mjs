@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } =
+const { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } =
   await import("../src/widgets/agent-panel/lib/openDocumentSource.ts");
 
 const skill = (slug, capabilities, resultMode, status = "enabled") => ({
@@ -79,4 +79,10 @@ test("보기 권한 문서처럼 첨부로 싣는 열린 문서는 첨부 자리
   assert.equal(shouldSendOpenDocument({ intent: null, isExcluded: false, isOptedIn: false, hasRoom: false }), false);
   assert.equal(shouldSendOpenDocument({ intent: "create", isExcluded: false, isOptedIn: true, hasRoom: false }), false);
   assert.equal(shouldSendOpenDocument({ intent: null, isExcluded: false, isOptedIn: false, hasRoom: true }), true);
+});
+
+test("첨부가 차서 보기 권한으로 연 문서를 싣지 못하면 조용히 빠지지 않게 알린다", () => {
+  assert.match(readOnlyOverflowNotice({ isReadOnlyOpen: true, hasRoom: false }), /현재 문서는 보기 권한.*함께 보내지 않아요/);
+  assert.equal(readOnlyOverflowNotice({ isReadOnlyOpen: true, hasRoom: true }), null);
+  assert.equal(readOnlyOverflowNotice({ isReadOnlyOpen: false, hasRoom: false }), null);
 });
