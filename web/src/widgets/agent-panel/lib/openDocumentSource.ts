@@ -25,17 +25,21 @@ export function isOpenDocumentOptIn(intent: SkillRunIntent | null): boolean {
  * `@문서`로 첨부한 문서와는 상관없다. 칩이 붙어 있으면 첨부와 함께 싣는다.
  * - '새 문서로 만들기' 스킬은 칩을 눌러 원문으로 쓰겠다고 했을 때만 싣는다.
  * - 그 밖(일반 요청·고치기·상황에 맞게·템플릿·폴더 정리)은 칩에서 빼지 않았으면 싣는다.
+ * - 첨부로 싣는 보기 권한 문서는 첨부 자리가 없으면(hasRoom=false) 싣지 않는다. 서버가 3개를 넘는 요청 전체를 거절한다.
  */
 export function shouldSendOpenDocument({
   intent,
   isExcluded,
-  isOptedIn
+  isOptedIn,
+  hasRoom = true
 }: {
   intent: SkillRunIntent | null;
   /** "현재 문서" 칩의 ×로 뺐다. */
   isExcluded: boolean;
   /** '새 문서로 만들기' 스킬에서 칩을 눌러 원문으로 쓰겠다고 했다. */
   isOptedIn: boolean;
+  hasRoom?: boolean;
 }): boolean {
+  if (!hasRoom) return false;
   return isOpenDocumentOptIn(intent) ? isOptedIn : !isExcluded;
 }

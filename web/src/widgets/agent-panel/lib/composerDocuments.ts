@@ -1,3 +1,4 @@
+import { isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { isDocumentConverting, isMarkdownDocument } from "@/entities/document/lib/documentKind";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { AgentTurnRequest } from "@/features/agent-chat/lib/agentTurn";
@@ -47,33 +48,57 @@ function isAttachableDocument(document: DocumentItemResponse): boolean {
 }
 
 /**
+ * 보기 권한으로 연 문서를 근거 첨부로 실을 때 그 문서 ID. 편집 문맥(documentId)으로 보내지 않아야 AI가 원문 수정안을 내지 않고
+ * 서버의 쓰기 권한 검사도 그대로 남는다. 첨부로 받지 않는 문서(PDF 원본·변환 중)는 요청 전체가 400이 되므로 뺀다.
+ */
+export function readOnlyReferenceDocumentId(document: DocumentItemResponse | null | undefined): string | null {
+  return document && isDocumentReadOnly(document) && isAttachableDocument(document) ? document.id : null;
+}
+
+/** 요청에 실을 첨부. 보기 권한으로 연 문서는 서버 한도(3개)에 함께 세고 겹쳐 싣지 않는다. */
+export function turnReferenceDocumentIds(attachments: readonly Pick<DocumentItemResponse, "id">[], readOnlyDocumentId: string | null): string[] {
+  const ids = attachments.map((document) => document.id);
+  return readOnlyDocumentId && !ids.includes(readOnlyDocumentId) ? [readOnlyDocumentId, ...ids] : ids;
+}
+
+/**
  * 고를 수 있는 문서.
  * 이미 고른 문서는 빼고, 현재 문서는 칩이 붙어 있지 않을 때만 맨 앞에 넣는다.
- * 3개를 다 골라도 열린 문서는 첨부 수에 들지 않아 ×로 뺀 현재 문서는 다시 붙일 수 있다.
+ * 3개를 다 골라도 편집 문맥으로 실리는 열린 문서는 첨부 수에 들지 않아 ×로 뺀 현재 문서는 다시 붙일 수 있다.
+ * 보기 권한으로 연 문서(isOpenDocumentReference)는 첨부로 실려 자리를 차지한다.
  */
 export function composerDocumentOptions({
   documents,
   query,
   attachments,
   openDocumentId,
-  isOpenDocumentAttached
+  isOpenDocumentAttached,
+  isOpenDocumentReference = false
 }: {
   documents: DocumentItemResponse[];
   query: string;
   attachments: readonly DocumentItemResponse[];
   openDocumentId: string | null;
   isOpenDocumentAttached: boolean;
+  isOpenDocumentReference?: boolean;
 }): DocumentItemResponse[] {
   const attachedIds = new Set(attachments.map((document) => document.id));
-  const isFull = attachments.length >= REFERENCE_DOCUMENT_MAX;
+  const usedCount = attachments.length + (isOpenDocumentReference && isOpenDocumentAttached ? 1 : 0);
+  const isFull = usedCount >= REFERENCE_DOCUMENT_MAX;
   const pinned = isOpenDocumentAttached ? [] : documents.filter((document) => document.id === openDocumentId);
   return filterPickerDocuments(orderPickerDocuments(pinned, [], documents), query).filter((document) => {
     if (!isAttachableDocument(document) || attachedIds.has(document.id)) return false;
-    return document.id === openDocumentId ? !isOpenDocumentAttached : !isFull;
+    if (document.id !== openDocumentId) return !isFull;
+    return !isOpenDocumentAttached && !(isOpenDocumentReference && isFull);
   });
 }
 
-export function canAddComposerDocument(attachmentCount: number, isOpenDocumentDetached: boolean): boolean {
+export function canAddComposerDocument(
+  attachmentCount: number,
+  isOpenDocumentDetached: boolean,
+  { isOpenDocumentReference = false, isOpenDocumentAttached = false }: { isOpenDocumentReference?: boolean; isOpenDocumentAttached?: boolean } = {}
+): boolean {
+  if (isOpenDocumentReference) return attachmentCount + (isOpenDocumentAttached ? 1 : 0) < REFERENCE_DOCUMENT_MAX;
   return attachmentCount < REFERENCE_DOCUMENT_MAX || isOpenDocumentDetached;
 }
 

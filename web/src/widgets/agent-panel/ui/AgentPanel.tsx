@@ -43,6 +43,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
 import { CHAT_SESSION_LIMIT_MESSAGE, getErrorMessage } from "@/shared/lib/apiErrors";
 import { getWorkspaceId } from "@/shared/api/client";
+import type { DocumentItemResponse } from "@/entities/document";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
 import { chatSessionTitle, isDefaultChatTitle } from "@/entities/chat/lib/sessionTitle";
@@ -67,7 +68,7 @@ import { useDocumentPicker } from "../model/useDocumentPicker";
 import { usePanelSessions } from "../model/usePanelSessions";
 import { usePanelDraft } from "../model/usePanelDraft";
 import { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } from "../lib/openDocumentSource";
-import { followUpReferenceDocumentIds, REFERENCE_DOCUMENT_MAX, referenceDocuments } from "../lib/composerDocuments";
+import { followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
 import { filterPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
 import { ReferenceDocumentPickerModal } from "@/features/skill-authoring/ui/ReferenceDocumentPickerModal";
 import { ComposerDocumentChips } from "./ComposerDocumentChips";
@@ -101,6 +102,7 @@ export function AgentPanel({
   skillTestRunSlotRef,
   openDocumentTitle = null,
   readOnlyDocumentId = null,
+  readOnlyOpenDocument = null,
   onEditReviewChange,
   isShown = true
 }: {
@@ -112,6 +114,8 @@ export function AgentPanel({
   markdownEditContext?: ActiveMarkdownEditContext | null;
   /** 지금 열린 보기 권한 문서. 편집 문맥이 없어 AI가 "문서를 열라"고 되물어도, 이 문서에서 보낸 요청이면 이유를 알려 주는 문장으로 보인다. */
   readOnlyDocumentId?: string | null;
+  /** 지금 화면에 보기 권한으로 열어 둔 문서. 작업 요청의 근거로 싣는다. */
+  readOnlyOpenDocument?: DocumentItemResponse | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   /** 채팅 편입으로 저장한 문서의 위키 편입을 시작한다. 편입 권한이 없거나 확인 중이면 없어 알림에 버튼을 두지 않는다. */
   onIngestExportedDocument?: (documentId: string) => void;
@@ -350,7 +354,9 @@ export function AgentPanel({
   const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
   // '새 문서로 만들기' 스킬에서 "현재 문서" 칩을 눌러 원문으로 쓰기로 한 문서. 보내면 비운다.
   const [optedInDocumentId, setOptedInDocumentId] = useState<string | null>(null);
-  const openDocumentId = markdownEditContext?.documentId ?? null;
+  // 보기 권한 문서는 편집기를 열지 않아 편집 문맥이 없다. 원문 수정을 뜻하는 documentId 대신 근거 첨부로 실어 읽기만 쓰게 한다.
+  const readOnlySourceId = markdownEditContext ? null : readOnlyReferenceDocumentId(readOnlyOpenDocument);
+  const openDocumentId = markdownEditContext?.documentId ?? readOnlySourceId;
   const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, isDraftRestored: workDraft.isRestored, onChange: setComposerValue });
   const composerIntent = isWorkView ? composerSkillIntent(composerValue, skillPicker.skills) : null;
   const isSourceOptIn = isOpenDocumentOptIn(composerIntent);
@@ -361,7 +367,8 @@ export function AgentPanel({
   const isDocumentIncluded = openDocumentId !== null && shouldSendOpenDocument({
     intent: composerIntent,
     isExcluded: excludedDocumentId === openDocumentId,
-    isOptedIn: optedInDocumentId === openDocumentId
+    isOptedIn: optedInDocumentId === openDocumentId,
+    hasRoom: readOnlySourceId === null || composerAttachments.attachments.filter((document) => document.id !== readOnlySourceId).length < REFERENCE_DOCUMENT_MAX
   });
   const attachedDocuments = referenceDocuments(composerAttachments.attachments, isDocumentIncluded ? openDocumentId : null);
   const documentPicker = useDocumentPicker({
@@ -371,6 +378,7 @@ export function AgentPanel({
     openDocument: {
       id: openDocumentId,
       isAttached: isDocumentIncluded,
+      isReference: readOnlySourceId !== null,
       attach: () => (isSourceOptIn ? setOptedInDocumentId(openDocumentId) : setExcludedDocumentId(null))
     },
     onAttach: composerAttachments.attach,
@@ -621,7 +629,7 @@ export function AgentPanel({
       setComposerValue("");
       setOptedInDocumentId(null);
       composerAttachments.markSent();
-      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, [], null, attachedDocuments.map((document) => document.id));
+      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, [], null, turnReferenceDocumentIds(attachedDocuments, isDocumentIncluded ? readOnlySourceId : null));
       return;
     }
     // 채팅 탭은 문서가 열려 있어도 위키 질의(Query)만 보낸다.

@@ -14,6 +14,7 @@ const {
   buildGeneratedMarkdownDocument,
   buildGeneratedMarkdownFilename,
   createInDraftPlacement,
+  draftSourceDocumentId,
   resolveDraftPlacement,
   isDocumentCommandAction,
   prepareMarkdownEditPreview,
@@ -461,4 +462,14 @@ test("다른 실패와 사용자가 지정한 폴더의 실패는 다른 곳에 
   const explicit = [];
   await assert.rejects(createInDraftPlacement({ folderId: "target", canFallBackToRoot: false }, failing(403, explicit)), /실패/);
   assert.deepEqual(explicit, ["target"]);
+});
+
+test("보기 권한 문서를 근거로 만든 초안의 원문은 그 문서이고, 칩을 뺐거나 첨부만 했으면 원문이 없다", () => {
+  const base = { documentId: null };
+  const readOnly = { read_only_document_id: "doc_view", reference_document_ids: ["doc_view", "doc_other"] };
+  assert.equal(draftSourceDocumentId(base, readOnly), "doc_view");
+  assert.equal(draftSourceDocumentId(base, { read_only_document_id: "doc_view", reference_document_ids: ["doc_other"] }), null, "칩을 뺀 요청");
+  assert.equal(draftSourceDocumentId(base, { reference_document_ids: ["doc_other"] }), null, "다른 문서만 첨부한 요청");
+  assert.equal(draftSourceDocumentId({ documentId: "doc_open" }, readOnly), "doc_open", "서버가 받은 편집 문서가 먼저다");
+  assert.equal(draftSourceDocumentId(base, null), null);
 });

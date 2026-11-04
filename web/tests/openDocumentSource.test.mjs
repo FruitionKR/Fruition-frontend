@@ -74,3 +74,9 @@ test("스킬 결과 방식 × 칩 상태 → 열린 문서를 싣는지(@문서�
     );
   }
 });
+
+test("보기 권한 문서처럼 첨부로 싣는 열린 문서는 첨부 자리가 없으면 싣지 않는다", () => {
+  assert.equal(shouldSendOpenDocument({ intent: null, isExcluded: false, isOptedIn: false, hasRoom: false }), false);
+  assert.equal(shouldSendOpenDocument({ intent: "create", isExcluded: false, isOptedIn: true, hasRoom: false }), false);
+  assert.equal(shouldSendOpenDocument({ intent: null, isExcluded: false, isOptedIn: false, hasRoom: true }), true);
+});

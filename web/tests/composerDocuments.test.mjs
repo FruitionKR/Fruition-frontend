@@ -16,7 +16,9 @@ const {
   moveActiveOption,
   parseDocumentMention,
   pruneUnavailableAttachments,
+  readOnlyReferenceDocumentId,
   referenceDocuments,
+  turnReferenceDocumentIds,
   removeDocumentMention,
   documentLockedTurnMessage,
   shouldRestoreAttachments
@@ -190,4 +192,33 @@ test("되돌린 첨부에서 지금 고를 수 없는 문서(삭제·변환 중)
   const converting = doc("2", "변환 중.md", { status: "processing", pipeline_run_id: "convert:1" });
   const removed = doc("3", "삭제된 문서.md");
   assert.deepEqual(pruneUnavailableAttachments([live, converting, removed], [live, converting]).map((item) => item.id), ["1"]);
+});
+
+test("보기 권한으로 연 문서는 첨부 자리를 차지해 함께 3개까지만 실린다", () => {
+  const attachments = [doc("1", "a.md"), doc("2", "b.md")];
+  const documents = [...attachments, doc("4", "현재.md"), doc("5", "다른.md")];
+  const reference = { documents, query: "", attachments, openDocumentId: "4", isOpenDocumentReference: true };
+  assert.deepEqual(composerDocumentOptions({ ...reference, isOpenDocumentAttached: true }), [], "보기 문서까지 3개면 더 고를 수 없다");
+  assert.deepEqual(composerDocumentOptions({ ...reference, isOpenDocumentAttached: false }).map((item) => item.id), ["4", "5"], "칩을 뺐으면 자리가 남는다");
+  const full = [...attachments, doc("3", "c.md")];
+  assert.deepEqual(composerDocumentOptions({ ...reference, documents: [...documents, full[2]], attachments: full, isOpenDocumentAttached: false }), [], "첨부가 찼으면 보기 문서도 넣을 수 없다");
+  assert.equal(canAddComposerDocument(2, false, { isOpenDocumentReference: true, isOpenDocumentAttached: true }), false);
+  assert.equal(canAddComposerDocument(2, true, { isOpenDocumentReference: true, isOpenDocumentAttached: false }), true);
+  assert.equal(canAddComposerDocument(3, true, { isOpenDocumentReference: true, isOpenDocumentAttached: false }), false);
+});
+
+test("보기 권한으로 연 문서는 Markdown 본문이 있을 때만 근거로 싣는다", () => {
+  const markdown = { ...doc("1", "보기.md"), can_edit: false };
+  assert.equal(readOnlyReferenceDocumentId(markdown), "1");
+  assert.equal(readOnlyReferenceDocumentId({ ...markdown, can_edit: true }), null, "편집할 수 있는 문서는 편집 문맥으로 싣는다");
+  assert.equal(readOnlyReferenceDocumentId({ ...markdown, filename: "보기.pdf", document_role: "ORIGINAL" }), null, "PDF 원본은 서버가 첨부를 400으로 거절한다");
+  assert.equal(readOnlyReferenceDocumentId({ ...markdown, status: "processing", pipeline_run_id: "convert:run" }), null, "변환 중이면 본문이 없다");
+  assert.equal(readOnlyReferenceDocumentId(null), null);
+});
+
+test("보낼 근거에 보기 권한 문서를 겹치지 않게 넣는다", () => {
+  const attachments = [doc("1", "a.md")];
+  assert.deepEqual(turnReferenceDocumentIds(attachments, "9"), ["9", "1"]);
+  assert.deepEqual(turnReferenceDocumentIds(attachments, "1"), ["1"]);
+  assert.deepEqual(turnReferenceDocumentIds(attachments, null), ["1"]);
 });

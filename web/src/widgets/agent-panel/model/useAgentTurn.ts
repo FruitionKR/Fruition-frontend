@@ -10,6 +10,7 @@ import {
   prepareMarkdownEditPreview,
   PURGED_EDIT_MESSAGE,
   resolveChatTurnPresentation,
+  draftSourceDocumentId,
   resolveGeneratedDocumentFolderId,
   validateMarkdownEditApplication
 } from "@/features/agent-chat/lib/agentTurn";
@@ -527,7 +528,7 @@ export function useAgentTurn({
     const runId = agentTurnResponse.requestId;
     setIsCreatingMarkdown(true);
     setMarkdownCreateErrorMessage(null);
-    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId, agentTurnResponse.documentId)
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId, draftSourceDocumentId(agentTurnResponse, agentTurnRequest))
       .then(() => {
         markOutcome(runId, outcome);
         setAgentTurnRequest(null);

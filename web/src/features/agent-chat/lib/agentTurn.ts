@@ -117,6 +117,19 @@ export function resolveGeneratedDocumentFolderId(response: Pick<AgentTurnRespons
   return response?.folder_id ?? null;
 }
 
+/**
+ * 새 문서 초안의 원문. 서버가 받은 편집 문서가 먼저이고, 보기 권한으로 연 문서는 첨부로 실어 보낸 요청일 때만 원문이다.
+ * "현재 문서" 칩을 뺀 요청은 read_only_document_id가 있어도 그 문서를 쓰지 않았으므로 원문이 아니다.
+ */
+export function draftSourceDocumentId(
+  response: { documentId: string | null },
+  request: { read_only_document_id?: string | null; reference_document_ids?: readonly string[] } | null
+): string | null {
+  if (response.documentId) return response.documentId;
+  const readOnlyDocumentId = request?.read_only_document_id;
+  return readOnlyDocumentId && request?.reference_document_ids?.includes(readOnlyDocumentId) ? readOnlyDocumentId : null;
+}
+
 export type DraftPlacement = {
   folderId: string | null;
   /** 원문 옆으로 고른 폴더라 서버가 거절해도 기본 위치에 만들 수 있다. 사용자가 지정한 폴더는 옮기지 않는다. */

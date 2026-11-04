@@ -684,6 +684,7 @@ export function HomeWorkspace() {
           isFolderWriteDenied={projectTree.isFolderWriteDenied}
           markdownEditContext={markdownEditContext}
           readOnlyDocumentId={isSelectedDocumentReadOnly ? selection.selectedDocumentId : null}
+          readOnlyOpenDocument={isHomeView && isSelectedDocumentReadOnly ? documents.find((item) => item.id === selection.selectedDocumentId) : null}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
           onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}

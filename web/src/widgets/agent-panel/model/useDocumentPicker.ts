@@ -33,7 +33,8 @@ export function useDocumentPicker({
   isEnabled: boolean;
   /** 지금 첨부로 보이는 문서 */
   attachments: readonly DocumentItemResponse[];
-  openDocument: { id: string | null; isAttached: boolean; attach: () => void };
+  /** isReference: 편집 문맥이 아니라 첨부로 실려 첨부 자리를 차지한다(보기 권한으로 연 문서). */
+  openDocument: { id: string | null; isAttached: boolean; isReference: boolean; attach: () => void };
   onAttach: (document: DocumentItemResponse) => void;
   onChange: (value: string) => void;
   getInput: () => HTMLTextAreaElement | null | undefined;
@@ -58,18 +59,19 @@ export function useDocumentPicker({
   const documents = documentsQuery.data ?? NO_DOCUMENTS;
   const openDocumentId = openDocument.id;
   const isOpenDocumentAttached = openDocument.isAttached;
+  const isOpenDocumentReference = openDocument.isReference;
   const query = mention?.query ?? "";
   const mentionOptions = useMemo(
-    () => composerDocumentOptions({ documents, attachments, openDocumentId, isOpenDocumentAttached, query }).slice(0, MENTION_OPTION_LIMIT),
-    [attachments, documents, isOpenDocumentAttached, openDocumentId, query]
+    () => composerDocumentOptions({ documents, attachments, openDocumentId, isOpenDocumentAttached, isOpenDocumentReference, query }).slice(0, MENTION_OPTION_LIMIT),
+    [attachments, documents, isOpenDocumentAttached, isOpenDocumentReference, openDocumentId, query]
   );
   const dialogDocuments = useMemo(
-    () => composerDocumentOptions({ documents, attachments, openDocumentId, isOpenDocumentAttached, query: "" }),
-    [attachments, documents, isOpenDocumentAttached, openDocumentId]
+    () => composerDocumentOptions({ documents, attachments, openDocumentId, isOpenDocumentAttached, isOpenDocumentReference, query: "" }),
+    [attachments, documents, isOpenDocumentAttached, isOpenDocumentReference, openDocumentId]
   );
   const activeOption = mentionOptions.find((item) => item.id === activeId) ?? mentionOptions[0] ?? null;
   const isOpenDocumentDetached = openDocumentId !== null && !isOpenDocumentAttached;
-  const canAdd = canAddComposerDocument(attachments.length, isOpenDocumentDetached);
+  const canAdd = canAddComposerDocument(attachments.length, isOpenDocumentDetached, { isOpenDocumentReference, isOpenDocumentAttached });
   const limitMessage = canAdd ? null : REFERENCE_DOCUMENT_LIMIT_MESSAGE;
   const listStatusMessage = documentsQuery.isLoading
     ? "문서 목록을 불러오는 중이에요."
