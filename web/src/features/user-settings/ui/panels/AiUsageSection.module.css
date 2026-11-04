@@ -1,5 +1,5 @@
 /*
- * AI 설정 > AI 사용량.섹션·행 제목·버튼은 SettingsModal.module.css를 쓰고 계정 정보 행(py 6)과 리듬을 맞춘다.
+ * AI 설정 > AI 사용량. 섹션·행 제목·버튼은 SettingsModal.module.css를 쓰고 계정 정보 행(py 6)과 리듬을 맞춘다.
  * 입력·출력 색은 --color-usage-input/output(base.css). 글자는 색 대신 텍스트 토큰을 쓰고, 색은 막대·견본에만 칠한다.
  */
 

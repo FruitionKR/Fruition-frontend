@@ -112,3 +112,11 @@ export function computeTooltipPosition({
   const arrowOffset = clamp(anchor.left + anchor.width / 2 - left, ARROW_EDGE_PX, size.width - ARROW_EDGE_PX);
   return { top: position.top, left, placement: resolved, arrowOffset };
 }
+
+/** 트리거를 누른 순간의 기록. 키보드 click에는 없다. */
+export type TooltipPress = { pointerType: string; wasOpen: boolean };
+
+/** 터치 탭 뒤 click에서 말풍선을 열지. 누를 때 이미 열려 있었으면 닫는 탭이다. */
+export function shouldOpenAfterTap(press: TooltipPress | null): boolean {
+  return press?.pointerType === "touch" && !press.wasOpen;
+}
