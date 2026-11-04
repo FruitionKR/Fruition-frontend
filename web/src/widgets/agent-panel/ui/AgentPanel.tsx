@@ -5,6 +5,8 @@ import { analyticsEditType } from "@/shared/lib/analytics/events";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree";
+import { resolveGeneratedDocumentFolderId } from "@/features/agent-chat/lib/agentTurn";
 import contextChipCloseIcon from "@/shared/assets/svg/agent/context-chip-close.svg";
 import contextChipClosePrimaryIcon from "@/shared/assets/svg/agent/context-chip-close-primary.svg";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
@@ -74,6 +76,7 @@ export function AgentPanel({
   onClose,
   onOpenSourceBlocks,
   onCreateMarkdownDocument,
+  isFolderWriteDenied,
   markdownEditContext,
   onDocumentExported,
   onIngestExportedDocument,
@@ -97,6 +100,8 @@ export function AgentPanel({
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  /** 이 폴더에 새 문서를 넣을 권한이 없으면 true. 권한을 모르면 false이고 서버가 판단한다. */
+  isFolderWriteDenied: (folderId: string) => boolean;
   markdownEditContext?: ActiveMarkdownEditContext | null;
   /** 지금 열린 보기 권한 문서. 편집 문맥이 없어 AI가 "문서를 열라"고 되물어도, 이 문서에서 보낸 요청이면 이유를 알려 주는 문장으로 보인다. */
   readOnlyDocumentId?: string | null;
@@ -698,6 +703,8 @@ export function AgentPanel({
     : null;
 
   // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
+  const generatedDocumentFolderId = resolveGeneratedDocumentFolderId(agentTurnResponse);
+  const newDocumentBlockedReason = generatedDocumentFolderId && isFolderWriteDenied(generatedDocumentFolderId) ? FOLDER_WRITE_FORBIDDEN_MESSAGE : null;
   const hasDocumentCommandPreview = !isAutoApplying && Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
@@ -710,6 +717,7 @@ export function AgentPanel({
           notice={agentTurnResponse.result.message}
           isSubmitting={isCreatingMarkdown}
           errorMessage={agentTurn.markdownCreateErrorMessage}
+          blockedReason={newDocumentBlockedReason}
           onCancel={agentTurn.cancelAgentTurnResult}
           onRegenerate={agentTurn.regenerateAgentTurn}
           onCreate={() => agentTurn.createMarkdownDocument()}
@@ -724,6 +732,7 @@ export function AgentPanel({
           onApply={agentTurn.applyMarkdownEdit}
           onCancel={agentTurn.cancelAgentTurnResult}
           onOpenAsNewDocument={agentTurn.openMarkdownEditAsNewDocument}
+          newDocumentBlockedReason={newDocumentBlockedReason}
           onRegenerate={agentTurn.regenerateAgentTurn}
         />
       )}

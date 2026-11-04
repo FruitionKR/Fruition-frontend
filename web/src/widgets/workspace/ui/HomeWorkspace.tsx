@@ -56,7 +56,7 @@ import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfir
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { createMarkdownDocument } from "@/entities/document";
-import { invalidateStorageUsage } from "@/entities/workspace";
+import { invalidateStorageUsage, useWorkspaceRole } from "@/entities/workspace";
 import { invalidateActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownDocument } from "@/features/agent-chat/lib/agentTurn";
@@ -133,7 +133,8 @@ export function HomeWorkspace() {
   const [hasOpenMeeting, setHasOpenMeeting] = useState(false);
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
-  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
+  const { role, isOwner } = useWorkspaceRole();
+  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted, isWorkspaceOwner: role === null ? null : isOwner });
   // 뷰 전환으로 사이드바 트리가 다시 마운트돼도 폴더 펼침을 유지한다.
   const treeOpen = useTreeOpenState();
   const {
@@ -523,7 +524,12 @@ export function HomeWorkspace() {
         onDeleteSelectedItems={projectTree.deleteSelectedItems}
         selectedContextCount={skillRun ? 0 : projectTree.selectedContextCount}
         onDragOverItem={projectTree.onDragOverItem}
-        onFileDragOver={projectTree.setFileDropTarget}
+        onFileDragOver={projectTree.onFileDragOver}
+        dropDeniedItemId={projectTree.dropDeniedItemId}
+        canStartDrag={projectTree.canStartDrag}
+        isDropDenied={projectTree.isDropDenied}
+        isFolderWriteDenied={projectTree.isFolderWriteDenied}
+        onDragDenied={projectTree.onDragDenied}
         onFileDragLeave={projectTree.onFileDragLeave}
         onDragEnd={projectTree.onDragEnd}
         onContextMenuProject={projectTree.openProjectMenu}
@@ -667,6 +673,7 @@ export function HomeWorkspace() {
             if (isCompactLayout) panels.closeAgentPanel();
           }}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
+          isFolderWriteDenied={projectTree.isFolderWriteDenied}
           markdownEditContext={markdownEditContext}
           readOnlyDocumentId={isSelectedDocumentReadOnly ? selection.selectedDocumentId : null}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}

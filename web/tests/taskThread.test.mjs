@@ -103,7 +103,9 @@ test("폴더 정리 run 상태를 Figma 묶음·문구로 바꾼다", () => {
   );
   assert.deepEqual(plan("rejected"), { group: "done", label: "거절됨", tone: "danger", struck: true });
   assert.deepEqual(plan("clarification_required"), { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false });
-  assert.deepEqual(plan("partial_failed"), { group: "failed", label: "일부 작업 실패", tone: "danger", struck: true });
+  // 일부는 저장됐으므로 '실패' 묶음에 넣거나 취소선을 긋지 않는다.
+  assert.deepEqual(plan("partial_failed"), { group: "partial_failed", label: "일부 실패", tone: "danger", struck: false });
+  assert.deepEqual(plan("failed"), { group: "failed", label: "실행 실패", tone: "danger", struck: true });
 });
 
 test("문서 편집·되물음·실패 작업의 상태를 정한다", () => {
@@ -556,4 +558,10 @@ test("보기 권한 요청 기록은 최근 것만 남긴다", () => {
 test("요청 시점의 보기 권한 문서를 onAccepted에서 turn과 묶는다", () => {
   const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
   assert.match(source, /const requestReadOnlyDocumentId = readOnlyDocumentIdRef\.current;[\s\S]*onAccepted: \(requestId\) => \{[\s\S]*rememberReadOnlyRequest\(requestId, requestReadOnlyDocumentId\)/);
+});
+
+test("일부 실패 묶음은 실패 묶음과 따로 '일부 실패'로 보인다", () => {
+  const entry = (group) => ({ status: { group, label: "", tone: "danger", struck: false } });
+  const sections = groupTaskEntries([entry("failed"), entry("partial_failed")]);
+  assert.deepEqual(sections.map((section) => section.label), ["일부 실패", "실패"]);
 });

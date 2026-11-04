@@ -1,5 +1,5 @@
 // document-svc(8080) 문서 라우트: 목록·업로드·상세·삭제·이름 변경·원본·원본 block·본문 저장(자동 병합)·버전 기록·ingest·변환·편집 잠금.
-import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete, mayConvertDocument } from "../state.mjs";
+import { state, now, id, hash, error, requireWorkspace, findDocument, toDocumentItem, toDocumentItemFor, isMarkdownDocument, isSkillReference, SKILL_REFERENCE_ORIGIN, sleep, memberRole, requireDocumentEdit, requireDocumentDelete, requireFolderWrite, mayConvertDocument } from "../state.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 import { storageOf, uploadRejection } from "../lib/limits.mjs";
@@ -139,6 +139,7 @@ export function registerDocumentRoutes(router) {
     if (!file?.buffer) return error(ctx, 400, "업로드할 파일이 필요합니다.");
     if (origin !== null && (!isReference || folderId)) return error(ctx, 400, "허용하지 않는 origin이거나 참고 문서에 폴더를 지정했습니다.", "INVALID_DOCUMENT_ORIGIN");
     if (folderId && !state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspace.id && !folder.deleted_at)) return error(ctx, 404, "폴더를 찾을 수 없습니다.");
+    if (!requireFolderWrite(ctx, workspace.id, folderId)) return;
     let requestedName = file.name.normalize("NFC");
     const extension = requestedName.split(".").pop()?.toLowerCase() ?? "";
     if (!MIME_BY_EXTENSION[extension]) return error(ctx, 415, "md, txt, pdf 파일만 업로드할 수 있습니다.");
