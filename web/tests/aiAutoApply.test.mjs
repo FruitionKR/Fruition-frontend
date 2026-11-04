@@ -31,6 +31,7 @@ const editInput = (overrides = {}) => ({
   isDocumentWritable: true,
   proposalCount: 1,
   isScopeExpanded: false,
+  isDraftFolderWriteDenied: false,
   draft: null,
   ...overrides
 });
@@ -94,6 +95,24 @@ test("만들 수 없는 초안은 기존 화면으로 둔다", () => {
     { isManualOnly: true }
   ];
   for (const overrides of manual) assert.equal(resolveTurnAutoApply(createInput(overrides)), null, JSON.stringify(overrides));
+});
+
+test("쓸 수 없는 폴더로 온 초안은 서버에 보내지 않고 수동 화면으로 둔다", () => {
+  assert.equal(resolveTurnAutoApply(createInput({ isDraftFolderWriteDenied: true })), null);
+  // 권한을 모르면 막지 않고 지금처럼 서버가 판단한다(isFolderWriteDenied가 false).
+  assert.equal(resolveTurnAutoApply(createInput({ isDraftFolderWriteDenied: false })), "create");
+});
+
+test("초안 폴더의 쓰기 권한은 열린 문서에 적용하는 편집안을 막지 않는다", () => {
+  assert.equal(resolveTurnAutoApply(editInput({ isDraftFolderWriteDenied: true })), "edit");
+});
+
+test("자동 판단은 초안을 만들 폴더의 쓰기 차단을 받아 쓴다", () => {
+  const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
+  assert.match(source, /isDraftFolderWriteDenied: draftFolderId !== null && isFolderWriteDenied\(draftFolderId\)/);
+  assert.match(source, /const draftFolderId = resolveGeneratedDocumentFolderId\(agentTurnResponse\)/);
+  const panel = readFileSync(new URL("../src/widgets/agent-panel/ui/AgentPanel.tsx", import.meta.url), "utf8");
+  assert.match(panel.slice(panel.indexOf("useAgentTurn({"), panel.indexOf("const { agentTurnRequest, agentTurnResponse")), /isFolderWriteDenied,/);
 });
 
 test("편집·초안이 아닌 응답은 자동 처리하지 않는다", () => {

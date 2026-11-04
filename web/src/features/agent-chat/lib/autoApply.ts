@@ -34,10 +34,12 @@ export function resolveTurnAutoApply(input: {
   proposalCount: number;
   /** AI가 요청한 범위보다 넓게 고쳤다. 사람이 고른 범위를 넘으므로 확인받는다. */
   isScopeExpanded: boolean;
+  /** 초안을 만들 폴더에 쓸 수 없다고 알고 있다. 권한을 모르면 false로 두어 서버가 판단한다. */
+  isDraftFolderWriteDenied: boolean;
   draft: GeneratedMarkdownDraft | null;
 }): TurnAutoApplyKind | null {
   if (!input.isContentEditAutoApproved || input.isAlreadyHandled || input.isManualOnly || !input.isFromActiveSession) return null;
-  if (input.action === "markdown_create") return input.draft?.markdown.trim() ? "create" : null;
+  if (input.action === "markdown_create") return input.draft?.markdown.trim() && !input.isDraftFolderWriteDenied ? "create" : null;
   if (input.action !== "markdown_edit") return null;
   const canApply = input.hasEditPreview && input.hasApplyOperationId && !input.validationError && input.isDocumentWritable
     && input.proposalCount > 0 && !input.isScopeExpanded;

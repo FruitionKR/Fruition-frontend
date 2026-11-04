@@ -278,6 +278,7 @@ export function AgentPanel({
     selectedPairIds: [],
     allowWebSearch,
     refreshMessages: workThread.refreshMessages,
+    isFolderWriteDenied,
     onCreateMarkdownDocument,
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
     onInsufficientCredit: restoreComposerQuestion,

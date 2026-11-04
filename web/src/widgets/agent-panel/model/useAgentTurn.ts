@@ -67,6 +67,7 @@ export function useAgentTurn({
   selectedPairIds,
   allowWebSearch,
   refreshMessages,
+  isFolderWriteDenied,
   onCreateMarkdownDocument,
   onInsufficientCredit,
   onReferencesRestored
@@ -80,6 +81,8 @@ export function useAgentTurn({
   allowWebSearch: boolean;
   /** 응답이 오면 대화 목록을 다시 받아 새 문답을 이어 붙인다. */
   refreshMessages: (options: { animateLatest: boolean }) => Promise<unknown>;
+  /** 이 폴더에 쓸 수 없다고 알고 있는지. 권한을 모르면 false다. */
+  isFolderWriteDenied: (folderId: string) => boolean;
   /** folderId는 새 문서를 둘 폴더(null이면 루트). agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID다. */
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
@@ -208,6 +211,7 @@ export function useAgentTurn({
   // 사용자가 Esc로 멈추려 한 turn. 이미 끝나 결과가 와도 확인 없이 반영하지 않는다.
   const stoppedTurnIdsRef = useRef(new Set<string>());
   const responseTurnId = agentTurnResponse?.requestId ?? null;
+  const draftFolderId = resolveGeneratedDocumentFolderId(agentTurnResponse);
   const autoApplyKind = resolveTurnAutoApply({
     action: agentTurnResponse?.result.action,
     isContentEditAutoApproved: isAutoApproved,
@@ -220,6 +224,7 @@ export function useAgentTurn({
     isDocumentWritable: markdownEditContext?.isWritable === true,
     proposalCount: reviewSegments ? countProposals(reviewSegments) : 0,
     isScopeExpanded: agentTurnResponse?.result.edit?.scope_expanded === true,
+    isDraftFolderWriteDenied: draftFolderId !== null && isFolderWriteDenied(draftFolderId),
     draft: agentTurnResponse?.result.generated_markdown ?? null
   });
 
