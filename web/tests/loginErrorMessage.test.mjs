@@ -40,3 +40,12 @@ test("시도 제한·서버 오류·네트워크 단절은 비밀번호 오류�
 test("그 밖의 HTTP 실패는 서버가 준 문구를 그대로 보여 준다", () => {
   assert.equal(getLoginErrorMessage(new ApiError("접근 코드가 필요합니다.", 403), false), "접근 코드가 필요합니다.");
 });
+
+test("스크립트가 붙기 전에는 제출을 막고, 그동안 입력한 값을 상태로 옮긴다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const read = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
+  assert.match(await read("shared/ui/auth/AuthControls.tsx"), /disabled=\{disabled \|\| !isHydrated\}/);
+  const login = await read("views/auth/ui/LoginPage.tsx");
+  assert.match(login, /new FormData\(form\)/);
+  assert.match(login, /method="post"/, "제출이 새더라도 비밀번호가 URL에 나가지 않게 POST를 유지한다");
+});
