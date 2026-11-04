@@ -19,6 +19,7 @@ const {
   isAttachmentTargetClarification,
   withReadOnlyDocumentClarification,
   isServerAppliableTask,
+  classifySessionChannel,
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
@@ -599,4 +600,47 @@ test("일부 실패 묶음은 실패 묶음과 따로 '일부 실패'로 보인�
   const entry = (group) => ({ status: { group, label: "", tone: "danger", struck: false } });
   const sections = groupTaskEntries([entry("failed"), entry("partial_failed")]);
   assert.deepEqual(sections.map((section) => section.label), ["일부 실패", "실패"]);
+});
+
+const classifyPair = (id, assistant) => [
+  { id: `${id}-u`, role: "user", content: "요청", status: "completed", pair_id: id },
+  { id: `${id}-a`, role: "assistant", content: "답", status: "completed", pair_id: id, ...assistant }
+];
+
+test("세션 분류: 사용자 메시지에 run_id·action이 없어도 짝이 되는 답변으로 작업 세션을 알아본다", () => {
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "markdown_edit" })), "work");
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "folder_organize" })), "work");
+  // 진행 중·실패로 끝나 action이 없는 turn도 작업이다.
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", status: "pending" })), "work");
+});
+
+test("세션 분류: 작업 탭에서 받은 첨부 근거 답변(chat_answer)만 있어도 작업 세션이다", () => {
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "chat_answer" })), "work");
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "conversation_reply" })), "work");
+  assert.equal(classifySessionChannel([
+    ...classifyPair("p1", { run_id: "agent_1", action: "markdown_edit" }),
+    ...classifyPair("p2", { run_id: "agent_2", action: "chat_answer" })
+  ]), "work");
+});
+
+test("세션 분류: 질의 문답은 채팅, 질의와 agent turn이 섞인 옛 기록만 이전 통합 대화다", () => {
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "query_1" })), "chat");
+  assert.equal(classifySessionChannel(classifyPair("p1", {})), "chat");
+  assert.equal(classifySessionChannel([]), "chat");
+  assert.equal(classifySessionChannel([
+    ...classifyPair("p1", { run_id: "query_1" }),
+    ...classifyPair("p2", { run_id: "agent_2", action: "markdown_edit" })
+  ]), "legacy");
+  assert.equal(classifySessionChannel([
+    ...classifyPair("p1", { run_id: "query_1" }),
+    ...classifyPair("p2", { run_id: "agent_2", action: "chat_answer" })
+  ]), "legacy");
+});
+
+test("세션 분류: 짝을 알 수 없는 사용자 메시지는 근거로 삼지 않는다", () => {
+  const orphan = { id: "u", role: "user", content: "옛 질문", status: "completed" };
+  assert.equal(classifySessionChannel([orphan]), "chat");
+  assert.equal(classifySessionChannel([orphan, { id: "a", role: "assistant", content: "답", status: "completed", run_id: "agent_1", action: "markdown_edit" }]), "work");
+  // 답변이 아직 없는 짝도 마찬가지다.
+  assert.equal(classifySessionChannel([{ ...orphan, pair_id: "p1" }]), "chat");
 });

@@ -451,7 +451,7 @@ function completeTurn(workspace, turn, request) {
   if (pending) {
     Object.assign(pending, answer, { status: "completed" });
   } else {
-    upsertMessage(request.session_id, { role: "user", content: message, pair_id: pairId, run_id: turn.id });
+    upsertMessage(request.session_id, { role: "user", content: message, pair_id: pairId });
     upsertMessage(request.session_id, { role: "assistant", ...answer, pair_id: pairId, run_id: turn.id, read_only_document_id: turn.read_only_document_id });
   }
   Object.assign(turn, { status: "completed", result });
@@ -465,7 +465,7 @@ function failTurn(turn, request) {
     Object.assign(pending, failed);
   } else {
     const pairId = id("pair");
-    upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
+    upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId });
     upsertMessage(request.session_id, { role: "assistant", ...failed, pair_id: pairId, run_id: turn.id, read_only_document_id: turn.read_only_document_id });
   }
   Object.assign(turn, { status: "failed", error: "markdown_output_contract_failed", error_message: FAILED_TURN_MESSAGE });
@@ -547,7 +547,7 @@ export function registerAgentRoutes(router) {
     if (hasDocument) addOperationLog(workspace.id, { operation_id: turn.apply_operation_id, operation_type: "document_edit", status: "succeeded", target_document_id: request.documentId, target_display_name: findDocument(workspace.id, request.documentId)?.filename ?? null, summary: request.message.slice(0, 40), changed_resource_count: 0, completed_at: now() });
     if (SLOW_TURN) {
       const pairId = id("pair");
-      upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
+      upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId });
       upsertMessage(request.session_id, { role: "assistant", content: "", status: "pending", pair_id: pairId, run_id: turn.id, read_only_document_id: turn.read_only_document_id });
     }
     setTimeout(() => {

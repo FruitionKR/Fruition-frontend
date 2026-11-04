@@ -23,6 +23,10 @@ const CHAT_ANSWER_ACTIONS = new Set(["chat_answer", "conversation_reply"]);
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
 
+function isAgentTurnMessage(message: ChatMessageResponse): boolean {
+  return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX)) || (Boolean(message.action) && !CHAT_ANSWER_ACTIONS.has(message.action ?? ""));
+}
+
 /**
  * 작업 탭에 둘 메시지인지. taskRunIds는 이 화면에서 작업 탭으로 보낸 turn ID다.
  * mode=task를 아직 모르는 서버가 채팅 답변(chat_answer)으로 돌려줘도 보낸 탭(작업)에 남긴다.
@@ -32,6 +36,21 @@ export function isTaskMessage(message: ChatMessageResponse, taskRunIds: Readonly
   if (message.action) return !CHAT_ANSWER_ACTIONS.has(message.action);
   // action이 없는 agent turn 메시지(진행 중·취소·실패로 끝남)도 상태와 상관없이 작업 탭에 둔다. 실패는 '실패' 묶음에 보인다.
   return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
+}
+
+/**
+ * 메시지만 보고 세션이 어느 탭의 것인지 정한다. 탭 구분이 없는 새 브라우저에서 쓴다.
+ * 사용자 메시지에는 run_id·action이 없으므로 문답(pair) 단위로 짝이 되는 답변을 본다.
+ * 채팅 탭은 질의만 보내므로 agent turn의 채팅 답변(chat_answer 등)도 작업 근거로 센다. 질의와 섞인 세션만 이전 통합 대화다.
+ * 짝을 알 수 없거나 답변이 없는 사용자 메시지는 근거로 삼지 않는다.
+ */
+export function classifySessionChannel(messages: readonly ChatMessageResponse[]): "chat" | "work" | "legacy" {
+  const isChatEvidence = (message: ChatMessageResponse) => message.role === "assistant" && !isAgentTurnMessage(message);
+  const agentPairIds = new Set(messages.flatMap((message) => (message.pair_id && isAgentTurnMessage(message) ? [message.pair_id] : [])));
+  const hasWork = messages.some(isAgentTurnMessage);
+  const hasChat = messages.some((message) => isChatEvidence(message) && !(message.pair_id && agentPairIds.has(message.pair_id)));
+  if (hasWork) return hasChat ? "legacy" : "work";
+  return "chat";
 }
 
 export type TaskMessageItem = {
