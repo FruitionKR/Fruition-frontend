@@ -23,7 +23,7 @@ export type DocumentEditRow = {
   removedLines: number;
   /** 서버 hunk. 미리 보기가 없으면 null */
   hunks: AgentDocumentEditHunk[] | null;
-  /** 큰 변경 등 검토 결과 문장 */
+  /** 계획이 작업에 붙인 경고 문장 */
   warning: string | null;
   /** 실행 결과 문구. 아직 실행 전이면 null */
   resultLabel: string | null;

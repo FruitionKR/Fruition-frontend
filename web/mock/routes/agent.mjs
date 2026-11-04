@@ -208,13 +208,11 @@ function buildEditPreview(operation, doc, message, index) {
 
 /** 첨부 문서 수정의 LLM 없는 결정적 계획(AI 계약): 문서마다 apply_document_edit 하나, 작업끼리 의존 없음, 대상 폴더 없음. */
 function buildDocumentEditRun(workspace, turn, message, docs) {
-  const isLong = message.includes("[긴변경]");
   const operations = docs.map((doc, index) => {
     const artifactId = id("artifact");
-    const warning = isLong && index === 0 ? { type: "large_change", message: "바뀌는 줄이 많아요. 내용을 확인한 뒤 수락해 주세요." } : null;
     return {
       id: id("opr"), sequence: index + 1, tool_name: "apply_document_edit", target_type: "document", target_id: doc.id, base_version: doc.current_version ?? 1, depends_on: [],
-      source_parent_id: null, destination_parent_id: null, status: "planned", error_code: null, warning, suggested_selected: true,
+      source_parent_id: null, destination_parent_id: null, status: "planned", error_code: null, warning: null, suggested_selected: true,
       arguments: { document_id: doc.id, base_version: doc.current_version ?? 1, target: { type: "whole_document", start_line: 1, end_line: 1 }, content_artifact_id: artifactId, content_hash: `sha256:${hash(artifactId)}` },
       reason: `${doc.filename}의 오타를 고칩니다.`
     };
@@ -247,9 +245,9 @@ function settleRun(run) {
   // 앞선 실패로 건너뛴 작업(dependency_failed)은 실패로 센다.
   const executed = run.plan.operations.filter((operation) => operation.error_code !== "not_selected");
   const succeeded = executed.filter((operation) => operation.status === "succeeded").length;
-  const status = succeeded === executed.length ? "completed"
-    : succeeded > 0 ? "partial_failed"
-    : executed.every((operation) => operation.status === "conflicted") ? "conflicted" : "failed";
+  const status = executed.some((operation) => operation.status === "conflicted") ? "conflicted"
+    : succeeded === executed.length ? "completed"
+    : succeeded > 0 ? "partial_failed" : "failed";
   run.status = status;
   run.plan.status = status;
 }

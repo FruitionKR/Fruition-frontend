@@ -136,12 +136,12 @@ test("트리에 없는 문서는 미리 보기의 현재 제목을 쓰고, 둘 �
   assert.equal(rows[1].title, "항목 이름 확인 불가");
 });
 
-test("계획에 없는 미리 보기는 무시하고 큰 변경 경고를 줄에 싣는다", () => {
-  const warning = { type: "large_change", message: "바뀌는 줄이 많아요." };
+test("계획에 없는 미리 보기는 무시하고 작업의 경고를 줄에 싣는다", () => {
+  const warning = { type: "duplicate_content", message: "내용이 거의 같은 문서가 있어요." };
   const plan = editPlan([editOperation("op1", "doc_1", { warning, suggested_selected: true })]);
   const rows = rowsOf(plan, { items: [preview("op9", "doc_9"), preview("op1", "doc_1")], expires_at: null });
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].warning, "바뀌는 줄이 많아요.");
+  assert.equal(rows[0].warning, "내용이 거의 같은 문서가 있어요.");
 });
 
 test("실행 결과를 줄에 싣고 실패한 줄을 표시한다", () => {
@@ -201,6 +201,7 @@ test("실행이 실패한 run의 안내", () => {
   assert.equal(documentEditRunNote(run("awaiting_approval", [editOperation("op1", "doc_1")])), null);
   assert.equal(documentEditRunNote(run("partial_failed", [saved, conflict, skipped])), "문서 2개 중 1개를 저장했어요. 저장하지 못한 문서는 문서별 이유를 확인해 주세요.");
   assert.equal(documentEditRunNote(run("conflicted", [conflict])), "문서를 저장하지 못했어요. 문서별 이유를 확인해 주세요.");
+  assert.equal(documentEditRunNote(run("conflicted", [saved, conflict])), "문서 2개 중 1개를 저장했어요. 저장하지 못한 문서는 문서별 이유를 확인해 주세요.", "충돌 run이어도 저장된 문서를 말한다");
   assert.equal(documentEditRunNote(run("failed", [editOperation("op1", "doc_1")])), "작업을 완료하지 못했습니다. 문서별 상태를 확인해 주세요.");
   assert.match(documentEditRunNote(run("failed", [editOperation("op1", "doc_1")], "provider_unavailable")), /AI 서비스에 연결하지 못해/);
 });

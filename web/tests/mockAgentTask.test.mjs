@@ -388,7 +388,7 @@ test("편집 계획의 일부 실패·충돌·미리 보기 시나리오를 재�
     return finalRun(request, run.id);
   };
   const partial = await approve("첨부 문서 수정 [일부실패]");
-  assert.equal(partial.status, "partial_failed");
+  assert.equal(partial.status, "conflicted", "AI처럼 충돌이 하나라도 있으면 다른 문서가 저장돼도 conflicted다");
   assert.deepEqual(partial.plan.operations.map((operation) => [operation.status, operation.error_code]), [["succeeded", null], ["conflicted", "tool_http_409"], ["failed", "tool_http_423"]]);
   assert.equal((await approve("첨부 문서 수정 [충돌]", ["doc_task_1"])).status, "conflicted");
   assert.deepEqual((await approve("첨부 문서 수정 [편집중]", ["doc_task_1"])).plan.operations[0].error_code, "tool_http_423");
@@ -404,6 +404,9 @@ test("편집 계획의 일부 실패·충돌·미리 보기 시나리오를 재�
   assert.equal((await previewOf("첨부 문서 수정 [미리보기실패]")).status, 500);
   const long = (await previewOf("첨부 문서 수정 [긴변경]")).body.items[0];
   assert.ok(long.hunks.flatMap((hunk) => hunk.lines).length > 400);
+  const longTurn = await submitAttachedEdit(request, "첨부 문서 수정 [긴변경]", ["doc_task_1"]);
+  const longRun = await request("GET", `/runs/${longTurn.result.run_id}`);
+  assert.equal(longRun.body.plan.operations[0].warning, null, "긴 변경은 표시만 하고 경고를 붙이지 않는다");
 });
 
 test("자동 승인 시나리오는 확인 없이 실행하고 승인 주체를 남긴다", async (t) => {
