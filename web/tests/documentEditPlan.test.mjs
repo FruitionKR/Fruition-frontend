@@ -18,7 +18,8 @@ const {
   documentEditOperationLabel,
   documentEditRunNote,
   editPreviewNotice,
-  isDocumentEditPlan
+  isDocumentEditPlan,
+  missingDiffNote
 } = await import("../src/features/agent-chat/lib/documentEditPlan.ts");
 const { editPreviewExpiryDelayMs, isEditPreviewExpired, limitDiffHunks, parseAgentRunEditPreviews } = await import("../src/features/agent-chat/lib/documentEditPreviews.ts");
 const { buildFolderOrganizeView, folderOrganizeApproval, initialDeselectedRowIds } = await import("../src/features/agent-chat/lib/folderOrganize.ts");
@@ -231,4 +232,18 @@ test("hunk를 나눠도 줄 수 한도를 지키고 남은 줄 수를 알려 준
   assert.deepEqual(all.hunks.map((hunk) => hunk.lines.length), [150, 100, 30]);
   assert.equal(all.hiddenLines, 0);
   assert.deepEqual(limitDiffHunks([], 200), { hunks: [], hiddenLines: 0 });
+});
+
+test("끝난 run은 수정안이 만료돼도 불러오기 실패로 보이지 않는다", () => {
+  const retention = "보관 기간이 지나 변경 내용은 볼 수 없어요. 로그에서 확인할 수 있어요.";
+  assert.equal(missingDiffNote({ isLoading: false, isAwaiting: false, isExpired: true }), retention);
+  // 조회 중에는 만료를 아직 모른다.
+  assert.equal(missingDiffNote({ isLoading: true, isAwaiting: false, isExpired: false }), "변경 내용을 불러오는 중이에요.");
+  // 만료가 아닌 실패는 그대로 알린다.
+  assert.equal(missingDiffNote({ isLoading: false, isAwaiting: false, isExpired: false }), "변경 내용을 불러오지 못했어요.");
+});
+
+test("승인 대기 run의 만료 안내는 바뀌지 않는다", () => {
+  assert.equal(missingDiffNote({ isLoading: false, isAwaiting: true, isExpired: true }), "변경 내용을 불러오지 못했어요.");
+  assert.equal(editPreviewNotice({ state: "ready", missingCount: 1, isExpired: true }), "변경안의 보관 기간이 지나 수락할 수 없어요. 다시 요청해 주세요.");
 });

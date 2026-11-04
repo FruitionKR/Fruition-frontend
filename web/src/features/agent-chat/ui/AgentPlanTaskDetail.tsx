@@ -165,6 +165,7 @@ export function AgentPlanTaskDetail({
             canSelect={canDecide && !isPreviewExpired}
             isAwaiting={canDecide}
             isLoadingPreviews={editPreviews.state === "loading"}
+            isPreviewExpired={isPreviewExpired}
             blockedOperationIds={access?.blockedOperationIds}
             onToggle={toggleEditRow}
           />

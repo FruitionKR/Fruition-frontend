@@ -142,6 +142,13 @@ export function documentEditRunNote(run: Pick<AgentPlanRun, "status" | "error_co
   return "작업을 완료하지 못했습니다. 문서별 상태를 확인해 주세요.";
 }
 
+/** 문서 행에 변경 줄이 없을 때의 안내. 수락을 기다리지 않는 run의 수정안이 만료되면 오류가 아니라 보관 기간이 지난 것이다. */
+export function missingDiffNote({ isLoading, isAwaiting, isExpired }: { isLoading: boolean; isAwaiting: boolean; isExpired: boolean }): string {
+  if (isLoading) return "변경 내용을 불러오는 중이에요.";
+  if (!isAwaiting && isExpired) return "보관 기간이 지나 변경 내용은 볼 수 없어요. 로그에서 확인할 수 있어요.";
+  return "변경 내용을 불러오지 못했어요.";
+}
+
 /** 미리 보기 상태 안내. 내용을 못 불러와도 수락은 막지 않되 확인 없이 수정된다는 점을 숨기지 않는다. */
 export function editPreviewNotice({ state, missingCount, isExpired }: { state: "loading" | "error" | "ready"; missingCount: number; isExpired: boolean }): string | null {
   if (isExpired) return "변경안의 보관 기간이 지나 수락할 수 없어요. 다시 요청해 주세요.";

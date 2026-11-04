@@ -1,15 +1,15 @@
 import { useRef, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
-import type { DocumentEditRow } from "../lib/documentEditPlan";
+import { missingDiffNote, type DocumentEditRow } from "../lib/documentEditPlan";
 import { DIFF_LINE_PAGE, limitDiffHunks } from "../lib/documentEditPreviews";
 import { PLAN_OPERATION_BLOCKED_NOTE } from "../lib/planAccess";
 import { DocumentDiffLines } from "./DocumentDiffLines";
 import styles from "./AgentChat.module.css";
 
-function DocumentEditDiff({ row, isLoading }: { row: DocumentEditRow; isLoading: boolean }) {
+function DocumentEditDiff({ row, missingNote }: { row: DocumentEditRow; missingNote: string }) {
   const [limit, setLimit] = useState(DIFF_LINE_PAGE);
   const regionRef = useRef<HTMLDivElement | null>(null);
-  if (!row.hunks) return <p className={styles["edit-plan-note"]}>{isLoading ? "변경 내용을 불러오는 중이에요." : "변경 내용을 불러오지 못했어요."}</p>;
+  if (!row.hunks) return <p className={styles["edit-plan-note"]}>{missingNote}</p>;
   const { hunks, hiddenLines } = limitDiffHunks(row.hunks, limit);
   if (hunks.length === 0) return <p className={styles["edit-plan-note"]}>보여 줄 변경 줄이 없어요.</p>;
   return <>
@@ -44,6 +44,7 @@ export function DocumentEditPlanPreview({
   canSelect,
   isAwaiting,
   isLoadingPreviews,
+  isPreviewExpired,
   blockedOperationIds,
   onToggle
 }: {
@@ -52,9 +53,11 @@ export function DocumentEditPlanPreview({
   canSelect: boolean;
   isAwaiting: boolean;
   isLoadingPreviews: boolean;
+  isPreviewExpired: boolean;
   blockedOperationIds: ReadonlySet<string> | undefined;
   onToggle: (rowId: string) => void;
 }) {
+  const missingNote = missingDiffNote({ isLoading: isLoadingPreviews, isAwaiting, isExpired: isPreviewExpired });
   return (
     <ul className={styles["edit-plan-list"]} aria-label="수정할 문서">
       {rows.map((row, index) => {
@@ -84,7 +87,7 @@ export function DocumentEditPlanPreview({
                 {row.resultLabel && <span className={cx(styles["edit-plan-note"], styles["is-result"], row.isFailure && styles["is-failure"])}>{row.resultLabel}</span>}
               </summary>
               <div className={styles["edit-plan-body"]}>
-                <DocumentEditDiff row={row} isLoading={isLoadingPreviews} />
+                <DocumentEditDiff row={row} missingNote={missingNote} />
               </div>
             </details>
           </li>
