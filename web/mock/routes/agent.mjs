@@ -1,6 +1,6 @@
 // document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
 // mode=task(작업 탭)면 문서 없이도 받고, 채팅 답변 갈래 대신 clarify로 되묻는다(2026-10-19 계약).
-import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument } from "../state.mjs";
+import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument, documentAccess } from "../state.mjs";
 import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
@@ -259,6 +259,14 @@ function taskResult(workspace, turn, request) {
   return clarify("작업 탭은 문서 편집·폴더 정리·스킬 실행을 맡아요. 위키 내용 질문은 채팅 탭에서 해 주세요.");
 }
 
+/** 서버 AgentTurnService처럼 클라이언트 값을 믿지 않는다: 편집 문맥 없는 요청이고 읽을 수 있으나 편집은 못 하는 문서일 때만 남기고 나머지는 오류 없이 버린다. */
+function confirmedReadOnlyDocumentId(workspace, userId, request) {
+  const documentId = request.read_only_document_id;
+  if (typeof documentId !== "string" || request.documentId) return null;
+  const doc = findDocument(workspace.id, documentId);
+  return doc && !documentAccess(doc, userId).can_edit ? documentId : null;
+}
+
 function completeTurn(workspace, turn, request) {
   const message = request.message;
   const pairId = id("pair");
@@ -282,7 +290,7 @@ function completeTurn(workspace, turn, request) {
     Object.assign(pending, answer, { status: "completed" });
   } else {
     upsertMessage(request.session_id, { role: "user", content: message, pair_id: pairId, run_id: turn.id });
-    upsertMessage(request.session_id, { role: "assistant", ...answer, pair_id: pairId, run_id: turn.id });
+    upsertMessage(request.session_id, { role: "assistant", ...answer, pair_id: pairId, run_id: turn.id, read_only_document_id: turn.read_only_document_id });
   }
   Object.assign(turn, { status: "completed", result });
 }
@@ -296,7 +304,7 @@ function failTurn(turn, request) {
   } else {
     const pairId = id("pair");
     upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
-    upsertMessage(request.session_id, { role: "assistant", ...failed, pair_id: pairId, run_id: turn.id });
+    upsertMessage(request.session_id, { role: "assistant", ...failed, pair_id: pairId, run_id: turn.id, read_only_document_id: turn.read_only_document_id });
   }
   Object.assign(turn, { status: "failed", error: "markdown_output_contract_failed", error_message: FAILED_TURN_MESSAGE });
 }
@@ -370,13 +378,13 @@ export function registerAgentRoutes(router) {
     const folderId = request.folder_id ?? null;
     if (folderId !== null && (typeof folderId !== "string" || !UUID_PATTERN.test(folderId))) return error(ctx, 400, "folder_id 형식이 올바르지 않습니다.");
     if (folderId !== null && !isLiveFolder(workspace.id, folderId)) return error(ctx, 404, "대상 폴더를 찾을 수 없습니다.");
-    const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, status: "queued", result: null, error_code: null };
+    const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, read_only_document_id: confirmedReadOnlyDocumentId(workspace, ctx.user.id, request), status: "queued", result: null, error_code: null };
     state.agentTurns.set(turn.id, turn);
     if (hasDocument) addOperationLog(workspace.id, { operation_id: turn.apply_operation_id, operation_type: "document_edit", status: "succeeded", target_document_id: request.documentId, target_display_name: findDocument(workspace.id, request.documentId)?.filename ?? null, summary: request.message.slice(0, 40), changed_resource_count: 0, completed_at: now() });
     if (SLOW_TURN) {
       const pairId = id("pair");
       upsertMessage(request.session_id, { role: "user", content: request.message, pair_id: pairId, run_id: turn.id });
-      upsertMessage(request.session_id, { role: "assistant", content: "", status: "pending", pair_id: pairId, run_id: turn.id });
+      upsertMessage(request.session_id, { role: "assistant", content: "", status: "pending", pair_id: pairId, run_id: turn.id, read_only_document_id: turn.read_only_document_id });
     }
     setTimeout(() => {
       if (turn.status !== "queued") return;

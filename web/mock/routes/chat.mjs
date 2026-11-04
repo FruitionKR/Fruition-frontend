@@ -14,8 +14,8 @@ function requireSession(ctx, workspace) {
 
 function toMessage(message) {
   const { session_id, ...rest } = message;
-  // 실제 서버처럼 코드가 없는 메시지도 키를 null로 내려준다(document chat.md).
-  return { ...rest, clarify_reason: rest.clarify_reason ?? null };
+  // 실제 서버처럼 값이 없는 메시지도 키를 null로 내려준다(document chat.md).
+  return { ...rest, clarify_reason: rest.clarify_reason ?? null, read_only_document_id: rest.read_only_document_id ?? null };
 }
 
 export function registerChatRoutes(router) {

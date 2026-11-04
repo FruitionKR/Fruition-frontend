@@ -15,6 +15,8 @@ export type AgentTurnRequest = {
   conversationContext?: { selected_pair_ids: string[] };
   /** 작업 대상 폴더(폴더 정리 범위·새 문서 위치). 생략하면 루트·워크스페이스 전체(document AgentTurnRequest 계약). */
   folder_id?: string;
+  /** 보기 권한 문서를 연 채 보낸 요청의 그 문서. 서버가 확인해 메시지에 남긴다. 편집 대상이 아니며 틀린 값은 서버가 무시한다(document AgentTurnRequest 계약). */
+  read_only_document_id?: string;
 } & (
   // 문서를 열지 않았거나 작업 대상에서 뺐으면 세 필드를 함께 생략한다(document AgentTurnRequest 계약).
   | { documentId: string; baseVersion: number; editorSnapshot: MarkdownEditorSnapshot }
@@ -35,6 +37,8 @@ type AgentTurnRequestContext = {
   allowWebSearch?: boolean;
   /** 폴더를 대상으로 고른 스킬 실행. 없으면 folder_id를 싣지 않는다. */
   folderId?: string | null;
+  /** 지금 연 보기 권한 문서. 없으면 read_only_document_id를 싣지 않는다. */
+  readOnlyDocumentId?: string | null;
 };
 
 export type AgentTurnAction =
@@ -157,7 +161,9 @@ export function buildAgentTurnRequest(
       : {}),
     ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {})
   } as const;
-  if (!context) return base;
+  if (!context) {
+    return requestContext.readOnlyDocumentId ? { ...base, read_only_document_id: requestContext.readOnlyDocumentId } : base;
+  }
   return { ...base, documentId: context.documentId, baseVersion: context.baseVersion, editorSnapshot: context.editorSnapshot };
 }
 
