@@ -351,7 +351,7 @@ export function AgentPanel({
   // '새 문서로 만들기' 스킬에서 "현재 문서" 칩을 눌러 원문으로 쓰기로 한 문서. 보내면 비운다.
   const [optedInDocumentId, setOptedInDocumentId] = useState<string | null>(null);
   const openDocumentId = markdownEditContext?.documentId ?? null;
-  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, onChange: setComposerValue });
+  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, isDraftRestored: workDraft.isRestored, onChange: setComposerValue });
   const composerIntent = isWorkView ? composerSkillIntent(composerValue, skillPicker.skills) : null;
   const isSourceOptIn = isOpenDocumentOptIn(composerIntent);
   const editorTarget = markdownEditContext?.editorSnapshot.target;

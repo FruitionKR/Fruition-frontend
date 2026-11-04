@@ -59,6 +59,11 @@ export function pickInitialSession<T extends { channel: string; isEmpty: boolean
   return inView.find((session) => !session.isEmpty) ?? inView[0] ?? null;
 }
 
+/** 지금 키의 초안 값. 이 키로 입력한 적이 없으면 저장소에서 읽은 값이라 복원으로 본다. */
+export function resolvePanelDraft(draft: { key: string | null; value: string }, key: string | null, read: (key: string | null) => string): { value: string; isRestored: boolean } {
+  return draft.key === key ? { value: draft.value, isRestored: false } : { value: read(key), isRestored: true };
+}
+
 export function panelDraftStorageKey(scope: string, view: ChatChannel, sessionId: string | null): string {
   return `${scope}:draft:${view}:${sessionId ?? "empty"}`;
 }
