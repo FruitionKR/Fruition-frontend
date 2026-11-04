@@ -10,7 +10,7 @@ import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
 import { appliedTaskNote } from "../lib/autoApply";
 import { publishDocumentContentSaved } from "@/entities/document/model/documentContentBus";
-import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, savedEditDocumentIds, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
+import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, savedEditDocumentIds, shouldPollAgentPlan, startedPlanTurns, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
@@ -299,14 +299,19 @@ export function AgentTaskBody({
   // 새로 고침 뒤에도 적용한 편집안이 "저장됨"으로 남게 서버 버전 기록으로 다시 확인한다.
   const { appliedTurnIds: serverAppliedTurnIds, checkingTurnIds, purgedTurnIds } = useServerAppliedTurnIds(workspaceId, visibleItems, isShown && Boolean(workspaceId));
 
-  // 실행이 끝나는 전이를 볼 때만 문서·트리·그래프를 다시 받는다(#66).
+  // 실행이 끝나는 전이를 보거나 이 세션에서 시작한 계획이 끝났을 때만 문서·트리·그래프를 다시 받는다(#66).
   const runStatusSignature = runQueries.map((query) => query.data?.status ?? "").join("|");
   const previousStatuses = useRef<string[]>([]);
   const runQueriesRef = useRef(runQueries);
   runQueriesRef.current = runQueries;
+  const planItemsRef = useRef(planItems);
+  planItemsRef.current = planItems;
   useEffect(() => {
     const statuses = runStatusSignature.split("|");
-    const settledIndexes = statuses.flatMap((status, index) => (isPlanRunSettled(previousStatuses.current[index] || undefined, status || undefined) ? [index] : []));
+    const settledIndexes = statuses.flatMap((status, index) => {
+      const isStartedHere = startedPlanTurns.takeSettled(planItemsRef.current[index]?.turnId, status || undefined);
+      return isPlanRunSettled(previousStatuses.current[index] || undefined, status || undefined) || isStartedHere ? [index] : [];
+    });
     if (settledIndexes.length > 0) void client.invalidateQueries({ queryKey: ["backendData"] });
     publishDocumentContentSaved(settledIndexes.flatMap((index) => savedEditDocumentIds(runQueriesRef.current[index]?.data?.plan)));
     previousStatuses.current = statuses;

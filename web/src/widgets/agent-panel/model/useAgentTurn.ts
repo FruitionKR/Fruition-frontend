@@ -18,6 +18,7 @@ import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, Markd
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
 import { editResultNotice } from "@/features/agent-chat/lib/taskThread";
+import { startedPlanTurns } from "@/features/agent-chat/lib/agentPlan";
 import { documentLockedTurnMessage, sendTurnDroppingOpenDocument, shouldRestoreAttachments } from "../lib/composerDocuments";
 import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
 import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
@@ -364,6 +365,7 @@ export function useAgentTurn({
           signal: controller.signal,
           onAccepted: (requestId) => {
             acceptedTurnId = requestId;
+            startedPlanTurns.mark(requestId);
             rememberReadOnlyRequest(requestId, requestReadOnlyDocumentId);
             if (controller.signal.aborted) return;
             setRequestTurnId(requestId);

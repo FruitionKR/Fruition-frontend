@@ -176,6 +176,21 @@ export function isPlanRunSettled(previous: string | undefined, next: string | un
   return previous !== undefined && next !== undefined && shouldPollAgentPlan(previous) && !shouldPollAgentPlan(next);
 }
 
+/**
+ * 이 세션에서 직접 시작한 계획(작업 요청·수락). 자동 승인이면 첫 조회 전에 끝나 진행 중 → 종료 전이를 못 볼 수 있어,
+ * 종료를 처음 본 순간 한 번만 끝난 것으로 친다. 지난 계획이 다시 마운트될 때는 여기 없어 다시 받지 않는다(#66).
+ */
+export function createStartedPlanTurns() {
+  const turnIds = new Set<string>();
+  return {
+    mark: (turnId: string) => { turnIds.add(turnId); },
+    takeSettled: (turnId: string | null | undefined, status: string | undefined): boolean =>
+      Boolean(turnId) && status !== undefined && !shouldPollAgentPlan(status) && turnIds.delete(turnId!)
+  };
+}
+
+export const startedPlanTurns = createStartedPlanTurns();
+
 export function agentPlanStatusLabel(status: string | undefined): string {
   const labels: Record<string, string> = {
     queued: "계획 생성 대기", planning: "계획 생성 중", awaiting_approval: "승인 대기",

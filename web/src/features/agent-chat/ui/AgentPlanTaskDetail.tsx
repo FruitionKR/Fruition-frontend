@@ -7,7 +7,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, planOperationFailureReason, planOperationOutcome, planOperationResultLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { startedPlanTurns, agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, planOperationFailureReason, planOperationOutcome, planOperationResultLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
 import { blockedEditRowIds, buildDocumentEditRows, documentEditApproval, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunnableCount, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
@@ -92,7 +92,8 @@ export function AgentPlanTaskDetail({
     // operationIds: 폴더 정리 부분 승인으로 실행할 작업. null·생략이면 계획 전체.
     mutationFn: ({ decision, operationIds }: { decision: "approve" | "reject"; operationIds?: readonly string[] | null }) =>
       decideAgentPlan(workspaceId, run!.id, decision, plan!, decision === "approve" ? operationIds : null),
-    onSuccess: (updated) => {
+    onSuccess: (updated, { decision }) => {
+      if (decision === "approve" && turnId) startedPlanTurns.mark(turnId);
       // 승인 응답은 plan을 생략하므로 검토했던 목록은 다음 조회까지 유지한다.
       client.setQueryData(queryKey, { ...updated, plan: updated.plan ?? plan, request_summary: updated.request_summary ?? run?.request_summary });
     },

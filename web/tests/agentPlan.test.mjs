@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -426,4 +426,21 @@ test("계획이 실제로 저장한 문서만 고른다", () => {
   ];
   assert.deepEqual(savedEditDocumentIds({ operations }), ["doc_a", "doc_b"]);
   assert.deepEqual(savedEditDocumentIds(null), []);
+});
+
+test("이 세션에서 시작한 계획은 첫 조회가 종료여도 한 번만 저장을 알린다", () => {
+  const started = createStartedPlanTurns();
+  started.mark("turn_1");
+  assert.equal(started.takeSettled("turn_1", "executing"), false, "아직 진행 중이면 기다린다");
+  assert.equal(started.takeSettled("turn_1", undefined), false, "아직 못 받았으면 기다린다");
+  assert.equal(started.takeSettled("turn_1", "completed"), true);
+  assert.equal(started.takeSettled("turn_1", "completed"), false, "다시 마운트돼도 또 알리지 않는다");
+});
+
+test("이 세션에서 시작하지 않은 계획은 첫 조회가 종료면 알리지 않는다(#66)", () => {
+  const started = createStartedPlanTurns();
+  started.mark("turn_1");
+  assert.equal(started.takeSettled("turn_2", "completed"), false);
+  assert.equal(started.takeSettled(null, "completed"), false);
+  assert.equal(started.takeSettled(undefined, "completed"), false);
 });
