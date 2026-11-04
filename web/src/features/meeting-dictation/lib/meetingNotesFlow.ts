@@ -67,6 +67,20 @@ export function shouldConfirmLeavingPhase(phase: MeetingPhase): boolean {
   return phase === "uploading";
 }
 
+/**
+ * 회의록을 확인 없이 새 문서로 저장할지. 이번 화면에서 만들어진 회의록만 한 번 저장한다.
+ * 지난 회의를 다시 연 경우와 저장에 실패해 돌아온 경우는 사람이 고른다.
+ */
+export function shouldAutoSaveMeetingNotes(input: {
+  isEnabled: boolean;
+  phase: MeetingPhase;
+  wasGenerating: boolean;
+  hasNotes: boolean;
+  isAlreadyTried: boolean;
+}): boolean {
+  return input.isEnabled && input.phase === "ready" && input.wasGenerating && input.hasNotes && !input.isAlreadyTried;
+}
+
 /** 회의를 지울 수 있는 단계. 전사·회의록 생성 중에는 먼저 취소한다(서버도 전사 중이면 409 MEETING_TRANSCRIBING). */
 export function canDeleteMeetingInPhase(phase: MeetingPhase): boolean {
   return phase === "stopped" || phase === "ready" || phase === "applied";
@@ -99,6 +113,7 @@ export const MEETING_MESSAGES = {
   outdated: "더 최근에 만든 회의록이 있습니다. 최신 회의록으로 다시 시도해 주세요.",
   alreadyApplied: "이 회의록은 이미 문서로 저장했습니다.",
   saved: "회의록을 문서로 저장했습니다.",
+  autoSaved: "설정의 'AI 에이전트 자동 승인'에 따라 회의록을 확인 없이 새 문서로 저장했습니다. 필요 없으면 그 문서를 휴지통으로 옮기세요.",
   emptyRecordingTranscript: "녹음에서 글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
   uploadCancelled: "녹음 파일 올리기를 취소했습니다.",
   uploadCancelTooLate: "올리기를 취소하기 전에 글로 옮기기가 시작됐고 멈추지 못했어요. 글로 옮기기 취소를 눌러 주세요."

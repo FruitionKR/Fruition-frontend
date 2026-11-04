@@ -275,7 +275,7 @@ export function isAutoApprovedPlan(run: Pick<AgentPlanRun, "plan"> | null | unde
 export function autoApprovedPlanNote(plan: Pick<AgentPlan, "operations">): string {
   const tools = new Set(plan.operations.map((operation) => operation.tool_name));
   const hints = [
-    tools.has("apply_document_edit") && "편집한 문서는 버전 기록에서 이전 버전으로 복원할 수 있어요.",
+    tools.has("apply_document_edit") && "편집한 문서는 로그 화면에서 이 작업을 롤백해 되돌릴 수 있어요.",
     tools.has("create_document") && "새로 만든 문서는 휴지통으로 옮길 수 있어요.",
     [...tools].some((tool) => tool.startsWith("move_") || tool.startsWith("rename_") || tool === "create_folder")
       && "옮기거나 바꾼 이름, 새 폴더는 문서 목록에서 다시 정리할 수 있어요."

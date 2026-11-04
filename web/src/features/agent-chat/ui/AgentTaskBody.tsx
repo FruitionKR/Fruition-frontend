@@ -8,6 +8,7 @@ import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import { cx } from "@/shared/lib/classNames";
 import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { fetchAgentPlanRun } from "../api/agentPlan";
+import { autoAppliedTaskNote } from "../lib/autoApply";
 import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspacePlanAction, knownPlanRunId, PLAN_POLL_INTERVAL_MS, shouldPollAgentPlan, summarizePlanOperationResults, type AgentPlanRun } from "../lib/agentPlan";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
@@ -165,6 +166,7 @@ export function AgentTaskBody({
   activePreview,
   activePreviewMeta = null,
   appliedTurnIds,
+  autoAppliedTurnIds = NO_TURN_IDS,
   rejectedTurnIds,
   cancelledTurnIds,
   errorMessage,
@@ -193,6 +195,8 @@ export function AgentTaskBody({
   /** 검토 중인 카드의 보조 설명(Figma 1610:9145 "문서 • 섹션 • 제안 N개 (본문에 표시)"). 없으면 상태 문구 */
   activePreviewMeta?: string | null;
   appliedTurnIds: ReadonlySet<string>;
+  /** 설정에 따라 확인 없이 적용·생성한 turn(이 브라우저에 남긴 기록). appliedTurnIds에도 들어 있다. */
+  autoAppliedTurnIds?: ReadonlySet<string>;
   /** 편집안을 모두 거절한 turn(이 사람의 브라우저에 남긴 기록 포함) */
   rejectedTurnIds: ReadonlySet<string>;
   /** 편집안·새 문서 초안을 취소한 turn */
@@ -309,7 +313,7 @@ export function AgentTaskBody({
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),
       hasLaterTask: index < visibleItems.length - 1 || Boolean(pendingTask)
-    }), isAutoApprovedPlan(run));
+    }), isAutoApprovedPlan(run) || (item.turnId !== null && autoAppliedTurnIds.has(item.turnId)));
     const { request, summary } = resolveTaskRequest(item.request, run?.request_summary);
     return {
       item,
@@ -537,7 +541,9 @@ export function AgentTaskBody({
                       key={entry.item.key}
                       title={entry.title}
                       status={entry.status}
-                      note={entry.run?.plan && isAutoApprovedPlan(entry.run) && entry.run.status === "completed" ? autoApprovedPlanNote(entry.run.plan) : null}
+                      note={entry.run?.plan && isAutoApprovedPlan(entry.run) && entry.run.status === "completed"
+                        ? autoApprovedPlanNote(entry.run.plan)
+                        : entry.item.turnId !== null && autoAppliedTurnIds.has(entry.item.turnId) ? autoAppliedTaskNote(entry.item.action) : null}
                     />)}
                   </div>
                 ))}

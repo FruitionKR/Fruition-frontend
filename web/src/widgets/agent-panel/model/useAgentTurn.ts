@@ -1,6 +1,7 @@
 import { analyticsEditType, newAnalyticsId } from "@/shared/lib/analytics/events";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import type { AiModel } from "@/entities/ai";
 import { requestAgentTurn, resumeAgentTurn } from "@/features/agent-chat";
@@ -13,10 +14,14 @@ import {
 } from "@/features/agent-chat/lib/agentTurn";
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
+import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
+import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
 import {
   buildEditReviewSegments,
   composeReviewedMarkdown,
   countPendingProposals,
+  countProposals,
   hasAcceptedProposal,
   settleRemainingProposals,
   type EditProposalDecision,
@@ -117,7 +122,11 @@ export function useAgentTurn({
     if (outcomeStorageKey) writeTaskOutcome(browserTaskOutcomeStorage(), outcomeStorageKey, turnId, outcome);
   }, [outcomeStorageKey]);
   const markApplied = useCallback((turnId: string | undefined) => markOutcome(turnId, "applied"), [markOutcome]);
-  const appliedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "applied"), [taskOutcomes]);
+  const autoAppliedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "auto_applied"), [taskOutcomes]);
+  const appliedTurnIds = useMemo(
+    () => new Set([...turnIdsWithOutcome(taskOutcomes, "applied"), ...autoAppliedTurnIds]),
+    [autoAppliedTurnIds, taskOutcomes]
+  );
   const rejectedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "rejected"), [taskOutcomes]);
   const cancelledTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "cancelled"), [taskOutcomes]);
   // 본문에 붙인 제안(Figma 1571:27625)마다 고른 거절·수락. 다른 turn의 결정은 쓰지 않는다.
@@ -157,6 +166,31 @@ export function useAgentTurn({
   const editPreviewErrorMessage = editPreviewState && !editPreviewState.preview
     ? `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`
     : null;
+
+  const queryClient = useQueryClient();
+  const autoApprovalSettings = useAgentAutoApprovalSettings();
+  const isAutoApproved = isContentEditAutoApproved(autoApprovalSettings);
+  // 자동 처리 판단을 끝낸 turn. 응답마다 한 번만 판단하고, 수동으로 넘긴 뒤에는 설정이 늦게 도착해도 바꾸지 않는다.
+  const autoDecidedTurnIdsRef = useRef(new Set<string>());
+  // 수락 화면으로 넘긴 turn. 자동 적용에 실패한 turn도 여기 들어가 다시 시도하지 않는다.
+  const [manualTurnIds, setManualTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+  // 사용자가 Esc로 멈추려 한 turn. 이미 끝나 결과가 와도 확인 없이 반영하지 않는다.
+  const stoppedTurnIdsRef = useRef(new Set<string>());
+  const responseTurnId = agentTurnResponse?.requestId ?? null;
+  const autoApplyKind = resolveTurnAutoApply({
+    action: agentTurnResponse?.result.action,
+    isContentEditAutoApproved: isAutoApproved,
+    isAlreadyHandled: responseTurnId === null || manualTurnIds.has(responseTurnId) || appliedTurnIds.has(responseTurnId),
+    isManualOnly: responseTurnId !== null && stoppedTurnIdsRef.current.has(responseTurnId),
+    isFromActiveSession: agentTurnRequest?.session_id === activeSessionId,
+    hasEditPreview: Boolean(editPreviewState?.preview),
+    hasApplyOperationId: Boolean(agentTurnResponse?.apply_operation_id),
+    validationError: editPreviewState?.validationError ?? null,
+    isDocumentWritable: markdownEditContext?.isWritable === true,
+    proposalCount: reviewSegments ? countProposals(reviewSegments) : 0,
+    isScopeExpanded: agentTurnResponse?.result.edit?.scope_expanded === true,
+    draft: agentTurnResponse?.result.generated_markdown ?? null
+  });
 
   /**
    * turn의 끝을 기다린 뒤 대화 목록을 다시 받아 결과를 보여 준다. 결과를 확인하지 못한 채 끝나면(조회 실패·연결 끊김)
@@ -248,6 +282,8 @@ export function useAgentTurn({
     setIsAgentTurnSlow(false);
     setUnconfirmedTurnId(null);
     setRequestTurnId(null);
+    // 다른 기기에서 끈 자동 승인이 이번 결과에 쓰이지 않게 보낼 때마다 다시 받는다.
+    void queryClient.invalidateQueries({ queryKey: AGENT_AUTO_APPROVAL_QUERY_KEY });
     agentRequestRef.current?.abort();
     const controller = new AbortController();
     agentRequestRef.current = controller;
@@ -273,6 +309,7 @@ export function useAgentTurn({
    * 진행 카드는 그대로 둔다. 취소가 받아들여지면 finishFollowing으로 진행 카드를 내린다.
    */
   function stopFollowing() {
+    if (requestTurnId) stoppedTurnIdsRef.current.add(requestTurnId);
     agentRequestRef.current?.abort();
     agentRequestRef.current = null;
   }
@@ -315,22 +352,26 @@ export function useAgentTurn({
     if (editPreviewState?.preview) applyEditedMarkdown(editPreviewState.preview.nextMarkdown);
   }
 
-  function applyEditedMarkdown(nextMarkdown: string) {
-    if (!agentTurnRequest || !agentTurnResponse || !markdownEditContext || !editPreviewState?.preview) return;
+  /** 적용했으면 true. 실패하면 원문을 그대로 두고 오류를 보여 준다. */
+  function applyEditedMarkdown(nextMarkdown: string, outcome: "applied" | "auto_applied" = "applied"): boolean {
+    if (!agentTurnRequest || !agentTurnResponse || !markdownEditContext || !editPreviewState?.preview) return false;
     try {
       validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
+      if (!markdownEditContext.isWritable) throw new Error("지금은 이 문서를 저장할 수 없어 편집안을 적용하지 않았습니다. 편집 권한과 로그인 상태를 확인해 주세요.");
       const applied = markdownEditContext.applyMarkdown(
         agentTurnRequest.editorSnapshot?.markdown ?? "",
         nextMarkdown,
         agentTurnResponse.apply_operation_id
       );
       if (!applied) throw new Error("적용 직전에 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
-      markApplied(agentTurnResponse.requestId);
+      markOutcome(agentTurnResponse.requestId, outcome);
       setAgentTurnRequest(null);
       setAgentTurnResponse(null);
       setAgentTurnErrorMessage(null);
+      return true;
     } catch (error) {
       setAgentTurnErrorMessage(getErrorMessage(error, "편집 결과를 적용하지 못했습니다."));
+      return false;
     }
   }
 
@@ -393,7 +434,7 @@ export function useAgentTurn({
       .finally(() => setIsCreatingMarkdown(false));
   }
 
-  function createMarkdownDocument() {
+  function createMarkdownDocument(outcome: "applied" | "auto_applied" = "applied") {
     const draft = agentTurnResponse?.result.generated_markdown;
     if (!draft) return;
     const runId = agentTurnResponse.requestId;
@@ -401,16 +442,36 @@ export function useAgentTurn({
     setMarkdownCreateErrorMessage(null);
     onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId)
       .then(() => {
-        markApplied(runId);
+        markOutcome(runId, outcome);
         setAgentTurnRequest(null);
         setAgentTurnResponse(null);
       })
       .catch((error: unknown) => {
         reportAiTaskFailure(markdownCreateFailure(error, runId));
         setMarkdownCreateErrorMessage(getErrorMessage(error, "새 Markdown 문서를 만들지 못했습니다."));
+        // 자동 재시도하지 않고 오류와 함께 기존 화면으로 돌아간다.
+        setManualTurnIds((current) => new Set([...current, runId]));
       })
       .finally(() => setIsCreatingMarkdown(false));
   }
+
+  // 편집안·초안이 도착하면 한 번만 판단한다. 응답을 받은 직후 렌더에서는 아직 요청 중으로 남아 있을 수 있어 끝나길 기다린다.
+  const applyAutoRef = useRef<(kind: "edit" | "create") => void>(() => {});
+  applyAutoRef.current = (kind) => {
+    if (kind === "create") {
+      createMarkdownDocument("auto_applied");
+      return;
+    }
+    if (!editPreviewState?.preview || applyEditedMarkdown(editPreviewState.preview.nextMarkdown, "auto_applied")) return;
+    if (responseTurnId) setManualTurnIds((current) => new Set([...current, responseTurnId]));
+  };
+  const isCommandResponse = agentTurnResponse?.result.action === "markdown_edit" || agentTurnResponse?.result.action === "markdown_create";
+  useEffect(() => {
+    if (!responseTurnId || !isCommandResponse || isAgentTurnLoading || autoDecidedTurnIdsRef.current.has(responseTurnId)) return;
+    autoDecidedTurnIdsRef.current.add(responseTurnId);
+    if (autoApplyKind) applyAutoRef.current(autoApplyKind);
+    else setManualTurnIds((current) => new Set([...current, responseTurnId]));
+  }, [autoApplyKind, isAgentTurnLoading, isCommandResponse, responseTurnId]);
 
   return {
     agentTurnRequest,
@@ -434,7 +495,10 @@ export function useAgentTurn({
     editPreviewState,
     editPreviewErrorMessage,
     taskRunIds,
+    /** 편집안·초안을 자동으로 처리하는 중이라 수락 화면을 띄우지 않는다. */
+    isAutoApplying: autoApplyKind !== null,
     appliedTurnIds,
+    autoAppliedTurnIds,
     rejectedTurnIds,
     cancelledTurnIds,
     reviewSegments,

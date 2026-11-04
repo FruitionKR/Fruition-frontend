@@ -20,6 +20,7 @@ import {
   type MeetingResponse,
   type MeetingSource
 } from "@/entities/meeting";
+import { useUserPreferences } from "@/entities/user";
 import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { describeMeetingNotesError, describeMeetingTranscriptionFailure } from "@/shared/lib/aiErrorCodes";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
@@ -34,6 +35,7 @@ import {
   describeNotesSaveError,
   describeRecordingError,
   MEETING_MESSAGES,
+  shouldAutoSaveMeetingNotes,
   shouldConfirmLeavingPhase,
   type MeetingPhase
 } from "../lib/meetingNotesFlow";
@@ -504,25 +506,48 @@ export function useMeetingSession({
     }
   }, [meeting, phase]);
 
-  const finishSave = useCallback(async (saved: MeetingNotesResponse) => {
+  const finishSave = useCallback(async (saved: MeetingNotesResponse, savedText: string = MEETING_MESSAGES.saved) => {
     setNotes(saved);
     setPreview(null);
     setPhase("applied");
-    setNotice({ text: MEETING_MESSAGES.saved, tone: "info" });
+    setNotice({ text: savedText, tone: "info" });
     if (saved.applied) await Promise.resolve(onDocumentSavedRef.current?.(saved.applied.document_id)).catch(() => undefined);
   }, []);
 
-  const saveAsNewDocument = useCallback(async () => {
+  const saveAsNewDocument = useCallback(async (savedText?: string) => {
     if (!meeting || !notes || phase !== "ready") return;
     setPhase("saving");
     setNotice(null);
     try {
-      await finishSave(await applyMeetingNotes(meeting.meeting_id, notes.version, { mode: "create" }));
+      await finishSave(await applyMeetingNotes(meeting.meeting_id, notes.version, { mode: "create" }), savedText);
     } catch (error) {
       setNotice({ text: describeNotesSaveError(error, MEETING_ERROR_MESSAGES.applyFailed), tone: "error" });
       setPhase("ready");
     }
   }, [finishSave, meeting, notes, phase]);
+
+  // 설정을 켰으면 이번에 만들어진 회의록을 한 번만 새 문서로 저장한다. 실패하면 오류와 함께 기존 버튼으로 돌아가고 다시 시도하지 않는다.
+  const { preferences } = useUserPreferences();
+  const wasGeneratingRef = useRef(false);
+  const autoSaveTriedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (phase === "generating") {
+      wasGeneratingRef.current = true;
+      return;
+    }
+    const tryKey = meeting && notes ? `${meeting.meeting_id}:${notes.version}` : null;
+    const shouldSave = shouldAutoSaveMeetingNotes({
+      isEnabled: preferences.autoSaveMeetingNotes,
+      phase,
+      wasGenerating: wasGeneratingRef.current,
+      hasNotes: tryKey !== null,
+      isAlreadyTried: tryKey !== null && autoSaveTriedRef.current.has(tryKey)
+    });
+    wasGeneratingRef.current = false;
+    if (!shouldSave || tryKey === null) return;
+    autoSaveTriedRef.current.add(tryKey);
+    void saveAsNewDocument(MEETING_MESSAGES.autoSaved);
+  }, [meeting, notes, phase, preferences.autoSaveMeetingNotes, saveAsNewDocument]);
 
   const previewAppend = useCallback(async () => {
     if (!meeting?.document_id || !notes || phase !== "ready") return;

@@ -340,6 +340,19 @@ function toRun(run) {
 
 export function registerAgentRoutes(router) {
   if (SAME_FOLDER_PLANS) seedSameFolderPlans();
+  // 사용자 단위 계획 자동 승인 설정(document agent.md). 기본은 모두 꺼짐. 값은 서버를 다시 띄우면 사라진다.
+  let autoApprovalSettings = { content_edit: false, organize: false };
+  router.get("/api/workspaces/:wid/agent/auto-approval-settings", (ctx) => {
+    if (!requireWorkspace(ctx)) return;
+    ctx.json(200, autoApprovalSettings);
+  });
+  router.put("/api/workspaces/:wid/agent/auto-approval-settings", async (ctx) => {
+    if (!requireWorkspace(ctx)) return;
+    const body = await ctx.body();
+    if (typeof body?.content_edit !== "boolean" || typeof body?.organize !== "boolean") return error(ctx, 400, "content_edit·organize는 boolean이어야 합니다.");
+    autoApprovalSettings = { content_edit: body.content_edit, organize: body.organize };
+    ctx.json(200, autoApprovalSettings);
+  });
   router.post("/api/workspaces/:wid/agent/turn", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;

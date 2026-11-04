@@ -643,17 +643,19 @@ export function AgentPanel({
   const reviewDocumentId = agentTurnRequest?.documentId ?? null;
   const proposalCount = reviewSegments ? countProposals(reviewSegments) : 0;
   const pendingProposalCount = reviewSegments ? countPendingProposals(reviewSegments, proposalDecisions) : 0;
+  const { isAutoApplying } = agentTurn;
   const isInlineReview = Boolean(
-    reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
+    !isAutoApplying && reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
     && reviewDocumentId && reviewDocumentId === openDocumentId
   );
   const isReviewBusy = isAgentTurnLoading || isCreatingMarkdown;
   const shownReviewIds = useRef(new Set<string>());
   useEffect(() => {
-    if (!(isInlineReview || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
+    // 자동 적용도 수락과 같은 경로로 집계한다(제안 → 결정). 결정은 서버가 저장 시 ai_edit_decided(accepted)로 남긴다.
+    if (!(isInlineReview || isAutoApplying || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
     shownReviewIds.current.add(agentTurnResponse.requestId);
     captureAnalytics("edit_review_shown", { proposal_id: agentTurnResponse.requestId, document_id: agentTurnResponse.documentId, edit_type: analyticsEditType(agentTurnResponse.result.edit) });
-  }, [isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
+  }, [isAutoApplying, isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
   const decideProposalRef = useRef(agentTurn.decideProposal);
   decideProposalRef.current = agentTurn.decideProposal;
   const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "");
@@ -680,7 +682,7 @@ export function AgentPanel({
     : null;
 
   // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
-  const hasDocumentCommandPreview = Boolean(
+  const hasDocumentCommandPreview = !isAutoApplying && Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
   );
@@ -694,7 +696,7 @@ export function AgentPanel({
           errorMessage={agentTurn.markdownCreateErrorMessage}
           onCancel={agentTurn.cancelAgentTurnResult}
           onRegenerate={agentTurn.regenerateAgentTurn}
-          onCreate={agentTurn.createMarkdownDocument}
+          onCreate={() => agentTurn.createMarkdownDocument()}
         />
       )}
       {isInlineReview && <ProposalDecisionButtons disabled={isReviewBusy} onDecide={agentTurn.decideRemainingProposals} />}
@@ -779,6 +781,7 @@ export function AgentPanel({
             activePreview={documentCommandPreview}
             activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
+            autoAppliedTurnIds={agentTurn.autoAppliedTurnIds}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
