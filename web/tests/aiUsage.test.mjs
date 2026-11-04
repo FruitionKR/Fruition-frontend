@@ -12,6 +12,7 @@ import {
   summarizeModelUsage,
   toPercentShares
 } from "../src/entities/ai/model/aiUsage.ts";
+import { LOCKED_AI_MODELS } from "../src/entities/ai/model/lockedAiModels.ts";
 
 const CATALOG = [
   { provider: "openai", model: "gpt-6-luna", display_name: "GPT-6 Luna" },
@@ -86,6 +87,37 @@ test("접미사가 아닌 꼬리와 다른 공급사는 카탈로그와 맞추�
   assert.deepEqual(summary.models.map((item) => item.label), ["gpt-6-luna-mini", "gpt-6-luna-01", "gpt-6-luna"]);
 });
 
+test("채팅 카탈로그에 없는 음성 모델은 표시 이름으로 보이고 스냅샷은 한 줄로 합친다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ model: "gpt-transcribe", audio_seconds: 60, charge_krw_milli: 400 }),
+    charge({ model: "gpt-transcribe-2026-09-01", audio_seconds: 30, charge_krw_milli: 200 }),
+    charge({ model: "gpt-live-transcribe", audio_seconds: 10, charge_krw_milli: 300 }),
+    charge({ model: "gpt-realtime-2.1-mini", input_tokens: 5, output_tokens: 20, charge_krw_milli: 500 })
+  ]), CATALOG);
+  assert.deepEqual(
+    summary.models.map((item) => [item.key, item.label, item.audioSeconds]),
+    [
+      ["openai/gpt-realtime-2.1-mini", "GPT Realtime 2.1 Mini", 0],
+      ["openai/gpt-transcribe", "GPT Transcribe", 90],
+      ["openai/gpt-live-transcribe", "GPT Live Transcribe", 10]
+    ]
+  );
+});
+
+test("음성 모델이 카탈로그에 있으면 카탈로그 이름이 우선하고, 다른 공급사 줄에는 음성 이름을 쓰지 않는다", () => {
+  const catalog = [...CATALOG, { provider: "openai", model: "gpt-transcribe", display_name: "서버 이름" }];
+  const summary = summarizeModelUsage(charges([
+    charge({ model: "gpt-transcribe", input_tokens: 2 }),
+    charge({ provider: "gemini", model: "gpt-transcribe", input_tokens: 1 })
+  ]), catalog);
+  assert.deepEqual(summary.models.map((item) => item.label), ["서버 이름", "gpt-transcribe"]);
+});
+
+test("음성 표시 이름은 잠금 모델 목록에 끼어들지 않는다", () => {
+  const speechIds = ["gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-2.1-mini", "gpt-4o-mini-tts"];
+  assert.deepEqual(LOCKED_AI_MODELS.filter((item) => speechIds.includes(item.model)), []);
+});
+
 test("합계 금액과 안내 건수는 응답 최상위 값을 쓴다", () => {
   const summary = summarizeModelUsage(charges([charge({ input_tokens: 10, charge_krw_milli: 100 })], {
     charge_krw_milli: 3334, unpriced_calls: 2, needs_review_calls: 1
@@ -103,7 +135,7 @@ test("토큰 없이 글자 수·음성 초로 과금된 줄도 표에 남고 금
   ]), CATALOG);
   assert.deepEqual(
     summary.models.map((item) => [item.label, item.totalTokens, item.chargeKrwMilli]),
-    [["GPT-6 Luna", 1000, 1500], ["whisper-1", 0, 3000], ["gpt-4o-mini-tts", 0, 2160]]
+    [["GPT-6 Luna", 1000, 1500], ["whisper-1", 0, 3000], ["GPT-4o Mini TTS", 0, 2160]]
   );
   assert.equal(summary.chargeKrwMilli, 6660);
   assert.equal(summary.totalTokens, 1000);

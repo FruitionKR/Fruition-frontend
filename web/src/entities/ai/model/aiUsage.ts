@@ -77,6 +77,17 @@ function findCatalogModel(catalog: readonly AiModel[], provider: string, model: 
   return find(model) ?? find(model.replace(MODEL_VERSION_SUFFIX, ""));
 }
 
+/**
+ * 채팅용 카탈로그에 없는 음성(전사·TTS) 모델의 표시 이름. 사용량 화면에만 쓰고 모델 선택 목록에는 넣지 않는다.
+ * ID는 ai speech 모듈(TRANSCRIBE_MODEL, LIVE_TRANSCRIBE_MODEL, TTS_MODEL)과 지난 사용량에 남은 옛 TTS 모델이다.
+ */
+const SPEECH_MODELS: readonly AiModel[] = [
+  { provider: "openai", model: "gpt-transcribe", display_name: "GPT Transcribe" },
+  { provider: "openai", model: "gpt-live-transcribe", display_name: "GPT Live Transcribe" },
+  { provider: "openai", model: "gpt-realtime-2.1-mini", display_name: "GPT Realtime 2.1 Mini" },
+  { provider: "openai", model: "gpt-4o-mini-tts", display_name: "GPT-4o Mini TTS" }
+];
+
 function hasUsage(row: ModelChargeRow): boolean {
   return [row.calls, row.input_tokens, row.output_tokens, row.audio_seconds, row.tts_characters, row.charge_krw_milli]
     .some((value) => count(value) > 0);
@@ -84,7 +95,7 @@ function hasUsage(row: ModelChargeRow): boolean {
 
 /**
  * 청구 응답을 화면 표 줄로 묶는다. 카탈로그에서 같은 모델로 찾아진 스냅샷 줄(gpt-…-2025-08-07 등)은 한 줄로 합치고 display_name을 쓴다.
- * 못 찾으면 모델 id를 그대로 보이고 합치지 않는다. 토큰이 큰 순서이고, 토큰이 같으면(음성·TTS 줄) 금액이 큰 순서다.
+ * 카탈로그에 없으면 음성 모델 표에서 찾고, 거기도 없으면 모델 id를 그대로 보이고 합치지 않는다. 토큰이 큰 순서이고, 토큰이 같으면(음성·TTS 줄) 금액이 큰 순서다.
  * 토큰이 0이어도 호출·음성·글자·금액 중 하나가 있으면 줄을 남긴다. 합계 금액과 안내 건수는 응답 최상위 값을 쓴다.
  */
 export function summarizeModelUsage(charges: ChargeSummaryResponse, catalog: readonly AiModel[]): ModelUsageSummary {
@@ -92,7 +103,7 @@ export function summarizeModelUsage(charges: ChargeSummaryResponse, catalog: rea
   let calls = 0;
   for (const row of charges.models) {
     if (!hasUsage(row)) continue;
-    const matched = findCatalogModel(catalog, row.provider, row.model);
+    const matched = findCatalogModel(catalog, row.provider, row.model) ?? findCatalogModel(SPEECH_MODELS, row.provider, row.model);
     const key = `${row.provider}/${matched?.model ?? row.model}`;
     const current = grouped.get(key) ?? {
       key,
