@@ -676,6 +676,10 @@ export function HomeWorkspace() {
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
           onOpenFolderOrganize={folderOrganize.open}
+          onFolderOrganizePreviewRequested={() => {
+            // 좁은 화면에서는 패널이 미리보기의 적용 영역을 덮으므로 닫아서 보여 준다.
+            if (isCompactLayout) panels.closeAgentPanel();
+          }}
           onReplaceFolderOrganize={folderOrganize.replaceSuperseded}
           nodes={graphData.nodes}
           skillRun={skillRunRequest && {

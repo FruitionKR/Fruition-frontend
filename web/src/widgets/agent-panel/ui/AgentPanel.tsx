@@ -86,6 +86,7 @@ export function AgentPanel({
   onManageSkills,
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
+  onFolderOrganizePreviewRequested,
   onReplaceFolderOrganize,
   skillTestRunSlotRef,
   openDocumentTitle = null,
@@ -138,6 +139,8 @@ export function AgentPanel({
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
+  /** 사용자가 작업 카드에서 미리보기를 직접 열었다. 계획이 도착해 자동으로 열릴 때는 부르지 않는다. */
+  onFolderOrganizePreviewRequested?: () => void;
   /** 앞선 폴더 정리 계획이 같은 폴더의 새 계획으로 대체됐다. 그 계획의 미리보기 탭이 열려 있으면 새 계획으로 바꾼다. */
   onReplaceFolderOrganize?: (supersededTurnId: string, next: FolderOrganizeRequest) => void;
   /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
@@ -803,7 +806,10 @@ export function AgentPanel({
             errorMessage={(isRequestFailureListed ? null : agentTurn.agentTurnErrorMessage) ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
-            onOpenFolderOrganize={onOpenFolderOrganize}
+            onOpenFolderOrganize={(request) => {
+              onOpenFolderOrganize?.(request);
+              onFolderOrganizePreviewRequested?.();
+            }}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
             onRetryTask={isSubmitting ? undefined : retryTask}
             onRetryFailed={isSubmitting ? undefined : retryFailedTask}
