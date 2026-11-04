@@ -662,7 +662,7 @@ export function HomeWorkspace() {
           }}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
           markdownEditContext={markdownEditContext}
-          isOpenDocumentReadOnly={isSelectedDocumentReadOnly}
+          readOnlyDocumentId={isSelectedDocumentReadOnly ? selection.selectedDocumentId : null}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
           onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}

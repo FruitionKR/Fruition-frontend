@@ -4,6 +4,7 @@ import test from "node:test";
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
 const { state } = await import("../mock/state.mjs");
 const { registerAgentRoutes } = await import("../mock/routes/agent.mjs");
+const { registerChatRoutes } = await import("../mock/routes/chat.mjs");
 
 const WORKSPACE_ID = "ws_agent_task";
 const USER_ID = "user_agent_task";
@@ -25,16 +26,21 @@ async function startMock(t) {
     state.skills.push({ id: "skill_task_organize", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "file-organize", scope_type: "personal", status: "enabled",
       enabled_version: { id: "sv_task", name: "file-organize", description: "폴더 정리", status: "published", version: 1, allowed_tools: [], capabilities: ["folder-organize"], instructions_markdown: "" },
       latest_version: null });
+    state.skills.push({ id: "skill_task_edit", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "edit-only", scope_type: "personal", status: "enabled",
+      enabled_version: { id: "sv_task_edit", name: "edit-only", description: "문서 수정", status: "published", version: 1, allowed_tools: [], capabilities: ["document-edit"], result_mode: "edit", instructions_markdown: "" },
+      latest_version: null });
   }
   const token = issueAccessToken(state, USER_ID);
   const router = createRouter(state);
   registerAgentRoutes(router);
+  registerChatRoutes(router);
   t.mock.method(console, "log", () => {});
   const server = await listen(router, 0);
   t.after(() => server.close());
-  const base = `http://localhost:${server.address().port}/api/workspaces/${WORKSPACE_ID}/agent`;
+  const workspaceBase = `http://localhost:${server.address().port}/api/workspaces/${WORKSPACE_ID}`;
+  const base = `${workspaceBase}/agent`;
   return async (method, path, body) => {
-    const response = await fetch(`${base}${path}`, {
+    const response = await fetch(path.startsWith("/chat/") ? `${workspaceBase}${path}` : `${base}${path}`, {
       method,
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined
@@ -257,4 +263,38 @@ test("mock 작업 탭은 폴더 내용 질문에 folder_lookup으로 바로 아�
   const selected = await waitForTurn(request, accepted.body.requestId);
   assert.equal(selected.result.action, "folder_lookup");
   assert.match(selected.result.message, /^'회의록' 폴더/);
+});
+
+const MARKDOWN_DOCUMENT_QUESTION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+
+test("문서 없는 편집 요청의 되묻기는 turn 결과와 메시지에 이유 코드를 함께 준다(ai agent.md·document chat.md)", async (t) => {
+  const request = await startMock(t);
+  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "이 문단을 수정해줘", mode: "task", ...MODEL });
+  const { result } = await waitForTurn(request, accepted.requestId);
+  assert.equal(result.message, MARKDOWN_DOCUMENT_QUESTION);
+  assert.equal(result.clarify_reason, "markdown_document_required");
+  const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
+  const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
+  const user = messages.find((item) => item.run_id === accepted.requestId && item.role === "user");
+  assert.equal(assistant.clarify_reason, "markdown_document_required");
+  assert.equal(user.clarify_reason, null);
+});
+
+test("문서 없이 실행한 수정 스킬의 되묻기도 같은 문장과 이유 코드를 준다(ai handle_agent_turn)", async (t) => {
+  const request = await startMock(t);
+  const { result } = await submitTask(request, "/edit-only 다듬어 줘");
+  assert.equal(result.message, MARKDOWN_DOCUMENT_QUESTION);
+  assert.equal(result.clarify_reason, "markdown_document_required");
+});
+
+test("다른 이유의 되묻기와 되묻기가 아닌 메시지는 이유 코드가 null이고 키는 늘 있다", async (t) => {
+  const request = await startMock(t);
+  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "위키에 뭐가 있어?", mode: "task", ...MODEL });
+  const { result } = await waitForTurn(request, accepted.requestId);
+  assert.equal(result.action, "clarify");
+  assert.equal(result.clarify_reason, null);
+  const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
+  const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
+  assert.equal(Object.hasOwn(assistant, "clarify_reason"), true);
+  assert.equal(assistant.clarify_reason, null);
 });

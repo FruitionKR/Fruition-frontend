@@ -3,6 +3,7 @@ import { READ_ONLY_DOCUMENT_HINT } from "@/entities/document/lib/documentAccess"
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
 import { SUPERSEDED_PLAN_LABEL } from "@/features/agent-chat/lib/folderPlanSupersede";
+import type { ReadOnlyRequests } from "@/features/agent-chat/lib/readOnlyRequests";
 import {
   isTurnCancelling,
   STALLED_TURN_TITLE,
@@ -39,6 +40,8 @@ export type TaskMessageItem = {
   /** 이 작업을 만든 agent turn ID. 폴더 정리 계획은 이 ID로 run을 찾는다. */
   turnId: string | null;
   action: string | null;
+  /** AI가 되물은 이유 코드(chat.md clarify_reason). 없으면 null */
+  clarifyReason: string | null;
   /** 사용자가 보낸 원래 요청 */
   request: string;
   /** AI가 남긴 답(편집 요약·되묻는 질문 등) */
@@ -63,6 +66,7 @@ function toTaskItem(key: string, pairId: string | null, messages: ChatMessageRes
     pairId,
     turnId: assistant?.run_id ?? user?.run_id ?? null,
     action: assistant?.action ?? null,
+    clarifyReason: assistant?.clarify_reason ?? null,
     request: (user?.content ?? "").trim().normalize("NFC"),
     answer: taskAnswer(assistant).trim().normalize("NFC"),
     messageStatus: assistant?.status ?? user?.status ?? "pending",
@@ -126,18 +130,33 @@ export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "re
   return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
 }
 
-/** AI가 편집 문맥 없는 수정 요청에 되묻는 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE). */
+/** AI가 편집 문맥 없는 수정 요청에 되묻는 이유 코드(ai agent.md clarify_reason). */
+const MARKDOWN_DOCUMENT_REQUIRED = "markdown_document_required";
+/** 그 되묻기의 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE). 코드가 없는 과거 메시지·배포 전 서버를 판단할 때만 쓴다. */
 const OPEN_DOCUMENT_CLARIFICATION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
 const READ_ONLY_DOCUMENT_CLARIFICATION = `이 문서는 보기 권한만 있어 수정할 수 없어요. ${READ_ONLY_DOCUMENT_HINT}`;
 
+/** 문서가 필요해 되물었는지. 코드가 있으면 코드만 보고(모르는 코드는 다른 이유), 코드가 없을 때만 문장으로 판단한다. */
+function asksForMarkdownDocument(item: Pick<TaskMessageItem, "clarifyReason" | "answer">): boolean {
+  if (item.clarifyReason !== null) return item.clarifyReason === MARKDOWN_DOCUMENT_REQUIRED;
+  return item.answer.trim().normalize("NFC") === OPEN_DOCUMENT_CLARIFICATION;
+}
+
 /**
  * 보기 권한 문서는 편집기를 열지 않아 편집 문맥 없이 요청이 나가고, AI는 문서를 열라고 되묻는다. 문서를 연 사용자에게 맞지 않으니
- * 그 문서가 열려 있는 동안 이유를 알려 주는 문장으로 바꾼다. AI가 이유 코드를 주지 않아 문장으로 맞추고, 문장이 바뀌면 원문을 그대로 보인다.
+ * 그 문서를 연 채 보낸 요청의 되묻기만, 그 문서가 열려 있는 동안 이유를 알려 주는 문장으로 바꾼다. 문서 없이 받은 되묻기는 그대로 둔다.
+ * 이유 코드는 편집 문맥이 없었다는 뜻뿐이고 문서를 안 연 요청에도 같은 값이 오므로, 어느 문서에서 보냈는지는 readOnlyRequests로 가린다.
  */
-export function withReadOnlyDocumentClarification<T extends Pick<TaskMessageItem, "action" | "answer">>(items: T[], isOpenDocumentReadOnly: boolean): T[] {
-  if (!isOpenDocumentReadOnly) return items;
+export function withReadOnlyDocumentClarification<T extends Pick<TaskMessageItem, "turnId" | "action" | "clarifyReason" | "answer">>(
+  items: T[],
+  readOnlyDocumentId: string | null,
+  readOnlyRequests: ReadOnlyRequests
+): T[] {
+  if (!readOnlyDocumentId) return items;
   return items.map((item) => (
-    item.action === "clarify" && item.answer.trim().normalize("NFC") === OPEN_DOCUMENT_CLARIFICATION
+    item.action === "clarify"
+    && item.turnId !== null && readOnlyRequests.get(item.turnId) === readOnlyDocumentId
+    && asksForMarkdownDocument(item)
       ? { ...item, answer: READ_ONLY_DOCUMENT_CLARIFICATION }
       : item
   ));

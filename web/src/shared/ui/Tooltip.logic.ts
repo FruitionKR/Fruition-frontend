@@ -19,11 +19,11 @@ export const TOOLTIP_LONG_PRESS_MS = 500;
 export const TOOLTIP_TOUCH_VISIBLE_MS = 3000;
 
 /**
- * 터치 입력에서 말풍선을 띄우기까지의 지연. 눌러도 동작하지 않는 비활성 버튼(사유 안내)과
- * 설명 전용 버튼(showOnTap)은 탭하면 바로, 나머지는 탭 동작을 방해하지 않게 길게 눌러야 띄운다.
+ * 터치 입력에서 말풍선을 띄우기까지의 지연. 눌러도 동작하지 않는 비활성 버튼(사유 안내)은 탭하면 바로,
+ * 나머지는 탭 동작을 방해하지 않게 길게 눌러야 띄운다. openOnTap 트리거는 Tooltip이 click에서 따로 연다.
  */
-export function getTouchTooltipDelay({ isTriggerDisabled, showOnTap }: { isTriggerDisabled: boolean; showOnTap: boolean }): number {
-  return isTriggerDisabled || showOnTap ? 0 : TOOLTIP_LONG_PRESS_MS;
+export function getTouchTooltipDelay({ isTriggerDisabled }: { isTriggerDisabled: boolean }): number {
+  return isTriggerDisabled ? 0 : TOOLTIP_LONG_PRESS_MS;
 }
 
 export function getTooltipOpenDelay({
@@ -124,4 +124,12 @@ export function computeTooltipPosition({
   const left = clamp(position.left, margin, viewport.width - margin - size.width);
   const arrowOffset = clamp(anchor.left + anchor.width / 2 - left, ARROW_EDGE_PX, size.width - ARROW_EDGE_PX);
   return { top: position.top, left, placement: resolved, arrowOffset };
+}
+
+/** 트리거를 누른 순간의 기록. 키보드 click에는 없다. */
+export type TooltipPress = { pointerType: string; wasOpen: boolean };
+
+/** 터치 탭 뒤 click에서 말풍선을 열지. 누를 때 이미 열려 있었으면 닫는 탭이다. */
+export function shouldOpenAfterTap(press: TooltipPress | null): boolean {
+  return press?.pointerType === "touch" && !press.wasOpen;
 }

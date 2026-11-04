@@ -54,10 +54,9 @@ test("표식 위에서의 이동은 표식을 대체하고, 그 외에는 요청
 const { getTouchTooltipDelay, TOOLTIP_LONG_PRESS_MS } = await import("../src/shared/ui/Tooltip.logic.ts");
 const { isGraphDoubleTap, GRAPH_DOUBLE_TAP_MS } = await import("../src/widgets/graph/lib/graphGeometry.ts");
 
-test("터치 말풍선은 비활성 버튼·설명 버튼이면 바로, 나머지는 길게 눌러야 뜬다", () => {
-  assert.equal(getTouchTooltipDelay({ isTriggerDisabled: true, showOnTap: false }), 0);
-  assert.equal(getTouchTooltipDelay({ isTriggerDisabled: false, showOnTap: true }), 0);
-  assert.equal(getTouchTooltipDelay({ isTriggerDisabled: false, showOnTap: false }), TOOLTIP_LONG_PRESS_MS);
+test("터치 말풍선은 비활성 버튼이면 바로, 나머지는 길게 눌러야 뜬다", () => {
+  assert.equal(getTouchTooltipDelay({ isTriggerDisabled: true }), 0);
+  assert.equal(getTouchTooltipDelay({ isTriggerDisabled: false }), TOOLTIP_LONG_PRESS_MS);
 });
 
 test("같은 노드를 시간 안에 다시 탭해야 더블 탭이다", () => {
