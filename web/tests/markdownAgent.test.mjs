@@ -91,6 +91,21 @@ test("문서 없이 보낸 요청의 편집 응답은 미리보기를 만들지 
   assert.throws(() => prepareMarkdownEditPreview(request, markdownEditResponse()), /문서를 열고 다시 요청/);
 });
 
+test("보기 권한 문서를 연 채 보낸 요청은 편집 문맥 없이 그 문서를 read_only_document_id로 싣는다", () => {
+  const request = buildAgentTurnRequest("이 문서를 수정해줘", null, { ...agentRequestContext, readOnlyDocumentId: "doc_read_only" });
+  assert.equal(request.read_only_document_id, "doc_read_only");
+  assert.equal(request.documentId, undefined);
+  assert.equal(request.editorSnapshot, undefined);
+});
+
+test("보기 권한 문서가 아니면 read_only_document_id를 싣지 않고, 편집 문맥이 있으면 그쪽을 따른다", () => {
+  assert.equal("read_only_document_id" in buildAgentTurnRequest("수정해줘", null, agentRequestContext), false);
+  assert.equal("read_only_document_id" in buildAgentTurnRequest("수정해줘", null, { ...agentRequestContext, readOnlyDocumentId: null }), false);
+  const editing = buildAgentTurnRequest("수정해줘", markdownEditContext, { ...agentRequestContext, readOnlyDocumentId: "doc_read_only" });
+  assert.equal("read_only_document_id" in editing, false);
+  assert.equal(editing.documentId, markdownEditContext.documentId);
+});
+
 test("선택한 문답은 서버 계약인 selected_pair_ids로 전달한다", () => {
   const request = buildAgentTurnRequest("이어서 다듬어줘", markdownEditContext, {
     ...agentRequestContext,
