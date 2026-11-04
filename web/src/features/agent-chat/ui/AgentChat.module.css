@@ -2713,6 +2713,45 @@ button.result-link:focus-visible {
     min-height: 44px;
     opacity: 1;
   }
+
+  /* 패널 머리줄: 줄 높이는 패널 격자(agent-panel-shell.css)와 맞춘다. */
+  .agent-header {
+    height: 48px;
+  }
+
+  .agent-header-actions {
+    gap: 0;
+    padding: 2px 4px;
+  }
+
+  .agent-view-tab {
+    min-height: 44px;
+  }
+
+  .panel-action {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-session-dropdown {
+    top: 52px;
+  }
+
+  .task-decision {
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .plan-details > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .plan-tree summary {
+    height: 44px;
+  }
 }
 
 /* 휴대폰: 모델 메뉴는 두 칸을 나란히 둘 폭이 없어 입력창 위에 쌓아 펼친다(인라인 좌표보다 우선). */
