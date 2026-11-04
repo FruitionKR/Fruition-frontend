@@ -8,7 +8,7 @@ import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
 import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, planOperationFailureReason, planOperationOutcome, planOperationResultLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
-import { buildDocumentEditRows, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunnableCount, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
+import { blockedEditRowIds, buildDocumentEditRows, documentEditApproval, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunnableCount, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
 import { useDocumentEditPreviews } from "../model/useDocumentEditPreviews";
@@ -43,6 +43,7 @@ function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: numb
 }
 
 const PENDING_OPERATION_STATUSES = new Set(["pending", "planned"]);
+const NO_OPERATION_IDS: ReadonlySet<string> = new Set();
 
 /**
  * 작업 탭의 폴더 정리 계획 상세(Figma 1610:9529 작업 묶음): 정리 후 폴더 트리 미리보기, 상세 보기(항목별 변경),
@@ -109,16 +110,26 @@ export function AgentPlanTaskDetail({
   const editPreviews = useDocumentEditPreviews(run?.id, isEditPlan);
   const organizeRows = plan && (action === "folder_organize" || isEditPlan) ? buildFolderOrganizeView(plan, tree.data ?? []).rows : [];
   const deselectedIds = userDeselectedIds ?? initialDeselectedRowIds(organizeRows);
-  const approval = plan && organizeRows.length > 0 ? folderOrganizeApproval(plan, organizeRows, deselectedIds) : null;
-  const approvalHint = !approval || !tree.data ? null : isEditPlan ? documentEditApprovalHint(approval, organizeRows.filter((row) => row.isPurged).length) : folderOrganizeCardHint(approval);
+  const isWorkspaceOwner = role === null ? null : isOwner;
+  // 문서 수정 계획은 권한으로 막힌 작업을 수락에 싣지 않는다. 고른 작업과 상관없는 판단이라 먼저 구한다.
+  const editBlockedOperationIds = plan && isEditPlan && canDecide && tree.data
+    ? checkPlanAccess(plan, tree.data, isWorkspaceOwner, null).blockedOperationIds
+    : NO_OPERATION_IDS;
+  const blockedRowIds = blockedEditRowIds(organizeRows, editBlockedOperationIds);
+  const approval = plan && organizeRows.length > 0
+    ? isEditPlan ? documentEditApproval(plan, organizeRows, deselectedIds, editBlockedOperationIds) : folderOrganizeApproval(plan, organizeRows, deselectedIds)
+    : null;
+  const purgedRows = organizeRows.filter((row) => row.isPurged);
+  const approvalHint = !approval || !tree.data ? null : isEditPlan ? documentEditApprovalHint(approval, purgedRows.length, blockedRowIds.size) : folderOrganizeCardHint(approval);
   const editRows = plan && isEditPlan ? buildDocumentEditRows(plan, organizeRows, editPreviews.previews, tree.data ?? []) : [];
   // 눌러도 권한으로 실패할 계획은 수락을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
   const access = plan && canDecide && tree.data
-    ? checkPlanAccess(plan, tree.data, role === null ? null : isOwner, approval?.operationIds ?? null)
+    ? checkPlanAccess(plan, tree.data, isWorkspaceOwner, approval?.operationIds ?? null)
     : null;
   // 폴더 정리·문서 수정은 미리보기와 같이 줄 단위로 안내한다.
+  // 문서 수정 계획에서 막힌 문서는 고를 수 없으므로 사용자가 뺀 문서와 상관없이 안내한다(영구 삭제된 줄만 뺀다).
   const rowAccess = access && organizeRows.length > 0
-    ? checkRowAccess(access, organizeRows, deselectedIds)
+    ? checkRowAccess(access, organizeRows, isEditPlan ? new Set(purgedRows.map((row) => row.id)) : deselectedIds)
     : null;
   const accessVerdict = rowAccess?.verdict ?? access?.verdict;
   const accessMessage = rowAccess ? planAccessMessage({ ...rowAccess, unit: isEditPlan ? "문서" : "항목" }) : access && planAccessMessage(access);
@@ -137,7 +148,7 @@ export function AgentPlanTaskDetail({
   const note = clarificationMessage
     ?? (isEditPlan ? documentEditRunNote(run) : failureMessage)
     ?? (canDecide && accessVerdict !== "all_blocked"
-      ? isEditPlan ? documentEditDecisionNote(documentEditRunnableCount({ selectedCount: approval?.selectedCount ?? 0, blockedCount: rowAccess?.blockedCount ?? 0, isExpired: isPreviewExpired })) : "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다."
+      ? isEditPlan ? documentEditDecisionNote(documentEditRunnableCount({ selectedCount: approval?.selectedCount ?? 0, isExpired: isPreviewExpired })) : "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다."
       : null)
     ?? (plan && isAutoApprovedPlan(run) ? autoApprovedPlanNote(plan) : null);
   const messageNotice = isEditPlan ? documentEditMessageNotice(message, plan?.summary) : null;
@@ -166,7 +177,8 @@ export function AgentPlanTaskDetail({
             isAwaiting={canDecide}
             isLoadingPreviews={editPreviews.state === "loading"}
             isPreviewExpired={isPreviewExpired}
-            blockedOperationIds={access?.blockedOperationIds}
+            blockedOperationIds={editBlockedOperationIds}
+            blockedRowIds={blockedRowIds}
             onToggle={toggleEditRow}
           />
         </> : <>

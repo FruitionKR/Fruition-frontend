@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { missingDiffNote, PURGED_DIFF_NOTE, type DocumentEditRow } from "../lib/documentEditPlan";
 import { DIFF_LINE_PAGE, limitDiffHunks } from "../lib/documentEditPreviews";
-import { PLAN_OPERATION_BLOCKED_NOTE } from "../lib/planAccess";
+import { PLAN_OPERATION_BLOCKED_NOTE, PLAN_ROW_PARTLY_BLOCKED_NOTE } from "../lib/planAccess";
 import { DocumentDiffLines } from "./DocumentDiffLines";
 import styles from "./AgentChat.module.css";
 
@@ -46,6 +46,7 @@ export function DocumentEditPlanPreview({
   isLoadingPreviews,
   isPreviewExpired,
   blockedOperationIds,
+  blockedRowIds,
   onToggle
 }: {
   rows: readonly DocumentEditRow[];
@@ -54,7 +55,9 @@ export function DocumentEditPlanPreview({
   isAwaiting: boolean;
   isLoadingPreviews: boolean;
   isPreviewExpired: boolean;
-  blockedOperationIds: ReadonlySet<string> | undefined;
+  blockedOperationIds: ReadonlySet<string>;
+  /** 작업이 모두 막혀 고를 수 없는 문서 줄 */
+  blockedRowIds: ReadonlySet<string>;
   onToggle: (rowId: string) => void;
 }) {
   const missingNote = missingDiffNote({ isLoading: isLoadingPreviews, isAwaiting, isExpired: isPreviewExpired });
@@ -62,13 +65,14 @@ export function DocumentEditPlanPreview({
     <ul className={styles["edit-plan-list"]} aria-label="수정할 문서">
       {rows.map((row, index) => {
         // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
-        const isSelected = isAwaiting ? !row.isPurged && !deselectedIds.has(row.id) : !row.excluded;
-        const isBlocked = row.operationIds.some((id) => blockedOperationIds?.has(id));
+        const isBlocked = blockedRowIds.has(row.id);
+        const isPartlyBlocked = !isBlocked && row.operationIds.some((id) => blockedOperationIds.has(id));
+        const isSelected = isAwaiting ? !row.isPurged && !isBlocked && !deselectedIds.has(row.id) : !row.excluded;
         return (
           <li key={row.id} className={cx(styles["edit-plan-item"], !isSelected && styles["is-excluded"])}>
             {/* 체크박스는 summary 밖에 둔다. 안에 두면 누를 때마다 펼침이 함께 바뀐다. */}
             <label className={styles["edit-plan-check"]}>
-              <input type="checkbox" aria-label={`${row.title} 수정`} checked={isSelected} disabled={!canSelect || row.isPurged} onChange={() => onToggle(row.id)} />
+              <input type="checkbox" aria-label={`${row.title} 수정`} checked={isSelected} disabled={!canSelect || row.isPurged || isBlocked} onChange={() => onToggle(row.id)} />
             </label>
             <details className={styles["edit-plan-doc"]} open={index === 0}>
               <summary>
@@ -84,6 +88,7 @@ export function DocumentEditPlanPreview({
                 {row.summary && <span className={styles["edit-plan-summary"]}>{row.summary}</span>}
                 {row.warning && <span className={cx(styles["edit-plan-note"], styles["is-warning"])}>{row.warning}</span>}
                 {isAwaiting && isBlocked && <span className={styles["edit-plan-note"]}>{PLAN_OPERATION_BLOCKED_NOTE}</span>}
+                {isAwaiting && isPartlyBlocked && <span className={styles["edit-plan-note"]}>{PLAN_ROW_PARTLY_BLOCKED_NOTE}</span>}
                 {row.resultLabel && <span className={cx(styles["edit-plan-note"], styles["is-result"], row.isFailure && styles["is-failure"])}>{row.resultLabel}</span>}
               </summary>
               <div className={styles["edit-plan-body"]}>

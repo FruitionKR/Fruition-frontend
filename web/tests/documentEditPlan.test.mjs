@@ -11,7 +11,9 @@ registerHooks({
 });
 
 const {
+  blockedEditRowIds,
   buildDocumentEditRows,
+  documentEditApproval,
   documentEditApprovalHint,
   documentEditDecisionNote,
   documentEditMessageNotice,
@@ -294,8 +296,55 @@ test("끝난 run에서 영구 삭제로 건너뛴 문서는 실패와 나눠 안
 });
 
 test("수락 전 안내의 문서 수는 실제로 수정될 문서만 센다", () => {
-  assert.equal(documentEditRunnableCount({ selectedCount: 3, blockedCount: 1, isExpired: false }), 2);
-  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: 3, blockedCount: 1, isExpired: false })), "아직 바꾸지 않았습니다. 승인하면 문서 2개를 수정합니다.");
+  assert.equal(documentEditRunnableCount({ selectedCount: 2, isExpired: false }), 2);
+  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: 2, isExpired: false })), "아직 바꾸지 않았습니다. 승인하면 문서 2개를 수정합니다.");
   // 변경안이 만료됐으면 승인해도 수정되지 않으므로 수락 안내를 함께 쓰지 않는다.
-  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: 1, blockedCount: 0, isExpired: true })), "아직 바꾸지 않았습니다.");
+  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: 1, isExpired: true })), "아직 바꾸지 않았습니다.");
+});
+
+test("권한으로 모두 막힌 문서는 수락 대상에서 빼고 보내는 작업과 수를 맞춘다", () => {
+  const plan = editPlan([editOperation("op_1", "doc_1"), editOperation("op_2", "doc_2"), editOperation("op_3", "doc_3")]);
+  const rows = buildFolderOrganizeView(plan, TREE).rows;
+  const blocked = new Set(["op_1"]);
+  assert.deepEqual([...blockedEditRowIds(rows, blocked)], ["doc_1"]);
+  const approval = documentEditApproval(plan, rows, new Set(), blocked);
+  assert.equal(approval.selectedCount, 2);
+  assert.deepEqual(approval.operationIds, ["op_2", "op_3"]);
+  assert.equal(approval.canApply, true);
+  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: approval.selectedCount, isExpired: false })), "아직 바꾸지 않았습니다. 승인하면 문서 2개를 수정합니다.");
+  // 막혀서 빠진 문서를 사용자가 뺀 문서로 세지 않는다.
+  assert.equal(documentEditApprovalHint(approval, 0, 1), null);
+  // 사용자가 뺀 문서만 "제외"로 센다.
+  const withUserExcluded = documentEditApproval(plan, rows, new Set(["doc_2"]), blocked);
+  assert.deepEqual(withUserExcluded.operationIds, ["op_3"]);
+  assert.equal(documentEditApprovalHint(withUserExcluded, 0, 1), "1개는 제외하고 수정해요.");
+});
+
+test("막힌 문서가 없으면 지금처럼 계획 전체를 승인한다", () => {
+  const plan = editPlan([editOperation("op_1", "doc_1"), editOperation("op_2", "doc_2")]);
+  const rows = buildFolderOrganizeView(plan, TREE).rows;
+  assert.equal(documentEditApproval(plan, rows, new Set(), new Set()).operationIds, null);
+  assert.deepEqual(documentEditApproval(plan, rows, new Set(["doc_1"]), new Set()).operationIds, ["op_2"]);
+});
+
+test("모두 막힌 계획은 수락할 수 없고 '고르세요'라고 안내하지 않는다", () => {
+  const plan = editPlan([editOperation("op_1", "doc_1"), editOperation("op_2", "doc_2")]);
+  const rows = buildFolderOrganizeView(plan, TREE).rows;
+  const approval = documentEditApproval(plan, rows, new Set(), new Set(["op_1", "op_2"]));
+  assert.equal(approval.selectedCount, 0);
+  assert.equal(approval.canApply, false);
+  assert.equal(documentEditApprovalHint(approval, 0, 2), null);
+  // 고를 수 있는 문서를 사용자가 뺐으면 고르라고 안내한다.
+  const free = documentEditApproval(plan, rows, new Set(["doc_2"]), new Set(["op_1"]));
+  assert.equal(documentEditApprovalHint(free, 0, 1), "수정할 문서를 하나 이상 골라 주세요.");
+});
+
+test("한 문서의 작업 일부만 막히면 그 문서는 고른 채로 두고 막힌 작업만 뺀다", () => {
+  const plan = editPlan([editOperation("op_1", "doc_1"), editOperation("op_2", "doc_1"), editOperation("op_3", "doc_2")]);
+  const rows = buildFolderOrganizeView(plan, TREE).rows;
+  const blocked = new Set(["op_1"]);
+  assert.deepEqual([...blockedEditRowIds(rows, blocked)], []);
+  const approval = documentEditApproval(plan, rows, new Set(), blocked);
+  assert.equal(approval.selectedCount, 2);
+  assert.deepEqual(approval.operationIds, ["op_2", "op_3"]);
 });

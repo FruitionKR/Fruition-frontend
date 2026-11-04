@@ -11,7 +11,7 @@ import {
   type AgentPlanRun
 } from "./agentPlan";
 import type { AgentDocumentEditHunk, AgentRunEditPreviews } from "./documentEditPreviews";
-import type { FolderOrganizeApproval, FolderOrganizeRow } from "./folderOrganize";
+import { canApplyFolderOrganizeSelection, folderOrganizeApproval, type FolderOrganizeApproval, type FolderOrganizeRow } from "./folderOrganize";
 
 export type DocumentEditRow = {
   /** 문서 id(buildFolderOrganizeView의 줄 id). 선택 해제 저장소의 키다. */
@@ -120,14 +120,39 @@ export function documentEditDecisionNote(selectedCount: number): string {
   return selectedCount > 0 ? `아직 바꾸지 않았습니다. 승인하면 문서 ${selectedCount}개를 수정합니다.` : "아직 바꾸지 않았습니다.";
 }
 
-/** 승인하면 실제로 수정될 문서 수. 권한으로 막힌 문서는 빼고, 변경안이 만료됐으면 수락할 수 없어 없는 것으로 친다. */
-export function documentEditRunnableCount({ selectedCount, blockedCount, isExpired }: { selectedCount: number; blockedCount: number; isExpired: boolean }): number {
-  return isExpired ? 0 : Math.max(0, selectedCount - blockedCount);
+/** 승인하면 실제로 수정될 문서 수. selectedCount는 막힌 문서를 뺀 수(documentEditApproval)이고, 변경안이 만료됐으면 수락할 수 없어 없는 것으로 친다. */
+export function documentEditRunnableCount({ selectedCount, isExpired }: { selectedCount: number; isExpired: boolean }): number {
+  return isExpired ? 0 : selectedCount;
 }
 
-/** 수락 버튼 위 안내. 모두 고르면 null. purgedCount: 영구 삭제로 빠진 문서 수. 사용자가 뺀 문서로 세지 않는다(그 줄이 이유를 말한다). */
-export function documentEditApprovalHint({ selectedCount, excludedCount, canApply }: Pick<FolderOrganizeApproval, "selectedCount" | "excludedCount" | "canApply">, purgedCount = 0): string | null {
-  const userExcluded = excludedCount - purgedCount;
+/** 작업이 모두 권한으로 막혀 고를 수 없는 문서 줄. 일부만 막힌 줄은 나머지 작업을 실행할 수 있어 넣지 않는다. */
+export function blockedEditRowIds(rows: readonly Pick<FolderOrganizeRow, "id" | "operationIds">[], blockedOperationIds: ReadonlySet<string>): ReadonlySet<string> {
+  return new Set(rows.filter((row) => row.operationIds.length > 0 && row.operationIds.every((id) => blockedOperationIds.has(id))).map((row) => row.id));
+}
+
+/**
+ * 문서 수정 계획의 승인 요청. 막힌 작업을 빼서 카드가 말하는 수정 문서 수와 서버에 보내는 operation_ids를 맞춘다.
+ * 막힌 작업에 기대는 작업도 blockedOperationIds에 들어 있어(checkPlanAccess) 빼도 의존 관계가 깨지지 않는다.
+ */
+export function documentEditApproval(
+  plan: AgentPlan,
+  rows: FolderOrganizeRow[],
+  deselectedIds: ReadonlySet<string>,
+  blockedOperationIds: ReadonlySet<string>
+): FolderOrganizeApproval {
+  const approval = folderOrganizeApproval(plan, rows, new Set([...deselectedIds, ...blockedEditRowIds(rows, blockedOperationIds)]));
+  if (blockedOperationIds.size === 0) return approval;
+  const operationIds = (approval.operationIds ?? plan.operations.map((operation) => operation.id)).filter((id) => !blockedOperationIds.has(id));
+  return { ...approval, operationIds, canApply: canApplyFolderOrganizeSelection(approval.selectedCount, operationIds) };
+}
+
+/**
+ * 수락 버튼 위 안내. 모두 고르면 null. purgedCount: 영구 삭제로 빠진 문서 수, blockedCount: 권한으로 막혀 빠진 문서 수.
+ * 둘 다 사용자가 뺀 문서로 세지 않는다(그 줄이 이유를 말한다). 모두 막혔으면 권한 안내가 이유를 말하므로 null이다.
+ */
+export function documentEditApprovalHint({ selectedCount, excludedCount, canApply }: Pick<FolderOrganizeApproval, "selectedCount" | "excludedCount" | "canApply">, purgedCount = 0, blockedCount = 0): string | null {
+  const userExcluded = excludedCount - purgedCount - blockedCount;
+  if (selectedCount === 0 && blockedCount > 0 && userExcluded === 0) return null;
   if (selectedCount === 0) return purgedCount > 0 && userExcluded === 0 ? "수정할 수 있는 문서가 없어요. 대상 문서가 영구 삭제됐어요." : "수정할 문서를 하나 이상 골라 주세요.";
   if (!canApply || userExcluded === 0) return null;
   return `${userExcluded}개는 제외하고 수정해요.`;
