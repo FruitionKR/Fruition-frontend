@@ -1,5 +1,6 @@
 import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import type { AgentPlan, AgentPlanRun } from "../lib/agentPlan";
+import { parseAgentRunEditPreviews, type AgentRunEditPreviews } from "@/features/agent-chat/lib/documentEditPreviews";
 import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
 
 /**
@@ -32,6 +33,12 @@ export async function fetchAgentPlanRun(
 async function fetchRun(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentPlanRun> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId), { cache: "no-store", signal });
   return parseJsonOrThrow<AgentPlanRun>(response, "작업 계획을 불러오지 못했습니다.");
+}
+
+/** 문서 수정 계획의 문서별 변경 내용. 구 서버·만료면 404다. */
+export async function fetchAgentRunEditPreviews(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentRunEditPreviews> {
+  const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId, "edit-previews"), { cache: "no-store", signal });
+  return parseAgentRunEditPreviews(await parseJsonOrThrow<unknown>(response, "변경 내용을 불러오지 못했습니다."));
 }
 
 const INVALID_SELECTION_MESSAGE = "고른 항목을 적용할 수 없습니다. 함께 적용해야 하는 항목이 빠졌거나 계획이 바뀌었을 수 있어요. 선택을 확인한 뒤 다시 적용해주세요.";

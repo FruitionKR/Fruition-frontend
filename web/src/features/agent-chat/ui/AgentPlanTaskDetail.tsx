@@ -7,12 +7,15 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, isOperationNotSelected, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, isOperationNotSelected, planOperationStatusLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { buildDocumentEditRows, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { checkPlanAccess, planAccessMessage } from "../lib/planAccess";
+import { useDocumentEditPreviews } from "../model/useDocumentEditPreviews";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon } from "./AgentIcons";
+import { DocumentEditPlanPreview } from "./DocumentEditPlanPreview";
 import styles from "./AgentChat.module.css";
 
 function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: number }) {
@@ -39,20 +42,18 @@ function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: numb
   </ul>;
 }
 
-const OPERATION_STATUS_LABELS: Record<string, string> = {
-  succeeded: "완료", completed: "완료", running: "실행 중", failed: "실패", skipped: "건너뜀", forbidden: "권한 없음",
-  conflicted: "변경 충돌", verification_failed: "결과 확인 실패", cancelled: "취소됨", rolled_back: "복구됨"
-};
 const PENDING_OPERATION_STATUSES = new Set(["pending", "planned"]);
 
 /**
  * 작업 탭의 폴더 정리 계획 상세(Figma 1610:9529 작업 묶음): 정리 후 폴더 트리 미리보기, 상세 보기(항목별 변경),
  * 안내 문구와 승인·거절 버튼. run은 작업 목록이 폴링해 넘겨준다.
+ * 모든 작업이 문서 편집인 계획은 폴더 트리 대신 문서별 변경 내용(DocumentEditPlanPreview)을 보여 준다.
  */
 export function AgentPlanTaskDetail({
   turnId,
   action,
   run,
+  message = null,
   runError,
   isRunFetching,
   onRefetch,
@@ -62,6 +63,8 @@ export function AgentPlanTaskDetail({
   turnId: string | null;
   action: string;
   run: AgentPlanRun | null;
+  /** 이 작업의 결과 메시지. 문서 수정 계획에서 빠진 문서 안내가 담겨 온다. */
+  message?: string | null;
   runError: unknown;
   isRunFetching: boolean;
   onRefetch: () => void;
@@ -101,55 +104,93 @@ export function AgentPlanTaskDetail({
   const canDecide = canApproveAgentPlan(run);
   // 폴더 정리 수락은 미리보기 탭과 같은 선택으로 적용한다: 미리보기에서 바꾼 선택, 없으면 AI 권장 기본 선택
   // (suggested_selected false인 중복 의심·그에 기대는 작업 제외). 줄이 없는 계획은 지금처럼 전체 승인한다.
-  const [userDeselectedIds] = useFolderOrganizeDeselection(turnId, plan ? `${plan.id}:${plan.version}` : null);
-  const organizeRows = plan && action === "folder_organize" ? buildFolderOrganizeView(plan, tree.data ?? []).rows : [];
-  const approval = plan && organizeRows.length > 0
-    ? folderOrganizeApproval(plan, organizeRows, userDeselectedIds ?? initialDeselectedRowIds(organizeRows))
-    : null;
-  const approvalHint = approval && tree.data ? folderOrganizeCardHint(approval) : null;
+  const [userDeselectedIds, setUserDeselectedIds] = useFolderOrganizeDeselection(turnId, plan ? `${plan.id}:${plan.version}` : null);
+  const isEditPlan = isDocumentEditPlan(plan);
+  const editPreviews = useDocumentEditPreviews(run?.id, isEditPlan);
+  const organizeRows = plan && (action === "folder_organize" || isEditPlan) ? buildFolderOrganizeView(plan, tree.data ?? []).rows : [];
+  const deselectedIds = userDeselectedIds ?? initialDeselectedRowIds(organizeRows);
+  const approval = plan && organizeRows.length > 0 ? folderOrganizeApproval(plan, organizeRows, deselectedIds) : null;
+  const approvalHint = !approval || !tree.data ? null : isEditPlan ? documentEditApprovalHint(approval) : folderOrganizeCardHint(approval);
+  const editRows = plan && isEditPlan ? buildDocumentEditRows(plan, organizeRows, editPreviews.previews, tree.data ?? []) : [];
   // 눌러도 권한으로 실패할 계획은 수락을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
   const access = plan && canDecide && tree.data
     ? checkPlanAccess(plan, tree.data, role === null ? null : isOwner, approval?.operationIds ?? null)
     : null;
   const accessMessage = access && planAccessMessage(access);
-  const ready = canDecide && Boolean(tree.data) && !runError && !tree.error && (approval?.canApply ?? true) && access?.verdict !== "all_blocked";
+  const isPreviewLoading = isEditPlan && editPreviews.state === "loading";
+  const isPreviewExpired = isEditPlan && editPreviews.isExpired;
+  const ready = canDecide && Boolean(tree.data) && !runError && !tree.error && (approval?.canApply ?? true) && access?.verdict !== "all_blocked"
+    // 변경 내용을 받는 중이거나 변경안이 만료됐으면 수락하지 않는다. 받지 못한 경우(구 서버 등)는 안내하고 수락을 열어 둔다.
+    && !isPreviewLoading && !isPreviewExpired;
   const clarificationMessage = agentPlanClarificationMessage(run);
-  const busy = mutation.isPending || isRunFetching || tree.isFetching;
+  const busy = mutation.isPending || isRunFetching || tree.isFetching || (isEditPlan && editPreviews.isFetching);
   const failureMessage = agentPlanFailureMessage(run);
   const isFailed = failureMessage !== null;
   const canRetry = Boolean(onRetry) && canRetryAgentPlanRun(run);
   // AI가 대상 폴더 밖 작업을 뺐다는 안내는 접힌 상세 보기가 아니라 카드에 바로 보인다.
   const planSummary = splitPlanSummary(plan?.summary);
   const note = clarificationMessage
-    ?? failureMessage
-    ?? (canDecide && access?.verdict !== "all_blocked" ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null)
+    ?? (isEditPlan ? documentEditRunNote(run) : failureMessage)
+    ?? (canDecide && access?.verdict !== "all_blocked"
+      ? isEditPlan ? documentEditDecisionNote(approval?.selectedCount ?? 0) : "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다."
+      : null)
     ?? (plan && isAutoApprovedPlan(run) ? autoApprovedPlanNote(plan) : null);
+  const messageNotice = isEditPlan ? documentEditMessageNotice(message, plan?.summary) : null;
+  const previewNotice = isEditPlan && canDecide
+    ? editPreviewNotice({ state: editPreviews.state, missingCount: editRows.filter((row) => !row.hunks).length, isExpired: isPreviewExpired })
+    : null;
+
+  function toggleEditRow(rowId: string) {
+    const next = new Set(deselectedIds);
+    if (next.has(rowId)) next.delete(rowId);
+    else next.add(rowId);
+    setUserDeselectedIds(next);
+  }
 
   return (
-    <div className={styles["task-plan"]} aria-label={action === "folder_organize" ? "폴더 정리 계획" : "워크스페이스 작업 계획"}>
+    <div className={styles["task-plan"]} aria-label={isEditPlan ? "문서 수정 계획" : action === "folder_organize" ? "폴더 정리 계획" : "워크스페이스 작업 계획"}>
       {plan && <>
         {preview?.summary && <p className={styles["plan-counts"]}>{preview.summary}</p>}
         {planSummary.scopeNote && <p className={styles["task-card-meta"]} role="status">{planSummary.scopeNote}</p>}
-        <div className={styles["plan-tree-region"]} aria-label="정리 후 폴더 구조">
-          <PlanTree nodes={preview?.nodes ?? []} />
-        </div>
-        <details className={styles["plan-details"]}>
-          <summary>상세 보기</summary>
-          {planSummary.body && <p>{planSummary.body}</p>}
-          <ol>
-            {operations.map((operation) => (
-              <li key={operation.id}>
-                <strong>{operation.description}</strong>
-                {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
-                {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{isOperationNotSelected(operation) ? "제외됨" : OPERATION_STATUS_LABELS[operation.status] ?? "상태 확인 필요"}</small>}
-              </li>
-            ))}
-          </ol>
-        </details>
+        {isEditPlan ? <>
+          {messageNotice && <p className={styles["task-card-meta"]} role="status">{messageNotice}</p>}
+          <DocumentEditPlanPreview
+            rows={editRows}
+            deselectedIds={deselectedIds}
+            canSelect={canDecide && !isPreviewExpired}
+            isAwaiting={canDecide}
+            isLoadingPreviews={editPreviews.state === "loading"}
+            blockedOperationIds={access?.blockedOperationIds}
+            onToggle={toggleEditRow}
+          />
+        </> : <>
+          <div className={styles["plan-tree-region"]} aria-label="정리 후 폴더 구조">
+            <PlanTree nodes={preview?.nodes ?? []} />
+          </div>
+          <details className={styles["plan-details"]}>
+            <summary>상세 보기</summary>
+            {planSummary.body && <p>{planSummary.body}</p>}
+            <ol>
+              {operations.map((operation) => (
+                <li key={operation.id}>
+                  <strong>{operation.description}</strong>
+                  {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
+                  {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{isOperationNotSelected(operation) ? "제외됨" : planOperationStatusLabel(operation.status)}</small>}
+                </li>
+              ))}
+            </ol>
+          </details>
+        </>}
       </>}
       {note && <p className={styles["task-note"]} role={isFailed ? "alert" : undefined}>{note}</p>}
       {error && <p className={styles["task-error"]} role="alert">{typeof error === "string" ? error : getErrorMessage(error, "계획을 불러오지 못했습니다.")}</p>}
-      {plan && onOpenPreview && (
+      {previewNotice && <p className={styles["task-card-meta"]} role="status">{previewNotice}</p>}
+      {editPreviews.canRetry && canDecide && (
+        <div className={styles["task-actions"]}>
+          <button type="button" className={styles["task-pill"]} disabled={busy} onClick={editPreviews.refetch}>변경 내용 다시 불러오기</button>
+        </div>
+      )}
+      {plan && onOpenPreview && !isEditPlan && (
         <div className={styles["task-actions"]}>
           <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onOpenPreview}>
             <AgentAssetIcon src={taskBoltIcon} size={12} />
@@ -183,9 +224,9 @@ export function AgentPlanTaskDetail({
             <button
               type="button"
               className={styles["task-decision"]}
-              aria-label={action === "folder_organize" ? "수락하고 정리" : "수락하고 실행"}
+              aria-label={isEditPlan ? "수락하고 수정" : action === "folder_organize" ? "수락하고 정리" : "수락하고 실행"}
               disabled={!ready || busy}
-              title={access?.verdict === "all_blocked" ? accessMessage ?? undefined : undefined}
+              title={access?.verdict === "all_blocked" ? accessMessage ?? undefined : previewNotice ?? undefined}
               onClick={() => mutation.mutate({ decision: "approve", operationIds: approval?.operationIds ?? null })}
             >
               <AgentAssetIcon src={taskAcceptIcon} size={12} />

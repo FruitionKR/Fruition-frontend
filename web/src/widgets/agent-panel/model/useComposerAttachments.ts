@@ -38,9 +38,9 @@ export function useComposerAttachments(scopeKey: string) {
     update(() => NO_ATTACHMENTS);
   }
 
-  /** 시작되지 못한 요청의 첨부를 되돌리고, 최신 목록으로 지금 고를 수 없는 문서를 뺀다. 목록을 못 받으면 칩을 그대로 두어 다시 보낼 때 서버가 가린다. */
+  /** 시작되지 못했거나 되물은 요청의 첨부를 되돌리고(그사이 새로 고른 첨부가 있으면 그대로 둔다), 최신 목록으로 지금 고를 수 없는 문서를 뺀다. 목록을 못 받으면 칩을 그대로 두어 다시 보낼 때 서버가 가린다. */
   const restore = useCallback((documentIds: readonly string[]) => {
-    update(() => sentRef.current.filter((document) => documentIds.includes(document.id)));
+    update((current) => (current.length > 0 ? current : sentRef.current.filter((document) => documentIds.includes(document.id))));
     void queryClient.fetchQuery({ queryKey: ["documents", getWorkspaceId()], queryFn: fetchDocuments, staleTime: 0 })
       .then((documents) => update((current) => pruneUnavailableAttachments(current, documents)))
       .catch(() => undefined);

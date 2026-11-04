@@ -88,6 +88,7 @@ function buildEditResult(request) {
 }
 
 const MAX_SELECTED_OPERATIONS = 20;
+const RUN_EXECUTION_DELAY_MS = 1_500;
 
 function duplicateWarning(name) {
   return { type: "duplicate_name", message: `같은 위치에 이름이 같은 문서 '${name}'이(가) 있어 중복일 수 있어요.` };
@@ -136,6 +137,107 @@ function buildOrganizePlan(workspace, turn, message, skill) {
   };
   state.agentRuns.set(run.id, run);
   return run;
+}
+
+const EDIT_PREVIEW_TTL_MS = 24 * 60 * 60 * 1_000;
+const LONG_DIFF_LINES = 1_000;
+const AUTO_APPROVED_BY = "auto:user-setting";
+const WORKFLOW_PLAN_SUMMARY = (count) => `아직 바꾸지 않았습니다. 승인하면 문서 ${count}개를 수정합니다.`;
+// 첨부 문서 수정 시나리오. 요청 문장에 이 문구를 넣으면 재현한다. 기본 흐름은 모두 성공한다.
+const EDIT_OUTCOMES = {
+  succeeded: { status: "succeeded", error_code: null },
+  conflicted: { status: "conflicted", error_code: "tool_http_409" },
+  locked: { status: "failed", error_code: "tool_http_423" },
+  deleted: { status: "failed", error_code: "tool_http_404" },
+  forbidden: { status: "forbidden", error_code: "tool_http_403" }
+};
+
+/** 작업별 실행 결과. 일부 실패는 앞에서부터 성공·겹침·편집 중 순서다. */
+function editOutcomeOf(message, index) {
+  if (message.includes("[일부실패]")) return [EDIT_OUTCOMES.succeeded, EDIT_OUTCOMES.conflicted, EDIT_OUTCOMES.locked][index % 3];
+  if (message.includes("[충돌]")) return EDIT_OUTCOMES.conflicted;
+  if (message.includes("[편집중]")) return EDIT_OUTCOMES.locked;
+  if (message.includes("[삭제]")) return EDIT_OUTCOMES.deleted;
+  if (message.includes("[회수]")) return EDIT_OUTCOMES.forbidden;
+  return EDIT_OUTCOMES.succeeded;
+}
+
+function buildEditPreview(operation, doc, message, index) {
+  const isLong = message.includes("[긴변경]") && index === 0;
+  const lines = [
+    { type: "context", text: `# ${doc.filename}` },
+    { type: "context", text: "" },
+    ...(message.includes("[XSS]") ? [{ type: "insert", text: "<img src=x onerror=\"window.__editPlanXss=true\"><script>window.__editPlanXss=true</script> **굵게 아님**" }] : []),
+    { type: "delete", text: "오타가 있는 문장입니다." },
+    { type: "insert", text: "오타를 고친 문장입니다." },
+    ...(isLong ? Array.from({ length: LONG_DIFF_LINES }, (_, line) => ({ type: "insert", text: `새로 쓴 ${line + 1}번째 줄입니다. 긴 변경을 재현하려고 넣은 문장이라 폭이 좁으면 줄바꿈되어야 합니다.` })) : []),
+    { type: "context", text: "바뀌지 않은 마지막 줄입니다." }
+  ];
+  return {
+    operation_id: operation.id, document_id: doc.id, display_name: doc.filename, base_version: operation.base_version,
+    summary: operation.reason, added_lines: lines.filter((line) => line.type === "insert").length, removed_lines: lines.filter((line) => line.type === "delete").length,
+    hunks: [{ before_start: 1, after_start: 1, lines }]
+  };
+}
+
+/** 첨부 문서 수정의 LLM 없는 결정적 계획(AI 계약): 문서마다 apply_document_edit 하나, 작업끼리 의존 없음, 대상 폴더 없음. */
+function buildDocumentEditRun(workspace, turn, message, docs) {
+  const isLong = message.includes("[긴변경]");
+  const operations = docs.map((doc, index) => {
+    const artifactId = id("artifact");
+    const warning = isLong && index === 0 ? { type: "large_change", message: "바뀌는 줄이 많아요. 내용을 확인한 뒤 수락해 주세요." } : null;
+    return {
+      id: id("opr"), sequence: index + 1, tool_name: "apply_document_edit", target_type: "document", target_id: doc.id, base_version: doc.current_version ?? 1, depends_on: [],
+      source_parent_id: null, destination_parent_id: null, status: "planned", error_code: null, warning, suggested_selected: true,
+      arguments: { document_id: doc.id, base_version: doc.current_version ?? 1, target: { type: "whole_document", start_line: 1, end_line: 1 }, content_artifact_id: artifactId, content_hash: `sha256:${hash(artifactId)}` },
+      reason: `${doc.filename}의 오타를 고칩니다.`
+    };
+  });
+  const hashed = operations.map(({ warning, suggested_selected, ...operation }) => operation);
+  const isAutoApproved = message.includes("[자동승인]");
+  const plan = {
+    id: id("plan"), version: 1, operation_hash: hash(JSON.stringify(hashed)), summary: WORKFLOW_PLAN_SUMMARY(docs.length),
+    status: isAutoApproved ? "executing" : "awaiting_approval", operations, ...(isAutoApproved ? { approved_by: AUTO_APPROVED_BY } : {})
+  };
+  const run = {
+    id: id("run"), workspace_id: workspace.id, turn_id: turn.id, status: plan.status, error_code: null, request_summary: requestSummary(message), target_folder_id: null, rule_summary: null, plan,
+    edit_previews: {
+      expires_at: new Date(Date.now() + (message.includes("[만료]") ? -60_000 : EDIT_PREVIEW_TTL_MS)).toISOString(),
+      items: operations.map((operation, index) => buildEditPreview(operation, docs[index], message, index)),
+      // 재현용: 미리 보기 조회 응답을 정한다.
+      failure_status: message.includes("[구서버]") ? 404 : message.includes("[미리보기실패]") ? 500 : null
+    },
+    outcomes: new Map(operations.map((operation, index) => [operation.id, editOutcomeOf(message, index)]))
+  };
+  state.agentRuns.set(run.id, run);
+  if (isAutoApproved) setTimeout(() => settleRun(run), RUN_EXECUTION_DELAY_MS);
+  return run;
+}
+
+/** 실행을 끝낸다. 고르지 않은 작업은 그대로 두고, 작업 결과에 따라 run 상태를 정한다(ai finish_run_from_operations). */
+function settleRun(run) {
+  const executed = run.plan.operations.filter((operation) => operation.status !== "skipped");
+  executed.forEach((operation) => Object.assign(operation, run.outcomes?.get(operation.id) ?? { status: "succeeded" }));
+  const succeeded = executed.filter((operation) => operation.status === "succeeded").length;
+  const status = succeeded === executed.length ? "completed"
+    : succeeded > 0 ? "partial_failed"
+    : executed.every((operation) => operation.status === "conflicted") ? "conflicted" : "failed";
+  run.status = status;
+  run.plan.status = status;
+}
+
+function attachedEditResult(workspace, turn, request) {
+  const { message } = request;
+  const attached = request.reference_document_ids.map((documentId) => findDocument(workspace.id, documentId));
+  if (message.includes("[모호]")) {
+    return clarify(`어느 문서를 고칠까요? ${attached.map((doc) => `'${doc.filename}'`).join(", ")} 중에서 제목을 적어 주세요.`, "attachment_target_required");
+  }
+  const editable = attached.filter((doc) => documentAccess(doc, turn.user_id).can_edit);
+  if (editable.length === 0) return clarify("편집 권한이 없어요. 문서 소유자나 워크스페이스 OWNER에게 편집 권한을 요청해 주세요.");
+  const run = buildDocumentEditRun(workspace, turn, message, editable);
+  const excluded = attached.filter((doc) => !editable.includes(doc)).map((doc) => `'${doc.filename}'`);
+  const notice = excluded.length > 0 ? ` ${excluded.join(", ")}은(는) 편집 권한이 없어 뺐어요.` : "";
+  return { action: "workspace_workflow", route: route("workspace_workflow", "첨부 문서 수정 요청"), message: `${run.plan.summary}${notice}`, chat: null, edit: null, generated_markdown: null, run_id: run.id };
 }
 
 function organizeResult(workspace, turn, message, skill = null) {
@@ -253,10 +355,11 @@ function taskResult(workspace, turn, request) {
     return buildEditResult(request);
   }
   if (FOLDER_LOOKUP_PATTERN.test(message)) return folderLookupResult(workspace, turn, message);
+  // 첨부 자체를 고치는 요청(AI 계약): 문서를 안 열었거나 메시지가 첨부를 지목할 때. 그 밖에 열린 문서가 있으면 열린 문서를 고친다.
+  if (request.reference_document_ids?.length && EDIT_PATTERN.test(message) && (!hasDocument || message.includes("첨부"))) return attachedEditResult(workspace, turn, request);
   if (ORGANIZE_PATTERN.test(message)) return organizeResult(workspace, turn, message);
   if (CREATE_PATTERN.test(message)) return createResult(message);
   if (EDIT_PATTERN.test(message)) {
-    if (!hasDocument && request.reference_document_ids?.length) return clarify("첨부한 문서는 참고 자료로만 읽어요. 첨부한 문서를 고치려면 그 문서를 연 뒤 다시 요청해 주세요.", "markdown_document_required");
     return hasDocument ? buildEditResult(request) : clarifyMarkdownDocument();
   }
   if (request.reference_document_ids?.length) {
@@ -413,7 +516,7 @@ export function registerAgentRoutes(router) {
     if (folderId !== null && !isLiveFolder(workspace.id, folderId)) return error(ctx, 404, "대상 폴더를 찾을 수 없습니다.");
     const referenceError = referenceDocumentsError(workspace, request.reference_document_ids);
     if (referenceError) return error(ctx, 400, referenceError);
-    const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, read_only_document_id: confirmedReadOnlyDocumentId(workspace, ctx.user.id, request), status: "queued", result: null, error_code: null };
+    const turn = { id: id("agent"), workspace_id: workspace.id, user_id: ctx.user.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, read_only_document_id: confirmedReadOnlyDocumentId(workspace, ctx.user.id, request), status: "queued", result: null, error_code: null };
     state.agentTurns.set(turn.id, turn);
     if (hasDocument) addOperationLog(workspace.id, { operation_id: turn.apply_operation_id, operation_type: "document_edit", status: "succeeded", target_document_id: request.documentId, target_display_name: findDocument(workspace.id, request.documentId)?.filename ?? null, summary: request.message.slice(0, 40), changed_resource_count: 0, completed_at: now() });
     if (SLOW_TURN) {
@@ -502,6 +605,16 @@ export function registerAgentRoutes(router) {
     ctx.json(200, toRun(run));
   });
 
+  // 문서 수정 계획의 문서별 변경 내용(document 프록시). 다른 계획이거나 구 서버면 404다.
+  router.get("/api/workspaces/:wid/agent/runs/:id/edit-previews", (ctx) => {
+    const workspace = requireWorkspace(ctx);
+    if (!workspace) return;
+    const previews = state.agentRuns.get(ctx.params.id)?.edit_previews;
+    if (!previews) return error(ctx, 404, "변경 내용을 찾을 수 없습니다.");
+    if (previews.failure_status) return error(ctx, previews.failure_status, previews.failure_status === 404 ? "변경 내용을 찾을 수 없습니다." : "변경 내용을 불러오지 못했습니다.");
+    ctx.json(200, { items: previews.items, expires_at: previews.expires_at });
+  });
+
   router.post("/api/workspaces/:wid/agent/runs/:id/:decision", async (ctx) => {
     const workspace = requireWorkspace(ctx);
     if (!workspace) return;
@@ -526,11 +639,7 @@ export function registerAgentRoutes(router) {
     run.approved_operation_ids = operationIds;
     run.status = "executing";
     run.plan.status = "executing";
-    setTimeout(() => {
-      run.status = "completed";
-      run.plan.status = "completed";
-      run.plan.operations.forEach((operation) => { if (operation.status !== "skipped") operation.status = "succeeded"; });
-    }, 1500);
+    setTimeout(() => settleRun(run), RUN_EXECUTION_DELAY_MS);
     ctx.json(200, toRun(run));
   });
 }

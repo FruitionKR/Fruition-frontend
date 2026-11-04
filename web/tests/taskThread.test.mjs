@@ -16,6 +16,7 @@ const {
   describeTaskRequest,
   groupTaskEntries,
   isAnswerTask,
+  isAttachmentTargetClarification,
   withReadOnlyDocumentClarification,
   isServerAppliableTask,
   isTaskMessage,
@@ -581,4 +582,13 @@ test("보기 권한 요청 기록은 최근 것만 남긴다", () => {
 test("요청 시점의 보기 권한 문서를 onAccepted에서 turn과 묶는다", () => {
   const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
   assert.match(source, /const requestReadOnlyDocumentId = readOnlyDocumentIdRef\.current;[\s\S]*onAccepted: \(requestId\) => \{[\s\S]*rememberReadOnlyRequest\(requestId, requestReadOnlyDocumentId\)/);
+});
+
+test("첨부 중 고칠 문서를 못 정해 되물은 이번 turn만 첨부를 되돌릴 대상이다", () => {
+  const item = { turnId: "turn_1", action: "clarify", clarifyReason: "attachment_target_required" };
+  assert.equal(isAttachmentTargetClarification([item], "turn_1"), true);
+  assert.equal(isAttachmentTargetClarification([item], "turn_2"), false, "지난 되묻기는 아니다");
+  assert.equal(isAttachmentTargetClarification([item], null), false);
+  assert.equal(isAttachmentTargetClarification([{ ...item, clarifyReason: "markdown_document_required" }], "turn_1"), false);
+  assert.equal(isAttachmentTargetClarification([{ ...item, action: "markdown_edit" }], "turn_1"), false);
 });

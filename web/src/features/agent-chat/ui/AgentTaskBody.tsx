@@ -388,6 +388,7 @@ export function AgentTaskBody({
           turnId={item.turnId}
           action={item.action ?? ""}
           run={entry.run}
+          message={item.answer}
           runError={entry.runError}
           isRunFetching={entry.isRunFetching}
           onRefetch={entry.refetchRun}

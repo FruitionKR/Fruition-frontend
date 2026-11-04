@@ -1,12 +1,7 @@
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import type { MarkdownEditPreview as MarkdownEditPreviewData } from "../lib/agentTurn";
+import { DocumentDiffLines } from "./DocumentDiffLines";
 import styles from "./AgentChat.module.css";
-
-const DIFF_MARKERS = {
-  context: " ",
-  delete: "−",
-  insert: "+"
-} as const;
 
 export function MarkdownEditPreview({
   preview,
@@ -35,14 +30,7 @@ export function MarkdownEditPreview({
               <p>{preview.replacementMarkdown}</p>
               <span className={styles["markdown-edit-details-label"]}>변경 내용 자세히 보기</span>
             </summary>
-            <div className={styles["markdown-edit-diff"]} aria-label="원문과 편집안 line diff">
-              {preview.diffLines.map((line, index) => (
-                <code className={styles[`is-${line.type}`]} key={`${line.type}-${index}`}>
-                  <span aria-hidden="true">{DIFF_MARKERS[line.type]}</span>
-                  {line.text || " "}
-                </code>
-              ))}
-            </div>
+            <DocumentDiffLines label="원문과 편집안 line diff" groups={[{ key: "all", lines: preview.diffLines }]} />
             <div className={styles["markdown-edit-rendered-preview"]}>
               <MarkdownViewer markdown={preview.replacementMarkdown} linkPolicy="inert-external" />
             </div>

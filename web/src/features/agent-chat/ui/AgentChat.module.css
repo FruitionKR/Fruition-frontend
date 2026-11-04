@@ -1816,34 +1816,6 @@ button.result-link:focus-visible {
   white-space: nowrap;
 }
 
-.markdown-edit-diff {
-  max-height: 220px;
-  overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-canvas);
-}
-
-.markdown-edit-diff code {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  min-height: 22px;
-  padding: 2px 8px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-}
-
-.markdown-edit-diff code.is-delete {
-  background: var(--color-danger-weak);
-  color: var(--color-danger);
-}
-
-.markdown-edit-diff code.is-insert {
-  background: var(--color-primary-weak);
-  color: var(--color-primary-weak-foreground);
-}
-
 .markdown-edit-rendered-preview,
 .markdown-create-rendered-preview {
   overflow: auto;
@@ -2300,6 +2272,188 @@ button.result-link:focus-visible {
 
 .task-plan .plan-details[open] > p {
   margin: 8px 0 12px;
+}
+
+/* 문서 수정 계획: 문서별 체크박스·경로·요약·변경 줄 수. 카드 안에서 줄바꿈하며 한 열로 쌓는다. */
+.edit-plan-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+  list-style: none;
+}
+
+.edit-plan-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.edit-plan-item.is-excluded .edit-plan-title {
+  color: var(--color-muted);
+  text-decoration: line-through;
+}
+
+.edit-plan-check {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 1px;
+  cursor: pointer;
+}
+
+.edit-plan-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: inherit;
+}
+
+.edit-plan-check input:disabled {
+  cursor: default;
+}
+
+.edit-plan-check input:focus-visible,
+.edit-plan-more:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.edit-plan-doc {
+  min-width: 0;
+}
+
+.edit-plan-doc > summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  border-radius: 4px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.edit-plan-doc > summary::-webkit-details-marker {
+  display: none;
+}
+
+.edit-plan-doc > summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.edit-plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+}
+
+.edit-plan-title {
+  min-width: 0;
+  color: var(--color-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* 펼침 표시: 폴더 트리와 같은 꺾쇠를 제목 앞에 둔다. */
+.edit-plan-title::before {
+  content: "\25B8";
+  display: inline-block;
+  width: 12px;
+  color: var(--color-muted);
+}
+
+.edit-plan-doc[open] .edit-plan-title::before {
+  content: "\25BE";
+}
+
+.edit-plan-counts {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.edit-plan-counts .is-added {
+  color: var(--color-primary);
+}
+
+.edit-plan-counts .is-removed {
+  margin-left: 6px;
+  color: var(--color-danger);
+}
+
+.edit-plan-summary,
+.edit-plan-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.edit-plan-note.is-warning,
+.edit-plan-note.is-failure {
+  color: var(--color-danger);
+}
+
+.edit-plan-note.is-result {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
+.edit-plan-note.is-result.is-failure {
+  color: var(--color-danger);
+}
+
+.edit-plan-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edit-plan-body > * {
+  max-width: 100%;
+}
+
+.edit-plan-more {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-body);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edit-plan-more:hover {
+  background: var(--color-surface);
+}
+
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  /* 체크박스 터치 영역 44px. 왼쪽으로 내밀어 본문 칸을 줄이지 않는다. */
+  .edit-plan-check {
+    width: 44px;
+    height: 44px;
+    margin: -14px 0 -14px -14px;
+    padding-top: 14px;
+  }
+
+  .edit-plan-more,
+  .task-plan:has(.edit-plan-list) .task-decision {
+    min-height: 44px;
+  }
 }
 
 /* 응답을 받지 못한 질의: 안내 아래에 다시 질문·닫기 */

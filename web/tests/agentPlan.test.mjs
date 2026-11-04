@@ -9,7 +9,7 @@ registerHooks({
     return nextResolve(specifier, context);
   }
 });
-const { fetchAgentPlanRun, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
+const { fetchAgentPlanRun, fetchAgentRunEditPreviews, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
 const plan = { id: "plan-1", version: 2, operation_hash: "a".repeat(64), status: "awaiting_approval", operations: [] };
 
 test("채팅 기록의 turn ID에서 실제 승인 대상 run을 조회한다", async (t) => {
@@ -262,4 +262,19 @@ test("계획 요약 끝의 내용 중복 안내 두 문장도 떼어 내고, 이
     splitPlanSummary(`문서 2개 이동. ${scope} ${pairs}`),
     { body: "문서 2개 이동.", scopeNote: `${scope} ${pairs}` }
   );
+});
+
+test("문서 수정 계획의 변경 내용을 run으로 받고, 구 서버의 404는 상태를 그대로 올린다", async (t) => {
+  const paths = [];
+  const responses = [
+    Response.json({ items: [{ operation_id: "op-1", hunks: [] }], expires_at: null }),
+    Response.json({ error: { message: "없음" } }, { status: 404 })
+  ];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    paths.push(path);
+    return responses.shift();
+  });
+  assert.equal((await fetchAgentRunEditPreviews("ws_test", "run-1")).items[0].operation_id, "op-1");
+  assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/runs/run-1/edit-previews"]);
+  await assert.rejects(fetchAgentRunEditPreviews("ws_test", "run-1"), (error) => error.status === 404);
 });

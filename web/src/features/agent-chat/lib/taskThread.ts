@@ -173,6 +173,15 @@ export function withReadOnlyDocumentClarification<T extends Pick<TaskMessageItem
   ));
 }
 
+/** 첨부 중 어느 문서를 고칠지 몰라 되물은 이유 코드(ai ClarifyReason). */
+const ATTACHMENT_TARGET_REQUIRED = "attachment_target_required";
+
+/** 이 turn이 고칠 첨부를 못 정해 되물었는지. 답을 보낼 때 같은 첨부가 함께 가도록 입력창에 칩을 남긴다. */
+export function isAttachmentTargetClarification(items: ReadonlyArray<Pick<TaskMessageItem, "turnId" | "action" | "clarifyReason">>, turnId: string | null): boolean {
+  if (!turnId) return false;
+  return items.some((item) => item.turnId === turnId && item.action === "clarify" && item.clarifyReason === ATTACHMENT_TARGET_REQUIRED);
+}
+
 /** 입력이 `/slug` 또는 `/slug 요청`으로 시작하면 그 slug, 아니면 null. */
 export function slashCommandSlug(text: string): string | null {
   return SLASH_COMMAND_PATTERN.exec(text.trim())?.[1] ?? null;

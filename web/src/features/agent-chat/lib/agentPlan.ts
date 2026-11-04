@@ -200,6 +200,15 @@ export function summarizePlanOperationResults(operations: ReadonlyArray<Pick<Age
   return { applied, excluded, failed: operations.length - excluded - applied };
 }
 
+const OPERATION_STATUS_LABELS: Record<string, string> = {
+  succeeded: "완료", completed: "완료", running: "실행 중", failed: "실패", skipped: "건너뜀", forbidden: "권한 없음",
+  conflicted: "변경 충돌", verification_failed: "결과 확인 실패", cancelled: "취소됨", rolled_back: "복구됨"
+};
+
+export function planOperationStatusLabel(status: string): string {
+  return OPERATION_STATUS_LABELS[status] ?? "상태 확인 필요";
+}
+
 /** 실행 실패(run error_code)별 안내. AI는 예외 원문 없이 코드만 내려준다(ai failure_codes). */
 const PLAN_FAILURE_MESSAGES: Record<string, string> = {
   plan_out_of_scope: "선택한 폴더 밖으로 옮기거나 선택한 폴더 자체를 바꾸는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요.",
@@ -208,8 +217,8 @@ const PLAN_FAILURE_MESSAGES: Record<string, string> = {
   provider_unavailable: "AI 서비스에 연결하지 못해 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
   deadline_exceeded: "계획을 만드는 데 너무 오래 걸려 중단했어요. 다시 시도해 주세요."
 };
-const PLAN_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 다시 시도해 주세요.";
-const PLAN_EXECUTION_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 상세 보기에서 항목별 상태를 확인해주세요.";
+export const PLAN_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 다시 시도해 주세요.";
+export const PLAN_EXECUTION_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 상세 보기에서 항목별 상태를 확인해주세요.";
 const FAILED_PLAN_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
 
 /** 실패한 run이면 카드에 보일 이유, 아니면 null. 알려진 코드는 원인별 문구, 모르는 코드는 기본 안내를 쓴다. */

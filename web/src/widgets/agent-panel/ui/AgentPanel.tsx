@@ -35,7 +35,7 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
+import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
@@ -293,6 +293,13 @@ export function AgentPanel({
     () => withReadOnlyDocumentClarification(taskItems, readOnlyDocumentId, agentTurn.readOnlyRequests),
     [agentTurn.readOnlyRequests, readOnlyDocumentId, taskItems]
   );
+  // 고칠 첨부를 못 정해 되물었으면 답을 보낼 때 같은 첨부가 함께 가도록 칩을 되돌린다. 다른 대화로 옮겨 갔으면 그 대화에 붙이지 않는다.
+  const attachmentClarifyTurnId = isAttachmentTargetClarification(taskItems, agentTurn.requestTurnId) ? agentTurn.requestTurnId : null;
+  useEffect(() => {
+    if (attachmentClarifyTurnId && agentTurnRequest?.session_id === sessions.selected.work) restoreComposerAttachments(agentTurnRequest?.reference_document_ids ?? []);
+    // 되물은 turn이 도착할 때 한 번만 되돌린다. 뒤에 칩을 뺀 사용자의 선택을 덮지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentClarifyTurnId]);
   // 취소한 작업(서버가 cancelled로 닫은 말풍선·취소를 받아들인 pending 말풍선)은 turn 조회로 되돌리기가 끝났는지 따라간다.
   // 서버는 말풍선을 취소 요청 즉시 닫으므로, 되돌리는 중이면 "취소하는 중…", 끝나면 "취소됨"·복구 실패로 보인다.
   const cancelledTaskTurnIds = useMemo(() => taskItems.flatMap((item) => (
