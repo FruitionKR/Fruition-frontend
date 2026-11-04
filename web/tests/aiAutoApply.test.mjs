@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -138,4 +139,11 @@ test("스킬 초안은 안전 검토를 통과하고 입력이 온전할 때만 
   // 요청한 뒤 입력을 고쳤거나 시트를 닫았으면 그 초안은 확인 없이 게시하지 않는다.
   assert.equal(shouldAutoPublishSkillDraft({ ...input, isFormUnchanged: false }), false);
   assert.equal(shouldAutoPublishSkillDraft({ ...input, isEditorOpen: false }), false);
+});
+
+test("다시 확인도 보낼 때처럼 자동 승인 설정을 다시 받은 뒤 결과를 판단한다", () => {
+  const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
+  const resume = source.slice(source.indexOf("function resumeFollowing("), source.indexOf("const submitAgentTurn"));
+  assert.match(resume, /queryClient\.invalidateQueries\(\{ queryKey: AGENT_AUTO_APPROVAL_QUERY_KEY \}\)/);
+  assert.ok(resume.indexOf("invalidateQueries") < resume.indexOf("resumeAgentTurn("), "결과 조회보다 먼저 다시 받는다");
 });

@@ -245,6 +245,8 @@ export function useAgentTurn({
     setAgentTurnErrorMessage(null);
     setIsAgentTurnLoading(true);
     setIsAgentTurnSlow(true);
+    // 끊긴 동안 다른 기기에서 끈 자동 승인이 이 결과에 쓰이지 않게 다시 받는다. 응답이 먼저 오면 조회 중이라 수락 화면으로 간다.
+    void queryClient.invalidateQueries({ queryKey: AGENT_AUTO_APPROVAL_QUERY_KEY });
     agentRequestRef.current?.abort();
     const controller = new AbortController();
     agentRequestRef.current = controller;
