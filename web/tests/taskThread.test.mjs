@@ -85,8 +85,8 @@ test("세션 메시지를 문답 단위로 채팅·작업으로 나누고 작업
   const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
   assert.deepEqual(chatMessages.map((item) => item.id), ["u1", "a1"]);
   assert.deepEqual(taskItems, [
-    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
-    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
+    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", clarifyReason: null, request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
+    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", clarifyReason: null, request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
   ]);
 });
 
@@ -409,9 +409,9 @@ const OPEN_DOCUMENT_QUESTION = "수정할 Markdown 문서를 연 뒤 다시 요�
 const READ_ONLY_REQUESTS = new Map([["turn_a", "doc_read_only"], ["turn_other", "doc_read_only"], ["turn_lookup", "doc_read_only"]]);
 
 test("보기 권한 문서를 연 채 보낸 요청에 AI가 문서를 열라고 되물으면 보기 권한 안내로 바꾼다", () => {
-  const openDocumentQuestion = { key: "a", turnId: "turn_a", action: "clarify", answer: OPEN_DOCUMENT_QUESTION };
-  const otherQuestion = { key: "b", turnId: "turn_other", action: "clarify", answer: "어떤 기준으로 정리할까요?" };
-  const answered = { key: "c", turnId: "turn_lookup", action: "folder_lookup", answer: OPEN_DOCUMENT_QUESTION };
+  const openDocumentQuestion = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
+  const otherQuestion = { key: "b", turnId: "turn_other", action: "clarify", clarifyReason: null, answer: "어떤 기준으로 정리할까요?" };
+  const answered = { key: "c", turnId: "turn_lookup", action: "folder_lookup", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
   const result = withReadOnlyDocumentClarification([openDocumentQuestion, otherQuestion, answered], "doc_read_only", READ_ONLY_REQUESTS);
   assert.match(result[0].answer, /^이 문서는 보기 권한만 있어 수정할 수 없어요\./);
   assert.equal(result[1], otherQuestion);
@@ -420,20 +420,67 @@ test("보기 권한 문서를 연 채 보낸 요청에 AI가 문서를 열라고
 });
 
 test("문서 없이 받은 되묻기는 뒤에 보기 권한 문서를 열어도 그대로 둔다", () => {
-  const asked = { key: "a", turnId: "turn_no_document", action: "clarify", answer: OPEN_DOCUMENT_QUESTION };
+  const asked = { key: "a", turnId: "turn_no_document", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
   const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
   assert.equal(result, asked);
 });
 
 test("다른 보기 권한 문서에서 받은 되묻기는 지금 문서의 이유로 바꾸지 않는다", () => {
-  const asked = { key: "a", turnId: "turn_a", action: "clarify", answer: OPEN_DOCUMENT_QUESTION };
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
   const [result] = withReadOnlyDocumentClarification([asked], "doc_other_read_only", READ_ONLY_REQUESTS);
   assert.equal(result, asked);
 });
 
 test("지금 연 문서가 보기 권한이 아니면 AI 되묻기를 그대로 둔다", () => {
-  const items = [{ key: "a", turnId: "turn_a", action: "clarify", answer: OPEN_DOCUMENT_QUESTION }];
+  const items = [{ key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION }];
   assert.equal(withReadOnlyDocumentClarification(items, null, READ_ONLY_REQUESTS), items);
+});
+
+const DOCUMENT_REQUIRED = "markdown_document_required";
+const READ_ONLY_ANSWER = /^이 문서는 보기 권한만 있어 수정할 수 없어요\./;
+
+test("이유 코드가 문서 필요면 문장이 바뀌어도 그 문서에서 보낸 요청은 보기 권한 안내로 바꾼다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: DOCUMENT_REQUIRED, answer: "편집할 문서를 먼저 열어 주세요." };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.match(result.answer, READ_ONLY_ANSWER);
+});
+
+test("모르는 이유 코드는 문장이 같아도 다른 이유이니 그대로 둔다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: "some_future_reason", answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("이유 코드가 없으면 문장이 다른 되묻기는 그대로 둔다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: "어느 문서를 고칠까요?" };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("이유 코드는 문서가 필요하다는 말뿐이라 문서 없이 받았거나 다른 문서에서 받은 되묻기는 바꾸지 않는다", () => {
+  const coded = { action: "clarify", clarifyReason: DOCUMENT_REQUIRED, answer: OPEN_DOCUMENT_QUESTION };
+  const noDocument = { ...coded, key: "a", turnId: "turn_no_document" };
+  const otherDocument = { ...coded, key: "b", turnId: "turn_a" };
+  assert.equal(withReadOnlyDocumentClarification([noDocument], "doc_read_only", READ_ONLY_REQUESTS)[0], noDocument);
+  assert.equal(withReadOnlyDocumentClarification([otherDocument], "doc_other_read_only", READ_ONLY_REQUESTS)[0], otherDocument);
+  const openElsewhere = [{ ...coded, key: "c", turnId: "turn_a" }];
+  assert.equal(withReadOnlyDocumentClarification(openElsewhere, null, READ_ONLY_REQUESTS), openElsewhere);
+});
+
+test("메시지의 이유 코드를 작업 항목으로 옮기고, 값이 없거나 키가 없으면 문장으로 판단한다", () => {
+  const pair = (pairId, runId, assistant) => [
+    message({ id: `${pairId}_q`, role: "user", content: "이 문서를 수정해줘", pair_id: pairId, run_id: runId }),
+    message({ id: `${pairId}_a`, action: "clarify", pair_id: pairId, run_id: runId, ...assistant })
+  ];
+  const { taskItems } = splitChatAndTaskMessages([
+    ...pair("p_coded", "turn_a", { content: "바뀐 문장", clarify_reason: DOCUMENT_REQUIRED }),
+    ...pair("p_null", "turn_other", { content: OPEN_DOCUMENT_QUESTION, clarify_reason: null }),
+    ...pair("p_missing", "turn_lookup", { content: OPEN_DOCUMENT_QUESTION })
+  ]);
+  assert.deepEqual(taskItems.map((item) => item.clarifyReason), [DOCUMENT_REQUIRED, null, null]);
+  for (const item of withReadOnlyDocumentClarification(taskItems, "doc_read_only", READ_ONLY_REQUESTS)) {
+    assert.match(item.answer, READ_ONLY_ANSWER);
+  }
 });
 
 test("보기 권한 요청 기록은 새로 고침 뒤에도 읽히고, 깨진 값은 빈 기록으로 본다", () => {

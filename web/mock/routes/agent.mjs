@@ -47,8 +47,13 @@ function requestSummary(message) {
   return text.length > REQUEST_SUMMARY_MAX ? `${text.slice(0, REQUEST_SUMMARY_MAX)}…` : text;
 }
 
-function clarify(message) {
-  return { action: "clarify", route: route("clarify", "되물음"), message, chat: { answer: message }, edit: null, generated_markdown: null };
+function clarify(message, clarifyReason = null) {
+  return { action: "clarify", route: route("clarify", "되물음"), message, clarify_reason: clarifyReason, chat: { answer: message }, edit: null, generated_markdown: null };
+}
+
+/** 편집할 Markdown 문맥이 없을 때의 되묻기(ai handle_agent_turn). 문서를 안 열었는지 보기 권한인지 AI는 구별하지 않는다. */
+function clarifyMarkdownDocument() {
+  return clarify("수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.", "markdown_document_required");
 }
 
 /** "/slug 요청"이면 그 스킬과 나머지 요청을 돌려준다. */
@@ -241,7 +246,7 @@ function taskResult(workspace, turn, request) {
       if (requiresSource && turn.folder_id) return folderSourceResult(workspace, turn.folder_id, slash.rest || message);
       return createResult(slash.rest || message);
     }
-    if (!hasDocument) return clarify("수정할 문서를 열고 다시 실행해 주세요.");
+    if (!hasDocument) return clarifyMarkdownDocument();
     if (!slash.rest && mode === "auto") return clarify("새 문서로 만들까요, 지금 문서를 수정할까요?");
     return buildEditResult(request);
   }
@@ -249,7 +254,7 @@ function taskResult(workspace, turn, request) {
   if (ORGANIZE_PATTERN.test(message)) return organizeResult(workspace, turn, message);
   if (CREATE_PATTERN.test(message)) return createResult(message);
   if (EDIT_PATTERN.test(message)) {
-    return hasDocument ? buildEditResult(request) : clarify("수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.");
+    return hasDocument ? buildEditResult(request) : clarifyMarkdownDocument();
   }
   return clarify("작업 탭은 문서 편집·폴더 정리·스킬 실행을 맡아요. 위키 내용 질문은 채팅 탭에서 해 주세요.");
 }
@@ -271,7 +276,7 @@ function completeTurn(workspace, turn, request) {
     const answer = `현재 문서 "${doc?.filename ?? request.documentId}"를 기준으로 답합니다.\n\n${message}에 대한 mock 답변입니다. 편집을 원하면 "수정해줘"처럼 요청해보세요.`;
     result = { action: "chat_answer", route: route("chat_answer", "일반 질문"), message: null, chat: { answer }, edit: null, generated_markdown: null };
   }
-  const answer = { content: result.chat?.answer ?? result.message ?? result.edit?.summary ?? result.generated_markdown?.summary ?? "", action: result.action, related_pages: [] };
+  const answer = { content: result.chat?.answer ?? result.message ?? result.edit?.summary ?? result.generated_markdown?.summary ?? "", action: result.action, clarify_reason: result.clarify_reason ?? null, related_pages: [] };
   const pending = state.chatMessages.find((item) => item.run_id === turn.id && item.role === "assistant" && item.status === "pending");
   if (pending) {
     Object.assign(pending, answer, { status: "completed" });
