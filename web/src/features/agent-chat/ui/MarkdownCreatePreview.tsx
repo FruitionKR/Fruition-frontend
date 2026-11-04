@@ -10,6 +10,7 @@ export function MarkdownCreatePreview({
   notice,
   isSubmitting,
   errorMessage,
+  blockedReason = null,
   onCancel,
   onRegenerate,
   onCreate
@@ -18,6 +19,8 @@ export function MarkdownCreatePreview({
   notice?: string | null;
   isSubmitting: boolean;
   errorMessage: string | null;
+  /** 만들 폴더에 넣을 권한이 없으면 이유. 만들기를 막고 이유를 보여 준다. */
+  blockedReason?: string | null;
   onCancel: () => void;
   onRegenerate: () => void;
   onCreate: () => void;
@@ -38,10 +41,11 @@ export function MarkdownCreatePreview({
         <MarkdownViewer markdown={draft.markdown} linkPolicy="inert-external" />
       </div>
       {errorMessage && <p className={styles["markdown-edit-error"]} role="alert">{errorMessage}</p>}
+      {blockedReason && <p className={styles["markdown-edit-error"]} role="status">{blockedReason}</p>}
       <footer>
         <button type="button" disabled={isSubmitting} onClick={onCancel}>취소</button>
         <button type="button" disabled={isSubmitting} onClick={onRegenerate}>재생성</button>
-        <button type="button" className={styles["is-primary"]} disabled={isSubmitting} onClick={onCreate}>
+        <button type="button" className={styles["is-primary"]} disabled={isSubmitting || Boolean(blockedReason)} onClick={onCreate}>
           {isSubmitting ? "문서 생성 중" : "새 문서로 열기"}
         </button>
       </footer>

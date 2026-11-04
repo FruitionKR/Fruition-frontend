@@ -1,6 +1,6 @@
 import { cx } from "@/shared/lib/classNames";
 import Link from "next/link";
-import { effectivePermission, isFileItem, permissionForChildren } from "@/entities/tree";
+import { effectivePermission, FOLDER_WRITE_FORBIDDEN_MESSAGE, isFileItem, permissionForChildren } from "@/entities/tree";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import type { DropTarget, InheritedPermission, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
@@ -71,6 +71,7 @@ export function TreeNode({
   const isOpen = openIds.has(item.id);
   const isDropTarget = dropTarget?.projectId === projectId && dropTarget.targetId === item.id;
   const isFileDropTarget = fileDropTarget?.projectId === projectId && fileDropTarget.folderId === item.id;
+  const isDropDenied = interaction.dropDeniedItemId === item.id;
   const isEditing = editing?.projectId === projectId && editing.itemId === item.id;
   // 폴더 안으로 넣는 드롭은 폴더 행만이 아니라 펼쳐진 자식까지 한 블록으로 강조한다.
   // 빈 폴더도 펼침 화살표·토글을 가져 노트와 구분되게 한다.
@@ -108,6 +109,10 @@ export function TreeNode({
   } = useTreeNodeDragDrop({
     item,
     projectId,
+    canStartDrag: interaction.canStartDrag,
+    isDropDenied: interaction.isDropDenied,
+    isFolderWriteDenied: interaction.isFolderWriteDenied,
+    onDragDenied: interaction.onDragDenied,
     onDragStart: interaction.onDragStart,
     onDragOverItem: interaction.onDragOverItem,
     onFileDragOver: interaction.onFileDragOver,
@@ -132,7 +137,8 @@ export function TreeNode({
           isFileDropTarget && styles["is-file-drop-target"],
           item.type === "folder" ? styles["is-folder"] : styles["is-note"],
           canShowRowActions && styles["has-row-actions"],
-          isDropTarget && styles[`is-drop-${dropTarget.position}`]
+          isDropTarget && styles[`is-drop-${dropTarget.position}`],
+          isDropDenied && styles["is-drop-denied"]
         )}
         style={{ paddingLeft: TREE_ROW_BASE_PADDING_PX + depth * TREE_ROW_INDENT_PER_DEPTH_PX }}
         // 저장소 경로(sourceUri)는 내부 정보라 보이지 않는다. 처리 실패 사유만 알려 준다.
@@ -252,6 +258,7 @@ export function TreeNode({
           </>
         )}
       </button>
+      {isDropDenied && <span className={styles["tree-drop-denied"]} role="status">{FOLDER_WRITE_FORBIDDEN_MESSAGE}</span>}
       {(canShowRowActions || Boolean(relatedDocumentId && conversionBadge)) && (
       // 행 버튼 안에 버튼·링크를 중첩하지 않고, 행 오른쪽 위에 형제로 겹쳐 놓는다. ⋯ 버튼은 배지를 덮고 배지 링크는 그 오른쪽에 남는다.
       <div className={styles["tree-row-trailing"]}>
