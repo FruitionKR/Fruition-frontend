@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -213,7 +213,9 @@ test("실패한 run은 error_code별 이유를 보여 주고 모르는 코드는
   assert.match(agentPlanFailureMessage(failed("deadline_exceeded")), /오래 걸려/);
   assert.equal(agentPlanFailureMessage(failed("internal_error")), "작업을 완료하지 못했습니다. 다시 시도해 주세요.");
   assert.equal(agentPlanFailureMessage(failed(null)), "작업을 완료하지 못했습니다. 다시 시도해 주세요.");
-  assert.match(agentPlanFailureMessage({ status: "partial_failed", error_code: null, plan }), /상세 보기에서 항목별 상태/);
+  // 카드와 미리보기가 같은 문구를 쓰므로 어느 화면을 가리키지 않는다.
+  assert.equal(agentPlanFailureMessage({ status: "partial_failed", error_code: null, plan }), "일부 작업을 완료하지 못했어요. 항목별 결과를 확인해 주세요.");
+  assert.equal(agentPlanFailureMessage({ status: "failed", error_code: null, plan }), "작업을 완료하지 못했어요. 항목별 결과를 확인해 주세요.");
   assert.equal(agentPlanFailureMessage({ status: "completed", error_code: null, plan }), null);
   assert.equal(agentPlanFailureMessage(null), null);
 });
@@ -277,4 +279,72 @@ test("문서 수정 계획의 변경 내용을 run으로 받고, 구 서버의 4
   assert.equal((await fetchAgentRunEditPreviews("ws_test", "run-1")).items[0].operation_id, "op-1");
   assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/runs/run-1/edit-previews"]);
   await assert.rejects(fetchAgentRunEditPreviews("ws_test", "run-1"), (error) => error.status === 404);
+});
+
+test("작업 결과를 저장·제외·실패·대기로 나눈다. 앞선 실패로 건너뛴 작업은 제외가 아니라 실패다", () => {
+  const outcome = (status, error_code = null) => planOperationOutcome({ status, error_code });
+  assert.equal(outcome("succeeded"), "applied");
+  assert.equal(outcome("completed"), "applied");
+  assert.equal(outcome("skipped", "not_selected"), "excluded");
+  assert.equal(outcome("skipped", "dependency_failed"), "failed");
+  for (const status of ["failed", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back"]) assert.equal(outcome(status), "failed", status);
+  for (const status of ["planned", "pending", "running"]) assert.equal(outcome(status), "pending", status);
+  assert.deepEqual(
+    summarizePlanOperationResults([{ status: "succeeded" }, { status: "forbidden" }, { status: "skipped", error_code: "dependency_failed" }, { status: "skipped", error_code: "not_selected" }]),
+    { applied: 1, excluded: 1, failed: 2 }
+  );
+});
+
+test("정리 후 구조는 실제 결과대로 보여 준다: 실패한 항목은 원래 자리·이름에 실패로 남고 고르지 않은 작업은 뺀다", () => {
+  const tree = [
+    { id: "f-a", name: "자료", type: "folder", children: [
+      { id: "d-ok", name: "성공.md", type: "document" },
+      { id: "d-no", name: "실패.md", type: "document" },
+      { id: "d-skip", name: "제외.md", type: "document" }
+    ] }
+  ];
+  const op = (id, sequence, tool_name, target_id, args, status, error_code = null) => ({ id, sequence, tool_name, target_id, source_parent_id: null, destination_parent_id: null, arguments: args, reason: "", status, error_code });
+  const preview = buildPlanPreviewTree({ ...plan, operations: [
+    op("c", 1, "create_folder", null, { name: "정리", parent_folder_id: null }, "succeeded"),
+    op("m1", 2, "move_document", "d-ok", { folder_id: { $operation_result: "c" } }, "succeeded"),
+    op("r1", 3, "rename_document", "d-ok", { display_name: "새 성공.md" }, "succeeded"),
+    op("m2", 4, "move_document", "d-no", { folder_id: { $operation_result: "c" } }, "forbidden", "tool_http_403"),
+    op("r2", 5, "rename_document", "d-no", { display_name: "계획된 이름.md" }, "skipped", "dependency_failed"),
+    op("m3", 6, "move_document", "d-skip", { folder_id: { $operation_result: "c" } }, "skipped", "not_selected")
+  ] }, tree);
+  const flat = (nodes) => nodes.flatMap((node) => [node, ...flat(node.children)]);
+  const nodes = flat(preview.nodes);
+  const failed = nodes.find((node) => node.id === "d-no");
+  assert.equal(failed.name, "실패.md", "계획된 이름을 쓰지 않는다");
+  assert.equal(failed.failed, true);
+  assert.equal(preview.nodes.find((node) => node.id === "f-a").children[0].id, "d-no", "원래 폴더에 남는다");
+  const moved = nodes.find((node) => node.id === "d-ok");
+  assert.equal(moved.name, "새 성공.md");
+  assert.equal(moved.failed, false);
+  assert.equal(preview.nodes.find((node) => node.name === "정리").children[0].id, "d-ok");
+  assert.equal(nodes.some((node) => node.id === "d-skip"), false, "고르지 않은 작업은 트리에서 뺀다");
+  assert.equal(preview.summary, "폴더 1개 생성 · 문서 1개 이동 · 문서 1개 이름 변경 · 실패 2개");
+});
+
+test("만들지 못한 폴더는 실패로 보여 주고 새 폴더로 표시하지 않는다", () => {
+  const preview = buildPlanPreviewTree({ ...plan, operations: [
+    { id: "c", sequence: 1, tool_name: "create_folder", target_id: null, source_parent_id: null, destination_parent_id: null, arguments: { name: "정리", parent_folder_id: null }, reason: "", status: "forbidden", error_code: "tool_http_403" }
+  ] }, []);
+  assert.deepEqual(preview.nodes.map((node) => [node.name, node.isNew, node.failed]), [["정리", false, true]]);
+  assert.equal(preview.summary, "실패 1개");
+});
+
+test("실행 뒤에는 AI 요약의 '아직 변경된 사항은 없으며' 문장을 보이지 않는다", () => {
+  const summary = "문서 2개를 새 폴더로 옮깁니다. 아직 변경된 사항은 없으며, 승인하면 실행됩니다. 이름도 규칙에 맞춥니다.";
+  assert.equal(splitPlanSummary(summary).body, summary, "상태를 모르면 그대로 둔다");
+  assert.equal(splitPlanSummary(summary, "awaiting_approval").body, summary, "승인 전에는 맞는 말이다");
+  assert.equal(splitPlanSummary(summary, "rejected").body, summary, "거절했으면 여전히 맞는 말이다");
+  for (const status of ["executing", "verifying", "completed", "partial_failed", "failed", "conflicted", "rollback_failed"]) {
+    assert.equal(splitPlanSummary(summary, status).body, "문서 2개를 새 폴더로 옮깁니다. 이름도 규칙에 맞춥니다.", status);
+  }
+  assert.equal(splitPlanSummary("아직 변경된 사항은 없습니다.", "completed").body, "");
+});
+
+test("일부 실패 상태 이름을 맞춘다", () => {
+  assert.equal(agentPlanStatusLabel("partial_failed"), "일부 실패");
 });

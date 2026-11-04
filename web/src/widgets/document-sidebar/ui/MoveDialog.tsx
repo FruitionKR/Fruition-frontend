@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree";
 import type { MoveDestination } from "@/widgets/workspace/lib/treeMoveRules";
 import styles from "./DocumentSidebar.module.css";
 
@@ -30,11 +31,13 @@ export function MoveDialog({
       <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="move-dialog-title" onClick={(event) => event.stopPropagation()}>
         <h2 id="move-dialog-title">{label} 이동</h2>
         <p>옮길 폴더를 고르세요.</p>
+        {destinations.some((destination) => destination.isBlocked) && <p role="note">흐리게 보이는 폴더는 고를 수 없어요. {FOLDER_WRITE_FORBIDDEN_MESSAGE}</p>}
         <ul className={styles["move-destinations"]}>
           {destinations.map((destination) => (
             <li key={destination.folderId ?? "root"}>
               <button
                 type="button"
+                disabled={destination.isBlocked}
                 style={{ paddingLeft: 12 + destination.depth * MOVE_DESTINATION_INDENT_PX }}
                 onClick={() => onSelect(destination.folderId)}
               >

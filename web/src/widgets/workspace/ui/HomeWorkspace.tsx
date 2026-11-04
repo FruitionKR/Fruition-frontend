@@ -56,7 +56,7 @@ import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfir
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { createMarkdownDocument } from "@/entities/document";
-import { invalidateStorageUsage } from "@/entities/workspace";
+import { invalidateStorageUsage, useWorkspaceRole } from "@/entities/workspace";
 import { invalidateActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
 import { buildGeneratedMarkdownDocument } from "@/features/agent-chat/lib/agentTurn";
@@ -133,7 +133,8 @@ export function HomeWorkspace() {
   const [hasOpenMeeting, setHasOpenMeeting] = useState(false);
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
-  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
+  const { role, isOwner } = useWorkspaceRole();
+  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted, isWorkspaceOwner: role === null ? null : isOwner });
   // 뷰 전환으로 사이드바 트리가 다시 마운트돼도 폴더 펼침을 유지한다.
   const treeOpen = useTreeOpenState();
   const {
@@ -523,13 +524,25 @@ export function HomeWorkspace() {
         onDeleteSelectedItems={projectTree.deleteSelectedItems}
         selectedContextCount={skillRun ? 0 : projectTree.selectedContextCount}
         onDragOverItem={projectTree.onDragOverItem}
-        onFileDragOver={projectTree.setFileDropTarget}
+        onFileDragOver={projectTree.onFileDragOver}
+        dropDeniedItemId={projectTree.dropDeniedItemId}
+        canStartDrag={projectTree.canStartDrag}
+        isDropDenied={projectTree.isDropDenied}
+        isFolderWriteDenied={projectTree.isFolderWriteDenied}
+        isItemMoveOutDenied={projectTree.isItemMoveOutDenied}
+        onDragDenied={projectTree.onDragDenied}
         onFileDragLeave={projectTree.onFileDragLeave}
         onDragEnd={projectTree.onDragEnd}
         onContextMenuProject={projectTree.openProjectMenu}
         onContextMenuItem={projectTree.openFolderMenu}
         onOpenFolderMenuAt={projectTree.openFolderMenuAt}
-        onSelectGraphNode={(item) => openSelectedPreview(selection.selectTreeGraphNode(item))}
+        onSelectGraphNode={(item) => {
+          // 이미 연 문서를 다시 고르거나 그래프에서 포커스만 옮기면 주소가 그대로라 이동으로 닫히지 않는다.
+          // 주소가 바뀔 때 함께 닫으면 뒤로 가기 표식을 되돌리는 동작이 이동을 취소하므로 여기서 닫지 않는다.
+          const isLocationKept = isGraphView || item.id === selection.selectedTreeItemId;
+          openSelectedPreview(selection.selectTreeGraphNode(item));
+          if (isCompactLayout && isLocationKept) panels.collapseSidebar();
+        }}
         onOpenInNewTab={openTreeItemInNewTab}
         onEditingChange={projectTree.onEditingChange}
         onCommitEditing={projectTree.commitEditing}
@@ -628,7 +641,7 @@ export function HomeWorkspace() {
 
       {/* 채팅 패널이 닫혀 있으면 우하단 원형 버튼으로 연다 (Figma 1426:15877 / 1406:14202). */}
       {!isAgentPanelShown && canShowAgentPanel(activeView) && (
-        <AgentLauncher onOpen={panels.openAgentPanel} />
+        <AgentLauncher onOpen={panels.openAgentPanel} isAvoidingProposals={isCompactLayout && (editReview?.pendingCount ?? 0) > 0} />
       )}
 
       {/* 채팅 패널 폭 조절 핸들: 왼쪽으로 끌면 넓어지고, 최소 폭 미만이면 패널을 닫는다. ←/→ 16px, Enter 닫기 */}
@@ -661,6 +674,7 @@ export function HomeWorkspace() {
             if (isCompactLayout) panels.closeAgentPanel();
           }}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
+          isFolderWriteDenied={projectTree.isFolderWriteDenied}
           markdownEditContext={markdownEditContext}
           readOnlyDocumentId={isSelectedDocumentReadOnly ? selection.selectedDocumentId : null}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
@@ -670,6 +684,10 @@ export function HomeWorkspace() {
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
           onOpenFolderOrganize={folderOrganize.open}
+          onFolderOrganizePreviewRequested={() => {
+            // 좁은 화면에서는 패널이 미리보기의 적용 영역을 덮으므로 닫아서 보여 준다.
+            if (isCompactLayout) panels.closeAgentPanel();
+          }}
           onReplaceFolderOrganize={folderOrganize.replaceSuperseded}
           nodes={graphData.nodes}
           skillRun={skillRunRequest && {
@@ -789,7 +807,7 @@ export function HomeWorkspace() {
         return (
           <MoveDialog
             label={isBulk ? `${movingIds.size}개 항목` : `"${(project && findTreeItem(project.items, itemId)?.label) ?? "항목"}"`}
-            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE)}
+            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE, projectTree.isFolderWriteDenied)}
             onSelect={projectTree.confirmMoveTo}
             onClose={projectTree.closeMoveDialog}
           />

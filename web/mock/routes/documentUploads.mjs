@@ -5,7 +5,7 @@
 //
 // 환경 변수: MOCK_DOCUMENT_PART_SIZE(조각 크기, 기본 64 MiB)
 import { randomUUID } from "node:crypto";
-import { error, hash, id, now, requireWorkspace, state, toDocumentItem } from "../state.mjs";
+import { error, hash, id, now, requireFolderWrite, requireWorkspace, state, toDocumentItem } from "../state.mjs";
 import { uploadRejection } from "../lib/limits.mjs";
 import { rememberIdempotent, replayIdempotent, useImportSession } from "./imports.mjs";
 
@@ -49,6 +49,7 @@ export function registerDocumentUploadRoutes(router) {
     }
     if (!Number.isSafeInteger(size) || size <= 0) return error(ctx, 400, "PDF 크기는 0보다 커야 합니다.", "DOCUMENT_UPLOAD_REJECTED");
     if (size > PDF_MAX_BYTES) return error(ctx, 413, "PDF 파일은 100MB 이하로 올려 주세요.", "FILE_TOO_LARGE");
+    if (!requireFolderWrite(ctx, workspace.id, folderId)) return;
     // 시작 때는 세션만 확인하고 항목은 확정 때 센다.
     const session = useImportSession(ctx, workspace, 0);
     if (session === false) return;

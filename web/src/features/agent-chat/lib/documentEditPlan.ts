@@ -3,6 +3,7 @@ import {
   isOperationNotSelected,
   PLAN_EXECUTION_FAILURE_FALLBACK,
   PLAN_FAILURE_FALLBACK,
+  PLAN_PARTIAL_FAILURE_MESSAGE,
   planOperationStatusLabel,
   type AgentPlan,
   type AgentPlanOperation,
@@ -132,7 +133,7 @@ export function documentEditMessageNotice(message: string | null | undefined, pl
 export function documentEditRunNote(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined): string | null {
   const failure = agentPlanFailureMessage(run);
   if (!failure) return null;
-  if (failure !== PLAN_EXECUTION_FAILURE_FALLBACK && failure !== PLAN_FAILURE_FALLBACK) return failure;
+  if (failure !== PLAN_EXECUTION_FAILURE_FALLBACK && failure !== PLAN_FAILURE_FALLBACK && failure !== PLAN_PARTIAL_FAILURE_MESSAGE) return failure;
   const operations = run?.plan?.operations ?? [];
   const saved = operations.filter((operation) => SAVED_OPERATION_STATUSES.has(operation.status)).length;
   const failed = operations.filter((operation) => FAILED_OPERATION_STATUSES.has(operation.status)).length;

@@ -20,7 +20,7 @@ import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model
 import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
 import { buildTreeConversionBadges } from "../model/treeConversionBadge";
-import { treeContextMenuSections, type TreeMenuActionId } from "../model/treeItemActions";
+import { treeContextMenuSections, treeMenuBlockedActions, type TreeMenuActionId } from "../model/treeItemActions";
 import { downloadTreeItemOriginal } from "../model/downloadTreeItem";
 import styles from "./DocumentSidebar.module.css";
 import { StorageUsageMeter } from "./StorageUsageMeter";
@@ -32,6 +32,12 @@ export function DocumentSidebar({
   selectedItemIds,
   isPickingTarget = false,
   dropTarget,
+  dropDeniedItemId,
+  canStartDrag,
+  isDropDenied,
+  isFolderWriteDenied,
+  isItemMoveOutDenied,
+  onDragDenied,
   fileDropTarget,
   editing,
   openIds,
@@ -93,6 +99,13 @@ export function DocumentSidebar({
   /** 스킬 실행 대상 고르기 중이면 행 클릭이 문서를 열지 않고 고른다 */
   isPickingTarget?: boolean;
   dropTarget: DropTarget | null;
+  dropDeniedItemId: string | null;
+  canStartDrag: (itemId: string) => boolean;
+  isDropDenied: (target: DropTarget) => boolean;
+  isFolderWriteDenied: (folderId: string) => boolean;
+  /** 지금 폴더에서 꺼낼 권한이 없으면 true. 터치 메뉴의 이동을 막는다. */
+  isItemMoveOutDenied: (itemId: string) => boolean;
+  onDragDenied: (itemId: string | null) => void;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
   openIds: ReadonlySet<string>;
@@ -250,6 +263,11 @@ export function DocumentSidebar({
     selectedItemIds,
     isPickingTarget: isPickingTarget || isTouchSelecting,
     dropTarget,
+    dropDeniedItemId,
+    canStartDrag,
+    isDropDenied,
+    isFolderWriteDenied,
+    onDragDenied,
     fileDropTarget,
     editing,
     conversionBadges,
@@ -329,6 +347,7 @@ export function DocumentSidebar({
           contextMenu={contextMenu}
           focusNewNote={contextMenu.source === "add-button"}
           sections={contextMenuSections}
+          blockedActions={treeMenuBlockedActions(contextMenuItem, isFolderWriteDenied, isItemMoveOutDenied)}
           convertTarget={convertContextTarget}
           selectedCount={selectedContextCount}
           onDeleteSelected={onDeleteSelectedItems}

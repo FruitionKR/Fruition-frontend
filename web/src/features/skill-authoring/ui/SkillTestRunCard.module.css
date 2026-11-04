@@ -218,3 +218,9 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+@media (pointer: coarse) {
+  .run-button {
+    min-height: 44px;
+  }
+}

@@ -1053,6 +1053,7 @@
   margin: 0;
   color: var(--color-muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .composer-cancelled {
@@ -2040,6 +2041,21 @@ button.result-link:focus-visible {
   opacity: 0.65;
 }
 
+.plan-tree small.plan-tree-failed,
+.plan-tree summary small.plan-tree-failed {
+  color: var(--color-danger);
+  opacity: 1;
+}
+
+.plan-tree small + small {
+  margin-left: 6px;
+}
+
+/* 상세 보기의 작업별 권한·실패 안내 */
+.plan-details .plan-operation-blocked {
+  color: var(--color-danger);
+}
+
 .plan-details > summary {
   cursor: pointer;
   color: var(--color-body);
@@ -2887,6 +2903,12 @@ button.result-link:focus-visible {
     right: 16px;
     bottom: 16px;
   }
+
+  /* 본문 제안의 거절·수락은 오른쪽에 붙으므로 그동안 왼쪽으로 비켜 선다. */
+  .agent-launcher.is-avoiding-proposals {
+    right: auto;
+    left: 16px;
+  }
 }
 
 /* 휴대폰: 칩은 줄바꿈하며 폭을 다 쓸 수 있고, 첨부·문서 고르기 터치 영역을 44px로 키운다. 키보드가 올라와도 입력창이 보이게 "@" 목록 높이를 줄인다. */
@@ -2927,6 +2949,45 @@ button.result-link:focus-visible {
     min-width: 44px;
     min-height: 44px;
     opacity: 1;
+  }
+
+  /* 패널 머리줄: 줄 높이는 패널 격자(agent-panel-shell.css)와 맞춘다. */
+  .agent-header {
+    height: 48px;
+  }
+
+  .agent-header-actions {
+    gap: 0;
+    padding: 2px 4px;
+  }
+
+  .agent-view-tab {
+    min-height: 44px;
+  }
+
+  .panel-action {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-session-dropdown {
+    top: 52px;
+  }
+
+  .task-decision {
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .plan-details > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .plan-tree summary {
+    height: 44px;
   }
 }
 

@@ -7,7 +7,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { effectivePermission, findEffectivePermission, permissionForChildren } = await import("../src/entities/tree/lib/treePermission.ts");
+const { canWriteTreeFolder, effectivePermission, findEffectivePermission, folderWritable, permissionForChildren } = await import("../src/entities/tree/lib/treePermission.ts");
 const { inheritedPermissionLabel } = await import("../src/entities/document/lib/documentAccess.ts");
 const { projectsFromServerTree } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
 
@@ -67,4 +67,28 @@ test("서버 트리의 폴더 permission을 트리 항목으로 옮긴다(없으
   ]);
   assert.equal(project.items.find((item) => item.id === "f1").permission, "view");
   assert.equal(project.items.find((item) => item.id === "f2").permission, undefined);
+});
+
+test("폴더 쓰기: 자기 설정, 가장 가까운 상위 설정, 기본 편집 순으로 따지고 OWNER는 항상 된다", () => {
+  assert.equal(folderWritable([null, null], false), true);
+  assert.equal(folderWritable(["view", null], false), false);
+  assert.equal(folderWritable([null, "view"], false), false);
+  assert.equal(folderWritable(["edit", "view"], false), true);
+  assert.equal(folderWritable(["view"], true), true);
+});
+
+test("폴더 쓰기: 권한 필드가 없거나 역할을 모르면 null(서버에 맡긴다)", () => {
+  assert.equal(folderWritable([undefined], false), null);
+  assert.equal(folderWritable([null, undefined], false), null);
+  assert.equal(folderWritable(["view"], null), null);
+});
+
+test("트리에서 폴더 쓰기를 판정한다. 최상위는 늘 되고 트리에 없는 폴더는 모른다", () => {
+  assert.equal(canWriteTreeFolder(tree, null, false), true);
+  assert.equal(canWriteTreeFolder(tree, "f-root", false), false);
+  assert.equal(canWriteTreeFolder(tree, "f-mid", false), null, "permission 필드가 없으면 모른다");
+  assert.equal(canWriteTreeFolder(tree, "f-edit", false), true);
+  assert.equal(canWriteTreeFolder(tree, "f-plain", false), true);
+  assert.equal(canWriteTreeFolder(tree, "없는 폴더", false), null);
+  assert.equal(canWriteTreeFolder(tree, "f-root", true), true);
 });

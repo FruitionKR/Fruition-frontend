@@ -192,13 +192,14 @@ export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES
   return `/${slug} ${choice.request}`;
 }
 
-export type TaskGroup = "running" | "approval" | "clarify" | "failed" | "done";
+export type TaskGroup = "running" | "approval" | "clarify" | "partial_failed" | "failed" | "done";
 
 /** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. */
 export const TASK_GROUPS: { group: TaskGroup; label: string }[] = [
   { group: "running", label: "진행 중" },
   { group: "approval", label: "확인 필요" },
   { group: "clarify", label: "선택 필요" },
+  { group: "partial_failed", label: "일부 실패" },
   { group: "failed", label: "실패" },
   { group: "done", label: "완료" }
 ];
@@ -307,6 +308,8 @@ export function resolveTaskStatus({
     }
     if (runStatus === "rejected") return { group: "done", label: "거절됨", tone: "danger", struck: true };
     if (runStatus === "cancelled") return { group: "done", label: "취소됨", tone: "danger", struck: true };
+    // 일부는 저장됐으므로 전부 실패처럼 묶거나 취소선을 긋지 않는다.
+    if (runStatus === "partial_failed") return { group: "partial_failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: false };
     if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: true };
     if (shouldPollAgentPlan(runStatus)) return { group: "running", label: agentPlanStatusLabel(runStatus), tone: "primary", struck: false };
     return { group: "done", label: agentPlanStatusLabel(runStatus), tone: "muted", struck: false };

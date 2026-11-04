@@ -47,8 +47,8 @@ import styles from "./AgentChat.module.css";
 const DONE_NOTICE = "작업기록은 LLM Wiki에 들어가지 않습니다. 문서·파일의 변경 이력으로만 남습니다.";
 /** 실패한 turn에 서버 안내 문구가 없을 때 */
 const FAILED_TASK_FALLBACK = "작업을 처리하지 못했어요. 다시 시도해 주세요.";
-/** 새로 생기면 보이도록 굴려 줄 카드 묶음(할 일이 남은 묶음과, 진행 카드가 실패로 끝나 옮겨 간 '실패') */
-const ATTENTION_GROUPS: ReadonlySet<TaskGroup> = new Set(["running", "approval", "clarify", "failed"]);
+/** 새로 생기면 보이도록 굴려 줄 카드 묶음(할 일이 남은 묶음과, 진행 카드가 실패로 끝나 옮겨 간 '일부 실패'·'실패') */
+const ATTENTION_GROUPS: ReadonlySet<TaskGroup> = new Set(["running", "approval", "clarify", "partial_failed", "failed"]);
 const PENDING_ATTENTION_KEY = "pending";
 const PREVIEW_ATTENTION_KEY = "preview";
 const NO_TURN_IDS: ReadonlySet<string> = new Set();

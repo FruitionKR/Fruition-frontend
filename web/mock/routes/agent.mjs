@@ -1,6 +1,6 @@
 // document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
 // mode=task(작업 탭)면 문서 없이도 받고, 채팅 답변 갈래 대신 clarify로 되묻는다(2026-10-19 계약).
-import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument, documentAccess } from "../state.mjs";
+import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument, documentAccess, canWriteFolder } from "../state.mjs";
 import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
@@ -112,6 +112,32 @@ function organizeSummary(count, withContentDuplicate) {
   return `${summary}. 계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: '회의록 v1.2.md'와(과) '회의록.md', '참고 자료.pdf'와(과) '참고.pdf'. 문서 1개는 내용 중복을 확인하지 못했어요.`;
 }
 
+/** 승인자 권한으로 작업마다 결과를 정한다. AI agent_worker처럼 403은 forbidden, 앞선 작업이 실패하면 skipped·dependency_failed다. */
+function finishPlanOperations(workspaceId, userId, operations) {
+  const canUseFolder = (folder) => folder && typeof folder === "object" ? true : canWriteFolder(workspaceId, userId, folder ?? null);
+  const isPermitted = ({ tool_name: tool, target_id: targetId, arguments: args }) => {
+    const doc = tool.endsWith("_document") ? findDocument(workspaceId, targetId) : null;
+    const canEditDoc = !doc || documentAccess(doc, userId).can_edit;
+    if (tool === "create_folder") return canUseFolder(args.parent_folder_id);
+    if (tool === "create_document") return canUseFolder(args.folder_id);
+    if (tool === "move_document") return canEditDoc && canUseFolder(doc?.folder_id) && canUseFolder(args.folder_id);
+    return canEditDoc;
+  };
+  const failed = new Set();
+  for (const operation of [...operations].sort((a, b) => a.sequence - b.sequence)) {
+    if (operation.status === "skipped") continue;
+    if ((operation.depends_on ?? []).some((dependency) => failed.has(dependency))) {
+      failed.add(operation.id);
+      Object.assign(operation, { status: "skipped", error_code: "dependency_failed" });
+    } else if (isPermitted(operation)) {
+      operation.status = "succeeded";
+    } else {
+      failed.add(operation.id);
+      Object.assign(operation, { status: "forbidden", error_code: "tool_http_403" });
+    }
+  }
+}
+
 function buildOrganizePlan(workspace, turn, message, skill) {
   const docs = state.documents.filter((doc) => doc.workspace_id === workspace.id && !doc.deleted_at && doc.status === "completed").slice(0, 3);
   const pick = (extra) => ({ source_parent_id: null, destination_parent_id: null, status: "planned", error_code: null, warning: null, suggested_selected: true, depends_on: [], ...extra });
@@ -216,8 +242,10 @@ function buildDocumentEditRun(workspace, turn, message, docs) {
 
 /** 실행을 끝낸다. 고르지 않은 작업은 그대로 두고, 작업 결과에 따라 run 상태를 정한다(ai finish_run_from_operations). */
 function settleRun(run) {
-  const executed = run.plan.operations.filter((operation) => operation.status !== "skipped");
-  executed.forEach((operation) => Object.assign(operation, run.outcomes?.get(operation.id) ?? { status: "succeeded" }));
+  const notSkipped = run.plan.operations.filter((operation) => operation.status !== "skipped");
+  if (run.outcomes) notSkipped.forEach((operation) => Object.assign(operation, run.outcomes.get(operation.id)));
+  // 앞선 실패로 건너뛴 작업(dependency_failed)은 실패로 센다.
+  const executed = run.plan.operations.filter((operation) => operation.error_code !== "not_selected");
   const succeeded = executed.filter((operation) => operation.status === "succeeded").length;
   const status = succeeded === executed.length ? "completed"
     : succeeded > 0 ? "partial_failed"
@@ -639,7 +667,12 @@ export function registerAgentRoutes(router) {
     run.approved_operation_ids = operationIds;
     run.status = "executing";
     run.plan.status = "executing";
-    setTimeout(() => settleRun(run), RUN_EXECUTION_DELAY_MS);
+    const approverId = ctx.user.id;
+    setTimeout(() => {
+      // 문서 수정 계획은 시나리오 결과(run.outcomes)를, 그 밖의 계획은 승인자 권한으로 결과를 정한다.
+      if (!run.outcomes) finishPlanOperations(workspace.id, approverId, run.plan.operations);
+      settleRun(run);
+    }, RUN_EXECUTION_DELAY_MS);
     ctx.json(200, toRun(run));
   });
 }

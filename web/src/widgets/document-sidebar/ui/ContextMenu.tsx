@@ -1,4 +1,4 @@
-import type { ContextMenuState } from "@/entities/tree";
+import { FOLDER_WRITE_FORBIDDEN_MESSAGE, type ContextMenuState } from "@/entities/tree";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
@@ -10,6 +10,7 @@ import styles from "./DocumentSidebar.module.css";
 export function ContextMenu({
   contextMenu,
   sections,
+  blockedActions = NO_BLOCKED_ACTIONS,
   convertTarget,
   selectedCount = 0,
   focusNewNote = false,
@@ -20,6 +21,8 @@ export function ContextMenu({
   contextMenu: ContextMenuState;
   /** 보일 항목을 구역별로 나눈 목록(treeContextMenuSections). 구역 사이에 구분선을 그린다. */
   sections: TreeMenuActionId[][];
+  /** 폴더 권한이 없어 비활성으로 둘 항목(treeMenuBlockedActions). 있으면 이유를 메뉴 안에 글자로 보여 준다. */
+  blockedActions?: ReadonlySet<TreeMenuActionId>;
   /** PDF 원본의 Markdown 변환 상태. 처리 중이거나 변환 권한이 없으면 isDisabled로 비활성화하고, 권한 때문이면 disabledReason을 툴팁으로 알린다. */
   convertTarget: { isDisabled: boolean; disabledReason?: string } | null;
   /** 우클릭한 행이 2개 이상 묶음 선택에 들어 있으면 그 개수. 단일 항목 메뉴 대신 묶음 메뉴를 보인다. */
@@ -98,7 +101,11 @@ export function ContextMenu({
         <button type="button" role="menuitem" tabIndex={-1} className={styles.danger} onClick={onDeleteSelected}>
           선택한 {selectedCount}개 삭제
         </button>
-      ) : sections.map((section, index) => (
+      ) : <>
+      {sections.some((section) => section.some((action) => blockedActions.has(action))) && (
+        <p className={styles["menu-blocked-reason"]} role="note">{FOLDER_WRITE_FORBIDDEN_MESSAGE}</p>
+      )}
+      {sections.map((section, index) => (
         <Fragment key={section.join()}>
           {/* 구분선은 menuitem이 아니라 방향키 이동에서 건너뛴다. */}
           {index > 0 && <div role="separator" className={styles["menu-separator"]} />}
@@ -121,6 +128,8 @@ export function ContextMenu({
               type="button"
               role="menuitem"
               tabIndex={-1}
+              disabled={blockedActions.has(action)}
+              aria-description={blockedActions.has(action) ? FOLDER_WRITE_FORBIDDEN_MESSAGE : undefined}
               className={cx(action === "delete" && styles.danger)}
               data-menu-autofocus={(action === "new-note" && focusNewNote) || undefined}
               onClick={() => onAction(action)}
@@ -130,10 +139,13 @@ export function ContextMenu({
           ))}
         </Fragment>
       ))}
+      </>}
     </div>,
     document.body
   );
 }
+
+const NO_BLOCKED_ACTIONS: ReadonlySet<TreeMenuActionId> = new Set();
 
 /** 메뉴를 viewport 안으로 당길 때 가장자리와 두는 여백 (px) */
 const VIEWPORT_MARGIN_PX = 8;
