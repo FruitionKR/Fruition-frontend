@@ -1,7 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { fetchDocumentVersions } from "@/features/note-editing/api/versions";
 import { fetchAgentTurnApplyTarget } from "../api/agent";
-import { collectServerAppliedTurnIds, isServerAppliableTask, type TaskApplyTarget, type TaskMessageItem } from "../lib/taskThread";
+import { collectServerAppliedTurnIds, isApplyCheckUnresolved, isServerAppliableTask, type TaskApplyTarget, type TaskMessageItem } from "../lib/taskThread";
 
 /**
  * 편집 작업(markdown_edit)이 실제로 저장됐는지 서버 기록으로 확인한다.
@@ -41,12 +41,11 @@ export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageI
       return data ? [[documentId, data.versions] as const] : [];
     })
   );
-  // 아직 답을 받지 못한 turn. 저장됐는지 모르므로 "수락하지 않음"으로 단정하지 않는다.
+  // 저장 여부를 가리지 못한 turn(조회 중·조회 실패 등). 저장됐는지 모르므로 "수락하지 않음"으로 단정하지 않는다.
   const checkingTurnIds = new Set(editItems.flatMap((item, index) => {
     const query = turnQueries[index];
-    if (query?.isPending) return [item.turnId!];
-    const documentIndex = query?.data?.documentId && query.data.applyOperationId && !query.data.isPurged ? documentIds.indexOf(query.data.documentId) : -1;
-    return documentIndex >= 0 && versionQueries[documentIndex]?.isPending ? [item.turnId!] : [];
+    const documentId = query.data?.documentId;
+    return isApplyCheckUnresolved(query, documentId ? versionQueries[documentIds.indexOf(documentId)] : undefined) ? [item.turnId!] : [];
   }));
   return { appliedTurnIds: collectServerAppliedTurnIds(targets, versionsByDocument), checkingTurnIds, purgedTurnIds };
 }

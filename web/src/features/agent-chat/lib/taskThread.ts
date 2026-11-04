@@ -293,7 +293,7 @@ export function resolveTaskStatus({
   createdFolderCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
-  /** 이 turn의 응답이 아직 화면에 있거나(자동 적용을 처리하는 중 등) 저장 여부를 확인하는 중인지. 아직 수락하지 않았다고 단정할 수 없다. */
+  /** 이 turn의 응답이 아직 화면에 있거나(자동 적용을 처리하는 중 등) 저장 여부를 확인하지 못했는지(조회 중·조회 실패). 아직 수락하지 않았다고 단정할 수 없다. */
   isProposalHeld?: boolean;
   /** 후속 요청에 자리를 내줘 내려 둔 제안인지. 다시 열어 결정할 수 있다. */
   isProposalSetAside?: boolean;
@@ -369,8 +369,9 @@ export function resolveTaskStatus({
   if (action === "markdown_edit" || action === "markdown_create") {
     if (isProposalSetAside) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
     if (isDocumentPurged) return { group: "done", label: DOCUMENT_PURGED_TASK_LABEL, tone: "muted", struck: false };
-    // 응답이 화면을 떠났고(재생성·새로 고침) 저장·거절·취소 기록도 없다. 제안은 문서에 들어가지 않았다.
-    return { group: "done", label: isProposalHeld ? "제안 완료" : "수락하지 않음", tone: "muted", struck: false };
+    // 수락하지 않았다고 적는 것은 서버 버전 기록까지 확인한 편집뿐이다. 새 문서 초안은 서버로 확인할 수 없어 다른 브라우저에서 수락했을 수 있다.
+    const isUnconfirmed = isProposalHeld || action === "markdown_create";
+    return { group: "done", label: isUnconfirmed ? "제안 완료" : "수락하지 않음", tone: "muted", struck: false };
   }
   return { group: "done", label: "답변", tone: "muted", struck: false };
 }
@@ -426,6 +427,21 @@ export function isServerAppliableTask(item: Pick<TaskMessageItem, "action" | "me
 }
 
 export type TaskApplyTarget = { turnId: string; documentId: string | null; applyOperationId: string | null };
+
+type ApplyCheckQuery = { isPending: boolean; isError: boolean };
+
+/**
+ * 서버 기록으로 저장 여부를 가리지 못한 편집 작업인지. 조회 중·조회 실패이거나, 버전과 맞춰 볼 대상 문서·적용 ID가 없으면 그렇다.
+ * versions는 그 문서의 버전 목록 조회다. 영구 삭제된 문서는 버전 목록이 없고 저장 여부와 상관없이 삭제됨으로 보인다.
+ */
+export function isApplyCheckUnresolved(
+  turn: ApplyCheckQuery & { data?: Omit<TaskApplyTarget, "turnId"> & { isPurged: boolean } },
+  versions: ApplyCheckQuery | undefined
+): boolean {
+  if (turn.isPending || turn.isError) return true;
+  if (turn.data?.isPurged) return false;
+  return !turn.data?.documentId || !turn.data.applyOperationId || !versions || versions.isPending || versions.isError;
+}
 
 /**
  * 편집안이 실제 문서에 저장된 turn ID. Agent 적용으로 저장한 버전은 operation_id에 turn의 apply_operation_id를 남긴다

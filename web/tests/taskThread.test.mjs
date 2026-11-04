@@ -16,6 +16,7 @@ const {
   describeTaskRequest,
   groupTaskEntries,
   isAnswerTask,
+  isApplyCheckUnresolved,
   isAttachmentTargetClarification,
   withReadOnlyDocumentClarification,
   isServerAppliableTask,
@@ -286,7 +287,7 @@ test("초안을 취소한 편집·새 문서 작업은 '수락하지 않음' 대
   // 저장·거절 기록이 있으면 그쪽이 먼저다.
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isApplied: true, isCancelled: true }).label, "저장됨");
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", isRejected: true, isCancelled: true }).label, "거절됨");
-  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "수락하지 않음");
+  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "제안 완료");
 });
 
 test("스킬 실행 카드 머리글은 action이 정해지기 전(진행 중)과 뒤가 같다", () => {
@@ -665,11 +666,38 @@ test("결정하지 않은 제안은 내려 둔 동안 검토 대기로, 화면�
   assert.deepEqual(resolveTaskStatus({ ...base, isProposalSetAside: true }), { group: "approval", label: "검토 대기", tone: "primary", struck: false });
   // 재생성으로 바꿨거나 새로 고침으로 사라진 제안
   assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "수락하지 않음", tone: "muted", struck: false });
-  assert.equal(resolveTaskStatus({ action: "markdown_create", messageStatus: "completed" }).label, "수락하지 않음");
   // 결과가 정해졌으면 그 결과가 먼저다.
   assert.equal(resolveTaskStatus({ ...base, isProposalSetAside: true, isApplied: true }).label, "저장됨");
   assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
   assert.equal(resolveTaskStatus({ ...base, isCancelled: true }).label, "취소됨");
+});
+
+test("새 문서 초안은 수락 여부를 서버로 확인할 수 없어 기록이 없으면 수락하지 않음으로 단정하지 않는다", () => {
+  const base = { action: "markdown_create", messageStatus: "completed" };
+  assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "제안 완료", tone: "muted", struck: false });
+  // 같은 브라우저 기록과 내려 둔 제안은 그대로 보인다.
+  assert.equal(resolveTaskStatus({ ...base, isApplied: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
+  assert.equal(resolveTaskStatus({ ...base, isCancelled: true }).label, "취소됨");
+  assert.deepEqual(resolveTaskStatus({ ...base, isProposalSetAside: true }), { group: "approval", label: "검토 대기", tone: "primary", struck: false });
+});
+
+test("서버 기록을 끝까지 확인한 편집 작업만 저장 여부가 정해진 것으로 본다", () => {
+  const settled = { isPending: false, isError: false };
+  const turn = { ...settled, data: { documentId: "doc_a", applyOperationId: "apply_1", isPurged: false } };
+  // 답을 받았고 버전 목록도 받았다. 버전에 없으면 수락하지 않은 것이다.
+  assert.equal(isApplyCheckUnresolved(turn, settled), false);
+  // 조회 중
+  assert.equal(isApplyCheckUnresolved({ isPending: true, isError: false }, undefined), true);
+  assert.equal(isApplyCheckUnresolved(turn, { isPending: true, isError: false }), true);
+  // 조회 실패(retry:false라 isPending이 바로 false가 된다)도 저장 여부를 모른다.
+  assert.equal(isApplyCheckUnresolved({ isPending: false, isError: true }, undefined), true);
+  assert.equal(isApplyCheckUnresolved(turn, { isPending: false, isError: true }), true);
+  // 적용 ID나 대상 문서가 없으면 버전과 맞춰 볼 수 없다.
+  assert.equal(isApplyCheckUnresolved({ ...settled, data: { documentId: "doc_a", applyOperationId: null, isPurged: false } }, undefined), true);
+  assert.equal(isApplyCheckUnresolved({ ...settled, data: { documentId: null, applyOperationId: "apply_1", isPurged: false } }, undefined), true);
+  // 영구 삭제된 문서는 버전 목록을 부르지 않고 그 상태로 보인다.
+  assert.equal(isApplyCheckUnresolved({ ...settled, data: { documentId: "doc_a", applyOperationId: "apply_1", isPurged: true } }, undefined), false);
 });
 
 test("내려 둔 제안은 다시 열면 빠지고, 그때 열려 있던 제안이 대신 들어간다", async () => {
