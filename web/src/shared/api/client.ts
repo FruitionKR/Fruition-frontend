@@ -67,7 +67,7 @@ function providerList(value: unknown): string[] {
 export async function parseApiError(response: Response, fallback: string): Promise<ApiError> {
   try {
     const body = await response.json() as {
-      error?: { message?: string; code?: string; document_title?: unknown } & UsageLimitDetail;
+      error?: { message?: string; code?: string; locked_document_name?: unknown } & UsageLimitDetail;
       detail?: string | { message?: string };
       oauth_providers?: unknown;
       providers?: unknown;
@@ -81,7 +81,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
       return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
     }
     if (response.status === 423) {
-      const title = body?.error?.document_title;
+      const title = body?.error?.locked_document_name;
       return new DocumentLockedError(message, response.status, code, typeof title === "string" && title.trim() ? title.trim() : null);
     }
     return new ApiError(message, response.status, code);

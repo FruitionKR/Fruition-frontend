@@ -40,7 +40,7 @@ export function isChatSessionLimitError(error: unknown): boolean {
   return error instanceof ApiError && error.code === "CHAT_SESSION_LIMIT_EXCEEDED";
 }
 
-/** 다른 사람이 문서를 편집 중이라 거절한 423. documentTitle은 서버가 알려 준 잠긴 문서 제목이고 없으면 null이다. */
+/** 다른 사람이 문서를 편집 중이라 거절한 423. documentTitle은 서버가 알려 준 잠긴 문서 표시 이름(error.locked_document_name)이고 없으면 null이다. */
 export class DocumentLockedError extends ApiError {
   readonly documentTitle: string | null;
 

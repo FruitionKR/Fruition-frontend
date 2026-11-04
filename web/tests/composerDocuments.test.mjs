@@ -179,7 +179,7 @@ test("열린 문서 잠금 안내는 어느 문서가 잠겼는지와 첨부로 
 test("423 응답의 잠긴 문서 제목을 보존하고, 없으면 비워 둔다", async () => {
   const { parseApiError } = await import("../src/shared/api/client.ts");
   const response = (error) => new Response(JSON.stringify({ error }), { status: 423 });
-  const titled = await parseApiError(response({ code: "DOCUMENT_EDIT_LOCKED", message: "편집 중", document_title: "회의록" }), "실패");
+  const titled = await parseApiError(response({ code: "DOCUMENT_EDIT_LOCKED", message: "편집 중", locked_document_name: "회의록" }), "실패");
   assert.ok(titled instanceof DocumentLockedError);
   assert.equal(titled.documentTitle, "회의록");
   assert.equal((await parseApiError(response({ code: "DOCUMENT_EDIT_LOCKED", message: "편집 중" }), "실패")).documentTitle, null);
