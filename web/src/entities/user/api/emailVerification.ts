@@ -1,4 +1,5 @@
 import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
+import { throwRateLimited } from "@/entities/user/api/account";
 import type { SignupConsentFields } from "@/entities/user/model/consent";
 
 type EmailVerificationResponse = {
@@ -28,6 +29,7 @@ export async function requestEmailVerification(
     body: JSON.stringify({ email, purpose })
   });
 
+  if (response.status === 429) return throwRateLimited(response);
   return parseJsonOrThrow<EmailVerificationResponse>(response, "인증번호 요청에 실패했습니다.");
 }
 
@@ -38,6 +40,7 @@ export async function checkEmailAvailability(email: string): Promise<EmailAvaila
     body: JSON.stringify({ email })
   });
 
+  if (response.status === 429) return throwRateLimited(response);
   return parseJsonOrThrow<EmailAvailabilityResponse>(response, "이메일 중복 확인에 실패했습니다.");
 }
 

@@ -9,6 +9,8 @@ import {
   registeredEmailErrorMessage,
   requestEmailVerification,
   signupAvailabilityMessage,
+  verificationWaitMessage,
+  verificationWaitSeconds,
   type ConsentChoices
 } from "@/entities/user";
 import { ConsentForm } from "@/features/legal-consent";
@@ -17,6 +19,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
 import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
+import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen } from "@/shared/ui/auth/AuthScreen";
 import { LoginLinkPrompt } from "@/views/auth/ui/LoginLinkPrompt";
@@ -31,14 +34,18 @@ export default function SignupPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useTypedFormValues({ nickname: setNickname, email: setEmail, password: setPassword });
-  const draftError = signupDraft?.email === email.trim().toLowerCase()
-    ? signupDraft.verificationRequestError ?? null
-    : null;
-  const visibleError = errorMessage ?? draftError;
+  const isDraftEmail = signupDraft?.email === email.trim().toLowerCase();
+  const draftError = isDraftEmail ? signupDraft.verificationRequestError ?? null : null;
+  // 인증번호 요청이 시도 제한에 걸렸으면 남은 시간을 세고, 그동안은 같은 주소로 다시 보내지 않는다.
+  const retryAt = isDraftEmail ? signupDraft.verificationRetryAt ?? 0 : 0;
+  const retryCountdown = useExpiryCountdown(retryAt);
+  const isWaitingRetry = retryAt > Date.now();
+  const visibleError = errorMessage
+    ?? (isWaitingRetry ? verificationWaitMessage(Math.max(1, retryCountdown.seconds)) : retryAt > 0 ? null : draftError);
 
   async function handleVerificationRequest(event: React.FormEvent) {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || isWaitingRetry) return;
 
     const passwordError = getPasswordPolicyError(password);
     if (passwordError) {
@@ -66,7 +73,8 @@ export default function SignupPage() {
         return;
       }
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, "이메일 중복 확인에 실패했습니다."));
+      const waitSeconds = verificationWaitSeconds(error);
+      setErrorMessage(waitSeconds !== null ? verificationWaitMessage(waitSeconds) : getErrorMessage(error, "이메일 중복 확인에 실패했습니다."));
       setIsSubmitting(false);
       return;
     }
@@ -95,9 +103,13 @@ export default function SignupPage() {
     } catch (error: unknown) {
       if (!isCurrentSignupVerificationRequest(verificationRequestId)) return;
       // 409 EMAIL_REGISTERED_WITH_OAUTH(중복 확인과 요청 사이에 소셜 가입이 끝난 경우)도 같은 로그인·연동 안내로 돌아간다.
+      const waitSeconds = verificationWaitSeconds(error);
       setSignupDraft({
         ...pendingDraft,
-        verificationRequestError: registeredEmailErrorMessage(error) ?? getErrorMessage(error, "인증번호 요청에 실패했습니다.")
+        verificationRequestError: waitSeconds !== null
+          ? verificationWaitMessage(waitSeconds)
+          : registeredEmailErrorMessage(error) ?? getErrorMessage(error, "인증번호 요청에 실패했습니다."),
+        verificationRetryAt: waitSeconds !== null ? Date.now() + waitSeconds * 1000 : undefined
       });
       setIsSubmitting(false);
       router.replace("/signup");
@@ -117,7 +129,7 @@ export default function SignupPage() {
           {visibleError ? <AuthError>{visibleError}</AuthError> : null}
         </div>
         {/* 동의 UI가 켜져 있으면 필수 동의(만 18세·이용약관)를 모두 체크해야 가입을 시작할 수 있다. */}
-        <AuthSubmitButton disabled={isSubmitting || !isSignupConsentReady(LEGAL_PAGES_ENABLED, consent)}>인증 요청</AuthSubmitButton>
+        <AuthSubmitButton disabled={isSubmitting || isWaitingRetry || !isSignupConsentReady(LEGAL_PAGES_ENABLED, consent)}>인증 요청</AuthSubmitButton>
       </form>
       <LoginLinkPrompt />
     </AuthScreen>
