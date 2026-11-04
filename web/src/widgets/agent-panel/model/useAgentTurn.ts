@@ -15,6 +15,7 @@ import {
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
+import { editResultNotice } from "@/features/agent-chat/lib/taskThread";
 import { documentLockedTurnMessage, shouldRestoreAttachments } from "../lib/composerDocuments";
 import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
 import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
@@ -213,6 +214,7 @@ export function useAgentTurn({
   const autoDecidedTurnIdsRef = useRef(new Set<string>());
   // 수락 화면으로 넘긴 turn. 자동 적용에 실패한 turn도 여기 들어가 다시 시도하지 않는다.
   const [manualTurnIds, setManualTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [autoAppliedNotice, setAutoAppliedNotice] = useState<{ turnId: string; text: string } | null>(null);
   // 사용자가 Esc로 멈추려 한 turn. 이미 끝나 결과가 와도 확인 없이 반영하지 않는다.
   const stoppedTurnIdsRef = useRef(new Set<string>());
   const responseTurnId = agentTurnResponse?.requestId ?? null;
@@ -514,7 +516,16 @@ export function useAgentTurn({
       createMarkdownDocument("auto_applied");
       return;
     }
-    if (!editPreviewState?.preview || applyEditedMarkdown(editPreviewState.preview.nextMarkdown, "auto_applied")) return;
+    const notice = editResultNotice(agentTurnResponse?.result.message);
+    if (!editPreviewState?.preview) {
+      if (responseTurnId) setManualTurnIds((current) => new Set([...current, responseTurnId]));
+      return;
+    }
+    if (applyEditedMarkdown(editPreviewState.preview.nextMarkdown, "auto_applied")) {
+      // 제안 화면을 거치지 않아 첨부를 다 읽지 못했다는 안내를 작업 행에 남긴다. 적용하면 응답이 지워지므로 따로 둔다.
+      if (responseTurnId && notice) setAutoAppliedNotice({ turnId: responseTurnId, text: notice });
+      return;
+    }
     if (responseTurnId) setManualTurnIds((current) => new Set([...current, responseTurnId]));
   };
   const isCommandResponse = agentTurnResponse?.result.action === "markdown_edit" || agentTurnResponse?.result.action === "markdown_create";
@@ -551,6 +562,7 @@ export function useAgentTurn({
     isAutoApplying: autoApplyKind !== null,
     appliedTurnIds,
     autoAppliedTurnIds,
+    autoAppliedNotice,
     readOnlyRequests,
     rejectedTurnIds,
     cancelledTurnIds,

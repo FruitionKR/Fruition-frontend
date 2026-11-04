@@ -851,7 +851,7 @@ export function AgentPanel({
             activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
             autoAppliedTurnIds={agentTurn.autoAppliedTurnIds}
-            autoAppliedNotice={agentTurnResponse && editNotice && agentTurn.autoAppliedTurnIds.has(agentTurnResponse.requestId) ? { turnId: agentTurnResponse.requestId, text: editNotice } : null}
+            autoAppliedNotice={agentTurn.autoAppliedNotice}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
