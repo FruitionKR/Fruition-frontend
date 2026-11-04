@@ -209,3 +209,16 @@
     display: none;
   }
 }
+
+/* 가로 휴대폰: 본문 높이가 낮아 카드가 가운데를 덮는다. 런처 옆 오른쪽 아래로 모아 가운데를 비운다. */
+@media (max-height: 500px) and (pointer: coarse) {
+  .notice-stack,
+  .notice-stack.is-viewport-corner,
+  .notice-stack.is-above-launcher {
+    right: 72px;
+    left: auto;
+    width: min(320px, 45vw);
+    max-height: 32dvh;
+    bottom: calc(var(--phone-tabbar-height, 56px) + 8px);
+  }
+}
