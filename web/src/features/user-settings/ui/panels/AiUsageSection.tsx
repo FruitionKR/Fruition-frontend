@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, fetchAiModels, fetchUsageCharges,
-  formatUsageRange, resolveUsageRange, summarizeModelUsage, type AiUsagePeriod
+  formatUsageRange, resolveUsageRange, summarizeModelUsage, usageRefetchInterval, type AiUsagePeriod
 } from "@/entities/ai";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
@@ -26,7 +26,11 @@ export function AiUsageSection() {
       const range = resolveUsageRange(period, new Date());
       return { range, response: await fetchUsageCharges(range) };
     },
-    retry: false
+    retry: false,
+    // 수집된 사용량을 보는 동안 바로 올린다. 숨긴 탭에서는 멈추고, 돌아오면 바로 받는다.
+    refetchInterval: (query) => usageRefetchInterval(query.state.error),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always"
   });
   // 표 이름만 쓰므로 실패해도 모델 id로 보인다. 정책으로 빠진 모델의 지난 사용량도 이름을 찾도록 잠금 목록을 더한다.
   const catalog = useQuery({ queryKey: ["ai-models"], queryFn: fetchAiModels, staleTime: Infinity });
@@ -48,14 +52,15 @@ export function AiUsageSection() {
         </div>
       </div>
 
-      {usage.isError ? (
+      {/* 재조회가 실패해도 이미 받은 값은 지우지 않는다 */}
+      {usage.isError && !usage.data ? (
         <UsageError error={usage.error} retrying={usage.isFetching} onRetry={() => void usage.refetch()} />
       ) : !summary || !usage.data ? (
         <UsageSkeleton />
       ) : summary.models.length === 0 ? (
         <UsageEmpty title="이 기간에 AI 사용 기록이 없어요." description={`AI 작업을 실행하면 모델별 사용량이 여기에 쌓여요. ${USAGE_LAG_NOTE}`} />
       ) : (
-        <div className={usageStyles.body} aria-busy={usage.isFetching || undefined}>
+        <div className={usageStyles.body}>
           <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range)} />
         </div>
       )}

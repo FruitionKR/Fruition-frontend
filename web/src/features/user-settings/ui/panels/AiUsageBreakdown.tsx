@@ -14,7 +14,7 @@ const providerIcons: Record<string, SvgAsset> = {
 };
 
 /** 사용량은 실행이 끝난 뒤 수집된다. 빈 화면에서도 같은 안내를 보인다. */
-export const USAGE_LAG_NOTE = "방금 쓴 사용량은 실행이 끝난 뒤 수집되어 최대 약 1.5시간 늦게 보일 수 있어요.";
+export const USAGE_LAG_NOTE = "방금 쓴 사용량은 늦게 보일 수 있어요. 일부 작업은 최대 하루 정도 걸려요.";
 
 /**
  * AI 사용량 시각화: 합계 카드(입력·출력 100% 막대) + 모델별 순위 막대.
