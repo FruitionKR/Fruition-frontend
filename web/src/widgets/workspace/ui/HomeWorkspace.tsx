@@ -529,7 +529,13 @@ export function HomeWorkspace() {
         onContextMenuProject={projectTree.openProjectMenu}
         onContextMenuItem={projectTree.openFolderMenu}
         onOpenFolderMenuAt={projectTree.openFolderMenuAt}
-        onSelectGraphNode={(item) => openSelectedPreview(selection.selectTreeGraphNode(item))}
+        onSelectGraphNode={(item) => {
+          // 이미 연 문서를 다시 고르거나 그래프에서 포커스만 옮기면 주소가 그대로라 이동으로 닫히지 않는다.
+          // 주소가 바뀔 때 함께 닫으면 뒤로 가기 표식을 되돌리는 동작이 이동을 취소하므로 여기서 닫지 않는다.
+          const isLocationKept = isGraphView || item.id === selection.selectedTreeItemId;
+          openSelectedPreview(selection.selectTreeGraphNode(item));
+          if (isCompactLayout && isLocationKept) panels.collapseSidebar();
+        }}
         onOpenInNewTab={openTreeItemInNewTab}
         onEditingChange={projectTree.onEditingChange}
         onCommitEditing={projectTree.commitEditing}
