@@ -1546,3 +1546,20 @@
     user-select: none;
   }
 }
+
+@media (pointer: coarse) {
+  .workspace-dropdown-more {
+    min-width: 44px;
+    min-height: 44px;
+    opacity: 1;
+  }
+
+  .workspace-dropdown-new,
+  .workspace-dropdown-menu-list button {
+    min-height: 44px;
+  }
+
+  .sidebar-workspace-trigger {
+    height: 44px;
+  }
+}

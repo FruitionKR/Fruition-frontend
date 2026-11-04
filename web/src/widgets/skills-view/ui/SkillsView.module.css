@@ -517,3 +517,31 @@
     display: none;
   }
 }
+
+@media (pointer: coarse) {
+  .run {
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  .icon-button,
+  .more-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .create-button,
+  .search-chip {
+    min-height: 44px;
+  }
+
+  .col-more {
+    flex-basis: 44px;
+    height: 44px;
+  }
+}

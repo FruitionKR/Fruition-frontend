@@ -539,3 +539,12 @@ button.nav-row.is-danger:focus-visible {
     height: 44px;
   }
 }
+
+/* 터치 기기: 설정 본문의 버튼·입력칸을 손가락 크기로 맞춘다. 스위치는 Switch가 누르는 영역을 넓힌다. */
+@media (pointer: coarse) {
+  .view button:not([role="switch"]),
+  .view input:not([type="checkbox"], [type="radio"], [type="file"]) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

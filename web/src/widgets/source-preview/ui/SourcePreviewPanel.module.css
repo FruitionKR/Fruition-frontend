@@ -442,3 +442,9 @@
     right: 8px;
   }
 }
+
+@media (pointer: coarse) {
+  .source-preview-title-input {
+    min-height: 44px;
+  }
+}

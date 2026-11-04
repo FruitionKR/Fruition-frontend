@@ -474,3 +474,10 @@
     padding: 12px 16px 40px;
   }
 }
+
+@media (pointer: coarse) {
+  .logs button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

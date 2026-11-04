@@ -2686,3 +2686,57 @@ button.result-link:focus-visible {
     bottom: 16px;
   }
 }
+
+/* 터치 기기: 입력창 버튼·작업 카드 버튼을 키우고, hover로만 보이던 세션 옵션을 늘 보인다. */
+@media (pointer: coarse) {
+  .composer-mic,
+  .composer-send {
+    width: 44px;
+    height: 44px;
+  }
+
+  .composer-model-trigger,
+  .task-pill,
+  .wiki-evidence-notice button {
+    min-height: 44px;
+  }
+
+  .chat-session-more {
+    min-width: 44px;
+    min-height: 44px;
+    opacity: 1;
+  }
+}
+
+/* 휴대폰: 모델 메뉴는 두 칸을 나란히 둘 폭이 없어 입력창 위에 쌓아 펼친다(인라인 좌표보다 우선). */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .composer-model-menu {
+    top: auto !important;
+    right: 8px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px) + 8px) !important;
+    left: 8px !important;
+    max-height: calc(100dvh - var(--keyboard-inset, 0px) - 64px);
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+  }
+
+  .composer-model-list,
+  .composer-model-submenu {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .composer-model-provider,
+  .composer-model-option {
+    min-height: 44px;
+  }
+}
+
+@media (max-height: 500px) and (pointer: coarse) {
+  .composer {
+    min-height: 88px;
+    margin: 4px 8px;
+    padding: 8px 12px;
+  }
+}
