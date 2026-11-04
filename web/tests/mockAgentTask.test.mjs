@@ -280,7 +280,7 @@ test("문서 없는 편집 요청의 되묻기는 turn 결과와 메시지에 �
   assert.equal(result.clarify_reason, "markdown_document_required");
   const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
   const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
-  const user = messages.find((item) => item.run_id === accepted.requestId && item.role === "user");
+  const user = messages.find((item) => item.pair_id === assistant.pair_id && item.role === "user");
   assert.equal(assistant.clarify_reason, "markdown_document_required");
   assert.equal(user.clarify_reason, null);
 });
@@ -297,9 +297,9 @@ async function readOnlyValue(request, body) {
   assert.equal(status, 202);
   await waitForTurn(request, accepted.requestId);
   const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
-  const turnMessages = messages.filter((item) => item.run_id === accepted.requestId);
-  assert.equal(turnMessages.find((item) => item.role === "user").read_only_document_id, null);
-  return turnMessages.find((item) => item.role === "assistant").read_only_document_id;
+  const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
+  assert.equal(messages.find((item) => item.pair_id === assistant.pair_id && item.role === "user").read_only_document_id, null);
+  return assistant.read_only_document_id;
 }
 
 test("보기 권한만 있는 멤버가 보낸 문서는 assistant 메시지에 남고, 서버처럼 키는 늘 있다(document chat.md)", async (t) => {
