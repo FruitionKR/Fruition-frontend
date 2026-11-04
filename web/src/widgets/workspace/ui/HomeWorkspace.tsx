@@ -529,6 +529,7 @@ export function HomeWorkspace() {
         canStartDrag={projectTree.canStartDrag}
         isDropDenied={projectTree.isDropDenied}
         isFolderWriteDenied={projectTree.isFolderWriteDenied}
+        isItemMoveOutDenied={projectTree.isItemMoveOutDenied}
         onDragDenied={projectTree.onDragDenied}
         onFileDragLeave={projectTree.onFileDragLeave}
         onDragEnd={projectTree.onDragEnd}
@@ -806,7 +807,7 @@ export function HomeWorkspace() {
         return (
           <MoveDialog
             label={isBulk ? `${movingIds.size}개 항목` : `"${(project && findTreeItem(project.items, itemId)?.label) ?? "항목"}"`}
-            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE)}
+            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE, projectTree.isFolderWriteDenied)}
             onSelect={projectTree.confirmMoveTo}
             onClose={projectTree.closeMoveDialog}
           />

@@ -137,7 +137,13 @@ function movesIntoOwnSubtree(item: TreeItem, destination: FolderLocation): boole
 }
 
 /** 항목을 옮길 수 있는 폴더 한 줄. folderId가 null이면 최상위다. */
-export type MoveDestination = { folderId: string | null; label: string; depth: number };
+export type MoveDestination = {
+  folderId: string | null;
+  label: string;
+  depth: number;
+  /** 넣을 권한이 없는 폴더. 위치를 알 수 있게 목록에 두되 고를 수 없다. */
+  isBlocked: boolean;
+};
 
 /**
  * 터치 기기의 이동 대상 목록. 트리 순서대로 폴더만 고르고, 옮길 항목 자신과 그 하위, 자동 생성 폴더는 뺀다.
@@ -147,13 +153,14 @@ export function listMoveDestinations(
   items: TreeItem[],
   movingIds: ReadonlySet<string>,
   currentFolderId: string | null | undefined,
-  rootLabel: string
+  rootLabel: string,
+  isFolderWriteDenied: (folderId: string) => boolean = () => false
 ): MoveDestination[] {
-  const destinations: MoveDestination[] = currentFolderId === null ? [] : [{ folderId: null, label: rootLabel, depth: 0 }];
+  const destinations: MoveDestination[] = currentFolderId === null ? [] : [{ folderId: null, label: rootLabel, depth: 0, isBlocked: false }];
   const visit = (entries: TreeItem[], depth: number) => {
     for (const entry of entries) {
       if (entry.type !== "folder" || entry.generated || movingIds.has(entry.id)) continue;
-      if (entry.id !== currentFolderId) destinations.push({ folderId: entry.id, label: entry.label, depth });
+      if (entry.id !== currentFolderId) destinations.push({ folderId: entry.id, label: entry.label, depth, isBlocked: isFolderWriteDenied(entry.id) });
       visit(entry.children ?? [], depth + 1);
     }
   };

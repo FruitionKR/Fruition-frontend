@@ -1522,6 +1522,11 @@
   text-align: left;
 }
 
+.move-destinations button:disabled {
+  color: var(--color-subtle);
+  cursor: default;
+}
+
 .move-cancel {
   width: 100%;
   min-height: 44px;

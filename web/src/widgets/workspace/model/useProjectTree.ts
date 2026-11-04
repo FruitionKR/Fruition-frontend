@@ -514,10 +514,15 @@ export function useProjectTree({
     finally { await refreshRef.current().catch(() => {}); }
   }
 
+  /** 권한을 모르면 false다(막지 않고 서버가 판단한다). */
+  function isItemMoveOutDenied(itemId: string) {
+    return isMoveOutDenied(projects, itemId, isWorkspaceOwner);
+  }
+
   /** 꺼낼 권한이 없으면 끌기를 시작하지 않고 이유를 알린다. 묶음은 옮길 때 항목별로 건너뛰고 알린다. */
   function canStartDrag(itemId: string) {
     if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
-    if (!isMoveOutDenied(projects, itemId, isWorkspaceOwner)) return true;
+    if (!isItemMoveOutDenied(itemId)) return true;
     publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
     return false;
   }
@@ -580,6 +585,7 @@ export function useProjectTree({
     canStartDrag,
     isDropDenied,
     isFolderWriteDenied,
+    isItemMoveOutDenied,
     onDragDenied,
     onFileDragOver,
     fileDropTarget,

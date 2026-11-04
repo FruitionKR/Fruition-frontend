@@ -92,11 +92,19 @@ export function treeContextMenuSections(
 
 /**
  * 폴더 권한 때문에 비활성으로 둘 메뉴 항목. 쓸 수 없는 폴더에는 새 항목을 넣을 수 없다.
- * isFolderWriteDenied는 권한을 모르면 false여서 그때는 열어 두고 서버가 판단한다.
+ * 두 판정 함수는 권한을 모르면 false여서 그때는 열어 두고 서버가 판단한다.
  */
-export function treeMenuBlockedActions(item: TreeItem | null, isFolderWriteDenied: (folderId: string) => boolean): ReadonlySet<TreeMenuActionId> {
+export function treeMenuBlockedActions(
+  item: TreeItem | null,
+  isFolderWriteDenied: (folderId: string) => boolean,
+  isMoveOutDenied: (itemId: string) => boolean = () => false
+): ReadonlySet<TreeMenuActionId> {
   const isDeniedFolder = item?.type === "folder" && isFolderWriteDenied(item.id);
-  return new Set<TreeMenuActionId>(isDeniedFolder ? ["new-note", "new-folder", "upload"] : []);
+  return new Set<TreeMenuActionId>([
+    ...(isDeniedFolder ? ["new-note", "new-folder", "upload"] as const : []),
+    // 터치 메뉴의 "다른 폴더로 이동". 지금 폴더에서 꺼낼 수 없으면 막는다.
+    ...(item && isMoveOutDenied(item.id) ? ["move"] as const : [])
+  ]);
 }
 
 function pick(flags: Partial<Record<TreeMenuActionId, boolean>>): TreeMenuActionId[] {
