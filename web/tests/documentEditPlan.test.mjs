@@ -348,3 +348,12 @@ test("한 문서의 작업 일부만 막히면 그 문서는 고른 채로 두�
   assert.equal(approval.selectedCount, 2);
   assert.deepEqual(approval.operationIds, ["op_2", "op_3"]);
 });
+
+test("영구 삭제로 되돌리지 못한 문서 줄은 보관 기간 대신 영구 삭제를 말한다", () => {
+  const operation = { id: "c", sequence: 1, tool_name: "apply_document_edit", target_id: "doc-c", source_parent_id: null, destination_parent_id: null, arguments: { document_id: "doc-c" }, reason: "이유", status: "skipped", error_code: "rollback_document_purged" };
+  const plan = { operations: [operation] };
+  const [row] = buildDocumentEditRows(plan, buildFolderOrganizeView(plan, []).rows, { items: [], expires_at: null }, []);
+  assert.equal(row.isPurged, true);
+  assert.equal(row.resultLabel, "영구 삭제된 문서라 되돌리지 못했어요.");
+  assert.equal(row.summary, "");
+});

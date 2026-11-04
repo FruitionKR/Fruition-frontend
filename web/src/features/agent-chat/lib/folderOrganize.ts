@@ -1,4 +1,4 @@
-import { isOperationNotSelected, isOperationPurged, planOperationFailureReason, planOperationOutcome, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
+import { isOperationNotSelected, isOperationPurged, planOperationFailureReason, planOperationOutcome, planOperationStatusLabel, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
 
 /** 폴더 정리 미리보기 화면을 여는 데 필요한 것: 계획을 조회할 turn과 사용자가 보낸 커맨드. */
 export type FolderOrganizeRequest = {
@@ -124,7 +124,8 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
       item ? folderName(item.parentId) : "위치 확인 불가",
       item?.name ?? "항목 이름 확인 불가"
     );
-    const isFailed = planOperationOutcome(operation) === "failed";
+    // 되돌린 작업도 실패처럼 새 위치·이름을 보여 주지 않는다.
+    const isFailed = ["failed", "rolled_back"].includes(planOperationOutcome(operation));
     if (operation.tool_name.startsWith("move_")) {
       row.moved = true;
       if (!isFailed) row.folderName = folderName(operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id);
@@ -177,7 +178,10 @@ function emptyRow(id: string, originalName: string, folderName: string, newName:
 /** 줄의 실행 결과에 실패가 있으면 칩 문구와 이유. 일부만 저장됐으면 "일부 실패", 모두 권한 때문이면 "권한 없음"이다. */
 function rowFailure(operations: AgentPlanOperation[]): FolderOrganizeRow["failure"] {
   const failed = operations.filter((operation) => planOperationOutcome(operation) === "failed");
-  if (failed.length === 0) return null;
+  if (failed.length === 0) {
+    const rolledBack = operations.find((operation) => planOperationOutcome(operation) === "rolled_back");
+    return rolledBack ? { label: planOperationStatusLabel(rolledBack.status), note: planOperationFailureReason(rolledBack) } : null;
+  }
   const reason = planOperationFailureReason(failed[0]);
   if (operations.some((operation) => planOperationOutcome(operation) === "applied")) return { label: "일부 실패", note: `일부 작업은 ${reason}` };
   return { label: failed.every((operation) => operation.status === "forbidden") ? "권한 없음" : "실패", note: reason };
@@ -196,6 +200,8 @@ export type FolderOrganizeRowResults = {
   failed: number;
   /** 고르지 않았거나 건너뛰어 하나도 실행하지 않은 줄 수 */
   excluded: number;
+  /** 실행한 뒤 되돌린 줄 수 */
+  rolledBack: number;
   /** 실제로 만들어진 새 폴더 수 */
   createdFolders: number;
 };
@@ -212,23 +218,26 @@ export function summarizeFolderOrganizeRows(plan: AgentPlan): FolderOrganizeRowR
   let partial = 0;
   let failed = 0;
   let excluded = 0;
+  let rolledBack = 0;
   for (const row of rows) {
     const results = summarizePlanOperationResults(row.operationIds.flatMap((id) => operations.get(id) ?? []));
     if (results.applied > 0) saved += 1;
     if (results.applied > 0 && results.failed > 0) partial += 1;
     if (results.applied === 0 && results.failed > 0) failed += 1;
-    if (results.applied === 0 && results.failed === 0) excluded += 1;
+    if (results.applied === 0 && results.failed === 0 && results.rolledBack > 0) rolledBack += 1;
+    if (results.applied === 0 && results.failed === 0 && results.rolledBack === 0) excluded += 1;
   }
   const folderOperations = createdFolders.flatMap((folder) => operations.get(folder.operationId) ?? []);
-  return { saved, partial, failed, excluded, createdFolders: summarizePlanOperationResults(folderOperations).applied };
+  return { saved, partial, failed, excluded, rolledBack, createdFolders: summarizePlanOperationResults(folderOperations).applied };
 }
 
 /** 일부라도 실패한 run의 결과 안내: "1개 저장 • 1개 일부만 저장 • 1개 실패 • 1개 제외" */
-export function folderOrganizeResultNotice({ saved, partial, failed, excluded }: FolderOrganizeRowResults): string {
+export function folderOrganizeResultNotice({ saved, partial, failed, excluded, rolledBack }: FolderOrganizeRowResults): string {
   return [
     saved > partial && `${saved - partial}개 저장`,
     partial > 0 && `${partial}개 일부만 저장`,
     failed > 0 && `${failed}개 실패`,
+    rolledBack > 0 && `${rolledBack}개 복구`,
     excluded > 0 && `${excluded}개 제외`
   ].filter(Boolean).join(" • ");
 }

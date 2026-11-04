@@ -42,7 +42,8 @@ export const PURGED_DIFF_NOTE = "문서가 영구 삭제되어 변경 내용을 
 const OPERATION_ERROR_LABELS: Record<string, string> = {
   tool_http_423: "다른 사람이 편집 중이라 저장하지 못했어요.",
   tool_http_404: "문서를 찾을 수 없어요.",
-  document_purged: DOCUMENT_PURGED_LABEL
+  document_purged: DOCUMENT_PURGED_LABEL,
+  rollback_document_purged: "영구 삭제된 문서라 되돌리지 못했어요."
 };
 const CONFLICTED_LABEL = "문서가 바뀌어 저장하지 못했어요. 다시 요청해 주세요.";
 const FAILED_OPERATION_STATUSES: ReadonlySet<string> = new Set(["failed", "conflicted", "forbidden", "verification_failed"]);

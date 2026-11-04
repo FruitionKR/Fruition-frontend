@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -187,18 +187,18 @@ test("완료된 계획은 실제로 저장된 작업만 세고 고르지 않은�
   const op = (status, error_code = null) => ({ status, error_code });
   assert.deepEqual(
     summarizePlanOperationResults([op("succeeded"), op("succeeded"), op("completed"), op("skipped", "not_selected")]),
-    { applied: 3, excluded: 1, failed: 0 }
+    { applied: 3, excluded: 1, failed: 0, rolledBack: 0 }
   );
   assert.deepEqual(
     summarizePlanOperationResults([op("succeeded"), op("failed"), op("skipped", "not_selected")]),
-    { applied: 1, excluded: 1, failed: 1 }
+    { applied: 1, excluded: 1, failed: 1, rolledBack: 0 }
   );
   // 승인 직후 캐시처럼 결과 상태가 아직 없으면 고르지 않은 작업만 뺀다.
   assert.deepEqual(
     summarizePlanOperationResults([op("planned"), op("planned"), op("skipped", "not_selected")]),
-    { applied: 2, excluded: 1, failed: 0 }
+    { applied: 2, excluded: 1, failed: 0, rolledBack: 0 }
   );
-  assert.deepEqual(summarizePlanOperationResults([]), { applied: 0, excluded: 0, failed: 0 });
+  assert.deepEqual(summarizePlanOperationResults([]), { applied: 0, excluded: 0, failed: 0, rolledBack: 0 });
 });
 
 test("실패한 run은 error_code별 이유를 보여 주고 모르는 코드는 기본 안내를 쓴다", () => {
@@ -287,11 +287,11 @@ test("작업 결과를 저장·제외·실패·대기로 나눈다. 앞선 실�
   assert.equal(outcome("completed"), "applied");
   assert.equal(outcome("skipped", "not_selected"), "excluded");
   assert.equal(outcome("skipped", "dependency_failed"), "failed");
-  for (const status of ["failed", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back"]) assert.equal(outcome(status), "failed", status);
+  for (const status of ["failed", "forbidden", "conflicted", "verification_failed", "cancelled"]) assert.equal(outcome(status), "failed", status);
   for (const status of ["planned", "pending", "running"]) assert.equal(outcome(status), "pending", status);
   assert.deepEqual(
     summarizePlanOperationResults([{ status: "succeeded" }, { status: "forbidden" }, { status: "skipped", error_code: "dependency_failed" }, { status: "skipped", error_code: "not_selected" }]),
-    { applied: 1, excluded: 1, failed: 2 }
+    { applied: 1, excluded: 1, failed: 2, rolledBack: 0 }
   );
 });
 
@@ -376,4 +376,39 @@ test("영구 삭제 문서가 있어 되돌리지 못한 run은 이유를 말한
     agentPlanFailureMessage({ status: "rollback_failed", error_code: "rollback_document_purged", plan: { operations: [] } }),
     "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
   );
+});
+
+const partialRollbackRun = {
+  id: "run-1",
+  status: "rollback_failed",
+  error_code: "rollback_document_purged",
+  plan: { ...plan, operations: [
+    { id: "a", sequence: 1, tool_name: "apply_document_edit", target_id: "doc-a", source_parent_id: null, destination_parent_id: null, arguments: {}, reason: "", status: "rolled_back", error_code: null },
+    { id: "b", sequence: 2, tool_name: "apply_document_edit", target_id: "doc-b", source_parent_id: null, destination_parent_id: null, arguments: {}, reason: "", status: "rolled_back", error_code: null },
+    { id: "c", sequence: 3, tool_name: "apply_document_edit", target_id: "doc-c", source_parent_id: null, destination_parent_id: null, arguments: {}, reason: "", status: "succeeded", error_code: null }
+  ] }
+};
+
+test("복구한 작업은 실패가 아니라 복구로 세고, 저장 수에도 넣지 않는다", () => {
+  const rolledBack = { status: "rolled_back", error_code: null };
+  assert.equal(planOperationOutcome(rolledBack), "rolled_back");
+  assert.deepEqual(summarizePlanOperationResults([rolledBack, { status: "failed", error_code: null }, { status: "succeeded", error_code: null }]), { applied: 1, excluded: 0, failed: 1, rolledBack: 1 });
+});
+
+test("영구 삭제로 일부만 되돌린 계획은 남은 작업을 영구 삭제로 표시한다", () => {
+  const marked = withRollbackPurgedOperations(partialRollbackRun);
+  assert.deepEqual(marked.plan.operations.map(isOperationPurged), [false, false, true]);
+  assert.equal(planOperationOutcome(marked.plan.operations[2]), "excluded");
+  assert.deepEqual(summarizePlanOperationResults(marked.plan.operations).applied, 0);
+  assert.equal(partialRollbackRun.plan.operations[2].status, "succeeded", "받은 응답은 바꾸지 않는다");
+  // 전부 되돌린 취소나 다른 복구 실패는 그대로 둔다.
+  for (const run of [{ ...partialRollbackRun, status: "cancelled", error_code: null }, { ...partialRollbackRun, error_code: "rollback_tool_http_500" }, { ...partialRollbackRun, plan: null }]) {
+    assert.equal(withRollbackPurgedOperations(run), run);
+  }
+});
+
+test("일부 복구 카드는 복구한 수와 되돌리지 못한 수를 말하고 편집·실패로 세지 않는다", () => {
+  const { plan: marked } = withRollbackPurgedOperations(partialRollbackRun);
+  assert.equal(buildPlanPreviewTree(marked, []).summary, "복구 2개 · 영구 삭제로 되돌리지 못함 1개");
+  assert.equal(buildPlanPreviewTree(partialRollbackRun.plan, []).summary, "문서 1개 편집 · 복구 2개", "표시 전 계획이어도 복구를 실패로 세지 않는다");
 });

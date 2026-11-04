@@ -93,7 +93,8 @@ export function buildPlanPreviewTree(plan: AgentPlan, tree: PlanTreeItem[]) {
   }
   for (const operation of [...plan.operations].sort((a, b) => a.sequence - b.sequence)) {
     const outcome = planOperationOutcome(operation);
-    if (outcome === "excluded") continue;
+    // 되돌린 작업은 지금 트리에 남아 있지 않다.
+    if (outcome === "excluded" || outcome === "rolled_back") continue;
     const isFailed = outcome === "failed";
     const args = operation.arguments;
     const isCreate = operation.tool_name === "create_folder" || operation.tool_name === "create_document";
@@ -130,9 +131,13 @@ export function buildPlanPreviewTree(plan: AgentPlan, tree: PlanTreeItem[]) {
   }
   const counts: Record<string, number> = {};
   let failedCount = 0;
+  let rolledBackCount = 0;
+  let unrecoverableCount = 0;
   for (const operation of plan.operations) {
     const outcome = planOperationOutcome(operation);
     if (outcome === "failed") failedCount += 1;
+    else if (outcome === "rolled_back") rolledBackCount += 1;
+    else if (operation.error_code === ROLLBACK_DOCUMENT_PURGED) unrecoverableCount += 1;
     else if (outcome !== "excluded") counts[operation.tool_name] = (counts[operation.tool_name] ?? 0) + 1;
   }
   const summary = [
@@ -141,6 +146,8 @@ export function buildPlanPreviewTree(plan: AgentPlan, tree: PlanTreeItem[]) {
     ["rename_document", "문서", "이름 변경"], ["create_document", "문서", "생성"],
     ["apply_document_edit", "문서", "편집"]
   ].filter(([tool]) => counts[tool]).map(([tool, label, verb]) => `${label} ${counts[tool]}개 ${verb}`);
+  if (rolledBackCount > 0) summary.push(`복구 ${rolledBackCount}개`);
+  if (unrecoverableCount > 0) summary.push(`영구 삭제로 되돌리지 못함 ${unrecoverableCount}개`);
   if (failedCount > 0) summary.push(`실패 ${failedCount}개`);
   return { nodes: relevant(roots), summary: summary.join(" · ") };
 }
@@ -194,22 +201,30 @@ export function isOperationNotSelected(operation: Pick<AgentPlanOperation, "stat
   return operation.status === "skipped" && operation.error_code === "not_selected";
 }
 
-/** 승인 전에 문서를 영구 삭제해 AI가 건너뛴 작업(ai document_purged). 실행할 수 없어 고를 수도 없다. */
+/** 영구 삭제된 문서가 있어 일부만 되돌린 run의 실패 코드(ai ROLLBACK_DOCUMENT_PURGED). */
+const ROLLBACK_DOCUMENT_PURGED = "rollback_document_purged";
+
+/**
+ * 문서를 영구 삭제해 실행하거나 되돌릴 수 없는 작업. 승인 전 삭제면 AI가 건너뛰고(ai document_purged),
+ * 실행 뒤 삭제면 withRollbackPurgedOperations가 표시한다. 고를 수 없다.
+ */
 export function isOperationPurged(operation: Pick<AgentPlanOperation, "status" | "error_code">): boolean {
-  return operation.status === "skipped" && operation.error_code === "document_purged";
+  return operation.status === "skipped" && (operation.error_code === "document_purged" || operation.error_code === ROLLBACK_DOCUMENT_PURGED);
 }
 
 const SUCCEEDED_OPERATION_STATUSES = new Set(["succeeded", "completed"]);
 const PENDING_OPERATION_STATUSES = new Set(["pending", "planned"]);
 /** 앞선 작업이 실패해 건너뛴 작업(ai agent_worker). 고르지 않은 것과 달리 실패다. */
 const DEPENDENCY_FAILED_ERROR_CODE = "dependency_failed";
-const FAILED_OPERATION_STATUSES = new Set(["failed", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back"]);
+const FAILED_OPERATION_STATUSES = new Set(["failed", "forbidden", "conflicted", "verification_failed", "cancelled"]);
+const ROLLED_BACK_STATUS = "rolled_back";
 
-export type PlanOperationOutcome = "pending" | "applied" | "excluded" | "failed";
+export type PlanOperationOutcome = "pending" | "applied" | "excluded" | "failed" | "rolled_back";
 
-/** 작업의 실행 결과. 저장 안 된 실패(권한·충돌 등)와 고르지 않은 제외를 나눈다. */
+/** 작업의 실행 결과. 저장 안 된 실패(권한·충돌 등), 고르지 않은 제외, 실행한 뒤 되돌린 복구를 나눈다. */
 export function planOperationOutcome({ status, error_code }: Pick<AgentPlanOperation, "status" | "error_code">): PlanOperationOutcome {
   if (status === "skipped") return error_code === DEPENDENCY_FAILED_ERROR_CODE ? "failed" : "excluded";
+  if (status === ROLLED_BACK_STATUS) return "rolled_back";
   if (SUCCEEDED_OPERATION_STATUSES.has(status)) return "applied";
   return FAILED_OPERATION_STATUSES.has(status) ? "failed" : "pending";
 }
@@ -235,6 +250,8 @@ export type PlanOperationResults = {
   excluded: number;
   /** 실패·충돌·권한 없음 등으로 저장되지 않은 작업 */
   failed: number;
+  /** 실행한 뒤 되돌린 작업 */
+  rolledBack: number;
 };
 
 /**
@@ -244,9 +261,27 @@ export type PlanOperationResults = {
 export function summarizePlanOperationResults(operations: ReadonlyArray<Pick<AgentPlanOperation, "status" | "error_code">>): PlanOperationResults {
   const excluded = operations.filter((operation) => planOperationOutcome(operation) === "excluded").length;
   const hasResults = operations.some((operation) => planOperationOutcome(operation) !== "excluded" && !PENDING_OPERATION_STATUSES.has(operation.status));
-  if (!hasResults) return { applied: operations.length - excluded, excluded, failed: 0 };
+  if (!hasResults) return { applied: operations.length - excluded, excluded, failed: 0, rolledBack: 0 };
   const applied = operations.filter((operation) => SUCCEEDED_OPERATION_STATUSES.has(operation.status)).length;
-  return { applied, excluded, failed: operations.length - excluded - applied };
+  const rolledBack = operations.filter((operation) => operation.status === ROLLED_BACK_STATUS).length;
+  return { applied, excluded, failed: operations.length - excluded - applied - rolledBack, rolledBack };
+}
+
+/**
+ * 영구 삭제로 일부만 되돌린 run의 작업을 표시용으로 고친다. AI는 영구 삭제된 문서의 작업을 되돌리지 않고 넘어가 상태가 실행 성공으로 남고,
+ * 나머지는 모두 복구(rolled_back)되거나 실패로 남는다. 이 run에서 성공으로 남은 작업은 그래서 영구 삭제된 문서의 작업이다(ai rollback_agent_run).
+ */
+export function withRollbackPurgedOperations<T extends Pick<AgentPlanRun, "status" | "error_code" | "plan">>(run: T): T {
+  if (run.status !== "rollback_failed" || run.error_code !== ROLLBACK_DOCUMENT_PURGED || !run.plan) return run;
+  return {
+    ...run,
+    plan: {
+      ...run.plan,
+      operations: run.plan.operations.map((operation) => SUCCEEDED_OPERATION_STATUSES.has(operation.status)
+        ? { ...operation, status: "skipped", error_code: ROLLBACK_DOCUMENT_PURGED }
+        : operation)
+    }
+  };
 }
 
 const OPERATION_STATUS_LABELS: Record<string, string> = {
@@ -272,7 +307,7 @@ const PLAN_FAILURE_MESSAGES: Record<string, string> = {
   provider_rate_limited: "AI 요청이 많아 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
   provider_unavailable: "AI 서비스에 연결하지 못해 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
   deadline_exceeded: "계획을 만드는 데 너무 오래 걸려 중단했어요. 다시 시도해 주세요.",
-  rollback_document_purged: "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
+  [ROLLBACK_DOCUMENT_PURGED]: "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
 };
 export const PLAN_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 다시 시도해 주세요.";
 /** 카드와 미리보기가 함께 쓴다. 항목별 결과는 두 화면 모두 바로 볼 수 있어 위치를 가리키지 않는다. */

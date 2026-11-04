@@ -1,5 +1,5 @@
 import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
-import type { AgentPlan, AgentPlanRun } from "../lib/agentPlan";
+import { withRollbackPurgedOperations, type AgentPlan, type AgentPlanRun } from "@/features/agent-chat/lib/agentPlan";
 import { parseAgentRunEditPreviews, type AgentRunEditPreviews } from "@/features/agent-chat/lib/documentEditPreviews";
 import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
 
@@ -33,7 +33,7 @@ export async function fetchAgentPlanRun(
 
 async function fetchRun(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentPlanRun> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId), { cache: "no-store", signal });
-  return parseJsonOrThrow<AgentPlanRun>(response, "작업 계획을 불러오지 못했습니다.");
+  return withRollbackPurgedOperations(await parseJsonOrThrow<AgentPlanRun>(response, "작업 계획을 불러오지 못했습니다."));
 }
 
 /** 문서 수정 계획의 문서별 변경 내용. 구 서버·만료면 404다. */
