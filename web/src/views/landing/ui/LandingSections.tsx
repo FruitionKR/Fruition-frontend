@@ -136,7 +136,7 @@ export function LandingDemo() {
           <h2 id="demo-title" className={styles["h2"]}>
             기록이 지식이 되는 과정
           </h2>
-          <p className={sections["demo-note"]}>화면은 예시입니다. 시연 영상은 준비 중입니다.</p>
+          <p className={sections["demo-note"]}>화면은 예시입니다.</p>
         </div>
         <ol className={sections["demo-list"]}>
           {LANDING_DEMO_SLOTS.map((slot) => (
