@@ -154,12 +154,16 @@ export function drawGraphFrame({
 
   // 새 노드 광채 그라데이션은 반지름별로 원점 기준 하나만 만들어 이번 프레임 안에서 다시 쓴다.
   const glowGradients = new Map<number, CanvasGradient>();
-  // 작은 화면에서는 고정 크기 라벨이 서로 겹치므로 겹치지 않는 것만 그린다. 누른 노드의 라벨은 항상 먼저 놓는다.
+  // 작은 화면에서는 고정 크기 라벨이 서로·다른 노드와 겹치므로 겹치지 않는 것만 그린다. 누른 노드의 라벨은 항상 먼저 놓는다.
+  const shownNodes = nodes.slice(0, drawableNodeCount).filter((node) => (getNodeEntry?.(node.id)?.opacity ?? 1) > 0);
   const visibleLabelIds = isSmallGraphViewport({ width: cssWidth, height: cssHeight })
-    ? pickVisibleLabels(nodes.slice(0, drawableNodeCount).filter((node) => (getNodeEntry?.(node.id)?.opacity ?? 1) > 0).map((node) => {
-      const { x, y } = graphToCanvas(getNodePosition(node.id), canvas);
-      return measureNodeLabel(context, node, x, y, nodeHoverAmounts[node.id] ?? 0);
-    }))
+    ? pickVisibleLabels(
+      shownNodes.map((node) => {
+        const { x, y } = graphToCanvas(getNodePosition(node.id), canvas);
+        return measureNodeLabel(context, node, x, y, nodeHoverAmounts[node.id] ?? 0);
+      }),
+      shownNodes.map((node) => ({ id: node.id, ...graphToCanvas(getNodePosition(node.id), canvas), radius: nodeSize(node) / 2 }))
+    )
     : null;
   for (let index = 0; index < drawableNodeCount; index += 1) {
     const node = nodes[index];
@@ -369,7 +373,7 @@ function measureNodeLabel(context: CanvasRenderingContext2D, node: GraphNode, x:
   context.font = labelFont(size);
   const halfWidth = context.measureText(node.label).width / 2;
   const labelY = y + offset;
-  return { id: node.id, left: x - halfWidth, right: x + halfWidth, top: labelY - size / 2, bottom: labelY + size / 2, priority: priority + (hoverAmount > 0 ? 3 : 0) };
+  return { id: node.id, left: x - halfWidth, right: x + halfWidth, top: labelY - size / 2, bottom: labelY + size / 2, priority: priority + (hoverAmount > 0 ? 3 : 0), isPinned: hoverAmount > 0 };
 }
 
 function drawNodeLabel(context: CanvasRenderingContext2D, palette: GraphPalette, node: GraphNode, x: number, y: number) {
