@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { useWorkspaceRole } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import lightningIcon from "@/shared/assets/svg/agent/organize-lightning.svg";
@@ -28,6 +29,7 @@ import {
   type FolderOrganizeRequest,
   type FolderOrganizeRow
 } from "../lib/folderOrganize";
+import { checkPlanAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
 import { useAgentPlanRun } from "../model/useAgentPlanRun";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import styles from "./FolderOrganize.module.css";
@@ -72,7 +74,13 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
   const isAwaiting = canApproveAgentPlan(run);
   const operationIds = approval?.operationIds ?? null;
   const isSelectionValid = approval?.canApply ?? false;
-  const canApply = ready && isSelectionValid;
+  const { role, isOwner } = useWorkspaceRole();
+  // 눌러도 권한으로 실패할 선택은 적용을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
+  const access = plan && isAwaiting && tree
+    ? checkPlanAccess(plan, tree, role === null ? null : isOwner, operationIds)
+    : null;
+  const accessMessage = access && planAccessMessage(access);
+  const canApply = ready && isSelectionValid && access?.verdict !== "all_blocked";
   const duplicateDeselected = approval?.duplicateExcludedCount ?? 0;
   const ruleText = run?.rule_summary?.trim().normalize("NFC") || rule;
   // 범위 밖 작업을 뺐다는 안내는 한 줄로 잘리는 설명과 따로 보여 준다.
@@ -154,6 +162,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                       ? <p className={cx(styles.reason, styles["is-warning"])} title={row.duplicateWarning}>→ {row.duplicateWarning}</p>
                       : row.reason && <p className={styles.reason} title={row.reason}>→ {row.reason}</p>}
                     {row.dependencyNote && <p className={styles["reason-note"]} title={row.dependencyNote}>{row.dependencyNote}</p>}
+                    {row.operationIds.some((id) => access?.blockedOperationIds.has(id)) && <p className={styles["reason-note"]}>{PLAN_OPERATION_BLOCKED_NOTE}</p>}
                   </div>
                   <div className={styles.change} role="cell">
                     <span className={styles.chip}>{!isAwaiting && row.excluded ? "제외됨" : row.changeLabel}</span>
@@ -178,6 +187,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 : `일부만 적용할 때는 한 번에 작업 ${MAX_SELECTED_OPERATIONS}개까지 고를 수 있어요. 선택을 줄이거나 모두 선택해주세요.`}
             </p>
           )}
+          {accessMessage && <p className={styles["notice-hint"]} role="status">{accessMessage}</p>}
           {run && ["failed", "partial_failed", "conflicted", "rollback_failed"].includes(run.status) && (
             <p className={styles["notice-error"]} role="alert">작업을 완료하지 못했습니다. 작업 로그에서 항목별 상태를 확인해주세요.</p>
           )}
@@ -198,6 +208,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 type="button"
                 className={cx(styles.action, styles["is-primary"])}
                 disabled={!canApply || busy}
+                title={access?.verdict === "all_blocked" ? accessMessage ?? undefined : undefined}
                 onClick={() => mutation.mutate({ decision: "approve", operationIds })}
               >
                 <Image src={applyIcon} alt="" />
