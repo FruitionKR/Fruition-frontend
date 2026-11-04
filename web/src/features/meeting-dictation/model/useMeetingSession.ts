@@ -39,6 +39,7 @@ import {
   shouldConfirmLeavingPhase,
   type MeetingPhase
 } from "../lib/meetingNotesFlow";
+import { findAppliedNotes, meetingDocumentBaseName, saveNotesUnderUniqueName, type NotesSaveAttempt } from "../lib/meetingNotesSave";
 import { resumedMeetingView, shouldLoadNotesOnResume } from "../lib/meetingResume";
 import { createLiveSession, type LiveSession, type LiveSocket, type LiveStopResult } from "./liveSession";
 import { isMicrophoneCaptureSupported, startMicrophoneCapture, type MicrophoneCapture } from "./microphoneCapture";
@@ -514,17 +515,48 @@ export function useMeetingSession({
     if (saved.applied) await Promise.resolve(onDocumentSavedRef.current?.(saved.applied.document_id)).catch(() => undefined);
   }, []);
 
+  /** 저장·미리보기 실패 처리. 서버에는 이미 저장됐으면(응답 유실, 다른 탭) 저장 완료로 넘어가 문서로 이동한다. */
+  const handleSaveFailure = useCallback(async (meetingId: string, error: unknown, fallback: string, savedText?: string) => {
+    const applied = await findAppliedNotes(() => fetchMeetingNotes(meetingId));
+    if (!isMountedRef.current) return;
+    if (applied) {
+      await finishSave(applied, savedText);
+      return;
+    }
+    setPreview(null);
+    setNotice({ text: describeNotesSaveError(error, fallback), tone: "error" });
+    setPhase("ready");
+  }, [finishSave]);
+
+  // 초안 버전별 다음 저장 시도. 결과를 모르는 실패 뒤에는 같은 이름·같은 키로 다시 보내 문서가 둘 생기지 않게 한다.
+  const saveAttemptRef = useRef<{ noteId: string; attempt: NotesSaveAttempt } | null>(null);
+
   const saveAsNewDocument = useCallback(async (savedText?: string) => {
     if (!meeting || !notes || phase !== "ready") return;
     setPhase("saving");
     setNotice(null);
+    const meetingId = meeting.meeting_id;
+    const { version } = notes;
+    const noteId = `${meetingId}:${version}`;
+    const attempt = saveAttemptRef.current?.noteId === noteId
+      ? saveAttemptRef.current.attempt
+      : { nameIndex: 0, key: crypto.randomUUID() };
+    saveAttemptRef.current = { noteId, attempt };
     try {
-      await finishSave(await applyMeetingNotes(meeting.meeting_id, notes.version, { mode: "create" }), savedText);
+      const saved = await saveNotesUnderUniqueName({
+        baseName: meetingDocumentBaseName(notes.display_name, meeting.created_at),
+        attempt,
+        createKey: () => crypto.randomUUID(),
+        onAttemptChange: (next) => {
+          saveAttemptRef.current = { noteId, attempt: next };
+        },
+        save: (displayName, key) => applyMeetingNotes(meetingId, version, { mode: "create", display_name: displayName }, key)
+      });
+      await finishSave(saved, savedText);
     } catch (error) {
-      setNotice({ text: describeNotesSaveError(error, MEETING_ERROR_MESSAGES.applyFailed), tone: "error" });
-      setPhase("ready");
+      await handleSaveFailure(meetingId, error, MEETING_ERROR_MESSAGES.applyFailed, savedText);
     }
-  }, [finishSave, meeting, notes, phase]);
+  }, [finishSave, handleSaveFailure, meeting, notes, phase]);
 
   // 설정을 켰으면 이번에 만들어진 회의록을 한 번만 새 문서로 저장한다. 실패하면 오류와 함께 기존 버튼으로 돌아가고 다시 시도하지 않는다.
   const { preferences } = useUserPreferences();
@@ -557,10 +589,9 @@ export function useMeetingSession({
       setPreview(await previewMeetingNotesAppend(meeting.meeting_id, notes.version));
       setPhase("previewing");
     } catch (error) {
-      setNotice({ text: describeNotesSaveError(error, MEETING_ERROR_MESSAGES.previewFailed), tone: "error" });
-      setPhase("ready");
+      await handleSaveFailure(meeting.meeting_id, error, MEETING_ERROR_MESSAGES.previewFailed);
     }
-  }, [meeting, notes, phase]);
+  }, [handleSaveFailure, meeting, notes, phase]);
 
   const confirmAppend = useCallback(async () => {
     if (!meeting || !notes || !preview || phase !== "previewing") return;
@@ -573,11 +604,9 @@ export function useMeetingSession({
         base_revision: preview.base_revision
       }));
     } catch (error) {
-      setPreview(null);
-      setNotice({ text: describeNotesSaveError(error, MEETING_ERROR_MESSAGES.applyFailed), tone: "error" });
-      setPhase("ready");
+      await handleSaveFailure(meeting.meeting_id, error, MEETING_ERROR_MESSAGES.applyFailed);
     }
-  }, [finishSave, meeting, notes, phase, preview]);
+  }, [finishSave, handleSaveFailure, meeting, notes, phase, preview]);
 
   const cancelPreview = useCallback(() => {
     if (phase !== "previewing") return;

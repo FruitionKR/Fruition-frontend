@@ -68,8 +68,9 @@ export function shouldConfirmLeavingPhase(phase: MeetingPhase): boolean {
 }
 
 /**
- * 회의록을 확인 없이 새 문서로 저장할지. 이번 화면에서 만들어진 회의록만 한 번 저장한다.
- * 지난 회의를 다시 연 경우와 저장에 실패해 돌아온 경우는 사람이 고른다.
+ * 회의록을 확인 없이 새 문서로 저장할지. 이 화면에서 생성이 끝나는 것을 지켜본 회의록만 버전마다 한 번 저장한다.
+ * 다시 만들기와 생성 중인 회의를 다시 연 경우도 포함한다. 자동 승인을 켠 사용자가 허용한 범위로 본다.
+ * 이미 만들어진 회의록을 다시 연 경우와 저장에 실패해 돌아온 경우는 사람이 고른다.
  */
 export function shouldAutoSaveMeetingNotes(input: {
   isEnabled: boolean;
@@ -111,7 +112,8 @@ export const MEETING_MESSAGES = {
   notesCancelled: "회의록 만들기를 취소했습니다.",
   revisionChanged: "미리 본 뒤 문서가 바뀌었습니다. 다시 미리 보고 저장해 주세요.",
   outdated: "더 최근에 만든 회의록이 있습니다. 최신 회의록으로 다시 시도해 주세요.",
-  alreadyApplied: "이 회의록은 이미 문서로 저장했습니다.",
+  alreadyApplied: "이 회의록은 이미 저장했거나 저장하는 중입니다. 잠시 후 회의를 다시 열어 확인해 주세요.",
+  duplicateName: "같은 이름의 문서가 많아 저장하지 못했습니다. 다시 시도하면 다음 번호로 저장합니다.",
   saved: "회의록을 문서로 저장했습니다.",
   autoSaved: "설정의 'AI 에이전트 자동 승인'에 따라 회의록을 확인 없이 새 문서로 저장했습니다. 필요 없으면 그 문서를 휴지통으로 옮기세요.",
   emptyRecordingTranscript: "녹음에서 글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
@@ -150,5 +152,6 @@ export function describeNotesSaveError(error: unknown, fallback: string): string
   if (code === "DOCUMENT_REVISION_CHANGED") return MEETING_MESSAGES.revisionChanged;
   if (code === "MEETING_NOTES_OUTDATED") return MEETING_MESSAGES.outdated;
   if (code === "MEETING_NOTES_ALREADY_APPLIED") return MEETING_MESSAGES.alreadyApplied;
+  if (code === "DUPLICATE_NAME") return MEETING_MESSAGES.duplicateName;
   return getErrorMessage(error, fallback);
 }
