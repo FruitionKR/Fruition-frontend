@@ -3051,9 +3051,10 @@ button.result-link:focus-visible {
     flex: 1 0 100%;
   }
 
-  /* @·/ 고르는 동안은 칩과 모델·전송 줄을 숨겨 목록과 입력을 모두 화면에 둔다. 목록은 남는 높이 안에서 스크롤한다. */
-  .composer-region:has(.skill-picker) .composer > .task-context-chips,
-  .composer-region:has(.skill-picker) .composer > .composer-actions {
+  /* @·/ 고르는 동안은 칩과 모델·전송 줄을 숨겨 목록과 입력을 모두 화면에 둔다. 목록은 남는 높이 안에서 스크롤한다.
+     입력창에 포커스가 없으면(초안 "/"를 복원한 직후 등) 고르는 중이 아니므로 그 줄을 그대로 둔다. */
+  .composer-region:has(.skill-picker):has(textarea:focus) .composer > .task-context-chips,
+  .composer-region:has(.skill-picker):has(textarea:focus) .composer > .composer-actions {
     display: none;
   }
 
@@ -3061,6 +3062,11 @@ button.result-link:focus-visible {
     max-height: calc(100dvh - var(--keyboard-inset, 0px) - 48px - 84px);
     margin: 4px 8px 0;
     overflow-y: auto;
+  }
+
+  /* 모델·전송 줄이 함께 보이는 동안은 그 줄 높이만큼 목록을 줄여 입력창이 화면 안에 남게 한다. */
+  .composer-region:not(:has(textarea:focus)) .skill-picker {
+    max-height: calc(100dvh - var(--keyboard-inset, 0px) - 48px - 140px);
   }
 
   /* 모델 메뉴는 제공사와 모델을 나란히 두어 한 화면에 보인다. */

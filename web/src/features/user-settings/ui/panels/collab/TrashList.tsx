@@ -96,7 +96,7 @@ export function TrashList() {
           })}
         </ul>
         {restoreError && <p className={sectionStyles["settings-message"]} role="alert">{restoreError}</p>}
-        {restoreMessage && <p className={sectionStyles["settings-message"]} role="status">{restoreMessage}</p>}
+        {restoreMessage && <p className={`${sectionStyles["settings-message"]} ${sectionStyles["is-success"]}`} role="status">{restoreMessage}</p>}
       </div>
   );
 }

@@ -50,6 +50,15 @@ export function findReusableEmptySession<T extends { id: string; isEmpty: boolea
   return sessions.find((session) => session.isEmpty && session.id !== otherTabSession) ?? null;
 }
 
+/**
+ * 저장된 선택이 없을 때(새 브라우저 등) 탭에 먼저 열 세션. 목록은 최근 순이라 다른 기기에서 만든 빈 세션이 맨 앞에 올 수 있다.
+ * 내용이 있는 세션을 먼저 고른다.
+ */
+export function pickInitialSession<T extends { channel: string; isEmpty: boolean }>(sessions: readonly T[], view: ChatChannel): T | null {
+  const inView = sessions.filter((session) => session.channel === view);
+  return inView.find((session) => !session.isEmpty) ?? inView[0] ?? null;
+}
+
 export function panelDraftStorageKey(scope: string, view: ChatChannel, sessionId: string | null): string {
   return `${scope}:draft:${view}:${sessionId ?? "empty"}`;
 }

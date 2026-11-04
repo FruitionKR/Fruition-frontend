@@ -57,3 +57,13 @@ test("재사용할 빈 세션이 없으면 null이다", () => {
   const sessions = [{ id: "used", isEmpty: false }, { id: "other-tab", isEmpty: true }];
   assert.equal(findReusableEmptySession(sessions, { chat: "other-tab", work: null }, "work"), null);
 });
+
+test("저장된 선택이 없으면 빈 세션보다 내용이 있는 세션을 먼저 연다", async () => {
+  const { pickInitialSession } = await import("../src/features/agent-chat/lib/panelSessionState.ts");
+  const empty = { id: "new", channel: "chat", isEmpty: true };
+  const filled = { id: "old", channel: "chat", isEmpty: false };
+  const work = { id: "work", channel: "work", isEmpty: false };
+  assert.equal(pickInitialSession([empty, work, filled], "chat"), filled);
+  assert.equal(pickInitialSession([empty, work], "chat"), empty);
+  assert.equal(pickInitialSession([work], "chat"), null);
+});

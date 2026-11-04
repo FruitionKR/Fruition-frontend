@@ -4,7 +4,7 @@ import { chatSessionTitle, isDefaultChatTitle } from "@/entities/chat/lib/sessio
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
 import { useMe } from "@/entities/user/model/useMe";
 import { classifySessionChannel } from "@/features/agent-chat/lib/taskThread";
-import { emptyPanelSessionState, findReusableEmptySession, panelSessionStorageKey, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
+import { emptyPanelSessionState, findReusableEmptySession, panelSessionStorageKey, pickInitialSession, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage, isChatSessionLimitError } from "@/shared/lib/apiErrors";
 
@@ -64,7 +64,7 @@ export function usePanelSessions(view: ChatChannel) {
           continue;
         }
         const selected = catalog.find(session => session.id === next.selected[channel] && (session.channel === channel || session.channel === "legacy"));
-        next.selected = { ...next.selected, [channel]: selected?.id ?? catalog.find(session => session.channel === channel)?.id ?? null };
+        next.selected = { ...next.selected, [channel]: selected?.id ?? pickInitialSession(catalog, channel)?.id ?? null };
       }
       commit(next);
       return catalog;
