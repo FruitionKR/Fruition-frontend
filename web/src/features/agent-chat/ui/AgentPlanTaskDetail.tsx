@@ -7,8 +7,9 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
+import { fetchTrashDocuments, TRASH_QUERY_KEY } from "@/entities/document/api/trash";
 import { startedPlanTurns, agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, planOperationFailureReason, planOperationOutcome, planOperationResultLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
-import { blockedEditRowIds, buildDocumentEditRows, documentEditApproval, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunnableCount, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
+import { blockedEditRowIds, buildDocumentEditRows, documentEditRowsNeedTrash, documentEditApproval, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunnableCount, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
 import { useDocumentEditPreviews } from "../model/useDocumentEditPreviews";
@@ -44,6 +45,7 @@ function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: numb
 
 const PENDING_OPERATION_STATUSES = new Set(["pending", "planned"]);
 const NO_OPERATION_IDS: ReadonlySet<string> = new Set();
+const TRASH_STALE_MS = 30_000;
 
 /**
  * 작업 탭의 폴더 정리 계획 상세(Figma 1610:9529 작업 묶음): 정리 후 폴더 트리 미리보기, 상세 보기(항목별 변경),
@@ -122,7 +124,17 @@ export function AgentPlanTaskDetail({
     : null;
   const purgedRows = organizeRows.filter((row) => row.isPurged);
   const approvalHint = !approval || !tree.data ? null : isEditPlan ? documentEditApprovalHint(approval, purgedRows.length, blockedRowIds.size) : folderOrganizeCardHint(approval);
-  const editRows = plan && isEditPlan ? buildDocumentEditRows(plan, organizeRows, editPreviews.previews, tree.data ?? []) : [];
+  // 트리에 없는 문서가 있는 카드에서만 휴지통을 읽는다. 못 읽으면(권한 등) 지금 문구를 쓴다.
+  const trash = useQuery({
+    queryKey: TRASH_QUERY_KEY(workspaceId),
+    queryFn: fetchTrashDocuments,
+    enabled: isEditPlan && documentEditRowsNeedTrash(organizeRows, tree.data),
+    retry: false,
+    // 권한으로 거절되면 카드가 다시 마운트돼도 또 묻지 않는다.
+    retryOnMount: false,
+    staleTime: TRASH_STALE_MS
+  });
+  const editRows = plan && isEditPlan ? buildDocumentEditRows(plan, organizeRows, editPreviews.previews, tree.data ?? [], trash.data) : [];
   // 눌러도 권한으로 실패할 계획은 수락을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
   const access = plan && canDecide && tree.data
     ? checkPlanAccess(plan, tree.data, isWorkspaceOwner, approval?.operationIds ?? null)

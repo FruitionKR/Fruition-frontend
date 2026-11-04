@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTrashDocuments, restoreTrashDocument } from "@/entities/document/api/trash";
+import { fetchTrashDocuments, restoreTrashDocument, TRASH_QUERY_KEY } from "@/entities/document/api/trash";
 import { describePurge, describeRestoreError, documentRestoredMessage, isRetentionExpired, restoredDocumentFolderName } from "@/entities/document/lib/trashRetention";
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { publishNotice } from "@/features/document-notifications";
@@ -11,7 +11,6 @@ import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import sectionStyles from "./CollabSections.module.css";
 import styles from "./TrashList.module.css";
 
-const TRASH_QUERY_KEY = (workspaceId: string | null) => ["document-trash", workspaceId] as const;
 
 const dateFormat = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 function formatTime(value: string) {

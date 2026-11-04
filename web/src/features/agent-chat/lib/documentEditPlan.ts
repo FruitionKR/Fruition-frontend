@@ -45,6 +45,7 @@ const OPERATION_ERROR_LABELS: Record<string, string> = {
   document_purged: DOCUMENT_PURGED_LABEL,
   rollback_document_purged: "영구 삭제된 문서라 되돌리지 못했어요."
 };
+const TRASHED_DOCUMENT_LABEL = "휴지통에 있는 문서라 저장하지 못했어요. 복구한 뒤 다시 요청해 주세요.";
 const CONFLICTED_LABEL = "문서가 바뀌어 저장하지 못했어요. 다시 요청해 주세요.";
 const FAILED_OPERATION_STATUSES: ReadonlySet<string> = new Set(["failed", "conflicted", "forbidden", "verification_failed"]);
 const SAVED_OPERATION_STATUSES: ReadonlySet<string> = new Set(["succeeded", "completed"]);
@@ -83,16 +84,26 @@ function treePaths(tree: readonly PlanTreeItem[]): Map<string, string> {
   return paths;
 }
 
+/** 트리에 없는 문서 줄이 있어 휴지통을 읽어야 이름·이유를 말할 수 있는지. 평소 카드는 휴지통을 읽지 않는다. */
+export function documentEditRowsNeedTrash(rows: readonly Pick<FolderOrganizeRow, "id" | "isPurged">[], tree: readonly PlanTreeItem[] | undefined): boolean {
+  if (!tree) return false;
+  const paths = treePaths(tree);
+  return rows.some((row) => !row.isPurged && !paths.has(row.id));
+}
+
 /** 계획의 줄(buildFolderOrganizeView)에 트리 경로·미리 보기·실행 결과를 붙인다. */
 export function buildDocumentEditRows(
   plan: Pick<AgentPlan, "operations">,
   rows: readonly FolderOrganizeRow[],
   previews: AgentRunEditPreviews | null | undefined,
-  tree: readonly PlanTreeItem[]
+  tree: readonly PlanTreeItem[],
+  /** 휴지통 문서. 트리에 없는 줄의 이름과 이유를 말하는 데 쓴다. 못 읽었으면 비워 둔다. */
+  trash: readonly { id: string; display_name: string }[] = []
 ): DocumentEditRow[] {
   const operations = new Map(plan.operations.map((operation) => [operation.id, operation]));
   const previewByOperation = new Map((previews?.items ?? []).map((item) => [item.operation_id, item]));
   const paths = treePaths(tree);
+  const trashNames = new Map(trash.map((document) => [document.id, document.display_name.normalize("NFC")]));
   return rows.map((row) => {
     const rowOperations = row.operationIds.flatMap((id) => operations.get(id) ?? []);
     const preview = row.operationIds.map((id) => previewByOperation.get(id)).find(Boolean);
@@ -101,14 +112,14 @@ export function buildDocumentEditRows(
     return {
       id: row.id,
       operationIds: row.operationIds,
-      title: paths.get(row.id) ?? (preview?.display_name.normalize("NFC") || row.originalName),
+      title: paths.get(row.id) ?? (preview?.display_name.normalize("NFC") || trashNames.get(row.id) || row.originalName),
       // 영구 삭제된 줄은 결과 문구가 이유를 말하고, AI가 바꾼 reason은 같은 말이다.
       summary: row.isPurged ? "" : (preview?.summary.trim() || row.reason).normalize("NFC"),
       addedLines: preview?.added_lines ?? 0,
       removedLines: preview?.removed_lines ?? 0,
       hunks: preview?.hunks ?? null,
       warning: rowOperations.find((operation) => operation.warning)?.warning?.message.trim().normalize("NFC") || null,
-      resultLabel: shown ? documentEditOperationLabel(shown) : null,
+      resultLabel: shown?.error_code === "tool_http_404" && trashNames.has(row.id) ? TRASHED_DOCUMENT_LABEL : shown ? documentEditOperationLabel(shown) : null,
       isFailure: shown ? FAILED_OPERATION_STATUSES.has(shown.status) : false,
       excluded: row.excluded || row.isPurged,
       isPurged: row.isPurged

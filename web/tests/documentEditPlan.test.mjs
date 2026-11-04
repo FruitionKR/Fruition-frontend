@@ -13,6 +13,7 @@ registerHooks({
 const {
   blockedEditRowIds,
   buildDocumentEditRows,
+  documentEditRowsNeedTrash,
   documentEditApproval,
   documentEditApprovalHint,
   documentEditDecisionNote,
@@ -356,4 +357,26 @@ test("영구 삭제로 되돌리지 못한 문서 줄은 보관 기간 대신 �
   assert.equal(row.isPurged, true);
   assert.equal(row.resultLabel, "영구 삭제된 문서라 되돌리지 못했어요.");
   assert.equal(row.summary, "");
+});
+
+test("트리에 없는 문서가 휴지통에 있으면 이름과 이유를 휴지통 기준으로 보여 준다", () => {
+  const plan = { operations: [{ id: "op_1", tool_name: "apply_document_edit", target_type: "document", target_id: "doc_gone", status: "failed", error_code: "tool_http_404", arguments: { document_id: "doc_gone" }, depends_on: [] }] };
+  const rows = [{ id: "doc_gone", operationIds: ["op_1"], originalName: "항목 이름 확인 불가", reason: "", excluded: false, isPurged: false }];
+  const [trashed] = buildDocumentEditRows(plan, rows, null, [], [{ id: "doc_gone", display_name: "지난 회의.md" }]);
+  assert.equal(trashed.title, "지난 회의.md");
+  assert.match(trashed.resultLabel, /휴지통/);
+  assert.equal(trashed.isFailure, true);
+  const [unknown] = buildDocumentEditRows(plan, rows, null, []);
+  assert.equal(unknown.title, "항목 이름 확인 불가", "휴지통에 없거나 못 읽었으면 지금 문구를 쓴다");
+  assert.equal(unknown.resultLabel, "문서를 찾을 수 없어요.");
+});
+
+test("트리에 없는 문서 줄이 있을 때만 휴지통을 읽는다", () => {
+  const tree = [{ id: "doc_1", name: "a.md" }];
+  const row = (id, isPurged = false) => ({ id, isPurged });
+  assert.equal(documentEditRowsNeedTrash([row("doc_1")], tree), false);
+  assert.equal(documentEditRowsNeedTrash([row("doc_gone")], tree), true);
+  assert.equal(documentEditRowsNeedTrash([row("doc_gone", true)], tree), false, "영구 삭제로 확인된 줄은 묻지 않는다");
+  assert.equal(documentEditRowsNeedTrash([row("doc_gone")], undefined), false, "트리를 받기 전에는 모른다");
+  assert.equal(documentEditRowsNeedTrash([], tree), false);
 });
