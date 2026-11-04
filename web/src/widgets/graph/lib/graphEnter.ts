@@ -35,6 +35,15 @@ export const GRAPH_ENTER_MOTION = {
   revealIdleMs: 10_000
 };
 
+/**
+ * 이번 그래프 변경이 첫 표시 데이터가 모이는 과정인지. 그렇게 추가된 노드는 새로 생긴 노드가 아니어서 등장 연출을 받지 않는다.
+ * 문서가 위키 그래프보다 늦게 오면 원본 노드가 loading이 끝나는 바로 그 렌더에 추가되므로 직전 렌더의 loading까지 본다.
+ * isHoldingNodes는 페이지 첫 표시 연출을 아직 시작하지 않은 상태다(동작 줄이기면 연출 없이 끝난다).
+ */
+export function isInitialGraphDataChange({ loading, wasLoading, isHoldingNodes }: { loading: boolean; wasLoading: boolean; isHoldingNodes: boolean }) {
+  return loading || wasLoading || isHoldingNodes;
+}
+
 /** 데이터 갱신 뒤 simulation을 다시 데우는 alpha. 새로 만들 때 기본값 1보다 훨씬 낮게 둔다. */
 export const GRAPH_UPDATE_ALPHA = {
   nodesAdded: 0.25,

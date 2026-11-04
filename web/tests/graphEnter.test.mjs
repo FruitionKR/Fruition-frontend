@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -14,6 +15,7 @@ const {
   NEW_NODE_GLOW_LIMIT,
   nodeEntryFrame,
   shouldSuppressEntryGlow,
+  isInitialGraphDataChange,
   planGraphUpdate,
   revealPan,
   scheduleNodeEntries,
@@ -186,4 +188,18 @@ test("한 번에 등장하는 노드가 한도를 넘으면 강조를 끄고, �
   assert.equal(shouldSuppressEntryGlow(NEW_NODE_GLOW_LIMIT + 1, false), true);
   assert.equal(shouldSuppressEntryGlow(3, true), true, "끝나는 노드가 빠져 수가 줄어도 남은 노드에 강조가 갑자기 켜지지 않는다");
   assert.equal(shouldSuppressEntryGlow(0, true), false, "대기열이 비면 다음 묶음은 다시 판단한다");
+});
+
+test("문서가 위키 그래프보다 늦게 와 loading이 끝나는 렌더에 추가된 원본 노드는 새 노드가 아니다", () => {
+  const change = (loading, wasLoading, isHoldingNodes = false) => isInitialGraphDataChange({ loading, wasLoading, isHoldingNodes });
+  assert.equal(change(true, true), true, "아직 기다리는 중");
+  assert.equal(change(false, true), true, "기다림이 끝난 바로 그 렌더(첫 로드·워크스페이스 전환)");
+  assert.equal(change(false, false, true), true, "첫 표시 연출 전(동작 줄이기·숨긴 탭은 연출 없이 끝난다)");
+  assert.equal(change(false, false), false, "표시가 끝난 뒤 추가된 노드는 새 노드");
+});
+
+test("직전 렌더의 loading은 그래프 갱신 effect가 읽은 다음에 바뀐다", () => {
+  const source = readFileSync(new URL("../src/widgets/graph/model/useGraphCanvas.ts", import.meta.url), "utf8");
+  assert.ok(source.indexOf("wasLoading: wasLoadingRef.current") < source.indexOf("wasLoadingRef.current = loading;"));
+  assert.match(source, /isHoldingNodes: reveal\.isHoldingNodes\(\) \}\)\) \{\n\s*\/\/ 동작 줄이기여도 시작 시각은 남긴다/);
 });

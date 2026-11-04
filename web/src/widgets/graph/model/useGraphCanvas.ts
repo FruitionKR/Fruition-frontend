@@ -37,7 +37,8 @@ import {
   shouldSuppressEntryGlow,
   planGraphUpdate,
   revealPan,
-  scheduleNodeEntries
+  scheduleNodeEntries,
+  isInitialGraphDataChange
 } from "../lib/graphEnter";
 import { useUserPreferences } from "@/entities/user";
 import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
@@ -150,6 +151,7 @@ export function useGraphCanvas({
   /** 사용자가 마지막으로 pan·zoom·노드 드래그한 시각. 최근에 움직였으면 카메라를 대신 옮기지 않는다. */
   const lastUserInteractionRef = useRef(Number.NEGATIVE_INFINITY);
   const { reduceMotion, preferencesReady } = useUserPreferences();
+  const wasLoadingRef = useRef(loading);
   const reduceMotionRef = useRef(reduceMotion);
   reduceMotionRef.current = reduceMotion;
 
@@ -212,7 +214,7 @@ export function useGraphCanvas({
       if (reveal.isActive()) {
         // 전체 연출 중에 들어온 노드는 따로 피어나지 않고 그 연출의 남은 순서에 합류한다.
         reveal.mergeAfterGraphChange();
-      } else {
+      } else if (!isInitialGraphDataChange({ loading, wasLoading: wasLoadingRef.current, isHoldingNodes: reveal.isHoldingNodes() })) {
         // 동작 줄이기여도 시작 시각은 남긴다. 그때는 nodeEntryFrame이 고정 강조 링만 잠시 보여 준다.
         nodeEnterStartsRef.current = { ...nodeEnterStartsRef.current, ...scheduleNodeEntries(addedNodeIds, performance.now()) };
         suppressEntryGlowRef.current = shouldSuppressEntryGlow(
@@ -263,6 +265,11 @@ export function useGraphCanvas({
     requestAnimationRef.current();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphSignature, initialNodePositions]);
+
+  // 위 effect가 직전 렌더의 loading을 읽도록 그 다음에 갱신한다.
+  useEffect(() => {
+    wasLoadingRef.current = loading;
+  }, [loading]);
 
   // 위 effect가 새 데이터로 simulation을 만든 뒤에 재생이 시작되도록 그 다음에 호출한다.
   const reveal = useGraphReveal({
