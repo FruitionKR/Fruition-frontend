@@ -420,3 +420,100 @@
     transition: none;
   }
 }
+
+/* 휴대폰: 표를 쌓은 목록으로 바꾼다. 커맨드·실행·더보기가 윗줄, 설명·범위가 아랫줄이다. 머리글은 정렬 버튼만 남긴다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .hero {
+    gap: 12px;
+    padding: 20px 16px 0;
+  }
+
+  .heading h1 {
+    font-size: 24px;
+  }
+
+  .heading p {
+    font-size: 14px;
+  }
+
+  .tabs {
+    flex-wrap: wrap;
+    gap: 0 8px;
+  }
+
+  .tab-list {
+    height: 48px;
+    min-width: 0;
+    flex: 1 1 100%;
+    gap: 4px;
+    overflow-x: auto;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+    padding-bottom: 8px;
+  }
+
+  .icon-button,
+  .more-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .create-button,
+  .search-chip,
+  .run {
+    min-height: 44px;
+  }
+
+  .panel {
+    padding: 0 16px 88px;
+  }
+
+  .row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px 8px;
+  }
+
+  .col-command {
+    order: 1;
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .col-state {
+    order: 2;
+    width: auto;
+  }
+
+  .col-more {
+    order: 3;
+    flex-basis: 44px;
+    height: 44px;
+  }
+
+  .row-head .col-more {
+    height: 0;
+  }
+
+  .col-description {
+    order: 4;
+    width: auto;
+    min-width: 0;
+    flex: 1 1 calc(100% - 64px);
+  }
+
+  .col-scope {
+    order: 5;
+    width: auto;
+  }
+
+  .row-head .col-description,
+  .row-head .col-scope,
+  .row-head .col-state {
+    display: none;
+  }
+}

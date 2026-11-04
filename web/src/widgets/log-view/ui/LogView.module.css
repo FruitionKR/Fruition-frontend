@@ -446,3 +446,31 @@
 .diff-line.is-delete .diff-content {
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
 }
+
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .logs-hero {
+    gap: 12px;
+    padding: 20px 16px 0;
+  }
+
+  .logs-title h2 {
+    font-size: 24px;
+  }
+
+  .logs-title p {
+    font-size: 14px;
+  }
+
+  .tabs-bar {
+    height: 48px;
+    gap: 4px;
+  }
+
+  .rollback-button {
+    min-height: 44px;
+  }
+
+  .logs-list {
+    padding: 12px 16px 40px;
+  }
+}

@@ -422,3 +422,23 @@
 .source-preview-conversion-report > .source-preview-conversion-figures:first-child {
   margin-top: 0;
 }
+
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .source-preview-panel {
+    border-right: 0;
+  }
+
+  .source-preview-content {
+    padding: 28px 16px 96px;
+  }
+
+  .source-preview-heading,
+  .source-preview-document-controls {
+    padding-inline: 0;
+  }
+
+  .source-preview-actions {
+    top: 6px;
+    right: 8px;
+  }
+}

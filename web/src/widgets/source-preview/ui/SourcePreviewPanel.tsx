@@ -513,6 +513,7 @@ export function SourcePreviewPanel({
             <div className={cx(styles["source-preview-title-field"], activeEditReview && styles["is-fit"])} data-value={titleInput || "제목을 입력하세요"}>
             <input
               className={styles["source-preview-title-input"]}
+              data-large-text=""
               aria-label="문서 이름"
               title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : bodyLocked ? CHAT_EXPORT_TITLE_LOCKED_MESSAGE : titleHint}
               placeholder="제목을 입력하세요"
