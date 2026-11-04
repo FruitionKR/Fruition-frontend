@@ -7,8 +7,8 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, isOperationNotSelected, planOperationFailureReason, planOperationOutcome, planOperationStatusLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
-import { buildDocumentEditRows, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, planOperationFailureReason, planOperationOutcome, planOperationResultLabel, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { buildDocumentEditRows, documentEditApprovalHint, documentEditDecisionNote, documentEditMessageNotice, documentEditRunnableCount, documentEditRunNote, editPreviewNotice, isDocumentEditPlan } from "../lib/documentEditPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
 import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
 import { useDocumentEditPreviews } from "../model/useDocumentEditPreviews";
@@ -110,7 +110,7 @@ export function AgentPlanTaskDetail({
   const organizeRows = plan && (action === "folder_organize" || isEditPlan) ? buildFolderOrganizeView(plan, tree.data ?? []).rows : [];
   const deselectedIds = userDeselectedIds ?? initialDeselectedRowIds(organizeRows);
   const approval = plan && organizeRows.length > 0 ? folderOrganizeApproval(plan, organizeRows, deselectedIds) : null;
-  const approvalHint = !approval || !tree.data ? null : isEditPlan ? documentEditApprovalHint(approval) : folderOrganizeCardHint(approval);
+  const approvalHint = !approval || !tree.data ? null : isEditPlan ? documentEditApprovalHint(approval, organizeRows.filter((row) => row.isPurged).length) : folderOrganizeCardHint(approval);
   const editRows = plan && isEditPlan ? buildDocumentEditRows(plan, organizeRows, editPreviews.previews, tree.data ?? []) : [];
   // 눌러도 권한으로 실패할 계획은 수락을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
   const access = plan && canDecide && tree.data
@@ -137,12 +137,12 @@ export function AgentPlanTaskDetail({
   const note = clarificationMessage
     ?? (isEditPlan ? documentEditRunNote(run) : failureMessage)
     ?? (canDecide && accessVerdict !== "all_blocked"
-      ? isEditPlan ? documentEditDecisionNote(approval?.selectedCount ?? 0) : "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다."
+      ? isEditPlan ? documentEditDecisionNote(documentEditRunnableCount({ selectedCount: approval?.selectedCount ?? 0, blockedCount: rowAccess?.blockedCount ?? 0, isExpired: isPreviewExpired })) : "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다."
       : null)
     ?? (plan && isAutoApprovedPlan(run) ? autoApprovedPlanNote(plan) : null);
   const messageNotice = isEditPlan ? documentEditMessageNotice(message, plan?.summary) : null;
   const previewNotice = isEditPlan && canDecide
-    ? editPreviewNotice({ state: editPreviews.state, missingCount: editRows.filter((row) => !row.hunks).length, isExpired: isPreviewExpired })
+    ? editPreviewNotice({ state: editPreviews.state, missingCount: editRows.filter((row) => !row.hunks && !row.isPurged).length, isExpired: isPreviewExpired })
     : null;
 
   function toggleEditRow(rowId: string) {
@@ -182,7 +182,7 @@ export function AgentPlanTaskDetail({
                   <strong>{operation.description}</strong>
                   {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
                   {access?.blockedOperationIds.has(operation.id) && <p className={styles["plan-operation-blocked"]}>{PLAN_OPERATION_BLOCKED_NOTE}</p>}
-                  {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{isOperationNotSelected(operation) ? "제외됨" : planOperationStatusLabel(operation.status)}</small>}
+                  {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{planOperationResultLabel(operation)}</small>}
                   {planOperationOutcome(operation) === "failed" && <p className={styles["plan-operation-blocked"]}>{planOperationFailureReason(operation)}</p>}
                 </li>
               ))}

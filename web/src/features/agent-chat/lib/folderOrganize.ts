@@ -1,4 +1,4 @@
-import { isOperationNotSelected, planOperationFailureReason, planOperationOutcome, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
+import { isOperationNotSelected, isOperationPurged, planOperationFailureReason, planOperationOutcome, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
 
 /** 폴더 정리 미리보기 화면을 여는 데 필요한 것: 계획을 조회할 turn과 사용자가 보낸 커맨드. */
 export type FolderOrganizeRequest = {
@@ -33,6 +33,8 @@ export type FolderOrganizeRow = {
   dependencyNote: string | null;
   /** 부분 승인에서 고르지 않아 실행하지 않은 줄(작업이 모두 skipped·not_selected). */
   excluded: boolean;
+  /** 대상 문서가 영구 삭제돼 실행할 수 없는 줄(작업이 모두 skipped·document_purged). 고를 수 없다. */
+  isPurged: boolean;
   /** 실행 결과에 실패가 있으면 칩 문구와 이유. 실패한 이동·이름 변경은 위 위치·이름에 반영하지 않는다. */
   failure: { label: string; note: string } | null;
 };
@@ -45,6 +47,9 @@ export type FolderOrganizeView = {
   /** 정리 대상 폴더: run의 target_folder_id, 없으면 옮겨지는 항목이 가장 많이 있던 폴더. 알 수 없으면 null. */
   targetFolderName: string | null;
 };
+
+/** 트리에서 사라져 이름을 알 수 없는 영구 삭제 문서의 줄 이름. AI도 문서 이름을 지운다. */
+const PURGED_ROW_NAME = "삭제된 문서";
 
 /** AI 계약: 부분 승인 operation_ids는 1~20개. */
 export const MAX_SELECTED_OPERATIONS = 20;
@@ -141,16 +146,22 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
   const targetParentId = (targetFolderId && items.has(targetFolderId) ? targetFolderId : null)
     ?? [...sourceParents.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   return {
-    rows: [...rows.values()].map(({ moved, renamed, edited, operations, ...row }) => ({
+    rows: [...rows.values()].map(({ moved, renamed, edited, operations, ...row }) => {
+      const isPurged = operations.length > 0 && operations.every(isOperationPurged);
+      return {
       ...row,
+      originalName: isPurged && !items.has(row.id) ? PURGED_ROW_NAME : row.originalName,
+      newName: isPurged && !items.has(row.id) ? PURGED_ROW_NAME : row.newName,
       changeLabel: row.changeLabel || [moved && "이동", renamed && "이름", edited && "편집"].filter(Boolean).join(" · "),
       operationIds: operations.map((operation) => operation.id),
-      suggestedSelected: operations.every((operation) => operation.suggested_selected !== false),
+      suggestedSelected: !isPurged && operations.every((operation) => operation.suggested_selected !== false),
       duplicateWarning: warningMessage(operations, "duplicate_name") ?? warningMessage(operations, "duplicate_content"),
       dependencyNote: warningMessage(operations, "depends_on_unselected"),
       excluded: operations.every(isOperationNotSelected),
+      isPurged,
       failure: rowFailure(operations)
-    })),
+      };
+    }),
     createdFolders,
     targetFolderName: targetParentId ? items.get(targetParentId)?.name ?? null : null
   };
@@ -159,7 +170,7 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
 function emptyRow(id: string, originalName: string, folderName: string, newName: string): RowDraft {
   return {
     id, originalName, folderName, newName, changeLabel: "", reason: "", operationIds: [], suggestedSelected: true,
-    duplicateWarning: null, dependencyNote: null, excluded: false, failure: null, moved: false, renamed: false, edited: false, operations: []
+    duplicateWarning: null, dependencyNote: null, excluded: false, isPurged: false, failure: null, moved: false, renamed: false, edited: false, operations: []
   };
 }
 
@@ -291,7 +302,8 @@ export type FolderOrganizeApproval = {
  * 둘 다 이 함수를 쓴다. 선택을 바꾸지 않았으면 deselectedIds는 initialDeselectedRowIds(rows)다.
  */
 export function folderOrganizeApproval(plan: AgentPlan, rows: FolderOrganizeRow[], deselectedIds: ReadonlySet<string>): FolderOrganizeApproval {
-  const selectedRowIds = new Set(rows.filter((row) => !deselectedIds.has(row.id)).map((row) => row.id));
+  // 영구 삭제된 줄은 실행할 수 없어 선택 기록과 상관없이 뺀다.
+  const selectedRowIds = new Set(rows.filter((row) => !row.isPurged && !deselectedIds.has(row.id)).map((row) => row.id));
   const operationIds = folderOrganizeSelection(plan, rows, selectedRowIds);
   return {
     selectedCount: selectedRowIds.size,

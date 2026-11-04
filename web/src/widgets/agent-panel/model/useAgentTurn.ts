@@ -8,6 +8,7 @@ import { requestAgentTurn, resumeAgentTurn } from "@/features/agent-chat";
 import {
   buildAgentTurnRequest,
   prepareMarkdownEditPreview,
+  PURGED_EDIT_MESSAGE,
   resolveChatTurnPresentation,
   resolveGeneratedDocumentFolderId,
   validateMarkdownEditApplication
@@ -207,9 +208,11 @@ export function useAgentTurn({
     () => (reviewDecisions && reviewDecisions.turnId === activeTurnId ? reviewDecisions.decisions : NO_DECISIONS),
     [activeTurnId, reviewDecisions]
   );
-  const editPreviewErrorMessage = editPreviewState && !editPreviewState.preview
-    ? `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`
-    : null;
+  const editPreviewErrorMessage = !editPreviewState || editPreviewState.preview
+    ? null
+    : editPreviewState.validationError === PURGED_EDIT_MESSAGE
+      ? PURGED_EDIT_MESSAGE
+      : `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`;
 
   const queryClient = useQueryClient();
   const autoApprovalSettings = useAgentAutoApprovalSettings();

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -347,4 +347,21 @@ test("실행 뒤에는 AI 요약의 '아직 변경된 사항은 없으며' 문�
 
 test("일부 실패 상태 이름을 맞춘다", () => {
   assert.equal(agentPlanStatusLabel("partial_failed"), "일부 실패");
+});
+
+test("영구 삭제로 건너뛴 작업은 고르지 않은 작업과 다른 말로 보이고, 실패로 세지 않는다", () => {
+  const purged = { status: "skipped", error_code: "document_purged" };
+  assert.equal(isOperationPurged(purged), true);
+  assert.equal(isOperationPurged({ status: "skipped", error_code: "not_selected" }), false);
+  assert.equal(planOperationResultLabel(purged), "영구 삭제됨");
+  assert.equal(planOperationResultLabel({ status: "skipped", error_code: "not_selected" }), "제외됨");
+  assert.equal(planOperationResultLabel({ status: "failed", error_code: null }), "실패");
+  assert.equal(planOperationOutcome(purged), "excluded");
+});
+
+test("영구 삭제 문서가 있어 되돌리지 못한 run은 이유를 말한다", () => {
+  assert.equal(
+    agentPlanFailureMessage({ status: "rollback_failed", error_code: "rollback_document_purged", plan: { operations: [] } }),
+    "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
+  );
 });

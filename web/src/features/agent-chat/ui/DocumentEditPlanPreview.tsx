@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
-import { missingDiffNote, type DocumentEditRow } from "../lib/documentEditPlan";
+import { missingDiffNote, PURGED_DIFF_NOTE, type DocumentEditRow } from "../lib/documentEditPlan";
 import { DIFF_LINE_PAGE, limitDiffHunks } from "../lib/documentEditPreviews";
 import { PLAN_OPERATION_BLOCKED_NOTE } from "../lib/planAccess";
 import { DocumentDiffLines } from "./DocumentDiffLines";
@@ -62,13 +62,13 @@ export function DocumentEditPlanPreview({
     <ul className={styles["edit-plan-list"]} aria-label="수정할 문서">
       {rows.map((row, index) => {
         // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
-        const isSelected = isAwaiting ? !deselectedIds.has(row.id) : !row.excluded;
+        const isSelected = isAwaiting ? !row.isPurged && !deselectedIds.has(row.id) : !row.excluded;
         const isBlocked = row.operationIds.some((id) => blockedOperationIds?.has(id));
         return (
           <li key={row.id} className={cx(styles["edit-plan-item"], !isSelected && styles["is-excluded"])}>
             {/* 체크박스는 summary 밖에 둔다. 안에 두면 누를 때마다 펼침이 함께 바뀐다. */}
             <label className={styles["edit-plan-check"]}>
-              <input type="checkbox" aria-label={`${row.title} 수정`} checked={isSelected} disabled={!canSelect} onChange={() => onToggle(row.id)} />
+              <input type="checkbox" aria-label={`${row.title} 수정`} checked={isSelected} disabled={!canSelect || row.isPurged} onChange={() => onToggle(row.id)} />
             </label>
             <details className={styles["edit-plan-doc"]} open={index === 0}>
               <summary>
@@ -87,7 +87,7 @@ export function DocumentEditPlanPreview({
                 {row.resultLabel && <span className={cx(styles["edit-plan-note"], styles["is-result"], row.isFailure && styles["is-failure"])}>{row.resultLabel}</span>}
               </summary>
               <div className={styles["edit-plan-body"]}>
-                <DocumentEditDiff row={row} missingNote={missingNote} />
+                <DocumentEditDiff row={row} missingNote={row.isPurged ? PURGED_DIFF_NOTE : missingNote} />
               </div>
             </details>
           </li>

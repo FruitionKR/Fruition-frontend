@@ -296,7 +296,7 @@ export function AgentTaskBody({
   // 거절 응답 전(승인 대기)에도, 거절된 뒤 새로 고침해도 같은 폴더의 새 계획에 대체된 계획은 "새 실행으로 대체됨"으로 보인다.
   const supersededPlanTurnIds = new Set(supersededFolderPlans(planEntries, { includeRejected: true }).map(({ turnId }) => turnId));
   // 새로 고침 뒤에도 적용한 편집안이 "저장됨"으로 남게 서버 버전 기록으로 다시 확인한다.
-  const { appliedTurnIds: serverAppliedTurnIds, checkingTurnIds } = useServerAppliedTurnIds(workspaceId, visibleItems, isShown);
+  const { appliedTurnIds: serverAppliedTurnIds, checkingTurnIds, purgedTurnIds } = useServerAppliedTurnIds(workspaceId, visibleItems, isShown);
 
   // 실행이 끝나는 전이를 볼 때만 문서·트리·그래프를 다시 받는다(#66).
   const runStatusSignature = runQueries.map((query) => query.data?.status ?? "").join("|");
@@ -330,6 +330,7 @@ export function AgentTaskBody({
       hasActivePreview: Boolean(activePreview) && item.turnId !== null && item.turnId === activePreviewTurnId,
       isProposalHeld: item.turnId !== null && (item.turnId === activePreviewTurnId || checkingTurnIds.has(item.turnId)),
       isProposalSetAside: item.turnId !== null && setAsideTurnIds.has(item.turnId),
+      isDocumentPurged: item.turnId !== null && purgedTurnIds.has(item.turnId),
       isApplied: item.turnId !== null && (appliedTurnIds.has(item.turnId) || serverAppliedTurnIds.has(item.turnId)),
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),

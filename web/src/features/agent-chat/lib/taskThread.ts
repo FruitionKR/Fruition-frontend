@@ -243,6 +243,8 @@ export type TaskStatusView = {
   struck: boolean;
 };
 
+const DOCUMENT_PURGED_TASK_LABEL = "문서 영구 삭제됨";
+
 const CANCELLED_TASK_STATUS: TaskStatusView = { group: "done", label: "취소됨", tone: "muted", struck: true };
 
 const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
@@ -267,6 +269,7 @@ export function resolveTaskStatus({
   hasActivePreview = false,
   isProposalHeld = false,
   isProposalSetAside = false,
+  isDocumentPurged = false,
   isApplied = false,
   isRejected = false,
   isCancelled = false,
@@ -294,6 +297,8 @@ export function resolveTaskStatus({
   isProposalHeld?: boolean;
   /** 후속 요청에 자리를 내줘 내려 둔 제안인지. 다시 열어 결정할 수 있다. */
   isProposalSetAside?: boolean;
+  /** 대상 문서가 영구 삭제돼 편집안이 지워진 turn인지 */
+  isDocumentPurged?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
   /** 편집안을 모두 거절했는지 */
@@ -363,6 +368,7 @@ export function resolveTaskStatus({
   if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
   if (action === "markdown_edit" || action === "markdown_create") {
     if (isProposalSetAside) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
+    if (isDocumentPurged) return { group: "done", label: DOCUMENT_PURGED_TASK_LABEL, tone: "muted", struck: false };
     // 응답이 화면을 떠났고(재생성·새로 고침) 저장·거절·취소 기록도 없다. 제안은 문서에 들어가지 않았다.
     return { group: "done", label: isProposalHeld ? "제안 완료" : "수락하지 않음", tone: "muted", struck: false };
   }

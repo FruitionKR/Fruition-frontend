@@ -16,6 +16,7 @@ const {
   documentEditDecisionNote,
   documentEditMessageNotice,
   documentEditOperationLabel,
+  documentEditRunnableCount,
   documentEditRunNote,
   editPreviewNotice,
   isDocumentEditPlan,
@@ -246,4 +247,55 @@ test("끝난 run은 수정안이 만료돼도 불러오기 실패로 보이지 �
 test("승인 대기 run의 만료 안내는 바뀌지 않는다", () => {
   assert.equal(missingDiffNote({ isLoading: false, isAwaiting: true, isExpired: true }), "변경 내용을 불러오지 못했어요.");
   assert.equal(editPreviewNotice({ state: "ready", missingCount: 1, isExpired: true }), "변경안의 보관 기간이 지나 수락할 수 없어요. 다시 요청해 주세요.");
+});
+
+const PURGED = { status: "skipped", error_code: "document_purged", reason: "영구 삭제된 문서입니다." };
+
+test("영구 삭제된 문서의 작업은 고를 수 없고 이유를 사람이 읽을 문구로 보여 준다", () => {
+  const plan = editPlan([editOperation("op_1", "doc_gone", PURGED), editOperation("op_2", "doc_2")]);
+  const { rows } = buildFolderOrganizeView(plan, TREE);
+  assert.equal(documentEditOperationLabel(PURGED), "영구 삭제된 문서라 실행하지 않았어요.");
+  const [purged, kept] = buildDocumentEditRows(plan, rows, { items: [preview("op_2", "doc_2")], expires_at: null }, TREE);
+  assert.deepEqual(
+    { title: purged.title, summary: purged.summary, resultLabel: purged.resultLabel, isFailure: purged.isFailure, isPurged: purged.isPurged, excluded: purged.excluded },
+    { title: "삭제된 문서", summary: "", resultLabel: "영구 삭제된 문서라 실행하지 않았어요.", isFailure: false, isPurged: true, excluded: true }
+  );
+  assert.equal(kept.isPurged, false);
+
+  // 저장된 선택에 그 문서가 들어 있어도 승인 요청에는 싣지 않는다.
+  const approval = folderOrganizeApproval(plan, rows, new Set());
+  assert.deepEqual(approval.operationIds, ["op_2"]);
+  assert.equal(approval.selectedCount, 1);
+  assert.deepEqual([...initialDeselectedRowIds(rows)], ["doc_gone"]);
+});
+
+test("모든 문서가 영구 삭제되면 수락을 막고 이유를 말한다", () => {
+  const plan = editPlan([editOperation("op_1", "doc_gone", PURGED)]);
+  const { rows } = buildFolderOrganizeView(plan, TREE);
+  const approval = folderOrganizeApproval(plan, rows, new Set());
+  assert.equal(approval.canApply, false);
+  assert.equal(documentEditApprovalHint(approval, rows.length), "수정할 수 있는 문서가 없어요. 대상 문서가 영구 삭제됐어요.");
+  assert.equal(documentEditDecisionNote(approval.selectedCount), "아직 바꾸지 않았습니다.");
+});
+
+test("영구 삭제로 빠진 문서는 사용자가 뺀 문서로 세지 않는다", () => {
+  assert.equal(documentEditApprovalHint({ selectedCount: 2, excludedCount: 1, canApply: true }, 1), null);
+  assert.equal(documentEditApprovalHint({ selectedCount: 1, excludedCount: 2, canApply: true }, 1), "1개는 제외하고 수정해요.");
+  assert.equal(documentEditApprovalHint({ selectedCount: 0, excludedCount: 2, canApply: false }, 1), "수정할 문서를 하나 이상 골라 주세요.");
+});
+
+test("끝난 run에서 영구 삭제로 건너뛴 문서는 실패와 나눠 안내한다", () => {
+  const skipped = editOperation("op_1", "doc_gone", PURGED);
+  const saved = editOperation("op_2", "doc_2", { status: "succeeded" });
+  const failed = editOperation("op_3", "doc_3", { status: "failed" });
+  assert.equal(documentEditRunNote({ status: "partial_failed", error_code: null, plan: editPlan([skipped, saved]) }), "문서 1개를 저장했어요. 영구 삭제된 문서 1개는 실행하지 않았어요.");
+  assert.equal(documentEditRunNote({ status: "failed", error_code: null, plan: editPlan([skipped]) }), "영구 삭제된 문서라 실행하지 않았어요.");
+  assert.equal(documentEditRunNote({ status: "partial_failed", error_code: null, plan: editPlan([skipped, saved, failed]) }), "문서 2개 중 1개를 저장했어요. 저장하지 못한 문서는 문서별 이유를 확인해 주세요.");
+});
+
+test("수락 전 안내의 문서 수는 실제로 수정될 문서만 센다", () => {
+  assert.equal(documentEditRunnableCount({ selectedCount: 3, blockedCount: 1, isExpired: false }), 2);
+  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: 3, blockedCount: 1, isExpired: false })), "아직 바꾸지 않았습니다. 승인하면 문서 2개를 수정합니다.");
+  // 변경안이 만료됐으면 승인해도 수정되지 않으므로 수락 안내를 함께 쓰지 않는다.
+  assert.equal(documentEditDecisionNote(documentEditRunnableCount({ selectedCount: 1, blockedCount: 0, isExpired: true })), "아직 바꾸지 않았습니다.");
 });

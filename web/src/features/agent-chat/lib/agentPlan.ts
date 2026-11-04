@@ -194,6 +194,11 @@ export function isOperationNotSelected(operation: Pick<AgentPlanOperation, "stat
   return operation.status === "skipped" && operation.error_code === "not_selected";
 }
 
+/** 승인 전에 문서를 영구 삭제해 AI가 건너뛴 작업(ai document_purged). 실행할 수 없어 고를 수도 없다. */
+export function isOperationPurged(operation: Pick<AgentPlanOperation, "status" | "error_code">): boolean {
+  return operation.status === "skipped" && operation.error_code === "document_purged";
+}
+
 const SUCCEEDED_OPERATION_STATUSES = new Set(["succeeded", "completed"]);
 const PENDING_OPERATION_STATUSES = new Set(["pending", "planned"]);
 /** 앞선 작업이 실패해 건너뛴 작업(ai agent_worker). 고르지 않은 것과 달리 실패다. */
@@ -253,13 +258,21 @@ export function planOperationStatusLabel(status: string): string {
   return OPERATION_STATUS_LABELS[status] ?? "상태 확인 필요";
 }
 
+/** 작업 결과 칩 문구. 건너뛴 작업은 이유에 따라 나눠 적는다. */
+export function planOperationResultLabel(operation: Pick<AgentPlanOperation, "status" | "error_code">): string {
+  if (isOperationNotSelected(operation)) return "제외됨";
+  if (isOperationPurged(operation)) return "영구 삭제됨";
+  return planOperationStatusLabel(operation.status);
+}
+
 /** 실행 실패(run error_code)별 안내. AI는 예외 원문 없이 코드만 내려준다(ai failure_codes). */
 const PLAN_FAILURE_MESSAGES: Record<string, string> = {
   plan_out_of_scope: "선택한 폴더 밖으로 옮기거나 선택한 폴더 자체를 바꾸는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요.",
   input_rejected: "AI가 만든 계획이 검증을 통과하지 못해 정리 계획을 만들지 못했어요. 규칙을 조정하거나 다시 시도해 주세요.",
   provider_rate_limited: "AI 요청이 많아 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
   provider_unavailable: "AI 서비스에 연결하지 못해 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
-  deadline_exceeded: "계획을 만드는 데 너무 오래 걸려 중단했어요. 다시 시도해 주세요."
+  deadline_exceeded: "계획을 만드는 데 너무 오래 걸려 중단했어요. 다시 시도해 주세요.",
+  rollback_document_purged: "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
 };
 export const PLAN_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 다시 시도해 주세요.";
 /** 카드와 미리보기가 함께 쓴다. 항목별 결과는 두 화면 모두 바로 볼 수 있어 위치를 가리키지 않는다. */

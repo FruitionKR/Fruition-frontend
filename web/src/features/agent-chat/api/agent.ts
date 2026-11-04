@@ -3,7 +3,7 @@ import { apiFetch, parseJsonOrThrow, parseApiError, getWorkspaceId, workspacePat
 import { ApiError, isAiUsageLimitError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { followAgentTurn } from "@/features/agent-chat/lib/turnFollow";
-import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
+import { isPurgedEditTurn, type AgentTurnRequest, type AgentTurnResponse } from "@/features/agent-chat/lib/agentTurn";
 import type { StalledTurnCancelResult, TurnCheckResult } from "../lib/stalledTurns";
 
 export const AGENT_TURN_CANCELLED_MESSAGE = "요청이 취소되었습니다.";
@@ -134,13 +134,13 @@ export async function fetchAgentTurnApplyTarget(
   workspaceId: string,
   turnId: string,
   signal?: AbortSignal
-): Promise<{ documentId: string | null; applyOperationId: string | null }> {
+): Promise<{ documentId: string | null; applyOperationId: string | null; isPurged: boolean }> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "turn", turnId), { cache: "no-store", signal });
-  const turn = await parseJsonOrThrow<{ documentId?: string | null; apply_operation_id?: string | null }>(
+  const turn = await parseJsonOrThrow<{ documentId?: string | null; apply_operation_id?: string | null } & Parameters<typeof isPurgedEditTurn>[0]>(
     response,
     ERROR_MESSAGES.agentTurnFailed
   );
-  return { documentId: turn.documentId ?? null, applyOperationId: turn.apply_operation_id ?? null };
+  return { documentId: turn.documentId ?? null, applyOperationId: turn.apply_operation_id ?? null, isPurged: isPurgedEditTurn(turn) };
 }
 
 type AgentTurnRunResponse =Omit<AgentTurnResponse, "status" | "result"> & {

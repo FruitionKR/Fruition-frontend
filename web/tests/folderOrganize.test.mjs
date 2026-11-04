@@ -78,7 +78,7 @@ test("새 문서 생성은 원래 이름 없이 생성으로 표시한다", () =
   const view = buildFolderOrganizeView(plan, tree);
   assert.deepEqual(view.rows, [{
     id: "op-1", originalName: "", folderName: "최상위", newName: "색인.md", changeLabel: "생성", reason: "",
-    operationIds: ["op-1"], suggestedSelected: true, duplicateWarning: null, dependencyNote: null, excluded: false, failure: null
+    operationIds: ["op-1"], suggestedSelected: true, duplicateWarning: null, dependencyNote: null, excluded: false, isPurged: false, failure: null
   }]);
   assert.equal(view.targetFolderName, null);
 });

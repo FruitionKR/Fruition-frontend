@@ -201,6 +201,18 @@ function targetsMatch(request: DocumentAgentTurnRequest, edit: AgentTurnEdit): b
     && requestTarget.endLine === edit.requested_target.end_line;
 }
 
+/** 끝난 편집 turn에서 편집안이 지워졌을 때의 안내. 문서를 영구 삭제하면 AI가 result.edit를 뺀다(ai document-purge). */
+export const PURGED_EDIT_MESSAGE = "문서가 영구 삭제되어 편집안이 남아 있지 않아요.";
+
+/**
+ * 문서 영구 삭제로 편집안이 지워진 turn인지. 끝난 turn은 result.edit만 사라지고(ai document-purge),
+ * 수락을 기다리던 turn은 failed·document_purged로 닫힌다(document DocumentCopyScrubber).
+ */
+export function isPurgedEditTurn(turn: { status?: string | null; error?: string | null; result?: { action?: string | null; edit?: unknown } | null }): boolean {
+  if (turn.error === "document_purged") return true;
+  return turn.status === "completed" && turn.result?.action === "markdown_edit" && !turn.result.edit;
+}
+
 export function prepareMarkdownEditPreview(
   anyRequest: AgentTurnRequest,
   response: AgentTurnResponse
@@ -215,8 +227,11 @@ export function prepareMarkdownEditPreview(
   if (response.baseVersion !== request.baseVersion) {
     throw new Error("응답의 문서 version이 요청과 일치하지 않습니다.");
   }
-  if (response.result.action !== "markdown_edit" || !response.result.edit) {
+  if (response.result.action !== "markdown_edit") {
     throw new Error("Markdown 편집 응답이 아닙니다.");
+  }
+  if (!response.result.edit) {
+    throw new Error(PURGED_EDIT_MESSAGE);
   }
   if (!targetsMatch(request, response.result.edit)) {
     throw new Error("응답의 편집 대상이 요청 범위와 일치하지 않습니다.");

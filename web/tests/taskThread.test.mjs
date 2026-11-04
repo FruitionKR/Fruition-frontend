@@ -684,3 +684,21 @@ test("내려 둔 제안은 다시 열면 빠지고, 그때 열려 있던 제안�
   assert.equal(takeSetAsideProposal(first, "없음", null).taken, null);
   assert.equal(first.size, 1, "원본은 바꾸지 않는다");
 });
+
+test("문서가 영구 삭제돼 본문이 지워진 끝난 편집 턴은 그 이유로 보인다", () => {
+  const base = { action: "markdown_edit", messageStatus: "completed", isDocumentPurged: true };
+  assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "문서 영구 삭제됨", tone: "muted", struck: false });
+  // 이 화면에서 저장·거절한 기록이 있으면 그 결과가 먼저다.
+  assert.equal(resolveTaskStatus({ ...base, isApplied: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
+});
+
+test("끝난 편집 턴의 본문이 지워졌거나 document_purged로 닫혔으면 영구 삭제로 본다", async () => {
+  const { isPurgedEditTurn } = await import("../src/features/agent-chat/lib/agentTurn.ts");
+  const edit = { action: "markdown_edit" };
+  assert.equal(isPurgedEditTurn({ status: "completed", result: edit }), true);
+  assert.equal(isPurgedEditTurn({ status: "failed", error: "document_purged" }), true);
+  assert.equal(isPurgedEditTurn({ status: "completed", result: { ...edit, edit: { summary: "요약" } } }), false);
+  assert.equal(isPurgedEditTurn({ status: "completed", result: { action: "clarify" } }), false);
+  assert.equal(isPurgedEditTurn({ status: "pending" }), false);
+});

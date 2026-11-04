@@ -1,6 +1,7 @@
 import {
   agentPlanFailureMessage,
   isOperationNotSelected,
+  isOperationPurged,
   PLAN_EXECUTION_FAILURE_FALLBACK,
   PLAN_FAILURE_FALLBACK,
   PLAN_PARTIAL_FAILURE_MESSAGE,
@@ -29,12 +30,19 @@ export type DocumentEditRow = {
   resultLabel: string | null;
   isFailure: boolean;
   excluded: boolean;
+  /** 대상 문서가 영구 삭제돼 고를 수 없고 변경 내용도 없다. */
+  isPurged: boolean;
 };
 
-/** AI 계약의 작업 결과 코드별 문구(ai tool_http_*). */
+const DOCUMENT_PURGED_LABEL = "영구 삭제된 문서라 실행하지 않았어요.";
+/** 영구 삭제로 변경 내용이 지워진 문서 줄의 안내 */
+export const PURGED_DIFF_NOTE = "문서가 영구 삭제되어 변경 내용을 볼 수 없어요.";
+
+/** AI 계약의 작업 결과 코드별 문구(ai tool_http_*, document_purged). */
 const OPERATION_ERROR_LABELS: Record<string, string> = {
   tool_http_423: "다른 사람이 편집 중이라 저장하지 못했어요.",
-  tool_http_404: "문서를 찾을 수 없어요."
+  tool_http_404: "문서를 찾을 수 없어요.",
+  document_purged: DOCUMENT_PURGED_LABEL
 };
 const CONFLICTED_LABEL = "문서가 바뀌어 저장하지 못했어요. 다시 요청해 주세요.";
 const FAILED_OPERATION_STATUSES: ReadonlySet<string> = new Set(["failed", "conflicted", "forbidden", "verification_failed"]);
@@ -93,14 +101,16 @@ export function buildDocumentEditRows(
       id: row.id,
       operationIds: row.operationIds,
       title: paths.get(row.id) ?? (preview?.display_name.normalize("NFC") || row.originalName),
-      summary: (preview?.summary.trim() || row.reason).normalize("NFC"),
+      // 영구 삭제된 줄은 결과 문구가 이유를 말하고, AI가 바꾼 reason은 같은 말이다.
+      summary: row.isPurged ? "" : (preview?.summary.trim() || row.reason).normalize("NFC"),
       addedLines: preview?.added_lines ?? 0,
       removedLines: preview?.removed_lines ?? 0,
       hunks: preview?.hunks ?? null,
       warning: rowOperations.find((operation) => operation.warning)?.warning?.message.trim().normalize("NFC") || null,
       resultLabel: shown ? documentEditOperationLabel(shown) : null,
       isFailure: shown ? FAILED_OPERATION_STATUSES.has(shown.status) : false,
-      excluded: row.excluded
+      excluded: row.excluded || row.isPurged,
+      isPurged: row.isPurged
     };
   });
 }
@@ -110,11 +120,17 @@ export function documentEditDecisionNote(selectedCount: number): string {
   return selectedCount > 0 ? `아직 바꾸지 않았습니다. 승인하면 문서 ${selectedCount}개를 수정합니다.` : "아직 바꾸지 않았습니다.";
 }
 
-/** 수락 버튼 위 안내. 모두 고르면 null. */
-export function documentEditApprovalHint({ selectedCount, excludedCount, canApply }: Pick<FolderOrganizeApproval, "selectedCount" | "excludedCount" | "canApply">): string | null {
-  if (selectedCount === 0) return "수정할 문서를 하나 이상 골라 주세요.";
-  if (!canApply || excludedCount === 0) return null;
-  return `${excludedCount}개는 제외하고 수정해요.`;
+/** 승인하면 실제로 수정될 문서 수. 권한으로 막힌 문서는 빼고, 변경안이 만료됐으면 수락할 수 없어 없는 것으로 친다. */
+export function documentEditRunnableCount({ selectedCount, blockedCount, isExpired }: { selectedCount: number; blockedCount: number; isExpired: boolean }): number {
+  return isExpired ? 0 : Math.max(0, selectedCount - blockedCount);
+}
+
+/** 수락 버튼 위 안내. 모두 고르면 null. purgedCount: 영구 삭제로 빠진 문서 수. 사용자가 뺀 문서로 세지 않는다(그 줄이 이유를 말한다). */
+export function documentEditApprovalHint({ selectedCount, excludedCount, canApply }: Pick<FolderOrganizeApproval, "selectedCount" | "excludedCount" | "canApply">, purgedCount = 0): string | null {
+  const userExcluded = excludedCount - purgedCount;
+  if (selectedCount === 0) return purgedCount > 0 && userExcluded === 0 ? "수정할 수 있는 문서가 없어요. 대상 문서가 영구 삭제됐어요." : "수정할 문서를 하나 이상 골라 주세요.";
+  if (!canApply || userExcluded === 0) return null;
+  return `${userExcluded}개는 제외하고 수정해요.`;
 }
 
 /**
@@ -137,6 +153,8 @@ export function documentEditRunNote(run: Pick<AgentPlanRun, "status" | "error_co
   const operations = run?.plan?.operations ?? [];
   const saved = operations.filter((operation) => SAVED_OPERATION_STATUSES.has(operation.status)).length;
   const failed = operations.filter((operation) => FAILED_OPERATION_STATUSES.has(operation.status)).length;
+  const purged = operations.filter(isOperationPurged).length;
+  if (purged > 0 && failed === 0) return saved > 0 ? `문서 ${saved}개를 저장했어요. 영구 삭제된 문서 ${purged}개는 실행하지 않았어요.` : DOCUMENT_PURGED_LABEL;
   if (saved > 0) return `문서 ${saved + failed}개 중 ${saved}개를 저장했어요. 저장하지 못한 문서는 문서별 이유를 확인해 주세요.`;
   if (failed > 0) return "문서를 저장하지 못했어요. 문서별 이유를 확인해 주세요.";
   return "작업을 완료하지 못했습니다. 문서별 상태를 확인해 주세요.";
