@@ -282,7 +282,8 @@ export function AgentPanel({
     onCreateMarkdownDocument,
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
     onInsufficientCredit: restoreComposerQuestion,
-    onReferencesRestored: restoreRejectedReferences
+    onReferencesRestored: restoreRejectedReferences,
+    openDocumentTitle
   });
   const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState, taskRunIds } = agentTurn;
   // 이 화면에서 보낸 폴더 정리 요청의 계획이 도착하면 미리보기 탭을 바로 연다. 지난 기록은 작업 카드의 버튼으로 연다.

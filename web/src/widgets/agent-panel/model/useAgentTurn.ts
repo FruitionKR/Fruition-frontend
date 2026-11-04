@@ -15,7 +15,7 @@ import {
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
-import { shouldRestoreAttachments } from "../lib/composerDocuments";
+import { documentLockedTurnMessage, shouldRestoreAttachments } from "../lib/composerDocuments";
 import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
 import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
 import {
@@ -69,6 +69,7 @@ export function useAgentTurn({
   refreshMessages,
   isFolderWriteDenied,
   onCreateMarkdownDocument,
+  openDocumentTitle = null,
   onInsufficientCredit,
   onReferencesRestored
 }: {
@@ -85,6 +86,8 @@ export function useAgentTurn({
   isFolderWriteDenied: (folderId: string) => boolean;
   /** folderId는 새 문서를 둘 폴더(null이면 루트). agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID다. */
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  /** 현재 문서 제목. 잠금(423) 안내에 쓴다. */
+  openDocumentTitle?: string | null;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
   onInsufficientCredit?: (question: string) => void;
   /** 첨부를 실은 요청이 시작되지 못했다. 다시 고르거나 보낼 수 있게 입력과 첨부를 되돌리는 데 쓴다. */
@@ -155,6 +158,8 @@ export function useAgentTurn({
   // submitAgentTurn은 세션마다 만들지 않으므로 보낼 때의 값을 ref로 읽는다.
   const readOnlyDocumentIdRef = useRef(readOnlyDocumentId);
   readOnlyDocumentIdRef.current = readOnlyDocumentId;
+  const openDocumentTitleRef = useRef(openDocumentTitle);
+  openDocumentTitleRef.current = openDocumentTitle;
   const rememberReadOnlyRequest = useCallback((turnId: string, documentId: string | null) => {
     if (!documentId) return;
     setReadOnlyRequests((current) => recordReadOnlyRequest(current, turnId, documentId));
@@ -252,7 +257,8 @@ export function useAgentTurn({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
+        const lockedMessage = documentLockedTurnMessage(error, { openDocumentTitle: openDocumentTitleRef.current, hasAttachments: referenceDocumentIds.length > 0 });
+        setAgentTurnErrorMessage(lockedMessage ?? getErrorMessage(error, "작업 요청에 실패했습니다."));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
         if (shouldRestoreAttachments(error, { referenceDocumentIds, turnId })) onReferencesRestored?.(question, referenceDocumentIds);

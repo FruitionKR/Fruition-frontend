@@ -1,6 +1,6 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
-import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
+import { ApiError, DocumentLockedError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -67,7 +67,7 @@ function providerList(value: unknown): string[] {
 export async function parseApiError(response: Response, fallback: string): Promise<ApiError> {
   try {
     const body = await response.json() as {
-      error?: { message?: string; code?: string } & UsageLimitDetail;
+      error?: { message?: string; code?: string; document_title?: unknown } & UsageLimitDetail;
       detail?: string | { message?: string };
       oauth_providers?: unknown;
       providers?: unknown;
@@ -79,6 +79,10 @@ export async function parseApiError(response: Response, fallback: string): Promi
     // 같은 이메일의 계정이 있어 가입을 막은 409는 로그인 수단 목록을 함께 보존해 화면이 그 방법으로 로그인하도록 안내한다.
     if (code && (EMAIL_REGISTERED_ERROR_CODES as readonly string[]).includes(code)) {
       return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
+    }
+    if (response.status === 423) {
+      const title = body?.error?.document_title;
+      return new DocumentLockedError(message, response.status, code, typeof title === "string" && title.trim() ? title.trim() : null);
     }
     return new ApiError(message, response.status, code);
   } catch {

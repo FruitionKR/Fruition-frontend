@@ -18,9 +18,10 @@ const {
   pruneUnavailableAttachments,
   referenceDocuments,
   removeDocumentMention,
+  documentLockedTurnMessage,
   shouldRestoreAttachments
 } = await import("../src/widgets/agent-panel/lib/composerDocuments.ts");
-const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
+const { ApiError, DocumentLockedError } = await import("../src/shared/lib/apiErrors.ts");
 
 const doc = (id, filename, extra = {}) => ({
   id,
@@ -143,6 +144,45 @@ test("첨부를 실은 요청을 서버가 받기 전에 400으로 거절하면 
   // 크레딧 부족은 입력을 되돌리는 기존 동작과 같이 첨부도 되돌린다.
   const credit = new ApiError("크레딧 부족", 402, "INSUFFICIENT_CREDIT");
   assert.equal(shouldRestoreAttachments(credit, { referenceDocumentIds: ["1"], turnId: null }), true);
+});
+
+test("열린 문서 잠금(423)으로 시작되지 못한 요청은 입력과 첨부를 유지한다", () => {
+  const locked = new ApiError("김지현님이 편집 중입니다.", 423, "DOCUMENT_EDIT_LOCKED");
+  assert.equal(shouldRestoreAttachments(locked, { referenceDocumentIds: ["1"], turnId: null }), true);
+  // 첨부가 없어도 입력은 되돌린다. 빈 목록이라 칩은 그대로다.
+  assert.equal(shouldRestoreAttachments(locked, { referenceDocumentIds: [], turnId: null }), true);
+  assert.equal(shouldRestoreAttachments(locked, { referenceDocumentIds: ["1"], turnId: "t1" }), false);
+});
+
+test("열린 문서 잠금 안내는 어느 문서가 잠겼는지와 첨부로 계속하는 방법을 말한다", () => {
+  const locked = new ApiError("김지현님이 편집 중입니다.", 423, "DOCUMENT_EDIT_LOCKED");
+  assert.equal(
+    documentLockedTurnMessage(locked, { openDocumentTitle: "아키텍처", hasAttachments: true }),
+    "현재 문서 '아키텍처'에서 다른 사람이 편집 중이에요. 현재 문서 칩을 빼면 첨부 문서로 계속할 수 있어요."
+  );
+  assert.equal(
+    documentLockedTurnMessage(locked, { openDocumentTitle: "아키텍처", hasAttachments: false }),
+    "현재 문서 '아키텍처'에서 다른 사람이 편집 중이에요. 편집이 끝난 뒤 다시 시도해 주세요."
+  );
+  assert.equal(
+    documentLockedTurnMessage(locked, { openDocumentTitle: null, hasAttachments: true }),
+    "현재 문서에서 다른 사람이 편집 중이에요. 현재 문서 칩을 빼면 첨부 문서로 계속할 수 있어요."
+  );
+  // 서버가 잠긴 문서 제목을 주면 그 값을 먼저 쓴다.
+  const titled = new DocumentLockedError("편집 중", 423, "DOCUMENT_EDIT_LOCKED", "회의록");
+  assert.match(documentLockedTurnMessage(titled, { openDocumentTitle: "아키텍처", hasAttachments: true }), /현재 문서 '회의록'/);
+  // 다른 오류는 건드리지 않는다.
+  assert.equal(documentLockedTurnMessage(new ApiError("오류", 500), { openDocumentTitle: "아키텍처", hasAttachments: true }), null);
+  assert.equal(documentLockedTurnMessage(new Error("x"), { openDocumentTitle: "아키텍처", hasAttachments: true }), null);
+});
+
+test("423 응답의 잠긴 문서 제목을 보존하고, 없으면 비워 둔다", async () => {
+  const { parseApiError } = await import("../src/shared/api/client.ts");
+  const response = (error) => new Response(JSON.stringify({ error }), { status: 423 });
+  const titled = await parseApiError(response({ code: "DOCUMENT_EDIT_LOCKED", message: "편집 중", document_title: "회의록" }), "실패");
+  assert.ok(titled instanceof DocumentLockedError);
+  assert.equal(titled.documentTitle, "회의록");
+  assert.equal((await parseApiError(response({ code: "DOCUMENT_EDIT_LOCKED", message: "편집 중" }), "실패")).documentTitle, null);
 });
 
 test("되돌린 첨부에서 지금 고를 수 없는 문서(삭제·변환 중)를 뺀다", () => {

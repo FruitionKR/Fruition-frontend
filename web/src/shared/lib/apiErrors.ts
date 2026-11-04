@@ -40,6 +40,17 @@ export function isChatSessionLimitError(error: unknown): boolean {
   return error instanceof ApiError && error.code === "CHAT_SESSION_LIMIT_EXCEEDED";
 }
 
+/** 다른 사람이 문서를 편집 중이라 거절한 423. documentTitle은 서버가 알려 준 잠긴 문서 제목이고 없으면 null이다. */
+export class DocumentLockedError extends ApiError {
+  readonly documentTitle: string | null;
+
+  constructor(message: string, status: number, code: string | undefined, documentTitle: string | null) {
+    super(message, status, code);
+    this.name = "DocumentLockedError";
+    this.documentTitle = documentTitle;
+  }
+}
+
 /** 같은 이메일의 계정이 이미 있어 가입이 거절된 409의 서버 code(access #31). */
 export const EMAIL_REGISTERED_ERROR_CODES = ["EMAIL_REGISTERED_WITH_OAUTH", "EMAIL_REGISTERED"] as const;
 
