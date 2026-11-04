@@ -201,3 +201,22 @@ test("보기 폴더 자체를 옮기려 하면 멤버는 시작 전에 막고, �
   assert.equal(resolve(projects, dragged, { projectId: "p", targetId: "open", position: "inside" }, new Set(), false).kind, "forbidden");
   assert.equal(resolve(projects, dragged, { projectId: "p", targetId: null, position: "inside" }, new Set(), true).kind, "move");
 });
+
+test("문서 자체에 건 보기 권한은 폴더 권한이 아니라 이동을 막지 않는다", async () => {
+  const { moveDeniedReason, isMoveOutDenied, resolveTreeMove: resolve } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
+  const { FOLDER_WRITE_FORBIDDEN_MESSAGE } = await import("../src/entities/tree/lib/treePermission.ts");
+  const viewDoc = (id) => ({ id, label: `${id}.md`, type: "file", documentId: `doc-${id}`, permission: "view" });
+  const projects = [{ id: "p", folderId: null, title: "문서", items: [
+    { id: "edit", label: "편집", type: "folder", permission: "edit", children: [viewDoc("in-edit"), { id: "peer", label: "peer.md", type: "file", documentId: "doc-peer" }] },
+    { id: "other", label: "다른 폴더", type: "folder", permission: null, children: [] },
+    { id: "locked", label: "보기", type: "folder", permission: "view", children: [viewDoc("in-locked")] },
+    viewDoc("at-root")
+  ] }];
+  assert.equal(moveDeniedReason(projects, "in-edit", false), null);
+  assert.equal(moveDeniedReason(projects, "at-root", false), null);
+  assert.equal(isMoveOutDenied(projects, "in-edit", false), false);
+  assert.equal(resolve(projects, { projectId: "p", itemId: "in-edit" }, { projectId: "p", targetId: "other", position: "inside" }, new Set(), false).kind, "move", "끌어 옮기기");
+  assert.equal(resolve(projects, { projectId: "p", itemId: "in-edit" }, { projectId: "p", targetId: "peer", position: "after" }, new Set(), false).kind, "move", "순서 변경");
+  // 출발 폴더가 보기면 문서 권한과 상관없이 여전히 꺼낼 수 없다.
+  assert.equal(moveDeniedReason(projects, "in-locked", false), FOLDER_WRITE_FORBIDDEN_MESSAGE);
+});

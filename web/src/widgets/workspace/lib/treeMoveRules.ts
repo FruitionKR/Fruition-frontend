@@ -34,6 +34,9 @@ export function moveDeniedReason(projects: Project[], itemId: string, isWorkspac
   const location = findItemLocation(projects, itemId);
   if (!location) return null;
   if (isFolderDenied(projects, location, isWorkspaceOwner)) return FOLDER_WRITE_FORBIDDEN_MESSAGE;
+  const project = projects.find((entry) => entry.id === location.projectId);
+  // 문서의 permission은 문서 자체의 권한이라 폴더 편집 권한으로 읽지 않는다.
+  if (project && findTreeItem(project.items, itemId)?.type !== "folder") return null;
   return isFolderDenied(projects, { projectId: location.projectId, folderId: itemId }, isWorkspaceOwner) ? FOLDER_EDIT_FORBIDDEN_MESSAGE : null;
 }
 
