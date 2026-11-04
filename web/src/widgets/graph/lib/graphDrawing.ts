@@ -181,9 +181,7 @@ export function drawGraphFrame({
     context.globalAlpha = nodeAlpha;
     if (entry && entry.scale !== 1) {
       // 노드 중심을 기준으로 작게 시작해 살짝 넘쳤다가 원래 크기로 돌아온다(라벨·마커 포함).
-      context.translate(screenPosition.x, screenPosition.y);
-      context.scale(entry.scale, entry.scale);
-      context.translate(-screenPosition.x, -screenPosition.y);
+      scaleAround(context, screenPosition, entry.scale);
     }
 
     const progress = nodeProgress(node, getNodeProgress);
@@ -230,11 +228,30 @@ export function drawGraphFrame({
       context.fill();
     }
 
-    // 새 노드의 라벨은 노드가 핀 뒤에 따라 나타난다.
-    context.globalAlpha = focusAlpha * (entry?.label ?? 1);
-    if (!visibleLabelIds || visibleLabelIds.has(node.id)) drawNodeLabel(context, palette, node, screenPosition.x, screenPosition.y);
     context.restore();
   }
+
+  // 라벨은 모든 노드를 그린 뒤에 그린다. 함께 그리면 뒤에 그린 노드가 앞 노드의 라벨을 가린다.
+  for (let index = 0; index < drawableNodeCount; index += 1) {
+    const node = nodes[index];
+    const entry = getNodeEntry?.(node.id) ?? null;
+    if ((entry?.opacity ?? 1) <= 0 || nodeProgress(node, getNodeProgress) !== null) continue;
+    if (visibleLabelIds && !visibleLabelIds.has(node.id)) continue;
+    const screenPosition = graphToCanvas(getNodePosition(node.id), canvas);
+    context.save();
+    // 새 노드의 라벨은 노드가 핀 뒤에 따라 나타난다.
+    context.globalAlpha = (0.16 + 0.84 * focusAmountFromHover(linkedHoverAmounts.get(node.id) ?? 0)) * (entry?.label ?? 1);
+    if (entry && entry.scale !== 1) scaleAround(context, screenPosition, entry.scale);
+    drawNodeLabel(context, palette, node, screenPosition.x, screenPosition.y);
+    context.restore();
+  }
+}
+
+/** 노드 중심을 기준으로 키운다. 노드와 라벨이 함께 커진다. */
+function scaleAround(context: CanvasRenderingContext2D, center: NodePosition, scale: number) {
+  context.translate(center.x, center.y);
+  context.scale(scale, scale);
+  context.translate(-center.x, -center.y);
 }
 
 function lerpPosition(from: NodePosition, to: NodePosition, amount: number): NodePosition {
