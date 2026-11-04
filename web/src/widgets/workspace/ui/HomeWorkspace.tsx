@@ -529,7 +529,8 @@ export function HomeWorkspace() {
         canStartDrag={projectTree.canStartDrag}
         isDropDenied={projectTree.isDropDenied}
         isFolderWriteDenied={projectTree.isFolderWriteDenied}
-        isItemMoveOutDenied={projectTree.isItemMoveOutDenied}
+        itemMoveDeniedReason={projectTree.itemMoveDeniedReason}
+        isWorkspaceOwner={role === null ? null : isOwner}
         onDragDenied={projectTree.onDragDenied}
         onFileDragLeave={projectTree.onFileDragLeave}
         onDragEnd={projectTree.onDragEnd}

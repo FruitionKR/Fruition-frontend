@@ -1,7 +1,7 @@
 import { isFileItem } from "@/entities/tree/lib/treeGuards";
 import { findItemLocation, folderItems, normalizeTreeName, serverFolderId } from "@/entities/tree/lib/treeNames";
 import { findTreeItem } from "@/entities/tree/lib/treeQueries";
-import { canWriteTreeFolder, FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree/lib/treePermission";
+import { canWriteTreeFolder, FOLDER_EDIT_FORBIDDEN_MESSAGE, FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree/lib/treePermission";
 import type { FolderLocation } from "@/entities/tree/lib/treeNames";
 import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 import { selectedRootItems, type SkippedTreeItem } from "./treeBulkSelection";
@@ -26,10 +26,19 @@ function isFolderDenied(projects: Project[], location: FolderLocation, isWorkspa
   return canWriteTreeFolder(project?.items ?? [], location.folderId, isWorkspaceOwner) === false;
 }
 
-/** 지금 있는 폴더에서 이 항목을 꺼낼 권한이 없으면 true. 단일 항목을 끌기 시작할 때도 쓴다. */
-export function isMoveOutDenied(projects: Project[], itemId: string, isWorkspaceOwner: boolean | null): boolean {
+/**
+ * 이 항목을 옮길 수 없는 이유. 지금 있는 폴더에서 꺼낼 권한이 있어야 하고, 폴더는 자기 편집 권한도 있어야 한다(document FolderService.move).
+ * 옮길 수 있거나 권한을 모르면 null이다. 단일 항목을 끌기 시작할 때도 쓴다.
+ */
+export function moveDeniedReason(projects: Project[], itemId: string, isWorkspaceOwner: boolean | null): string | null {
   const location = findItemLocation(projects, itemId);
-  return Boolean(location) && isFolderDenied(projects, location as FolderLocation, isWorkspaceOwner);
+  if (!location) return null;
+  if (isFolderDenied(projects, location, isWorkspaceOwner)) return FOLDER_WRITE_FORBIDDEN_MESSAGE;
+  return isFolderDenied(projects, { projectId: location.projectId, folderId: itemId }, isWorkspaceOwner) ? FOLDER_EDIT_FORBIDDEN_MESSAGE : null;
+}
+
+export function isMoveOutDenied(projects: Project[], itemId: string, isWorkspaceOwner: boolean | null): boolean {
+  return moveDeniedReason(projects, itemId, isWorkspaceOwner) !== null;
 }
 
 /** 대상에 놓았을 때 항목이 들어갈 위치. 폴더 안이면 그 폴더, 문서 위면 그 문서의 폴더, targetId가 null이면 최상위다. */
@@ -106,9 +115,7 @@ function resolveManyMove(
   for (const entry of candidates) {
     // 이미 대상 폴더에 있는 항목은 옮길 필요가 없다.
     if (destinationIds.has(entry.id)) continue;
-    const reason = isMoveOutDenied(projects, entry.id, isWorkspaceOwner)
-      ? FOLDER_WRITE_FORBIDDEN_MESSAGE
-      : manyMoveSkipReason(entry, destination, takenNames);
+    const reason = moveDeniedReason(projects, entry.id, isWorkspaceOwner) ?? manyMoveSkipReason(entry, destination, takenNames);
     if (reason) {
       skipped.push({ label: entry.label, reason });
       continue;

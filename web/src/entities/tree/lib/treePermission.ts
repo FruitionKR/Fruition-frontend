@@ -35,6 +35,21 @@ export function findEffectivePermission(items: TreeItem[], id: string, inherited
 /** 서버가 폴더 넣기·꺼내기를 거절할 때와 같은 문구. 화면에서 미리 막을 때 이유로 보여 준다. */
 export const FOLDER_WRITE_FORBIDDEN_MESSAGE = "이 폴더에 넣거나 꺼낼 권한이 없습니다.";
 
+/** 폴더 자체의 이름 변경·이동·삭제를 서버가 거절할 때와 같은 문구. */
+export const FOLDER_EDIT_FORBIDDEN_MESSAGE = "이 폴더를 편집할 권한이 없습니다.";
+export const FOLDER_WITH_ITEMS_DELETE_MESSAGE = "내용이 있는 폴더는 워크스페이스 OWNER만 삭제할 수 있습니다.";
+export const FOLDER_PERMISSION_OWNER_ONLY_MESSAGE = "폴더 권한은 워크스페이스 OWNER만 바꿀 수 있습니다.";
+export const DOCUMENT_PERMISSION_FORBIDDEN_MESSAGE = "문서 권한은 문서 소유자와 워크스페이스 OWNER만 바꿀 수 있습니다.";
+
+/**
+ * 이 폴더를 지울 수 없는 이유. 지울 수 있거나 모르면 null이고 서버가 판단한다.
+ * 보기 폴더는 편집 권한이, 내용이 있는 폴더는 OWNER 역할이 필요하다(document FolderService).
+ */
+export function folderDeleteBlockedReason(folder: Pick<TreeItem, "children">, isWriteDenied: boolean, isWorkspaceOwner: boolean | null): string | null {
+  if (isWriteDenied) return FOLDER_EDIT_FORBIDDEN_MESSAGE;
+  return isWorkspaceOwner === false && (folder.children?.length ?? 0) > 0 ? FOLDER_WITH_ITEMS_DELETE_MESSAGE : null;
+}
+
 /**
  * 폴더에 항목을 넣거나 꺼낼 수 있는지 판정하는 단일 기준(서버 DocumentAccessPolicy와 같은 규칙).
  * chain은 그 폴더부터 최상위 쪽으로 올라가는 각 폴더의 자기 설정이다. 가장 가까운 설정을 따르고, 설정이 없으면 편집할 수 있다.

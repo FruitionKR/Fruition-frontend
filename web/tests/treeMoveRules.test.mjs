@@ -181,3 +181,23 @@ test("쓸 수 없는 폴더는 이동 대상에 비활성으로 남고, 최상�
   );
   assert.equal(listMoveDestinations(tree, new Set(["n2"]), undefined, "문서").every((entry) => entry.isBlocked === false), true, "판정을 넘기지 않으면 막지 않는다");
 });
+
+test("보기 폴더 자체를 옮기려 하면 멤버는 시작 전에 막고, 폴더 편집 권한이 이유다", async () => {
+  const { moveDeniedReason, isMoveOutDenied, resolveTreeMove: resolve } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
+  const { FOLDER_EDIT_FORBIDDEN_MESSAGE, FOLDER_WRITE_FORBIDDEN_MESSAGE } = await import("../src/entities/tree/lib/treePermission.ts");
+  const projects = [{ id: "p", folderId: null, title: "문서", items: [
+    { id: "view", label: "보기", type: "folder", permission: "view", children: [{ id: "sub", label: "하위", type: "folder", permission: null, children: [] }, { id: "doc", label: "문서", type: "file", documentId: "d" }] },
+    { id: "open", label: "열림", type: "folder", permission: null, children: [] }
+  ] }];
+  assert.equal(moveDeniedReason(projects, "view", false), FOLDER_EDIT_FORBIDDEN_MESSAGE);
+  // 보기 폴더 안 항목은 꺼낼 권한이 이유다. 하위 폴더는 보기를 물려받아 편집도 막힌다.
+  assert.equal(moveDeniedReason(projects, "doc", false), FOLDER_WRITE_FORBIDDEN_MESSAGE);
+  assert.equal(moveDeniedReason(projects, "sub", false), FOLDER_WRITE_FORBIDDEN_MESSAGE);
+  assert.equal(moveDeniedReason(projects, "open", false), null);
+  assert.equal(moveDeniedReason(projects, "view", true), null);
+  assert.equal(moveDeniedReason(projects, "view", null), null);
+  assert.equal(isMoveOutDenied(projects, "view", false), true);
+  const dragged = { projectId: "p", itemId: "view" };
+  assert.equal(resolve(projects, dragged, { projectId: "p", targetId: "open", position: "inside" }, new Set(), false).kind, "forbidden");
+  assert.equal(resolve(projects, dragged, { projectId: "p", targetId: null, position: "inside" }, new Set(), true).kind, "move");
+});
