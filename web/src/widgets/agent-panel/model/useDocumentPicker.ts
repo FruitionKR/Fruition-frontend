@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchDocuments, type DocumentItemResponse } from "@/entities/document";
-import { getWorkspaceId } from "@/shared/api/client";
+import { readWorkspaceId } from "@/shared/api/client";
 import {
   canAddComposerDocument,
   composerDocumentOptions,
@@ -49,7 +49,7 @@ export function useDocumentPicker({
   if (dismissedValue !== null && dismissedValue !== value) setDismissedValue(null);
   const mention = isEnabled ? parseDocumentMention(value, caret) : null;
   const isMentionOpen = mention !== null && dismissedValue !== value;
-  const workspaceId = getWorkspaceId();
+  const workspaceId = readWorkspaceId();
   // 스킬 참고 문서 고르기와 같은 쿼리 키를 쓴다. 열 때마다 다시 받아 그 사이 지운 문서를 뺀다.
   const documentsQuery = useQuery({
     queryKey: ["documents", workspaceId],

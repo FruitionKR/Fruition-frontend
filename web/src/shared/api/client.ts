@@ -251,6 +251,14 @@ export function getWorkspaceId(): string {
   return selected;
 }
 
+/**
+ * 렌더 중에 읽는 workspace id. 없으면 빈 문자열이다. 로그아웃은 저장값을 먼저 지우고 화면 이동을 시작하므로,
+ * 이동이 끝나기 전 재렌더에서 던지면 앱 전체가 오류 화면이 되고 이동도 멈춘다. 빈 값이면 조회를 켜지 않는다.
+ */
+export function readWorkspaceId(): string {
+  return getSelectedWorkspaceId() ?? "";
+}
+
 /** /api/workspaces/{workspaceId}/... 경로 생성. 모든 segment를 encodeURIComponent 처리한다. */
 export function workspacePath(workspaceId: string, ...segments: (string | number)[]): string {
   return (

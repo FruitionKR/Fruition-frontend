@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getWorkspaceId } from "@/shared/api/client";
+import { readWorkspaceId } from "@/shared/api/client";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
 import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
@@ -10,14 +10,14 @@ import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, k
  * 둘 다 떠 있어도 한 번만 폴링한다.
  */
 export function useAgentPlanRun(turnId: string | undefined) {
-  const workspaceId = getWorkspaceId();
+  const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const queryKey = ["agentPlan", workspaceId, turnId];
   const query = useQuery({
     queryKey,
     queryFn: ({ signal }) =>
       fetchAgentPlanRun(workspaceId, turnId!, signal, knownPlanRunId(client.getQueryData<AgentPlanRun | null>(queryKey), turnId!)),
-    enabled: Boolean(turnId),
+    enabled: Boolean(turnId) && Boolean(workspaceId),
     retry: false,
     refetchInterval: (current) => !current.state.error && shouldPollAgentPlan(current.state.data?.status) ? 3000 : false,
     // 이미 끝난 계획은 상태가 바뀌지 않으므로, 다시 마운트돼도 turn·run을 다시 받지 않는다(#66).
@@ -30,7 +30,7 @@ export function useAgentPlanRun(turnId: string | undefined) {
     queryFn: fetchDocumentData,
     select: (data) => data.tree,
     staleTime: Infinity,
-    enabled: Boolean(query.data?.plan),
+    enabled: Boolean(query.data?.plan) && Boolean(workspaceId),
     retry: false
   });
   const run = query.data;

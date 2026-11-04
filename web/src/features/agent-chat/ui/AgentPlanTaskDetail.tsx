@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import taskAcceptIcon from "@/shared/assets/svg/agent/task-accept.svg";
 import taskRejectIcon from "@/shared/assets/svg/agent/task-reject.svg";
 import taskBoltIcon from "@/shared/assets/svg/agent/task-bolt.svg";
-import { getWorkspaceId } from "@/shared/api/client";
+import { readWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
@@ -74,7 +74,7 @@ export function AgentPlanTaskDetail({
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭(Figma 1656:11542)으로 연다. 항목별로 골라 적용할 수 있다. */
   onOpenPreview?: () => void;
 }) {
-  const workspaceId = getWorkspaceId();
+  const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const plan = run?.plan ?? null;
   const { role, isOwner } = useWorkspaceRole();
@@ -84,7 +84,7 @@ export function AgentPlanTaskDetail({
     queryFn: fetchDocumentData,
     select: (data) => data.tree,
     staleTime: Infinity,
-    enabled: Boolean(plan),
+    enabled: Boolean(plan) && Boolean(workspaceId),
     retry: false
   });
   const queryKey = ["agentPlan", workspaceId, turnId];

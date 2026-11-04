@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSkills } from "@/entities/skill";
-import { getWorkspaceId } from "@/shared/api/client";
+import { readWorkspaceId } from "@/shared/api/client";
 import { buildSkillPickerGroups, parseSkillSlashQuery, type SkillPickerItem } from "@/features/agent-chat/lib/taskThread";
 
 /**
@@ -24,7 +24,7 @@ export function useSkillSlashPicker({
   const query = isEnabled ? parseSkillSlashQuery(value) : null;
   const [dismissedValue, setDismissedValue] = useState<string | null>(null);
   const isOpen = query !== null && dismissedValue !== value && !isDraftRestored;
-  const workspaceId = getWorkspaceId();
+  const workspaceId = readWorkspaceId();
   // 스킬 화면과 같은 쿼리 키를 써서 목록 캐시를 함께 쓴다.
   // 고르기 목록이 닫힌 뒤에도 입력한 `/slug`의 결과 방식을 알아야 하므로 "/"로 시작하는 동안 받아 둔다.
   const skills = useQuery({
