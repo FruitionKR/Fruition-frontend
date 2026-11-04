@@ -1,5 +1,5 @@
 /*
- * 사용자 설정 > AI 사용량. 섹션·행 제목·버튼은 SettingsModal.module.css를 쓰고 계정 정보 행(py 6)과 리듬을 맞춘다.
+ * AI 설정 > AI 사용량.섹션·행 제목·버튼은 SettingsModal.module.css를 쓰고 계정 정보 행(py 6)과 리듬을 맞춘다.
  * 입력·출력 색은 --color-usage-input/output(base.css). 글자는 색 대신 텍스트 토큰을 쓰고, 색은 막대·견본에만 칠한다.
  */
 
@@ -129,29 +129,9 @@
   font-weight: 600;
 }
 
-/* 예상 비용: "약"은 단위처럼 흐리게, 금액은 호출 수와 같은 굵기로 */
-.side-stats dd .cost-approx {
-  margin: 0 3px 0 0;
-}
-
 .side-stats dd .cost-unknown {
   margin: 0;
   font-size: 14px;
-}
-
-.side-stats dd[aria-busy="true"] {
-  display: flex;
-  align-items: center;
-  min-height: 22px;
-}
-
-.cost-skeleton {
-  display: block;
-  width: 64px;
-  height: 14px;
-  border-radius: 4px;
-  background: var(--color-surface-strong);
-  animation: usage-skeleton-pulse 1.2s ease-in-out infinite;
 }
 
 .cost-note {
@@ -169,18 +149,12 @@
   line-height: 1.4;
 }
 
-.cost-account strong {
-  color: var(--color-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 .model-cost {
   color: var(--color-body);
   font-weight: 600;
 }
 
-.model-cost::after {
+.model-cost:not(:last-child)::after {
   content: "·";
   margin: 0 4px;
   color: var(--color-subtle);
@@ -532,7 +506,6 @@
 @media (prefers-reduced-motion: reduce) {
   .hero-bar,
   .model-bar,
-  .cost-skeleton,
   .skeleton-line,
   .skeleton-total,
   .skeleton-bar {

@@ -1,8 +1,6 @@
-// document-svc(8080) 본인 모델 사용량: GET /api/workspaces/:wid/usage/models?from_at&to_at.
-// 실제 백엔드는 ai `/usage/models` 응답(provider·requested_model·model 묶음 집계)을 그대로 돌려준다. 금액은 없다.
-// 본인 청구 금액: GET /api/users/me/usage/charges?from_at&to_at. 워크스페이스를 가로질러 응답 모델별로 합친
-// 부가세 포함 milli-KRW다. MOCK_USAGE_CHARGES_FAIL=1이면 503으로 금액 실패 상태를 재현한다.
-import { state, error } from "../state.mjs";
+// document-svc(8080) 본인 AI 사용량: GET /api/users/me/usage/charges?from_at&to_at. 워크스페이스를 가로질러 응답 모델별로 합친
+// 토큰과 부가세 포함 milli-KRW다. MOCK_USAGE_CHARGES_FAIL=1이면 503으로 조회 실패 상태를 재현한다.
+import { error } from "../state.mjs";
 import { WORKSPACE_ID } from "../seed.mjs";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -16,7 +14,7 @@ const CALL_KINDS = [
   ["openai", "gpt-5.5", ["gpt-5.5"], [3000, 12000], [500, 2000], 55, 25]
 ];
 
-// 다른 워크스페이스 호출(사용량 화면에는 안 보이고 청구 합계에만 더해진다). TTS는 토큰 없이 글자 수로 매긴다.
+// 다른 워크스페이스 호출(계정 합산이라 사용량 화면에 함께 보인다). TTS는 토큰 없이 글자 수로 매긴다.
 const OTHER_WORKSPACE_ID = "ws_other";
 const OTHER_CALLS = [
   ["openai", "gpt-6-luna", 5200, 900, 0, 3],
@@ -112,32 +110,6 @@ function ledgerFor(userId) {
 
 const ledgers = new Map();
 
-function summarize(calls) {
-  const groups = new Map();
-  for (const call of calls) {
-    const key = `${call.provider}|${call.requested_model}|${call.model}`;
-    const row = groups.get(key) ?? {
-      provider: call.provider, requested_model: call.requested_model, model: call.model, calls: 0, failed_calls: 0,
-      unfinished_calls: 0, unknown_usage_calls: 0, known_input_tokens: 0, known_output_tokens: 0,
-      known_cached_input_tokens: 0, known_cache_creation_tokens: 0, known_reasoning_tokens: 0, unknown_cache_usage_calls: 0
-    };
-    groups.set(key, {
-      ...row,
-      calls: row.calls + 1,
-      failed_calls: row.failed_calls + (call.status === "failed" ? 1 : 0),
-      unknown_usage_calls: row.unknown_usage_calls + (call.input_tokens === null || call.output_tokens === null ? 1 : 0),
-      known_input_tokens: row.known_input_tokens + (call.input_tokens ?? 0),
-      known_output_tokens: row.known_output_tokens + (call.output_tokens ?? 0),
-      known_cached_input_tokens: row.known_cached_input_tokens + (call.cached_input_tokens ?? 0),
-      known_cache_creation_tokens: row.known_cache_creation_tokens + call.cache_creation_tokens,
-      known_reasoning_tokens: row.known_reasoning_tokens + call.reasoning_tokens,
-      unknown_cache_usage_calls: row.unknown_cache_usage_calls + (call.cached_input_tokens === null ? 1 : 0)
-    });
-  }
-  return Array.from(groups.values()).sort((a, b) =>
-    a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model) || a.requested_model.localeCompare(b.requested_model));
-}
-
 /** ISO 8601 시간대 포함만 받는다(ai가 시간대 없는 값을 400으로 거절한다). */
 function parseInstant(value) {
   if (value === null) return null;
@@ -146,26 +118,8 @@ function parseInstant(value) {
 }
 
 export function registerUsageRoutes(router) {
-  router.get("/api/workspaces/:wid/usage/models", (ctx) => {
-    const workspace = state.workspaces.find((item) => item.id === ctx.params.wid && !item.deleted_at);
-    const isMember = workspace && state.members.some((member) => member.workspace_id === workspace.id && member.user_id === ctx.user.id);
-    // 실제 백엔드처럼 멤버가 아니면 403이 아니라 404다.
-    if (!isMember) return error(ctx, 404, "워크스페이스를 찾을 수 없습니다.");
-    const now = new Date();
-    const from = parseInstant(ctx.query.get("from_at")) ?? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
-    const to = parseInstant(ctx.query.get("to_at")) ?? now.getTime();
-    if (Number.isNaN(from) || Number.isNaN(to) || from >= to) return error(ctx, 400, "조회 기간을 확인하세요.");
-    const calls = ledgerFor(ctx.user.id)
-      .filter((call) => call.workspace_id === workspace.id && call.started_at >= from && call.started_at < to);
-    ctx.json(200, {
-      workspace_id: workspace.id, user_id: ctx.user.id,
-      from_at: new Date(from).toISOString(), to_at: new Date(to).toISOString(),
-      models: summarize(calls)
-    });
-  });
-
   router.get("/api/users/me/usage/charges", (ctx) => {
-    if (["1", "true"].includes(process.env.MOCK_USAGE_CHARGES_FAIL ?? "")) return error(ctx, 503, "AI 사용 금액을 불러오지 못했습니다.");
+    if (["1", "true"].includes(process.env.MOCK_USAGE_CHARGES_FAIL ?? "")) return error(ctx, 503, "AI 사용량을 불러오지 못했습니다.");
     // 실제 백엔드처럼 두 값 모두 필수이고 366일 이하다.
     const from = parseInstant(ctx.query.get("from_at"));
     const to = parseInstant(ctx.query.get("to_at"));

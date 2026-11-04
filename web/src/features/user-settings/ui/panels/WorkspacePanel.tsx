@@ -232,14 +232,15 @@ export function WorkspacePanel({
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>PDF 그림 설명 (외부 AI 사용)</SettingsSectionHeader>
+        <SettingsSectionHeader>PDF 그림 설명</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>PDF를 변환할 때 그림에 설명 붙이기</strong>
             <small>
-              PDF 속 그림을 외부 AI(현재 워크스페이스 AI 모델)로 보내 대체 텍스트와 설명을 붙입니다.
-              그림당 약 2원(추정)이 들고, 기본은 꺼져 있습니다. 켠 뒤 시작한 변환부터 적용됩니다.
+              PDF 속 그림을 워크스페이스 AI 모델의 외부 제공사로 보내 대체 텍스트와 설명을 붙입니다.
+              그림 1개당 약 2원(추정)이 들며, PDF를 올린 멤버의 AI 사용량에 포함됩니다. 켠 뒤 시작한 변환부터 적용됩니다.
             </small>
+            <small>이 설정을 꺼도 표·수식·깨진 글자 복원에는 AI 모델이 사용됩니다.</small>
             {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
             {describeFiguresError && <small className={styles["row-error"]} role="alert">{describeFiguresError}</small>}
           </div>
