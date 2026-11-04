@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -29,6 +30,13 @@ const {
   taskHeadingKind,
   taskKindLabel
 } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const {
+  READ_ONLY_REQUEST_LIMIT,
+  readOnlyRequestStorageKey,
+  readReadOnlyRequests,
+  recordReadOnlyRequest,
+  writeReadOnlyRequest
+} = await import("../src/features/agent-chat/lib/readOnlyRequests.ts");
 
 function message(overrides) {
   return { id: overrides.id ?? `msg_${Math.random()}`, role: "assistant", content: "", status: "completed", references: [], ...overrides };
@@ -397,18 +405,61 @@ test("같은 폴더의 새 계획에 대체된 승인 대기·거절 계획은 �
   assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "awaiting_approval" }).group, "approval");
 });
 
-test("보기 권한 문서를 연 채 AI가 문서를 열라고 되물으면 보기 권한 안내로 바꾼다", () => {
-  const openDocumentQuestion = { key: "a", action: "clarify", answer: "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요." };
-  const otherQuestion = { key: "b", action: "clarify", answer: "어떤 기준으로 정리할까요?" };
-  const answered = { key: "c", action: "folder_lookup", answer: "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요." };
-  const result = withReadOnlyDocumentClarification([openDocumentQuestion, otherQuestion, answered], true);
+const OPEN_DOCUMENT_QUESTION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+const READ_ONLY_REQUESTS = new Map([["turn_a", "doc_read_only"], ["turn_other", "doc_read_only"], ["turn_lookup", "doc_read_only"]]);
+
+test("보기 권한 문서를 연 채 보낸 요청에 AI가 문서를 열라고 되물으면 보기 권한 안내로 바꾼다", () => {
+  const openDocumentQuestion = { key: "a", turnId: "turn_a", action: "clarify", answer: OPEN_DOCUMENT_QUESTION };
+  const otherQuestion = { key: "b", turnId: "turn_other", action: "clarify", answer: "어떤 기준으로 정리할까요?" };
+  const answered = { key: "c", turnId: "turn_lookup", action: "folder_lookup", answer: OPEN_DOCUMENT_QUESTION };
+  const result = withReadOnlyDocumentClarification([openDocumentQuestion, otherQuestion, answered], "doc_read_only", READ_ONLY_REQUESTS);
   assert.match(result[0].answer, /^이 문서는 보기 권한만 있어 수정할 수 없어요\./);
   assert.equal(result[1], otherQuestion);
   assert.equal(result[2], answered);
-  assert.equal(openDocumentQuestion.answer, "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.");
+  assert.equal(openDocumentQuestion.answer, OPEN_DOCUMENT_QUESTION);
 });
 
-test("열린 문서가 보기 권한이 아니면 AI 되묻기를 그대로 둔다", () => {
-  const items = [{ key: "a", action: "clarify", answer: "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요." }];
-  assert.equal(withReadOnlyDocumentClarification(items, false), items);
+test("문서 없이 받은 되묻기는 뒤에 보기 권한 문서를 열어도 그대로 둔다", () => {
+  const asked = { key: "a", turnId: "turn_no_document", action: "clarify", answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("다른 보기 권한 문서에서 받은 되묻기는 지금 문서의 이유로 바꾸지 않는다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_other_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("지금 연 문서가 보기 권한이 아니면 AI 되묻기를 그대로 둔다", () => {
+  const items = [{ key: "a", turnId: "turn_a", action: "clarify", answer: OPEN_DOCUMENT_QUESTION }];
+  assert.equal(withReadOnlyDocumentClarification(items, null, READ_ONLY_REQUESTS), items);
+});
+
+test("보기 권한 요청 기록은 새로 고침 뒤에도 읽히고, 깨진 값은 빈 기록으로 본다", () => {
+  const store = new Map();
+  const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+  const key = readOnlyRequestStorageKey("ws_1");
+  writeReadOnlyRequest(storage, key, "turn_a", "doc_a");
+  writeReadOnlyRequest(storage, key, "turn_b", "doc_b");
+  assert.deepEqual([...readReadOnlyRequests(storage, key)], [["turn_a", "doc_a"], ["turn_b", "doc_b"]]);
+  store.set(key, "{깨짐");
+  assert.equal(readReadOnlyRequests(storage, key).size, 0);
+  store.set(key, JSON.stringify([["turn_a", 3], ["", "doc"], "x", ["turn_b", "doc_b"]]));
+  assert.deepEqual([...readReadOnlyRequests(storage, key)], [["turn_b", "doc_b"]]);
+  assert.equal(readReadOnlyRequests(null, key).size, 0);
+  assert.doesNotThrow(() => writeReadOnlyRequest({ getItem: () => null, setItem: () => { throw new Error("full"); } }, key, "turn_a", "doc_a"));
+});
+
+test("보기 권한 요청 기록은 최근 것만 남긴다", () => {
+  let turns = new Map();
+  for (let index = 0; index < READ_ONLY_REQUEST_LIMIT + 5; index += 1) turns = recordReadOnlyRequest(turns, `turn_${index}`, "doc");
+  assert.equal(turns.size, READ_ONLY_REQUEST_LIMIT);
+  assert.equal(turns.has("turn_0"), false);
+  assert.equal(turns.has(`turn_${READ_ONLY_REQUEST_LIMIT + 4}`), true);
+});
+
+test("요청 시점의 보기 권한 문서를 onAccepted에서 turn과 묶는다", () => {
+  const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
+  assert.match(source, /const requestReadOnlyDocumentId = readOnlyDocumentIdRef\.current;[\s\S]*onAccepted: \(requestId\) => \{[\s\S]*rememberReadOnlyRequest\(requestId, requestReadOnlyDocumentId\)/);
 });

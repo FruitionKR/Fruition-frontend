@@ -39,6 +39,13 @@ import {
   type TaskOutcome,
   type TaskOutcomes
 } from "@/features/agent-chat/lib/taskOutcomes";
+import {
+  readOnlyRequestStorageKey,
+  readReadOnlyRequests,
+  recordReadOnlyRequest,
+  writeReadOnlyRequest,
+  type ReadOnlyRequests
+} from "@/features/agent-chat/lib/readOnlyRequests";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
@@ -53,6 +60,7 @@ const NO_DECISIONS: EditProposalDecisions = {};
  */
 export function useAgentTurn({
   markdownEditContext,
+  readOnlyDocumentId,
   activeSessionId,
   selectedModel,
   selectedPairIds,
@@ -62,6 +70,8 @@ export function useAgentTurn({
   onInsufficientCredit
 }: {
   markdownEditContext: ActiveMarkdownEditContext | null | undefined;
+  /** 지금 열린 보기 권한 문서. 요청을 보낼 때의 값을 turn과 묶어 기억한다. */
+  readOnlyDocumentId: string | null;
   activeSessionId: string | null;
   selectedModel: AiModel | null;
   selectedPairIds: string[];
@@ -127,6 +137,23 @@ export function useAgentTurn({
     () => new Set([...turnIdsWithOutcome(taskOutcomes, "applied"), ...autoAppliedTurnIds]),
     [autoAppliedTurnIds, taskOutcomes]
   );
+  // 보기 권한 문서를 연 채 보낸 turn과 그 문서. 그 요청의 되묻기만 보기 권한 안내로 바꾼다.
+  const [readOnlyRequests, setReadOnlyRequests] = useState<ReadOnlyRequests>(() => new Map());
+  useEffect(() => {
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId) return;
+    const stored = readReadOnlyRequests(browserTaskOutcomeStorage(), readOnlyRequestStorageKey(workspaceId));
+    setReadOnlyRequests((current) => new Map([...stored, ...current]));
+  }, [activeSessionId]);
+  // submitAgentTurn은 세션마다 만들지 않으므로 보낼 때의 값을 ref로 읽는다.
+  const readOnlyDocumentIdRef = useRef(readOnlyDocumentId);
+  readOnlyDocumentIdRef.current = readOnlyDocumentId;
+  const rememberReadOnlyRequest = useCallback((turnId: string, documentId: string | null) => {
+    if (!documentId) return;
+    setReadOnlyRequests((current) => recordReadOnlyRequest(current, turnId, documentId));
+    const workspaceId = getSelectedWorkspaceId();
+    if (workspaceId) writeReadOnlyRequest(browserTaskOutcomeStorage(), readOnlyRequestStorageKey(workspaceId), turnId, documentId);
+  }, []);
   const rejectedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "rejected"), [taskOutcomes]);
   const cancelledTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "cancelled"), [taskOutcomes]);
   // 본문에 붙인 제안(Figma 1571:27625)마다 고른 거절·수락. 다른 turn의 결정은 쓰지 않는다.
@@ -290,10 +317,12 @@ export function useAgentTurn({
     const controller = new AbortController();
     agentRequestRef.current = controller;
     let acceptedTurnId: string | null = null;
+    const requestReadOnlyDocumentId = readOnlyDocumentIdRef.current;
     followTurnResult(controller, question, () => requestAgentTurn(request, {
       signal: controller.signal,
       onAccepted: (requestId) => {
         acceptedTurnId = requestId;
+        rememberReadOnlyRequest(requestId, requestReadOnlyDocumentId);
         if (controller.signal.aborted) return;
         setRequestTurnId(requestId);
         setTaskRunIds((current) => new Set([...current, requestId]));
@@ -304,7 +333,7 @@ export function useAgentTurn({
       onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
     }), () => acceptedTurnId, newAnalyticsId());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
+  }, [allowWebSearch, refreshMessages, onInsufficientCredit, rememberReadOnlyRequest]);
 
   /**
    * 지금 따라가는 turn의 진행 SSE·조회를 멈춘다(Esc 중지). 서버 취소는 호출부가 요청하고, 결과를 받을 때까지
@@ -501,6 +530,7 @@ export function useAgentTurn({
     isAutoApplying: autoApplyKind !== null,
     appliedTurnIds,
     autoAppliedTurnIds,
+    readOnlyRequests,
     rejectedTurnIds,
     cancelledTurnIds,
     reviewSegments,
