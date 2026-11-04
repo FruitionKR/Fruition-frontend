@@ -2940,6 +2940,9 @@ button.result-link:focus-visible {
   }
 
   .composer-model-trigger,
+  .composer-model-provider,
+  .composer-model-option,
+  .agent-header-menu-list button,
   .task-pill,
   .wiki-evidence-notice button {
     min-height: 44px;
@@ -3016,10 +3019,63 @@ button.result-link:focus-visible {
   }
 }
 
+/* 가로 화면은 세로가 짧아 입력창이 읽을 자리를 차지한다. 칩과 모델·전송 줄을 한 줄로 합치고 입력은 두 줄 높이로 줄인다. */
 @media (max-height: 500px) and (pointer: coarse) {
   .composer {
-    min-height: 88px;
+    min-height: 0;
+    flex-flow: row wrap;
+    align-items: center;
     margin: 4px 8px;
     padding: 8px 12px;
+  }
+
+  .composer > .task-context-chips {
+    order: 1;
+    flex: 999 1 0;
+  }
+
+  .composer > .composer-actions {
+    order: 2;
+    flex: 1 0 auto;
+    gap: 8px;
+  }
+
+  .composer > textarea {
+    order: 3;
+    flex: 1 0 100%;
+    height: 44px;
+  }
+
+  .composer > .composer-status {
+    order: 4;
+    flex: 1 0 100%;
+  }
+
+  /* @·/ 고르는 동안은 칩과 모델·전송 줄을 숨겨 목록과 입력을 모두 화면에 둔다. 목록은 남는 높이 안에서 스크롤한다. */
+  .composer-region:has(.skill-picker) .composer > .task-context-chips,
+  .composer-region:has(.skill-picker) .composer > .composer-actions {
+    display: none;
+  }
+
+  .skill-picker {
+    max-height: calc(100dvh - var(--keyboard-inset, 0px) - 48px - 84px);
+    margin: 4px 8px 0;
+    overflow-y: auto;
+  }
+
+  /* 모델 메뉴는 제공사와 모델을 나란히 두어 한 화면에 보인다. */
+  .composer-model-menu {
+    flex-direction: row;
+  }
+
+  .composer-model-list,
+  .composer-model-submenu-slot {
+    flex: 1 1 0;
+    width: auto;
+    height: auto;
+  }
+
+  .composer-model-options {
+    max-height: calc(100dvh - var(--keyboard-inset, 0px) - 120px) !important;
   }
 }
