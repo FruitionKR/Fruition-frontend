@@ -5,7 +5,7 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   return next(specifier, context);
 } });
-const { checkPlanAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } = await import("../src/features/agent-chat/lib/planAccess.ts");
+const { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } = await import("../src/features/agent-chat/lib/planAccess.ts");
 
 function folder(id, permission, children = []) {
   return { type: "folder", id, name: id, sort_order: 0, current_version: 1, permission, children };
@@ -160,4 +160,63 @@ test("안내 문구와 항목별 문구는 폴더에 넣기·꺼내기 권한까
   assert.match(planAccessMessage({ verdict: "all_blocked", blockedCount: 1 }), /넣거나 꺼낼/);
   assert.match(planAccessMessage({ verdict: "some_blocked", blockedCount: 1 }), /넣거나 꺼낼/);
   assert.match(PLAN_OPERATION_BLOCKED_NOTE, /넣거나 꺼낼/);
+});
+
+test("미리보기는 줄 단위로 센다: 한 줄에 묶인 작업 두 개가 막혀도 1개다", () => {
+  const operations = [
+    op("m1", "move_document", "doc_editable", { folder_id: "folder_open" }),
+    op("r1", "rename_document", "doc_editable", { display_name: "x" }),
+    op("m2", "move_document", "doc_view", { folder_id: "folder_open" }),
+    op("r2", "rename_document", "doc_view", { display_name: "y" })
+  ];
+  const rows = [{ id: "doc_editable", operationIds: ["m1", "r1"] }, { id: "doc_view", operationIds: ["m2", "r2"] }];
+  const access = checkPlanAccess(plan(operations), TREE, MEMBER, null);
+  assert.equal(access.blockedCount, 2, "작업으로는 2개다");
+  const row = checkRowAccess(access, rows, new Set());
+  assert.deepEqual(row, { verdict: "some_blocked", blockedCount: 1, partlyBlockedCount: 0 });
+  const message = planAccessMessage({ ...row, unit: "항목" });
+  assert.match(message, /항목 1개는/);
+  assert.match(message, /나머지 항목만 실행돼요/);
+  assert.doesNotMatch(message, /작업 2개/);
+});
+
+test("고른 줄이 모두 막히면 all_blocked, 막힌 줄을 빼면 clear다", () => {
+  const operations = [
+    op("r1", "rename_document", "doc_editable", { display_name: "x" }),
+    op("r2", "rename_document", "doc_view", { display_name: "y" })
+  ];
+  const rows = [{ id: "doc_editable", operationIds: ["r1"] }, { id: "doc_view", operationIds: ["r2"] }];
+  const verdict = (selected, deselected) => checkRowAccess(checkPlanAccess(plan(operations), TREE, MEMBER, selected), rows, new Set(deselected)).verdict;
+  assert.equal(verdict(["r2"], ["doc_editable"]), "all_blocked");
+  assert.equal(verdict(["r1"], ["doc_view"]), "clear");
+  assert.equal(verdict([], ["doc_view", "doc_editable"]), "clear", "고른 줄이 없으면 권한 안내를 하지 않는다");
+});
+
+test("줄의 작업 중 일부만 막히면 따로 세고, 막히지 않은 새 폴더만 남아도 줄이 모두 막혔으면 all_blocked다", () => {
+  const partly = [
+    op("m", "move_document", "doc_mine", { folder_id: "folder_view" }),
+    op("r", "rename_document", "doc_mine", { display_name: "x" })
+  ];
+  const tree = [doc("doc_mine", true), folder("folder_view", "view")];
+  const row = checkRowAccess(checkPlanAccess(plan(partly), tree, MEMBER, null), [{ id: "doc_mine", operationIds: ["m", "r"] }], new Set());
+  assert.deepEqual(row, { verdict: "some_blocked", blockedCount: 0, partlyBlockedCount: 1 });
+  assert.match(planAccessMessage({ ...row, unit: "항목" }), /항목 1개는 권한이 없는 작업을 빼고 실행돼요/);
+
+  const onlyFolderLeft = [
+    op("c", "create_folder", null, { parent_folder_id: null }),
+    op("m", "move_document", "doc_view", { folder_id: { $operation_result: "c" } }, ["c"])
+  ];
+  const access = checkPlanAccess(plan(onlyFolderLeft), TREE, MEMBER, null);
+  assert.equal(access.verdict, "some_blocked", "작업으로는 새 폴더가 남는다");
+  assert.equal(checkRowAccess(access, [{ id: "doc_view", operationIds: ["m"] }], new Set()).verdict, "all_blocked", "빈 폴더만 만들고 끝나므로 수락을 막는다");
+});
+
+test("줄에 안 잡힌 작업만 막혀도 안내한다", () => {
+  const operations = [
+    op("c", "create_folder", null, { parent_folder_id: "folder_view" }),
+    op("r", "rename_document", "doc_editable", { display_name: "x" })
+  ];
+  const row = checkRowAccess(checkPlanAccess(plan(operations), TREE, MEMBER, null), [{ id: "doc_editable", operationIds: ["r"] }], new Set());
+  assert.equal(row.verdict, "some_blocked");
+  assert.match(planAccessMessage({ ...row, unit: "항목" }), /일부 작업은/);
 });

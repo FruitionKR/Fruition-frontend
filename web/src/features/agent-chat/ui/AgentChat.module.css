@@ -2068,6 +2068,21 @@ button.result-link:focus-visible {
   opacity: 0.65;
 }
 
+.plan-tree small.plan-tree-failed,
+.plan-tree summary small.plan-tree-failed {
+  color: var(--color-danger);
+  opacity: 1;
+}
+
+.plan-tree small + small {
+  margin-left: 6px;
+}
+
+/* 상세 보기의 작업별 권한·실패 안내 */
+.plan-details .plan-operation-blocked {
+  color: var(--color-danger);
+}
+
 .plan-details > summary {
   cursor: pointer;
   color: var(--color-body);

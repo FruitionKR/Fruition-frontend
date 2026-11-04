@@ -498,7 +498,7 @@ export function useProjectTree({
   function canStartDrag(itemId: string) {
     if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
     if (!isMoveOutDenied(projects, itemId, isWorkspaceOwner)) return true;
-    publishNotice({ kind: "failed", title: "이동할 수 없음", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
+    publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
     return false;
   }
 

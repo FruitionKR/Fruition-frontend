@@ -21,6 +21,7 @@ const {
   isFolderOrganizeAction,
   parseSkillCommand,
   selectedCreatedFolders,
+  folderOrganizeResultNotice,
   summarizeFolderOrganizeRows
 } = await import("../src/features/agent-chat/lib/folderOrganize.ts");
 
@@ -77,7 +78,7 @@ test("새 문서 생성은 원래 이름 없이 생성으로 표시한다", () =
   const view = buildFolderOrganizeView(plan, tree);
   assert.deepEqual(view.rows, [{
     id: "op-1", originalName: "", folderName: "최상위", newName: "색인.md", changeLabel: "생성", reason: "",
-    operationIds: ["op-1"], suggestedSelected: true, duplicateWarning: null, dependencyNote: null, excluded: false
+    operationIds: ["op-1"], suggestedSelected: true, duplicateWarning: null, dependencyNote: null, excluded: false, failure: null
   }]);
   assert.equal(view.targetFolderName, null);
 });
@@ -204,7 +205,7 @@ test("완료 행은 작업 수가 아니라 미리보기와 같은 줄(문서) �
     op(6, "rename_document", "doc-md", { name: "b.md" }, { status: "skipped", error_code: "not_selected" }),
     op(7, "move_document", "doc-new", { folder_id: { $operation_result: "op-2" } }, { status: "succeeded" })
   ] };
-  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 3, excluded: 1, createdFolders: 2 });
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 3, partial: 0, failed: 0, excluded: 1, createdFolders: 2 });
 });
 
 test("고르지 않아 만들지 않은 새 폴더와 실패한 줄은 저장으로 세지 않는다", () => {
@@ -213,5 +214,61 @@ test("고르지 않아 만들지 않은 새 폴더와 실패한 줄은 저장으
     op(2, "move_document", "doc-pdf", { folder_id: "timeline" }, { status: "succeeded" }),
     op(3, "move_document", "doc-xlsx", { folder_id: "timeline" }, { status: "failed", error_code: "conflict" })
   ] };
-  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 1, excluded: 0, createdFolders: 0 });
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 1, partial: 0, failed: 1, excluded: 0, createdFolders: 0 });
+});
+
+test("실행 결과에서 실패한 줄은 계획이 아니라 지금 위치·이름을 보이고 칩과 이유를 결과대로 낸다", () => {
+  const plan = { id: "p", version: 1, operation_hash: "h", summary: "", status: "partial_failed", operations: [
+    op(1, "move_document", "doc-pdf", { folder_id: "root" }, { status: "succeeded" }),
+    op(2, "rename_document", "doc-pdf", { display_name: "새 이름.pdf" }, { status: "succeeded" }),
+    op(3, "move_document", "doc-xlsx", { folder_id: "root" }, { status: "forbidden", error_code: "tool_http_403" }),
+    op(4, "rename_document", "doc-xlsx", { display_name: "계획된 이름.xlsx" }, { status: "skipped", error_code: "dependency_failed" }),
+    op(5, "move_document", "doc-md", { folder_id: "root" }, { status: "succeeded" }),
+    op(6, "rename_document", "doc-md", { display_name: "못 바꾼 이름.md" }, { status: "conflicted", error_code: "tool_http_409" })
+  ] };
+  const { rows } = buildFolderOrganizeView(plan, tree);
+  const row = (id) => rows.find((entry) => entry.id === id);
+
+  assert.equal(row("doc-pdf").failure, null);
+  assert.equal(row("doc-pdf").newName, "새 이름.pdf");
+  assert.equal(row("doc-pdf").folderName, "연간 활동 계획서");
+
+  assert.equal(row("doc-xlsx").failure.label, "실패");
+  assert.equal(row("doc-xlsx").failure.note, "권한이 없어 실행하지 못했어요.");
+  assert.equal(row("doc-xlsx").newName, "1학기 일정표.xlsx");
+  assert.equal(row("doc-xlsx").folderName, "프로젝트 타임라인");
+
+  assert.equal(row("doc-md").failure.label, "일부 실패");
+  assert.equal(row("doc-md").failure.note, "일부 작업은 다른 변경과 충돌해 실행하지 못했어요.");
+  assert.equal(row("doc-md").newName, "메모.md");
+  assert.equal(row("doc-md").folderName, "연간 활동 계획서");
+
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 2, partial: 1, failed: 1, excluded: 0, createdFolders: 0 });
+});
+
+test("권한 때문에만 실패한 줄의 칩은 '권한 없음'이고 고르지 않은 줄은 실패가 아니다", () => {
+  const plan = { id: "p", version: 1, operation_hash: "h", summary: "", status: "failed", operations: [
+    op(1, "move_document", "doc-pdf", { folder_id: "root" }, { status: "forbidden", error_code: "tool_http_403" }),
+    op(2, "move_document", "doc-xlsx", { folder_id: "root" }, { status: "skipped", error_code: "not_selected" })
+  ] };
+  const { rows } = buildFolderOrganizeView(plan, tree);
+  assert.equal(rows[0].failure.label, "권한 없음");
+  assert.equal(rows[1].failure, null);
+  assert.equal(rows[1].excluded, true);
+});
+
+test("승인 전 줄에는 실패 표시가 없고 계획된 위치·이름을 보인다", () => {
+  const plan = { id: "p", version: 1, operation_hash: "h", summary: "", status: "awaiting_approval", operations: [
+    op(1, "move_document", "doc-pdf", { folder_id: "root" }),
+    op(2, "rename_document", "doc-pdf", { display_name: "새 이름.pdf" })
+  ] };
+  const [row] = buildFolderOrganizeView(plan, tree).rows;
+  assert.equal(row.failure, null);
+  assert.equal(row.newName, "새 이름.pdf");
+  assert.equal(row.folderName, "연간 활동 계획서");
+});
+
+test("실행 결과 안내는 줄 단위로 저장·일부 저장·실패·제외를 나눠 적는다", () => {
+  assert.equal(folderOrganizeResultNotice({ saved: 2, partial: 1, failed: 1, excluded: 1, createdFolders: 0 }), "1개 저장 • 1개 일부만 저장 • 1개 실패 • 1개 제외");
+  assert.equal(folderOrganizeResultNotice({ saved: 0, partial: 0, failed: 2, excluded: 0, createdFolders: 0 }), "2개 실패");
 });

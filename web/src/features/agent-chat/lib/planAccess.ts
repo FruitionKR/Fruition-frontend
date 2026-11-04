@@ -112,16 +112,49 @@ export function checkPlanAccess(
   return { verdict, blockedCount, blockedOperationIds: blocked };
 }
 
-/** 수락 전에 보여 줄 권한 안내. 막힌 작업이 없으면 null이다. */
-export function planAccessMessage({ verdict, blockedCount }: Pick<PlanAccess, "verdict" | "blockedCount">): string | null {
+export type PlanRowAccess = Pick<PlanAccess, "verdict" | "blockedCount"> & {
+  /** 고른 줄 중 작업 일부만 막혀 나머지는 실행될 줄 수. blockedCount는 모두 막힌 줄 수다. */
+  partlyBlockedCount: number;
+};
+
+/**
+ * 폴더 정리의 권한 판단을 줄 단위로 옮긴다. 화면이 "2개 중 2개 선택"처럼 줄을 세므로, 작업 수로 안내하면 어긋난다.
+ * 고른 줄이 모두 막히면 새 폴더처럼 줄에 안 잡히는 작업이 남아도 all_blocked다(빈 폴더만 생기므로 수락을 막는다).
+ */
+export function checkRowAccess(
+  access: Pick<PlanAccess, "blockedCount" | "blockedOperationIds">,
+  rows: readonly { id: string; operationIds: readonly string[] }[],
+  deselectedIds: ReadonlySet<string>
+): PlanRowAccess {
+  const selected = rows.filter((row) => !deselectedIds.has(row.id));
+  const blockedOps = (row: { operationIds: readonly string[] }) => row.operationIds.filter((id) => access.blockedOperationIds.has(id)).length;
+  const blockedCount = selected.filter((row) => row.operationIds.length > 0 && blockedOps(row) === row.operationIds.length).length;
+  const partlyBlockedCount = selected.filter((row) => blockedOps(row) > 0 && blockedOps(row) < row.operationIds.length).length;
+  if (selected.length === 0) return { verdict: "clear", blockedCount: 0, partlyBlockedCount: 0 };
+  const verdict = blockedCount === selected.length ? "all_blocked"
+    : blockedCount + partlyBlockedCount > 0 || access.blockedCount > 0 ? "some_blocked" : "clear";
+  return { verdict, blockedCount, partlyBlockedCount };
+}
+
+const NO_ACCESS_REASON = "대상 문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어";
+
+/** 수락 전에 보여 줄 권한 안내. 막힌 작업이 없으면 null이다. unit은 세는 단위(폴더 정리 줄은 "항목")다. */
+export function planAccessMessage({ verdict, blockedCount, partlyBlockedCount = 0, unit = "작업" }: Pick<PlanAccess, "verdict" | "blockedCount"> & { partlyBlockedCount?: number; unit?: string }): string | null {
   if (verdict === "all_blocked") {
-    return "대상 문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 수락해도 실행할 수 없어요. 문서 소유자나 워크스페이스 OWNER에게 권한을 요청해 주세요.";
+    return `${NO_ACCESS_REASON} 수락해도 실행할 수 없어요. 문서 소유자나 워크스페이스 OWNER에게 권한을 요청해 주세요.`;
   }
   if (verdict === "some_blocked") {
-    return `작업 ${blockedCount}개는 대상 문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 실행되지 않아요. 나머지 작업만 실행돼요.`;
+    return [
+      blockedCount > 0 && `${unit} ${blockedCount}개는 ${NO_ACCESS_REASON} 실행되지 않아요.`,
+      partlyBlockedCount > 0 && `${unit} ${partlyBlockedCount}개는 권한이 없는 작업을 빼고 실행돼요.`,
+      blockedCount === 0 && partlyBlockedCount === 0 && `일부 작업은 ${NO_ACCESS_REASON} 실행되지 않아요.`,
+      `나머지 ${unit}만 실행돼요.`
+    ].filter(Boolean).join(" ");
   }
   return null;
 }
 
 /** 항목별 안내 문구 */
 export const PLAN_OPERATION_BLOCKED_NOTE = "문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 실행되지 않아요.";
+/** 줄의 작업 중 일부만 막혔을 때의 안내 문구 */
+export const PLAN_ROW_PARTLY_BLOCKED_NOTE = "일부 작업은 권한이 없어 실행되지 않아요.";
