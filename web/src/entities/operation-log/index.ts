@@ -15,6 +15,7 @@ export {
   mergeRefreshedLogPage,
   pickSelectedOperationId
 } from "./model/operationLogPage";
+export { documentRestoreMessage } from "./model/restoreMessage";
 export { formatOperationLogTitle, OPERATION_TYPE_LABELS } from "./model/operationType";
 export type {
   OperationChange,
