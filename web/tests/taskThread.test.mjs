@@ -20,6 +20,7 @@ const {
   withReadOnlyDocumentClarification,
   isServerAppliableTask,
   classifySessionChannel,
+  editResultNotice,
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
@@ -643,4 +644,16 @@ test("세션 분류: 짝을 알 수 없는 사용자 메시지는 근거로 삼�
   assert.equal(classifySessionChannel([orphan, { id: "a", role: "assistant", content: "답", status: "completed", run_id: "agent_1", action: "markdown_edit" }]), "work");
   // 답변이 아직 없는 짝도 마찬가지다.
   assert.equal(classifySessionChannel([{ ...orphan, pair_id: "p1" }]), "chat");
+});
+
+test("편집 결과 메시지에서 첨부를 다 읽지 못했다는 안내만 꺼낸다", () => {
+  const notice = "첨부한 문서가 길어 앞부분만 읽었어요. 뒷부분은 결과에 반영되지 않았어요.";
+  const both = `첨부한 문서 중 1개는 너무 길어 읽지 못했어요. 이 문서를 근거로 쓰려면 위키에 올린 뒤 다시 요청해 주세요. ${notice}`;
+  const message = (middle) => `열린 문서를 기준으로 편집안을 작성했어요.\n\n요약\n\n${middle}\n\n아직 문서에 적용하지 않았어요.`;
+  assert.equal(editResultNotice(message(notice)), notice);
+  assert.equal(editResultNotice(message(both)), both);
+  // 안내가 없거나 요약이 우연히 '첨부한 문서'로 시작해도 꺼내지 않는다.
+  assert.equal(editResultNotice("편집안을 작성했어요.\n\n첨부한 문서를 근거로 고쳤어요.\n\n아직 문서에 적용하지 않았어요."), null);
+  assert.equal(editResultNotice(null), null);
+  assert.equal(editResultNotice(undefined), null);
 });

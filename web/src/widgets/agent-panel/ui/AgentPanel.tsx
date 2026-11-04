@@ -37,7 +37,7 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
+import { editResultNotice, resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
@@ -749,6 +749,7 @@ export function AgentPanel({
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
   );
+  const editNotice = editResultNotice(agentTurnResponse?.result.message);
   const documentCommandPreview = hasDocumentCommandPreview ? (
     <>
       {agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown && (
@@ -763,6 +764,7 @@ export function AgentPanel({
           onCreate={() => agentTurn.createMarkdownDocument()}
         />
       )}
+      {editPreviewState?.preview && editNotice && <p className={styles["markdown-create-notice"]} role="note">{editNotice}</p>}
       {isInlineReview && <ProposalDecisionButtons disabled={isReviewBusy} onDecide={agentTurn.decideRemainingProposals} />}
       {editPreviewState?.preview && !isInlineReview && (
         <MarkdownEditPreview
@@ -849,6 +851,7 @@ export function AgentPanel({
             activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
             autoAppliedTurnIds={agentTurn.autoAppliedTurnIds}
+            autoAppliedNotice={agentTurnResponse && editNotice && agentTurn.autoAppliedTurnIds.has(agentTurnResponse.requestId) ? { turnId: agentTurnResponse.requestId, text: editNotice } : null}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}

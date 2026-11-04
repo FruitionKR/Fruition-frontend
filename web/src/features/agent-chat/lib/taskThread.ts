@@ -122,6 +122,18 @@ export function splitChatAndTaskMessages(
   return { chatMessages, taskItems };
 }
 
+/** 첨부를 다 읽지 못했다는 안내의 시작(ai reference_document_notice). */
+const REFERENCE_NOTICE_PATTERN = /^첨부한 문서(가 길어 앞부분만| 중 \d+개는 너무 길어)/;
+
+/**
+ * 편집 결과 메시지에서 첨부를 다 읽지 못했다는 안내 문단만 꺼낸다. 메시지 나머지는 요약과 "아직 적용하지 않았어요"처럼
+ * 제안 화면이 이미 보여 주는 내용이다. 안내는 코드 없이 문장으로만 오므로 ai 문구에 기댄다. 없으면 null이다.
+ */
+export function editResultNotice(message: string | null | undefined): string | null {
+  const notices = (message ?? "").split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter((paragraph) => REFERENCE_NOTICE_PATTERN.test(paragraph));
+  return notices.join("\n") || null;
+}
+
 /** 작업 종류(Figma 1610:9600 "문서 : …"의 앞부분). */
 export function taskKindLabel(action: string | null): string {
   switch (action) {

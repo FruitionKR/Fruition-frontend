@@ -170,6 +170,7 @@ export function AgentTaskBody({
   activePreviewMeta = null,
   appliedTurnIds,
   autoAppliedTurnIds = NO_TURN_IDS,
+  autoAppliedNotice = null,
   rejectedTurnIds,
   cancelledTurnIds,
   errorMessage,
@@ -202,6 +203,8 @@ export function AgentTaskBody({
   appliedTurnIds: ReadonlySet<string>;
   /** 설정에 따라 확인 없이 적용·생성한 turn(이 브라우저에 남긴 기록). appliedTurnIds에도 들어 있다. */
   autoAppliedTurnIds?: ReadonlySet<string>;
+  /** 제안 화면 없이 바로 적용한 turn의 안내(첨부를 다 읽지 못함 등). 행 아래에 함께 적는다. */
+  autoAppliedNotice?: { turnId: string; text: string } | null;
   /** 편집안을 모두 거절한 turn(이 사람의 브라우저에 남긴 기록 포함) */
   rejectedTurnIds: ReadonlySet<string>;
   /** 편집안·새 문서 초안을 취소한 turn */
@@ -555,7 +558,9 @@ export function AgentTaskBody({
                       status={entry.status}
                       note={entry.run?.plan && isAutoApprovedPlan(entry.run) && entry.run.status === "completed"
                         ? autoApprovedPlanNote(entry.run.plan)
-                        : entry.item.turnId !== null && autoAppliedTurnIds.has(entry.item.turnId) ? autoAppliedTaskNote(entry.item.action) : null}
+                        : entry.item.turnId !== null && autoAppliedTurnIds.has(entry.item.turnId)
+                          ? [autoAppliedTaskNote(entry.item.action), entry.item.turnId === autoAppliedNotice?.turnId ? autoAppliedNotice.text : null].filter(Boolean).join(" ")
+                          : null}
                     />)}
                   </div>
                 ))}
