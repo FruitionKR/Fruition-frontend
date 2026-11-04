@@ -39,7 +39,7 @@ import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatA
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { CHAT_SESSION_LIMIT_MESSAGE, getErrorMessage } from "@/shared/lib/apiErrors";
 import { getWorkspaceId } from "@/shared/api/client";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
@@ -152,6 +152,11 @@ export function AgentPanel({
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
   const sessions = usePanelSessions(activeView);
   const activeSessionId = sessions.selected[activeView];
+  // 세션 한도 안내에서 다른 탭의 대화 목록을 바로 열 때 쓴다. 헤더가 탭마다 새로 마운트되므로 첫 렌더에만 읽힌다.
+  const [isSessionListRequested, setIsSessionListRequested] = useState(false);
+  useEffect(() => {
+    if (isSessionListRequested) setIsSessionListRequested(false);
+  }, [isSessionListRequested]);
   const chatDraft = usePanelDraft(sessions.scope, "chat", sessions.selected.chat);
   const workDraft = usePanelDraft(sessions.scope, "work", sessions.selected.work);
   const setWorkDraft = workDraft.setValue;
@@ -736,6 +741,8 @@ export function AgentPanel({
         onClose={onClose}
         activeSessionId={activeSessionId}
         loadSessions={sessions.loadSessions}
+        onStartNewChat={() => sessions.startNewSession(activeView)}
+        isSessionListInitiallyOpen={isSessionListRequested}
         isInteractionLocked={isSubmitting || isExporting}
         canStartWikiExport={exportPairIds.length > 0 && !isSubmitting && !isExporting}
         onStartWikiExport={startPairSelection}
@@ -901,6 +908,20 @@ export function AgentPanel({
       <div className={styles["composer-region"]}>
         {sessions.activeChannel === "legacy" && (
           <p className={styles["wiki-evidence-notice"]} role="status">이전 통합 대화입니다. 새 요청은 현재 탭의 별도 대화에 저장됩니다.</p>
+        )}
+        {sessions.isAtSessionLimit && (
+          <div className={styles["wiki-evidence-notice"]}>
+            <p role="status">{CHAT_SESSION_LIMIT_MESSAGE}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSessionListRequested(true);
+                setActiveView(isWorkView ? "chat" : "work");
+              }}
+            >
+              {isWorkView ? "채팅" : "작업"} 탭 대화 정리
+            </button>
+          </div>
         )}
         {/* 테스트 실행 묶음은 작업 탭에만 보인다(Figma 1671:14585). 채팅 탭으로 바꿔도 자리는 남겨 실행 상태를 잃지 않는다. */}
         {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} hidden={!isWorkView} />}
