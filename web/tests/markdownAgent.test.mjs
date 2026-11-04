@@ -106,6 +106,24 @@ test("보기 권한 문서가 아니면 read_only_document_id를 싣지 않고, 
   assert.equal(editing.documentId, markdownEditContext.documentId);
 });
 
+test("첨부한 문서는 reference_document_ids로 싣고 없으면 필드를 뺀다", () => {
+  assert.equal("reference_document_ids" in buildAgentTurnRequest("요약해 줘", null, agentRequestContext), false);
+  assert.equal("reference_document_ids" in buildAgentTurnRequest("요약해 줘", null, { ...agentRequestContext, referenceDocumentIds: [] }), false);
+  const withoutDocument = buildAgentTurnRequest("요약해 줘", null, { ...agentRequestContext, referenceDocumentIds: ["doc_a", "doc_b"] });
+  assert.deepEqual(withoutDocument.reference_document_ids, ["doc_a", "doc_b"]);
+  assert.equal(withoutDocument.documentId, undefined);
+  const withDocument = buildAgentTurnRequest("요약해 줘", markdownEditContext, { ...agentRequestContext, referenceDocumentIds: ["doc_a"] });
+  assert.deepEqual(withDocument.reference_document_ids, ["doc_a"]);
+  assert.equal(withDocument.documentId, markdownEditContext.documentId);
+});
+
+test("첨부는 근거일 뿐이라 편집 대상이 아니다: 첨부 문서를 고친 응답은 미리보기를 만들지 않는다", () => {
+  const onlyReference = buildAgentTurnRequest("다듬어줘", null, { ...agentRequestContext, referenceDocumentIds: ["doc_a"] });
+  assert.throws(() => prepareMarkdownEditPreview(onlyReference, { ...markdownEditResponse(), documentId: "doc_a" }), /문서를 열고 다시 요청/);
+  const withDocument = buildAgentTurnRequest("다듬어줘", markdownEditContext, { ...agentRequestContext, referenceDocumentIds: ["doc_a"] });
+  assert.throws(() => prepareMarkdownEditPreview(withDocument, { ...markdownEditResponse(), documentId: "doc_a" }), /요청 문서와 일치하지/);
+});
+
 test("선택한 문답은 서버 계약인 selected_pair_ids로 전달한다", () => {
   const request = buildAgentTurnRequest("이어서 다듬어줘", markdownEditContext, {
     ...agentRequestContext,

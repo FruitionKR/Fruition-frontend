@@ -85,8 +85,8 @@ test("세션 메시지를 문답 단위로 채팅·작업으로 나누고 작업
   const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
   assert.deepEqual(chatMessages.map((item) => item.id), ["u1", "a1"]);
   assert.deepEqual(taskItems, [
-    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", clarifyReason: null, readOnlyDocumentId: null, request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
-    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
+    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", clarifyReason: null, readOnlyDocumentId: null, request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", references: [], messageStatus: "completed", createdAt: null },
+    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, request: "고쳐줘", answer: "어느 문서를 고칠까요?", references: [], messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
   ]);
 });
 
@@ -164,6 +164,10 @@ test("폴더 내용 조회(folder_lookup)는 완료 묶음의 답변으로 두�
   assert.equal(isAnswerTask({ ...taskItems[0], answer: "" }), false);
   assert.equal(isAnswerTask({ ...taskItems[0], messageStatus: "failed" }), false);
   assert.equal(isAnswerTask({ ...taskItems[0], action: "clarify" }), false);
+  // 첨부 문서를 근거로 한 답(chat_answer·conversation_reply)도 한 줄로 접지 않고 답을 보여 준다.
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "chat_answer" }), true);
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "conversation_reply" }), true);
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "markdown_edit" }), false);
   assert.equal(taskHeadingKind("folder_lookup", "회의록 폴더에 뭐가 있어?"), "폴더 내용 확인");
 });
 
@@ -417,6 +421,27 @@ test("보기 권한 문서를 연 채 보낸 요청에 AI가 문서를 열라고
   assert.equal(result[1], otherQuestion);
   assert.equal(result[2], answered);
   assert.equal(openDocumentQuestion.answer, OPEN_DOCUMENT_QUESTION);
+});
+
+test("첨부한 문서를 고치려 할 때의 되묻기는 같은 이유 코드여도 보기 권한 안내로 바꾸지 않는다", () => {
+  const asked = {
+    key: "a",
+    turnId: "turn_a",
+    action: "clarify",
+    clarifyReason: "markdown_document_required",
+    answer: "첨부한 문서는 참고 자료로만 읽어요. 첨부한 문서를 고치려면 그 문서를 연 뒤 다시 요청해 주세요."
+  };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("작업 항목은 답변의 근거(references)를 함께 가진다", () => {
+  const references = [{ id: 1, rank: 1, reference_type: "evidence", source_document_id: "doc1", source_block_ids: [] }];
+  const { taskItems: items } = splitChatAndTaskMessages([
+    message({ id: "q", role: "user", content: "요약", pair_id: "p1", run_id: "agent_r", action: undefined }),
+    message({ id: "a", role: "assistant", content: "답 [1]", pair_id: "p1", run_id: "agent_r", action: "chat_answer", references })
+  ], new Set(["agent_r"]));
+  assert.deepEqual(items[0].references, references);
 });
 
 test("문서 없이 받은 되묻기는 뒤에 보기 권한 문서를 열어도 그대로 둔다", () => {

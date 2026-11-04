@@ -1,4 +1,4 @@
-import type { ChatMessageResponse } from "@/entities/chat/model/chat";
+import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entities/chat/model/chat";
 import { READ_ONLY_DOCUMENT_HINT } from "@/entities/document/lib/documentAccess";
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
@@ -48,6 +48,8 @@ export type TaskMessageItem = {
   request: string;
   /** AI가 남긴 답(편집 요약·되묻는 질문 등) */
   answer: string;
+  /** 답변의 근거(chat.md references). 대화형 답변의 인용 번호가 이 문서를 연다. */
+  references: ChatMessageReferenceResponse[];
   messageStatus: string;
   /** 요청을 보낸 시각(ISO). 작업 카드의 "방금 전"에 쓴다. */
   createdAt: string | null;
@@ -72,6 +74,7 @@ function toTaskItem(key: string, pairId: string | null, messages: ChatMessageRes
     readOnlyDocumentId: assistant?.read_only_document_id ?? null,
     request: (user?.content ?? "").trim().normalize("NFC"),
     answer: taskAnswer(assistant).trim().normalize("NFC"),
+    references: assistant?.references ?? [],
     messageStatus: assistant?.status ?? user?.status ?? "pending",
     createdAt: user?.created_at ?? assistant?.created_at ?? null
   };
@@ -137,10 +140,14 @@ export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "re
 const MARKDOWN_DOCUMENT_REQUIRED = "markdown_document_required";
 /** 그 되묻기의 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE). 코드가 없는 과거 메시지·배포 전 서버를 판단할 때만 쓴다. */
 const OPEN_DOCUMENT_CLARIFICATION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+/** 첨부한 문서를 고치려 할 때의 되묻기 문장에 든 말(ai handle_agent_turn CLARIFY_REFERENCE_EDIT_MESSAGE). */
+const ATTACHED_DOCUMENT_CLARIFICATION_MARK = "첨부한 문서";
 const READ_ONLY_DOCUMENT_CLARIFICATION = `이 문서는 보기 권한만 있어 수정할 수 없어요. ${READ_ONLY_DOCUMENT_HINT}`;
 
 /** 문서가 필요해 되물었는지. 코드가 있으면 코드만 보고(모르는 코드는 다른 이유), 코드가 없을 때만 문장으로 판단한다. */
 function asksForMarkdownDocument(item: Pick<TaskMessageItem, "clarifyReason" | "answer">): boolean {
+  // 첨부한 문서를 고치려 한 되묻기도 같은 코드로 온다. 첨부 문서 이야기라 열린 문서의 보기 권한 안내로 바꾸지 않는다.
+  if (item.answer.includes(ATTACHED_DOCUMENT_CLARIFICATION_MARK)) return false;
   if (item.clarifyReason !== null) return item.clarifyReason === MARKDOWN_DOCUMENT_REQUIRED;
   return item.answer.trim().normalize("NFC") === OPEN_DOCUMENT_CLARIFICATION;
 }
@@ -348,9 +355,10 @@ export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "requ
   return superseded;
 }
 
-/** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회(folder_lookup)는 답(message)이 곧 결과다. */
+/** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회와 대화형 답변(첨부 문서를 근거로 한 답 등)은 답이 곧 결과다. */
 export function isAnswerTask(item: Pick<TaskMessageItem, "action" | "messageStatus" | "answer">): boolean {
-  return item.action === "folder_lookup" && item.messageStatus === "completed" && item.answer !== "";
+  const isAnswerAction = item.action === "folder_lookup" || (item.action !== null && CHAT_ANSWER_ACTIONS.has(item.action));
+  return isAnswerAction && item.messageStatus === "completed" && item.answer !== "";
 }
 
 /** 서버 버전 기록으로 적용 여부를 확인할 편집 작업(새로 고침 뒤에도 "저장됨"을 지키려고). */

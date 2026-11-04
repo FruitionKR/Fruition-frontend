@@ -2393,6 +2393,36 @@ button.result-link:focus-visible {
   padding: 5px 9px;
 }
 
+/* 첨부 문서 칩: 긴 제목은 말줄임(전체 제목은 aria-label·title) */
+.task-context-chip.is-document {
+  max-width: 180px;
+}
+
+.task-context-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-context-chip-add:not(:disabled) {
+  cursor: pointer;
+}
+
+.task-context-chip-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.task-context-limit {
+  align-self: center;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.12px;
+}
+
 .task-context-chip:focus-visible,
 .task-context-chip-add:focus-visible {
   outline: 2px solid var(--color-primary);
@@ -2454,6 +2484,24 @@ button.result-link:focus-visible {
 .skill-picker-option.is-active,
 .skill-picker-option:hover {
   background: var(--color-primary-weak);
+}
+
+.document-picker-option {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.document-picker-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-picker-option .skill-picker-description {
+  flex: 0 0 auto;
 }
 
 .skill-picker-slug {
@@ -2684,6 +2732,26 @@ button.result-link:focus-visible {
   .agent-launcher {
     right: 16px;
     bottom: 16px;
+  }
+}
+
+/* 휴대폰: 칩은 줄바꿈하며 폭을 다 쓸 수 있고, 첨부·문서 고르기 터치 영역을 44px로 키운다. 키보드가 올라와도 입력창이 보이게 "@" 목록 높이를 줄인다. */
+@media (max-width: 767px), (pointer: coarse) {
+  .task-context-chip,
+  .task-context-chip-add {
+    min-height: 44px;
+  }
+
+  .task-context-chip.is-document {
+    max-width: 100%;
+  }
+
+  .document-picker-option {
+    min-height: 44px;
+  }
+
+  .document-picker-list {
+    max-height: min(300px, 35dvh);
   }
 }
 

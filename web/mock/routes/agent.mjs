@@ -4,6 +4,8 @@ import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMe
 import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
+const REFERENCE_DOCUMENT_MAX = 3;
+const REFERENCE_DOCUMENTS_INVALID_MESSAGE = "고른 문서 중 사용할 수 없는 문서가 있습니다. 다시 골라 주세요.";
 // 테스트용 시나리오(MOCK_SLOW_TURN=1): 실제 서버처럼 turn을 받자마자 pending 메시지를 남기고 오래 처리한다(입력창 Esc 중지 확인). 기본에는 넣지 않는다.
 const SLOW_TURN = process.env.MOCK_SLOW_TURN === "1";
 // 테스트용 시나리오(MOCK_FAIL_TURN=1): 요청에 "실패"가 들어간 turn을 실제 서버처럼 failed로 끝낸다(편집안 계약 검사 실패). 기본에는 넣지 않는다.
@@ -254,9 +256,40 @@ function taskResult(workspace, turn, request) {
   if (ORGANIZE_PATTERN.test(message)) return organizeResult(workspace, turn, message);
   if (CREATE_PATTERN.test(message)) return createResult(message);
   if (EDIT_PATTERN.test(message)) {
+    if (!hasDocument && request.reference_document_ids?.length) return clarify("첨부한 문서는 참고 자료로만 읽어요. 첨부한 문서를 고치려면 그 문서를 연 뒤 다시 요청해 주세요.", "markdown_document_required");
     return hasDocument ? buildEditResult(request) : clarifyMarkdownDocument();
   }
+  if (request.reference_document_ids?.length) {
+    // 실제 AI처럼 편집 문서 근거는 블록 없이(source_block_ids: []) 문서 id만 남긴다.
+    const references = request.reference_document_ids.map((documentId, index) => ({ id: index + 1, rank: index + 1, reference_type: "evidence", source_document_id: documentId, source_block_ids: [], text: findDocument(workspace.id, documentId)?.filename ?? "" }));
+    const citations = references.map((item) => `[${item.rank}]`).join("");
+    return { action: "chat_answer", route: route("chat_answer", "첨부 문서를 근거로 답변"), message: null, chat: { answer: `${referenceDocumentsNote(workspace, request.reference_document_ids)}\n\n첨부한 문서를 읽고 답합니다 ${citations}. mock 답변입니다.` }, edit: null, generated_markdown: null, references };
+  }
   return clarify("작업 탭은 문서 편집·폴더 정리·스킬 실행을 맡아요. 위키 내용 질문은 채팅 탭에서 해 주세요.");
+}
+
+/** 첨부 문서(reference_document_ids) 검사(document AgentTurnRequest 계약). 문제가 있으면 문구를, 없으면 null을 준다. 보기 권한 문서도 읽을 수 있어 받는다. */
+function referenceDocumentsError(workspace, ids) {
+  if (ids === undefined) return null;
+  if (!Array.isArray(ids) || ids.length > REFERENCE_DOCUMENT_MAX || new Set(ids).size !== ids.length) return REFERENCE_DOCUMENTS_INVALID_MESSAGE;
+  const isUsable = (documentId) => {
+    const doc = findDocument(workspace.id, documentId);
+    return doc && isMarkdownDocument(doc) && !(doc.status === "processing" && doc.pipeline_run_id?.startsWith("convert:"));
+  };
+  return ids.every(isUsable) ? null : REFERENCE_DOCUMENTS_INVALID_MESSAGE;
+}
+
+function referenceDocumentsNote(workspace, ids) {
+  return `근거 문서: ${ids.map((documentId) => findDocument(workspace.id, documentId)?.filename ?? documentId).join(", ")}`;
+}
+
+/** 첨부를 근거로 읽었다고 결과에 남긴다. 편집 대상은 그대로 열린 문서다. */
+function withReferenceDocuments(workspace, result, ids) {
+  if (!ids?.length) return result;
+  const note = referenceDocumentsNote(workspace, ids);
+  if (result.generated_markdown) return { ...result, generated_markdown: { ...result.generated_markdown, markdown: `${result.generated_markdown.markdown}\n${note}\n` } };
+  if (result.edit) return { ...result, edit: { ...result.edit, summary: `${result.edit.summary} (${note})` } };
+  return result;
 }
 
 /** 서버 AgentTurnService처럼 클라이언트 값을 믿지 않는다: 편집 문맥 없는 요청이고 읽을 수 있으나 편집은 못 하는 문서일 때만 남기고 나머지는 오류 없이 버린다. */
@@ -272,7 +305,7 @@ function completeTurn(workspace, turn, request) {
   const pairId = id("pair");
   let result;
   if (request.mode === TASK_MODE) {
-    result = taskResult(workspace, turn, request);
+    result = withReferenceDocuments(workspace, taskResult(workspace, turn, request), request.reference_document_ids);
   } else if (ORGANIZE_PATTERN.test(message)) {
     result = organizeResult(workspace, turn, message);
   } else if (CREATE_PATTERN.test(message)) {
@@ -284,7 +317,7 @@ function completeTurn(workspace, turn, request) {
     const answer = `현재 문서 "${doc?.filename ?? request.documentId}"를 기준으로 답합니다.\n\n${message}에 대한 mock 답변입니다. 편집을 원하면 "수정해줘"처럼 요청해보세요.`;
     result = { action: "chat_answer", route: route("chat_answer", "일반 질문"), message: null, chat: { answer }, edit: null, generated_markdown: null };
   }
-  const answer = { content: result.chat?.answer ?? result.message ?? result.edit?.summary ?? result.generated_markdown?.summary ?? "", action: result.action, clarify_reason: result.clarify_reason ?? null, related_pages: [] };
+  const answer = { content: result.chat?.answer ?? result.message ?? result.edit?.summary ?? result.generated_markdown?.summary ?? "", action: result.action, clarify_reason: result.clarify_reason ?? null, related_pages: [], references: result.references ?? [] };
   const pending = state.chatMessages.find((item) => item.run_id === turn.id && item.role === "assistant" && item.status === "pending");
   if (pending) {
     Object.assign(pending, answer, { status: "completed" });
@@ -378,6 +411,8 @@ export function registerAgentRoutes(router) {
     const folderId = request.folder_id ?? null;
     if (folderId !== null && (typeof folderId !== "string" || !UUID_PATTERN.test(folderId))) return error(ctx, 400, "folder_id 형식이 올바르지 않습니다.");
     if (folderId !== null && !isLiveFolder(workspace.id, folderId)) return error(ctx, 404, "대상 폴더를 찾을 수 없습니다.");
+    const referenceError = referenceDocumentsError(workspace, request.reference_document_ids);
+    if (referenceError) return error(ctx, 400, referenceError);
     const turn = { id: id("agent"), workspace_id: workspace.id, documentId: request.documentId ?? null, baseVersion: request.baseVersion ?? null, apply_operation_id: id("apply"), folder_id: folderId, read_only_document_id: confirmedReadOnlyDocumentId(workspace, ctx.user.id, request), status: "queued", result: null, error_code: null };
     state.agentTurns.set(turn.id, turn);
     if (hasDocument) addOperationLog(workspace.id, { operation_id: turn.apply_operation_id, operation_type: "document_edit", status: "succeeded", target_document_id: request.documentId, target_display_name: findDocument(workspace.id, request.documentId)?.filename ?? null, summary: request.message.slice(0, 40), changed_resource_count: 0, completed_at: now() });

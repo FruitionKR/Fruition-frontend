@@ -37,6 +37,9 @@ import {
 import { AgentPlanTaskDetail } from "./AgentPlanTaskDetail";
 import { StatusList } from "./StatusList";
 import { TaskAnswer } from "./TaskAnswer";
+import { TaskCitedAnswer } from "./TaskCitedAnswer";
+import type { SourceBlockHighlight } from "@/entities/document/model/document";
+import type { GraphNode } from "@/entities/wiki/model/wiki";
 import { AgentAssetIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 
@@ -176,6 +179,8 @@ export function AgentTaskBody({
   onShortenActivePreview,
   onAnswerSkillQuestion,
   onRetryTask,
+  onOpenSourceBlocks,
+  nodes,
   onRecheck,
   stalledTurnIds = NO_TURN_IDS,
   releasedTurnIds = NO_TURN_IDS,
@@ -213,6 +218,9 @@ export function AgentTaskBody({
   onAnswerSkillQuestion?: (request: string, createsDocument: boolean) => void;
   /** 계획 단계에서 실패한 작업을 같은 요청·대상 폴더로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
   onRetryTask?: (request: string, folderId: string | null) => void;
+  /** 대화형 답변의 인용 번호를 누르면 근거 문서를 연다. */
+  onOpenSourceBlocks?: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
+  nodes?: GraphNode[];
   /** 결과 확인이 끊긴 작업의 끝을 다시 확인한다. 있으면 오류 문구 아래에 "다시 확인"을 둔다. */
   onRecheck?: () => void;
   /** 응답을 받지 못한(pending에 머문) turn */
@@ -398,7 +406,10 @@ export function AgentTaskBody({
     }
     if (status.group === "failed" && item.answer) return <TaskNote role="alert">{item.answer}</TaskNote>;
     if (item.messageStatus === "failed") return <TaskNote role="alert">{FAILED_TASK_FALLBACK}</TaskNote>;
-    if (isAnswerTask(item)) return <TaskAnswer text={item.answer} />;
+    if (isAnswerTask(item)) {
+      if (item.action === "folder_lookup" || !onOpenSourceBlocks) return <TaskAnswer text={item.answer} />;
+      return <TaskCitedAnswer text={item.answer} references={item.references} runId={item.turnId} nodes={nodes} onOpenSourceBlocks={onOpenSourceBlocks} />;
+    }
     return null;
   }
 

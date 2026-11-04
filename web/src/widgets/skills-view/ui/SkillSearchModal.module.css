@@ -91,3 +91,10 @@
   color: var(--color-body);
   font-size: 11px;
 }
+
+/* 휴대폰·터치 기기: 검색 결과 터치 영역을 44px로 키운다. */
+@media (max-width: 767px), (pointer: coarse) {
+  .search-result {
+    min-height: 44px;
+  }
+}

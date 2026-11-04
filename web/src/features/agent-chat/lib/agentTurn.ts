@@ -17,6 +17,8 @@ export type AgentTurnRequest = {
   folder_id?: string;
   /** 보기 권한 문서를 연 채 보낸 요청의 그 문서. 서버가 확인해 메시지에 남긴다. 편집 대상이 아니며 틀린 값은 서버가 무시한다(document AgentTurnRequest 계약). */
   read_only_document_id?: string;
+  /** 근거로 첨부한 문서(최대 3개). 편집 대상이 아니며 없으면 생략한다. 쓸 수 없는 문서가 있으면 서버가 400을 준다(document AgentTurnRequest 계약). */
+  reference_document_ids?: string[];
 } & (
   // 문서를 열지 않았거나 작업 대상에서 뺐으면 세 필드를 함께 생략한다(document AgentTurnRequest 계약).
   | { documentId: string; baseVersion: number; editorSnapshot: MarkdownEditorSnapshot }
@@ -39,6 +41,8 @@ type AgentTurnRequestContext = {
   folderId?: string | null;
   /** 지금 연 보기 권한 문서. 없으면 read_only_document_id를 싣지 않는다. */
   readOnlyDocumentId?: string | null;
+  /** 근거로 첨부한 문서. 비어 있으면 reference_document_ids를 싣지 않는다. */
+  referenceDocumentIds?: string[];
 };
 
 export type AgentTurnAction =
@@ -148,6 +152,7 @@ export function buildAgentTurnRequest(
   context: Pick<ActiveMarkdownEditContext, "documentId" | "baseVersion" | "editorSnapshot"> | null,
   requestContext: AgentTurnRequestContext
 ): AgentTurnRequest {
+  const referenceDocumentIds = requestContext.referenceDocumentIds ?? [];
   const base = {
     session_id: requestContext.sessionId,
     message,
@@ -159,7 +164,8 @@ export function buildAgentTurnRequest(
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }
       : {}),
-    ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {})
+    ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {}),
+    ...(referenceDocumentIds.length > 0 ? { reference_document_ids: referenceDocumentIds } : {})
   } as const;
   if (!context) {
     return requestContext.readOnlyDocumentId ? { ...base, read_only_document_id: requestContext.readOnlyDocumentId } : base;

@@ -15,6 +15,7 @@ import {
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
+import { shouldRestoreAttachments } from "../lib/composerDocuments";
 import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
 import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
 import {
@@ -67,7 +68,8 @@ export function useAgentTurn({
   allowWebSearch,
   refreshMessages,
   onCreateMarkdownDocument,
-  onInsufficientCredit
+  onInsufficientCredit,
+  onReferencesRestored
 }: {
   markdownEditContext: ActiveMarkdownEditContext | null | undefined;
   /** 지금 열린 보기 권한 문서. 요청을 보낼 때의 값을 turn과 묶어 기억한다. */
@@ -82,6 +84,8 @@ export function useAgentTurn({
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
   onInsufficientCredit?: (question: string) => void;
+  /** 첨부를 실은 요청이 시작되지 못했다. 다시 고르거나 보낼 수 있게 입력과 첨부를 되돌리는 데 쓴다. */
+  onReferencesRestored?: (question: string, referenceDocumentIds: string[]) => void;
 }) {
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
@@ -228,7 +232,8 @@ export function useAgentTurn({
     question: string,
     run: () => Promise<AgentTurnResponse>,
     getTurnId: () => string | null,
-    clientTaskId: string
+    clientTaskId: string,
+    referenceDocumentIds: string[] = []
   ) {
     run()
       .then(async (response) => {
@@ -245,6 +250,7 @@ export function useAgentTurn({
         setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
+        if (shouldRestoreAttachments(error, { referenceDocumentIds, turnId })) onReferencesRestored?.(question, referenceDocumentIds);
         reportAiTaskFailure(agentTurnFailure(error, { turnId, clientTaskId }));
         if (!turnId) return;
         if (error instanceof AgentTurnLostError) setUnconfirmedTurnId(turnId);
@@ -293,7 +299,9 @@ export function useAgentTurn({
     model: AiModel,
     conversationPairIds: string[],
     /** 폴더를 대상으로 고른 스킬 실행이면 그 폴더. */
-    folderId: string | null = null
+    folderId: string | null = null,
+    /** 근거로 첨부한 문서. */
+    referenceDocumentIds: string[] = []
   ) => {
     const requestReadOnlyDocumentId = readOnlyDocumentIdRef.current;
     const request = buildAgentTurnRequest(question, context, {
@@ -302,7 +310,8 @@ export function useAgentTurn({
       selectedModel: { provider: model.provider, model: model.model },
       selectedPairIds: conversationPairIds,
       allowWebSearch,
-      folderId
+      folderId,
+      referenceDocumentIds
     });
     setAgentTurnRequest(request);
     setAgentTurnResponse(null);
@@ -332,9 +341,9 @@ export function useAgentTurn({
         if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
       },
       onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
-    }), () => acceptedTurnId, newAnalyticsId());
+    }), () => acceptedTurnId, newAnalyticsId(), referenceDocumentIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowWebSearch, refreshMessages, onInsufficientCredit, rememberReadOnlyRequest]);
+  }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, rememberReadOnlyRequest]);
 
   /**
    * 지금 따라가는 turn의 진행 SSE·조회를 멈춘다(Esc 중지). 서버 취소는 호출부가 요청하고, 결과를 받을 때까지
@@ -377,7 +386,7 @@ export function useAgentTurn({
       setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
       return;
     }
-    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null);
+    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
   }
 
   function applyMarkdownEdit() {
@@ -440,7 +449,7 @@ export function useAgentTurn({
   /** "더 짧게"처럼 같은 요청에 지시를 덧붙여 다시 받는다(Figma 1610:9183). */
   function refineAgentTurn(instruction: string) {
     if (!agentTurnRequest || !markdownEditContext || !activeSessionId || !selectedModel) return;
-    submitAgentTurn(`${agentTurnRequest.message}\n${instruction}`, markdownEditContext, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null);
+    submitAgentTurn(`${agentTurnRequest.message}\n${instruction}`, markdownEditContext, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
   }
 
   function openMarkdownEditAsNewDocument() {
