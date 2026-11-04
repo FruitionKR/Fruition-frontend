@@ -22,8 +22,16 @@ test("workspace 복구 요청은 access-svc로 전달한다", async () => {
 test("ALB가 경로를 나누는 같은 출처 배포에서는 Next가 API를 중계하지 않는다", async (t) => {
   const config = await loadConfig(t, "true");
 
-  assert.deepEqual(await config.rewrites(), []);
+  assert.deepEqual((await config.rewrites()).filter((route) => route.source.startsWith("/api")), []);
   assert.deepEqual(await config.redirects(), []);
   assert.equal(config.output, "standalone");
   assert.equal(config.env.NEXT_PUBLIC_DOCUMENT_DIRECT_API, "true");
+});
+
+test("브라우저가 직접 찾는 /favicon.ico는 있는 탭 아이콘으로 잇는다. 같은 오리진 배포에도 필요하다", async (t) => {
+  for (const value of ["false", "true"]) {
+    const rewrites = await (await loadConfig(t, value)).rewrites();
+    const rule = rewrites.find((item) => item.source === "/favicon.ico");
+    assert.equal(rule?.destination, "/favicon/icon-light.png", `SAME_ORIGIN_API=${value}`);
+  }
 });
