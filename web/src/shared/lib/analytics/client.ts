@@ -50,7 +50,7 @@ export function initializeAnalytics(options: AnalyticsConfig): Promise<void> {
 }
 
 function common() {
-  return { event_id: newAnalyticsId(), event_source: "frontend", environment: config?.environment, schema_version: 1, app_version: config?.appVersion, ...(workspaceId ? { workspace_id: workspaceId } : {}) };
+  return { event_id: newAnalyticsId(), event_source: "frontend", environment: config?.environment, schema_version: 1, app_version: config?.appVersion, ...(workspaceId ? { workspace_id: workspaceId, $groups: { workspace: workspaceId } } : {}) };
 }
 
 /** 분석이 차단·실패해도 제품 동작에 영향을 주지 않는다. */
@@ -80,7 +80,6 @@ export function identifyAnalytics(id: string): void {
     if (userId && userId !== id) client.reset();
     client.identify(id);
     userId = id;
-    if (workspaceId) client.group("workspace", workspaceId);
     for (const item of pending.splice(0)) {
       client.capture(item.event, {
         ...item.properties,
@@ -93,10 +92,9 @@ export function identifyAnalytics(id: string): void {
 
 export function setAnalyticsWorkspace(id: string | null): void {
   workspaceId = id;
-  try {
-    client?.resetGroups();
-    if (id && userId) client?.group("workspace", id);
-  } catch { /* 워크스페이스 전환과 독립 */ }
+  // group()은 $groupidentify를 따로 보내고, storage 이벤트마다 불려 탭 사이에서 무한 반복됐다.
+  // 워크스페이스는 common()의 $groups로만 붙인다. 예전 SDK 저장값은 지운다.
+  try { client?.resetGroups(); } catch { /* 워크스페이스 전환과 독립 */ }
 }
 export function resetAnalytics(): void {
   userId = null;

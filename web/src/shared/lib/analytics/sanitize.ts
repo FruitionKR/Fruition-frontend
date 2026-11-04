@@ -11,7 +11,6 @@ const eventKeys: Record<string, readonly string[]> = {
   graph_node_previewed: ["node_type"],
   ai_task_failed: ["task_id", "task_kind", "stage", "failure_reason", "action"],
   $identify: ["$anon_distinct_id"],
-  $groupidentify: ["$group_type", "$group_key"],
 };
 // token은 SDK 수집 전송에 필요한 공개 프로젝트 키다. URL의 인증 token과 구분한다.
 const commonKeys = ["token", "distinct_id", "$device_id", "$session_id", "$window_id", "$groups", "$user_id", "$is_identified", "$process_person_profile", "$lib", "$lib_version", "event_id", "event_source", "environment", "schema_version", "app_version", "workspace_id"];
