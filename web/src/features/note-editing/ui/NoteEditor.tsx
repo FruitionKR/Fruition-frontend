@@ -21,6 +21,7 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
 import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
+import { buildServerMergeTransaction } from "../model/serverMergeTransaction";
 import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
@@ -199,7 +200,7 @@ export function NoteEditor({
   }, []);
 
   /**
-   * 서버가 다른 곳의 저장과 합친 본문을 편집기에 넣는다. 달라진 구간만 바꿔 캐럿·선택은 ProseMirror 매핑으로 따라가고,
+   * 서버가 다른 곳의 저장과 합친 본문을 편집기에 넣는다. 달라진 구간만 바꿔 캐럿·선택은 있던 줄에 남고,
    * 바뀌지 않은 블록(이미지·표 등)은 다시 그리지 않는다. 서버 상태와 같으므로 다시 저장하지 않고 undo 히스토리에서도 뺀다.
    */
   const mergeEditorMarkdown = useCallback((nextMarkdown: string) => {
@@ -213,16 +214,9 @@ export function NoteEditor({
       const nextDoc = ctx.get(parserCtx)(nextMarkdown);
       if (!nextDoc) return;
       const nextBody = ctx.get(serializerCtx)(nextDoc);
-      const { doc } = view.state;
-      const start = doc.content.findDiffStart(nextDoc.content);
-      const end = doc.content.findDiffEnd(nextDoc.content);
       bodyRef.current = nextBody;
-      if (start === null || !end) return;
-      // 반복되는 내용에서는 끝 비교가 시작보다 앞설 수 있어 겹친 만큼 뒤로 민다.
-      const overlap = start - Math.min(end.a, end.b);
-      const endA = overlap > 0 ? end.a + overlap : end.a;
-      const endB = overlap > 0 ? end.b + overlap : end.b;
-      const tr = view.state.tr.replace(start, endA, nextDoc.slice(start, endB));
+      const tr = buildServerMergeTransaction(view.state, nextDoc);
+      if (!tr.docChanged) return;
       tr.setMeta("addToHistory", false);
       tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
       view.dispatch(tr);
