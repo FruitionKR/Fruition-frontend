@@ -28,7 +28,7 @@ import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleD
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/strikethroughInputRule";
 import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/headingInputRules";
 import { NOTE_BODY_PLACEHOLDER, SLASH_MENU_LABELS } from "../model/slashMenuLabels";
-import { partitionImageFiles, pendingImages, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
+import { partitionImageFiles, pendingImages, settleAttachmentSubstitution, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/preserveImageAltPlugin";
 import { refitImageBlocks } from "../model/imageBlockHeight";
@@ -311,11 +311,19 @@ export function NoteEditor({
       });
       if (!tr.docChanged) return;
       tr.setMeta("addToHistory", false);
-      // 이 변경은 서버 상태와 같으므로 사용자 편집으로 저장하지 않는다.
-      const nextBody = ctx.get(serializerCtx)(tr.doc);
-      bodyRef.current = nextBody;
-      programmaticBodyRef.current = nextBody;
+      const serializer = ctx.get(serializerCtx);
+      const documentBefore = serializer(view.state.doc);
       view.dispatch(tr);
+      // 이 변경은 서버 상태와 같으므로 사용자 편집으로 저장하지 않는다. 아직 알리지 않은 입력은 그대로 저장되게 둔다.
+      const settled = settleAttachmentSubstitution({
+        documentBefore,
+        documentAfter: serializer(view.state.doc),
+        paths,
+        current: { body: bodyRef.current, programmaticBody: programmaticBodyRef.current, serializedBody: serializedBodyRef.current }
+      });
+      bodyRef.current = settled.body;
+      programmaticBodyRef.current = settled.programmaticBody;
+      serializedBodyRef.current = settled.serializedBody;
     });
   };
 
