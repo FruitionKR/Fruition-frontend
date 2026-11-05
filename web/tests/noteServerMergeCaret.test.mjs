@@ -423,3 +423,19 @@ test("평소 입력 알림은 그 본문을 저장한다", () => {
 test("프로그램 변경의 반향은 저장하지 않는다", () => {
   assert.equal(resolveEditorBodyUpdate("서버 본문", "서버 본문"), null);
 });
+
+// Milkdown listener는 addToHistory가 false인 변경을 알리지 않는다. 프로그램 변경을 스스로 기록하지 않으면 입력이 없어도 "아직 알리지 않은 입력"으로 남아 AI 수정 적용과 재조회가 막힌다.
+test("서버 병합과 본문 교체는 알림 기준 본문을 직접 갱신한다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../src/features/note-editing/ui/NoteEditor.tsx", import.meta.url), "utf8");
+  const bodyOf = (name, next) => source.slice(source.indexOf(`const ${name} = useCallback`), source.indexOf(next));
+  const merge = bodyOf("mergeEditorMarkdown", "onServerMergeRef.current = (merge)");
+  const replace = bodyOf("replaceEditorMarkdown", "const mergeEditorMarkdown = useCallback");
+  assert.match(replace, /serializedBodyRef\.current = /);
+  assert.match(merge, /serializedBodyRef\.current = /);
+  assert.ok(
+    merge.indexOf("serializedBodyRef.current = ") < merge.indexOf("if (!tr.docChanged && !hasLocalEdits) return;")
+      || /if \(!tr\.docChanged && !hasLocalEdits\) \{[^}]*serializedBodyRef\.current = /.test(merge),
+    "문서가 그대로인 병합도 기준 본문을 갱신해야 한다"
+  );
+});
