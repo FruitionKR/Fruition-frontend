@@ -1,35 +1,5 @@
 import type { AiModel } from "./aiModel";
 
-/**
- * GET /api/workspaces/{workspace_id}/usage/models 응답의 모델 한 줄.
- * document가 ai `/usage/models` 응답을 그대로 돌려준다(provider·requested_model·model 묶음별 집계).
- * 캐시(cached_input)는 입력의, 추론(reasoning)은 출력의 부분 집합이라 합계에 따로 더하지 않는다.
- */
-export type ModelUsageRow = {
-  provider: string;
-  requested_model: string;
-  model: string;
-  calls: number;
-  failed_calls: number;
-  unfinished_calls: number;
-  /** 공급사가 입력·출력 토큰을 주지 않아 합계에 빠진 호출 수 */
-  unknown_usage_calls: number;
-  known_input_tokens: number;
-  known_output_tokens: number;
-  known_cached_input_tokens: number;
-  known_cache_creation_tokens: number;
-  known_reasoning_tokens: number;
-  unknown_cache_usage_calls: number;
-};
-
-export type ModelUsageResponse = {
-  workspace_id: string;
-  user_id: string;
-  from_at: string;
-  to_at: string;
-  models: ModelUsageRow[];
-};
-
 export type AiUsagePeriod = "this_month" | "last_30_days" | "last_month";
 
 export const AI_USAGE_PERIOD_OPTIONS: ReadonlyArray<{ value: AiUsagePeriod; label: string }> = [
@@ -44,11 +14,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 
 /**
- * 기간을 [from, to) 시각으로 바꾼다. 달 경계는 사용자 기기 시간대 기준이다(백엔드 기본값은 UTC 이번 달).
+ * 기간을 [from, to) 시각으로 바꾼다. 달 경계는 사용자 기기 시간대 기준이다.
  * 끝 시각은 지금이 속한 분의 다음 분 정각이다. 같은 분 안에서는 범위가 같아 금액 조회 키가 매번 바뀌지 않고,
  * 방금 쓴 사용량도 바로 들어간다. 지금보다 늘 뒤라 매달 1일 0시 첫 1분에도 이번 달 범위가 비지 않는다(시작 = 끝이면 400).
  * 달 경계는 올린 끝 시각이 아니라 지금 시각으로 정한다. 말일 23:59에 이번 달이 다음 달로 넘어가지 않게 한다.
- * 서버(AI usage·document 금액 조회)는 시작 < 끝만 확인하고 미래의 끝 시각을 거절하지 않는다.
+ * 서버(document 금액 조회)는 시작 < 끝과 366일 이하만 확인하고 미래의 끝 시각을 거절하지 않는다.
  */
 export function resolveUsageRange(period: AiUsagePeriod, at: Date): UsageRange {
   const end = new Date(Math.floor(at.getTime() / MINUTE_MS) * MINUTE_MS + MINUTE_MS);
@@ -62,6 +32,14 @@ export function resolveUsageRange(period: AiUsagePeriod, at: Date): UsageRange {
   return { from: monthStart, to: end };
 }
 
+/** 사용량 화면을 보는 동안 다시 조회하는 주기. 청구가 수집되는 대로 화면에 올린다. */
+export const AI_USAGE_REFETCH_INTERVAL_MS = 60_000;
+
+/** 다음 재조회까지의 시간. 실패하면 멈춘다(창 복귀·다시 시도 때 다시 받고, 성공하면 주기가 돌아온다). */
+export function usageRefetchInterval(error: unknown): number | false {
+  return error ? false : AI_USAGE_REFETCH_INTERVAL_MS;
+}
+
 export type ModelUsageSummaryRow = {
   key: string;
   label: string;
@@ -70,6 +48,13 @@ export type ModelUsageSummaryRow = {
   outputTokens: number;
   cachedInputTokens: number;
   totalTokens: number;
+  /** 음성 길이(초). 전사 호출은 토큰과 함께 남을 수 있다 */
+  audioSeconds: number;
+  /** TTS 입력 글자 수 */
+  ttsCharacters: number;
+  /** 부가세 포함 실제 청구(milli-KRW) */
+  chargeKrwMilli: number;
+  unpricedCalls: number;
 };
 
 export type ModelUsageSummary = {
@@ -77,63 +62,99 @@ export type ModelUsageSummary = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
-  /** 기간 안 전체 호출 수(실패·사용량 미확인 포함) */
+  /** 기간 안 전체 호출 수 */
   calls: number;
-  /** 토큰을 몰라 합계에 빠진 호출 수 */
-  unknownUsageCalls: number;
+  /** 응답 최상위의 실제 청구 합계(milli-KRW). 토큰 없이 음성·글자로 매긴 금액도 들어 있다 */
+  chargeKrwMilli: number;
+  /** 단가·환율·정책이 없어 금액에 빠진 호출 수 */
+  unpricedCalls: number;
+  /** 사용량을 몰라 0원으로 둔 호출 수 */
+  needsReviewCalls: number;
 };
 
 function count(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+/** 공급사 스냅샷·버전 접미사: -YYYY-MM-DD, -YYYYMMDD, -NNN, -latest (백엔드 model_routing의 snapshot 판정과 같은 형식) */
+const MODEL_VERSION_SUFFIX = /-(?:\d{4}-\d{2}-\d{2}|\d{8}|\d{3}|latest)$/;
+
+/** 카탈로그에서 응답 모델을 찾는다. 이름이 그대로 있으면 그 항목을, 없으면 접미사를 뗀 이름을 쓴다. */
+function findCatalogModel(catalog: readonly AiModel[], provider: string, model: string): AiModel | undefined {
+  const find = (id: string) => catalog.find((item) => item.provider === provider && item.model === id);
+  return find(model) ?? find(model.replace(MODEL_VERSION_SUFFIX, ""));
+}
+
 /**
- * 응답 줄을 화면 표 줄로 묶는다. 같은 요청 모델은 응답 모델 스냅샷 이름(gpt-…-2025-08-07 등)이 달라도 한 줄로 합친다.
- * 이름은 카탈로그 display_name(요청 모델 → 응답 모델 순)을 쓰고, 없으면 모델 id를 그대로 보인다. 합계가 큰 순서다.
+ * 채팅용 카탈로그에 없는 음성(전사·TTS) 모델의 표시 이름. 사용량 화면에만 쓰고 모델 선택 목록에는 넣지 않는다.
+ * ID는 ai speech 모듈(TRANSCRIBE_MODEL, LIVE_TRANSCRIBE_MODEL, TTS_MODEL)과 지난 사용량에 남은 옛 TTS 모델이다.
  */
-export function summarizeModelUsage(rows: readonly ModelUsageRow[], catalog: readonly AiModel[]): ModelUsageSummary {
+const SPEECH_MODELS: readonly AiModel[] = [
+  { provider: "openai", model: "gpt-transcribe", display_name: "GPT Transcribe" },
+  { provider: "openai", model: "gpt-live-transcribe", display_name: "GPT Live Transcribe" },
+  { provider: "openai", model: "gpt-realtime-2.1-mini", display_name: "GPT Realtime 2.1 Mini" },
+  { provider: "openai", model: "gpt-4o-mini-tts", display_name: "GPT-4o Mini TTS" }
+];
+
+function hasUsage(row: ModelChargeRow): boolean {
+  return [row.calls, row.input_tokens, row.output_tokens, row.audio_seconds, row.tts_characters, row.charge_krw_milli]
+    .some((value) => count(value) > 0);
+}
+
+/**
+ * 청구 응답을 화면 표 줄로 묶는다. 카탈로그에서 같은 모델로 찾아진 스냅샷 줄(gpt-…-2025-08-07 등)은 한 줄로 합치고 display_name을 쓴다.
+ * 카탈로그에 없으면 음성 모델 표에서 찾고, 거기도 없으면 모델 id를 그대로 보이고 합치지 않는다. 토큰이 큰 순서이고, 토큰이 같으면(음성·TTS 줄) 금액이 큰 순서다.
+ * 토큰이 0이어도 호출·음성·글자·금액 중 하나가 있으면 줄을 남긴다. 합계 금액과 안내 건수는 응답 최상위 값을 쓴다.
+ */
+export function summarizeModelUsage(charges: ChargeSummaryResponse, catalog: readonly AiModel[]): ModelUsageSummary {
   const grouped = new Map<string, ModelUsageSummaryRow>();
-  let unknownUsageCalls = 0;
   let calls = 0;
-  for (const row of rows) {
-    const modelId = row.requested_model || row.model;
-    const key = summaryKey(row);
+  for (const row of charges.models) {
+    if (!hasUsage(row)) continue;
+    const matched = findCatalogModel(catalog, row.provider, row.model) ?? findCatalogModel(SPEECH_MODELS, row.provider, row.model);
+    const key = `${row.provider}/${matched?.model ?? row.model}`;
     const current = grouped.get(key) ?? {
       key,
-      label: catalogLabel(catalog, row.provider, modelId) ?? catalogLabel(catalog, row.provider, row.model) ?? modelId,
+      label: matched?.display_name ?? row.model,
       provider: row.provider,
       inputTokens: 0,
       outputTokens: 0,
       cachedInputTokens: 0,
-      totalTokens: 0
+      totalTokens: 0,
+      audioSeconds: 0,
+      ttsCharacters: 0,
+      chargeKrwMilli: 0,
+      unpricedCalls: 0
     };
-    const inputTokens = current.inputTokens + count(row.known_input_tokens);
-    const outputTokens = current.outputTokens + count(row.known_output_tokens);
+    const inputTokens = current.inputTokens + count(row.input_tokens);
+    const outputTokens = current.outputTokens + count(row.output_tokens);
     grouped.set(key, {
       ...current,
       inputTokens,
       outputTokens,
-      cachedInputTokens: current.cachedInputTokens + count(row.known_cached_input_tokens),
-      totalTokens: inputTokens + outputTokens
+      cachedInputTokens: current.cachedInputTokens + count(row.cached_input_tokens),
+      totalTokens: inputTokens + outputTokens,
+      audioSeconds: current.audioSeconds + count(row.audio_seconds),
+      ttsCharacters: current.ttsCharacters + count(row.tts_characters),
+      chargeKrwMilli: current.chargeKrwMilli + count(row.charge_krw_milli),
+      unpricedCalls: current.unpricedCalls + count(row.unpriced_calls)
     });
-    unknownUsageCalls += count(row.unknown_usage_calls);
     calls += count(row.calls);
   }
-  const models = Array.from(grouped.values())
-    .filter((item) => item.totalTokens > 0)
-    .sort((a, b) => b.totalTokens - a.totalTokens || a.label.localeCompare(b.label, "ko"));
+  const models = Array.from(grouped.values()).sort((a, b) =>
+    b.totalTokens - a.totalTokens || b.chargeKrwMilli - a.chargeKrwMilli || a.label.localeCompare(b.label, "ko"));
   const inputTokens = models.reduce((sum, item) => sum + item.inputTokens, 0);
   const outputTokens = models.reduce((sum, item) => sum + item.outputTokens, 0);
-  return { models, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, calls, unknownUsageCalls };
-}
-
-/** 화면 표 한 줄의 키. 같은 요청 모델의 스냅샷 줄을 합친다(summarizeModelUsage·estimateUsageCost가 같이 쓴다). */
-function summaryKey(row: Pick<ModelUsageRow, "provider" | "requested_model" | "model">): string {
-  return `${row.provider}/${row.requested_model || row.model}`;
-}
-
-function catalogLabel(catalog: readonly AiModel[], provider: string, model: string): string | undefined {
-  return catalog.find((item) => item.provider === provider && item.model === model)?.display_name;
+  return {
+    models,
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    calls,
+    chargeKrwMilli: count(charges.charge_krw_milli),
+    unpricedCalls: count(charges.unpriced_calls),
+    needsReviewCalls: count(charges.needs_review_calls)
+  };
 }
 
 const NUMBER_FORMAT = new Intl.NumberFormat("ko-KR");
@@ -205,7 +226,7 @@ export type ModelChargeRow = {
   needs_review_calls: number;
 };
 
-/** 본인 호출 청구 합계. 워크스페이스를 가로질러 합친 값이라 워크스페이스로 거를 수 없다. */
+/** 본인 호출 청구 합계. 참여한 모든 워크스페이스를 가로질러 합친 값이다. */
 export type ChargeSummaryResponse = {
   user_id: string;
   from_at: string;
@@ -217,104 +238,36 @@ export type ChargeSummaryResponse = {
   models: ModelChargeRow[];
 };
 
-export type UsageCostEstimate = {
-  /** 표 줄 키 → 이 워크스페이스 예상 금액(milli-KRW). 단가를 아직 모르면 null */
-  models: Record<string, number | null>;
-  /** 이 워크스페이스 예상 합계(milli-KRW). 단가를 아는 모델만 더한다 */
-  totalKrwMilli: number;
-  /** 모든 워크스페이스 합산 실제 청구(milli-KRW). 음성 초·글자 수로 매긴 금액도 들어 있다 */
-  accountKrwMilli: number;
-  /** 단가가 없거나 아직 청구가 집계되지 않아 예상에서 빠진 사용량이 있다 */
-  hasUnpriced: boolean;
-  /**
-   * 예상이 실제 청구를 넘어 청구액으로 낮췄다. 사용량 집계가 청구 집계보다 앞서(청구 반영 지연)
-   * 이 워크스페이스 사용량이 모든 워크스페이스 청구보다 커 보일 때다.
-   */
-  isCapped: boolean;
-};
-
-/**
- * 이 워크스페이스 토큰에 모델별 평균 단가(청구 금액 ÷ 청구 토큰)를 곱해 예상 금액을 만든다.
- * 청구는 워크스페이스를 가로질러 합쳐 오므로 같은 응답 모델(provider + model)의 평균 단가를 빌려 쓴다.
- * 입력·출력 비율이 워크스페이스마다 다르면 실제와 조금 다를 수 있어 "예상"이다.
- * 모든 호출이 단가 없음이거나, 토큰 없이 음성·글자로만 매겨진 줄, 아직 청구가 집계되지 않은 모델은 평균 단가를 만들 수 없다.
- *
- * 사용량(usage/models)은 청구(usage/charges)보다 먼저 집계돼, 아직 청구되지 않은 호출까지 세면 예상이 실제 청구를 넘을 수 있다.
- * 한 워크스페이스 몫은 모든 워크스페이스 청구를 넘을 수 없으므로, 응답 모델별 예상은 그 모델의 청구액까지,
- * 합계는 전체 청구액까지 비율을 유지한 채 낮추고 isCapped로 알린다.
- */
-export function estimateUsageCost(rows: readonly ModelUsageRow[], charges: ChargeSummaryResponse): UsageCostEstimate {
-  const rates = new Map<string, { rate: number; chargedKrwMilli: number }>();
-  let hasUnpriced = false;
-  for (const charge of charges.models ?? []) {
-    const tokens = count(charge.input_tokens) + count(charge.output_tokens);
-    const calls = count(charge.calls);
-    const unpriced = count(charge.unpriced_calls);
-    if (unpriced > 0) hasUnpriced = true;
-    if (tokens > 0 && unpriced < calls) {
-      const chargedKrwMilli = count(charge.charge_krw_milli);
-      rates.set(`${charge.provider}/${charge.model}`, { rate: chargedKrwMilli / tokens, chargedKrwMilli });
-    }
-  }
-  // 응답 모델(단가 키)별 예상과, 그 예상이 들어갈 표 줄 키별 몫
-  const contributions: { key: string; rateKey: string; amount: number }[] = [];
-  const models: Record<string, number | null> = {};
-  for (const row of rows) {
-    const tokens = count(row.known_input_tokens) + count(row.known_output_tokens);
-    if (tokens === 0) continue;
-    const key = summaryKey(row);
-    const rateKey = `${row.provider}/${row.model}`;
-    const priced = rates.get(rateKey);
-    if (priced === undefined) {
-      hasUnpriced = true;
-      models[key] = models[key] ?? null;
-      continue;
-    }
-    contributions.push({ key, rateKey, amount: tokens * priced.rate });
-  }
-  let isCapped = false;
-  const estimatedByRate = new Map<string, number>();
-  for (const { rateKey, amount } of contributions) estimatedByRate.set(rateKey, (estimatedByRate.get(rateKey) ?? 0) + amount);
-  for (const { key, rateKey, amount } of contributions) {
-    const estimated = estimatedByRate.get(rateKey) ?? 0;
-    const charged = rates.get(rateKey)?.chargedKrwMilli ?? 0;
-    const scale = estimated > charged ? charged / estimated : 1;
-    if (scale < 1) isCapped = true;
-    models[key] = (models[key] ?? 0) + amount * scale;
-  }
-  const accountKrwMilli = count(charges.charge_krw_milli);
-  const estimatedTotal = Object.values(models).reduce<number>((sum, value) => sum + (value ?? 0), 0);
-  if (estimatedTotal > accountKrwMilli) {
-    isCapped = true;
-    const scale = estimatedTotal > 0 ? accountKrwMilli / estimatedTotal : 0;
-    for (const key of Object.keys(models)) {
-      const value = models[key];
-      if (value !== null) models[key] = value * scale;
-    }
-  }
-  const totalKrwMilli = Math.min(estimatedTotal, accountKrwMilli);
-  return { models, totalKrwMilli, accountKrwMilli, hasUnpriced, isCapped };
-}
-
 const KRW_FORMAT = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
 
-/** 0원보다 크지만 원 단위로 반올림하면 0원이 되는 금액인지(milli-KRW 1~499). 화면은 "₩1 미만"으로 보인다. */
-export function isUnderOneWon(value: number): boolean {
-  const safe = count(value);
-  return safe > 0 && safe < 500;
-}
-
 /**
- * milli-KRW 금액을 원 단위로 반올림해 보인다(1,240,400 → ₩1,240). 0은 ₩0, 0원 초과 1원 미만은 "₩1 미만"이다.
+ * milli-KRW 금액을 원 단위로 반올림해 보인다(1,240,400 → ₩1,240). 0은 ₩0, 0원 초과 1원 미만(milli-KRW 1~499)은 "₩1 미만"이다.
  * 원화는 소수 자리를 쓰지 않으므로 작은 금액도 소수로 늘이지 않는다.
- * "₩1 미만"은 그 자체로 어림값이라 앞에 '약'을 붙이지 않는다(isUnderOneWon으로 판단).
  */
 export function formatKrwMilli(value: number): string {
-  if (isUnderOneWon(value)) return `${KRW_FORMAT.format(1)} 미만`;
-  return KRW_FORMAT.format(Math.round(count(value) / 1000));
+  const safe = count(value);
+  if (safe > 0 && safe < 500) return `${KRW_FORMAT.format(1)} 미만`;
+  return KRW_FORMAT.format(Math.round(safe / 1000));
 }
 
-/** 두 milli-KRW 금액이 원 단위로 반올림했을 때 같은지 */
-export function isSameWon(a: number, b: number): boolean {
-  return Math.round(count(a) / 1000) === Math.round(count(b) / 1000);
+/** 청구 금액 문구. 단가 없는 호출만 있어 0원이면 실제 0원과 구분하도록 null이다. */
+export function formatKnownCharge(chargeKrwMilli: number, unpricedCalls: number): string | null {
+  return count(chargeKrwMilli) === 0 && unpricedCalls > 0 ? null : formatKrwMilli(chargeKrwMilli);
+}
+
+function formatAudioDuration(seconds: number): string {
+  const total = Math.ceil(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  if (minutes === 0) return `${rest}초`;
+  return rest === 0 ? `${formatTokenCount(minutes)}분` : `${formatTokenCount(minutes)}분 ${rest}초`;
+}
+
+/** 토큰 밖 사용량 문구(음성 2분 5초 · 1,800자). 없으면 null이다. */
+export function formatNonTokenUsage({ audioSeconds, ttsCharacters }: Pick<ModelUsageSummaryRow, "audioSeconds" | "ttsCharacters">): string | null {
+  const parts = [
+    audioSeconds > 0 ? `음성 ${formatAudioDuration(audioSeconds)}` : null,
+    ttsCharacters > 0 ? `${formatTokenCount(ttsCharacters)}자` : null
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }

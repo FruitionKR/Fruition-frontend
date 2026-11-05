@@ -33,6 +33,15 @@ test("문서·트리 항목·위키 페이지·화면 파라미터를 읽는다"
   assert.deepEqual(parseWorkspaceLocation(params("view=graph&section=account")), { kind: "view", view: "graph" });
 });
 
+test("AI 설정 항목은 주소에 남아 새로고침·뒤로 가기·워크스페이스 전환에도 유지된다", () => {
+  const location = { kind: "view", view: "settings", section: "ai" };
+  assert.deepEqual(parseWorkspaceLocation(params("view=settings&section=ai")), location);
+  assert.equal(buildWorkspaceHref(location), "/home?view=settings&section=ai");
+  assert.equal(getWorkspaceLocationKey(location), "view:settings:ai");
+  assert.equal(getSettingsSection(location), "ai");
+  assert.equal(workspaceSwitchHref(params("view=settings&section=ai")), "/home?view=settings&section=ai");
+});
+
 test("여러 파라미터가 있으면 화면 → 위키 페이지 → 문서 → 트리 항목 순으로 고른다", () => {
   assert.deepEqual(parseWorkspaceLocation(params("doc=d1&view=graph")), { kind: "view", view: "graph" });
   assert.deepEqual(parseWorkspaceLocation(params("tree=t1&doc=d1&page=p1")), { kind: "page", pageId: "p1" });

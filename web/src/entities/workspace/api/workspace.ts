@@ -32,7 +32,7 @@ export async function updateWorkspaceDescribePdfFigures(workspaceId: string, ena
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ describe_pdf_figures: enabled })
   });
-  return parseJsonOrThrow<WorkspaceResponse>(response, "PDF 그림 설명 설정을 변경하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceResponse>(response, "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다.");
 }
 
 /** 워크스페이스를 삭제한다. OWNER만 가능하다. */
