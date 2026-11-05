@@ -3,6 +3,8 @@
  * → 문서 보호 → FAQ → 마지막 안내 순서다. 헤더 메뉴가 가리키는 섹션의 제목은 메뉴 이름과 같다(landingNavLabel). 장 제목·본문·기능 칩은 사용자가 정한 문구를 그대로 쓴다(영어 부제·괄호 병기 포함).
  */
 
+import type { LandingVideoId } from "./landingVideos";
+
 export type LandingChapterId = "capture" | "connect" | "discover" | "together";
 
 export interface LandingNavItem {
@@ -104,25 +106,33 @@ export const LANDING_CHAPTERS: readonly LandingChapter[] = [
   }
 ];
 
+export interface LandingDemoStep {
+  readonly videoId: LandingVideoId;
+  readonly title: string;
+  readonly body: string;
+}
+
 export interface LandingDemoSlot {
   readonly id: "upload" | "connect-ask" | "edit-skill";
   readonly index: string;
   readonly english: string;
   readonly title: string;
   readonly body: string;
-  /** 시연 영상 경로(web/public 기준). 영상이 오기 전까지 null이고, 그동안 코드로 그린 예시 화면을 보여 준다. */
-  readonly videoSrc: string | null;
+  readonly steps: readonly LandingDemoStep[];
 }
 
-/** 시연 흐름: 올리기 → 편입·질의 → AI 편집·스킬. 자리마다 시연 영상이 하나씩 들어간다. */
+/** 시연 흐름: 올리기 → 편입·질의 → AI 편집·스킬. 묶음마다 기능별 시연 영상을 차례로 보여 준다. */
 export const LANDING_DEMO_SLOTS: readonly LandingDemoSlot[] = [
   {
     id: "upload",
     index: "01",
-    english: "UPLOAD",
-    title: "올리기",
+    english: "UPLOAD & WRITE",
+    title: "올리고 쓰기",
     body: "PDF를 올리면 고칠 수 있는 Markdown 문서로 바꿉니다. 표까지 옮겨 오므로 바로 이어서 쓸 수 있습니다.",
-    videoSrc: null
+    steps: [
+      { videoId: "pdf-upload", title: "PDF 올리고 변환하기", body: "메뉴에서 변환을 고르면 원본 PDF 옆에 Markdown 변환본이 생깁니다." },
+      { videoId: "document-editor", title: "문서 편집", body: "/를 입력해 제목·목록·표를 넣고, 글자를 골라 서식을 바꿉니다." }
+    ]
   },
   {
     id: "connect-ask",
@@ -130,7 +140,11 @@ export const LANDING_DEMO_SLOTS: readonly LandingDemoSlot[] = [
     english: "INGEST & ASK",
     title: "편입하고 묻기",
     body: "문서를 위키에 편입하면 그래프로 연결됩니다. 질문하면 위키에서 찾은 자료를 근거로 답합니다.",
-    videoSrc: null
+    steps: [
+      { videoId: "wiki-ingest", title: "위키에 편입하기", body: "문서를 골라 편입하면 진행률이 표시되고, 끝나면 그래프에 페이지가 이어집니다." },
+      { videoId: "wiki-lint", title: "위키 최신화(Lint)", body: "위키 페이지를 다듬고, 새로 찾은 개념과 연결을 그래프에 더합니다." },
+      { videoId: "query", title: "질문하기", body: "위키에서 찾은 자료로 답하고, 번호를 누르면 본문의 근거 위치를 보여 줍니다." }
+    ]
   },
   {
     id: "edit-skill",
@@ -138,7 +152,11 @@ export const LANDING_DEMO_SLOTS: readonly LandingDemoSlot[] = [
     english: "EDIT & SKILL",
     title: "AI로 고치고 스킬로 저장하기",
     body: "고칠 내용을 요청하면 AI가 본문에 제안을 표시하고, 수락한 제안만 반영합니다. 자주 하는 요청은 스킬로 저장해 다시 씁니다.",
-    videoSrc: null
+    steps: [
+      { videoId: "ai-edit", title: "AI로 고치기", body: "요청하면 본문에 제안을 표시합니다. 수락하면 그 내용만 문서에 반영합니다." },
+      { videoId: "skill-create", title: "스킬 만들기", body: "실행 규칙을 적어 AI로 다듬고, 문서를 바꾸지 않는 테스트 실행으로 결과를 확인합니다." },
+      { videoId: "skill-run", title: "스킬 실행하기", body: "/명령으로 스킬을 부르면 같은 규칙으로 고친 제안을 본문에 표시합니다." }
+    ]
   }
 ];
 

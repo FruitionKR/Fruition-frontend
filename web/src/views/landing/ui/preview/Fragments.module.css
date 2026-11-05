@@ -499,44 +499,8 @@
   border-radius: 6px;
 }
 
-/* ───── 시연 영상 자리의 임시 화면: 3:2 고정(LandingSections의 demo-screen과 같은 비율) ───── */
-.demo-frame {
-  --preview-w: 780;
-  --preview-h: 520;
-}
-
-.demo-composer {
-  display: contents;
-}
-
-.demo-graph {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* 좁은 화면: 히어로는 채팅 패널만 남겨 글자가 너무 작아지지 않게 한다. 시연 임시 화면도 마지막 칸만 남긴다. */
+/* 좁은 화면: 히어로는 채팅 패널만 남겨 글자가 너무 작아지지 않게 한다. */
 @media (max-width: 640px) {
-  .demo-frame {
-    --preview-w: 480;
-    --preview-h: 320;
-  }
-
-  .demo-frame .app > :not(:last-child) {
-    display: none;
-  }
-
-  .demo-frame .app > :last-child {
-    flex: 1;
-    border-left: 0;
-  }
-
-  /* 내용이 입력창에 가리거나 잘리지 않게 입력창을 뺀다. */
-  .demo-composer {
-    display: none;
-  }
-
   .hero-frame {
     --preview-w: 360;
     --preview-h: 480;

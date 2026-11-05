@@ -291,7 +291,7 @@
   }
 }
 
-/* ───── 시연 흐름: 왼쪽 번호 줄기를 따라 세 자리가 이어진다. 화면은 3:2로 고정해 영상으로 바꿔도 밀리지 않는다 ───── */
+/* ───── 시연 흐름: 왼쪽 번호 줄기를 따라 세 묶음이 이어지고, 묶음 설명은 영상이 지나가는 동안 머무른다 ───── */
 .demo-inner {
   max-width: var(--lp-wrap);
   margin: 0 auto;
@@ -299,16 +299,7 @@
 }
 
 .demo-head {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   margin-bottom: 56px;
-}
-
-.demo-note {
-  margin: 0;
-  color: var(--lp-muted);
-  font-size: var(--lp-text-small);
 }
 
 .demo-list {
@@ -320,9 +311,9 @@
 .demo-slot {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
   gap: 48px;
-  padding-bottom: 72px;
+  padding-bottom: 96px;
 }
 
 .demo-slot:last-child {
@@ -341,9 +332,12 @@
 
 /* 번호는 왼쪽 줄기 위에 놓고, 글은 줄기 오른쪽에 둔다. */
 .demo-copy {
-  position: relative;
+  position: sticky;
+  top: 96px;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  align-self: start;
   gap: 8px;
   min-height: 48px;
   padding: 4px 0 0 68px;
@@ -384,12 +378,125 @@
   line-height: 1.65;
 }
 
-.demo-screen {
+.demo-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
   min-width: 0;
-  aspect-ratio: 3 / 2;
+}
+
+.demo-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+}
+
+.demo-step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.demo-step-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* 틀 비율은 파일 비율과 같아 영상이 틀을 꽉 채운다. 폭은 칸에 맞추고 높이만 영상마다 조금 다르다. */
+.demo-video {
+  position: relative;
+  aspect-ratio: var(--video-ratio);
   overflow: hidden;
+  background: var(--lp-card);
   border-radius: 12px;
   box-shadow: var(--lp-shadow-window);
+}
+
+.demo-video-fallback {
+  position: absolute;
+  inset: 0;
+  padding: 24px;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-small);
+  text-align: center;
+}
+
+.demo-video-poster,
+.demo-video-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.demo-video-media {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.demo-video-media[data-ready="true"] {
+  opacity: 1;
+}
+
+.demo-video-status {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: var(--lp-text-small);
+  background: rgb(0 0 0 / 72%);
+  border-radius: 999px;
+}
+
+/* 네이티브 컨트롤 대신 버튼 하나. 멈춘 동안에는 가운데 크게, 재생 중에는 모서리에 작게 둔다. */
+.demo-video-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: #fff;
+  background: rgb(0 0 0 / 60%);
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.demo-video-toggle:hover {
+  background: rgb(0 0 0 / 82%);
+}
+
+.demo-video-toggle[data-state="play"] {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  background: var(--lp-accent);
+  border-color: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.demo-video-toggle[data-state="play"] svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* 마우스가 있으면 재생 중 버튼은 올렸을 때와 키보드로 왔을 때만 보인다. */
+@media (hover: hover) {
+  .demo-video:not(:hover) .demo-video-toggle[data-state="pause"]:not(:focus-visible) {
+    opacity: 0;
+  }
 }
 
 /* ───── 문서 보호: 보관·접근·AI 처리·삭제 네 묶음 ───── */
@@ -573,16 +680,21 @@
 
   .demo-slot {
     grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-    padding-bottom: 56px;
+    gap: 32px;
+    padding-bottom: 72px;
+  }
+
+  .demo-steps {
+    gap: 40px;
   }
 
   .demo-slot:not(:last-child)::before {
     display: none;
   }
 
-  /* 한 칸으로 쌓이면 줄기가 없으므로 번호를 글 위로 올린다. */
+  /* 한 칸으로 쌓이면 줄기가 없으므로 번호를 글 위로 올리고 설명도 머무르지 않는다. */
   .demo-copy {
+    position: static;
     padding: 0;
   }
 

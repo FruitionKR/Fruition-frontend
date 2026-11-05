@@ -420,6 +420,11 @@
   overflow: visible;
 }
 
+/* 시연 묶음 설명이 스크롤에 머무르려면(sticky) 바탕이 스크롤 컨테이너가 되면 안 된다. */
+.demo-backdrop {
+  overflow: visible;
+}
+
 .hero-inner {
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);

@@ -65,16 +65,26 @@ test("시연 자리는 올리기 → 편입·질의 → AI 편집·스킬 순서
   }
 });
 
-test("시연 자리는 3:2로 고정하고, 영상이 오기 전까지 재생 UI 없는 임시 화면만 그린다", () => {
+test("시연 영상은 틀 크기를 먼저 잡고, 재생 컨트롤은 네이티브가 아닌 버튼 하나만 쓴다", () => {
   const sectionsCss = read("LandingSections.module.css");
-  assert.match(sectionsCss, /\.demo-screen\s*\{[^}]*aspect-ratio:\s*3 \/ 2;/s);
-  const fragmentsCss = read("preview/Fragments.module.css");
-  assert.match(fragmentsCss, /\.demo-frame\s*\{\s*--preview-w:\s*780;\s*--preview-h:\s*520;/);
-  assert.match(fragmentsCss, /\.demo-frame\s*\{\s*--preview-w:\s*480;\s*--preview-h:\s*320;/);
-  // 영상을 넣을 때 이 검사도 함께 바꾼다. 경로만 넣고 그리는 코드가 없으면 조용히 무시되므로 막아 둔다.
-  assert.ok(LANDING_DEMO_SLOTS.every((slot) => slot.videoSrc === null));
-  const ui = listFiles(".tsx").map(read).join("\n");
-  assert.doesNotMatch(ui, /<video|재생/);
+  assert.match(sectionsCss, /\.demo-video\s*\{[^}]*aspect-ratio:\s*var\(--video-ratio\);/s);
+  // 영상에서 검은 띠를 잘라 냈으니 틀이 파일 비율과 같고, 틀 바탕이 다시 띠로 보이면 안 된다.
+  const videoBlock = sectionsCss.match(/\.demo-video\s*\{[^}]*\}/s)[0];
+  assert.match(videoBlock, /background:\s*var\(--lp-card\);/);
+  assert.doesNotMatch(sectionsCss, /\.demo-video\s*\{\s*aspect-ratio:\s*2 \/ 1/);
+  assert.doesNotMatch(sectionsCss, /object-fit:\s*contain/);
+  const player = read("LandingVideo.tsx");
+  for (const attribute of ["muted", "playsInline", "loop", 'preload="none"', "autoPlay="]) assert.ok(player.includes(attribute), attribute);
+  assert.doesNotMatch(player, /<video[^>]*\bcontrols\b/s);
+  // 영상마다 설명이 있고, 포스터는 지연 로드한다.
+  assert.match(player, /aria-label=\{video\.label\}/);
+  assert.match(player, /loading="lazy"/);
+});
+
+test("임시 화면과 예시 안내는 시연 흐름에서 지웠다", () => {
+  assert.equal(listFiles(".tsx").includes("preview/DemoScreens.tsx"), false);
+  assert.doesNotMatch(read("preview/Fragments.module.css"), /demo-frame|demo-composer|demo-graph/);
+  assert.doesNotMatch(read("LandingSections.tsx"), /demo-note|화면은 예시/);
 });
 
 test("좁은 화면 메뉴는 헤더 메뉴와 같은 항목을 쓰고 Escape로 닫힌다", () => {

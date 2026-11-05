@@ -11,8 +11,9 @@ import {
   type LandingChapter,
   type LandingDemoSlot
 } from "../model/landingContent";
+import { LANDING_VIDEOS } from "../model/landingVideos";
 import { CHAPTER_ICONS, CHIP_ICONS } from "./LandingIcons";
-import { ConnectAskDemoScreen, EditSkillDemoScreen, UploadDemoScreen } from "./preview/DemoScreens";
+import { LandingVideo } from "./LandingVideo";
 import { CaptureVisual, ConnectVisual, DiscoverVisual, TogetherVisual } from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
@@ -103,15 +104,8 @@ export function LandingChapters() {
   );
 }
 
-const DEMO_SCREENS: Record<LandingDemoSlot["id"], () => ReactElement> = {
-  upload: UploadDemoScreen,
-  "connect-ask": ConnectAskDemoScreen,
-  "edit-skill": EditSkillDemoScreen
-};
-
-/** 시연 흐름의 한 자리. demo-screen이 3:2 비율을 고정하므로 안의 임시 화면을 영상으로 바꿔도 레이아웃이 밀리지 않는다. */
+/** 시연 묶음 하나. 넓은 화면에서는 묶음 설명이 왼쪽에 머무르고, 오른쪽으로 기능별 영상이 차례로 지나간다. */
 function DemoSlot({ slot }: { slot: LandingDemoSlot }) {
-  const Screen = DEMO_SCREENS[slot.id];
   return (
     <li className={sections["demo-slot"]}>
       <div className={sections["demo-copy"]}>
@@ -120,24 +114,29 @@ function DemoSlot({ slot }: { slot: LandingDemoSlot }) {
         <h3 className={sections["demo-title"]}>{slot.title}</h3>
         <p className={sections["demo-body"]}>{slot.body}</p>
       </div>
-      <div className={sections["demo-screen"]}>
-        <Screen />
+      <div className={sections["demo-steps"]}>
+        {slot.steps.map((step) => (
+          <figure key={step.videoId} className={sections["demo-step"]}>
+            <figcaption className={sections["demo-step-copy"]}>
+              <h4 className={sections["demo-step-title"]}>{step.title}</h4>
+              <p className={sections["demo-body"]}>{step.body}</p>
+            </figcaption>
+            <LandingVideo video={LANDING_VIDEOS[step.videoId]} />
+          </figure>
+        ))}
       </div>
     </li>
   );
 }
 
-/** 올리기 → 편입·질의 → AI 편집·스킬 흐름. 시연 영상이 들어갈 자리이고, 지금은 예시 화면을 보여 준다. */
+/** 올리기 → 편입·질의 → AI 편집·스킬 흐름을 시연 영상으로 보여 준다. */
 export function LandingDemo() {
   return (
-    <section id="demo" className={cx(sections["demo"], styles["hero-backdrop"])} aria-labelledby="demo-title">
+    <section id="demo" className={cx(styles["hero-backdrop"], styles["demo-backdrop"])} aria-labelledby="demo-title">
       <div className={sections["demo-inner"]}>
-        <div className={sections["demo-head"]}>
-          <h2 id="demo-title" className={styles["h2"]}>
-            기록이 지식이 되는 과정
-          </h2>
-          <p className={sections["demo-note"]}>화면은 예시입니다.</p>
-        </div>
+        <h2 id="demo-title" className={cx(styles["h2"], sections["demo-head"])}>
+          기록이 지식이 되는 과정
+        </h2>
         <ol className={sections["demo-list"]}>
           {LANDING_DEMO_SLOTS.map((slot) => (
             <DemoSlot key={slot.id} slot={slot} />
