@@ -66,7 +66,7 @@ test("자동 편입 토글은 PATCH workspaces/{id}에 auto_ingest_on_upload만 
   assert.equal(workspace.auto_ingest_on_upload, true);
 });
 
-test("PDF 그림 설명 토글은 PATCH workspaces/{id}에 describe_pdf_figures만 보낸다", async (t) => {
+test("PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 토글은 PATCH workspaces/{id}에 describe_pdf_figures만 보낸다", async (t) => {
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
     calls.push({ url: String(url), init });
