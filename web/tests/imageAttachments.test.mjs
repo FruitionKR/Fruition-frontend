@@ -6,9 +6,10 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
-const { extractAttachmentIds, validateImageFile, substituteAttachmentPaths, ATTACHMENT_SCHEME } =
+const { extractAttachmentIds, validateImageFile, substituteAttachmentPaths, settleAttachmentSubstitution, ATTACHMENT_SCHEME } =
   await import("../src/features/note-editing/model/imageAttachments.ts");
 const { isManagedAssetPath } = await import("../src/shared/api/assets.ts");
+const { resolveEditorBodyUpdate } = await import("../src/features/note-editing/model/serverMergeTransaction.ts");
 
 const A = "0c973836-6687-4018-b2c7-f2f66984e87b";
 const B = "dc8f9e82-3397-4f18-9f42-dd9998796e2f";
@@ -105,4 +106,47 @@ test("외부 URL 안에 끼어 있는 관리 이미지 경로는 뽑지 않는�
   assert.deepEqual(extractManagedAssetPaths(`![](https://evil.example/x${inner})`), []);
   assert.deepEqual(extractManagedAssetPaths(`![](https://evil.example${inner})`), []);
   assert.deepEqual(extractManagedAssetPaths(`<img src="${inner}"> [r]: ${inner}\n${inner}`), [inner]);
+});
+
+const PLACEHOLDER = `![](${ATTACHMENT_SCHEME}${A})`;
+const MANAGED_PATH = "/api/workspaces/ws/assets/asset_1/content";
+const MANAGED = `![](${MANAGED_PATH})`;
+const PATHS = new Map([[A, MANAGED_PATH]]);
+
+test("알리지 않은 입력이 없으면 치환 뒤 편집기 기준 본문도 맞춰 미반영 입력으로 보이지 않는다", () => {
+  const settled = settleAttachmentSubstitution({
+    documentBefore: PLACEHOLDER,
+    documentAfter: MANAGED,
+    paths: PATHS,
+    current: { body: PLACEHOLDER, programmaticBody: null, serializedBody: PLACEHOLDER }
+  });
+
+  assert.deepEqual(settled, { body: MANAGED, programmaticBody: MANAGED, serializedBody: MANAGED });
+});
+
+test("아직 알리지 않은 입력이 있으면 기준 본문을 그대로 두어 미반영으로 남기고, 뒤늦은 알림이 그 입력을 저장한다", () => {
+  const typed = `${MANAGED}\n\n친 글자`;
+  const settled = settleAttachmentSubstitution({
+    documentBefore: `${PLACEHOLDER}\n\n친 글자`,
+    documentAfter: typed,
+    paths: PATHS,
+    current: { body: PLACEHOLDER, programmaticBody: null, serializedBody: PLACEHOLDER }
+  });
+
+  assert.equal(settled.serializedBody, PLACEHOLDER);
+  assert.notEqual(settled.serializedBody, typed);
+  assert.equal(settled.body, MANAGED);
+  assert.equal(resolveEditorBodyUpdate(typed, settled.programmaticBody), typed);
+});
+
+test("저장 직전에 편입한 본문의 뒤늦은 알림은 치환 뒤에도 같은 본문을 다시 저장하지 않는다", () => {
+  const settled = settleAttachmentSubstitution({
+    documentBefore: PLACEHOLDER,
+    documentAfter: MANAGED,
+    paths: PATHS,
+    current: { body: PLACEHOLDER, programmaticBody: PLACEHOLDER, serializedBody: "편입 전 본문" }
+  });
+
+  assert.equal(settled.serializedBody, "편입 전 본문");
+  assert.equal(resolveEditorBodyUpdate(MANAGED, settled.programmaticBody), null);
 });
