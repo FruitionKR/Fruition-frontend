@@ -66,5 +66,5 @@ test("섹션은 제목에 연결된 section이고 묶음마다 h3과 목록을 �
   assert.doesNotMatch(section, /styles\["lead"\]/);
   assert.match(ui, /<h3 id=\{`data-handling-\$\{group\.id\}`\}[^>]*>\s*\{group\.headline\}/);
   assert.match(ui, /<ul className=\{sections\["data-handling-list"\]\}>/);
-  assert.match(read("LandingPage.tsx"), /<LandingChapters \/>\s*<LandingDataHandling \/>\s*<LandingFaq \/>/);
+  assert.match(read("LandingPage.tsx"), /<LandingTogether \/>\s*<LandingDataHandling \/>\s*<LandingFaq \/>/);
 });

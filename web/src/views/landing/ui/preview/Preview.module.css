@@ -49,7 +49,6 @@
   height: 16px;
 }
 
-.button-danger,
 .button-primary {
   display: inline-flex;
   align-items: center;
@@ -57,11 +56,6 @@
   font-size: 12px;
   font-weight: 600;
   border-radius: 6px;
-}
-
-.button-danger {
-  color: #ffffff;
-  background: var(--color-danger);
 }
 
 .button-primary {

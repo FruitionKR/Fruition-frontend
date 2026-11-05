@@ -31,9 +31,11 @@ export function LandingVideo({ video }: { video: LandingVideoAsset }) {
   const [hasSource, setHasSource] = useState(false);
   const [hasPosterFailed, setHasPosterFailed] = useState(false);
 
-  const wantsPlay = !hasFailed && shouldPlayVideo({ isInView, reduceMotion, choice, isBlocked });
+  // 버튼은 화면 진입 여부와 상관없이 "화면 안이라면 재생할 영상인가"로 정한다. 들어오는 동안 재생 버튼이 깜빡이지 않는다.
+  const wantsPlayInView = !hasFailed && shouldPlayVideo({ isInView: true, reduceMotion, choice, isBlocked });
+  const wantsPlay = wantsPlayInView && isInView;
   if (wantsPlay && !hasSource) setHasSource(true);
-  const control = videoControlState({ wantsPlay, hasFailed });
+  const control = videoControlState({ wantsPlay: wantsPlayInView, hasFailed });
 
   // 서버가 그린 포스터는 하이드레이션 전에 실패할 수 있어 onError만으로는 놓친다.
   useEffect(() => {
@@ -68,7 +70,7 @@ export function LandingVideo({ video }: { video: LandingVideoAsset }) {
   }, [wantsPlay]);
 
   const toggle = () => {
-    if (wantsPlay) {
+    if (wantsPlayInView) {
       setChoice("paused");
       return;
     }

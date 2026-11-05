@@ -94,21 +94,4 @@ export function ChatThread({ data }: { data: ChatThreadData }) {
   );
 }
 
-/** 본문에 표시되는 AI 제안 블록과 거절/수락 버튼 (Figma 1571:27625) */
-export function SuggestionBlock({ skill, removed, proposed }: { skill: string; removed: string; proposed: string }) {
-  return (
-    <>
-      <p className={styles["editor-removed"]}>{removed}</p>
-      <div className={styles["suggestion"]}>
-        <p className={styles["suggestion-label"]}>[제안 : {skill}]</p>
-        <p className={styles["suggestion-text"]}>{proposed}</p>
-        <p className={styles["suggestion-actions"]}>
-          <span className={base["button-danger"]}>✕ 거절</span>
-          <span className={base["button-primary"]}>✓ 수락</span>
-        </p>
-      </div>
-    </>
-  );
-}
-
 export { styles as paneStyles };
