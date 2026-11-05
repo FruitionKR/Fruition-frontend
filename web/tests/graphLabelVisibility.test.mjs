@@ -25,6 +25,24 @@ test("우선순위가 같으면 앞선 노드를 남겨 프레임마다 뒤바�
   assert.deepEqual([...pickVisibleLabels([box("first", 0), box("second", 10)])], ["first"]);
 });
 
+test("다른 노드와 겹치는 라벨은 빼고, 자기 노드와 닿는 것은 빼지 않는다", () => {
+  const label = box("a", 0);
+  assert.deepEqual([...pickVisibleLabels([label], [{ id: "b", x: 20, y: 7, radius: 6 }])], []);
+  assert.deepEqual([...pickVisibleLabels([label], [{ id: "a", x: 20, y: 7, radius: 6 }])], ["a"]);
+  // 라벨 상자 모서리 밖에 있는 노드는 겹치지 않는다.
+  assert.deepEqual([...pickVisibleLabels([label], [{ id: "b", x: 48, y: 22, radius: 6 }])], ["a"]);
+});
+
+test("빠진 라벨은 다른 라벨의 자리를 막지 않는다", () => {
+  const visible = pickVisibleLabels([box("covered", 0, 2), box("free", 10, 0)], [{ id: "x", x: 2, y: 7, radius: 4 }]);
+  assert.deepEqual([...visible], ["free"]);
+});
+
+test("누른 노드의 라벨은 다른 노드와 겹쳐도 남긴다", () => {
+  const pressed = { ...box("a", 0), isPinned: true };
+  assert.deepEqual([...pickVisibleLabels([pressed], [{ id: "b", x: 20, y: 7, radius: 6 }])], ["a"]);
+});
+
 test("입력 배열을 바꾸지 않는다", () => {
   const labels = [box("a", 0, 0), box("b", 100, 2)];
   pickVisibleLabels(labels);

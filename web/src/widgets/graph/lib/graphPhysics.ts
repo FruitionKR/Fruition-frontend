@@ -1,5 +1,5 @@
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from "d3-force";
-import type { Simulation, SimulationLinkDatum } from "d3-force";
+import type { ForceLink, Simulation, SimulationLinkDatum } from "d3-force";
 import type { GraphLink, GraphNode, NodePosition, NodePositionMap } from "@/entities/wiki";
 import { GRAPH_CENTER, GRAPH_HEIGHT, GRAPH_PHYSICS, GRAPH_WIDTH } from "@/entities/graph/lib/graphBuilder";
 
@@ -21,7 +21,9 @@ type GraphSimLink = SimulationLinkDatum<GraphSimNode>;
 
 export type GraphSimulation = {
   simulation: Simulation<GraphSimNode, GraphSimLink>;
+  /** 힘을 받는 대상과 상관없이 그래프의 모든 노드 */
   nodeById: Map<string, GraphSimNode>;
+  allLinks: GraphSimLink[];
 };
 
 /** d3-force 힘 세기 튜닝 값 */
@@ -55,7 +57,8 @@ export function createGraphSimulation({
   startPositions,
   originPositions,
   initialAlpha = 1,
-  velocityDecay
+  velocityDecay,
+  originStrength = SIM_FORCES.originStrength
 }: {
   nodes: GraphNode[];
   links: GraphLink[];
@@ -65,6 +68,8 @@ export function createGraphSimulation({
   initialAlpha?: number;
   /** 지정하면 d3 기본 속도 감쇠(0.4) 대신 쓴다. 갱신 뒤 settle을 차분하게 할 때 높인다. */
   velocityDecay?: number;
+  /** 기준점으로 되돌리는 힘. 등장 연출처럼 정해진 자리로 모아야 할 때 높인다. */
+  originStrength?: number;
 }): GraphSimulation {
   const simNodes: GraphSimNode[] = nodes.map((node) => ({
     id: node.id,
@@ -100,18 +105,18 @@ export function createGraphSimulation({
     .force("centerY", forceY<GraphSimNode>(GRAPH_CENTER.y).strength(SIM_FORCES.centerStrength))
     .force(
       "originX",
-      forceX<GraphSimNode>((node) => originPositions[node.id]?.x ?? GRAPH_CENTER.x).strength(SIM_FORCES.originStrength)
+      forceX<GraphSimNode>((node) => originPositions[node.id]?.x ?? GRAPH_CENTER.x).strength(originStrength)
     )
     .force(
       "originY",
-      forceY<GraphSimNode>((node) => originPositions[node.id]?.y ?? GRAPH_CENTER.y).strength(SIM_FORCES.originStrength)
+      forceY<GraphSimNode>((node) => originPositions[node.id]?.y ?? GRAPH_CENTER.y).strength(originStrength)
     )
     .alphaMin(SIM_FORCES.alphaMin)
     .alpha(initialAlpha)
     .stop(); // 내부 타이머 대신 RAF 루프에서 수동 tick
   if (velocityDecay !== undefined) simulation.velocityDecay(velocityDecay);
 
-  return { simulation, nodeById };
+  return { simulation, nodeById, allLinks: simLinks };
 }
 
 /**
@@ -131,6 +136,17 @@ export function tickGraphSimulation(graphSimulation: GraphSimulation, isDragging
 export function reheatGraphSimulation(graphSimulation: GraphSimulation) {
   const { simulation } = graphSimulation;
   simulation.alpha(Math.max(simulation.alpha(), SIM_FORCES.dragAlpha));
+}
+
+/** 힘을 받는 노드를 좁힌다. 빠진 노드는 좌표를 그대로 둔 채 다른 노드에도 힘을 주지 않는다. */
+export function setActiveSimulationNodes(graphSimulation: GraphSimulation, activeNodeIds: ReadonlySet<string>) {
+  const { simulation, nodeById, allLinks } = graphSimulation;
+  const isActive = (end: GraphSimLink["source"]) => activeNodeIds.has((end as GraphSimNode).id);
+  // links를 먼저 바꿔야 뒤의 nodes()가 모든 힘을 새 대상으로 초기화할 때 링크 힘도 맞는 값으로 계산된다.
+  (simulation.force("link") as ForceLink<GraphSimNode, GraphSimLink>).links(
+    allLinks.filter((link) => isActive(link.source) && isActive(link.target))
+  );
+  simulation.nodes([...nodeById.values()].filter((node) => activeNodeIds.has(node.id)));
 }
 
 /** simulation 노드 좌표를 캐시 저장용 위치 맵으로 변환한다. */

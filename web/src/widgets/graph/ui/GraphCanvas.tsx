@@ -14,6 +14,8 @@ export type GraphCanvasProps = {
   errorMessage?: string | null;
   /** 위키 편입 중·실패 문서(selectGraphIngestProgressInputs). 생성 중 진행률 링을 그린다. */
   ingestProgressInputs?: readonly GraphIngestProgressInput[];
+  /** 값이 바뀌면 노드가 하나씩 나타나는 연출을 처음부터 다시 재생한다. */
+  revealRequest?: number;
 };
 
 export function GraphCanvas({
@@ -24,7 +26,8 @@ export function GraphCanvas({
   onClearNodeFocus,
   loading = false,
   errorMessage = null,
-  ingestProgressInputs
+  ingestProgressInputs,
+  revealRequest
 }: GraphCanvasProps) {
   const { canvasRef, graphCanvasProps } = useGraphCanvas({
     nodes,
@@ -32,7 +35,9 @@ export function GraphCanvas({
     focusedNodeId,
     onOpenNodePreview,
     onClearNodeFocus,
-    ingestProgressInputs
+    ingestProgressInputs,
+    loading,
+    revealRequest
   });
 
   return (
