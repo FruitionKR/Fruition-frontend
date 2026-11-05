@@ -94,9 +94,9 @@ test("마우스 클릭·키보드 클릭(누름 기록 없음)은 탭으로 보�
   assert.equal(shouldOpenAfterTap(null), false);
 });
 
-test("탭 열기는 켠 곳에서만 동작한다: 사용량 물음표만 켜고 다른 툴팁은 그대로 둔다", () => {
+test("탭 열기는 설명 전용 물음표에만 켠다", () => {
   const source = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
   assert.match(source("features/user-settings/ui/panels/AiUsageSection.tsx"), /<Tooltip content=\{USAGE_LAG_NOTE\}[^>]*\bopenOnTap\b/);
   assert.match(source("shared/ui/Tooltip.tsx"), /openOnTap = false/);
-  assert.doesNotMatch(source("features/skill-authoring/ui/SkillFormParts.tsx"), /openOnTap/);
+  assert.match(source("features/skill-authoring/ui/SkillFormParts.tsx"), /<Tooltip content=\{content\}[^>]*\bopenOnTap\b/);
 });

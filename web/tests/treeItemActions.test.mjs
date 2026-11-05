@@ -141,6 +141,11 @@ test("메뉴를 닫으면 연 버튼으로 포커스를 돌려준다(연 요소�
   assert.match(menu, /opener\?\.isConnected\) opener\.focus\(\)/);
 });
 
+test("터치 기기에서만 파일·폴더 메뉴에 이동·여러 항목 선택을 더한다", () => {
+  assert.equal(menu(note, { ...full, canUseTouchActions: true }), "이름 변경 · 권한 설정 · 원본 다운로드 | 다른 폴더로 이동 · 여러 항목 선택 | 삭제");
+  assert.equal(menu(note), "이름 변경 · 권한 설정 · 원본 다운로드 | 삭제");
+});
+
 test("쓸 수 없는 폴더의 메뉴는 넣는 항목만 막고, 쓸 수 있거나 모르는 폴더·최상위·파일은 그대로 둔다", () => {
   const denied = (folderId) => folderId === "f1";
   assert.deepEqual([...treeMenuBlockedActions(folder, denied)], ["new-note", "new-folder", "upload"]);
@@ -153,4 +158,11 @@ test("막힌 메뉴 항목은 비활성으로 두고 이유를 메뉴 안에 글
   const menu = await source("widgets/document-sidebar/ui/ContextMenu.tsx");
   assert.match(menu, /disabled=\{blockedActions\.has\(action\)\}/);
   assert.match(menu, /FOLDER_WRITE_FORBIDDEN_MESSAGE/);
+});
+
+test("꺼낼 수 없는 항목의 터치 메뉴는 이동을 막고 여러 항목 선택은 둔다", () => {
+  const denied = () => false;
+  assert.deepEqual([...treeMenuBlockedActions(note, denied, () => true)], ["move"]);
+  assert.deepEqual([...treeMenuBlockedActions(note, denied, () => false)], []);
+  assert.deepEqual([...treeMenuBlockedActions(note, denied)], [], "판정을 넘기지 않으면 막지 않는다");
 });

@@ -187,6 +187,20 @@ export function SettingsNav({
   );
 }
 
+/** 휴대폰 가로 설정 메뉴. 고른 항목이 잘려 보이지 않게 메뉴 안에서만 스크롤한다. */
+function PhoneSettingsNav({ activeSection, children }: { activeSection: SettingsSection; children: React.ReactNode }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    const active = root?.querySelector<HTMLElement>('[aria-current="page"]');
+    // display: none인 넓은 화면에서는 크기가 없어 건너뛴다.
+    if (!root || !active || root.offsetWidth === 0) return;
+    const nav = active.closest("nav");
+    if (nav) nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+  }, [activeSection]);
+  return <div ref={rootRef} className={styles["phone-nav"]}>{children}</div>;
+}
+
 /**
  * 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다.
  * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계(account-delete)나 이메일 변경 창(email-change)을 다시 연다.
@@ -194,12 +208,15 @@ export function SettingsNav({
 export function SettingsContent({
   section,
   resume = null,
-  onOpenSection
+  onOpenSection,
+  phoneNav
 }: {
   section: SettingsSection;
   /** 오리진을 벗어났다 돌아온 뒤 다시 열 위치. HomeWorkspace가 section도 그에 맞춰 연다. */
   resume?: SettingsResume | null;
   onOpenSection: (section: SettingsSection) => void;
+  /** 휴대폰에서 본문 위에 가로로 펼치는 설정 메뉴. 넓은 화면에서는 사이드바의 메뉴를 쓰고 이 자리는 그리지 않는다. */
+  phoneNav?: React.ReactNode;
 }) {
   const workspaceName = useWorkspaceName();
 
@@ -267,6 +284,7 @@ export function SettingsContent({
 
   return (
     <section className={styles.view} aria-label="설정">
+      {phoneNav && <PhoneSettingsNav activeSection={section}>{phoneNav}</PhoneSettingsNav>}
       <div className={styles.content}>
         {section === "profile" && <ProfilePanel resumeEmailChange={resume === "email-change"} />}
         {section === "account" && (

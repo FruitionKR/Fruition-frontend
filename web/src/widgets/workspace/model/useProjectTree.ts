@@ -97,6 +97,7 @@ export function useProjectTree({
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmTarget | null>(null);
   const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
   const [permissionTarget, setPermissionTarget] = useState<PermissionDialogTarget | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ projectId: string; itemId: string } | null>(null);
   // Cmd/Ctrl+클릭·Shift+클릭으로 고른 묶음 이동·삭제 대상. Escape·일반 클릭·빈 영역 클릭으로 해제한다.
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<BulkDeleteConfirmTarget | null>(null);
@@ -164,8 +165,7 @@ export function useProjectTree({
     }, "폴더 생성 실패");
   }
 
-  function moveTreeEntry(target: DropTarget) {
-    const dragged = draggedItem;
+  function moveTreeEntry(target: DropTarget, dragged = draggedItem) {
     setDropTarget(null);
     setDraggedItem(null);
     setDropDeniedItemId(null);
@@ -236,6 +236,26 @@ export function useProjectTree({
       if (item.documentId) await moveDocument(item.documentId, folderId, position);
       else await moveFolder(item.id, folderId, position);
     }, "항목 이동 실패");
+  }
+
+  /** 터치 기기의 이동 대상 고르기: 메뉴의 "다른 폴더로 이동"에서 연다. */
+  function openMoveContextTarget() {
+    if (!contextMenu?.itemId) return;
+    setMoveTarget({ projectId: contextMenu.projectId, itemId: contextMenu.itemId });
+    if (!selectedItemIds.has(contextMenu.itemId)) setSelectedItemIds(new Set());
+    setContextMenu(null);
+  }
+
+  /** 터치 기기의 묶음 이동: 고른 항목 중 하나를 끈 것처럼 처리하면 resolveTreeMove가 묶음 전체를 옮긴다. */
+  function openMoveSelectedItems(projectId: string) {
+    const [itemId] = selectedItemIds;
+    if (itemId) setMoveTarget({ projectId, itemId });
+  }
+
+  function confirmMoveTo(folderId: string | null) {
+    if (!moveTarget) return;
+    setMoveTarget(null);
+    moveTreeEntry({ projectId: moveTarget.projectId, targetId: folderId, position: "inside" }, moveTarget);
   }
 
   function confirmMerge() {
@@ -494,10 +514,15 @@ export function useProjectTree({
     finally { await refreshRef.current().catch(() => {}); }
   }
 
+  /** 권한을 모르면 false다(막지 않고 서버가 판단한다). */
+  function isItemMoveOutDenied(itemId: string) {
+    return isMoveOutDenied(projects, itemId, isWorkspaceOwner);
+  }
+
   /** 꺼낼 권한이 없으면 끌기를 시작하지 않고 이유를 알린다. 묶음은 옮길 때 항목별로 건너뛰고 알린다. */
   function canStartDrag(itemId: string) {
     if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
-    if (!isMoveOutDenied(projects, itemId, isWorkspaceOwner)) return true;
+    if (!isItemMoveOutDenied(itemId)) return true;
     publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
     return false;
   }
@@ -560,6 +585,7 @@ export function useProjectTree({
     canStartDrag,
     isDropDenied,
     isFolderWriteDenied,
+    isItemMoveOutDenied,
     onDragDenied,
     onFileDragOver,
     fileDropTarget,
@@ -582,6 +608,11 @@ export function useProjectTree({
     setFileDropTarget,
     addProject,
     moveTreeEntry,
+    moveTarget,
+    openMoveContextTarget,
+    openMoveSelectedItems,
+    confirmMoveTo,
+    closeMoveDialog: () => setMoveTarget(null),
     openFolderMenu,
     openFolderMenuAt,
     openProjectMenu,

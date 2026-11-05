@@ -98,3 +98,20 @@
   --button-hover-overlay: none;
   filter: brightness(1.05);
 }
+
+/* 휴대폰: 확인 모달은 화면 폭에 맞추고 키보드·안전 영역 위에 둔다. 버튼은 손가락 크기로 키운다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .modal-backdrop {
+    padding: env(safe-area-inset-top, 0px) 0 calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px));
+  }
+
+  .modal-card {
+    max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+  }
+
+  .modal-card button {
+    min-height: 44px;
+  }
+}

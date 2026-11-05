@@ -89,6 +89,26 @@ test("폴더를 자기 자신이나 하위 폴더 안으로 옮기면 cycle을 �
   assert.equal(resolveTreeMove(nested, { projectId: ROOT, itemId: "a" }, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "move");
 });
 
+const { listMoveDestinations } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
+const tree = [
+  { id: "f1", label: "연구", type: "folder", children: [{ id: "f2", label: "논문", type: "folder", children: [] }, file("n1", "n1.md")] },
+  { id: "gen", label: "자동", type: "folder", generated: true, children: [] },
+  file("n2", "n2.md")
+];
+const summary = (list) => list.map((entry) => `${entry.depth}:${entry.label}`);
+
+test("이동 대상은 최상위와 폴더를 트리 순서로 나열하고 자동 생성 폴더는 뺀다", () => {
+  assert.deepEqual(summary(listMoveDestinations(tree, new Set(["n2"]), undefined, "문서")), ["0:문서", "1:연구", "2:논문"]);
+});
+
+test("옮길 폴더 자신과 그 하위는 대상에서 뺀다", () => {
+  assert.deepEqual(summary(listMoveDestinations(tree, new Set(["f1"]), null, "문서")), []);
+});
+
+test("지금 있는 폴더는 고를 수 없고 그 하위는 고를 수 있다", () => {
+  assert.deepEqual(summary(listMoveDestinations(tree, new Set(["n1"]), "f1", "문서")), ["0:문서", "2:논문"]);
+});
+
 const { isDropDeniedByFolder } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
 const guarded = () => [{ id: ROOT, folderId: null, title: "문서", items: [
   { id: "locked", label: "보기 전용", type: "folder", permission: "view", children: [
@@ -146,4 +166,18 @@ test("드래그 중인 줄이 가리키는 위치가 막혔는지 안다", () =>
   assert.equal(isDropDeniedByFolder(guarded(), { projectId: ROOT, targetId: null, position: "inside" }, MEMBER), false, "최상위");
   assert.equal(isDropDeniedByFolder(guarded(), inside("locked"), OWNER), false);
   assert.equal(isDropDeniedByFolder(guarded(), inside("locked"), null), false);
+});
+
+test("쓸 수 없는 폴더는 이동 대상에 비활성으로 남고, 최상위와 쓸 수 있는 폴더는 고를 수 있다", () => {
+  const denied = (folderId) => folderId === "locked" || folderId === "inner-inherit";
+  const blocked = (list) => list.map((entry) => `${entry.label}:${entry.isBlocked}`);
+  assert.deepEqual(
+    blocked(listMoveDestinations(guarded()[0].items, new Set(["root-doc"]), null, "문서", denied)),
+    ["보기 전용:true", "다시 연 폴더:false", "따르는 폴더:true", "열린 폴더:false", "구 서버 폴더:false"]
+  );
+  assert.deepEqual(
+    blocked(listMoveDestinations(guarded()[0].items, new Set(["in-legacy"]), "legacy", "문서", denied)).slice(0, 2),
+    ["문서:false", "보기 전용:true"]
+  );
+  assert.equal(listMoveDestinations(tree, new Set(["n2"]), undefined, "문서").every((entry) => entry.isBlocked === false), true, "판정을 넘기지 않으면 막지 않는다");
 });

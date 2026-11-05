@@ -481,3 +481,19 @@
 :is(.citation-rank-1, .citation-rank-2, .citation-rank-3, .citation-rank-4, .citation-rank-5) {
   --citation-bg-soft: color-mix(in srgb, var(--citation-color) 14%, transparent);
 }
+
+/* 휴대폰: 읽기 화면·채팅 답변의 넓은 표도 글자를 찢지 않고 표 안에서 가로로 스크롤한다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .markdown-viewer table {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .markdown-viewer th,
+  .markdown-viewer td {
+    min-width: 120px;
+    word-break: normal;
+  }
+}

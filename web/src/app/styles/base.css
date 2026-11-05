@@ -222,3 +222,12 @@ html[data-reduce-motion="true"] *::after {
     transform: rotate(360deg);
   }
 }
+
+/* 터치 기기: iOS는 16px 미만 입력칸에 포커스하면 화면을 확대한다. 더 큰 글자를 쓰는 칸은 data-large-text로 뺀다. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [data-large-text]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

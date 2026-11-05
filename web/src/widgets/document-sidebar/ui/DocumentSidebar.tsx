@@ -36,6 +36,7 @@ export function DocumentSidebar({
   canStartDrag,
   isDropDenied,
   isFolderWriteDenied,
+  isItemMoveOutDenied,
   onDragDenied,
   fileDropTarget,
   editing,
@@ -53,12 +54,15 @@ export function DocumentSidebar({
   settingsNav,
   isCollapsed = false,
   isOverlay = false,
+  phoneTitle = null,
   onCollapseSidebar,
   onExpandSidebar,
   onAddProject,
   resizeHandle,
   onUploadPickerChange,
   onMoveItem,
+  onMoveContextTarget,
+  onMoveSelectedItems,
   onDropFiles,
   onDragStart,
   onToggleSelectItem,
@@ -99,6 +103,8 @@ export function DocumentSidebar({
   canStartDrag: (itemId: string) => boolean;
   isDropDenied: (target: DropTarget) => boolean;
   isFolderWriteDenied: (folderId: string) => boolean;
+  /** 지금 폴더에서 꺼낼 권한이 없으면 true. 터치 메뉴의 이동을 막는다. */
+  isItemMoveOutDenied: (itemId: string) => boolean;
   onDragDenied: (itemId: string | null) => void;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
@@ -134,6 +140,8 @@ export function DocumentSidebar({
   isCollapsed?: boolean;
   /** 좁은 화면: 펼치면 콘텐츠를 밀지 않고 위에 겹친다. 폭은 고정이라 폭 조절 핸들을 두지 않는다. */
   isOverlay?: boolean;
+  /** 휴대폰 상단 바에 보이는 지금 화면 이름(열린 문서 제목 등). 넓은 화면에서는 보이지 않는다. */
+  phoneTitle?: string | null;
   /** 상단 바 사이드바 접기 (Figma 1527:16284). 없으면 버튼을 비활성으로 둔다. */
   onCollapseSidebar?: () => void;
   /** 접힌 레일 맨 위 펼치기 (Figma 1540:17915) */
@@ -149,6 +157,10 @@ export function DocumentSidebar({
   };
   onUploadPickerChange: (event: ReactChangeEvent<HTMLInputElement>) => void;
   onMoveItem: (target: DropTarget) => void;
+  /** 터치 기기 메뉴의 "다른 폴더로 이동" */
+  onMoveContextTarget?: () => void;
+  /** 터치 기기 선택 모드의 묶음 이동 */
+  onMoveSelectedItems?: (projectId: string) => void;
   onDropFiles: (projectId: string, folderId: string | null, files: File[]) => void;
   onDragStart: (projectId: string, itemId: string) => void;
   onToggleSelectItem: (itemId: string) => void;
@@ -184,6 +196,8 @@ export function DocumentSidebar({
   onCloseContextMenu: () => void;
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // 터치 기기의 여러 항목 선택 모드. Cmd/Shift+클릭 대신 행을 눌러 고른다.
+  const [isTouchSelecting, setIsTouchSelecting] = useState(false);
   // 그래프 뷰 위키 편입 문서 선택 모드. 레일 버튼으로 켜고 사이드바 하단 바·Esc로 끈다.
   const [isIngestSelecting, setIsIngestSelecting] = useState(false);
   const isGraphSelecting = activeView === "graph" && isIngestSelecting;
@@ -210,7 +224,9 @@ export function DocumentSidebar({
     ? treeContextMenuSections(contextMenuItem, {
       isRootTarget: isRootContextTarget,
       canCreateProject: canCreateProjectFromView(activeView),
-      canImportNotion: Boolean(onImportNotionFromContext)
+      canImportNotion: Boolean(onImportNotionFromContext),
+      // 메뉴는 사용자 조작 뒤에만 열려 하이드레이션과 무관하다.
+      canUseTouchActions: canCreateProjectFromView(activeView) && window.matchMedia("(pointer: coarse)").matches
     })
     : [];
   const hasContextMenuItems = selectedContextCount > 1 || contextMenuSections.length > 0;
@@ -225,6 +241,12 @@ export function DocumentSidebar({
     "import-notion": () => onImportNotionFromContext?.(),
     convert: onConvertContextTarget,
     rename: onRenameContextTarget,
+    move: () => onMoveContextTarget?.(),
+    select: () => {
+      if (contextMenu?.itemId && !selectedItemIds.has(contextMenu.itemId)) onToggleSelectItem(contextMenu.itemId);
+      setIsTouchSelecting(true);
+      onCloseContextMenu();
+    },
     permission: () => onSetPermissionContextTarget?.(),
     download: () => {
       onCloseContextMenu();
@@ -239,7 +261,7 @@ export function DocumentSidebar({
     draggedItemId,
     selectedItemId,
     selectedItemIds,
-    isPickingTarget,
+    isPickingTarget: isPickingTarget || isTouchSelecting,
     dropTarget,
     dropDeniedItemId,
     canStartDrag,
@@ -272,6 +294,11 @@ export function DocumentSidebar({
     onCommitEditing,
     onCancelEditing
   };
+
+  // 사이드바를 닫거나 다른 화면으로 가면 터치 선택 모드도 끝낸다.
+  useEffect(() => {
+    setIsTouchSelecting(false);
+  }, [isCollapsed, activeView]);
 
   // 그래프 밖으로 나가면(레일·노드 더블클릭 등 어떤 경로든) 문서 선택 모드를 끝낸다.
   useEffect(() => {
@@ -320,7 +347,7 @@ export function DocumentSidebar({
           contextMenu={contextMenu}
           focusNewNote={contextMenu.source === "add-button"}
           sections={contextMenuSections}
-          blockedActions={treeMenuBlockedActions(contextMenuItem, isFolderWriteDenied)}
+          blockedActions={treeMenuBlockedActions(contextMenuItem, isFolderWriteDenied, isItemMoveOutDenied)}
           convertTarget={convertContextTarget}
           selectedCount={selectedContextCount}
           onDeleteSelected={onDeleteSelectedItems}
@@ -334,7 +361,7 @@ export function DocumentSidebar({
   return (
     <>
     <aside
-      className={cx(styles.sidebar, isCollapsed && styles["is-collapsed"], isOverlay && styles["is-overlay"], isSidebarFileDropTarget && styles["is-file-drop-target"])}
+      className={cx(styles.sidebar, isCollapsed && styles["is-collapsed"], isOverlay && styles["is-overlay"], activeView === "graph" && styles["is-graph-view"], isSidebarFileDropTarget && styles["is-file-drop-target"])}
       onDragOver={rootProject ? handleDragOver : undefined}
       onDragLeave={rootProject ? handleDragLeave : undefined}
       onDrop={rootProject ? handleDrop : undefined}
@@ -343,7 +370,23 @@ export function DocumentSidebar({
           접힌 상태(Figma 1540:17907)에서는 같은 45px 줄에 펼치기 버튼만 남는다. */}
       <div className={styles["sidebar-topbar"]}>
         {isCollapsed ? (
-          <SidebarToggleButton label="사이드바 펼치기" onToggle={onExpandSidebar} />
+          <>
+            <SidebarToggleButton label="사이드바 펼치기" onToggle={onExpandSidebar} />
+            <span className={styles["phone-title"]}>{phoneTitle}</span>
+            <button
+              type="button"
+              className={styles["phone-search"]}
+              aria-label="통합 검색"
+              aria-haspopup="dialog"
+              aria-expanded={isSearchOpen}
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsSearchOpen(true);
+              }}
+            >
+              <SidebarSearchIcon />
+            </button>
+          </>
         ) : (
           <>
             <SidebarWorkspaceHeader />
@@ -351,6 +394,16 @@ export function DocumentSidebar({
           </>
         )}
       </div>
+
+      {/* 휴대폰은 접힌 상단 바에서도 검색을 열므로 숨겨지는 문서 패널 밖에 둔다. */}
+      {isSearchOpen && (
+        <DocumentSearch
+          projects={projects}
+          // 로그·스킬 등 문서 트리가 없는 화면에서 고르면 그 문서 URL로 이동해 홈 화면에서 연다.
+          onSelectGraphNode={onSelectGraphNode}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
 
       <div className={styles["sidebar-body"]}>
         <RailNavigation
@@ -405,14 +458,6 @@ export function DocumentSidebar({
               <span>통합 검색</span>
             </button>
           </div>
-          {isSearchOpen && (
-            <DocumentSearch
-              projects={projects}
-              // 로그·스킬 등 문서 트리가 없는 화면에서 고르면 그 문서 URL로 이동해 홈 화면에서 연다.
-              onSelectGraphNode={onSelectGraphNode}
-              onClose={() => setIsSearchOpen(false)}
-            />
-          )}
           <input
             ref={uploadInputRef}
             className={styles["upload-picker"]}
@@ -448,7 +493,23 @@ export function DocumentSidebar({
             ) : projectTree}
           </div>
           )}
-          {!settingsNav && <StorageUsageMeter />}
+          {isTouchSelecting && (
+            <div className={styles["touch-selection-bar"]} role="toolbar" aria-label="여러 항목 선택">
+              <span role="status">{selectedItemIds.size}개 선택</span>
+              <button type="button" disabled={selectedItemIds.size === 0} onClick={() => rootProject && onMoveSelectedItems?.(rootProject.id)}>이동</button>
+              <button type="button" className={styles.danger} disabled={selectedItemIds.size === 0} onClick={onDeleteSelectedItems}>삭제</button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearSelectedItems();
+                  setIsTouchSelecting(false);
+                }}
+              >
+                완료
+              </button>
+            </div>
+          )}
+          {!settingsNav && !isTouchSelecting && <StorageUsageMeter />}
         </div>
       </div>
     </aside>

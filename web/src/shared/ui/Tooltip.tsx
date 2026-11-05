@@ -19,7 +19,9 @@ import { cx } from "@/shared/lib/classNames";
 import {
   computeTooltipPosition,
   getTooltipOpenDelay,
+  getTouchTooltipDelay,
   shouldOpenAfterTap,
+  TOOLTIP_TOUCH_VISIBLE_MS,
   type TooltipPlacement,
   type TooltipPress,
   type TooltipPosition
@@ -32,7 +34,8 @@ let lastTooltipClosedAt: number | null = null;
 
 /**
  * 빠르게 뜨는 설명 말풍선. 레일처럼 overflow가 걸린 곳에서도 잘리지 않게 body에 portal로 띄운다.
- * hover 150ms(다른 툴팁에서 옮겨 오면 즉시)·키보드 포커스에 열리고, 이탈·클릭·Esc·스크롤에 닫힌다. 터치 탭으로는 openOnTap일 때만 열린다.
+ * 터치는 hover가 없어 길게 누르면 띄우고 잠시 뒤 스스로 닫는다. 비활성 버튼은 탭으로 사유를 바로 보여 준다. openOnTap이면 탭으로 여닫는다.
+ * hover 150ms(다른 툴팁에서 옮겨 오면 즉시)·키보드 포커스에 열리고, 이탈·클릭·Esc·스크롤에 닫힌다.
  * disabled 버튼 위에서도 뜨도록 래퍼가 이벤트를 받는다. 트리거에는 title을 두지 않는다(이중 툴팁 방지).
  */
 export function Tooltip({
@@ -93,7 +96,7 @@ export function Tooltip({
   }, [clearTimer, hide]);
 
   function scheduleShow(event: PointerEvent<HTMLSpanElement>) {
-    // 터치는 hover가 없으므로 탭할 때 말풍선을 띄우지 않는다.
+    // 터치는 hover가 없다. 누를 때의 처리는 handlePointerDown이 맡는다.
     if (disabled || event.pointerType === "touch") return;
     clearTimer();
     const delay = getTooltipOpenDelay({
@@ -105,17 +108,33 @@ export function Tooltip({
     else timerRef.current = window.setTimeout(show, delay);
   }
 
+  function handlePointerDown(event: PointerEvent<HTMLSpanElement>) {
+    pressRef.current = { pointerType: event.pointerType, wasOpen: isOpenRef.current };
+    hide();
+    // openOnTap은 탭이 끝난 click에서 연다.
+    if (disabled || openOnTap || event.pointerType !== "touch") return;
+    const trigger = anchorRef.current?.firstElementChild;
+    const delay = getTouchTooltipDelay({ isTriggerDisabled: Boolean(trigger?.matches(':disabled, [aria-disabled="true"]')) });
+    const showBriefly = () => {
+      show();
+      timerRef.current = window.setTimeout(hide, TOOLTIP_TOUCH_VISIBLE_MS);
+    };
+    if (delay === 0) showBriefly();
+    else timerRef.current = window.setTimeout(showBriefly, delay);
+  }
+
+  /** 손가락을 떼도 터치로 띄운 말풍선은 남기고, 아직 뜨지 않았으면 길게 누르기를 취소한다. */
+  function handlePointerLeave(event: PointerEvent<HTMLSpanElement>) {
+    if (event.pointerType !== "touch") hide();
+    else if (!isOpenRef.current) clearTimer();
+  }
+
   function showOnKeyboardFocus(event: FocusEvent<HTMLSpanElement>) {
     if (disabled || !(event.target instanceof Element) || !event.target.matches(":focus-visible")) return;
     show();
   }
 
-  function handlePointerDown(event: PointerEvent<HTMLSpanElement>) {
-    pressRef.current = { pointerType: event.pointerType, wasOpen: isOpenRef.current };
-    hide();
-  }
-
-  // 터치의 click은 pointerdown·pointerleave(둘 다 hide) 뒤에 오므로 여기서 연다.
+  // 터치의 click은 pointerdown(hide) 뒤에 오므로 여기서 연다.
   function handleClick() {
     const press = pressRef.current;
     pressRef.current = null;
@@ -176,7 +195,9 @@ export function Tooltip({
       ref={anchorRef}
       className={cx(styles["tooltip-anchor"], className)}
       onPointerEnter={scheduleShow}
-      onPointerLeave={hide}
+      onPointerLeave={handlePointerLeave}
+      onPointerUp={(event) => { if (event.pointerType === "touch" && !isOpenRef.current) clearTimer(); }}
+      onPointerCancel={(event) => { if (!isOpenRef.current) clearTimer(); else if (event.pointerType === "touch") hide(); }}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
       onFocus={showOnKeyboardFocus}

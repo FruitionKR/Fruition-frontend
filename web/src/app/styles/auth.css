@@ -655,3 +655,16 @@
   color: var(--subdued);
   font-size: 12px;
 }
+
+/* 터치 기기: 비밀번호 표시·찾기·가입 링크를 손가락 크기로 맞춘다. */
+@media (pointer: coarse) {
+  .auth-password-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .auth-login-links button,
+  .auth-link {
+    min-height: 44px;
+  }
+}

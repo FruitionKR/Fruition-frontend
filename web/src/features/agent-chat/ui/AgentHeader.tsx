@@ -1,7 +1,7 @@
 import { MoreVertical, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { createChatSession, deleteChatSession } from "@/entities/chat/api/chat";
+import { deleteChatSession } from "@/entities/chat/api/chat";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
@@ -33,8 +33,10 @@ export function AgentHeader({
   isInteractionLocked,
   onSelectSession,
   loadSessions,
+  onStartNewChat,
   canStartWikiExport,
-  onStartWikiExport
+  onStartWikiExport,
+  isSessionListInitiallyOpen = false
 }: {
   activeView: AgentPanelView;
   onViewChange: (view: AgentPanelView) => void;
@@ -44,14 +46,18 @@ export function AgentHeader({
   isInteractionLocked: boolean;
   onSelectSession: (sessionId: string, title: string | null) => void;
   loadSessions: () => Promise<{ sessions: ChatSessionResponse[] }>;
+  /** 새 채팅에 쓸 세션을 정한다. 빈 세션이 있으면 재사용한다. */
+  onStartNewChat: () => Promise<ChatSessionResponse>;
   canStartWikiExport: boolean;
   onStartWikiExport: () => void;
+  isSessionListInitiallyOpen?: boolean;
 }) {
-  const [isListOpen, setIsListOpen] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(isSessionListInitiallyOpen);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sessions, setSessions] = useState<ChatSessionResponse[]>([]);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
+  const [newChatErrorMessage, setNewChatErrorMessage] = useState<string | null>(null);
   // 세션 생성 요청 진행 중 여부. 연타로 인한 중복 POST를 막는다.
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   // 행 옵션 메뉴는 스크롤 컨테이너에 클리핑되지 않도록 portal(fixed)로 띄운다.
@@ -73,12 +79,15 @@ export function AgentHeader({
     if (isCreatingChat) return false;
     setIsMenuOpen(false);
     setIsCreatingChat(true);
+    setNewChatErrorMessage(null);
     try {
-      const created = await createChatSession();
+      const created = await onStartNewChat();
       onSelectSession(created.id, created.title);
       return true;
     } catch (error: unknown) {
-      setLoadErrorMessage(getErrorMessage(error, "새 채팅을 만들지 못했습니다."));
+      // 한도에 닿았으면 지울 대화를 바로 고르도록 목록과 함께 보여 준다(⋯ 메뉴에서 눌렀을 때도).
+      setNewChatErrorMessage(getErrorMessage(error, "새 채팅을 만들지 못했습니다."));
+      setIsListOpen(true);
       return false;
     } finally {
       setIsCreatingChat(false);
@@ -91,6 +100,7 @@ export function AgentHeader({
     setRowMenu(null);
     try {
       await deleteChatSession(sessionId);
+      setNewChatErrorMessage(null);
       const response = await loadSessions();
       const remaining = response.sessions ?? [];
       setSessions(remaining);
@@ -103,7 +113,9 @@ export function AgentHeader({
   }
 
   useEffect(() => {
-    if (!isListOpen) setRowMenu(null);
+    if (isListOpen) return;
+    setRowMenu(null);
+    setNewChatErrorMessage(null);
   }, [isListOpen]);
 
   useDismissOnOutside(rootRef, isListOpen, () => setIsListOpen(false));
@@ -223,6 +235,7 @@ export function AgentHeader({
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </label>
+          {newChatErrorMessage && <p className={styles["chat-session-error"]} role="alert">{newChatErrorMessage}</p>}
           {loadErrorMessage ? (
             <p className={styles["chat-session-error"]} role="alert">{loadErrorMessage}</p>
           ) : visibleSessions.length === 0 ? (

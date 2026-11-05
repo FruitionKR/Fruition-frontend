@@ -41,7 +41,7 @@ import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatA
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { CHAT_SESSION_LIMIT_MESSAGE, getErrorMessage } from "@/shared/lib/apiErrors";
 import { getWorkspaceId } from "@/shared/api/client";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
@@ -89,6 +89,7 @@ export function AgentPanel({
   onManageSkills,
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
+  onFolderOrganizePreviewRequested,
   onReplaceFolderOrganize,
   skillTestRunSlotRef,
   openDocumentTitle = null,
@@ -143,6 +144,8 @@ export function AgentPanel({
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
+  /** 사용자가 작업 카드에서 미리보기를 직접 열었다. 계획이 도착해 자동으로 열릴 때는 부르지 않는다. */
+  onFolderOrganizePreviewRequested?: () => void;
   /** 앞선 폴더 정리 계획이 같은 폴더의 새 계획으로 대체됐다. 그 계획의 미리보기 탭이 열려 있으면 새 계획으로 바꾼다. */
   onReplaceFolderOrganize?: (supersededTurnId: string, next: FolderOrganizeRequest) => void;
   /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
@@ -157,6 +160,11 @@ export function AgentPanel({
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
   const sessions = usePanelSessions(activeView);
   const activeSessionId = sessions.selected[activeView];
+  // 세션 한도 안내에서 다른 탭의 대화 목록을 바로 열 때 쓴다. 헤더가 탭마다 새로 마운트되므로 첫 렌더에만 읽힌다.
+  const [isSessionListRequested, setIsSessionListRequested] = useState(false);
+  useEffect(() => {
+    if (isSessionListRequested) setIsSessionListRequested(false);
+  }, [isSessionListRequested]);
   const chatDraft = usePanelDraft(sessions.scope, "chat", sessions.selected.chat);
   const workDraft = usePanelDraft(sessions.scope, "work", sessions.selected.work);
   const setWorkDraft = workDraft.setValue;
@@ -745,6 +753,8 @@ export function AgentPanel({
         onClose={onClose}
         activeSessionId={activeSessionId}
         loadSessions={sessions.loadSessions}
+        onStartNewChat={() => sessions.startNewSession(activeView)}
+        isSessionListInitiallyOpen={isSessionListRequested}
         isInteractionLocked={isSubmitting || isExporting}
         canStartWikiExport={exportPairIds.length > 0 && !isSubmitting && !isExporting}
         onStartWikiExport={startPairSelection}
@@ -805,7 +815,10 @@ export function AgentPanel({
             errorMessage={(isRequestFailureListed ? null : agentTurn.agentTurnErrorMessage) ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
-            onOpenFolderOrganize={onOpenFolderOrganize}
+            onOpenFolderOrganize={(request) => {
+              onOpenFolderOrganize?.(request);
+              onFolderOrganizePreviewRequested?.();
+            }}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
             onRetryTask={isSubmitting ? undefined : retryTask}
             onRetryFailed={isSubmitting ? undefined : retryFailedTask}
@@ -910,6 +923,20 @@ export function AgentPanel({
       <div className={styles["composer-region"]}>
         {sessions.activeChannel === "legacy" && (
           <p className={styles["wiki-evidence-notice"]} role="status">이전 통합 대화입니다. 새 요청은 현재 탭의 별도 대화에 저장됩니다.</p>
+        )}
+        {sessions.isAtSessionLimit && (
+          <div className={styles["wiki-evidence-notice"]}>
+            <p role="status">{CHAT_SESSION_LIMIT_MESSAGE}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSessionListRequested(true);
+                setActiveView(isWorkView ? "chat" : "work");
+              }}
+            >
+              {isWorkView ? "채팅" : "작업"} 탭 대화 정리
+            </button>
+          </div>
         )}
         {/* 테스트 실행 묶음은 작업 탭에만 보인다(Figma 1671:14585). 채팅 탭으로 바꿔도 자리는 남겨 실행 상태를 잃지 않는다. */}
         {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} hidden={!isWorkView} />}

@@ -45,3 +45,16 @@
 :global([data-reduce-motion="true"]) .switch-ball {
   transition: none;
 }
+
+/* 터치 기기: 모양은 그대로 두고 누르는 영역만 44px로 넓힌다. */
+@media (pointer: coarse) {
+  .switch {
+    position: relative;
+  }
+
+  .switch::before {
+    content: "";
+    position: absolute;
+    inset: -13px -6px;
+  }
+}

@@ -1,5 +1,5 @@
 import { canDeleteDocument } from "@/entities/document/lib/documentAccess";
-import { isFileItem } from "@/entities/tree/lib/treeGuards";
+import { canDragTreeItem, isFileItem } from "@/entities/tree/lib/treeGuards";
 import type { TreeItem } from "@/entities/tree/model/tree";
 
 /** 트리 컨텍스트 메뉴(우클릭·행 ⋯·새 노트 추가) 항목. */
@@ -10,6 +10,8 @@ export type TreeMenuActionId =
   | "import-notion"
   | "convert"
   | "rename"
+  | "move"
+  | "select"
   | "permission"
   | "download"
   | "delete";
@@ -21,6 +23,8 @@ export const TREE_MENU_LABELS: Record<TreeMenuActionId, string> = {
   "import-notion": "Notion에서 가져오기",
   convert: "Markdown으로 변환",
   rename: "이름 변경",
+  move: "다른 폴더로 이동",
+  select: "여러 항목 선택",
   permission: "권한 설정",
   download: "원본 다운로드",
   delete: "삭제"
@@ -65,10 +69,11 @@ export function treeItemMenuAccess(item: TreeItem | null, { isRootTarget }: { is
  * - 최상위: 새 노트 · 새 폴더 | 파일 업로드 · Notion에서 가져오기
  * - 폴더: 새 노트 · 새 폴더 | 파일 업로드 | 이름 변경 · 권한 설정 | 삭제
  * - 파일: (PDF) Markdown으로 변환 | 이름 변경 · 권한 설정 · 원본 다운로드 | 삭제
+ * canUseTouchActions(끌기·Cmd+클릭이 없는 터치 기기)이면 삭제 앞에 이동·여러 항목 선택 구역을 더한다.
  */
 export function treeContextMenuSections(
   item: TreeItem | null,
-  { isRootTarget, canCreateProject, canImportNotion }: { isRootTarget: boolean; canCreateProject: boolean; canImportNotion: boolean }
+  { isRootTarget, canCreateProject, canImportNotion, canUseTouchActions = false }: { isRootTarget: boolean; canCreateProject: boolean; canImportNotion: boolean; canUseTouchActions?: boolean }
 ): TreeMenuActionId[][] {
   const access = treeItemMenuAccess(item, { isRootTarget });
   const createSection = pick({ "new-note": access.canCreateIn, "new-folder": access.canCreateIn && canCreateProject });
@@ -79,6 +84,7 @@ export function treeContextMenuSections(
       pick({ upload: access.canCreateIn }),
       pick({ convert: access.canConvert }),
       pick({ rename: access.canRename, permission: access.canSetPermission, download: access.canDownload }),
+      pick({ move: canUseTouchActions && canDragTreeItem(item), select: canUseTouchActions && canDragTreeItem(item) }),
       pick({ delete: access.canDelete })
     ];
   return sections.filter((section) => section.length > 0);
@@ -86,11 +92,19 @@ export function treeContextMenuSections(
 
 /**
  * 폴더 권한 때문에 비활성으로 둘 메뉴 항목. 쓸 수 없는 폴더에는 새 항목을 넣을 수 없다.
- * isFolderWriteDenied는 권한을 모르면 false여서 그때는 열어 두고 서버가 판단한다.
+ * 두 판정 함수는 권한을 모르면 false여서 그때는 열어 두고 서버가 판단한다.
  */
-export function treeMenuBlockedActions(item: TreeItem | null, isFolderWriteDenied: (folderId: string) => boolean): ReadonlySet<TreeMenuActionId> {
+export function treeMenuBlockedActions(
+  item: TreeItem | null,
+  isFolderWriteDenied: (folderId: string) => boolean,
+  isMoveOutDenied: (itemId: string) => boolean = () => false
+): ReadonlySet<TreeMenuActionId> {
   const isDeniedFolder = item?.type === "folder" && isFolderWriteDenied(item.id);
-  return new Set<TreeMenuActionId>(isDeniedFolder ? ["new-note", "new-folder", "upload"] : []);
+  return new Set<TreeMenuActionId>([
+    ...(isDeniedFolder ? ["new-note", "new-folder", "upload"] as const : []),
+    // 터치 메뉴의 "다른 폴더로 이동". 지금 폴더에서 꺼낼 수 없으면 막는다.
+    ...(item && isMoveOutDenied(item.id) ? ["move"] as const : [])
+  ]);
 }
 
 function pick(flags: Partial<Record<TreeMenuActionId, boolean>>): TreeMenuActionId[] {

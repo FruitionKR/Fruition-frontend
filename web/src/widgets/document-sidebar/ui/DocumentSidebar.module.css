@@ -1353,3 +1353,249 @@
   height: 14px;
   color: var(--color-muted);
 }
+
+/* 휴대폰 상단 바의 화면 이름·검색. 넓은 화면에서는 그리지 않는다. */
+.phone-title,
+.phone-search {
+  display: none;
+}
+
+/* 휴대폰: 접히면 상단 바만, 펼치면 탭 바 위를 모두 덮는 전체 화면이다. 탭 바(.rail)는 fixed로 화면 아래에 남는다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .sidebar {
+    position: fixed;
+    inset: 0 0 var(--phone-tabbar-height, 56px);
+    width: 100%;
+    z-index: 10;
+    border-right: 0;
+  }
+
+  .sidebar.is-collapsed {
+    bottom: auto;
+  }
+
+  .sidebar.is-overlay:not(.is-collapsed) {
+    z-index: 11;
+    box-shadow: none;
+  }
+
+  :global(html.is-keyboard-open) .sidebar:not(.is-collapsed) {
+    bottom: var(--keyboard-inset, 0px);
+  }
+
+  .sidebar-topbar {
+    height: var(--phone-topbar-height, 48px);
+    gap: 4px;
+    padding: env(safe-area-inset-top, 0px) calc(env(safe-area-inset-right, 0px) + 4px) 0 calc(env(safe-area-inset-left, 0px) + 4px);
+  }
+
+  .sidebar-collapse,
+  .phone-search {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .phone-title {
+    display: block;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: var(--color-foreground);
+    font-size: 15px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 상단 바 오른쪽 끝의 도구(.rail-tools) 자리를 비워 둔다: 진행 중 작업 1개, 그래프에서는 위키 작업 2개 더 */
+  .phone-search {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 44px;
+    padding: 0;
+    color: var(--color-body);
+    background: transparent;
+  }
+
+  .sidebar.is-graph-view .phone-search {
+    margin-right: 132px;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
+  }
+
+  .sidebar-body {
+    min-width: 0;
+  }
+
+  .sidebar-panel {
+    padding: 12px calc(env(safe-area-inset-right, 0px) + 8px) 12px calc(env(safe-area-inset-left, 0px) + 8px);
+  }
+
+  .sidebar-search {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  /* 진행 중 작업 팝오버: 상단 바 아래에 화면 폭으로 편다 */
+  .wiki-work-popover {
+    position: fixed;
+    top: calc(var(--phone-topbar-height, 48px) + 4px);
+    right: 8px;
+    left: 8px;
+    width: auto;
+  }
+
+  .wiki-work-row,
+  .wiki-work-empty {
+    white-space: normal;
+  }
+}
+
+/* 터치 기기: 트리 행과 ⋯ 버튼, 메뉴 항목을 손가락으로 누를 수 있는 크기로 키운다. */
+@media (pointer: coarse) {
+  .tree-row {
+    height: 44px;
+  }
+
+  .tree-row.has-row-actions {
+    padding-right: 52px;
+  }
+
+  .tree-row-action {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tree-add-page {
+    min-height: 44px;
+  }
+
+  .folder-context-menu button {
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .sidebar-collapse {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* 휴대폰: 트리 메뉴를 화면 아래 시트로 연다(인라인 좌표보다 우선). 키보드와 안전 영역 위에 둔다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .folder-context-menu {
+    top: auto !important;
+    right: 0;
+    bottom: var(--keyboard-inset, 0px);
+    left: 0 !important;
+    width: auto;
+    max-height: 70dvh;
+    padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+    overflow-y: auto;
+    border-width: 1px 0 0;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+/* 터치 기기의 이동 대상 목록(MoveDialog): 폴더가 많으면 목록 안에서 스크롤한다. */
+.move-destinations {
+  max-height: 50dvh;
+  margin: 12px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.move-destinations button {
+  width: 100%;
+  min-height: 44px;
+  padding-right: 12px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.move-destinations button:disabled {
+  color: var(--color-subtle);
+  cursor: default;
+}
+
+.move-cancel {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  color: var(--color-body);
+  background: var(--color-surface);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 터치 선택 모드 하단 줄: 개수 + 이동·삭제·완료 */
+.touch-selection-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.touch-selection-bar > span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.touch-selection-bar button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--color-foreground);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.touch-selection-bar button:disabled {
+  color: var(--color-subtle);
+}
+
+.touch-selection-bar button.danger:not(:disabled) {
+  color: var(--color-danger);
+}
+
+/* 길게 눌러도 글자 선택·콜아웃이 끼어들지 않게 한다 */
+@media (pointer: coarse) {
+  .tree-row {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .workspace-dropdown-more {
+    min-width: 44px;
+    min-height: 44px;
+    opacity: 1;
+  }
+
+  .workspace-dropdown-new,
+  .workspace-dropdown-menu-list button {
+    min-height: 44px;
+  }
+
+  .sidebar-workspace-trigger {
+    height: 44px;
+  }
+}
