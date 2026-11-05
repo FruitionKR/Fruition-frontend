@@ -21,7 +21,7 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
 import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
-import { buildServerMergeTransaction, rebaseLocalEdits } from "../model/serverMergeTransaction";
+import { buildServerMergeTransaction, rebaseLocalEdits, resolveEditorBodyUpdate } from "../model/serverMergeTransaction";
 import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
@@ -595,13 +595,12 @@ export function NoteEditor({
         }
       }
     }).on((listener) => {
-      listener.markdownUpdated((_ctx, nextBody, previousBody) => {
-        if (isDisposed || nextBody === previousBody) return;
-        if (programmaticBodyRef.current === nextBody) {
-          programmaticBodyRef.current = null;
-          return;
-        }
+      listener.markdownUpdated((ctx, notifiedBody, previousBody) => {
+        if (isDisposed || notifiedBody === previousBody) return;
+        const latestBody = ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc);
+        const nextBody = resolveEditorBodyUpdate(latestBody, programmaticBodyRef.current);
         programmaticBodyRef.current = null;
+        if (nextBody === null) return;
         bodyRef.current = nextBody;
           publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
         queueSaveRef.current(nextBody);

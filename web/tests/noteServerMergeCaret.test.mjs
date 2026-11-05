@@ -3,7 +3,7 @@ import test from "node:test";
 
 const { Schema } = await import("@milkdown/prose/model");
 const { EditorState, TextSelection } = await import("@milkdown/prose/state");
-const { buildServerMergeTransaction, rebaseLocalEdits } = await import("../src/features/note-editing/model/serverMergeTransaction.ts");
+const { buildServerMergeTransaction, rebaseLocalEdits, resolveEditorBodyUpdate } = await import("../src/features/note-editing/model/serverMergeTransaction.ts");
 
 // Milkdown commonmark·gfm과 같은 이름·내용 규칙을 갖춘 최소 schema. heading id는 실제 편집기처럼 parser에서 비어 있다.
 const schema = new Schema({
@@ -403,4 +403,23 @@ test("같은 글자의 줄이 반복되면 친 글자는 있던 쪽 줄에 들�
   const current = docOf(p("같은 줄"), p("가운데"), p("같은 줄x"));
   const next = docOf(p("같은 줄"), p("가운데 수정"), p("같은 줄"));
   assert.equal(plain(rebaseLocalEdits(sent, current, next)), plain(docOf(p("같은 줄"), p("가운데 수정"), p("같은 줄x"))));
+});
+
+// Milkdown 입력 알림은 마지막 사용자 입력 시점의 문서를 serialize한다. 그 뒤 들어온 서버 병합은 알림 본문에 없다.
+test("병합 전 문서로 온 지연 알림은 병합 전 본문을 다시 저장하지 않는다", () => {
+  const applied = "AI 수정\n메모 가나다라\nAI 수정";
+  assert.equal(resolveEditorBodyUpdate(applied, applied), null);
+});
+
+test("병합 뒤 더 친 내용은 알림이 늦어도 지금 문서 기준으로 저장한다", () => {
+  const latest = "AI 수정\n메모 가나다라마\nAI 수정";
+  assert.equal(resolveEditorBodyUpdate(latest, "AI 수정\n메모 가나다라\nAI 수정"), latest);
+});
+
+test("평소 입력 알림은 그 본문을 저장한다", () => {
+  assert.equal(resolveEditorBodyUpdate("메모 가", null), "메모 가");
+});
+
+test("프로그램 변경의 반향은 저장하지 않는다", () => {
+  assert.equal(resolveEditorBodyUpdate("서버 본문", "서버 본문"), null);
 });

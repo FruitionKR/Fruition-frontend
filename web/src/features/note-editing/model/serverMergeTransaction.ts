@@ -162,3 +162,11 @@ export function rebaseLocalEdits(sentDoc: Node, currentDoc: Node, nextDoc: Node)
     ...blocks(nextDoc, at + length, nextDoc.childCount)
   ]));
 }
+
+/**
+ * 지연된 입력 알림에서 저장할 본문을 고른다. 알림 본문은 마지막 사용자 입력 시점의 문서라 그 뒤 들어온 서버 병합이 빠져 있을 수 있으므로
+ * 지금 문서를 기준으로 한다. 저장이 필요 없는 프로그램 변경의 반향이면 null이다.
+ */
+export function resolveEditorBodyUpdate(latestBody: string, programmaticBody: string | null): string | null {
+  return latestBody === programmaticBody ? null : latestBody;
+}
