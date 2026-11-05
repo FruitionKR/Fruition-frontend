@@ -6,6 +6,7 @@ import styles from "./AgentChat.module.css";
 export function MarkdownEditPreview({
   preview,
   validationError,
+  hasProposals,
   isLoading,
   onApply,
   onCancel,
@@ -15,6 +16,8 @@ export function MarkdownEditPreview({
 }: {
   preview: MarkdownEditPreviewData;
   validationError: string | null;
+  /** 원문과 달라진 제안이 있는지. "변경하지 않았다"는 응답은 수락할 것이 없다. */
+  hasProposals: boolean;
   isLoading: boolean;
   onApply: () => void;
   onCancel: () => void;
@@ -50,9 +53,11 @@ export function MarkdownEditPreview({
           {isLoading ? "재시도 중" : "재시도"}
         </button>
         <button type="button" disabled={isLoading || Boolean(newDocumentBlockedReason)} onClick={onOpenAsNewDocument}>새 문서로 열기</button>
-        <button type="button" className={styles["is-primary"]} disabled={isLoading || Boolean(validationError)} onClick={onApply}>
-          수락
-        </button>
+        {hasProposals && (
+          <button type="button" className={styles["is-primary"]} disabled={isLoading || Boolean(validationError)} onClick={onApply}>
+            수락
+          </button>
+        )}
       </footer>
     </section>
   );

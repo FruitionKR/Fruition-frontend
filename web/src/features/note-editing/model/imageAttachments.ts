@@ -53,6 +53,28 @@ export function substituteAttachmentPaths(markdown: string, saved: ReadonlyMap<s
   return markdown.replace(ATTACHMENT_PATTERN, (whole, id: string) => saved.get(id.toLowerCase()) ?? whole);
 }
 
+export type EditorBodyRefs = { body: string; programmaticBody: string | null; serializedBody: string | null };
+
+/**
+ * 이미지 경로를 편집기 문서에 치환한 뒤의 본문 기록을 정한다. addToHistory가 false인 치환에는 입력 알림이 오지 않으므로 기준 본문을 직접 맞춘다.
+ * 치환 전에 이미 기준 본문과 달랐으면 알림을 기다리는 입력이 있다. 기준 본문을 그대로 두어 미반영으로 남기고, 알림이 그 입력을 저장하게 경로만 바꾼다.
+ */
+export function settleAttachmentSubstitution({ documentBefore, documentAfter, paths, current }: {
+  documentBefore: string;
+  documentAfter: string;
+  paths: ReadonlyMap<string, string>;
+  current: EditorBodyRefs;
+}): EditorBodyRefs {
+  if (documentBefore === current.serializedBody) {
+    return { body: documentAfter, programmaticBody: documentAfter, serializedBody: documentAfter };
+  }
+  return {
+    body: substituteAttachmentPaths(current.body, paths),
+    programmaticBody: current.programmaticBody === null ? null : substituteAttachmentPaths(current.programmaticBody, paths),
+    serializedBody: current.serializedBody
+  };
+}
+
 /** 저장 전 이미지 보관소. uuid는 탭 안에서만 의미가 있어 모듈 싱글턴으로 둔다. */
 class PendingImageStore {
   private readonly images = new Map<string, PendingImage>();

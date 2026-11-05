@@ -855,6 +855,7 @@ export function AgentPanel({
         <MarkdownEditPreview
           preview={editPreviewState.preview}
           validationError={editPreviewState.validationError}
+          hasProposals={proposalCount > 0}
           isLoading={isAgentTurnLoading || isCreatingMarkdown}
           onApply={agentTurn.applyMarkdownEdit}
           onCancel={agentTurn.cancelAgentTurnResult}
