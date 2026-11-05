@@ -632,7 +632,7 @@ export function HomeWorkspace() {
           focusedNodeId={selection.focusedGraphNodeId}
           onOpenNodePreview={openGraphNode}
           onClearNodeFocus={selection.clearGraphFocus}
-          loading={isGraphLoading}
+          loading={isGraphLoading || (documentsUpdatedAt === 0 && !apiError)}
           errorMessage={apiError}
           ingestProgressInputs={graphIngestProgressInputs}
           onRefreshGraph={refreshGraph}

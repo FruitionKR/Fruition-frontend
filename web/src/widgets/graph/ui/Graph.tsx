@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUserPreferences } from "@/entities/user";
 import { DEFAULT_USER_PREFERENCES } from "@/entities/user/model/preferences";
 import type { GraphFilterKind, GraphNode } from "@/entities/wiki";
@@ -29,6 +29,15 @@ export function Graph({
 }) {
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
   const [filtersReady, setFiltersReady] = useState(false);
+  const [revealRequest, setRevealRequest] = useState(0);
+
+  // 새로 받은 뒤에 노드가 하나씩 나타나는 연출을 다시 재생한다. 바뀐 것이 없어도 재생하고, 실패하면 지금 그래프를 그대로 둔다.
+  const refreshGraphWithReveal = useCallback(async () => {
+    if (!onRefreshGraph) return { changed: false };
+    const result = await onRefreshGraph();
+    setRevealRequest((current) => current + 1);
+    return result;
+  }, [onRefreshGraph]);
 
   // 그래프에 진입할 때는 이전에 저장한 숨김 설정과 관계없이 모든 종류를 표시한다.
   // 비동기 개인 설정 복원이 끝난 뒤 초기화하여 오래된 설정이 덮어쓰지 않게 한다.
@@ -77,7 +86,7 @@ export function Graph({
         visibleKinds={visibleKinds}
         onToggleKind={toggleKind}
       >
-        {onRefreshGraph && <GraphRefreshButton onRefresh={onRefreshGraph} />}
+        {onRefreshGraph && <GraphRefreshButton onRefresh={refreshGraphWithReveal} />}
       </GraphFilterChips>
       <GraphCanvas
         nodes={visibleNodes}
@@ -88,6 +97,7 @@ export function Graph({
         loading={loading}
         errorMessage={errorMessage}
         ingestProgressInputs={ingestProgressInputs}
+        revealRequest={revealRequest}
       />
     </section>
   );
