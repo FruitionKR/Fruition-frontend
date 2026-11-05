@@ -118,7 +118,7 @@ export function mayConvertDocument(doc, userId) {
 /** 응답 can_convert: 변환 대상(PDF 원본)이 아니면 false, 대상이면 권한 규칙을 따른다. */
 export function canConvertDocument(doc, userId) {
   if (doc.mime_type !== "application/pdf" || doc.document_role === "EDITABLE") return false;
-  return mayConvertDocument(doc, userId);
+  return mayConvertDocument(doc, userId) && canWriteFolder(doc.workspace_id, userId, doc.folder_id);
 }
 
 /** 서버 DocumentAccessPolicy 흉내: 소유자·OWNER는 항상 편집·삭제, 그 외 멤버는 적용 권한이 edit일 때만 편집. */

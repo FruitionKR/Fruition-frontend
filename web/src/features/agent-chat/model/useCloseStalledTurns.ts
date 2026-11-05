@@ -56,7 +56,7 @@ export function useCloseStalledTurns({
     const outcomes = results.map(stalledTurnCancelOutcome);
     const accepted = turnIds.flatMap((turnId, index) => {
       const result = results[index];
-      return isTurnCancelAccepted(result) ? [{ turnId, status: result.status }] : [];
+      return isTurnCancelAccepted(result) ? [{ turnId, status: result.status, error: result.error }] : [];
     });
     if (accepted.length > 0) onCancelAccepted?.(accepted);
     if (outcomes.some((outcome) => outcome.refresh)) await refreshMessages().catch(() => undefined);

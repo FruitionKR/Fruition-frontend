@@ -17,6 +17,8 @@ function formatRemainingTime(totalSeconds: number): string {
 
 type ExpiryCountdown = {
   label: string;
+  /** 남은 초 */
+  seconds: number;
   isExpired: boolean;
   /** 발송 후 RESEND_DELAY_MS가 지났거나 만료되어 재요청할 수 있는지 */
   canResend: boolean;
@@ -39,6 +41,7 @@ export function useExpiryCountdown(expiresAt: number): ExpiryCountdown {
   const isExpired = expiresAt > 0 && seconds <= 0;
   return {
     label: formatRemainingTime(seconds),
+    seconds,
     isExpired,
     canResend: expiresAt > 0 && (isExpired || Date.now() - startedAt >= RESEND_DELAY_MS)
   };

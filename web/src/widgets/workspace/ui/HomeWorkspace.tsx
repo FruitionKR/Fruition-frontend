@@ -59,13 +59,13 @@ import { createMarkdownDocument } from "@/entities/document";
 import { invalidateStorageUsage, useWorkspaceRole } from "@/entities/workspace";
 import { invalidateActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
-import { buildGeneratedMarkdownDocument } from "@/features/agent-chat/lib/agentTurn";
+import { buildGeneratedMarkdownDocument, createInDraftPlacement, resolveDraftPlacement } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
 import { createClientId, findItemLocation, findTreeItem } from "@/entities/tree";
 import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
-import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
+import { findDocumentFolderId, findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
 import { useOperationLogFeed } from "../model/useOperationLogFeed";
 import { useWorkspaceNavigation } from "../model/useWorkspaceNavigation";
 import { useWorkspacePanels } from "../model/useWorkspacePanels";
@@ -77,7 +77,7 @@ import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
 import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
-import { canShowAgentPanel } from "../lib/agentPanelVisibility";
+import { canShowAgentPanel, noticeStackPlacement } from "../lib/agentPanelVisibility";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -197,6 +197,7 @@ export function HomeWorkspace() {
     previousGraphView.current = isGraphView;
   }, [isGraphView]);
   const isSettingsView = activeView === "settings";
+  const noticePlacement = noticeStackPlacement(activeView);
   // 작업 탭 "이 요청을 스킬로 저장"(Figma 1671:13245): 스킬 화면이 받아 새 스킬 탭을 열면 비운다.
   const [skillCreateRequest, setSkillCreateRequest] = useState<{ id: number; text: string } | null>(null);
   const clearSkillCreateRequest = useCallback((id: number) => {
@@ -380,14 +381,20 @@ export function HomeWorkspace() {
     selection.openGraphNodePreview(node);
   }
 
-  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) {
-    // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 루트에 만든다.
+  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null, sourceDocumentId: string | null = null) {
+    // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 원문 옆에, 원문이 없거나 쓸 수 없으면 루트에 만든다.
     // agentRunId를 넘기면 서버가 AI 생성 문서로 만들고 분석 이벤트(document_uploaded·ai_document_created)를 남긴다.
-    const created = await createMarkdownDocument({
-      ...buildGeneratedMarkdownDocument(draft, createClientId("ai-note")),
-      folderId,
+    const placement = resolveDraftPlacement({
+      targetFolderId: folderId,
+      sourceFolderId: sourceDocumentId ? findDocumentFolderId(projectTree.projects, sourceDocumentId) : undefined,
+      isFolderWriteDenied: projectTree.isFolderWriteDenied
+    });
+    const generated = buildGeneratedMarkdownDocument(draft, createClientId("ai-note"));
+    const created = await createInDraftPlacement(placement, (placementFolderId) => createMarkdownDocument({
+      ...generated,
+      folderId: placementFolderId,
       agentRunId
-    }).catch(async (error: unknown) => {
+    })).catch(async (error: unknown) => {
       // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
       throw error;
@@ -529,7 +536,8 @@ export function HomeWorkspace() {
         canStartDrag={projectTree.canStartDrag}
         isDropDenied={projectTree.isDropDenied}
         isFolderWriteDenied={projectTree.isFolderWriteDenied}
-        isItemMoveOutDenied={projectTree.isItemMoveOutDenied}
+        itemMoveDeniedReason={projectTree.itemMoveDeniedReason}
+        isWorkspaceOwner={role === null ? null : isOwner}
         onDragDenied={projectTree.onDragDenied}
         onFileDragLeave={projectTree.onFileDragLeave}
         onDragEnd={projectTree.onDragEnd}
@@ -677,6 +685,7 @@ export function HomeWorkspace() {
           isFolderWriteDenied={projectTree.isFolderWriteDenied}
           markdownEditContext={markdownEditContext}
           readOnlyDocumentId={isSelectedDocumentReadOnly ? selection.selectedDocumentId : null}
+          readOnlyOpenDocument={isHomeView && isSelectedDocumentReadOnly ? documents.find((item) => item.id === selection.selectedDocumentId) : null}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
           onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}
@@ -770,13 +779,13 @@ export function HomeWorkspace() {
         />
       )}
 
-      {/* 홈·그래프의 문서 처리와 설정의 휴지통 복구 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
-      {(isHomeView || isGraphView || activeView === "settings") && (
+      {/* 홈·그래프의 문서 처리, 설정의 휴지통 복구, 로그의 롤백 결과 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
+      {noticePlacement && (
         <DocumentProcessingNotifications
           documents={documents}
-          isViewportCorner={activeView === "settings"}
+          isViewportCorner={noticePlacement === "corner"}
           isAboveLauncher={!isAgentPanelShown}
-          isOverlayOpen={activeView !== "settings" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
+          isOverlayOpen={noticePlacement === "panel" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
           onIngestStarted={() => void refreshBackendData().catch(() => {})}
           isDocumentsLoaded={documentsUpdatedAt !== 0}
         />

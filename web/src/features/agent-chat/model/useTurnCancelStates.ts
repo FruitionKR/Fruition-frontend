@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { publishNotice } from "@/features/document-notifications";
-import { getWorkspaceId } from "@/shared/api/client";
+import { readWorkspaceId } from "@/shared/api/client";
 import { checkAgentTurnStatus } from "../api/agent";
 import { PLAN_POLL_INTERVAL_MS } from "../lib/agentPlan";
 import {
@@ -26,12 +26,13 @@ function turnCancelQueryKey(workspaceId: string, turnId: string) {
  * seed: 취소 요청 응답으로 받은 상태를 바로 써서 첫 조회를 기다리지 않게 한다.
  */
 export function useTurnCancelStates(turnIds: readonly string[]) {
-  const workspaceId = getWorkspaceId();
+  const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const queries = useQueries({
     queries: turnIds.map((turnId) => ({
       queryKey: turnCancelQueryKey(workspaceId, turnId),
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<TurnCheckResult> => checkAgentTurnStatus(turnId, signal),
+      enabled: Boolean(workspaceId),
       retry: false,
       refetchInterval: (query: { state: { data?: TurnCheckResult; error: unknown; dataUpdateCount: number } }) =>
         !query.state.error && shouldPollTurnCancel(query.state.data, query.state.dataUpdateCount) ? PLAN_POLL_INTERVAL_MS : false,

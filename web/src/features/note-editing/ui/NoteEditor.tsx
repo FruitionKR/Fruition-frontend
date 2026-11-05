@@ -91,6 +91,7 @@ export function NoteEditor({
   onSaveStatusChange,
   onDetachedSaveComplete,
   onRegisterSave,
+  onRegisterUnsyncedInputCheck,
   onReadOnlyNoticeChange
 }: {
   documentId: string;
@@ -102,6 +103,8 @@ export function NoteEditor({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
+  /** 아직 저장 대기열에 오르지 않은 입력이 있는지 묻는 함수를 넘긴다. 편집기를 다시 만들어도 되는지 판단할 때 쓴다. */
+  onRegisterUnsyncedInputCheck?: (check: () => boolean) => void;
   onReadOnlyNoticeChange?: (documentId: string, message: string | null) => void;
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
@@ -202,6 +205,8 @@ export function NoteEditor({
       view.dispatch(tr);
       // 편집기 plugin이 덧붙인 변경까지 반영된 본문을 반향으로 표시한다. 안 그러면 AI 저장 뒤 같은 본문을 사용자 편집으로 다시 저장하거나 "저장 안 됨"으로 남는다.
       programmaticBodyRef.current = ctx.get(serializerCtx)(view.state.doc);
+      // addToHistory가 false인 변경은 입력 알림이 오지 않으므로 기준 본문을 직접 맞춘다. 안 그러면 다음 입력까지 미반영 입력이 있는 것으로 보인다.
+      serializedBodyRef.current = programmaticBodyRef.current;
     });
   }, []);
 
@@ -228,7 +233,10 @@ export function NoteEditor({
       const hasLocalEdits = target !== nextDoc;
       bodyRef.current = nextBody;
       const tr = buildServerMergeTransaction(view.state, target);
-      if (!tr.docChanged && !hasLocalEdits) return;
+      if (!tr.docChanged && !hasLocalEdits) {
+        serializedBodyRef.current = serializer(doc);
+        return;
+      }
       if (tr.docChanged) {
         tr.setMeta("addToHistory", false);
         tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
@@ -238,6 +246,8 @@ export function NoteEditor({
       const appliedBody = serializer(view.state.doc);
       bodyRef.current = appliedBody;
       programmaticBodyRef.current = appliedBody;
+      // 입력 알림이 오지 않는 변경이라 기준 본문을 직접 맞춘다(replaceEditorMarkdown과 같다).
+      serializedBodyRef.current = appliedBody;
       if (hasLocalEdits) queueSaveRef.current(appliedBody);
     });
   }, [replaceEditorMarkdown]);
@@ -267,6 +277,10 @@ export function NoteEditor({
       return view.composing || ctx.get(serializerCtx)(view.state.doc) !== serializedBodyRef.current;
     });
   }, []);
+
+  useEffect(() => {
+    onRegisterUnsyncedInputCheck?.(hasUnsyncedEditorInput);
+  }, [hasUnsyncedEditorInput, onRegisterUnsyncedInputCheck]);
 
   const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
     if (bodyRef.current !== expectedMarkdown || hasUnsyncedEditorInput()) return false;

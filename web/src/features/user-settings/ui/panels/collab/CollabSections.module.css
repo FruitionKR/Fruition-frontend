@@ -6,6 +6,11 @@
   font-size: 12px;
 }
 
+/* 성공 안내는 오류와 같은 자리·크기에 오류 색만 뺀다. */
+.settings-message.is-success {
+  color: var(--color-text);
+}
+
 .settings-small-button {
   padding: 6px 10px;
   border: 1px solid var(--color-border);

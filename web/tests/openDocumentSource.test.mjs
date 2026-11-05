@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } =
+const { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } =
   await import("../src/widgets/agent-panel/lib/openDocumentSource.ts");
 
 const skill = (slug, capabilities, resultMode, status = "enabled") => ({
@@ -50,30 +50,39 @@ test("'새 문서로 만들기' 스킬만 열린 문서를 직접 넣어야 원�
   for (const intent of [null, "edit", "auto", "template", "organize"]) assert.equal(isOpenDocumentOptIn(intent), false);
 });
 
-test("스킬 결과 방식 × 칩 상태 × 멘션 → 열린 문서를 싣는지", () => {
+test("스킬 결과 방식 × 칩 상태 → 열린 문서를 싣는지(@문서로 고른 첨부와는 상관없다)", () => {
   const cases = [
-    // [intent, isExcluded, isOptedIn, hasDocumentMention, expected]
-    ["create", false, false, false, false],
-    ["create", false, true, false, true],
-    ["create", true, false, false, false],
-    ["create", true, true, false, true],
-    ["create", false, true, true, false],
-    [null, false, false, false, true],
-    [null, true, false, false, false],
-    [null, false, false, true, false],
-    ["edit", false, false, false, true],
-    ["edit", true, false, false, false],
-    ["edit", false, false, true, false],
-    ["auto", false, false, false, true],
-    ["auto", true, true, false, false],
-    ["template", false, false, false, true],
-    ["organize", false, false, false, true]
+    // [intent, isExcluded, isOptedIn, expected]
+    ["create", false, false, false],
+    ["create", false, true, true],
+    ["create", true, false, false],
+    ["create", true, true, true],
+    [null, false, false, true],
+    [null, true, false, false],
+    ["edit", false, false, true],
+    ["edit", true, false, false],
+    ["auto", false, false, true],
+    ["auto", true, true, false],
+    ["template", false, false, true],
+    ["organize", false, false, true]
   ];
-  for (const [intent, isExcluded, isOptedIn, hasDocumentMention, expected] of cases) {
+  for (const [intent, isExcluded, isOptedIn, expected] of cases) {
     assert.equal(
-      shouldSendOpenDocument({ intent, isExcluded, isOptedIn, hasDocumentMention }),
+      shouldSendOpenDocument({ intent, isExcluded, isOptedIn }),
       expected,
-      JSON.stringify({ intent, isExcluded, isOptedIn, hasDocumentMention })
+      JSON.stringify({ intent, isExcluded, isOptedIn })
     );
   }
+});
+
+test("보기 권한 문서처럼 첨부로 싣는 열린 문서는 첨부 자리가 없으면 싣지 않는다", () => {
+  assert.equal(shouldSendOpenDocument({ intent: null, isExcluded: false, isOptedIn: false, hasRoom: false }), false);
+  assert.equal(shouldSendOpenDocument({ intent: "create", isExcluded: false, isOptedIn: true, hasRoom: false }), false);
+  assert.equal(shouldSendOpenDocument({ intent: null, isExcluded: false, isOptedIn: false, hasRoom: true }), true);
+});
+
+test("첨부가 차서 보기 권한으로 연 문서를 싣지 못하면 조용히 빠지지 않게 알린다", () => {
+  assert.match(readOnlyOverflowNotice({ isReadOnlyOpen: true, hasRoom: false }), /현재 문서는 보기 권한.*함께 보내지 않아요/);
+  assert.equal(readOnlyOverflowNotice({ isReadOnlyOpen: true, hasRoom: true }), null);
+  assert.equal(readOnlyOverflowNotice({ isReadOnlyOpen: false, hasRoom: false }), null);
 });

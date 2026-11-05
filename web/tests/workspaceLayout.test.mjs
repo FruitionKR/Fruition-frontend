@@ -113,3 +113,12 @@ test("그래프 노드 클릭은 문서 선택을 유지하고 그래프 포커�
     focusedGraphNodeId: "concept-after"
   });
 });
+
+test("로그 화면도 알림 스택을 띄우고, 패널이 없는 화면은 화면 구석에 둔다", async () => {
+  const { noticeStackPlacement } = await import("../src/widgets/workspace/lib/agentPanelVisibility.ts");
+  assert.equal(noticeStackPlacement("home"), "panel");
+  assert.equal(noticeStackPlacement("graph"), "panel");
+  assert.equal(noticeStackPlacement("settings"), "corner");
+  assert.equal(noticeStackPlacement("logs"), "corner");
+  assert.equal(noticeStackPlacement("skills"), null);
+});

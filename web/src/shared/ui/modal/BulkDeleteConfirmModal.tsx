@@ -28,7 +28,7 @@ export function BulkDeleteConfirmModal({
           {names}{rest > 0 ? ` 외 ${rest}개` : ""} 항목이 삭제됩니다.
           {hasFolder && " 폴더는 폴더 안의 모든 항목도 함께 삭제됩니다."}
           {skipped.length > 0 && ` 삭제할 수 없는 ${skipped.length}개 항목은 건너뜁니다.`}
-          {" "}이 작업은 되돌릴 수 없습니다.
+          {" "}삭제한 문서는 휴지통에서 30일 동안 복구할 수 있습니다.
         </>
       }
       confirmLabel={`${items.length}개 삭제`}

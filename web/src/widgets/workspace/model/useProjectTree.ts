@@ -11,7 +11,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
-import { isDropDeniedByFolder, isMoveOutDenied, resolveTreeMove } from "../lib/treeMoveRules";
+import { isDropDeniedByFolder, moveDeniedReason, resolveTreeMove } from "../lib/treeMoveRules";
 import { bulkResultNotice, planBulkDelete, rangeSelection, type SkippedTreeItem } from "../lib/treeBulkSelection";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
@@ -432,7 +432,7 @@ export function useProjectTree({
   /** 묶음 삭제(우클릭 메뉴·Delete 키): 바로 지우지 않고 대상 이름과 개수를 보여 주는 확인 모달을 연다. */
   function deleteSelectedItems() {
     setContextMenu(null);
-    const { items, skipped } = planBulkDelete(projects, selectedItemIds);
+    const { items, skipped } = planBulkDelete(projects, selectedItemIds, isWorkspaceOwner);
     if (items.length === 0) {
       if (skipped.length > 0) publishNotice(bulkResultNotice("삭제", 0, skipped));
       return;
@@ -515,15 +515,16 @@ export function useProjectTree({
   }
 
   /** 권한을 모르면 false다(막지 않고 서버가 판단한다). */
-  function isItemMoveOutDenied(itemId: string) {
-    return isMoveOutDenied(projects, itemId, isWorkspaceOwner);
+  function itemMoveDeniedReason(itemId: string) {
+    return moveDeniedReason(projects, itemId, isWorkspaceOwner);
   }
 
   /** 꺼낼 권한이 없으면 끌기를 시작하지 않고 이유를 알린다. 묶음은 옮길 때 항목별로 건너뛰고 알린다. */
   function canStartDrag(itemId: string) {
     if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
-    if (!isItemMoveOutDenied(itemId)) return true;
-    publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
+    const reason = itemMoveDeniedReason(itemId);
+    if (!reason) return true;
+    publishNotice({ kind: "failed", title: "이동 실패", message: reason });
     return false;
   }
 
@@ -585,7 +586,7 @@ export function useProjectTree({
     canStartDrag,
     isDropDenied,
     isFolderWriteDenied,
-    isItemMoveOutDenied,
+    itemMoveDeniedReason,
     onDragDenied,
     onFileDragOver,
     fileDropTarget,

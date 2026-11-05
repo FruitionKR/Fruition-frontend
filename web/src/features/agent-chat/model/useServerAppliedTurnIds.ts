@@ -1,14 +1,14 @@
 import { useQueries } from "@tanstack/react-query";
 import { fetchDocumentVersions } from "@/features/note-editing/api/versions";
 import { fetchAgentTurnApplyTarget } from "../api/agent";
-import { collectServerAppliedTurnIds, isServerAppliableTask, type TaskApplyTarget, type TaskMessageItem } from "../lib/taskThread";
+import { collectServerAppliedTurnIds, isApplyCheckUnresolved, isServerAppliableTask, type TaskApplyTarget, type TaskMessageItem } from "../lib/taskThread";
 
 /**
  * 편집 작업(markdown_edit)이 실제로 저장됐는지 서버 기록으로 확인한다.
  * turn에서 대상 문서·apply_operation_id를 받고, 그 문서 버전 목록에 같은 operation_id가 있으면 적용된 것이다.
  * 이 화면에서 적용한 기록(appliedTurnIds)은 새로 고침하면 사라지므로 이것으로 "저장됨"을 다시 세운다.
  */
-export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageItem[], isShown: boolean): ReadonlySet<string> {
+export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageItem[], isShown: boolean): { appliedTurnIds: ReadonlySet<string>; checkingTurnIds: ReadonlySet<string>; purgedTurnIds: ReadonlySet<string> } {
   const editItems = items.filter(isServerAppliableTask);
   const turnQueries = useQueries({
     queries: editItems.map((item) => ({
@@ -24,7 +24,9 @@ export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageI
     const data = turnQueries[index]?.data;
     return data ? [{ turnId: item.turnId!, ...data }] : [];
   });
-  const documentIds = [...new Set(targets.flatMap((target) => (target.documentId && target.applyOperationId ? [target.documentId] : [])))];
+  const purgedTurnIds = new Set(editItems.flatMap((item, index) => (turnQueries[index]?.data?.isPurged ? [item.turnId!] : [])));
+  // 영구 삭제된 문서의 버전 목록은 없다.
+  const documentIds = [...new Set(targets.flatMap((target) => (target.documentId && target.applyOperationId && !purgedTurnIds.has(target.turnId) ? [target.documentId] : [])))];
   const versionQueries = useQueries({
     queries: documentIds.map((documentId) => ({
       queryKey: ["document-versions", documentId],
@@ -39,5 +41,11 @@ export function useServerAppliedTurnIds(workspaceId: string, items: TaskMessageI
       return data ? [[documentId, data.versions] as const] : [];
     })
   );
-  return collectServerAppliedTurnIds(targets, versionsByDocument);
+  // 저장 여부를 가리지 못한 turn(조회 중·조회 실패 등). 저장됐는지 모르므로 "수락하지 않음"으로 단정하지 않는다.
+  const checkingTurnIds = new Set(editItems.flatMap((item, index) => {
+    const query = turnQueries[index];
+    const documentId = query.data?.documentId;
+    return isApplyCheckUnresolved(query, documentId ? versionQueries[documentIds.indexOf(documentId)] : undefined) ? [item.turnId!] : [];
+  }));
+  return { appliedTurnIds: collectServerAppliedTurnIds(targets, versionsByDocument), checkingTurnIds, purgedTurnIds };
 }

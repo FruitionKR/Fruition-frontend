@@ -1058,7 +1058,7 @@
   cursor: default;
 }
 
-.folder-context-menu button.danger {
+.folder-context-menu button.danger:not(:disabled) {
   color: var(--color-danger);
 }
 

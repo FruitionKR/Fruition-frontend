@@ -14,6 +14,8 @@ export type TrashDocument = {
   source_document_id?: string | null;
 };
 
+export const TRASH_QUERY_KEY = (workspaceId: string | null) => ["document-trash", workspaceId] as const;
+
 /** 보관 기간이 지나지 않은 삭제 문서를 삭제 시각 역순으로 받는다. */
 export async function fetchTrashDocuments(): Promise<TrashDocument[]> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", "trash"), { cache: "no-store" });

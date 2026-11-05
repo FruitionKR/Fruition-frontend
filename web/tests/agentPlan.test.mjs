@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -9,7 +9,7 @@ registerHooks({
     return nextResolve(specifier, context);
   }
 });
-const { fetchAgentPlanRun, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
+const { fetchAgentPlanRun, fetchAgentRunEditPreviews, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
 const plan = { id: "plan-1", version: 2, operation_hash: "a".repeat(64), status: "awaiting_approval", operations: [] };
 
 test("채팅 기록의 turn ID에서 실제 승인 대상 run을 조회한다", async (t) => {
@@ -87,7 +87,7 @@ test("turn이 취소 중이면 폴링을 이어 가고, 취소됨·복구 실패
   let turnStatus = "cancel_requested";
   t.mock.method(globalThis, "fetch", async (path) => {
     assert.equal(path, "/api/workspaces/ws_test/agent/turn/turn-1");
-    return Response.json({ status: turnStatus, result: null, error_code: turnStatus === "rollback_failed" ? "rollback_conflict" : null });
+    return Response.json({ status: turnStatus, result: null, error: turnStatus === "rollback_failed" ? "rollback_conflict" : null, error_message: turnStatus === "rollback_failed" ? "변경을 되돌리지 못했습니다." : null });
   });
   for (const status of ["cancel_requested", "rolling_back"]) {
     turnStatus = status;
@@ -187,18 +187,18 @@ test("완료된 계획은 실제로 저장된 작업만 세고 고르지 않은�
   const op = (status, error_code = null) => ({ status, error_code });
   assert.deepEqual(
     summarizePlanOperationResults([op("succeeded"), op("succeeded"), op("completed"), op("skipped", "not_selected")]),
-    { applied: 3, excluded: 1, failed: 0 }
+    { applied: 3, excluded: 1, failed: 0, rolledBack: 0 }
   );
   assert.deepEqual(
     summarizePlanOperationResults([op("succeeded"), op("failed"), op("skipped", "not_selected")]),
-    { applied: 1, excluded: 1, failed: 1 }
+    { applied: 1, excluded: 1, failed: 1, rolledBack: 0 }
   );
   // 승인 직후 캐시처럼 결과 상태가 아직 없으면 고르지 않은 작업만 뺀다.
   assert.deepEqual(
     summarizePlanOperationResults([op("planned"), op("planned"), op("skipped", "not_selected")]),
-    { applied: 2, excluded: 1, failed: 0 }
+    { applied: 2, excluded: 1, failed: 0, rolledBack: 0 }
   );
-  assert.deepEqual(summarizePlanOperationResults([]), { applied: 0, excluded: 0, failed: 0 });
+  assert.deepEqual(summarizePlanOperationResults([]), { applied: 0, excluded: 0, failed: 0, rolledBack: 0 });
 });
 
 test("실패한 run은 error_code별 이유를 보여 주고 모르는 코드는 기본 안내를 쓴다", () => {
@@ -266,17 +266,32 @@ test("계획 요약 끝의 내용 중복 안내 두 문장도 떼어 내고, 이
   );
 });
 
+test("문서 수정 계획의 변경 내용을 run으로 받고, 구 서버의 404는 상태를 그대로 올린다", async (t) => {
+  const paths = [];
+  const responses = [
+    Response.json({ items: [{ operation_id: "op-1", hunks: [] }], expires_at: null }),
+    Response.json({ error: { message: "없음" } }, { status: 404 })
+  ];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    paths.push(path);
+    return responses.shift();
+  });
+  assert.equal((await fetchAgentRunEditPreviews("ws_test", "run-1")).items[0].operation_id, "op-1");
+  assert.deepEqual(paths, ["/api/workspaces/ws_test/agent/runs/run-1/edit-previews"]);
+  await assert.rejects(fetchAgentRunEditPreviews("ws_test", "run-1"), (error) => error.status === 404);
+});
+
 test("작업 결과를 저장·제외·실패·대기로 나눈다. 앞선 실패로 건너뛴 작업은 제외가 아니라 실패다", () => {
   const outcome = (status, error_code = null) => planOperationOutcome({ status, error_code });
   assert.equal(outcome("succeeded"), "applied");
   assert.equal(outcome("completed"), "applied");
   assert.equal(outcome("skipped", "not_selected"), "excluded");
   assert.equal(outcome("skipped", "dependency_failed"), "failed");
-  for (const status of ["failed", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back"]) assert.equal(outcome(status), "failed", status);
+  for (const status of ["failed", "forbidden", "conflicted", "verification_failed", "cancelled"]) assert.equal(outcome(status), "failed", status);
   for (const status of ["planned", "pending", "running"]) assert.equal(outcome(status), "pending", status);
   assert.deepEqual(
     summarizePlanOperationResults([{ status: "succeeded" }, { status: "forbidden" }, { status: "skipped", error_code: "dependency_failed" }, { status: "skipped", error_code: "not_selected" }]),
-    { applied: 1, excluded: 1, failed: 2 }
+    { applied: 1, excluded: 1, failed: 2, rolledBack: 0 }
   );
 });
 
@@ -332,4 +347,100 @@ test("실행 뒤에는 AI 요약의 '아직 변경된 사항은 없으며' 문�
 
 test("일부 실패 상태 이름을 맞춘다", () => {
   assert.equal(agentPlanStatusLabel("partial_failed"), "일부 실패");
+});
+
+test("영구 삭제로 건너뛴 작업은 고르지 않은 작업과 다른 말로 보이고, 실패로 세지 않는다", () => {
+  const purged = { status: "skipped", error_code: "document_purged" };
+  assert.equal(isOperationPurged(purged), true);
+  assert.equal(isOperationPurged({ status: "skipped", error_code: "not_selected" }), false);
+  assert.equal(planOperationResultLabel(purged), "영구 삭제됨");
+  assert.equal(planOperationResultLabel({ status: "skipped", error_code: "not_selected" }), "제외됨");
+  assert.equal(planOperationResultLabel({ status: "failed", error_code: null }), "실패");
+  assert.equal(planOperationOutcome(purged), "excluded");
+});
+
+test("turn 조회의 실패 코드(error)로 영구 삭제 때문에 일부만 되돌린 것을 알아본다", async (t) => {
+  // document AgentTurnResponse: 실패 코드는 error, 문구는 error_message다. error_code 필드는 없다.
+  t.mock.method(globalThis, "fetch", async () => Response.json({ status: "rollback_failed", result: null, error: "rollback_document_purged", error_message: "영구 삭제된 문서의 변경은 되돌릴 수 없습니다. 나머지 변경은 되돌렸습니다." }));
+  const run = await fetchAgentPlanRun("ws_test", "turn-1");
+  assert.equal(run.error_code, "rollback_document_purged");
+  const message = agentPlanFailureMessage(run);
+  assert.match(message, /영구 삭제된 문서/);
+  assert.match(message, /나머지 변경은 되돌렸어요/);
+  assert.doesNotMatch(message, /다시 시도/);
+  assert.equal(canRetryAgentPlanRun(run), false);
+});
+
+test("영구 삭제 문서가 있어 되돌리지 못한 run은 이유를 말한다", () => {
+  assert.equal(
+    agentPlanFailureMessage({ status: "rollback_failed", error_code: "rollback_document_purged", plan: { operations: [] } }),
+    "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
+  );
+});
+
+const partialRollbackRun = {
+  id: "run-1",
+  status: "rollback_failed",
+  error_code: "rollback_document_purged",
+  plan: { ...plan, operations: [
+    { id: "a", sequence: 1, tool_name: "apply_document_edit", target_id: "doc-a", source_parent_id: null, destination_parent_id: null, arguments: {}, reason: "", status: "rolled_back", error_code: null },
+    { id: "b", sequence: 2, tool_name: "apply_document_edit", target_id: "doc-b", source_parent_id: null, destination_parent_id: null, arguments: {}, reason: "", status: "rolled_back", error_code: null },
+    { id: "c", sequence: 3, tool_name: "apply_document_edit", target_id: "doc-c", source_parent_id: null, destination_parent_id: null, arguments: {}, reason: "", status: "succeeded", error_code: null }
+  ] }
+};
+
+test("복구한 작업은 실패가 아니라 복구로 세고, 저장 수에도 넣지 않는다", () => {
+  const rolledBack = { status: "rolled_back", error_code: null };
+  assert.equal(planOperationOutcome(rolledBack), "rolled_back");
+  assert.deepEqual(summarizePlanOperationResults([rolledBack, { status: "failed", error_code: null }, { status: "succeeded", error_code: null }]), { applied: 1, excluded: 0, failed: 1, rolledBack: 1 });
+});
+
+test("영구 삭제로 일부만 되돌린 계획은 남은 작업을 영구 삭제로 표시한다", () => {
+  const marked = withRollbackPurgedOperations(partialRollbackRun);
+  assert.deepEqual(marked.plan.operations.map(isOperationPurged), [false, false, true]);
+  assert.equal(planOperationOutcome(marked.plan.operations[2]), "excluded");
+  assert.deepEqual(summarizePlanOperationResults(marked.plan.operations).applied, 0);
+  assert.equal(partialRollbackRun.plan.operations[2].status, "succeeded", "받은 응답은 바꾸지 않는다");
+  // 전부 되돌린 취소나 다른 복구 실패는 그대로 둔다.
+  for (const run of [{ ...partialRollbackRun, status: "cancelled", error_code: null }, { ...partialRollbackRun, error_code: "rollback_tool_http_500" }, { ...partialRollbackRun, plan: null }]) {
+    assert.equal(withRollbackPurgedOperations(run), run);
+  }
+});
+
+test("일부 복구 카드는 복구한 수와 되돌리지 못한 수를 말하고 편집·실패로 세지 않는다", () => {
+  const { plan: marked } = withRollbackPurgedOperations(partialRollbackRun);
+  assert.equal(buildPlanPreviewTree(marked, []).summary, "복구 2개 · 영구 삭제로 되돌리지 못함 1개");
+  assert.equal(buildPlanPreviewTree(partialRollbackRun.plan, []).summary, "문서 1개 편집 · 복구 2개", "표시 전 계획이어도 복구를 실패로 세지 않는다");
+});
+
+test("계획이 실제로 저장한 문서만 고른다", () => {
+  const op = (id, tool_name, status, args, error_code = null) => ({ id, sequence: 1, tool_name, target_id: null, source_parent_id: null, destination_parent_id: null, arguments: args, reason: "", status, error_code });
+  const operations = [
+    op("1", "apply_document_edit", "succeeded", { document_id: "doc_a" }),
+    op("2", "apply_document_edit", "completed", { document_id: "doc_b" }),
+    op("3", "apply_document_edit", "failed", { document_id: "doc_c" }),
+    op("4", "apply_document_edit", "rolled_back", { document_id: "doc_d" }),
+    op("5", "apply_document_edit", "skipped", { document_id: "doc_e" }, "not_selected"),
+    op("6", "move_document", "succeeded", { document_id: "doc_f" }),
+    op("7", "apply_document_edit", "succeeded", { document_id: "doc_a" })
+  ];
+  assert.deepEqual(savedEditDocumentIds({ operations }), ["doc_a", "doc_b"]);
+  assert.deepEqual(savedEditDocumentIds(null), []);
+});
+
+test("이 세션에서 시작한 계획은 첫 조회가 종료여도 한 번만 저장을 알린다", () => {
+  const started = createStartedPlanTurns();
+  started.mark("turn_1");
+  assert.equal(started.takeSettled("turn_1", "executing"), false, "아직 진행 중이면 기다린다");
+  assert.equal(started.takeSettled("turn_1", undefined), false, "아직 못 받았으면 기다린다");
+  assert.equal(started.takeSettled("turn_1", "completed"), true);
+  assert.equal(started.takeSettled("turn_1", "completed"), false, "다시 마운트돼도 또 알리지 않는다");
+});
+
+test("이 세션에서 시작하지 않은 계획은 첫 조회가 종료면 알리지 않는다(#66)", () => {
+  const started = createStartedPlanTurns();
+  started.mark("turn_1");
+  assert.equal(started.takeSettled("turn_2", "completed"), false);
+  assert.equal(started.takeSettled(null, "completed"), false);
+  assert.equal(started.takeSettled(undefined, "completed"), false);
 });

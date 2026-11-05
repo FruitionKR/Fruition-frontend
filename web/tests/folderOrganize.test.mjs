@@ -78,7 +78,7 @@ test("새 문서 생성은 원래 이름 없이 생성으로 표시한다", () =
   const view = buildFolderOrganizeView(plan, tree);
   assert.deepEqual(view.rows, [{
     id: "op-1", originalName: "", folderName: "최상위", newName: "색인.md", changeLabel: "생성", reason: "",
-    operationIds: ["op-1"], suggestedSelected: true, duplicateWarning: null, dependencyNote: null, excluded: false, failure: null
+    operationIds: ["op-1"], suggestedSelected: true, duplicateWarning: null, dependencyNote: null, excluded: false, isPurged: false, failure: null
   }]);
   assert.equal(view.targetFolderName, null);
 });
@@ -205,7 +205,7 @@ test("완료 행은 작업 수가 아니라 미리보기와 같은 줄(문서) �
     op(6, "rename_document", "doc-md", { name: "b.md" }, { status: "skipped", error_code: "not_selected" }),
     op(7, "move_document", "doc-new", { folder_id: { $operation_result: "op-2" } }, { status: "succeeded" })
   ] };
-  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 3, partial: 0, failed: 0, excluded: 1, createdFolders: 2 });
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 3, partial: 0, failed: 0, excluded: 1, rolledBack: 0, createdFolders: 2 });
 });
 
 test("고르지 않아 만들지 않은 새 폴더와 실패한 줄은 저장으로 세지 않는다", () => {
@@ -214,7 +214,7 @@ test("고르지 않아 만들지 않은 새 폴더와 실패한 줄은 저장으
     op(2, "move_document", "doc-pdf", { folder_id: "timeline" }, { status: "succeeded" }),
     op(3, "move_document", "doc-xlsx", { folder_id: "timeline" }, { status: "failed", error_code: "conflict" })
   ] };
-  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 1, partial: 0, failed: 1, excluded: 0, createdFolders: 0 });
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 1, partial: 0, failed: 1, excluded: 0, rolledBack: 0, createdFolders: 0 });
 });
 
 test("실행 결과에서 실패한 줄은 계획이 아니라 지금 위치·이름을 보이고 칩과 이유를 결과대로 낸다", () => {
@@ -243,7 +243,7 @@ test("실행 결과에서 실패한 줄은 계획이 아니라 지금 위치·�
   assert.equal(row("doc-md").newName, "메모.md");
   assert.equal(row("doc-md").folderName, "연간 활동 계획서");
 
-  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 2, partial: 1, failed: 1, excluded: 0, createdFolders: 0 });
+  assert.deepEqual(summarizeFolderOrganizeRows(plan), { saved: 2, partial: 1, failed: 1, excluded: 0, rolledBack: 0, createdFolders: 0 });
 });
 
 test("권한 때문에만 실패한 줄의 칩은 '권한 없음'이고 고르지 않은 줄은 실패가 아니다", () => {

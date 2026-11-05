@@ -1,5 +1,6 @@
 import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
-import type { AgentPlan, AgentPlanRun } from "../lib/agentPlan";
+import { withRollbackPurgedOperations, type AgentPlan, type AgentPlanRun } from "@/features/agent-chat/lib/agentPlan";
+import { parseAgentRunEditPreviews, type AgentRunEditPreviews } from "@/features/agent-chat/lib/documentEditPreviews";
 import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
 
 /**
@@ -17,12 +18,13 @@ export async function fetchAgentPlanRun(
   const turn = await parseJsonOrThrow<{
     status: string;
     result: { run_id?: string | null } | null;
-    error_code?: string | null;
+    /** 실패 코드. run 조회와 달리 turn 조회의 코드 필드는 error다(document AgentTurnResponse). */
+    error?: string | null;
   }>(response, "작업 계획을 불러오지 못했습니다.");
   if (turn.status === "failed") throw new Error("계획 생성 요청이 실패했습니다.");
   // 문서 삭제 등으로 turn이 취소되면 run 없이 turn 상태만 온다. 취소 중은 폴링을 이어 가고, 종결(취소됨·복구 실패)은 폴링을 멈춘다(#141).
   if (TURN_CANCEL_STATUSES.has(turn.status)) {
-    return { id: turnId, status: turn.status, plan: null, error_code: turn.error_code ?? null };
+    return { id: turnId, status: turn.status, plan: null, error_code: turn.error ?? null };
   }
   if (turn.status !== "completed") return null;
   if (!turn.result?.run_id) throw new Error("이 답변의 계획 정보를 찾을 수 없습니다. 다시 요청해주세요.");
@@ -31,7 +33,13 @@ export async function fetchAgentPlanRun(
 
 async function fetchRun(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentPlanRun> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId), { cache: "no-store", signal });
-  return parseJsonOrThrow<AgentPlanRun>(response, "작업 계획을 불러오지 못했습니다.");
+  return withRollbackPurgedOperations(await parseJsonOrThrow<AgentPlanRun>(response, "작업 계획을 불러오지 못했습니다."));
+}
+
+/** 문서 수정 계획의 문서별 변경 내용. 구 서버·만료면 404다. */
+export async function fetchAgentRunEditPreviews(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentRunEditPreviews> {
+  const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId, "edit-previews"), { cache: "no-store", signal });
+  return parseAgentRunEditPreviews(await parseJsonOrThrow<unknown>(response, "변경 내용을 불러오지 못했습니다."));
 }
 
 const INVALID_SELECTION_MESSAGE = "고른 항목을 적용할 수 없습니다. 함께 적용해야 하는 항목이 빠졌거나 계획이 바뀌었을 수 있어요. 선택을 확인한 뒤 다시 적용해주세요.";

@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { requestEmailVerification } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
@@ -33,6 +34,7 @@ function ForgotPasswordPageContent() {
   const [isCodeStep, setIsCodeStep] = useState(Boolean(passwordResetDraft?.verificationId));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useTypedFormValues({ email: setEmail });
   const isRequestingVerification = isSubmitting && !isCodeStep;
   const countdown = useExpiryCountdown(passwordResetDraft?.expiresAt ?? 0);
   const { isResending, resend } = useVerificationResend({
@@ -131,7 +133,7 @@ function ForgotPasswordPageContent() {
 
   return (
     <AuthScreen shellModifier="password" title="비밀번호 찾기">
-      <form className="auth-form" method="post" onSubmit={handleSubmit}>
+      <form className="auth-form" method="post" onSubmit={handleSubmit} ref={formRef}>
         <div className="auth-field-with-error">
           <div className="auth-field-stack">
             <AuthField

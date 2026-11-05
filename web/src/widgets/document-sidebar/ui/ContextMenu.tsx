@@ -1,4 +1,4 @@
-import { FOLDER_WRITE_FORBIDDEN_MESSAGE, type ContextMenuState } from "@/entities/tree";
+import type { ContextMenuState } from "@/entities/tree";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@/shared/lib/classNames";
@@ -22,7 +22,7 @@ export function ContextMenu({
   /** 보일 항목을 구역별로 나눈 목록(treeContextMenuSections). 구역 사이에 구분선을 그린다. */
   sections: TreeMenuActionId[][];
   /** 폴더 권한이 없어 비활성으로 둘 항목(treeMenuBlockedActions). 있으면 이유를 메뉴 안에 글자로 보여 준다. */
-  blockedActions?: ReadonlySet<TreeMenuActionId>;
+  blockedActions?: ReadonlyMap<TreeMenuActionId, string>;
   /** PDF 원본의 Markdown 변환 상태. 처리 중이거나 변환 권한이 없으면 isDisabled로 비활성화하고, 권한 때문이면 disabledReason을 툴팁으로 알린다. */
   convertTarget: { isDisabled: boolean; disabledReason?: string } | null;
   /** 우클릭한 행이 2개 이상 묶음 선택에 들어 있으면 그 개수. 단일 항목 메뉴 대신 묶음 메뉴를 보인다. */
@@ -64,6 +64,9 @@ export function ContextMenu({
     };
   }, [opener]);
 
+  // 터치에는 툴팁이 없어 보이는 항목을 막은 이유를 메뉴 안에 글자로 적는다. 같은 이유는 한 번만.
+  const blockedReasons = [...new Set(sections.flat().flatMap((action) => blockedActions.get(action) ?? []))];
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // 메뉴를 연 Enter를 누르고 있으면 키 반복이 포커스된 항목을 연달아 실행하지 않게 막는다.
     if (event.repeat && (event.key === "Enter" || event.key === " ")) {
@@ -102,9 +105,7 @@ export function ContextMenu({
           선택한 {selectedCount}개 삭제
         </button>
       ) : <>
-      {sections.some((section) => section.some((action) => blockedActions.has(action))) && (
-        <p className={styles["menu-blocked-reason"]} role="note">{FOLDER_WRITE_FORBIDDEN_MESSAGE}</p>
-      )}
+      {blockedReasons.map((reason) => <p key={reason} className={styles["menu-blocked-reason"]} role="note">{reason}</p>)}
       {sections.map((section, index) => (
         <Fragment key={section.join()}>
           {/* 구분선은 menuitem이 아니라 방향키 이동에서 건너뛴다. */}
@@ -129,7 +130,7 @@ export function ContextMenu({
               role="menuitem"
               tabIndex={-1}
               disabled={blockedActions.has(action)}
-              aria-description={blockedActions.has(action) ? FOLDER_WRITE_FORBIDDEN_MESSAGE : undefined}
+              aria-description={blockedActions.get(action)}
               className={cx(action === "delete" && styles.danger)}
               data-menu-autofocus={(action === "new-note" && focusNewNote) || undefined}
               onClick={() => onAction(action)}
@@ -145,7 +146,7 @@ export function ContextMenu({
   );
 }
 
-const NO_BLOCKED_ACTIONS: ReadonlySet<TreeMenuActionId> = new Set();
+const NO_BLOCKED_ACTIONS: ReadonlyMap<TreeMenuActionId, string> = new Map();
 
 /** 메뉴를 viewport 안으로 당길 때 가장자리와 두는 여백 (px) */
 const VIEWPORT_MARGIN_PX = 8;
