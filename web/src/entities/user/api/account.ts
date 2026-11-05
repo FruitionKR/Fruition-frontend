@@ -67,7 +67,7 @@ type PasswordChangeVerificationResponse = {
 };
 
 /** 429면 Retry-After(초)를 retryAfter로 실어 던진다. 화면이 그동안 제출을 막을 수 있게 한다. */
-async function throwRateLimited(response: Response): Promise<never> {
+export async function throwRateLimited(response: Response): Promise<never> {
   const apiError = await parseApiError(response, "시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
   throw Object.assign(apiError, { retryAfter: parseRetryAfterSeconds(response.headers.get("Retry-After")) });
 }

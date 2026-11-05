@@ -19,7 +19,7 @@ export function DeleteConfirmModal({
       title={isFolder ? "폴더를 삭제하시겠습니까?" : "문서를 삭제하시겠습니까?"}
       description={
         <>
-          「{target.label}」{isFolder ? " 폴더와 폴더 안의 모든 항목이 삭제됩니다." : " 문서가 삭제됩니다."} 이 작업은 되돌릴 수 없습니다.
+          「{target.label}」{isFolder ? " 폴더와 폴더 안의 모든 항목이 삭제됩니다. 폴더 안 문서는 휴지통에서 30일 동안 복구할 수 있습니다." : " 문서가 삭제됩니다. 휴지통에서 30일 동안 복구할 수 있습니다."}
         </>
       }
       confirmLabel="삭제"

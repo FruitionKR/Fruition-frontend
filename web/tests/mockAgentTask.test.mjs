@@ -280,7 +280,7 @@ test("문서 없는 편집 요청의 되묻기는 turn 결과와 메시지에 �
   assert.equal(result.clarify_reason, "markdown_document_required");
   const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
   const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
-  const user = messages.find((item) => item.run_id === accepted.requestId && item.role === "user");
+  const user = messages.find((item) => item.pair_id === assistant.pair_id && item.role === "user");
   assert.equal(assistant.clarify_reason, "markdown_document_required");
   assert.equal(user.clarify_reason, null);
 });
@@ -297,9 +297,9 @@ async function readOnlyValue(request, body) {
   assert.equal(status, 202);
   await waitForTurn(request, accepted.requestId);
   const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
-  const turnMessages = messages.filter((item) => item.run_id === accepted.requestId);
-  assert.equal(turnMessages.find((item) => item.role === "user").read_only_document_id, null);
-  return turnMessages.find((item) => item.role === "assistant").read_only_document_id;
+  const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
+  assert.equal(messages.find((item) => item.pair_id === assistant.pair_id && item.role === "user").read_only_document_id, null);
+  return assistant.read_only_document_id;
 }
 
 test("보기 권한만 있는 멤버가 보낸 문서는 assistant 메시지에 남고, 서버처럼 키는 늘 있다(document chat.md)", async (t) => {
@@ -327,4 +327,114 @@ test("다른 이유의 되묻기와 되묻기가 아닌 메시지는 이유 코�
   const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
   assert.equal(Object.hasOwn(assistant, "clarify_reason"), true);
   assert.equal(assistant.clarify_reason, null);
+});
+
+async function submitAttachedEdit(request, message, documentIds = ["doc_task_1", "doc_task_2", "doc_task_3"]) {
+  const accepted = await request("POST", "/turn", { session_id: SESSION_ID, message, mode: "task", ...MODEL, reference_document_ids: documentIds });
+  assert.equal(accepted.status, 202);
+  return waitForTurn(request, accepted.body.requestId);
+}
+
+function seedAttachedEditDocuments() {
+  for (const [id, filename] of [["doc_task_2", "둘째.md"], ["doc_task_3", "셋째.md"]]) {
+    if (!state.documents.some((doc) => doc.id === id)) {
+      state.documents.push({ id, workspace_id: WORKSPACE_ID, filename, status: "completed", document_role: "EDITABLE", markdown: "# 문서" });
+    }
+  }
+}
+
+async function finalRun(request, runId) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const run = await request("GET", `/runs/${runId}`);
+    if (!["awaiting_approval", "executing"].includes(run.body.status)) return run.body;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("run이 끝나지 않았습니다.");
+}
+
+test("문서 없이 첨부를 고치라고 하면 문서별 편집 계획과 미리 보기를 만든다", async (t) => {
+  const request = await startMock(t);
+  seedAttachedEditDocuments();
+  const turn = await submitAttachedEdit(request, "첨부한 문서의 오타를 고쳐줘");
+  assert.equal(turn.result.action, "workspace_workflow");
+  const run = (await request("GET", `/runs/${turn.result.run_id}`)).body;
+  assert.equal(run.status, "awaiting_approval");
+  assert.equal(run.target_folder_id, null);
+  assert.deepEqual(run.plan.operations.map((operation) => operation.tool_name), Array(3).fill("apply_document_edit"));
+  assert.deepEqual(run.plan.operations.map((operation) => operation.depends_on), [[], [], []]);
+  assert.equal(run.plan.summary, "아직 바꾸지 않았습니다. 승인하면 문서 3개를 수정합니다.");
+
+  const previews = (await request("GET", `/runs/${run.id}/edit-previews`)).body;
+  assert.deepEqual(previews.items.map((item) => item.operation_id), run.plan.operations.map((operation) => operation.id));
+  assert.ok(Date.parse(previews.expires_at) > Date.now());
+  assert.ok(previews.items[0].hunks[0].lines.some((line) => line.type === "insert"));
+
+  const selected = [run.plan.operations[0].id, run.plan.operations[2].id];
+  const approved = await request("POST", `/runs/${run.id}/approve`, { plan_version: run.plan.version, operation_hash: run.plan.operation_hash, operation_ids: selected });
+  assert.equal(approved.status, 200);
+  const done = await finalRun(request, run.id);
+  assert.equal(done.status, "completed");
+  assert.deepEqual(done.plan.operations.map((operation) => operation.status), ["succeeded", "skipped", "succeeded"]);
+});
+
+test("편집 계획의 일부 실패·충돌·미리 보기 시나리오를 재현한다", async (t) => {
+  const request = await startMock(t);
+  seedAttachedEditDocuments();
+  const approve = async (message, documentIds) => {
+    const turn = await submitAttachedEdit(request, message, documentIds);
+    const run = (await request("GET", `/runs/${turn.result.run_id}`)).body;
+    await request("POST", `/runs/${run.id}/approve`, { plan_version: run.plan.version, operation_hash: run.plan.operation_hash });
+    return finalRun(request, run.id);
+  };
+  const partial = await approve("첨부 문서 수정 [일부실패]");
+  assert.equal(partial.status, "conflicted", "AI처럼 충돌이 하나라도 있으면 다른 문서가 저장돼도 conflicted다");
+  assert.deepEqual(partial.plan.operations.map((operation) => [operation.status, operation.error_code]), [["succeeded", null], ["conflicted", "tool_http_409"], ["failed", "tool_http_423"]]);
+  assert.equal((await approve("첨부 문서 수정 [충돌]", ["doc_task_1"])).status, "conflicted");
+  assert.deepEqual((await approve("첨부 문서 수정 [편집중]", ["doc_task_1"])).plan.operations[0].error_code, "tool_http_423");
+  assert.deepEqual((await approve("첨부 문서 수정 [삭제]", ["doc_task_1"])).plan.operations[0].error_code, "tool_http_404");
+  assert.equal((await approve("첨부 문서 수정 [회수]", ["doc_task_1"])).plan.operations[0].status, "forbidden");
+
+  const previewOf = async (message) => {
+    const turn = await submitAttachedEdit(request, message, ["doc_task_1"]);
+    return request("GET", `/runs/${turn.result.run_id}/edit-previews`);
+  };
+  assert.ok(Date.parse((await previewOf("첨부 문서 수정 [만료]")).body.expires_at) < Date.now());
+  assert.equal((await previewOf("첨부 문서 수정 [구서버]")).status, 404);
+  assert.equal((await previewOf("첨부 문서 수정 [미리보기실패]")).status, 500);
+  const long = (await previewOf("첨부 문서 수정 [긴변경]")).body.items[0];
+  assert.ok(long.hunks.flatMap((hunk) => hunk.lines).length > 400);
+  const longTurn = await submitAttachedEdit(request, "첨부 문서 수정 [긴변경]", ["doc_task_1"]);
+  const longRun = await request("GET", `/runs/${longTurn.result.run_id}`);
+  assert.equal(longRun.body.plan.operations[0].warning, null, "긴 변경은 표시만 하고 경고를 붙이지 않는다");
+});
+
+test("자동 승인 시나리오는 확인 없이 실행하고 승인 주체를 남긴다", async (t) => {
+  const request = await startMock(t);
+  seedAttachedEditDocuments();
+  const turn = await submitAttachedEdit(request, "첨부 문서 수정 [자동승인]", ["doc_task_1"]);
+  const run = await finalRun(request, turn.result.run_id);
+  assert.equal(run.status, "completed");
+  assert.equal(run.plan.approved_by, "auto:user-setting");
+});
+
+test("어느 첨부를 고칠지 모르면 attachment_target_required로 되묻고, 편집 권한이 없는 첨부는 뺀다", async (t) => {
+  const request = await startMock(t);
+  seedAttachedEditDocuments();
+  const ambiguous = await submitAttachedEdit(request, "첨부 문서 수정 [모호]", ["doc_task_1", "doc_task_2"]);
+  assert.equal(ambiguous.result.action, "clarify");
+  assert.equal(ambiguous.result.clarify_reason, "attachment_target_required");
+  assert.match(ambiguous.result.message, /연구\.md.*회의\.md/);
+
+  const member = await startMock(t, MEMBER_USER_ID);
+  const partial = await submitAttachedEdit(member, "첨부 문서 수정", ["doc_task_1", "doc_task_view"]);
+  assert.equal(partial.result.action, "workspace_workflow");
+  assert.match(partial.result.message, /보기\.md/);
+  const run = (await member("GET", `/runs/${partial.result.run_id}`)).body;
+  assert.deepEqual(run.plan.operations.map((operation) => operation.target_id), ["doc_task_1"]);
+
+  const blocked = await submitAttachedEdit(member, "첨부 문서 수정", ["doc_task_view"]);
+  assert.equal(blocked.result.action, "clarify");
+  assert.match(blocked.result.message, /편집 권한이 없어요/);
+  assert.equal(blocked.result.clarify_reason, null);
 });

@@ -1,7 +1,7 @@
 // document-svc(8080) 폴더 라우트: 문서 트리, 폴더 생성·이름 변경·삭제·이동, 문서 이동.
 // 실제 백엔드처럼 base_version 낙관적 잠금을 검사하고 변경마다 current_version을 올린다.
 import { randomUUID } from "node:crypto";
-import { state, now, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, requireFolderWrite, memberRole } from "../state.mjs";
+import { state, now, error, requireWorkspace, findDocument, toDocumentItemFor, isSkillReference, requireDocumentEdit, requireFolderWrite, canWriteFolder, memberRole } from "../state.mjs";
 import { rememberIdempotent, replayIdempotent, useImportSession } from "./imports.mjs";
 
 function liveFolders(workspaceId) {
@@ -102,6 +102,7 @@ export function registerFolderRoutes(router) {
     const { name, base_version } = await ctx.body();
     if (base_version !== folder.current_version) return error(ctx, 409, "폴더가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
     if (typeof name !== "string" || !name.trim()) return error(ctx, 400, "폴더 이름을 입력해주세요.");
+    if (!canWriteFolder(workspace.id, ctx.user.id, folder.id)) return error(ctx, 403, "이 폴더를 편집할 권한이 없습니다.", "DOCUMENT_WRITE_FORBIDDEN");
     folder.name = name.trim();
     folder.current_version += 1;
     ctx.json(200, toFolderResponse(folder));
@@ -114,6 +115,9 @@ export function registerFolderRoutes(router) {
     if (!folder) return;
     const { base_version } = await ctx.body();
     if (base_version !== folder.current_version) return error(ctx, 409, "폴더가 다른 곳에서 변경되었습니다. 새로고침 후 다시 시도해주세요.");
+    if (!canWriteFolder(workspace.id, ctx.user.id, folder.id)) return error(ctx, 403, "이 폴더를 편집할 권한이 없습니다.", "DOCUMENT_WRITE_FORBIDDEN");
+    const hasChildren = state.folders.some((item) => item.parent_folder_id === folder.id && !item.deleted_at) || state.documents.some((item) => item.folder_id === folder.id && !item.deleted_at);
+    if (hasChildren && memberRole(workspace.id, ctx.user.id) !== "OWNER") return error(ctx, 403, "내용이 있는 폴더는 워크스페이스 소유자만 삭제할 수 있습니다.", "HIERARCHY_WRITE_FORBIDDEN");
     deleteFolderTree(workspace.id, folder.id, now());
     ctx.json(204);
   });

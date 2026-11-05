@@ -392,6 +392,8 @@
 }
 
 .issues {
+  /* 시트 아래 고정 버튼 줄에 가리지 않게 여유를 두고 스크롤한다. */
+  scroll-margin-block: 16px 88px;
   display: flex;
   flex-direction: column;
   gap: 8px;

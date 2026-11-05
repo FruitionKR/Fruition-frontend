@@ -3,7 +3,7 @@ import { apiFetch, parseJsonOrThrow, parseApiError, getWorkspaceId, workspacePat
 import { ApiError, isAiUsageLimitError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
 import { followAgentTurn } from "@/features/agent-chat/lib/turnFollow";
-import type { AgentTurnRequest, AgentTurnResponse } from "../lib/agentTurn";
+import { isPurgedEditTurn, type AgentTurnRequest, type AgentTurnResponse } from "@/features/agent-chat/lib/agentTurn";
 import type { StalledTurnCancelResult, TurnCheckResult } from "../lib/stalledTurns";
 
 export const AGENT_TURN_CANCELLED_MESSAGE = "요청이 취소되었습니다.";
@@ -112,8 +112,8 @@ function followAgentTurnRun(workspaceId: string, turnId: string, handlers: Agent
 export async function checkAgentTurnStatus(turnId: string, signal?: AbortSignal): Promise<TurnCheckResult> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId), { cache: "no-store", signal });
   if (response.status === 404) return { kind: "missing" };
-  const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
-  return { kind: "status", status: run.status ?? "" };
+  const run = await parseJsonOrThrow<{ status?: string; error?: string | null }>(response, ERROR_MESSAGES.agentTurnFailed);
+  return { kind: "status", status: run.status ?? "", error: run.error ?? null };
 }
 
 /**
@@ -125,8 +125,8 @@ export async function requestAgentTurnCancel(turnId: string, signal?: AbortSigna
   const response = await apiFetch(workspacePath(getWorkspaceId(), "agent", "turn", turnId, "cancel"), { method: "POST", signal });
   if (response.status === 404) return { kind: "missing" };
   if (response.status === 409) return { kind: "finished" };
-  const run = await parseJsonOrThrow<{ status?: string }>(response, ERROR_MESSAGES.agentTurnFailed);
-  return { kind: "status", status: run.status ?? "" };
+  const run = await parseJsonOrThrow<{ status?: string; error?: string | null }>(response, ERROR_MESSAGES.agentTurnFailed);
+  return { kind: "status", status: run.status ?? "", error: run.error ?? null };
 }
 
 /** 끝난 편집 turn의 대상 문서와 적용 ID. 새로 고침 뒤 버전 기록과 맞춰 적용 여부를 알아낸다. */
@@ -134,13 +134,13 @@ export async function fetchAgentTurnApplyTarget(
   workspaceId: string,
   turnId: string,
   signal?: AbortSignal
-): Promise<{ documentId: string | null; applyOperationId: string | null }> {
+): Promise<{ documentId: string | null; applyOperationId: string | null; isPurged: boolean }> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "turn", turnId), { cache: "no-store", signal });
-  const turn = await parseJsonOrThrow<{ documentId?: string | null; apply_operation_id?: string | null }>(
+  const turn = await parseJsonOrThrow<{ documentId?: string | null; apply_operation_id?: string | null } & Parameters<typeof isPurgedEditTurn>[0]>(
     response,
     ERROR_MESSAGES.agentTurnFailed
   );
-  return { documentId: turn.documentId ?? null, applyOperationId: turn.apply_operation_id ?? null };
+  return { documentId: turn.documentId ?? null, applyOperationId: turn.apply_operation_id ?? null, isPurged: isPurgedEditTurn(turn) };
 }
 
 type AgentTurnRunResponse =Omit<AgentTurnResponse, "status" | "result"> & {

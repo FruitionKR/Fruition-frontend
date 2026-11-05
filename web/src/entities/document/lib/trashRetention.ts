@@ -37,3 +37,21 @@ export function describeRestoreError(error: unknown, fallback = "복구하지 �
   }
   return error instanceof Error ? error.message : fallback;
 }
+
+type TreeNode = { id: string; name: string; type: string; children?: TreeNode[] | null };
+
+/** 트리에서 문서가 있는 폴더 이름. 최상위면 null, 트리에 없으면 undefined다. 복구 응답에 위치가 없어 다시 받은 트리에서 찾는다. */
+export function restoredDocumentFolderName(items: readonly TreeNode[], documentId: string, parentName: string | null = null): string | null | undefined {
+  for (const item of items) {
+    if (item.type !== "folder" && item.id === documentId) return parentName;
+    const found = item.type === "folder" ? restoredDocumentFolderName(item.children ?? [], documentId, item.name) : undefined;
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** 복구 완료 문구. 돌아간 위치를 모르면(undefined) 위치를 빼고 말한다. */
+export function documentRestoredMessage(name: string, folderName: string | null | undefined): string {
+  const place = folderName === undefined ? "" : folderName === null ? "최상위로 " : `「${folderName}」 폴더로 `;
+  return `「${name}」 문서를 ${place}복구했습니다. 편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.`;
+}

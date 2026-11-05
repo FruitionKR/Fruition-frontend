@@ -1,6 +1,6 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
-import { ApiError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
+import { ApiError, DocumentLockedError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
   getSelectedWorkspaceId,
@@ -67,7 +67,7 @@ function providerList(value: unknown): string[] {
 export async function parseApiError(response: Response, fallback: string): Promise<ApiError> {
   try {
     const body = await response.json() as {
-      error?: { message?: string; code?: string } & UsageLimitDetail;
+      error?: { message?: string; code?: string; locked_document_name?: unknown } & UsageLimitDetail;
       detail?: string | { message?: string };
       oauth_providers?: unknown;
       providers?: unknown;
@@ -79,6 +79,10 @@ export async function parseApiError(response: Response, fallback: string): Promi
     // 같은 이메일의 계정이 있어 가입을 막은 409는 로그인 수단 목록을 함께 보존해 화면이 그 방법으로 로그인하도록 안내한다.
     if (code && (EMAIL_REGISTERED_ERROR_CODES as readonly string[]).includes(code)) {
       return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
+    }
+    if (response.status === 423) {
+      const title = body?.error?.locked_document_name;
+      return new DocumentLockedError(message, response.status, code, typeof title === "string" && title.trim() ? title.trim() : null);
     }
     return new ApiError(message, response.status, code);
   } catch {
@@ -245,6 +249,14 @@ export function getWorkspaceId(): string {
     throw new Error(ERROR_MESSAGES.workspaceRequired);
   }
   return selected;
+}
+
+/**
+ * 렌더 중에 읽는 workspace id. 없으면 빈 문자열이다. 로그아웃은 저장값을 먼저 지우고 화면 이동을 시작하므로,
+ * 이동이 끝나기 전 재렌더에서 던지면 앱 전체가 오류 화면이 되고 이동도 멈춘다. 빈 값이면 조회를 켜지 않는다.
+ */
+export function readWorkspaceId(): string {
+  return getSelectedWorkspaceId() ?? "";
 }
 
 /** /api/workspaces/{workspaceId}/... 경로 생성. 모든 segment를 encodeURIComponent 처리한다. */

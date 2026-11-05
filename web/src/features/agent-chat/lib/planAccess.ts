@@ -141,7 +141,7 @@ const NO_ACCESS_REASON = "대상 문서를 편집하거나 폴더에 넣거나 �
 /** 수락 전에 보여 줄 권한 안내. 막힌 작업이 없으면 null이다. unit은 세는 단위(폴더 정리 줄은 "항목")다. */
 export function planAccessMessage({ verdict, blockedCount, partlyBlockedCount = 0, unit = "작업" }: Pick<PlanAccess, "verdict" | "blockedCount"> & { partlyBlockedCount?: number; unit?: string }): string | null {
   if (verdict === "all_blocked") {
-    return `${NO_ACCESS_REASON} 수락해도 실행할 수 없어요. 문서 소유자나 워크스페이스 OWNER에게 권한을 요청해 주세요.`;
+    return `${NO_ACCESS_REASON} 수락해도 실행할 수 없어요. 워크스페이스 OWNER에게 권한을 요청해 주세요.`;
   }
   if (verdict === "some_blocked") {
     return [

@@ -3,8 +3,8 @@ import { createChatSession, fetchChatSessionMessages, fetchChatSessions } from "
 import { chatSessionTitle, isDefaultChatTitle } from "@/entities/chat/lib/sessionTitle";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
 import { useMe } from "@/entities/user/model/useMe";
-import { isTaskMessage } from "@/features/agent-chat/lib/taskThread";
-import { emptyPanelSessionState, findReusableEmptySession, panelSessionStorageKey, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
+import { classifySessionChannel } from "@/features/agent-chat/lib/taskThread";
+import { emptyPanelSessionState, findReusableEmptySession, panelSessionStorageKey, pickInitialSession, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage, isChatSessionLimitError } from "@/shared/lib/apiErrors";
 
@@ -45,14 +45,12 @@ export function usePanelSessions(view: ChatChannel) {
       await Promise.all(Array.from({ length: Math.min(4, catalog.length) }, async () => {
         while (scopeRef.current === scope && cursor < catalog.length) {
           const session = catalog[cursor++];
-          if (storedChannels[session.id] && !isDefaultChatTitle(session.title)) continue;
+          // 이전 통합 대화로 저장된 값은 분류 결과일 뿐이라 다시 판단한다(작업 세션을 잘못 분류해 저장한 브라우저를 되살린다).
+          const needsChannel = !storedChannels[session.id] || storedChannels[session.id] === "legacy";
+          if (!needsChannel && !isDefaultChatTitle(session.title)) continue;
           // 분류에 실패한 기록은 임의로 다른 탭에 배정하지 않고 목록 조회를 다시 시도한다.
           const { messages } = await fetchChatSessionMessages(session.id, workspaceId);
-          if (!storedChannels[session.id]) {
-            const work = messages.some(message => isTaskMessage(message));
-            const chat = messages.some(message => !isTaskMessage(message));
-            session.channel = work && chat ? "legacy" : work ? "work" : "chat";
-          }
+          if (needsChannel) session.channel = classifySessionChannel(messages);
           session.isEmpty = isDefaultChatTitle(session.title) && messages.length === 0;
           session.title = chatSessionTitle(session.title, messages);
         }
@@ -66,7 +64,7 @@ export function usePanelSessions(view: ChatChannel) {
           continue;
         }
         const selected = catalog.find(session => session.id === next.selected[channel] && (session.channel === channel || session.channel === "legacy"));
-        next.selected = { ...next.selected, [channel]: selected?.id ?? catalog.find(session => session.channel === channel)?.id ?? null };
+        next.selected = { ...next.selected, [channel]: selected?.id ?? pickInitialSession(catalog, channel)?.id ?? null };
       }
       commit(next);
       return catalog;

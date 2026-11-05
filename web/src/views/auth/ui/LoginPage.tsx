@@ -21,6 +21,7 @@ import {
   type OAuthLinkCallback,
   type OAuthLinkResult
 } from "@/entities/user";
+import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/auth/AuthControls";
@@ -89,6 +90,8 @@ function LoginPageContent() {
   // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
   // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
   const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken && !signupToken && !isAccountDeleted });
+
+  const formRef = useTypedFormValues({ email: setEmail, password: setPassword });
 
   useEffect(() => {
     if (isAlreadySignedIn) router.replace(takeAfterLoginPath());
@@ -237,7 +240,7 @@ function LoginPageContent() {
 
   return (
     <AuthScreen extra={<SocialLoginButtons disabled={isAccessCodeVisible && !isAccessCodeVerified} />} shellModifier="login" title="로그인">
-      <form className="auth-form" method="post" onSubmit={handleLogin}>
+      <form className="auth-form" method="post" onSubmit={handleLogin} ref={formRef}>
         <div className="auth-field-stack">
           {isAccessCodeVisible && !hasOAuthParams ? (
             <div className="auth-field-with-error">

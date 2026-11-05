@@ -7,6 +7,8 @@ registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
+const { DOCUMENT_PERMISSION_FORBIDDEN_MESSAGE, FOLDER_EDIT_FORBIDDEN_MESSAGE, FOLDER_PERMISSION_OWNER_ONLY_MESSAGE, FOLDER_WITH_ITEMS_DELETE_MESSAGE, FOLDER_WRITE_FORBIDDEN_MESSAGE } = await import("../src/entities/tree/lib/treePermission.ts");
+const { planBulkDelete } = await import("../src/widgets/workspace/lib/treeBulkSelection.ts");
 const { treeItemMenuAccess, treeContextMenuSections, treeMenuBlockedActions, TREE_MENU_LABELS } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
 
 const source = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
@@ -148,21 +150,61 @@ test("터치 기기에서만 파일·폴더 메뉴에 이동·여러 항목 선�
 
 test("쓸 수 없는 폴더의 메뉴는 넣는 항목만 막고, 쓸 수 있거나 모르는 폴더·최상위·파일은 그대로 둔다", () => {
   const denied = (folderId) => folderId === "f1";
-  assert.deepEqual([...treeMenuBlockedActions(folder, denied)], ["new-note", "new-folder", "upload"]);
-  assert.deepEqual([...treeMenuBlockedActions({ ...folder, id: "f2" }, denied)], []);
-  assert.deepEqual([...treeMenuBlockedActions(null, denied)], []);
-  assert.deepEqual([...treeMenuBlockedActions(note, denied)], []);
+  assert.deepEqual([...treeMenuBlockedActions(folder, denied).keys()], ["new-note", "new-folder", "upload", "rename", "delete"]);
+  assert.deepEqual([...treeMenuBlockedActions({ ...folder, id: "f2" }, denied).keys()], []);
+  assert.deepEqual([...treeMenuBlockedActions(null, denied).keys()], []);
+  assert.deepEqual([...treeMenuBlockedActions(note, denied).keys()], []);
 });
 
 test("막힌 메뉴 항목은 비활성으로 두고 이유를 메뉴 안에 글자로 보여 준다(터치에는 툴팁이 없다)", async () => {
   const menu = await source("widgets/document-sidebar/ui/ContextMenu.tsx");
   assert.match(menu, /disabled=\{blockedActions\.has\(action\)\}/);
-  assert.match(menu, /FOLDER_WRITE_FORBIDDEN_MESSAGE/);
+  assert.match(menu, /menu-blocked-reason/);
 });
 
 test("꺼낼 수 없는 항목의 터치 메뉴는 이동을 막고 여러 항목 선택은 둔다", () => {
   const denied = () => false;
-  assert.deepEqual([...treeMenuBlockedActions(note, denied, () => true)], ["move"]);
-  assert.deepEqual([...treeMenuBlockedActions(note, denied, () => false)], []);
-  assert.deepEqual([...treeMenuBlockedActions(note, denied)], [], "판정을 넘기지 않으면 막지 않는다");
+  assert.deepEqual([...treeMenuBlockedActions(note, denied, () => "이유")], [["move", "이유"]]);
+  assert.deepEqual([...treeMenuBlockedActions(note, denied, () => null).keys()], []);
+  assert.deepEqual([...treeMenuBlockedActions(note, denied).keys()], [], "판정을 넘기지 않으면 막지 않는다");
+});
+
+test("보기 폴더는 이름 변경·삭제를 막고 서버와 같은 이유를 준다", () => {
+  const blocked = treeMenuBlockedActions(folder, () => true, () => null, false);
+  assert.equal(blocked.get("rename"), FOLDER_EDIT_FORBIDDEN_MESSAGE);
+  assert.equal(blocked.get("delete"), FOLDER_EDIT_FORBIDDEN_MESSAGE);
+  assert.equal(blocked.get("new-note"), FOLDER_WRITE_FORBIDDEN_MESSAGE);
+});
+
+test("내용 있는 폴더 삭제와 폴더 권한 설정은 멤버에게 막고, OWNER와 역할을 모를 때는 열어 둔다", () => {
+  const filled = { ...folder, children: [note] };
+  const asMember = treeMenuBlockedActions(filled, () => false, () => null, false);
+  assert.equal(asMember.get("delete"), FOLDER_WITH_ITEMS_DELETE_MESSAGE);
+  assert.equal(asMember.get("permission"), FOLDER_PERMISSION_OWNER_ONLY_MESSAGE);
+  assert.equal(asMember.has("rename"), false);
+  assert.equal(treeMenuBlockedActions({ ...folder, children: [] }, () => false, () => null, false).has("delete"), false);
+  assert.deepEqual([...treeMenuBlockedActions(filled, () => false, () => null, true).keys()], []);
+  assert.deepEqual([...treeMenuBlockedActions(filled, () => false, () => null, null).keys()], []);
+});
+
+test("남의 문서 권한 설정은 서버가 삭제 불가로 알려 준 문서에서만 막는다", () => {
+  assert.equal(treeMenuBlockedActions({ ...note, canDelete: false }, () => false).get("permission"), DOCUMENT_PERMISSION_FORBIDDEN_MESSAGE);
+  assert.equal(treeMenuBlockedActions({ ...note, canDelete: true }, () => false).has("permission"), false);
+  assert.equal(treeMenuBlockedActions(note, () => false).has("permission"), false);
+});
+
+test("묶음 삭제는 폴더 삭제 규칙으로 건너뛴다", () => {
+  const projects = [{ id: "p", folderId: null, title: "문서", items: [
+    { id: "view", label: "보기", type: "folder", permission: "view", children: [] },
+    { id: "full", label: "내용", type: "folder", permission: null, children: [{ id: "x", label: "문서", type: "file", documentId: "x" }] },
+    { id: "empty", label: "빈 폴더", type: "folder", permission: null, children: [] }
+  ] }];
+  const plan = (owner) => planBulkDelete(projects, new Set(["view", "full", "empty"]), owner);
+  assert.deepEqual(plan(false).items.map((item) => item.id), ["empty"]);
+  assert.deepEqual(plan(false).skipped, [
+    { label: "보기", reason: FOLDER_EDIT_FORBIDDEN_MESSAGE },
+    { label: "내용", reason: FOLDER_WITH_ITEMS_DELETE_MESSAGE }
+  ]);
+  assert.equal(plan(true).items.length, 3);
+  assert.equal(plan(null).items.length, 3, "역할을 모르면 서버가 판단한다");
 });

@@ -28,6 +28,9 @@ export const STALLED_QUERY_COMPOSER_NOTICE = "응답을 받지 못한 질문이 
 const AGENT_RUN_PREFIX = "agent_";
 /** 채팅 질의 run ID 접두사. 질의 run ID는 AI task ID로도 그대로 쓰인다(ai/tasks/{id}). */
 const QUERY_RUN_PREFIX = "query_";
+/** 영구 삭제된 문서가 있어 일부만 되돌린 turn의 실패 코드(ai ROLLBACK_DOCUMENT_PURGED). */
+const ROLLBACK_DOCUMENT_PURGED = "rollback_document_purged";
+
 const TERMINAL_TURN_STATUSES = new Set(["completed", "failed", "cancelled", "rollback_failed"]);
 /** 취소가 받아들여진 turn 상태(취소 중·복구 중·취소됨·복구 실패). 취소 API 응답과 turn 조회 응답에 같이 쓴다. */
 export const TURN_CANCEL_STATUSES: ReadonlySet<string> = new Set(["cancel_requested", "rolling_back", "rollback_failed", "cancelled"]);
@@ -75,7 +78,7 @@ export function pendingQueryRuns(messages: readonly PendingCandidate[], now: num
 }
 
 /** turn·AI task 조회 결과. missing은 404(서버에 turn·task가 없음). */
-export type TurnCheckResult = { kind: "status"; status: string } | { kind: "missing" };
+export type TurnCheckResult = { kind: "status"; status: string; error?: string | null } | { kind: "missing" };
 /** stalled: 응답을 받지 못함, running: 아직 정상 진행, settled: 이미 끝남(목록을 다시 받으면 된다) */
 export type TurnCheckVerdict = "stalled" | "running" | "settled";
 
@@ -159,12 +162,12 @@ export type StalledTurnCancelResult = TurnCheckResult | { kind: "finished" } | {
  * 취소 요청을 서버가 받아들였는지(200 + 취소 계열 상태). 서버가 메시지를 cancelled로 닫기 전에 목록을 다시 받으면
  * 아직 pending으로 오므로, 화면은 이 turn을 "중단됨"이 아니라 "취소됨"으로 보여 준다.
  */
-export function isTurnCancelAccepted(result: StalledTurnCancelResult): result is { kind: "status"; status: string } {
+export function isTurnCancelAccepted(result: StalledTurnCancelResult): result is Extract<TurnCheckResult, { kind: "status" }> {
   return result.kind === "status" && TURN_CANCEL_STATUSES.has(result.status);
 }
 
-/** 서버가 취소를 받아들인 turn과 그때 받은 turn 상태(cancel_requested·rolling_back·cancelled·rollback_failed) */
-export type CancelAcceptedTurn = { turnId: string; status: string };
+/** 서버가 취소를 받아들인 turn과 그때 받은 turn 상태(cancel_requested·rolling_back·cancelled·rollback_failed)·실패 코드 */
+export type CancelAcceptedTurn = { turnId: string; status: string; error?: string | null };
 
 /** 닫기 취소 결과로 할 일. refresh: 세션 메시지를 다시 받는다, showResult: 이미 끝난 turn의 결과를 다시 받아 보여 준다. */
 export type StalledTurnCancelOutcome = { notice: string | null; refresh: boolean; showResult: boolean };
@@ -183,7 +186,7 @@ export function stalledTurnCancelOutcome(result: StalledTurnCancelResult): Stall
   }
   if (result.kind === "finished" || !TURN_CANCEL_STATUSES.has(result.status)) return { notice: null, refresh: true, showResult: true };
   if (result.status === "rollback_failed") {
-    return { notice: "작업을 닫았지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, showResult: false };
+    return { notice: result.error === ROLLBACK_DOCUMENT_PURGED ? TURN_ROLLBACK_PARTIAL_DETAIL : "작업을 닫았지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, showResult: false };
   }
   return { notice: null, refresh: true, showResult: false };
 }
@@ -209,7 +212,7 @@ export function activeTurnStopOutcome(result: StalledTurnCancelResult): ActiveTu
   }
   if (result.kind === "finished" || !TURN_CANCEL_STATUSES.has(result.status)) return { notice: null, refresh: false, release: false, resume: true };
   if (result.status === "rollback_failed") {
-    return { notice: "작업을 중지했지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, release: true, resume: false };
+    return { notice: result.error === ROLLBACK_DOCUMENT_PURGED ? TURN_ROLLBACK_PARTIAL_DETAIL : "작업을 중지했지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, release: true, resume: false };
   }
   return { notice: null, refresh: true, release: true, resume: false };
 }
@@ -217,15 +220,18 @@ export function activeTurnStopOutcome(result: StalledTurnCancelResult): ActiveTu
 /**
  * 취소를 받아들인 turn이 지금 어디까지 왔는지. 서버는 취소를 받으면 말풍선(메시지)을 바로 cancelled로 닫지만,
  * turn은 cancel_requested → rolling_back(작업이 바꾼 내용을 되돌리는 중)을 거쳐 cancelled·rollback_failed로 끝난다.
- * requested·rolling_back: 취소하는 중, cancelled: 취소됨, rollback_failed: 취소했지만 변경을 되돌리지 못함.
+ * requested·rolling_back: 취소하는 중, cancelled: 취소됨, rollback_failed: 취소했지만 변경을 되돌리지 못함,
+ * rollback_partial: 영구 삭제된 문서만 되돌리지 못하고 나머지는 되돌림(rollback_failed + rollback_document_purged). 다시 요청해도 같다.
  */
-export type TurnCancelState = "requested" | "rolling_back" | "cancelled" | "rollback_failed";
+export type TurnCancelState = "requested" | "rolling_back" | "cancelled" | "rollback_failed" | "rollback_partial";
 
 /** 취소 중인 turn을 이만큼만 다시 조회한다(조회 주기 × 횟수). 넘으면 "취소하는 중…"으로 두고 다음에 열 때 다시 확인한다. */
 export const TURN_CANCEL_POLL_LIMIT = 40;
 export const TURN_CANCELLING_LABEL = "취소하는 중…";
 export const TURN_ROLLBACK_FAILED_LABEL = "변경 복구 실패";
 export const TURN_ROLLBACK_FAILED_DETAIL = "취소했지만 변경을 되돌리지 못했어요. 문서 내용을 확인해 주세요.";
+export const TURN_ROLLBACK_PARTIAL_LABEL = "일부 되돌리지 못함";
+export const TURN_ROLLBACK_PARTIAL_DETAIL = "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요.";
 /** 취소하는 중인 작업 카드의 설명. 되돌리는 단계인지 알 수 있게 나눠 적는다. */
 export const TURN_CANCELLING_DETAIL: Record<"requested" | "rolling_back", string> = {
   requested: "작업을 멈추고 있어요.",
@@ -240,6 +246,7 @@ export function turnCancelState(result: TurnCheckResult | null | undefined): Tur
   if (!result) return null;
   if (result.kind === "missing") return "cancelled";
   if (result.status === "cancel_requested") return "requested";
+  if (result.status === "rollback_failed" && result.error === ROLLBACK_DOCUMENT_PURGED) return "rollback_partial";
   if (result.status === "rolling_back" || result.status === "rollback_failed") return result.status;
   return "cancelled";
 }
@@ -255,5 +262,7 @@ export function shouldPollTurnCancel(result: TurnCheckResult | null | undefined,
 
 /** 이 화면에서 취소하는 중이던 turn이 복구 실패로 끝났을 때만 알림 문구. 새로 고침 뒤 처음 받은 상태로는 알리지 않는다. */
 export function turnCancelSettledNotice(previous: TurnCancelState | null | undefined, next: TurnCancelState | null | undefined): string | null {
-  return isTurnCancelling(previous) && next === "rollback_failed" ? TURN_ROLLBACK_FAILED_DETAIL : null;
+  if (!isTurnCancelling(previous)) return null;
+  if (next === "rollback_partial") return TURN_ROLLBACK_PARTIAL_DETAIL;
+  return next === "rollback_failed" ? TURN_ROLLBACK_FAILED_DETAIL : null;
 }

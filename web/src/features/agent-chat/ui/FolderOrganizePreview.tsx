@@ -156,12 +156,12 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
             </div>
             {sortRows(rows, sortOrder).map((row) => {
               // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
-              const checked = isAwaiting ? !deselectedIds.has(row.id) : !row.excluded;
+              const checked = isAwaiting ? !row.isPurged && !deselectedIds.has(row.id) : !row.excluded && !row.isPurged;
               const blockedNote = rowBlockedNote(row.operationIds);
               return (
                 <div key={row.id} className={cx(styles.row, row.duplicateWarning && styles["is-duplicate"], !isAwaiting && row.excluded && styles["is-excluded"])} role="row">
                   <div className={styles.source} role="cell">
-                    <CheckBox checked={checked} label={`${row.originalName || row.newName} 선택`} disabled={!isAwaiting} onToggle={() => toggleRow(row.id)} />
+                    <CheckBox checked={checked} label={`${row.originalName || row.newName} 선택`} disabled={!isAwaiting || row.isPurged} onToggle={() => toggleRow(row.id)} />
                     <span className={styles["source-name"]} title={row.originalName}>{row.originalName || "새 문서"}</span>
                   </div>
                   <span className={styles.arrow} aria-hidden="true"><Image src={arrowIcon} alt="" /></span>
@@ -180,7 +180,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                     {blockedNote && <p className={styles["reason-note"]} title={blockedNote}>{blockedNote}</p>}
                   </div>
                   <div className={styles.change} role="cell">
-                    <span className={cx(styles.chip, row.failure && styles["is-failed"])}>{!isAwaiting && row.excluded ? "제외됨" : row.failure?.label ?? row.changeLabel}</span>
+                    <span className={cx(styles.chip, row.failure && styles["is-failed"])}>{row.isPurged ? "영구 삭제됨" : !isAwaiting && row.excluded ? "제외됨" : row.failure?.label ?? row.changeLabel}</span>
                   </div>
                 </div>
               );

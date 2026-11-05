@@ -21,6 +21,7 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
 import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
+import { buildServerMergeTransaction, rebaseLocalEdits, resolveEditorBodyUpdate } from "../model/serverMergeTransaction";
 import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
@@ -90,6 +91,7 @@ export function NoteEditor({
   onSaveStatusChange,
   onDetachedSaveComplete,
   onRegisterSave,
+  onRegisterUnsyncedInputCheck,
   onReadOnlyNoticeChange
 }: {
   documentId: string;
@@ -101,6 +103,8 @@ export function NoteEditor({
   onDetachedSaveComplete?: (result: DetachedNoteSaveResult) => void;
   /** 부모가 Cmd/Ctrl+S로 즉시 저장할 수 있게 저장 함수를 등록한다. */
   onRegisterSave?: (save: () => Promise<boolean>) => void;
+  /** 아직 저장 대기열에 오르지 않은 입력이 있는지 묻는 함수를 넘긴다. 편집기를 다시 만들어도 되는지 판단할 때 쓴다. */
+  onRegisterUnsyncedInputCheck?: (check: () => boolean) => void;
   onReadOnlyNoticeChange?: (documentId: string, message: string | null) => void;
 }) {
   // 저장 훅이 편집기 ref보다 먼저 만들어지므로 치환 콜백은 ref로 늦게 연결한다.
@@ -201,11 +205,13 @@ export function NoteEditor({
       view.dispatch(tr);
       // 편집기 plugin이 덧붙인 변경까지 반영된 본문을 반향으로 표시한다. 안 그러면 AI 저장 뒤 같은 본문을 사용자 편집으로 다시 저장하거나 "저장 안 됨"으로 남는다.
       programmaticBodyRef.current = ctx.get(serializerCtx)(view.state.doc);
+      // addToHistory가 false인 변경은 입력 알림이 오지 않으므로 기준 본문을 직접 맞춘다. 안 그러면 다음 입력까지 미반영 입력이 있는 것으로 보인다.
+      serializedBodyRef.current = programmaticBodyRef.current;
     });
   }, []);
 
   /**
-   * 서버가 다른 곳의 저장과 합친 본문을 편집기에 넣는다. 달라진 구간만 바꿔 캐럿·선택은 ProseMirror 매핑으로 따라가고,
+   * 서버가 다른 곳의 저장과 합친 본문을 편집기에 넣는다. 달라진 구간만 바꿔 캐럿·선택은 있던 줄에 남고,
    * 바뀌지 않은 블록(이미지·표 등)은 다시 그리지 않는다. 서버 상태와 같으므로 다시 저장하지 않고 undo 히스토리에서도 뺀다.
    */
   const mergeEditorMarkdown = useCallback((nextMarkdown: string) => {
@@ -218,24 +224,31 @@ export function NoteEditor({
       const view = ctx.get(editorViewCtx);
       const nextDoc = ctx.get(parserCtx)(nextMarkdown);
       if (!nextDoc) return;
-      const nextBody = ctx.get(serializerCtx)(nextDoc);
+      const serializer = ctx.get(serializerCtx);
+      const nextBody = serializer(nextDoc);
       const { doc } = view.state;
-      const start = doc.content.findDiffStart(nextDoc.content);
-      const end = doc.content.findDiffEnd(nextDoc.content);
+      // 입력 알림은 지연된다. 저장을 보낸 뒤 친 글자는 서버 본문에 없으니 병합으로 지우지 않고 옮겨 놓아 다시 저장한다.
+      const sentDoc = ctx.get(parserCtx)(bodyRef.current);
+      const target = sentDoc && serializer(sentDoc) !== serializer(doc) ? rebaseLocalEdits(sentDoc, doc, nextDoc) : nextDoc;
+      const hasLocalEdits = target !== nextDoc;
       bodyRef.current = nextBody;
-      if (start === null || !end) return;
-      // 반복되는 내용에서는 끝 비교가 시작보다 앞설 수 있어 겹친 만큼 뒤로 민다.
-      const overlap = start - Math.min(end.a, end.b);
-      const endA = overlap > 0 ? end.a + overlap : end.a;
-      const endB = overlap > 0 ? end.b + overlap : end.b;
-      const tr = view.state.tr.replace(start, endA, nextDoc.slice(start, endB));
-      tr.setMeta("addToHistory", false);
-      tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
-      view.dispatch(tr);
+      const tr = buildServerMergeTransaction(view.state, target);
+      if (!tr.docChanged && !hasLocalEdits) {
+        serializedBodyRef.current = serializer(doc);
+        return;
+      }
+      if (tr.docChanged) {
+        tr.setMeta("addToHistory", false);
+        tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
+        view.dispatch(tr);
+      }
       // 편집기 plugin이 덧붙인 변경(끝 빈 문단 등)까지 반영된 본문을 반향으로 표시해 다시 저장하지 않는다.
-      const appliedBody = ctx.get(serializerCtx)(view.state.doc);
+      const appliedBody = serializer(view.state.doc);
       bodyRef.current = appliedBody;
       programmaticBodyRef.current = appliedBody;
+      // 입력 알림이 오지 않는 변경이라 기준 본문을 직접 맞춘다(replaceEditorMarkdown과 같다).
+      serializedBodyRef.current = appliedBody;
+      if (hasLocalEdits) queueSaveRef.current(appliedBody);
     });
   }, [replaceEditorMarkdown]);
 
@@ -264,6 +277,10 @@ export function NoteEditor({
       return view.composing || ctx.get(serializerCtx)(view.state.doc) !== serializedBodyRef.current;
     });
   }, []);
+
+  useEffect(() => {
+    onRegisterUnsyncedInputCheck?.(hasUnsyncedEditorInput);
+  }, [hasUnsyncedEditorInput, onRegisterUnsyncedInputCheck]);
 
   const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
     if (bodyRef.current !== expectedMarkdown || hasUnsyncedEditorInput()) return false;
@@ -609,14 +626,14 @@ export function NoteEditor({
         }
       }
     }).on((listener) => {
-      listener.markdownUpdated((_ctx, nextBody, previousBody) => {
-        if (!isDisposed) serializedBodyRef.current = nextBody;
-        if (isDisposed || nextBody === previousBody) return;
-        if (programmaticBodyRef.current === nextBody) {
-          programmaticBodyRef.current = null;
-          return;
-        }
+      listener.markdownUpdated((ctx, notifiedBody, previousBody) => {
+        if (isDisposed) return;
+        const latestBody = ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc);
+        serializedBodyRef.current = latestBody;
+        if (notifiedBody === previousBody) return;
+        const nextBody = resolveEditorBodyUpdate(latestBody, programmaticBodyRef.current);
         programmaticBodyRef.current = null;
+        if (nextBody === null) return;
         bodyRef.current = nextBody;
           publishMarkdownEditContextRef.current(nextBody, 0, 0, true);
         queueSaveRef.current(nextBody);

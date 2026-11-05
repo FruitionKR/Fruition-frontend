@@ -36,7 +36,8 @@ export function DocumentSidebar({
   canStartDrag,
   isDropDenied,
   isFolderWriteDenied,
-  isItemMoveOutDenied,
+  itemMoveDeniedReason,
+  isWorkspaceOwner,
   onDragDenied,
   fileDropTarget,
   editing,
@@ -104,7 +105,9 @@ export function DocumentSidebar({
   isDropDenied: (target: DropTarget) => boolean;
   isFolderWriteDenied: (folderId: string) => boolean;
   /** 지금 폴더에서 꺼낼 권한이 없으면 true. 터치 메뉴의 이동을 막는다. */
-  isItemMoveOutDenied: (itemId: string) => boolean;
+  itemMoveDeniedReason: (itemId: string) => string | null;
+  /** 역할을 아직 모르면 null */
+  isWorkspaceOwner: boolean | null;
   onDragDenied: (itemId: string | null) => void;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
@@ -347,7 +350,7 @@ export function DocumentSidebar({
           contextMenu={contextMenu}
           focusNewNote={contextMenu.source === "add-button"}
           sections={contextMenuSections}
-          blockedActions={treeMenuBlockedActions(contextMenuItem, isFolderWriteDenied, isItemMoveOutDenied)}
+          blockedActions={treeMenuBlockedActions(contextMenuItem, isFolderWriteDenied, itemMoveDeniedReason, isWorkspaceOwner)}
           convertTarget={convertContextTarget}
           selectedCount={selectedContextCount}
           onDeleteSelected={onDeleteSelectedItems}

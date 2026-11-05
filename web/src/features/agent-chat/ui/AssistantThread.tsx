@@ -1,6 +1,6 @@
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { Loader2, Square, Volume2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { StatusList } from "./StatusList";
@@ -10,8 +10,8 @@ import { messageStatusTitle } from "../lib/statusSteps";
 import { STALLED_QUERY_DETAIL, STALLED_QUERY_RELEASED_DETAIL, STALLED_TURN_TITLE } from "../lib/stalledTurns";
 import { resolveChatTurnPresentation } from "../lib/agentTurn";
 import { formatAnswerMarkdown } from "../lib/answerMarkdown";
-import { buildCitationRankMap, buildCitationReferenceByRank } from "../lib/citationRanks";
-import { buildSourceDocumentCards, sourceTitle } from "../lib/relatedPageCards";
+import { useCitationLinks } from "../model/useCitationLinks";
+import { buildSourceDocumentCards } from "../lib/relatedPageCards";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { SpeechPlaybackState } from "../model/useSpeechPlayback";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
@@ -95,25 +95,7 @@ export function AssistantThread({
   const canListen = Boolean(onToggleSpeech) && message.status === "completed";
   const speechStatus = speechPlayback?.messageId === message.id ? speechPlayback.status : null;
   const resultCards = buildSourceDocumentCards(message, nodes);
-  const citationRankMap = useMemo(() => buildCitationRankMap(message.references), [message.references]);
-  // 본문의 숫자 괄호는 모두 이 rank일 때만 citation이 된다(숫자 배열 오인 방지).
-  const citableRanks = useMemo(
-    () => new Set(message.references.flatMap((item) => item.rank && Number.isInteger(item.rank) && item.rank >= 1 ? [item.rank] : [])),
-    [message.references]
-  );
-  const citationReferenceByRank = useMemo(
-    () => buildCitationReferenceByRank(message.references, citationRankMap),
-    [message.references, citationRankMap]
-  );
-  // MarkdownViewer가 memo라 콜백 identity를 고정해야 폴링 리렌더마다 본문을 다시 그리지 않는다.
-  const canOpenCitation = useCallback((rank: number) => citationReferenceByRank.has(rank), [citationReferenceByRank]);
-  const openCitation = useCallback((rank: number) => {
-    const reference = citationReferenceByRank.get(rank);
-    if (!reference?.source_document_id || !reference.source_block_ids?.length) return;
-    if (message.run_id) captureAnalytics("citation_opened", { query_id: message.run_id, rank, citation_type: "internal", document_id: reference.source_document_id });
-    const highlights = [...new Set(reference.source_block_ids)].map((blockId) => ({ block_id: blockId, rank }));
-    onOpenSourceBlocks(reference.source_document_id, sourceTitle(nodes, reference.source_document_id), highlights);
-  }, [citationReferenceByRank, nodes, onOpenSourceBlocks, message.run_id]);
+  const citationLinks = useCitationLinks({ references: message.references, runId: message.run_id, nodes, onOpenSourceBlocks });
 
   return (
     <div className={cx(styles["agent-thread"], documentCommandAction && styles["is-document-command"])}>
@@ -165,10 +147,7 @@ export function AssistantThread({
           {(!isSearchAnswer || isAnswerExpanded) && <MarkdownViewer
             markdown={formatAnswerMarkdown(message.content)}
             linkPolicy="inert-external"
-            onCitationClick={openCitation}
-            canClickCitation={canOpenCitation}
-            citationRankMap={citationRankMap}
-            citableRanks={citableRanks}
+            {...citationLinks}
           />}
           {canListen && (
             <div className={styles["answer-actions"]}>

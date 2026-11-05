@@ -11,6 +11,7 @@ registerHooks({
 });
 
 const {
+  appliedTaskNote,
   autoAppliedTaskNote,
   isContentEditAutoApproved,
   resolveTurnAutoApply
@@ -31,6 +32,7 @@ const editInput = (overrides = {}) => ({
   isDocumentWritable: true,
   proposalCount: 1,
   isScopeExpanded: false,
+  isDraftFolderWriteDenied: false,
   draft: null,
   ...overrides
 });
@@ -96,6 +98,24 @@ test("만들 수 없는 초안은 기존 화면으로 둔다", () => {
   for (const overrides of manual) assert.equal(resolveTurnAutoApply(createInput(overrides)), null, JSON.stringify(overrides));
 });
 
+test("쓸 수 없는 폴더로 온 초안은 서버에 보내지 않고 수동 화면으로 둔다", () => {
+  assert.equal(resolveTurnAutoApply(createInput({ isDraftFolderWriteDenied: true })), null);
+  // 권한을 모르면 막지 않고 지금처럼 서버가 판단한다(isFolderWriteDenied가 false).
+  assert.equal(resolveTurnAutoApply(createInput({ isDraftFolderWriteDenied: false })), "create");
+});
+
+test("초안 폴더의 쓰기 권한은 열린 문서에 적용하는 편집안을 막지 않는다", () => {
+  assert.equal(resolveTurnAutoApply(editInput({ isDraftFolderWriteDenied: true })), "edit");
+});
+
+test("자동 판단은 초안을 만들 폴더의 쓰기 차단을 받아 쓴다", () => {
+  const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
+  assert.match(source, /isDraftFolderWriteDenied: draftFolderId !== null && isFolderWriteDenied\(draftFolderId\)/);
+  assert.match(source, /const draftFolderId = resolveGeneratedDocumentFolderId\(agentTurnResponse\)/);
+  const panel = readFileSync(new URL("../src/widgets/agent-panel/ui/AgentPanel.tsx", import.meta.url), "utf8");
+  assert.match(panel.slice(panel.indexOf("useAgentTurn({"), panel.indexOf("const { agentTurnRequest, agentTurnResponse")), /isFolderWriteDenied,/);
+});
+
 test("편집·초안이 아닌 응답은 자동 처리하지 않는다", () => {
   for (const action of ["folder_organize", "workspace_workflow", "skill_authoring", "skill_draft_proposal", "clarify", "chat_answer"]) {
     assert.equal(resolveTurnAutoApply(editInput({ action })), null, action);
@@ -107,6 +127,24 @@ test("자동 처리한 작업에는 되돌리는 방법을 알린다", () => {
   assert.match(autoAppliedTaskNote("markdown_edit"), /로그 화면/);
   assert.match(autoAppliedTaskNote("markdown_edit"), /그 뒤에 고친 내용/);
   assert.match(autoAppliedTaskNote("markdown_create"), /휴지통/);
+});
+
+test("서버 기록으로만 저장을 확인한 편집은 자동 승인이라 단정하지 않고 되돌리는 방법을 알린다", () => {
+  // 새 브라우저: 이 화면의 기록(localStorage)은 없고 문서 버전에 적용 ID가 있다.
+  const note = appliedTaskNote({ action: "markdown_edit", isAutoApplied: false, isAppliedHere: false, isServerApplied: true });
+  assert.match(note, /로그 화면/);
+  assert.match(note, /그 뒤에 고친 내용/);
+  assert.doesNotMatch(note, /자동 승인/);
+  assert.doesNotMatch(note, /아직/);
+});
+
+test("완료 행 안내는 저장 사실을 아는 경우에만 붙인다", () => {
+  const base = { action: "markdown_edit", isAutoApplied: false, isAppliedHere: false, isServerApplied: false };
+  assert.equal(appliedTaskNote(base), null);
+  // 이 화면에서 직접 수락한 편집은 지금처럼 안내하지 않는다. 서버 기록이 뒤따라와도 같다.
+  assert.equal(appliedTaskNote({ ...base, isAppliedHere: true, isServerApplied: true }), null);
+  assert.equal(appliedTaskNote({ ...base, isAutoApplied: true, isAppliedHere: true }), autoAppliedTaskNote("markdown_edit"));
+  assert.equal(appliedTaskNote({ ...base, action: "markdown_create", isAutoApplied: true, isAppliedHere: true }), autoAppliedTaskNote("markdown_create"));
 });
 
 test("자동 처리 기록은 새로 고침 뒤에도 적용으로 남는다", () => {

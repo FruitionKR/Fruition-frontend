@@ -6,7 +6,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildCitationRankMap, buildCitationReferenceByRank } from "../src/features/agent-chat/lib/citationRanks.ts";
+import { buildCitationRankMap, buildCitationReferenceByRank, citationTarget } from "../src/features/agent-chat/lib/citationRanks.ts";
 import * as classNames from "../src/shared/lib/classNames.ts";
 import * as segments from "../src/shared/lib/markdown/markdownSegments.ts";
 import * as closedMath from "../src/shared/lib/markdown/remarkClosedMath.ts";
@@ -75,9 +75,19 @@ test("같은 번호의 서로 다른 근거는 목록 첫 항목을, 추가 문�
   assert.deepEqual([...multiMap].map(([rank, item]) => [rank, item.rank]), [[1, 1], [2, 2]]);
 });
 
-test("블록 없는 reference는 연결하지 않는다", () => {
-  const references = [ref(1, []), ref(2, ["B1"], null)];
-  assert.equal(buildCitationReferenceByRank(references, buildCitationRankMap(references)).size, 0);
+test("블록이 없어도 문서 id가 있으면 그 문서를 열고(첨부한 편집 문서), 문서 id가 없으면 연결하지 않는다", () => {
+  const references = [ref(1, []), ref(2, ["B1"], null), ref(3, [], null), { id: 4, rank: 4, reference_type: "evidence", source_refs: [{ source_document_id: "doc9", source_block_id: "B7" }] }];
+  const byRank = buildCitationReferenceByRank(references, buildCitationRankMap(references));
+  assert.deepEqual([...byRank.keys()], [1, 4]);
+  assert.deepEqual(citationTarget(byRank.get(1), 1), { documentId: "doc1", highlights: [] });
+  assert.deepEqual(citationTarget(byRank.get(4), 4), { documentId: "doc9", highlights: [] });
+  assert.deepEqual(citationTarget(ref(5, ["B1", "B1", "B2"]), 5), { documentId: "doc1", highlights: [{ block_id: "B1", rank: 5 }, { block_id: "B2", rank: 5 }] });
+  assert.equal(citationTarget(ref(6, [], null), 6), null);
+});
+
+test("같은 번호에 블록 있는 근거와 없는 근거가 있으면 블록 있는 근거를 연다", () => {
+  const references = [{ ...ref(1, []), id: "plain" }, { ...ref(1, ["B1"]), id: "blocks" }];
+  assert.equal(buildCitationReferenceByRank(references, buildCitationRankMap(references)).get(1).id, "blocks");
 });
 
 function render(markdown, props = {}) {

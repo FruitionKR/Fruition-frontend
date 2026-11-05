@@ -13,6 +13,8 @@ type SignupDraft = {
   expiresAt: number;
   verificationRequestId?: string;
   verificationRequestError?: string;
+  /** 인증번호 요청이 시도 제한에 걸렸을 때 다시 요청할 수 있는 시각(ms). */
+  verificationRetryAt?: number;
 };
 
 type PasswordResetDraft = {

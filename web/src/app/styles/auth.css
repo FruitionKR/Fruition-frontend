@@ -268,6 +268,7 @@
 }
 
 .auth-screen--login .auth-submit:disabled {
+  opacity: 0.6;
   cursor: default;
 }
 

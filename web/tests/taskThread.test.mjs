@@ -16,8 +16,12 @@ const {
   describeTaskRequest,
   groupTaskEntries,
   isAnswerTask,
+  isApplyCheckUnresolved,
+  isAttachmentTargetClarification,
   withReadOnlyDocumentClarification,
   isServerAppliableTask,
+  classifySessionChannel,
+  editResultNotice,
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
@@ -85,8 +89,8 @@ test("세션 메시지를 문답 단위로 채팅·작업으로 나누고 작업
   const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
   assert.deepEqual(chatMessages.map((item) => item.id), ["u1", "a1"]);
   assert.deepEqual(taskItems, [
-    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", clarifyReason: null, readOnlyDocumentId: null, request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
-    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
+    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", clarifyReason: null, readOnlyDocumentId: null, request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", references: [], messageStatus: "completed", createdAt: null },
+    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, request: "고쳐줘", answer: "어느 문서를 고칠까요?", references: [], messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
   ]);
 });
 
@@ -113,7 +117,7 @@ test("문서 편집·되물음·실패 작업의 상태를 정한다", () => {
   assert.equal(resolveTaskStatus({ ...base, action: "markdown_edit", hasActivePreview: true }).group, "approval");
   assert.deepEqual(resolveTaskStatus({ ...base, action: "markdown_edit", isApplied: true }), { group: "done", label: "저장됨", tone: "primary", struck: false });
   assert.deepEqual(resolveTaskStatus({ ...base, action: "markdown_edit", isRejected: true }), { group: "done", label: "거절됨", tone: "danger", struck: true });
-  assert.equal(resolveTaskStatus({ ...base, action: "markdown_create" }).label, "제안 완료");
+  assert.equal(resolveTaskStatus({ ...base, action: "markdown_create", isProposalHeld: true }).label, "제안 완료");
   assert.equal(resolveTaskStatus({ ...base, action: "clarify" }).group, "clarify");
   assert.equal(resolveTaskStatus({ ...base, action: "reject" }).group, "failed");
   assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "pending" }).group, "running");
@@ -166,6 +170,10 @@ test("폴더 내용 조회(folder_lookup)는 완료 묶음의 답변으로 두�
   assert.equal(isAnswerTask({ ...taskItems[0], answer: "" }), false);
   assert.equal(isAnswerTask({ ...taskItems[0], messageStatus: "failed" }), false);
   assert.equal(isAnswerTask({ ...taskItems[0], action: "clarify" }), false);
+  // 첨부 문서를 근거로 한 답(chat_answer·conversation_reply)도 한 줄로 접지 않고 답을 보여 준다.
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "chat_answer" }), true);
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "conversation_reply" }), true);
+  assert.equal(isAnswerTask({ ...taskItems[0], action: "markdown_edit" }), false);
   assert.equal(taskHeadingKind("folder_lookup", "회의록 폴더에 뭐가 있어?"), "폴더 내용 확인");
 });
 
@@ -210,7 +218,7 @@ test("되물음 뒤에 다른 작업을 보냈으면 선택 필요에 남기지 
   assert.equal(resolveTaskStatus({ ...base, hasLaterTask: false }).label, "답변 필요");
   assert.deepEqual(resolveTaskStatus({ ...base, hasLaterTask: true }), { group: "done", label: "지난 질문", tone: "muted", struck: false });
   // 되물음이 아닌 작업은 뒤 작업과 상관없이 같은 상태다.
-  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", hasLaterTask: true }).label, "제안 완료");
+  assert.equal(resolveTaskStatus({ action: "markdown_edit", messageStatus: "completed", hasLaterTask: true, isProposalHeld: true }).label, "제안 완료");
 });
 
 test("서버 버전 기록의 operation_id가 turn의 apply_operation_id와 같으면 적용(저장됨)으로 본다", () => {
@@ -272,7 +280,7 @@ test("resolveTaskRequest는 스킬 요청이면 AI가 다시 쓴 요약 대신 �
   assert.deepEqual(resolveTaskRequest("", "  "), { request: "요청 내용 없음", summary: null });
 });
 
-test("초안을 취소한 편집·새 문서 작업은 '제안 완료' 대신 '취소됨'으로 보인다", () => {
+test("초안을 취소한 편집·새 문서 작업은 '수락하지 않음' 대신 '취소됨'으로 보인다", () => {
   const cancelled = resolveTaskStatus({ action: "markdown_create", messageStatus: "completed", isCancelled: true });
   assert.equal(cancelled.label, "취소됨");
   assert.equal(cancelled.group, "done");
@@ -389,6 +397,9 @@ test("취소한 turn은 되돌리는 동안 '진행 중' 묶음의 '취소하는
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rolling_back" }), cancelling);
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "cancelled" }), cancelled);
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_failed" }), rollbackFailed);
+  // 영구 삭제 문서 때문에 일부만 되돌린 끝은 복구 실패와 다르게 적는다.
+  assert.equal(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_partial" }).label, "일부 되돌리지 못함");
+  assert.equal(resolveTaskStatus({ action: null, messageStatus: "cancelled", cancelState: "rollback_partial" }).group, "failed");
   // 목록이 아직 pending이어도 취소 응답 상태로 같게 보인다.
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, cancelState: "rolling_back" }), cancelling);
   assert.deepEqual(resolveTaskStatus({ action: null, messageStatus: "pending", isCancelAccepted: true, cancelState: "rollback_failed" }), rollbackFailed);
@@ -419,6 +430,27 @@ test("보기 권한 문서를 연 채 보낸 요청에 AI가 문서를 열라고
   assert.equal(result[1], otherQuestion);
   assert.equal(result[2], answered);
   assert.equal(openDocumentQuestion.answer, OPEN_DOCUMENT_QUESTION);
+});
+
+test("첨부한 문서를 고치려 할 때의 되묻기는 같은 이유 코드여도 보기 권한 안내로 바꾸지 않는다", () => {
+  const asked = {
+    key: "a",
+    turnId: "turn_a",
+    action: "clarify",
+    clarifyReason: "markdown_document_required",
+    answer: "첨부한 문서는 참고 자료로만 읽어요. 첨부한 문서를 고치려면 그 문서를 연 뒤 다시 요청해 주세요."
+  };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("작업 항목은 답변의 근거(references)를 함께 가진다", () => {
+  const references = [{ id: 1, rank: 1, reference_type: "evidence", source_document_id: "doc1", source_block_ids: [] }];
+  const { taskItems: items } = splitChatAndTaskMessages([
+    message({ id: "q", role: "user", content: "요약", pair_id: "p1", run_id: "agent_r", action: undefined }),
+    message({ id: "a", role: "assistant", content: "답 [1]", pair_id: "p1", run_id: "agent_r", action: "chat_answer", references })
+  ], new Set(["agent_r"]));
+  assert.deepEqual(items[0].references, references);
 });
 
 test("문서 없이 받은 되묻기는 뒤에 보기 권한 문서를 열어도 그대로 둔다", () => {
@@ -560,8 +592,144 @@ test("요청 시점의 보기 권한 문서를 onAccepted에서 turn과 묶는�
   assert.match(source, /const requestReadOnlyDocumentId = readOnlyDocumentIdRef\.current;[\s\S]*onAccepted: \(requestId\) => \{[\s\S]*rememberReadOnlyRequest\(requestId, requestReadOnlyDocumentId\)/);
 });
 
+test("첨부 중 고칠 문서를 못 정해 되물은 이번 turn만 첨부를 되돌릴 대상이다", () => {
+  const item = { turnId: "turn_1", action: "clarify", clarifyReason: "attachment_target_required" };
+  assert.equal(isAttachmentTargetClarification([item], "turn_1"), true);
+  assert.equal(isAttachmentTargetClarification([item], "turn_2"), false, "지난 되묻기는 아니다");
+  assert.equal(isAttachmentTargetClarification([item], null), false);
+  assert.equal(isAttachmentTargetClarification([{ ...item, clarifyReason: "markdown_document_required" }], "turn_1"), false);
+  assert.equal(isAttachmentTargetClarification([{ ...item, action: "markdown_edit" }], "turn_1"), false);
+});
+
 test("일부 실패 묶음은 실패 묶음과 따로 '일부 실패'로 보인다", () => {
   const entry = (group) => ({ status: { group, label: "", tone: "danger", struck: false } });
   const sections = groupTaskEntries([entry("failed"), entry("partial_failed")]);
   assert.deepEqual(sections.map((section) => section.label), ["일부 실패", "실패"]);
+});
+
+const classifyPair = (id, assistant) => [
+  { id: `${id}-u`, role: "user", content: "요청", status: "completed", pair_id: id },
+  { id: `${id}-a`, role: "assistant", content: "답", status: "completed", pair_id: id, ...assistant }
+];
+
+test("세션 분류: 사용자 메시지에 run_id·action이 없어도 짝이 되는 답변으로 작업 세션을 알아본다", () => {
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "markdown_edit" })), "work");
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "folder_organize" })), "work");
+  // 진행 중·실패로 끝나 action이 없는 turn도 작업이다.
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", status: "pending" })), "work");
+});
+
+test("세션 분류: 작업 탭에서 받은 첨부 근거 답변(chat_answer)만 있어도 작업 세션이다", () => {
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "chat_answer" })), "work");
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "conversation_reply" })), "work");
+  assert.equal(classifySessionChannel([
+    ...classifyPair("p1", { run_id: "agent_1", action: "markdown_edit" }),
+    ...classifyPair("p2", { run_id: "agent_2", action: "chat_answer" })
+  ]), "work");
+});
+
+test("세션 분류: 질의 문답은 채팅, 질의와 agent turn이 섞인 옛 기록만 이전 통합 대화다", () => {
+  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "query_1" })), "chat");
+  assert.equal(classifySessionChannel(classifyPair("p1", {})), "chat");
+  assert.equal(classifySessionChannel([]), "chat");
+  assert.equal(classifySessionChannel([
+    ...classifyPair("p1", { run_id: "query_1" }),
+    ...classifyPair("p2", { run_id: "agent_2", action: "markdown_edit" })
+  ]), "legacy");
+  assert.equal(classifySessionChannel([
+    ...classifyPair("p1", { run_id: "query_1" }),
+    ...classifyPair("p2", { run_id: "agent_2", action: "chat_answer" })
+  ]), "legacy");
+});
+
+test("세션 분류: 짝을 알 수 없는 사용자 메시지는 근거로 삼지 않는다", () => {
+  const orphan = { id: "u", role: "user", content: "옛 질문", status: "completed" };
+  assert.equal(classifySessionChannel([orphan]), "chat");
+  assert.equal(classifySessionChannel([orphan, { id: "a", role: "assistant", content: "답", status: "completed", run_id: "agent_1", action: "markdown_edit" }]), "work");
+  // 답변이 아직 없는 짝도 마찬가지다.
+  assert.equal(classifySessionChannel([{ ...orphan, pair_id: "p1" }]), "chat");
+});
+
+test("편집 결과 메시지에서 첨부를 다 읽지 못했다는 안내만 꺼낸다", () => {
+  const notice = "첨부한 문서가 길어 앞부분만 읽었어요. 뒷부분은 결과에 반영되지 않았어요.";
+  const both = `첨부한 문서 중 1개는 너무 길어 읽지 못했어요. 이 문서를 근거로 쓰려면 위키에 올린 뒤 다시 요청해 주세요. ${notice}`;
+  const message = (middle) => `열린 문서를 기준으로 편집안을 작성했어요.\n\n요약\n\n${middle}\n\n아직 문서에 적용하지 않았어요.`;
+  assert.equal(editResultNotice(message(notice)), notice);
+  assert.equal(editResultNotice(message(both)), both);
+  // 안내가 없거나 요약이 우연히 '첨부한 문서'로 시작해도 꺼내지 않는다.
+  assert.equal(editResultNotice("편집안을 작성했어요.\n\n첨부한 문서를 근거로 고쳤어요.\n\n아직 문서에 적용하지 않았어요."), null);
+  assert.equal(editResultNotice(null), null);
+  assert.equal(editResultNotice(undefined), null);
+});
+
+test("결정하지 않은 제안은 내려 둔 동안 검토 대기로, 화면에서 없어지면 수락하지 않음으로 보인다", () => {
+  const base = { action: "markdown_edit", messageStatus: "completed" };
+  // 응답이 아직 화면에 있으면(자동 적용 처리 중 등) 결정 전이라 단정하지 않는다.
+  assert.equal(resolveTaskStatus({ ...base, isProposalHeld: true }).label, "제안 완료");
+  assert.deepEqual(resolveTaskStatus({ ...base, isProposalSetAside: true }), { group: "approval", label: "검토 대기", tone: "primary", struck: false });
+  // 재생성으로 바꿨거나 새로 고침으로 사라진 제안
+  assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "수락하지 않음", tone: "muted", struck: false });
+  // 결과가 정해졌으면 그 결과가 먼저다.
+  assert.equal(resolveTaskStatus({ ...base, isProposalSetAside: true, isApplied: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
+  assert.equal(resolveTaskStatus({ ...base, isCancelled: true }).label, "취소됨");
+});
+
+test("새 문서 초안은 수락 여부를 서버로 확인할 수 없어 기록이 없으면 수락하지 않음으로 단정하지 않는다", () => {
+  const base = { action: "markdown_create", messageStatus: "completed" };
+  assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "제안 완료", tone: "muted", struck: false });
+  // 같은 브라우저 기록과 내려 둔 제안은 그대로 보인다.
+  assert.equal(resolveTaskStatus({ ...base, isApplied: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
+  assert.equal(resolveTaskStatus({ ...base, isCancelled: true }).label, "취소됨");
+  assert.deepEqual(resolveTaskStatus({ ...base, isProposalSetAside: true }), { group: "approval", label: "검토 대기", tone: "primary", struck: false });
+});
+
+test("서버 기록을 끝까지 확인한 편집 작업만 저장 여부가 정해진 것으로 본다", () => {
+  const settled = { isPending: false, isError: false };
+  const turn = { ...settled, data: { documentId: "doc_a", applyOperationId: "apply_1", isPurged: false } };
+  // 답을 받았고 버전 목록도 받았다. 버전에 없으면 수락하지 않은 것이다.
+  assert.equal(isApplyCheckUnresolved(turn, settled), false);
+  // 조회 중
+  assert.equal(isApplyCheckUnresolved({ isPending: true, isError: false }, undefined), true);
+  assert.equal(isApplyCheckUnresolved(turn, { isPending: true, isError: false }), true);
+  // 조회 실패(retry:false라 isPending이 바로 false가 된다)도 저장 여부를 모른다.
+  assert.equal(isApplyCheckUnresolved({ isPending: false, isError: true }, undefined), true);
+  assert.equal(isApplyCheckUnresolved(turn, { isPending: false, isError: true }), true);
+  // 적용 ID나 대상 문서가 없으면 버전과 맞춰 볼 수 없다.
+  assert.equal(isApplyCheckUnresolved({ ...settled, data: { documentId: "doc_a", applyOperationId: null, isPurged: false } }, undefined), true);
+  assert.equal(isApplyCheckUnresolved({ ...settled, data: { documentId: null, applyOperationId: "apply_1", isPurged: false } }, undefined), true);
+  // 영구 삭제된 문서는 버전 목록을 부르지 않고 그 상태로 보인다.
+  assert.equal(isApplyCheckUnresolved({ ...settled, data: { documentId: "doc_a", applyOperationId: "apply_1", isPurged: true } }, undefined), false);
+});
+
+test("내려 둔 제안은 다시 열면 빠지고, 그때 열려 있던 제안이 대신 들어간다", async () => {
+  const { setAsideProposal, takeSetAsideProposal } = await import("../src/features/agent-chat/lib/setAsideProposals.ts");
+  const proposal = (id) => ({ request: { message: id }, response: { requestId: id } });
+  const first = setAsideProposal(new Map(), proposal("a"));
+  assert.deepEqual([...first.keys()], ["a"]);
+  assert.equal(setAsideProposal(first, null), first);
+  const { taken, rest } = takeSetAsideProposal(setAsideProposal(first, proposal("b")), "a", proposal("c"));
+  assert.equal(taken.response.requestId, "a");
+  assert.deepEqual([...rest.keys()], ["b", "c"]);
+  assert.equal(takeSetAsideProposal(first, "없음", null).taken, null);
+  assert.equal(first.size, 1, "원본은 바꾸지 않는다");
+});
+
+test("문서가 영구 삭제돼 본문이 지워진 끝난 편집 턴은 그 이유로 보인다", () => {
+  const base = { action: "markdown_edit", messageStatus: "completed", isDocumentPurged: true };
+  assert.deepEqual(resolveTaskStatus(base), { group: "done", label: "문서 영구 삭제됨", tone: "muted", struck: false });
+  // 이 화면에서 저장·거절한 기록이 있으면 그 결과가 먼저다.
+  assert.equal(resolveTaskStatus({ ...base, isApplied: true }).label, "저장됨");
+  assert.equal(resolveTaskStatus({ ...base, isRejected: true }).label, "거절됨");
+});
+
+test("끝난 편집 턴의 본문이 지워졌거나 document_purged로 닫혔으면 영구 삭제로 본다", async () => {
+  const { isPurgedEditTurn } = await import("../src/features/agent-chat/lib/agentTurn.ts");
+  const edit = { action: "markdown_edit" };
+  assert.equal(isPurgedEditTurn({ status: "completed", result: edit }), true);
+  assert.equal(isPurgedEditTurn({ status: "failed", error: "document_purged" }), true);
+  assert.equal(isPurgedEditTurn({ status: "completed", result: { ...edit, edit: { summary: "요약" } } }), false);
+  assert.equal(isPurgedEditTurn({ status: "completed", result: { action: "clarify" } }), false);
+  assert.equal(isPurgedEditTurn({ status: "pending" }), false);
 });

@@ -42,6 +42,7 @@ export const NOTIFICATION_SETTINGS = {
   taskCancelFailed: notificationSetting("채팅·AI", "AI 작업 취소 확인 실패", ["작업 취소 확인 실패"]),
   taskStopFailed: notificationSetting("채팅·AI", "AI 작업 중지 실패", ["작업 중지 실패"]),
   taskAlreadyFinished: notificationSetting("채팅·AI", "이미 끝난 AI 작업 안내", ["이미 끝난 작업"]),
+  openDocumentDropped: notificationSetting("채팅·AI", "읽을 수 없는 현재 문서 제외 안내", ["현재 문서를 빼고 보냈어요"]),
   meetingDeleted: notificationSetting("채팅·AI", "회의 삭제 완료", ["회의 삭제"]),
   noteSaveFailed: notificationSetting("편집기", "노트 저장 실패", ["노트 저장 실패"]),
   saveMerged: notificationSetting("편집기", "동시 편집 저장 안내", ["지금 내용으로 저장했어요"]),
