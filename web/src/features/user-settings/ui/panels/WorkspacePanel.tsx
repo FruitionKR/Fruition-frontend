@@ -93,7 +93,7 @@ export function WorkspacePanel({
       await updateWorkspaceDescribePdfFigures(workspaceId, !describePdfFigures);
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setDescribeFiguresError(getErrorMessage(error, "PDF 그림 설명 설정을 변경하지 못했습니다."));
+      setDescribeFiguresError(getErrorMessage(error, "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다."));
     } finally {
       setIsDescribeFiguresSaving(false);
     }
@@ -232,20 +232,17 @@ export function WorkspacePanel({
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>PDF 그림 설명 (외부 AI 사용)</SettingsSectionHeader>
+        <SettingsSectionHeader>PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>PDF를 변환할 때 그림에 설명 붙이기</strong>
-            <small>
-              PDF 속 그림을 외부 AI(현재 워크스페이스 AI 모델)로 보내 대체 텍스트와 설명을 붙입니다.
-              그림당 약 2원(추정)이 들고, 기본은 꺼져 있습니다. 켠 뒤 시작한 변환부터 적용됩니다.
-            </small>
+            <strong>PDF 속 그림을 AI가 글로 설명하기</strong>
+            <small>기본적으로는 이미지만 가져오나, 차트나 도표의 내용을 문서에 글로 남겨 AI 검색과 답변에 쓸 수 있게 합니다.</small>
             {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
             {describeFiguresError && <small className={styles["row-error"]} role="alert">{describeFiguresError}</small>}
           </div>
           <Switch
             checked={describePdfFigures}
-            label="PDF를 변환할 때 그림에 설명 붙이기"
+            label="PDF 속 그림을 AI가 글로 설명하기"
             disabled={!isOwner || !workspace}
             onClick={() => void toggleDescribePdfFigures()}
           />

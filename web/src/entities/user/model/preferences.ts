@@ -42,6 +42,7 @@ export const NOTIFICATION_SETTINGS = {
   taskCancelFailed: notificationSetting("채팅·AI", "AI 작업 취소 확인 실패", ["작업 취소 확인 실패"]),
   taskStopFailed: notificationSetting("채팅·AI", "AI 작업 중지 실패", ["작업 중지 실패"]),
   taskAlreadyFinished: notificationSetting("채팅·AI", "이미 끝난 AI 작업 안내", ["이미 끝난 작업"]),
+  openDocumentDropped: notificationSetting("채팅·AI", "읽을 수 없는 현재 문서 제외 안내", ["현재 문서를 빼고 보냈어요"]),
   meetingDeleted: notificationSetting("채팅·AI", "회의 삭제 완료", ["회의 삭제"]),
   noteSaveFailed: notificationSetting("편집기", "노트 저장 실패", ["노트 저장 실패"]),
   saveMerged: notificationSetting("편집기", "동시 편집 저장 안내", ["지금 내용으로 저장했어요"]),
@@ -111,6 +112,10 @@ export type UserPreferences = {
   aiModel: { provider: string; model: string } | null;
   // 채팅 질의 시 웹 검색 허용 여부(allow_web_search).
   webSearch: boolean;
+  // AI가 만든 회의록을 확인 없이 새 문서로 저장할지 여부
+  autoSaveMeetingNotes: boolean;
+  // 'AI로 작성·보강' 초안이 안전 검토를 통과하면 확인 없이 스킬을 게시할지 여부
+  autoPublishSkillDrafts: boolean;
   // 편집한 내용을 자동으로 저장할지 여부
   autoSave: boolean;
   editor: {
@@ -140,6 +145,8 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   documentFont: "readable-sans",
   aiModel: null,
   webSearch: false,
+  autoSaveMeetingNotes: false,
+  autoPublishSkillDrafts: false,
   autoSave: true,
   editor: {
     defaultMode: "last",
@@ -211,6 +218,8 @@ export function normalizeUserPreferences(value: unknown): UserPreferences {
     ),
     aiModel: aiModelValue(value.aiModel),
     webSearch: booleanValue(value.webSearch, DEFAULT_USER_PREFERENCES.webSearch),
+    autoSaveMeetingNotes: booleanValue(value.autoSaveMeetingNotes, DEFAULT_USER_PREFERENCES.autoSaveMeetingNotes),
+    autoPublishSkillDrafts: booleanValue(value.autoPublishSkillDrafts, DEFAULT_USER_PREFERENCES.autoPublishSkillDrafts),
     autoSave: booleanValue(value.autoSave, DEFAULT_USER_PREFERENCES.autoSave),
     editor: {
       defaultMode: enumValue(

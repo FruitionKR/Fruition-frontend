@@ -36,6 +36,34 @@ export function selectPanelSession(state: PanelSessionState, view: ChatChannel, 
   return { channels: { ...state.channels, [id]: channel }, selected: { ...state.selected, [view]: id } };
 }
 
+/**
+ * 메시지가 없는 세션은 어느 탭에든 쓸 수 있어 새로 만들지 않고 재사용한다. 탭 구분은 브라우저 저장소에만 있어
+ * 새 브라우저에서는 빈 세션이 모두 채팅으로 분류되므로, 재사용하지 않으면 작업 탭을 열 때마다 빈 세션이 쌓인다.
+ * 다른 탭이 보고 있는 세션은 뺀다.
+ */
+export function findReusableEmptySession<T extends { id: string; isEmpty: boolean }>(
+  sessions: readonly T[],
+  selected: PanelSessionState["selected"],
+  view: ChatChannel
+): T | null {
+  const otherTabSession = selected[view === "chat" ? "work" : "chat"];
+  return sessions.find((session) => session.isEmpty && session.id !== otherTabSession) ?? null;
+}
+
+/**
+ * 저장된 선택이 없을 때(새 브라우저 등) 탭에 먼저 열 세션. 목록은 최근 순이라 다른 기기에서 만든 빈 세션이 맨 앞에 올 수 있다.
+ * 내용이 있는 세션을 먼저 고른다.
+ */
+export function pickInitialSession<T extends { channel: string; isEmpty: boolean }>(sessions: readonly T[], view: ChatChannel): T | null {
+  const inView = sessions.filter((session) => session.channel === view);
+  return inView.find((session) => !session.isEmpty) ?? inView[0] ?? null;
+}
+
+/** 지금 키의 초안 값. 이 키로 입력한 적이 없으면 저장소에서 읽은 값이라 복원으로 본다. */
+export function resolvePanelDraft(draft: { key: string | null; value: string }, key: string | null, read: (key: string | null) => string): { value: string; isRestored: boolean } {
+  return draft.key === key ? { value: draft.value, isRestored: false } : { value: read(key), isRestored: true };
+}
+
 export function panelDraftStorageKey(scope: string, view: ChatChannel, sessionId: string | null): string {
   return `${scope}:draft:${view}:${sessionId ?? "empty"}`;
 }

@@ -33,6 +33,24 @@ export class ApiError extends Error {
   }
 }
 
+/** 워크스페이스의 채팅 세션 한도를 넘긴 409. 서버 문구에는 내부 워크스페이스 ID가 들어 있어 그대로 보여 주지 않는다. */
+export const CHAT_SESSION_LIMIT_MESSAGE = "대화는 워크스페이스마다 10개까지 둘 수 있어요. 대화 목록의 ⋮ 메뉴에서 안 쓰는 대화를 지우면 새 대화를 시작할 수 있어요.";
+
+export function isChatSessionLimitError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "CHAT_SESSION_LIMIT_EXCEEDED";
+}
+
+/** 다른 사람이 문서를 편집 중이라 거절한 423. documentTitle은 서버가 알려 준 잠긴 문서 표시 이름(error.locked_document_name)이고 없으면 null이다. */
+export class DocumentLockedError extends ApiError {
+  readonly documentTitle: string | null;
+
+  constructor(message: string, status: number, code: string | undefined, documentTitle: string | null) {
+    super(message, status, code);
+    this.name = "DocumentLockedError";
+    this.documentTitle = documentTitle;
+  }
+}
+
 /** 같은 이메일의 계정이 이미 있어 가입이 거절된 409의 서버 code(access #31). */
 export const EMAIL_REGISTERED_ERROR_CODES = ["EMAIL_REGISTERED_WITH_OAUTH", "EMAIL_REGISTERED"] as const;
 
@@ -200,6 +218,7 @@ export function connectionErrorMessage(error: unknown): string | null {
  * Error가 아니면 fallback 문구를 반환합니다.
  */
 export function getErrorMessage(error: unknown, fallback: string): string {
+  if (isChatSessionLimitError(error)) return CHAT_SESSION_LIMIT_MESSAGE;
   if (isInsufficientCreditError(error)) return INSUFFICIENT_CREDIT_MESSAGE;
   if (isWorkspacePermissionRequiredError(error)) return workspacePermissionRequiredMessage(error);
   if (isErrorMessage(error, "agent_not_configured")) {

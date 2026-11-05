@@ -1,6 +1,7 @@
 import type { GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
 import { getGraphPalette, hexToRgb, mixHexColor, type GraphPalette } from "./graphColors";
 import type { NodeEntryFrame } from "./graphEnter";
+import { isSmallGraphViewport, pickVisibleLabels } from "./graphLabelVisibility";
 import rawNodeIcon from "@/shared/assets/svg/graph/raw-document-node.svg";
 
 const RAW_NODE_ICON_SRC = rawNodeIcon.src;
@@ -46,7 +47,8 @@ export function drawGraphFrame({
   nodeSize,
   isRawSourceLink,
   getNodeProgress,
-  getNodeEntry
+  getNodeEntry,
+  getLinkOpacity
 }: {
   canvas: HTMLCanvasElement;
   nodes: GraphNode[];
@@ -61,6 +63,8 @@ export function drawGraphFrame({
   getNodeProgress?: (nodeId: string) => number | undefined;
   /** 첫 렌더 뒤 추가돼 등장 중인 노드의 이번 프레임 모습. null이면 평소대로 그린다. */
   getNodeEntry?: (nodeId: string) => NodeEntryFrame | null;
+  /** 전체 등장 연출 중인 링크의 불투명도 배수(0~1). 없으면 1이다. */
+  getLinkOpacity?: (link: GraphLink) => number;
 }) {
   ensureCanvasSize(canvas);
   const pixelRatio = window.devicePixelRatio || 1;
@@ -90,6 +94,8 @@ export function drawGraphFrame({
 
   for (const link of links) {
     if (!visibleNodeIds.has(link.from) || !visibleNodeIds.has(link.to)) continue;
+    const linkOpacity = getLinkOpacity?.(link) ?? 1;
+    if (linkOpacity <= 0) continue;
     const from = getNodePosition(link.from);
     const to = getNodePosition(link.to);
     const fromScreen = graphToCanvas(from, canvas);
@@ -111,7 +117,7 @@ export function drawGraphFrame({
     const lineEnd = growsTowardFrom ? toScreen : lerpPosition(fromScreen, toScreen, linkGrowth);
 
     context.save();
-    context.globalAlpha = fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount;
+    context.globalAlpha = (fadedAlpha + (baseAlpha - fadedAlpha) * focusAmount) * linkOpacity;
     context.beginPath();
     context.moveTo(lineStart.x, lineStart.y);
     context.lineTo(lineEnd.x, lineEnd.y);
@@ -132,7 +138,7 @@ export function drawGraphFrame({
     context.stroke();
 
     if (linkHoverAmount > 0.01) {
-      context.globalAlpha = 0.98 * linkHoverAmount;
+      context.globalAlpha = 0.98 * linkHoverAmount * linkOpacity;
       context.setLineDash([]);
       context.lineWidth = 2.6;
       context.strokeStyle = palette.hoverNode;
@@ -148,6 +154,17 @@ export function drawGraphFrame({
 
   // 새 노드 광채 그라데이션은 반지름별로 원점 기준 하나만 만들어 이번 프레임 안에서 다시 쓴다.
   const glowGradients = new Map<number, CanvasGradient>();
+  // 작은 화면에서는 고정 크기 라벨이 서로·다른 노드와 겹치므로 겹치지 않는 것만 그린다. 누른 노드의 라벨은 항상 먼저 놓는다.
+  const shownNodes = nodes.slice(0, drawableNodeCount).filter((node) => (getNodeEntry?.(node.id)?.opacity ?? 1) > 0);
+  const visibleLabelIds = isSmallGraphViewport({ width: cssWidth, height: cssHeight })
+    ? pickVisibleLabels(
+      shownNodes.map((node) => {
+        const { x, y } = graphToCanvas(getNodePosition(node.id), canvas);
+        return measureNodeLabel(context, node, x, y, nodeHoverAmounts[node.id] ?? 0);
+      }),
+      shownNodes.map((node) => ({ id: node.id, ...graphToCanvas(getNodePosition(node.id), canvas), radius: nodeSize(node) / 2 }))
+    )
+    : null;
   for (let index = 0; index < drawableNodeCount; index += 1) {
     const node = nodes[index];
     const position = getNodePosition(node.id);
@@ -168,9 +185,7 @@ export function drawGraphFrame({
     context.globalAlpha = nodeAlpha;
     if (entry && entry.scale !== 1) {
       // 노드 중심을 기준으로 작게 시작해 살짝 넘쳤다가 원래 크기로 돌아온다(라벨·마커 포함).
-      context.translate(screenPosition.x, screenPosition.y);
-      context.scale(entry.scale, entry.scale);
-      context.translate(-screenPosition.x, -screenPosition.y);
+      scaleAround(context, screenPosition, entry.scale);
     }
 
     const progress = nodeProgress(node, getNodeProgress);
@@ -217,11 +232,30 @@ export function drawGraphFrame({
       context.fill();
     }
 
+    context.restore();
+  }
+
+  // 라벨은 모든 노드를 그린 뒤에 그린다. 함께 그리면 뒤에 그린 노드가 앞 노드의 라벨을 가린다.
+  for (let index = 0; index < drawableNodeCount; index += 1) {
+    const node = nodes[index];
+    const entry = getNodeEntry?.(node.id) ?? null;
+    if ((entry?.opacity ?? 1) <= 0 || nodeProgress(node, getNodeProgress) !== null) continue;
+    if (visibleLabelIds && !visibleLabelIds.has(node.id)) continue;
+    const screenPosition = graphToCanvas(getNodePosition(node.id), canvas);
+    context.save();
     // 새 노드의 라벨은 노드가 핀 뒤에 따라 나타난다.
-    context.globalAlpha = focusAlpha * (entry?.label ?? 1);
+    context.globalAlpha = (0.16 + 0.84 * focusAmountFromHover(linkedHoverAmounts.get(node.id) ?? 0)) * (entry?.label ?? 1);
+    if (entry && entry.scale !== 1) scaleAround(context, screenPosition, entry.scale);
     drawNodeLabel(context, palette, node, screenPosition.x, screenPosition.y);
     context.restore();
   }
+}
+
+/** 노드 중심을 기준으로 키운다. 노드와 라벨이 함께 커진다. */
+function scaleAround(context: CanvasRenderingContext2D, center: NodePosition, scale: number) {
+  context.translate(center.x, center.y);
+  context.scale(scale, scale);
+  context.translate(-center.x, -center.y);
 }
 
 function lerpPosition(from: NodePosition, to: NodePosition, amount: number): NodePosition {
@@ -324,13 +358,28 @@ function computeLinkedHoverAmounts({
 // 라벨 서체 (Figma: Pretendard Medium — source 14px, concept 12px, raw 10px)
 const LABEL_FONT_FAMILY = "\"Fruition Chat Pretendard\", Pretendard, Inter, sans-serif";
 
+function labelStyle(node: GraphNode) {
+  if (node.kind === "source") return { offset: 24, size: 14, priority: 2 };
+  if (node.kind === "raw") return { offset: 15, size: 10, priority: 0 };
+  return { offset: 20, size: 12, priority: 1 };
+}
+
+function labelFont(size: number) {
+  return `500 ${size}px ${LABEL_FONT_FAMILY}`;
+}
+
+function measureNodeLabel(context: CanvasRenderingContext2D, node: GraphNode, x: number, y: number, hoverAmount: number) {
+  const { offset, size, priority } = labelStyle(node);
+  context.font = labelFont(size);
+  const halfWidth = context.measureText(node.label).width / 2;
+  const labelY = y + offset;
+  return { id: node.id, left: x - halfWidth, right: x + halfWidth, top: labelY - size / 2, bottom: labelY + size / 2, priority: priority + (hoverAmount > 0 ? 3 : 0), isPinned: hoverAmount > 0 };
+}
+
 function drawNodeLabel(context: CanvasRenderingContext2D, palette: GraphPalette, node: GraphNode, x: number, y: number) {
-  const labelY = node.kind === "source" ? y + 24 : node.kind === "raw" ? y + 15 : y + 20;
-  context.font = node.kind === "source"
-    ? `500 14px ${LABEL_FONT_FAMILY}`
-    : node.kind === "raw"
-      ? `500 10px ${LABEL_FONT_FAMILY}`
-      : `500 12px ${LABEL_FONT_FAMILY}`;
+  const { offset, size } = labelStyle(node);
+  const labelY = y + offset;
+  context.font = labelFont(size);
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillStyle = node.kind === "source"

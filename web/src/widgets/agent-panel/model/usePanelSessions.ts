@@ -3,12 +3,12 @@ import { createChatSession, fetchChatSessionMessages, fetchChatSessions } from "
 import { chatSessionTitle, isDefaultChatTitle } from "@/entities/chat/lib/sessionTitle";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
 import { useMe } from "@/entities/user/model/useMe";
-import { isTaskMessage } from "@/features/agent-chat/lib/taskThread";
-import { emptyPanelSessionState, panelSessionStorageKey, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
+import { classifySessionChannel } from "@/features/agent-chat/lib/taskThread";
+import { emptyPanelSessionState, findReusableEmptySession, panelSessionStorageKey, pickInitialSession, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { getErrorMessage, isChatSessionLimitError } from "@/shared/lib/apiErrors";
 
-type CatalogSession = ChatSessionResponse & { channel: SessionChannel };
+type CatalogSession = ChatSessionResponse & { channel: SessionChannel; isEmpty: boolean };
 
 /** 본문은 서버의 별도 세션에, 탭별 마지막 선택은 사용자·워크스페이스별 브라우저 저장소에 둔다. */
 export function usePanelSessions(view: ChatChannel) {
@@ -23,6 +23,7 @@ export function usePanelSessions(view: ChatChannel) {
   const [snapshot, setSnapshot] = useState<{ scope: string | null; state: PanelSessionState }>({ scope: null, state: emptyPanelSessionState() });
   const [readyScope, setReadyScope] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [claimFailures, setClaimFailures] = useState<Partial<Record<ChatChannel, unknown>>>({});
 
   const commit = useCallback((next: PanelSessionState) => {
     if (!scope || scopeRef.current !== scope) return;
@@ -39,19 +40,18 @@ export function usePanelSessions(view: ChatChannel) {
       const response = await fetchChatSessions();
       const sessions = response.sessions ?? [];
       const storedChannels = { ...stateRef.current.channels };
-      const catalog: CatalogSession[] = sessions.map(session => ({ ...session, channel: storedChannels[session.id] ?? "chat" }));
+      const catalog: CatalogSession[] = sessions.map(session => ({ ...session, channel: storedChannels[session.id] ?? "chat", isEmpty: false }));
       let cursor = 0;
       await Promise.all(Array.from({ length: Math.min(4, catalog.length) }, async () => {
         while (scopeRef.current === scope && cursor < catalog.length) {
           const session = catalog[cursor++];
-          if (storedChannels[session.id] && !isDefaultChatTitle(session.title)) continue;
+          // 이전 통합 대화로 저장된 값은 분류 결과일 뿐이라 다시 판단한다(작업 세션을 잘못 분류해 저장한 브라우저를 되살린다).
+          const needsChannel = !storedChannels[session.id] || storedChannels[session.id] === "legacy";
+          if (!needsChannel && !isDefaultChatTitle(session.title)) continue;
           // 분류에 실패한 기록은 임의로 다른 탭에 배정하지 않고 목록 조회를 다시 시도한다.
           const { messages } = await fetchChatSessionMessages(session.id, workspaceId);
-          if (!storedChannels[session.id]) {
-            const work = messages.some(message => isTaskMessage(message));
-            const chat = messages.some(message => !isTaskMessage(message));
-            session.channel = work && chat ? "legacy" : work ? "work" : "chat";
-          }
+          if (needsChannel) session.channel = classifySessionChannel(messages);
+          session.isEmpty = isDefaultChatTitle(session.title) && messages.length === 0;
           session.title = chatSessionTitle(session.title, messages);
         }
       }));
@@ -64,7 +64,7 @@ export function usePanelSessions(view: ChatChannel) {
           continue;
         }
         const selected = catalog.find(session => session.id === next.selected[channel] && (session.channel === channel || session.channel === "legacy"));
-        next.selected = { ...next.selected, [channel]: selected?.id ?? catalog.find(session => session.channel === channel)?.id ?? null };
+        next.selected = { ...next.selected, [channel]: selected?.id ?? pickInitialSession(catalog, channel)?.id ?? null };
       }
       commit(next);
       return catalog;
@@ -78,6 +78,7 @@ export function usePanelSessions(view: ChatChannel) {
     let cancelled = false;
     setReadyScope(null);
     setError(null);
+    setClaimFailures({});
     creating.current = {};
     if (!scope) return;
     try { stateRef.current = parsePanelSessionState(window.localStorage.getItem(scope)); }
@@ -92,32 +93,44 @@ export function usePanelSessions(view: ChatChannel) {
     commit(selectPanelSession(stateRef.current, channel, id));
   }, [commit]);
 
-  const ensureWritable = useCallback(async (channel: ChatChannel) => {
+  /** 탭에 쓸 세션을 정한다. 빈 세션이 있으면 재사용하고, 없을 때만 새로 만든다. 동시 호출은 한 요청으로 묶는다. */
+  const claimSession = useCallback(async (channel: ChatChannel) => {
     if (!scope || readyScope !== scope) throw new Error("대화를 준비 중입니다. 잠시 후 다시 시도해 주세요.");
-    const selected = stateRef.current.selected[channel];
-    if (selected && stateRef.current.channels[selected] === channel) return selected;
-    // 이전 통합 대화는 열람할 수 있지만 새 요청은 항상 분리된 새 세션에 쓴다.
     let pending = creating.current[channel];
     if (!pending) {
-      pending = createChatSession();
+      pending = (async () => {
+        const catalog = await refresh();
+        const session = findReusableEmptySession(catalog, stateRef.current.selected, channel) ?? await createChatSession();
+        if (scopeRef.current !== scope) throw new Error("워크스페이스가 변경됐습니다.");
+        commit(selectPanelSession(stateRef.current, channel, session.id, channel));
+        return session;
+      })();
       creating.current[channel] = pending;
     }
     try {
-      const created = await pending;
-      if (scopeRef.current !== scope) throw new Error("워크스페이스가 변경됐습니다.");
-      commit(selectPanelSession(stateRef.current, channel, created.id, channel));
-      return created.id;
+      const session = await pending;
+      setClaimFailures(({ [channel]: _resolved, ...rest }) => rest);
+      return session;
     } finally {
       if (creating.current[channel] === pending) delete creating.current[channel];
     }
-  }, [commit, readyScope, scope]);
+  }, [commit, readyScope, refresh, scope]);
+
+  const ensureWritable = useCallback(async (channel: ChatChannel) => {
+    const selected = stateRef.current.selected[channel];
+    // 이전 통합 대화는 열람할 수 있지만 새 요청은 항상 분리된 새 세션에 쓴다.
+    if (selected && stateRef.current.channels[selected] === channel) return selected;
+    return (await claimSession(channel)).id;
+  }, [claimSession]);
 
   const state = snapshot.scope === scope ? snapshot.state : emptyPanelSessionState();
   const ready = scope !== null && readyScope === scope;
+  const selectedInView = state.selected[view];
+  // 세션 목록을 다시 받아도 선택이 그대로면 다시 시도하지 않는다. 한도에 닿은 채로 요청을 반복하지 않게 하며, 탭을 오가면 다시 시도한다.
   useEffect(() => {
-    if (!ready || state.selected[view]) return;
-    void ensureWritable(view).catch(reason => setError(getErrorMessage(reason, "대화를 만들지 못했습니다.")));
-  }, [ensureWritable, ready, state.selected, view]);
+    if (!ready || selectedInView) return;
+    void ensureWritable(view).catch(reason => setClaimFailures(current => ({ ...current, [view]: reason })));
+  }, [ensureWritable, ready, selectedInView, view]);
 
   const loadSessions = useCallback(async () => {
     const catalog = await refresh();
@@ -128,5 +141,9 @@ export function usePanelSessions(view: ChatChannel) {
     return { sessions: catalog.filter(session => session.channel === view || session.channel === "legacy") };
   }, [refresh, scope, view]);
 
-  return { scope, ready, error, selected: state.selected, channels: state.channels, activeChannel: state.channels[state.selected[view] ?? ""], select, ensureWritable, loadSessions };
+  const claimFailure = claimFailures[view];
+  const isAtSessionLimit = isChatSessionLimitError(claimFailure);
+  const claimError = claimFailure && !isAtSessionLimit ? getErrorMessage(claimFailure, "대화를 만들지 못했습니다.") : null;
+
+  return { scope, ready, error: error ?? claimError, isAtSessionLimit, selected: state.selected, channels: state.channels, activeChannel: state.channels[state.selected[view] ?? ""], select, ensureWritable, startNewSession: claimSession, loadSessions };
 }

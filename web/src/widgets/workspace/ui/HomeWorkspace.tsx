@@ -9,6 +9,7 @@ import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
+import { MoveDialog } from "@/widgets/document-sidebar/ui/MoveDialog";
 import { PermissionDialog } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { Graph } from "@/widgets/graph/ui/Graph";
 import { SkillRunCoach, SkillsView } from "@/widgets/skills-view";
@@ -25,6 +26,7 @@ import { MergeConfirmModal } from "@/shared/ui/modal/MergeConfirmModal";
 import { SourcePreviewPanel } from "@/widgets/source-preview/ui/SourcePreviewPanel";
 import { cx } from "@/shared/lib/classNames";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
+import { useKeyboardInset } from "@/shared/hooks/useKeyboardInset";
 import { useBackendData } from "../model/useBackendData";
 import { useDocumentUpload } from "@/features/document-upload/model/useDocumentUpload";
 import { useNotionImport } from "@/features/notion-import/model/useNotionImport";
@@ -54,27 +56,28 @@ import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfir
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { createMarkdownDocument } from "@/entities/document";
-import { invalidateStorageUsage } from "@/entities/workspace";
+import { invalidateStorageUsage, useWorkspaceRole } from "@/entities/workspace";
 import { invalidateActiveRestoreOperations } from "@/features/wiki-ingest/model/useActiveRestoreOperations";
 import { getDocumentConversionView } from "@/entities/document/lib/documentConversion";
-import { buildGeneratedMarkdownDocument } from "@/features/agent-chat/lib/agentTurn";
+import { buildGeneratedMarkdownDocument, createInDraftPlacement, resolveDraftPlacement } from "@/features/agent-chat/lib/agentTurn";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { InlineEditReviewState } from "@/features/agent-chat/ui/InlineEditReview";
-import { createClientId, findTreeItem } from "@/entities/tree";
+import { createClientId, findItemLocation, findTreeItem } from "@/entities/tree";
 import { getMarkdownDocumentTitle } from "@/entities/document/lib/noteMarkdown";
-import { findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
+import { findDocumentFolderId, findFirstSelectableNote, findParentLabel, findTreeItemInProjects } from "../lib/treeLookup";
 import { useOperationLogFeed } from "../model/useOperationLogFeed";
 import { useWorkspaceNavigation } from "../model/useWorkspaceNavigation";
 import { useWorkspacePanels } from "../model/useWorkspacePanels";
 import { useWorkspaceDocumentTitle } from "../model/useWorkspaceDocumentTitle";
+import { listMoveDestinations } from "../lib/treeMoveRules";
 import { useGraphWikiActions } from "../model/useGraphWikiActions";
 import { useSkillRun, type SkillRunRequest } from "../model/useSkillRun";
 import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
 import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
 import { usePendingDocumentOpen } from "../model/usePendingDocumentOpen";
 import { AGENT_PANEL_LIMITS, SIDEBAR_MAX_WIDTH, SIDEBAR_RAIL_WIDTH } from "../lib/panelResize";
-import { canShowAgentPanel } from "../lib/agentPanelVisibility";
+import { canShowAgentPanel, noticeStackPlacement } from "../lib/agentPanelVisibility";
 import type { SourceBlockHighlight } from "@/entities/document";
 import type { GraphNode } from "@/entities/wiki";
 import styles from "./HomeWorkspace.module.css";
@@ -112,6 +115,13 @@ export function HomeWorkspace() {
   const isSkillSheetShown = activeView === "skills" && isSkillSheetOpen;
   const panels = useWorkspacePanels({ activeView, locationKey, isSkillSheetOpen: isSkillSheetShown });
   const { sidebarLayout, agentPanelLayout, isCompactLayout, isAgentPanelShown } = panels;
+  useKeyboardInset();
+  // 좁은 화면에서 패널은 문서를 덮으므로 편집 제안을 문서에서 보려면 패널을 닫아야 한다. 한 번 연 뒤에는 숨긴 채 마운트해
+  // 진행 중인 답변·제안(문서 본문의 수락·거절)을 잃지 않게 한다.
+  const [isCompactAgentPanelKept, setIsCompactAgentPanelKept] = useState(false);
+  useEffect(() => {
+    setIsCompactAgentPanelKept((kept) => isCompactLayout && (kept || isAgentPanelShown));
+  }, [isCompactLayout, isAgentPanelShown]);
   // 시트를 열면 채팅 패널도 연다. 좁은 화면에서는 패널이 시트를 덮으므로 열지 않고 시트 안에 테스트 실행을 둔다.
   const openHomeAgentPanel = panels.openHomeAgentPanel;
   useEffect(() => {
@@ -123,7 +133,8 @@ export function HomeWorkspace() {
   const [hasOpenMeeting, setHasOpenMeeting] = useState(false);
   // useProjectTree가 useBackendData보다 먼저 생성되므로 refreshBackendData를 ref로 주입한다.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
-  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted });
+  const { role, isOwner } = useWorkspaceRole();
+  const projectTree = useProjectTree({ refreshRef, onDeleted: handleTreeDeleted, isWorkspaceOwner: role === null ? null : isOwner });
   // 뷰 전환으로 사이드바 트리가 다시 마운트돼도 폴더 펼침을 유지한다.
   const treeOpen = useTreeOpenState();
   const {
@@ -186,6 +197,7 @@ export function HomeWorkspace() {
     previousGraphView.current = isGraphView;
   }, [isGraphView]);
   const isSettingsView = activeView === "settings";
+  const noticePlacement = noticeStackPlacement(activeView);
   // 작업 탭 "이 요청을 스킬로 저장"(Figma 1671:13245): 스킬 화면이 받아 새 스킬 탭을 열면 비운다.
   const [skillCreateRequest, setSkillCreateRequest] = useState<{ id: number; text: string } | null>(null);
   const clearSkillCreateRequest = useCallback((id: number) => {
@@ -369,14 +381,20 @@ export function HomeWorkspace() {
     selection.openGraphNodePreview(node);
   }
 
-  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) {
-    // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 루트에 만든다.
+  async function createGeneratedMarkdownDocument(draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null, sourceDocumentId: string | null = null) {
+    // folderId는 turn의 작업 대상 폴더(folder_id)다. 없으면 원문 옆에, 원문이 없거나 쓸 수 없으면 루트에 만든다.
     // agentRunId를 넘기면 서버가 AI 생성 문서로 만들고 분석 이벤트(document_uploaded·ai_document_created)를 남긴다.
-    const created = await createMarkdownDocument({
-      ...buildGeneratedMarkdownDocument(draft, createClientId("ai-note")),
-      folderId,
+    const placement = resolveDraftPlacement({
+      targetFolderId: folderId,
+      sourceFolderId: sourceDocumentId ? findDocumentFolderId(projectTree.projects, sourceDocumentId) : undefined,
+      isFolderWriteDenied: projectTree.isFolderWriteDenied
+    });
+    const generated = buildGeneratedMarkdownDocument(draft, createClientId("ai-note"));
+    const created = await createInDraftPlacement(placement, (placementFolderId) => createMarkdownDocument({
+      ...generated,
+      folderId: placementFolderId,
       agentRunId
-    }).catch(async (error: unknown) => {
+    })).catch(async (error: unknown) => {
       // AI가 만든 문서 업로드가 실패해도 최신 목록을 보여 준다.
       await refreshBackendData().catch(() => {});
       throw error;
@@ -485,6 +503,7 @@ export function HomeWorkspace() {
         ) : undefined}
         isCollapsed={panels.isSidebarCollapsed}
         isOverlay={isCompactLayout}
+        phoneTitle={screenTitle}
         onCollapseSidebar={panels.collapseSidebar}
         onExpandSidebar={panels.expandSidebar}
         onAddProject={() => {
@@ -501,7 +520,9 @@ export function HomeWorkspace() {
           onKeyDown: sidebarLayout.handleKeyDown
         }}
         onUploadPickerChange={upload.handleUploadPickerChange}
-        onMoveItem={projectTree.moveTreeEntry}
+        onMoveItem={(target) => projectTree.moveTreeEntry(target)}
+        onMoveContextTarget={projectTree.openMoveContextTarget}
+        onMoveSelectedItems={projectTree.openMoveSelectedItems}
         onDropFiles={upload.dropUploadFiles}
         onDragStart={projectTree.onDragStart}
         onToggleSelectItem={skillRun ? skillRunState.pickSkillTarget : projectTree.toggleSelectedItem}
@@ -510,13 +531,26 @@ export function HomeWorkspace() {
         onDeleteSelectedItems={projectTree.deleteSelectedItems}
         selectedContextCount={skillRun ? 0 : projectTree.selectedContextCount}
         onDragOverItem={projectTree.onDragOverItem}
-        onFileDragOver={projectTree.setFileDropTarget}
+        onFileDragOver={projectTree.onFileDragOver}
+        dropDeniedItemId={projectTree.dropDeniedItemId}
+        canStartDrag={projectTree.canStartDrag}
+        isDropDenied={projectTree.isDropDenied}
+        isFolderWriteDenied={projectTree.isFolderWriteDenied}
+        itemMoveDeniedReason={projectTree.itemMoveDeniedReason}
+        isWorkspaceOwner={role === null ? null : isOwner}
+        onDragDenied={projectTree.onDragDenied}
         onFileDragLeave={projectTree.onFileDragLeave}
         onDragEnd={projectTree.onDragEnd}
         onContextMenuProject={projectTree.openProjectMenu}
         onContextMenuItem={projectTree.openFolderMenu}
         onOpenFolderMenuAt={projectTree.openFolderMenuAt}
-        onSelectGraphNode={(item) => openSelectedPreview(selection.selectTreeGraphNode(item))}
+        onSelectGraphNode={(item) => {
+          // 이미 연 문서를 다시 고르거나 그래프에서 포커스만 옮기면 주소가 그대로라 이동으로 닫히지 않는다.
+          // 주소가 바뀔 때 함께 닫으면 뒤로 가기 표식을 되돌리는 동작이 이동을 취소하므로 여기서 닫지 않는다.
+          const isLocationKept = isGraphView || item.id === selection.selectedTreeItemId;
+          openSelectedPreview(selection.selectTreeGraphNode(item));
+          if (isCompactLayout && isLocationKept) panels.collapseSidebar();
+        }}
         onOpenInNewTab={openTreeItemInNewTab}
         onEditingChange={projectTree.onEditingChange}
         onCommitEditing={projectTree.commitEditing}
@@ -598,7 +632,7 @@ export function HomeWorkspace() {
           focusedNodeId={selection.focusedGraphNodeId}
           onOpenNodePreview={openGraphNode}
           onClearNodeFocus={selection.clearGraphFocus}
-          loading={isGraphLoading}
+          loading={isGraphLoading || (documentsUpdatedAt === 0 && !apiError)}
           errorMessage={apiError}
           ingestProgressInputs={graphIngestProgressInputs}
           onRefreshGraph={refreshGraph}
@@ -615,7 +649,7 @@ export function HomeWorkspace() {
 
       {/* 채팅 패널이 닫혀 있으면 우하단 원형 버튼으로 연다 (Figma 1426:15877 / 1406:14202). */}
       {!isAgentPanelShown && canShowAgentPanel(activeView) && (
-        <AgentLauncher onOpen={panels.openAgentPanel} />
+        <AgentLauncher onOpen={panels.openAgentPanel} isAvoidingProposals={isCompactLayout && (editReview?.pendingCount ?? 0) > 0} />
       )}
 
       {/* 채팅 패널 폭 조절 핸들: 왼쪽으로 끌면 넓어지고, 최소 폭 미만이면 패널을 닫는다. ←/→ 16px, Enter 닫기 */}
@@ -637,14 +671,21 @@ export function HomeWorkspace() {
 
       {/* 스킬·알림 등 패널이 없는 화면으로 가도 열려 있던 패널은 숨겨서 유지한다.
           돌아올 때 대화·모델 목록을 다시 받느라 비었다 채워지는(새로고침처럼 보이는) 것을 막는다. */}
-      {(panels.isAgentPanelOpen || hasOpenMeeting) && (
+      {(panels.isAgentPanelOpen || hasOpenMeeting || isCompactAgentPanelKept) && (
         <div className={cx("agent-panel-host", !isAgentPanelShown && "is-hidden")}>
         <AgentPanel
           isShown={isAgentPanelShown}
           onClose={panels.closeAgentPanel}
-          onOpenSourceBlocks={(documentId, title, highlights) => openSelectedPreview(openSourceBlocks(documentId, title, highlights))}
+          onOpenSourceBlocks={(documentId, title, highlights) => {
+            openSelectedPreview(openSourceBlocks(documentId, title, highlights));
+            // 좁은 화면에서는 패널이 문서를 덮으므로 닫아서 연 근거를 보여 준다.
+            if (isCompactLayout) panels.closeAgentPanel();
+          }}
           onCreateMarkdownDocument={createGeneratedMarkdownDocument}
+          isFolderWriteDenied={projectTree.isFolderWriteDenied}
           markdownEditContext={markdownEditContext}
+          readOnlyDocumentId={isSelectedDocumentReadOnly ? selection.selectedDocumentId : null}
+          readOnlyOpenDocument={isHomeView && isSelectedDocumentReadOnly ? documents.find((item) => item.id === selection.selectedDocumentId) : null}
           openDocumentTitle={chatContextDocument ? getMarkdownDocumentTitle(chatContextDocument.filename) : null}
           onEditReviewChange={setEditReview}
           onDocumentExported={handleChatDocumentExported}
@@ -652,6 +693,10 @@ export function HomeWorkspace() {
           onMeetingNotesSaved={openSavedDocument}
           onMeetingActiveChange={setHasOpenMeeting}
           onOpenFolderOrganize={folderOrganize.open}
+          onFolderOrganizePreviewRequested={() => {
+            // 좁은 화면에서는 패널이 미리보기의 적용 영역을 덮으므로 닫아서 보여 준다.
+            if (isCompactLayout) panels.closeAgentPanel();
+          }}
           onReplaceFolderOrganize={folderOrganize.replaceSuperseded}
           nodes={graphData.nodes}
           skillRun={skillRunRequest && {
@@ -716,6 +761,7 @@ export function HomeWorkspace() {
               section={settingsSection}
               resume={settingsResume}
               onOpenSection={(section) => navigate({ kind: "view", view: "settings", section })}
+              phoneNav={<SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />}
             />
           )
         ) : (
@@ -733,13 +779,13 @@ export function HomeWorkspace() {
         />
       )}
 
-      {/* 홈·그래프의 문서 처리와 설정의 휴지통 복구 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
-      {(isHomeView || isGraphView || activeView === "settings") && (
+      {/* 홈·그래프의 문서 처리, 설정의 휴지통 복구, 로그의 롤백 결과 알림을 표시한다. 채팅 런처가 떠 있으면 그 위로 비켜 선다. */}
+      {noticePlacement && (
         <DocumentProcessingNotifications
           documents={documents}
-          isViewportCorner={activeView === "settings"}
+          isViewportCorner={noticePlacement === "corner"}
           isAboveLauncher={!isAgentPanelShown}
-          isOverlayOpen={activeView !== "settings" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
+          isOverlayOpen={noticePlacement === "panel" && isCompactLayout && (isAgentPanelShown || panels.isCompactSidebarOpen)}
           onIngestStarted={() => void refreshBackendData().catch(() => {})}
           isDocumentsLoaded={documentsUpdatedAt !== 0}
         />
@@ -760,6 +806,22 @@ export function HomeWorkspace() {
           onCancel={projectTree.cancelDelete}
         />
       )}
+      {projectTree.moveTarget && (() => {
+        const { projectId, itemId } = projectTree.moveTarget;
+        const project = projectTree.projects.find((candidate) => candidate.id === projectId);
+        // 묶음에 든 항목이면 묶음 전체가 옮겨지므로, 그 항목들을 대상에서 빼고 이름도 개수로 보인다.
+        const isBulk = projectTree.selectedItemIds.has(itemId) && projectTree.selectedItemIds.size > 1;
+        const movingIds = isBulk ? projectTree.selectedItemIds : new Set([itemId]);
+        const currentFolderId = isBulk ? undefined : findItemLocation(projectTree.projects, itemId)?.folderId;
+        return (
+          <MoveDialog
+            label={isBulk ? `${movingIds.size}개 항목` : `"${(project && findTreeItem(project.items, itemId)?.label) ?? "항목"}"`}
+            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE, projectTree.isFolderWriteDenied)}
+            onSelect={projectTree.confirmMoveTo}
+            onClose={projectTree.closeMoveDialog}
+          />
+        );
+      })()}
       {projectTree.permissionTarget && (
         <PermissionDialog
           target={projectTree.permissionTarget}

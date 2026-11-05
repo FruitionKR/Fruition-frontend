@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { ChangeEventHandler, FocusEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
 import errorIcon from "@/shared/assets/svg/auth/auth-error-circle.svg";
 import googleLogo from "@/shared/assets/svg/auth/auth-google-logo.svg";
@@ -97,9 +97,16 @@ export function AuthError({ children, id }: { children: string; id?: string }) {
   );
 }
 
+const subscribeNothing = () => () => undefined;
+
+/**
+ * 제출 버튼. 화면을 내려받았지만 스크립트가 붙기 전에는 막는다. 이때 누르면 브라우저가 폼을 POST해 입력만 지워지고
+ * 로그인되지 않은 채 같은 화면으로 돌아온다. 기본 버튼이 막히면 Enter 제출도 함께 막힌다.
+ */
 export function AuthSubmitButton({ children, disabled = false }: { children: string; disabled?: boolean }) {
+  const isHydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
   return (
-    <button className="auth-submit" disabled={disabled} type="submit">
+    <button className="auth-submit" disabled={disabled || !isHydrated} type="submit">
       {children}
     </button>
   );

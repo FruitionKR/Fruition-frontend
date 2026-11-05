@@ -1,12 +1,15 @@
-import type { ChatMessageResponse } from "@/entities/chat/model/chat";
+import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entities/chat/model/chat";
+import { READ_ONLY_DOCUMENT_HINT } from "@/entities/document/lib/documentAccess";
 import type { SkillResponse } from "@/entities/skill/model/skill";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
 import { SUPERSEDED_PLAN_LABEL } from "@/features/agent-chat/lib/folderPlanSupersede";
+import type { ReadOnlyRequests } from "@/features/agent-chat/lib/readOnlyRequests";
 import {
   isTurnCancelling,
   STALLED_TURN_TITLE,
   TURN_CANCELLING_LABEL,
   TURN_ROLLBACK_FAILED_LABEL,
+  TURN_ROLLBACK_PARTIAL_LABEL,
   type TurnCancelState
 } from "@/features/agent-chat/lib/stalledTurns";
 
@@ -21,6 +24,10 @@ const CHAT_ANSWER_ACTIONS = new Set(["chat_answer", "conversation_reply"]);
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
 
+function isAgentTurnMessage(message: ChatMessageResponse): boolean {
+  return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX)) || (Boolean(message.action) && !CHAT_ANSWER_ACTIONS.has(message.action ?? ""));
+}
+
 /**
  * 작업 탭에 둘 메시지인지. taskRunIds는 이 화면에서 작업 탭으로 보낸 turn ID다.
  * mode=task를 아직 모르는 서버가 채팅 답변(chat_answer)으로 돌려줘도 보낸 탭(작업)에 남긴다.
@@ -32,16 +39,37 @@ export function isTaskMessage(message: ChatMessageResponse, taskRunIds: Readonly
   return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
 }
 
+/**
+ * 메시지만 보고 세션이 어느 탭의 것인지 정한다. 탭 구분이 없는 새 브라우저에서 쓴다.
+ * 사용자 메시지에는 run_id·action이 없으므로 문답(pair) 단위로 짝이 되는 답변을 본다.
+ * 채팅 탭은 질의만 보내므로 agent turn의 채팅 답변(chat_answer 등)도 작업 근거로 센다. 질의와 섞인 세션만 이전 통합 대화다.
+ * 짝을 알 수 없거나 답변이 없는 사용자 메시지는 근거로 삼지 않는다.
+ */
+export function classifySessionChannel(messages: readonly ChatMessageResponse[]): "chat" | "work" | "legacy" {
+  const isChatEvidence = (message: ChatMessageResponse) => message.role === "assistant" && !isAgentTurnMessage(message);
+  const agentPairIds = new Set(messages.flatMap((message) => (message.pair_id && isAgentTurnMessage(message) ? [message.pair_id] : [])));
+  const hasWork = messages.some(isAgentTurnMessage);
+  const hasChat = messages.some((message) => isChatEvidence(message) && !(message.pair_id && agentPairIds.has(message.pair_id)));
+  if (hasWork) return hasChat ? "legacy" : "work";
+  return "chat";
+}
+
 export type TaskMessageItem = {
   key: string;
   pairId: string | null;
   /** 이 작업을 만든 agent turn ID. 폴더 정리 계획은 이 ID로 run을 찾는다. */
   turnId: string | null;
   action: string | null;
+  /** AI가 되물은 이유 코드(chat.md clarify_reason). 없으면 null */
+  clarifyReason: string | null;
+  /** 요청 때 보기 권한만 있다고 서버가 확인한 열린 문서(chat.md read_only_document_id). 없으면 null */
+  readOnlyDocumentId: string | null;
   /** 사용자가 보낸 원래 요청 */
   request: string;
   /** AI가 남긴 답(편집 요약·되묻는 질문 등) */
   answer: string;
+  /** 답변의 근거(chat.md references). 대화형 답변의 인용 번호가 이 문서를 연다. */
+  references: ChatMessageReferenceResponse[];
   messageStatus: string;
   /** 요청을 보낸 시각(ISO). 작업 카드의 "방금 전"에 쓴다. */
   createdAt: string | null;
@@ -62,8 +90,11 @@ function toTaskItem(key: string, pairId: string | null, messages: ChatMessageRes
     pairId,
     turnId: assistant?.run_id ?? user?.run_id ?? null,
     action: assistant?.action ?? null,
+    clarifyReason: assistant?.clarify_reason ?? null,
+    readOnlyDocumentId: assistant?.read_only_document_id ?? null,
     request: (user?.content ?? "").trim().normalize("NFC"),
     answer: taskAnswer(assistant).trim().normalize("NFC"),
+    references: assistant?.references ?? [],
     messageStatus: assistant?.status ?? user?.status ?? "pending",
     createdAt: user?.created_at ?? assistant?.created_at ?? null
   };
@@ -90,6 +121,18 @@ export function splitChatAndTaskMessages(
   }
   const taskItems = [...taskGroups.entries()].map(([key, group]) => toTaskItem(key, group[0].pair_id ?? null, group));
   return { chatMessages, taskItems };
+}
+
+/** 첨부를 다 읽지 못했다는 안내의 시작(ai reference_document_notice). */
+const REFERENCE_NOTICE_PATTERN = /^첨부한 문서(가 길어 앞부분만| 중 \d+개는 너무 길어)/;
+
+/**
+ * 편집 결과 메시지에서 첨부를 다 읽지 못했다는 안내 문단만 꺼낸다. 메시지 나머지는 요약과 "아직 적용하지 않았어요"처럼
+ * 제안 화면이 이미 보여 주는 내용이다. 안내는 코드 없이 문장으로만 오므로 ai 문구에 기댄다. 없으면 null이다.
+ */
+export function editResultNotice(message: string | null | undefined): string | null {
+  const notices = (message ?? "").split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter((paragraph) => REFERENCE_NOTICE_PATTERN.test(paragraph));
+  return notices.join("\n") || null;
 }
 
 /** 작업 종류(Figma 1610:9600 "문서 : …"의 앞부분). */
@@ -125,6 +168,52 @@ export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "re
   return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
 }
 
+/** AI가 편집 문맥 없는 수정 요청에 되묻는 이유 코드(ai agent.md clarify_reason). */
+const MARKDOWN_DOCUMENT_REQUIRED = "markdown_document_required";
+/** 그 되묻기의 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE). 코드가 없는 과거 메시지·배포 전 서버를 판단할 때만 쓴다. */
+const OPEN_DOCUMENT_CLARIFICATION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+/** 첨부한 문서를 고치려 할 때의 되묻기 문장에 든 말(ai handle_agent_turn CLARIFY_REFERENCE_EDIT_MESSAGE). */
+const ATTACHED_DOCUMENT_CLARIFICATION_MARK = "첨부한 문서";
+const READ_ONLY_DOCUMENT_CLARIFICATION = `이 문서는 보기 권한만 있어 수정할 수 없어요. ${READ_ONLY_DOCUMENT_HINT}`;
+
+/** 문서가 필요해 되물었는지. 코드가 있으면 코드만 보고(모르는 코드는 다른 이유), 코드가 없을 때만 문장으로 판단한다. */
+function asksForMarkdownDocument(item: Pick<TaskMessageItem, "clarifyReason" | "answer">): boolean {
+  // 첨부한 문서를 고치려 한 되묻기도 같은 코드로 온다. 첨부 문서 이야기라 열린 문서의 보기 권한 안내로 바꾸지 않는다.
+  if (item.answer.includes(ATTACHED_DOCUMENT_CLARIFICATION_MARK)) return false;
+  if (item.clarifyReason !== null) return item.clarifyReason === MARKDOWN_DOCUMENT_REQUIRED;
+  return item.answer.trim().normalize("NFC") === OPEN_DOCUMENT_CLARIFICATION;
+}
+
+/**
+ * 보기 권한 문서는 편집기를 열지 않아 편집 문맥 없이 요청이 나가고, AI는 문서를 열라고 되묻는다. 문서를 연 사용자에게 맞지 않으니
+ * 그 문서를 연 채 보낸 요청의 되묻기만, 그 문서가 열려 있는 동안 이유를 알려 주는 문장으로 바꾼다. 문서 없이 받은 되묻기는 그대로 둔다.
+ * 이유 코드는 편집 문맥이 없었다는 뜻뿐이고 문서를 안 연 요청에도 같은 값이 오므로, 어느 문서에서 보냈는지는 메시지의 서버 값으로 가린다.
+ * 서버 값이 없는 메시지(구 서버·과거 메시지)만 이 브라우저의 readOnlyRequests로 판단한다. 서버 값이 있으면 그 값만 따른다.
+ */
+export function withReadOnlyDocumentClarification<T extends Pick<TaskMessageItem, "turnId" | "action" | "clarifyReason" | "readOnlyDocumentId" | "answer">>(
+  items: T[],
+  readOnlyDocumentId: string | null,
+  readOnlyRequests: ReadOnlyRequests
+): T[] {
+  if (!readOnlyDocumentId) return items;
+  return items.map((item) => (
+    item.action === "clarify"
+    && (item.readOnlyDocumentId ?? (item.turnId !== null ? readOnlyRequests.get(item.turnId) : undefined)) === readOnlyDocumentId
+    && asksForMarkdownDocument(item)
+      ? { ...item, answer: READ_ONLY_DOCUMENT_CLARIFICATION }
+      : item
+  ));
+}
+
+/** 첨부 중 어느 문서를 고칠지 몰라 되물은 이유 코드(ai ClarifyReason). */
+const ATTACHMENT_TARGET_REQUIRED = "attachment_target_required";
+
+/** 이 turn이 고칠 첨부를 못 정해 되물었는지. 답을 보낼 때 같은 첨부가 함께 가도록 입력창에 칩을 남긴다. */
+export function isAttachmentTargetClarification(items: ReadonlyArray<Pick<TaskMessageItem, "turnId" | "action" | "clarifyReason">>, turnId: string | null): boolean {
+  if (!turnId) return false;
+  return items.some((item) => item.turnId === turnId && item.action === "clarify" && item.clarifyReason === ATTACHMENT_TARGET_REQUIRED);
+}
+
 /** 입력이 `/slug` 또는 `/slug 요청`으로 시작하면 그 slug, 아니면 null. */
 export function slashCommandSlug(text: string): string | null {
   return SLASH_COMMAND_PATTERN.exec(text.trim())?.[1] ?? null;
@@ -135,13 +224,14 @@ export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES
   return `/${slug} ${choice.request}`;
 }
 
-export type TaskGroup = "running" | "approval" | "clarify" | "failed" | "done";
+export type TaskGroup = "running" | "approval" | "clarify" | "partial_failed" | "failed" | "done";
 
 /** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. */
 export const TASK_GROUPS: { group: TaskGroup; label: string }[] = [
   { group: "running", label: "진행 중" },
   { group: "approval", label: "확인 필요" },
   { group: "clarify", label: "선택 필요" },
+  { group: "partial_failed", label: "일부 실패" },
   { group: "failed", label: "실패" },
   { group: "done", label: "완료" }
 ];
@@ -154,6 +244,8 @@ export type TaskStatusView = {
   struck: boolean;
 };
 
+const DOCUMENT_PURGED_TASK_LABEL = "문서 영구 삭제됨";
+
 const CANCELLED_TASK_STATUS: TaskStatusView = { group: "done", label: "취소됨", tone: "muted", struck: true };
 
 const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
@@ -165,6 +257,7 @@ const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "
 function cancelledTaskStatus(cancelState: TurnCancelState | null): TaskStatusView {
   if (isTurnCancelling(cancelState)) return { group: "running", label: TURN_CANCELLING_LABEL, tone: "muted", struck: false };
   if (cancelState === "rollback_failed") return { group: "failed", label: TURN_ROLLBACK_FAILED_LABEL, tone: "danger", struck: false };
+  if (cancelState === "rollback_partial") return { group: "failed", label: TURN_ROLLBACK_PARTIAL_LABEL, tone: "danger", struck: false };
   return CANCELLED_TASK_STATUS;
 }
 
@@ -176,6 +269,9 @@ export function resolveTaskStatus({
   excludedCount = 0,
   createdFolderCount = 0,
   hasActivePreview = false,
+  isProposalHeld = false,
+  isProposalSetAside = false,
+  isDocumentPurged = false,
   isApplied = false,
   isRejected = false,
   isCancelled = false,
@@ -199,6 +295,12 @@ export function resolveTaskStatus({
   createdFolderCount?: number;
   /** 이 화면에서 받은 편집안·새 문서 초안을 아직 검토하는 중인지 */
   hasActivePreview?: boolean;
+  /** 이 turn의 응답이 아직 화면에 있거나(자동 적용을 처리하는 중 등) 저장 여부를 확인하지 못했는지(조회 중·조회 실패). 아직 수락하지 않았다고 단정할 수 없다. */
+  isProposalHeld?: boolean;
+  /** 후속 요청에 자리를 내줘 내려 둔 제안인지. 다시 열어 결정할 수 있다. */
+  isProposalSetAside?: boolean;
+  /** 대상 문서가 영구 삭제돼 편집안이 지워진 turn인지 */
+  isDocumentPurged?: boolean;
   /** 편집안을 적용·새 문서로 만들었는지(이 화면의 기록 또는 서버 버전 기록) */
   isApplied?: boolean;
   /** 편집안을 모두 거절했는지 */
@@ -250,6 +352,8 @@ export function resolveTaskStatus({
     }
     if (runStatus === "rejected") return { group: "done", label: "거절됨", tone: "danger", struck: true };
     if (runStatus === "cancelled") return { group: "done", label: "취소됨", tone: "danger", struck: true };
+    // 일부는 저장됐으므로 전부 실패처럼 묶거나 취소선을 긋지 않는다.
+    if (runStatus === "partial_failed") return { group: "partial_failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: false };
     if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: true };
     if (shouldPollAgentPlan(runStatus)) return { group: "running", label: agentPlanStatusLabel(runStatus), tone: "primary", struck: false };
     return { group: "done", label: agentPlanStatusLabel(runStatus), tone: "muted", struck: false };
@@ -264,7 +368,13 @@ export function resolveTaskStatus({
   if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
   if (isRejected) return { group: "done", label: "거절됨", tone: "danger", struck: true };
   if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
-  if (action === "markdown_edit" || action === "markdown_create") return { group: "done", label: "제안 완료", tone: "muted", struck: false };
+  if (action === "markdown_edit" || action === "markdown_create") {
+    if (isProposalSetAside) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
+    if (isDocumentPurged) return { group: "done", label: DOCUMENT_PURGED_TASK_LABEL, tone: "muted", struck: false };
+    // 수락하지 않았다고 적는 것은 서버 버전 기록까지 확인한 편집뿐이다. 새 문서 초안은 서버로 확인할 수 없어 다른 브라우저에서 수락했을 수 있다.
+    const isUnconfirmed = isProposalHeld || action === "markdown_create";
+    return { group: "done", label: isUnconfirmed ? "제안 완료" : "수락하지 않음", tone: "muted", struck: false };
+  }
   return { group: "done", label: "답변", tone: "muted", struck: false };
 }
 
@@ -307,9 +417,10 @@ export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "requ
   return superseded;
 }
 
-/** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회(folder_lookup)는 답(message)이 곧 결과다. */
+/** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회와 대화형 답변(첨부 문서를 근거로 한 답 등)은 답이 곧 결과다. */
 export function isAnswerTask(item: Pick<TaskMessageItem, "action" | "messageStatus" | "answer">): boolean {
-  return item.action === "folder_lookup" && item.messageStatus === "completed" && item.answer !== "";
+  const isAnswerAction = item.action === "folder_lookup" || (item.action !== null && CHAT_ANSWER_ACTIONS.has(item.action));
+  return isAnswerAction && item.messageStatus === "completed" && item.answer !== "";
 }
 
 /** 서버 버전 기록으로 적용 여부를 확인할 편집 작업(새로 고침 뒤에도 "저장됨"을 지키려고). */
@@ -318,6 +429,21 @@ export function isServerAppliableTask(item: Pick<TaskMessageItem, "action" | "me
 }
 
 export type TaskApplyTarget = { turnId: string; documentId: string | null; applyOperationId: string | null };
+
+type ApplyCheckQuery = { isPending: boolean; isError: boolean };
+
+/**
+ * 서버 기록으로 저장 여부를 가리지 못한 편집 작업인지. 조회 중·조회 실패이거나, 버전과 맞춰 볼 대상 문서·적용 ID가 없으면 그렇다.
+ * versions는 그 문서의 버전 목록 조회다. 영구 삭제된 문서는 버전 목록이 없고 저장 여부와 상관없이 삭제됨으로 보인다.
+ */
+export function isApplyCheckUnresolved(
+  turn: ApplyCheckQuery & { data?: Omit<TaskApplyTarget, "turnId"> & { isPurged: boolean } },
+  versions: ApplyCheckQuery | undefined
+): boolean {
+  if (turn.isPending || turn.isError) return true;
+  if (turn.data?.isPurged) return false;
+  return !turn.data?.documentId || !turn.data.applyOperationId || !versions || versions.isPending || versions.isError;
+}
 
 /**
  * 편집안이 실제 문서에 저장된 turn ID. Agent 적용으로 저장한 버전은 operation_id에 turn의 apply_operation_id를 남긴다

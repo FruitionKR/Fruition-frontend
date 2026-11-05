@@ -6,8 +6,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
+  documentRestoreMessage,
   fetchOperationLogDetail,
   fetchRestorePreview,
+  isPurgedIngestRestore,
+  restoreFailureMessage,
+  restoreTargetDocumentId,
+  shouldCheckRestoreDocument,
   filterOperationLogsByType,
   formatOperationLogDateTime,
   formatOperationLogDescription,
@@ -26,6 +31,7 @@ import { fetchMembers } from "@/entities/workspace/api/members";
 import { UserAvatar } from "@/entities/user";
 import defaultAvatarIcon from "@/shared/assets/svg/settings/member-avatar.svg";
 import { publishNotice } from "@/features/document-notifications";
+import { fetchRestoreDocumentLocation } from "../model/restoreDocumentLocation";
 import { cx } from "@/shared/lib/classNames";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
@@ -208,6 +214,14 @@ function OperationDetailBody({
  * 상단 탭 바(GNB)는 웹 화면이라 적용하지 않는다.
  * feed가 없으면 선택된 작업 1건만 행으로 보여준다.
  */
+/** 실패 안내 문구. 문서가 없어진 실패면 문서가 휴지통에 있는지 영구 삭제됐는지 확인해 이유를 말한다. */
+async function describeRestoreFailure(error: unknown, detail: OperationLogDetail | null): Promise<string> {
+  const documentId = detail ? restoreTargetDocumentId(detail) : null;
+  if (!documentId && isPurgedIngestRestore(error, detail)) return restoreFailureMessage(error, "purged");
+  if (!documentId || !shouldCheckRestoreDocument(error, documentId)) return restoreFailureMessage(error, null);
+  return restoreFailureMessage(error, await fetchRestoreDocumentLocation(documentId));
+}
+
 export function LogView({
   operationId,
   feed,
@@ -295,16 +309,13 @@ export function LogView({
         operationId: detail.operation_id,
         previewToken: preview.preview_token,
         message: preview.document
-          ? `${description} 문서를 ${preview.document.from_version}에서 ${preview.document.to_version} 버전으로 되돌립니다.`
+          ? documentRestoreMessage(description, preview.document, detail.changes)
           : `${description} 작업을 롤백하면 ${affectedCount}개 Wiki 페이지에 영향을 줍니다.`
       });
     } catch (error: unknown) {
+      const message = await describeRestoreFailure(error, detail);
       if (requestIdRef.current !== requestId) return;
-      publishNotice({
-        kind: "failed",
-        title: "롤백 실패",
-        message: getErrorMessage(error, "롤백 요청에 실패했습니다.")
-      });
+      publishNotice({ kind: "failed", title: "롤백 실패", message });
       setIsRestoring(false);
     }
   }
@@ -331,11 +342,7 @@ export function LogView({
       });
       await onRestoreComplete(restoreOperationId);
     } catch (error: unknown) {
-      publishNotice({
-        kind: "failed",
-        title: "롤백 실패",
-        message: getErrorMessage(error, "롤백 요청에 실패했습니다.")
-      });
+      publishNotice({ kind: "failed", title: "롤백 실패", message: await describeRestoreFailure(error, detail) });
     } finally {
       // 실행 중 다른 작업으로 이동해 새 요청이 시작됐다면, 늦은 해제가 새 작업의 "처리 중" 표시를 풀지 않게 한다.
       if (requestIdRef.current === requestId) setIsRestoring(false);

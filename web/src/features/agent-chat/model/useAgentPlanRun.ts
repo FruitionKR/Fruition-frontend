@@ -1,23 +1,24 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getWorkspaceId } from "@/shared/api/client";
+import { readWorkspaceId } from "@/shared/api/client";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
-import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan, type AgentPlanRun } from "../lib/agentPlan";
+import { publishDocumentContentSaved } from "@/entities/document/model/documentContentBus";
+import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, savedEditDocumentIds, shouldPollAgentPlan, startedPlanTurns, type AgentPlanRun } from "../lib/agentPlan";
 
 /**
  * 작업 turn의 계획(run)과 승인·거절. 작업 탭 카드(AgentTaskBody)와 폴더 정리 미리보기 화면이 같은 쿼리 키를 공유해
  * 둘 다 떠 있어도 한 번만 폴링한다.
  */
 export function useAgentPlanRun(turnId: string | undefined) {
-  const workspaceId = getWorkspaceId();
+  const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const queryKey = ["agentPlan", workspaceId, turnId];
   const query = useQuery({
     queryKey,
     queryFn: ({ signal }) =>
       fetchAgentPlanRun(workspaceId, turnId!, signal, knownPlanRunId(client.getQueryData<AgentPlanRun | null>(queryKey), turnId!)),
-    enabled: Boolean(turnId),
+    enabled: Boolean(turnId) && Boolean(workspaceId),
     retry: false,
     refetchInterval: (current) => !current.state.error && shouldPollAgentPlan(current.state.data?.status) ? 3000 : false,
     // 이미 끝난 계획은 상태가 바뀌지 않으므로, 다시 마운트돼도 turn·run을 다시 받지 않는다(#66).
@@ -30,7 +31,7 @@ export function useAgentPlanRun(turnId: string | undefined) {
     queryFn: fetchDocumentData,
     select: (data) => data.tree,
     staleTime: Infinity,
-    enabled: Boolean(query.data?.plan),
+    enabled: Boolean(query.data?.plan) && Boolean(workspaceId),
     retry: false
   });
   const run = query.data;
@@ -40,20 +41,25 @@ export function useAgentPlanRun(turnId: string | undefined) {
     // operationIds: 부분 승인으로 실행할 작업. null·생략이면 계획 전체.
     mutationFn: ({ decision, operationIds }: { decision: "approve" | "reject"; operationIds?: readonly string[] | null }) =>
       decideAgentPlan(workspaceId, run!.id, decision, plan!, decision === "approve" ? operationIds : null),
-    onSuccess: (updated) => {
+    onSuccess: (updated, { decision }) => {
+      if (decision === "approve" && turnId) startedPlanTurns.mark(turnId);
       // 승인 응답은 plan을 생략하므로 검토했던 목록은 다음 조회까지 유지한다.
       client.setQueryData(queryKey, { ...updated, plan: updated.plan ?? plan, request_summary: updated.request_summary ?? run?.request_summary });
     },
     onSettled: () => client.invalidateQueries({ queryKey })
   });
-  // 이미 끝난 계획이 다시 마운트될 때마다 문서·트리·그래프를 다시 받지 않도록 전이를 볼 때만 갱신한다(#66).
+  // 이미 끝난 계획이 다시 마운트될 때마다 문서·트리·그래프를 다시 받지 않도록 전이를 보거나 이 세션에서 시작한 계획이 끝났을 때만 갱신한다(#66).
   const previousStatus = useRef<string | undefined>(undefined);
+  const planRef = useRef(plan);
+  planRef.current = plan;
   useEffect(() => {
-    if (isPlanRunSettled(previousStatus.current, runStatus)) {
+    const isStartedHere = startedPlanTurns.takeSettled(turnId, runStatus);
+    if (isPlanRunSettled(previousStatus.current, runStatus) || isStartedHere) {
       void client.invalidateQueries({ queryKey: ["backendData"] });
+      publishDocumentContentSaved(savedEditDocumentIds(planRef.current));
     }
     previousStatus.current = runStatus;
-  }, [client, runStatus]);
+  }, [client, runStatus, turnId]);
 
   const error = !turnId ? "이 답변에 계획 조회 정보가 없습니다. 다시 요청해주세요."
     : query.error || tree.error || mutation.error;

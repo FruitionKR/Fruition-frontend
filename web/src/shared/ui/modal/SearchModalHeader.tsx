@@ -27,6 +27,7 @@ export function SearchModalHeader({
       <input
         ref={inputRef}
         type="text"
+        aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}

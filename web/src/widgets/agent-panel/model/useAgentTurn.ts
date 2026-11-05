@@ -1,22 +1,32 @@
 import { analyticsEditType, newAnalyticsId } from "@/shared/lib/analytics/events";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { RunStageEvent } from "@/shared/lib/runEventStream";
 import type { AiModel } from "@/entities/ai";
 import { requestAgentTurn, resumeAgentTurn } from "@/features/agent-chat";
 import {
   buildAgentTurnRequest,
   prepareMarkdownEditPreview,
+  PURGED_EDIT_MESSAGE,
   resolveChatTurnPresentation,
+  draftSourceDocumentId,
   resolveGeneratedDocumentFolderId,
   validateMarkdownEditApplication
 } from "@/features/agent-chat/lib/agentTurn";
 import type { AgentTurnRequest, AgentTurnResponse, GeneratedMarkdownDraft, MarkdownEditPreview as MarkdownEditPreviewData } from "@/features/agent-chat/lib/agentTurn";
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
+import { isContentEditAutoApproved, resolveTurnAutoApply } from "@/features/agent-chat/lib/autoApply";
+import { editResultNotice } from "@/features/agent-chat/lib/taskThread";
+import { startedPlanTurns } from "@/features/agent-chat/lib/agentPlan";
+import { documentLockedTurnMessage, sendTurnDroppingOpenDocument, shouldRestoreAttachments } from "../lib/composerDocuments";
+import { AGENT_AUTO_APPROVAL_QUERY_KEY } from "@/features/user-settings/lib/agentAutoApproval";
+import { useAgentAutoApprovalSettings } from "@/features/user-settings/model/useAgentAutoApprovalSettings";
 import {
   buildEditReviewSegments,
   composeReviewedMarkdown,
   countPendingProposals,
+  countProposals,
   hasAcceptedProposal,
   settleRemainingProposals,
   type EditProposalDecision,
@@ -34,12 +44,21 @@ import {
   type TaskOutcome,
   type TaskOutcomes
 } from "@/features/agent-chat/lib/taskOutcomes";
+import {
+  readOnlyRequestStorageKey,
+  readReadOnlyRequests,
+  recordReadOnlyRequest,
+  writeReadOnlyRequest,
+  type ReadOnlyRequests
+} from "@/features/agent-chat/lib/readOnlyRequests";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
+import { setAsideProposal, takeSetAsideProposal, type SetAsideProposal, type SetAsideProposals } from "@/features/agent-chat/lib/setAsideProposals";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 
 const NO_DECISIONS: EditProposalDecisions = {};
+const NO_SET_ASIDE_PROPOSALS: SetAsideProposals = new Map();
 
 /**
  * 작업 탭 요청(agent turn, mode=task): 요청·진행 단계·응답과
@@ -48,25 +67,40 @@ const NO_DECISIONS: EditProposalDecisions = {};
  */
 export function useAgentTurn({
   markdownEditContext,
+  readOnlyDocumentId,
   activeSessionId,
   selectedModel,
   selectedPairIds,
   allowWebSearch,
   refreshMessages,
+  isFolderWriteDenied,
   onCreateMarkdownDocument,
-  onInsufficientCredit
+  openDocumentTitle = null,
+  onInsufficientCredit,
+  onReferencesRestored,
+  onOpenDocumentDropped
 }: {
   markdownEditContext: ActiveMarkdownEditContext | null | undefined;
+  /** 지금 열린 보기 권한 문서. 요청을 보낼 때의 값을 turn과 묶어 기억한다. */
+  readOnlyDocumentId: string | null;
   activeSessionId: string | null;
   selectedModel: AiModel | null;
   selectedPairIds: string[];
   allowWebSearch: boolean;
   /** 응답이 오면 대화 목록을 다시 받아 새 문답을 이어 붙인다. */
   refreshMessages: (options: { animateLatest: boolean }) => Promise<unknown>;
-  /** folderId는 새 문서를 둘 폴더(null이면 루트). agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID다. */
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  /** 이 폴더에 쓸 수 없다고 알고 있는지. 권한을 모르면 false다. */
+  isFolderWriteDenied: (folderId: string) => boolean;
+  /** folderId는 turn의 대상 폴더. agentRunId는 작업 탭 초안(markdown_create)을 만든 run ID, sourceDocumentId는 그 초안의 원문(열린 문서)이다. */
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null, sourceDocumentId?: string | null) => Promise<void>;
+  /** 현재 문서 제목. 잠금(423) 안내에 쓴다. */
+  openDocumentTitle?: string | null;
   /** 크레딧 부족(402)으로 거절된 질문. 충전 뒤 다시 보낼 수 있게 입력을 되돌리는 데 쓴다(#153). */
   onInsufficientCredit?: (question: string) => void;
+  /** 첨부를 실은 요청이 시작되지 못했다. 다시 고르거나 보낼 수 있게 입력과 첨부를 되돌리는 데 쓴다. */
+  onReferencesRestored?: (question: string, referenceDocumentIds: string[]) => void;
+  /** 자동으로 실은 열린 문서를 뺀 요청이 받아들여졌다. 다음 요청에 다시 싣지 않고 안내하는 데 쓴다. */
+  onOpenDocumentDropped?: (documentId: string) => void;
 }) {
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
@@ -117,11 +151,36 @@ export function useAgentTurn({
     if (outcomeStorageKey) writeTaskOutcome(browserTaskOutcomeStorage(), outcomeStorageKey, turnId, outcome);
   }, [outcomeStorageKey]);
   const markApplied = useCallback((turnId: string | undefined) => markOutcome(turnId, "applied"), [markOutcome]);
-  const appliedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "applied"), [taskOutcomes]);
+  const autoAppliedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "auto_applied"), [taskOutcomes]);
+  const appliedTurnIds = useMemo(
+    () => new Set([...turnIdsWithOutcome(taskOutcomes, "applied"), ...autoAppliedTurnIds]),
+    [autoAppliedTurnIds, taskOutcomes]
+  );
+  // 보기 권한 문서를 연 채 보낸 turn과 그 문서. 서버 값이 없는 메시지(구 서버·과거 메시지)의 되묻기를 판단할 때 쓴다.
+  const [readOnlyRequests, setReadOnlyRequests] = useState<ReadOnlyRequests>(() => new Map());
+  useEffect(() => {
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId) return;
+    const stored = readReadOnlyRequests(browserTaskOutcomeStorage(), readOnlyRequestStorageKey(workspaceId));
+    setReadOnlyRequests((current) => new Map([...stored, ...current]));
+  }, [activeSessionId]);
+  // submitAgentTurn은 세션마다 만들지 않으므로 보낼 때의 값을 ref로 읽는다.
+  const readOnlyDocumentIdRef = useRef(readOnlyDocumentId);
+  readOnlyDocumentIdRef.current = readOnlyDocumentId;
+  const openDocumentTitleRef = useRef(openDocumentTitle);
+  openDocumentTitleRef.current = openDocumentTitle;
+  const rememberReadOnlyRequest = useCallback((turnId: string, documentId: string | null) => {
+    if (!documentId) return;
+    setReadOnlyRequests((current) => recordReadOnlyRequest(current, turnId, documentId));
+    const workspaceId = getSelectedWorkspaceId();
+    if (workspaceId) writeReadOnlyRequest(browserTaskOutcomeStorage(), readOnlyRequestStorageKey(workspaceId), turnId, documentId);
+  }, []);
   const rejectedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "rejected"), [taskOutcomes]);
   const cancelledTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "cancelled"), [taskOutcomes]);
   // 본문에 붙인 제안(Figma 1571:27625)마다 고른 거절·수락. 다른 turn의 결정은 쓰지 않는다.
   const [reviewDecisions, setReviewDecisions] = useState<{ turnId: string; decisions: EditProposalDecisions } | null>(null);
+  // 후속 요청에 자리를 내준 제안. 미리 보기는 한 번에 하나만 열리므로 내려 두었다가 다시 열 수 있게 한다.
+  const [setAsideProposals, setSetAsideProposals] = useState<SetAsideProposals>(NO_SET_ASIDE_PROPOSALS);
 
   const editPreviewState = useMemo<{
     preview: MarkdownEditPreviewData | null;
@@ -154,9 +213,39 @@ export function useAgentTurn({
     () => (reviewDecisions && reviewDecisions.turnId === activeTurnId ? reviewDecisions.decisions : NO_DECISIONS),
     [activeTurnId, reviewDecisions]
   );
-  const editPreviewErrorMessage = editPreviewState && !editPreviewState.preview
-    ? `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`
-    : null;
+  const editPreviewErrorMessage = !editPreviewState || editPreviewState.preview
+    ? null
+    : editPreviewState.validationError === PURGED_EDIT_MESSAGE
+      ? PURGED_EDIT_MESSAGE
+      : `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`;
+
+  const queryClient = useQueryClient();
+  const autoApprovalSettings = useAgentAutoApprovalSettings();
+  const isAutoApproved = isContentEditAutoApproved(autoApprovalSettings);
+  // 자동 처리 판단을 끝낸 turn. 응답마다 한 번만 판단하고, 수동으로 넘긴 뒤에는 설정이 늦게 도착해도 바꾸지 않는다.
+  const autoDecidedTurnIdsRef = useRef(new Set<string>());
+  // 수락 화면으로 넘긴 turn. 자동 적용에 실패한 turn도 여기 들어가 다시 시도하지 않는다.
+  const [manualTurnIds, setManualTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [autoAppliedNotice, setAutoAppliedNotice] = useState<{ turnId: string; text: string } | null>(null);
+  // 사용자가 Esc로 멈추려 한 turn. 이미 끝나 결과가 와도 확인 없이 반영하지 않는다.
+  const stoppedTurnIdsRef = useRef(new Set<string>());
+  const responseTurnId = agentTurnResponse?.requestId ?? null;
+  const draftFolderId = resolveGeneratedDocumentFolderId(agentTurnResponse);
+  const autoApplyKind = resolveTurnAutoApply({
+    action: agentTurnResponse?.result.action,
+    isContentEditAutoApproved: isAutoApproved,
+    isAlreadyHandled: responseTurnId === null || manualTurnIds.has(responseTurnId) || appliedTurnIds.has(responseTurnId),
+    isManualOnly: responseTurnId !== null && stoppedTurnIdsRef.current.has(responseTurnId),
+    isFromActiveSession: agentTurnRequest?.session_id === activeSessionId,
+    hasEditPreview: Boolean(editPreviewState?.preview),
+    hasApplyOperationId: Boolean(agentTurnResponse?.apply_operation_id),
+    validationError: editPreviewState?.validationError ?? null,
+    isDocumentWritable: markdownEditContext?.isWritable === true,
+    proposalCount: reviewSegments ? countProposals(reviewSegments) : 0,
+    isScopeExpanded: agentTurnResponse?.result.edit?.scope_expanded === true,
+    isDraftFolderWriteDenied: draftFolderId !== null && isFolderWriteDenied(draftFolderId),
+    draft: agentTurnResponse?.result.generated_markdown ?? null
+  });
 
   /**
    * turn의 끝을 기다린 뒤 대화 목록을 다시 받아 결과를 보여 준다. 결과를 확인하지 못한 채 끝나면(조회 실패·연결 끊김)
@@ -167,7 +256,8 @@ export function useAgentTurn({
     question: string,
     run: () => Promise<AgentTurnResponse>,
     getTurnId: () => string | null,
-    clientTaskId: string
+    clientTaskId: string,
+    referenceDocumentIds: string[] = []
   ) {
     run()
       .then(async (response) => {
@@ -181,9 +271,11 @@ export function useAgentTurn({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setAgentTurnErrorMessage(getErrorMessage(error, "작업 요청에 실패했습니다."));
+        const lockedMessage = documentLockedTurnMessage(error, { openDocumentTitle: openDocumentTitleRef.current, hasAttachments: referenceDocumentIds.length > 0 });
+        setAgentTurnErrorMessage(lockedMessage ?? getErrorMessage(error, "작업 요청에 실패했습니다."));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
+        if (shouldRestoreAttachments(error, { referenceDocumentIds, turnId })) onReferencesRestored?.(question, referenceDocumentIds);
         reportAiTaskFailure(agentTurnFailure(error, { turnId, clientTaskId }));
         if (!turnId) return;
         if (error instanceof AgentTurnLostError) setUnconfirmedTurnId(turnId);
@@ -211,6 +303,8 @@ export function useAgentTurn({
     setAgentTurnErrorMessage(null);
     setIsAgentTurnLoading(true);
     setIsAgentTurnSlow(true);
+    // 끊긴 동안 다른 기기에서 끈 자동 승인이 이 결과에 쓰이지 않게 다시 받는다. 응답이 먼저 오면 조회 중이라 수락 화면으로 간다.
+    void queryClient.invalidateQueries({ queryKey: AGENT_AUTO_APPROVAL_QUERY_KEY });
     agentRequestRef.current?.abort();
     const controller = new AbortController();
     agentRequestRef.current = controller;
@@ -223,23 +317,30 @@ export function useAgentTurn({
     );
   }
 
-  const submitAgentTurn = useCallback((
+  const startAgentTurn = useCallback((
     question: string,
     context: ActiveMarkdownEditContext | null,
     sessionId: string,
     model: AiModel,
     conversationPairIds: string[],
     /** 폴더를 대상으로 고른 스킬 실행이면 그 폴더. */
-    folderId: string | null = null
+    folderId: string | null = null,
+    /** 근거로 첨부한 문서. */
+    referenceDocumentIds: string[] = [],
+    /** referenceDocumentIds 중 입력창이 자동으로 실은 열린 문서. 이 문서 때문에 거절되면 빼고 다시 보낸다. */
+    autoReferenceDocumentId: string | null = null
   ) => {
-    const request = buildAgentTurnRequest(question, context, {
+    const requestReadOnlyDocumentId = readOnlyDocumentIdRef.current;
+    const buildRequest = (documentIds: string[]) => buildAgentTurnRequest(question, context, {
+      readOnlyDocumentId: requestReadOnlyDocumentId,
       sessionId,
       selectedModel: { provider: model.provider, model: model.model },
       selectedPairIds: conversationPairIds,
       allowWebSearch,
-      folderId
+      folderId,
+      referenceDocumentIds: documentIds
     });
-    setAgentTurnRequest(request);
+    setAgentTurnRequest(buildRequest(referenceDocumentIds));
     setAgentTurnResponse(null);
     setAgentTurnErrorMessage(null);
     setMarkdownCreateErrorMessage(null);
@@ -248,31 +349,74 @@ export function useAgentTurn({
     setIsAgentTurnSlow(false);
     setUnconfirmedTurnId(null);
     setRequestTurnId(null);
+    // 다른 기기에서 끈 자동 승인이 이번 결과에 쓰이지 않게 보낼 때마다 다시 받는다.
+    void queryClient.invalidateQueries({ queryKey: AGENT_AUTO_APPROVAL_QUERY_KEY });
     agentRequestRef.current?.abort();
     const controller = new AbortController();
     agentRequestRef.current = controller;
     let acceptedTurnId: string | null = null;
-    followTurnResult(controller, question, () => requestAgentTurn(request, {
-      signal: controller.signal,
-      onAccepted: (requestId) => {
-        acceptedTurnId = requestId;
-        if (controller.signal.aborted) return;
-        setRequestTurnId(requestId);
-        setTaskRunIds((current) => new Set([...current, requestId]));
-      },
-      onStage: (stage) => {
-        if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
-      },
-      onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
-    }), () => acceptedTurnId, newAnalyticsId());
+    followTurnResult(controller, question, () => sendTurnDroppingOpenDocument({
+      referenceDocumentIds,
+      autoDocumentId: autoReferenceDocumentId,
+      hasStarted: () => acceptedTurnId !== null,
+      send: (documentIds) => {
+        const request = buildRequest(documentIds);
+        return requestAgentTurn(request, {
+          signal: controller.signal,
+          onAccepted: (requestId) => {
+            acceptedTurnId = requestId;
+            startedPlanTurns.mark(requestId);
+            rememberReadOnlyRequest(requestId, requestReadOnlyDocumentId);
+            if (controller.signal.aborted) return;
+            setRequestTurnId(requestId);
+            setTaskRunIds((current) => new Set([...current, requestId]));
+            if (autoReferenceDocumentId === null || documentIds.includes(autoReferenceDocumentId)) return;
+            // 빼고 보낸 요청을 기억해 재생성·이어 묻기가 거절된 문서를 다시 싣지 않게 한다.
+            setAgentTurnRequest(request);
+            onOpenDocumentDropped?.(autoReferenceDocumentId);
+          },
+          onStage: (stage) => {
+            if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
+          },
+          onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
+        });
+      }
+    }), () => acceptedTurnId, newAnalyticsId(), referenceDocumentIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowWebSearch, refreshMessages, onInsufficientCredit]);
+  }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, onOpenDocumentDropped, rememberReadOnlyRequest]);
+
+  /** 지금 열린, 아직 결정하지 않은 제안. 자동으로 처리하는 중이거나 미리 보기를 만들 수 없는 응답은 뺀다. */
+  function openProposal(): SetAsideProposal | null {
+    if (!agentTurnRequest || !agentTurnResponse || autoApplyKind !== null) return null;
+    const isOpen = editPreviewState?.preview || (agentTurnResponse.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown);
+    return isOpen ? { request: agentTurnRequest, response: agentTurnResponse } : null;
+  }
+
+  /** 새 요청을 보낸다. 열려 있던 제안은 잃지 않게 내려 둔다. 재생성·"더 짧게"는 그 제안을 바꾸는 요청이라 startAgentTurn을 바로 쓴다. */
+  function submitAgentTurn(...args: Parameters<typeof startAgentTurn>) {
+    setSetAsideProposals((current) => setAsideProposal(current, openProposal()));
+    startAgentTurn(...args);
+  }
+
+  /** 내려 둔 제안을 다시 연다. 지금 열린 제안이 있으면 그 제안을 내려 둔다. 문서가 그새 바뀌었으면 미리 보기가 재생성을 안내한다. */
+  function reopenProposal(turnId: string) {
+    if (isAgentTurnLoading) return;
+    const { taken, rest } = takeSetAsideProposal(setAsideProposals, turnId, openProposal());
+    if (!taken) return;
+    setSetAsideProposals(rest);
+    setAgentTurnRequest(taken.request);
+    setAgentTurnResponse(taken.response);
+    setRequestTurnId(turnId);
+    setAgentTurnErrorMessage(null);
+    setMarkdownCreateErrorMessage(null);
+  }
 
   /**
    * 지금 따라가는 turn의 진행 SSE·조회를 멈춘다(Esc 중지). 서버 취소는 호출부가 요청하고, 결과를 받을 때까지
    * 진행 카드는 그대로 둔다. 취소가 받아들여지면 finishFollowing으로 진행 카드를 내린다.
    */
   function stopFollowing() {
+    if (requestTurnId) stoppedTurnIdsRef.current.add(requestTurnId);
     agentRequestRef.current?.abort();
     agentRequestRef.current = null;
   }
@@ -308,29 +452,33 @@ export function useAgentTurn({
       setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
       return;
     }
-    submitAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null);
+    startAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
   }
 
   function applyMarkdownEdit() {
     if (editPreviewState?.preview) applyEditedMarkdown(editPreviewState.preview.nextMarkdown);
   }
 
-  function applyEditedMarkdown(nextMarkdown: string) {
-    if (!agentTurnRequest || !agentTurnResponse || !markdownEditContext || !editPreviewState?.preview) return;
+  /** 적용했으면 true. 실패하면 원문을 그대로 두고 오류를 보여 준다. */
+  function applyEditedMarkdown(nextMarkdown: string, outcome: "applied" | "auto_applied" = "applied"): boolean {
+    if (!agentTurnRequest || !agentTurnResponse || !markdownEditContext || !editPreviewState?.preview) return false;
     try {
       validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
+      if (!markdownEditContext.isWritable) throw new Error("지금은 이 문서를 저장할 수 없어 편집안을 적용하지 않았습니다. 편집 권한과 로그인 상태를 확인해 주세요.");
       const applied = markdownEditContext.applyMarkdown(
         agentTurnRequest.editorSnapshot?.markdown ?? "",
         nextMarkdown,
         agentTurnResponse.apply_operation_id
       );
       if (!applied) throw new Error("적용 직전에 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
-      markApplied(agentTurnResponse.requestId);
+      markOutcome(agentTurnResponse.requestId, outcome);
       setAgentTurnRequest(null);
       setAgentTurnResponse(null);
       setAgentTurnErrorMessage(null);
+      return true;
     } catch (error) {
       setAgentTurnErrorMessage(getErrorMessage(error, "편집 결과를 적용하지 못했습니다."));
+      return false;
     }
   }
 
@@ -367,7 +515,7 @@ export function useAgentTurn({
   /** "더 짧게"처럼 같은 요청에 지시를 덧붙여 다시 받는다(Figma 1610:9183). */
   function refineAgentTurn(instruction: string) {
     if (!agentTurnRequest || !markdownEditContext || !activeSessionId || !selectedModel) return;
-    submitAgentTurn(`${agentTurnRequest.message}\n${instruction}`, markdownEditContext, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null);
+    startAgentTurn(`${agentTurnRequest.message}\n${instruction}`, markdownEditContext, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
   }
 
   function openMarkdownEditAsNewDocument() {
@@ -393,24 +541,58 @@ export function useAgentTurn({
       .finally(() => setIsCreatingMarkdown(false));
   }
 
-  function createMarkdownDocument() {
+  function createMarkdownDocument(outcome: "applied" | "auto_applied" = "applied") {
     const draft = agentTurnResponse?.result.generated_markdown;
     if (!draft) return;
     const runId = agentTurnResponse.requestId;
     setIsCreatingMarkdown(true);
     setMarkdownCreateErrorMessage(null);
-    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId)
+    onCreateMarkdownDocument(draft, resolveGeneratedDocumentFolderId(agentTurnResponse), runId, draftSourceDocumentId(agentTurnResponse, agentTurnRequest))
       .then(() => {
-        markApplied(runId);
+        markOutcome(runId, outcome);
         setAgentTurnRequest(null);
         setAgentTurnResponse(null);
       })
       .catch((error: unknown) => {
         reportAiTaskFailure(markdownCreateFailure(error, runId));
         setMarkdownCreateErrorMessage(getErrorMessage(error, "새 Markdown 문서를 만들지 못했습니다."));
+        // 자동 재시도하지 않고 오류와 함께 기존 화면으로 돌아간다.
+        setManualTurnIds((current) => new Set([...current, runId]));
       })
       .finally(() => setIsCreatingMarkdown(false));
   }
+
+  // 편집안·초안이 도착하면 한 번만 판단한다. 응답을 받은 직후 렌더에서는 아직 요청 중으로 남아 있을 수 있어 끝나길 기다린다.
+  const applyAutoRef = useRef<(kind: "edit" | "create") => void>(() => {});
+  applyAutoRef.current = (kind) => {
+    if (kind === "create") {
+      createMarkdownDocument("auto_applied");
+      return;
+    }
+    const notice = editResultNotice(agentTurnResponse?.result.message);
+    if (!editPreviewState?.preview) {
+      if (responseTurnId) setManualTurnIds((current) => new Set([...current, responseTurnId]));
+      return;
+    }
+    if (applyEditedMarkdown(editPreviewState.preview.nextMarkdown, "auto_applied")) {
+      // 제안 화면을 거치지 않아 첨부를 다 읽지 못했다는 안내를 작업 행에 남긴다. 적용하면 응답이 지워지므로 따로 둔다.
+      if (responseTurnId && notice) setAutoAppliedNotice({ turnId: responseTurnId, text: notice });
+      return;
+    }
+    if (responseTurnId) setManualTurnIds((current) => new Set([...current, responseTurnId]));
+  };
+  const isCommandResponse = agentTurnResponse?.result.action === "markdown_edit" || agentTurnResponse?.result.action === "markdown_create";
+  useEffect(() => {
+    if (!responseTurnId || !isCommandResponse || isAgentTurnLoading || autoDecidedTurnIdsRef.current.has(responseTurnId)) return;
+    autoDecidedTurnIdsRef.current.add(responseTurnId);
+    if (autoApplyKind) applyAutoRef.current(autoApplyKind);
+    else setManualTurnIds((current) => new Set([...current, responseTurnId]));
+  }, [autoApplyKind, isAgentTurnLoading, isCommandResponse, responseTurnId]);
+
+  const setAsideTurnIds = useMemo(
+    () => new Set([...setAsideProposals.values()].filter(({ request }) => request.session_id === activeSessionId).map(({ response }) => response.requestId)),
+    [activeSessionId, setAsideProposals]
+  );
 
   return {
     agentTurnRequest,
@@ -434,9 +616,17 @@ export function useAgentTurn({
     editPreviewState,
     editPreviewErrorMessage,
     taskRunIds,
+    /** 편집안·초안을 자동으로 처리하는 중이라 수락 화면을 띄우지 않는다. */
+    isAutoApplying: autoApplyKind !== null,
     appliedTurnIds,
+    autoAppliedTurnIds,
+    autoAppliedNotice,
+    readOnlyRequests,
     rejectedTurnIds,
     cancelledTurnIds,
+    /** 이 세션에서 후속 요청에 자리를 내줘 다시 열 수 있는 제안의 turn */
+    setAsideTurnIds,
+    reopenProposal,
     reviewSegments,
     proposalDecisions,
     decideProposal,

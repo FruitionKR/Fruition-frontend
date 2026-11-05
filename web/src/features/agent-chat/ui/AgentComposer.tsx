@@ -82,6 +82,8 @@ export function AgentComposer({
   inputLabel = "Query 질문 입력",
   header,
   onInputKeyDown,
+  onCaretChange,
+  onInputBlur,
   inputPopup
 }: {
   value: string;
@@ -108,7 +110,10 @@ export function AgentComposer({
   header?: ReactNode;
   /** 입력창 키 처리를 먼저 가로챈다(스킬 고르기 방향키·Enter). 처리했으면 true */
   onInputKeyDown?: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
-  /** 입력창이 여는 목록(스킬 고르기)의 combobox 속성 */
+  /** 입력창 커서 위치가 바뀌었다("@문서" 고르기가 커서 앞 글자를 읽는다). */
+  onCaretChange?: (caret: number) => void;
+  onInputBlur?: () => void;
+  /** 입력창이 여는 목록(스킬·문서 고르기)의 combobox 속성 */
   inputPopup?: { isOpen: boolean; listId: string; activeOptionId: string | null };
 }) {
   const [isModelListOpen, setIsModelListOpen] = useState(false);
@@ -298,7 +303,12 @@ export function AgentComposer({
         aria-activedescendant={inputPopup?.isOpen ? inputPopup.activeOptionId ?? undefined : undefined}
         aria-keyshortcuts={onCancel ? "Escape" : undefined}
         rows={4}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          onCaretChange?.(event.target.selectionStart);
+        }}
+        onSelect={onCaretChange ? (event) => onCaretChange(event.currentTarget.selectionStart) : undefined}
+        onBlur={onInputBlur}
         onKeyDown={handleKeyDown}
       />
       {(statusMessage || onCancel) && (

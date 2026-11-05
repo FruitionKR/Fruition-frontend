@@ -13,6 +13,9 @@ const {
   buildAgentTurnRequest,
   buildGeneratedMarkdownDocument,
   buildGeneratedMarkdownFilename,
+  createInDraftPlacement,
+  draftSourceDocumentId,
+  resolveDraftPlacement,
   isDocumentCommandAction,
   prepareMarkdownEditPreview,
   resolveChatTurnPresentation,
@@ -89,6 +92,39 @@ test("열린 문서가 없으면 문서 필드를 모두 빼고 작업 모드로
 test("문서 없이 보낸 요청의 편집 응답은 미리보기를 만들지 않는다", () => {
   const request = buildAgentTurnRequest("다듬어줘", null, agentRequestContext);
   assert.throws(() => prepareMarkdownEditPreview(request, markdownEditResponse()), /문서를 열고 다시 요청/);
+});
+
+test("보기 권한 문서를 연 채 보낸 요청은 편집 문맥 없이 그 문서를 read_only_document_id로 싣는다", () => {
+  const request = buildAgentTurnRequest("이 문서를 수정해줘", null, { ...agentRequestContext, readOnlyDocumentId: "doc_read_only" });
+  assert.equal(request.read_only_document_id, "doc_read_only");
+  assert.equal(request.documentId, undefined);
+  assert.equal(request.editorSnapshot, undefined);
+});
+
+test("보기 권한 문서가 아니면 read_only_document_id를 싣지 않고, 편집 문맥이 있으면 그쪽을 따른다", () => {
+  assert.equal("read_only_document_id" in buildAgentTurnRequest("수정해줘", null, agentRequestContext), false);
+  assert.equal("read_only_document_id" in buildAgentTurnRequest("수정해줘", null, { ...agentRequestContext, readOnlyDocumentId: null }), false);
+  const editing = buildAgentTurnRequest("수정해줘", markdownEditContext, { ...agentRequestContext, readOnlyDocumentId: "doc_read_only" });
+  assert.equal("read_only_document_id" in editing, false);
+  assert.equal(editing.documentId, markdownEditContext.documentId);
+});
+
+test("첨부한 문서는 reference_document_ids로 싣고 없으면 필드를 뺀다", () => {
+  assert.equal("reference_document_ids" in buildAgentTurnRequest("요약해 줘", null, agentRequestContext), false);
+  assert.equal("reference_document_ids" in buildAgentTurnRequest("요약해 줘", null, { ...agentRequestContext, referenceDocumentIds: [] }), false);
+  const withoutDocument = buildAgentTurnRequest("요약해 줘", null, { ...agentRequestContext, referenceDocumentIds: ["doc_a", "doc_b"] });
+  assert.deepEqual(withoutDocument.reference_document_ids, ["doc_a", "doc_b"]);
+  assert.equal(withoutDocument.documentId, undefined);
+  const withDocument = buildAgentTurnRequest("요약해 줘", markdownEditContext, { ...agentRequestContext, referenceDocumentIds: ["doc_a"] });
+  assert.deepEqual(withDocument.reference_document_ids, ["doc_a"]);
+  assert.equal(withDocument.documentId, markdownEditContext.documentId);
+});
+
+test("첨부는 근거일 뿐이라 편집 대상이 아니다: 첨부 문서를 고친 응답은 미리보기를 만들지 않는다", () => {
+  const onlyReference = buildAgentTurnRequest("다듬어줘", null, { ...agentRequestContext, referenceDocumentIds: ["doc_a"] });
+  assert.throws(() => prepareMarkdownEditPreview(onlyReference, { ...markdownEditResponse(), documentId: "doc_a" }), /문서를 열고 다시 요청/);
+  const withDocument = buildAgentTurnRequest("다듬어줘", markdownEditContext, { ...agentRequestContext, referenceDocumentIds: ["doc_a"] });
+  assert.throws(() => prepareMarkdownEditPreview(withDocument, { ...markdownEditResponse(), documentId: "doc_a" }), /요청 문서와 일치하지/);
 });
 
 test("선택한 문답은 서버 계약인 selected_pair_ids로 전달한다", () => {
@@ -386,4 +422,54 @@ test("웹 서칭 토글이 켜지면 allow_web_search를 true로 보낸다", () 
     allowWebSearch: true
   });
   assert.equal(request.allow_web_search, true);
+});
+
+test("새 문서 위치: turn의 대상 폴더가 먼저이고, 없으면 원문 폴더, 원문이 없으면 지금처럼 루트다", () => {
+  const allowed = () => false;
+  assert.deepEqual(resolveDraftPlacement({ targetFolderId: "target", sourceFolderId: "source", isFolderWriteDenied: allowed }), { folderId: "target", canFallBackToRoot: false });
+  assert.deepEqual(resolveDraftPlacement({ targetFolderId: null, sourceFolderId: "source", isFolderWriteDenied: allowed }), { folderId: "source", canFallBackToRoot: true });
+  // 원문이 루트에 있거나, 문서를 열지 않았거나, 트리에서 못 찾으면 루트다.
+  for (const sourceFolderId of [null, undefined]) {
+    assert.deepEqual(resolveDraftPlacement({ targetFolderId: null, sourceFolderId, isFolderWriteDenied: allowed }), { folderId: null, canFallBackToRoot: false });
+  }
+});
+
+test("원문 폴더에 쓸 수 없으면 기본 위치로 만들고, 지정한 대상 폴더는 바꾸지 않는다", () => {
+  const denied = () => true;
+  assert.deepEqual(resolveDraftPlacement({ targetFolderId: null, sourceFolderId: "source", isFolderWriteDenied: denied }), { folderId: null, canFallBackToRoot: false });
+  // 대상 폴더 권한은 수락 화면이 막고 이유를 보여 준다(지금 동작).
+  assert.equal(resolveDraftPlacement({ targetFolderId: "target", sourceFolderId: "source", isFolderWriteDenied: denied }).folderId, "target");
+});
+
+test("원문 폴더가 서버에서 거절되면(403·404) 기본 위치로 한 번 더 만들어 저장을 지킨다", async () => {
+  for (const status of [403, 404]) {
+    const calls = [];
+    const created = await createInDraftPlacement({ folderId: "source", canFallBackToRoot: true }, async (folderId) => {
+      calls.push(folderId);
+      if (folderId) throw Object.assign(new Error("거절"), { status });
+      return "doc";
+    });
+    assert.equal(created, "doc");
+    assert.deepEqual(calls, ["source", null]);
+  }
+});
+
+test("다른 실패와 사용자가 지정한 폴더의 실패는 다른 곳에 만들지 않고 그대로 알린다", async () => {
+  const failing = (status, calls) => async (folderId) => { calls.push(folderId); throw Object.assign(new Error("실패"), { status }); };
+  const serverError = [];
+  await assert.rejects(createInDraftPlacement({ folderId: "source", canFallBackToRoot: true }, failing(500, serverError)), /실패/);
+  assert.deepEqual(serverError, ["source"]);
+  const explicit = [];
+  await assert.rejects(createInDraftPlacement({ folderId: "target", canFallBackToRoot: false }, failing(403, explicit)), /실패/);
+  assert.deepEqual(explicit, ["target"]);
+});
+
+test("보기 권한 문서를 근거로 만든 초안의 원문은 그 문서이고, 칩을 뺐거나 첨부만 했으면 원문이 없다", () => {
+  const base = { documentId: null };
+  const readOnly = { read_only_document_id: "doc_view", reference_document_ids: ["doc_view", "doc_other"] };
+  assert.equal(draftSourceDocumentId(base, readOnly), "doc_view");
+  assert.equal(draftSourceDocumentId(base, { read_only_document_id: "doc_view", reference_document_ids: ["doc_other"] }), null, "칩을 뺀 요청");
+  assert.equal(draftSourceDocumentId(base, { reference_document_ids: ["doc_other"] }), null, "다른 문서만 첨부한 요청");
+  assert.equal(draftSourceDocumentId({ documentId: "doc_open" }, readOnly), "doc_open", "서버가 받은 편집 문서가 먼저다");
+  assert.equal(draftSourceDocumentId(base, null), null);
 });

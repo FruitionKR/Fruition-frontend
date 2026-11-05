@@ -1,4 +1,4 @@
-import { isOperationNotSelected, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
+import { isOperationNotSelected, isOperationPurged, planOperationFailureReason, planOperationOutcome, planOperationStatusLabel, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
 
 /** 폴더 정리 미리보기 화면을 여는 데 필요한 것: 계획을 조회할 turn과 사용자가 보낸 커맨드. */
 export type FolderOrganizeRequest = {
@@ -33,6 +33,10 @@ export type FolderOrganizeRow = {
   dependencyNote: string | null;
   /** 부분 승인에서 고르지 않아 실행하지 않은 줄(작업이 모두 skipped·not_selected). */
   excluded: boolean;
+  /** 대상 문서가 영구 삭제돼 실행할 수 없는 줄(작업이 모두 skipped·document_purged). 고를 수 없다. */
+  isPurged: boolean;
+  /** 실행 결과에 실패가 있으면 칩 문구와 이유. 실패한 이동·이름 변경은 위 위치·이름에 반영하지 않는다. */
+  failure: { label: string; note: string } | null;
 };
 
 export type FolderOrganizeCreatedFolder = { operationId: string; name: string };
@@ -43,6 +47,9 @@ export type FolderOrganizeView = {
   /** 정리 대상 폴더: run의 target_folder_id, 없으면 옮겨지는 항목이 가장 많이 있던 폴더. 알 수 없으면 null. */
   targetFolderName: string | null;
 };
+
+/** 트리에서 사라져 이름을 알 수 없는 영구 삭제 문서의 줄 이름. AI도 문서 이름을 지운다. */
+const PURGED_ROW_NAME = "삭제된 문서";
 
 /** AI 계약: 부분 승인 operation_ids는 1~20개. */
 export const MAX_SELECTED_OPERATIONS = 20;
@@ -117,14 +124,16 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
       item ? folderName(item.parentId) : "위치 확인 불가",
       item?.name ?? "항목 이름 확인 불가"
     );
+    // 되돌린 작업도 실패처럼 새 위치·이름을 보여 주지 않는다.
+    const isFailed = ["failed", "rolled_back"].includes(planOperationOutcome(operation));
     if (operation.tool_name.startsWith("move_")) {
       row.moved = true;
-      row.folderName = folderName(operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id);
+      if (!isFailed) row.folderName = folderName(operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id);
       const sourceParentId = operation.source_parent_id ?? item?.parentId ?? null;
       if (sourceParentId) sourceParents.set(sourceParentId, (sourceParents.get(sourceParentId) ?? 0) + 1);
     } else if (operation.tool_name.startsWith("rename_")) {
       row.renamed = true;
-      row.newName = argName(args);
+      if (!isFailed) row.newName = argName(args);
     } else if (operation.tool_name === "apply_document_edit") {
       row.edited = true;
     } else {
@@ -138,15 +147,22 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
   const targetParentId = (targetFolderId && items.has(targetFolderId) ? targetFolderId : null)
     ?? [...sourceParents.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   return {
-    rows: [...rows.values()].map(({ moved, renamed, edited, operations, ...row }) => ({
+    rows: [...rows.values()].map(({ moved, renamed, edited, operations, ...row }) => {
+      const isPurged = operations.length > 0 && operations.every(isOperationPurged);
+      return {
       ...row,
+      originalName: isPurged && !items.has(row.id) ? PURGED_ROW_NAME : row.originalName,
+      newName: isPurged && !items.has(row.id) ? PURGED_ROW_NAME : row.newName,
       changeLabel: row.changeLabel || [moved && "이동", renamed && "이름", edited && "편집"].filter(Boolean).join(" · "),
       operationIds: operations.map((operation) => operation.id),
-      suggestedSelected: operations.every((operation) => operation.suggested_selected !== false),
+      suggestedSelected: !isPurged && operations.every((operation) => operation.suggested_selected !== false),
       duplicateWarning: warningMessage(operations, "duplicate_name") ?? warningMessage(operations, "duplicate_content"),
       dependencyNote: warningMessage(operations, "depends_on_unselected"),
-      excluded: operations.every(isOperationNotSelected)
-    })),
+      excluded: operations.every(isOperationNotSelected),
+      isPurged,
+      failure: rowFailure(operations)
+      };
+    }),
     createdFolders,
     targetFolderName: targetParentId ? items.get(targetParentId)?.name ?? null : null
   };
@@ -155,8 +171,20 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
 function emptyRow(id: string, originalName: string, folderName: string, newName: string): RowDraft {
   return {
     id, originalName, folderName, newName, changeLabel: "", reason: "", operationIds: [], suggestedSelected: true,
-    duplicateWarning: null, dependencyNote: null, excluded: false, moved: false, renamed: false, edited: false, operations: []
+    duplicateWarning: null, dependencyNote: null, excluded: false, isPurged: false, failure: null, moved: false, renamed: false, edited: false, operations: []
   };
+}
+
+/** 줄의 실행 결과에 실패가 있으면 칩 문구와 이유. 일부만 저장됐으면 "일부 실패", 모두 권한 때문이면 "권한 없음"이다. */
+function rowFailure(operations: AgentPlanOperation[]): FolderOrganizeRow["failure"] {
+  const failed = operations.filter((operation) => planOperationOutcome(operation) === "failed");
+  if (failed.length === 0) {
+    const rolledBack = operations.find((operation) => planOperationOutcome(operation) === "rolled_back");
+    return rolledBack ? { label: planOperationStatusLabel(rolledBack.status), note: planOperationFailureReason(rolledBack) } : null;
+  }
+  const reason = planOperationFailureReason(failed[0]);
+  if (operations.some((operation) => planOperationOutcome(operation) === "applied")) return { label: "일부 실패", note: `일부 작업은 ${reason}` };
+  return { label: failed.every((operation) => operation.status === "forbidden") ? "권한 없음" : "실패", note: reason };
 }
 
 function warningMessage(operations: AgentPlanOperation[], type: string): string | null {
@@ -166,8 +194,14 @@ function warningMessage(operations: AgentPlanOperation[], type: string): string 
 export type FolderOrganizeRowResults = {
   /** 저장된 줄(문서·항목) 수. 줄에 묶인 작업이 하나라도 저장됐으면 저장으로 본다. */
   saved: number;
+  /** saved 중 실패한 작업도 있는 줄 수 */
+  partial: number;
+  /** 하나도 저장하지 못하고 실패한 줄 수 */
+  failed: number;
   /** 고르지 않았거나 건너뛰어 하나도 실행하지 않은 줄 수 */
   excluded: number;
+  /** 실행한 뒤 되돌린 줄 수 */
+  rolledBack: number;
   /** 실제로 만들어진 새 폴더 수 */
   createdFolders: number;
 };
@@ -181,14 +215,31 @@ export function summarizeFolderOrganizeRows(plan: AgentPlan): FolderOrganizeRowR
   const operations = new Map(plan.operations.map((operation) => [operation.id, operation]));
   const { rows, createdFolders } = buildFolderOrganizeView(plan, []);
   let saved = 0;
+  let partial = 0;
+  let failed = 0;
   let excluded = 0;
+  let rolledBack = 0;
   for (const row of rows) {
     const results = summarizePlanOperationResults(row.operationIds.flatMap((id) => operations.get(id) ?? []));
     if (results.applied > 0) saved += 1;
-    else if (results.failed === 0) excluded += 1;
+    if (results.applied > 0 && results.failed > 0) partial += 1;
+    if (results.applied === 0 && results.failed > 0) failed += 1;
+    if (results.applied === 0 && results.failed === 0 && results.rolledBack > 0) rolledBack += 1;
+    if (results.applied === 0 && results.failed === 0 && results.rolledBack === 0) excluded += 1;
   }
   const folderOperations = createdFolders.flatMap((folder) => operations.get(folder.operationId) ?? []);
-  return { saved, excluded, createdFolders: summarizePlanOperationResults(folderOperations).applied };
+  return { saved, partial, failed, excluded, rolledBack, createdFolders: summarizePlanOperationResults(folderOperations).applied };
+}
+
+/** 일부라도 실패한 run의 결과 안내: "1개 저장 • 1개 일부만 저장 • 1개 실패 • 1개 제외" */
+export function folderOrganizeResultNotice({ saved, partial, failed, excluded, rolledBack }: FolderOrganizeRowResults): string {
+  return [
+    saved > partial && `${saved - partial}개 저장`,
+    partial > 0 && `${partial}개 일부만 저장`,
+    failed > 0 && `${failed}개 실패`,
+    rolledBack > 0 && `${rolledBack}개 복구`,
+    excluded > 0 && `${excluded}개 제외`
+  ].filter(Boolean).join(" • ");
 }
 
 /** 처음 열 때 선택을 해제해 둘 줄: 묶인 작업 중 하나라도 suggested_selected가 false인 줄. */
@@ -260,7 +311,8 @@ export type FolderOrganizeApproval = {
  * 둘 다 이 함수를 쓴다. 선택을 바꾸지 않았으면 deselectedIds는 initialDeselectedRowIds(rows)다.
  */
 export function folderOrganizeApproval(plan: AgentPlan, rows: FolderOrganizeRow[], deselectedIds: ReadonlySet<string>): FolderOrganizeApproval {
-  const selectedRowIds = new Set(rows.filter((row) => !deselectedIds.has(row.id)).map((row) => row.id));
+  // 영구 삭제된 줄은 실행할 수 없어 선택 기록과 상관없이 뺀다.
+  const selectedRowIds = new Set(rows.filter((row) => !row.isPurged && !deselectedIds.has(row.id)).map((row) => row.id));
   const operationIds = folderOrganizeSelection(plan, rows, selectedRowIds);
   return {
     selectedCount: selectedRowIds.size,

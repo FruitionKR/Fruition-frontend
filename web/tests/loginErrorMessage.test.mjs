@@ -40,3 +40,26 @@ test("시도 제한·서버 오류·네트워크 단절은 비밀번호 오류�
 test("그 밖의 HTTP 실패는 서버가 준 문구를 그대로 보여 준다", () => {
   assert.equal(getLoginErrorMessage(new ApiError("접근 코드가 필요합니다.", 403), false), "접근 코드가 필요합니다.");
 });
+
+test("스크립트가 붙기 전에는 제출을 막고, 그동안 입력한 값을 서버가 그린 인증 폼의 상태로 옮긴다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const read = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
+  assert.match(await read("shared/ui/auth/AuthControls.tsx"), /disabled=\{disabled \|\| !isHydrated\}/);
+  for (const page of ["LoginPage", "SignupPage", "ForgotPasswordPage"]) {
+    const source = await read(`views/auth/ui/${page}.tsx`);
+    assert.match(source, /useTypedFormValues\(\{/, page);
+    assert.match(source, /ref=\{formRef\}/, page);
+    assert.match(source, /method="post"/, "제출이 새더라도 입력이 URL에 나가지 않게 POST를 유지한다");
+  }
+});
+
+test("폼에 남은 값만 입력 이름별 상태로 옮기고, 비어 있으면 상태를 그대로 둔다", async () => {
+  const { adoptTypedValues } = await import("../src/shared/hooks/useTypedFormValues.ts");
+  const adopted = {};
+  const setter = (name) => (value) => { adopted[name] = value; };
+  const form = new FormData();
+  form.set("email", "demo@fruition.local");
+  form.set("nickname", "");
+  adoptTypedValues(form, { email: setter("email"), nickname: setter("nickname"), password: setter("password") });
+  assert.deepEqual(adopted, { email: "demo@fruition.local" });
+});

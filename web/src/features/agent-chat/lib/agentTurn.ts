@@ -15,6 +15,10 @@ export type AgentTurnRequest = {
   conversationContext?: { selected_pair_ids: string[] };
   /** 작업 대상 폴더(폴더 정리 범위·새 문서 위치). 생략하면 루트·워크스페이스 전체(document AgentTurnRequest 계약). */
   folder_id?: string;
+  /** 보기 권한 문서를 연 채 보낸 요청의 그 문서. 서버가 확인해 메시지에 남긴다. 편집 대상이 아니며 틀린 값은 서버가 무시한다(document AgentTurnRequest 계약). */
+  read_only_document_id?: string;
+  /** 근거로 첨부한 문서(최대 3개). 편집 대상이 아니며 없으면 생략한다. 쓸 수 없는 문서가 있으면 서버가 400을 준다(document AgentTurnRequest 계약). */
+  reference_document_ids?: string[];
 } & (
   // 문서를 열지 않았거나 작업 대상에서 뺐으면 세 필드를 함께 생략한다(document AgentTurnRequest 계약).
   | { documentId: string; baseVersion: number; editorSnapshot: MarkdownEditorSnapshot }
@@ -35,6 +39,10 @@ type AgentTurnRequestContext = {
   allowWebSearch?: boolean;
   /** 폴더를 대상으로 고른 스킬 실행. 없으면 folder_id를 싣지 않는다. */
   folderId?: string | null;
+  /** 지금 연 보기 권한 문서. 없으면 read_only_document_id를 싣지 않는다. */
+  readOnlyDocumentId?: string | null;
+  /** 근거로 첨부한 문서. 비어 있으면 reference_document_ids를 싣지 않는다. */
+  referenceDocumentIds?: string[];
 };
 
 export type AgentTurnAction =
@@ -109,6 +117,51 @@ export function resolveGeneratedDocumentFolderId(response: Pick<AgentTurnRespons
   return response?.folder_id ?? null;
 }
 
+/**
+ * 새 문서 초안의 원문. 서버가 받은 편집 문서가 먼저이고, 보기 권한으로 연 문서는 첨부로 실어 보낸 요청일 때만 원문이다.
+ * "현재 문서" 칩을 뺀 요청은 read_only_document_id가 있어도 그 문서를 쓰지 않았으므로 원문이 아니다.
+ */
+export function draftSourceDocumentId(
+  response: { documentId: string | null },
+  request: { read_only_document_id?: string | null; reference_document_ids?: readonly string[] } | null
+): string | null {
+  if (response.documentId) return response.documentId;
+  const readOnlyDocumentId = request?.read_only_document_id;
+  return readOnlyDocumentId && request?.reference_document_ids?.includes(readOnlyDocumentId) ? readOnlyDocumentId : null;
+}
+
+export type DraftPlacement = {
+  folderId: string | null;
+  /** 원문 옆으로 고른 폴더라 서버가 거절해도 기본 위치에 만들 수 있다. 사용자가 지정한 폴더는 옮기지 않는다. */
+  canFallBackToRoot: boolean;
+};
+
+/**
+ * 새 문서 초안을 둘 위치. turn에 지정한 대상 폴더가 먼저이고, 없으면 원문(열린 문서) 옆이다.
+ * 문서를 열지 않고 만든 초안이나 쓸 수 없는 원문 폴더면 기본 위치(루트)다.
+ */
+export function resolveDraftPlacement({ targetFolderId, sourceFolderId, isFolderWriteDenied }: {
+  targetFolderId: string | null;
+  /** 원문이 있는 폴더. 루트면 null, 원문이 없거나 트리에서 못 찾으면 undefined */
+  sourceFolderId: string | null | undefined;
+  isFolderWriteDenied: (folderId: string) => boolean;
+}): DraftPlacement {
+  if (targetFolderId) return { folderId: targetFolderId, canFallBackToRoot: false };
+  if (!sourceFolderId || isFolderWriteDenied(sourceFolderId)) return { folderId: null, canFallBackToRoot: false };
+  return { folderId: sourceFolderId, canFallBackToRoot: true };
+}
+
+/** 트리가 오래돼 원문 폴더가 없어졌거나 권한이 바뀌었으면(403·404) 기본 위치에 다시 만든다. 그 밖의 실패는 그대로 던진다. */
+export async function createInDraftPlacement<T>({ folderId, canFallBackToRoot }: DraftPlacement, create: (folderId: string | null) => Promise<T>): Promise<T> {
+  try {
+    return await create(folderId);
+  } catch (error) {
+    const status = (error as { status?: unknown } | null)?.status;
+    if (!canFallBackToRoot || (status !== 403 && status !== 404)) throw error;
+    return create(null);
+  }
+}
+
 export type { MarkdownDiffLine } from "@/shared/lib/lineDiff";
 
 export type MarkdownEditPreview = {
@@ -144,6 +197,7 @@ export function buildAgentTurnRequest(
   context: Pick<ActiveMarkdownEditContext, "documentId" | "baseVersion" | "editorSnapshot"> | null,
   requestContext: AgentTurnRequestContext
 ): AgentTurnRequest {
+  const referenceDocumentIds = requestContext.referenceDocumentIds ?? [];
   const base = {
     session_id: requestContext.sessionId,
     message,
@@ -155,9 +209,12 @@ export function buildAgentTurnRequest(
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }
       : {}),
-    ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {})
+    ...(requestContext.folderId ? { folder_id: requestContext.folderId } : {}),
+    ...(referenceDocumentIds.length > 0 ? { reference_document_ids: referenceDocumentIds } : {})
   } as const;
-  if (!context) return base;
+  if (!context) {
+    return requestContext.readOnlyDocumentId ? { ...base, read_only_document_id: requestContext.readOnlyDocumentId } : base;
+  }
   return { ...base, documentId: context.documentId, baseVersion: context.baseVersion, editorSnapshot: context.editorSnapshot };
 }
 
@@ -189,6 +246,18 @@ function targetsMatch(request: DocumentAgentTurnRequest, edit: AgentTurnEdit): b
     && requestTarget.endLine === edit.requested_target.end_line;
 }
 
+/** 끝난 편집 turn에서 편집안이 지워졌을 때의 안내. 문서를 영구 삭제하면 AI가 result.edit를 뺀다(ai document-purge). */
+export const PURGED_EDIT_MESSAGE = "문서가 영구 삭제되어 편집안이 남아 있지 않아요.";
+
+/**
+ * 문서 영구 삭제로 편집안이 지워진 turn인지. 끝난 turn은 result.edit만 사라지고(ai document-purge),
+ * 수락을 기다리던 turn은 failed·document_purged로 닫힌다(document DocumentCopyScrubber).
+ */
+export function isPurgedEditTurn(turn: { status?: string | null; error?: string | null; result?: { action?: string | null; edit?: unknown } | null }): boolean {
+  if (turn.error === "document_purged") return true;
+  return turn.status === "completed" && turn.result?.action === "markdown_edit" && !turn.result.edit;
+}
+
 export function prepareMarkdownEditPreview(
   anyRequest: AgentTurnRequest,
   response: AgentTurnResponse
@@ -203,8 +272,11 @@ export function prepareMarkdownEditPreview(
   if (response.baseVersion !== request.baseVersion) {
     throw new Error("응답의 문서 version이 요청과 일치하지 않습니다.");
   }
-  if (response.result.action !== "markdown_edit" || !response.result.edit) {
+  if (response.result.action !== "markdown_edit") {
     throw new Error("Markdown 편집 응답이 아닙니다.");
+  }
+  if (!response.result.edit) {
+    throw new Error(PURGED_EDIT_MESSAGE);
   }
   if (!targetsMatch(request, response.result.edit)) {
     throw new Error("응답의 편집 대상이 요청 범위와 일치하지 않습니다.");

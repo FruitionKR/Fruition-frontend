@@ -14,6 +14,7 @@ import {
   WORKSPACE_HOME_LOCATION,
   type WorkspaceLocation
 } from "../lib/workspaceLocation";
+import { resolveNavigationMode } from "@/shared/lib/overlayHistory";
 import { getSelectionLocation, type TreeSelectionState } from "./useTreeSelection";
 
 /**
@@ -28,7 +29,8 @@ export function useWorkspaceNavigation() {
   const activeView = getWorkspaceLocationView(location);
   const navigate = useCallback((target: WorkspaceLocation, mode: "push" | "replace" = "push") => {
     const href = buildWorkspaceHref(target);
-    if (mode === "replace") router.replace(href, { scroll: false });
+    // 겹쳐 연 패널의 history 표식 위에서 이동하면 표식을 대체한다. 그래야 뒤로 가기가 이전 화면으로 바로 돌아간다.
+    if (resolveNavigationMode(window.history.state, mode) === "replace") router.replace(href, { scroll: false });
     else router.push(href, { scroll: false });
   }, [router]);
   // 접근 코드 미입력 상태면 설정 화면에 고정한다. API는 middleware가 403으로 막는다.

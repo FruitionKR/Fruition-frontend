@@ -5,6 +5,8 @@ import { analyticsEditType } from "@/shared/lib/analytics/events";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree";
+import { resolveGeneratedDocumentFolderId } from "@/features/agent-chat/lib/agentTurn";
 import contextChipCloseIcon from "@/shared/assets/svg/agent/context-chip-close.svg";
 import contextChipClosePrimaryIcon from "@/shared/assets/svg/agent/context-chip-close-primary.svg";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
@@ -35,12 +37,13 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
+import { editResultNotice, resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { CHAT_SESSION_LIMIT_MESSAGE, getErrorMessage } from "@/shared/lib/apiErrors";
 import { getWorkspaceId } from "@/shared/api/client";
+import type { DocumentItemResponse } from "@/entities/document";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
 import { fetchChatSessions } from "@/entities/chat/api/chat";
 import { chatSessionTitle, isDefaultChatTitle } from "@/entities/chat/lib/sessionTitle";
@@ -60,9 +63,16 @@ import { useAgentTurn } from "../model/useAgentTurn";
 import { useAiModelSelection } from "../model/useAiModelSelection";
 import { useComposerStop } from "../model/useComposerStop";
 import { useSkillSlashPicker } from "../model/useSkillSlashPicker";
+import { useComposerAttachments } from "../model/useComposerAttachments";
+import { useDocumentPicker } from "../model/useDocumentPicker";
 import { usePanelSessions } from "../model/usePanelSessions";
 import { usePanelDraft } from "../model/usePanelDraft";
-import { composerSkillIntent, isOpenDocumentOptIn, shouldSendOpenDocument } from "../lib/openDocumentSource";
+import { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } from "../lib/openDocumentSource";
+import { autoIncludedOpenDocumentId, composerDocumentChipLabel, droppedOpenDocumentMessage, followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
+import { filterPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
+import { ReferenceDocumentPickerModal } from "@/features/skill-authoring/ui/ReferenceDocumentPickerModal";
+import { ComposerDocumentChips } from "./ComposerDocumentChips";
+import { DOCUMENT_PICKER_LIST_ID, DocumentMentionPicker, documentPickerOptionId } from "./DocumentMentionPicker";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
 const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
@@ -74,6 +84,7 @@ export function AgentPanel({
   onClose,
   onOpenSourceBlocks,
   onCreateMarkdownDocument,
+  isFolderWriteDenied,
   markdownEditContext,
   onDocumentExported,
   onIngestExportedDocument,
@@ -86,16 +97,25 @@ export function AgentPanel({
   onManageSkills,
   onSaveRequestAsSkill,
   onOpenFolderOrganize,
+  onFolderOrganizePreviewRequested,
   onReplaceFolderOrganize,
   skillTestRunSlotRef,
   openDocumentTitle = null,
+  readOnlyDocumentId = null,
+  readOnlyOpenDocument = null,
   onEditReviewChange,
   isShown = true
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
-  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null, sourceDocumentId?: string | null) => Promise<void>;
+  /** 이 폴더에 새 문서를 넣을 권한이 없으면 true. 권한을 모르면 false이고 서버가 판단한다. */
+  isFolderWriteDenied: (folderId: string) => boolean;
   markdownEditContext?: ActiveMarkdownEditContext | null;
+  /** 지금 열린 보기 권한 문서. 편집 문맥이 없어 AI가 "문서를 열라"고 되물어도, 이 문서에서 보낸 요청이면 이유를 알려 주는 문장으로 보인다. */
+  readOnlyDocumentId?: string | null;
+  /** 지금 화면에 보기 권한으로 열어 둔 문서. 작업 요청의 근거로 싣는다. */
+  readOnlyOpenDocument?: DocumentItemResponse | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   /** 채팅 편입으로 저장한 문서의 위키 편입을 시작한다. 편입 권한이 없거나 확인 중이면 없어 알림에 버튼을 두지 않는다. */
   onIngestExportedDocument?: (documentId: string) => void;
@@ -135,6 +155,8 @@ export function AgentPanel({
   onSaveRequestAsSkill?: (request: string) => void;
   /** 폴더 정리 계획을 메인 영역의 미리보기 탭으로 연다(Figma 1656:11542). */
   onOpenFolderOrganize?: (request: FolderOrganizeRequest) => void;
+  /** 사용자가 작업 카드에서 미리보기를 직접 열었다. 계획이 도착해 자동으로 열릴 때는 부르지 않는다. */
+  onFolderOrganizePreviewRequested?: () => void;
   /** 앞선 폴더 정리 계획이 같은 폴더의 새 계획으로 대체됐다. 그 계획의 미리보기 탭이 열려 있으면 새 계획으로 바꾼다. */
   onReplaceFolderOrganize?: (supersededTurnId: string, next: FolderOrganizeRequest) => void;
   /** 스킬 만들기·상세 시트가 열린 동안 입력창 위에 "테스트 실행" 자리를 둔다(Figma 1671:14585). 시트가 이 요소에 그린다. */
@@ -149,6 +171,11 @@ export function AgentPanel({
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
   const sessions = usePanelSessions(activeView);
   const activeSessionId = sessions.selected[activeView];
+  // 세션 한도 안내에서 다른 탭의 대화 목록을 바로 열 때 쓴다. 헤더가 탭마다 새로 마운트되므로 첫 렌더에만 읽힌다.
+  const [isSessionListRequested, setIsSessionListRequested] = useState(false);
+  useEffect(() => {
+    if (isSessionListRequested) setIsSessionListRequested(false);
+  }, [isSessionListRequested]);
   const chatDraft = usePanelDraft(sessions.scope, "chat", sessions.selected.chat);
   const workDraft = usePanelDraft(sessions.scope, "work", sessions.selected.work);
   const setWorkDraft = workDraft.setValue;
@@ -240,16 +267,35 @@ export function AgentPanel({
     refreshMessages
   });
   const selectedPairIds = pairSelection.selectedPairIds;
+  // "@문서"·"+ 문서 추가"로 첨부한 문서. 대화마다 따로 둔다.
+  const composerAttachments = useComposerAttachments(`${sessions.scope}:${sessions.selected.work}`);
+  const restoreComposerAttachments = composerAttachments.restore;
+  const restoreRejectedReferences = useCallback((question: string, referenceDocumentIds: string[]) => {
+    restoreComposerQuestion(question);
+    restoreComposerAttachments(referenceDocumentIds);
+  }, [restoreComposerAttachments, restoreComposerQuestion]);
+  // 작업 대상 칩에서 뺀 열린 문서. 같은 문서인 동안만 빠진다.
+  const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
+  const handleOpenDocumentDropped = useCallback((documentId: string) => {
+    setExcludedDocumentId(documentId);
+    const title = readOnlyOpenDocument?.id === documentId ? composerDocumentChipLabel(readOnlyOpenDocument) : null;
+    publishNotice({ kind: "info", title: "현재 문서를 빼고 보냈어요", message: droppedOpenDocumentMessage(title) });
+  }, [readOnlyOpenDocument]);
   const agentTurn = useAgentTurn({
     markdownEditContext,
+    readOnlyDocumentId,
     activeSessionId: sessions.selected.work,
     selectedModel,
     selectedPairIds: [],
     allowWebSearch,
     refreshMessages: workThread.refreshMessages,
+    isFolderWriteDenied,
     onCreateMarkdownDocument,
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
-    onInsufficientCredit: restoreComposerQuestion
+    onInsufficientCredit: restoreComposerQuestion,
+    onReferencesRestored: restoreRejectedReferences,
+    onOpenDocumentDropped: handleOpenDocumentDropped,
+    openDocumentTitle
   });
   const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState, taskRunIds } = agentTurn;
   // 이 화면에서 보낸 폴더 정리 요청의 계획이 도착하면 미리보기 탭을 바로 연다. 지난 기록은 작업 카드의 버튼으로 연다.
@@ -270,6 +316,17 @@ export function AgentPanel({
       : taskRunIds;
     return splitChatAndTaskMessages(workThread.messages, runIds);
   }, [isSeparateWorkSession, workThread.messages, taskRunIds]);
+  const displayedTaskItems = useMemo(
+    () => withReadOnlyDocumentClarification(taskItems, readOnlyDocumentId, agentTurn.readOnlyRequests),
+    [agentTurn.readOnlyRequests, readOnlyDocumentId, taskItems]
+  );
+  // 고칠 첨부를 못 정해 되물었으면 답을 보낼 때 같은 첨부가 함께 가도록 칩을 되돌린다. 다른 대화로 옮겨 갔으면 그 대화에 붙이지 않는다.
+  const attachmentClarifyTurnId = isAttachmentTargetClarification(taskItems, agentTurn.requestTurnId) ? agentTurn.requestTurnId : null;
+  useEffect(() => {
+    if (attachmentClarifyTurnId && agentTurnRequest?.session_id === sessions.selected.work) restoreComposerAttachments(agentTurnRequest?.reference_document_ids ?? []);
+    // 되물은 turn이 도착할 때 한 번만 되돌린다. 뒤에 칩을 뺀 사용자의 선택을 덮지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentClarifyTurnId]);
   // 취소한 작업(서버가 cancelled로 닫은 말풍선·취소를 받아들인 pending 말풍선)은 turn 조회로 되돌리기가 끝났는지 따라간다.
   // 서버는 말풍선을 취소 요청 즉시 닫으므로, 되돌리는 중이면 "취소하는 중…", 끝나면 "취소됨"·복구 실패로 보인다.
   const cancelledTaskTurnIds = useMemo(() => taskItems.flatMap((item) => (
@@ -279,7 +336,7 @@ export function AgentPanel({
   )), [cancelAcceptedTurnIds, taskItems]);
   const { cancelStates, seedCancelState } = useTurnCancelStates(cancelledTaskTurnIds);
   const markCancelAccepted = useCallback((accepted: readonly CancelAcceptedTurn[]) => {
-    accepted.forEach(({ turnId, status }) => seedCancelState(turnId, { kind: "status", status }));
+    accepted.forEach(({ turnId, status, error }) => seedCancelState(turnId, { kind: "status", status, error }));
     setCancelAcceptedTurnIds((current) => new Set([...current, ...accepted.map(({ turnId }) => turnId)]));
   }, [seedCancelState]);  // 방금 보낸 요청이 실패로 끝나 작업 탭 '실패' 묶음에 서버 문구와 '다시 시도'로 보이면 입력창 위 빨간 오류는 겹쳐 띄우지 않는다.
   const requestTurnId = agentTurn.requestTurnId;
@@ -301,24 +358,41 @@ export function AgentPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSkillSheetOpen]);
   // 작업 대상 칩(Figma 1627:9925). ×로 뺀 문서·선택은 같은 문서·같은 선택인 동안만 빠진다.
-  const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
   const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
   // '새 문서로 만들기' 스킬에서 "현재 문서" 칩을 눌러 원문으로 쓰기로 한 문서. 보내면 비운다.
   const [optedInDocumentId, setOptedInDocumentId] = useState<string | null>(null);
-  const openDocumentId = markdownEditContext?.documentId ?? null;
-  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, onChange: setComposerValue });
+  // 보기 권한 문서는 편집기를 열지 않아 편집 문맥이 없다. 원문 수정을 뜻하는 documentId 대신 근거 첨부로 실어 읽기만 쓰게 한다.
+  const readOnlySourceId = markdownEditContext ? null : readOnlyReferenceDocumentId(readOnlyOpenDocument);
+  const openDocumentId = markdownEditContext?.documentId ?? readOnlySourceId;
+  const skillPicker = useSkillSlashPicker({ value: composerValue, isEnabled: isWorkView && !isMeetingAreaOpen, isDraftRestored: workDraft.isRestored, onChange: setComposerValue });
   const composerIntent = isWorkView ? composerSkillIntent(composerValue, skillPicker.skills) : null;
   const isSourceOptIn = isOpenDocumentOptIn(composerIntent);
   const editorTarget = markdownEditContext?.editorSnapshot.target;
   const selectionKey = openDocumentId && editorTarget?.type === "selection"
     ? `${openDocumentId}:${editorTarget.startLine}-${editorTarget.endLine}`
     : null;
-  // "@문서" 고르기 UI는 아직 없어 멘션한 문서는 늘 없다(hasDocumentMention: false).
+  const hasRoomForOpenDocument = readOnlySourceId === null || composerAttachments.attachments.filter((document) => document.id !== readOnlySourceId).length < REFERENCE_DOCUMENT_MAX;
   const isDocumentIncluded = openDocumentId !== null && shouldSendOpenDocument({
     intent: composerIntent,
     isExcluded: excludedDocumentId === openDocumentId,
     isOptedIn: optedInDocumentId === openDocumentId,
-    hasDocumentMention: false
+    hasRoom: hasRoomForOpenDocument
+  });
+  const openDocumentOverflowNotice = readOnlyOverflowNotice({ isReadOnlyOpen: readOnlySourceId !== null, hasRoom: hasRoomForOpenDocument });
+  const attachedDocuments = referenceDocuments(composerAttachments.attachments, isDocumentIncluded ? openDocumentId : null);
+  const documentPicker = useDocumentPicker({
+    value: composerValue,
+    isEnabled: isWorkView && !isMeetingAreaOpen,
+    attachments: attachedDocuments,
+    openDocument: {
+      id: openDocumentId,
+      isAttached: isDocumentIncluded,
+      isReference: readOnlySourceId !== null,
+      attach: () => (isSourceOptIn ? setOptedInDocumentId(openDocumentId) : setExcludedDocumentId(null))
+    },
+    onAttach: composerAttachments.attach,
+    onChange: setComposerValue,
+    getInput: () => panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")
   });
   const isSelectionKept = selectionKey !== null && excludedSelectionKey !== selectionKey;
   const isSelectionIncluded = isDocumentIncluded && isSelectionKept;
@@ -403,7 +477,7 @@ export function AgentPanel({
     void loadTitle();
     return () => { cancelled = true; clearTimeout(timer); };
   }, [activeSessionId, completedReplies]);
-  // 작업 탭 입력(Figma 1610:9628). "@문서"는 아직 고르기 UI가 없고, 열린 문서가 "현재 문서" 칩으로 붙는다.
+  // 작업 탭 입력(Figma 1610:9628). 열린 문서는 "현재 문서" 칩으로 붙고, 다른 문서는 "@문서"·"+ 문서 추가"로 첨부한다.
   // 보내기 전 스킬 실행 카드. 보낸 뒤에는 진행 카드(agentTurnRequest)가 이어받는다.
   const waitingSkillRun = skillRun && !isAgentTurnLoading ? skillRunWaitingState({
     stalledTurnCount: stalledTurnIds.size,
@@ -447,13 +521,16 @@ export function AgentPanel({
     onCancelAccepted: markCancelAccepted
   });
   const composerStopHintTarget = composerStop.stoppingTarget ?? stopTarget;
+  const isComposerBusy = !sessions.ready || activeSessionId === null || isSubmitting || isPairSelectionMode || composerStop.isStopping;
   const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
 
+  /** 입력창을 거치지 않는 요청. 같은 요청을 다시 보내거나 그 되묻기에 답하면 그 요청의 첨부를 이어받는다. */
   async function submitWorkRequest(request: string, context: ActiveMarkdownEditContext | null, folderId: string | null = null) {
     if (!selectedModel) return;
+    const referenceDocumentIds = followUpReferenceDocumentIds(agentTurnRequest, sessions.selected.work, request);
     try {
       const sessionId = await sessions.ensureWritable("work");
-      agentTurn.submitAgentTurn(request, context, sessionId, selectedModel, [], folderId);
+      agentTurn.submitAgentTurn(request, context, sessionId, selectedModel, [], folderId, referenceDocumentIds);
     } catch (error) {
       publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "작업 대화를 준비하지 못했습니다.") });
     }
@@ -560,7 +637,9 @@ export function AgentPanel({
       if (!activeSessionId || !selectedModel) return;
       setComposerValue("");
       setOptedInDocumentId(null);
-      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, []);
+      composerAttachments.markSent();
+      const includedReadOnlyId = isDocumentIncluded ? readOnlySourceId : null;
+      agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, [], null, turnReferenceDocumentIds(attachedDocuments, includedReadOnlyId), autoIncludedOpenDocumentId(includedReadOnlyId, { attachments: composerAttachments.attachments, optedInDocumentId }));
       return;
     }
     // 채팅 탭은 문서가 열려 있어도 위키 질의(Query)만 보낸다.
@@ -643,17 +722,19 @@ export function AgentPanel({
   const reviewDocumentId = agentTurnRequest?.documentId ?? null;
   const proposalCount = reviewSegments ? countProposals(reviewSegments) : 0;
   const pendingProposalCount = reviewSegments ? countPendingProposals(reviewSegments, proposalDecisions) : 0;
+  const { isAutoApplying } = agentTurn;
   const isInlineReview = Boolean(
-    reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
+    !isAutoApplying && reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
     && reviewDocumentId && reviewDocumentId === openDocumentId
   );
   const isReviewBusy = isAgentTurnLoading || isCreatingMarkdown;
   const shownReviewIds = useRef(new Set<string>());
   useEffect(() => {
-    if (!(isInlineReview || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
+    // 자동 적용도 수락과 같은 경로로 집계한다(제안 → 결정). 결정은 서버가 저장 시 ai_edit_decided(accepted)로 남긴다.
+    if (!(isInlineReview || isAutoApplying || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
     shownReviewIds.current.add(agentTurnResponse.requestId);
     captureAnalytics("edit_review_shown", { proposal_id: agentTurnResponse.requestId, document_id: agentTurnResponse.documentId, edit_type: analyticsEditType(agentTurnResponse.result.edit) });
-  }, [isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
+  }, [isAutoApplying, isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
   const decideProposalRef = useRef(agentTurn.decideProposal);
   decideProposalRef.current = agentTurn.decideProposal;
   const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "");
@@ -680,10 +761,13 @@ export function AgentPanel({
     : null;
 
   // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
-  const hasDocumentCommandPreview = Boolean(
+  const generatedDocumentFolderId = resolveGeneratedDocumentFolderId(agentTurnResponse);
+  const newDocumentBlockedReason = generatedDocumentFolderId && isFolderWriteDenied(generatedDocumentFolderId) ? FOLDER_WRITE_FORBIDDEN_MESSAGE : null;
+  const hasDocumentCommandPreview = !isAutoApplying && Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
   );
+  const editNotice = editResultNotice(agentTurnResponse?.result.message);
   const documentCommandPreview = hasDocumentCommandPreview ? (
     <>
       {agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown && (
@@ -692,11 +776,13 @@ export function AgentPanel({
           notice={agentTurnResponse.result.message}
           isSubmitting={isCreatingMarkdown}
           errorMessage={agentTurn.markdownCreateErrorMessage}
+          blockedReason={newDocumentBlockedReason}
           onCancel={agentTurn.cancelAgentTurnResult}
           onRegenerate={agentTurn.regenerateAgentTurn}
-          onCreate={agentTurn.createMarkdownDocument}
+          onCreate={() => agentTurn.createMarkdownDocument()}
         />
       )}
+      {editPreviewState?.preview && editNotice && <p className={styles["markdown-create-notice"]} role="note">{editNotice}</p>}
       {isInlineReview && <ProposalDecisionButtons disabled={isReviewBusy} onDecide={agentTurn.decideRemainingProposals} />}
       {editPreviewState?.preview && !isInlineReview && (
         <MarkdownEditPreview
@@ -706,6 +792,7 @@ export function AgentPanel({
           onApply={agentTurn.applyMarkdownEdit}
           onCancel={agentTurn.cancelAgentTurnResult}
           onOpenAsNewDocument={agentTurn.openMarkdownEditAsNewDocument}
+          newDocumentBlockedReason={newDocumentBlockedReason}
           onRegenerate={agentTurn.regenerateAgentTurn}
         />
       )}
@@ -726,6 +813,8 @@ export function AgentPanel({
         onClose={onClose}
         activeSessionId={activeSessionId}
         loadSessions={sessions.loadSessions}
+        onStartNewChat={() => sessions.startNewSession(activeView)}
+        isSessionListInitiallyOpen={isSessionListRequested}
         isInteractionLocked={isSubmitting || isExporting}
         canStartWikiExport={exportPairIds.length > 0 && !isSubmitting && !isExporting}
         onStartWikiExport={startPairSelection}
@@ -746,7 +835,7 @@ export function AgentPanel({
         {isWorkView ? (
           // 작업 탭(Figma 1610:9512): 문서 편집·폴더 정리·스킬 실행 요청과 결과를 상태별로 묶어 보여 준다.
           <AgentTaskBody
-            items={taskItems}
+            items={displayedTaskItems}
             pendingTask={isAgentTurnLoading && agentTurnRequest ? {
               request: agentTurnRequest.message,
               stages: agentTurn.agentStages,
@@ -779,15 +868,24 @@ export function AgentPanel({
             activePreview={documentCommandPreview}
             activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
+            autoAppliedTurnIds={agentTurn.autoAppliedTurnIds}
+            autoAppliedNotice={agentTurn.autoAppliedNotice}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
+            setAsideTurnIds={agentTurn.setAsideTurnIds}
+            onReopenProposal={isSubmitting ? undefined : agentTurn.reopenProposal}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
             errorMessage={(isRequestFailureListed ? null : agentTurn.agentTurnErrorMessage) ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
-            onOpenFolderOrganize={onOpenFolderOrganize}
+            onOpenFolderOrganize={(request) => {
+              onOpenFolderOrganize?.(request);
+              onFolderOrganizePreviewRequested?.();
+            }}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
             onRetryTask={isSubmitting ? undefined : retryTask}
+            onOpenSourceBlocks={onOpenSourceBlocks}
+            nodes={nodes}
             onRetryFailed={isSubmitting ? undefined : retryFailedTask}
             cancelAcceptedTurnIds={cancelAcceptedTurnIds}
             cancelStates={cancelStates}
@@ -891,6 +989,20 @@ export function AgentPanel({
         {sessions.activeChannel === "legacy" && (
           <p className={styles["wiki-evidence-notice"]} role="status">이전 통합 대화입니다. 새 요청은 현재 탭의 별도 대화에 저장됩니다.</p>
         )}
+        {sessions.isAtSessionLimit && (
+          <div className={styles["wiki-evidence-notice"]}>
+            <p role="status">{CHAT_SESSION_LIMIT_MESSAGE}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSessionListRequested(true);
+                setActiveView(isWorkView ? "chat" : "work");
+              }}
+            >
+              {isWorkView ? "채팅" : "작업"} 탭 대화 정리
+            </button>
+          </div>
+        )}
         {/* 테스트 실행 묶음은 작업 탭에만 보인다(Figma 1671:14585). 채팅 탭으로 바꿔도 자리는 남겨 실행 상태를 잃지 않는다. */}
         {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} hidden={!isWorkView} />}
         {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
@@ -909,6 +1021,31 @@ export function AgentPanel({
             )}
           </div>
         )}
+        {isWorkView && documentPicker.isMentionOpen && (
+          <DocumentMentionPicker
+            options={documentPicker.mentionOptions}
+            activeOptionId={documentPicker.activeOptionId}
+            openDocumentId={openDocumentId}
+            statusMessage={documentPicker.mentionStatusMessage}
+            onPick={documentPicker.pickMention}
+            onHover={documentPicker.setActiveId}
+          />
+        )}
+        {isWorkView && documentPicker.isDialogOpen && (
+          <ReferenceDocumentPickerModal
+            documents={documentPicker.dialogDocuments}
+            referenceDocuments={[]}
+            selectedDocs={[]}
+            maxCount={REFERENCE_DOCUMENT_MAX}
+            onToggle={documentPicker.pickFromDialog}
+            onClose={documentPicker.closeDialog}
+            ariaLabel="첨부할 문서 검색"
+            placeholder={`첨부할 문서 검색 (${attachedDocuments.length}/${REFERENCE_DOCUMENT_MAX} 첨부)`}
+            emptyMessage={documentPicker.dialogStatusMessage}
+            documentMeta={(document) => (document.id === openDocumentId ? "현재 문서" : null)}
+            filterDocuments={filterPickerDocuments}
+          />
+        )}
         {skillPicker.isOpen && (
           <SkillSlashPicker
             groups={skillPicker.groups}
@@ -922,9 +1059,9 @@ export function AgentPanel({
         <AgentComposer
           value={composerValue}
           inputLabel={isWorkView ? "작업 요청 입력" : undefined}
-          header={isWorkView && openDocumentId ? (
+          header={isWorkView ? (
             <div className={styles["task-context-chips"]}>
-              {isSourceOptIn ? (
+              {!openDocumentId ? null : isSourceOptIn ? (
                 // '새 문서로 만들기' 스킬: 열린 문서는 기본으로 빼고, 눌러야 원문으로 쓴다.
                 isDocumentIncluded ? (
                   <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 원문에서 빼기" onClick={() => setOptedInDocumentId(null)}>
@@ -941,26 +1078,38 @@ export function AgentPanel({
                   현재 문서
                   <AgentAssetIcon src={contextChipCloseIcon} size={12} />
                 </button>
-              ) : (
-                <button type="button" className={styles["task-context-chip-add"]} onClick={() => setExcludedDocumentId(null)}>
-                  + 현재 문서
-                </button>
-              )}
+              ) : null}
               {isSelectionIncluded && markdownEditContext && editorTarget && (
                 <button type="button" className={`${styles["task-context-chip"]} ${styles["is-primary"]}`} aria-label="선택한 부분을 작업 대상에서 빼기" onClick={() => setExcludedSelectionKey(selectionKey)}>
                   {selectionChipLabel(markdownEditContext.editorSnapshot.markdown, editorTarget.startLine, editorTarget.endLine)}
                   <AgentAssetIcon src={contextChipClosePrimaryIcon} size={12} />
                 </button>
               )}
+              <ComposerDocumentChips
+                attachments={attachedDocuments}
+                canAdd={documentPicker.canAdd}
+                isDisabled={isComposerBusy}
+                limitMessage={documentPicker.limitMessage}
+                addButtonRef={documentPicker.addButtonRef}
+                onRemove={composerAttachments.remove}
+                onAdd={documentPicker.openDialog}
+              />
+              {openDocumentOverflowNotice && <p className={styles["task-card-meta"]} role="status">{openDocumentOverflowNotice}</p>}
             </div>
           ) : null}
-          onInputKeyDown={isWorkView ? skillPicker.handleKeyDown : undefined}
-          inputPopup={isWorkView ? {
+          onInputKeyDown={isWorkView ? (event) => documentPicker.handleKeyDown(event) || skillPicker.handleKeyDown(event) : undefined}
+          onCaretChange={isWorkView ? documentPicker.setCaret : undefined}
+          onInputBlur={isWorkView ? documentPicker.dismissMention : undefined}
+          inputPopup={!isWorkView ? undefined : documentPicker.isMentionOpen ? {
+            isOpen: true,
+            listId: DOCUMENT_PICKER_LIST_ID,
+            activeOptionId: documentPicker.activeOptionId ? documentPickerOptionId(documentPicker.activeOptionId) : null
+          } : {
             isOpen: skillPicker.isOpen,
             listId: SKILL_PICKER_LIST_ID,
             activeOptionId: skillPicker.activeSkillId ? skillPickerOptionId(skillPicker.activeSkillId) : null
-          } : undefined}
-          isLoading={!sessions.ready || activeSessionId === null || isSubmitting || isPairSelectionMode || composerStop.isStopping}
+          }}
+          isLoading={isComposerBusy}
           placeholder={composerPlaceholder}
           models={aiModels}
           selectedModel={selectedModel}

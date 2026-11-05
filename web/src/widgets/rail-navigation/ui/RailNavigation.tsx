@@ -32,6 +32,7 @@ export function RailButton({
   label,
   tooltip,
   tooltipHint,
+  phoneLabel,
   isActive = false,
   hasIndicator = false,
   className,
@@ -43,6 +44,8 @@ export function RailButton({
   tooltip?: string;
   /** 말풍선 보조줄(단축키·비활성 사유) */
   tooltipHint?: ReactNode;
+  /** 휴대폰 아래 탭 바에서 아이콘 밑에 보이는 이름. 넓은 화면에서는 보이지 않는다. */
+  phoneLabel?: string;
   isActive?: boolean;
   /** 할 일이 있을 때 오른쪽 위에 켜는 주황 점(알림 탭 안 읽음 점과 같은 모양) */
   hasIndicator?: boolean;
@@ -63,6 +66,7 @@ export function RailButton({
         aria-label={label}
       >
         {children}
+        {phoneLabel && <span className={styles["rail-label"]} aria-hidden>{phoneLabel}</span>}
         {hasIndicator && <span className={styles["rail-indicator"]} aria-hidden />}
       </button>
     </Tooltip>
@@ -110,6 +114,7 @@ export function RailNavigation({
             <RailButton
               key={id}
               label={label}
+              phoneLabel={label}
               isActive={isActive(activeView)}
               aria-current={isActive(activeView) ? "page" : undefined}
               onClick={(event) => {
@@ -123,6 +128,7 @@ export function RailNavigation({
           {/* 알림 (Figma 1486:4958). 안 읽음 점은 알림 화면 탭에서만 보여 준다. */}
           <RailButton
             label="알림"
+            phoneLabel="알림"
             isActive={activeView === "notifications"}
             aria-current={activeView === "notifications" ? "page" : undefined}
             onClick={(event) => {
@@ -134,10 +140,11 @@ export function RailNavigation({
           </RailButton>
         </RailGroup>
         {tools && (
-          <>
+          // 넓은 화면에서는 레이아웃에 끼지 않고(display: contents), 휴대폰에서는 상단 바 오른쪽으로 옮긴다.
+          <div className={styles["rail-tools"]}>
             <RailDivider />
             {tools}
-          </>
+          </div>
         )}
       </div>
       {footer && <div className={cx(styles["rail-section"], styles["is-bottom"])}>{footer}</div>}

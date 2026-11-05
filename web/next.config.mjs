@@ -6,6 +6,10 @@ const documentUrl = process.env.BACKEND_URL || "http://localhost:8080";
 // 보는 클라이언트 IP가 프론트 서버 주소가 되므로, 이 모드에서는 rewrite·redirect를 두지 않는다.
 const sameOriginApi = process.env.SAME_ORIGIN_API === "true";
 
+// 브라우저와 크롤러는 link 태그와 상관없이 /favicon.ico를 찾는다. PNG도 그대로 받으므로 있는 탭 아이콘으로 잇는다.
+// 요청에 색 구성이 없어 라이트(검정 글리프)를 쓴다. 화면의 탭 아이콘은 layout.tsx의 link가 정한다.
+const faviconRewrite = { source: "/favicon.ico", destination: "/favicon/icon-light.png" };
+
 const nextConfig = {
   output: sameOriginApi ? "standalone" : undefined,
   env: { NEXT_PUBLIC_DOCUMENT_DIRECT_API: process.env.BACKEND_URL || sameOriginApi ? "true" : "false" },
@@ -22,9 +26,10 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    if (sameOriginApi) return [];
+    if (sameOriginApi) return [faviconRewrite];
     // 배열 순서대로 먼저 매칭되는 규칙이 적용된다.
     return [
+      faviconRewrite,
       {
         source: "/api/auth/:path*",
         destination: `${accessUrl}/api/auth/:path*`

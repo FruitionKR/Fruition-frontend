@@ -1,12 +1,14 @@
 import { useRef } from "react";
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import type { GraphLink, GraphNode, NodePosition } from "@/entities/wiki";
-import { graphDistanceInfluence } from "../lib/graphGeometry";
+import { graphDistanceInfluence, isGraphDoubleTap } from "../lib/graphGeometry";
 import { getGraphDistances, reheatGraphSimulation } from "../lib/graphPhysics";
 import type { GraphSimNode, GraphSimulation } from "../lib/graphPhysics";
 
 /** PointerEvent.buttons 비트마스크: 왼쪽 버튼 */
 const PRIMARY_BUTTON_MASK = 1;
+/** 터치를 뗀 뒤 브라우저가 합성 클릭을 보낼 수 있는 시간 */
+const TOUCH_SYNTHETIC_CLICK_WINDOW_MS = 500;
 
 /**
  * 노드 드래그/hover/미리보기 포인터 이벤트를 처리한다.
@@ -29,6 +31,7 @@ export function useGraphPointer({
   setDraggingNodeId,
   onOpenNodePreview,
   onClearNodeFocus,
+  onNodeGrab,
   setHoveredNode,
   setSelectedNode,
   stopDragging
@@ -49,12 +52,17 @@ export function useGraphPointer({
   setDraggingNodeId: Dispatch<SetStateAction<string | null>>;
   onOpenNodePreview: (node: GraphNode) => void;
   onClearNodeFocus?: () => void;
+  /** 노드를 눌렀을 때. 등장 연출 중이면 남은 노드를 바로 보여 준다. */
+  onNodeGrab: () => void;
   setHoveredNode: (nodeId: string | null) => void;
   setSelectedNode: (nodeId: string | null) => void;
   stopDragging: (pointerId?: number) => void;
 }) {
   // 노드 드래그 시작 좌표와 실제 이동 여부를 함께 추적한다.
   const nodeDragRef = useRef<{ start: { x: number; y: number }; hasMoved: boolean } | null>(null);
+  // touch-action: none이라 브라우저 더블 탭(dblclick)을 기대할 수 없어 터치는 탭 간격으로 직접 판단한다.
+  const lastTapRef = useRef<{ nodeId: string; at: number } | null>(null);
+  const lastTouchEndRef = useRef(Number.NEGATIVE_INFINITY);
 
   function moveNode(event: ReactPointerEvent<HTMLDivElement>, node: GraphNode) {
     if (!isPointerHeldRef.current || activePointerIdRef.current !== event.pointerId) return;
@@ -107,6 +115,7 @@ export function useGraphPointer({
 
     const hitNode = hitTestNode(event.clientX, event.clientY);
     if (hitNode) {
+      onNodeGrab();
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
       isPointerHeldRef.current = true;
@@ -149,12 +158,22 @@ export function useGraphPointer({
     const hasMovedDraggedNode = nodeDragRef.current?.hasMoved ?? false;
     stopDragging(event.pointerId);
     nodeDragRef.current = null;
+    if (event.pointerType === "touch") lastTouchEndRef.current = event.timeStamp;
+    if (event.pointerType === "touch" && event.type === "pointerup" && draggedNodeId && !hasMovedDraggedNode) {
+      const tap = { nodeId: draggedNodeId, at: event.timeStamp };
+      const isDoubleTap = isGraphDoubleTap(lastTapRef.current, tap);
+      lastTapRef.current = isDoubleTap ? null : tap;
+      const tappedNode = isDoubleTap ? nodes.find((candidate) => candidate.id === draggedNodeId) : null;
+      if (tappedNode) onOpenNodePreview(tappedNode);
+    }
     if (!externalFocusedNodeIdRef.current) {
       setSelectedNode(hasMovedDraggedNode ? null : hitTestNode(event.clientX, event.clientY)?.id ?? draggedNodeId ?? null);
     }
   }
 
   function openNodePreview(event: ReactMouseEvent<HTMLDivElement>) {
+    // 터치의 두 번째 탭은 handlePointerUp이 이미 열었다. 뒤이은 합성 dblclick으로 두 번 열지 않는다.
+    if (event.timeStamp - lastTouchEndRef.current < TOUCH_SYNTHETIC_CLICK_WINDOW_MS) return;
     const node = hitTestNode(event.clientX, event.clientY);
     if (!node) return;
     event.preventDefault();

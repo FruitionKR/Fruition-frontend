@@ -1,16 +1,16 @@
 /**
  * 작업 탭에서 이 사람이 편집안·새 문서 초안을 어떻게 끝냈는지(저장·거절·취소) turn별로 기억한다.
- * 새로 고침 뒤에도 완료 행이 "제안 완료"로 돌아가지 않게 하는 보는 사람 한 명의 편의 기록이라
+ * 새로 고침 뒤에도 완료 행이 "제안 완료"·"수락하지 않음"으로 돌아가지 않게 하는 보는 사람 한 명의 편의 기록이라
  * localStorage(워크스페이스·대화 세션별)에만 두고, 읽고 쓰지 못하면 이번 화면에서만 기억한다.
  * 서버 버전 기록으로 확인하는 "저장됨"(useServerAppliedTurnIds)은 그대로 따로 본다.
  */
-export type TaskOutcome = "applied" | "rejected" | "cancelled";
+export type TaskOutcome = "applied" | "auto_applied" | "rejected" | "cancelled";
 
 /** 세션마다 최근 turn을 이만큼만 남긴다. */
 export const TASK_OUTCOME_LIMIT = 200;
 
 const STORAGE_PREFIX = "fruition:task-outcomes";
-const OUTCOMES: ReadonlySet<string> = new Set<TaskOutcome>(["applied", "rejected", "cancelled"]);
+const OUTCOMES: ReadonlySet<string> = new Set<TaskOutcome>(["applied", "auto_applied", "rejected", "cancelled"]);
 
 export type TaskOutcomes = ReadonlyMap<string, TaskOutcome>;
 

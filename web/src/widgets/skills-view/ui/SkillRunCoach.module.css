@@ -131,3 +131,24 @@
     transition: none;
   }
 }
+
+/* 휴대폰: 대상을 고르는 트리가 전체 화면이라 어둡게 덮지 않고, 안내를 탭 바 위에 띄운다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .coach {
+    position: fixed;
+    inset: auto 8px calc(var(--phone-tabbar-height, 56px) + 8px);
+    pointer-events: none;
+  }
+
+  .dim,
+  .arrow {
+    display: none;
+  }
+
+  .popover {
+    position: static;
+    width: auto;
+    gap: 12px;
+    pointer-events: auto;
+  }
+}

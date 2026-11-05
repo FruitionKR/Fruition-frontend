@@ -1,5 +1,5 @@
 import { useCallback, useState, type SetStateAction } from "react";
-import { panelDraftStorageKey, type ChatChannel } from "@/features/agent-chat/lib/panelSessionState";
+import { panelDraftStorageKey, resolvePanelDraft, type ChatChannel } from "@/features/agent-chat/lib/panelSessionState";
 
 function readDraft(key: string | null): string {
   if (!key || typeof window === "undefined") return "";
@@ -10,7 +10,7 @@ function readDraft(key: string | null): string {
 export function usePanelDraft(scope: string | null, view: ChatChannel, sessionId: string | null) {
   const key = scope && sessionId ? panelDraftStorageKey(scope, view, sessionId) : null;
   const [draft, setDraft] = useState<{ key: string | null; value: string }>({ key: null, value: "" });
-  const value = draft.key === key ? draft.value : readDraft(key);
+  const { value, isRestored } = resolvePanelDraft(draft, key, readDraft);
   const setValue = useCallback((update: SetStateAction<string>) => {
     setDraft(current => {
       const previous = current.key === key ? current.value : readDraft(key);
@@ -24,5 +24,5 @@ export function usePanelDraft(scope: string | null, view: ChatChannel, sessionId
       return { key, value: next };
     });
   }, [key]);
-  return { value, setValue };
+  return { value, isRestored, setValue };
 }

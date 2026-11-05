@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { useWorkspaceRole } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
 import lightningIcon from "@/shared/assets/svg/agent/organize-lightning.svg";
@@ -15,19 +16,22 @@ import arrowIcon from "@/shared/assets/svg/agent/organize-arrow.svg";
 import cancelIcon from "@/shared/assets/svg/agent/organize-cancel.svg";
 import applyIcon from "@/shared/assets/svg/agent/organize-apply.svg";
 import noticeTailIcon from "@/shared/assets/svg/agent/organize-notice-tail.svg";
-import { agentPlanStatusLabel, canApproveAgentPlan, splitPlanSummary } from "../lib/agentPlan";
+import { agentPlanFailureMessage, agentPlanStatusLabel, canApproveAgentPlan, splitPlanSummary } from "../lib/agentPlan";
 import { describeTaskRequest } from "../lib/taskThread";
 import {
   buildFolderOrganizeView,
   folderOrganizeApproval,
   folderOrganizeNotice,
+  folderOrganizeResultNotice,
   initialDeselectedRowIds,
   MAX_SELECTED_OPERATIONS,
   parseSkillCommand,
   selectedCreatedFolders,
+  summarizeFolderOrganizeRows,
   type FolderOrganizeRequest,
   type FolderOrganizeRow
 } from "../lib/folderOrganize";
+import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, PLAN_ROW_PARTLY_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
 import { useAgentPlanRun } from "../model/useAgentPlanRun";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import styles from "./FolderOrganize.module.css";
@@ -72,12 +76,28 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
   const isAwaiting = canApproveAgentPlan(run);
   const operationIds = approval?.operationIds ?? null;
   const isSelectionValid = approval?.canApply ?? false;
-  const canApply = ready && isSelectionValid;
+  const { role, isOwner } = useWorkspaceRole();
+  // 눌러도 권한으로 실패할 선택은 적용을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
+  const access = plan && isAwaiting && tree
+    ? checkPlanAccess(plan, tree, role === null ? null : isOwner, operationIds)
+    : null;
+  // 표가 줄을 세므로 권한 안내도 줄 단위로 맞춘다(작업 2개가 묶인 1줄이 막히면 "항목 1개").
+  const rowAccess = access && checkRowAccess(access, rows, deselectedIds);
+  const accessMessage = rowAccess && planAccessMessage({ ...rowAccess, unit: "항목" });
+  const canApply = ready && isSelectionValid && rowAccess?.verdict !== "all_blocked";
+  const failureMessage = agentPlanFailureMessage(run);
   const duplicateDeselected = approval?.duplicateExcludedCount ?? 0;
   const ruleText = run?.rule_summary?.trim().normalize("NFC") || rule;
   // 범위 밖 작업을 뺐다는 안내는 한 줄로 잘리는 설명과 따로 보여 준다.
-  const planSummary = splitPlanSummary(plan?.summary);
+  const planSummary = splitPlanSummary(plan?.summary, run?.status);
   const description = ruleText ? `규칙: ${ruleText}` : planSummary.body;
+
+  /** 이 줄이 권한으로 막혔을 때의 안내. 작업 일부만 막혔으면 나머지는 실행된다고 알린다. */
+  function rowBlockedNote(operationIds: readonly string[]): string | null {
+    const blocked = operationIds.filter((id) => access?.blockedOperationIds.has(id)).length;
+    if (blocked === 0) return null;
+    return blocked === operationIds.length ? PLAN_OPERATION_BLOCKED_NOTE : PLAN_ROW_PARTLY_BLOCKED_NOTE;
+  }
 
   function toggleRow(id: string) {
     const next = new Set(deselectedIds);
@@ -136,11 +156,12 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
             </div>
             {sortRows(rows, sortOrder).map((row) => {
               // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
-              const checked = isAwaiting ? !deselectedIds.has(row.id) : !row.excluded;
+              const checked = isAwaiting ? !row.isPurged && !deselectedIds.has(row.id) : !row.excluded && !row.isPurged;
+              const blockedNote = rowBlockedNote(row.operationIds);
               return (
                 <div key={row.id} className={cx(styles.row, row.duplicateWarning && styles["is-duplicate"], !isAwaiting && row.excluded && styles["is-excluded"])} role="row">
                   <div className={styles.source} role="cell">
-                    <CheckBox checked={checked} label={`${row.originalName || row.newName} 선택`} disabled={!isAwaiting} onToggle={() => toggleRow(row.id)} />
+                    <CheckBox checked={checked} label={`${row.originalName || row.newName} 선택`} disabled={!isAwaiting || row.isPurged} onToggle={() => toggleRow(row.id)} />
                     <span className={styles["source-name"]} title={row.originalName}>{row.originalName || "새 문서"}</span>
                   </div>
                   <span className={styles.arrow} aria-hidden="true"><Image src={arrowIcon} alt="" /></span>
@@ -150,13 +171,16 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                       <span className={styles.folder}>/</span>
                       <span className={styles["new-name"]}>{row.newName}</span>
                     </p>
-                    {row.duplicateWarning
+                    {row.failure
+                      ? <p className={cx(styles.reason, styles["is-warning"])} title={row.failure.note}>{row.failure.note}</p>
+                      : row.duplicateWarning
                       ? <p className={cx(styles.reason, styles["is-warning"])} title={row.duplicateWarning}>→ {row.duplicateWarning}</p>
                       : row.reason && <p className={styles.reason} title={row.reason}>→ {row.reason}</p>}
                     {row.dependencyNote && <p className={styles["reason-note"]} title={row.dependencyNote}>{row.dependencyNote}</p>}
+                    {blockedNote && <p className={styles["reason-note"]} title={blockedNote}>{blockedNote}</p>}
                   </div>
                   <div className={styles.change} role="cell">
-                    <span className={styles.chip}>{!isAwaiting && row.excluded ? "제외됨" : row.changeLabel}</span>
+                    <span className={cx(styles.chip, row.failure && styles["is-failed"])}>{row.isPurged ? "영구 삭제됨" : !isAwaiting && row.excluded ? "제외됨" : row.failure?.label ?? row.changeLabel}</span>
                   </div>
                 </div>
               );
@@ -168,8 +192,16 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
           <Image src={noticeTailIcon} alt="" className={styles["notice-tail"]} />
           <p className={styles["notice-text"]}>
             {plan && isAwaiting
-              ? folderOrganizeNotice(rows.length, selectedCount, selectedCreatedFolders(view?.createdFolders ?? [], operationIds), duplicateDeselected)
-              : clarificationMessage ?? agentPlanStatusLabel(run?.status)}
+              ? folderOrganizeNotice(
+                rows.length,
+                selectedCount,
+                // 권한으로 막혀 만들어지지 않을 폴더는 "만들어져요"라고 하지 않는다.
+                selectedCreatedFolders((view?.createdFolders ?? []).filter((folder) => !access?.blockedOperationIds.has(folder.operationId)), operationIds),
+                duplicateDeselected
+              )
+              : plan && failureMessage
+                ? folderOrganizeResultNotice(summarizeFolderOrganizeRows(plan))
+                : clarificationMessage ?? agentPlanStatusLabel(run?.status)}
           </p>
           {plan && isAwaiting && !isSelectionValid && (
             <p className={styles["notice-hint"]}>
@@ -178,9 +210,8 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 : `일부만 적용할 때는 한 번에 작업 ${MAX_SELECTED_OPERATIONS}개까지 고를 수 있어요. 선택을 줄이거나 모두 선택해주세요.`}
             </p>
           )}
-          {run && ["failed", "partial_failed", "conflicted", "rollback_failed"].includes(run.status) && (
-            <p className={styles["notice-error"]} role="alert">작업을 완료하지 못했습니다. 작업 로그에서 항목별 상태를 확인해주세요.</p>
-          )}
+          {accessMessage && <p className={styles["notice-hint"]} role="status">{accessMessage}</p>}
+          {failureMessage && <p className={styles["notice-error"]} role="alert">{failureMessage}</p>}
           {error && <p className={styles["notice-error"]} role="alert">{typeof error === "string" ? error : getErrorMessage(error, "계획을 불러오지 못했습니다.")}</p>}
           <div className={styles.actions}>
             {error && <button type="button" className={cx(styles.action, styles["is-primary"])} disabled={busy} onClick={retry}>다시 확인</button>}
@@ -198,6 +229,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 type="button"
                 className={cx(styles.action, styles["is-primary"])}
                 disabled={!canApply || busy}
+                title={rowAccess?.verdict === "all_blocked" ? accessMessage ?? undefined : undefined}
                 onClick={() => mutation.mutate({ decision: "approve", operationIds })}
               >
                 <Image src={applyIcon} alt="" />

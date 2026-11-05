@@ -392,6 +392,8 @@
 }
 
 .issues {
+  /* 시트 아래 고정 버튼 줄에 가리지 않게 여유를 두고 스크롤한다. */
+  scroll-margin-block: 16px 88px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -467,4 +469,52 @@
 .submit-button:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* 터치 기기: 도움말·체크는 모양을 두고 누르는 영역만, 나머지 조작부는 높이를 44px로 키운다. */
+@media (pointer: coarse) {
+  .help-button {
+    position: relative;
+  }
+
+  .help-button::before {
+    content: "";
+    position: absolute;
+    inset: -15px;
+  }
+
+  .check-row {
+    min-height: 44px;
+  }
+
+  .check input {
+    inset: -12px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .input {
+    min-height: 44px;
+  }
+
+  .chip-primary,
+  .chip-neutral,
+  .result-note-undo,
+  .cancel-button,
+  .submit-button {
+    min-height: 44px;
+  }
+
+  .cancel-button,
+  .doc-chip-remove {
+    min-width: 44px;
+  }
+
+  .doc-chip-remove {
+    min-height: 44px;
+  }
+
+  .submit-button {
+    height: auto;
+  }
 }

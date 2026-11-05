@@ -1,79 +1,194 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  estimateUsageCost,
   formatCompactTokenCount,
+  formatKnownCharge,
   formatKrwMilli,
-  isUnderOneWon,
-  isSameWon,
+  formatNonTokenUsage,
   formatPercentShare,
   formatTokenCount,
   formatUsageRange,
+  usageRefetchInterval,
+  AI_USAGE_REFETCH_INTERVAL_MS,
   resolveUsageRange,
   summarizeModelUsage,
   toPercentShares
 } from "../src/entities/ai/model/aiUsage.ts";
+import { LOCKED_AI_MODELS } from "../src/entities/ai/model/lockedAiModels.ts";
 
 const CATALOG = [
   { provider: "openai", model: "gpt-6-luna", display_name: "GPT-6 Luna" },
+  { provider: "openai", model: "gpt-5-nano", display_name: "GPT-5 Nano" },
   { provider: "gemini", model: "gemini-3.5-flash-lite", display_name: "Gemini 3.5 Flash-Lite" }
 ];
 
-function row(overrides) {
+function charge(overrides) {
   return {
-    provider: "openai", requested_model: "gpt-6-luna", model: "gpt-6-luna", calls: 1, failed_calls: 0,
-    unfinished_calls: 0, unknown_usage_calls: 0, known_input_tokens: 0, known_output_tokens: 0,
-    known_cached_input_tokens: 0, known_cache_creation_tokens: 0, known_reasoning_tokens: 0, unknown_cache_usage_calls: 0,
-    ...overrides
+    provider: "openai", model: "gpt-6-luna", calls: 1, input_tokens: 0, cached_input_tokens: 0, cache_creation_tokens: 0,
+    output_tokens: 0, reasoning_tokens: 0, audio_seconds: 0, tts_characters: 0, charge_krw_milli: 0,
+    unpriced_calls: 0, needs_review_calls: 0, ...overrides
   };
 }
 
-test("같은 요청 모델의 스냅샷 줄은 한 줄로 합치고 합계는 입력+출력만 더한다", () => {
-  const summary = summarizeModelUsage([
-    row({ model: "gpt-6-luna", known_input_tokens: 1000, known_output_tokens: 200, known_cached_input_tokens: 400, known_reasoning_tokens: 50 }),
-    row({ model: "gpt-6-luna-2026-09-01", known_input_tokens: 500, known_output_tokens: 100 })
-  ], CATALOG);
-  assert.equal(summary.models.length, 1);
-  assert.deepEqual(summary.models[0], {
+function charges(models, overrides = {}) {
+  return {
+    user_id: "u", from_at: "2026-10-01T00:00:00Z", to_at: "2026-10-20T00:00:00Z", currency: "KRW",
+    charge_krw_milli: models.reduce((sum, item) => sum + item.charge_krw_milli, 0),
+    unpriced_calls: models.reduce((sum, item) => sum + item.unpriced_calls, 0),
+    needs_review_calls: models.reduce((sum, item) => sum + item.needs_review_calls, 0),
+    models, ...overrides
+  };
+}
+
+test("스냅샷 이름은 접미사를 떼고 카탈로그 표시 이름을 찾는다", () => {
+  for (const suffix of ["-2025-08-07", "-20250807", "-001", "-latest"]) {
+    const summary = summarizeModelUsage(charges([charge({ model: `gpt-5-nano${suffix}`, input_tokens: 1 })]), CATALOG);
+    assert.equal(summary.models[0].label, "GPT-5 Nano", suffix);
+  }
+});
+
+test("같은 표시 모델로 찾아진 줄은 한 줄로 합치고 토큰·음성·글자·금액을 더한다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ calls: 2, input_tokens: 1000, cached_input_tokens: 400, output_tokens: 200, reasoning_tokens: 50, charge_krw_milli: 100, audio_seconds: 5 }),
+    charge({ model: "gpt-6-luna-2026-09-01", calls: 3, input_tokens: 500, output_tokens: 100, charge_krw_milli: 300, unpriced_calls: 1, tts_characters: 7 })
+  ]), CATALOG);
+  assert.deepEqual(summary.models, [{
     key: "openai/gpt-6-luna", label: "GPT-6 Luna", provider: "openai",
-    inputTokens: 1500, outputTokens: 300, cachedInputTokens: 400, totalTokens: 1800
-  });
-  assert.equal(summary.totalTokens, 1800);
+    inputTokens: 1500, outputTokens: 300, cachedInputTokens: 400, totalTokens: 1800,
+    audioSeconds: 5, ttsCharacters: 7, chargeKrwMilli: 400, unpricedCalls: 1
+  }]);
   assert.equal(summary.inputTokens, 1500);
   assert.equal(summary.outputTokens, 300);
+  assert.equal(summary.totalTokens, 1800);
+  assert.equal(summary.calls, 5);
 });
 
-test("합계가 큰 모델부터 보이고 카탈로그에 없는 모델은 id를 이름으로 쓴다", () => {
-  const summary = summarizeModelUsage([
-    row({ known_input_tokens: 10, known_output_tokens: 5 }),
-    row({ provider: "gemini", requested_model: "gemini-3.5-flash-lite", model: "gemini-3.5-flash-lite", known_input_tokens: 900, known_output_tokens: 100 }),
-    row({ provider: "openai", requested_model: "whisper-x", model: "whisper-x", known_input_tokens: 50 })
-  ], CATALOG);
-  assert.deepEqual(summary.models.map((item) => item.label), ["Gemini 3.5 Flash-Lite", "whisper-x", "GPT-6 Luna"]);
+test("접미사가 붙은 이름이 카탈로그에 그대로 있으면 그 항목을 쓴다", () => {
+  const catalog = [
+    { provider: "claude", model: "claude-haiku", display_name: "Claude Haiku" },
+    { provider: "claude", model: "claude-haiku-20251001", display_name: "Claude Haiku 2025" }
+  ];
+  const summary = summarizeModelUsage(charges([charge({ provider: "claude", model: "claude-haiku-20251001", input_tokens: 1 })]), catalog);
+  assert.equal(summary.models[0].label, "Claude Haiku 2025");
 });
 
-test("요청 모델이 카탈로그에 없으면 응답 모델 이름을 찾는다", () => {
-  const summary = summarizeModelUsage([row({ requested_model: "old-alias", model: "gpt-6-luna", known_input_tokens: 1 })], CATALOG);
-  assert.equal(summary.models[0].label, "GPT-6 Luna");
+test("카탈로그에 없으면 모델 id를 그대로 보이고 스냅샷끼리 합치지 않는다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ model: "whisper-x-2025-01-01", input_tokens: 10 }),
+    charge({ model: "whisper-x-2025-02-01", input_tokens: 5 })
+  ]), CATALOG);
+  assert.deepEqual(summary.models.map((item) => item.label), ["whisper-x-2025-01-01", "whisper-x-2025-02-01"]);
 });
 
-test("토큰이 없는 줄은 표에서 빼고 사용량 미확인 호출 수는 모은다", () => {
-  const summary = summarizeModelUsage([
-    row({ unknown_usage_calls: 2 }),
-    row({ provider: "gemini", requested_model: "gemini-3.5-flash-lite", unknown_usage_calls: 1, known_input_tokens: 3 })
-  ], CATALOG);
+test("접미사가 아닌 꼬리와 다른 공급사는 카탈로그와 맞추지 않는다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ model: "gpt-6-luna-mini", input_tokens: 10 }),
+    charge({ model: "gpt-6-luna-01", input_tokens: 5 }),
+    charge({ provider: "claude", model: "gpt-6-luna", input_tokens: 1 })
+  ]), CATALOG);
+  assert.deepEqual(summary.models.map((item) => item.label), ["gpt-6-luna-mini", "gpt-6-luna-01", "gpt-6-luna"]);
+});
+
+test("채팅 카탈로그에 없는 음성 모델은 표시 이름으로 보이고 스냅샷은 한 줄로 합친다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ model: "gpt-transcribe", audio_seconds: 60, charge_krw_milli: 400 }),
+    charge({ model: "gpt-transcribe-2026-09-01", audio_seconds: 30, charge_krw_milli: 200 }),
+    charge({ model: "gpt-live-transcribe", audio_seconds: 10, charge_krw_milli: 300 }),
+    charge({ model: "gpt-realtime-2.1-mini", input_tokens: 5, output_tokens: 20, charge_krw_milli: 500 })
+  ]), CATALOG);
+  assert.deepEqual(
+    summary.models.map((item) => [item.key, item.label, item.audioSeconds]),
+    [
+      ["openai/gpt-realtime-2.1-mini", "GPT Realtime 2.1 Mini", 0],
+      ["openai/gpt-transcribe", "GPT Transcribe", 90],
+      ["openai/gpt-live-transcribe", "GPT Live Transcribe", 10]
+    ]
+  );
+});
+
+test("음성 모델이 카탈로그에 있으면 카탈로그 이름이 우선하고, 다른 공급사 줄에는 음성 이름을 쓰지 않는다", () => {
+  const catalog = [...CATALOG, { provider: "openai", model: "gpt-transcribe", display_name: "서버 이름" }];
+  const summary = summarizeModelUsage(charges([
+    charge({ model: "gpt-transcribe", input_tokens: 2 }),
+    charge({ provider: "gemini", model: "gpt-transcribe", input_tokens: 1 })
+  ]), catalog);
+  assert.deepEqual(summary.models.map((item) => item.label), ["서버 이름", "gpt-transcribe"]);
+});
+
+test("음성 표시 이름은 잠금 모델 목록에 끼어들지 않는다", () => {
+  const speechIds = ["gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-2.1-mini", "gpt-4o-mini-tts"];
+  assert.deepEqual(LOCKED_AI_MODELS.filter((item) => speechIds.includes(item.model)), []);
+});
+
+test("합계 금액과 안내 건수는 응답 최상위 값을 쓴다", () => {
+  const summary = summarizeModelUsage(charges([charge({ input_tokens: 10, charge_krw_milli: 100 })], {
+    charge_krw_milli: 3334, unpriced_calls: 2, needs_review_calls: 1
+  }), CATALOG);
+  assert.equal(summary.chargeKrwMilli, 3334);
+  assert.equal(summary.unpricedCalls, 2);
+  assert.equal(summary.needsReviewCalls, 1);
+});
+
+test("토큰 없이 글자 수·음성 초로 과금된 줄도 표에 남고 금액이 합계에 들어간다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ input_tokens: 1000, charge_krw_milli: 1500 }),
+    charge({ model: "gpt-4o-mini-tts", tts_characters: 1800, charge_krw_milli: 2160 }),
+    charge({ model: "whisper-1", audio_seconds: 90, charge_krw_milli: 3000 })
+  ]), CATALOG);
+  assert.deepEqual(
+    summary.models.map((item) => [item.label, item.totalTokens, item.chargeKrwMilli]),
+    [["GPT-6 Luna", 1000, 1500], ["whisper-1", 0, 3000], ["GPT-4o Mini TTS", 0, 2160]]
+  );
+  assert.equal(summary.chargeKrwMilli, 6660);
+  assert.equal(summary.totalTokens, 1000);
+});
+
+test("사용량을 몰라 0원 처리된 호출만 있는 줄도 남아 빈 화면이 되지 않는다", () => {
+  const summary = summarizeModelUsage(charges([charge({ calls: 2, needs_review_calls: 2 })]), CATALOG);
   assert.equal(summary.models.length, 1);
-  assert.equal(summary.unknownUsageCalls, 3);
+  assert.equal(summary.calls, 2);
+  assert.equal(summary.needsReviewCalls, 2);
+});
+
+test("합계가 큰 모델부터, 토큰이 같으면 금액이 큰 모델부터 보인다", () => {
+  const summary = summarizeModelUsage(charges([
+    charge({ input_tokens: 10, output_tokens: 5 }),
+    charge({ provider: "gemini", model: "gemini-3.5-flash-lite", input_tokens: 900, output_tokens: 100 }),
+    charge({ model: "tts-a", charge_krw_milli: 1, tts_characters: 1 }),
+    charge({ model: "tts-b", charge_krw_milli: 2, tts_characters: 1 })
+  ]), CATALOG);
+  assert.deepEqual(summary.models.map((item) => item.label), ["Gemini 3.5 Flash-Lite", "GPT-6 Luna", "tts-b", "tts-a"]);
 });
 
 test("빈 응답은 합계 0이다", () => {
-  assert.deepEqual(summarizeModelUsage([], CATALOG), { models: [], inputTokens: 0, outputTokens: 0, totalTokens: 0, calls: 0, unknownUsageCalls: 0 });
+  assert.deepEqual(summarizeModelUsage(charges([]), CATALOG), {
+    models: [], inputTokens: 0, outputTokens: 0, totalTokens: 0, calls: 0, chargeKrwMilli: 0, unpricedCalls: 0, needsReviewCalls: 0
+  });
 });
 
-test("이상한 값(음수·null)은 0으로 본다", () => {
-  const summary = summarizeModelUsage([row({ known_input_tokens: -5, known_output_tokens: null, known_cached_input_tokens: 7 })], CATALOG);
+test("이상한 값(음수·null)은 0으로 보고 사용량이 하나도 없는 줄은 뺀다", () => {
+  const summary = summarizeModelUsage(charges([charge({ calls: 0, input_tokens: -5, output_tokens: null, charge_krw_milli: null })], {
+    charge_krw_milli: -1, unpriced_calls: null, needs_review_calls: undefined
+  }), CATALOG);
   assert.equal(summary.models.length, 0);
   assert.equal(summary.totalTokens, 0);
+  assert.equal(summary.chargeKrwMilli, 0);
+  assert.equal(summary.unpricedCalls, 0);
+  assert.equal(summary.needsReviewCalls, 0);
+});
+
+test("금액은 단가 없는 호출만 있어 0원일 때만 알 수 없음(null)이다", () => {
+  assert.equal(formatKnownCharge(0, 2), null);
+  assert.equal(formatKnownCharge(0, 0), "₩0");
+  assert.equal(formatKnownCharge(2000, 1), "₩2");
+});
+
+test("토큰 밖 사용량은 음성 시간과 글자 수로 보이고 없으면 null이다", () => {
+  assert.equal(formatNonTokenUsage({ audioSeconds: 0, ttsCharacters: 0 }), null);
+  assert.equal(formatNonTokenUsage({ audioSeconds: 45, ttsCharacters: 0 }), "음성 45초");
+  assert.equal(formatNonTokenUsage({ audioSeconds: 0.4, ttsCharacters: 0 }), "음성 1초");
+  assert.equal(formatNonTokenUsage({ audioSeconds: 120, ttsCharacters: 0 }), "음성 2분");
+  assert.equal(formatNonTokenUsage({ audioSeconds: 125, ttsCharacters: 1800 }), "음성 2분 5초 · 1,800자");
 });
 
 test("기간: 이번 달은 1일 0시부터 지금까지, 지난 달은 지난 달 1일부터 이번 달 1일 전까지", () => {
@@ -129,14 +244,6 @@ test("기간 문구: 자정으로 끝나는 기간은 전날까지로 보인다"
   assert.equal(formatUsageRange({ from: new Date(2026, 9, 1), to: new Date(2026, 9, 20, 15) }), "10월 1일 ~ 10월 20일");
 });
 
-test("호출 수는 토큰이 없는 줄까지 모두 더한다", () => {
-  const summary = summarizeModelUsage([
-    row({ calls: 3, known_input_tokens: 10 }),
-    row({ provider: "gemini", requested_model: "gemini-3.5-flash-lite", calls: 2, unknown_usage_calls: 2 })
-  ], CATALOG);
-  assert.equal(summary.calls, 5);
-});
-
 test("큰 토큰 수는 만·억 단위로 줄이고 1만 미만은 그대로 보인다", () => {
   assert.equal(formatCompactTokenCount(0), "0");
   assert.equal(formatCompactTokenCount(3170), "3,170");
@@ -166,163 +273,27 @@ test("0%로 반올림된 0 아닌 값은 <1%로 보인다", () => {
   assert.equal(formatPercentShare(92, 72200), "92%");
 });
 
-function charge(overrides) {
-  return {
-    provider: "openai", model: "gpt-6-luna", calls: 1, input_tokens: 0, cached_input_tokens: 0, cache_creation_tokens: 0,
-    output_tokens: 0, reasoning_tokens: 0, audio_seconds: 0, tts_characters: 0, charge_krw_milli: 0,
-    unpriced_calls: 0, needs_review_calls: 0, ...overrides
-  };
-}
-
-function charges(models, total = models.reduce((sum, item) => sum + item.charge_krw_milli, 0)) {
-  return {
-    user_id: "u", from_at: "2026-10-01T00:00:00Z", to_at: "2026-10-20T00:00:00Z", currency: "KRW",
-    charge_krw_milli: total, unpriced_calls: 0, needs_review_calls: 0, models
-  };
-}
-
-test("estimateUsageCost applies each response model's average rate to this workspace's tokens", () => {
-  // Arrange: 모든 워크스페이스에서 gpt-6-luna 4,000토큰에 8원(8,000 milli) → 토큰당 2 milli
-  const rows = [row({ known_input_tokens: 800, known_output_tokens: 200 })];
-  const summary = charges([charge({ input_tokens: 3000, output_tokens: 1000, charge_krw_milli: 8000 })]);
-
-  // Act
-  const estimate = estimateUsageCost(rows, summary);
-
-  // Assert
-  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 2000 });
-  assert.equal(estimate.totalKrwMilli, 2000);
-  assert.equal(estimate.accountKrwMilli, 8000);
-  assert.equal(estimate.hasUnpriced, false);
-});
-
-test("estimateUsageCost matches snapshot response models and sums them into the requested-model row", () => {
-  const rows = [
-    row({ model: "gpt-6-luna", known_input_tokens: 100 }),
-    row({ model: "gpt-6-luna-2026-08-28", known_input_tokens: 100 })
-  ];
-  const summary = charges([
-    charge({ model: "gpt-6-luna", input_tokens: 100, charge_krw_milli: 100 }),
-    charge({ model: "gpt-6-luna-2026-08-28", input_tokens: 100, charge_krw_milli: 300 })
-  ]);
-
-  const estimate = estimateUsageCost(rows, summary);
-
-  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 400 });
-});
-
-test("estimateUsageCost leaves models without a usable rate as null and flags them", () => {
-  const rows = [
-    row({ provider: "openai", requested_model: "gpt-5.5", model: "gpt-5.5", known_input_tokens: 500 }),
-    row({ provider: "claude", requested_model: "claude-haiku", model: "claude-haiku", known_input_tokens: 500 }),
-    row({ known_input_tokens: 0, known_output_tokens: 0 })
-  ];
-  // gpt-5.5는 모든 호출이 단가 없음, claude-haiku는 아직 청구가 집계되지 않음, 토큰 없는 줄은 건너뛴다
-  const summary = charges([charge({ model: "gpt-5.5", calls: 2, input_tokens: 900, unpriced_calls: 2 })]);
-
-  const estimate = estimateUsageCost(rows, summary);
-
-  assert.deepEqual(estimate.models, { "openai/gpt-5.5": null, "claude/claude-haiku": null });
-  assert.equal(estimate.totalKrwMilli, 0);
-  assert.equal(estimate.hasUnpriced, true);
-});
-
-test("estimateUsageCost keeps non-token charges (TTS characters) only in the account total", () => {
-  const rows = [row({ known_input_tokens: 1000 })];
-  const summary = charges([
-    charge({ input_tokens: 1000, charge_krw_milli: 1500 }),
-    charge({ model: "gpt-4o-mini-tts", tts_characters: 1800, charge_krw_milli: 2160 })
-  ]);
-
-  const estimate = estimateUsageCost(rows, summary);
-
-  assert.equal(estimate.totalKrwMilli, 1500);
-  assert.equal(estimate.accountKrwMilli, 3660);
-});
-
-test("estimateUsageCost flags partially unpriced models but still estimates them", () => {
-  const rows = [row({ known_input_tokens: 100 })];
-  const summary = charges([charge({ calls: 3, input_tokens: 300, charge_krw_milli: 600, unpriced_calls: 1 })]);
-
-  const estimate = estimateUsageCost(rows, summary);
-
-  assert.equal(estimate.models["openai/gpt-6-luna"], 200);
-  assert.equal(estimate.hasUnpriced, true);
-});
-
 test("formatKrwMilli rounds to whole won and shows ₩1 미만 for sub-won amounts", () => {
   assert.equal(formatKrwMilli(0), "₩0");
   assert.equal(formatKrwMilli(120), "₩1 미만");
   assert.equal(formatKrwMilli(499.9), "₩1 미만");
-  assert.equal(isUnderOneWon(120), true);
-  assert.equal(isUnderOneWon(0), false);
-  assert.equal(isUnderOneWon(500), false);
   assert.equal(formatKrwMilli(500), "₩1");
   assert.equal(formatKrwMilli(1_240_400), "₩1,240");
   assert.equal(formatKrwMilli(Number.NaN), "₩0");
 });
 
-test("isSameWon compares amounts after rounding to won", () => {
-  assert.equal(isSameWon(1_240_400, 1_239_600), true);
-  assert.equal(isSameWon(1_240_400, 1_241_600), false);
+test("사용량 재조회는 실패 전까지 정해진 주기로 돌고 실패하면 멈춘다", () => {
+  assert.equal(AI_USAGE_REFETCH_INTERVAL_MS, 60_000);
+  assert.equal(usageRefetchInterval(null), AI_USAGE_REFETCH_INTERVAL_MS);
+  assert.equal(usageRefetchInterval(new Error("503")), false);
 });
 
-test("estimateUsageCost caps a model's estimate at what that model was actually billed when usage runs ahead of charges", () => {
-  // Arrange: 청구는 1,000토큰에 2원까지만 반영됐는데 사용량 집계에는 1,500토큰이 이미 있다(청구 반영 지연).
-  const rows = [row({ known_input_tokens: 1200, known_output_tokens: 300 })];
-  const summary = charges([charge({ input_tokens: 1000, charge_krw_milli: 2000 })]);
-
-  // Act
-  const estimate = estimateUsageCost(rows, summary);
-
-  // Assert: 3원(3,000 milli)이 아니라 이 모델 청구액 2원까지만 보인다.
-  assert.equal(estimate.models["openai/gpt-6-luna"], 2000);
-  assert.equal(estimate.totalKrwMilli, 2000);
-  assert.equal(estimate.isCapped, true);
-});
-
-test("estimateUsageCost caps snapshot rows per response model and keeps other models untouched", () => {
-  const rows = [
-    row({ model: "gpt-6-luna", known_input_tokens: 300 }),
-    row({ model: "gpt-6-luna-2026-08-28", known_input_tokens: 100 }),
-    row({ provider: "claude", requested_model: "claude-haiku", model: "claude-haiku", known_input_tokens: 100 })
-  ];
-  const summary = charges([
-    charge({ model: "gpt-6-luna", input_tokens: 200, charge_krw_milli: 400 }),
-    charge({ model: "gpt-6-luna-2026-08-28", input_tokens: 100, charge_krw_milli: 200 }),
-    charge({ provider: "claude", model: "claude-haiku", input_tokens: 1000, charge_krw_milli: 3000 })
-  ]);
-
-  const estimate = estimateUsageCost(rows, summary);
-
-  // gpt-6-luna는 600 → 400으로 낮추고, 스냅샷 200은 그대로 더한다. claude는 300으로 청구액 안이다.
-  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 600, "claude/claude-haiku": 300 });
-  assert.equal(estimate.totalKrwMilli, 900);
-  assert.equal(estimate.isCapped, true);
-});
-
-test("estimateUsageCost caps the overall estimate at the account total and scales model rows to match", () => {
-  const rows = [
-    row({ known_input_tokens: 1000 }),
-    row({ provider: "claude", requested_model: "claude-haiku", model: "claude-haiku", known_input_tokens: 1000 })
-  ];
-  // 모델별 청구 합(4,000)보다 전체 청구(2,000)가 늦게 집계됐다.
-  const summary = charges([
-    charge({ input_tokens: 1000, charge_krw_milli: 1000 }),
-    charge({ provider: "claude", model: "claude-haiku", input_tokens: 1000, charge_krw_milli: 3000 })
-  ], 2000);
-
-  const estimate = estimateUsageCost(rows, summary);
-
-  assert.equal(estimate.totalKrwMilli, 2000);
-  assert.deepEqual(estimate.models, { "openai/gpt-6-luna": 500, "claude/claude-haiku": 1500 });
-  assert.equal(estimate.isCapped, true);
-  assert.ok(estimate.totalKrwMilli <= estimate.accountKrwMilli);
-});
-
-test("estimateUsageCost does not flag capping when the estimate stays within charges", () => {
-  const rows = [row({ known_input_tokens: 800, known_output_tokens: 200 })];
-  const summary = charges([charge({ input_tokens: 3000, output_tokens: 1000, charge_krw_milli: 8000 })]);
-
-  assert.equal(estimateUsageCost(rows, summary).isCapped, false);
+test("재조회 때 범위를 다시 계산하면 끝 시각이 지금 쪽으로 옮겨 간다", () => {
+  const first = new Date(2026, 10, 4, 12, 0, 30);
+  const later = new Date(first.getTime() + AI_USAGE_REFETCH_INTERVAL_MS);
+  for (const period of ["this_month", "last_30_days"]) {
+    const before = resolveUsageRange(period, first);
+    const after = resolveUsageRange(period, later);
+    assert.equal(after.to.getTime() - before.to.getTime(), AI_USAGE_REFETCH_INTERVAL_MS, period);
+  }
 });

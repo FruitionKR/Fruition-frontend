@@ -10,7 +10,9 @@ registerHooks({
 });
 
 const {
+  AGENT_AUTO_APPROVAL_ALWAYS_MANUAL_NOTE,
   AGENT_AUTO_APPROVAL_CATEGORIES,
+  CLIENT_AUTO_APPROVAL_CATEGORIES,
   DEFAULT_AGENT_AUTO_APPROVAL,
   toggleAgentAutoApproval
 } = await import("../src/features/user-settings/lib/agentAutoApproval.ts");
@@ -23,24 +25,53 @@ test("자동 승인은 기본으로 모두 꺼져 있다", () => {
   assert.deepEqual(AGENT_AUTO_APPROVAL_CATEGORIES.map((category) => category.key), ["organize", "content_edit"]);
 });
 
-test("이동·이름 변경은 바로 켜고 끈다", () => {
-  const on = toggleAgentAutoApproval(DEFAULT_AGENT_AUTO_APPROVAL, "organize");
-  assert.deepEqual(on, { next: { content_edit: false, organize: true }, needsConfirmation: false });
-  assert.deepEqual(toggleAgentAutoApproval(on.next, "organize").next, DEFAULT_AGENT_AUTO_APPROVAL);
-  // 원래 설정은 바꾸지 않는다.
-  assert.equal(DEFAULT_AGENT_AUTO_APPROVAL.organize, false);
+for (const [key, expected] of [
+  ["organize", { content_edit: false, organize: true }],
+  ["content_edit", { content_edit: true, organize: false }]
+]) {
+  test(`${key}는 켤 때만 경고를 거치고 끌 때는 바로 끈다`, () => {
+    const unconfirmed = toggleAgentAutoApproval(DEFAULT_AGENT_AUTO_APPROVAL, key);
+    assert.equal(unconfirmed.needsConfirmation, true);
+    assert.deepEqual(unconfirmed.next, DEFAULT_AGENT_AUTO_APPROVAL);
+
+    const confirmed = toggleAgentAutoApproval(DEFAULT_AGENT_AUTO_APPROVAL, key, true);
+    assert.deepEqual(confirmed, { next: expected, needsConfirmation: false });
+    // 끄는 것은 확인 없이 바로 한다.
+    assert.deepEqual(toggleAgentAutoApproval(confirmed.next, key), { next: DEFAULT_AGENT_AUTO_APPROVAL, needsConfirmation: false });
+    // 원래 설정은 바꾸지 않는다.
+    assert.equal(DEFAULT_AGENT_AUTO_APPROVAL[key], false);
+  });
+}
+
+test("모든 자동 처리 스위치의 경고는 무엇이 바뀌는지와 되돌리는 방법을 적는다", () => {
+  const warnings = Object.fromEntries(
+    [...AGENT_AUTO_APPROVAL_CATEGORIES, ...CLIENT_AUTO_APPROVAL_CATEGORIES].map((category) => [category.key, category.confirmOnEnable])
+  );
+  assert.deepEqual(Object.keys(warnings).sort(), ["autoPublishSkillDrafts", "autoSaveMeetingNotes", "content_edit", "organize"]);
+  for (const warning of Object.values(warnings)) {
+    assert.ok(warning.title && warning.description && warning.confirmLabel);
+    assert.match(warning.description, /확인 없이|미리 보기 없이/);
+  }
+  assert.match(warnings.organize.description, /다시 옮기거나/);
+  assert.match(warnings.content_edit.description, /로그 화면/);
+  assert.match(warnings.content_edit.description, /그 뒤에 고친 내용/);
+  assert.match(warnings.content_edit.description, /휴지통/);
+  assert.match(warnings.autoSaveMeetingNotes.description, /휴지통/);
+  assert.match(warnings.autoPublishSkillDrafts.description, /스킬 화면/);
 });
 
-test("문서 편집·생성은 켤 때만 한 번 더 확인받는다", () => {
-  const unconfirmed = toggleAgentAutoApproval(DEFAULT_AGENT_AUTO_APPROVAL, "content_edit");
-  assert.equal(unconfirmed.needsConfirmation, true);
-  assert.deepEqual(unconfirmed.next, DEFAULT_AGENT_AUTO_APPROVAL);
+test("앱에 없는 버전 기록 화면을 되돌리는 방법으로 안내하지 않는다", () => {
+  const copy = [...AGENT_AUTO_APPROVAL_CATEGORIES, ...CLIENT_AUTO_APPROVAL_CATEGORIES]
+    .flatMap((category) => [category.description, category.confirmOnEnable.description]);
+  for (const text of copy) assert.doesNotMatch(text, /버전 기록/);
+});
 
-  const confirmed = toggleAgentAutoApproval(DEFAULT_AGENT_AUTO_APPROVAL, "content_edit", true);
-  assert.deepEqual(confirmed, { next: { content_edit: true, organize: false }, needsConfirmation: false });
-  // 끄는 것은 확인 없이 바로 한다.
-  assert.deepEqual(toggleAgentAutoApproval(confirmed.next, "content_edit"), { next: DEFAULT_AGENT_AUTO_APPROVAL, needsConfirmation: false });
-  assert.match(AGENT_AUTO_APPROVAL_CATEGORIES.find((category) => category.key === "content_edit").confirmOnEnable.description, /버전 기록/);
+test("항상 직접 확인하는 경우를 실제 동작대로 안내한다", () => {
+  for (const pattern of [/AI 검토 경고/, /기본 선택/, /편집할 권한/, /위 분류에 없는 작업/, /문서가 바뀌/, /범위/, /불러오지 못/, /문서 끝에 추가/, /안전 검토/, /이 브라우저/]) {
+    assert.match(AGENT_AUTO_APPROVAL_ALWAYS_MANUAL_NOTE, pattern);
+  }
+  // AI 계획은 삭제를 제안하지 않아(삭제 도구는 작업 취소 보상용) 안내에 적지 않는다.
+  assert.doesNotMatch(AGENT_AUTO_APPROVAL_ALWAYS_MANUAL_NOTE, /삭제/);
 });
 
 test("설정 조회·저장은 사용자 설정 API를 쓴다", async (t) => {
@@ -85,10 +116,10 @@ test("자동 승인한 계획에는 승인 버튼 대신 되돌리는 방법을 
   assert.equal(canApproveAgentPlan(run), false);
   const note = autoApprovedPlanNote(run.plan);
   assert.match(note, /자동 승인/);
-  assert.match(note, /버전 기록/);
+  assert.match(note, /로그 화면/);
   assert.match(note, /휴지통/);
   assert.match(note, /다시 정리/);
-  assert.doesNotMatch(autoApprovedPlanNote({ operations: [op("rename_folder")] }), /버전 기록|휴지통/);
+  assert.doesNotMatch(autoApprovedPlanNote({ operations: [op("rename_folder")] }), /로그 화면|휴지통/);
 });
 
 test("작업 목록 상태에 자동 승인됨을 붙인다", () => {

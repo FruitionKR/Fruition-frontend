@@ -63,3 +63,16 @@ test("복구는 POST .../restore에 base_version과 Idempotency-Key를 보낸다
 
   assert.deepEqual(calls, [["/api/workspaces/ws_test/documents/doc_1/restore", "POST", { base_version: 2 }, true]]);
 });
+
+test("복구 완료 문구는 돌아간 위치를 알려 주고, 모르면 위치를 빼고 말한다", async () => {
+  const { documentRestoredMessage, restoredDocumentFolderName } = await import("../src/entities/document/lib/trashRetention.ts");
+  const doc = { type: "document", id: "d1", name: "회의.md" };
+  const tree = [{ type: "folder", id: "f1", name: "연구", children: [{ type: "folder", id: "f2", name: "2026", children: [doc] }] }, { type: "document", id: "d2", name: "루트.md" }];
+  assert.equal(restoredDocumentFolderName(tree, "d1"), "2026");
+  assert.equal(restoredDocumentFolderName(tree, "d2"), null);
+  assert.equal(restoredDocumentFolderName(tree, "없음"), undefined);
+  const tail = "편집 문서는 미편입 상태로 돌아오므로 다시 위키에 편입해야 합니다.";
+  assert.equal(documentRestoredMessage("회의", "2026"), `「회의」 문서를 「2026」 폴더로 복구했습니다. ${tail}`);
+  assert.equal(documentRestoredMessage("회의", null), `「회의」 문서를 최상위로 복구했습니다. ${tail}`);
+  assert.equal(documentRestoredMessage("회의", undefined), `「회의」 문서를 복구했습니다. ${tail}`);
+});

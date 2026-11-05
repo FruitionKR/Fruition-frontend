@@ -149,3 +149,10 @@
     transition: none;
   }
 }
+
+@media (pointer: coarse) {
+  .decision {
+    min-width: 72px;
+    min-height: 44px;
+  }
+}

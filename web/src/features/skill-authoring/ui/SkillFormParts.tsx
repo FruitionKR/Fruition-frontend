@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchDocuments,
@@ -69,7 +69,7 @@ export function CheckMark() {
 /** 라벨 옆 물음표 설명 */
 export function HelpTip({ label, content }: { label: string; content: ReactNode }) {
   return (
-    <Tooltip content={content} placement="top" describe={false}>
+    <Tooltip content={content} placement="top" describe={false} openOnTap>
       <button type="button" className={styles["help-button"]} aria-label={`${label} 설명`}>
         <SvgIcon src={questionMarkIcon} className={styles["help-icon"]} />
       </button>
@@ -358,9 +358,14 @@ export function SkillSafetyIssues({
   onRegenerate?: () => void;
   onPreserve?: () => void;
 }) {
+  // 시트 아래쪽에 생기면 보이지 않아 저장이 안 된 이유를 모른다. 새 지적이 오면 지적까지 스크롤한다.
+  const issuesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (issues.length > 0) issuesRef.current?.scrollIntoView({ block: "nearest" });
+  }, [issues]);
   if (issues.length === 0) return null;
   return (
-    <div className={styles.issues} role="alert">
+    <div className={styles.issues} ref={issuesRef} role="alert">
       <p className={styles["issues-title"]}>안전 검토에서 저장하지 못했습니다. 실행 규칙을 고쳐 주세요.</p>
       <ul className={styles["issue-list"]}>
         {issues.map((issue, index) => (
