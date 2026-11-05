@@ -13,6 +13,15 @@ const listFiles = (extension) => [
     .map((name) => `preview/${name}`)
 ];
 
+test("사이트 설명과 랜딩 제목은 랜딩 문구에 맞는 한국어다", () => {
+  const appFile = (name) => readFileSync(new URL(`../app/${name}`, import.meta.url), "utf8");
+  const layout = appFile("layout.tsx");
+  assert.doesNotMatch(layout, /prototype/i);
+  assert.match(layout, /title: "Fruition"/);
+  assert.match(layout, /description: "흩어진 기록을 하나로 모으고 연결해, 쓰이는 지식으로 만드는 공간입니다\."/);
+  assert.match(appFile("page.tsx"), /title: "쌓이는 기록을, 쓰이는 지식으로\. · Fruition"/);
+});
+
 test("헤더 메뉴는 문서 보호만 남고 그 섹션을 가리킨다", () => {
   assert.deepEqual(LANDING_NAV.map((item) => [item.label, item.href]), [["문서 보호", "#data-handling"]]);
   assert.equal(landingNavLabel("#data-handling"), "문서 보호");
