@@ -24,6 +24,7 @@ import navWorkspaceIcon from "@/shared/assets/svg/settings/nav-workspace.svg";
 import type { SettingsSection } from "@/widgets/workspace/lib/workspaceLocation";
 import { saveSettingsResume, type SettingsResume } from "../lib/settingsResume";
 import { AccountPanel } from "./panels/AccountPanel";
+import { AiSettingsPanel } from "./panels/AiSettingsPanel";
 import { DocumentsPanel } from "./panels/DocumentsPanel";
 import { MembersPanel } from "./panels/MembersPanel";
 import { NotificationsPanel } from "./panels/NotificationsPanel";
@@ -41,6 +42,16 @@ function DocumentsIcon({ className }: { className?: string }) {
       <path d="M7 3.8H13.6L18.5 8.7V19.2C18.5 19.75 18.05 20.2 17.5 20.2H7C6.45 20.2 6 19.75 6 19.2V4.8C6 4.25 6.45 3.8 7 3.8Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
       <path d="M13.6 3.8V8.7H18.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
       <path d="M9 12.5H15.5M9 15.75H15.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** AI 설정 아이콘: 큰 반짝임 + 작은 반짝임 (24×24). 시안에 없는 메뉴라 Figma 자산이 없다. */
+function AiSettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M10.5 5L12.2 10.3L17.5 12L12.2 13.7L10.5 19L8.8 13.7L3.5 12L8.8 10.3L10.5 5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M18 3.5V7.5M16 5.5H20" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -93,8 +104,9 @@ function NavRow({
 
 /**
  * 설정 화면의 왼쪽 메뉴 (Figma 1577:3242 SNB). 사이드바의 문서 트리 자리에 들어간다.
- * 계정: 사용자 설정·계정 보안·알림 설정 / 설정: 워크스페이스 설정·디스플레이 설정·멤버 관리.
+ * 계정: 사용자 설정·계정 보안·알림 설정·AI 설정 / 설정: 워크스페이스 설정·디스플레이 설정·멤버 관리.
  * 휴지통과 로그아웃은 시안에 없지만 다른 진입점이 없어 시안 항목 뒤에 남긴다.
+ * AI 설정도 시안에 없지만 계정 단위 AI 옵션과 사용량을 한데 모으려고 계정 그룹의 시안 항목 뒤에 둔다.
  */
 export function SettingsNav({
   activeSection,
@@ -136,6 +148,10 @@ export function SettingsNav({
           <NavIcon src={navBellIcon} />
           <span>알림 설정</span>
         </NavRow>
+        <NavRow section="ai" activeSection={activeSection} onSelect={onSelect}>
+          <AiSettingsIcon className={styles["nav-icon"]} />
+          <span>AI 설정</span>
+        </NavRow>
       </div>
       <div className={styles["nav-group"]}>
         <p className={styles["nav-label"]}>설정</p>
@@ -171,6 +187,20 @@ export function SettingsNav({
   );
 }
 
+/** 휴대폰 가로 설정 메뉴. 고른 항목이 잘려 보이지 않게 메뉴 안에서만 스크롤한다. */
+function PhoneSettingsNav({ activeSection, children }: { activeSection: SettingsSection; children: React.ReactNode }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    const active = root?.querySelector<HTMLElement>('[aria-current="page"]');
+    // display: none인 넓은 화면에서는 크기가 없어 건너뛴다.
+    if (!root || !active || root.offsetWidth === 0) return;
+    const nav = active.closest("nav");
+    if (nav) nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+  }, [activeSection]);
+  return <div ref={rootRef} className={styles["phone-nav"]}>{children}</div>;
+}
+
 /**
  * 설정 화면 본문 (Figma 1540:22452 container). 레일 설정 화면의 메인 영역을 채운다.
  * resume: 소셜 재로그인·워크스페이스 전환 뒤 돌아와 탈퇴 확인 단계(account-delete)나 이메일 변경 창(email-change)을 다시 연다.
@@ -178,12 +208,15 @@ export function SettingsNav({
 export function SettingsContent({
   section,
   resume = null,
-  onOpenSection
+  onOpenSection,
+  phoneNav
 }: {
   section: SettingsSection;
   /** 오리진을 벗어났다 돌아온 뒤 다시 열 위치. HomeWorkspace가 section도 그에 맞춰 연다. */
   resume?: SettingsResume | null;
   onOpenSection: (section: SettingsSection) => void;
+  /** 휴대폰에서 본문 위에 가로로 펼치는 설정 메뉴. 넓은 화면에서는 사이드바의 메뉴를 쓰고 이 자리는 그리지 않는다. */
+  phoneNav?: React.ReactNode;
 }) {
   const workspaceName = useWorkspaceName();
 
@@ -251,12 +284,14 @@ export function SettingsContent({
 
   return (
     <section className={styles.view} aria-label="설정">
+      {phoneNav && <PhoneSettingsNav activeSection={section}>{phoneNav}</PhoneSettingsNav>}
       <div className={styles.content}>
         {section === "profile" && <ProfilePanel resumeEmailChange={resume === "email-change"} />}
         {section === "account" && (
           <AccountPanel resumeAccountDelete={resume === "account-delete"} onOpenMembers={openMembers} />
         )}
         {section === "notifications" && <NotificationsPanel />}
+        {section === "ai" && <AiSettingsPanel />}
         {section === "preferences" && <PreferencesPanel />}
         {section === "general" && (
           <WorkspacePanel

@@ -64,6 +64,24 @@ export function skillAuthoringOutcome(result: Pick<SkillAuthoringResult, "status
 }
 
 /**
+ * 'AI로 작성·보강' 초안을 확인 없이 게시할지. 안전 검토를 통과했고 입력이 온전할 때만 게시한다.
+ * 기존 커맨드와 겹치는지 아직 모르면(스킬 목록을 못 받음) 사람이 확인한다.
+ * 요청한 뒤 입력을 고쳤거나 시트를 닫았으면 그 초안은 게시하지 않는다.
+ * 'AI로 안전하게 다시 만들기'도 검토를 통과하면 바로 게시한다. 자동 승인을 켠 사용자가 허용한 범위로 본다.
+ */
+export function shouldAutoPublishSkillDraft(input: {
+  isEnabled: boolean;
+  outcome: ReturnType<typeof skillAuthoringOutcome>;
+  validationErrorCount: number;
+  isSkillListLoaded: boolean;
+  isFormUnchanged: boolean;
+  isEditorOpen: boolean;
+}): boolean {
+  return input.isEnabled && input.outcome === "pass" && input.validationErrorCount === 0 && input.isSkillListLoaded
+    && input.isFormUnchanged && input.isEditorOpen;
+}
+
+/**
  * 스킬 수정 요청을 만든다. name은 상세 시트의 커맨드명이다(PATCH가 name으로 slug를 바꾼다).
  * capabilities(종류·결과 방식을 바꿨을 때)·대상·결과 방식·원문 문서는 초안에 있을 때만 보낸다.
  * 빼면 서버가 기존 값을 유지하거나 정한다.

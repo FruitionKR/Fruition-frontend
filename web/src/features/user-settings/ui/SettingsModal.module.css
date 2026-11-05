@@ -479,3 +479,72 @@ button.nav-row.is-danger:focus-visible {
   flex-direction: column;
   gap: 20px;
 }
+
+.phone-nav {
+  display: none;
+}
+
+/* 휴대폰: 설정 메뉴를 본문 위 가로 스크롤 줄로 펼친다. 본문을 내려도 위에 남는다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .view {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .content {
+    flex: 0 0 auto;
+    max-width: none;
+    padding: 20px 16px 40px;
+  }
+
+  .phone-nav {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: block;
+    flex: 0 0 auto;
+    background: var(--color-canvas);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .phone-nav .nav {
+    position: relative;
+    flex-direction: row;
+    gap: 4px;
+    padding: 4px 8px;
+    overflow: auto hidden;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .phone-nav .nav-group,
+  .phone-nav .nav-footer {
+    display: contents;
+  }
+
+  .phone-nav .nav-label {
+    display: none;
+  }
+
+  .phone-nav .nav-row {
+    width: auto;
+    height: 44px;
+    flex: 0 0 auto;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .nav-row {
+    height: 44px;
+  }
+}
+
+/* 터치 기기: 설정 본문의 버튼·입력칸을 손가락 크기로 맞춘다. 스위치는 Switch가 누르는 영역을 넓힌다. */
+@media (pointer: coarse) {
+  .view button:not([role="switch"]),
+  .view input:not([type="checkbox"], [type="radio"], [type="file"]) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -15,6 +16,7 @@ const {
   describeTaskRequest,
   groupTaskEntries,
   isAnswerTask,
+  withReadOnlyDocumentClarification,
   isServerAppliableTask,
   isTaskMessage,
   parseSkillSlashQuery,
@@ -28,6 +30,13 @@ const {
   taskHeadingKind,
   taskKindLabel
 } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const {
+  READ_ONLY_REQUEST_LIMIT,
+  readOnlyRequestStorageKey,
+  readReadOnlyRequests,
+  recordReadOnlyRequest,
+  writeReadOnlyRequest
+} = await import("../src/features/agent-chat/lib/readOnlyRequests.ts");
 
 function message(overrides) {
   return { id: overrides.id ?? `msg_${Math.random()}`, role: "assistant", content: "", status: "completed", references: [], ...overrides };
@@ -76,8 +85,8 @@ test("세션 메시지를 문답 단위로 채팅·작업으로 나누고 작업
   const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
   assert.deepEqual(chatMessages.map((item) => item.id), ["u1", "a1"]);
   assert.deepEqual(taskItems, [
-    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
-    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
+    { key: "p2", pairId: "p2", turnId: "agent_2", action: "folder_organize", clarifyReason: null, readOnlyDocumentId: null, request: "문서를 주제별 폴더로 정리해줘", answer: "계획을 만들었습니다.", messageStatus: "completed", createdAt: null },
+    { key: "p3", pairId: "p3", turnId: "agent_3", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, request: "고쳐줘", answer: "어느 문서를 고칠까요?", messageStatus: "completed", createdAt: "2026-10-19T01:00:00Z" }
   ]);
 });
 
@@ -94,7 +103,9 @@ test("폴더 정리 run 상태를 Figma 묶음·문구로 바꾼다", () => {
   );
   assert.deepEqual(plan("rejected"), { group: "done", label: "거절됨", tone: "danger", struck: true });
   assert.deepEqual(plan("clarification_required"), { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false });
-  assert.deepEqual(plan("partial_failed"), { group: "failed", label: "일부 작업 실패", tone: "danger", struck: true });
+  // 일부는 저장됐으므로 '실패' 묶음에 넣거나 취소선을 긋지 않는다.
+  assert.deepEqual(plan("partial_failed"), { group: "partial_failed", label: "일부 실패", tone: "danger", struck: false });
+  assert.deepEqual(plan("failed"), { group: "failed", label: "실행 실패", tone: "danger", struck: true });
 });
 
 test("문서 편집·되물음·실패 작업의 상태를 정한다", () => {
@@ -394,4 +405,163 @@ test("같은 폴더의 새 계획에 대체된 승인 대기·거절 계획은 �
   assert.equal(resolveTaskStatus({ ...base, runStatus: "executing" }).label, "실행 중");
   assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "rejected" }).label, "거절됨");
   assert.equal(resolveTaskStatus({ action: "folder_organize", messageStatus: "completed", runStatus: "awaiting_approval" }).group, "approval");
+});
+
+const OPEN_DOCUMENT_QUESTION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+const READ_ONLY_REQUESTS = new Map([["turn_a", "doc_read_only"], ["turn_other", "doc_read_only"], ["turn_lookup", "doc_read_only"]]);
+
+test("보기 권한 문서를 연 채 보낸 요청에 AI가 문서를 열라고 되물으면 보기 권한 안내로 바꾼다", () => {
+  const openDocumentQuestion = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
+  const otherQuestion = { key: "b", turnId: "turn_other", action: "clarify", clarifyReason: null, answer: "어떤 기준으로 정리할까요?" };
+  const answered = { key: "c", turnId: "turn_lookup", action: "folder_lookup", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
+  const result = withReadOnlyDocumentClarification([openDocumentQuestion, otherQuestion, answered], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.match(result[0].answer, /^이 문서는 보기 권한만 있어 수정할 수 없어요\./);
+  assert.equal(result[1], otherQuestion);
+  assert.equal(result[2], answered);
+  assert.equal(openDocumentQuestion.answer, OPEN_DOCUMENT_QUESTION);
+});
+
+test("문서 없이 받은 되묻기는 뒤에 보기 권한 문서를 열어도 그대로 둔다", () => {
+  const asked = { key: "a", turnId: "turn_no_document", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("다른 보기 권한 문서에서 받은 되묻기는 지금 문서의 이유로 바꾸지 않는다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_other_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("지금 연 문서가 보기 권한이 아니면 AI 되묻기를 그대로 둔다", () => {
+  const items = [{ key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: OPEN_DOCUMENT_QUESTION }];
+  assert.equal(withReadOnlyDocumentClarification(items, null, READ_ONLY_REQUESTS), items);
+});
+
+const DOCUMENT_REQUIRED = "markdown_document_required";
+const READ_ONLY_ANSWER = /^이 문서는 보기 권한만 있어 수정할 수 없어요\./;
+
+test("이유 코드가 문서 필요면 문장이 바뀌어도 그 문서에서 보낸 요청은 보기 권한 안내로 바꾼다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: DOCUMENT_REQUIRED, answer: "편집할 문서를 먼저 열어 주세요." };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.match(result.answer, READ_ONLY_ANSWER);
+});
+
+test("모르는 이유 코드는 문장이 같아도 다른 이유이니 그대로 둔다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: "some_future_reason", answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("이유 코드가 없으면 문장이 다른 되묻기는 그대로 둔다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, answer: "어느 문서를 고칠까요?" };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("이유 코드는 문서가 필요하다는 말뿐이라 문서 없이 받았거나 다른 문서에서 받은 되묻기는 바꾸지 않는다", () => {
+  const coded = { action: "clarify", clarifyReason: DOCUMENT_REQUIRED, answer: OPEN_DOCUMENT_QUESTION };
+  const noDocument = { ...coded, key: "a", turnId: "turn_no_document" };
+  const otherDocument = { ...coded, key: "b", turnId: "turn_a" };
+  assert.equal(withReadOnlyDocumentClarification([noDocument], "doc_read_only", READ_ONLY_REQUESTS)[0], noDocument);
+  assert.equal(withReadOnlyDocumentClarification([otherDocument], "doc_other_read_only", READ_ONLY_REQUESTS)[0], otherDocument);
+  const openElsewhere = [{ ...coded, key: "c", turnId: "turn_a" }];
+  assert.equal(withReadOnlyDocumentClarification(openElsewhere, null, READ_ONLY_REQUESTS), openElsewhere);
+});
+
+const NO_REQUESTS = new Map();
+
+test("서버가 남긴 문서가 지금 문서면 이 브라우저에 기록이 없어도 보기 권한 안내로 바꾼다(다른 기기·브라우저)", () => {
+  const asked = { key: "a", turnId: "turn_new", action: "clarify", clarifyReason: DOCUMENT_REQUIRED, readOnlyDocumentId: "doc_read_only", answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", NO_REQUESTS);
+  assert.match(result.answer, READ_ONLY_ANSWER);
+});
+
+test("서버가 남긴 문서가 지금 문서와 다르면 이 브라우저 기록이 같아도 바꾸지 않는다", () => {
+  const asked = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: DOCUMENT_REQUIRED, readOnlyDocumentId: "doc_other_read_only", answer: OPEN_DOCUMENT_QUESTION };
+  const [result] = withReadOnlyDocumentClarification([asked], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.equal(result, asked);
+});
+
+test("서버 값이 있어도 다른 이유의 되묻기와 되묻기가 아닌 답은 바꾸지 않는다", () => {
+  const coded = { key: "a", turnId: "turn_new", action: "clarify", clarifyReason: "some_future_reason", readOnlyDocumentId: "doc_read_only", answer: OPEN_DOCUMENT_QUESTION };
+  const sentence = { key: "b", turnId: "turn_new", action: "clarify", clarifyReason: null, readOnlyDocumentId: "doc_read_only", answer: "어느 문서를 고칠까요?" };
+  const answered = { key: "c", turnId: "turn_new", action: "folder_lookup", clarifyReason: null, readOnlyDocumentId: "doc_read_only", answer: OPEN_DOCUMENT_QUESTION };
+  assert.deepEqual(withReadOnlyDocumentClarification([coded, sentence, answered], "doc_read_only", NO_REQUESTS), [coded, sentence, answered]);
+});
+
+test("서버 값이 없으면(구 서버·과거 메시지) 이 브라우저 기록으로 판단한다", () => {
+  const stored = { key: "a", turnId: "turn_a", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, answer: OPEN_DOCUMENT_QUESTION };
+  const unknown = { key: "b", turnId: "turn_unknown", action: "clarify", clarifyReason: null, readOnlyDocumentId: null, answer: OPEN_DOCUMENT_QUESTION };
+  const [fromStored, fromUnknown] = withReadOnlyDocumentClarification([stored, unknown], "doc_read_only", READ_ONLY_REQUESTS);
+  assert.match(fromStored.answer, READ_ONLY_ANSWER);
+  assert.equal(fromUnknown, unknown);
+});
+
+test("지금 문서를 편집할 수 있으면 서버 값이 있어도 AI 되묻기를 그대로 둔다", () => {
+  const items = [{ key: "a", turnId: "turn_new", action: "clarify", clarifyReason: DOCUMENT_REQUIRED, readOnlyDocumentId: "doc_read_only", answer: OPEN_DOCUMENT_QUESTION }];
+  assert.equal(withReadOnlyDocumentClarification(items, null, NO_REQUESTS), items);
+});
+
+test("메시지의 보기 전용 문서를 작업 항목으로 옮기고, 값이나 키가 없으면 null이다", () => {
+  const pair = (pairId, assistant) => [
+    message({ id: `${pairId}_q`, role: "user", content: "수정해줘", pair_id: pairId, run_id: pairId, read_only_document_id: null }),
+    message({ id: `${pairId}_a`, action: "clarify", pair_id: pairId, run_id: pairId, ...assistant })
+  ];
+  const { taskItems } = splitChatAndTaskMessages([
+    ...pair("p_value", { read_only_document_id: "doc_read_only" }),
+    ...pair("p_null", { read_only_document_id: null }),
+    ...pair("p_missing", {})
+  ]);
+  assert.deepEqual(taskItems.map((item) => item.readOnlyDocumentId), ["doc_read_only", null, null]);
+});
+
+test("메시지의 이유 코드를 작업 항목으로 옮기고, 값이 없거나 키가 없으면 문장으로 판단한다", () => {
+  const pair = (pairId, runId, assistant) => [
+    message({ id: `${pairId}_q`, role: "user", content: "이 문서를 수정해줘", pair_id: pairId, run_id: runId }),
+    message({ id: `${pairId}_a`, action: "clarify", pair_id: pairId, run_id: runId, ...assistant })
+  ];
+  const { taskItems } = splitChatAndTaskMessages([
+    ...pair("p_coded", "turn_a", { content: "바뀐 문장", clarify_reason: DOCUMENT_REQUIRED }),
+    ...pair("p_null", "turn_other", { content: OPEN_DOCUMENT_QUESTION, clarify_reason: null }),
+    ...pair("p_missing", "turn_lookup", { content: OPEN_DOCUMENT_QUESTION })
+  ]);
+  assert.deepEqual(taskItems.map((item) => item.clarifyReason), [DOCUMENT_REQUIRED, null, null]);
+  for (const item of withReadOnlyDocumentClarification(taskItems, "doc_read_only", READ_ONLY_REQUESTS)) {
+    assert.match(item.answer, READ_ONLY_ANSWER);
+  }
+});
+
+test("보기 권한 요청 기록은 새로 고침 뒤에도 읽히고, 깨진 값은 빈 기록으로 본다", () => {
+  const store = new Map();
+  const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+  const key = readOnlyRequestStorageKey("ws_1");
+  writeReadOnlyRequest(storage, key, "turn_a", "doc_a");
+  writeReadOnlyRequest(storage, key, "turn_b", "doc_b");
+  assert.deepEqual([...readReadOnlyRequests(storage, key)], [["turn_a", "doc_a"], ["turn_b", "doc_b"]]);
+  store.set(key, "{깨짐");
+  assert.equal(readReadOnlyRequests(storage, key).size, 0);
+  store.set(key, JSON.stringify([["turn_a", 3], ["", "doc"], "x", ["turn_b", "doc_b"]]));
+  assert.deepEqual([...readReadOnlyRequests(storage, key)], [["turn_b", "doc_b"]]);
+  assert.equal(readReadOnlyRequests(null, key).size, 0);
+  assert.doesNotThrow(() => writeReadOnlyRequest({ getItem: () => null, setItem: () => { throw new Error("full"); } }, key, "turn_a", "doc_a"));
+});
+
+test("보기 권한 요청 기록은 최근 것만 남긴다", () => {
+  let turns = new Map();
+  for (let index = 0; index < READ_ONLY_REQUEST_LIMIT + 5; index += 1) turns = recordReadOnlyRequest(turns, `turn_${index}`, "doc");
+  assert.equal(turns.size, READ_ONLY_REQUEST_LIMIT);
+  assert.equal(turns.has("turn_0"), false);
+  assert.equal(turns.has(`turn_${READ_ONLY_REQUEST_LIMIT + 4}`), true);
+});
+
+test("요청 시점의 보기 권한 문서를 onAccepted에서 turn과 묶는다", () => {
+  const source = readFileSync(new URL("../src/widgets/agent-panel/model/useAgentTurn.ts", import.meta.url), "utf8");
+  assert.match(source, /const requestReadOnlyDocumentId = readOnlyDocumentIdRef\.current;[\s\S]*onAccepted: \(requestId\) => \{[\s\S]*rememberReadOnlyRequest\(requestId, requestReadOnlyDocumentId\)/);
+});
+
+test("일부 실패 묶음은 실패 묶음과 따로 '일부 실패'로 보인다", () => {
+  const entry = (group) => ({ status: { group, label: "", tone: "danger", struck: false } });
+  const sections = groupTaskEntries([entry("failed"), entry("partial_failed")]);
+  assert.deepEqual(sections.map((section) => section.label), ["일부 실패", "실패"]);
 });

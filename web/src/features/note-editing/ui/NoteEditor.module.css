@@ -581,3 +581,35 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* 터치 기기: 본문 포커스로 iOS가 확대하지 않게 기준 글자를 16px로 둔다. */
+@media (pointer: coarse) {
+  .note-wysiwyg-editor :global(.milkdown .ProseMirror) {
+    font-size: 16px;
+  }
+
+  .note-wysiwyg-editor :global(.milkdown .milkdown-toolbar .toolbar-item) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 휴대폰: 넓은 표는 글자를 세로로 찢지 않고 가로로 스크롤한다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .note-wysiwyg-editor :global(.milkdown .milkdown-table-block) {
+    overflow-x: auto;
+  }
+
+  .note-wysiwyg-editor :global(.milkdown .milkdown-table-block table) {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .note-wysiwyg-editor :global(.milkdown .milkdown-table-block th),
+  .note-wysiwyg-editor :global(.milkdown .milkdown-table-block td) {
+    min-width: 120px;
+    max-width: 280px;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+}

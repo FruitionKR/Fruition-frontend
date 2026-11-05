@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   TOOLTIP_GAP_PX,
   TOOLTIP_OPEN_DELAY_MS,
   TOOLTIP_WARM_WINDOW_MS,
   computeTooltipPosition,
-  getTooltipOpenDelay
+  getTooltipOpenDelay,
+  shouldOpenAfterTap
 } from "../src/shared/ui/Tooltip.logic.ts";
 
 const viewport = { width: 1280, height: 800 };
@@ -77,4 +79,24 @@ test("위 배치가 넘치면 아래로 뒤집고 가로는 화면 안으로 맞
   assert.equal(position.top, 4 + 36 + TOOLTIP_GAP_PX);
   assert.equal(position.left, 8);
   assert.equal(position.arrowOffset, 20 - 8);
+});
+
+test("터치로 눌렀고 그때 닫혀 있었으면 탭으로 연다", () => {
+  assert.equal(shouldOpenAfterTap({ pointerType: "touch", wasOpen: false }), true);
+});
+
+test("이미 열려 있을 때의 탭은 닫는 탭이라 다시 열지 않는다", () => {
+  assert.equal(shouldOpenAfterTap({ pointerType: "touch", wasOpen: true }), false);
+});
+
+test("마우스 클릭·키보드 클릭(누름 기록 없음)은 탭으로 보지 않는다", () => {
+  assert.equal(shouldOpenAfterTap({ pointerType: "mouse", wasOpen: false }), false);
+  assert.equal(shouldOpenAfterTap(null), false);
+});
+
+test("탭 열기는 설명 전용 물음표에만 켠다", () => {
+  const source = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
+  assert.match(source("features/user-settings/ui/panels/AiUsageSection.tsx"), /<Tooltip content=\{USAGE_LAG_NOTE\}[^>]*\bopenOnTap\b/);
+  assert.match(source("shared/ui/Tooltip.tsx"), /openOnTap = false/);
+  assert.match(source("features/skill-authoring/ui/SkillFormParts.tsx"), /<Tooltip content=\{content\}[^>]*\bopenOnTap\b/);
 });

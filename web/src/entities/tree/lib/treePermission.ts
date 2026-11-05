@@ -31,3 +31,40 @@ export function findEffectivePermission(items: TreeItem[], id: string, inherited
     if (found !== undefined) return found;
   }
 }
+
+/** 서버가 폴더 넣기·꺼내기를 거절할 때와 같은 문구. 화면에서 미리 막을 때 이유로 보여 준다. */
+export const FOLDER_WRITE_FORBIDDEN_MESSAGE = "이 폴더에 넣거나 꺼낼 권한이 없습니다.";
+
+/**
+ * 폴더에 항목을 넣거나 꺼낼 수 있는지 판정하는 단일 기준(서버 DocumentAccessPolicy와 같은 규칙).
+ * chain은 그 폴더부터 최상위 쪽으로 올라가는 각 폴더의 자기 설정이다. 가장 가까운 설정을 따르고, 설정이 없으면 편집할 수 있다.
+ * 문서 소유자 예외는 없고 워크스페이스 OWNER는 항상 된다.
+ *
+ * @param isWorkspaceOwner 역할을 아직 모르면 null
+ * @returns 모르면(역할 확인 전, permission 필드가 없는 구 서버 응답) null. 호출자는 막지 않고 서버 판단에 맡긴다.
+ */
+export function folderWritable(chain: readonly TreeItem["permission"][], isWorkspaceOwner: boolean | null): boolean | null {
+  if (isWorkspaceOwner === null) return null;
+  if (isWorkspaceOwner) return true;
+  for (const permission of chain) {
+    if (permission === undefined) return null;
+    if (permission !== null) return permission === "edit";
+  }
+  return true;
+}
+
+function folderPermissionChain(items: readonly TreeItem[], folderId: string): TreeItem["permission"][] | null {
+  for (const item of items) {
+    if (item.id === folderId) return [item.permission];
+    const inner = folderPermissionChain(item.children ?? [], folderId);
+    if (inner) return [...inner, item.permission];
+  }
+  return null;
+}
+
+/** 트리에서 folderWritable을 판정한다. folderId가 null이면 최상위로, 멤버면 쓸 수 있다. 트리에 없는 폴더는 모른다(null). */
+export function canWriteTreeFolder(items: readonly TreeItem[], folderId: string | null, isWorkspaceOwner: boolean | null): boolean | null {
+  if (folderId === null) return true;
+  const chain = folderPermissionChain(items, folderId);
+  return chain && folderWritable(chain, isWorkspaceOwner);
+}

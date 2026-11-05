@@ -347,6 +347,7 @@ export function registerMeetingRoutes(router) {
     let documentId;
     if (body.mode === "create") {
       documentId = createNotesDocument(workspace, ctx.user.id, body.display_name || notes.display_name, markdown, body.folder_id ?? null);
+      if (!documentId) return error(ctx, 409, "같은 폴더에 같은 이름의 파일 또는 폴더가 이미 있습니다. 다른 이름을 사용해 주세요.", "DUPLICATE_NAME");
     } else if (body.mode === "append") {
       const doc = targetDocument(ctx, workspace, meeting, body.document_id);
       if (!doc) return;
@@ -412,10 +413,9 @@ function saveMarkdown(doc, markdown, userId) {
 
 function createNotesDocument(workspace, userId, name, markdown, folderId) {
   const base = name.replace(/[\\/:*?"<>|]/g, " ").trim() || "회의록";
-  let filename = `${base}.md`;
-  for (let index = 2; state.documents.some((doc) => doc.workspace_id === workspace.id && doc.folder_id === folderId && doc.filename === filename && !doc.deleted_at); index += 1) {
-    filename = `${base} (${index}).md`;
-  }
+  const filename = `${base}.md`;
+  // document처럼 같은 폴더의 같은 이름(대소문자 무시)은 거절한다. 만들지 않았으면 null이다.
+  if (state.documents.some((doc) => doc.workspace_id === workspace.id && (doc.folder_id ?? null) === folderId && doc.filename.toLowerCase() === filename.toLowerCase() && !doc.deleted_at)) return null;
   const buffer = Buffer.from(markdown, "utf8");
   const timestamp = now();
   const doc = {

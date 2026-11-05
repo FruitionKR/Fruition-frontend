@@ -1,7 +1,7 @@
 // document-svc(8080) Notion 가져오기 라우트: 가져오기 세션·Markdown 문서 생성(JSON)·완료·편입 비용·일괄 편입.
 // 가져오기 쓰기 요청은 X-Fruition-Import-Id 헤더로 세션에 묶이고 저장 용량을 검사한다. item 수 상한은 없다.
 import { randomUUID } from "node:crypto";
-import { state, now, id, hash, error, requireWorkspace, toDocumentItem, isSkillReference } from "../state.mjs";
+import { state, now, id, hash, error, requireWorkspace, toDocumentItem, isSkillReference, requireFolderWrite } from "../state.mjs";
 import { storageOf, uploadRejection } from "../lib/limits.mjs";
 import { startConvert, startIngest } from "../pipeline.mjs";
 
@@ -198,6 +198,7 @@ export function registerImportRoutes(router) {
     const buffer = Buffer.from(markdown, "utf8");
     if (buffer.length > MARKDOWN_MAX_BYTES) return error(ctx, 413, "Markdown 본문은 UTF-8 기준 5MB 이하여야 합니다.", "FILE_TOO_LARGE");
     if (folderId && !state.folders.some((folder) => folder.id === folderId && folder.workspace_id === workspace.id && !folder.deleted_at)) return error(ctx, 404, "폴더를 찾을 수 없습니다.");
+    if (!requireFolderWrite(ctx, workspace.id, folderId)) return;
     const session = useImportSession(ctx, workspace);
     if (session === false) return;
     const rejection = uploadRejection(ctx.user.id, buffer.length);

@@ -69,7 +69,7 @@ export function CheckMark() {
 /** 라벨 옆 물음표 설명 */
 export function HelpTip({ label, content }: { label: string; content: ReactNode }) {
   return (
-    <Tooltip content={content} placement="top" describe={false}>
+    <Tooltip content={content} placement="top" describe={false} openOnTap>
       <button type="button" className={styles["help-button"]} aria-label={`${label} 설명`}>
         <SvgIcon src={questionMarkIcon} className={styles["help-icon"]} />
       </button>

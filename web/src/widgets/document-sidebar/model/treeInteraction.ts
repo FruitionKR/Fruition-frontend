@@ -18,6 +18,12 @@ export type TreeInteractionProps = {
   /** 스킬 실행 대상 고르기 중: 행을 눌러도 열지 않고 onToggleSelectItem으로 고른다 */
   isPickingTarget?: boolean;
   dropTarget: DropTarget | null;
+  /** 권한이 없어 놓을 수 없는 대상 행. 끄는 동안 그 행에 이유를 보여 준다. */
+  dropDeniedItemId: string | null;
+  canStartDrag: (itemId: string) => boolean;
+  isDropDenied: (target: DropTarget) => boolean;
+  isFolderWriteDenied: (folderId: string) => boolean;
+  onDragDenied: (itemId: string | null) => void;
   fileDropTarget: FileDropTarget | null;
   editing: EditingState | null;
   /** 문서 id별 PDF ↔ 변환본 관계 배지. 있으면 확장자 배지 대신 그린다 */

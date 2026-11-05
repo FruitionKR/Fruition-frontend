@@ -95,6 +95,7 @@ export function SkillsView({
   const [searchText, setSearchText] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [sheet, setSheet] = useState<SkillSheetState>(null);
+  const [autoPublishedNotice, setAutoPublishedNotice] = useState<string | null>(null);
   useEffect(() => {
     if (!createRequest) return;
     setSheet((current) => openCreateSheet(current, createRequest.text));
@@ -209,6 +210,7 @@ export function SkillsView({
 
         <div id={panelId} role="tabpanel" aria-labelledby={`${idPrefix}-tab-${activeTab}`} className={styles.panel}>
           {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
+          {autoPublishedNotice && <p className={styles.message} role="status">{autoPublishedNotice}</p>}
           <div className={styles.table} role="table" aria-label="스킬 목록">
             <div className={cx(styles.row, styles["row-head"])} role="row">
               {COLUMNS.map((column) => (
@@ -295,7 +297,10 @@ export function SkillsView({
           host={sheetHost}
           testRunTarget={testRunTarget}
           onClose={closeSheet}
-          onPublished={() => void catalog.refresh()}
+          onPublished={(notice) => {
+            setAutoPublishedNotice(notice);
+            void catalog.refresh();
+          }}
         />
       )}
       {workspaceId != null && sheetSkill && (

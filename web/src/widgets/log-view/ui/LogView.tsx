@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
+  documentRestoreMessage,
   fetchOperationLogDetail,
   fetchRestorePreview,
   filterOperationLogsByType,
@@ -295,7 +296,7 @@ export function LogView({
         operationId: detail.operation_id,
         previewToken: preview.preview_token,
         message: preview.document
-          ? `${description} 문서를 ${preview.document.from_version}에서 ${preview.document.to_version} 버전으로 되돌립니다.`
+          ? documentRestoreMessage(description, preview.document, detail.changes)
           : `${description} 작업을 롤백하면 ${affectedCount}개 Wiki 페이지에 영향을 줍니다.`
       });
     } catch (error: unknown) {

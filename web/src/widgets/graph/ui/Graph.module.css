@@ -202,3 +202,34 @@
 .graph-refresh-icon.is-spinning {
   animation: global(spin) 0.9s linear infinite;
 }
+
+/* 휴대폰: 범례 칩을 화면 폭 안에서 가로로 스크롤한다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .filter-chips {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filter-chips .filter-chip {
+    min-height: 44px;
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+}
+
+@media (pointer: coarse) {
+  .graph-stage button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  .filter-chips .filter-chip {
+    min-height: 44px;
+  }
+}

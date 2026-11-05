@@ -11,7 +11,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
-import { resolveTreeMove } from "../lib/treeMoveRules";
+import { isDropDeniedByFolder, isMoveOutDenied, resolveTreeMove } from "../lib/treeMoveRules";
 import { bulkResultNotice, planBulkDelete, rangeSelection, type SkippedTreeItem } from "../lib/treeBulkSelection";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
@@ -22,7 +22,9 @@ import {
   serverFolderId,
   normalizeTreeName,
   initialProjects,
-  isFileItem
+  isFileItem,
+  canWriteTreeFolder,
+  FOLDER_WRITE_FORBIDDEN_MESSAGE
 } from "@/entities/tree";
 import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, FolderLocation, Project } from "@/entities/tree";
 
@@ -66,11 +68,14 @@ type MergeConfirmTarget = {
 
 export function useProjectTree({
   refreshRef,
-  onDeleted
+  onDeleted,
+  isWorkspaceOwner
 }: {
   refreshRef: MutableRefObject<() => Promise<void>>;
   /** 삭제 API가 성공한 뒤 호출된다. 폴더를 지우면 삭제 직전 트리의 하위 id까지 넘긴다. */
   onDeleted?: (deleted: DeletedTreeIds) => void;
+  /** 폴더에 넣기·꺼내기 판단에 쓴다. 역할을 아직 모르면 null이고 막지 않는다. */
+  isWorkspaceOwner: boolean | null;
 }) {
   // 큐에서 늦게 실행되는 삭제도 최신 렌더의 콜백을 부르도록 ref로 들고 있는다.
   const onDeletedRef = useRef(onDeleted);
@@ -85,12 +90,14 @@ export function useProjectTree({
   }, []);
   const [draggedItem, setDraggedItem] = useState<{ projectId: string; itemId: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [dropDeniedItemId, setDropDeniedItemId] = useState<string | null>(null);
   const [fileDropTarget, setFileDropTarget] = useState<FileDropTarget | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmTarget | null>(null);
   const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
   const [permissionTarget, setPermissionTarget] = useState<PermissionDialogTarget | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ projectId: string; itemId: string } | null>(null);
   // Cmd/Ctrl+클릭·Shift+클릭으로 고른 묶음 이동·삭제 대상. Escape·일반 클릭·빈 영역 클릭으로 해제한다.
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<BulkDeleteConfirmTarget | null>(null);
@@ -158,12 +165,16 @@ export function useProjectTree({
     }, "폴더 생성 실패");
   }
 
-  function moveTreeEntry(target: DropTarget) {
-    const dragged = draggedItem;
+  function moveTreeEntry(target: DropTarget, dragged = draggedItem) {
     setDropTarget(null);
     setDraggedItem(null);
-    const resolution = resolveTreeMove(projects, dragged, target, selectedItemIds);
+    setDropDeniedItemId(null);
+    const resolution = resolveTreeMove(projects, dragged, target, selectedItemIds, isWorkspaceOwner);
     if (resolution.kind === "invalid") return;
+    if (resolution.kind === "forbidden") {
+      publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
+      return;
+    }
     if (resolution.kind === "conflict") {
       publishNotice({ kind: "failed", title: "이동 실패", message: "대상 폴더에 같은 이름의 항목이 있습니다." });
       return;
@@ -225,6 +236,26 @@ export function useProjectTree({
       if (item.documentId) await moveDocument(item.documentId, folderId, position);
       else await moveFolder(item.id, folderId, position);
     }, "항목 이동 실패");
+  }
+
+  /** 터치 기기의 이동 대상 고르기: 메뉴의 "다른 폴더로 이동"에서 연다. */
+  function openMoveContextTarget() {
+    if (!contextMenu?.itemId) return;
+    setMoveTarget({ projectId: contextMenu.projectId, itemId: contextMenu.itemId });
+    if (!selectedItemIds.has(contextMenu.itemId)) setSelectedItemIds(new Set());
+    setContextMenu(null);
+  }
+
+  /** 터치 기기의 묶음 이동: 고른 항목 중 하나를 끈 것처럼 처리하면 resolveTreeMove가 묶음 전체를 옮긴다. */
+  function openMoveSelectedItems(projectId: string) {
+    const [itemId] = selectedItemIds;
+    if (itemId) setMoveTarget({ projectId, itemId });
+  }
+
+  function confirmMoveTo(folderId: string | null) {
+    if (!moveTarget) return;
+    setMoveTarget(null);
+    moveTreeEntry({ projectId: moveTarget.projectId, targetId: folderId, position: "inside" }, moveTarget);
   }
 
   function confirmMerge() {
@@ -483,6 +514,36 @@ export function useProjectTree({
     finally { await refreshRef.current().catch(() => {}); }
   }
 
+  /** 권한을 모르면 false다(막지 않고 서버가 판단한다). */
+  function isItemMoveOutDenied(itemId: string) {
+    return isMoveOutDenied(projects, itemId, isWorkspaceOwner);
+  }
+
+  /** 꺼낼 권한이 없으면 끌기를 시작하지 않고 이유를 알린다. 묶음은 옮길 때 항목별로 건너뛰고 알린다. */
+  function canStartDrag(itemId: string) {
+    if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
+    if (!isItemMoveOutDenied(itemId)) return true;
+    publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
+    return false;
+  }
+
+  function isDropDenied(target: DropTarget) {
+    return draggedItem !== null && isDropDeniedByFolder(projects, target, isWorkspaceOwner);
+  }
+
+  /** 권한을 모르면 false다(막지 않고 서버가 판단한다). */
+  function isFolderWriteDenied(folderId: string) {
+    return canWriteTreeFolder(projects.flatMap((project) => project.items), folderId, isWorkspaceOwner) === false;
+  }
+
+  function onDragDenied(itemId: string | null) {
+    setDropDeniedItemId(itemId);
+    if (itemId !== null) {
+      setDropTarget(null);
+      setFileDropTarget(null);
+    }
+  }
+
   function onDragStart(projectId: string, itemId: string) {
     setDraggedItem({ projectId, itemId });
     setContextMenu(null);
@@ -491,7 +552,13 @@ export function useProjectTree({
   }
 
   function onDragOverItem(target: DropTarget) {
+    setDropDeniedItemId(null);
     if (draggedItem) setDropTarget(target);
+  }
+
+  function onFileDragOver(target: FileDropTarget) {
+    setDropDeniedItemId(null);
+    setFileDropTarget(target);
   }
 
   function onFileDragLeave() {
@@ -502,6 +569,7 @@ export function useProjectTree({
     setDraggedItem(null);
     setDropTarget(null);
     setFileDropTarget(null);
+    setDropDeniedItemId(null);
   }
 
   function onEditingChange(label: string) {
@@ -513,6 +581,13 @@ export function useProjectTree({
     setProjects,
     draggedItem,
     dropTarget,
+    dropDeniedItemId,
+    canStartDrag,
+    isDropDenied,
+    isFolderWriteDenied,
+    isItemMoveOutDenied,
+    onDragDenied,
+    onFileDragOver,
     fileDropTarget,
     contextMenu,
     closeContextMenu,
@@ -533,6 +608,11 @@ export function useProjectTree({
     setFileDropTarget,
     addProject,
     moveTreeEntry,
+    moveTarget,
+    openMoveContextTarget,
+    openMoveSelectedItems,
+    confirmMoveTo,
+    closeMoveDialog: () => setMoveTarget(null),
     openFolderMenu,
     openFolderMenuAt,
     openProjectMenu,

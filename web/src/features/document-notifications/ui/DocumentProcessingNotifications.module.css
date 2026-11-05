@@ -183,3 +183,42 @@
   --button-hover-overlay: none;
   background: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay)), var(--color-primary);
 }
+
+/* 휴대폰: 레일이 아래 탭 바로 옮겨 가므로 콘텐츠 영역(탭 바 위) 폭으로 편다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .notice-stack,
+  .notice-stack.is-viewport-corner {
+    right: 8px;
+    bottom: calc(var(--phone-tabbar-height, 56px) + 8px);
+    left: 8px;
+    width: auto;
+  }
+
+  .notice-stack.is-above-launcher {
+    bottom: calc(var(--phone-tabbar-height, 56px) + 72px);
+  }
+
+  /* 쌓여도 본문을 다 가리지 않게 카드 묶음 안에서 스크롤하고, 입력 중에는 잠시 숨긴다. */
+  .notice-stack {
+    max-height: 40dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  :global(html.is-keyboard-open) .notice-stack {
+    display: none;
+  }
+}
+
+/* 가로 휴대폰: 본문 높이가 낮아 카드가 가운데를 덮는다. 런처 옆 오른쪽 아래로 모아 가운데를 비운다. */
+@media (max-height: 500px) and (pointer: coarse) {
+  .notice-stack,
+  .notice-stack.is-viewport-corner,
+  .notice-stack.is-above-launcher {
+    right: 72px;
+    left: auto;
+    width: min(320px, 45vw);
+    max-height: 32dvh;
+    bottom: calc(var(--phone-tabbar-height, 56px) + 8px);
+  }
+}

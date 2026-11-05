@@ -452,3 +452,21 @@
   cursor: progress;
   opacity: 0.6;
 }
+
+/* 터치 기기: 제목 줄의 글자 버튼은 모양을 두고 누르는 영역만 44px로 키운다. */
+@media (pointer: coarse) {
+  .meeting-title {
+    min-height: 44px;
+  }
+
+  .meeting-close,
+  .meeting-actions button,
+  .meeting-recording button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .meeting-title-actions {
+    gap: 0;
+  }
+}

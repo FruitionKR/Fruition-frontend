@@ -19,7 +19,11 @@ import { cx } from "@/shared/lib/classNames";
 import {
   computeTooltipPosition,
   getTooltipOpenDelay,
+  getTouchTooltipDelay,
+  shouldOpenAfterTap,
+  TOOLTIP_TOUCH_VISIBLE_MS,
   type TooltipPlacement,
+  type TooltipPress,
   type TooltipPosition
 } from "./Tooltip.logic";
 import styles from "./Tooltip.module.css";
@@ -30,6 +34,7 @@ let lastTooltipClosedAt: number | null = null;
 
 /**
  * 빠르게 뜨는 설명 말풍선. 레일처럼 overflow가 걸린 곳에서도 잘리지 않게 body에 portal로 띄운다.
+ * 터치는 hover가 없어 길게 누르면 띄우고 잠시 뒤 스스로 닫는다. 비활성 버튼은 탭으로 사유를 바로 보여 준다. openOnTap이면 탭으로 여닫는다.
  * hover 150ms(다른 툴팁에서 옮겨 오면 즉시)·키보드 포커스에 열리고, 이탈·클릭·Esc·스크롤에 닫힌다.
  * disabled 버튼 위에서도 뜨도록 래퍼가 이벤트를 받는다. 트리거에는 title을 두지 않는다(이중 툴팁 방지).
  */
@@ -39,6 +44,7 @@ export function Tooltip({
   placement = "right",
   disabled = false,
   describe = true,
+  openOnTap = false,
   className,
   children
 }: {
@@ -50,6 +56,8 @@ export function Tooltip({
   disabled?: boolean;
   /** aria-label과 같은 문구라 읽어 줄 필요가 없으면 false로 aria-describedby를 생략한다. */
   describe?: boolean;
+  /** 터치 탭으로 말풍선을 여닫는다. 설명만 여는 물음표 버튼용이다. 탭이 곧 동작인 버튼에는 켜지 않는다. */
+  openOnTap?: boolean;
   /** 레이아웃을 유지해야 하는 트리 행 등의 트리거 래퍼 스타일. */
   className?: string;
   children: ReactElement<{ "aria-describedby"?: string }>;
@@ -60,6 +68,7 @@ export function Tooltip({
   const bubbleRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const isOpenRef = useRef(false);
+  const pressRef = useRef<TooltipPress | null>(null);
   const tooltipId = useId();
 
   const clearTimer = useCallback(() => {
@@ -87,7 +96,7 @@ export function Tooltip({
   }, [clearTimer, hide]);
 
   function scheduleShow(event: PointerEvent<HTMLSpanElement>) {
-    // 터치는 hover가 없으므로 탭할 때 말풍선을 띄우지 않는다.
+    // 터치는 hover가 없다. 누를 때의 처리는 handlePointerDown이 맡는다.
     if (disabled || event.pointerType === "touch") return;
     clearTimer();
     const delay = getTooltipOpenDelay({
@@ -99,9 +108,37 @@ export function Tooltip({
     else timerRef.current = window.setTimeout(show, delay);
   }
 
+  function handlePointerDown(event: PointerEvent<HTMLSpanElement>) {
+    pressRef.current = { pointerType: event.pointerType, wasOpen: isOpenRef.current };
+    hide();
+    // openOnTap은 탭이 끝난 click에서 연다.
+    if (disabled || openOnTap || event.pointerType !== "touch") return;
+    const trigger = anchorRef.current?.firstElementChild;
+    const delay = getTouchTooltipDelay({ isTriggerDisabled: Boolean(trigger?.matches(':disabled, [aria-disabled="true"]')) });
+    const showBriefly = () => {
+      show();
+      timerRef.current = window.setTimeout(hide, TOOLTIP_TOUCH_VISIBLE_MS);
+    };
+    if (delay === 0) showBriefly();
+    else timerRef.current = window.setTimeout(showBriefly, delay);
+  }
+
+  /** 손가락을 떼도 터치로 띄운 말풍선은 남기고, 아직 뜨지 않았으면 길게 누르기를 취소한다. */
+  function handlePointerLeave(event: PointerEvent<HTMLSpanElement>) {
+    if (event.pointerType !== "touch") hide();
+    else if (!isOpenRef.current) clearTimer();
+  }
+
   function showOnKeyboardFocus(event: FocusEvent<HTMLSpanElement>) {
     if (disabled || !(event.target instanceof Element) || !event.target.matches(":focus-visible")) return;
     show();
+  }
+
+  // 터치의 click은 pointerdown(hide) 뒤에 오므로 여기서 연다.
+  function handleClick() {
+    const press = pressRef.current;
+    pressRef.current = null;
+    if (openOnTap && !disabled && shouldOpenAfterTap(press)) show();
   }
 
   useEffect(() => {
@@ -116,16 +153,22 @@ export function Tooltip({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") hide();
     }
+    // 터치에는 pointerleave로 닫을 기회가 없어 바깥을 누르면 닫는다. 트리거 안은 handlePointerDown이 맡는다.
+    function handleOutsidePointerDown(event: globalThis.PointerEvent) {
+      if (!(event.target instanceof Node && anchorRef.current?.contains(event.target))) hide();
+    }
     document.addEventListener("keydown", handleKeyDown);
+    if (openOnTap) document.addEventListener("pointerdown", handleOutsidePointerDown, true);
     // 스크롤·리사이즈로 트리거가 움직이면 위치가 어긋나므로 닫는다.
     window.addEventListener("scroll", hide, true);
     window.addEventListener("resize", hide);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("pointerdown", handleOutsidePointerDown, true);
       window.removeEventListener("scroll", hide, true);
       window.removeEventListener("resize", hide);
     };
-  }, [isOpen, hide]);
+  }, [isOpen, hide, openOnTap]);
 
   // 그리기 전에 말풍선 크기를 재서 위치를 정한다(첫 렌더는 visibility: hidden).
   useLayoutEffect(() => {
@@ -152,8 +195,11 @@ export function Tooltip({
       ref={anchorRef}
       className={cx(styles["tooltip-anchor"], className)}
       onPointerEnter={scheduleShow}
-      onPointerLeave={hide}
-      onPointerDown={hide}
+      onPointerLeave={handlePointerLeave}
+      onPointerUp={(event) => { if (event.pointerType === "touch" && !isOpenRef.current) clearTimer(); }}
+      onPointerCancel={(event) => { if (!isOpenRef.current) clearTimer(); else if (event.pointerType === "touch") hide(); }}
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
       onFocus={showOnKeyboardFocus}
       onBlur={hide}
     >

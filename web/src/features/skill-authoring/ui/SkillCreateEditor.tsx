@@ -1,14 +1,16 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { authorSkill, fetchSkills, publishSkill } from "@/entities/skill";
+import { useUserPreferences } from "@/entities/user";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
 import { cx } from "@/shared/lib/classNames";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
-import { describeSkillAuthorError, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
+import { describeSkillAuthorError, isSkillFormDirty, shouldAutoPublishSkillDraft, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
+  applyReviewedSkillDraft,
   applySkillDraft,
   draftResultModeChange,
   draftSourceChange,
@@ -50,6 +52,7 @@ import styles from "./SkillEditor.module.css";
 
 const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
 const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
+const AUTO_PUBLISHED_NOTICE = "설정의 'AI 에이전트 자동 승인'에 따라 AI가 쓴 초안을 확인 없이 게시했어요. 필요 없으면 스킬 화면에서 지우세요.";
 const KIND_OPTIONS = SKILL_KIND_CARDS.map(({ value, label }) => ({ value, label }));
 
 /**
@@ -75,11 +78,13 @@ export function SkillCreateEditor({
   /** 채팅 패널의 테스트 실행 자리. 없으면 시트 본문 끝에 둔다. */
   testRunTarget: HTMLElement | null;
   onClose: () => void;
-  onPublished: () => void;
+  /** autoPublishedNotice: 설정에 따라 확인 없이 게시했을 때 목록 화면에 보일 안내. 알림 카드는 스킬 화면에 뜨지 않는다. */
+  onPublished: (autoPublishedNotice: string | null) => void;
 }) {
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const prefill = prefillRequest?.trim() ?? "";
+  const { preferences } = useUserPreferences();
   const [initialForm] = useState<SkillCreateForm>(() =>
     prefill !== "" ? skillCreateFormFromRequest(prefill) : INITIAL_SKILL_CREATE_FORM
   );
@@ -126,8 +131,8 @@ export function SkillCreateEditor({
   }
 
   const publishMutation = useMutation({
-    mutationFn: () => publishSkill(workspaceId, skillPublishRequest(form)),
-    onSuccess: (result) => {
+    mutationFn: ({ target }: { target: SkillCreateForm; isAutomatic: boolean }) => publishSkill(workspaceId, skillPublishRequest(target)),
+    onSuccess: (result, { isAutomatic }) => {
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "review") {
         // 위험 표현이 발견돼 저장되지 않았다. 지적을 보여 주고 규칙을 고치게 한다.
@@ -138,7 +143,7 @@ export function SkillCreateEditor({
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
-      onPublished();
+      onPublished(isAutomatic ? AUTO_PUBLISHED_NOTICE : null);
       sheetClose.close();
     }
   });
@@ -148,18 +153,26 @@ export function SkillCreateEditor({
 
   // AI 작성: enhance(보강, 기본) / preserve(원문 유지 재검토) / regenerate(차단 구간 제거 후 안전 재작성)
   const [authorStatus, setAuthorStatus] = useState("");
+  // 응답이 오기 전에 시트를 닫았는지 본다. 닫아도 진행 중인 요청의 onSuccess는 실행된다.
+  const isEditorOpenRef = useRef(true);
+  useEffect(() => {
+    isEditorOpenRef.current = true;
+    return () => {
+      isEditorOpenRef.current = false;
+    };
+  }, []);
   const authorMutation = useMutation({
-    mutationFn: (mode: SkillAuthoringMode) =>
-      authorSkill(workspaceId, skillAuthorRequest(form, mode, referenceDocs.selectedDocIds)),
+    mutationFn: ({ mode, source }: { mode: SkillAuthoringMode; source: SkillCreateForm }) =>
+      authorSkill(workspaceId, skillAuthorRequest(source, mode, referenceDocs.selectedDocIds)),
     onMutate: () => setAuthorStatus(""),
-    onSuccess: (result) => {
+    onSuccess: (result, { source }) => {
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "clarify") {
         // 초안 없이 되묻는 응답이다. 입력은 그대로 두고 질문을 알린다.
         setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
         return;
       }
-      const drafted = applySkillDraft(form, result);
+      const drafted = outcome === "review" ? applyReviewedSkillDraft(form, result) : applySkillDraft(form, result);
       setForm(drafted);
       setResultModeNote(draftResultModeChange(form, drafted));
       setSourceNote(draftSourceChange(form, drafted));
@@ -169,6 +182,20 @@ export function SkillCreateEditor({
         return;
       }
       setIssues([]);
+      const shouldPublish = shouldAutoPublishSkillDraft({
+        isEnabled: preferences.autoPublishSkillDrafts,
+        outcome,
+        validationErrorCount: existingSkills
+          ? Object.keys(validateSkillCreateForm(drafted, existingSkills.map((skill) => skill.slug))).length
+          : 0,
+        isSkillListLoaded: Boolean(existingSkills),
+        isFormUnchanged: form === source,
+        isEditorOpen: isEditorOpenRef.current
+      });
+      if (shouldPublish) {
+        publishMutation.mutate({ target: drafted, isAutomatic: true });
+        return;
+      }
       setAuthorStatus("AI가 작성한 실행 규칙을 채웠습니다. 확인 후 저장해 주세요.");
     }
   });
@@ -177,14 +204,14 @@ export function SkillCreateEditor({
   function runAuthor(mode: SkillAuthoringMode) {
     // 실행 규칙이 AI 지시문이라, 비어 있으면 필드 오류를 보여 주고 보내지 않는다.
     touch("rules");
-    if (form.rules.trim() !== "") authorMutation.mutate(mode);
+    if (form.rules.trim() !== "") authorMutation.mutate({ mode, source: form });
   }
   const isBusy = authorMutation.isPending || publishMutation.isPending;
 
   function submit() {
     // 비활성 버튼은 클릭을 받지 못하므로 aria-disabled로 두고, 누르면 오류가 있는 필드를 모두 표시한다.
     setTouched(new Set<SkillCreateField>(["command", "description", "rules", "targets"]));
-    if (!isBlocked) publishMutation.mutate();
+    if (!isBlocked) publishMutation.mutate({ target: form, isAutomatic: false });
   }
 
   const errorProps = (field: SkillCreateField, hintId?: string) => {

@@ -4,6 +4,7 @@
   width: 100vw;
   min-width: 0;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--color-canvas);
 }
@@ -169,4 +170,52 @@
   --api-error-bg: #321917;
   --api-error-border: #7a3530;
   --api-error-button-bg: #71302c;
+}
+
+/* 휴대폰(세로 767px 이하, 또는 높이 500px 이하의 터치 기기 가로 화면): 위 상단 바 + 콘텐츠 + 아래 탭 바.
+   콘텐츠 화면은 모두 .workspace 기준 absolute라 .workspace를 두 바 사이로 줄이면 함께 맞는다.
+   사이드바·채팅 패널·탭 바는 fixed로 화면 기준에 둔다. 좌우 여백 변수는 안전 영역만 비킨다(인라인 style보다 우선). */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .workspace {
+    --phone-topbar-height: calc(48px + env(safe-area-inset-top, 0px));
+    --phone-tabbar-height: calc(56px + env(safe-area-inset-bottom, 0px));
+    --sidebar-width: env(safe-area-inset-left, 0px) !important;
+    --agent-panel-width: env(safe-area-inset-right, 0px) !important;
+    top: var(--phone-topbar-height);
+    width: 100%;
+    height: calc(100dvh - var(--phone-topbar-height) - var(--phone-tabbar-height));
+  }
+
+  html.is-keyboard-open .workspace {
+    height: calc(100dvh - var(--phone-topbar-height) - var(--keyboard-inset, 0px));
+  }
+
+  .compact-sidebar-backdrop {
+    display: none;
+  }
+
+  .workspace-api-error {
+    top: calc(var(--phone-topbar-height) + 8px);
+    right: 8px;
+    left: 8px;
+  }
+
+  .workspace-api-error button {
+    min-height: 44px;
+    padding: 5px 12px;
+  }
+}
+
+@media (max-height: 500px) and (pointer: coarse) {
+  .workspace {
+    --phone-topbar-height: calc(44px + env(safe-area-inset-top, 0px));
+    --phone-tabbar-height: calc(45px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 휴대폰: 콘텐츠 화면 안에서 연 모달이 위아래 바까지 덮게 그동안만 사이드바(바 포함)를 그 아래로 내린다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .workspace:has(> section .modal-backdrop, > section [aria-modal="true"]) > aside {
+    z-index: 0;
+  }
 }
