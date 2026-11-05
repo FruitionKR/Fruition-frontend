@@ -93,7 +93,7 @@ export function WorkspacePanel({
       await updateWorkspaceDescribePdfFigures(workspaceId, !describePdfFigures);
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setDescribeFiguresError(getErrorMessage(error, "PDF 그림 설명 설정을 변경하지 못했습니다."));
+      setDescribeFiguresError(getErrorMessage(error, "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다."));
     } finally {
       setIsDescribeFiguresSaving(false);
     }
@@ -232,7 +232,7 @@ export function WorkspacePanel({
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>PDF 그림 설명</SettingsSectionHeader>
+        <SettingsSectionHeader>PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
             <strong>PDF 속 그림을 AI가 글로 설명하기</strong>
