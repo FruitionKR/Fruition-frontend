@@ -1,4 +1,4 @@
-import { isOperationNotSelected, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
+import { isOperationNotSelected, planOperationFailureReason, planOperationOutcome, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
 
 /** 폴더 정리 미리보기 화면을 여는 데 필요한 것: 계획을 조회할 turn과 사용자가 보낸 커맨드. */
 export type FolderOrganizeRequest = {
@@ -33,6 +33,8 @@ export type FolderOrganizeRow = {
   dependencyNote: string | null;
   /** 부분 승인에서 고르지 않아 실행하지 않은 줄(작업이 모두 skipped·not_selected). */
   excluded: boolean;
+  /** 실행 결과에 실패가 있으면 칩 문구와 이유. 실패한 이동·이름 변경은 위 위치·이름에 반영하지 않는다. */
+  failure: { label: string; note: string } | null;
 };
 
 export type FolderOrganizeCreatedFolder = { operationId: string; name: string };
@@ -117,14 +119,15 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
       item ? folderName(item.parentId) : "위치 확인 불가",
       item?.name ?? "항목 이름 확인 불가"
     );
+    const isFailed = planOperationOutcome(operation) === "failed";
     if (operation.tool_name.startsWith("move_")) {
       row.moved = true;
-      row.folderName = folderName(operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id);
+      if (!isFailed) row.folderName = folderName(operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id);
       const sourceParentId = operation.source_parent_id ?? item?.parentId ?? null;
       if (sourceParentId) sourceParents.set(sourceParentId, (sourceParents.get(sourceParentId) ?? 0) + 1);
     } else if (operation.tool_name.startsWith("rename_")) {
       row.renamed = true;
-      row.newName = argName(args);
+      if (!isFailed) row.newName = argName(args);
     } else if (operation.tool_name === "apply_document_edit") {
       row.edited = true;
     } else {
@@ -145,7 +148,8 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
       suggestedSelected: operations.every((operation) => operation.suggested_selected !== false),
       duplicateWarning: warningMessage(operations, "duplicate_name") ?? warningMessage(operations, "duplicate_content"),
       dependencyNote: warningMessage(operations, "depends_on_unselected"),
-      excluded: operations.every(isOperationNotSelected)
+      excluded: operations.every(isOperationNotSelected),
+      failure: rowFailure(operations)
     })),
     createdFolders,
     targetFolderName: targetParentId ? items.get(targetParentId)?.name ?? null : null
@@ -155,8 +159,17 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
 function emptyRow(id: string, originalName: string, folderName: string, newName: string): RowDraft {
   return {
     id, originalName, folderName, newName, changeLabel: "", reason: "", operationIds: [], suggestedSelected: true,
-    duplicateWarning: null, dependencyNote: null, excluded: false, moved: false, renamed: false, edited: false, operations: []
+    duplicateWarning: null, dependencyNote: null, excluded: false, failure: null, moved: false, renamed: false, edited: false, operations: []
   };
+}
+
+/** 줄의 실행 결과에 실패가 있으면 칩 문구와 이유. 일부만 저장됐으면 "일부 실패", 모두 권한 때문이면 "권한 없음"이다. */
+function rowFailure(operations: AgentPlanOperation[]): FolderOrganizeRow["failure"] {
+  const failed = operations.filter((operation) => planOperationOutcome(operation) === "failed");
+  if (failed.length === 0) return null;
+  const reason = planOperationFailureReason(failed[0]);
+  if (operations.some((operation) => planOperationOutcome(operation) === "applied")) return { label: "일부 실패", note: `일부 작업은 ${reason}` };
+  return { label: failed.every((operation) => operation.status === "forbidden") ? "권한 없음" : "실패", note: reason };
 }
 
 function warningMessage(operations: AgentPlanOperation[], type: string): string | null {
@@ -166,6 +179,10 @@ function warningMessage(operations: AgentPlanOperation[], type: string): string 
 export type FolderOrganizeRowResults = {
   /** 저장된 줄(문서·항목) 수. 줄에 묶인 작업이 하나라도 저장됐으면 저장으로 본다. */
   saved: number;
+  /** saved 중 실패한 작업도 있는 줄 수 */
+  partial: number;
+  /** 하나도 저장하지 못하고 실패한 줄 수 */
+  failed: number;
   /** 고르지 않았거나 건너뛰어 하나도 실행하지 않은 줄 수 */
   excluded: number;
   /** 실제로 만들어진 새 폴더 수 */
@@ -181,14 +198,28 @@ export function summarizeFolderOrganizeRows(plan: AgentPlan): FolderOrganizeRowR
   const operations = new Map(plan.operations.map((operation) => [operation.id, operation]));
   const { rows, createdFolders } = buildFolderOrganizeView(plan, []);
   let saved = 0;
+  let partial = 0;
+  let failed = 0;
   let excluded = 0;
   for (const row of rows) {
     const results = summarizePlanOperationResults(row.operationIds.flatMap((id) => operations.get(id) ?? []));
     if (results.applied > 0) saved += 1;
-    else if (results.failed === 0) excluded += 1;
+    if (results.applied > 0 && results.failed > 0) partial += 1;
+    if (results.applied === 0 && results.failed > 0) failed += 1;
+    if (results.applied === 0 && results.failed === 0) excluded += 1;
   }
   const folderOperations = createdFolders.flatMap((folder) => operations.get(folder.operationId) ?? []);
-  return { saved, excluded, createdFolders: summarizePlanOperationResults(folderOperations).applied };
+  return { saved, partial, failed, excluded, createdFolders: summarizePlanOperationResults(folderOperations).applied };
+}
+
+/** 일부라도 실패한 run의 결과 안내: "1개 저장 • 1개 일부만 저장 • 1개 실패 • 1개 제외" */
+export function folderOrganizeResultNotice({ saved, partial, failed, excluded }: FolderOrganizeRowResults): string {
+  return [
+    saved > partial && `${saved - partial}개 저장`,
+    partial > 0 && `${partial}개 일부만 저장`,
+    failed > 0 && `${failed}개 실패`,
+    excluded > 0 && `${excluded}개 제외`
+  ].filter(Boolean).join(" • ");
 }
 
 /** 처음 열 때 선택을 해제해 둘 줄: 묶인 작업 중 하나라도 suggested_selected가 false인 줄. */

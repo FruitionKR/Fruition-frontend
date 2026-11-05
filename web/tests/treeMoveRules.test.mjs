@@ -88,3 +88,62 @@ test("폴더를 자기 자신이나 하위 폴더 안으로 옮기면 cycle을 �
   // 다른 폴더로는 정상 이동
   assert.equal(resolveTreeMove(nested, { projectId: ROOT, itemId: "a" }, { projectId: ROOT, targetId: "inner", position: "inside" }, none).kind, "move");
 });
+
+const { isDropDeniedByFolder } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
+const guarded = () => [{ id: ROOT, folderId: null, title: "문서", items: [
+  { id: "locked", label: "보기 전용", type: "folder", permission: "view", children: [
+    file("mine", "mine.md"),
+    file("other", "other.md"),
+    { id: "inner-open", label: "다시 연 폴더", type: "folder", permission: "edit", children: [] },
+    { id: "inner-inherit", label: "따르는 폴더", type: "folder", permission: null, children: [] }
+  ] },
+  { id: "open", label: "열린 폴더", type: "folder", permission: null, children: [] },
+  { id: "legacy", label: "구 서버 폴더", type: "folder", children: [file("in-legacy", "in-legacy.md")] },
+  file("root-doc", "root-doc.md"),
+  file("root-doc2", "root-doc2.md")
+] }];
+const MEMBER = false;
+const OWNER = true;
+const inside = (targetId) => ({ projectId: ROOT, targetId, position: "inside" });
+const dragged = (itemId) => ({ projectId: ROOT, itemId });
+
+test("쓸 수 없는 폴더로는 옮길 수 없다", () => {
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("root-doc"), inside("locked"), none, MEMBER), { kind: "forbidden" });
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("root-doc"), inside("inner-inherit"), none, MEMBER), { kind: "forbidden" }, "상위 설정을 따른다");
+  assert.equal(resolveTreeMove(guarded(), dragged("root-doc"), inside("inner-open"), none, MEMBER).kind, "move", "자기 설정이 우선이다");
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("root-doc"), inside("mine"), none, MEMBER), { kind: "forbidden" }, "그 폴더 안 문서 위에 놓아 묶는 것도 막는다");
+});
+
+test("쓸 수 없는 폴더에서는 소유 문서도 꺼낼 수 없다", () => {
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("mine"), inside("open"), none, MEMBER), { kind: "forbidden" });
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("mine"), { projectId: ROOT, targetId: null, position: "inside" }, none, MEMBER), { kind: "forbidden" }, "최상위로 꺼내기");
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("inner-open"), inside("open"), none, MEMBER), { kind: "forbidden" }, "폴더 이동");
+});
+
+test("OWNER·역할을 모를 때·권한 필드가 없는 구 서버는 막지 않는다", () => {
+  assert.equal(resolveTreeMove(guarded(), dragged("root-doc"), inside("locked"), none, OWNER).kind, "move");
+  assert.equal(resolveTreeMove(guarded(), dragged("mine"), inside("open"), none, OWNER).kind, "move");
+  assert.equal(resolveTreeMove(guarded(), dragged("root-doc"), inside("locked"), none, null).kind, "move");
+  assert.equal(resolveTreeMove(guarded(), dragged("root-doc"), inside("locked"), none).kind, "move", "역할을 넘기지 않으면 모르는 것으로 본다");
+  assert.equal(resolveTreeMove(guarded(), dragged("root-doc"), inside("legacy"), none, MEMBER).kind, "move");
+  assert.equal(resolveTreeMove(guarded(), dragged("in-legacy"), inside("open"), none, MEMBER).kind, "move");
+});
+
+test("묶음 이동은 목적지가 막히면 전부 막고, 출발 폴더가 막힌 항목은 이유와 함께 건너뛴다", () => {
+  const selected = new Set(["root-doc", "mine"]);
+  assert.deepEqual(resolveTreeMove(guarded(), dragged("root-doc"), inside("locked"), new Set(["root-doc", "root-doc2"]), MEMBER), { kind: "forbidden" });
+  const result = resolveTreeMove(guarded(), dragged("root-doc"), inside("open"), selected, MEMBER);
+  assert.equal(result.kind, "move-many");
+  assert.deepEqual(result.items.map((item) => item.id), ["root-doc"]);
+  assert.deepEqual(result.skipped, [{ label: "mine.md", reason: "이 폴더에 넣거나 꺼낼 권한이 없습니다." }]);
+});
+
+test("드래그 중인 줄이 가리키는 위치가 막혔는지 안다", () => {
+  assert.equal(isDropDeniedByFolder(guarded(), inside("locked"), MEMBER), true);
+  assert.equal(isDropDeniedByFolder(guarded(), inside("mine"), MEMBER), true, "문서 위는 그 문서의 폴더를 본다");
+  assert.equal(isDropDeniedByFolder(guarded(), inside("open"), MEMBER), false);
+  assert.equal(isDropDeniedByFolder(guarded(), inside("root-doc"), MEMBER), false, "최상위 문서 위");
+  assert.equal(isDropDeniedByFolder(guarded(), { projectId: ROOT, targetId: null, position: "inside" }, MEMBER), false, "최상위");
+  assert.equal(isDropDeniedByFolder(guarded(), inside("locked"), OWNER), false);
+  assert.equal(isDropDeniedByFolder(guarded(), inside("locked"), null), false);
+});

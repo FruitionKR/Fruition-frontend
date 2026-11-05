@@ -31,6 +31,10 @@ export type ChatMessageResponse = QueryMessageSummary & {
   run_id?: string;
   progress?: import("@/shared/lib/runEventStream").RunStageEvent[];
   action?: string;
+  /** action=clarify일 때 AI가 되물은 이유 코드. 코드가 없는 되묻기·이 필드 이전 메시지·배포 전 서버는 null이거나 키가 없고, 모르는 코드가 올 수 있다. 사용자 문구로 쓰지 않는다. */
+  clarify_reason?: string | null;
+  /** 요청 때 보기 권한만 있다고 서버가 확인한 열린 문서. assistant 메시지에만 있고 이 필드 이전 메시지·배포 전 서버는 null이거나 키가 없다. 안내 문구를 고르는 데만 쓴다. */
+  read_only_document_id?: string | null;
   related_pages?: ChatMessageRelatedPageResponse[];
   references: ChatMessageReferenceResponse[];
 };

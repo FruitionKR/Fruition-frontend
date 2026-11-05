@@ -4,10 +4,12 @@ import taskRejectIcon from "@/shared/assets/svg/agent/task-reject.svg";
 import taskBoltIcon from "@/shared/assets/svg/agent/task-bolt.svg";
 import { getWorkspaceId } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { useWorkspaceRole } from "@/entities/workspace";
 import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan } from "../api/agentPlan";
-import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, isOperationNotSelected, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
+import { agentPlanClarificationMessage, agentPlanFailureMessage, autoApprovedPlanNote, buildPlanPreviewTree, canApproveAgentPlan, canRetryAgentPlanRun, describePlanOperations, isAutoApprovedPlan, isOperationNotSelected, planOperationFailureReason, planOperationOutcome, splitPlanSummary, type AgentPlanRun, type PlanPreviewNode } from "../lib/agentPlan";
 import { buildFolderOrganizeView, folderOrganizeApproval, folderOrganizeCardHint, initialDeselectedRowIds } from "../lib/folderOrganize";
+import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon } from "./AgentIcons";
@@ -25,12 +27,12 @@ function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: numb
       {node.folder ? <details open>
         <summary style={rowStyle} title={node.name}>
           <span className={styles["plan-tree-slot"]} aria-hidden="true">{node.children.length > 0 && <svg viewBox="0 0 8 8" fill="none"><path d="M2.5 1.25L5.25 4L2.5 6.75" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>}</span>
-          <span className={styles["plan-tree-name"]}>{node.name}</span>{node.isNew && <small>새 폴더</small>}
+          <span className={styles["plan-tree-name"]}>{node.name}</span>{node.failed ? <small className={styles["plan-tree-failed"]}>실패</small> : node.isNew && <small>새 폴더</small>}
         </summary>
         {node.children.length > 0 && <PlanTree nodes={node.children} depth={depth + 1} />}
       </details> : <div className={styles["plan-tree-file"]} style={rowStyle} title={node.name}>
         <span className={styles["plan-tree-slot"]} aria-hidden="true" />
-        <span className={styles["plan-tree-name"]}>{name}</span>{badge && <small>{badge}</small>}
+        <span className={styles["plan-tree-name"]}>{name}</span>{node.failed && <small className={styles["plan-tree-failed"]}>실패</small>}{badge && <small>{badge}</small>}
       </div>}
     </li>;
     })}
@@ -71,6 +73,7 @@ export function AgentPlanTaskDetail({
   const workspaceId = getWorkspaceId();
   const client = useQueryClient();
   const plan = run?.plan ?? null;
+  const { role, isOwner } = useWorkspaceRole();
   // 워크스페이스 폴링이 받는 문서 트리 캐시를 그대로 구독한다(#66). 캐시가 비어 있을 때만 같은 조회로 채운다.
   const tree = useQuery({
     queryKey: documentDataQueryKey(workspaceId),
@@ -104,17 +107,27 @@ export function AgentPlanTaskDetail({
     ? folderOrganizeApproval(plan, organizeRows, userDeselectedIds ?? initialDeselectedRowIds(organizeRows))
     : null;
   const approvalHint = approval && tree.data ? folderOrganizeCardHint(approval) : null;
-  const ready = canDecide && Boolean(tree.data) && !runError && !tree.error && (approval?.canApply ?? true);
+  // 눌러도 권한으로 실패할 계획은 수락을 막는다. 권한을 모르면 열어 두고 서버가 판단한다.
+  const access = plan && canDecide && tree.data
+    ? checkPlanAccess(plan, tree.data, role === null ? null : isOwner, approval?.operationIds ?? null)
+    : null;
+  // 폴더 정리는 미리보기와 같이 줄 단위로 안내한다.
+  const rowAccess = access && organizeRows.length > 0
+    ? checkRowAccess(access, organizeRows, userDeselectedIds ?? initialDeselectedRowIds(organizeRows))
+    : null;
+  const accessVerdict = rowAccess?.verdict ?? access?.verdict;
+  const accessMessage = rowAccess ? planAccessMessage({ ...rowAccess, unit: "항목" }) : access && planAccessMessage(access);
+  const ready = canDecide && Boolean(tree.data) && !runError && !tree.error && (approval?.canApply ?? true) && accessVerdict !== "all_blocked";
   const clarificationMessage = agentPlanClarificationMessage(run);
   const busy = mutation.isPending || isRunFetching || tree.isFetching;
   const failureMessage = agentPlanFailureMessage(run);
   const isFailed = failureMessage !== null;
   const canRetry = Boolean(onRetry) && canRetryAgentPlanRun(run);
   // AI가 대상 폴더 밖 작업을 뺐다는 안내는 접힌 상세 보기가 아니라 카드에 바로 보인다.
-  const planSummary = splitPlanSummary(plan?.summary);
+  const planSummary = splitPlanSummary(plan?.summary, run?.status);
   const note = clarificationMessage
     ?? failureMessage
-    ?? (canDecide ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null)
+    ?? (canDecide && accessVerdict !== "all_blocked" ? "폴더와 문서의 변경 내용을 확인한 뒤 승인해주세요. 승인한 항목만 저장됩니다." : null)
     ?? (plan && isAutoApprovedPlan(run) ? autoApprovedPlanNote(plan) : null);
 
   return (
@@ -133,7 +146,9 @@ export function AgentPlanTaskDetail({
               <li key={operation.id}>
                 <strong>{operation.description}</strong>
                 {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
+                {access?.blockedOperationIds.has(operation.id) && <p className={styles["plan-operation-blocked"]}>{PLAN_OPERATION_BLOCKED_NOTE}</p>}
                 {!PENDING_OPERATION_STATUSES.has(operation.status) && <small>{isOperationNotSelected(operation) ? "제외됨" : OPERATION_STATUS_LABELS[operation.status] ?? "상태 확인 필요"}</small>}
+                {planOperationOutcome(operation) === "failed" && <p className={styles["plan-operation-blocked"]}>{planOperationFailureReason(operation)}</p>}
               </li>
             ))}
           </ol>
@@ -150,6 +165,7 @@ export function AgentPlanTaskDetail({
         </div>
       )}
       {canDecide && approvalHint && <p className={cx(styles["task-card-meta"], styles["task-decision-hint"])} role="status">{approvalHint}</p>}
+      {accessMessage && <p className={cx(styles["task-card-meta"], styles["task-decision-hint"])} role="status">{accessMessage}</p>}
       {canRetry && !canDecide && (
         <div className={styles["task-actions"]}>
           <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onRetry}>
@@ -176,6 +192,7 @@ export function AgentPlanTaskDetail({
               className={styles["task-decision"]}
               aria-label={action === "folder_organize" ? "수락하고 정리" : "수락하고 실행"}
               disabled={!ready || busy}
+              title={accessVerdict === "all_blocked" ? accessMessage ?? undefined : undefined}
               onClick={() => mutation.mutate({ decision: "approve", operationIds: approval?.operationIds ?? null })}
             >
               <AgentAssetIcon src={taskAcceptIcon} size={12} />

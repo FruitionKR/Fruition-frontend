@@ -13,6 +13,8 @@ export type ActiveMarkdownEditContext = {
   documentId: string;
   baseVersion: number;
   editorSnapshot: MarkdownEditorSnapshot;
+  /** 편집기가 준비됐고 편집 잠금을 쥔 채 저장이 막히지 않았다. false면 적용해도 저장되지 않는다. */
+  isWritable: boolean;
   applyMarkdown: (expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => boolean;
 };
 

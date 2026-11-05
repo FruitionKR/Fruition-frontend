@@ -111,7 +111,8 @@ test("필수값·커맨드 형식·중복 커맨드를 검증한다", () => {
   assert.match(validateSkillCreateForm({ ...filledForm, description: "가".repeat(501) }, []).description, /500자/);
 });
 
-const { applySkillDraft, draftResultModeChange, draftSourceChange, kindFromCapabilities, skillAuthorRequest, skillResultModeLabel } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+const { skillAuthoringOutcome } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
+const { applyReviewedSkillDraft, applySkillDraft, draftResultModeChange, draftSourceChange, kindFromCapabilities, skillAuthorRequest, skillResultModeLabel } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 
 test("AI 작성 요청은 실행 규칙을 지시문으로 보내고 유효한 이름·설명·참고 문서만 담는다", () => {
   const request = skillAuthorRequest({ ...filledForm, scope: "team" }, "enhance", ["doc_1", "doc_2"]);
@@ -244,4 +245,27 @@ test("게시 요청은 원문 문서 값이 있을 때만 requires_source를 싣
   // 고른 뒤 고치기 전용·폴더 정리로 바꾸면 필드가 사라져 보내지 않는다.
   assert.ok(!("requires_source" in skillPublishRequest({ ...filledForm, resultMode: "edit", requiresSource: true })));
   assert.ok(!("requires_source" in skillPublishRequest({ ...filledForm, kind: "folder", requiresSource: true })));
+});
+
+test("안전 검토에 걸린 응답은 사용자가 고른 원문 문서·종류·결과 방식을 덮지 않는다", () => {
+  const blocked = { status: "blocked", issues: ["위험"], requires_source: false, capabilities: ["document-edit"], instructions_markdown: null, name: "안전 스킬", description: "" };
+  assert.equal(skillAuthoringOutcome(blocked), "review");
+  for (const requiresSource of [true, null]) {
+    const chosen = { ...INITIAL_SKILL_CREATE_FORM, kind: "document", resultMode: "create", requiresSource, rules: "규칙" };
+    const next = applyReviewedSkillDraft(chosen, blocked);
+    assert.equal(next.requiresSource, requiresSource);
+    assert.equal(next.resultMode, "create");
+    assert.equal(next.kind, "document");
+    assert.equal(next.rules, "규칙");
+    assert.equal(draftSourceChange(chosen, next), null);
+    assert.equal(draftResultModeChange(chosen, next), null);
+  }
+});
+
+test("안전 검토에 걸린 응답도 고칠 실행 규칙과 비어 있던 이름 제안은 채운다", () => {
+  const chosen = { ...INITIAL_SKILL_CREATE_FORM, rules: "규칙" };
+  const next = applyReviewedSkillDraft(chosen, { requires_source: false, capabilities: [], instructions_markdown: "고친 규칙", name: "safe-skill", description: "설명" });
+  assert.equal(next.rules, "고친 규칙");
+  assert.equal(next.command, "safe-skill");
+  assert.equal(next.description, "설명");
 });

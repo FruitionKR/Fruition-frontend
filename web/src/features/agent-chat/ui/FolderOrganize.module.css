@@ -266,6 +266,10 @@
   white-space: nowrap;
 }
 
+.chip.is-failed {
+  color: var(--color-danger);
+}
+
 .change {
   display: flex;
 }

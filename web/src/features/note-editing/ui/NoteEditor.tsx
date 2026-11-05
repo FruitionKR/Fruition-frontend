@@ -151,6 +151,8 @@ export function NoteEditor({
   const [loadAttempt, setLoadAttempt] = useState(0);
   const editorReady = editorLoad.documentId === documentId && editorLoad.phase === "ready";
   const editorFailed = editorLoad.documentId === documentId && editorLoad.phase === "failed";
+  // AI 편집을 적용해도 저장까지 이어질 수 있는 상태. 잠금을 잃었거나 세션이 끝나면 편집기는 남아도 저장되지 않는다.
+  const isWritable = editLock.phase === "granted" && editorReady && status !== "lock-lost" && status !== "session-expired";
   const wysiwygRootRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const crepeRef = useRef<Crepe | null>(null);
@@ -163,6 +165,8 @@ export function NoteEditor({
     wholeDocument?: boolean
   ) => void>(() => {});
   const programmaticBodyRef = useRef<string | null>(null);
+  // 편집기가 마지막으로 알린 직렬화 본문. 지금 문서를 직렬화한 값과 다르면 아직 알리지 않은 입력이 있다.
+  const serializedBodyRef = useRef<string | null>(null);
   const saveNowRef = useRef(saveNow);
   queueSaveRef.current = queueSave;
   saveNowRef.current = saveNow;
@@ -195,6 +199,8 @@ export function NoteEditor({
       // AI 편집 적용 등 프로그램 교체다. 외부 이미지가 들어 있어도 화면엔 자리 표시만 나온다.
       tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
       view.dispatch(tr);
+      // 편집기 plugin이 덧붙인 변경까지 반영된 본문을 반향으로 표시한다. 안 그러면 AI 저장 뒤 같은 본문을 사용자 편집으로 다시 저장하거나 "저장 안 됨"으로 남는다.
+      programmaticBodyRef.current = ctx.get(serializerCtx)(view.state.doc);
     });
   }, []);
 
@@ -249,12 +255,22 @@ export function NoteEditor({
     });
   };
 
+  /** markdownUpdated는 지연되므로, 아직 bodyRef에 오지 않은 입력이나 IME 조합이 있는지 편집기에서 직접 본다. */
+  const hasUnsyncedEditorInput = useCallback(() => {
+    const editor = crepeRef.current?.editor;
+    if (!editor || editor.status !== EditorStatus.Created) return false;
+    return editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      return view.composing || ctx.get(serializerCtx)(view.state.doc) !== serializedBodyRef.current;
+    });
+  }, []);
+
   const applyMarkdown = useCallback((expectedMarkdown: string, nextMarkdown: string, applyOperationId: string) => {
-    if (bodyRef.current !== expectedMarkdown) return false;
+    if (bodyRef.current !== expectedMarkdown || hasUnsyncedEditorInput()) return false;
     replaceEditorMarkdown(nextMarkdown);
     queueSaveRef.current(nextMarkdown, "agent", applyOperationId);
     return true;
-  }, [replaceEditorMarkdown]);
+  }, [hasUnsyncedEditorInput, replaceEditorMarkdown]);
 
   // 서버가 이미지 placeholder를 관리 경로로 바꿔 주면 편집기 본문에도 반영한다.
   // 문서를 다시 파싱하지 않고 이미지 노드의 src만 제자리에서 바꾸므로 캐럿·입력 중인 내용이 흔들리지 않는다.
@@ -305,9 +321,10 @@ export function NoteEditor({
             }
           }
         : buildMarkdownEditorSnapshot(markdownValue, from, to),
+      isWritable,
       applyMarkdown
     });
-  }, [applyMarkdown, contentVersion, documentId, onMarkdownEditContextChange]);
+  }, [applyMarkdown, contentVersion, documentId, isWritable, onMarkdownEditContextChange]);
   publishMarkdownEditContextRef.current = publishMarkdownEditContext;
 
   useEffect(() => {
@@ -593,6 +610,7 @@ export function NoteEditor({
       }
     }).on((listener) => {
       listener.markdownUpdated((_ctx, nextBody, previousBody) => {
+        if (!isDisposed) serializedBodyRef.current = nextBody;
         if (isDisposed || nextBody === previousBody) return;
         if (programmaticBodyRef.current === nextBody) {
           programmaticBodyRef.current = null;
@@ -659,6 +677,7 @@ export function NoteEditor({
       if (isDisposed) return;
       crepe.editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
+        serializedBodyRef.current = ctx.get(serializerCtx)(view.state.doc);
         // 선택 장식만 바뀔 때 표 DOM을 재생성하면 누르고 있던 드래그 핸들이 사라진다.
         view.setProps({
           nodeViews: {

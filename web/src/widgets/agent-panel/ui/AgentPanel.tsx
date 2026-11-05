@@ -5,6 +5,8 @@ import { analyticsEditType } from "@/shared/lib/analytics/events";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree";
+import { resolveGeneratedDocumentFolderId } from "@/features/agent-chat/lib/agentTurn";
 import contextChipCloseIcon from "@/shared/assets/svg/agent/context-chip-close.svg";
 import contextChipClosePrimaryIcon from "@/shared/assets/svg/agent/context-chip-close-primary.svg";
 import { AgentBody } from "@/features/agent-chat/ui/AgentBody";
@@ -35,7 +37,7 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages } from "@/features/agent-chat/lib/taskThread";
+import { resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
@@ -74,6 +76,7 @@ export function AgentPanel({
   onClose,
   onOpenSourceBlocks,
   onCreateMarkdownDocument,
+  isFolderWriteDenied,
   markdownEditContext,
   onDocumentExported,
   onIngestExportedDocument,
@@ -89,13 +92,18 @@ export function AgentPanel({
   onReplaceFolderOrganize,
   skillTestRunSlotRef,
   openDocumentTitle = null,
+  readOnlyDocumentId = null,
   onEditReviewChange,
   isShown = true
 }: {
   onClose: () => void;
   onOpenSourceBlocks: (documentId: string, title: string, highlights: SourceBlockHighlight[]) => void;
   onCreateMarkdownDocument: (draft: GeneratedMarkdownDraft, folderId: string | null, agentRunId: string | null) => Promise<void>;
+  /** 이 폴더에 새 문서를 넣을 권한이 없으면 true. 권한을 모르면 false이고 서버가 판단한다. */
+  isFolderWriteDenied: (folderId: string) => boolean;
   markdownEditContext?: ActiveMarkdownEditContext | null;
+  /** 지금 열린 보기 권한 문서. 편집 문맥이 없어 AI가 "문서를 열라"고 되물어도, 이 문서에서 보낸 요청이면 이유를 알려 주는 문장으로 보인다. */
+  readOnlyDocumentId?: string | null;
   onDocumentExported?: (response: ChatWikiExportResponse) => Promise<void> | void;
   /** 채팅 편입으로 저장한 문서의 위키 편입을 시작한다. 편입 권한이 없거나 확인 중이면 없어 알림에 버튼을 두지 않는다. */
   onIngestExportedDocument?: (documentId: string) => void;
@@ -242,6 +250,7 @@ export function AgentPanel({
   const selectedPairIds = pairSelection.selectedPairIds;
   const agentTurn = useAgentTurn({
     markdownEditContext,
+    readOnlyDocumentId,
     activeSessionId: sessions.selected.work,
     selectedModel,
     selectedPairIds: [],
@@ -270,6 +279,10 @@ export function AgentPanel({
       : taskRunIds;
     return splitChatAndTaskMessages(workThread.messages, runIds);
   }, [isSeparateWorkSession, workThread.messages, taskRunIds]);
+  const displayedTaskItems = useMemo(
+    () => withReadOnlyDocumentClarification(taskItems, readOnlyDocumentId, agentTurn.readOnlyRequests),
+    [agentTurn.readOnlyRequests, readOnlyDocumentId, taskItems]
+  );
   // 취소한 작업(서버가 cancelled로 닫은 말풍선·취소를 받아들인 pending 말풍선)은 turn 조회로 되돌리기가 끝났는지 따라간다.
   // 서버는 말풍선을 취소 요청 즉시 닫으므로, 되돌리는 중이면 "취소하는 중…", 끝나면 "취소됨"·복구 실패로 보인다.
   const cancelledTaskTurnIds = useMemo(() => taskItems.flatMap((item) => (
@@ -643,17 +656,19 @@ export function AgentPanel({
   const reviewDocumentId = agentTurnRequest?.documentId ?? null;
   const proposalCount = reviewSegments ? countProposals(reviewSegments) : 0;
   const pendingProposalCount = reviewSegments ? countPendingProposals(reviewSegments, proposalDecisions) : 0;
+  const { isAutoApplying } = agentTurn;
   const isInlineReview = Boolean(
-    reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
+    !isAutoApplying && reviewSegments && proposalCount > 0 && editPreviewState?.preview && !editPreviewState.validationError
     && reviewDocumentId && reviewDocumentId === openDocumentId
   );
   const isReviewBusy = isAgentTurnLoading || isCreatingMarkdown;
   const shownReviewIds = useRef(new Set<string>());
   useEffect(() => {
-    if (!(isInlineReview || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
+    // 자동 적용도 수락과 같은 경로로 집계한다(제안 → 결정). 결정은 서버가 저장 시 ai_edit_decided(accepted)로 남긴다.
+    if (!(isInlineReview || isAutoApplying || (isShown && isWorkView)) || !editPreviewState?.preview || !agentTurnResponse || shownReviewIds.current.has(agentTurnResponse.requestId)) return;
     shownReviewIds.current.add(agentTurnResponse.requestId);
     captureAnalytics("edit_review_shown", { proposal_id: agentTurnResponse.requestId, document_id: agentTurnResponse.documentId, edit_type: analyticsEditType(agentTurnResponse.result.edit) });
-  }, [isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
+  }, [isAutoApplying, isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
   const decideProposalRef = useRef(agentTurn.decideProposal);
   decideProposalRef.current = agentTurn.decideProposal;
   const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "");
@@ -680,7 +695,9 @@ export function AgentPanel({
     : null;
 
   // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
-  const hasDocumentCommandPreview = Boolean(
+  const generatedDocumentFolderId = resolveGeneratedDocumentFolderId(agentTurnResponse);
+  const newDocumentBlockedReason = generatedDocumentFolderId && isFolderWriteDenied(generatedDocumentFolderId) ? FOLDER_WRITE_FORBIDDEN_MESSAGE : null;
+  const hasDocumentCommandPreview = !isAutoApplying && Boolean(
     (agentTurnResponse?.result.action === "markdown_create" && agentTurnResponse.result.generated_markdown)
     || editPreviewState?.preview
   );
@@ -692,9 +709,10 @@ export function AgentPanel({
           notice={agentTurnResponse.result.message}
           isSubmitting={isCreatingMarkdown}
           errorMessage={agentTurn.markdownCreateErrorMessage}
+          blockedReason={newDocumentBlockedReason}
           onCancel={agentTurn.cancelAgentTurnResult}
           onRegenerate={agentTurn.regenerateAgentTurn}
-          onCreate={agentTurn.createMarkdownDocument}
+          onCreate={() => agentTurn.createMarkdownDocument()}
         />
       )}
       {isInlineReview && <ProposalDecisionButtons disabled={isReviewBusy} onDecide={agentTurn.decideRemainingProposals} />}
@@ -706,6 +724,7 @@ export function AgentPanel({
           onApply={agentTurn.applyMarkdownEdit}
           onCancel={agentTurn.cancelAgentTurnResult}
           onOpenAsNewDocument={agentTurn.openMarkdownEditAsNewDocument}
+          newDocumentBlockedReason={newDocumentBlockedReason}
           onRegenerate={agentTurn.regenerateAgentTurn}
         />
       )}
@@ -746,7 +765,7 @@ export function AgentPanel({
         {isWorkView ? (
           // 작업 탭(Figma 1610:9512): 문서 편집·폴더 정리·스킬 실행 요청과 결과를 상태별로 묶어 보여 준다.
           <AgentTaskBody
-            items={taskItems}
+            items={displayedTaskItems}
             pendingTask={isAgentTurnLoading && agentTurnRequest ? {
               request: agentTurnRequest.message,
               stages: agentTurn.agentStages,
@@ -779,6 +798,7 @@ export function AgentPanel({
             activePreview={documentCommandPreview}
             activePreviewMeta={inlineReviewMeta}
             appliedTurnIds={agentTurn.appliedTurnIds}
+            autoAppliedTurnIds={agentTurn.autoAppliedTurnIds}
             rejectedTurnIds={agentTurn.rejectedTurnIds}
             cancelledTurnIds={agentTurn.cancelledTurnIds}
             onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}

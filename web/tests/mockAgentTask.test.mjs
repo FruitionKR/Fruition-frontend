@@ -4,6 +4,7 @@ import test from "node:test";
 const { createRouter, listen, issueAccessToken } = await import("../mock/lib/http.mjs");
 const { state } = await import("../mock/state.mjs");
 const { registerAgentRoutes } = await import("../mock/routes/agent.mjs");
+const { registerChatRoutes } = await import("../mock/routes/chat.mjs");
 
 const WORKSPACE_ID = "ws_agent_task";
 const USER_ID = "user_agent_task";
@@ -12,7 +13,9 @@ const MODEL = { provider: "openai", model: "gpt-6-luna", allow_web_search: false
 const FOLDER_ID = "0b6f2d4e-1a3c-4e5f-9a7b-8c9d0e1f2a3b";
 const DELETED_FOLDER_ID = "1c7a3e5f-2b4d-4f60-8b8c-9d0e1f2a3b4c";
 
-async function startMock(t) {
+const MEMBER_USER_ID = "user_agent_task_member";
+
+async function startMock(t, userId = USER_ID) {
   const timestamp = new Date().toISOString();
   if (!state.users.some((user) => user.id === USER_ID)) {
     state.users.push({ id: USER_ID, email: "agent-task@example.com", display_name: "작업", provider: "email" });
@@ -22,19 +25,27 @@ async function startMock(t) {
     state.folders.push({ id: FOLDER_ID, workspace_id: WORKSPACE_ID, name: "회의록", parent_folder_id: null, sort_order: 0, current_version: 1, created_at: timestamp });
     state.folders.push({ id: DELETED_FOLDER_ID, workspace_id: WORKSPACE_ID, name: "지운 폴더", parent_folder_id: null, sort_order: 1, current_version: 1, created_at: timestamp, deleted_at: timestamp });
     state.documents.push({ id: "doc_task_1", workspace_id: WORKSPACE_ID, filename: "연구.md", status: "completed", document_role: "EDITABLE", markdown: "# 연구" });
+    state.users.push({ id: MEMBER_USER_ID, email: "agent-task-member@example.com", display_name: "멤버", provider: "email" });
+    state.members.push({ workspace_id: WORKSPACE_ID, user_id: MEMBER_USER_ID, role: "MEMBER", joined_at: timestamp });
+    state.documents.push({ id: "doc_task_view", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, permission: "view", filename: "보기.md", status: "completed", document_role: "EDITABLE", markdown: "# 보기" });
     state.skills.push({ id: "skill_task_organize", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "file-organize", scope_type: "personal", status: "enabled",
       enabled_version: { id: "sv_task", name: "file-organize", description: "폴더 정리", status: "published", version: 1, allowed_tools: [], capabilities: ["folder-organize"], instructions_markdown: "" },
       latest_version: null });
+    state.skills.push({ id: "skill_task_edit", workspace_id: WORKSPACE_ID, owner_user_id: USER_ID, slug: "edit-only", scope_type: "personal", status: "enabled",
+      enabled_version: { id: "sv_task_edit", name: "edit-only", description: "문서 수정", status: "published", version: 1, allowed_tools: [], capabilities: ["document-edit"], result_mode: "edit", instructions_markdown: "" },
+      latest_version: null });
   }
-  const token = issueAccessToken(state, USER_ID);
+  const token = issueAccessToken(state, userId);
   const router = createRouter(state);
   registerAgentRoutes(router);
+  registerChatRoutes(router);
   t.mock.method(console, "log", () => {});
   const server = await listen(router, 0);
   t.after(() => server.close());
-  const base = `http://localhost:${server.address().port}/api/workspaces/${WORKSPACE_ID}/agent`;
+  const workspaceBase = `http://localhost:${server.address().port}/api/workspaces/${WORKSPACE_ID}`;
+  const base = `${workspaceBase}/agent`;
   return async (method, path, body) => {
-    const response = await fetch(`${base}${path}`, {
+    const response = await fetch(path.startsWith("/chat/") ? `${workspaceBase}${path}` : `${base}${path}`, {
       method,
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined
@@ -137,7 +148,7 @@ test("mock 작업 탭은 채팅 답변 대신 되묻고, 문서 없는 편집 �
   assert.match(question.result.chat.answer, /채팅 탭/);
   const edit = await submitTask(request, "이 문단을 수정해줘");
   assert.equal(edit.result.action, "clarify");
-  assert.match(edit.result.chat.answer, /문서를 열고/);
+  assert.match(edit.result.chat.answer, /문서를 연 뒤/);
 });
 
 test("mock은 문서 필드를 일부만 보내거나 모르는 mode를 거절한다", async (t) => {
@@ -257,4 +268,63 @@ test("mock 작업 탭은 폴더 내용 질문에 folder_lookup으로 바로 아�
   const selected = await waitForTurn(request, accepted.body.requestId);
   assert.equal(selected.result.action, "folder_lookup");
   assert.match(selected.result.message, /^'회의록' 폴더/);
+});
+
+const MARKDOWN_DOCUMENT_QUESTION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
+
+test("문서 없는 편집 요청의 되묻기는 turn 결과와 메시지에 이유 코드를 함께 준다(ai agent.md·document chat.md)", async (t) => {
+  const request = await startMock(t);
+  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "이 문단을 수정해줘", mode: "task", ...MODEL });
+  const { result } = await waitForTurn(request, accepted.requestId);
+  assert.equal(result.message, MARKDOWN_DOCUMENT_QUESTION);
+  assert.equal(result.clarify_reason, "markdown_document_required");
+  const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
+  const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
+  const user = messages.find((item) => item.run_id === accepted.requestId && item.role === "user");
+  assert.equal(assistant.clarify_reason, "markdown_document_required");
+  assert.equal(user.clarify_reason, null);
+});
+
+test("문서 없이 실행한 수정 스킬의 되묻기도 같은 문장과 이유 코드를 준다(ai handle_agent_turn)", async (t) => {
+  const request = await startMock(t);
+  const { result } = await submitTask(request, "/edit-only 다듬어 줘");
+  assert.equal(result.message, MARKDOWN_DOCUMENT_QUESTION);
+  assert.equal(result.clarify_reason, "markdown_document_required");
+});
+
+async function readOnlyValue(request, body) {
+  const { status, body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "이 문단을 수정해줘", mode: "task", ...MODEL, ...body });
+  assert.equal(status, 202);
+  await waitForTurn(request, accepted.requestId);
+  const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
+  const turnMessages = messages.filter((item) => item.run_id === accepted.requestId);
+  assert.equal(turnMessages.find((item) => item.role === "user").read_only_document_id, null);
+  return turnMessages.find((item) => item.role === "assistant").read_only_document_id;
+}
+
+test("보기 권한만 있는 멤버가 보낸 문서는 assistant 메시지에 남고, 서버처럼 키는 늘 있다(document chat.md)", async (t) => {
+  const request = await startMock(t, MEMBER_USER_ID);
+  assert.equal(await readOnlyValue(request, { read_only_document_id: "doc_task_view" }), "doc_task_view");
+  assert.equal(await readOnlyValue(request, {}), null);
+});
+
+test("편집할 수 있거나 없는 문서, 문자열이 아닌 값은 서버처럼 오류 없이 무시한다", async (t) => {
+  const member = await startMock(t, MEMBER_USER_ID);
+  assert.equal(await readOnlyValue(member, { read_only_document_id: "doc_task_1" }), null);
+  assert.equal(await readOnlyValue(member, { read_only_document_id: "doc_missing" }), null);
+  assert.equal(await readOnlyValue(member, { read_only_document_id: { id: "doc_task_view" } }), null);
+  const owner = await startMock(t);
+  assert.equal(await readOnlyValue(owner, { read_only_document_id: "doc_task_view" }), null);
+});
+
+test("다른 이유의 되묻기와 되묻기가 아닌 메시지는 이유 코드가 null이고 키는 늘 있다", async (t) => {
+  const request = await startMock(t);
+  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "위키에 뭐가 있어?", mode: "task", ...MODEL });
+  const { result } = await waitForTurn(request, accepted.requestId);
+  assert.equal(result.action, "clarify");
+  assert.equal(result.clarify_reason, null);
+  const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
+  const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
+  assert.equal(Object.hasOwn(assistant, "clarify_reason"), true);
+  assert.equal(assistant.clarify_reason, null);
 });
