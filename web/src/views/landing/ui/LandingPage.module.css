@@ -42,6 +42,8 @@
   --lp-gutter: 24px;
   --lp-section-pad: 112px;
   --lp-header-height: 72px;
+  /* 시연 영상 하나가 메뉴 아래에 머무르는 스크롤 거리 */
+  --lp-video-hold: 60svh;
   --lp-radius: 14px;
   --lp-radius-window: 22px;
   --lp-radius-card: 22px;
@@ -386,6 +388,13 @@
 }
 
 /* ───── 히어로 바탕: 빛 두 개 + 위에서 아래로 사라지는 48px 격자 (마지막 안내 상자도 함께 쓴다) ───── */
+@media (max-width: 1023px) {
+  /* 한 칸으로 쌓이는 화면은 짧은 스와이프로 넘어가게 줄인다. */
+  .landing-page {
+    --lp-video-hold: 40svh;
+  }
+}
+
 .hero-backdrop {
   position: relative;
   isolation: isolate;

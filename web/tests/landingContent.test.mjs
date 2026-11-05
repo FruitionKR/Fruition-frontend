@@ -81,6 +81,34 @@ test("시연 영상은 틀 크기를 먼저 잡고, 재생 컨트롤은 네이�
   assert.match(player, /loading="lazy"/);
 });
 
+test("영상은 CSS sticky와 칸 높이로만 머무르고 스크롤을 가로채지 않는다", () => {
+  const css = read("LandingSections.module.css");
+  assert.match(read("LandingPage.module.css"), /--lp-video-hold:\s*60svh;/);
+  // 머무는 거리는 sticky가 움직일 칸(같은 부모 안의 빈 칸)이어야 한다. padding은 sticky 범위에 들지 않는다.
+  assert.match(css, /\.demo-step::after\s*\{[^}]*height:\s*var\(--lp-video-hold\);/s);
+  assert.match(css, /\.demo-step-figure\s*\{[^}]*position:\s*sticky;[^}]*top:\s*var\(--demo-pin-top\);/s);
+  assert.doesNotMatch(css, /scroll-snap/);
+  // 왼쪽 묶음 설명과 같은 높이에 멈춘다.
+  assert.match(css, /\.demo-copy\s*\{[^}]*top:\s*var\(--demo-pin-top\);/s);
+  const ui = listFiles(".tsx").map(read).join("\n");
+  assert.doesNotMatch(ui, /addEventListener\("(wheel|scroll|touchmove)"|onWheel|scrollTo\(/);
+});
+
+test("고정은 움직임 줄이기가 아니고 틀이 화면에 들어올 때만 켠다", () => {
+  const css = read("LandingSections.module.css");
+  const block = css.split("/* 영상 고정 조건 */")[1] ?? "";
+  const media = block.match(/@media([^{]+)\{/)?.[1] ?? "";
+  const conditions = media.split(",");
+  assert.equal(conditions.length, 2);
+  for (const condition of conditions) assert.match(condition, /prefers-reduced-motion: no-preference/);
+  assert.match(conditions[0], /min-width: 1024px/);
+  assert.match(conditions[0], /min-height: 720px/);
+  assert.match(conditions[1], /max-width: 1023px/);
+  assert.match(conditions[1], /max-aspect-ratio: 1\s*\/\s*1/);
+  assert.match(conditions[1], /min-height: 540px/);
+  assert.match(block, /html:not\(\[data-reduce-motion="true"\]\)/);
+});
+
 test("임시 화면과 예시 안내는 시연 흐름에서 지웠다", () => {
   assert.equal(listFiles(".tsx").includes("preview/DemoScreens.tsx"), false);
   assert.doesNotMatch(read("preview/Fragments.module.css"), /demo-frame|demo-composer|demo-graph/);

@@ -293,6 +293,7 @@
 
 /* ───── 시연 흐름: 왼쪽 번호 줄기를 따라 세 묶음이 이어지고, 묶음 설명은 영상이 지나가는 동안 머무른다 ───── */
 .demo-inner {
+  container-type: inline-size;
   max-width: var(--lp-wrap);
   margin: 0 auto;
   padding: var(--lp-section-pad) var(--lp-gutter);
@@ -302,7 +303,12 @@
   margin-bottom: 56px;
 }
 
+/* 멈추는 높이: 메뉴 아래 남은 공간에서 대표 비율(1.535) 영상과 제목이 세로 가운데에 오게 한다. */
 .demo-list {
+  --demo-caption: 100px;
+  --demo-col: 100cqw;
+  --demo-pin-height: calc(var(--demo-caption) + var(--demo-col) / 1.535);
+  --demo-pin-top: calc(var(--lp-header-height) + max(12px, (100svh - var(--lp-header-height) - var(--demo-pin-height)) / 2));
   margin: 0;
   padding: 0;
   list-style: none;
@@ -333,7 +339,7 @@
 /* 번호는 왼쪽 줄기 위에 놓고, 글은 줄기 오른쪽에 둔다. */
 .demo-copy {
   position: sticky;
-  top: 96px;
+  top: var(--demo-pin-top);
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -385,7 +391,7 @@
   min-width: 0;
 }
 
-.demo-step {
+.demo-step-figure {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -405,9 +411,10 @@
   letter-spacing: -0.01em;
 }
 
-/* 틀 비율은 파일 비율과 같아 영상이 틀을 꽉 채운다. 폭은 칸에 맞추고 높이만 영상마다 조금 다르다. */
+/* 틀 비율은 파일 비율과 같아 영상이 틀을 꽉 채운다. 폭은 칸에 맞추되, 낮은 화면에서는 메뉴 아래에 다 보이도록 줄인다. */
 .demo-video {
   position: relative;
+  width: min(100%, calc((100svh - var(--lp-header-height) - 32px) * (var(--video-ratio))));
   aspect-ratio: var(--video-ratio);
   overflow: hidden;
   background: var(--lp-card);
@@ -496,6 +503,40 @@
 @media (hover: hover) {
   .demo-video:not(:hover) .demo-video-toggle[data-state="pause"]:not(:focus-visible) {
     opacity: 0;
+  }
+}
+
+/* 영상 고정 조건 */
+/* 영상과 제목이 메뉴 아래에 다 들어오는 화면에서만 머무른다. sticky는 부모 안에서만 움직이므로 빈 칸(::after)이 머무는 거리가 된다. */
+@media (prefers-reduced-motion: no-preference) and (min-width: 1024px) and (min-height: 720px),
+  (prefers-reduced-motion: no-preference) and (max-width: 1023px) and (max-aspect-ratio: 1 / 1) and (min-height: 540px) {
+  :global(html:not([data-reduce-motion="true"])) .demo-step::after {
+    display: block;
+    height: var(--lp-video-hold);
+    content: "";
+  }
+
+  :global(html:not([data-reduce-motion="true"])) .demo-step-figure {
+    position: sticky;
+    top: var(--demo-pin-top);
+  }
+}
+
+/* 낮은 가로 화면은 고정하지 않고, 제목과 영상을 나란히 두어 한 화면에 함께 보이게 한다. */
+@media (max-width: 1023px) and (max-height: 500px) {
+  .demo-step-figure {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .demo-step-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .demo-video {
+    flex: none;
+    width: min(60%, calc((100svh - var(--lp-header-height) - 32px) * (var(--video-ratio))));
   }
 }
 
@@ -657,6 +698,13 @@
 }
 
 /* ───── 반응형 ───── */
+@media (min-width: 1024px) {
+  .demo-list {
+    --demo-caption: 72px;
+    --demo-col: calc(100cqw - 348px);
+  }
+}
+
 @media (max-width: 1023px) {
   .chapter-cards ol {
     grid-template-columns: repeat(2, minmax(0, 1fr));

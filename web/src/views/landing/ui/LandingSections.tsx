@@ -104,7 +104,7 @@ export function LandingChapters() {
   );
 }
 
-/** 시연 묶음 하나. 넓은 화면에서는 묶음 설명이 왼쪽에 머무르고, 오른쪽으로 기능별 영상이 차례로 지나간다. */
+/** 시연 묶음 하나. 영상마다 제목과 틀이 메뉴 아래에 잠시 머무르고, 넓은 화면에서는 묶음 설명도 왼쪽에 함께 머무른다. */
 function DemoSlot({ slot }: { slot: LandingDemoSlot }) {
   return (
     <li className={sections["demo-slot"]}>
@@ -116,13 +116,15 @@ function DemoSlot({ slot }: { slot: LandingDemoSlot }) {
       </div>
       <div className={sections["demo-steps"]}>
         {slot.steps.map((step) => (
-          <figure key={step.videoId} className={sections["demo-step"]}>
-            <figcaption className={sections["demo-step-copy"]}>
-              <h4 className={sections["demo-step-title"]}>{step.title}</h4>
-              <p className={sections["demo-body"]}>{step.body}</p>
-            </figcaption>
-            <LandingVideo video={LANDING_VIDEOS[step.videoId]} />
-          </figure>
+          <div key={step.videoId} className={sections["demo-step"]}>
+            <figure className={sections["demo-step-figure"]}>
+              <figcaption className={sections["demo-step-copy"]}>
+                <h4 className={sections["demo-step-title"]}>{step.title}</h4>
+                <p className={sections["demo-body"]}>{step.body}</p>
+              </figcaption>
+              <LandingVideo video={LANDING_VIDEOS[step.videoId]} />
+            </figure>
+          </div>
         ))}
       </div>
     </li>
