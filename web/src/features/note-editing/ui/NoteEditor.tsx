@@ -21,7 +21,7 @@ import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdo
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
 import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
-import { buildServerMergeTransaction } from "../model/serverMergeTransaction";
+import { buildServerMergeTransaction, rebaseLocalEdits } from "../model/serverMergeTransaction";
 import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
@@ -213,17 +213,26 @@ export function NoteEditor({
       const view = ctx.get(editorViewCtx);
       const nextDoc = ctx.get(parserCtx)(nextMarkdown);
       if (!nextDoc) return;
-      const nextBody = ctx.get(serializerCtx)(nextDoc);
+      const serializer = ctx.get(serializerCtx);
+      const nextBody = serializer(nextDoc);
+      const { doc } = view.state;
+      // 입력 알림은 지연된다. 저장을 보낸 뒤 친 글자는 서버 본문에 없으니 병합으로 지우지 않고 옮겨 놓아 다시 저장한다.
+      const sentDoc = ctx.get(parserCtx)(bodyRef.current);
+      const target = sentDoc && serializer(sentDoc) !== serializer(doc) ? rebaseLocalEdits(sentDoc, doc, nextDoc) : nextDoc;
+      const hasLocalEdits = target !== nextDoc;
       bodyRef.current = nextBody;
-      const tr = buildServerMergeTransaction(view.state, nextDoc);
-      if (!tr.docChanged) return;
-      tr.setMeta("addToHistory", false);
-      tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
-      view.dispatch(tr);
+      const tr = buildServerMergeTransaction(view.state, target);
+      if (!tr.docChanged && !hasLocalEdits) return;
+      if (tr.docChanged) {
+        tr.setMeta("addToHistory", false);
+        tr.setMeta(ALLOW_EXTERNAL_IMAGES_META, true);
+        view.dispatch(tr);
+      }
       // 편집기 plugin이 덧붙인 변경(끝 빈 문단 등)까지 반영된 본문을 반향으로 표시해 다시 저장하지 않는다.
-      const appliedBody = ctx.get(serializerCtx)(view.state.doc);
+      const appliedBody = serializer(view.state.doc);
       bodyRef.current = appliedBody;
       programmaticBodyRef.current = appliedBody;
+      if (hasLocalEdits) queueSaveRef.current(appliedBody);
     });
   }, [replaceEditorMarkdown]);
 

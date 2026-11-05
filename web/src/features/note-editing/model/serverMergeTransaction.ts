@@ -123,3 +123,42 @@ export function buildServerMergeTransaction(state: EditorState, nextDoc: Node): 
   }
   return tr;
 }
+
+/** 저장을 보낸 본문(sentDoc)에서 지금 편집기(currentDoc)까지 달라진 줄을 서버 문서(nextDoc)에 옮겨 놓는다. */
+export function rebaseLocalEdits(sentDoc: Node, currentDoc: Node, nextDoc: Node): Node {
+  const sent = withoutHeadingIds(sentDoc);
+  const current = withoutHeadingIds(currentDoc);
+  const next = withoutHeadingIds(nextDoc);
+  const limit = Math.min(sent.childCount, current.childCount);
+  let start = 0;
+  while (start < limit && sent.child(start).eq(current.child(start))) start += 1;
+  let suffix = 0;
+  while (suffix < limit - start && sent.child(sent.childCount - 1 - suffix).eq(current.child(current.childCount - 1 - suffix))) suffix += 1;
+  if (start === sent.childCount && start === current.childCount) return nextDoc;
+
+  let sentEnd = sent.childCount - suffix;
+  let currentEnd = current.childCount - suffix;
+  // 줄만 새로 넣었으면 옮길 자리를 찾을 기준이 없으니 이웃한 줄을 함께 옮긴다.
+  if (start === sentEnd) {
+    if (start > 0) start -= 1;
+    else {
+      sentEnd += 1;
+      currentEnd += 1;
+    }
+  }
+  const length = sentEnd - start;
+  const matches = (at: number) => Array.from({ length }, (_, i) => i).every((i) => sent.child(start + i).eq(next.child(at + i)));
+  let at = -1;
+  for (let index = 0; index + length <= next.childCount; index += 1) {
+    if (matches(index) && (at < 0 || Math.abs(index - start) < Math.abs(at - start))) at = index;
+  }
+  // 서버도 같은 줄을 바꿨으면 가장 닮은 줄을 사용자 본문으로 덮는다.
+  if (at < 0) at = Math.max(findPartner(sent.child(start), next, 0, next.childCount, start), 0);
+
+  const blocks = (doc: Node, from: number, to: number) => Array.from({ length: Math.max(to - from, 0) }, (_, i) => doc.child(from + i));
+  return nextDoc.copy(Fragment.fromArray([
+    ...blocks(nextDoc, 0, at),
+    ...blocks(currentDoc, start, currentEnd),
+    ...blocks(nextDoc, at + length, nextDoc.childCount)
+  ]));
+}

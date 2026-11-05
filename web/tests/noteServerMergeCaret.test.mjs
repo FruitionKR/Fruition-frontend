@@ -3,7 +3,7 @@ import test from "node:test";
 
 const { Schema } = await import("@milkdown/prose/model");
 const { EditorState, TextSelection } = await import("@milkdown/prose/state");
-const { buildServerMergeTransaction } = await import("../src/features/note-editing/model/serverMergeTransaction.ts");
+const { buildServerMergeTransaction, rebaseLocalEdits } = await import("../src/features/note-editing/model/serverMergeTransaction.ts");
 
 // Milkdown commonmark·gfm과 같은 이름·내용 규칙을 갖춘 최소 schema. heading id는 실제 편집기처럼 parser에서 비어 있다.
 const schema = new Schema({
@@ -335,4 +335,72 @@ test("여러 종류의 블록이 섞여 바뀌어도 결과 본문은 항상 서
     assertBodyIs(state, next);
     assert.deepEqual(caret(state), { line: text, offset });
   }
+});
+
+// 저장을 보낸 뒤 입력 알림이 저장 훅에 닿기 전에 응답이 온 경우. 서버 본문에는 그 입력이 없다.
+const TYPED = `${MEMO}x`;
+
+function rebased(sent, current, next, anchor) {
+  const target = rebaseLocalEdits(sent, current, next);
+  const state = EditorState.create({ doc: current, selection: TextSelection.create(current, anchor) });
+  return { target, state: state.apply(buildServerMergeTransaction(state, target)) };
+}
+
+test("보낸 뒤 친 글자는 서버 병합 결과에 남고 다른 곳의 변경도 함께 들어온다", () => {
+  const sent = docOf(h(TITLE), p(ABOVE), p(MEMO), p(BELOW));
+  const current = docOf(SYNCED, p(ABOVE), p(TYPED), p(BELOW));
+  const next = docOf(h(TITLE), p(ABOVE2), p(MEMO), p(BELOW2));
+  const { state } = rebased(sent, current, next, posIn(current, TYPED));
+  assertBodyIs(state, docOf(h(TITLE), p(ABOVE2), p(TYPED), p(BELOW2)));
+  assert.deepEqual(caret(state), { line: TYPED, offset: TYPED.length });
+});
+
+test("조합 중인 글자가 든 줄은 병합이 와도 노드를 그대로 둔다", () => {
+  const composing = `${MEMO}ㄷ`;
+  const sent = docOf(h(TITLE), p(ABOVE), p(MEMO), p(BELOW));
+  const current = docOf(SYNCED, p(ABOVE), p(composing), p(BELOW));
+  const next = docOf(h(TITLE), p(ABOVE2), p(MEMO), p(BELOW2));
+  const { state } = rebased(sent, current, next, posIn(current, composing));
+  assert.equal(state.doc.child(2), current.child(2));
+  assertBodyIs(state, docOf(h(TITLE), p(ABOVE2), p(composing), p(BELOW2)));
+});
+
+test("보낸 뒤 고친 내용이 없으면 서버 문서를 그대로 쓴다", () => {
+  const sent = docOf(h(TITLE), p(MEMO));
+  const next = docOf(h(TITLE), p(MEMO), p(BELOW));
+  assert.equal(rebaseLocalEdits(sent, docOf(SYNCED, p(MEMO)), next), next);
+});
+
+test("서버가 줄을 늘리거나 줄여도 친 글자는 있던 줄에 들어간다", () => {
+  const sent = docOf(p(ABOVE), p(MEMO), p(BELOW));
+  const current = docOf(p(ABOVE), p(TYPED), p(BELOW));
+  assert.equal(plain(rebaseLocalEdits(sent, current, docOf(p("새 줄 1"), p("새 줄 2"), p(ABOVE), p(MEMO)))), plain(docOf(p("새 줄 1"), p("새 줄 2"), p(ABOVE), p(TYPED))));
+  assert.equal(plain(rebaseLocalEdits(sent, current, docOf(p(MEMO), p(BELOW2)))), plain(docOf(p(TYPED), p(BELOW2))));
+});
+
+test("보낸 뒤 줄을 나누거나 지운 것도 서버 병합 결과에 남는다", () => {
+  const sent = docOf(p(ABOVE), p(MEMO), p(BELOW));
+  const next = docOf(p(ABOVE2), p(MEMO), p(BELOW2));
+  assert.equal(plain(rebaseLocalEdits(sent, docOf(p(ABOVE), p(MEMO), p("나눈 줄"), p(BELOW)), next)), plain(docOf(p(ABOVE2), p(MEMO), p("나눈 줄"), p(BELOW2))));
+  assert.equal(plain(rebaseLocalEdits(sent, docOf(p(ABOVE), p(BELOW)), next)), plain(docOf(p(ABOVE2), p(BELOW2))));
+});
+
+test("문서 맨 앞에 줄을 넣어도 서버 병합 결과에 남는다", () => {
+  const sent = docOf(p(MEMO), p(BELOW));
+  const next = docOf(p(MEMO), p(BELOW2));
+  assert.equal(plain(rebaseLocalEdits(sent, docOf(p("맨 앞"), p(MEMO), p(BELOW)), next)), plain(docOf(p("맨 앞"), p(MEMO), p(BELOW2))));
+});
+
+test("서버도 같은 줄을 바꿨으면 그 줄은 사용자 본문을 따른다", () => {
+  const sent = docOf(p(ABOVE), p(MEMO), p(BELOW));
+  const current = docOf(p(ABOVE), p(TYPED), p(BELOW));
+  const next = docOf(p(ABOVE2), p("이 칸은 서버가 고친 메모다.가나"), p(BELOW2));
+  assert.equal(plain(rebaseLocalEdits(sent, current, next)), plain(docOf(p(ABOVE2), p(TYPED), p(BELOW2))));
+});
+
+test("같은 글자의 줄이 반복되면 친 글자는 있던 쪽 줄에 들어간다", () => {
+  const sent = docOf(p("같은 줄"), p("가운데"), p("같은 줄"));
+  const current = docOf(p("같은 줄"), p("가운데"), p("같은 줄x"));
+  const next = docOf(p("같은 줄"), p("가운데 수정"), p("같은 줄"));
+  assert.equal(plain(rebaseLocalEdits(sent, current, next)), plain(docOf(p("같은 줄"), p("가운데 수정"), p("같은 줄x"))));
 });
