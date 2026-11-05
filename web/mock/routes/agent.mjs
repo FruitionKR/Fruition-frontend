@@ -398,7 +398,7 @@ function taskResult(workspace, turn, request) {
 /** 채팅 탭의 문서 질문(ai mode=chat). 고치고 만들고 정리하는 요청은 실행하지 않고 작업 탭을 안내한다. */
 function chatQuestionResult(workspace, request) {
   if (EDIT_PATTERN.test(request.message) || CREATE_PATTERN.test(request.message) || ORGANIZE_PATTERN.test(request.message) || /저장/.test(request.message)) {
-    return { action: "clarify", route: route("clarify", "채팅 탭의 변경 요청"), message: TASK_TAB_MESSAGE, chat: null, edit: null, generated_markdown: null };
+    return { action: "clarify", route: route("clarify", "채팅 탭의 변경 요청"), message: TASK_TAB_MESSAGE, clarify_reason: "chat_tab_notice", chat: null, edit: null, generated_markdown: null };
   }
   // 실제 AI처럼 편집 문서 근거는 블록 없이(source_block_ids: []) 문서 id만 남긴다.
   const documentIds = [...new Set([...(request.documentId ? [request.documentId] : []), ...(request.reference_document_ids ?? [])])];

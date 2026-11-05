@@ -68,6 +68,7 @@ import { useDocumentPicker } from "../model/useDocumentPicker";
 import { usePanelSessions } from "../model/usePanelSessions";
 import { usePanelDraft } from "../model/usePanelDraft";
 import { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } from "../lib/openDocumentSource";
+import { panelAttachmentStorageKey } from "@/features/agent-chat/lib/panelSessionState";
 import { sendChatDocumentQuestion } from "../lib/chatDocumentQuestion";
 import { appendMovedQuestion, asksFromDocuments, autoIncludedOpenDocumentId, composerDocumentChipLabel, droppedOpenDocumentMessage, followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
 import { filterPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
@@ -270,7 +271,13 @@ export function AgentPanel({
   const selectedPairIds = pairSelection.selectedPairIds;
   // "@문서"·"+ 문서 추가"로 첨부한 문서. 대화마다 따로 둔다.
   const workAttachments = useComposerAttachments(`${sessions.scope}:work:${sessions.selected.work}`);
-  const chatAttachments = useComposerAttachments(`${sessions.scope}:chat:${sessions.selected.chat}`);
+  const noticeUnavailableAttachments = useCallback((count: number) => {
+    publishNotice({ kind: "info", title: "쓸 수 없는 첨부를 뺐어요", message: `문서 ${count}개가 삭제되었거나 권한이 바뀌어 첨부에서 뺐어요.` });
+  }, []);
+  const chatAttachments = useComposerAttachments(`${sessions.scope}:chat:${sessions.selected.chat}`, {
+    storageKey: panelAttachmentStorageKey(sessions.scope, sessions.selected.chat),
+    onUnavailable: noticeUnavailableAttachments
+  });
   const composerAttachments = activeView === "work" ? workAttachments : chatAttachments;
   const restoreComposerAttachments = workAttachments.restore;
   const restoreRejectedReferences = useCallback((question: string, referenceDocumentIds: string[]) => {

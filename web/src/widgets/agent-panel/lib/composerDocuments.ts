@@ -214,6 +214,23 @@ export function mergeMovedAttachments(
   return { documents, droppedCount: current.length + added.length - documents.length };
 }
 
+export function serializeAttachments(documents: readonly DocumentItemResponse[]): string {
+  return JSON.stringify(documents);
+}
+
+/** 저장해 둔 첨부. 깨졌거나 모양이 다른 값은 뺀다. 지금도 쓸 수 있는지는 최신 목록으로 다시 본다. */
+export function parseStoredAttachments(raw: string | null): DocumentItemResponse[] {
+  try {
+    const parsed: unknown = JSON.parse(raw ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is DocumentItemResponse => typeof item?.id === "string" && item.id !== "")
+      .slice(0, REFERENCE_DOCUMENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
 /** 되돌린 첨부 중 지금 고를 수 없는 문서(삭제·권한 회수·변환 중)를 뺀다. */
 export function pruneUnavailableAttachments(attachments: readonly DocumentItemResponse[], documents: DocumentItemResponse[]): DocumentItemResponse[] {
   const availableIds = new Set(documents.filter(isAttachableDocument).map((document) => document.id));

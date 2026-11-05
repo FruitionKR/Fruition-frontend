@@ -25,8 +25,12 @@ const CHAT_ANSWER_ACTIONS = new Set(["chat_answer", "conversation_reply"]);
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
 
-/** 작업으로 볼 agent turn 메시지인지. 답변 갈래는 채팅 탭의 문서 질문이라 뺀다. */
+/** 채팅 탭 문서 질문의 되묻기·안내 코드(ai ClarifyReason). */
+const CHAT_TAB_NOTICE = "chat_tab_notice";
+
+/** 작업으로 볼 agent turn 메시지인지. 답변 갈래와 채팅 탭 안내는 채팅 탭의 문서 질문이라 뺀다. */
 function isAgentTurnMessage(message: ChatMessageResponse): boolean {
+  if (message.clarify_reason === CHAT_TAB_NOTICE) return false;
   if (message.action) return !CHAT_ANSWER_ACTIONS.has(message.action);
   return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
 }
@@ -46,7 +50,7 @@ export function isTaskMessage(message: ChatMessageResponse, taskRunIds: Readonly
  * 메시지만 보고 세션이 어느 탭의 것인지 정한다. 탭 구분이 없는 새 브라우저에서 쓴다.
  * 사용자 메시지에는 run_id·action이 없으므로 문답(pair) 단위로 짝이 되는 답변을 본다.
  * 작업 탭은 답하지 않으므로 agent turn의 채팅 답변(chat_answer 등)은 채팅 근거로 센다. 질의·답변과 작업이 섞인 세션만 이전 통합 대화다.
- * 끝나지 못해 action이 없는 문서 질문과 되묻기는 작업으로 보여, 탭 구분이 없는 새 브라우저에서는 그 세션이 작업·이전 통합 대화로 보일 수 있다.
+ * 끝나지 못해 action이 없는 문서 질문과 거절은 메시지에 탭 정보가 없어 작업으로 보이므로, 탭 구분이 없는 새 브라우저에서는 그 세션이 작업·이전 통합 대화로 보일 수 있다.
  * 짝을 알 수 없거나 답변이 없는 사용자 메시지는 근거로 삼지 않는다.
  */
 export function classifySessionChannel(messages: readonly ChatMessageResponse[]): "chat" | "work" | "legacy" {

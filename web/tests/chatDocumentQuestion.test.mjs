@@ -211,3 +211,39 @@ test("Esc 취소는 agent turn 취소를 요청하고 진행 표시를 내린다
   assert.equal(view.thread.isLoading, false);
   assert.equal(view.thread.activeTurn, null);
 });
+
+const { canListenToMessage } = await import("../src/features/agent-chat/lib/statusSteps.ts");
+const { panelAttachmentStorageKey } = await import("../src/features/agent-chat/lib/panelSessionState.ts");
+const { parseStoredAttachments, serializeAttachments } = await import("../src/widgets/agent-panel/lib/composerDocuments.ts");
+
+test("세션 분류: 채팅 탭 안내 코드가 있는 되묻기는 채팅이고, 다른 되묻기는 그대로 작업이다", () => {
+  assert.equal(classifySessionChannel(pair("p1", { run_id: "agent_1", action: "clarify", clarify_reason: "chat_tab_notice" })), "chat");
+  assert.equal(classifySessionChannel([
+    ...pair("p1", { run_id: "query_1" }),
+    ...pair("p2", { run_id: "agent_2", action: "clarify", clarify_reason: "chat_tab_notice" })
+  ]), "chat");
+  assert.equal(classifySessionChannel(pair("p1", { run_id: "agent_1", action: "clarify", clarify_reason: "chat_tab_question" })), "work");
+  assert.equal(classifySessionChannel(pair("p1", { run_id: "agent_1", action: "clarify" })), "work");
+});
+
+test("채팅 탭 안내는 작업 탭으로 옮기는 질문이 아니다", () => {
+  assert.equal(isChatTabQuestion({ action: "clarify", clarifyReason: "chat_tab_notice", answer: "채팅 탭에서는 문서 내용을 묻고…" }), false);
+});
+
+test("듣기는 완료된 답변에만 보이고 되묻기·안내에는 보이지 않는다", () => {
+  assert.equal(canListenToMessage({ status: "completed", action: "chat_answer" }), true);
+  assert.equal(canListenToMessage({ status: "completed" }), true);
+  assert.equal(canListenToMessage({ status: "completed", action: "clarify" }), false);
+  assert.equal(canListenToMessage({ status: "pending", action: "chat_answer" }), false);
+});
+
+test("첨부 저장값은 세션별 키에 두고, 깨진 값은 빈 목록으로 읽는다", () => {
+  assert.equal(panelAttachmentStorageKey("scope", null), null);
+  assert.notEqual(panelAttachmentStorageKey("scope", "s1"), panelAttachmentStorageKey("scope", "s2"));
+  const docs = [{ id: "doc_1", filename: "회의록.md" }, { id: "doc_2", filename: "계획.md" }];
+  assert.deepEqual(parseStoredAttachments(serializeAttachments(docs)), docs);
+  assert.deepEqual(parseStoredAttachments("깨진 값"), []);
+  assert.deepEqual(parseStoredAttachments(null), []);
+  assert.deepEqual(parseStoredAttachments(JSON.stringify([{ filename: "id 없음" }, 3, null])), []);
+  assert.equal(parseStoredAttachments(JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ id: `d${i}` })))).length, 3);
+});
