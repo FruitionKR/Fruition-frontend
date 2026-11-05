@@ -192,6 +192,45 @@ export function documentLockedTurnMessage(error: unknown, { openDocumentTitle, h
   return `${subject} 다른 사람이 편집 중이에요. ${next}`;
 }
 
+/** 채팅 탭의 질문을 문서 근거로 보낼지. 첨부도 내용 있는 열린 문서도 없으면 지금처럼 위키 질의다. */
+export function asksFromDocuments(context: { editorSnapshot: { markdown: string } } | null, referenceDocumentIds: readonly string[]): boolean {
+  return referenceDocumentIds.length > 0 || Boolean(context?.editorSnapshot.markdown.trim());
+}
+
+/** 작업 탭에서 옮긴 질문을 채팅 입력에 넣는다. 쓰던 초안은 지우지 않고, 이미 옮겼으면 겹치지 않는다. */
+export function appendMovedQuestion(draft: string, question: string): string {
+  if (!draft.trim()) return question;
+  return draft.includes(question) ? draft : `${draft}\n${question}`;
+}
+
+/** 옮긴 첨부를 한도 안에서 뒤에 붙인다. 한도에 막힌 수를 함께 돌려준다. */
+export function mergeMovedAttachments(
+  current: readonly DocumentItemResponse[],
+  moved: readonly DocumentItemResponse[],
+  limit: number
+): { documents: DocumentItemResponse[]; droppedCount: number } {
+  const added = moved.filter((document) => !current.some((item) => item.id === document.id));
+  const documents = [...current, ...added].slice(0, Math.max(limit, current.length));
+  return { documents, droppedCount: current.length + added.length - documents.length };
+}
+
+export function serializeAttachments(documents: readonly DocumentItemResponse[]): string {
+  return JSON.stringify(documents);
+}
+
+/** 저장해 둔 첨부. 깨졌거나 모양이 다른 값은 뺀다. 지금도 쓸 수 있는지는 최신 목록으로 다시 본다. */
+export function parseStoredAttachments(raw: string | null): DocumentItemResponse[] {
+  try {
+    const parsed: unknown = JSON.parse(raw ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is DocumentItemResponse => typeof item?.id === "string" && item.id !== "")
+      .slice(0, REFERENCE_DOCUMENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
 /** 되돌린 첨부 중 지금 고를 수 없는 문서(삭제·권한 회수·변환 중)를 뺀다. */
 export function pruneUnavailableAttachments(attachments: readonly DocumentItemResponse[], documents: DocumentItemResponse[]): DocumentItemResponse[] {
   const availableIds = new Set(documents.filter(isAttachableDocument).map((document) => document.id));

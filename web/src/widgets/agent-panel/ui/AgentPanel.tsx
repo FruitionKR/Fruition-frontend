@@ -37,7 +37,7 @@ import { countPendingProposals, countProposals, headingAtLine, proposalSourceLab
 import type { FolderOrganizeRequest } from "@/features/agent-chat/lib/folderOrganize";
 import { AgentAssetIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/features/agent-chat/ui/SkillSlashPicker";
-import { editResultNotice, resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
+import { chatTabMessages, editResultNotice, resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
 import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
@@ -68,7 +68,9 @@ import { useDocumentPicker } from "../model/useDocumentPicker";
 import { usePanelSessions } from "../model/usePanelSessions";
 import { usePanelDraft } from "../model/usePanelDraft";
 import { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } from "../lib/openDocumentSource";
-import { autoIncludedOpenDocumentId, composerDocumentChipLabel, droppedOpenDocumentMessage, followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
+import { panelAttachmentStorageKey } from "@/features/agent-chat/lib/panelSessionState";
+import { sendChatDocumentQuestion } from "../lib/chatDocumentQuestion";
+import { appendMovedQuestion, asksFromDocuments, autoIncludedOpenDocumentId, composerDocumentChipLabel, droppedOpenDocumentMessage, followUpReferenceDocumentIds, readOnlyReferenceDocumentId, REFERENCE_DOCUMENT_MAX, referenceDocuments, turnReferenceDocumentIds } from "../lib/composerDocuments";
 import { filterPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
 import { ReferenceDocumentPickerModal } from "@/features/skill-authoring/ui/ReferenceDocumentPickerModal";
 import { ComposerDocumentChips } from "./ComposerDocumentChips";
@@ -268,19 +270,46 @@ export function AgentPanel({
   });
   const selectedPairIds = pairSelection.selectedPairIds;
   // "@문서"·"+ 문서 추가"로 첨부한 문서. 대화마다 따로 둔다.
-  const composerAttachments = useComposerAttachments(`${sessions.scope}:${sessions.selected.work}`);
-  const restoreComposerAttachments = composerAttachments.restore;
+  const workAttachments = useComposerAttachments(`${sessions.scope}:work:${sessions.selected.work}`);
+  const noticeUnavailableAttachments = useCallback((count: number) => {
+    publishNotice({ kind: "info", title: "쓸 수 없는 첨부를 뺐어요", message: `문서 ${count}개가 삭제되었거나 권한이 바뀌어 첨부에서 뺐어요.` });
+  }, []);
+  const chatAttachments = useComposerAttachments(`${sessions.scope}:chat:${sessions.selected.chat}`, {
+    storageKey: panelAttachmentStorageKey(sessions.scope, sessions.selected.chat),
+    onUnavailable: noticeUnavailableAttachments
+  });
+  const composerAttachments = activeView === "work" ? workAttachments : chatAttachments;
+  const restoreComposerAttachments = workAttachments.restore;
   const restoreRejectedReferences = useCallback((question: string, referenceDocumentIds: string[]) => {
     restoreComposerQuestion(question);
     restoreComposerAttachments(referenceDocumentIds);
   }, [restoreComposerAttachments, restoreComposerQuestion]);
+  // 작업 탭에서 채팅 탭으로 옮기는 중인 질문과 첨부.
+  const [movedQuestion, setMovedQuestion] = useState<{ question: string; documentIds: readonly string[] } | null>(null);
+  const setChatDraft = chatDraft.setValue;
+  const addMovedAttachments = chatAttachments.addMoved;
+  const selectedChatSessionId = sessions.selected.chat;
+  useEffect(() => {
+    if (!movedQuestion || !selectedChatSessionId) return;
+    const { question, documentIds } = movedQuestion;
+    setMovedQuestion(null);
+    setChatDraft((current) => appendMovedQuestion(current, question));
+    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
+    if (documentIds.length === 0) return;
+    void addMovedAttachments(documentIds).then((missingCount) => {
+      if (missingCount > 0) publishNotice({ kind: "info", title: "일부 첨부를 옮기지 못했어요", message: `문서 ${missingCount}개는 삭제되었거나 쓸 수 없거나 ${REFERENCE_DOCUMENT_MAX}개 한도를 넘어 빼고 옮겼어요.` });
+    }).catch(() => publishNotice({ kind: "failed", title: "첨부를 옮기지 못했어요", message: "질문은 옮겼어요. 문서는 입력창에서 다시 골라 주세요." }));
+  }, [addMovedAttachments, movedQuestion, selectedChatSessionId, setChatDraft]);
   // 작업 대상 칩에서 뺀 열린 문서. 같은 문서인 동안만 빠진다.
-  const [excludedDocumentId, setExcludedDocumentId] = useState<string | null>(null);
-  const handleOpenDocumentDropped = useCallback((documentId: string) => {
-    setExcludedDocumentId(documentId);
+  const [excludedDocumentIds, setExcludedDocumentIds] = useState<Record<AgentPanelView, string | null>>({ chat: null, work: null });
+  const excludedDocumentId = excludedDocumentIds[activeView];
+  const setExcludedDocumentId = (documentId: string | null) => setExcludedDocumentIds((current) => ({ ...current, [activeView]: documentId }));
+  const dropOpenDocument = useCallback((view: AgentPanelView, documentId: string) => {
+    setExcludedDocumentIds((current) => ({ ...current, [view]: documentId }));
     const title = readOnlyOpenDocument?.id === documentId ? composerDocumentChipLabel(readOnlyOpenDocument) : null;
     publishNotice({ kind: "info", title: "현재 문서를 빼고 보냈어요", message: droppedOpenDocumentMessage(title) });
   }, [readOnlyOpenDocument]);
+  const handleWorkDocumentDropped = useCallback((documentId: string) => dropOpenDocument("work", documentId), [dropOpenDocument]);
   const agentTurn = useAgentTurn({
     markdownEditContext,
     readOnlyDocumentId,
@@ -294,7 +323,7 @@ export function AgentPanel({
     // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
     onInsufficientCredit: restoreComposerQuestion,
     onReferencesRestored: restoreRejectedReferences,
-    onOpenDocumentDropped: handleOpenDocumentDropped,
+    onOpenDocumentDropped: handleWorkDocumentDropped,
     openDocumentTitle
   });
   const { agentTurnRequest, agentTurnResponse, isAgentTurnLoading, isCreatingMarkdown, editPreviewState, taskRunIds } = agentTurn;
@@ -306,8 +335,9 @@ export function AgentPanel({
     // 도착 시 한 번만 연다. 콜백 identity가 바뀌어도 다시 열지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrivedFolderOrganizeTurnId]);
-  // 채팅 탭은 위키 질의 문답만, 작업 탭은 agent turn(문서 편집·폴더 정리·스킬) 문답만 보여 준다(2026-10-19 계약).
-  const { chatMessages } = useMemo(() => splitChatAndTaskMessages(chatThread.messages, taskRunIds), [chatThread.messages, taskRunIds]);
+  // 채팅 탭은 질문과 답(위키 질의, 문서 질문)만, 작업 탭은 문서 편집·폴더 정리·스킬 문답만 보여 준다(2026-10-19 계약).
+  const chatChannel = sessions.channels[sessions.selected.chat ?? ""];
+  const chatMessages = useMemo(() => chatTabMessages(chatThread.messages, chatChannel, taskRunIds), [chatChannel, chatThread.messages, taskRunIds]);
   const isSeparateWorkSession = sessions.channels[sessions.selected.work ?? ""] === "work";
   const { taskItems } = useMemo(() => {
     // 작업 전용 세션의 되묻기·대화형 응답도 새로고침 뒤 작업 기록으로 남긴다.
@@ -358,7 +388,9 @@ export function AgentPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSkillSheetOpen]);
   // 작업 대상 칩(Figma 1627:9925). ×로 뺀 문서·선택은 같은 문서·같은 선택인 동안만 빠진다.
-  const [excludedSelectionKey, setExcludedSelectionKey] = useState<string | null>(null);
+  const [excludedSelectionKeys, setExcludedSelectionKeys] = useState<Record<AgentPanelView, string | null>>({ chat: null, work: null });
+  const excludedSelectionKey = excludedSelectionKeys[activeView];
+  const setExcludedSelectionKey = (key: string | null) => setExcludedSelectionKeys((current) => ({ ...current, [activeView]: key }));
   // '새 문서로 만들기' 스킬에서 "현재 문서" 칩을 눌러 원문으로 쓰기로 한 문서. 보내면 비운다.
   const [optedInDocumentId, setOptedInDocumentId] = useState<string | null>(null);
   // 보기 권한 문서는 편집기를 열지 않아 편집 문맥이 없다. 원문 수정을 뜻하는 documentId 대신 근거 첨부로 실어 읽기만 쓰게 한다.
@@ -382,7 +414,7 @@ export function AgentPanel({
   const attachedDocuments = referenceDocuments(composerAttachments.attachments, isDocumentIncluded ? openDocumentId : null);
   const documentPicker = useDocumentPicker({
     value: composerValue,
-    isEnabled: isWorkView && !isMeetingAreaOpen,
+    isEnabled: !isMeetingAreaOpen,
     attachments: attachedDocuments,
     openDocument: {
       id: openDocumentId,
@@ -522,7 +554,8 @@ export function AgentPanel({
   });
   const composerStopHintTarget = composerStop.stoppingTarget ?? stopTarget;
   const isComposerBusy = !sessions.ready || activeSessionId === null || isSubmitting || isPairSelectionMode || composerStop.isStopping;
-  const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
+  const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요. (@문서)";
+  const documentChipPurpose = isWorkView ? "작업 대상" : "답변 근거";
 
   /** 입력창을 거치지 않는 요청. 같은 요청을 다시 보내거나 그 되묻기에 답하면 그 요청의 첨부를 이어받는다. */
   async function submitWorkRequest(request: string, context: ActiveMarkdownEditContext | null, folderId: string | null = null) {
@@ -621,6 +654,22 @@ export function AgentPanel({
     void chatThread.submitQuery(question, selectedModel, allowWebSearch, sessionId);
   }
 
+  /** 응답을 받지 못한 문서 질문을 닫고 질문을 입력창에 되돌린다. 입력창의 첨부와 함께 다시 보낼 수 있다. */
+  async function retryStalledDocumentQuestion(turnId: string, question: string) {
+    await dismissStalledTurns([turnId]);
+    chatDraft.setValue((current) => appendMovedQuestion(current, question));
+  }
+
+  /** 작업 탭이 돌려보낸 질문을 채팅 탭으로 옮긴다. 세션이 정해진 뒤에 넣어야 입력이 그 세션의 초안으로 남는다. */
+  function moveQuestionToChat(item: TaskMessageItem) {
+    setIsMeetingListOpen(false);
+    setActiveView("chat");
+    // 작업 탭에서 뺀 현재 문서·선택은 채팅 탭에서도 뺀 채로 옮긴다.
+    setExcludedDocumentIds((current) => ({ ...current, chat: current.work }));
+    setExcludedSelectionKeys((current) => ({ ...current, chat: current.work }));
+    setMovedQuestion({ question: item.request, documentIds: item.turnId ? agentTurn.turnReferences.get(item.turnId) ?? [] : [] });
+  }
+
   async function handleSubmit() {
     const question = composerValue.trim();
     const route = resolveSubmitRoute(activeView, question);
@@ -637,15 +686,33 @@ export function AgentPanel({
       if (!activeSessionId || !selectedModel) return;
       setComposerValue("");
       setOptedInDocumentId(null);
-      composerAttachments.markSent();
+      workAttachments.markSent();
       const includedReadOnlyId = isDocumentIncluded ? readOnlySourceId : null;
       agentTurn.submitAgentTurn(question, taskContext, targetSessionId, selectedModel, [], null, turnReferenceDocumentIds(attachedDocuments, includedReadOnlyId), autoIncludedOpenDocumentId(includedReadOnlyId, { attachments: composerAttachments.attachments, optedInDocumentId }));
       return;
     }
-    // 채팅 탭은 문서가 열려 있어도 위키 질의(Query)만 보낸다.
     // 질의 경로는 provider/model 쌍이 반드시 필요하다. 카탈로그를 못 받았으면 입력을 지우지 않고 멈춘다.
     if (!selectedModel) return;
     setComposerValue("");
+    // 첨부와 열린 문서가 있으면 그 문서를 근거로 묻는다. 첨부는 이어지는 질문에도 쓰도록 입력창에 남긴다. 칩을 모두 빼면 위키 질의다.
+    const includedReadOnlyId = isDocumentIncluded ? readOnlySourceId : null;
+    const referenceDocumentIds = turnReferenceDocumentIds(attachedDocuments, includedReadOnlyId);
+    if (asksFromDocuments(taskContext, referenceDocumentIds)) {
+      const autoDocumentId = autoIncludedOpenDocumentId(includedReadOnlyId, { attachments: composerAttachments.attachments, optedInDocumentId });
+      void chatThread.submitDocumentQuestion(question, (handlers) => sendChatDocumentQuestion({
+        question,
+        context: taskContext,
+        referenceDocumentIds,
+        autoDocumentId,
+        model: selectedModel,
+        sessionId: targetSessionId,
+        allowWebSearch,
+        onOpenDocumentDropped: (documentId) => dropOpenDocument("chat", documentId)
+      }, handlers)).then((isRejected) => {
+        if (isRejected) chatDraft.setValue((current) => current || question);
+      });
+      return;
+    }
     void chatThread.submitQuery(question, { provider: selectedModel.provider, model: selectedModel.model }, allowWebSearch, targetSessionId).then((insufficientCredit) => {
       // 크레딧 부족 거절은 충전 뒤 다시 보낼 수 있게 입력을 되돌린다(#153).
       if (insufficientCredit) chatDraft.setValue((current) => current || question);
@@ -884,6 +951,7 @@ export function AgentPanel({
               onFolderOrganizePreviewRequested?.();
             }}
             onAnswerSkillQuestion={isSubmitting ? undefined : answerSkillQuestion}
+            onMoveQuestionToChat={moveQuestionToChat}
             onRetryTask={isSubmitting ? undefined : retryTask}
             onOpenSourceBlocks={onOpenSourceBlocks}
             nodes={nodes}
@@ -932,13 +1000,13 @@ export function AgentPanel({
             selectedPairIds={selectedPairIds}
             onSelectPair={selectPair}
             nodes={nodes}
-            stalledQueryIds={stalledQueryIds}
+            stalledQueryIds={isChatVisible ? new Set([...stalledQueryIds, ...stalledTurnIds]) : stalledQueryIds}
             releasedQueryIds={releasedTurnIds}
-            closingQueryIds={closingQueryIds}
+            closingQueryIds={isChatVisible ? new Set([...closingQueryIds, ...closingTurnIds]) : closingQueryIds}
             onRetryStalledQuery={isLoading || isAgentTurnLoading || isCreatingMarkdown || !selectedModel
               ? undefined
-              : (runId, question) => void retryStalledQuery(runId, question)}
-            onDismissStalledQuery={(runId) => void closeStalledQuery(runId)}
+              : (runId, question) => void (stalledTurnIds.has(runId) ? retryStalledDocumentQuestion(runId, question) : retryStalledQuery(runId, question))}
+            onDismissStalledQuery={(runId) => void (stalledTurnIds.has(runId) ? dismissStalledTurns([runId]) : closeStalledQuery(runId))}
           />
         </div>
       </div>
@@ -1006,8 +1074,8 @@ export function AgentPanel({
         )}
         {/* 테스트 실행 묶음은 작업 탭에만 보인다(Figma 1671:14585). 채팅 탭으로 바꿔도 자리는 남겨 실행 상태를 잃지 않는다. */}
         {skillTestRunSlotRef && <div ref={skillTestRunSlotRef} className={styles["skill-test-run-slot"]} hidden={!isWorkView} />}
-        {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. */}
-        {wikiEvidenceNotice && !isWorkView && !isPairSelectionMode && !isMeetingAreaOpen && (
+        {/* 회의 화면(Figma 1540:22903)에는 채팅 답변 근거 안내를 띄우지 않는다. 현재 문서 칩이 붙어 있으면 이 문서를 직접 읽어 답하므로 위키 편입 안내도 필요 없다. */}
+        {wikiEvidenceNotice && !isWorkView && !isDocumentIncluded && !isPairSelectionMode && !isMeetingAreaOpen && (
           <div className={styles["wiki-evidence-notice"]}>
             <p role="status">{wikiEvidenceNotice.message}</p>
             {wikiEvidenceNotice.actionLabel && (
@@ -1022,7 +1090,7 @@ export function AgentPanel({
             )}
           </div>
         )}
-        {isWorkView && documentPicker.isMentionOpen && (
+        {documentPicker.isMentionOpen && (
           <DocumentMentionPicker
             options={documentPicker.mentionOptions}
             activeOptionId={documentPicker.activeOptionId}
@@ -1032,7 +1100,7 @@ export function AgentPanel({
             onHover={documentPicker.setActiveId}
           />
         )}
-        {isWorkView && documentPicker.isDialogOpen && (
+        {documentPicker.isDialogOpen && (
           <ReferenceDocumentPickerModal
             documents={documentPicker.dialogDocuments}
             referenceDocuments={[]}
@@ -1060,7 +1128,7 @@ export function AgentPanel({
         <AgentComposer
           value={composerValue}
           inputLabel={isWorkView ? "작업 요청 입력" : undefined}
-          header={isWorkView ? (
+          header={!isMeetingAreaOpen ? (
             <div className={styles["task-context-chips"]}>
               {!openDocumentId ? null : isSourceOptIn ? (
                 // '새 문서로 만들기' 스킬: 열린 문서는 기본으로 빼고, 눌러야 원문으로 쓴다.
@@ -1075,13 +1143,13 @@ export function AgentPanel({
                   </button>
                 )
               ) : isDocumentIncluded ? (
-                <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 작업 대상에서 빼기" onClick={() => setExcludedDocumentId(openDocumentId)}>
+                <button type="button" className={styles["task-context-chip"]} aria-label={`현재 문서를 ${documentChipPurpose}에서 빼기`} onClick={() => setExcludedDocumentId(openDocumentId)}>
                   현재 문서
                   <AgentAssetIcon src={contextChipCloseIcon} size={12} />
                 </button>
               ) : null}
               {isSelectionIncluded && markdownEditContext && editorTarget && (
-                <button type="button" className={`${styles["task-context-chip"]} ${styles["is-primary"]}`} aria-label="선택한 부분을 작업 대상에서 빼기" onClick={() => setExcludedSelectionKey(selectionKey)}>
+                <button type="button" className={`${styles["task-context-chip"]} ${styles["is-primary"]}`} aria-label={`선택한 부분을 ${documentChipPurpose}에서 빼기`} onClick={() => setExcludedSelectionKey(selectionKey)}>
                   {selectionChipLabel(markdownEditContext.editorSnapshot.markdown, editorTarget.startLine, editorTarget.endLine)}
                   <AgentAssetIcon src={contextChipClosePrimaryIcon} size={12} />
                 </button>
@@ -1098,14 +1166,14 @@ export function AgentPanel({
               {openDocumentOverflowNotice && <p className={styles["task-card-meta"]} role="status">{openDocumentOverflowNotice}</p>}
             </div>
           ) : null}
-          onInputKeyDown={isWorkView ? (event) => documentPicker.handleKeyDown(event) || skillPicker.handleKeyDown(event) : undefined}
-          onCaretChange={isWorkView ? documentPicker.setCaret : undefined}
-          onInputBlur={isWorkView ? documentPicker.dismissMention : undefined}
-          inputPopup={!isWorkView ? undefined : documentPicker.isMentionOpen ? {
+          onInputKeyDown={(event) => documentPicker.handleKeyDown(event) || (isWorkView && skillPicker.handleKeyDown(event))}
+          onCaretChange={documentPicker.setCaret}
+          onInputBlur={documentPicker.dismissMention}
+          inputPopup={documentPicker.isMentionOpen ? {
             isOpen: true,
             listId: DOCUMENT_PICKER_LIST_ID,
             activeOptionId: documentPicker.activeOptionId ? documentPickerOptionId(documentPicker.activeOptionId) : null
-          } : {
+          } : !isWorkView ? undefined : {
             isOpen: skillPicker.isOpen,
             listId: SKILL_PICKER_LIST_ID,
             activeOptionId: skillPicker.activeSkillId ? skillPickerOptionId(skillPicker.activeSkillId) : null
