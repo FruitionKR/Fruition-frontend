@@ -16,7 +16,7 @@ const MENTION_OPTION_LIMIT = 20;
 const NO_DOCUMENTS: DocumentItemResponse[] = [];
 
 /**
- * 작업 입력창의 문서 고르기: "@" 목록(입력창에 포커스를 둔 combobox)과 "+ 문서 추가" 검색 창.
+ * 입력창의 문서 고르기: "@" 목록(입력창에 포커스를 둔 combobox)과 "+ 문서 추가" 검색 창.
  * "@" 목록은 처음 항목이 골라진 채 열려 Enter로 바로 첨부한다. 맞는 문서가 없으면 Enter는 보내지 않고 목록만 닫는다
  * ("@회의"가 첨부 없이 그대로 나가 근거 없이 답하는 일을 막는다). Esc는 목록만 닫는다.
  */

@@ -619,13 +619,11 @@ test("세션 분류: 사용자 메시지에 run_id·action이 없어도 짝이 �
   assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", status: "pending" })), "work");
 });
 
-test("세션 분류: 작업 탭에서 받은 첨부 근거 답변(chat_answer)만 있어도 작업 세션이다", () => {
-  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "chat_answer" })), "work");
-  assert.equal(classifySessionChannel(classifyPair("p1", { run_id: "agent_1", action: "conversation_reply" })), "work");
+test("세션 분류: 작업 갈래와 함께 있는 옛 답변(chat_answer)은 이전 통합 대화로 본다", () => {
   assert.equal(classifySessionChannel([
     ...classifyPair("p1", { run_id: "agent_1", action: "markdown_edit" }),
     ...classifyPair("p2", { run_id: "agent_2", action: "chat_answer" })
-  ]), "work");
+  ]), "legacy");
 });
 
 test("세션 분류: 질의 문답은 채팅, 질의와 agent turn이 섞인 옛 기록만 이전 통합 대화다", () => {
@@ -635,10 +633,6 @@ test("세션 분류: 질의 문답은 채팅, 질의와 agent turn이 섞인 옛
   assert.equal(classifySessionChannel([
     ...classifyPair("p1", { run_id: "query_1" }),
     ...classifyPair("p2", { run_id: "agent_2", action: "markdown_edit" })
-  ]), "legacy");
-  assert.equal(classifySessionChannel([
-    ...classifyPair("p1", { run_id: "query_1" }),
-    ...classifyPair("p2", { run_id: "agent_2", action: "chat_answer" })
   ]), "legacy");
 });
 

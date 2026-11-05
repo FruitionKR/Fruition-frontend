@@ -27,6 +27,7 @@ import {
   SKILL_MODE_CHOICES,
   skillModeAnswer,
   skillModeQuestionSlug,
+  isChatTabQuestion,
   supersededTaskKeys,
   TASK_GROUPS,
   taskHeadingKind,
@@ -184,6 +185,7 @@ export function AgentTaskBody({
   onOpenFolderOrganize,
   onShortenActivePreview,
   onAnswerSkillQuestion,
+  onMoveQuestionToChat,
   onRetryTask,
   onOpenSourceBlocks,
   nodes,
@@ -228,6 +230,8 @@ export function AgentTaskBody({
   onShortenActivePreview?: () => void;
   /** 스킬 되묻기(새 문서·문서 수정)에 고른 답(`/slug …`)을 같은 대상으로 보낸다. 없으면 선택 버튼을 숨긴다. */
   onAnswerSkillQuestion?: (request: string, createsDocument: boolean) => void;
+  /** 작업 탭이 돌려보낸 질문의 입력과 첨부를 채팅 탭으로 옮긴다. */
+  onMoveQuestionToChat?: (item: TaskMessageItem) => void;
   /** 계획 단계에서 실패한 작업을 같은 요청·대상 폴더로 다시 보낸다. 없으면 "다시 시도"를 숨긴다. */
   onRetryTask?: (request: string, folderId: string | null) => void;
   /** 대화형 답변의 인용 번호를 누르면 근거 문서를 연다. */
@@ -481,6 +485,13 @@ export function AgentTaskBody({
                 {choice.label}
               </button>
             ))}
+          </div>
+        )}
+        {isChatTabQuestion(item) && item.request && onMoveQuestionToChat && (
+          <div className={styles["task-actions"]}>
+            <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onMoveQuestionToChat(item)}>
+              채팅 탭으로 옮기기
+            </button>
           </div>
         )}
         {canRetryFailed && (

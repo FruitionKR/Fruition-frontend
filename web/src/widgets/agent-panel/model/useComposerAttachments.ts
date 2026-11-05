@@ -2,12 +2,12 @@ import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { fetchDocuments, type DocumentItemResponse } from "@/entities/document";
 import { getWorkspaceId } from "@/shared/api/client";
-import { pruneUnavailableAttachments } from "../lib/composerDocuments";
+import { mergeMovedAttachments, pruneUnavailableAttachments, REFERENCE_DOCUMENT_MAX } from "../lib/composerDocuments";
 
 const NO_ATTACHMENTS: readonly DocumentItemResponse[] = [];
 
 /**
- * 작업 입력창에 첨부한 문서. scopeKey(워크스페이스·작업 대화)에 묶어 다른 대화로 넘어가지 않는다.
+ * 입력창에 첨부한 문서. scopeKey(워크스페이스·탭·대화)에 묶어 다른 대화로 넘어가지 않는다.
  * 보내면 비우고, 요청이 시작되지 못해 되돌릴 수 있게 보낸 문서를 기억해 둔다.
  */
 export function useComposerAttachments(scopeKey: string) {
@@ -17,6 +17,8 @@ export function useComposerAttachments(scopeKey: string) {
   const sentRef = useRef<readonly DocumentItemResponse[]>(NO_ATTACHMENTS);
   const queryClient = useQueryClient();
   const attachments = state.scopeKey === scopeKey ? state.documents : NO_ATTACHMENTS;
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
 
   const update = useCallback((next: (current: readonly DocumentItemResponse[]) => readonly DocumentItemResponse[]) => {
     setState((current) => ({
@@ -46,5 +48,14 @@ export function useComposerAttachments(scopeKey: string) {
       .catch(() => undefined);
   }, [queryClient, update]);
 
-  return { attachments, attach, remove, markSent, restore };
+  /** 다른 탭에서 옮긴 첨부를 최신 목록에서 찾아 붙인다. 지금 고를 수 없거나 한도에 막힌 문서 수를 돌려준다. */
+  const addMoved = useCallback(async (documentIds: readonly string[]): Promise<number> => {
+    const documents = await queryClient.fetchQuery({ queryKey: ["documents", getWorkspaceId()], queryFn: fetchDocuments, staleTime: 0 });
+    const available = pruneUnavailableAttachments(documents.filter((document) => documentIds.includes(document.id)), documents);
+    const merged = mergeMovedAttachments(attachmentsRef.current, available, REFERENCE_DOCUMENT_MAX);
+    update(() => merged.documents);
+    return documentIds.length - available.length + merged.droppedCount;
+  }, [queryClient, update]);
+
+  return { attachments, attach, remove, markSent, restore, addMoved };
 }
