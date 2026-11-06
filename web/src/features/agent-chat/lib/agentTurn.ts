@@ -4,8 +4,6 @@ import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
 
 /** 작업 탭 요청 표시. 서버는 이 값이 있으면 문서 없이도 받고 채팅 답변 갈래를 고르지 않는다(document·ai 계약). */
 export const AGENT_TURN_TASK_MODE = "task";
-/** 채팅 탭에서 첨부·열린 문서를 근거로 묻는 요청 표시. 서버는 답만 하고 문서를 바꾸지 않는다(document·ai 계약). */
-export const AGENT_TURN_CHAT_MODE = "chat";
 
 export type AgentTurnRequest = {
   session_id: string;
@@ -13,9 +11,7 @@ export type AgentTurnRequest = {
   provider: string;
   model: string;
   allow_web_search: boolean;
-  mode: typeof AGENT_TURN_TASK_MODE | typeof AGENT_TURN_CHAT_MODE;
-  /** 채팅 탭은 스킬을 쓰지 않는다. 작업 탭은 싣지 않아 서버 기본값(auto)이다. */
-  skill_mode?: "off";
+  mode: typeof AGENT_TURN_TASK_MODE;
   conversationContext?: { selected_pair_ids: string[] };
   /** 작업 대상 폴더(폴더 정리 범위·새 문서 위치). 생략하면 루트·워크스페이스 전체(document AgentTurnRequest 계약). */
   folder_id?: string;
@@ -37,8 +33,6 @@ export function isDocumentAgentTurnRequest(request: AgentTurnRequest): request i
 }
 
 type AgentTurnRequestContext = {
-  /** 없으면 작업 탭 요청이다. */
-  mode?: typeof AGENT_TURN_CHAT_MODE;
   sessionId: string;
   selectedModel: AiModelSelection;
   selectedPairIds: string[];
@@ -204,15 +198,13 @@ export function buildAgentTurnRequest(
   requestContext: AgentTurnRequestContext
 ): AgentTurnRequest {
   const referenceDocumentIds = requestContext.referenceDocumentIds ?? [];
-  const isChatMode = requestContext.mode === AGENT_TURN_CHAT_MODE;
   const base = {
     session_id: requestContext.sessionId,
     message,
     provider: requestContext.selectedModel.provider,
     model: requestContext.selectedModel.model,
     allow_web_search: requestContext.allowWebSearch ?? false,
-    mode: isChatMode ? AGENT_TURN_CHAT_MODE : AGENT_TURN_TASK_MODE,
-    ...(isChatMode ? { skill_mode: "off" as const } : {}),
+    mode: AGENT_TURN_TASK_MODE,
     // 선택한 문답이 있을 때만 서버가 지원하는 pair ID 계약으로 전달한다.
     ...(requestContext.selectedPairIds.length > 0
       ? { conversationContext: { selected_pair_ids: requestContext.selectedPairIds } }

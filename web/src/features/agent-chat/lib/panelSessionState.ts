@@ -67,8 +67,3 @@ export function resolvePanelDraft(draft: { key: string | null; value: string }, 
 export function panelDraftStorageKey(scope: string, view: ChatChannel, sessionId: string | null): string {
   return `${scope}:draft:${view}:${sessionId ?? "empty"}`;
 }
-
-/** 채팅 탭 입력창에 붙인 첨부를 초안처럼 세션별로 저장하는 키. 세션이 없으면 저장하지 않는다. */
-export function panelAttachmentStorageKey(scope: string | null, sessionId: string | null): string | null {
-  return scope && sessionId ? `${scope}:attachments:chat:${sessionId}` : null;
-}

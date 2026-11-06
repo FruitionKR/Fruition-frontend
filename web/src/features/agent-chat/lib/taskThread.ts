@@ -15,9 +15,8 @@ import {
 
 /**
  * 채팅 탭과 작업 탭의 분리(2026-10-19 계약).
- * 채팅 탭은 질문과 답(위키 질의, 첨부·열린 문서를 근거로 묻는 mode=chat agent turn), 작업 탭은 문서 편집·폴더 정리·스킬 실행 문답을 보여 준다.
- * 탭마다 세션이 따로라 채팅 세션의 문답은 모두 채팅 탭의 것이다. 나눠 보는 것은 탭이 나뉘기 전의 통합 대화뿐이다.
- * 서버는 질의 메시지에 action 키를 빼고, agent turn 메시지에만 action을 넣는다.
+ * 채팅 탭은 위키 질의(Query) 문답만, 작업 탭은 문서 편집·폴더 정리·스킬 실행(agent turn) 문답만 보여 준다.
+ * 둘은 같은 채팅 세션 메시지를 나눠 쓴다. 서버는 질의 메시지에 action 키를 빼고, agent turn 메시지에만 action을 넣는다.
  */
 
 /** 채팅 답변으로 남는 agent 갈래. 작업 탭이 생기기 전 문서를 연 채 질문해 agent가 답한 기록이다. */
@@ -25,14 +24,8 @@ const CHAT_ANSWER_ACTIONS = new Set(["chat_answer", "conversation_reply"]);
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
 
-/** 채팅 탭 문서 질문의 되묻기·안내 코드(ai ClarifyReason). */
-const CHAT_TAB_NOTICE = "chat_tab_notice";
-
-/** 작업으로 볼 agent turn 메시지인지. 답변 갈래와 채팅 탭 안내는 채팅 탭의 문서 질문이라 뺀다. */
 function isAgentTurnMessage(message: ChatMessageResponse): boolean {
-  if (message.clarify_reason === CHAT_TAB_NOTICE) return false;
-  if (message.action) return !CHAT_ANSWER_ACTIONS.has(message.action);
-  return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX));
+  return Boolean(message.run_id?.startsWith(AGENT_RUN_PREFIX)) || (Boolean(message.action) && !CHAT_ANSWER_ACTIONS.has(message.action ?? ""));
 }
 
 /**
@@ -49,8 +42,7 @@ export function isTaskMessage(message: ChatMessageResponse, taskRunIds: Readonly
 /**
  * 메시지만 보고 세션이 어느 탭의 것인지 정한다. 탭 구분이 없는 새 브라우저에서 쓴다.
  * 사용자 메시지에는 run_id·action이 없으므로 문답(pair) 단위로 짝이 되는 답변을 본다.
- * 작업 탭은 답하지 않으므로 agent turn의 채팅 답변(chat_answer 등)은 채팅 근거로 센다. 질의·답변과 작업이 섞인 세션만 이전 통합 대화다.
- * 끝나지 못해 action이 없는 문서 질문과 거절은 메시지에 탭 정보가 없어 작업으로 보이므로, 탭 구분이 없는 새 브라우저에서는 그 세션이 작업·이전 통합 대화로 보일 수 있다.
+ * 채팅 탭은 질의만 보내므로 agent turn의 채팅 답변(chat_answer 등)도 작업 근거로 센다. 질의와 섞인 세션만 이전 통합 대화다.
  * 짝을 알 수 없거나 답변이 없는 사용자 메시지는 근거로 삼지 않는다.
  */
 export function classifySessionChannel(messages: readonly ChatMessageResponse[]): "chat" | "work" | "legacy" {
@@ -129,26 +121,6 @@ export function splitChatAndTaskMessages(
   }
   const taskItems = [...taskGroups.entries()].map(([key, group]) => toTaskItem(key, group[0].pair_id ?? null, group));
   return { chatMessages, taskItems };
-}
-
-/** 채팅 탭에 보일 메시지. 채팅 세션은 전부 보이고, 이전 통합 대화는 작업 문답을 뺀다. */
-export function chatTabMessages(
-  messages: ChatMessageResponse[],
-  channel: string | undefined,
-  taskRunIds: ReadonlySet<string> = new Set()
-): ChatMessageResponse[] {
-  return channel === "chat" ? messages : splitChatAndTaskMessages(messages, taskRunIds).chatMessages;
-}
-
-/** 작업 탭이 질문으로 보고 채팅 탭으로 돌려보낸 이유 코드(ai ClarifyReason). */
-const CHAT_TAB_QUESTION = "chat_tab_question";
-/** 그 안내 문장에 든 말(ai handle_agent_turn CLARIFY_TASK_MODE_QUESTION_MESSAGE). 코드가 없는 과거 메시지·배포 전 서버를 판단할 때만 쓴다. */
-const CHAT_TAB_QUESTION_TEXT = "채팅 탭에서";
-
-/** 작업 탭에 보낸 질문이라 답하지 않고 채팅 탭을 안내했는지. 입력과 첨부를 채팅 탭으로 옮기는 버튼을 보인다. */
-export function isChatTabQuestion(item: Pick<TaskMessageItem, "action" | "clarifyReason" | "answer">): boolean {
-  if (item.action !== "clarify") return false;
-  return item.clarifyReason === null ? item.answer.includes(CHAT_TAB_QUESTION_TEXT) : item.clarifyReason === CHAT_TAB_QUESTION;
 }
 
 /** 첨부를 다 읽지 못했다는 안내의 시작(ai reference_document_notice). */
