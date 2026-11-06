@@ -51,6 +51,7 @@ import {
   writeReadOnlyRequest,
   type ReadOnlyRequests
 } from "@/features/agent-chat/lib/readOnlyRequests";
+import { readTurnReferences, recordTurnReferences, turnReferenceStorageKey, writeTurnReferences, type TurnReferences } from "@/features/agent-chat/lib/turnReferences";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
@@ -174,6 +175,20 @@ export function useAgentTurn({
     setReadOnlyRequests((current) => recordReadOnlyRequest(current, turnId, documentId));
     const workspaceId = getSelectedWorkspaceId();
     if (workspaceId) writeReadOnlyRequest(browserTaskOutcomeStorage(), readOnlyRequestStorageKey(workspaceId), turnId, documentId);
+  }, []);
+  // 첨부를 실어 보낸 turn과 그 문서. 작업 탭이 돌려보낸 질문을 첨부와 함께 채팅 탭으로 옮기는 데 쓴다.
+  const [turnReferences, setTurnReferences] = useState<TurnReferences>(() => new Map());
+  useEffect(() => {
+    const workspaceId = getSelectedWorkspaceId();
+    if (!workspaceId) return;
+    const stored = readTurnReferences(browserTaskOutcomeStorage(), turnReferenceStorageKey(workspaceId));
+    setTurnReferences((current) => new Map([...stored, ...current]));
+  }, [activeSessionId]);
+  const rememberTurnReferences = useCallback((turnId: string, documentIds: readonly string[]) => {
+    if (documentIds.length === 0) return;
+    setTurnReferences((current) => recordTurnReferences(current, turnId, documentIds));
+    const workspaceId = getSelectedWorkspaceId();
+    if (workspaceId) writeTurnReferences(browserTaskOutcomeStorage(), turnReferenceStorageKey(workspaceId), turnId, documentIds);
   }, []);
   const rejectedTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "rejected"), [taskOutcomes]);
   const cancelledTurnIds = useMemo(() => turnIdsWithOutcome(taskOutcomes, "cancelled"), [taskOutcomes]);
@@ -367,6 +382,7 @@ export function useAgentTurn({
             acceptedTurnId = requestId;
             startedPlanTurns.mark(requestId);
             rememberReadOnlyRequest(requestId, requestReadOnlyDocumentId);
+            rememberTurnReferences(requestId, documentIds);
             if (controller.signal.aborted) return;
             setRequestTurnId(requestId);
             setTaskRunIds((current) => new Set([...current, requestId]));
@@ -383,7 +399,7 @@ export function useAgentTurn({
       }
     }), () => acceptedTurnId, newAnalyticsId(), referenceDocumentIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, onOpenDocumentDropped, rememberReadOnlyRequest]);
+  }, [allowWebSearch, refreshMessages, onInsufficientCredit, onReferencesRestored, onOpenDocumentDropped, rememberReadOnlyRequest, rememberTurnReferences]);
 
   /** 지금 열린, 아직 결정하지 않은 제안. 자동으로 처리하는 중이거나 미리 보기를 만들 수 없는 응답은 뺀다. */
   function openProposal(): SetAsideProposal | null {
@@ -622,6 +638,7 @@ export function useAgentTurn({
     autoAppliedTurnIds,
     autoAppliedNotice,
     readOnlyRequests,
+    turnReferences,
     rejectedTurnIds,
     cancelledTurnIds,
     /** 이 세션에서 후속 요청에 자리를 내줘 다시 열 수 있는 제안의 turn */

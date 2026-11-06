@@ -154,7 +154,29 @@ test("mock 작업 탭은 채팅 답변 대신 되묻고, 문서 없는 편집 �
 test("mock은 문서 필드를 일부만 보내거나 모르는 mode를 거절한다", async (t) => {
   const request = await startMock(t);
   assert.equal((await request("POST", "/turn", { session_id: SESSION_ID, message: "정리", mode: "task", documentId: "doc_task_1", ...MODEL })).status, 400);
-  assert.equal((await request("POST", "/turn", { session_id: SESSION_ID, message: "정리", mode: "chat", ...MODEL })).status, 400);
+  assert.equal((await request("POST", "/turn", { session_id: SESSION_ID, message: "정리", mode: "wiki", ...MODEL })).status, 400);
+});
+
+test("mock 작업 탭은 첨부가 있어도 질문에 답하지 않고 채팅 탭으로 돌려보낸다", async (t) => {
+  const request = await startMock(t);
+  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "이 문서의 베타 공개일이 언제야?", mode: "task", ...MODEL, reference_document_ids: ["doc_task_1"] });
+  const { result } = await waitForTurn(request, accepted.requestId);
+  assert.equal(result.action, "clarify");
+  assert.equal(result.clarify_reason, "chat_tab_question");
+  assert.equal(result.edit, null);
+});
+
+test("mock 채팅 탭 문서 질문은 근거와 함께 답하고, 변경 요청은 작업 탭을 안내한다", async (t) => {
+  const request = await startMock(t);
+  const { body: question } = await request("POST", "/turn", { session_id: SESSION_ID, message: "베타 공개일이 언제야?", mode: "chat", ...MODEL, reference_document_ids: ["doc_task_1"] });
+  const answered = await waitForTurn(request, question.requestId);
+  assert.equal(answered.result.action, "chat_answer");
+  assert.match(answered.result.chat.answer, /\[1\]/);
+  const { body: change } = await request("POST", "/turn", { session_id: SESSION_ID, message: "오타 고쳐 줘", mode: "chat", ...MODEL, reference_document_ids: ["doc_task_1"] });
+  const guided = await waitForTurn(request, change.requestId);
+  assert.equal(guided.result.action, "clarify");
+  assert.match(guided.result.message, /작업 탭/);
+  assert.equal(guided.result.edit, null);
 });
 
 test("mock은 작업 대상 폴더(folder_id)를 받아 turn 생성·조회 응답에 돌려준다", async (t) => {
@@ -317,12 +339,12 @@ test("편집할 수 있거나 없는 문서, 문자열이 아닌 값은 서버�
   assert.equal(await readOnlyValue(owner, { read_only_document_id: "doc_task_view" }), null);
 });
 
-test("다른 이유의 되묻기와 되묻기가 아닌 메시지는 이유 코드가 null이고 키는 늘 있다", async (t) => {
+test("되묻기가 아닌 메시지는 이유 코드가 null이고 키는 늘 있다", async (t) => {
   const request = await startMock(t);
-  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "위키에 뭐가 있어?", mode: "task", ...MODEL });
+  const { body: accepted } = await request("POST", "/turn", { session_id: SESSION_ID, message: "회의록을 폴더로 정리해줘", mode: "task", ...MODEL });
   const { result } = await waitForTurn(request, accepted.requestId);
-  assert.equal(result.action, "clarify");
-  assert.equal(result.clarify_reason, null);
+  assert.notEqual(result.action, "clarify");
+  assert.equal(result.clarify_reason ?? null, null);
   const { body: { messages } } = await request("GET", `/chat/sessions/${SESSION_ID}/messages`);
   const assistant = messages.find((item) => item.run_id === accepted.requestId && item.role === "assistant");
   assert.equal(Object.hasOwn(assistant, "clarify_reason"), true);

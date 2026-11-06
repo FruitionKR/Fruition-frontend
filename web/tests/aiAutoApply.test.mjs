@@ -185,3 +185,10 @@ test("다시 확인도 보낼 때처럼 자동 승인 설정을 다시 받은 �
   assert.match(resume, /queryClient\.invalidateQueries\(\{ queryKey: AGENT_AUTO_APPROVAL_QUERY_KEY \}\)/);
   assert.ok(resume.indexOf("invalidateQueries") < resume.indexOf("resumeAgentTurn("), "결과 조회보다 먼저 다시 받는다");
 });
+
+test("제안이 0건인 편집 응답 카드에는 수락을 두지 않는다", () => {
+  const card = readFileSync(new URL("../src/features/agent-chat/ui/MarkdownEditPreview.tsx", import.meta.url), "utf8");
+  assert.match(card, /\{hasProposals && \(\s*<button[^>]*is-primary/);
+  const panel = readFileSync(new URL("../src/widgets/agent-panel/ui/AgentPanel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /<MarkdownEditPreview[\s\S]*?hasProposals=\{proposalCount > 0\}/);
+});

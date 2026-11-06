@@ -4,6 +4,7 @@ import { getWorkspaceId } from "@/shared/api/client";
 import type { AiModelSelection } from "@/entities/ai";
 import { cancelQueryRun, QueryCancelledError, runQueryStream, type QueryRun, type QueryStageEvent } from "@/entities/wiki/api/wiki";
 import { publishNotice } from "@/features/document-notifications";
+import { requestAgentTurnCancel } from "../api/agent";
 import { fetchMessagesForRequest } from "../lib/chatMessagesForRequest";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
@@ -21,7 +22,20 @@ type ActiveQueryRequest = {
   controller: AbortController;
   cancelRequested: boolean;
   cancellation: Promise<void> | null;
+  cancelRun: (run: QueryRun, signal: AbortSignal) => Promise<void>;
 };
+
+/** 채팅 탭의 문서 질문(mode=chat agent turn)을 보내는 쪽에 주는 값. */
+export type DocumentQuestionHandlers = {
+  signal: AbortSignal;
+  onAccepted: (requestId: string) => void;
+  onStage: (event: QueryStageEvent) => void;
+};
+
+/** 문서 질문은 agent turn이라 turn 취소로 멈춘다. 이미 끝났거나 없는 turn이면 멈출 것이 없다. */
+async function cancelDocumentQuestion(run: QueryRun, signal: AbortSignal): Promise<void> {
+  await requestAgentTurnCancel(run.requestId, signal);
+}
 
 /**
  * 채팅 스레드 페칭·폴링·질의 상태를 관리하는 훅.
@@ -155,7 +169,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
     setQueryStatusMessage("질의를 취소하고 변경을 복구하는 중입니다…");
     // run 생성 응답 전에 누른 Esc도 ID를 받은 직후 서버에 전달한다.
     if (!request.run) return;
-    request.cancellation = cancelQueryRun(request.run, request.controller.signal)
+    request.cancellation = request.cancelRun(request.run, request.controller.signal)
       .then(() => finishCancelledQuery(request))
       .catch((error: unknown) => {
         if (activeQueryRef.current !== request) return;
@@ -170,7 +184,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
   async function submitQuery(question: string, selection: AiModelSelection, allowWebSearch = false, targetSessionId?: string): Promise<boolean> {
     if (!question || activeQueryRef.current || isLoading || (sessionRef.current === null && !targetSessionId)) return false;
     const request: ActiveQueryRequest = {
-      run: null, controller: new AbortController(), cancelRequested: false, cancellation: null
+      run: null, controller: new AbortController(), cancelRequested: false, cancellation: null, cancelRun: cancelQueryRun
     };
     activeQueryRef.current = request;
 
@@ -253,6 +267,59 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
     return false;
   }
 
+  /**
+   * 첨부·열린 문서를 근거로 묻는다(mode=chat agent turn). 답은 응답이 아니라 세션 메시지로 보여 주므로, 편집안이 오더라도 화면이 적용하지 않는다.
+   * 서버가 받기 전에 실패했으면 true를 돌려준다. 호출부가 입력을 되돌린다.
+   */
+  async function submitDocumentQuestion(question: string, send: (handlers: DocumentQuestionHandlers) => Promise<unknown>): Promise<boolean> {
+    if (!question || activeQueryRef.current || isLoading) return false;
+    const request: ActiveQueryRequest = {
+      run: null, controller: new AbortController(), cancelRequested: false, cancellation: null, cancelRun: cancelDocumentQuestion
+    };
+    activeQueryRef.current = request;
+    setQueryErrorMessage(null);
+    setQueryStatusMessage(null);
+    setIsCancelling(false);
+    setAnimatedMessageId(null);
+    setQueryStages([]);
+    setActiveTurn({ question });
+    setIsLoading(true);
+    const shortQuestion = question.length > 30 ? `${question.slice(0, 30)}…` : question;
+    const isCurrent = () => activeQueryRef.current === request;
+    let errorMessage: string | null = null;
+    try {
+      await send({
+        signal: request.controller.signal,
+        onAccepted: (requestId) => {
+          request.run = { workspaceId: getWorkspaceId(), requestId };
+          if (request.cancelRequested && isCurrent()) cancelQuery();
+        },
+        onStage: (event) => {
+          if (isCurrent() && !request.cancelRequested) setQueryStages((current) => [...current, event]);
+        }
+      });
+      if (!isCurrent() || request.cancelRequested) return false;
+      publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
+    } catch (error) {
+      if (!isCurrent() || (request.cancelRequested && request.run)) return false;
+      errorMessage = getErrorMessage(error, "질의에 실패했습니다.");
+      setQueryErrorMessage(errorMessage);
+      publishNotice({ kind: "failed", title: "질의 실패", message: `"${shortQuestion}" 질의에 실패했습니다.` });
+    }
+    activeQueryRef.current = null;
+    setIsLoading(false);
+    setIsCancelling(false);
+    const isRejected = errorMessage !== null && request.run === null;
+    if (!isRejected) {
+      // 서버에 남은 답·실패·진행 기록을 그린 뒤 진행 표시를 내린다.
+      await refreshMessages({ animateLatest: errorMessage === null }).catch((error: unknown) => {
+        setChatLoadErrorMessage(getErrorMessage(error, "채팅 기록을 불러오지 못했습니다."));
+      });
+    }
+    setActiveTurn(null);
+    return isRejected;
+  }
+
   return {
     messages,
     queryErrorMessage,
@@ -266,6 +333,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
     hasPendingMessages,
     refreshMessages,
     submitQuery,
+    submitDocumentQuestion,
     cancelQuery
   };
 }
