@@ -1,97 +1,98 @@
 import Link from "next/link";
-import type { ReactElement } from "react";
 import { cx } from "@/shared/lib/classNames";
 import { chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { DATA_HANDLING_GROUPS } from "../model/dataHandlingContent";
-import { LANDING_CHAPTERS, LANDING_FAQ, landingNavLabel, type LandingChapter } from "../model/landingContent";
-import { CHAPTER_ICONS, CHIP_ICONS } from "./LandingIcons";
-import { CaptureVisual, ConnectVisual, DiscoverVisual, TogetherVisual } from "./preview/FeatureFragments";
+import { LANDING_DEMO_SLOTS, LANDING_FAQ, LANDING_TOGETHER, landingNavLabel, type LandingDemoSlot } from "../model/landingContent";
+import { LANDING_VIDEOS } from "../model/landingVideos";
+import { CHIP_ICONS } from "./LandingIcons";
+import { LandingVideo } from "./LandingVideo";
+import { TogetherVisual } from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
 
-/** 장 목차 카드: 아이콘 · 번호 · 영어 부제 · 짧은 이름 · 한 줄 설명. 카드 전체가 장으로 가는 링크다. */
-export function ChapterCards() {
+function FeatureChips({ chips, label }: { chips: readonly string[]; label: string }) {
   return (
-    <nav className={sections["chapter-cards"]} aria-label="장 목차">
-      <ol>
-        {LANDING_CHAPTERS.map((chapter) => (
-          <li key={chapter.id}>
-            <Link className={sections["chapter-card"]} href={`#${chapter.id}`} replace>
-              <span className={sections["card-top"]}>
-                <span className={sections["card-icon"]} aria-hidden="true">
-                  {CHAPTER_ICONS[chapter.id]}
-                </span>
-                <span className={sections["card-number"]}>{chapter.index}</span>
-              </span>
-              <span className={sections["card-english"]}>{chapter.english}</span>
-              <span className={sections["card-title"]}>{chapter.indexLabel}</span>
-              <span className={sections["card-summary"]}>{chapter.summary}</span>
-              <span className={sections["card-arrow"]} aria-hidden="true">
-                ↓
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </nav>
+    <ul className={sections["chips"]} aria-label={label}>
+      {chips.map((chip) => (
+        <li key={chip}>
+          <span className={sections["chip-icon"]} aria-hidden="true">
+            {CHIP_ICONS[chip]}
+          </span>
+          {chip}
+        </li>
+      ))}
+    </ul>
   );
 }
 
-const CHAPTER_VISUALS: Record<LandingChapter["id"], () => ReactElement> = {
-  capture: CaptureVisual,
-  connect: ConnectVisual,
-  discover: DiscoverVisual,
-  together: TogetherVisual
-};
-
-function ChapterSection({ chapter }: { chapter: LandingChapter }) {
-  const headingId = `${chapter.id}-title`;
-  const Visual = CHAPTER_VISUALS[chapter.id];
+/** 영상으로 다루지 않는 협업 소개: 문구와 멤버·팀 스킬 화면 */
+export function LandingTogether() {
   return (
-    <section
-      id={chapter.id}
-      className={cx(sections["chapter"], chapter.visualSide === "left" && sections["is-visual-left"])}
-      data-chapter={chapter.id}
-      aria-labelledby={headingId}
-    >
-      <div className={sections["chapter-inner"]}>
-        <div className={sections["chapter-copy"]}>
-          <p className={sections["chapter-name"]}>
-            <span className={sections["chapter-number"]}>{chapter.index}.</span>
-            {chapter.name}
-            <span className={sections["chapter-english"]}>({chapter.english})</span>
+    <section id="together" className={sections["together"]} aria-labelledby="together-title">
+      <div className={sections["together-inner"]}>
+        <div className={sections["together-copy"]}>
+          <p className={sections["together-name"]}>
+            {LANDING_TOGETHER.name}
+            <span className={sections["together-english"]}>({LANDING_TOGETHER.english})</span>
           </p>
-          <h2 id={headingId} className={styles["h2"]}>
-            {landingNavLabel(`#${chapter.id}`)}
+          <h2 id="together-title" className={styles["h2"]}>
+            {LANDING_TOGETHER.title}
           </h2>
-          <p className={sections["chapter-note"]}>{chapter.headline}</p>
-          <p className={styles["lead"]}>{chapter.body}</p>
-          <ul className={sections["chips"]} aria-label={`${chapter.name} 기능`}>
-            {chapter.chips.map((chip) => (
-              <li key={chip}>
-                <span className={sections["chip-icon"]} aria-hidden="true">
-                  {CHIP_ICONS[chip]}
-                </span>
-                {chip}
-              </li>
-            ))}
-          </ul>
+          <p className={sections["together-note"]}>{LANDING_TOGETHER.headline}</p>
+          <p className={styles["lead"]}>{LANDING_TOGETHER.body}</p>
+          <FeatureChips chips={LANDING_TOGETHER.chips} label={`${LANDING_TOGETHER.name} 기능`} />
         </div>
-        <div className={sections["chapter-visual"]}>
-          <Visual />
+        <div className={sections["together-visual"]}>
+          <TogetherVisual />
         </div>
       </div>
     </section>
   );
 }
 
-export function LandingChapters() {
+/** 시연 묶음 하나. 영상마다 제목과 틀이 메뉴 아래에 잠시 머무르고, 넓은 화면에서는 묶음 설명도 왼쪽에 함께 머무른다. */
+function DemoSlot({ slot }: { slot: LandingDemoSlot }) {
   return (
-    <div id="chapters" className={sections["chapters"]}>
-      {LANDING_CHAPTERS.map((chapter) => (
-        <ChapterSection key={chapter.id} chapter={chapter} />
-      ))}
-    </div>
+    <li id={`demo-${slot.id}`} className={sections["demo-slot"]}>
+      <div className={sections["demo-copy"]}>
+        <span className={sections["demo-number"]}>{slot.index}</span>
+        <p className={sections["card-english"]}>{slot.english}</p>
+        <h3 className={sections["demo-title"]}>{slot.title}</h3>
+        <p className={sections["demo-body"]}>{slot.body}</p>
+        {slot.chips.length > 0 && <FeatureChips chips={slot.chips} label={`${slot.title} 기능`} />}
+      </div>
+      <div className={sections["demo-steps"]}>
+        {slot.steps.map((step) => (
+          <div key={step.videoId} className={sections["demo-step"]}>
+            <figure className={sections["demo-step-figure"]}>
+              <figcaption className={sections["demo-step-copy"]}>
+                <h4 className={sections["demo-step-title"]}>{step.title}</h4>
+                <p className={sections["demo-body"]}>{step.body}</p>
+              </figcaption>
+              <LandingVideo video={LANDING_VIDEOS[step.videoId]} />
+            </figure>
+          </div>
+        ))}
+      </div>
+    </li>
+  );
+}
+
+/** 올리기 → 편입·질의 → AI 편집·스킬 흐름을 시연 영상으로 보여 준다. */
+export function LandingDemo() {
+  return (
+    <section id="demo" className={cx(styles["hero-backdrop"], styles["demo-backdrop"])} aria-labelledby="demo-title">
+      <div className={sections["demo-inner"]}>
+        <h2 id="demo-title" className={cx(styles["h2"], sections["demo-head"])}>
+          기록이 지식이 되는 과정
+        </h2>
+        <ol className={sections["demo-list"]}>
+          {LANDING_DEMO_SLOTS.map((slot) => (
+            <DemoSlot key={slot.id} slot={slot} />
+          ))}
+        </ol>
+      </div>
+    </section>
   );
 }
 

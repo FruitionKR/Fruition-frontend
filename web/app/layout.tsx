@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Fruition",
-  description: "Research workspace prototype"
+  description: "흩어진 기록을 하나로 모으고 연결해, 쓰이는 지식으로 만드는 공간입니다."
 };
 
 export default async function RootLayout({

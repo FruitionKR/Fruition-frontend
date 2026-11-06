@@ -1,4 +1,4 @@
-/* Agent 패널 · 본문 제안 조각 (Figma 1540:19718 · 1571:27625). 색은 앱 토큰(--color-*)만 쓴다. */
+/* Agent 패널 조각 (Figma 1540:19718). 색은 앱 토큰(--color-*)만 쓴다. */
 .citation {
   color: var(--color-primary);
   font-weight: 600;
@@ -10,34 +10,6 @@
   color: var(--color-on-primary);
   background: var(--color-primary);
   border-radius: 4px;
-}
-
-.editor-removed {
-  color: var(--color-danger);
-  line-height: 1.8;
-  text-decoration: line-through;
-}
-
-.suggestion {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  background: var(--color-primary-weak);
-  border: 1px solid var(--color-primary-default);
-  border-radius: 8px;
-}
-
-.suggestion-label,
-.suggestion-text {
-  color: var(--color-primary-weak-foreground);
-  font-weight: 600;
-}
-
-.suggestion-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
 }
 
 .agent {

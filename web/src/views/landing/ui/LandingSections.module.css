@@ -1,6 +1,6 @@
-/* 랜딩 섹션 배치(장 목차 · 01~04장 · FAQ · 마지막 안내). 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
+/* 랜딩 섹션 배치(시연 영상 · 함께하기 · 문서 보호 · FAQ · 마지막 안내). 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
 
-/* ───── 아이콘 글리프(카드·칩 공통) ───── */
+/* ───── 아이콘 글리프(칩 공통) ───── */
 .glyph {
   display: inline-grid;
   place-items: center;
@@ -35,95 +35,7 @@
   -webkit-mask-size: contain;
 }
 
-/* ───── 장 목차 카드 ───── */
-.chapter-cards {
-  max-width: var(--lp-wrap);
-  margin: clamp(72px, 6vw, 112px) auto 0;
-  padding: 0 var(--lp-gutter);
-}
-
-.chapter-cards ol {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chapter-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 100%;
-  padding: 24px 24px 52px;
-  color: var(--lp-ink);
-  text-decoration: none;
-  background: var(--lp-card);
-  border: 1px solid var(--lp-line);
-  border-radius: var(--lp-radius-card);
-  transition:
-    transform 260ms var(--lp-ease-out),
-    border-color 200ms ease,
-    box-shadow 260ms ease;
-}
-
-.chapter-card:hover {
-  border-color: color-mix(in srgb, var(--lp-accent) 40%, transparent);
-  box-shadow: var(--lp-shadow-float);
-  transform: translateY(-4px);
-}
-
-.chapter-card:active {
-  transform: translateY(-2px);
-}
-
-.card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.card-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  color: var(--lp-accent-ink);
-  background: var(--lp-accent-weak);
-  border-radius: 50%;
-}
-
-.card-icon .glyph {
-  width: 20px;
-  height: 20px;
-}
-
-.card-icon .glyph-mask {
-  width: 22px;
-  height: 22px;
-}
-
-.card-icon .glyph[data-pad] {
-  width: 34px;
-  height: 34px;
-  margin: -7px;
-}
-
-.card-number {
-  color: var(--lp-muted);
-  font-size: 0.9375rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  transition: color 200ms ease;
-}
-
-.chapter-card:hover .card-number {
-  color: var(--lp-accent-ink);
-}
-
+/* 영어 부제(시연 묶음 · 문서 보호 공통) */
 .card-english {
   color: var(--lp-muted);
   font-size: 0.75rem;
@@ -131,59 +43,13 @@
   letter-spacing: 0.12em;
 }
 
-.card-title {
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.card-summary {
-  color: var(--lp-body);
-  font-size: 0.9375rem;
-  line-height: 1.55;
-}
-
-.card-arrow {
-  position: absolute;
-  right: 24px;
-  bottom: 20px;
-  color: var(--lp-muted);
-  transition: transform 260ms var(--lp-ease-out), color 200ms ease;
-}
-
-.chapter-card:hover .card-arrow {
-  color: var(--lp-accent-ink);
-  transform: translateY(3px);
-}
-
-/* ───── 01~04장: 장마다 옅은 바탕색 띠, 화면은 좌우 교차 ───── */
-.chapters {
-  margin-top: clamp(48px, 4vw, 64px);
-}
-
-.chapter {
+/* ───── 함께하기: 옅은 바탕색 띠에 문구와 멤버·팀 스킬 화면 ───── */
+.together {
   padding: var(--lp-section-pad) 0;
-  background: var(--lp-tint);
+  background: var(--lp-tint-together);
 }
 
-.chapter[data-chapter="capture"] {
-  --lp-tint: var(--lp-tint-capture);
-}
-
-.chapter[data-chapter="connect"] {
-  --lp-tint: var(--lp-tint-connect);
-}
-
-.chapter[data-chapter="discover"] {
-  --lp-tint: var(--lp-tint-discover);
-}
-
-.chapter[data-chapter="together"] {
-  --lp-tint: var(--lp-tint-together);
-}
-
-/* 앞 칸이 1.1fr. 01·03은 화면이 앞(왼쪽), 02·04는 문구가 앞이다. */
-.chapter-inner {
+.together-inner {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   align-items: center;
@@ -193,17 +59,13 @@
   padding: 0 var(--lp-gutter);
 }
 
-.chapter.is-visual-left .chapter-visual {
-  order: -1;
-}
-
-.chapter-copy {
+.together-copy {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.chapter-name {
+.together-name {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -213,20 +75,7 @@
   font-weight: 600;
 }
 
-.chapter-number {
-  margin-right: -4px;
-  color: var(--lp-accent-ink);
-  font-weight: 700;
-}
-
-.chapter-english {
-  color: var(--lp-muted);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
-
-.chapter-note {
+.together-note {
   margin: -8px 0 0;
   color: var(--lp-accent-ink);
   font-size: var(--lp-text-sub);
@@ -263,7 +112,7 @@
   display: none;
 }
 
-.chapter-visual {
+.together-visual {
   min-width: 0;
 }
 
@@ -282,12 +131,266 @@
 
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
-    :global(html:not([data-reduce-motion="true"])) .chapter-copy,
-    :global(html:not([data-reduce-motion="true"])) .chapter-visual {
+    :global(html:not([data-reduce-motion="true"])) .together-copy,
+    :global(html:not([data-reduce-motion="true"])) .together-visual {
       animation: fade-up linear both;
       animation-range: entry 0% entry 60%;
       animation-timeline: view();
     }
+  }
+}
+
+/* ───── 시연 흐름: 왼쪽 번호 줄기를 따라 세 묶음이 이어지고, 묶음 설명은 영상이 지나가는 동안 머무른다 ───── */
+.demo-inner {
+  container-type: inline-size;
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: var(--lp-section-pad) var(--lp-gutter);
+}
+
+.demo-head {
+  margin-bottom: 56px;
+}
+
+/* 멈추는 높이: 메뉴 아래 남은 공간에서 대표 비율(1.535) 영상과 제목이 세로 가운데에 오게 한다. */
+.demo-list {
+  --demo-caption: 100px;
+  --demo-col: 100cqw;
+  --demo-pin-height: calc(var(--demo-caption) + var(--demo-col) / 1.535);
+  --demo-pin-top: calc(var(--lp-header-height) + max(12px, (100svh - var(--lp-header-height) - var(--demo-pin-height)) / 2));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-slot {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 48px;
+  padding-bottom: 96px;
+}
+
+/* 앵커로 오면 첫 영상이 고정 위치에서 시작한다. */
+.demo-slot {
+  scroll-margin-top: var(--demo-pin-top);
+}
+
+.demo-slot:last-child {
+  padding-bottom: 0;
+}
+
+.demo-slot:not(:last-child)::before {
+  position: absolute;
+  top: 56px;
+  bottom: 8px;
+  left: 23px;
+  width: 1px;
+  content: "";
+  background: var(--lp-line);
+}
+
+/* 번호는 왼쪽 줄기 위에 놓고, 글은 줄기 오른쪽에 둔다. */
+.demo-copy {
+  position: sticky;
+  top: var(--demo-pin-top);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: 8px;
+  min-height: 48px;
+  padding: 4px 0 0 68px;
+}
+
+.demo-number {
+  display: inline-grid;
+  place-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 48px;
+  color: var(--lp-accent-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--lp-accent-weak);
+  border-radius: 50%;
+}
+
+.demo-copy .card-english {
+  margin: 0;
+}
+
+.demo-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.demo-body {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.demo-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  min-width: 0;
+}
+
+.demo-step-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+}
+
+.demo-step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.demo-step-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* 틀 비율은 파일 비율과 같아 영상이 틀을 꽉 채운다. 폭은 칸에 맞추되, 낮은 화면에서는 메뉴 아래에 다 보이도록 줄인다. */
+.demo-video {
+  position: relative;
+  width: min(100%, calc((100svh - var(--lp-header-height) - 32px) * (var(--video-ratio))));
+  aspect-ratio: var(--video-ratio);
+  overflow: hidden;
+  background: var(--lp-card);
+  border-radius: 12px;
+  box-shadow: var(--lp-shadow-window);
+}
+
+.demo-video-fallback {
+  position: absolute;
+  inset: 0;
+  padding: 24px;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-small);
+  text-align: center;
+}
+
+.demo-video-poster,
+.demo-video-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.demo-video-media {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.demo-video-media[data-ready="true"] {
+  opacity: 1;
+}
+
+.demo-video-status {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: var(--lp-text-small);
+  background: rgb(0 0 0 / 72%);
+  border-radius: 999px;
+}
+
+/* 네이티브 컨트롤 대신 버튼 하나. 멈춘 동안에는 가운데 크게, 재생 중에는 모서리에 작게 둔다. */
+.demo-video-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: #fff;
+  background: rgb(0 0 0 / 60%);
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.demo-video-toggle:hover {
+  background: rgb(0 0 0 / 82%);
+}
+
+.demo-video-toggle[data-state="play"] {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  background: var(--lp-accent);
+  border-color: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.demo-video-toggle[data-state="play"] svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* 마우스가 있으면 재생 중 버튼은 올렸을 때와 키보드로 왔을 때만 보인다. */
+@media (hover: hover) {
+  .demo-video:not(:hover) .demo-video-toggle[data-state="pause"]:not(:focus-visible) {
+    opacity: 0;
+  }
+}
+
+/* 영상 고정 조건 */
+/* 영상과 제목이 메뉴 아래에 다 들어오는 화면에서만 머무른다. sticky는 부모 안에서만 움직이므로 빈 칸(::after)이 머무는 거리가 된다. */
+@media (prefers-reduced-motion: no-preference) and (min-width: 1024px) and (min-height: 720px),
+  (prefers-reduced-motion: no-preference) and (max-width: 1023px) and (max-aspect-ratio: 1 / 1) and (min-height: 540px) {
+  :global(html:not([data-reduce-motion="true"])) .demo-step::after {
+    display: block;
+    height: var(--lp-video-hold);
+    content: "";
+  }
+
+  :global(html:not([data-reduce-motion="true"])) .demo-step-figure {
+    position: sticky;
+    top: var(--demo-pin-top);
+  }
+}
+
+/* 낮은 가로 화면은 고정하지 않고, 제목과 영상을 나란히 두어 한 화면에 함께 보이게 한다. */
+@media (max-width: 1023px) and (max-height: 500px) {
+  .demo-step-figure {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .demo-step-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .demo-video {
+    flex: none;
+    width: min(60%, calc((100svh - var(--lp-header-height) - 32px) * (var(--video-ratio))));
   }
 }
 
@@ -449,18 +552,21 @@
 }
 
 /* ───── 반응형 ───── */
-@media (max-width: 1023px) {
-  .chapter-cards ol {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (min-width: 1024px) {
+  .demo-list {
+    --demo-caption: 72px;
+    --demo-col: calc(100cqw - 348px);
   }
+}
 
-  /* 좁은 화면은 모든 장에서 화면이 먼저, 문구가 아래 */
-  .chapter-inner {
+@media (max-width: 1023px) {
+  /* 좁은 화면은 화면이 먼저, 문구가 아래 */
+  .together-inner {
     grid-template-columns: minmax(0, 1fr);
     gap: 48px;
   }
 
-  .chapter-visual {
+  .together-visual {
     order: -1;
     max-width: 680px;
   }
@@ -469,22 +575,35 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
+
+  .demo-slot {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding-bottom: 72px;
+    scroll-margin-top: calc(var(--lp-header-height) + 16px);
+  }
+
+  .demo-steps {
+    gap: 40px;
+  }
+
+  .demo-slot:not(:last-child)::before {
+    display: none;
+  }
+
+  /* 한 칸으로 쌓이면 줄기가 없으므로 번호를 글 위로 올리고 설명도 머무르지 않는다. */
+  .demo-copy {
+    position: static;
+    padding: 0;
+  }
+
+  .demo-number {
+    position: static;
+    margin-bottom: 8px;
+  }
 }
 
 @media (max-width: 559px) {
-  .chapter-cards ol {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .chapter-card {
-    padding: 20px 20px 44px;
-  }
-
-  .card-top {
-    margin-bottom: 8px;
-  }
-
   .data-handling-group {
     padding: 24px 4px;
   }

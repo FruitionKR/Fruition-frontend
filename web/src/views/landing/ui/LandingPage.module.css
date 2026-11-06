@@ -2,7 +2,7 @@
  * 랜딩 화면 공통: 토큰 · 헤더 · 글자 단계 · 버튼 · 히어로 · 하단. 섹션별 배치는 LandingSections.module.css.
  * 바탕·포인트 색은 앱 토큰(--color-canvas, --color-primary 계열)을 그대로 써서 라이트는 서비스 파랑(#3182f6),
  * 다크는 앱 다크 primary가 포인트가 된다. 작은 글자의 포인트 색은 대비가 충분한 --color-primary-weak-foreground를 쓴다.
- * 장마다 깔리는 옅은 바탕(--lp-tint-*)과 히어로 빛(--lp-hero-*)만 랜딩 전용 값이다.
+ * 함께하기의 옅은 바탕(--lp-tint-together)과 히어로 빛(--lp-hero-*)만 랜딩 전용 값이다.
  * 라이트·다크는 base.css와 같은 규칙(OS 설정 또는 html[data-theme])으로 바뀐다.
  */
 .landing-page {
@@ -24,9 +24,6 @@
   --lp-pill-bg: color-mix(in srgb, var(--lp-card) 90%, transparent);
 
   /* 장 바탕: 같은 밝기(98.5%)에 색상만 다른 아주 옅은 띠 */
-  --lp-tint-capture: oklch(98.5% 0.01 250);
-  --lp-tint-connect: oklch(98.5% 0.01 200);
-  --lp-tint-discover: oklch(98.5% 0.01 280);
   --lp-tint-together: oklch(98.5% 0.01 160);
 
   /* 히어로·마지막 안내 바탕: 빛 두 개 + 위쪽에서 사라지는 48px 격자 */
@@ -42,6 +39,8 @@
   --lp-gutter: 24px;
   --lp-section-pad: 112px;
   --lp-header-height: 72px;
+  /* 시연 영상 하나가 메뉴 아래에 머무르는 스크롤 거리 */
+  --lp-video-hold: 60svh;
   --lp-radius: 14px;
   --lp-radius-window: 22px;
   --lp-radius-card: 22px;
@@ -71,9 +70,6 @@
     --lp-panel-strong: #1e1e1e;
     --lp-line: #2a2a2d;
     --lp-muted: #8a8a8a;
-    --lp-tint-capture: oklch(16% 0.008 250);
-    --lp-tint-connect: oklch(16% 0.008 200);
-    --lp-tint-discover: oklch(16% 0.008 280);
     --lp-tint-together: oklch(16% 0.008 160);
     --lp-hero-glow-a: oklch(32% 0.06 255 / 35%);
     --lp-hero-glow-b: color-mix(in srgb, var(--color-primary) 7%, transparent);
@@ -90,9 +86,6 @@
   --lp-panel-strong: #1e1e1e;
   --lp-line: #2a2a2d;
   --lp-muted: #8a8a8a;
-  --lp-tint-capture: oklch(16% 0.008 250);
-  --lp-tint-connect: oklch(16% 0.008 200);
-  --lp-tint-discover: oklch(16% 0.008 280);
   --lp-tint-together: oklch(16% 0.008 160);
   --lp-hero-glow-a: oklch(32% 0.06 255 / 35%);
   --lp-hero-glow-b: color-mix(in srgb, var(--color-primary) 7%, transparent);
@@ -105,11 +98,6 @@
 /* 앵커 이동은 고정 헤더 아래로 맞춘다. */
 .landing-page :is(section, nav)[id] {
   scroll-margin-top: calc(var(--lp-header-height) + 16px);
-}
-
-/* 장 띠는 헤더 바로 아래에서 시작하고, 제목은 띠 안쪽 여백에 놓인다. */
-.landing-page section[data-chapter] {
-  scroll-margin-top: var(--lp-header-height);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -237,6 +225,65 @@
   border-color: var(--lp-muted);
 }
 
+/* 좁은 화면 전용 메뉴(반응형 절에서 보인다). 패널은 고정 헤더 바로 아래에 펼친다. */
+.mobile-menu {
+  display: none;
+}
+
+.menu-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--lp-ink);
+  cursor: pointer;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+}
+
+.menu-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  padding: 8px var(--lp-gutter) 16px;
+  background: var(--lp-bg);
+  border-bottom: 1px solid var(--lp-line);
+  box-shadow: var(--lp-shadow-float);
+}
+
+.menu-panel[hidden] {
+  display: none;
+}
+
+.menu-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu-panel li a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--lp-ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.menu-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  color: var(--lp-body);
+  font-size: var(--lp-text-small);
+}
+
 /* ───── 글자 단계 ───── */
 .h1,
 .h2 {
@@ -327,6 +374,13 @@
 }
 
 /* ───── 히어로 바탕: 빛 두 개 + 위에서 아래로 사라지는 48px 격자 (마지막 안내 상자도 함께 쓴다) ───── */
+@media (max-width: 1023px) {
+  /* 한 칸으로 쌓이는 화면은 짧은 스와이프로 넘어가게 줄인다. */
+  .landing-page {
+    --lp-video-hold: 40svh;
+  }
+}
+
 .hero-backdrop {
   position: relative;
   isolation: isolate;
@@ -358,6 +412,11 @@
 
 /* ───── 히어로: 왼쪽 문구 + 오른쪽 큰 실제 화면(평면, 컨테이너 안) ───── */
 .hero {
+  overflow: visible;
+}
+
+/* 시연 묶음 설명이 스크롤에 머무르려면(sticky) 바탕이 스크롤 컨테이너가 되면 안 된다. */
+.demo-backdrop {
   overflow: visible;
 }
 
@@ -524,19 +583,41 @@
   }
 }
 
-@media (max-width: 760px) {
+/* 터치 화면: 누르는 대상을 44px 이상으로 키운다. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .brand,
+  .header-nav a,
+  .login-link,
+  .landing-bottom :global(.legal-footer-links a) {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 좁은 화면: 메뉴와 테마 선택은 메뉴 버튼 안으로 옮긴다. */
+@media (max-width: 900px) {
   .header-inner {
     grid-template-columns: 1fr auto;
   }
 
-  .header-nav {
+  .header-nav,
+  .header-actions > fieldset {
     display: none;
+  }
+
+  .header-actions {
+    gap: 8px;
+  }
+
+  .mobile-menu {
+    display: block;
   }
 }
 
-/* 320px대에서는 로고 글리프만 남겨 테마 선택과 로그인 버튼이 한 줄에 들어가게 한다. */
-@media (max-width: 359px) {
-  .brand-word {
-    display: none;
+@media (max-width: 559px) {
+  .landing-page {
+    --lp-gutter: 16px;
   }
 }

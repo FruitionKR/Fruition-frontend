@@ -1,4 +1,4 @@
-/* 랜딩 화면 조각(히어로 · 01~04장)의 배치. 색은 현재 테마의 앱 토큰(--color-*)만 쓴다. */
+/* 랜딩 화면 조각(히어로 · 함께하기)의 배치. 색은 현재 테마의 앱 토큰(--color-*)만 쓴다. */
 
 .app {
   position: relative;
@@ -8,80 +8,24 @@
   background: var(--color-canvas);
 }
 
-/* 02: 그래프는 허브 주변만 크게 잘라 보여 준다(라벨이 읽히는 크기). */
-.graph-zoom {
-  overflow: hidden;
-}
-
-.graph-zoom svg {
-  width: 135%;
-  max-width: none;
-  margin-top: 36px;
-  /* 허브가 왼쪽 아래에 겹치는 개념 페이지 패널에 가리지 않게 오른쪽으로 민다 */
-  transform: translateX(12%);
-}
-
 /* ───── 창 + 떠 있는 패널 무대 ─────
  * 큰 창은 칸 폭을 채우고, 보조 패널은 창 모서리에 겹친다. 패널 크기는 칸 폭에 대한 비율이라
  * 화면 폭이 바뀌어도 창과 같은 축소율로 함께 줄어든다. */
 .stage {
   position: relative;
+  padding-bottom: 72px;
 }
 
 .stage-main {
   position: relative;
 }
 
+/* 창 오른쪽 아래 모서리에 팀 스킬 패널 */
 .stage-float {
   position: absolute;
-  z-index: 1;
-}
-
-/* 01: 창 오른쪽 위 모서리에 알림 패널 */
-.stage[data-layout="capture"] {
-  padding-top: 44px;
-}
-
-.stage[data-layout="capture"] .stage-float {
-  top: 0;
-  right: -3%;
-  width: 46%;
-}
-
-/* 02: 창 왼쪽 아래 모서리에 개념 페이지 패널 */
-.stage[data-layout="connect"] {
-  padding-bottom: 56px;
-}
-
-.stage[data-layout="connect"] .stage-float {
-  bottom: 0;
-  left: -4%;
-  width: 50%;
-}
-
-/* 03: 채팅 탭과 작업 탭을 엇갈려 나란히 */
-.stage[data-layout="discover"] {
-  padding-bottom: 48px;
-}
-
-.stage[data-layout="discover"] .stage-main {
-  width: 48%;
-}
-
-.stage[data-layout="discover"] .stage-float {
-  top: 48px;
-  right: 0;
-  width: 48%;
-}
-
-/* 04: 창 오른쪽 아래 모서리에 팀 스킬 패널 */
-.stage[data-layout="together"] {
-  padding-bottom: 72px;
-}
-
-.stage[data-layout="together"] .stage-float {
   right: 4%;
   bottom: 0;
+  z-index: 1;
   width: 46%;
 }
 
@@ -198,16 +142,6 @@
   letter-spacing: -0.02em;
 }
 
-.doc-meta {
-  align-self: flex-start;
-  padding: 3px 8px;
-  color: var(--color-primary-weak-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--color-primary-weak);
-  border-radius: 6px;
-}
-
 .doc-h2 {
   margin-top: 6px !important;
   font-size: 18px;
@@ -219,223 +153,7 @@
   line-height: 1.75;
 }
 
-.doc-table {
-  width: 100%;
-  font-size: 13px;
-  border-collapse: collapse;
-}
-
-.doc-table th,
-.doc-table td {
-  padding: 8px 10px;
-  text-align: left;
-  border: 1px solid var(--color-border);
-}
-
-.doc-table th {
-  color: var(--color-body);
-  font-weight: 600;
-  background: var(--color-surface);
-}
-
-/* 실제 앱의 알림 카드(위키 편입 안내)와 같은 모양. 테두리·그림자는 떠 있는 패널 틀이 그린다. */
-.notice {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  height: 100%;
-  padding: 18px 20px;
-  background: var(--color-canvas);
-}
-
-.notice-title {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.notice-text {
-  color: var(--color-body);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.notice-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 6px !important;
-}
-
-.notice-actions > span {
-  justify-content: center;
-}
-
-.notice-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 12px;
-  color: var(--color-body);
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--color-surface-strong);
-  border-radius: 8px;
-}
-
-/* ───── 02: 위키 그래프 + 개념 페이지 ───── */
-.wiki-page {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 100%;
-  padding: 20px;
-  background: var(--color-canvas);
-}
-
-.wiki-kind {
-  align-self: flex-start;
-  padding: 3px 8px;
-  color: var(--color-body);
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--color-surface);
-  border-radius: 6px;
-}
-
-.wiki-title {
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.wiki-section {
-  margin-top: 6px !important;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.wiki-sources {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0;
-  font-size: 13px;
-  list-style: none;
-}
-
-.wiki-sources li::before {
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 8px;
-  background: var(--color-graph-source);
-  border-radius: 50%;
-}
-
-.wiki-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.wiki-tags span {
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  border: 1px solid var(--color-border);
-  border-radius: 99px;
-}
-
-/* ───── 03: 채팅 탭 인용 · 작업 탭 ───── */
-.quote-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0;
-  list-style: none;
-}
-
-.quote-list li {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-}
-
-.quote-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px !important;
-  font-weight: 600;
-}
-
-.quote-text {
-  color: var(--color-body);
-  font-size: 12px !important;
-}
-
-.task-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 0;
-  padding: 20px 18px 12px;
-  overflow: hidden;
-}
-
-.task-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  font-size: 13px;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-}
-
-.task-meta {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.task-title {
-  color: var(--color-body);
-  font-weight: 600;
-}
-
-.task-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.task-chips span {
-  padding: 5px 10px;
-  color: var(--color-primary-weak-foreground);
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--color-primary-weak);
-  border-radius: 99px;
-}
-
-.task-done {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-primary-weak-foreground);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* ───── 04: 멤버 관리 + 팀 스킬 ───── */
+/* ───── 함께하기: 멤버 관리 + 팀 스킬 ───── */
 .team-app {
   display: flex;
   flex-direction: column;
