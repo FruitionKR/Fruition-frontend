@@ -6,7 +6,7 @@ import { AgentResultCard } from "./AgentResultCard";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
-import { canListenToMessage, messageStatusTitle } from "../lib/statusSteps";
+import { messageStatusTitle } from "../lib/statusSteps";
 import { STALLED_QUERY_DETAIL, STALLED_QUERY_RELEASED_DETAIL, STALLED_TURN_TITLE } from "../lib/stalledTurns";
 import { resolveChatTurnPresentation } from "../lib/agentTurn";
 import { formatAnswerMarkdown } from "../lib/answerMarkdown";
@@ -92,7 +92,7 @@ export function AssistantThread({
   const documentCommandAction = presentation.kind === "document-command" ? presentation.action : null;
   const isSearchAnswer = presentation.kind === "query" && presentation.grounded;
   // 완료된 답변만 서버가 음성으로 만든다(진행 중·실패는 409). 작업(계획) 문답은 작업 탭에 있어 여기 오지 않는다.
-  const canListen = Boolean(onToggleSpeech) && canListenToMessage(message);
+  const canListen = Boolean(onToggleSpeech) && message.status === "completed";
   const speechStatus = speechPlayback?.messageId === message.id ? speechPlayback.status : null;
   const resultCards = buildSourceDocumentCards(message, nodes);
   const citationLinks = useCitationLinks({ references: message.references, runId: message.run_id, nodes, onOpenSourceBlocks });

@@ -37,8 +37,3 @@ export function messageStatusTitle(status: string): string {
   if (status === "cancelled") return "요청 취소됨";
   return "요청 처리 종료";
 }
-
-/** 답변 듣기를 보일 메시지. 서버는 완료된 답변만 음성으로 만들고, 되묻기·안내는 답변이 아니다. */
-export function canListenToMessage(message: { status: string; action?: string | null }): boolean {
-  return message.status === "completed" && message.action !== "clarify";
-}

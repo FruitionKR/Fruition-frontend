@@ -1,14 +1,10 @@
 // document-svc(8080) Agent 라우트: 문서 편집 turn, 폴더 정리 계획 run.
 // mode=task(작업 탭)면 문서 없이도 받고, 채팅 답변 갈래 대신 clarify로 되묻는다(2026-10-19 계약).
-// mode=chat(채팅 탭 문서 질문)이면 첨부·열린 문서를 근거로 답만 한다.
 import { state, id, hash, sleep, error, requireWorkspace, findDocument, upsertMessage, addOperationLog, now, isMarkdownDocument, documentAccess, canWriteFolder } from "../state.mjs";
 import { legacyRequiresSource } from "./catalog.mjs";
 
 const TURN_DELAY_MS = 1_500;
 const REFERENCE_DOCUMENT_MAX = 3;
-const CHAT_MODE = "chat";
-const CHAT_TAB_QUESTION_MESSAGE = "작업 탭에서는 문서를 고치거나 만들고 정리할 수 있어요. 문서 내용에 대한 질문과 요약·번역은 채팅 탭에서 물어보세요. 원문은 바뀌지 않았어요.";
-const TASK_TAB_MESSAGE = "채팅 탭에서는 문서 내용을 묻고 답을 받을 수 있어요. 문서를 고치거나 만들고 정리하려면 작업 탭에서 요청해 주세요. 원문은 바뀌지 않았어요.";
 const REFERENCE_DOCUMENTS_INVALID_MESSAGE = "고른 문서 중 사용할 수 없는 문서가 있습니다. 다시 골라 주세요.";
 // 테스트용 시나리오(MOCK_SLOW_TURN=1): 실제 서버처럼 turn을 받자마자 pending 메시지를 남기고 오래 처리한다(입력창 Esc 중지 확인). 기본에는 넣지 않는다.
 const SLOW_TURN = process.env.MOCK_SLOW_TURN === "1";
@@ -392,19 +388,13 @@ function taskResult(workspace, turn, request) {
   if (EDIT_PATTERN.test(message)) {
     return hasDocument ? buildEditResult(request) : clarifyMarkdownDocument();
   }
-  return clarify(CHAT_TAB_QUESTION_MESSAGE, "chat_tab_question");
-}
-
-/** 채팅 탭의 문서 질문(ai mode=chat). 고치고 만들고 정리하는 요청은 실행하지 않고 작업 탭을 안내한다. */
-function chatQuestionResult(workspace, request) {
-  if (EDIT_PATTERN.test(request.message) || CREATE_PATTERN.test(request.message) || ORGANIZE_PATTERN.test(request.message) || /저장/.test(request.message)) {
-    return { action: "clarify", route: route("clarify", "채팅 탭의 변경 요청"), message: TASK_TAB_MESSAGE, clarify_reason: "chat_tab_notice", chat: null, edit: null, generated_markdown: null };
+  if (request.reference_document_ids?.length) {
+    // 실제 AI처럼 편집 문서 근거는 블록 없이(source_block_ids: []) 문서 id만 남긴다.
+    const references = request.reference_document_ids.map((documentId, index) => ({ id: index + 1, rank: index + 1, reference_type: "evidence", source_document_id: documentId, source_block_ids: [], text: findDocument(workspace.id, documentId)?.filename ?? "" }));
+    const citations = references.map((item) => `[${item.rank}]`).join("");
+    return { action: "chat_answer", route: route("chat_answer", "첨부 문서를 근거로 답변"), message: null, chat: { answer: `${referenceDocumentsNote(workspace, request.reference_document_ids)}\n\n첨부한 문서를 읽고 답합니다 ${citations}. mock 답변입니다.` }, edit: null, generated_markdown: null, references };
   }
-  // 실제 AI처럼 편집 문서 근거는 블록 없이(source_block_ids: []) 문서 id만 남긴다.
-  const documentIds = [...new Set([...(request.documentId ? [request.documentId] : []), ...(request.reference_document_ids ?? [])])];
-  const references = documentIds.map((documentId, index) => ({ id: index + 1, rank: index + 1, reference_type: "evidence", source_document_id: documentId, source_block_ids: [], text: findDocument(workspace.id, documentId)?.filename ?? "" }));
-  const citations = references.map((item) => `[${item.rank}]`).join("");
-  return { action: "chat_answer", route: route("chat_answer", "첨부·열린 문서를 근거로 답변"), message: null, chat: { answer: `${documentIds.length}개 문서를 읽고 답합니다 ${citations}. mock 답변입니다.` }, edit: null, generated_markdown: null, references };
+  return clarify("작업 탭은 문서 편집·폴더 정리·스킬 실행을 맡아요. 위키 내용 질문은 채팅 탭에서 해 주세요.");
 }
 
 /** 첨부 문서(reference_document_ids) 검사(document AgentTurnRequest 계약). 문제가 있으면 문구를, 없으면 null을 준다. 보기 권한 문서도 읽을 수 있어 받는다. */
@@ -443,9 +433,7 @@ function completeTurn(workspace, turn, request) {
   const message = request.message;
   const pairId = id("pair");
   let result;
-  if (request.mode === CHAT_MODE) {
-    result = chatQuestionResult(workspace, request);
-  } else if (request.mode === TASK_MODE) {
+  if (request.mode === TASK_MODE) {
     result = withReferenceDocuments(workspace, taskResult(workspace, turn, request), request.reference_document_ids);
   } else if (ORGANIZE_PATTERN.test(message)) {
     result = organizeResult(workspace, turn, message);
@@ -547,7 +535,7 @@ export function registerAgentRoutes(router) {
     // 실제 서버처럼 문서 필드(documentId·baseVersion·editorSnapshot)는 함께 오거나 함께 빠져야 한다.
     const hasDocument = Boolean(request?.documentId);
     if (typeof request?.message !== "string" || !request.message.trim() || hasDocument !== Boolean(request.editorSnapshot)) return error(ctx, 400, "turn 요청 형식이 올바르지 않습니다.");
-    if (request.mode !== undefined && request.mode !== TASK_MODE && request.mode !== CHAT_MODE) return error(ctx, 400, "mode는 task, chat만 받을 수 있습니다.");
+    if (request.mode !== undefined && request.mode !== TASK_MODE) return error(ctx, 400, "mode는 task만 받을 수 있습니다.");
     // 작업 대상 폴더(folder_id): UUID가 아니면 400, 이 워크스페이스의 삭제되지 않은 폴더가 아니면 404(document 계약).
     const folderId = request.folder_id ?? null;
     if (folderId !== null && (typeof folderId !== "string" || !UUID_PATTERN.test(folderId))) return error(ctx, 400, "folder_id 형식이 올바르지 않습니다.");
