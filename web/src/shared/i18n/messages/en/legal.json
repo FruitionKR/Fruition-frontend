@@ -1,1 +1,31 @@
-{}
+{
+  "documents": {
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy"
+  },
+  "page": {
+    "home": "Service home",
+    "effective": "Effective {date}",
+    "previousVersion": "Previous version",
+    "versions": "Versions by effective date",
+    "versionLabel": "Version",
+    "current": " (current)",
+    "body": "{title} text",
+    "changes": "What changed",
+    "koreanOnly": "This document is available only in the original Korean. The Korean text is the governing version."
+  },
+  "footer": {
+    "label": "Service operator information",
+    "links": "Terms and policies",
+    "pending": "[To be confirmed]",
+    "operator": {
+      "company": "Company name",
+      "representative": "Representative",
+      "businessNumber": "Business registration number",
+      "mailOrderNumber": "Mail-order business report number",
+      "address": "Address",
+      "contact": "Contact",
+      "privacyOfficer": "Chief Privacy Officer (CPO)"
+    }
+  }
+}

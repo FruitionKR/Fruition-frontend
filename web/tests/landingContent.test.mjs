@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const { LANDING_DEMO_SLOTS, LANDING_FAQ, LANDING_FIRST_DEMO_ANCHOR, LANDING_NAV, LANDING_TOGETHER, landingNavLabel } = await import("../src/views/landing/model/landingContent.ts");
+const { LANDING_DEMO_SLOTS, LANDING_FAQ, LANDING_FIRST_DEMO_ANCHOR, LANDING_NAV, LANDING_TOGETHER } = await import("../src/views/landing/model/landingContent.ts");
+
+// 화면 문구는 언어별 메시지에 있다. 한국어 문구 검사는 ko를, 구조 검사는 두 언어 모두를 본다.
+const messages = (namespace, locale) => JSON.parse(readFileSync(new URL(`../src/shared/i18n/messages/${locale}/${namespace}.json`, import.meta.url), "utf8"));
+const ko = messages("landing", "ko");
+const en = messages("landing", "en");
+const allChips = () => [...LANDING_DEMO_SLOTS.flatMap((slot) => slot.chips), ...LANDING_TOGETHER.chips];
 
 const UI_DIR = new URL("../src/views/landing/ui/", import.meta.url);
 const read = (name) => readFileSync(new URL(name, UI_DIR), "utf8");
@@ -13,18 +19,22 @@ const listFiles = (extension) => [
     .map((name) => `preview/${name}`)
 ];
 
-test("사이트 설명과 랜딩 제목은 랜딩 문구에 맞는 한국어다", () => {
+test("사이트 설명과 랜딩 제목은 랜딩 문구에 맞는 한국어다(영어 화면은 영어 메타데이터)", () => {
   const appFile = (name) => readFileSync(new URL(`../app/${name}`, import.meta.url), "utf8");
   const layout = appFile("layout.tsx");
   assert.doesNotMatch(layout, /prototype/i);
-  assert.match(layout, /title: "Fruition"/);
-  assert.match(layout, /description: "흩어진 기록을 하나로 모으고 연결해, 쓰이는 지식으로 만드는 공간입니다\."/);
-  assert.match(appFile("page.tsx"), /title: "쌓이는 기록을, 쓰이는 지식으로\. · Fruition"/);
+  assert.match(layout, /title: t\("siteTitle"\), description: t\("siteDescription"\)/);
+  assert.match(appFile("page.tsx"), /title: t\("landingTitle"\)/);
+  const metadata = messages("metadata", "ko");
+  assert.equal(metadata.siteTitle, "Fruition");
+  assert.equal(metadata.siteDescription, "흩어진 기록을 하나로 모으고 연결해, 쓰이는 지식으로 만드는 공간입니다.");
+  assert.equal(metadata.landingTitle, "쌓이는 기록을, 쓰이는 지식으로. · Fruition");
+  assert.doesNotMatch(JSON.stringify(messages("metadata", "en")), /[가-힣]/);
 });
 
 test("헤더 메뉴는 문서 보호만 남고 그 섹션을 가리킨다", () => {
-  assert.deepEqual(LANDING_NAV.map((item) => [item.label, item.href]), [["문서 보호", "#data-handling"]]);
-  assert.equal(landingNavLabel("#data-handling"), "문서 보호");
+  assert.deepEqual(LANDING_NAV.map((item) => [ko.nav[item.key], item.href]), [["문서 보호", "#data-handling"]]);
+  assert.equal(en.nav.dataHandling, "Data protection");
 });
 
 test("첫 화면 다음에 바로 영상이 오고, 장 카드와 영상이 다루는 소개 장은 없다", () => {
@@ -48,13 +58,14 @@ test("페이지 안 앵커는 모두 실제 대상이 있다", () => {
 });
 
 test("영상이 다루지 않는 기능은 사라지지 않고 원래 칩 문구로 남는다", () => {
-  const chips = new Set([...LANDING_DEMO_SLOTS.flatMap((slot) => slot.chips), ...LANDING_TOGETHER.chips]);
+  const chips = new Set(allChips().map((chip) => ko.chips[chip]));
+  assert.deepEqual(allChips().sort(), Object.keys(ko.chips).sort());
   for (const chip of ["회의 받아쓰기 및 AI 회의록", "폴더 관리", "문서와 채팅 위키 편입(Ingest)", "AI 로그 이력", "롤백(History)", "팀 워크스페이스", "멤버 초대", "권한 관리", "안전한 공동 편집", "팀 스킬 공유"]) {
     assert.ok(chips.has(chip), chip);
   }
-  assert.equal(LANDING_TOGETHER.title, "함께하기");
+  assert.equal(ko.together.title, "함께하기");
   assert.equal(LANDING_TOGETHER.english, "BUILD TOGETHER");
-  assert.match(LANDING_TOGETHER.body, /자동 병합·버전 기록/);
+  assert.match(ko.together.body, /자동 병합·버전 기록/);
 });
 
 test("시연 자리는 올리기 → 편입·질의 → AI 편집·스킬 순서이고 제목과 설명이 있다", () => {
@@ -66,9 +77,12 @@ test("시연 자리는 올리기 → 편입·질의 → AI 편집·스킬 순서
       ["03", "edit-skill"]
     ]
   );
-  for (const slot of LANDING_DEMO_SLOTS) {
-    assert.ok(slot.title.length > 0, `${slot.id} 제목`);
-    assert.ok(slot.body.length > 0, `${slot.id} 설명`);
+  for (const locale of [ko, en]) {
+    assert.deepEqual(Object.keys(locale.demo.slots), LANDING_DEMO_SLOTS.map((slot) => slot.id));
+    for (const slot of LANDING_DEMO_SLOTS) {
+      assert.ok(locale.demo.slots[slot.id].title.length > 0, `${slot.id} 제목`);
+      assert.ok(locale.demo.slots[slot.id].body.length > 0, `${slot.id} 설명`);
+    }
   }
 });
 
@@ -84,7 +98,7 @@ test("시연 영상은 틀 크기를 먼저 잡고, 재생 컨트롤은 네이�
   for (const attribute of ["muted", "playsInline", "loop", 'preload="none"', "autoPlay="]) assert.ok(player.includes(attribute), attribute);
   assert.doesNotMatch(player, /<video[^>]*\bcontrols\b/s);
   // 영상마다 설명이 있고, 포스터는 지연 로드한다.
-  assert.match(player, /aria-label=\{video\.label\}/);
+  assert.match(player, /aria-label=\{label\}/);
   assert.match(player, /loading="lazy"/);
 });
 
@@ -139,8 +153,8 @@ test("좁은 화면 메뉴는 헤더 메뉴와 같은 항목을 쓰고 Escape로
 
 test("모든 기능 칩에 앱 SVG 아이콘이 있다", () => {
   const icons = read("LandingIcons.tsx");
-  for (const chip of [...LANDING_DEMO_SLOTS.flatMap((slot) => slot.chips), ...LANDING_TOGETHER.chips]) {
-    assert.ok(icons.includes(`"${chip}":`), `${chip} 아이콘`);
+  for (const chip of allChips()) {
+    assert.match(icons, new RegExp(`^  ${chip}: <`, "m"), `${chip} 아이콘`);
   }
   assert.doesNotMatch(icons, /lucide-react/);
 });
@@ -153,7 +167,7 @@ test("함께하기 화면은 큰 창 하나와 겹쳐 떠 있는 보조 패널 �
 });
 
 test("충돌을 사람이 직접 해결한다는 문구를 쓰지 않는다(자동 병합)", () => {
-  const copy = JSON.stringify([LANDING_TOGETHER, LANDING_FAQ]) + listFiles(".tsx").map(read).join("\n");
+  const copy = JSON.stringify([ko.together, ko.faq, LANDING_FAQ]) + listFiles(".tsx").map(read).join("\n");
   assert.doesNotMatch(copy, /충돌 기록|충돌을 확인|충돌 확인|합칩니다/);
 });
 
@@ -188,4 +202,25 @@ test("제목 단계는 제목1 64px · 제목2 40px · 본문 18px을 넘지 않
   assert.match(css, /--lp-text-h1:\s*clamp\([^)]*4rem\)/);
   assert.match(css, /--lp-text-h2:\s*clamp\([^)]*2\.5rem\)/);
   assert.match(css, /--lp-text-body:\s*clamp\([^)]*1\.125rem\)/);
+});
+
+test("FAQ 순서와 메시지 키가 같다", () => {
+  for (const locale of [ko, en]) assert.deepEqual(Object.keys(locale.faq.items), [...LANDING_FAQ]);
+});
+
+test("랜딩 화면 소스에는 주석 밖의 한국어 문구가 없다(모두 언어별 메시지로 옮겼다)", () => {
+  for (const name of listFiles(".tsx")) {
+    const code = read(name)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    assert.doesNotMatch(code, /[가-힣]/, name);
+  }
+  assert.doesNotMatch(JSON.stringify(en), /[가-힣]/);
+});
+
+test("헤더와 좁은 화면 메뉴에 언어 선택이 있고, 출처 표기가 푸터에 있다", () => {
+  assert.match(read("LandingPage.tsx"), /<LanguageSwitch \/>\s*<ThemeSwitch \/>/);
+  assert.match(read("LandingMobileMenu.tsx"), /<LanguageSwitch \/>/);
+  assert.match(read("LanguageSwitch.tsx"), /useChangeLocale\(\)/);
+  assert.match(read("LandingPage.tsx"), /href="https:\/\/db-ip\.com"/);
 });

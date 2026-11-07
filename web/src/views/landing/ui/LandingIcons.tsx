@@ -5,6 +5,7 @@ import securityAsset from "@/shared/assets/svg/settings/nav-security.svg";
 import workspaceAsset from "@/shared/assets/svg/settings/nav-workspace.svg";
 import { chatBubbleIcon, collectionIcon, lightningIcon, retryIcon, SvgIcon, type SvgAsset } from "@/shared/ui/SvgIcon";
 import { RailArchiveIcon, RailIngestIcon, RailWorkIcon } from "@/widgets/rail-navigation/ui/RailIcons";
+import type { LandingChipId } from "../model/landingContent";
 import styles from "./LandingSections.module.css";
 
 /*
@@ -34,16 +35,16 @@ function Rail({ children, isPadded = false }: { children: ReactNode; isPadded?: 
   );
 }
 
-/** 칩 문구 → 아이콘. 문구는 landingContent.ts의 chips와 같아야 한다(없으면 아이콘 없이 그린다). */
-export const CHIP_ICONS: Readonly<Record<string, ReactNode>> = {
-  "회의 받아쓰기 및 AI 회의록": <Inline src={chatBubbleIcon} />,
-  "폴더 관리": <Rail><RailArchiveIcon className={styles["glyph-svg"]} /></Rail>,
-  "문서와 채팅 위키 편입(Ingest)": <Rail><RailIngestIcon className={styles["glyph-svg"]} /></Rail>,
-  "AI 로그 이력": <Inline src={collectionIcon} isPadded />,
-  "롤백(History)": <Inline src={retryIcon} />,
-  "팀 워크스페이스": <Masked src={workspaceAsset} />,
-  "멤버 초대": <Masked src={membersAsset} />,
-  "권한 관리": <Masked src={securityAsset} />,
-  "안전한 공동 편집": <Rail><RailWorkIcon className={styles["glyph-svg"]} /></Rail>,
-  "팀 스킬 공유": <Inline src={lightningIcon} isPadded />
+/** 칩 키(landingContent.ts의 LandingChipId) → 아이콘 */
+export const CHIP_ICONS: Readonly<Record<LandingChipId, ReactNode>> = {
+  meetingNotes: <Inline src={chatBubbleIcon} />,
+  folders: <Rail><RailArchiveIcon className={styles["glyph-svg"]} /></Rail>,
+  ingest: <Rail><RailIngestIcon className={styles["glyph-svg"]} /></Rail>,
+  aiLog: <Inline src={collectionIcon} isPadded />,
+  history: <Inline src={retryIcon} />,
+  teamWorkspace: <Masked src={workspaceAsset} />,
+  memberInvite: <Masked src={membersAsset} />,
+  permissions: <Masked src={securityAsset} />,
+  coEditing: <Rail><RailWorkIcon className={styles["glyph-svg"]} /></Rail>,
+  teamSkills: <Inline src={lightningIcon} isPadded />
 };

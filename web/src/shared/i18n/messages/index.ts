@@ -16,7 +16,7 @@ import enSettings from "./en/settings.json";
 
 /**
  * 화면 문구. 기능 영역별 네임스페이스 JSON을 언어마다 같은 키로 둔다(키 일치는 tests/i18nMessages.test.mjs가 확인).
- * 새 네임스페이스는 ko·en 파일을 함께 만들고 아래 두 객체에 같은 이름으로 더한다. 규칙은 web/docs/i18n.md 참고.
+ * 새 네임스페이스는 ko·en 파일을 함께 만들고 아래 두 객체에 같은 이름으로 더한다. 규칙은 docs/i18n.md 참고.
  */
 const ko = {
   common: koCommon,

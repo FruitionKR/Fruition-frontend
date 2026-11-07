@@ -1,1 +1,246 @@
-{}
+{
+  "header": {
+    "home": "Fruition home",
+    "nav": "Main menu",
+    "login": "Log in",
+    "menu": "Menu",
+    "theme": "Theme"
+  },
+  "nav": {
+    "dataHandling": "Data protection"
+  },
+  "skipLink": "Skip to content",
+  "theme": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "actions": {
+    "start": "Get started",
+    "explore": "Explore features"
+  },
+  "hero": {
+    "titleLine1": "From piling notes",
+    "titleLine2": "to knowledge you use.",
+    "sub": "Gather, connect, and put your scattered notes to work.",
+    "text": "More than document storage: a space where your notes grow into living knowledge.",
+    "caption": "Documents, wiki, and chat on one screen. Sample screen for illustration."
+  },
+  "demo": {
+    "title": "How notes become knowledge",
+    "features": "{title} features",
+    "slots": {
+      "upload": {
+        "title": "Upload and write",
+        "body": "Upload a PDF and get an editable Markdown document, tables included, so you can keep writing right away."
+      },
+      "connect-ask": {
+        "title": "Ingest and ask",
+        "body": "Ingest documents into the wiki and they connect in a graph. Ask a question and get answers grounded in what the wiki found."
+      },
+      "edit-skill": {
+        "title": "Edit with AI, save as skills",
+        "body": "Describe the change and AI marks suggestions in the text; only the ones you accept are applied. Save frequent requests as skills and reuse them."
+      }
+    }
+  },
+  "videos": {
+    "pdf-upload": {
+      "title": "Upload and convert a PDF",
+      "body": "Choose Convert from the menu and a Markdown version appears next to the original PDF.",
+      "label": "Screen recording: uploading a PDF, converting it to Markdown from the menu, and opening the converted document with its tables"
+    },
+    "document-editor": {
+      "title": "Edit documents",
+      "body": "Type / to add headings, lists, and tables, and select text to change its formatting.",
+      "label": "Screen recording: writing a title in a new note, adding a list and a table from the / menu, and formatting text"
+    },
+    "wiki-ingest": {
+      "title": "Ingest into the wiki",
+      "body": "Pick documents to ingest and watch the progress; when it finishes, new pages join the graph.",
+      "label": "Screen recording: selecting documents to ingest into the wiki and seeing new pages connect in the graph when progress completes"
+    },
+    "wiki-lint": {
+      "title": "Refresh the wiki (Lint)",
+      "body": "Polishes wiki pages and adds newly found concepts and links to the graph.",
+      "label": "Screen recording: running a wiki refresh that polishes pages and grows concepts and links in the graph"
+    },
+    "query": {
+      "title": "Ask questions",
+      "body": "Answers come from what the wiki found; click a number to jump to the supporting passage.",
+      "label": "Screen recording: asking a question with a document open and clicking an answer's number to see the supporting passage"
+    },
+    "ai-edit": {
+      "title": "Edit with AI",
+      "body": "Ask for a change and suggestions appear in the text. Accept one and only that change is applied.",
+      "label": "Screen recording: asking AI for an edit, accepting the suggestion shown in the text, and reviewing the document reorganized into a table"
+    },
+    "skill-create": {
+      "title": "Create a skill",
+      "body": "Write the rules, refine them with AI, and check the result with a test run that leaves your documents unchanged.",
+      "label": "Screen recording: writing skill rules, refining them with AI, checking a test run, and saving the skill"
+    },
+    "skill-run": {
+      "title": "Run a skill",
+      "body": "Call a skill with a / command and it marks suggestions in the text using the same rules.",
+      "label": "Screen recording: running a skill with a / command in a memo and seeing suggestions appear in the text"
+    }
+  },
+  "video": {
+    "failed": "Couldn't load the video.",
+    "play": "Play: {label}",
+    "pause": "Pause: {label}"
+  },
+  "together": {
+    "name": "Collaboration",
+    "title": "Work together",
+    "headline": "Grow personal notes into team knowledge",
+    "body": "Invite teammates to share and build knowledge together in a workspace. Role-based access, automatic merging, and version history let many people safely build and manage knowledge."
+  },
+  "chips": {
+    "meetingNotes": "Meeting transcription and AI minutes",
+    "folders": "Folder management",
+    "ingest": "Ingest documents and chats into the wiki",
+    "aiLog": "AI activity log",
+    "history": "Rollback (History)",
+    "teamWorkspace": "Team workspaces",
+    "memberInvite": "Member invitations",
+    "permissions": "Permission management",
+    "coEditing": "Safe co-editing",
+    "teamSkills": "Shared team skills"
+  },
+  "dataHandling": {
+    "groups": {
+      "store": {
+        "title": "Storage",
+        "headline": "Kept locked"
+      },
+      "access": {
+        "title": "Access",
+        "headline": "Only people you allow can see it"
+      },
+      "ai": {
+        "title": "AI processing",
+        "headline": "Only what AI needs"
+      },
+      "delete": {
+        "title": "Deletion",
+        "headline": "Safe even when you delete"
+      }
+    },
+    "items": {
+      "region": "Documents are stored in the AWS Seoul region.",
+      "encryption": "Original files are locked with a dedicated encryption key, and the database, cache, and server disks are all encrypted, so data on the storage devices can't be read without the keys.",
+      "https": "All data to and from the server travels only over encrypted connections (HTTPS, TLS 1.2 or later), and unencrypted connections are automatically redirected to HTTPS.",
+      "members": "Only workspace members can see documents, and you can grant edit or view access per folder and per document.",
+      "serverCheck": "Permissions are checked on the server, not in the browser.",
+      "privateStorage": "Original files sit in private storage with no public address, and links that open them expire within an hour, so a shared link can't be used for long.",
+      "embedding": "Document analysis for search (embeddings) runs on a model inside Fruition's servers and is never sent outside.",
+      "redaction": "In text-based AI requests, numeric personal data such as resident registration, phone, card, and account numbers is automatically masked before sending.",
+      "autoIngestOff": "Auto-ingest, where AI processes documents as soon as they're uploaded, is off by default and starts only after the workspace owner turns it on.",
+      "trash": "Deleted something by mistake? Restore it from the trash for 30 days; after that, it is permanently deleted along with the original file.",
+      "versions": "Previous file versions left in storage are cleaned up within the following 30 days.",
+      "deletePermission": "Only the document owner and the workspace owner can delete or restore, so other members can't delete things on a whim."
+    }
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "items": {
+      "difference": {
+        "question": "How is this different from a regular AI chat?",
+        "answer": "Your uploaded documents are organized into a wiki, and answers are grounded in that wiki. Each answer shows which documents it referenced."
+      },
+      "sources": {
+        "question": "What can I upload?",
+        "answer": "Upload PDF, Markdown, or TXT documents, or write documents right in the app. Record meetings or upload recordings to keep them as minutes."
+      },
+      "ingest": {
+        "question": "Do uploaded documents go into the wiki right away?",
+        "answer": "Depending on your workspace settings, they're ingested automatically, or you can pick only the documents you want."
+      },
+      "availability": {
+        "question": "Can I try it now?",
+        "answer": "Fruition is in a test run. Depending on the environment, you may need an access code, and features and screens may change."
+      }
+    }
+  },
+  "start": {
+    "title": "Start turning your notes into knowledge"
+  },
+  "footer": {
+    "tagline": "From piling notes to knowledge you use.",
+    "copyright": "© Team Fruition",
+    "geoip": "IP Geolocation by DB-IP"
+  },
+  "preview": {
+    "sidebar": {
+      "search": "Search",
+      "documents": "Docs",
+      "graph": "Graph",
+      "addNote": "New note"
+    },
+    "agent": {
+      "chat": "Chat",
+      "task": "Tasks",
+      "model": "Claude · Web search",
+      "steps": "Steps ⌄",
+      "found": "{count} sources found"
+    },
+    "hero": {
+      "tree": {
+        "research": "Research",
+        "studyPdf": "peer_relations_longitudinal.pdf",
+        "notes": "Research notes",
+        "wiki": "Wiki",
+        "emotion": "Emotion regulation",
+        "study": "Longitudinal study of peer relations",
+        "social": "Social skills"
+      },
+      "crumb": "Research / Research notes",
+      "docTitle": "Research notes",
+      "docText": "This semester's presentation looks at how <link>emotion regulation</link> relates to <link>social skills</link>, drawing on the <link>longitudinal study of peer relations</link>.",
+      "checksTitle": "To check",
+      "checks": {
+        "sample": "Sample size and duration of the study",
+        "scores": "Differences in emotion regulation scores",
+        "figures": "Prepare figures for the talk"
+      },
+      "session": "Presentation prep",
+      "question": "How do peer relations affect emotion regulation?",
+      "answer1": "Higher-quality peer relations go hand in hand with stronger emotion regulation.",
+      "answer2": "Resolving conflicts smoothly was followed by better social skills.",
+      "composer": "Ask the AI agent anything."
+    },
+    "members": {
+      "title": "Members",
+      "description": "Manage the people in this workspace and their roles.",
+      "total": "<strong>{count}</strong> members",
+      "roleFilter": "Role ⌄",
+      "invite": "Invite members",
+      "user": "User",
+      "role": "Role",
+      "more": "More",
+      "people": {
+        "jisoo": {
+          "name": "Jisoo Kim",
+          "initial": "J"
+        },
+        "minsoo": {
+          "name": "Minsoo Park",
+          "initial": "M"
+        },
+        "seoyeon": {
+          "name": "Seoyeon Lee",
+          "initial": "S"
+        }
+      }
+    },
+    "skills": {
+      "title": "Team skills",
+      "team": "Team",
+      "meetingSummary": "Summarize meeting notes",
+      "weeklyReport": "Draft weekly report",
+      "fileOrganize": "Organize folders"
+    }
+  }
+}
