@@ -49,6 +49,7 @@ export function useWikiPageEdit({
   onReplaced: (latest: WikiPageDetailResponse) => void;
 }) {
   const t = useTranslations("wiki.pageEditing");
+  const tShared = useTranslations("shared");
   const [state, setState] = useState<WikiPageEditState>({ mode: "view" });
   const pageId = page?.id ?? null;
   // 페이지를 바꾸면 편집 중이던 내용은 버린다(다른 페이지의 revision으로 저장하면 안 된다).
@@ -82,15 +83,15 @@ export function useWikiPageEdit({
     } catch (error) {
       if (activePageIdRef.current !== targetPageId) return;
       setState((current) => current.mode === "edit" && current.conflict
-        ? { ...current, conflict: { currentRevision, latest: null, isLoading: false, loadError: getErrorMessage(error, t("latestLoadFailed")) } }
+        ? { ...current, conflict: { currentRevision, latest: null, isLoading: false, loadError: getErrorMessage(error, t("latestLoadFailed"), tShared) } }
         : current);
     }
-  }, [t]);
+  }, [t, tShared]);
 
   const describeSaveError = useCallback((error: unknown) => {
     const code = getWikiPageSaveErrorCode(error);
-    return code ? t(`saveError.${code}`) : getErrorMessage(error, t("saveError.fallback"));
-  }, [t]);
+    return code ? t(`saveError.${code}`) : getErrorMessage(error, t("saveError.fallback"), tShared);
+  }, [t, tShared]);
 
   const saveSession = useCallback(async (targetPageId: string, pending: WikiPageEditSession) => {
     const session = prepareWikiPageSave(pending);

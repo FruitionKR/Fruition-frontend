@@ -136,6 +136,47 @@
     "upToDate": {
       "title": "Wiki 최신 상태",
       "message": "Wiki가 이미 최신 상태입니다."
+    },
+    "server": {
+      "title": "알림",
+      "message": "{type} 알림이 도착했습니다."
     }
+  },
+  "lintPermissionHint": "위키 최신화 권한이 없어요",
+  "lintProgress": {
+    "elapsed": "{minutes}분째 실행 중",
+    "running": "위키 최신화 · {elapsed}",
+    "pending": "위키 최신화 진행 중"
+  },
+  "reflect": {
+    "label": {
+      "changed": "수정됨",
+      "notIncluded": "미편입",
+      "retry": "편입 실패"
+    },
+    "description": {
+      "notIncluded": "위키에 아직 편입하지 않은 문서",
+      "changed": "위키 편입 후 수정된 문서",
+      "retry": "위키 편입에 실패한 문서"
+    }
+  },
+  "ingestBlock": {
+    "notMarkdown": "Markdown 문서만 위키에 편입할 수 있어요",
+    "pdfConverted": "이미 Markdown으로 변환했어요. 변환된 Markdown 문서를 선택해 주세요",
+    "pdfConverting": "Markdown으로 변환하는 중이에요",
+    "conversionFailed": "Markdown 변환에 실패한 문서예요",
+    "processing": "처리 중이라 지금은 편입할 수 없어요",
+    "upToDate": "이미 최신 내용이 위키에 반영돼 있어요"
+  },
+  "workList": {
+    "ingest": "위키 편입",
+    "lint": "위키 최신화",
+    "convert": "PDF → MD 변환",
+    "restore": "롤백"
+  },
+  "export": {
+    "skipped": "동일한 내용의 원문 문서가 있어 기존 문서를 열었습니다.",
+    "savedCanIngest": "채팅을 원문 문서로 저장했습니다. ‘위키 편입’을 누르면 채팅 답변 근거로 쓸 수 있게 위키에 편입합니다.",
+    "saved": "채팅을 원문 문서로 저장했습니다. 위키에 편입하려면 ‘위키 편입’에서 문서를 선택해 주세요."
   }
 }

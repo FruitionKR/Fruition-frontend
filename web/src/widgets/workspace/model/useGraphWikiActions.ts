@@ -24,6 +24,7 @@ export function useGraphWikiActions({
   refreshBackendData: () => Promise<void>;
 }) {
   const t = useTranslations("wiki.notifications");
+  const tShared = useTranslations("shared");
   const [wikiActionPending, setWikiActionPending] = useState<"ingest" | "lint" | null>(null);
   // 진행 중인 편입 요청의 대상 문서. 채팅 안내 버튼이 "이 노트"가 편입 중인지 구분하는 데 쓴다.
   const [ingestTargetIds, setIngestTargetIds] = useState<readonly string[]>([]);
@@ -56,7 +57,7 @@ export function useGraphWikiActions({
     // 실패 사유는 백엔드 원문을 그대로 보여준다. 개수만 알려주면 원인을 알 수 없다.
     const failures = results.flatMap((result, index) =>
       result.status === "rejected"
-        ? [t("ingestRequest.failureItem", { filename: targets[index].filename, reason: getErrorMessage(result.reason, t("ingestPrompt.requestFailed")) })]
+        ? [t("ingestRequest.failureItem", { filename: targets[index].filename, reason: getErrorMessage(result.reason, t("ingestPrompt.requestFailed"), tShared) })]
         : []
     );
     const startedCount = targets.length - failures.length;
@@ -119,6 +120,7 @@ export function useGraphWikiActions({
       void refreshBackendData();
       publishNotice({
         operation: { type: "lint", id: operationId },
+        notificationKey: "lint",
         kind: "completed",
         title: t("lint.completedTitle"),
         message: t("lint.completedMessage", { count: changedPageCount })
@@ -128,7 +130,7 @@ export function useGraphWikiActions({
         kind: "failed",
         notificationKey: "lintRequestFailed",
         title: t("lint.failedTitle"),
-        message: getErrorMessage(error, t("lint.requestFailed"))
+        message: getErrorMessage(error, t("lint.requestFailed"), tShared)
       });
     } finally {
       setWikiActionPending(null);

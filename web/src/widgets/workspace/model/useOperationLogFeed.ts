@@ -24,6 +24,9 @@ const LOG_POLL_INTERVAL_MS = 5_000;
  */
 export function useOperationLogFeed(isActive: boolean) {
   const t = useTranslations("workspace.logs");
+  const tShared = useTranslations("shared");
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   // 언어가 바뀌어도 목록을 다시 받지 않도록 오류 문구는 ref로 최신 번역기를 읽는다.
   const tRef = useRef(t);
   tRef.current = t;
@@ -70,7 +73,7 @@ export function useOperationLogFeed(isActive: boolean) {
       if (preferredOperationId) setChosenOperationId(preferredOperationId);
     } catch (error: unknown) {
       if (requestIdRef.current === requestId && !silent) {
-        setErrorMessage(getErrorMessage(error, tRef.current("loadFailed")));
+        setErrorMessage(getErrorMessage(error, tRef.current("loadFailed"), tSharedRef.current));
       }
     } finally {
       if (silent) silentPollInFlightRef.current = false;
@@ -130,7 +133,7 @@ export function useOperationLogFeed(isActive: boolean) {
       setNextCursor(response.next_cursor);
     } catch (error: unknown) {
       if (requestIdRef.current === requestId) {
-        setLoadMoreErrorMessage(getErrorMessage(error, tRef.current("loadMoreFailed")));
+        setLoadMoreErrorMessage(getErrorMessage(error, tRef.current("loadMoreFailed"), tSharedRef.current));
       }
     } finally {
       if (requestIdRef.current === requestId) setIsLoadingMore(false);

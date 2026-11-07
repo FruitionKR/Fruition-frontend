@@ -1,4 +1,5 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 import type {
   OperationLogDetail,
   OperationLogListResponse,
@@ -14,7 +15,7 @@ export async function fetchOperationLogs(
   const response = await apiFetch(
     `${workspacePath(getWorkspaceId(), "ai-operation-logs")}${buildOperationLogQuery(query)}`
   );
-  return parseJsonOrThrow(response, "로그를 불러오지 못했습니다.");
+  return parseJsonOrThrow(response, sharedText("documentRequests.operationLog.load", "로그를 불러오지 못했습니다."));
 }
 
 /** AI 작업 로그 상세. ingest·lint는 Wiki 제목·유형, 그 외에는 변경분을 포함한다. */
@@ -22,7 +23,7 @@ export async function fetchOperationLogDetail(operationId: string): Promise<Oper
   const response = await apiFetch(
     workspacePath(getWorkspaceId(), "ai-operation-logs", operationId)
   );
-  return parseJsonOrThrow(response, "로그 상세를 불러오지 못했습니다.");
+  return parseJsonOrThrow(response, sharedText("documentRequests.operationLog.detail", "로그 상세를 불러오지 못했습니다."));
 }
 
 /** 복구 실행에 필요한 현재 계획과 서명 토큰을 가져온다. */
@@ -30,7 +31,7 @@ export async function fetchRestorePreview(operationId: string): Promise<RestoreP
   const response = await apiFetch(
     workspacePath(getWorkspaceId(), "ai-operation-logs", operationId, "restore-preview")
   );
-  return parseJsonOrThrow(response, "롤백 대상을 확인하지 못했습니다.");
+  return parseJsonOrThrow(response, sharedText("documentRequests.operationLog.restorePreview", "롤백 대상을 확인하지 못했습니다."));
 }
 
 /** 미리보기에서 받은 토큰으로 작업을 롤백한다. */
@@ -43,5 +44,5 @@ export async function restoreOperation(operationId: string, previewToken: string
       body: JSON.stringify({ preview_token: previewToken })
     }
   );
-  return parseJsonOrThrow(response, "롤백 요청에 실패했습니다.");
+  return parseJsonOrThrow(response, sharedText("documentRequests.operationLog.restore", "롤백 요청에 실패했습니다."));
 }

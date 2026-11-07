@@ -1,5 +1,6 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import type { DocumentPermission } from "@/entities/document/model/document";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 type PermissionResponse = { access: DocumentPermission | null };
 
@@ -10,7 +11,7 @@ async function putPermission(path: string, access: DocumentPermission | null): P
     body: JSON.stringify({ access })
   });
   // 403 DOCUMENT_WRITE_FORBIDDEN은 ApiError.code로 전달되고, 호출부가 describePermissionError로 문구를 정한다.
-  return parseJsonOrThrow<PermissionResponse>(response, "권한을 변경하지 못했습니다.");
+  return parseJsonOrThrow<PermissionResponse>(response, sharedText("documentRequests.document.permissionSaveFailed", "권한을 변경하지 못했습니다."));
 }
 
 /** 문서 권한 설정. 문서 소유자·OWNER만. null이면 설정을 지워 상위 폴더·기본값을 따른다. */

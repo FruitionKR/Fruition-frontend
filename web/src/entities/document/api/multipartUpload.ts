@@ -1,6 +1,7 @@
 import { apiFetch, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
 import { putPartWithIdleTimeout } from "@/entities/document/api/partUpload";
 import type { DocumentUploadResponse } from "@/entities/document/model/document";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 type Start = { ticket: string; part_size: number; part_count: number };
 type PartUrl = { part_number: number; url: string };
@@ -38,7 +39,7 @@ export async function uploadDirectMultipart<T>(
 ): Promise<T> {
   const { signal, onProgress, headers = {} } = options;
   const throwIfCancelled = () => {
-    if (signal?.aborted) throw new Error("파일 업로드가 중단되었습니다.");
+    if (signal?.aborted) throw new Error(sharedText("documentRequests.upload.cancelled", "파일 업로드가 중단되었습니다."));
   };
   throwIfCancelled();
   const started = await apiFetch(endpoint, {
@@ -64,7 +65,7 @@ export async function uploadDirectMultipart<T>(
     if (!Number.isSafeInteger(upload.part_size) || upload.part_size < 1
         || !Number.isSafeInteger(upload.part_count) || upload.part_count < 1 || upload.part_count > 10000
         || upload.part_count !== Math.ceil(file.size / upload.part_size)) {
-      throw new Error("파일 분할 정보가 올바르지 않습니다.");
+      throw new Error(sharedText("documentRequests.upload.invalidParts", "파일 분할 정보가 올바르지 않습니다."));
     }
     for (let first = 1; first <= upload.part_count; first += 3) {
       const count = Math.min(3, upload.part_count - first + 1);
@@ -74,7 +75,7 @@ export async function uploadDirectMultipart<T>(
       });
       const { parts } = await parseJsonOrThrow<{ parts: PartUrl[] }>(batch, ERROR_MESSAGES.uploadFailed);
       if (parts.length !== count || parts.some((part, index) => part.part_number !== first + index)) {
-        throw new Error("파일 분할 정보가 올바르지 않습니다.");
+        throw new Error(sharedText("documentRequests.upload.invalidParts", "파일 분할 정보가 올바르지 않습니다."));
       }
       // 한 조각이 실패해도 이미 전송 중인 조각이 종료된 후 abort한다.
       const results = await Promise.allSettled(parts.map(async part => {
@@ -88,7 +89,7 @@ export async function uploadDirectMultipart<T>(
                 body: JSON.stringify({ ticket: upload.ticket, first_part: part.part_number, count: 1 })
               });
               const { parts: renewed } = await parseJsonOrThrow<{ parts: PartUrl[] }>(refreshed, ERROR_MESSAGES.uploadFailed);
-              if (renewed.length !== 1 || renewed[0].part_number !== part.part_number) throw new Error("파일 분할 정보가 올바르지 않습니다.");
+              if (renewed.length !== 1 || renewed[0].part_number !== part.part_number) throw new Error(sharedText("documentRequests.upload.invalidParts", "파일 분할 정보가 올바르지 않습니다."));
               part = renewed[0];
             }
             // 진행이 멈춘 시간만 제한한다. 제한이 없으면 블랙홀이 된 조각에서 업로드 전체가 매달린다.
@@ -100,7 +101,7 @@ export async function uploadDirectMultipart<T>(
               return;
             }
             if (response.status < 500 && response.status !== 429) {
-              throw new Error(`파일 조각 전송 실패 (${response.status})`);
+              throw new Error(sharedText("documentRequests.upload.partStatus", `파일 조각 전송 실패 (${response.status})`, { status: response.status }));
             }
           } catch (error) {
             if (attempt === 2 || controller.signal.aborted) throw error;
@@ -109,7 +110,7 @@ export async function uploadDirectMultipart<T>(
           if (onProgress) reportProgress(part.part_number, 0);
           if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
         }
-        throw new Error("파일 조각 전송에 실패했습니다.");
+        throw new Error(sharedText("documentRequests.upload.partFailed", "파일 조각 전송에 실패했습니다."));
       }));
       const failed = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
       if (failed) throw failed.reason;

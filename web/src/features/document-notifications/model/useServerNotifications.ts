@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { fetchNotifications } from "../api/notifications";
 import { publishNotice } from "./noticeBus";
 import { selectUnseenNotifications, toNoticePayload } from "./serverNotifications";
@@ -15,6 +16,10 @@ const PAGE_LIMIT = 50;
  */
 export function useServerNotifications() {
   const seenIdsRef = useRef<Set<string> | null>(null);
+  const t = useTranslations("wiki.notifications.server");
+  // 폴링 effect를 언어가 바뀔 때마다 다시 시작하지 않도록 최신 번역 함수를 ref로 읽는다.
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +36,7 @@ export function useServerNotifications() {
       }
       if (cancelled) return;
       const seen = seenIdsRef.current;
-      if (seen) selectUnseenNotifications(seen, notifications).forEach((notification) => publishNotice(toNoticePayload(notification)));
+      if (seen) selectUnseenNotifications(seen, notifications).forEach((notification) => publishNotice(toNoticePayload(notification, tRef.current)));
       seenIdsRef.current = new Set([...(seen ?? []), ...notifications.map((notification) => notification.id)]);
       schedule();
     }

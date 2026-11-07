@@ -136,6 +136,47 @@
     "upToDate": {
       "title": "Wiki is up to date",
       "message": "The wiki is already up to date."
+    },
+    "server": {
+      "title": "Notification",
+      "message": "You have a new {type} notification."
     }
+  },
+  "lintPermissionHint": "You don’t have permission to refresh the wiki",
+  "lintProgress": {
+    "elapsed": "running for {minutes, plural, one {# minute} other {# minutes}}",
+    "running": "Refreshing wiki · {elapsed}",
+    "pending": "Wiki refresh in progress"
+  },
+  "reflect": {
+    "label": {
+      "changed": "Edited",
+      "notIncluded": "Not in wiki",
+      "retry": "Failed"
+    },
+    "description": {
+      "notIncluded": "Not added to the wiki yet",
+      "changed": "Edited since it was added to the wiki",
+      "retry": "Couldn't be added to the wiki"
+    }
+  },
+  "ingestBlock": {
+    "notMarkdown": "Only Markdown documents can be added to the wiki",
+    "pdfConverted": "Already converted to Markdown. Select the converted Markdown document",
+    "pdfConverting": "Converting to Markdown",
+    "conversionFailed": "Markdown conversion failed for this document",
+    "processing": "Processing, so it can't be added right now",
+    "upToDate": "The latest content is already in the wiki"
+  },
+  "workList": {
+    "ingest": "Add to wiki",
+    "lint": "Refresh wiki",
+    "convert": "PDF → MD conversion",
+    "restore": "Rollback"
+  },
+  "export": {
+    "skipped": "A source document with the same content already exists, so we opened it.",
+    "savedCanIngest": "Saved the chat as a source document. Click ‘Add to wiki’ to add it to the wiki so chat answers can cite it.",
+    "saved": "Saved the chat as a source document. To add it to the wiki, select it under ‘Add to wiki’."
   }
 }

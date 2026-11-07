@@ -3,7 +3,7 @@
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -207,12 +207,18 @@ function OperationDetailBody({
  * 상단 탭 바(GNB)는 웹 화면이라 적용하지 않는다.
  * feed가 없으면 선택된 작업 1건만 행으로 보여준다.
  */
+/** 롤백 실패 문구를 지금 언어로 고를 번역 함수(workspace.logMessages·shared). */
+type RestoreFailureText = {
+  t: NonNullable<Parameters<typeof restoreFailureMessage>[2]>;
+  tShared: NonNullable<Parameters<typeof restoreFailureMessage>[3]>;
+};
+
 /** 실패 안내 문구. 문서가 없어진 실패면 문서가 휴지통에 있는지 영구 삭제됐는지 확인해 이유를 말한다. */
-async function describeRestoreFailure(error: unknown, detail: OperationLogDetail | null): Promise<string> {
+async function describeRestoreFailure(error: unknown, detail: OperationLogDetail | null, { t, tShared }: RestoreFailureText): Promise<string> {
   const documentId = detail ? restoreTargetDocumentId(detail) : null;
-  if (!documentId && isPurgedIngestRestore(error, detail)) return restoreFailureMessage(error, "purged");
-  if (!documentId || !shouldCheckRestoreDocument(error, documentId)) return restoreFailureMessage(error, null);
-  return restoreFailureMessage(error, await fetchRestoreDocumentLocation(documentId));
+  if (!documentId && isPurgedIngestRestore(error, detail)) return restoreFailureMessage(error, "purged", t, tShared);
+  if (!documentId || !shouldCheckRestoreDocument(error, documentId)) return restoreFailureMessage(error, null, t, tShared);
+  return restoreFailureMessage(error, await fetchRestoreDocumentLocation(documentId), t, tShared);
 }
 
 export function LogView({
@@ -229,6 +235,10 @@ export function LogView({
   onRestoreComplete: (operationId: string) => Promise<void>;
 }) {
   const t = useTranslations("workspace.logs");
+  const tMessages = useTranslations("workspace.logMessages");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
+  const restoreFailureText = { t: tMessages, tShared };
   const [detail, setDetail] = useState<OperationLogDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -268,16 +278,16 @@ export function LogView({
       })
       .catch((error: unknown) => {
         if (requestIdRef.current === requestId) {
-          setErrorMessage(getErrorMessage(error, t("detailLoadFailed")));
+          setErrorMessage(getErrorMessage(error, t("detailLoadFailed"), tShared));
         }
       });
-  }, [operationId, t]);
+  }, [operationId, t, tShared]);
 
   const documentTitle = detail?.target_display_name ?? (detail?.target_document_id
     ? documentTitles.get(detail.target_document_id)
     : undefined);
   const description = detail
-    ? formatOperationLogDescription(detail, documentTitle)
+    ? formatOperationLogDescription(detail, documentTitle, tMessages("noDetail"))
     : "";
   // 위키 직접 편집(wiki_edit)은 서버가 되돌리기를 지원하지 않는다(400, document #130).
   const canRestore = detail != null
@@ -303,11 +313,11 @@ export function LogView({
         operationId: detail.operation_id,
         previewToken: preview.preview_token,
         message: preview.document
-          ? documentRestoreMessage(description, preview.document, detail.changes)
+          ? documentRestoreMessage(description, preview.document, detail.changes, tMessages)
           : t("restore.affectedPages", { description, count: affectedCount })
       });
     } catch (error: unknown) {
-      const message = await describeRestoreFailure(error, detail);
+      const message = await describeRestoreFailure(error, detail, restoreFailureText);
       if (requestIdRef.current !== requestId) return;
       publishNotice({ kind: "failed", notificationKey: "restoreRequestFailed", title: t("restore.failedTitle"), message });
       setIsRestoring(false);
@@ -330,13 +340,14 @@ export function LogView({
       publishNotice({
         // 즉시 끝난 경우에만 작업 id로 로그 폴링의 완료 알림과 중복을 거른다. 시작 안내는 완료 알림과 별개다.
         operation: { type: "restore", id: result.status === "succeeded" ? result.operation_id : undefined },
+        notificationKey: "restore",
         kind: "completed",
         title: t("restore.requestedTitle"),
         message: result.status === "succeeded" ? t("restore.done") : t("restore.started")
       });
       await onRestoreComplete(restoreOperationId);
     } catch (error: unknown) {
-      publishNotice({ kind: "failed", notificationKey: "restoreRequestFailed", title: t("restore.failedTitle"), message: await describeRestoreFailure(error, detail) });
+      publishNotice({ kind: "failed", notificationKey: "restoreRequestFailed", title: t("restore.failedTitle"), message: await describeRestoreFailure(error, detail, restoreFailureText) });
     } finally {
       // 실행 중 다른 작업으로 이동해 새 요청이 시작됐다면, 늦은 해제가 새 작업의 "처리 중" 표시를 풀지 않게 한다.
       if (requestIdRef.current === requestId) setIsRestoring(false);
@@ -346,7 +357,7 @@ export function LogView({
   // feed가 없으면 상세 응답(목록 항목 필드 포함)을 행 1개로 쓴다.
   const allItems = feed?.items ?? (detail ? [detail] : []);
   const visibleItems = filterOperationLogsByType(allItems, typeFilter);
-  const groups = groupOperationLogsByDate(visibleItems);
+  const groups = groupOperationLogsByDate(visibleItems, undefined, locale);
   const rollbackDisabledReason = !detail
     ? t("restore.selectFirst")
     : canRestore ? undefined : t("restore.notAllowed");
@@ -462,15 +473,15 @@ export function LogView({
                             <span className={styles["row-title-line"]}>
                               <span className={styles["row-heading"]}>
                                 <span className={styles["row-date"]}>
-                                  {formatOperationLogDateTime(item.created_at)}
+                                  {formatOperationLogDateTime(item.created_at, undefined, locale)}
                                 </span>
                                 <span className={styles["row-divider"]} aria-hidden />
-                                <span className={styles["row-title"]}>{formatOperationLogTitle(item)}</span>
+                                <span className={styles["row-title"]}>{formatOperationLogTitle(item, (type) => t(`types.${type}`))}</span>
                               </span>
                               {isSelected && <span className={styles["row-dot"]} aria-hidden />}
                             </span>
                             <span className={styles["row-description"]}>
-                              {formatOperationLogDescription(item, documentTitleOf(item))}
+                              {formatOperationLogDescription(item, documentTitleOf(item), tMessages("noDetail"))}
                             </span>
                             <span className={styles["row-meta"]}>
                               <span className={styles["row-meta-info"]}>
@@ -486,7 +497,7 @@ export function LogView({
                                   </span>
                                 )}
                               </span>
-                              <span className={styles["row-time"]}>{formatRelativeTime(item.created_at)}</span>
+                              <span className={styles["row-time"]}>{formatRelativeTime(item.created_at, tShared)}</span>
                             </span>
                           </button>
                           {isSelected && (

@@ -30,11 +30,12 @@ export function GraphRailActions({
   onLint: () => void;
 }) {
   const t = useTranslations("documents.wiki");
+  const tWiki = useTranslations("wiki");
   const { isLintActive, isLintEnabled, lintHint, isMaintenanceStatusError, refetchMaintenanceStatus } =
     useGraphWikiStatus({ documents, pending });
   const { canIngest, canLint } = useWikiActionPermissions();
-  const ingestGate = getWikiActionGate(canIngest, "ingest");
-  const lintGate = getWikiActionGate(canLint, "lint");
+  const ingestGate = getWikiActionGate(canIngest, "ingest", tWiki);
+  const lintGate = getWikiActionGate(canLint, "lint", tWiki);
   const isIngestDisabled = !isSelecting && (ingestGate.isBlocked || pending !== null || isLintActive);
   // 말풍선 보조줄: 선택 중이면 취소 단축키, 막혀 있으면 짧은 사유
   const ingestHint = isSelecting

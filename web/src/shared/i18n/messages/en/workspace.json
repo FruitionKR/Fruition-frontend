@@ -223,5 +223,73 @@
         "permissionRequired": "Browser notification permission is required."
       }
     }
+  },
+  "logMessages": {
+    "noDetail": "No details",
+    "restoreFailed": "Couldn't request the rollback.",
+    "restorePurged": "Changes to a permanently deleted document can't be rolled back.",
+    "restoreTrashed": "The document is in the trash, so it can't be rolled back. Restore it from the trash and try again.",
+    "restoreMissing": "The document can't be found, so it can't be rolled back.",
+    "documentRestore": "Rolls {description} back from version {from} to version {to}.",
+    "documentRestoreLaterEdits": "{message} Edits saved after this operation (your own edits, other members' edits, and other AI operations) will also be lost."
+  },
+  "notificationsView": {
+    "title": "Notifications",
+    "subtitle": "Your notification list.",
+    "tabsLabel": "Notification type",
+    "tabs": {
+      "workspace": "Workspace",
+      "task": "Tasks"
+    },
+    "empty": {
+      "workspace": "No workspace notifications.",
+      "task": "No task notifications."
+    },
+    "changeCount": "{count, plural, one {# change} other {# changes}}",
+    "unread": "Unread",
+    "tabUnread": "Has unread notifications",
+    "openLog": "View details in logs",
+    "readAll": "Mark all as read",
+    "loading": "Loading notifications.",
+    "readFailedTitle": "Couldn't mark as read",
+    "readFailed": "Couldn't mark the notification as read.",
+    "membersFailed": "Couldn't load the member list.",
+    "tasksFailed": "Couldn't load task notifications.",
+    "taskLabel": {
+      "ingest": "Document processing",
+      "lint": "Wiki refresh",
+      "restore": "Rollback",
+      "document_edit": "AI edit",
+      "wiki_edit": "Direct wiki edit"
+    },
+    "taskStatus": {
+      "succeeded": "completed",
+      "partially_succeeded": "partially completed",
+      "failed": "failed",
+      "conflict": "conflict"
+    },
+    "taskTitle": "{label} {status}",
+    "taskSentence": {
+      "succeeded": "{label} completed.",
+      "partially_succeeded": "{label} partially completed.",
+      "failed": "{label} failed.",
+      "conflict": "{label} ended in a conflict."
+    },
+    "targetDocument": "Document: {name}",
+    "summary": "Summary: {summary}",
+    "changedDocuments": "{count, plural, one {# document changed} other {# documents changed}}",
+    "memberJoinedTitle": "New member joined",
+    "memberJoined": "{name} joined the workspace.",
+    "memberRole": "Role: {role}",
+    "roles": {
+      "owner": "Owner",
+      "member": "Member"
+    },
+    "time": {
+      "now": "Now",
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago"
+    }
   }
 }

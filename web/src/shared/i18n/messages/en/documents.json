@@ -68,7 +68,16 @@
       "openConverted": "Click to open the converted document.",
       "openSource": "Click to open the source PDF."
     },
-    "rootTitle": "Documents"
+    "rootTitle": "Documents",
+    "skipReason": {
+      "generatedMove": "Auto-generated items can't be moved",
+      "generatedDelete": "Auto-generated items can't be deleted",
+      "uploadPending": "Upload isn't finished yet",
+      "noEditPermission": "You don't have edit permission",
+      "noDeletePermission": "You don't have permission to delete",
+      "intoOwnSubtree": "Can't move a folder into itself or its subfolders",
+      "duplicateName": "An item with the same name already exists in the destination folder"
+    }
   },
   "move": {
     "title": "Move {label}",
@@ -226,7 +235,8 @@
       "uploadButton": "Choose image",
       "uploadPlaceholder": "Choose an image file to upload",
       "confirm": "Confirm",
-      "captionPlaceholder": "Add a caption"
+      "captionPlaceholder": "Add a caption",
+      "externalBlockedMessage": "For security, external image URLs can't be added. Download the image and upload it directly."
     },
     "slashMenu": {
       "textGroup": "Text",
@@ -359,5 +369,12 @@
         "skipped": "{count} skipped"
       }
     }
+  },
+  "search": {
+    "label": "Search chats and projects",
+    "resultsLabel": "Document search results",
+    "more": "{count, plural, one {# more result} other {# more results}}. Try a more specific search.",
+    "noResults": "No results found.",
+    "empty": "No documents to show."
   }
 }

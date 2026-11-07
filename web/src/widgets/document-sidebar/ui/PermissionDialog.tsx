@@ -32,6 +32,7 @@ export function PermissionDialog({
   onClose: () => void;
 }) {
   const t = useTranslations("documents.permission");
+  const tShared = useTranslations("shared");
   const [access, setAccess] = useState<DocumentPermission | null>(target.permission);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export function PermissionDialog({
       onClose();
     } catch (error) {
       // 403은 서버 원문 대신 누가 바꿀 수 있는지 설명한다.
-      setErrorMessage(isWriteForbiddenError(error) ? t("forbidden") : getErrorMessage(error, t("saveFailed")));
+      setErrorMessage(isWriteForbiddenError(error) ? t("forbidden") : getErrorMessage(error, t("saveFailed"), tShared));
       setIsSaving(false);
     }
   }

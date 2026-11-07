@@ -145,7 +145,7 @@
     },
     "mergeConfirm": {
       "title": "Group into a new folder?",
-      "description": "A new folder “New document group” will be created containing “{source}” and “{target}”. You can rename the folder later.",
+      "description": "A new folder “{folder}” will be created containing “{source}” and “{target}”. You can rename the folder later.",
       "confirm": "Create folder"
     }
   },
@@ -303,5 +303,53 @@
   "autoApproval": {
     "loadFailed": "We couldn't load the auto-approval settings.",
     "saveFailed": "We couldn't save the auto-approval settings."
+  },
+  "documentRequests": {
+    "operationLog": {
+      "load": "Couldn't load the logs.",
+      "detail": "Couldn't load the log details.",
+      "restorePreview": "Couldn't check what will be rolled back.",
+      "restore": "Couldn't request the rollback."
+    },
+    "notifications": {
+      "load": "Couldn't load notifications.",
+      "markRead": "Couldn't mark the notification as read.",
+      "markAllRead": "Couldn't mark all notifications as read."
+    },
+    "wikiLint": {
+      "status": "Couldn't load the wiki status.",
+      "request": "Couldn't request a wiki refresh.",
+      "runStatus": "Couldn't load the wiki refresh status.",
+      "failed": "The wiki refresh failed.",
+      "timeout": "The wiki refresh took too long."
+    },
+    "document": {
+      "nameConflict": "An item named ''{filename}'' already exists in this folder. Please use a different name.",
+      "notFound": "The document can't be found. Please refresh the list.",
+      "uploadFolderMissing": "The upload folder can't be found.",
+      "workspaceChanged": "The workspace changed, so adding to the wiki was stopped.",
+      "ingestStartFailed": "Couldn't start adding to the wiki.",
+      "permissionSaveFailed": "Couldn't change the permission.",
+      "trashLoad": "Couldn't load the trash.",
+      "restore": "Couldn't restore the document.",
+      "contentConflict": "Another edit was saved first.",
+      "versionsLoad": "Couldn't load the version history.",
+      "editLockHolder": "{name} is editing."
+    },
+    "upload": {
+      "cancelled": "The file upload was stopped.",
+      "invalidParts": "The file part information is invalid.",
+      "partStatus": "Couldn't send a file part ({status})",
+      "partFailed": "Couldn't send a file part.",
+      "partSendFailed": "Couldn't send a file part.",
+      "partStalled": "Sending a file part stopped responding, so it was stopped."
+    },
+    "tree": {
+      "load": "Couldn't load the folder list.",
+      "invalidResponse": "The folder list response is invalid.",
+      "folderCreate": "Couldn't create the folder.",
+      "stale": "The item was moved or deleted. Please refresh the list.",
+      "mutate": "Couldn't change the folder or document."
+    }
   }
 }

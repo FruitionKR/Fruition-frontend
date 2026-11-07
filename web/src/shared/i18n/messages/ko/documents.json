@@ -68,7 +68,16 @@
       "openConverted": "클릭하면 변환본을 엽니다.",
       "openSource": "클릭하면 원본 PDF를 엽니다."
     },
-    "rootTitle": "문서"
+    "rootTitle": "문서",
+    "skipReason": {
+      "generatedMove": "자동 생성 항목은 옮길 수 없습니다",
+      "generatedDelete": "자동 생성 항목은 삭제할 수 없습니다",
+      "uploadPending": "업로드가 끝나지 않았습니다",
+      "noEditPermission": "편집 권한이 없습니다",
+      "noDeletePermission": "삭제 권한이 없습니다",
+      "intoOwnSubtree": "자기 자신이나 하위 폴더 안으로 옮길 수 없습니다",
+      "duplicateName": "대상 폴더에 같은 이름의 항목이 있습니다"
+    }
   },
   "move": {
     "title": "{label} 이동",
@@ -226,7 +235,8 @@
       "uploadButton": "이미지 선택",
       "uploadPlaceholder": "이미지 파일을 선택해 올려 주세요",
       "confirm": "확인",
-      "captionPlaceholder": "캡션 입력"
+      "captionPlaceholder": "캡션 입력",
+      "externalBlockedMessage": "보안을 위해 외부 이미지 주소는 넣을 수 없습니다. 이미지를 내려받아 직접 업로드해 주세요."
     },
     "slashMenu": {
       "textGroup": "텍스트",
@@ -359,5 +369,12 @@
         "skipped": "{count}개는 건너뜀"
       }
     }
+  },
+  "search": {
+    "label": "채팅 및 프로젝트 검색",
+    "resultsLabel": "문서 검색 결과",
+    "more": "외 {count}개 더 있습니다. 검색어를 좁혀 주세요.",
+    "noResults": "검색 결과가 없습니다.",
+    "empty": "표시할 문서가 없습니다."
   }
 }

@@ -59,6 +59,7 @@ export function useConvertedIngestPrompt({
   const workspace = useSelectedWorkspace();
   const autoIngestContext = autoIngestContextOf(workspace, canIngest);
   const t = useTranslations("wiki.notifications.ingestRequest");
+  const tShared = useTranslations("shared");
   const [target, setTarget] = useState<DocumentItemResponse | null>(null);
   // 이번에 열어 둔 동안 이미 물은 문서. 다른 문서를 열면 비워서 다시 열 때 또 물을 수 있게 한다.
   const promptedIdRef = useRef<string | null>(null);
@@ -94,7 +95,7 @@ export function useConvertedIngestPrompt({
         return refreshBackendData().catch(() => {});
       })
       .catch((error: unknown) => {
-        publishNotice({ kind: "failed", notificationKey: "ingestFailed", title: t("failedTitle"), message: t("failureItem", { filename, reason: getErrorMessage(error, t("failedFallback")) }) });
+        publishNotice({ kind: "failed", notificationKey: "ingestFailed", title: t("failedTitle"), message: t("failureItem", { filename, reason: getErrorMessage(error, t("failedFallback"), tShared) }) });
       });
   }
 

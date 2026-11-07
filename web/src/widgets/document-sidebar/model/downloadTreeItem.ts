@@ -4,6 +4,7 @@ import type { TreeItem } from "@/entities/tree";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchNoteDraft, waitForPendingDocumentSave } from "@/features/note-editing";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
 /** 내려받은 blob URL을 바로 해제하면 일부 브라우저가 저장을 시작하지 못해 잠시 둔다 (ms) */
 const OBJECT_URL_REVOKE_DELAY_MS = 1000;
@@ -11,9 +12,9 @@ const OBJECT_URL_REVOKE_DELAY_MS = 1000;
 /**
  * 컨텍스트 메뉴 "원본 다운로드": 트리에 보이는 파일명(확장자 포함)으로 원본을 내려받는다.
  * Markdown 노트는 편집본이 원본보다 최신이라 저장 대기 후 편집본(없으면 원본)을 .md로 내려받는다.
- * 실패 알림 문구는 화면 언어로 옮긴 것을 받는다.
+ * 실패 알림 문구는 화면 언어로 옮긴 것을 받는다. t(`useTranslations("shared")`)는 서버 오류를 고를 때 쓴다.
  */
-export async function downloadTreeItemOriginal(item: TreeItem, failure: { title: string; message: string }): Promise<void> {
+export async function downloadTreeItemOriginal(item: TreeItem, failure: { title: string; message: string }, t?: SharedTranslate): Promise<void> {
   const documentId = item.documentId;
   if (!documentId) return;
   const filename = item.label;
@@ -26,7 +27,7 @@ export async function downloadTreeItemOriginal(item: TreeItem, failure: { title:
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);
   } catch (error) {
-    publishNotice({ kind: "failed", notificationKey: "downloadFailed", title: failure.title, message: getErrorMessage(error, failure.message) });
+    publishNotice({ kind: "failed", notificationKey: "downloadFailed", title: failure.title, message: getErrorMessage(error, failure.message, t) });
   }
 }
 

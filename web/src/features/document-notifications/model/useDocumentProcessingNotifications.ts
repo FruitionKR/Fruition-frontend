@@ -41,6 +41,7 @@ function wasProcessing(status: DocumentStatus | undefined) {
  */
 export function useDocumentProcessingNotifications(documents: DocumentItemResponse[], isPaused = false, allowWorkSuggestions = true) {
   const t = useTranslations("wiki.notifications");
+  const tShared = useTranslations("shared");
   const { preferences, reduceMotion } = useUserPreferences();
   const notificationSettings = preferences.notifications;
   const notificationControls = preferences.notificationControls;
@@ -192,7 +193,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     }
     // 문서별 카드 대신 요약 카드 하나만 발행한다 (대량 실패 시 스택 넘침 방지).
     if (failedDocuments.length > 0) {
-      const summary = summarizeFailedDocuments(failedDocuments);
+      const summary = summarizeFailedDocuments(failedDocuments, tShared);
       const message = summary.type === "single"
         ? t("failed.single", { filename: summary.filename, reason: summary.reason ?? t("failed.reasonFallback") })
         : t("failed.multiple", {
@@ -203,7 +204,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
         });
       publishNotice({ kind: "failed", notificationKey: "failed", title: t("failed.title"), message });
     }
-  }, [documents, t]);
+  }, [documents, t, tShared]);
 
   // 위 effect가 이전 기준점을 소비한 뒤에 다시 기록하도록 뒤에 둔다.
   // 처리 완료 문서가 하나도 없으면(첫 로드 전 빈 목록 포함) 기준점을 두지 않아 전체 문서가 알림으로 뜨지 않게 한다.

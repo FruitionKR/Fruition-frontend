@@ -42,7 +42,7 @@ export function useGraphRefresh(refresh: () => Promise<{ changed: boolean }>) {
       }, GRAPH_UP_TO_DATE_FEEDBACK_MS);
     } catch {
       setStatus("idle");
-      publishNotice({ kind: "failed", title: t("failedTitle"), message: t("failedMessage") });
+      publishNotice({ kind: "failed", notificationKey: "other", title: t("failedTitle"), message: t("failedMessage") });
     } finally {
       isRefreshingRef.current = false;
     }

@@ -1,4 +1,4 @@
-import koDocuments from "@/shared/i18n/messages/ko/documents.json";
+import type koDocuments from "@/shared/i18n/messages/ko/documents.json";
 
 type SlashMenuMessages = typeof koDocuments.editor.slashMenu;
 
@@ -33,9 +33,3 @@ export function buildSlashMenuLabels(messages: SlashMenuMessages) {
     }
   } as const;
 }
-
-/** 한국어 슬래시 메뉴 라벨. 화면 언어를 받지 않는 편집기(위키 페이지 편집기)가 옮기기 전까지 쓴다. */
-export const SLASH_MENU_LABELS = buildSlashMenuLabels(koDocuments.editor.slashMenu);
-
-/** 빈 본문 안내 문구(Figma 426:2202)의 한국어. 노트 편집기는 documents.editor.bodyPlaceholder를 지금 언어로 쓴다. */
-export const NOTE_BODY_PLACEHOLDER = koDocuments.editor.bodyPlaceholder;

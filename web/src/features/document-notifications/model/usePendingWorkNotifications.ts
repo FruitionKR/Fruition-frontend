@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import { useUserPreferences } from "@/entities/user";
 import { reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
@@ -71,6 +72,8 @@ type PromptHandlers = {
   onStarted: () => void;
   /** 카드를 발행하는 시점의 번역기 */
   t: NotificationsTranslator;
+  /** 서버 오류 문구를 지금 언어로 고르는 공용 번역기 */
+  tShared: SharedTranslate;
 };
 
 /**
@@ -80,7 +83,7 @@ type PromptHandlers = {
 function publishIngestPrompt(
   candidates: DocumentItemResponse[],
   kind: IngestPromptKind,
-  { getDocuments, onStarted, t }: PromptHandlers
+  { getDocuments, onStarted, t, tShared }: PromptHandlers
 ) {
   const promptMessage = (targets: readonly DocumentItemResponse[]) =>
     t("ingestPrompt.message", { count: targets.length, filename: targets[0]?.filename ?? "" });
@@ -112,7 +115,7 @@ function publishIngestPrompt(
           // 실패 사유는 백엔드 원문을 그대로 보여준다. 개수만 알려주면 원인을 알 수 없다.
           const failures = results.flatMap((result, index) =>
             result.status === "rejected"
-              ? [t("ingestPrompt.failureItem", { filename: targets[index].filename, reason: getErrorMessage(result.reason, t("ingestPrompt.requestFailed")) })]
+              ? [t("ingestPrompt.failureItem", { filename: targets[index].filename, reason: getErrorMessage(result.reason, t("ingestPrompt.requestFailed"), tShared) })]
               : []
           );
           if (failures.length > 0) {
@@ -158,8 +161,11 @@ export function usePendingWorkNotifications(
   }
 ) {
   const t = useTranslations("wiki.notifications");
+  const tShared = useTranslations("shared");
   const tRef = useRef(t);
   tRef.current = t;
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   const { preferences } = useUserPreferences();
   const lintSuggestEnabled = preferences.notifications.lintSuggest;
   const documentsRef = useRef(documents);
@@ -170,7 +176,8 @@ export function usePendingWorkNotifications(
   const promptHandlers: PromptHandlers = {
     getDocuments: () => documentsRef.current,
     onStarted: () => onIngestStartedRef.current?.(),
-    t
+    t,
+    tShared
   };
   const knownIdsRef = useRef<Set<string> | null>(null);
   const promptedIdsRef = useRef(new Set<string>());
@@ -381,6 +388,7 @@ export function usePendingWorkNotifications(
                 .then(({ changedPageCount, operationId }) => {
                   publishNotice({
                     operation: { type: "lint", id: operationId },
+                    notificationKey: "lint",
                     kind: "completed",
                     title: t("lint.completedTitle"),
                     message: t("lint.completedMessage", { count: changedPageCount })
@@ -391,7 +399,7 @@ export function usePendingWorkNotifications(
                     kind: "failed",
                     notificationKey: "lintRequestFailed",
                     title: t("lint.failedTitle"),
-                    message: getErrorMessage(error, t("lint.requestFailed"))
+                    message: getErrorMessage(error, t("lint.requestFailed"), tSharedRef.current)
                   });
                 });
             }

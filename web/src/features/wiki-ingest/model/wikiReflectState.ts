@@ -1,4 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
+import type koWiki from "@/shared/i18n/messages/ko/wiki.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
 
 /**
  * 문서가 위키에 반영된 정도.
@@ -15,6 +17,9 @@ const WIKI_REFLECT_LABELS: Partial<Record<WikiReflectState, string>> = {
   "not-included": "미편입",
   retry: "편입 실패"
 };
+
+/** 위 라벨의 메시지 키(wiki.reflect.label.*). */
+export const WIKI_REFLECT_LABEL_KEYS = { changed: "changed", "not-included": "notIncluded", retry: "retry" } as const;
 
 /**
  * 반영 작업이 아직 끝나지 않은 처리 단계.
@@ -66,8 +71,11 @@ export function isWikiReflectEligible(document: DocumentItemResponse): boolean {
   return state !== "processing" && state !== "up-to-date";
 }
 
-export function getWikiReflectLabel(document: DocumentItemResponse): string | null {
-  return WIKI_REFLECT_LABELS[getWikiReflectState(document)] ?? null;
+/** t(`useTranslations("wiki.reflect.label")`)를 넘기면 지금 언어로 쓴다. */
+export function getWikiReflectLabel(document: DocumentItemResponse, t?: MessageTranslate<typeof koWiki.reflect.label>): string | null {
+  const state = getWikiReflectState(document);
+  if (!(state in WIKI_REFLECT_LABEL_KEYS)) return null;
+  return t ? t(WIKI_REFLECT_LABEL_KEYS[state as keyof typeof WIKI_REFLECT_LABEL_KEYS]) : WIKI_REFLECT_LABELS[state] ?? null;
 }
 
 /** 채팅 근거 안내가 필요한 상태. processing이면 편입 중이라 누를 버튼이 없다. 문구는 wiki.chatEvidence에 있다. */

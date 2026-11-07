@@ -8,6 +8,7 @@ import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/documentTree";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
+import { useTreeReasonText } from "@/entities/tree/model/useTreeReasonText";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
@@ -78,6 +79,8 @@ type BulkDeleteConfirmTarget = {
 type MergeConfirmTarget = {
   sourceLabel: string;
   targetLabel: string;
+  /** 만들어질 묶음 폴더 이름. 확인 모달 문구와 실제로 만드는 폴더 이름을 맞춘다. */
+  folderLabel: string;
   run: () => void;
 };
 
@@ -96,6 +99,9 @@ export function useProjectTree({
   const onDeletedRef = useRef(onDeleted);
   onDeletedRef.current = onDeleted;
   const t = useTranslations("workspace.tree");
+  const tShared = useTranslations("shared");
+  const tPermission = useTranslations("documents.permission");
+  const reasonText = useTreeReasonText();
   const [projects, setProjectsState] = useState<Project[]>(initialProjects);
   // 큐의 작업은 실행 시점의 최신 트리를 읽어야 한다. 렌더를 기다리지 않도록 갱신과 동시에 ref에 반영한다.
   const projectsRef = useRef<Project[]>(initialProjects);
@@ -164,7 +170,7 @@ export function useProjectTree({
           kind: "failed",
           notificationKey: TREE_FAILURE_NOTIFICATION_KEYS[failure],
           title: t(`failed.${failure}`),
-          message: getErrorMessage(error, t("changeFailed"))
+          message: getErrorMessage(error, t("changeFailed"), tShared)
         });
       }
       finally { await refreshRef.current().catch(() => {}); }
@@ -178,7 +184,7 @@ export function useProjectTree({
       summary.failed === 0
         ? t(`bulk.${action}.done`, { count: summary.succeeded })
         : t("bulk.counts", { succeeded: summary.succeeded, failed: summary.failed }),
-      ...summary.listed.map((entry) => t("bulk.failureItem", { label: entry.label, reason: entry.reason })),
+      ...summary.listed.map((entry) => t("bulk.failureItem", { label: entry.label, reason: reasonText(entry.reason) })),
       ...(summary.restCount > 0 ? [t("bulk.more", { count: summary.restCount })] : [])
     ];
     const kind = summary.outcome === "completed" ? "completed" as const : "failed" as const;
@@ -216,7 +222,7 @@ export function useProjectTree({
     const resolution = resolveTreeMove(projects, dragged, target, selectedItemIds, isWorkspaceOwner);
     if (resolution.kind === "invalid") return;
     if (resolution.kind === "forbidden") {
-      publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
+      publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: reasonText(FOLDER_WRITE_FORBIDDEN_MESSAGE) });
       return;
     }
     if (resolution.kind === "conflict") {
@@ -246,7 +252,7 @@ export function useProjectTree({
             else await moveFolder(entry.id, folderId);
             moved += 1;
           } catch (error) {
-            failures.push({ label: entry.label, reason: getErrorMessage(error, t("moveItemFailed")) });
+            failures.push({ label: entry.label, reason: getErrorMessage(error, t("moveItemFailed"), tShared) });
           }
         }
         // 결과는 한 번만 알리고, finally의 재조회가 실제 위치를 보여준다.
@@ -262,6 +268,7 @@ export function useProjectTree({
       setMergeConfirm({
         sourceLabel: sourceItem.label,
         targetLabel: targetItem.label,
+        folderLabel: availableFolderName(projects, t("newDocumentGroupName"), destination),
         run: () => void runTreeMutation(async (latest) => {
           if (!hasTreeItem(latest, sourceItem.id) || !hasTreeItem(latest, targetItem.id) || !hasFolderLocation(latest, destination)) {
             throw new Error(t("staleTarget"));
@@ -396,7 +403,7 @@ export function useProjectTree({
         : await setFolderPermission(permissionTarget.id, access);
       // 서버가 확정한 값(access)을 우선하고, 응답에 없으면 요청한 값으로 안내한다.
       const savedAccess = result?.access !== undefined ? result.access : access;
-      publishNotice({ kind: "completed", notificationKey: "permissionChanged", title: t("permissionChangedTitle"), message: permissionChangedMessage(permissionTarget.label, savedAccess) });
+      publishNotice({ kind: "completed", notificationKey: "permissionChanged", title: t("permissionChangedTitle"), message: permissionChangedMessage(permissionTarget.label, savedAccess, tPermission) });
     } finally {
       await refreshRef.current().catch(() => {});
     }
@@ -521,7 +528,7 @@ export function useProjectTree({
           deletedCount += 1;
           onDeletedRef.current?.(deleted);
         } catch (error) {
-          failures.push({ label: target.label, reason: getErrorMessage(error, t("deleteItemFailed")) });
+          failures.push({ label: target.label, reason: getErrorMessage(error, t("deleteItemFailed"), tShared) });
         }
       }
       publishNotice(bulkNotice("delete", deletedCount, failures));
@@ -577,7 +584,7 @@ export function useProjectTree({
     if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
     const reason = itemMoveDeniedReason(itemId);
     if (!reason) return true;
-    publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: reason });
+    publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: reasonText(reason) });
     return false;
   }
 

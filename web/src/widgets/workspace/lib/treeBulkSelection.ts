@@ -1,6 +1,7 @@
 import { isFileItem } from "@/entities/tree/lib/treeGuards";
 import { canWriteTreeFolder, folderDeleteBlockedReason } from "@/entities/tree/lib/treePermission";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
+import { TREE_SKIP_REASONS } from "@/entities/tree/lib/treeSkipReasons";
 
 /** 묶음 작업에서 건너뛴(또는 실패한) 항목과 그 이유. 요약 알림에 그대로 쓴다. */
 export type SkippedTreeItem = { label: string; reason: string };
@@ -61,9 +62,9 @@ export function planBulkDelete(projects: readonly Project[], selectedIds: Readon
   for (const item of selectedRootItems(projects, selectedIds)) {
     const folderReason = item.type === "folder" ? folderDeleteBlockedReason(item, canWriteTreeFolder(treeItems, item.id, isWorkspaceOwner) === false, isWorkspaceOwner) : null;
     if (folderReason) skipped.push({ label: item.label, reason: folderReason });
-    else if (item.generated) skipped.push({ label: item.label, reason: "자동 생성 항목은 삭제할 수 없습니다" });
-    else if (isPendingUpload(item)) skipped.push({ label: item.label, reason: "업로드가 끝나지 않았습니다" });
-    else if (item.canDelete === false) skipped.push({ label: item.label, reason: "삭제 권한이 없습니다" });
+    else if (item.generated) skipped.push({ label: item.label, reason: TREE_SKIP_REASONS.generatedDelete });
+    else if (isPendingUpload(item)) skipped.push({ label: item.label, reason: TREE_SKIP_REASONS.uploadPending });
+    else if (item.canDelete === false) skipped.push({ label: item.label, reason: TREE_SKIP_REASONS.noDeletePermission });
     else items.push(item);
   }
   return { items, skipped };

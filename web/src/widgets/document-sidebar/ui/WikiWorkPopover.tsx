@@ -12,12 +12,13 @@ import styles from "./DocumentSidebar.module.css";
 /** 워크스페이스에서 진행 중인 AI 작업(위키 편입·위키 최신화·PDF→MD 변환·롤백) 목록 팝오버 (Figma 1131:7037) */
 export function WikiWorkPopover({ documents, treeItems = [] }: { documents: DocumentItemResponse[]; treeItems?: TreeItem[] }) {
   const t = useTranslations("documents.wiki.work");
+  const tWorkList = useTranslations("wiki.workList");
   // 팝오버가 열려 있는 동안은 lint 진행 여부를 짧은 주기로 확인한다.
   const activeLint = useActiveLintOperation(true);
   const activeRestores = useActiveRestoreOperations();
 
   const activeDocuments = selectActiveIngestDocuments(documents);
-  const sections = buildWikiWorkSections(activeDocuments, activeLint, activeRestores, buildDocumentFolderPaths(treeItems));
+  const sections = buildWikiWorkSections(activeDocuments, activeLint, activeRestores, buildDocumentFolderPaths(treeItems), tWorkList);
 
   return (
     <div
