@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { formatLintProgressLabel } from "@/features/wiki-ingest/model/activeLintOperation";
 import { isLintActionEnabled, selectActiveIngestDocuments } from "@/features/wiki-ingest/model/wikiReflectState";
 import { useActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
@@ -18,6 +19,7 @@ export function useGraphWikiStatus({
   documents: DocumentItemResponse[];
   pending: "ingest" | "lint" | null;
 }) {
+  const t = useTranslations("documents.wiki.hint");
   const activeIngestDocuments = selectActiveIngestDocuments(selectGraphDocuments(documents));
   const activeLintOperation = useActiveLintOperation(pending === "lint");
   const lintProgressLabel = formatLintProgressLabel(activeLintOperation, pending === "lint");
@@ -53,15 +55,15 @@ export function useGraphWikiStatus({
   });
   // 말풍선 보조줄에 붙는 짧은 사유. 바로 실행할 수 있으면 null이라 "위키 최신화"만 보인다.
   const lintHint = isMaintenanceStatusError
-    ? "상태를 못 불러왔어요 · 눌러서 재확인"
+    ? t("statusFailed")
     : isLintActive
-      ? "진행 중이에요"
+      ? t("inProgress")
       : isIngestActive
-        ? "편입 중에는 할 수 없어요"
+        ? t("blockedByIngest")
         : isMaintenanceStatusFetching
-          ? "상태 확인 중…"
+          ? t("checkingStatus")
           : maintenanceStatus?.needs_lint === false
-            ? "최신 상태예요"
+            ? t("upToDate")
             : null;
 
   return {

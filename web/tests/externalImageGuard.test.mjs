@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   return next(specifier, context);
@@ -149,11 +150,12 @@ test("외부 이미지가 없으면 붙여넣기를 Milkdown 기본 처리에 �
 });
 
 test("편집기 자리 표시 그림은 네트워크 요청 없는 data URL이고 host를 이스케이프한다", () => {
-  const url = blockedImagePlaceholderUrl("a.example");
+  const t = koT("documents.editor.image");
+  const url = blockedImagePlaceholderUrl(t("externalPlaceholder", { host: "a.example" }));
   assert.match(url, /^data:image\/svg\+xml;charset=utf-8,/);
   const svg = decodeURIComponent(url.slice(url.indexOf(",") + 1));
   assert.match(svg, /외부 이미지는 표시하지 않습니다 · a\.example/);
   assert.doesNotMatch(svg, /href=|<image|url\(/);
-  assert.match(decodeURIComponent(blockedImagePlaceholderUrl("<x>&")), /&#60;x&#62;&#38;/);
-  assert.match(decodeURIComponent(blockedImagePlaceholderUrl(null)), /표시할 수 없는 이미지입니다/);
+  assert.match(decodeURIComponent(blockedImagePlaceholderUrl(t("externalPlaceholder", { host: "<x>&" }))), /&#60;x&#62;&#38;/);
+  assert.match(decodeURIComponent(blockedImagePlaceholderUrl(t("unsupportedPlaceholder"))), /표시할 수 없는 이미지입니다/);
 });

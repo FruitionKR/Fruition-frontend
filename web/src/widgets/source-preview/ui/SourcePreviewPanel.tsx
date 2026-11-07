@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { useTreeReasonText } from "@/entities/tree/model/useTreeReasonText";
 import { DocumentMarkdownViewer as MarkdownViewer } from "@/shared/ui/markdown/DocumentMarkdownViewer";
 import { useUserPreferences } from "@/entities/user";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
@@ -15,9 +17,8 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
 import { buildMarkdownDocumentFilename, getMarkdownDocumentTitle, splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension } from "@/entities/document/lib/documentKind";
-import { CHAT_EXPORT_READ_ONLY_HINT, CHAT_EXPORT_READ_ONLY_TITLE, CHAT_EXPORT_TITLE_LOCKED_MESSAGE, READ_ONLY_DOCUMENT_HINT, READ_ONLY_DOCUMENT_TITLE } from "@/entities/document/lib/documentAccess";
 import { shouldApplyReloadedNote, shouldReloadForSavedPlan, shouldReloadOpenDocument, type OpenDocumentState } from "../lib/documentReload";
-import { getConversionNotice, type DocumentConversionView } from "@/entities/document/lib/documentConversion";
+import type { DocumentConversionView } from "@/entities/document/lib/documentConversion";
 import type { ConversionReportView } from "@/entities/document/lib/conversionReport";
 import { ConversionReportNotice } from "./ConversionReportNotice";
 import { getCenteredScrollTop } from "../lib/centerScrollTop";
@@ -38,13 +39,13 @@ import type { SourceBlockHighlight } from "@/entities/document";
 import type { DocumentStatus, NoteSaveStatus } from "@/entities/tree";
 import type { WikiPageDetailResponse } from "@/entities/wiki";
 
-// 정상 흐름(변경됨→저장됨)은 표시하지 않고, 저장 중이거나 사용자가 알아야 할 실패만 콘텐츠 우상단에 띄운다.
-const SAVE_STATUS_LABELS: Partial<Record<NoteSaveStatus, string>> = {
-  saving: "저장 중",
-  error: "저장 실패",
-  "lock-lost": "편집 권한 상실",
-  "session-expired": "세션 만료"
-};
+// 정상 흐름(변경됨→저장됨)은 표시하지 않고, 저장 중이거나 사용자가 알아야 할 실패만 콘텐츠 우상단에 띄운다. 값은 documents.preview.saveStatus.* 키다.
+const SAVE_STATUS_KEYS = {
+  saving: "saving",
+  error: "error",
+  "lock-lost": "lockLost",
+  "session-expired": "sessionExpired"
+} as const satisfies Partial<Record<NoteSaveStatus, string>>;
 
 export function SourcePreviewPanel({
   title,
@@ -93,6 +94,14 @@ export function SourcePreviewPanel({
   /** 홈에서 문서가 메인 영역을 채울 때: 고정폭/리사이즈 대신 남은 영역을 채운다 */
   fillMain?: boolean;
 }) {
+  const t = useTranslations("documents.preview");
+  const tAccess = useTranslations("documents.access");
+  const reasonText = useTreeReasonText();
+  // 본문 불러오기 effect는 언어가 바뀌어도 다시 받지 않도록 실패 문구를 ref로 읽는다.
+  const loadFailedTextRef = useRef({ wiki: t("wikiLoadFailed"), document: t("documentLoadFailed") });
+  useEffect(() => {
+    loadFailedTextRef.current = { wiki: t("wikiLoadFailed"), document: t("documentLoadFailed") };
+  });
   const documentConverting = documentConversion !== null;
   const conversionRevision = documentConversion?.revision;
   const [page, setPage] = useState<WikiPageDetailResponse | null>(null);
@@ -183,16 +192,16 @@ export function SourcePreviewPanel({
   const { role, permissions } = useWorkspaceRole();
   const canEditWiki = canEditWikiPage(role, permissions);
   const saveStatusLabel = noteSaveStatus === "dirty" && !preferences.autoSave
-    ? "저장 안 됨 · Cmd/Ctrl+S"
-    : SAVE_STATUS_LABELS[noteSaveStatus];
+    ? t("saveStatus.unsaved")
+    : noteSaveStatus in SAVE_STATUS_KEYS ? t(`saveStatus.${SAVE_STATUS_KEYS[noteSaveStatus as keyof typeof SAVE_STATUS_KEYS]}`) : undefined;
   // 읽기 전용 노트: 저장 상태 대신 배지를 보여주고 편집기를 열지 않는다.
   const isBodyReadOnly = readOnly || bodyLocked;
   // 채팅에서 만든 문서는 문답 출처를 지키려고 서버가 이름도 잠근다(409 DOCUMENT_TITLE_LOCKED).
   const isTitleReadOnly = readOnly || bodyLocked;
   const isReadOnlyNote = isMarkdownFile && isBodyReadOnly;
   // 보기 권한이 없으면 권한 안내를, 채팅 Wiki page화 문서면 확인 전용 안내를 보여준다.
-  const readOnlyTitle = readOnly ? READ_ONLY_DOCUMENT_TITLE : CHAT_EXPORT_READ_ONLY_TITLE;
-  const readOnlyHint = readOnly ? READ_ONLY_DOCUMENT_HINT : CHAT_EXPORT_READ_ONLY_HINT;
+  const readOnlyTitle = readOnly ? tAccess("readOnlyTitle") : tAccess("chatExportReadOnlyTitle");
+  const readOnlyHint = readOnly ? tAccess("readOnlyHint") : tAccess("chatExportReadOnlyHint");
   const editableNote = useMemo(() => {
     if (rawMarkdown === null || !documentId) return null;
     const split = splitEditableNoteMarkdown(rawMarkdown) ?? {
@@ -254,10 +263,11 @@ export function SourcePreviewPanel({
     }
     publishNotice({
       kind: "failed",
-      title: "노트 저장 실패",
-      message: getErrorMessage(result.error, "문서를 이동하는 동안 편집 내용을 저장하지 못했습니다.")
+      notificationKey: "noteSaveFailed",
+      title: t("detachedSaveFailed.title"),
+      message: getErrorMessage(result.error, t("detachedSaveFailed.message"))
     });
-  }, [onRefreshDocuments]);
+  }, [onRefreshDocuments, t]);
 
   async function commitTitle() {
     if (!isMarkdownFile || isTitleReadOnly || !documentId || !onRenameDocument || isRenaming) return;
@@ -272,7 +282,7 @@ export function SourcePreviewPanel({
       await onRenameDocument(documentId, nextFilename);
     } catch (error) {
       setTitleInput(getMarkdownDocumentTitle(title));
-      setRenameError(getErrorMessage(error, "문서 이름을 변경하지 못했습니다."));
+      setRenameError(getErrorMessage(error, t("renameFailed")));
     } finally {
       setIsRenaming(false);
     }
@@ -295,7 +305,7 @@ export function SourcePreviewPanel({
         if (!ignore) setPage(nextPage);
       })
       .catch((error) => {
-        if (!ignore) setErrorMessage(getErrorMessage(error, "Wiki page를 불러오지 못했습니다."));
+        if (!ignore) setErrorMessage(getErrorMessage(error, loadFailedTextRef.current.wiki));
       })
       .finally(() => {
         if (!ignore) setIsLoading(false);
@@ -394,7 +404,7 @@ export function SourcePreviewPanel({
 
     void loadDocument()
       .catch((error: unknown) => {
-        if (!ignore) setErrorMessage(getErrorMessage(error, "문서를 불러오지 못했습니다."));
+        if (!ignore) setErrorMessage(getErrorMessage(error, loadFailedTextRef.current.document));
       })
       .finally(() => {
         if (ignore) return;
@@ -490,7 +500,7 @@ export function SourcePreviewPanel({
   return (
     <section
       className={cx(styles["source-preview-panel"], fillMain && styles["is-main"])}
-      aria-label="원본문서 미리보기"
+      aria-label={t("label")}
       onClick={(event) => event.stopPropagation()}
     >
       {/* 콘텐츠 상단 제목 바 대신, 저장 상태를 콘텐츠 우상단에 작게 띄운다.
@@ -498,7 +508,7 @@ export function SourcePreviewPanel({
       {!isPdfFile && (
         <div className={styles["source-preview-actions"]}>
           {isReadOnlyNote && (
-            <span className={styles["source-preview-readonly-badge"]} title={`${readOnlyTitle}\n${readOnlyHint}`}>읽기 전용</span>
+            <span className={styles["source-preview-readonly-badge"]} title={`${readOnlyTitle}\n${readOnlyHint}`}>{t("readOnlyBadge")}</span>
           )}
           {!isReadOnlyNote && saveStatusLabel && (
             <span
@@ -512,7 +522,7 @@ export function SourcePreviewPanel({
         </div>
       )}
       <div className={cx(styles["source-preview-document"], isPdfFile && styles["is-pdf"])}>
-        {(isLoading || isBlocksLoading) && <DocumentLoading detail={isMarkdownFile ? "본문을 받은 뒤 표·수식을 포함한 문서 화면을 준비합니다." : undefined}>{pageId ? "본문을 불러오는 중입니다." : "문서를 불러오는 중입니다."}</DocumentLoading>}
+        {(isLoading || isBlocksLoading) && <DocumentLoading detail={isMarkdownFile ? t("loading.detail") : undefined}>{pageId ? t("loading.body") : t("loading.document")}</DocumentLoading>}
         {isPdfFile ? (
           <>
             {/* 제목 바가 없으므로 PDF 뷰어 위에 파일명 줄을 둔다. */}
@@ -544,13 +554,15 @@ export function SourcePreviewPanel({
         <header className={styles["source-preview-heading"]}>
           {isMarkdownFile ? (
             // 제안 배지가 붙으면 제목 칸을 글자 폭에 맞춰 배지를 제목 바로 옆에 둔다(Figma 1610:2850).
-            <div className={cx(styles["source-preview-title-field"], activeEditReview && styles["is-fit"])} data-value={titleInput || "제목을 입력하세요"}>
+            <div className={cx(styles["source-preview-title-field"], activeEditReview && styles["is-fit"])} data-value={titleInput || t("titlePlaceholder")}>
             <input
               className={styles["source-preview-title-input"]}
               data-large-text=""
-              aria-label="문서 이름"
-              title={readOnly ? "보기 권한만 있는 문서는 이름을 바꿀 수 없습니다." : bodyLocked ? CHAT_EXPORT_TITLE_LOCKED_MESSAGE : titleHint}
-              placeholder="제목을 입력하세요"
+              aria-label={t("titleLabel")}
+              // 새 노트를 만든 뒤 제목 칸을 찾는 고정 표지(widgets/workspace/lib/noteCreation.ts). aria-label은 언어마다 달라 쓰지 않는다.
+              data-note-title=""
+              title={readOnly ? t("titleReadOnly") : bodyLocked ? tAccess("chatExportTitleLocked") : titleHint}
+              placeholder={t("titlePlaceholder")}
               value={titleInput}
               disabled={isRenaming}
               readOnly={isTitleReadOnly}
@@ -589,7 +601,7 @@ export function SourcePreviewPanel({
         </header>
         {isMarkdownFile && renameError && (
           <div className={styles["source-preview-document-controls"]}>
-            <span role="alert">{renameError}</span>
+            <span role="alert">{reasonText(renameError)}</span>
           </div>
         )}
         {isMarkdownFile && errorMessage && <p>{errorMessage}</p>}
@@ -597,7 +609,7 @@ export function SourcePreviewPanel({
           <>
             {highlightNotice && (
               <div className={styles["source-preview-document-controls"]}>
-                <span role="status">{highlightNotice}</span>
+                <span role="status">{t(`highlight.${highlightNotice}`)}</span>
               </div>
             )}
             <MarkdownViewer
@@ -612,7 +624,13 @@ export function SourcePreviewPanel({
         {isMarkdownFile && documentConversion && !isLoading && !errorMessage && rawMarkdown !== null && selectedBlockHighlights.length === 0 && (
           <>
             <div className={styles["source-preview-document-controls"]}>
-              <span role="status">{getConversionNotice(documentConversion)}</span>
+              <span role="status">
+                {documentConversion.stalled
+                  ? t("conversion.stalled")
+                  : documentConversion.progress
+                    ? t("conversion.progress", documentConversion.progress)
+                    : t("conversion.inProgress")}
+              </span>
             </div>
             <MarkdownViewer markdown={rawMarkdown} />
           </>
@@ -661,17 +679,17 @@ export function SourcePreviewPanel({
         )}
         {pageId && !isLoading && !errorMessage && !page?.markdown && page?.summary && <p>{page.summary}</p>}
         {pageId && !isLoading && !errorMessage && page && !page.markdown && (
-          <p>본문 markdown을 찾지 못했습니다. 연결된 원본 문서 정보만 표시합니다.</p>
+          <p>{t("wikiMarkdownMissing")}</p>
         )}
         {pageId && !isLoading && !errorMessage && sourceDocuments.length > 0 && (
           <div className={styles["source-preview-meta"]}>
-            <strong>원본 문서</strong>
+            <strong>{t("sourceDocuments")}</strong>
             {sourceDocuments.map((document) => (
               <span key={document.id}>{document.filename || document.id}</span>
             ))}
           </div>
         )}
-        {!pageId && !documentId && <p>연결된 Wiki page가 없는 항목입니다.</p>}
+        {!pageId && !documentId && <p>{t("noWikiPage")}</p>}
         </div>
         )}
       </div>

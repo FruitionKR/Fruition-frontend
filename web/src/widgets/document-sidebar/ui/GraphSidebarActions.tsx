@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
 import { getGraphIngestBlockReason } from "@/features/wiki-ingest/model/graphDocuments";
@@ -39,6 +40,7 @@ export function GraphSidebarActions({
   /** 선택 가능한 Markdown 문서들을 한 번에 위키에 반영한다. */
   onIngestDocuments: (documents: DocumentItemResponse[]) => void;
 }) {
+  const t = useTranslations("documents.wiki");
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
   const blockReasons = useMemo(
     () => new Map(documents.map((document) => [document.id, getGraphIngestBlockReason(document, documents)])),
@@ -80,7 +82,7 @@ export function GraphSidebarActions({
         <div className={styles["graph-bottom"]}>
           <HoverHint
             className={styles["graph-pill-hint"]}
-            text="선택한 Markdown 문서를 위키에 편입합니다. 이미 편입된 뒤 수정이 없는 문서는 선택할 수 없습니다."
+            text={t("select.confirmHint")}
           >
           <button
             type="button"
@@ -93,14 +95,14 @@ export function GraphSidebarActions({
           >
             {/* 기존 ingest.svg는 다크 전용 색이라 테마를 따르는 레일 아이콘을 쓴다. */}
             <RailIngestIcon className={styles["graph-pill-icon"]} />
-            {`위키 편입 (${selectedDocuments.length})`}
+            {t("select.confirm", { count: selectedDocuments.length })}
           </button>
           </HoverHint>
-          <HoverHint align="end" text="선택을 취소하고 문서 목록으로 돌아갑니다. (Esc)">
+          <HoverHint align="end" text={t("select.cancelHint")}>
           <button
             type="button"
             className={cx(styles["graph-pill"], styles["is-round"])}
-            aria-label="선택 취소"
+            aria-label={t("cancelSelection")}
             onClick={(event) => {
               event.stopPropagation();
               onExitSelecting();

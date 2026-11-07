@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -14,7 +15,9 @@ registerHooks({
 
 const { useNoteAutosave } = await import("../src/features/note-editing/model/useNoteAutosave.ts");
 const { parseSaveMerge, saveNoteDraft } = await import("../src/features/note-editing/api/note.ts");
-const { LEGACY_CONFLICT_MESSAGE } = await import("../src/features/note-editing/model/saveMerge.ts");
+// react가 shim으로 바뀌어 next-intl 번역기 대신 ko 메시지 JSON 문구를 그대로 넘긴다.
+const { editor: { save: saveText } } = JSON.parse(readFileSync(new URL("../src/shared/i18n/messages/ko/documents.json", import.meta.url), "utf8"));
+const SAVE_MESSAGES = { saveFailed: saveText.failed, writeForbidden: saveText.writeForbidden, legacyConflict: saveText.legacyConflict, tooManyImages: saveText.tooManyImages };
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { render } = await import("./reactHookShim.mjs");
 
@@ -66,6 +69,7 @@ function renderAutosave(merges) {
     marker: MARKER,
     initialVersion: 7,
     autoSave: true,
+    messages: SAVE_MESSAGES,
     onServerMerge: (merge) => merges.push(merge)
   }));
   return {
@@ -187,7 +191,7 @@ test("구 서버 409가 다시 저장해도 이어지면 안내만 하고 저장
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(view.autosave.status, "error");
-  assert.equal(view.autosave.errorMessage, LEGACY_CONFLICT_MESSAGE);
+  assert.match(view.autosave.errorMessage, /^다른 곳에서 먼저 저장된 내용이 있어 이번 저장이 반영되지 않았어요/);
 
   assert.equal(await view.autosave.saveNow("내 본문 다시"), true, "다음 저장은 그대로 나간다");
   assert.equal(saves.length, 3);

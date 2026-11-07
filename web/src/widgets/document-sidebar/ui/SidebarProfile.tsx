@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { UserAvatar, hasOAuthLinkResult, useMe } from "@/entities/user";
 import { RailButton } from "@/widgets/rail-navigation/ui/RailNavigation";
 import railStyles from "@/widgets/rail-navigation/ui/RailNavigation.module.css";
@@ -17,6 +18,7 @@ export function SidebarProfile({
   isActive?: boolean;
   onOpenSettings: (section: SettingsSection) => void;
 }) {
+  const t = useTranslations("documents.sidebar");
   // 설정에서 시작한 소셜 계정 연동을 마치고 돌아오면 결과를 보여 줄 사용자 설정(연동된 계정)을 다시 연다.
   useEffect(() => {
     if (hasOAuthLinkResult()) onOpenSettings("profile");
@@ -26,13 +28,13 @@ export function SidebarProfile({
 
   // 표시용 데이터라 실패 시 fallback 이름을 유지한다.
   const { data: me } = useMe();
-  const name = (me ? me.display_name || me.email : null) ?? "사용자";
+  const name = (me ? me.display_name || me.email : null) ?? t("defaultUserName");
 
   return (
     <>
       <RailButton
-        label="설정"
-        phoneLabel="설정"
+        label={t("settings")}
+        phoneLabel={t("settings")}
         isActive={isActive}
         aria-current={isActive ? "page" : undefined}
         onClick={(event) => {
@@ -44,7 +46,7 @@ export function SidebarProfile({
       </RailButton>
 
       <RailButton
-        label={`사용자 설정 (${name})`}
+        label={t("profile", { name })}
         tooltip={name}
         className={railStyles["rail-profile"]}
         onClick={(event) => {

@@ -25,3 +25,8 @@ export function useTranslations(namespace) {
   if (!translators.has(namespace)) translators.set(namespace, (key, values) => ko(namespace ? `${namespace}.${key}` : key, values));
   return translators.get(namespace);
 }
+
+/** useMessages 대역. 컴포넌트가 문구를 그대로 쓸 때(편집기 라벨 등) ko 메시지 전체를 돌려준다. */
+export function useMessages() {
+  return koMessages;
+}

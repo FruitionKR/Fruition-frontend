@@ -1,7 +1,7 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isDocumentConverting, isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
 import type { TreeItem } from "@/entities/tree/model/tree";
-import { CONVERTED_MARKDOWN_LABEL, isFailedConversion, type TreeConversionBadge } from "./treeConversionBadge";
+import { isFailedConversion, type TreeConversionBadge } from "./treeConversionBadge";
 
 /** 원본 PDF 행 아래에 묶어 그리는 변환본 행 */
 export type TreeConversionChild = {
@@ -22,11 +22,6 @@ export type TreeConversionGroups = {
 };
 
 export const EMPTY_TREE_CONVERSION_GROUPS: TreeConversionGroups = { childrenBySourceId: new Map(), groupedIds: new Set() };
-
-export const CONVERTING_LABEL = "변환 중";
-const CONVERTING_DESCRIPTION = "원본 PDF를 Markdown으로 변환하는 중입니다.";
-const SOURCE_CONVERTING_DESCRIPTION = "업로드한 원본 PDF입니다. Markdown으로 변환하는 중입니다.";
-const SOURCE_LABEL = "원본 PDF";
 
 /**
  * 형제 목록마다 원본 PDF와 그 변환본을 짝짓는다.
@@ -106,14 +101,14 @@ export function groupedSourceBadge(
   childCount: number,
   isCollapsed: boolean
 ): TreeConversionBadge {
-  const base = badge ?? { label: SOURCE_LABEL, isConverted: false, description: SOURCE_CONVERTING_DESCRIPTION, relatedDocumentId: null };
-  return isCollapsed ? { ...base, label: `${CONVERTED_MARKDOWN_LABEL} ${childCount}` } : base;
+  const base: TreeConversionBadge = badge ?? { label: "source", isConverted: false, description: { kind: "sourceConverting" }, relatedDocumentId: null };
+  return isCollapsed ? { ...base, label: "converted", collapsedCount: childCount } : base;
 }
 
 /** 원본 PDF 아래 변환본 행의 배지. 변환 중이면 링크 없는 「변환 중」으로 바꾼다. */
 export function groupedChildBadge(badge: TreeConversionBadge | null, isConverting: boolean): TreeConversionBadge | null {
   if (!isConverting) return badge;
-  return { label: CONVERTING_LABEL, isConverted: false, description: CONVERTING_DESCRIPTION, relatedDocumentId: null };
+  return { label: "converting", isConverted: false, description: { kind: "converting" }, relatedDocumentId: null };
 }
 
 /** 접은 원본 PDF 행 id를 워크스페이스별로 브라우저에 저장하는 localStorage 키 */
