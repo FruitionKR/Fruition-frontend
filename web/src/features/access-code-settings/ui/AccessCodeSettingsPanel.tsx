@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { RotateCcw } from "lucide-react";
 import { useUserPreferences, type UserPreferences } from "@/entities/user";
 import { LegalFooter } from "@/shared/ui/LegalFooter";
@@ -9,11 +10,9 @@ import { Switch } from "@/shared/ui/Switch";
 import { AccessCodeSection } from "./AccessCodeSection";
 import styles from "./AccessCodeSettingsPanel.module.css";
 
-const MOTION_OPTIONS: ReadonlyArray<{ value: UserPreferences["motion"]; label: string }> = [
-  { value: "system", label: "시스템 설정" },
-  { value: "reduced", label: "줄이기" },
-  { value: "full", label: "모두 사용" }
-];
+const MOTION_VALUES: ReadonlyArray<UserPreferences["motion"]> = ["system", "reduced", "full"];
+
+const GRAPH_KINDS = ["raw", "source", "concept"] as const;
 
 const DOCUMENT_FONT_OPTIONS: ReadonlyArray<{ value: UserPreferences["documentFont"]; label: string }> = [
   { value: "system-sans", label: "System Sans" },
@@ -61,8 +60,10 @@ function SettingSwitch({
 }
 
 export function AccessCodeSettingsPanel() {
+  const t = useTranslations("workspace.personalSettings");
   const { preferences, updatePreferences, resetPreferences } = useUserPreferences();
-  const [browserNotificationMessage, setBrowserNotificationMessage] = useState<string | null>(null);
+  const [browserNotificationMessage, setBrowserNotificationMessage] = useState<"unsupported" | "permissionRequired" | null>(null);
+  const motionOptions = MOTION_VALUES.map((value) => ({ value, label: t(`motion.options.${value}`) }));
 
   function updateGraphKind(kind: keyof UserPreferences["graph"]["visibleKinds"], visible: boolean) {
     updatePreferences((current) => {
@@ -83,7 +84,7 @@ export function AccessCodeSettingsPanel() {
     }
 
     if (!("Notification" in window)) {
-      setBrowserNotificationMessage("이 브라우저는 알림을 지원하지 않습니다.");
+      setBrowserNotificationMessage("unsupported");
       return;
     }
 
@@ -91,7 +92,7 @@ export function AccessCodeSettingsPanel() {
       ? await Notification.requestPermission()
       : Notification.permission;
     if (permission !== "granted") {
-      setBrowserNotificationMessage("브라우저 알림 권한이 필요합니다.");
+      setBrowserNotificationMessage("permissionRequired");
       return;
     }
 
@@ -102,33 +103,33 @@ export function AccessCodeSettingsPanel() {
   }
 
   return (
-    <section className={styles["settings"]} aria-label="개인 설정">
+    <section className={styles["settings"]} aria-label={t("title")}>
       <div className={styles["settings-inner"]}>
         <header className={styles["settings-header"]}>
           <div>
-            <h2>개인 설정</h2>
-            <p>변경 내용은 이 브라우저에 사용자별로 자동 저장됩니다.</p>
+            <h2>{t("title")}</h2>
+            <p>{t("description")}</p>
           </div>
           <button type="button" className={styles["settings-reset"]} onClick={resetPreferences}>
             <RotateCcw size={14} aria-hidden />
-            기본값 복원
+            {t("reset")}
           </button>
         </header>
 
         <AccessCodeSection />
 
         <section className={styles["settings-section"]}>
-          <h3>화면과 접근성</h3>
+          <h3>{t("display")}</h3>
           <SettingRow
-            title="Motion"
-            description="전환·스크롤·그래프 움직임을 줄입니다."
+            title={t("motion.title")}
+            description={t("motion.description")}
           >
             <div className={styles["settings-select"]}>
               <OptionSelect
-                ariaLabel="Motion"
+                ariaLabel={t("motion.title")}
                 value={preferences.motion}
                 placeholder=""
-                options={MOTION_OPTIONS}
+                options={motionOptions}
                 floating
                 onChange={(motion) => updatePreferences((current) => ({
                   ...current,
@@ -138,12 +139,12 @@ export function AccessCodeSettingsPanel() {
             </div>
           </SettingRow>
           <SettingRow
-            title="문서 Font"
-            description="문서 본문과 WYSIWYG 미리보기에 적용합니다."
+            title={t("documentFont.title")}
+            description={t("documentFont.description")}
           >
             <div className={styles["settings-select"]}>
               <OptionSelect
-                ariaLabel="문서 Font"
+                ariaLabel={t("documentFont.title")}
                 value={preferences.documentFont}
                 placeholder=""
                 options={DOCUMENT_FONT_OPTIONS}
@@ -158,19 +159,15 @@ export function AccessCodeSettingsPanel() {
         </section>
 
         <section className={styles["settings-section"]}>
-          <h3>Graph 기본 표시</h3>
+          <h3>{t("graph.title")}</h3>
           <p className={styles["settings-section-description"]}>
-            그래프를 열 때 표시할 노드 종류입니다. 최소 한 종류는 유지됩니다.
+            {t("graph.description")}
           </p>
-          {([
-            ["raw", "Raw", "업로드한 원본 문서"],
-            ["source", "Source", "원문에서 추출한 정보"],
-            ["concept", "Concept", "연결된 개념"]
-          ] as const).map(([kind, title, description]) => (
-            <SettingRow key={kind} title={title} description={description}>
+          {GRAPH_KINDS.map((kind) => (
+            <SettingRow key={kind} title={t(`graph.kinds.${kind}.title`)} description={t(`graph.kinds.${kind}.description`)}>
               <SettingSwitch
                 checked={preferences.graph.visibleKinds[kind]}
-                label={`${title} 노드 표시`}
+                label={t("graph.showKind", { kind: t(`graph.kinds.${kind}.title`) })}
                 onChange={(visible) => updateGraphKind(kind, visible)}
               />
             </SettingRow>
@@ -178,21 +175,21 @@ export function AccessCodeSettingsPanel() {
         </section>
 
         <section className={styles["settings-section"]}>
-          <h3>위키 편입 알림</h3>
-          <SettingRow title="처리 완료" description="위키 편입이 끝나면 앱 안에서 알립니다.">
+          <h3>{t("notifications.title")}</h3>
+          <SettingRow title={t("notifications.completed.title")} description={t("notifications.completed.description")}>
             <SettingSwitch
               checked={preferences.notifications.completed}
-              label="위키 편입 완료 알림"
+              label={t("notifications.completed.label")}
               onChange={(completed) => updatePreferences((current) => ({
                 ...current,
                 notifications: { ...current.notifications, completed }
               }))}
             />
           </SettingRow>
-          <SettingRow title="처리 실패" description="위키 편입에 실패하면 앱 안에서 알립니다.">
+          <SettingRow title={t("notifications.failed.title")} description={t("notifications.failed.description")}>
             <SettingSwitch
               checked={preferences.notifications.failed}
-              label="위키 편입 실패 알림"
+              label={t("notifications.failed.label")}
               onChange={(failed) => updatePreferences((current) => ({
                 ...current,
                 notifications: { ...current.notifications, failed }
@@ -200,17 +197,17 @@ export function AccessCodeSettingsPanel() {
             />
           </SettingRow>
           <SettingRow
-            title="Browser 알림"
-            description="앱이 열린 상태에서 탭이 보이지 않을 때 브라우저로 알립니다."
+            title={t("notifications.browser.title")}
+            description={t("notifications.browser.description")}
           >
             <SettingSwitch
               checked={preferences.notifications.browser}
-              label="Browser 알림"
+              label={t("notifications.browser.title")}
               onChange={(enabled) => void changeBrowserNotifications(enabled)}
             />
           </SettingRow>
           {browserNotificationMessage && (
-            <p className={styles["settings-message"]} role="status">{browserNotificationMessage}</p>
+            <p className={styles["settings-message"]} role="status">{t(`notifications.browser.${browserNotificationMessage}`)}</p>
           )}
         </section>
         <LegalFooter compact />

@@ -1,0 +1,227 @@
+{
+  "dataLoadFailed": "백엔드 데이터를 불러오지 못했습니다.",
+  "retry": "다시 시도",
+  "closeSidebar": "사이드바 닫기",
+  "blankView": "{view} 빈 화면",
+  "documentNotFound": "문서를 찾을 수 없습니다",
+  "resizeChatPanel": "채팅 패널 폭 조절",
+  "rail": {
+    "label": "워크스페이스 메뉴",
+    "views": {
+      "home": "홈",
+      "graph": "그래프",
+      "skills": "스킬",
+      "logs": "로그",
+      "notifications": "알림",
+      "settings": "설정"
+    }
+  },
+  "graph": {
+    "label": "자료 관계 그래프",
+    "canvasLabel": "자료 관계 그래프 캔버스",
+    "loading": "그래프를 불러오는 중입니다.",
+    "empty": "표시할 Wiki node가 없습니다.",
+    "filter": {
+      "raw": "원본 raw",
+      "source": "source page",
+      "concept": "concept page"
+    },
+    "refresh": {
+      "label": "그래프 새로고침",
+      "upToDate": "최신 상태예요",
+      "failedTitle": "그래프 새로고침 실패",
+      "failedMessage": "그래프를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+    }
+  },
+  "tree": {
+    "changeFailed": "변경하지 못했습니다.",
+    "staleTarget": "대상이 이미 삭제되었거나 이동되어 요청을 보내지 않았습니다.",
+    "newFolderName": "새 폴더",
+    "newDocumentGroupName": "새 문서 묶음",
+    "failed": {
+      "folderCreate": "폴더 생성 실패",
+      "move": "이동 실패",
+      "documentGroup": "문서 묶음 생성 실패",
+      "convert": "Markdown 변환 실패",
+      "delete": "삭제 실패",
+      "rename": "이름 변경 실패"
+    },
+    "duplicateInDestination": "대상 폴더에 같은 이름의 항목이 있습니다.",
+    "moveIntoOwnSubtree": "폴더를 자기 자신이나 하위 폴더 안으로 옮길 수 없습니다.",
+    "moveItemFailed": "옮기지 못했습니다.",
+    "permissionChangedTitle": "권한 변경",
+    "folderFallback": "폴더",
+    "itemFallback": "항목",
+    "itemCount": "{count}개 항목",
+    "uploadPending": "업로드가 끝나지 않았습니다",
+    "deleteItemFailed": "삭제하지 못했습니다.",
+    "duplicateInFolder": "같은 폴더 안에 같은 이름의 항목이 있습니다.",
+    "bulk": {
+      "counts": "성공 {succeeded}개, 실패 {failed}개",
+      "failureItem": "「{label}」: {reason}",
+      "more": "외 {count}개",
+      "move": {
+        "done": "{count}개 항목을 이동했습니다.",
+        "completed": "이동 완료",
+        "failed": "이동 실패",
+        "partial": "일부 이동 실패"
+      },
+      "delete": {
+        "done": "{count}개 항목을 삭제했습니다.",
+        "completed": "삭제 완료",
+        "failed": "삭제 실패",
+        "partial": "일부 삭제 실패"
+      }
+    }
+  },
+  "skillRun": {
+    "invalid": {
+      "selectionOnly": "이 스킬은 문서에서 선택한 부분에만 쓸 수 있어요. 문서에서 부분을 선택한 뒤 채팅에 /{slug}를 입력하세요.",
+      "pickFolderForOrganize": "폴더 정리 스킬은 정리할 폴더를 골라 주세요.",
+      "pickFolderForTemplate": "템플릿 스킬은 새 문서를 둘 폴더를 골라 주세요.",
+      "folderNotEditable": "편집 권한이 있는 폴더만 고를 수 있습니다.",
+      "documentNotEditable": "편집 권한이 있는 문서만 고를 수 있습니다.",
+      "notMarkdown": "Markdown 문서만 스킬을 실행할 수 있습니다. 다른 문서를 골라 주세요."
+    },
+    "preview": {
+      "folderWithoutSource": "''{name}'' 폴더에 새 문서를 만들어요 (원문 없이)",
+      "folderEmpty": "''{name}'' 폴더에 읽을 문서가 없어요",
+      "folderSources": "''{name}'' 폴더 문서 {count}개를 읽어 새 문서를 만들어요",
+      "folderSourcesLimited": "''{name}'' 폴더 문서 {count}개를 읽어 새 문서를 만들어요 (최근 {limit}개만)",
+      "documentSource": "''{name}'' 문서를 읽어 같은 폴더에 새 문서를 만들어요",
+      "documentWithoutSource": "''{name}'' 문서가 있는 폴더에 새 문서를 만들어요 (원문 없이)"
+    }
+  },
+  "logs": {
+    "title": "로그",
+    "subtitle": "워크스페이스 활동 기록입니다.",
+    "typeTabsLabel": "작업 유형",
+    "types": {
+      "all": "전체",
+      "document_edit": "AI 편집 반영",
+      "ingest": "위키 편입",
+      "lint": "위키 최신화",
+      "restore": "롤백",
+      "wiki_edit": "위키 직접 편집"
+    },
+    "status": {
+      "processing": "처리 중",
+      "applying": "반영 중",
+      "notify_pending": "반영 중",
+      "rebuilding": "재조립 중",
+      "partially_succeeded": "일부 성공",
+      "failed": "실패",
+      "conflict": "충돌"
+    },
+    "changeType": {
+      "created": "생성",
+      "updated": "수정",
+      "deleted": "삭제",
+      "restored": "복원",
+      "delegated": "재작성 위임",
+      "rebuilt": "재작성",
+      "rebuild_failed": "재작성 실패",
+      "action_failed": "작업 실패",
+      "link_removed": "링크 제거",
+      "link_restored": "링크 복원"
+    },
+    "pageType": {
+      "concept": "Concept",
+      "source": "Source",
+      "unknown": "유형 정보 없음"
+    },
+    "wikiTitleCreated": "생성 · {title}",
+    "wikiTitleDeleted": "삭제 · {title}",
+    "untitled": "제목 없음",
+    "diffTooLarge": "변경 폭이 커서 diff를 표시할 수 없습니다.",
+    "lineCounts": "추가 {additions}줄 · 삭제 {deletions}줄",
+    "noChangeContent": "표시할 변경 내용이 없습니다.",
+    "unknownWorker": "알 수 없는 작업자",
+    "loading": "로그 불러오는 중…",
+    "loadFailed": "로그를 불러오지 못했습니다.",
+    "loadMoreFailed": "로그를 더 불러오지 못했습니다.",
+    "detailLoadFailed": "로그 상세를 불러오지 못했습니다.",
+    "noWikiChanges": "생성되거나 삭제된 Wiki가 없습니다.",
+    "noResourceChanges": "변경된 리소스가 없습니다.",
+    "selectFromList": "왼쪽 목록에서 작업을 선택하세요.",
+    "empty": "아직 기록된 AI 작업이 없습니다.",
+    "emptyType": "이 유형의 작업이 없습니다.",
+    "changedCount": "변경 {count}건",
+    "loadingMore": "불러오는 중…",
+    "retry": "다시 시도",
+    "loadMore": "더 보기",
+    "restore": {
+      "button": "Rollback",
+      "processing": "처리 중…",
+      "selectFirst": "롤백할 작업을 선택하세요.",
+      "notAllowed": "롤백할 수 없는 작업입니다.",
+      "affectedPages": "{description} 작업을 롤백하면 {count}개 Wiki 페이지에 영향을 줍니다.",
+      "confirmTitle": "작업을 롤백하시겠습니까?",
+      "confirm": "롤백",
+      "failedTitle": "롤백 실패",
+      "requestedTitle": "롤백 요청 완료",
+      "done": "작업을 롤백했습니다.",
+      "started": "롤백 작업을 시작했습니다."
+    }
+  },
+  "accessCode": {
+    "title": "접근 코드",
+    "lockedDescription": "서비스를 사용하려면 접근 코드를 입력하세요. 입력 전에는 다른 기능이 잠깁니다.",
+    "unlockedDescription": "이 브라우저는 접근 코드가 확인된 상태입니다.",
+    "submit": "확인",
+    "result": {
+      "ok": "접근 코드가 확인되었습니다.",
+      "invalid": "코드가 올바르지 않습니다.",
+      "rateLimited": "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해주세요.",
+      "error": "확인 중 오류가 발생했습니다. 다시 시도해주세요."
+    }
+  },
+  "personalSettings": {
+    "title": "개인 설정",
+    "description": "변경 내용은 이 브라우저에 사용자별로 자동 저장됩니다.",
+    "reset": "기본값 복원",
+    "display": "화면과 접근성",
+    "motion": {
+      "title": "Motion",
+      "description": "전환·스크롤·그래프 움직임을 줄입니다.",
+      "options": {
+        "system": "시스템 설정",
+        "reduced": "줄이기",
+        "full": "모두 사용"
+      }
+    },
+    "documentFont": {
+      "title": "문서 Font",
+      "description": "문서 본문과 WYSIWYG 미리보기에 적용합니다."
+    },
+    "graph": {
+      "title": "Graph 기본 표시",
+      "description": "그래프를 열 때 표시할 노드 종류입니다. 최소 한 종류는 유지됩니다.",
+      "showKind": "{kind} 노드 표시",
+      "kinds": {
+        "raw": { "title": "Raw", "description": "업로드한 원본 문서" },
+        "source": { "title": "Source", "description": "원문에서 추출한 정보" },
+        "concept": { "title": "Concept", "description": "연결된 개념" }
+      }
+    },
+    "notifications": {
+      "title": "위키 편입 알림",
+      "completed": {
+        "title": "처리 완료",
+        "description": "위키 편입이 끝나면 앱 안에서 알립니다.",
+        "label": "위키 편입 완료 알림"
+      },
+      "failed": {
+        "title": "처리 실패",
+        "description": "위키 편입에 실패하면 앱 안에서 알립니다.",
+        "label": "위키 편입 실패 알림"
+      },
+      "browser": {
+        "title": "Browser 알림",
+        "description": "앱이 열린 상태에서 탭이 보이지 않을 때 브라우저로 알립니다.",
+        "unsupported": "이 브라우저는 알림을 지원하지 않습니다.",
+        "permissionRequired": "브라우저 알림 권한이 필요합니다."
+      }
+    }
+  }
+}

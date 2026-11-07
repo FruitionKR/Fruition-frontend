@@ -6,6 +6,8 @@ import koLanding from "./ko/landing.json";
 import koLegal from "./ko/legal.json";
 import koMetadata from "./ko/metadata.json";
 import koSettings from "./ko/settings.json";
+import koWiki from "./ko/wiki.json";
+import koWorkspace from "./ko/workspace.json";
 import koShared from "./ko/shared.json";
 import enAuth from "./en/auth.json";
 import enCommon from "./en/common.json";
@@ -14,6 +16,8 @@ import enLanding from "./en/landing.json";
 import enLegal from "./en/legal.json";
 import enMetadata from "./en/metadata.json";
 import enSettings from "./en/settings.json";
+import enWiki from "./en/wiki.json";
+import enWorkspace from "./en/workspace.json";
 import enShared from "./en/shared.json";
 
 /**
@@ -28,6 +32,8 @@ const ko = {
   invitation: koInvitation,
   settings: koSettings,
   legal: koLegal,
+  wiki: koWiki,
+  workspace: koWorkspace,
   shared: koShared
 };
 
@@ -43,6 +49,8 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     invitation: enInvitation,
     settings: enSettings,
     legal: enLegal,
+    wiki: enWiki,
+    workspace: enWorkspace,
     shared: enShared
   }
 };
