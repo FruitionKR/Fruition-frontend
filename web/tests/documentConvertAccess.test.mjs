@@ -53,7 +53,8 @@ test("컨텍스트 메뉴는 변환 권한이 없으면 Markdown으로 변환을
     source("../src/widgets/workspace/model/useProjectTree.ts"),
     source("../src/features/wiki-ingest/model/usePdfWikiIngest.ts")
   ]);
-  assert.match(menu, /role="menuitem"[\s\S]*disabled=\{convertTarget\.isDisabled\}\s*title=\{convertTarget\.disabledReason\}\s*aria-description=\{convertTarget\.disabledReason\}/);
+  assert.match(menu, /role="menuitem"[\s\S]*disabled=\{convertTarget\.isDisabled\}\s*title=\{convertReason\}\s*aria-description=\{convertReason\}/);
+  assert.match(menu, /const convertReason = convertTarget\?\.disabledReason && reasonText\(convertTarget\.disabledReason\)/);
   assert.match(tree, /isDisabled: !canConvertContextItem \|\|/);
   assert.match(tree, /disabledReason: canConvertContextItem \? undefined : CONVERT_FORBIDDEN_REASON/);
   assert.match(tree, /if \(!itemId \|\| !documentId \|\| !canConvertContextItem\) return;/);

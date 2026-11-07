@@ -41,6 +41,22 @@ export const FOLDER_WITH_ITEMS_DELETE_MESSAGE = "내용이 있는 폴더는 워�
 export const FOLDER_PERMISSION_OWNER_ONLY_MESSAGE = "폴더 권한은 워크스페이스 OWNER만 바꿀 수 있습니다.";
 export const DOCUMENT_PERMISSION_FORBIDDEN_MESSAGE = "문서 권한은 문서 소유자와 워크스페이스 OWNER만 바꿀 수 있습니다.";
 
+/** 위 문구의 화면 메시지 키(documents.access.*). 이 문구들은 다른 모듈이 이유 값으로도 비교해 그대로 두고, 화면에 보일 때 키로 옮긴다. */
+const TREE_PERMISSION_MESSAGE_KEYS = {
+  [FOLDER_WRITE_FORBIDDEN_MESSAGE]: "folderWriteForbidden",
+  [FOLDER_EDIT_FORBIDDEN_MESSAGE]: "folderEditForbidden",
+  [FOLDER_WITH_ITEMS_DELETE_MESSAGE]: "folderWithItemsDelete",
+  [FOLDER_PERMISSION_OWNER_ONLY_MESSAGE]: "folderPermissionOwnerOnly",
+  [DOCUMENT_PERMISSION_FORBIDDEN_MESSAGE]: "documentPermissionForbidden"
+} as const;
+
+export type TreePermissionMessageKey = (typeof TREE_PERMISSION_MESSAGE_KEYS)[keyof typeof TREE_PERMISSION_MESSAGE_KEYS];
+
+/** 권한 거절 이유 문구의 메시지 키. 이 모듈의 문구가 아니면 null이다. */
+export function treePermissionMessageKey(message: string): TreePermissionMessageKey | null {
+  return (TREE_PERMISSION_MESSAGE_KEYS as Record<string, TreePermissionMessageKey>)[message] ?? null;
+}
+
 /**
  * 이 폴더를 지울 수 없는 이유. 지울 수 있거나 모르면 null이고 서버가 판단한다.
  * 보기 폴더는 편집 권한이, 내용이 있는 폴더는 OWNER 역할이 필요하다(document FolderService).

@@ -1,6 +1,7 @@
 import type { Locale } from "../locale";
 import koAuth from "./ko/auth.json";
 import koCommon from "./ko/common.json";
+import koDocuments from "./ko/documents.json";
 import koInvitation from "./ko/invitation.json";
 import koLanding from "./ko/landing.json";
 import koLegal from "./ko/legal.json";
@@ -14,6 +15,7 @@ import koWorkspace from "./ko/workspace.json";
 import koShared from "./ko/shared.json";
 import enAuth from "./en/auth.json";
 import enCommon from "./en/common.json";
+import enDocuments from "./en/documents.json";
 import enInvitation from "./en/invitation.json";
 import enLanding from "./en/landing.json";
 import enLegal from "./en/legal.json";
@@ -43,6 +45,7 @@ const ko = {
   notionImport: koNotionImport,
   wiki: koWiki,
   workspace: koWorkspace,
+  documents: koDocuments,
   shared: koShared
 };
 
@@ -63,6 +66,7 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     notionImport: enNotionImport,
     wiki: enWiki,
     workspace: enWorkspace,
+    documents: enDocuments,
     shared: enShared
   }
 };
