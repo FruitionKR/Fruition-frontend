@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSkills } from "@/entities/skill";
 import { readWorkspaceId } from "@/shared/api/client";
 import { buildSkillPickerGroups, parseSkillSlashQuery, type SkillPickerItem } from "@/features/agent-chat/lib/taskThread";
+import { useTranslations } from "next-intl";
 
 /**
  * 작업 입력창의 "/" 스킬 고르기 상태(Figma 1627:9886).
@@ -21,6 +22,7 @@ export function useSkillSlashPicker({
   isDraftRestored: boolean;
   onChange: (value: string) => void;
 }) {
+  const t = useTranslations("agentChat");
   const query = isEnabled ? parseSkillSlashQuery(value) : null;
   const [dismissedValue, setDismissedValue] = useState<string | null>(null);
   const isOpen = query !== null && dismissedValue !== value && !isDraftRestored;
@@ -33,7 +35,7 @@ export function useSkillSlashPicker({
     enabled: isEnabled && value.trimStart().startsWith("/") && Boolean(workspaceId),
     staleTime: 30_000
   });
-  const groups = useMemo(() => buildSkillPickerGroups(skills.data ?? [], query ?? ""), [skills.data, query]);
+  const groups = useMemo(() => buildSkillPickerGroups(skills.data ?? [], query ?? "", t), [skills.data, query, t]);
   const items = useMemo(() => groups.flatMap((group) => group.items), [groups]);
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null);
 
@@ -43,10 +45,10 @@ export function useSkillSlashPicker({
   }, [items]);
 
   const statusMessage = skills.isLoading
-    ? "스킬 목록을 불러오는 중이에요."
+    ? t("skillPicker.loading")
     : skills.error
-      ? "스킬 목록을 불러오지 못했어요."
-      : (skills.data ?? []).length === 0 ? "사용 중인 스킬이 없어요." : null;
+      ? t("skillPicker.failed")
+      : (skills.data ?? []).length === 0 ? t("skillPicker.none") : null;
 
   function pick(item: SkillPickerItem) {
     onChange(`/${item.slug} `);

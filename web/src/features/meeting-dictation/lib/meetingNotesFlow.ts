@@ -1,5 +1,6 @@
 import { describeMeetingNotesError, describeMeetingRecordingError } from "@/shared/lib/aiErrorCodes";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { MeetingTranslate } from "./meetingTranslate";
 
 // 회의 화면의 단계와 단계별 문구. 화면(MeetingNotesView)과 상태 훅(useMeetingSession)이 같이 쓴다.
@@ -94,10 +95,10 @@ export function meetingProgressText(phase: MeetingPhase, t: MeetingTranslate, up
   }
 }
 
-/** 녹음 파일 업로드·전사 취소·재생·삭제 오류 문구. 알려진 code는 화면 문구, 402·권한 등은 앱 공통 문구를 쓴다. */
-export function describeRecordingError(error: unknown, fallback: string): string {
+/** 녹음 파일 업로드·전사 취소·재생·삭제 오류 문구. 알려진 code는 화면 문구, 402·권한 등은 앱 공통 문구(ts)를 쓴다. */
+export function describeRecordingError(error: unknown, fallback: string, ts?: SharedTranslate): string {
   const code = error instanceof ApiError ? error.code : undefined;
-  return describeMeetingRecordingError(code) ?? getErrorMessage(error, fallback);
+  return describeMeetingRecordingError(code, ts) ?? getErrorMessage(error, fallback, ts);
 }
 
 type NotesRequestError = {
@@ -109,22 +110,30 @@ type NotesRequestError = {
 };
 
 /** 회의록 생성 요청(POST notes)의 HTTP 오류를 안내 문구로 바꾼다. */
-export function describeNotesRequestError(error: unknown, t: MeetingTranslate): NotesRequestError {
+export function describeNotesRequestError(error: unknown, t: MeetingTranslate, ts?: SharedTranslate): NotesRequestError {
   const code = error instanceof ApiError ? error.code : undefined;
   const result = (message: string, flags: Partial<NotesRequestError> = {}) => ({ message, incomplete: false, liveStillOpen: false, ...flags });
   if (code === "MEETING_TRANSCRIPT_INCOMPLETE") return result(t("messages.incompleteTranscript"), { incomplete: true });
   if (code === "MEETING_TRANSCRIPT_EMPTY") return result(t("messages.emptyTranscript"));
   if (code === "MEETING_LIVE_IN_USE") return result(t("messages.liveStillOpen"), { liveStillOpen: true });
-  if (code === "MEETING_NOTES_BUSY") return result(describeMeetingNotesError(code));
-  return result(getErrorMessage(error, t("errors.notesFailed")));
+  if (code === "MEETING_NOTES_BUSY") return result(describeMeetingNotesError(code, ts));
+  return result(getErrorMessage(error, t("errors.notesFailed"), ts));
 }
 
 /** 저장(apply)·미리보기(append-preview) 오류 문구 */
-export function describeNotesSaveError(error: unknown, fallback: string, t: MeetingTranslate): string {
+export function describeNotesSaveError(error: unknown, fallback: string, t: MeetingTranslate, ts?: SharedTranslate): string {
   const code = error instanceof ApiError ? error.code : undefined;
   if (code === "DOCUMENT_REVISION_CHANGED") return t("messages.revisionChanged");
   if (code === "MEETING_NOTES_OUTDATED") return t("messages.outdated");
   if (code === "MEETING_NOTES_ALREADY_APPLIED") return t("messages.alreadyApplied");
   if (code === "DUPLICATE_NAME") return t("messages.duplicateName");
-  return getErrorMessage(error, fallback);
+  return getErrorMessage(error, fallback, ts);
+}
+
+/** 마이크를 열지 못한 사유 문구(getUserMedia 오류 이름으로 고른다). */
+export function describeMeetingMicrophoneError(error: unknown, t: MeetingTranslate): string {
+  const name = error instanceof Error ? error.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return t("messages.microphoneDenied");
+  if (name === "NotFoundError" || name === "OverconstrainedError") return t("messages.noMicrophone");
+  return t("messages.microphoneFailed");
 }

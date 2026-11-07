@@ -21,6 +21,7 @@ export function MeetingListView({
   openErrorMessage: string | null;
 }) {
   const t = useTranslations("meeting");
+  const tShared = useTranslations("shared");
   const list = useMeetingList();
   const items = list.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -66,7 +67,7 @@ export function MeetingListView({
         )}
         {list.isError && (
           <p className={cx(styles["meeting-notice"], styles["is-error"])} role="alert">
-            {getErrorMessage(list.error, t("errors.listFailed"))}
+            {getErrorMessage(list.error, t("errors.listFailed"), tShared)}
           </p>
         )}
         {openErrorMessage && (

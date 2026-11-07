@@ -9,6 +9,7 @@ import { planAttachmentBatches } from "@/shared/lib/markdown-import/attachmentBa
 import { renderImages, renderLinks } from "../lib/notionLinks";
 import type { ImportPlan, PlanDocument, PlanPdf } from "../lib/notionPlan";
 import type { NotionImportTranslate } from "../lib/notionImportTranslate";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
 /** 문서 생성·본문 저장 동시 요청 수. 문서 업로드와 같이 2개씩 보낸다. */
 export const IMPORT_CONCURRENCY = 2;
@@ -28,9 +29,10 @@ function isImportErrorCode(code: string): code is keyof typeof IMPORT_ERROR_KEYS
   return Object.hasOwn(IMPORT_ERROR_KEYS, code);
 }
 
-export function importErrorMessage(error: unknown, fallback: string, t: NotionImportTranslate): string {
+/** 가져오기 요청 실패 문구. 공용 문구(크레딧·권한·연결 오류)는 ts(shared)로 지금 언어에 맞춘다. */
+export function importErrorMessage(error: unknown, fallback: string, t: NotionImportTranslate, ts?: SharedTranslate): string {
   if (error instanceof ApiError && error.code && isImportErrorCode(error.code)) return t(`errors.${IMPORT_ERROR_KEYS[error.code]}`);
-  return getErrorMessage(error, fallback);
+  return getErrorMessage(error, fallback, ts);
 }
 
 export type ImportWriterPort = {
@@ -104,6 +106,8 @@ export type RunOptions = {
   signal?: AbortSignal;
   onProgress?: (progress: ImportProgress) => void;
   t: NotionImportTranslate;
+  /** 공용 문구(shared) 번역. 없으면 공용 문구를 한국어로 쓴다. */
+  ts?: SharedTranslate;
 };
 
 export type RunResult = {
@@ -123,7 +127,7 @@ async function settleAll(tasks: Promise<void>[]): Promise<void> {
 }
 
 /** 계획을 실행한다. 이미 끝난 항목은 state를 보고 건너뛴다. */
-export async function runImport(plan: ImportPlan, { importId, writer, state, signal, onProgress, t }: RunOptions): Promise<RunResult> {
+export async function runImport(plan: ImportPlan, { importId, writer, state, signal, onProgress, t, ts }: RunOptions): Promise<RunResult> {
   const total = countImportSteps(plan);
   let fatalMessage: string | null = null;
   const doneCount = () => state.folderIds.size + state.documents.size + state.contentDone.size;
@@ -138,7 +142,7 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
       state.failures.delete(key);
     } catch (error) {
       if (signal?.aborted) throw new StopImport();
-      const message = importErrorMessage(error, fallback, t);
+      const message = importErrorMessage(error, fallback, t, ts);
       state.failures.set(key, { key, label, message });
       if (error instanceof ApiError && error.code && FATAL_CODES.has(error.code)) {
         fatalMessage = message;

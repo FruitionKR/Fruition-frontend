@@ -44,7 +44,10 @@
     "uploadCancelled": "녹음 파일 올리기를 취소했습니다.",
     "uploadCancelTooLate": "올리기를 취소하기 전에 글로 옮기기가 시작됐고 멈추지 못했어요. 글로 옮기기 취소를 눌러 주세요.",
     "awaitingUpload": "녹음 파일을 아직 올리지 않은 회의예요. 녹음 파일을 다시 올려 주세요.",
-    "liveConnected": "다른 화면에서 이 회의를 녹음하고 있어요. 녹음을 멈춘 뒤 회의록을 만들 수 있어요."
+    "liveConnected": "다른 화면에서 이 회의를 녹음하고 있어요. 녹음을 멈춘 뒤 회의록을 만들 수 있어요.",
+    "microphoneDenied": "마이크 사용 권한이 거부되었습니다. 브라우저 설정에서 마이크를 허용해 주세요.",
+    "noMicrophone": "사용할 수 있는 마이크를 찾지 못했습니다.",
+    "microphoneFailed": "마이크를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."
   },
   "errors": {
     "createFailed": "회의를 시작하지 못했습니다.",
@@ -130,5 +133,10 @@
     "listen": "녹음 듣기",
     "audioLabel": "녹음 재생",
     "retry": "다시 시도"
+  },
+  "recordingFile": {
+    "unsupported": "WAV, MP3, M4A, WebM 녹음 파일만 올릴 수 있습니다.",
+    "empty": "녹음 파일이 비어 있습니다.",
+    "tooLarge": "녹음 파일은 500MB 이하로 올려 주세요."
   }
 }

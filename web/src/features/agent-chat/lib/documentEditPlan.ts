@@ -1,10 +1,9 @@
+import { isKnownKey, type AgentChatTranslator } from "./agentChatTranslator";
 import {
+  agentPlanFailureKind,
   agentPlanFailureMessage,
   isOperationNotSelected,
   isOperationPurged,
-  PLAN_EXECUTION_FAILURE_FALLBACK,
-  PLAN_FAILURE_FALLBACK,
-  PLAN_PARTIAL_FAILURE_MESSAGE,
   planOperationStatusLabel,
   type AgentPlan,
   type AgentPlanOperation,
@@ -34,24 +33,18 @@ export type DocumentEditRow = {
   isPurged: boolean;
 };
 
-const DOCUMENT_PURGED_LABEL = "영구 삭제된 문서라 실행하지 않았어요.";
-/** 영구 삭제로 변경 내용이 지워진 문서 줄의 안내 */
-export const PURGED_DIFF_NOTE = "문서가 영구 삭제되어 변경 내용을 볼 수 없어요.";
+// 영구 삭제로 변경 내용이 지워진 문서 줄의 안내는 agentChat.editPlan.purgedDiff에 있다.
 
-/** AI 계약의 작업 결과 코드별 문구(ai tool_http_*, document_purged). */
-const OPERATION_ERROR_LABELS: Record<string, string> = {
-  tool_http_423: "다른 사람이 편집 중이라 저장하지 못했어요.",
-  tool_http_404: "문서를 찾을 수 없어요.",
-  document_purged: DOCUMENT_PURGED_LABEL,
-  rollback_document_purged: "영구 삭제된 문서라 되돌리지 못했어요."
-};
-const TRASHED_DOCUMENT_LABEL = "휴지통에 있는 문서라 저장하지 못했어요. 복구한 뒤 다시 요청해 주세요.";
-const CONFLICTED_LABEL = "문서가 바뀌어 저장하지 못했어요. 다시 요청해 주세요.";
+/** 문서 줄 문구(agentChat.editPlan.operationError)를 둔 AI 계약의 작업 결과 코드(ai tool_http_*, document_purged). */
+const OPERATION_ERROR_CODES = ["tool_http_423", "tool_http_404", "document_purged", "rollback_document_purged"] as const;
 const FAILED_OPERATION_STATUSES: ReadonlySet<string> = new Set(["failed", "conflicted", "forbidden", "verification_failed"]);
 const SAVED_OPERATION_STATUSES: ReadonlySet<string> = new Set(["succeeded", "completed"]);
 
-/** AI가 계획 없는 기본 문장으로 내려 주는 결과 메시지(ai WORKFLOW_DEFAULT_MESSAGE). 카드가 이미 계획을 보여 줘 안내로 되풀이하지 않는다. */
-const WORKFLOW_DEFAULT_MESSAGE = "작업 계획을 만들었습니다. 미리보기에서 확인해 주세요.";
+/**
+ * AI가 계획 없는 기본 문장으로 내려 주는 결과 메시지(ai WORKFLOW_DEFAULT_MESSAGE). 카드가 이미 계획을 보여 줘 안내로 되풀이하지 않는다.
+ * 영어로 요청하면(response_language=en) 영어 문장으로 온다.
+ */
+const WORKFLOW_DEFAULT_MESSAGES = ["작업 계획을 만들었습니다. 미리보기에서 확인해 주세요.", "I've created a task plan. Please review it in the preview."];
 
 /** 모든 작업이 문서 편집인 계획만 문서별 변경 화면으로 보여 준다. 다른 작업이 섞이면 기존 폴더 트리 화면이다. */
 export function isDocumentEditPlan(plan: Pick<AgentPlan, "operations"> | null | undefined): boolean {
@@ -59,13 +52,12 @@ export function isDocumentEditPlan(plan: Pick<AgentPlan, "operations"> | null | 
 }
 
 /** 문서 줄에 보일 실행 결과. 실행 전이면 null. */
-export function documentEditOperationLabel(operation: Pick<AgentPlanOperation, "status" | "error_code">): string | null {
+export function documentEditOperationLabel(operation: Pick<AgentPlanOperation, "status" | "error_code">, t: AgentChatTranslator): string | null {
   if (operation.status === "planned" || operation.status === "pending") return null;
-  if (isOperationNotSelected(operation)) return "제외됨";
-  const known = operation.error_code ? OPERATION_ERROR_LABELS[operation.error_code] : undefined;
-  if (known) return known;
-  if (operation.status === "conflicted") return CONFLICTED_LABEL;
-  return planOperationStatusLabel(operation.status);
+  if (isOperationNotSelected(operation)) return t("plan.excluded");
+  if (isKnownKey(OPERATION_ERROR_CODES, operation.error_code)) return t(`editPlan.operationError.${operation.error_code}`);
+  if (operation.status === "conflicted") return t("editPlan.conflicted");
+  return planOperationStatusLabel(operation.status, t);
 }
 
 type PlanTreeItem = { id: string; name: string; children?: PlanTreeItem[] };
@@ -98,7 +90,8 @@ export function buildDocumentEditRows(
   previews: AgentRunEditPreviews | null | undefined,
   tree: readonly PlanTreeItem[],
   /** 휴지통 문서. 트리에 없는 줄의 이름과 이유를 말하는 데 쓴다. 못 읽었으면 비워 둔다. */
-  trash: readonly { id: string; display_name: string }[] = []
+  trash: readonly { id: string; display_name: string }[],
+  t: AgentChatTranslator
 ): DocumentEditRow[] {
   const operations = new Map(plan.operations.map((operation) => [operation.id, operation]));
   const previewByOperation = new Map((previews?.items ?? []).map((item) => [item.operation_id, item]));
@@ -119,7 +112,7 @@ export function buildDocumentEditRows(
       removedLines: preview?.removed_lines ?? 0,
       hunks: preview?.hunks ?? null,
       warning: rowOperations.find((operation) => operation.warning)?.warning?.message.trim().normalize("NFC") || null,
-      resultLabel: shown?.error_code === "tool_http_404" && trashNames.has(row.id) ? TRASHED_DOCUMENT_LABEL : shown ? documentEditOperationLabel(shown) : null,
+      resultLabel: shown?.error_code === "tool_http_404" && trashNames.has(row.id) ? t("editPlan.trashed") : shown ? documentEditOperationLabel(shown, t) : null,
       isFailure: shown ? FAILED_OPERATION_STATUSES.has(shown.status) : false,
       excluded: row.excluded || row.isPurged,
       isPurged: row.isPurged
@@ -128,8 +121,8 @@ export function buildDocumentEditRows(
 }
 
 /** 수락 전 안내. 고른 수를 따라 바뀌므로 계획 요약을 그대로 쓰지 않는다. */
-export function documentEditDecisionNote(selectedCount: number): string {
-  return selectedCount > 0 ? `아직 바꾸지 않았습니다. 승인하면 문서 ${selectedCount}개를 수정합니다.` : "아직 바꾸지 않았습니다.";
+export function documentEditDecisionNote(selectedCount: number, t: AgentChatTranslator): string {
+  return selectedCount > 0 ? t("editPlan.decisionNote", { count: selectedCount }) : t("editPlan.decisionNoteEmpty");
 }
 
 /** 승인하면 실제로 수정될 문서 수. selectedCount는 막힌 문서를 뺀 수(documentEditApproval)이고, 변경안이 만료됐으면 수락할 수 없어 없는 것으로 친다. */
@@ -162,12 +155,17 @@ export function documentEditApproval(
  * 수락 버튼 위 안내. 모두 고르면 null. purgedCount: 영구 삭제로 빠진 문서 수, blockedCount: 권한으로 막혀 빠진 문서 수.
  * 둘 다 사용자가 뺀 문서로 세지 않는다(그 줄이 이유를 말한다). 모두 막혔으면 권한 안내가 이유를 말하므로 null이다.
  */
-export function documentEditApprovalHint({ selectedCount, excludedCount, canApply }: Pick<FolderOrganizeApproval, "selectedCount" | "excludedCount" | "canApply">, purgedCount = 0, blockedCount = 0): string | null {
+export function documentEditApprovalHint(
+  { selectedCount, excludedCount, canApply }: Pick<FolderOrganizeApproval, "selectedCount" | "excludedCount" | "canApply">,
+  purgedCount: number,
+  blockedCount: number,
+  t: AgentChatTranslator
+): string | null {
   const userExcluded = excludedCount - purgedCount - blockedCount;
   if (selectedCount === 0 && blockedCount > 0 && userExcluded === 0) return null;
-  if (selectedCount === 0) return purgedCount > 0 && userExcluded === 0 ? "수정할 수 있는 문서가 없어요. 대상 문서가 영구 삭제됐어요." : "수정할 문서를 하나 이상 골라 주세요.";
+  if (selectedCount === 0) return purgedCount > 0 && userExcluded === 0 ? t("editPlan.approvalHint.allPurged") : t("editPlan.approvalHint.selectOne");
   if (!canApply || userExcluded === 0) return null;
-  return `${userExcluded}개는 제외하고 수정해요.`;
+  return t("editPlan.approvalHint.excluded", { count: userExcluded });
 }
 
 /**
@@ -175,7 +173,7 @@ export function documentEditApprovalHint({ selectedCount, excludedCount, canAppl
  */
 export function documentEditMessageNotice(message: string | null | undefined, planSummary: string | null | undefined): string | null {
   const summary = (planSummary ?? "").trim().normalize("NFC");
-  const text = [summary, WORKFLOW_DEFAULT_MESSAGE].reduce(
+  const text = [summary, ...WORKFLOW_DEFAULT_MESSAGES].reduce(
     (current, known) => (known ? current.replace(known, "") : current),
     (message ?? "").normalize("NFC")
   );
@@ -183,32 +181,32 @@ export function documentEditMessageNotice(message: string | null | undefined, pl
 }
 
 /** 실패한 run의 카드 안내. 문서별 이유는 각 줄에 있으므로 몇 개가 저장됐는지를 말한다. */
-export function documentEditRunNote(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined): string | null {
-  const failure = agentPlanFailureMessage(run);
-  if (!failure) return null;
-  if (failure !== PLAN_EXECUTION_FAILURE_FALLBACK && failure !== PLAN_FAILURE_FALLBACK && failure !== PLAN_PARTIAL_FAILURE_MESSAGE) return failure;
+export function documentEditRunNote(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined, t: AgentChatTranslator): string | null {
+  const kind = agentPlanFailureKind(run);
+  if (!kind) return null;
+  if (kind === "code") return agentPlanFailureMessage(run, t);
   const operations = run?.plan?.operations ?? [];
   const saved = operations.filter((operation) => SAVED_OPERATION_STATUSES.has(operation.status)).length;
   const failed = operations.filter((operation) => FAILED_OPERATION_STATUSES.has(operation.status)).length;
   const purged = operations.filter(isOperationPurged).length;
-  if (purged > 0 && failed === 0) return saved > 0 ? `문서 ${saved}개를 저장했어요. 영구 삭제된 문서 ${purged}개는 실행하지 않았어요.` : DOCUMENT_PURGED_LABEL;
-  if (saved > 0) return `문서 ${saved + failed}개 중 ${saved}개를 저장했어요. 저장하지 못한 문서는 문서별 이유를 확인해 주세요.`;
-  if (failed > 0) return "문서를 저장하지 못했어요. 문서별 이유를 확인해 주세요.";
-  return "작업을 완료하지 못했습니다. 문서별 상태를 확인해 주세요.";
+  if (purged > 0 && failed === 0) return saved > 0 ? t("editPlan.runNote.savedSomePurged", { saved, purged }) : t("editPlan.operationError.document_purged");
+  if (saved > 0) return t("editPlan.runNote.savedSome", { saved, total: saved + failed });
+  if (failed > 0) return t("editPlan.runNote.noneSaved");
+  return t("editPlan.runNote.incomplete");
 }
 
 /** 문서 행에 변경 줄이 없을 때의 안내. 수락을 기다리지 않는 run의 수정안이 만료되면 오류가 아니라 보관 기간이 지난 것이다. */
-export function missingDiffNote({ isLoading, isAwaiting, isExpired }: { isLoading: boolean; isAwaiting: boolean; isExpired: boolean }): string {
-  if (isLoading) return "변경 내용을 불러오는 중이에요.";
-  if (!isAwaiting && isExpired) return "보관 기간이 지나 변경 내용은 볼 수 없어요. 로그에서 확인할 수 있어요.";
-  return "변경 내용을 불러오지 못했어요.";
+export function missingDiffNote({ isLoading, isAwaiting, isExpired }: { isLoading: boolean; isAwaiting: boolean; isExpired: boolean }, t: AgentChatTranslator): string {
+  if (isLoading) return t("editPlan.diff.loading");
+  if (!isAwaiting && isExpired) return t("editPlan.diff.expired");
+  return t("editPlan.diff.failed");
 }
 
 /** 미리 보기 상태 안내. 내용을 못 불러와도 수락은 막지 않되 확인 없이 수정된다는 점을 숨기지 않는다. */
-export function editPreviewNotice({ state, missingCount, isExpired }: { state: "loading" | "error" | "ready"; missingCount: number; isExpired: boolean }): string | null {
-  if (isExpired) return "변경안의 보관 기간이 지나 수락할 수 없어요. 다시 요청해 주세요.";
-  if (state === "loading") return "변경 내용을 불러오는 중이에요.";
-  if (state === "error") return "변경 내용을 불러오지 못했어요. 수락하면 내용을 확인하지 않은 채 고른 문서가 수정돼요.";
-  if (missingCount > 0) return `문서 ${missingCount}개의 변경 내용을 불러오지 못했어요. 수락하면 내용을 확인하지 않은 채 그 문서도 수정돼요.`;
+export function editPreviewNotice({ state, missingCount, isExpired }: { state: "loading" | "error" | "ready"; missingCount: number; isExpired: boolean }, t: AgentChatTranslator): string | null {
+  if (isExpired) return t("editPlan.previewNotice.expired");
+  if (state === "loading") return t("editPlan.diff.loading");
+  if (state === "error") return t("editPlan.previewNotice.failed");
+  if (missingCount > 0) return t("editPlan.previewNotice.missing", { count: missingCount });
   return null;
 }

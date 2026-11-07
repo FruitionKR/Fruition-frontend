@@ -23,6 +23,7 @@ export type SkillDraft = { name: string; description: string; instructionsMarkdo
  */
 export function useSkillCatalog(workspaceId: string | null) {
   const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["skills", workspaceId] as const, [workspaceId]);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export function useSkillCatalog(workspaceId: string | null) {
       enableAttemptedIds.current.add(skill.id);
       enableSkill(workspaceId, skill.id)
         .then(replaceSkill)
-        .catch((error: unknown) => setActionError(getErrorMessage(error, t("view.enableFailed"))));
+        .catch((error: unknown) => setActionError(getErrorMessage(error, t("view.enableFailed"), tShared)));
     }
     // replaceSkill은 queryKey로만 결정되어 목록·워크스페이스가 바뀔 때만 다시 본다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,7 +75,7 @@ export function useSkillCatalog(workspaceId: string | null) {
   return {
     skills: listQuery.data ?? [],
     isLoading: listQuery.isLoading,
-    loadError: listQuery.error ? getErrorMessage(listQuery.error, t("view.loadFailed")) : null,
+    loadError: listQuery.error ? getErrorMessage(listQuery.error, t("view.loadFailed"), tShared) : null,
     actionError,
     updateMutation,
     deleteMutation,

@@ -1,3 +1,4 @@
+import type { AgentChatTranslator } from "./agentChatTranslator";
 import { isOperationNotSelected, isOperationPurged, planOperationFailureReason, planOperationOutcome, planOperationStatusLabel, summarizePlanOperationResults, type AgentPlan, type AgentPlanOperation } from "./agentPlan";
 
 /** 폴더 정리 미리보기 화면을 여는 데 필요한 것: 계획을 조회할 turn과 사용자가 보낸 커맨드. */
@@ -18,7 +19,7 @@ export type FolderOrganizeRow = {
   id: string;
   /** 바뀌기 전 이름. 새로 만드는 문서는 빈 문자열. */
   originalName: string;
-  /** 정리 후 들어갈 폴더 이름. 최상위면 "최상위". */
+  /** 정리 후 들어갈 폴더 이름. 최상위면 agentChat.plan.describe.root 문구("최상위"). */
   folderName: string;
   newName: string;
   changeLabel: string;
@@ -48,8 +49,7 @@ export type FolderOrganizeView = {
   targetFolderName: string | null;
 };
 
-/** 트리에서 사라져 이름을 알 수 없는 영구 삭제 문서의 줄 이름. AI도 문서 이름을 지운다. */
-const PURGED_ROW_NAME = "삭제된 문서";
+// 트리에서 사라져 이름을 알 수 없는 영구 삭제 문서의 줄 이름은 agentChat.folder.purgedRowName이다. AI도 문서 이름을 지운다.
 
 /** AI 계약: 부분 승인 operation_ids는 1~20개. */
 export const MAX_SELECTED_OPERATIONS = 20;
@@ -76,7 +76,7 @@ function argName(args: Record<string, unknown>): string {
 }
 
 /** 계획의 작업(폴더 생성·이동·이름 변경)을 항목별 한 줄로 묶는다. */
-export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], targetFolderId?: string | null): FolderOrganizeView {
+export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], targetFolderId: string | null | undefined, t: AgentChatTranslator): FolderOrganizeView {
   const items = new Map<string, { name: string; parentId: string | null }>();
   function visit(nodes: PlanTreeItem[], parentId: string | null) {
     for (const node of nodes) {
@@ -88,12 +88,12 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
 
   const createdFolderNames = new Map<string, string>();
   function folderName(value: unknown): string {
-    if (value === null || value === undefined) return "최상위";
-    if (typeof value === "string") return items.get(value)?.name ?? "폴더 이름 확인 불가";
+    if (value === null || value === undefined) return t("plan.describe.root");
+    if (typeof value === "string") return items.get(value)?.name ?? t("plan.describe.unknownFolder");
     if (typeof value === "object" && "$operation_result" in value) {
-      return createdFolderNames.get(String(value.$operation_result)) ?? "새 폴더 이름 확인 불가";
+      return createdFolderNames.get(String(value.$operation_result)) ?? t("plan.describe.unknownNewFolder");
     }
-    return "위치 확인 불가";
+    return t("plan.describe.unknownLocation");
   }
 
   const rows = new Map<string, RowDraft>();
@@ -111,7 +111,7 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
     if (operation.tool_name === "create_document") {
       rows.set(operation.id, {
         ...emptyRow(operation.id, "", folderName(args.folder_id), argName(args)),
-        changeLabel: "생성", reason, operations: [operation]
+        changeLabel: t("folder.change.create"), reason, operations: [operation]
       });
       continue;
     }
@@ -120,9 +120,9 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
     const item = items.get(targetId);
     const row = rows.get(targetId) ?? emptyRow(
       targetId,
-      item?.name ?? "항목 이름 확인 불가",
-      item ? folderName(item.parentId) : "위치 확인 불가",
-      item?.name ?? "항목 이름 확인 불가"
+      item?.name ?? t("plan.describe.unknownItem"),
+      item ? folderName(item.parentId) : t("plan.describe.unknownLocation"),
+      item?.name ?? t("plan.describe.unknownItem")
     );
     // 되돌린 작업도 실패처럼 새 위치·이름을 보여 주지 않는다.
     const isFailed = ["failed", "rolled_back"].includes(planOperationOutcome(operation));
@@ -151,16 +151,16 @@ export function buildFolderOrganizeView(plan: AgentPlan, tree: PlanTreeItem[], t
       const isPurged = operations.length > 0 && operations.every(isOperationPurged);
       return {
       ...row,
-      originalName: isPurged && !items.has(row.id) ? PURGED_ROW_NAME : row.originalName,
-      newName: isPurged && !items.has(row.id) ? PURGED_ROW_NAME : row.newName,
-      changeLabel: row.changeLabel || [moved && "이동", renamed && "이름", edited && "편집"].filter(Boolean).join(" · "),
+      originalName: isPurged && !items.has(row.id) ? t("folder.purgedRowName") : row.originalName,
+      newName: isPurged && !items.has(row.id) ? t("folder.purgedRowName") : row.newName,
+      changeLabel: row.changeLabel || [moved && t("folder.change.move"), renamed && t("folder.change.rename"), edited && t("folder.change.edit")].filter(Boolean).join(" · "),
       operationIds: operations.map((operation) => operation.id),
       suggestedSelected: !isPurged && operations.every((operation) => operation.suggested_selected !== false),
       duplicateWarning: warningMessage(operations, "duplicate_name") ?? warningMessage(operations, "duplicate_content"),
       dependencyNote: warningMessage(operations, "depends_on_unselected"),
       excluded: operations.every(isOperationNotSelected),
       isPurged,
-      failure: rowFailure(operations)
+      failure: rowFailure(operations, t)
       };
     }),
     createdFolders,
@@ -176,15 +176,15 @@ function emptyRow(id: string, originalName: string, folderName: string, newName:
 }
 
 /** 줄의 실행 결과에 실패가 있으면 칩 문구와 이유. 일부만 저장됐으면 "일부 실패", 모두 권한 때문이면 "권한 없음"이다. */
-function rowFailure(operations: AgentPlanOperation[]): FolderOrganizeRow["failure"] {
+function rowFailure(operations: AgentPlanOperation[], t: AgentChatTranslator): FolderOrganizeRow["failure"] {
   const failed = operations.filter((operation) => planOperationOutcome(operation) === "failed");
   if (failed.length === 0) {
     const rolledBack = operations.find((operation) => planOperationOutcome(operation) === "rolled_back");
-    return rolledBack ? { label: planOperationStatusLabel(rolledBack.status), note: planOperationFailureReason(rolledBack) } : null;
+    return rolledBack ? { label: planOperationStatusLabel(rolledBack.status, t), note: planOperationFailureReason(rolledBack, t) } : null;
   }
-  const reason = planOperationFailureReason(failed[0]);
-  if (operations.some((operation) => planOperationOutcome(operation) === "applied")) return { label: "일부 실패", note: `일부 작업은 ${reason}` };
-  return { label: failed.every((operation) => operation.status === "forbidden") ? "권한 없음" : "실패", note: reason };
+  const reason = planOperationFailureReason(failed[0], t);
+  if (operations.some((operation) => planOperationOutcome(operation) === "applied")) return { label: t("folder.failure.partial"), note: t("folder.failure.partialNote", { reason }) };
+  return { label: failed.every((operation) => operation.status === "forbidden") ? t("plan.operationStatus.forbidden") : t("plan.operationStatus.failed"), note: reason };
 }
 
 function warningMessage(operations: AgentPlanOperation[], type: string): string | null {
@@ -211,9 +211,9 @@ export type FolderOrganizeRowResults = {
  * 작업 수(폴더 생성·이동·이름 변경을 따로 셈)로 세면 미리보기의 "4개 중 3개 선택"과 카드의 "저장됨(5)"가 어긋난다.
  * 새 폴더는 줄이 아니라 따로 센다.
  */
-export function summarizeFolderOrganizeRows(plan: AgentPlan): FolderOrganizeRowResults {
+export function summarizeFolderOrganizeRows(plan: AgentPlan, t: AgentChatTranslator): FolderOrganizeRowResults {
   const operations = new Map(plan.operations.map((operation) => [operation.id, operation]));
-  const { rows, createdFolders } = buildFolderOrganizeView(plan, []);
+  const { rows, createdFolders } = buildFolderOrganizeView(plan, [], null, t);
   let saved = 0;
   let partial = 0;
   let failed = 0;
@@ -232,13 +232,13 @@ export function summarizeFolderOrganizeRows(plan: AgentPlan): FolderOrganizeRowR
 }
 
 /** 일부라도 실패한 run의 결과 안내: "1개 저장 • 1개 일부만 저장 • 1개 실패 • 1개 제외" */
-export function folderOrganizeResultNotice({ saved, partial, failed, excluded, rolledBack }: FolderOrganizeRowResults): string {
+export function folderOrganizeResultNotice({ saved, partial, failed, excluded, rolledBack }: FolderOrganizeRowResults, t: AgentChatTranslator): string {
   return [
-    saved > partial && `${saved - partial}개 저장`,
-    partial > 0 && `${partial}개 일부만 저장`,
-    failed > 0 && `${failed}개 실패`,
-    rolledBack > 0 && `${rolledBack}개 복구`,
-    excluded > 0 && `${excluded}개 제외`
+    saved > partial && t("folder.result.saved", { count: saved - partial }),
+    partial > 0 && t("folder.result.partial", { count: partial }),
+    failed > 0 && t("folder.result.failed", { count: failed }),
+    rolledBack > 0 && t("folder.result.rolledBack", { count: rolledBack }),
+    excluded > 0 && t("folder.result.excluded", { count: excluded })
   ].filter(Boolean).join(" • ");
 }
 
@@ -279,11 +279,11 @@ export function selectedCreatedFolders(createdFolders: FolderOrganizeCreatedFold
 }
 
 /** 안내 문구: "6개 중 5개 선택 • 1개는 중복 의심이라 선택 해제해 두었어요 • 새 폴더 3개(계획, 회의, 참고)가 만들어져요." */
-export function folderOrganizeNotice(total: number, selected: number, createdFolders: string[], duplicateDeselected = 0): string {
+export function folderOrganizeNotice(total: number, selected: number, createdFolders: string[], duplicateDeselected: number, t: AgentChatTranslator): string {
   return [
-    `${total}개 중 ${selected}개 선택`,
-    duplicateDeselected > 0 && `${duplicateDeselected}개는 중복 의심이라 선택 해제해 두었어요`,
-    createdFolders.length > 0 && `새 폴더 ${createdFolders.length}개(${createdFolders.join(", ")})가 만들어져요.`
+    t("folder.notice.selected", { total, selected }),
+    duplicateDeselected > 0 && t("folder.notice.duplicateDeselected", { count: duplicateDeselected }),
+    createdFolders.length > 0 && t("folder.notice.createdFolders", { count: createdFolders.length, names: createdFolders.join(", ") })
   ].filter(Boolean).join(" • ");
 }
 
@@ -324,11 +324,11 @@ export function folderOrganizeApproval(plan: AgentPlan, rows: FolderOrganizeRow[
 }
 
 /** 작업 탭 카드 수락 버튼 옆 안내. 모두 적용하면 null. */
-export function folderOrganizeCardHint({ selectedCount, excludedCount, duplicateExcludedCount, operationIds, canApply }: FolderOrganizeApproval): string | null {
-  if (selectedCount === 0) return "적용할 항목이 없어요. 미리보기 탭에서 항목을 골라주세요.";
-  if (!canApply) return `일부만 적용할 때는 작업 ${MAX_SELECTED_OPERATIONS}개까지예요. 미리보기 탭에서 선택을 조정해주세요.`;
+export function folderOrganizeCardHint({ selectedCount, excludedCount, duplicateExcludedCount, operationIds, canApply }: FolderOrganizeApproval, t: AgentChatTranslator): string | null {
+  if (selectedCount === 0) return t("folder.cardHint.none");
+  if (!canApply) return t("folder.cardHint.tooMany", { max: MAX_SELECTED_OPERATIONS });
   if (operationIds === null || excludedCount === 0) return null;
-  if (duplicateExcludedCount === excludedCount) return `중복 의심 ${excludedCount}개는 제외하고 적용해요.`;
-  if (duplicateExcludedCount > 0) return `${excludedCount}개(중복 의심 ${duplicateExcludedCount}개 포함)는 제외하고 적용해요.`;
-  return `${excludedCount}개는 제외하고 적용해요.`;
+  if (duplicateExcludedCount === excludedCount) return t("folder.cardHint.duplicatesExcluded", { count: excludedCount });
+  if (duplicateExcludedCount > 0) return t("folder.cardHint.someDuplicatesExcluded", { count: excludedCount, duplicates: duplicateExcludedCount });
+  return t("folder.cardHint.excluded", { count: excludedCount });
 }

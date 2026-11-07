@@ -20,6 +20,7 @@ import {
 } from "../api/imports";
 import type { ImportPlan } from "../lib/notionPlan";
 import { ZipSafetyError } from "@/shared/lib/markdown-import/zipArchive";
+import { describeZipSafetyError } from "../lib/zipSafetyMessage";
 import { analyzeNotionZip } from "./analyzeNotionZip";
 import { convertEstimateOf, needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
 import { createRunState, importErrorMessage, runImport, summarizeRun, type ImportFailure, type ImportProgress, type RunState } from "./importRunner";
@@ -86,6 +87,7 @@ async function existingNames(folderId: string | null) {
 
 export function useNotionImport({ refreshBackendData }: { refreshBackendData: () => Promise<void> }) {
   const t = useTranslations("notionImport");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const targetFolderRef = useRef<string | null>(null);
@@ -128,7 +130,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       const plan = await analyzeNotionZip(bytes, names);
       setStep({ kind: "preview", fileName: file.name, plan, quota });
     } catch (error) {
-      const message = error instanceof ZipSafetyError ? error.message : getErrorMessage(error, t("errors.readFailed"));
+      const message = error instanceof ZipSafetyError ? describeZipSafetyError(error, t) : getErrorMessage(error, t("errors.readFailed"), tShared);
       setStep({ kind: "error", message });
     }
   }
@@ -146,8 +148,9 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       state: session.state,
       signal: controller.signal,
       onProgress: (progress) => setStep((current) => current.kind === "running" ? { ...current, progress } : current),
-      t
-    }).catch((error: unknown) => ({ fatalMessage: getErrorMessage(error, t("errors.runFailed")), cancelled: false }));
+      t,
+      ts: tShared
+    }).catch((error: unknown) => ({ fatalMessage: getErrorMessage(error, t("errors.runFailed"), tShared), cancelled: false }));
     abortRef.current = null;
     void refreshBackendData().catch(() => {});
     invalidateStorageUsage(queryClient);
@@ -167,7 +170,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       const session = await createImportSession(plan.itemCount, plan.totalBytes, workspaceId);
       sessionRef.current = { importId: session.import_id, workspaceId, state: createRunState(), completed: false };
     } catch (error) {
-      setStep({ kind: "error", message: importErrorMessage(error, t("errors.startFailed"), t) });
+      setStep({ kind: "error", message: importErrorMessage(error, t("errors.startFailed"), t, tShared) });
       return;
     }
     await execute(plan);
@@ -187,7 +190,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       }
       if (counts.created > 0) estimate = await fetchImportIngestEstimate(session.importId, session.workspaceId);
     } catch (error) {
-      estimateError = importErrorMessage(error, t("errors.estimateFailed"), t);
+      estimateError = importErrorMessage(error, t("errors.estimateFailed"), t, tShared);
     }
     setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, createdPdfs: counts.createdPdfs, failedCount: counts.failed, cancelled, estimate, estimateError,
       convert: convertEstimateOf(estimate) ? "idle" : "skipped", convertProgress: null, convertError: null,
@@ -221,6 +224,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       total,
       kind: "convert",
       t,
+      ts: tShared,
       onProgress: (progress) => update({ convertProgress: { queued: alreadyQueued + progress.queued, total: alreadyQueued + progress.total } })
     });
     void refreshBackendData().catch(() => {});
@@ -254,6 +258,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     const result = await runIngestLoop(() => startImportIngest(session.importId, session.workspaceId), {
       total,
       t,
+      ts: tShared,
       onProgress: (progress) => update({ ingestProgress: { queued: alreadyQueued + progress.queued, total: alreadyQueued + progress.total } })
     });
     void refreshBackendData().catch(() => {});

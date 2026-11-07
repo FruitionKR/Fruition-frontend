@@ -20,10 +20,31 @@ export const MAX_COMPRESSION_RATIO = 100;
  */
 export const COMPRESSION_RATIO_MIN_BYTES = 1024 * 1024;
 
+/** 안전 검사에 걸린 종류. 화면은 message(한국어) 대신 이 값으로 지금 언어 문구를 고를 수 있다. */
+export type ZipSafetyKind =
+  | "unreadable"
+  | "zip64"
+  | "tooManyEntries"
+  | "corrupt"
+  | "corruptEntry"
+  | "unsafePath"
+  | "symlink"
+  | "encrypted"
+  | "unsupportedMethod"
+  | "compressionRatio"
+  | "sizeMismatch"
+  | "tooLarge";
+
 export class ZipSafetyError extends Error {
-  constructor(message: string) {
+  readonly kind: ZipSafetyKind;
+  /** 문제가 된 zip 안 경로(항목별 검사일 때만) */
+  readonly path?: string;
+
+  constructor(message: string, kind: ZipSafetyKind, path?: string) {
     super(message);
     this.name = "ZipSafetyError";
+    this.kind = kind;
+    this.path = path;
   }
 }
 
@@ -65,7 +86,7 @@ function findEndOfCentralDirectory(view: DataView): number {
   for (let offset = view.byteLength - 22; offset >= minOffset; offset -= 1) {
     if (view.getUint32(offset, true) === EOCD_SIGNATURE) return offset;
   }
-  throw new ZipSafetyError("zip 파일을 읽을 수 없어요. Notion에서 내보낸 zip 파일인지 확인해 주세요.");
+  throw new ZipSafetyError("zip 파일을 읽을 수 없어요. Notion에서 내보낸 zip 파일인지 확인해 주세요.", "unreadable");
 }
 
 /** 경로가 zip 밖을 가리키거나 절대 경로면 true */
@@ -81,14 +102,14 @@ function readCentralDirectory(bytes: Uint8Array): RawEntry[] {
   const entryCount = view.getUint16(eocd + 10, true);
   const directoryOffset = view.getUint32(eocd + 16, true);
   if (entryCount === 0xffff || directoryOffset === ZIP64_MARKER) {
-    throw new ZipSafetyError("4GB를 넘는 zip(ZIP64)은 아직 가져올 수 없어요. Notion에서 나눠서 내보내 주세요.");
+    throw new ZipSafetyError("4GB를 넘는 zip(ZIP64)은 아직 가져올 수 없어요. Notion에서 나눠서 내보내 주세요.", "zip64");
   }
-  if (entryCount > MAX_ENTRY_COUNT) throw new ZipSafetyError(`zip 안 파일이 ${MAX_ENTRY_COUNT.toLocaleString()}개를 넘어 가져올 수 없어요.`);
+  if (entryCount > MAX_ENTRY_COUNT) throw new ZipSafetyError(`zip 안 파일이 ${MAX_ENTRY_COUNT.toLocaleString()}개를 넘어 가져올 수 없어요.`, "tooManyEntries");
   const entries: RawEntry[] = [];
   let offset = directoryOffset;
   for (let index = 0; index < entryCount; index += 1) {
     if (offset + 46 > view.byteLength || view.getUint32(offset, true) !== CENTRAL_SIGNATURE) {
-      throw new ZipSafetyError("zip 파일이 손상되었어요.");
+      throw new ZipSafetyError("zip 파일이 손상되었어요.", "corrupt");
     }
     const madeBy = view.getUint16(offset + 4, true) >> 8;
     const flags = view.getUint16(offset + 8, true);
@@ -101,7 +122,7 @@ function readCentralDirectory(bytes: Uint8Array): RawEntry[] {
     const externalAttributes = view.getUint32(offset + 38, true);
     const localHeaderOffset = view.getUint32(offset + 42, true);
     if (compressedSize === ZIP64_MARKER || size === ZIP64_MARKER || localHeaderOffset === ZIP64_MARKER) {
-      throw new ZipSafetyError("4GB를 넘는 zip(ZIP64)은 아직 가져올 수 없어요. Notion에서 나눠서 내보내 주세요.");
+      throw new ZipSafetyError("4GB를 넘는 zip(ZIP64)은 아직 가져올 수 없어요. Notion에서 나눠서 내보내 주세요.", "zip64");
     }
     const rawName = utf8.decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
     const path = rawName.normalize("NFC");
@@ -123,12 +144,12 @@ function readCentralDirectory(bytes: Uint8Array): RawEntry[] {
 
 /** 중앙 디렉터리 항목 하나의 안전 검사. 문제가 있으면 zip 전체를 거절한다. */
 export function assertSafeEntry(entry: Pick<RawEntry, "path" | "flags" | "method" | "compressedSize" | "size" | "isSymlink">): void {
-  if (isUnsafeZipPath(entry.path)) throw new ZipSafetyError(`zip 밖을 가리키는 경로가 있어 가져올 수 없어요: ${entry.path}`);
-  if (entry.isSymlink) throw new ZipSafetyError(`심볼릭 링크가 들어 있어 가져올 수 없어요: ${entry.path}`);
-  if (entry.flags & 0x1) throw new ZipSafetyError("암호가 걸린 zip은 가져올 수 없어요.");
-  if (entry.method !== 0 && entry.method !== 8) throw new ZipSafetyError(`지원하지 않는 압축 방식이에요: ${entry.path}`);
+  if (isUnsafeZipPath(entry.path)) throw new ZipSafetyError(`zip 밖을 가리키는 경로가 있어 가져올 수 없어요: ${entry.path}`, "unsafePath", entry.path);
+  if (entry.isSymlink) throw new ZipSafetyError(`심볼릭 링크가 들어 있어 가져올 수 없어요: ${entry.path}`, "symlink", entry.path);
+  if (entry.flags & 0x1) throw new ZipSafetyError("암호가 걸린 zip은 가져올 수 없어요.", "encrypted");
+  if (entry.method !== 0 && entry.method !== 8) throw new ZipSafetyError(`지원하지 않는 압축 방식이에요: ${entry.path}`, "unsupportedMethod", entry.path);
   if (entry.size > COMPRESSION_RATIO_MIN_BYTES && entry.size > Math.max(1, entry.compressedSize) * MAX_COMPRESSION_RATIO) {
-    throw new ZipSafetyError(`압축률이 비정상적으로 높은 파일이 있어 가져올 수 없어요: ${entry.path}`);
+    throw new ZipSafetyError(`압축률이 비정상적으로 높은 파일이 있어 가져올 수 없어요: ${entry.path}`, "compressionRatio", entry.path);
   }
 }
 
@@ -136,11 +157,11 @@ function compressedData(bytes: Uint8Array, entry: RawEntry): Uint8Array {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const local = entry.localHeaderOffset;
   if (local + 30 > view.byteLength || view.getUint32(local, true) !== LOCAL_SIGNATURE) {
-    throw new ZipSafetyError(`zip 파일이 손상되었어요: ${entry.path}`);
+    throw new ZipSafetyError(`zip 파일이 손상되었어요: ${entry.path}`, "corruptEntry", entry.path);
   }
   const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
   const end = start + entry.compressedSize;
-  if (end > bytes.byteLength) throw new ZipSafetyError(`zip 파일이 손상되었어요: ${entry.path}`);
+  if (end > bytes.byteLength) throw new ZipSafetyError(`zip 파일이 손상되었어요: ${entry.path}`, "corruptEntry", entry.path);
   return bytes.subarray(start, end);
 }
 
@@ -174,12 +195,12 @@ function entryReader(bytes: Uint8Array, entry: RawEntry): () => Uint8Array {
   return () => {
     const data = compressedData(bytes, entry);
     if (entry.method === 0) {
-      if (data.length !== entry.size) throw new ZipSafetyError(`zip 파일이 손상되었어요: ${entry.path}`);
+      if (data.length !== entry.size) throw new ZipSafetyError(`zip 파일이 손상되었어요: ${entry.path}`, "corruptEntry", entry.path);
       return data;
     }
     // 선언한 크기만큼만 버퍼를 잡는다. 실제 크기가 다르면(헤더 위조) 거절한다.
     const out = inflateSync(data, { out: new Uint8Array(entry.size) });
-    if (out.length !== entry.size) throw new ZipSafetyError(`압축 해제 크기가 맞지 않아요: ${entry.path}`);
+    if (out.length !== entry.size) throw new ZipSafetyError(`압축 해제 크기가 맞지 않아요: ${entry.path}`, "sizeMismatch", entry.path);
     return out;
   };
 }
@@ -210,9 +231,9 @@ export async function readZipArchive(bytes: Uint8Array): Promise<ZipReadResult> 
 
   function accept(raw: RawEntry, source: Uint8Array) {
     count += 1;
-    if (count > MAX_ENTRY_COUNT) throw new ZipSafetyError(`zip 안 파일이 ${MAX_ENTRY_COUNT.toLocaleString()}개를 넘어 가져올 수 없어요.`);
+    if (count > MAX_ENTRY_COUNT) throw new ZipSafetyError(`zip 안 파일이 ${MAX_ENTRY_COUNT.toLocaleString()}개를 넘어 가져올 수 없어요.`, "tooManyEntries");
     total += raw.size;
-    if (total > MAX_TOTAL_UNCOMPRESSED_BYTES) throw new ZipSafetyError("압축을 푼 크기가 2GB를 넘어 가져올 수 없어요.");
+    if (total > MAX_TOTAL_UNCOMPRESSED_BYTES) throw new ZipSafetyError("압축을 푼 크기가 2GB를 넘어 가져올 수 없어요.", "tooLarge");
     entries.push({ path: raw.path, compressedSize: raw.compressedSize, size: raw.size, read: entryReader(source, raw), readHead: headReader(source, raw) });
   }
 
@@ -224,7 +245,7 @@ export async function readZipArchive(bytes: Uint8Array): Promise<ZipReadResult> 
       continue;
     }
     // 안쪽 zip 자체가 아니라 그 안의 파일을 합계에 넣는다. 안쪽 zip 하나가 상한을 넘으면 풀지 않는다.
-    if (raw.size > MAX_TOTAL_UNCOMPRESSED_BYTES) throw new ZipSafetyError("압축을 푼 크기가 2GB를 넘어 가져올 수 없어요.");
+    if (raw.size > MAX_TOTAL_UNCOMPRESSED_BYTES) throw new ZipSafetyError("압축을 푼 크기가 2GB를 넘어 가져올 수 없어요.", "tooLarge");
     const nestedBytes = entryReader(bytes, raw)();
     await pause();
     for (const inner of readCentralDirectory(nestedBytes)) {

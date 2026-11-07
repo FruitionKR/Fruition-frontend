@@ -4,6 +4,7 @@
  */
 import { ApiError, AI_USAGE_LIMIT_EXCEEDED_CODE } from "@/shared/lib/apiErrors";
 import type { NotionImportTranslate } from "../lib/notionImportTranslate";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import { importErrorMessage } from "./importRunner";
 
 /** 편입 요청 사이 간격. 서버 큐·AI 한도에 몰리지 않게 조금 쉰다. */
@@ -87,8 +88,8 @@ export type LoopKind = "ingest" | "convert";
  */
 export async function runIngestLoop(
   ingestOnce: () => Promise<{ queued: number; remaining: number }>,
-  { total, onProgress, delayMs = INGEST_REQUEST_DELAY_MS, kind = "ingest", t }:
-    { total: number; onProgress?: (progress: IngestProgress) => void; delayMs?: number; kind?: LoopKind; t: NotionImportTranslate }
+  { total, onProgress, delayMs = INGEST_REQUEST_DELAY_MS, kind = "ingest", t, ts }:
+    { total: number; onProgress?: (progress: IngestProgress) => void; delayMs?: number; kind?: LoopKind; t: NotionImportTranslate; ts?: SharedTranslate }
 ): Promise<IngestResult> {
   let queued = 0;
   let remaining: number | null = null;
@@ -99,7 +100,7 @@ export async function runIngestLoop(
       response = await ingestOnce();
     } catch (error) {
       const isLimit = error instanceof ApiError && (error.status === 429 || error.code === AI_USAGE_LIMIT_EXCEEDED_CODE);
-      const message = importErrorMessage(error, t(`${kind}.failed`), t);
+      const message = importErrorMessage(error, t(`${kind}.failed`), t, ts);
       return isLimit ? { status: "limited", queued, remaining, message } : { status: "error", queued, remaining, message };
     }
     queued += response.queued;

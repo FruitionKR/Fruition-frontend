@@ -44,7 +44,10 @@
     "uploadCancelled": "Canceled uploading the recording.",
     "uploadCancelTooLate": "Transcription started before the upload could be canceled and couldn't be stopped. Click Cancel transcription.",
     "awaitingUpload": "The recording for this meeting hasn't been uploaded yet. Please upload the recording again.",
-    "liveConnected": "This meeting is being recorded on another screen. Stop that recording to create meeting notes."
+    "liveConnected": "This meeting is being recorded on another screen. Stop that recording to create meeting notes.",
+    "microphoneDenied": "Microphone access was denied. Allow the microphone in your browser settings.",
+    "noMicrophone": "Couldn't find a microphone to use.",
+    "microphoneFailed": "The microphone isn't available. Please try again in a moment."
   },
   "errors": {
     "createFailed": "Couldn't start the meeting.",
@@ -130,5 +133,10 @@
     "listen": "Listen to recording",
     "audioLabel": "Play recording",
     "retry": "Try again"
+  },
+  "recordingFile": {
+    "unsupported": "Only WAV, MP3, M4A, and WebM recording files can be uploaded.",
+    "empty": "The recording file is empty.",
+    "tooLarge": "Recording files must be 500 MB or smaller."
   }
 }

@@ -11,6 +11,7 @@ import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
 import { hasBlockingPendingMessages } from "../lib/stalledTurns";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { QueryRelatedPageResponse } from "@/entities/wiki/model/wiki";
+import { useTranslations } from "next-intl";
 
 export type ActiveAgentTurn = {
   question: string;
@@ -33,6 +34,8 @@ const NO_RELEASED_TURNS: ReadonlySet<string> = new Set();
  * releasedTurnIds: 응답을 받지 못해 사용자가 닫은 turn. 서버 메시지가 pending이어도 입력을 막거나 폴링하지 않는다.
  */
 export function useChatThread(activeSessionId?: string | null, releasedTurnIds: ReadonlySet<string> = NO_RELEASED_TURNS) {
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const sessionRef = useRef(activeSessionId);
   sessionRef.current = activeSessionId;
   const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
@@ -84,14 +87,14 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       try {
         await refreshMessages();
       } catch (error) {
-        if (!cancelled) setChatLoadErrorMessage(getErrorMessage(error, "진행 상태를 불러오지 못했습니다."));
+        if (!cancelled) setChatLoadErrorMessage(getErrorMessage(error, t("chat.progressLoadFailed"), tShared));
       } finally {
         if (!cancelled) timer = setTimeout(poll, 1000);
       }
     }
     timer = setTimeout(poll, 1000);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [activeSessionId, hasPendingMessages, isLoading, isPageVisible, refreshMessages]);
+  }, [activeSessionId, hasPendingMessages, isLoading, isPageVisible, refreshMessages, t, tShared]);
 
   // 선택 세션이 바뀌면 해당 세션 메시지로 교체하고 이전 세션의 진행 상태를 초기화한다.
   useEffect(() => {
@@ -123,13 +126,13 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
 
     loadSessionMessages().catch((error: unknown) => {
       if (cancelled) return;
-      setChatLoadErrorMessage(getErrorMessage(error, "채팅 기록을 불러오지 못했습니다."));
+      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed"), tShared));
     });
 
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, refreshMessages]);
+  }, [activeSessionId, refreshMessages, t, tShared]);
 
   async function finishCancelledQuery(request: ActiveQueryRequest) {
     if (activeQueryRef.current !== request) return;
@@ -140,9 +143,9 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
     setActiveTurn(null);
     setQueryStages([]);
     setQueryErrorMessage(null);
-    setQueryStatusMessage("질의를 취소했습니다.");
+    setQueryStatusMessage(t("chat.queryCancelled"));
     await refreshMessages().catch((error: unknown) => {
-      setChatLoadErrorMessage(getErrorMessage(error, "채팅 기록을 불러오지 못했습니다."));
+      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed"), tShared));
     });
   }
 
@@ -152,7 +155,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
     request.cancelRequested = true;
     setIsCancelling(true);
     setQueryErrorMessage(null);
-    setQueryStatusMessage("질의를 취소하고 변경을 복구하는 중입니다…");
+    setQueryStatusMessage(t("chat.queryCancelling"));
     // run 생성 응답 전에 누른 Esc도 ID를 받은 직후 서버에 전달한다.
     if (!request.run) return;
     request.cancellation = cancelQueryRun(request.run, request.controller.signal)
@@ -161,7 +164,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
         if (activeQueryRef.current !== request) return;
         setIsCancelling(false);
         setQueryStatusMessage(null);
-        setQueryErrorMessage(getErrorMessage(error, "질의 취소에 실패했습니다. Esc를 눌러 다시 시도해주세요."));
+        setQueryErrorMessage(getErrorMessage(error, t("chat.queryCancelFailed"), tShared));
       })
       .finally(() => { request.cancellation = null; });
   }
@@ -213,7 +216,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       if (activeQueryRef.current !== request || request.cancelRequested) return false;
       querySucceeded = true;
       queryRelatedPages = queryResponse.related_pages ?? [];
-      publishNotice({ kind: "completed", title: "질의 완료", message: `"${shortQuestion}" 답변이 도착했습니다.` });
+      publishNotice({ kind: "completed", notificationKey: "query", title: t("notice.queryCompleted.title"), message: t("notice.queryCompleted.message", { question: shortQuestion }) });
     } catch (error) {
       if (activeQueryRef.current !== request) return false;
       if (error instanceof QueryCancelledError) {
@@ -222,10 +225,10 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       }
       if (request.cancelRequested && request.run) return false;
       insufficientCredit = isInsufficientCreditError(error);
-      setQueryErrorMessage(getErrorMessage(error, "질의에 실패했습니다."));
+      setQueryErrorMessage(getErrorMessage(error, t("chat.queryFailed"), tShared));
       setActiveTurn(null);
       setQueryStatusMessage(null);
-      publishNotice({ kind: "failed", title: "질의 실패", message: `"${shortQuestion}" 질의에 실패했습니다.` });
+      publishNotice({ kind: "failed", notificationKey: "queryFailed", title: t("notice.queryFailed.title"), message: t("notice.queryFailed.message", { question: shortQuestion }) });
     } finally {
       // 취소를 시작했으면 HTTP/SSE 종료와 무관하게 복구 확인이 진행 상태를 소유한다.
       if (activeQueryRef.current === request && !(request.cancelRequested && request.run)) {
@@ -247,7 +250,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       setAnimatedMessageId(merged.answerMessageId);
       setActiveTurn(null);
     }).catch((error: unknown) => {
-      setChatLoadErrorMessage(getErrorMessage(error, "채팅 기록을 불러오지 못했습니다."));
+      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed"), tShared));
       setActiveTurn(null);
     });
     return false;

@@ -2,9 +2,11 @@
  * Notion 가져오기 서버 계약(document-svc).
  * 가져오기 쓰기 요청에는 모두 X-Fruition-Import-Id를 붙인다. 서버는 이 헤더로 요청을 가져오기 세션에 묶고
  * 저장 용량(5GB)·파일별 한도를 검사한다. 가져오기 item 수 상한은 없다(max_items: null).
+ * 서버가 message를 주지 않을 때 쓰는 기본 문구는 sharedText로 화면 언어에 맞춘다.
  */
 import { uploadPdfMultipart } from "@/entities/document/api/multipartUpload";
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 export const IMPORT_ID_HEADER = "X-Fruition-Import-Id";
 
@@ -46,7 +48,7 @@ function jsonInit(method: string, body: unknown, headers: Record<string, string>
 
 export async function createImportSession(itemCount: number, totalBytes: number, workspaceId = getWorkspaceId()): Promise<ImportSession> {
   const response = await apiFetch(workspacePath(workspaceId, "imports"), jsonInit("POST", { source: "notion", item_count: itemCount, total_bytes: totalBytes }, {}));
-  return parseJsonOrThrow<ImportSession>(response, "가져오기를 시작하지 못했어요.");
+  return parseJsonOrThrow<ImportSession>(response, sharedText("notionImport.requestFailed.start", "가져오기를 시작하지 못했어요."));
 }
 
 export async function completeImport(
@@ -55,12 +57,12 @@ export async function completeImport(
   workspaceId = getWorkspaceId()
 ): Promise<{ import_id: string; status: string; document_count: number }> {
   const response = await apiFetch(importPath(workspaceId, importId, "complete"), jsonInit("POST", counts, {}));
-  return parseJsonOrThrow(response, "가져오기를 마무리하지 못했어요.");
+  return parseJsonOrThrow(response, sharedText("notionImport.requestFailed.complete", "가져오기를 마무리하지 못했어요."));
 }
 
 export async function fetchImportIngestEstimate(importId: string, workspaceId = getWorkspaceId()): Promise<ImportIngestEstimate> {
   const response = await apiFetch(importPath(workspaceId, importId, "ingest-estimate"), { cache: "no-store" });
-  return parseJsonOrThrow<ImportIngestEstimate>(response, "위키 편입 비용을 계산하지 못했어요.");
+  return parseJsonOrThrow<ImportIngestEstimate>(response, sharedText("notionImport.requestFailed.estimate", "위키 편입 비용을 계산하지 못했어요."));
 }
 
 /**
@@ -69,7 +71,7 @@ export async function fetchImportIngestEstimate(importId: string, workspaceId = 
  */
 export async function startImportIngest(importId: string, workspaceId = getWorkspaceId()): Promise<{ queued: number; remaining: number }> {
   const response = await apiFetch(importPath(workspaceId, importId, "ingest"), { method: "POST" });
-  return parseJsonOrThrow(response, "위키 편입을 시작하지 못했어요.");
+  return parseJsonOrThrow(response, sharedText("notionImport.requestFailed.ingest", "위키 편입을 시작하지 못했어요."));
 }
 
 /**
@@ -78,7 +80,7 @@ export async function startImportIngest(importId: string, workspaceId = getWorks
  */
 export async function startImportConvert(importId: string, workspaceId = getWorkspaceId()): Promise<{ queued: number; remaining: number }> {
   const response = await apiFetch(importPath(workspaceId, importId, "convert"), { method: "POST" });
-  return parseJsonOrThrow(response, "PDF 변환을 시작하지 못했어요.");
+  return parseJsonOrThrow(response, sharedText("notionImport.requestFailed.convert", "PDF 변환을 시작하지 못했어요."));
 }
 
 /** 가져오기 쓰기 요청 묶음. 같은 import_id·같은 zip 경로는 같은 Idempotency-Key라 재시도가 안전하다. */
@@ -90,14 +92,14 @@ export function importWriter(importId: string, workspaceId: string, signal?: Abo
         workspacePath(workspaceId, "folders"),
         jsonInit("POST", { name, parent_folder_id: parentFolderId }, headers(idempotencyKey), signal)
       );
-      return parseJsonOrThrow<CreatedFolder>(response, "폴더를 만들지 못했어요.");
+      return parseJsonOrThrow<CreatedFolder>(response, sharedText("notionImport.requestFailed.createFolder", "폴더를 만들지 못했어요."));
     },
     async createDocument(displayName: string, markdown: string, folderId: string | null, idempotencyKey: string): Promise<CreatedDocument> {
       const response = await apiFetch(
         workspacePath(workspaceId, "documents", "markdown"),
         jsonInit("POST", { display_name: displayName, markdown, folder_id: folderId }, headers(idempotencyKey), signal)
       );
-      return parseJsonOrThrow<CreatedDocument>(response, "문서를 만들지 못했어요.");
+      return parseJsonOrThrow<CreatedDocument>(response, sharedText("notionImport.requestFailed.createDocument", "문서를 만들지 못했어요."));
     },
     /** PDF 직접 업로드(start·parts·조각 PUT·complete). 시작과 확정에 가져오기 헤더를 붙이고 확정 키는 결정적이다. */
     async uploadPdf(file: File, folderId: string | null, idempotencyKey: string): Promise<CreatedFolder> {
@@ -133,7 +135,7 @@ export function importWriter(importId: string, workspaceId: string, signal?: Abo
         body: formData,
         signal
       });
-      return parseJsonOrThrow<SavedContent>(response, "문서 본문을 저장하지 못했어요.");
+      return parseJsonOrThrow<SavedContent>(response, sharedText("notionImport.requestFailed.saveContent", "문서 본문을 저장하지 못했어요."));
     }
   };
 }

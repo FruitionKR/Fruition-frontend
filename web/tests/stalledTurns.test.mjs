@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { koMessages, useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
+const koAgentChat = koMessages.agentChat;
 
 const {
   STALLED_QUERY_AGE_MS,
   STALLED_TURN_AGE_MS,
   TURN_CANCEL_STATUSES,
-  activeTurnStopOutcome,
+  activeTurnStopOutcome: activeTurnStopOutcomeWith,
   classifyTurnCheck,
   hasBlockingPendingMessages,
   isTurnCancelAccepted,
@@ -13,11 +18,14 @@ const {
   isPendingQueryMessage,
   pendingAgentTurns,
   pendingQueryRuns,
-  stalledQueryCancelNotice,
+  stalledQueryCancelNotice: stalledQueryCancelNoticeWith,
   stalledQueryQuestion,
-  stalledTurnCancelOutcome,
+  stalledTurnCancelOutcome: stalledTurnCancelOutcomeWith,
   turnsToCheck
 } = await import("../src/features/agent-chat/lib/stalledTurns.ts");
+const activeTurnStopOutcome = (...args) => activeTurnStopOutcomeWith(...args, agentChatT);
+const stalledQueryCancelNotice = (...args) => stalledQueryCancelNoticeWith(...args, agentChatT);
+const stalledTurnCancelOutcome = (...args) => stalledTurnCancelOutcomeWith(...args, agentChatT);
 
 const NOW = Date.parse("2026-10-20T12:00:00Z");
 const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
@@ -183,12 +191,13 @@ test("취소 계열 상태로 답한 취소 요청만 '취소를 받아들임'�
 
 const {
   TURN_CANCEL_POLL_LIMIT,
-  TURN_ROLLBACK_FAILED_DETAIL,
   isTurnCancelling,
   shouldPollTurnCancel,
-  turnCancelSettledNotice,
+  turnCancelSettledNotice: turnCancelSettledNoticeWith,
   turnCancelState
 } = await import("../src/features/agent-chat/lib/stalledTurns.ts");
+const turnCancelSettledNotice = (...args) => turnCancelSettledNoticeWith(...args, agentChatT);
+const TURN_ROLLBACK_FAILED_DETAIL = koAgentChat.stalled.rollbackFailedDetail;
 
 test("취소한 turn 조회 결과를 취소 진행 상태로 바꾼다", () => {
   assert.equal(turnCancelState(undefined), null);

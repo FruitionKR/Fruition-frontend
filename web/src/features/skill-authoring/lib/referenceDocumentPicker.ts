@@ -1,8 +1,9 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { hasMarkdownExtension, hasPdfExtension, hasTextExtension, isDocumentConverting, isMarkdownDocument } from "@/entities/document/lib/documentKind";
 import { normalizeTreeName } from "@/entities/tree/lib/treeNames";
-import { ApiError } from "@/shared/lib/apiErrors";
+import { ApiError, usageLimitMessage } from "@/shared/lib/apiErrors";
 import { describeLimitError } from "@/entities/workspace/model/workspaceLimits";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { SkillsTranslate } from "./skillsTranslate";
 
 /** 표시용 문서 이름. macOS에서 올린 한글 파일명은 NFD(자모 분리)로 저장될 수 있어 NFC로 맞춘다. */
@@ -61,11 +62,11 @@ export function skillReferenceFileError(file: Pick<File, "name">, t: SkillsTrans
   return null;
 }
 
-/** 참고 문서 업로드 실패를 사유별 안내로 바꾼다. */
-export function describeSkillReferenceUploadError(error: unknown, t: SkillsTranslate): string {
+/** 참고 문서 업로드 실패를 사유별 안내로 바꾼다. 용량·개수 제한 안내는 ts(shared)가 있으면 지금 언어로 고른다. */
+export function describeSkillReferenceUploadError(error: unknown, t: SkillsTranslate, ts?: SharedTranslate): string {
   if (error instanceof ApiError) {
     // 용량 초과도 413이라 code로 먼저 가른다. 남은 413은 document-svc의 Markdown 본문 5MB 한도다.
-    const limitMessage = describeLimitError(error);
+    const limitMessage = ts ? usageLimitMessage(error.code, null, ts) : describeLimitError(error);
     if (limitMessage) return limitMessage;
     if (error.status === 413) return t("referenceUpload.tooLarge");
     if (error.status === 415) return t("referenceUpload.unsupportedType");

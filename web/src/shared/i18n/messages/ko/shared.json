@@ -305,6 +305,36 @@
     "loadFailed": "자동 승인 설정을 불러오지 못했습니다.",
     "saveFailed": "자동 승인 설정을 저장하지 못했습니다."
   },
+  "meeting": {
+    "requestFailed": {
+      "create": "회의를 시작하지 못했습니다.",
+      "ticket": "녹음 연결을 준비하지 못했습니다.",
+      "notes": "회의록을 요청하지 못했습니다.",
+      "notesLoad": "회의록을 불러오지 못했습니다.",
+      "notesCancel": "회의록 만들기를 취소하지 못했습니다.",
+      "preview": "문서 끝에 추가할 내용을 미리 보지 못했습니다.",
+      "apply": "회의록을 문서로 저장하지 못했습니다.",
+      "load": "회의 상태를 불러오지 못했습니다.",
+      "list": "회의 목록을 불러오지 못했습니다.",
+      "upload": "녹음 파일을 올리지 못했습니다.",
+      "transcriptionCancel": "글로 옮기기를 취소하지 못했습니다.",
+      "recordingUrl": "녹음을 불러오지 못했습니다.",
+      "delete": "회의를 삭제하지 못했습니다."
+    },
+    "uploadAborted": "파일 업로드가 중단되었습니다."
+  },
+  "notionImport": {
+    "requestFailed": {
+      "start": "가져오기를 시작하지 못했어요.",
+      "complete": "가져오기를 마무리하지 못했어요.",
+      "estimate": "위키 편입 비용을 계산하지 못했어요.",
+      "ingest": "위키 편입을 시작하지 못했어요.",
+      "convert": "PDF 변환을 시작하지 못했어요.",
+      "createFolder": "폴더를 만들지 못했어요.",
+      "createDocument": "문서를 만들지 못했어요.",
+      "saveContent": "문서 본문을 저장하지 못했어요."
+    }
+  },
   "api": {
     "loginRequired": "로그인이 필요합니다.",
     "loginFailed": "로그인에 실패했습니다.",

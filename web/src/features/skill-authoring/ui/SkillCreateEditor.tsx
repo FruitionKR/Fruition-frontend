@@ -77,6 +77,7 @@ export function SkillCreateEditor({
   onPublished: (autoPublishedNotice: string | null) => void;
 }) {
   const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const { kindOptions, resultOptions, scopeOptions } = useSkillOptions();
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
@@ -144,7 +145,7 @@ export function SkillCreateEditor({
       sheetClose.close();
     }
   });
-  const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error, t) : null;
+  const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error, t, tShared) : null;
 
   const referenceDocs = useReferenceDocuments(workspaceId);
 
@@ -196,7 +197,7 @@ export function SkillCreateEditor({
       setAuthorStatus(t("assist.filled"));
     }
   });
-  const authorError = authorMutation.error != null ? describeSkillAuthorError(authorMutation.error, t) : null;
+  const authorError = authorMutation.error != null ? describeSkillAuthorError(authorMutation.error, t, tShared) : null;
 
   function runAuthor(mode: SkillAuthoringMode) {
     // 실행 규칙이 AI 지시문이라, 비어 있으면 필드 오류를 보여 주고 보내지 않는다.
