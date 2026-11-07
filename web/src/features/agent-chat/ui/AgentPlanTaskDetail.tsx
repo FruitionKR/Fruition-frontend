@@ -80,6 +80,7 @@ export function AgentPlanTaskDetail({
   onOpenPreview?: () => void;
 }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const plan = run?.plan ?? null;
@@ -220,7 +221,7 @@ export function AgentPlanTaskDetail({
         </>}
       </>}
       {note && <p className={styles["task-note"]} role={isFailed ? "alert" : undefined}>{note}</p>}
-      {error && <p className={styles["task-error"]} role="alert">{typeof error === "string" ? error : agentChatErrorMessage(error, t("plan.loadFailed"), t)}</p>}
+      {error && <p className={styles["task-error"]} role="alert">{typeof error === "string" ? error : agentChatErrorMessage(error, t("plan.loadFailed"), t, tShared)}</p>}
       {previewNotice && <p className={styles["task-card-meta"]} role="status">{previewNotice}</p>}
       {editPreviews.canRetry && canDecide && (
         <div className={styles["task-actions"]}>

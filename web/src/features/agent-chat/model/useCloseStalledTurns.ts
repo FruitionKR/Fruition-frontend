@@ -4,6 +4,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { requestAgentTurnCancel, resumeAgentTurn } from "../api/agent";
 import type { AgentChatTranslator } from "../lib/agentChatTranslator";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import { isTurnCancelAccepted, stalledTurnCancelOutcome, type CancelAcceptedTurn, type StalledTurnCancelResult } from "../lib/stalledTurns";
 
 /** 닫기 취소 요청·끝난 turn 조회를 이만큼만 기다린다. 응답이 없어도 화면 잠금은 푼다. */
@@ -22,13 +23,13 @@ async function requestCancel(turnId: string): Promise<StalledTurnCancelResult> {
  * 닫으려던 turn이 이미 끝나 있었으면(409) 그 turn을 다시 받아 끝난 결과를 알린다. 지난 기록의 turn은 편집안을 다시 띄울
  * 요청 문맥이 없어, 결과는 다시 받은 작업 목록에서 보고 여기서는 완료·실패만 알린다.
  */
-export async function announceFinishedTurn(turnId: string, t: AgentChatTranslator): Promise<void> {
+export async function announceFinishedTurn(turnId: string, t: AgentChatTranslator, tShared?: SharedTranslate): Promise<void> {
   try {
     await resumeAgentTurn(turnId, { signal: AbortSignal.timeout(CANCEL_REQUEST_TIMEOUT_MS) });
     publishNotice({ kind: "info", notificationKey: "taskAlreadyFinished", title: t("notice.finishedTurn.title"), message: t("notice.finishedTurn.completed") });
   } catch (error) {
     if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) return;
-    publishNotice({ kind: "failed", notificationKey: "taskAlreadyFinished", title: t("notice.finishedTurn.title"), message: getErrorMessage(error, t("notice.finishedTurn.failed")) });
+    publishNotice({ kind: "failed", notificationKey: "taskAlreadyFinished", title: t("notice.finishedTurn.title"), message: getErrorMessage(error, t("notice.finishedTurn.failed"), tShared) });
   }
 }
 

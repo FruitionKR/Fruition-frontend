@@ -14,6 +14,7 @@ type CatalogSession = ChatSessionResponse & { channel: SessionChannel; isEmpty: 
 /** 본문은 서버의 별도 세션에, 탭별 마지막 선택은 사용자·워크스페이스별 브라우저 저장소에 둔다. */
 export function usePanelSessions(view: ChatChannel) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const me = useMe();
   const workspaceId = getSelectedWorkspaceId();
   const scope = me.data?.id && workspaceId ? panelSessionStorageKey(me.data.id, workspaceId) : null;
@@ -145,8 +146,8 @@ export function usePanelSessions(view: ChatChannel) {
 
   const claimFailure = claimFailures[view];
   const isAtSessionLimit = isChatSessionLimitError(claimFailure);
-  const claimError = claimFailure && !isAtSessionLimit ? getErrorMessage(claimFailure, t("sessions.createFailed")) : null;
-  const loadError = error ? getErrorMessage(error, t("sessions.loadFailed")) : null;
+  const claimError = claimFailure && !isAtSessionLimit ? getErrorMessage(claimFailure, t("sessions.createFailed"), tShared) : null;
+  const loadError = error ? getErrorMessage(error, t("sessions.loadFailed"), tShared) : null;
 
   return { scope, ready, error: loadError ?? claimError, isAtSessionLimit, selected: state.selected, channels: state.channels, activeChannel: state.channels[state.selected[view] ?? ""], select, ensureWritable, startNewSession: claimSession, loadSessions };
 }

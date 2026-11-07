@@ -61,6 +61,7 @@ function CheckBox({ checked, label, disabled, onToggle }: { checked: boolean; la
  */
 export function FolderOrganizePreview({ request, onClose }: { request: FolderOrganizeRequest; onClose: () => void }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const { run, plan, tree, mutation, error, busy, ready, hasQueryError, clarificationMessage, retry } = useAgentPlanRun(request.turnId);
   const view = plan ? buildFolderOrganizeView(plan, tree ?? [], run?.target_folder_id, t) : null;
   const rows = view?.rows ?? [];
@@ -216,7 +217,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
           )}
           {accessMessage && <p className={styles["notice-hint"]} role="status">{accessMessage}</p>}
           {failureMessage && <p className={styles["notice-error"]} role="alert">{failureMessage}</p>}
-          {error && <p className={styles["notice-error"]} role="alert">{typeof error === "string" ? error : agentChatErrorMessage(error, t("plan.loadFailed"), t)}</p>}
+          {error && <p className={styles["notice-error"]} role="alert">{typeof error === "string" ? error : agentChatErrorMessage(error, t("plan.loadFailed"), t, tShared)}</p>}
           <div className={styles.actions}>
             {error && <button type="button" className={cx(styles.action, styles["is-primary"])} disabled={busy} onClick={retry}>{t("actions.checkAgain")}</button>}
             {isAwaiting ? <>

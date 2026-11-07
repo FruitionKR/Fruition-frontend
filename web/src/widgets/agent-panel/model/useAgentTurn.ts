@@ -50,7 +50,8 @@ import {
   writeReadOnlyRequest,
   type ReadOnlyRequests
 } from "@/features/agent-chat/lib/readOnlyRequests";
-import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
+import { getErrorMessage, isErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
+import { AGENT_TURN_CANCELLED_MESSAGE, AGENT_TURN_ROLLBACK_FAILED_MESSAGE } from "@/features/agent-chat/api/agent";
 import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
 import { setAsideProposal, takeSetAsideProposal, type SetAsideProposal, type SetAsideProposals } from "@/features/agent-chat/lib/setAsideProposals";
@@ -103,6 +104,7 @@ export function useAgentTurn({
   onOpenDocumentDropped?: (documentId: string) => void;
 }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
   const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
@@ -183,6 +185,14 @@ export function useAgentTurn({
   // 후속 요청에 자리를 내준 제안. 미리 보기는 한 번에 하나만 열리므로 내려 두었다가 다시 열 수 있게 한다.
   const [setAsideProposals, setSetAsideProposals] = useState<SetAsideProposals>(NO_SET_ASIDE_PROPOSALS);
 
+  /** 작업 요청 실패 문구. API 계층이 정한 한국어 문구(결과 확인 실패·취소·복구 실패)는 지금 언어로 바꾼다. */
+  function turnErrorMessage(error: unknown): string {
+    if (error instanceof AgentTurnLostError) return t("turn.lost");
+    if (isErrorMessage(error, AGENT_TURN_CANCELLED_MESSAGE)) return t("turn.cancelled");
+    if (isErrorMessage(error, AGENT_TURN_ROLLBACK_FAILED_MESSAGE)) return t("turn.rollbackFailed");
+    return getErrorMessage(error, t("turn.requestFailed"), tShared);
+  }
+
   const editPreviewState = useMemo<{
     preview: MarkdownEditPreviewData | null;
     validationError: string | null;
@@ -197,12 +207,12 @@ export function useAgentTurn({
         validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext, t);
         return { preview, validationError: null };
       } catch (error) {
-        return { preview, validationError: getErrorMessage(error, t("edit.cannotApply")) };
+        return { preview, validationError: getErrorMessage(error, t("edit.cannotApply"), tShared) };
       }
     } catch (error) {
-      return { preview: null, validationError: getErrorMessage(error, t("edit.invalidResponse")) };
+      return { preview: null, validationError: getErrorMessage(error, t("edit.invalidResponse"), tShared) };
     }
-  }, [agentTurnRequest, agentTurnResponse, markdownEditContext, t]);
+  }, [agentTurnRequest, agentTurnResponse, markdownEditContext, t, tShared]);
   const reviewSegments = useMemo<EditReviewSegment[] | null>(() => {
     const edit = agentTurnResponse?.result.edit;
     const sourceMarkdown = agentTurnRequest?.editorSnapshot?.markdown;
@@ -273,7 +283,7 @@ export function useAgentTurn({
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         const lockedMessage = documentLockedTurnMessage(error, { openDocumentTitle: openDocumentTitleRef.current, hasAttachments: referenceDocumentIds.length > 0 }, t);
-        setAgentTurnErrorMessage(lockedMessage ?? (error instanceof AgentTurnLostError ? t("turn.lost") : getErrorMessage(error, t("turn.requestFailed"))));
+        setAgentTurnErrorMessage(lockedMessage ?? turnErrorMessage(error));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
         if (shouldRestoreAttachments(error, { referenceDocumentIds, turnId })) onReferencesRestored?.(question, referenceDocumentIds);
@@ -478,7 +488,7 @@ export function useAgentTurn({
       setAgentTurnErrorMessage(null);
       return true;
     } catch (error) {
-      setAgentTurnErrorMessage(getErrorMessage(error, t("edit.applyFailed")));
+      setAgentTurnErrorMessage(getErrorMessage(error, t("edit.applyFailed"), tShared));
       return false;
     }
   }
@@ -537,7 +547,7 @@ export function useAgentTurn({
         setAgentTurnResponse(null);
       })
       .catch((error: unknown) => {
-        setAgentTurnErrorMessage(getErrorMessage(error, t("edit.openAsNewFailed")));
+        setAgentTurnErrorMessage(getErrorMessage(error, t("edit.openAsNewFailed"), tShared));
       })
       .finally(() => setIsCreatingMarkdown(false));
   }
@@ -556,7 +566,7 @@ export function useAgentTurn({
       })
       .catch((error: unknown) => {
         reportAiTaskFailure(markdownCreateFailure(error, runId));
-        setMarkdownCreateErrorMessage(getErrorMessage(error, t("create.failed")));
+        setMarkdownCreateErrorMessage(getErrorMessage(error, t("create.failed"), tShared));
         // 자동 재시도하지 않고 오류와 함께 기존 화면으로 돌아간다.
         setManualTurnIds((current) => new Set([...current, runId]));
       })

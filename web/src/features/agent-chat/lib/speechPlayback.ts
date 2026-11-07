@@ -3,6 +3,7 @@
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { describeTtsStreamError } from "@/shared/lib/aiErrorCodes";
 import type { AgentChatTranslator } from "./agentChatTranslator";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
 /** 서버가 보내는 PCM 형식: 16비트 little-endian 모노 24kHz. */
 export const SPEECH_SAMPLE_RATE = 24_000;
@@ -107,10 +108,12 @@ function concatBytes(first: number, rest: Uint8Array): Uint8Array {
  * 재생 실패를 사용자 안내로 바꾼다. 사용자가 멈춘 것(AbortError)은 안내하지 않으므로 null이다.
  * 402 크레딧 부족과 409·422 같은 서버 문구는 getErrorMessage가 그대로 쓰고, 스트림 오류 코드는 한국어로 바꾼다.
  */
-export function describeSpeechPlaybackError(error: unknown, t: AgentChatTranslator): string | null {
+export function describeSpeechPlaybackError(error: unknown, t: AgentChatTranslator, tShared?: SharedTranslate): string | null {
   if (error instanceof Error && error.name === "AbortError") return null;
   // fetch가 연결 자체에 실패하면 문구 없는 TypeError를 던진다.
   if (error instanceof TypeError) return t("speech.network");
   if (isSpeechSynthesisDisabledError(error)) return t("speech.disabled");
-  return getErrorMessage(error, t("speech.failed"));
+  // 스트림 오류 코드는 지금 언어의 공용 안내로 바꾼다(오류 객체의 message는 한국어다).
+  if (error instanceof SpeechStreamError) return describeTtsStreamError(error.code, tShared);
+  return getErrorMessage(error, t("speech.failed"), tShared);
 }

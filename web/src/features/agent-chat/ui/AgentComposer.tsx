@@ -118,6 +118,7 @@ export function AgentComposer({
   inputPopup?: { isOpen: boolean; listId: string; activeOptionId: string | null };
 }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const placeholder = placeholderProp ?? t("composer.placeholder");
   const cancelHint = cancelHintProp ?? t("composer.stop.hint.query");
   const inputLabel = inputLabelProp ?? t("composer.queryInputLabel");
@@ -364,8 +365,8 @@ export function AgentComposer({
                         key={group.provider}
                         type="button"
                         className={cx(styles["composer-model-provider"], isActive && styles["is-active"], isLocked && styles["is-locked"])}
-                        aria-label={isLocked ? `${providerLabel}, ${getAiModelLockMessage("cost_policy")}` : undefined}
-                        title={isLocked ? getAiModelLockMessage("cost_policy") : undefined}
+                        aria-label={isLocked ? `${providerLabel}, ${getAiModelLockMessage("cost_policy", tShared)}` : undefined}
+                        title={isLocked ? getAiModelLockMessage("cost_policy", tShared) : undefined}
                         aria-haspopup="listbox"
                         aria-expanded={isActive}
                         aria-controls={isActive ? modelSubmenuId : undefined}
@@ -415,7 +416,7 @@ export function AgentComposer({
                     >
                       {activeGroup.models.map((model) => {
                         const isSelected = modelKey(model) === selectedKey;
-                        const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
+                        const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason, tShared) : null;
                         return (
                           <button
                             key={modelKey(model)}

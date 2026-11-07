@@ -49,6 +49,7 @@ function abortPlayback(active: ActivePlayback) {
  */
 export function useSpeechPlayback(activeSessionId: string | null, isVisible = true) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [playback, setPlayback] = useState<SpeechPlaybackState>(null);
   const [error, setError] = useState<SpeechPlaybackError | null>(null);
   // 서버가 답변 듣기를 껐다고 알렸다(403 SPEECH_SYNTHESIS_DISABLED). 화면이 듣기 버튼을 숨긴다.
@@ -138,7 +139,7 @@ export function useSpeechPlayback(activeSessionId: string | null, isVisible = tr
       if (activeRef.current !== active) return;
       stop();
       if (isSpeechSynthesisDisabledError(caught)) setIsDisabled(true);
-      const message = describeSpeechPlaybackError(caught, t);
+      const message = describeSpeechPlaybackError(caught, t, tShared);
       if (message) setError({ messageId, message });
     }
   }

@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 /** 채팅에 쓸 AI 모델 카탈로그·선택과 웹 검색 설정. 선택은 사용자 설정에 저장한다. */
 export function useAiModelSelection() {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [aiModels, setAiModels] = useState<AiModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<AiModel | null>(null);
   const [aiModelCatalogStatus, setAiModelCatalogStatus] = useState<AiModelCatalogStatus>("loading");
@@ -32,9 +33,9 @@ export function useAiModelSelection() {
       })
       .catch((error: unknown) => {
         setAiModelCatalogStatus("error");
-        setAiModelsErrorMessage(getErrorMessage(error, t("models.loadFailed")));
+        setAiModelsErrorMessage(getErrorMessage(error, t("models.loadFailed"), tShared));
       });
-  }, [t]);
+  }, [t, tShared]);
   // 카탈로그와 저장된 설정이 모두 준비된 뒤 초기 선택을 확정한다.
   useEffect(() => {
     if (!preferencesReady || aiModels.length === 0 || selectedModel) return;

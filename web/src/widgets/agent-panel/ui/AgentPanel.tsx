@@ -38,8 +38,8 @@ import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/f
 import { editResultNotice, resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
-import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { CHAT_SESSION_LIMIT_MESSAGE, getErrorMessage } from "@/shared/lib/apiErrors";
+import { exportChatWiki, type ChatWikiExportResponse } from "@/features/wiki-export";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getWorkspaceId } from "@/shared/api/client";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
@@ -165,6 +165,7 @@ export function AgentPanel({
   isShown?: boolean;
 }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
   const sessions = usePanelSessions(activeView);
   const activeSessionId = sessions.selected[activeView];
@@ -443,7 +444,7 @@ export function AgentPanel({
     if (viewBeforeSkillSheetRef.current !== null) viewBeforeSkillSheetRef.current = "work";
     void sessions.ensureWritable("work").then((sessionId) => {
       agentTurn.submitAgentTurn(skillRun.message, skillRunContext, sessionId, selectedModel, [], skillRun.folderId);
-    }).catch((error) => publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed")) }));
+    }).catch((error) => publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed"), tShared) }));
     onSkillRunSent?.(skillRun.id);
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -529,7 +530,7 @@ export function AgentPanel({
       const sessionId = await sessions.ensureWritable("work");
       agentTurn.submitAgentTurn(request, context, sessionId, selectedModel, [], folderId, referenceDocumentIds);
     } catch (error) {
-      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed")) });
+      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed"), tShared) });
     }
   }
 
@@ -572,7 +573,7 @@ export function AgentPanel({
         return;
       }
       agentTurn.forgetTurn(turnId);
-      if (finishedIds.has(turnId)) void announceFinishedTurn(turnId, t);
+      if (finishedIds.has(turnId)) void announceFinishedTurn(turnId, t, tShared);
     });
   }
 
@@ -626,7 +627,7 @@ export function AgentPanel({
     let targetSessionId: string;
     try { targetSessionId = await sessions.ensureWritable(activeView); }
     catch (error) {
-      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.sessionFailed")) });
+      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.sessionFailed"), tShared) });
       return;
     }
     if (route === "task") {
@@ -690,19 +691,19 @@ export function AgentPanel({
           kind: "completed",
           notificationKey: "chatExported",
           title: t("notice.exportCompleted"),
-          message: getChatExportSuccessMessage(response.status, Boolean(ingest)),
+          message: response.status === "skipped" ? t("panel.export.success.skipped") : ingest ? t("panel.export.success.savedCanIngest") : t("panel.export.success.saved"),
           subjectIds: [response.exportDocumentId],
           action: ingest ? { label: t("panel.export.ingest"), onAction: () => ingest(response.exportDocumentId) } : undefined,
           requiredPermission: ingest ? "wiki.ingest" : undefined
         });
       } catch (error: unknown) {
-        const detail = getErrorMessage(error, t("panel.export.refreshFailedDetail"));
+        const detail = getErrorMessage(error, t("panel.export.refreshFailedDetail"), tShared);
         const message = t("panel.export.refreshFailed", { detail });
         setExportErrorMessage(message);
         publishNotice({ kind: "failed", notificationKey: "documentListFailed", title: t("notice.documentListRefreshFailed"), message });
       }
     } catch (error: unknown) {
-      const message = getErrorMessage(error, t("panel.export.failed"));
+      const message = getErrorMessage(error, t("panel.export.failed"), tShared);
       setExportErrorMessage(message);
       publishNotice({
         kind: "failed",
@@ -991,7 +992,7 @@ export function AgentPanel({
         )}
         {sessions.isAtSessionLimit && (
           <div className={styles["wiki-evidence-notice"]}>
-            <p role="status">{CHAT_SESSION_LIMIT_MESSAGE}</p>
+            <p role="status">{tShared("errors.chatSessionLimit")}</p>
             <button
               type="button"
               onClick={() => {

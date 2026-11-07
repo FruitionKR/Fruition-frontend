@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ERROR_MESSAGES } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { transcribeSpeech } from "../api/speech";
 import {
@@ -30,6 +29,7 @@ function stopTracks(stream: MediaStream) {
 export function useDictation(onText: (text: string) => void) {
   const [status, setStatus] = useState<DictationStatus>("idle");
   const t = useTranslations("agentChat.dictation");
+  const tShared = useTranslations("shared");
   const [message, setMessage] = useState<string | null>(null);
   const notify = (key: DictationMessageKey) => setMessage(t(key));
   const activeRef = useRef<ActiveRecording | null>(null);
@@ -75,7 +75,7 @@ export function useDictation(onText: (text: string) => void) {
       }
     } catch (error) {
       // 402 등 서버가 보낸 문구는 그대로 보여준다.
-      if (isMountedRef.current) setMessage(getErrorMessage(error, ERROR_MESSAGES.speechTranscribeFailed));
+      if (isMountedRef.current) setMessage(getErrorMessage(error, t("transcribeFailed"), tShared));
     } finally {
       if (isMountedRef.current) setStatus("idle");
     }

@@ -35,6 +35,7 @@ const NO_RELEASED_TURNS: ReadonlySet<string> = new Set();
  */
 export function useChatThread(activeSessionId?: string | null, releasedTurnIds: ReadonlySet<string> = NO_RELEASED_TURNS) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const sessionRef = useRef(activeSessionId);
   sessionRef.current = activeSessionId;
   const [messages, setMessages] = useState<ChatMessageResponse[]>([]);
@@ -86,14 +87,14 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       try {
         await refreshMessages();
       } catch (error) {
-        if (!cancelled) setChatLoadErrorMessage(getErrorMessage(error, t("chat.progressLoadFailed")));
+        if (!cancelled) setChatLoadErrorMessage(getErrorMessage(error, t("chat.progressLoadFailed"), tShared));
       } finally {
         if (!cancelled) timer = setTimeout(poll, 1000);
       }
     }
     timer = setTimeout(poll, 1000);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [activeSessionId, hasPendingMessages, isLoading, isPageVisible, refreshMessages, t]);
+  }, [activeSessionId, hasPendingMessages, isLoading, isPageVisible, refreshMessages, t, tShared]);
 
   // 선택 세션이 바뀌면 해당 세션 메시지로 교체하고 이전 세션의 진행 상태를 초기화한다.
   useEffect(() => {
@@ -125,13 +126,13 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
 
     loadSessionMessages().catch((error: unknown) => {
       if (cancelled) return;
-      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed")));
+      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed"), tShared));
     });
 
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, refreshMessages, t]);
+  }, [activeSessionId, refreshMessages, t, tShared]);
 
   async function finishCancelledQuery(request: ActiveQueryRequest) {
     if (activeQueryRef.current !== request) return;
@@ -144,7 +145,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
     setQueryErrorMessage(null);
     setQueryStatusMessage(t("chat.queryCancelled"));
     await refreshMessages().catch((error: unknown) => {
-      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed")));
+      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed"), tShared));
     });
   }
 
@@ -163,7 +164,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
         if (activeQueryRef.current !== request) return;
         setIsCancelling(false);
         setQueryStatusMessage(null);
-        setQueryErrorMessage(getErrorMessage(error, t("chat.queryCancelFailed")));
+        setQueryErrorMessage(getErrorMessage(error, t("chat.queryCancelFailed"), tShared));
       })
       .finally(() => { request.cancellation = null; });
   }
@@ -224,7 +225,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       }
       if (request.cancelRequested && request.run) return false;
       insufficientCredit = isInsufficientCreditError(error);
-      setQueryErrorMessage(getErrorMessage(error, t("chat.queryFailed")));
+      setQueryErrorMessage(getErrorMessage(error, t("chat.queryFailed"), tShared));
       setActiveTurn(null);
       setQueryStatusMessage(null);
       publishNotice({ kind: "failed", notificationKey: "queryFailed", title: t("notice.queryFailed.title"), message: t("notice.queryFailed.message", { question: shortQuestion }) });
@@ -249,7 +250,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       setAnimatedMessageId(merged.answerMessageId);
       setActiveTurn(null);
     }).catch((error: unknown) => {
-      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed")));
+      setChatLoadErrorMessage(getErrorMessage(error, t("chat.historyLoadFailed"), tShared));
       setActiveTurn(null);
     });
     return false;

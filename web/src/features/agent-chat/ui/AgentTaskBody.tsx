@@ -130,6 +130,7 @@ function TaskCard({
   children?: ReactNode;
 }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const { heading, quote } = describeTaskRequest(action, request, t);
   const shownQuote = summary && quote === request.trim() ? summary : quote;
   return (
@@ -139,7 +140,7 @@ function TaskCard({
           <AgentAssetIcon src={taskBoltIcon} size={12} />
           <span>{heading}</span>
         </span>
-        {createdAt && <time dateTime={createdAt}>{formatRelativeTime(createdAt)}</time>}
+        {createdAt && <time dateTime={createdAt}>{formatRelativeTime(createdAt, tShared)}</time>}
       </header>
       <p className={styles["task-card-title"]}>{title ?? `"${shownQuote}"`}</p>
       {meta && <p className={styles["task-card-meta"]}>{meta}</p>}

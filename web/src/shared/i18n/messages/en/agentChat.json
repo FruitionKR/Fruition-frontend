@@ -16,6 +16,7 @@
     "tryAgain": "Try again"
   },
   "aiNotice": {
+    "message": "This service's chat, wiki, and document writing features run on generative AI. AI-generated content may be inaccurate, so review it before use.",
     "title": "About generative AI"
   },
   "autoApply": {
@@ -96,6 +97,7 @@
     "permissionDenied": "Microphone access was denied. Allow the microphone in your browser settings.",
     "recording": "Listening. Press the button again when you're done (up to 60 seconds)",
     "tooLarge": "The recording is too long. Please keep it under 60 seconds.",
+    "transcribeFailed": "Couldn't turn your speech into text.",
     "transcribing": "Turning your speech into text…",
     "unsupported": "This browser doesn't support voice input."
   },
@@ -333,7 +335,12 @@
       "refreshFailed": "The document was saved, but the workspace list couldn't be refreshed. Please reload the page. ({detail})",
       "refreshFailedDetail": "Couldn't refresh the workspace list.",
       "reset": "Reset chat selection",
-      "selectPrompt": "Select Q&A to save"
+      "selectPrompt": "Select Q&A to save",
+      "success": {
+        "saved": "The chat was saved as a source document. To add it to the wiki, choose the document in 'Add to wiki'.",
+        "savedCanIngest": "The chat was saved as a source document. Click 'Add to wiki' to add it to the wiki so chat answers can cite it.",
+        "skipped": "A source document with the same content already exists, so it was opened instead."
+      }
     },
     "legacySession": "This is a legacy combined conversation. New requests are saved to a separate conversation in the current tab.",
     "open": "Open AI agent panel",
@@ -656,8 +663,10 @@
     }
   },
   "turn": {
+    "cancelled": "The request was cancelled.",
     "lost": "Couldn't confirm the response. The task may still be running, so check again in a moment.",
     "requestFailed": "The task request failed.",
+    "rollbackFailed": "The request was cancelled, but undoing its changes failed. Please check the document.",
     "slow": "The response is taking a while. Still checking."
   }
 }

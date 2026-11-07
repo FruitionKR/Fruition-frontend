@@ -52,6 +52,7 @@ export function AgentHeader({
   isSessionListInitiallyOpen?: boolean;
 }) {
   const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [isListOpen, setIsListOpen] = useState(isSessionListInitiallyOpen);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,7 +87,7 @@ export function AgentHeader({
       return true;
     } catch (error: unknown) {
       // 한도에 닿았으면 지울 대화를 바로 고르도록 목록과 함께 보여 준다(⋯ 메뉴에서 눌렀을 때도).
-      setNewChatErrorMessage(getErrorMessage(error, t("header.newChatFailed")));
+      setNewChatErrorMessage(getErrorMessage(error, t("header.newChatFailed"), tShared));
       setIsListOpen(true);
       return false;
     } finally {
@@ -108,7 +109,7 @@ export function AgentHeader({
       if (remaining[0]) onSelectSession(remaining[0].id, remaining[0].title);
       else await startNewChat();
     } catch (error: unknown) {
-      setLoadErrorMessage(getErrorMessage(error, t("header.deleteFailed")));
+      setLoadErrorMessage(getErrorMessage(error, t("header.deleteFailed"), tShared));
     }
   }
 
@@ -131,13 +132,13 @@ export function AgentHeader({
         setLoadErrorMessage(null);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, t("header.sessionsLoadFailed")));
+        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, t("header.sessionsLoadFailed"), tShared));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isListOpen, sessionTitle, loadSessions, t]);
+  }, [isListOpen, sessionTitle, loadSessions, t, tShared]);
 
   // 세션 title이 없으면 헤더와 동일하게 "새 채팅"으로 표시한다
   const fallbackTitle = t("header.newChat");

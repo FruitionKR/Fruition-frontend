@@ -1,4 +1,5 @@
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { AgentChatTranslator } from "./agentChatTranslator";
 
 /** 화면이 번역해 보여 줄 오류의 agentChat.errors 아래 메시지 키 */
@@ -18,6 +19,6 @@ export class AgentChatError extends Error {
 }
 
 /** 오류를 화면 문구로 바꾼다. AgentChatError는 현재 언어로, 나머지는 getErrorMessage(서버 문구·fallback)로 바꾼다. */
-export function agentChatErrorMessage(error: unknown, fallback: string, t: AgentChatTranslator): string {
-  return error instanceof AgentChatError ? t(`errors.${error.key}`) : getErrorMessage(error, fallback);
+export function agentChatErrorMessage(error: unknown, fallback: string, t: AgentChatTranslator, tShared?: SharedTranslate): string {
+  return error instanceof AgentChatError ? t(`errors.${error.key}`) : getErrorMessage(error, fallback, tShared);
 }
