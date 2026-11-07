@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ConfirmModal } from "./ConfirmModal";
 
 /** 문서/폴더 삭제 전 확인 모달 (ConfirmModal 재사용) */
@@ -12,17 +13,16 @@ export function DeleteConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("shared");
   const isFolder = target.kind === "folder";
   return (
     <ConfirmModal
       titleId="delete-confirm-title"
-      title={isFolder ? "폴더를 삭제하시겠습니까?" : "문서를 삭제하시겠습니까?"}
-      description={
-        <>
-          「{target.label}」{isFolder ? " 폴더와 폴더 안의 모든 항목이 삭제됩니다. 폴더 안 문서는 휴지통에서 30일 동안 복구할 수 있습니다." : " 문서가 삭제됩니다. 휴지통에서 30일 동안 복구할 수 있습니다."}
-        </>
-      }
-      confirmLabel="삭제"
+      title={isFolder ? t("ui.deleteConfirm.folderTitle") : t("ui.deleteConfirm.documentTitle")}
+      description={isFolder
+        ? t("ui.deleteConfirm.folderDescription", { name: target.label })
+        : t("ui.deleteConfirm.documentDescription", { name: target.label })}
+      confirmLabel={t("ui.deleteConfirm.confirm")}
       tone="danger"
       onConfirm={onConfirm}
       onCancel={onCancel}
