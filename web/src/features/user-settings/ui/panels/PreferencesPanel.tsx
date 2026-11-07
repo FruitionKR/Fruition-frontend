@@ -2,11 +2,12 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { useUserPreferences, type DocumentFontPreference, type MotionPreference, type UserPreferences } from "@/entities/user";
+import { useMe, useUserPreferences, type DocumentFontPreference, type MotionPreference, type UserPreferences } from "@/entities/user";
 import type { ThemePreference } from "@/shared/lib/themePreference";
 import { cx } from "@/shared/lib/classNames";
 import { useChangeLocale } from "@/shared/i18n/useChangeLocale";
 import { LOCALES, type Locale } from "@/shared/i18n/locale";
+import { supportsAccountLocale } from "@/shared/i18n/localeSync";
 import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import panelStyles from "./PreferencesPanel.module.css";
@@ -85,6 +86,7 @@ export function PreferencesPanel() {
   const tLanguage = useTranslations("common.language");
   const { preferences, updatePreferences } = useUserPreferences();
   const { locale, changeLocale, isChanging } = useChangeLocale();
+  const { data: me } = useMe();
 
   // 언어 이름은 지금 화면 언어와 관계없이 각 언어 원문(한국어·English)으로 보여 준다(그 언어를 읽는 사람이 찾을 수 있게).
   const languageChoices: Choice<Locale>[] = LOCALES.map((value) => ({
@@ -110,11 +112,11 @@ export function PreferencesPanel() {
     <div className={styles.detail}>
       <SettingsPanelTitle title={t("title")} description={t("description")} />
 
-      {/* 사용자별 서버 저장 API가 없어 언어는 쿠키(이 브라우저)에만 남는다. */}
+      {/* 언어 저장을 지원하는 서버면 계정에도 저장하고(AccountLocaleSync), 구 서버면 쿠키(이 브라우저)에만 남는다. */}
       <div className={styles.section}>
         <SettingsSectionHeader id="preferences-language-label">{tLanguage("label")}</SettingsSectionHeader>
         <ChoiceCards labelId="preferences-language-label" choices={languageChoices} value={locale} disabled={isChanging} onSelect={changeLocale} />
-        <small className={styles["status-text"]}>{t("language.note")}</small>
+        <small className={styles["status-text"]}>{supportsAccountLocale(me) ? t("language.accountNote") : t("language.note")}</small>
       </div>
 
       <div className={styles.section}>

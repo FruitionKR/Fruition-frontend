@@ -398,6 +398,7 @@
     "description": "Set how screens look for this account.",
     "language": {
       "note": "Saved in this browser.",
+      "accountNote": "Saved to your account.",
       "koDescription": "화면을 한국어로 봅니다.",
       "enDescription": "Use Fruition in English."
     },
