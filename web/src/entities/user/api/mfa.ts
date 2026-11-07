@@ -1,8 +1,9 @@
 import { apiFetch, throwIfNotOk, parseJsonOrThrow } from "@/shared/api/client";
 import type { AuthTokensResponse } from "./login";
+import { localizedFetch } from "@/shared/i18n/requestLocale";
 
 export async function loginWithMfa(mfaToken: string, code: string): Promise<AuthTokensResponse> {
-  const response = await fetch("/api/auth/login/mfa", {
+  const response = await localizedFetch("/api/auth/login/mfa", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mfa_token: mfaToken, code })
