@@ -138,6 +138,77 @@ test("로그 제목·설명·날짜 그룹·롤백 안내를 지금 언어로 �
   assert.doesNotMatch(formatOperationLogDescription({ summary: null }, undefined, en("workspace.logMessages")("noDetail")), HANGUL);
   const [group] = groupOperationLogsByDate([{ operation_id: "a", created_at: "2026-09-23T03:00:00Z" }], "Asia/Seoul", "en");
   assert.equal(group.label, "September 23");
+});
+
+// document OperationRecorder·OperationFailureSummary·RestoreOperationLifecycle·RestoreRebuildApplier·AiTaskResultApplier(lint)·
+// WikiPageEditService·RestorePreviewStaleException, ai ingest_worker가 저장하는 작업 요약.
+const SERVER_SUMMARIES = [
+  [{ operation_type: "ingest", status: "succeeded" }, "Wiki ingest를 완료했습니다.", "Wiki ingest completed."],
+  [{ operation_type: "ingest", status: "partially_succeeded" }, "Wiki ingest를 일부만 반영했습니다.", "Wiki ingest was only partially applied."],
+  [{ operation_type: "ingest", status: "failed" }, "Wiki ingest에 실패했습니다.", "Wiki ingest failed."],
+  [{ operation_type: "lint", status: "succeeded" }, "Wiki lint로 페이지 3개를 변경했습니다.", "Wiki lint changed 3 pages."],
+  [{ operation_type: "lint", status: "succeeded" }, "Wiki lint로 페이지 1개를 변경했습니다.", "Wiki lint changed 1 page."],
+  [{ operation_type: "lint", status: "partially_succeeded" }, "Wiki 정합성 검사를 일부만 반영했습니다.", "The wiki consistency check was only partially applied."],
+  [{ operation_type: "lint", status: "failed" }, "Wiki 정합성 검사에 실패했습니다.", "The wiki consistency check failed."],
+  [{ operation_type: "restore", status: "succeeded" }, "버전 1 내용으로 되돌렸습니다. 새 버전 4", "Rolled back to the content of version 1. New version 4"],
+  [{ operation_type: "restore", status: "succeeded" }, "페이지 변경 2건 · 삭제 1건 · 링크 제거 0건 · 링크 복원 3건 · 실패 0건", "Pages changed 2 · Deleted 1 · Links removed 0 · Links restored 3 · Failed 0"],
+  [{ operation_type: "restore", status: "partially_succeeded" }, "되돌리기를 일부만 반영했습니다.", "The rollback was only partially applied."],
+  [{ operation_type: "restore", status: "failed" }, "되돌리기에 실패했습니다.", "The rollback failed."],
+  [{ operation_type: "restore", status: "failed" }, "뒤에 실행한 작업과 충돌해 되돌리지 않았습니다. 뒤 작업부터 되돌려 주세요.", "Not rolled back because it conflicts with a later operation. Roll back the later operation first."],
+  [{ operation_type: "restore", status: "conflict" }, "복구 대상이 변경되었습니다. 미리보기를 다시 확인해 주세요.", "The rollback target has changed. Check the preview again."],
+  [{ operation_type: "document_edit", status: "succeeded", changed_resource_count: 1 }, "AI 편집을 문서에 반영했습니다.", "Applied the AI edit to the document."],
+  [{ operation_type: "document_edit", status: "succeeded", changed_resource_count: 0 }, "AI 편집 결과가 현재 본문과 같습니다.", "The AI edit result is the same as the current content."],
+  [{ operation_type: "document_edit", status: "partially_succeeded" }, "AI 편집을 일부만 반영했습니다.", "The AI edit was only partially applied."],
+  [{ operation_type: "document_edit", status: "failed" }, "AI 편집을 반영하지 못했습니다.", "Couldn't apply the AI edit."],
+  [{ operation_type: "document_edit", status: "conflict" }, "문서가 이미 변경되어 AI 편집을 반영하지 못했습니다.", "Couldn't apply the AI edit because the document had already changed."],
+  [{ operation_type: "wiki_edit", status: "succeeded" }, "Wiki 페이지 본문을 직접 수정했습니다.", "Edited the wiki page content directly."],
+  [{ operation_type: "wiki_edit", status: "failed" }, "Wiki 본문 수정을 반영하지 못했습니다.", "Couldn't apply the wiki content edit."]
+];
+
+test("서버가 한국어로 저장한 알려진 작업 요약은 영어 로그 설명에서 영어로 보이고, ko에서는 서버 문구와 같다", () => {
+  for (const [fields, server, english] of SERVER_SUMMARIES) {
+    const item = { changed_resource_count: 1, ...fields, summary: server };
+    assert.equal(formatOperationLogDescription(item, undefined, "No details", en("workspace.logMessages.summary")), english, server);
+    assert.equal(formatOperationLogDescription(item, undefined, "상세 정보 없음", ko("workspace.logMessages.summary")), server, server);
+    assert.equal(formatOperationLogDescription(item), server, `${server}: 번역 함수가 없으면 서버 문구`);
+  }
+  // 문서 이름은 그대로 앞에 붙는다.
+  assert.equal(
+    formatOperationLogDescription({ operation_type: "document_edit", status: "succeeded", changed_resource_count: 1, summary: "AI 편집을 문서에 반영했습니다." }, "회의록", "No details", en("workspace.logMessages.summary")),
+    "회의록 / Applied the AI edit to the document."
+  );
+});
+
+test("알 수 없는 종류·문구이거나 숫자를 읽을 수 없는 요약은 서버 문구를 그대로 둔다", () => {
+  const tSummary = en("workspace.logMessages.summary");
+  const keep = [
+    { operation_type: "future_type", status: "succeeded", summary: "새 작업을 마쳤습니다." },
+    { operation_type: "restore", status: "failed", summary: "다른 이유로 되돌리지 못했습니다." },
+    { operation_type: "restore", status: "succeeded", summary: "새 형식의 복구 요약" },
+    { operation_type: "lint", status: "succeeded", summary: "Wiki lint를 마쳤습니다." },
+    { operation_type: "ingest", status: "processing", summary: "처리 중" }
+  ];
+  for (const item of keep) {
+    assert.equal(formatOperationLogDescription({ changed_resource_count: 0, ...item }, undefined, "No details", tSummary), item.summary);
+  }
+  // 요약이 없는 진행 중 작업에 문구를 지어내지 않는다.
+  assert.equal(formatOperationLogDescription({ operation_type: "ingest", status: "processing", changed_resource_count: 0, summary: null }, undefined, "No details", tSummary), "No details");
+});
+
+test("lint의 서버 작업 이름(위키 다듬기)은 영어 설명·알림에 문서 이름처럼 붙지 않는다", () => {
+  const lint = { operation_id: "op_l", operation_type: "lint", status: "succeeded", changed_resource_count: 3, target_document_id: null,
+    target_display_name: "위키 다듬기", summary: "Wiki lint로 페이지 3개를 변경했습니다.", restored_from: null,
+    created_at: "2026-09-23T03:00:00Z", completed_at: "2026-09-23T03:01:00Z" };
+  const tSummary = en("workspace.logMessages.summary");
+  assert.equal(formatOperationLogDescription(lint, lint.target_display_name, "No details", tSummary), "Wiki lint changed 3 pages.");
+  const [item] = feed.buildTaskNotifications([lint], en("workspace.notificationsView"), tSummary);
+  assert.doesNotMatch(item.description, HANGUL);
+  for (const line of item.details) assert.doesNotMatch(line, HANGUL);
+  // 번역 함수를 넘기지 않는 기존 호출은 그대로다.
+  assert.match(feed.buildTaskNotifications([lint])[0].description, /위키 다듬기/);
+});
+
+test("로그 날짜 그룹(한국어)과 롤백 안내를 지금 언어로 쓴다", () => {
   assert.equal(groupOperationLogsByDate([{ operation_id: "a", created_at: "2026-09-23T03:00:00Z" }], "Asia/Seoul")[0].label, "9월 23일");
 
   for (const location of ["purged", "trash", "unknown"]) {

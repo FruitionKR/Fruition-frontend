@@ -1,4 +1,5 @@
 import type { OperationLogItem, OperationType } from "./operationLog";
+import { isServerLintDisplayName, localizeOperationSummary, type OperationSummaryTranslate } from "./operationSummary";
 
 type OperationLogDateGroup = {
   dateKey: string;
@@ -71,18 +72,32 @@ export function formatOperationLogDateTime(iso: string, timeZone?: string, local
   }).format(new Date(iso));
 }
 
-/** 목록과 상세 헤더가 같은 문서·작업 설명을 사용한다. */
+/**
+ * 목록과 상세 헤더가 같은 문서·작업 설명을 사용한다.
+ * tSummary(`useTranslations("workspace.logMessages.summary")`)를 넘기면 서버가 한국어로 저장한 알려진 요약을 지금 언어로 쓴다.
+ */
 export function formatOperationLogDescription(
-  item: Pick<OperationLogItem, "summary">,
+  item: Partial<Pick<OperationLogItem, "operation_type" | "status" | "changed_resource_count">> & Pick<OperationLogItem, "summary">,
   documentTitle?: string,
   /** 문서 이름·요약이 모두 없을 때 문구. 화면은 workspace.logMessages.noDetail을 넘긴다. */
-  emptyText = "상세 정보 없음"
+  emptyText = "상세 정보 없음",
+  tSummary?: OperationSummaryTranslate
 ): string {
-  const summary = item.summary?.trim();
-  if (documentTitle && summary && summary !== documentTitle) {
-    return `${documentTitle} / ${summary}`;
+  const rawSummary = item.summary?.trim();
+  const summary = item.operation_type && tSummary
+    ? localizeOperationSummary({
+      operation_type: item.operation_type,
+      status: item.status ?? "",
+      summary: item.summary,
+      changed_resource_count: item.changed_resource_count ?? 0
+    }, tSummary) ?? undefined
+    : rawSummary;
+  // lint의 대상 이름은 서버가 붙인 한국어 작업 이름이라 문서 이름으로 쓰지 않는다(행 제목이 작업 종류를 이미 보인다).
+  const title = tSummary && isServerLintDisplayName(item.operation_type, documentTitle) ? undefined : documentTitle;
+  if (title && summary && rawSummary !== title) {
+    return `${title} / ${summary}`;
   }
-  return documentTitle ?? summary ?? emptyText;
+  return title ?? summary ?? emptyText;
 }
 
 /**

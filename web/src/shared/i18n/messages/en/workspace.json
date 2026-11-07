@@ -231,7 +231,28 @@
     "restoreTrashed": "The document is in the trash, so it can't be rolled back. Restore it from the trash and try again.",
     "restoreMissing": "The document can't be found, so it can't be rolled back.",
     "documentRestore": "Rolls {description} back from version {from} to version {to}.",
-    "documentRestoreLaterEdits": "{message} Edits saved after this operation (your own edits, other members' edits, and other AI operations) will also be lost."
+    "documentRestoreLaterEdits": "{message} Edits saved after this operation (your own edits, other members' edits, and other AI operations) will also be lost.",
+    "summary": {
+      "ingestSucceeded": "Wiki ingest completed.",
+      "ingestPartial": "Wiki ingest was only partially applied.",
+      "ingestFailed": "Wiki ingest failed.",
+      "lintSucceeded": "{count, plural, one {Wiki lint changed # page.} other {Wiki lint changed # pages.}}",
+      "lintPartial": "The wiki consistency check was only partially applied.",
+      "lintFailed": "The wiki consistency check failed.",
+      "restoreDocument": "Rolled back to the content of version {from}. New version {to}",
+      "restoreRebuild": "Pages changed {changed} · Deleted {deleted} · Links removed {linksRemoved} · Links restored {linksRestored} · Failed {failed}",
+      "restorePartial": "The rollback was only partially applied.",
+      "restoreFailed": "The rollback failed.",
+      "restoreConflictLater": "Not rolled back because it conflicts with a later operation. Roll back the later operation first.",
+      "restoreStale": "The rollback target has changed. Check the preview again.",
+      "documentEditApplied": "Applied the AI edit to the document.",
+      "documentEditUnchanged": "The AI edit result is the same as the current content.",
+      "documentEditPartial": "The AI edit was only partially applied.",
+      "documentEditFailed": "Couldn't apply the AI edit.",
+      "documentEditConflict": "Couldn't apply the AI edit because the document had already changed.",
+      "wikiEditSucceeded": "Edited the wiki page content directly.",
+      "wikiEditFailed": "Couldn't apply the wiki content edit."
+    }
   },
   "notificationsView": {
     "title": "Notifications",
