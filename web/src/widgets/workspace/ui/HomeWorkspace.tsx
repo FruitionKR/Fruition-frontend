@@ -53,6 +53,7 @@ import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest"
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
 import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
+import { ConvertedIngestConfirmModal } from "@/features/wiki-ingest/ui/ConvertedIngestConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { createMarkdownDocument } from "@/entities/document";
@@ -72,6 +73,7 @@ import { useWorkspacePanels } from "../model/useWorkspacePanels";
 import { useWorkspaceDocumentTitle } from "../model/useWorkspaceDocumentTitle";
 import { listMoveDestinations } from "../lib/treeMoveRules";
 import { useGraphWikiActions } from "../model/useGraphWikiActions";
+import { useConvertedIngestPrompt } from "../model/useConvertedIngestPrompt";
 import { useSkillRun, type SkillRunRequest } from "../model/useSkillRun";
 import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
 import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
@@ -207,6 +209,13 @@ export function HomeWorkspace() {
   const hasSourcePreview = Boolean(selection.selectedDocumentTitle);
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
   const isDocumentMain = isHomeView && hasSourcePreview;
+  // 홈 문서 화면에 연 PDF 변환본이 아직 편입 전이면 편입할지 묻는다.
+  const convertedIngestPrompt = useConvertedIngestPrompt({
+    documents,
+    openDocumentId: isDocumentMain ? selection.selectedDocumentId : null,
+    pendingDocumentIds: pdfWikiIngest.pendingDocumentIds,
+    refreshBackendData
+  });
 
   const { handleChatDocumentExported, openSavedDocument } = usePendingDocumentOpen({
     documents,
@@ -644,6 +653,14 @@ export function HomeWorkspace() {
           pdfCount={wikiActions.pdfIngestConfirmation.filter(isPdfDocument).length}
           onCancel={wikiActions.cancelPdfIngest}
           onConfirm={wikiActions.confirmPdfIngest}
+        />
+      )}
+
+      {convertedIngestPrompt.target && (
+        <ConvertedIngestConfirmModal
+          filename={convertedIngestPrompt.target.filename}
+          onCancel={convertedIngestPrompt.cancel}
+          onConfirm={convertedIngestPrompt.confirm}
         />
       )}
 

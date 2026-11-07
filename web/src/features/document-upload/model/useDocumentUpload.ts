@@ -1,8 +1,8 @@
 import type { ChangeEvent as ReactChangeEvent } from "react";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { uploadDocumentFile } from "@/entities/document/api/document";
-import { describeLimitError, invalidateStorageUsage } from "@/entities/workspace";
+import { reflectDocumentToWiki, uploadDocumentFile } from "@/entities/document/api/document";
+import { describeLimitError, invalidateStorageUsage, useSelectedWorkspace } from "@/entities/workspace";
 import {
   appendItemsToFolder,
   availableDocumentName,
@@ -17,8 +17,10 @@ import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { newAnalyticsId } from "@/shared/lib/analytics/events";
-import { ApiError } from "@/shared/lib/apiErrors";
+import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { publishNotice } from "@/features/document-notifications";
+import { shouldAutoIngestUpload } from "@/features/wiki-ingest/model/autoIngestPolicy";
+import { useWikiActionPermissions } from "@/features/wiki-ingest/model/useWikiActionPermissions";
 import { saveNoteDraft } from "@/features/note-editing/api/note";
 import { ZipSafetyError } from "@/shared/lib/markdown-import/zipArchive";
 import { countMissingImages, isImagePath, isMarkdownPath, planMarkdownBundle, type BundleDocument, type BundleFile } from "../lib/markdownBundle";
@@ -26,7 +28,8 @@ import { uploadFailureMessage } from "../lib/uploadFailure";
 import { bundleFilesFromSelection, bundleFromZip, isZipFile } from "./markdownBundleSources";
 import { uploadMarkdownBundleDocument } from "./markdownBundleUpload";
 
-type UploadTask = { label: string; run: () => Promise<DocumentItemResponse> };
+/** autoIngest: 업로드가 끝나면 바로 위키 편입을 요청할 문서인지(일반 업로드의 Markdown·txt). 새 노트는 빈 본문이라 뺀다. */
+type UploadTask = { label: string; autoIngest: boolean; run: () => Promise<DocumentItemResponse> };
 
 /** 본문이 가리키는데 함께 받지 못한 그림 안내(빠른 경고). */
 export function missingImagesMessage(count: number): string {
@@ -61,6 +64,10 @@ export function useDocumentUpload({
   const uploadPickerTargetRef = useRef<UploadPickerTarget | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [hasRejectedFiles, setHasRejectedFiles] = useState(false);
+  // Markdown 업로드 자동 편입. 설정(auto_ingest_on_upload)이 켜져 있으면 서버가 편입하므로 꺼져 있을 때만 프론트가 요청한다.
+  const { canIngest } = useWikiActionPermissions();
+  const workspace = useSelectedWorkspace();
+  const autoIngestContext = { serverAutoIngest: workspace ? workspace.auto_ingest_on_upload === true : null, canIngest };
 
   function openUploadPicker(projectId: string, folderId: string | null) {
     uploadPickerTargetRef.current = { projectId, folderId };
@@ -80,23 +87,27 @@ export function useDocumentUpload({
    * .md와 그림을 함께 고르거나 zip(Notion이 아닌 것)을 올리면 그림을 문서 첨부로 넣는다.
    */
   function dropUploadFiles(projectId: string, folderId: string | null, files: File[]): Promise<(DocumentItemResponse | null)[]> {
+    return startUploads(projectId, folderId, files, true);
+  }
+
+  function startUploads(projectId: string, folderId: string | null, files: File[], autoIngest: boolean): Promise<(DocumentItemResponse | null)[]> {
     setFileDropTarget(null);
     const serverFolder = serverFolderId(projects, { projectId, folderId });
     const zips = files.filter(isZipFile);
     const images = files.filter((file) => isImagePath(file.name));
     // 그림이나 zip이 없으면 지금처럼 파일마다 올린다.
     if (zips.length === 0 && images.length === 0) {
-      return runUploads(projectId, folderId, plainUploadTasks(files, serverFolder));
+      return runUploads(projectId, folderId, plainUploadTasks(files, serverFolder, autoIngest));
     }
     const plainFiles = files.filter((file) => !isZipFile(file) && !isImagePath(file.name) && !isMarkdownPath(file.name));
     return collectBundleDocuments(files, zips, serverFolder).then((documents) => runUploads(projectId, folderId, [
-      ...plainUploadTasks(plainFiles, serverFolder),
-      ...documents.map((document) => bundleUploadTask(document, serverFolder))
+      ...plainUploadTasks(plainFiles, serverFolder, autoIngest),
+      ...documents.map((document) => bundleUploadTask(document, serverFolder, autoIngest))
     ]));
   }
 
   /** 그림 없이 올리는 파일. .md 본문이 상대 그림을 가리키면 빠졌다고 알린다(업로드는 막지 않는다). */
-  function plainUploadTasks(files: File[], serverFolder: string | null): UploadTask[] {
+  function plainUploadTasks(files: File[], serverFolder: string | null, autoIngest: boolean): UploadTask[] {
     const uploadFiles = files.filter(isSupportedUploadFile);
     if (uploadFiles.length < files.length) {
       setHasRejectedFiles(true);
@@ -104,6 +115,7 @@ export function useDocumentUpload({
     }
     return uploadFiles.map((file) => ({
       label: file.name,
+      autoIngest,
       run: () => {
         if (isMarkdownPath(file.name)) {
           void file.text().then((markdown) => noticeMissingImages(file.name, countMissingImages(markdown, file.name))).catch(() => {});
@@ -147,10 +159,12 @@ export function useDocumentUpload({
     return documents;
   }
 
-  function bundleUploadTask(document: BundleDocument, serverFolder: string | null): UploadTask {
+  function bundleUploadTask(document: BundleDocument, serverFolder: string | null, autoIngest: boolean): UploadTask {
     const name = baseName(document.file.path);
     return {
       label: name,
+      // 그림을 본문에 넣은 뒤(run이 끝난 뒤) 편입해 그림 자리까지 위키에 들어가게 한다.
+      autoIngest,
       run: async () => {
         noticeMissingImages(name, document.missing.length);
         const result = await uploadMarkdownBundleDocument(document, {
@@ -170,6 +184,21 @@ export function useDocumentUpload({
         return result.created;
       }
     };
+  }
+
+  /**
+   * 일반 업로드로 올린 Markdown·txt를 바로 위키 편입 요청한다(shouldAutoIngestUpload). 실패해도 업로드는 성공으로 두고 알림만 띄운다.
+   * 요청이 접수되면 다음 목록 갱신 전까지 진행 중으로 두어, 같은 문서에 "새 문서가 추가되었습니다" 편입 제안 카드가 뜨지 않게 한다.
+   */
+  async function ingestUploadedDocument(task: UploadTask, document: DocumentItemResponse): Promise<DocumentItemResponse> {
+    if (!task.autoIngest || !shouldAutoIngestUpload(document, autoIngestContext)) return document;
+    try {
+      await reflectDocumentToWiki(document.id, "EDITABLE");
+      return { ...document, status: "processing" };
+    } catch (error) {
+      publishNotice({ kind: "failed", title: "위키 편입 시작 실패", message: `${document.filename}: ${getErrorMessage(error, "위키 편입 요청에 실패했습니다.")}` });
+      return document;
+    }
   }
 
   function runUploads(projectId: string, folderId: string | null, tasks: UploadTask[]): Promise<(DocumentItemResponse | null)[]> {
@@ -195,6 +224,7 @@ export function useDocumentUpload({
 
     return Promise.all(uploads.map(({ task, item, attemptId }) => {
       return task.run()
+        .then((uploaded) => ingestUploadedDocument(task, uploaded))
         .then((response) => {
           setDocuments((current) => {
             const withoutCurrent = current.filter((document) => document.id !== response.id);
@@ -233,7 +263,7 @@ export function useDocumentUpload({
     // 본문은 비워 두고 편집기 placeholder로 안내한다. 제목은 파일 이름 input이 맡는다.
     const markdown = `<!-- fruition-note: ${noteId} -->\n`;
     const file = new File([markdown], availableDocumentName(projects, "새 노트.md", { projectId, folderId }), { type: "text/markdown" });
-    const [created] = await dropUploadFiles(projectId, folderId, [file]);
+    const [created] = await startUploads(projectId, folderId, [file], false);
     return created ?? null;
   }
 

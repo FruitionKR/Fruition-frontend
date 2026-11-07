@@ -213,17 +213,18 @@ export function WorkspacePanel({
         <SettingsSectionHeader>위키 자동 편입</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>업로드한 문서를 자동으로 위키에 편입</strong>
+            <strong>PDF 변환본도 자동으로 위키에 편입</strong>
             <small>
-              문서를 올리면 변환 뒤 바로 팀 위키에 편입합니다. 편입은 LLM 비용이 들고,
-              멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버가 올린 문서에만 적용됩니다.
+              Markdown·txt 문서는 이 설정과 상관없이 올리면 바로 위키에 편입합니다. 켜면 PDF도 Markdown 변환이 끝나는 대로
+              편입하고, 끄면 변환본을 열 때 편입할지 묻습니다. 편입은 LLM 비용이 들고,
+              멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버의 문서에만 적용됩니다.
             </small>
             {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
             {autoIngestError && <small className={styles["row-error"]} role="alert">{autoIngestError}</small>}
           </div>
           <Switch
             checked={autoIngestOnUpload}
-            label="업로드한 문서를 자동으로 위키에 편입"
+            label="PDF 변환본도 자동으로 위키에 편입"
             // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 isAutoIngestSaving 검사가 막는다.
             disabled={!isOwner || !workspace}
             onClick={() => void toggleAutoIngest()}
