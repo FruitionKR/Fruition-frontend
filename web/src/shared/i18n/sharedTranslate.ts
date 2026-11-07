@@ -28,3 +28,11 @@ export function registerSharedTranslate(translate: SharedTranslate | null): void
 export function sharedText(key: SharedMessageKey, korean: string, values?: SharedTranslationValues): string {
   return browserTranslate ? browserTranslate(key, values) : korean;
 }
+
+/**
+ * 브라우저에 등록된 지금 언어의 공용 번역 함수. 서버 렌더·테스트처럼 등록되지 않았으면 undefined라
+ * t를 받는 공용 함수에 그대로 넘기면 한국어 문구를 쓴다(parseApiError의 사용량 한도 안내 등).
+ */
+export function currentSharedTranslate(): SharedTranslate | undefined {
+  return browserTranslate ?? undefined;
+}

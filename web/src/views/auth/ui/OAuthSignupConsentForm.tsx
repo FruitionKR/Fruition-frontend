@@ -38,6 +38,7 @@ export function OAuthSignupConsentForm({
 }) {
   const router = useRouter();
   const t = useTranslations("auth.oauthSignup");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const [choices, setChoices] = useState<ConsentChoices>(EMPTY_CONSENT);
   const [busy, setBusy] = useState(false);
@@ -70,7 +71,7 @@ export function OAuthSignupConsentForm({
       queryClient.clear();
       router.replace(takeAfterLoginPath());
     } catch (cause: unknown) {
-      setError(registeredEmailErrorMessage(cause) ?? consentErrorMessage(cause, t("failed")));
+      setError(registeredEmailErrorMessage(cause, tShared) ?? consentErrorMessage(cause, t("failed"), tShared));
       setIsTokenInvalid(isSignupTokenConsumed(cause));
       setIsEmailRegistered(isSignupEmailRegistered(cause));
       setBusy(false);

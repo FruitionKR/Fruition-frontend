@@ -86,6 +86,7 @@ export function PasswordChangeModal({
   onClose: () => void;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [step, setStep] = useState<Step>("email");
   const SUBTITLES: Record<Step, string> = {
@@ -128,7 +129,7 @@ export function PasswordChangeModal({
    * 시도 제한(wait)은 실패한 요청의 타이머(block)에만 건다.
    */
   function applyFailure(cause: unknown, fallback: string, block: (until: number) => void) {
-    const failure = passwordChangeFailure(cause, fallback);
+    const failure = passwordChangeFailure(cause, fallback, tShared);
     setError(failure.message);
     if (failure.recovery === "unavailable") {
       setIsUnavailable(true);
@@ -179,7 +180,7 @@ export function PasswordChangeModal({
       setToken(result.verification_token);
       setStep("password");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("common.verifyCodeFailed")));
+      setError(getErrorMessage(cause, t("common.verifyCodeFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -272,7 +273,7 @@ export function PasswordChangeModal({
       )}
       {step === "code" && (
         <div className={styles.field}>
-          <label htmlFor="password-change-code">{verificationCodeLabel()}</label>
+          <label htmlFor="password-change-code">{verificationCodeLabel(undefined, tShared)}</label>
           <div className={styles["field-control"]}>
             <VerificationCodeInput id="password-change-code" value={code} disabled={busy} onChange={setCode} />
             <span className={styles["field-timer"]} aria-live="polite">{countdown.label}</span>

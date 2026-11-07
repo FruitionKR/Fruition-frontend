@@ -14,6 +14,7 @@ import { LoginLinkPrompt } from "@/views/auth/ui/LoginLinkPrompt";
 export default function ResetPasswordPage() {
   const router = useRouter();
   const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const { passwordResetDraft } = useAuthFlow();
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -38,7 +39,7 @@ export default function ResetPasswordPage() {
       setErrorMessage(t("resetPassword.mismatch"));
       return;
     }
-    const passwordError = getPasswordPolicyError(password);
+    const passwordError = getPasswordPolicyError(password, tShared);
     if (passwordError) {
       setErrorMessage(passwordError);
       return;
@@ -55,7 +56,7 @@ export default function ResetPasswordPage() {
       );
       router.replace("/login");
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, t("resetPassword.failed")));
+      setErrorMessage(getErrorMessage(error, t("resetPassword.failed"), tShared));
       setIsSubmitting(false);
     }
   }

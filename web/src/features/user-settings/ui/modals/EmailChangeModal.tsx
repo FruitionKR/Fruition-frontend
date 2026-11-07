@@ -46,6 +46,7 @@ export function EmailChangeModal({
   onClose: () => void;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [previousEmail] = useState(me.email);
@@ -96,7 +97,7 @@ export function EmailChangeModal({
       setRetryAt(Date.now() + result.retry_after * 1000);
     } catch (cause: unknown) {
       // 다른 계정이 쓰는 주소(409 DUPLICATE_EMAIL)는 변경 단계와 같은 문구로 알리고 이메일 입력에 머문다.
-      setError(emailCodeRequestFailureMessage(cause) ?? getErrorMessage(cause, t("common.sendCodeFailed")));
+      setError(emailCodeRequestFailureMessage(cause, tShared) ?? getErrorMessage(cause, t("common.sendCodeFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -111,7 +112,7 @@ export function EmailChangeModal({
       setToken(result.verification_token);
       setStep("reauth");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("common.verifyCodeFailed")));
+      setError(getErrorMessage(cause, t("common.verifyCodeFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -136,7 +137,7 @@ export function EmailChangeModal({
 
   /** 서버 error.code에 따라 고칠 입력만 다시 받는다. 본인 확인 실패는 같은 인증 토큰을 그대로 쓴다. */
   function recoverFrom(cause: unknown) {
-    const failure = emailChangeFailure(cause, t("emailChange.failed"));
+    const failure = emailChangeFailure(cause, t("emailChange.failed"), tShared);
     setError(failure.message);
     setNeedsReauth(failure.recovery === "relogin");
     if (failure.recovery === "email") resetToEmail();
@@ -235,7 +236,7 @@ export function EmailChangeModal({
 
       {step === "code" && (
         <div className={styles.field}>
-          <label htmlFor="email-change-code">{verificationCodeLabel()}</label>
+          <label htmlFor="email-change-code">{verificationCodeLabel(undefined, tShared)}</label>
           <VerificationCodeInput id="email-change-code" value={code} disabled={busy} onChange={setCode} />
           <p className={styles.hint}>{t("common.codeSentTo", { email: email.trim() })}</p>
           <button type="button" className={styles.resend} disabled={busy || retrySeconds > 0} onClick={() => void sendCode()}>
@@ -286,7 +287,7 @@ export function EmailChangeModal({
               <div className={styles["provider-row"]}>
                 {linkedProviders.map((provider) => (
                   <button key={provider} type="button" className={styles["btn-back"]} disabled={busy} onClick={() => reloginWith(provider)}>
-                    {t("common.reloginWith", { provider: oauthProviderName(provider) })}
+                    {t("common.reloginWith", { provider: oauthProviderName(provider, tShared) })}
                   </button>
                 ))}
               </div>

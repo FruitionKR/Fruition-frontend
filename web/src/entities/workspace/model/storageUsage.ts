@@ -1,8 +1,9 @@
 /**
  * 내 저장 공간(GET /api/workspaces/{id}/storage) 표시 규칙. 용량은 워크스페이스가 아니라 사용자 단위이고,
  * used_bytes는 내가 모든 워크스페이스에 올린 합계다. limit_bytes가 null이면 한도가 꺼져 사용량만 보인다.
- * 테스트가 hook 없이 import할 수 있게 다른 모듈을 import하지 않는다.
+ * 테스트가 hook 없이 import할 수 있게 다른 모듈을 import하지 않는다(타입만 쓴다).
  */
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
 export type StorageUsageResponse = { used_bytes: number; limit_bytes: number | null; scope?: string };
 
@@ -36,12 +37,16 @@ export type StorageUsageView = {
   isWarning: boolean;
 };
 
-export function describeStorageUsage(storage: StorageUsageResponse): StorageUsageView {
+/** t(`useTranslations("shared")`)를 넘기면 지금 언어 문구(shared.workspace.storage.*)를, 없으면 한국어 문구를 쓴다. */
+export function describeStorageUsage(storage: StorageUsageResponse, t?: SharedTranslate): StorageUsageView {
   const used = formatBytes(storage.used_bytes);
-  if (storage.limit_bytes === null) return { label: `내 저장 공간 ${used} 사용`, percent: null, isWarning: false };
+  if (storage.limit_bytes === null) {
+    return { label: t ? t("workspace.storage.used", { used }) : `내 저장 공간 ${used} 사용`, percent: null, isWarning: false };
+  }
   const ratio = storage.limit_bytes > 0 ? storage.used_bytes / storage.limit_bytes : 1;
+  const limit = formatBytes(storage.limit_bytes);
   return {
-    label: `내 저장 공간 ${used} / ${formatBytes(storage.limit_bytes)} 사용`,
+    label: t ? t("workspace.storage.usedOfLimit", { used, limit }) : `내 저장 공간 ${used} / ${limit} 사용`,
     percent: Math.min(100, Math.max(0, Math.round(ratio * 100))),
     isWarning: ratio >= STORAGE_WARNING_RATIO
   };

@@ -17,7 +17,7 @@ import sortVerticalIcon from "@/shared/assets/svg/settings/sort-vertical.svg";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
-import { WORKSPACE_PERMISSIONS, workspacePermissionLabel, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
+import { localizedWorkspacePermissionLabel, localizedWorkspacePermissions, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
 import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
@@ -68,6 +68,7 @@ function SelectCheck({ checked, label, disabled, title, onToggle }: {
 export function MembersPanel() {
   const t = useTranslations("settings.members");
   const tCommon = useTranslations("settings.common");
+  const tShared = useTranslations("shared");
   const { data: me, isPending: isMePending } = useMe();
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
@@ -138,7 +139,7 @@ export function MembersPanel() {
       await action();
       setMessage(done);
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, fallback));
+      setError(getErrorMessage(cause, fallback, tShared));
     } finally {
       setBusy(false);
     }
@@ -180,7 +181,7 @@ export function MembersPanel() {
         await removeMember(workspaceId, member.user_id);
         succeeded += 1;
       } catch (cause: unknown) {
-        failures.push({ name: memberDisplayName(member), reason: getErrorMessage(cause, t("removeFailed")) });
+        failures.push({ name: memberDisplayName(member), reason: getErrorMessage(cause, t("removeFailed"), tShared) });
       }
     }
     const notice = removalNotice(succeeded, failures);
@@ -278,12 +279,12 @@ export function MembersPanel() {
           </div>
         </div>
 
-        {(!workspaceId || error || loadError) && <p className={modalStyles["field-error"]} role="alert">{!workspaceId ? t("selectWorkspace") : error || getErrorMessage(loadError, t("loadFailed"))}</p>}
+        {(!workspaceId || error || loadError) && <p className={modalStyles["field-error"]} role="alert">{!workspaceId ? t("selectWorkspace") : error || getErrorMessage(loadError, t("loadFailed"), tShared)}</p>}
         {message && <p className={styles.note} role="status">{message}</p>}
         {myMembership && !isOwner && (
           <p className={styles.note}>
             {myMembership.permissions.length > 0
-              ? t("myPermissions", { permissions: myMembership.permissions.map(workspacePermissionLabel).join(", ") })
+              ? t("myPermissions", { permissions: myMembership.permissions.map((value) => localizedWorkspacePermissionLabel(value, tShared)).join(", ") })
               : t("myPermissionsNone")}
           </p>
         )}
@@ -356,7 +357,7 @@ export function MembersPanel() {
                   {isMenuOpen && (
                     <div className={styles["more-menu"]} role="menu" aria-label={t("menu", { name })}>
                       <p className={styles["menu-label"]}>{t("permissionItems")}</p>
-                      {WORKSPACE_PERMISSIONS.map((item) => {
+                      {localizedWorkspacePermissions(tShared).map((item) => {
                         // OWNER는 항상 전부 가지므로 켜진 채 잠근다(서버도 OWNER_PERMISSIONS_FIXED로 거절한다).
                         const isMemberOwner = member.role === "OWNER";
                         const checked = isMemberOwner || member.permissions.includes(item.value);

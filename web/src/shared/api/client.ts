@@ -1,5 +1,6 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
 import { currentRequestLocale, localizedFetch, withLocaleHeader } from "@/shared/i18n/requestLocale";
+import { currentSharedTranslate, sharedText } from "@/shared/i18n/sharedTranslate";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
 import { ApiError, DocumentLockedError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
@@ -18,8 +19,8 @@ import {
   workspaceIdFromPath
 } from "@/shared/lib/workspaceAccess";
 
-// 공통 에러 메시지 상수
-export const ERROR_MESSAGES = {
+// 공통 에러 메시지의 한국어 원문. 영어 문구는 shared.api.* 에 같은 키로 둔다.
+const ERROR_MESSAGE_TEXT = {
   loginRequired: "로그인이 필요합니다.",
   loginFailed: "로그인에 실패했습니다.",
   signupFailed: "회원가입에 실패했습니다.",
@@ -56,6 +57,17 @@ export const ERROR_MESSAGES = {
   authRefreshUnavailable: "인증을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요."
 } as const;
 
+type ErrorMessageKey = keyof typeof ERROR_MESSAGE_TEXT;
+
+/**
+ * 공통 에러 메시지. 읽을 때마다 지금 화면 언어 문구를 돌려준다(sharedText).
+ * 브라우저에 번역 함수가 등록되지 않은 서버 렌더·테스트에서는 한국어 원문이다.
+ */
+export const ERROR_MESSAGES = {} as { readonly [K in ErrorMessageKey]: string };
+for (const key of Object.keys(ERROR_MESSAGE_TEXT) as ErrorMessageKey[]) {
+  Object.defineProperty(ERROR_MESSAGES, key, { enumerable: true, get: () => sharedText(`api.${key}`, ERROR_MESSAGE_TEXT[key]) });
+}
+
 // HTTP 응답에서 에러 메시지를 추출하는 공통 헬퍼
 export async function parseErrorResponse(response: Response, fallback: string): Promise<string> {
   return (await parseApiError(response, fallback)).message;
@@ -77,7 +89,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
     const detailMessage = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
     const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
     // 사용량·업로드 한도 거절은 서버 문구 대신 정해 둔 안내를 쓴다. 화면마다 따로 고치지 않고 모든 호출부가 같은 문구를 받는다.
-    const message = usageLimitMessage(code, body?.error) || body?.error?.message || detailMessage || fallback;
+    const message = usageLimitMessage(code, body?.error, currentSharedTranslate()) || body?.error?.message || detailMessage || fallback;
     // 같은 이메일의 계정이 있어 가입을 막은 409는 로그인 수단 목록을 함께 보존해 화면이 그 방법으로 로그인하도록 안내한다.
     if (code && (EMAIL_REGISTERED_ERROR_CODES as readonly string[]).includes(code)) {
       return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
@@ -146,7 +158,7 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   // 접근할 수 없게 된 워크스페이스로 가는 요청(남은 폴링 등)은 보내지 않는다. 화면은 안내로 바뀐다.
   if (isRequestToGoneWorkspace(path)) {
-    throw new ApiError("워크스페이스를 찾을 수 없습니다.", 404, WORKSPACE_NOT_FOUND_CODE);
+    throw new ApiError(sharedText("api.workspaceGone", "워크스페이스를 찾을 수 없습니다."), 404, WORKSPACE_NOT_FOUND_CODE);
   }
   let requestPath = path;
   let requestInit = init;

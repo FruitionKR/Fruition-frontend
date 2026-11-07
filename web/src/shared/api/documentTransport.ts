@@ -1,3 +1,5 @@
+import { sharedText } from "@/shared/i18n/sharedTranslate";
+
 type Transport = { origin: string | null; directUpload: boolean };
 
 // `documents?origin=...`처럼 쿼리가 바로 붙는 경로도 문서 API다.
@@ -30,7 +32,7 @@ async function fetchDocumentTransport(): Promise<Transport> {
   const response = await fetch("/api/document-transport", { cache: "no-store" });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error?.message ?? "문서 전송 연결을 확인하지 못했습니다.");
+    throw new Error(body?.error?.message ?? sharedText("api.documentTransportCheckFailed", "문서 전송 연결을 확인하지 못했습니다."));
   }
   const transport = await response.json() as Transport;
   if (transport.origin) {
@@ -38,7 +40,7 @@ async function fetchDocumentTransport(): Promise<Transport> {
     const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
     if ((url.protocol !== "https:" && !(url.protocol === "http:" && local))
         || url.username || url.password || url.origin !== transport.origin) {
-      throw new Error("문서 서버 주소가 올바르지 않습니다.");
+      throw new Error(sharedText("api.documentServerInvalid", "문서 서버 주소가 올바르지 않습니다."));
     }
   }
   return transport;

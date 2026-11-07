@@ -13,6 +13,7 @@ import { MfaDisableModal } from "../modals/MfaDisableModal";
 /** 다단계 인증 스위치 행. 켜면 등록 모달, 끄면 해제 모달을 연다. */
 export function MfaPanel() {
   const t = useTranslations("settings.mfa");
+  const tShared = useTranslations("shared");
   const { data: status, error: loadError, refetch, isFetching } = useQuery({
     queryKey: MFA_QUERY_KEY, queryFn: fetchMfaStatus, retry: false
   });
@@ -33,7 +34,7 @@ export function MfaPanel() {
     try {
       setRegistration(await registerMfa());
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("startFailed")));
+      setError(getErrorMessage(cause, t("startFailed"), tShared));
       void refetch();
     } finally {
       setBusy(false);
@@ -49,7 +50,7 @@ export function MfaPanel() {
       <Switch checked={status?.enabled ?? false} label={t("label")}
         disabled={!status || busy || isFetching} onClick={() => void toggle()} />
     </div>
-    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"))}</small>}
+    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"), tShared)}</small>}
     {loadError && <button type="button" className={styles.btn} disabled={isFetching} onClick={() => void refetch()}>{t("recheck")}</button>}
 
     {registration && (

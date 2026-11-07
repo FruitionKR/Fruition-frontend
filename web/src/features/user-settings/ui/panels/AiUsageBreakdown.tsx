@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   formatCompactTokenCount, formatKnownCharge, formatNonTokenUsage, formatPercentShare, formatTokenCount, getProviderLabel,
   toPercentShares, type ModelUsageSummary, type ModelUsageSummaryRow
@@ -22,8 +22,9 @@ const providerIcons: Record<string, SvgAsset> = {
  */
 export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeLabel: string }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const hasCache = summary.models.some((item) => item.cachedInputTokens > 0);
-  const hasNonTokenUsage = summary.models.some((item) => formatNonTokenUsage(item) !== null);
+  const hasNonTokenUsage = summary.models.some((item) => formatNonTokenUsage(item, tShared) !== null);
   const modelShares = toPercentShares(summary.models.map((item) => item.totalTokens));
 
   return (
@@ -63,8 +64,8 @@ export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageS
                 {hasCache && <td>{formatTokenCount(item.cachedInputTokens)}</td>}
                 <td>{formatTokenCount(item.totalTokens)}</td>
                 <td>{formatPercentShare(modelShares[index], item.totalTokens)}</td>
-                {hasNonTokenUsage && <td>{formatNonTokenUsage(item) ?? t("common.none")}</td>}
-                <td>{formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls) ?? t("common.unknown")}</td>
+                {hasNonTokenUsage && <td>{formatNonTokenUsage(item, tShared) ?? t("common.none")}</td>}
+                <td>{formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls, tShared) ?? t("common.unknown")}</td>
               </tr>
             ))}
           </tbody>
@@ -87,10 +88,12 @@ function UsageNotes({ summary, hasCache }: { summary: ModelUsageSummary; hasCach
 
 function UsageHero({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeLabel: string }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
   const [inputShare, outputShare] = toPercentShares([summary.inputTokens, summary.outputTokens]);
-  const compact = formatCompactTokenCount(summary.totalTokens);
+  const compact = formatCompactTokenCount(summary.totalTokens, locale);
   const exact = formatTokenCount(summary.totalTokens);
-  const charge = formatKnownCharge(summary.chargeKrwMilli, summary.unpricedCalls);
+  const charge = formatKnownCharge(summary.chargeKrwMilli, summary.unpricedCalls, tShared);
 
   return (
     <div className={styles.hero}>
@@ -138,12 +141,14 @@ function ModelRow({ item, rank, share, ratio }: {
   item: ModelUsageSummaryRow; rank: number; share: number; ratio: number;
 }) {
   const t = useTranslations("settings.ai.usage");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
   const icon = providerIcons[item.provider];
   const providerLabel = getProviderLabel(item.provider);
   const hasTokens = item.totalTokens > 0;
-  const nonTokenUsage = formatNonTokenUsage(item);
+  const nonTokenUsage = formatNonTokenUsage(item, tShared);
   const showTokenDetail = hasTokens || nonTokenUsage === null;
-  const charge = formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls);
+  const charge = formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls, tShared);
   const detail = [
     providerLabel,
     showTokenDetail ? t("inputDetail", { value: formatTokenCount(item.inputTokens) }) : null,
@@ -163,7 +168,7 @@ function ModelRow({ item, rank, share, ratio }: {
         <small>{detail}</small>
       </span>
       <span className={styles["model-value"]}>
-        <strong>{hasTokens ? formatCompactTokenCount(item.totalTokens) : nonTokenUsage ?? "0"}</strong>
+        <strong>{hasTokens ? formatCompactTokenCount(item.totalTokens, locale) : nonTokenUsage ?? "0"}</strong>
         <small>
           {charge !== null && <span className={styles["model-cost"]}>{charge}</span>}
           {hasTokens && <span>{formatPercentShare(share, item.totalTokens)}</span>}

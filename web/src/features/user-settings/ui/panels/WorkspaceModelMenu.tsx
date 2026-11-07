@@ -49,6 +49,7 @@ export function WorkspaceModelMenu({
   onSelect: (model: AiModel) => void;
 }) {
   const t = useTranslations("settings.workspace.model");
+  const tShared = useTranslations("shared");
   const [isOpen, setIsOpen] = useState(false);
   // provider를 고르면 오른쪽 모델 메뉴만 바뀐다. 저장은 모델을 고를 때 한다.
   const [viewingProvider, setViewingProvider] = useState<string | null>(null);
@@ -118,7 +119,7 @@ export function WorkspaceModelMenu({
               <div role="group" aria-label={t("providerModels", { provider: getProviderLabel(activeProvider) })} className={panelStyles["model-options"]}>
                 {providerModels.map((model) => {
                   const isSelected = isSameSelection(model, selection);
-                  const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
+                  const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason, tShared) : null;
                   return (
                     <button
                       key={model.model}

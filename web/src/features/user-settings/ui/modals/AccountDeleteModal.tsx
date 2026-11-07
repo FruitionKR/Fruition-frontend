@@ -47,6 +47,7 @@ export function AccountDeleteModal({
   onClose: () => void;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isMfaEnabled, requireMfa } = useMfaRequirement();
@@ -81,7 +82,7 @@ export function AccountDeleteModal({
         setMfaCode("");
         requireMfa();
       }
-      setError(accountDeletionErrorMessage(cause, t("accountDelete.failed")));
+      setError(accountDeletionErrorMessage(cause, t("accountDelete.failed"), tShared));
       setBusy(false);
     }
   }
@@ -178,7 +179,7 @@ export function AccountDeleteModal({
               <div className={styles["provider-row"]}>
                 {linkedProviders.map((provider) => (
                   <button key={provider} type="button" className={styles["btn-back"]} disabled={busy} onClick={() => reloginWith(provider)}>
-                    {t("common.reloginWith", { provider: oauthProviderName(provider) })}
+                    {t("common.reloginWith", { provider: oauthProviderName(provider, tShared) })}
                   </button>
                 ))}
               </div>

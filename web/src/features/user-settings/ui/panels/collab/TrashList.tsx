@@ -21,6 +21,7 @@ const DELETED_AT_FORMAT = { month: "short", day: "numeric", hour: "2-digit", min
  */
 export function TrashList() {
   const t = useTranslations("settings.trash");
+  const tShared = useTranslations("shared");
   const format = useFormatter();
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
@@ -42,7 +43,7 @@ export function TrashList() {
       await restoreTrashDocument(documentId, currentVersion);
       // 원래 폴더가 지워졌으면 최상위로 돌아가므로 실제 위치를 트리에서 찾는다. 찾지 못해도 복구는 끝났다.
       const folderName = await fetchDocumentTree().then((tree) => restoredDocumentFolderName(tree.items, documentId)).catch(() => undefined);
-      const message = documentRestoredMessage(name, folderName);
+      const message = documentRestoredMessage(name, folderName, tShared);
       setRestoreMessage(message);
       publishNotice({
         kind: "completed",
@@ -50,7 +51,7 @@ export function TrashList() {
         message
       });
     } catch (error) {
-      setRestoreError(describeRestoreError(error));
+      setRestoreError(describeRestoreError(error, undefined, tShared));
     } finally {
       setRestoringId(null);
       await queryClient.invalidateQueries({ queryKey: TRASH_QUERY_KEY(workspaceId) });
@@ -71,7 +72,7 @@ export function TrashList() {
         </p>
         {trash.isLoading && <p className={styles.empty}>{t("loading")}</p>}
         {trash.isError && (
-          <p className={sectionStyles["settings-message"]} role="alert">{getErrorMessage(trash.error, t("loadFailed"))}</p>
+          <p className={sectionStyles["settings-message"]} role="alert">{getErrorMessage(trash.error, t("loadFailed"), tShared)}</p>
         )}
         {!trash.isLoading && !trash.isError && items.length === 0 && <p className={styles.empty}>{t("empty")}</p>}
         <ul className={styles.list}>
@@ -82,7 +83,7 @@ export function TrashList() {
               <li key={item.id} className={styles.item}>
                 <div className={styles["item-text"]}>
                   <p>{name}</p>
-                  <span>{t("deletedAt", { time: formatTime(item.deleted_at), purge: describePurge(item.purge_at) })}</span>
+                  <span>{t("deletedAt", { time: formatTime(item.deleted_at), purge: describePurge(item.purge_at, undefined, tShared) })}</span>
                 </div>
                 <button
                   type="button"
