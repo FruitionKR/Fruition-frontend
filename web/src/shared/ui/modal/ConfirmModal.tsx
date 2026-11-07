@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { AlertModal } from "./AlertModal";
 
 /** AlertModal 위에 취소/확인 버튼 줄을 얹은 공통 확인 모달. */
@@ -9,7 +10,7 @@ export function ConfirmModal({
   title,
   description,
   confirmLabel,
-  cancelLabel = "취소",
+  cancelLabel,
   tone = "default",
   hideCancel = false,
   onConfirm,
@@ -27,6 +28,7 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("shared");
   const confirmClass = tone === "danger" ? "modal-delete-button" : "modal-confirm-button";
   const confirmButton = (
     <button type="button" className={confirmClass} onClick={onConfirm}>{confirmLabel}</button>
@@ -37,7 +39,7 @@ export function ConfirmModal({
         confirmButton
       ) : (
         <div className="modal-actions">
-          <button type="button" className="modal-cancel-button" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" className="modal-cancel-button" onClick={onCancel}>{cancelLabel ?? t("ui.cancel")}</button>
           {confirmButton}
         </div>
       )}

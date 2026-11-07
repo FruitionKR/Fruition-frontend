@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { fetchUserAvatar } from "../api/account";
 import { avatarInitial } from "../lib/avatarFile";
 
@@ -17,6 +18,7 @@ export function UserAvatar({ avatarUrl, name, className, fallback }: {
   /** 사진이 없거나 못 받을 때 이니셜 대신 보여 줄 내용(예: 기본 프로필 이미지). */
   fallback?: ReactNode;
 }) {
+  const t = useTranslations("shared");
   const { data: blob, error } = useQuery({
     queryKey: ["user-avatar", avatarUrl],
     queryFn: () => fetchUserAvatar(avatarUrl!),
@@ -34,11 +36,11 @@ export function UserAvatar({ avatarUrl, name, className, fallback }: {
     return () => URL.revokeObjectURL(url);
   }, [blob]);
 
-  return <span className={className} aria-hidden title={error ? "프로필 사진을 불러오지 못했습니다." : undefined}>
+  return <span className={className} aria-hidden title={error ? t("user.avatar.loadFailed") : undefined}>
     {avatarUrl && image?.blob === blob && image && image.url !== brokenUrl ? (
       // 인증이 필요한 이미지는 Bearer 요청으로 받은 Blob URL을 사용한다.
       // eslint-disable-next-line @next/next/no-img-element
       <img src={image.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} onError={() => setBrokenUrl(image.url)} />
-    ) : fallback ?? avatarInitial(name)}
+    ) : fallback ?? avatarInitial(name, t)}
   </span>;
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { isPublicAuthPath, setSessionExpiredHandler } from "@/shared/lib/authSessionStorage";
 import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { useSignOut } from "../model/useSignOut";
@@ -23,6 +24,7 @@ export function SessionExpiryGate({ children }: { children: React.ReactNode }) {
     return () => setSessionExpiredHandler(null);
   }, []);
 
+  const t = useTranslations("shared");
   const stay = useCallback(() => setIsExpired(false), []);
   const relogin = useCallback(() => {
     setIsExpired(false);
@@ -36,10 +38,10 @@ export function SessionExpiryGate({ children }: { children: React.ReactNode }) {
       {isExpired && !isPublicAuthPath(pathname) && (
         <ConfirmModal
           titleId="session-expired-title"
-          title="세션이 만료되었습니다."
-          description="저장되지 않은 편집 내용은 다시 로그인할 때까지 이 화면에 그대로 남아 있습니다. 필요하면 본문을 복사한 뒤 로그인해 주세요."
-          confirmLabel="다시 로그인"
-          cancelLabel="이 화면에 머무르기"
+          title={t("user.sessionExpiry.title")}
+          description={t("user.sessionExpiry.description")}
+          confirmLabel={t("user.sessionExpiry.relogin")}
+          cancelLabel={t("user.sessionExpiry.stay")}
           onConfirm={relogin}
           onCancel={stay}
         />

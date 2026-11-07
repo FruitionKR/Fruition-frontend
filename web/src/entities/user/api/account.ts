@@ -7,6 +7,7 @@ import {
 } from "@/entities/user/model/accountDeletion";
 import { parseRetryAfterSeconds, type EmailChangeBody } from "@/entities/user/model/emailChange";
 import { buildCurrentPasswordChangeBody, type PasswordChangeBody } from "@/entities/user/model/passwordChange";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /** 로그인한 사용자 정보를 가져온다. */
 export async function fetchMe(): Promise<UserMeResponse> {
@@ -20,7 +21,7 @@ export async function updateDisplayName(displayName: string): Promise<UserMeResp
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ display_name: displayName })
   });
-  return parseJsonOrThrow<UserMeResponse>(response, "닉네임을 변경하지 못했습니다.");
+  return parseJsonOrThrow<UserMeResponse>(response, sharedText("user.requestFailed.displayName", "닉네임을 변경하지 못했습니다."));
 }
 
 /** 화면 언어를 계정에 저장한다(PATCH /api/auth/me/locale). 응답은 MeResponse다. */
@@ -38,19 +39,19 @@ export async function uploadAvatar(file: File): Promise<UserMeResponse> {
   const body = new FormData();
   body.append("file", file);
   const response = await apiFetch("/api/auth/me/avatar", { method: "PUT", body });
-  return parseJsonOrThrow<UserMeResponse>(response, "프로필 사진을 올리지 못했습니다.");
+  return parseJsonOrThrow<UserMeResponse>(response, sharedText("user.requestFailed.avatarUpload", "프로필 사진을 올리지 못했습니다."));
 }
 
 /** 프로필 사진 삭제. 사진이 없어도 200이며 avatar_url이 null인 MeResponse가 온다. */
 export async function deleteAvatar(): Promise<UserMeResponse> {
   const response = await apiFetch("/api/auth/me/avatar", { method: "DELETE" });
-  return parseJsonOrThrow<UserMeResponse>(response, "프로필 사진을 지우지 못했습니다.");
+  return parseJsonOrThrow<UserMeResponse>(response, sharedText("user.requestFailed.avatarDelete", "프로필 사진을 지우지 못했습니다."));
 }
 
 /** avatar_url(GET /api/users/{id}/avatar?v=…)의 이미지를 Bearer 요청으로 받는다. <img src>로는 401이라 object URL로 보여 준다. */
 export async function fetchUserAvatar(avatarUrl: string): Promise<Blob> {
   const response = await apiFetch(avatarUrl, { cache: "no-store" });
-  await throwIfNotOk(response, "프로필 사진을 불러오지 못했습니다.");
+  await throwIfNotOk(response, sharedText("user.avatar.loadFailed", "프로필 사진을 불러오지 못했습니다."));
   return response.blob();
 }
 
@@ -67,7 +68,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     body: JSON.stringify(buildCurrentPasswordChangeBody({ currentPassword, newPassword, mfaCode }))
   });
   if (response.status === 429) return throwRateLimited(response);
-  await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.passwordChange", "비밀번호를 변경하지 못했습니다."));
 }
 
 type PasswordChangeVerificationResponse = {
@@ -78,7 +79,7 @@ type PasswordChangeVerificationResponse = {
 
 /** 429면 Retry-After(초)를 retryAfter로 실어 던진다. 화면이 그동안 제출을 막을 수 있게 한다. */
 export async function throwRateLimited(response: Response): Promise<never> {
-  const apiError = await parseApiError(response, "시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+  const apiError = await parseApiError(response, sharedText("user.requestFailed.rateLimited", "시도가 너무 많습니다. 잠시 후 다시 시도해 주세요."));
   throw Object.assign(apiError, { retryAfter: parseRetryAfterSeconds(response.headers.get("Retry-After")) });
 }
 
@@ -89,7 +90,7 @@ export async function throwRateLimited(response: Response): Promise<never> {
 export async function requestPasswordChangeVerification(): Promise<PasswordChangeVerificationResponse> {
   const response = await apiFetch("/api/auth/me/password/verification", { method: "POST" });
   if (response.status === 429) return throwRateLimited(response);
-  return parseJsonOrThrow<PasswordChangeVerificationResponse>(response, "인증번호를 보내지 못했습니다.");
+  return parseJsonOrThrow<PasswordChangeVerificationResponse>(response, sharedText("user.requestFailed.verificationSend", "인증번호를 보내지 못했습니다."));
 }
 
 /**
@@ -105,7 +106,7 @@ export async function changePasswordWithVerification(body: PasswordChangeBody): 
     body: JSON.stringify(body)
   });
   if (response.status === 429) return throwRateLimited(response);
-  await throwIfNotOk(response, "비밀번호를 변경하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.passwordChange", "비밀번호를 변경하지 못했습니다."));
 }
 
 /**
@@ -120,7 +121,7 @@ export async function changeEmail(body: EmailChangeBody): Promise<UserMeResponse
     body: JSON.stringify(body)
   });
   if (response.status === 429) return throwRateLimited(response);
-  return parseJsonOrThrow<UserMeResponse>(response, "이메일을 변경하지 못했습니다.");
+  return parseJsonOrThrow<UserMeResponse>(response, sharedText("user.requestFailed.emailChange", "이메일을 변경하지 못했습니다."));
 }
 
 /**
@@ -135,8 +136,8 @@ export async function deleteAccount(body: AccountDeletionBody): Promise<void> {
   });
   if (response.status === 409) {
     const parsed = await response.clone().json().catch(() => null) as unknown;
-    const apiError = await parseApiError(response, "회원 탈퇴를 진행할 수 없습니다.");
+    const apiError = await parseApiError(response, sharedText("user.requestFailed.accountDeletionBlocked", "회원 탈퇴를 진행할 수 없습니다."));
     throw new AccountDeletionBlockedError(apiError.message, parseSoleOwnerWorkspaces(parsed));
   }
-  await throwIfNotOk(response, "회원 탈퇴에 실패했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.accountDeletion", "회원 탈퇴에 실패했습니다."));
 }

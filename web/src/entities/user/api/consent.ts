@@ -2,6 +2,7 @@ import { apiFetch, parseJsonOrThrow, throwIfNotOk, ERROR_MESSAGES } from "@/shar
 import type { ConsentBody, SignupConsentFields } from "@/entities/user/model/consent";
 import type { LoginResponse } from "./login";
 import { localizedFetch } from "@/shared/i18n/requestLocale";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /**
  * 소셜 신규 가입자의 동의를 받아 계정을 만들고 로그인시킨다. 응답은 로그인 응답과 같다(MFA 포함).
@@ -23,5 +24,5 @@ export async function submitConsents(consent: ConsentBody): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(consent)
   });
-  await throwIfNotOk(response, "약관 동의를 저장하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.consentSave", "약관 동의를 저장하지 못했습니다."));
 }
