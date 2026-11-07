@@ -11,11 +11,14 @@ import { isUploadFailedItem, TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
 import { describeTreeConversionBadge } from "../model/treeConversionBadge";
+import { EMPTY_TREE_CONVERSION_GROUPS, groupedChildBadge, groupedSourceBadge, ungroupedTreeRows } from "../model/treeConversionGroups";
 import styles from "./DocumentSidebar.module.css";
 
 // 트리 행 들여쓰기 (Figma 1486:4410): 기본 10px + depth당 22px (pl 10 / 32)
 const TREE_ROW_BASE_PADDING_PX = 10;
 const TREE_ROW_INDENT_PER_DEPTH_PX = 22;
+// 변환본 연결선은 원본 PDF 행 화살표(16px 칸) 가운데에서 시작한다.
+const TREE_CONVERSION_BRANCH_OFFSET_PX = 7;
 
 /** 행 ⋯ 버튼 툴팁·접근성 이름 */
 const ROW_MENU_LABEL = "항목 메뉴 열기";
@@ -51,7 +54,8 @@ export function TreeNode({
   projectId,
   onDropItem,
   interaction,
-  inheritedPermission = null
+  inheritedPermission = null,
+  conversionChild
 }: {
   item: TreeItem;
   depth: number;
@@ -63,6 +67,8 @@ export function TreeNode({
   interaction: Omit<TreeInteractionProps, "onMoveItem">;
   /** 가장 가까운 상위 폴더의 자기 권한. 상위 설정 따름 항목의 적용 권한 표시에 쓴다 */
   inheritedPermission?: InheritedPermission;
+  /** 원본 PDF 행 아래에 묶어 그리는 변환본 행이면 그 상태. isLast는 연결선을 └로 끝낼지 정한다 */
+  conversionChild?: { isConverting: boolean; isLast: boolean };
 }) {
   const { draggedItemId, dropTarget, fileDropTarget, editing, selectedItemIds } = interaction;
   const isSelected = selectedItemIds.has(item.id);
@@ -83,10 +89,19 @@ export function TreeNode({
   // 서버에 문서가 만들어지지 않은 업로드 자리표시 행의 실패. 사유는 알림 카드와 행 title로 보인다.
   const isUploadFailed = isUploadFailedItem(item);
   const display = fileDisplay(item);
+  // 같은 폴더의 변환본을 이 원본 PDF 행 아래에 들여 써서 그린다. 접힘 상태는 화살표·←/→ 키로 바꾼다.
+  const conversionChildren = interaction.conversionGroups?.childrenBySourceId.get(item.id) ?? [];
+  const hasConversionChildren = conversionChildren.length > 0;
+  const isConversionCollapsed = hasConversionChildren && (interaction.collapsedConversionIds?.has(item.id) ?? false);
+  const toggleConversionGroup = () => interaction.onToggleConversionGroup?.(item.id);
   // 기존 확장자 배지 자리에서 원본 PDF와 변환된 노트의 역할·연결을 보여준다.
-  const conversionBadge = !isUploading && item.documentId
+  const ownConversionBadge = !isUploading && item.documentId
     ? interaction.conversionBadges?.get(item.documentId) ?? null
     : null;
+  const conversionBadge = hasConversionChildren
+    ? groupedSourceBadge(ownConversionBadge, conversionChildren.length, isConversionCollapsed)
+    : conversionChild ? groupedChildBadge(ownConversionBadge, conversionChild.isConverting) : ownConversionBadge;
+  const isConvertingChild = conversionChild?.isConverting === true;
   const relatedDocumentId = !isEditing && !interaction.isPickingTarget ? conversionBadge?.relatedDocumentId : null;
   const conversionDescription = conversionBadge ? describeTreeConversionBadge(conversionBadge, Boolean(relatedDocumentId)) : "";
   // 편집 가능은 기본 상태라 표시하지 않고, 직접 설정·상속 모두 보기 전용일 때만 표시한다.
@@ -132,6 +147,7 @@ export function TreeNode({
           (item.active || interaction.selectedItemId === item.id) && styles["is-active"],
           isUploading && styles["is-uploading"],
           isUploadFailed && styles["is-upload-failed"],
+          isConvertingChild && styles["is-converting"],
           isSelected && styles["is-selected"],
           (draggedItemId === item.id || isDraggingGroup) && styles["is-dragging"],
           isFileDropTarget && styles["is-file-drop-target"],
@@ -146,7 +162,7 @@ export function TreeNode({
         role="treeitem"
         aria-level={depth + 1}
         aria-selected={isSelected}
-        aria-expanded={isFolder ? isOpen : undefined}
+        aria-expanded={isFolder ? isOpen : hasConversionChildren ? !isConversionCollapsed : undefined}
         aria-busy={isUploading || undefined}
         aria-disabled={isUploading || undefined}
         draggable={!isEditing && !isUploading && canDrag}
@@ -174,6 +190,12 @@ export function TreeNode({
         onKeyDown={(event) => {
           // 입력 중인 이름 편집 칸의 키는 건드리지 않는다.
           if (event.target !== event.currentTarget || isEditing || interaction.isPickingTarget) return;
+          // 트리 관례: → 는 원본 PDF 아래 변환본을 펼치고 ← 는 접는다.
+          if (hasConversionChildren && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
+            if ((event.key === "ArrowRight") === isConversionCollapsed) toggleConversionGroup();
+            event.preventDefault();
+            return;
+          }
           // Delete·Backspace: 고른 항목을 묶음 삭제한다(확인 모달).
           if ((event.key === "Delete" || event.key === "Backspace") && selectedItemIds.size > 0) {
             event.preventDefault();
@@ -215,7 +237,20 @@ export function TreeNode({
           if (!isEditing && isFolder) onToggle(item.id);
         }}
       >
-        <TreeNodeIcon item={item} isExpandable={isFolder} isOpen={isOpen} />
+        {conversionChild && (
+          // 원본 PDF 화살표 아래에서 이 행으로 이어지는 연결선(└, 다음 변환본이 있으면 ├)
+          <span
+            className={cx(styles["tree-conversion-branch"], !conversionChild.isLast && styles["is-continued"])}
+            style={{ left: TREE_ROW_BASE_PADDING_PX + (depth - 1) * TREE_ROW_INDENT_PER_DEPTH_PX + TREE_CONVERSION_BRANCH_OFFSET_PX }}
+            aria-hidden
+          />
+        )}
+        <TreeNodeIcon
+          item={item}
+          isExpandable={isFolder || hasConversionChildren}
+          isOpen={isFolder ? isOpen : !isConversionCollapsed}
+          onExpandClick={hasConversionChildren ? toggleConversionGroup : undefined}
+        />
         {isEditing ? (
           <InlineEditInput
             value={editing.label}
@@ -244,7 +279,7 @@ export function TreeNode({
                 ? (
                   <Tooltip content={conversionDescription} placement="right" disabled={Boolean(relatedDocumentId)} className={styles["tree-conversion-inline"]}>
                   <small
-                    className={cx(styles["tree-type-badge"], styles["is-conversion"], relatedDocumentId && styles["is-link-placeholder"])}
+                    className={cx(styles["tree-type-badge"], styles["is-conversion"], isConvertingChild && styles["is-converting"], relatedDocumentId && styles["is-link-placeholder"])}
                     aria-label={relatedDocumentId ? undefined : conversionDescription}
                     aria-hidden={relatedDocumentId ? true : undefined}
                   >
@@ -307,7 +342,21 @@ export function TreeNode({
       </div>
       )}
       </div>
-      {isFolder && isOpen && item.children?.map((child) => (
+      {hasConversionChildren && !isConversionCollapsed && conversionChildren.map((child, index) => (
+        <TreeNode
+          key={child.item.id}
+          item={child.item}
+          depth={depth + 1}
+          openIds={openIds}
+          onToggle={onToggle}
+          projectId={projectId}
+          onDropItem={onDropItem}
+          interaction={interaction}
+          inheritedPermission={inheritedPermission}
+          conversionChild={{ isConverting: child.isConverting, isLast: index === conversionChildren.length - 1 }}
+        />
+      ))}
+      {isFolder && isOpen && item.children && ungroupedTreeRows(item.children, interaction.conversionGroups ?? EMPTY_TREE_CONVERSION_GROUPS).map((child) => (
         <TreeNode
           key={child.id}
           item={child}

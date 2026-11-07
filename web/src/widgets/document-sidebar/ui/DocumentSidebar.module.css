@@ -832,6 +832,45 @@
   color: currentColor;
 }
 
+/* 원본 PDF 아래 변환 중인 변환본: 이름은 흐리게, 「변환 중」 배지는 경고 색. 글자로도 상태를 알린다 */
+.tree-row.is-converting {
+  color: var(--color-muted);
+}
+
+.tree-type-badge.is-converting {
+  color: var(--color-status-warning);
+}
+
+/*
+ * 원본 PDF 행 화살표 가운데에서 변환본 행으로 이어지는 연결선(└). 다음 변환본이 있으면 세로선을 아래로 잇는다(├).
+ * left는 행 들여쓰기에 맞춰 TreeNode가 정한다. 드롭 위치 표시(::before·::after)와 겹치지 않게 별도 요소로 그린다.
+ */
+.tree-conversion-branch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--color-border), var(--color-border)) left top / 1px 50% no-repeat,
+    linear-gradient(var(--color-border), var(--color-border)) left 50% / 100% 1px no-repeat;
+}
+
+.tree-conversion-branch.is-continued {
+  background:
+    linear-gradient(var(--color-border), var(--color-border)) left top / 1px 100% no-repeat,
+    linear-gradient(var(--color-border), var(--color-border)) left 50% / 100% 1px no-repeat;
+}
+
+/* 원본 PDF 행의 화살표 칸만 눌러 변환본을 접고 편다(행 나머지는 문서 열기) */
+.tree-folder-slot.is-toggle {
+  cursor: pointer;
+}
+
+.tree-folder-slot.is-toggle:hover .tree-arrow {
+  color: var(--color-body);
+}
+
 /* 행 버튼 안에 링크를 중첩하지 않고, 같은 자리에 형제 링크를 올린다. */
 .tree-type-badge.is-link-placeholder {
   visibility: hidden;

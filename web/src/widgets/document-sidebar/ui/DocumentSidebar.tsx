@@ -17,9 +17,10 @@ import { WikiWorkButton } from "./WikiWorkButton";
 import { DocumentSearch } from "@/features/document-search/ui/DocumentSearch";
 import type { SelectableTreeItem, TreeInteractionProps } from "../model/treeInteraction";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../model/sidebarMenu";
-import { visibleSelectableIds } from "@/widgets/workspace/lib/treeBulkSelection";
 import { useFileDropZone } from "../model/useFileDropZone";
 import { buildTreeConversionBadges } from "../model/treeConversionBadge";
+import { buildTreeConversionGroups, visibleTreeRowIds } from "../model/treeConversionGroups";
+import { useConversionCollapse } from "../model/useConversionCollapse";
 import { treeContextMenuSections, treeMenuBlockedActions, type TreeMenuActionId } from "../model/treeItemActions";
 import { downloadTreeItemOriginal } from "../model/downloadTreeItem";
 import styles from "./DocumentSidebar.module.css";
@@ -259,6 +260,10 @@ export function DocumentSidebar({
   };
   // 원본 PDF·변환된 노트 배지와 이동 대상. 같은 문서 목록에서 짝을 찾는다.
   const conversionBadges = useMemo(() => buildTreeConversionBadges(documents ?? []), [documents]);
+  // 변환본은 같은 폴더의 원본 PDF 행 아래에 들여 써서 묶어 그린다. 접힘 상태는 이 브라우저에만 둔다.
+  const rootItems = rootProject?.items;
+  const conversionGroups = useMemo(() => buildTreeConversionGroups(rootItems ?? [], documents ?? []), [rootItems, documents]);
+  const conversionCollapse = useConversionCollapse();
   // 트리 상호작용 상태·핸들러를 한 객체로 묶어 하위 트리로 전달한다.
   const interaction: TreeInteractionProps = {
     draggedItemId,
@@ -274,6 +279,9 @@ export function DocumentSidebar({
     fileDropTarget,
     editing,
     conversionBadges,
+    conversionGroups,
+    collapsedConversionIds: conversionCollapse.collapsedIds,
+    onToggleConversionGroup: conversionCollapse.toggle,
     openIds,
     onToggleOpen,
     onOpenMany,
@@ -281,7 +289,7 @@ export function DocumentSidebar({
     onDropFiles,
     onDragStart,
     onToggleSelectItem,
-    onSelectItemRange: (itemId) => onSelectItemRange(itemId, visibleSelectableIds(rootProject?.items ?? [], openIds), selectedItemId),
+    onSelectItemRange: (itemId) => onSelectItemRange(itemId, visibleTreeRowIds(rootProject?.items ?? [], openIds, conversionGroups, conversionCollapse.collapsedIds), selectedItemId),
     onClearSelectedItems,
     onDeleteSelectedItems,
     onDragOverItem,
