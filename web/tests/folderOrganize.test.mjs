@@ -234,12 +234,12 @@ test("실행 결과에서 실패한 줄은 계획이 아니라 지금 위치·�
   assert.equal(row("doc-pdf").folderName, "연간 활동 계획서");
 
   assert.equal(row("doc-xlsx").failure.label, "실패");
-  assert.equal(row("doc-xlsx").failure.note, "권한이 없어 실행하지 못했어요.");
+  assert.equal(row("doc-xlsx").failure.note, "이 문서를 바꿀 권한이 없어 실행하지 못했어요. 권한을 확인해 주세요.");
   assert.equal(row("doc-xlsx").newName, "1학기 일정표.xlsx");
   assert.equal(row("doc-xlsx").folderName, "프로젝트 타임라인");
 
   assert.equal(row("doc-md").failure.label, "일부 실패");
-  assert.equal(row("doc-md").failure.note, "일부 작업은 다른 변경과 충돌해 실행하지 못했어요.");
+  assert.equal(row("doc-md").failure.note, "일부 작업은 그 사이 내용이 바뀌어 적용하지 못했어요. 최신 내용을 확인해 주세요.");
   assert.equal(row("doc-md").newName, "메모.md");
   assert.equal(row("doc-md").folderName, "연간 활동 계획서");
 
