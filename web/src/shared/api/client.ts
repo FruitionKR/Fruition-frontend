@@ -3,6 +3,7 @@ import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/
 import { ApiError, DocumentLockedError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
+  getAccessTokenVersion,
   getSelectedWorkspaceId,
   notifySessionExpired,
   saveAccessToken,
@@ -103,6 +104,8 @@ let refreshPromise: Promise<RefreshOutcome> | null = null;
 async function tryRefreshTokens(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
     refreshPromise = withAuthRefreshLock(async (): Promise<RefreshOutcome> => {
+      // refresh를 기다리는 동안 OAuth·비밀번호 로그인이 토큰을 저장했을 수 있다.
+      const versionBeforeRefresh = getAccessTokenVersion();
       try {
         const response = await fetch("/api/auth/refresh", {
           method: "POST"
@@ -111,7 +114,9 @@ async function tryRefreshTokens(): Promise<RefreshOutcome> {
         if (!response.ok) return "unavailable";
         const body = await response.json() as { access_token?: string };
         if (!body.access_token) return "unavailable";
-        saveAccessToken(body.access_token);
+        // 그 사이 저장된 직접 로그인 토큰에는 auth_time이 있어 탈퇴·이메일 변경의 본인 확인에 쓰인다.
+        // refresh로 받은 토큰(auth_time 없음)으로 덮어쓰지 않고, 원요청은 그 토큰으로 재시도한다(#253).
+        if (getAccessTokenVersion() === versionBeforeRefresh) saveAccessToken(body.access_token);
         return "refreshed";
       } catch {
         return "unavailable";
