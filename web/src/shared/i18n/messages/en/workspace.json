@@ -291,5 +291,16 @@
       "hours": "{count}h ago",
       "days": "{count}d ago"
     }
+  },
+  "workspacesPage": {
+    "defaultName": "My workspace",
+    "preparing": "Preparing your workspace…",
+    "prepareFailed": "Couldn't prepare your workspace.",
+    "eyebrow": "CONNECTION ERROR",
+    "title": "Couldn't load your workspace",
+    "description": "This may be a temporary connection problem. Please try again in a moment. Your account and work are safe.",
+    "retry": "Try again",
+    "toLogin": "Back to sign in",
+    "support": "If the problem continues, try again later or contact your administrator."
   }
 }
