@@ -1,4 +1,5 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
+import { currentRequestLocale, localizedFetch, withLocaleHeader } from "@/shared/i18n/requestLocale";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
 import { ApiError, DocumentLockedError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
@@ -107,7 +108,7 @@ async function tryRefreshTokens(): Promise<RefreshOutcome> {
       // refresh를 기다리는 동안 OAuth·비밀번호 로그인이 토큰을 저장했을 수 있다.
       const versionBeforeRefresh = getAccessTokenVersion();
       try {
-        const response = await fetch("/api/auth/refresh", {
+        const response = await localizedFetch("/api/auth/refresh", {
           method: "POST"
         });
         if (response.status === 401 || response.status === 403) return "rejected";
@@ -130,7 +131,8 @@ async function tryRefreshTokens(): Promise<RefreshOutcome> {
 
 function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
   const token = getAccessToken();
-  const headers = new Headers(init?.headers);
+  // 화면 언어를 실어 서버 오류 message와 AI 답변 언어를 맞춘다(SSE·스트리밍·직접 접속 경로 포함).
+  const headers = withLocaleHeader(init?.headers, currentRequestLocale());
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(path, { ...init, headers });
 }
