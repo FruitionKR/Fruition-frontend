@@ -8,7 +8,8 @@ registerHooks({
     if (specifier.startsWith("@/")) {
       return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
     }
-    if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
+    // next.config.mjs가 부르는 next-intl 플러그인(node_modules)의 require는 건드리지 않는다.
+    if (specifier.startsWith(".") && !context.parentURL?.includes("/node_modules/") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
     return nextResolve(specifier, context);
   }
 });

@@ -13,7 +13,8 @@ registerHooks({
       return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
     }
     // 배럴(auth.ts)의 확장자 없는 상대 경로 재수출도 .ts 소스로 해석한다.
-    if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
+    // next.config.mjs가 부르는 next-intl 플러그인(node_modules)의 require는 건드리지 않는다.
+    if (specifier.startsWith(".") && !context.parentURL?.includes("/node_modules/") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
     return nextResolve(specifier, context);
   }
 });
