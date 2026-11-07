@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import type { DropTarget, TreeItem } from "@/entities/tree";
 import { TreeNode } from "./TreeNode";
 import type { TreeInteractionProps } from "../model/treeInteraction";
+import { EMPTY_TREE_CONVERSION_GROUPS, ungroupedTreeRows } from "../model/treeConversionGroups";
 
 export function SidebarTree({
   items,
@@ -31,7 +32,7 @@ export function SidebarTree({
 
   return (
     <>
-      {items.map((item) => (
+      {ungroupedTreeRows(items, interaction.conversionGroups ?? EMPTY_TREE_CONVERSION_GROUPS).map((item) => (
         <TreeNode
           key={item.id}
           item={item}

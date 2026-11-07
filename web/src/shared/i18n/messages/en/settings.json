@@ -484,10 +484,23 @@
       "lockedModelLabel": "{model}, {reason}"
     },
     "autoIngest": {
-      "section": "Automatic wiki ingest",
-      "label": "Automatically ingest uploaded documents into the wiki",
-      "description": "Uploaded documents are added to the team wiki right after conversion. Ingesting incurs LLM costs and applies only to documents uploaded by members with the 'Wiki ingest' permission in Members.",
-      "saveFailed": "Couldn't change the automatic ingest setting."
+      "section": "Wiki auto-ingest",
+      "costNote": "Ingesting uses LLM credits and applies only to documents from members granted the 'Wiki ingest' permission in Members.",
+      "saveFailed": "Couldn't change the auto-ingest setting.",
+      "rows": {
+        "markdown": {
+          "label": "Auto-ingest Markdown uploads into the wiki",
+          "description": "Markdown and txt documents are ingested into the team wiki as soon as they're uploaded."
+        },
+        "pdfOnConvert": {
+          "label": "Also auto-ingest PDF conversions right after converting",
+          "description": "When on, PDFs are ingested as soon as their Markdown conversion finishes; when off, you're asked whether to ingest when you open the conversion."
+        },
+        "legacyPdf": {
+          "label": "Also auto-ingest PDF conversions into the wiki",
+          "description": "Markdown and txt documents are ingested as soon as they're uploaded regardless of this setting. When on, PDFs are also ingested as soon as their Markdown conversion finishes; when off, you're asked whether to ingest when you open the conversion."
+        }
+      }
     },
     "describeFigures": {
       "section": "Describe images in text during PDF conversion so AI can understand them",

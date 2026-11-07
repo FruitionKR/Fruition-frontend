@@ -485,9 +485,22 @@
     },
     "autoIngest": {
       "section": "위키 자동 편입",
-      "label": "업로드한 문서를 자동으로 위키에 편입",
-      "description": "문서를 올리면 변환 뒤 바로 팀 위키에 편입합니다. 편입은 LLM 비용이 들고, 멤버 관리에서 '위키 편입' 권한을 받은 멤버가 올린 문서에만 적용됩니다.",
-      "saveFailed": "자동 편입 설정을 변경하지 못했습니다."
+      "costNote": "편입은 LLM 비용이 들고, 멤버 관리에서 '위키 편입' 권한을 받은 멤버의 문서에만 적용됩니다.",
+      "saveFailed": "자동 편입 설정을 변경하지 못했습니다.",
+      "rows": {
+        "markdown": {
+          "label": "Markdown 업로드 시 자동으로 위키에 편입",
+          "description": "Markdown·txt 문서를 올리면 바로 팀 위키에 편입합니다."
+        },
+        "pdfOnConvert": {
+          "label": "PDF 변환본도 변환 직후 자동으로 위키에 편입",
+          "description": "켜면 PDF의 Markdown 변환이 끝나는 대로 편입하고, 끄면 변환본을 열 때 편입할지 묻습니다."
+        },
+        "legacyPdf": {
+          "label": "PDF 변환본도 자동으로 위키에 편입",
+          "description": "Markdown·txt 문서는 이 설정과 상관없이 올리면 바로 위키에 편입합니다. 켜면 PDF도 Markdown 변환이 끝나는 대로 편입하고, 끄면 변환본을 열 때 편입할지 묻습니다."
+        }
+      }
     },
     "describeFigures": {
       "section": "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김",
