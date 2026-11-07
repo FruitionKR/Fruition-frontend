@@ -7,11 +7,13 @@ import { classifySessionChannel } from "@/features/agent-chat/lib/taskThread";
 import { emptyPanelSessionState, findReusableEmptySession, panelSessionStorageKey, pickInitialSession, parsePanelSessionState, selectPanelSession, type ChatChannel, type PanelSessionState, type SessionChannel } from "@/features/agent-chat/lib/panelSessionState";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage, isChatSessionLimitError } from "@/shared/lib/apiErrors";
+import { useTranslations } from "next-intl";
 
 type CatalogSession = ChatSessionResponse & { channel: SessionChannel; isEmpty: boolean };
 
 /** 본문은 서버의 별도 세션에, 탭별 마지막 선택은 사용자·워크스페이스별 브라우저 저장소에 둔다. */
 export function usePanelSessions(view: ChatChannel) {
+  const t = useTranslations("agentChat");
   const me = useMe();
   const workspaceId = getSelectedWorkspaceId();
   const scope = me.data?.id && workspaceId ? panelSessionStorageKey(me.data.id, workspaceId) : null;
@@ -22,7 +24,7 @@ export function usePanelSessions(view: ChatChannel) {
   const refreshing = useRef<{ scope: string; promise: Promise<CatalogSession[]> } | null>(null);
   const [snapshot, setSnapshot] = useState<{ scope: string | null; state: PanelSessionState }>({ scope: null, state: emptyPanelSessionState() });
   const [readyScope, setReadyScope] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [claimFailures, setClaimFailures] = useState<Partial<Record<ChatChannel, unknown>>>({});
 
   const commit = useCallback((next: PanelSessionState) => {
@@ -84,7 +86,7 @@ export function usePanelSessions(view: ChatChannel) {
     try { stateRef.current = parsePanelSessionState(window.localStorage.getItem(scope)); }
     catch { stateRef.current = emptyPanelSessionState(); }
     void refresh().then(() => { if (!cancelled) setReadyScope(scope); }).catch(reason => {
-      if (!cancelled) setError(getErrorMessage(reason, "대화 목록을 불러오지 못했습니다."));
+      if (!cancelled) setError(reason ?? new Error());
     });
     return () => { cancelled = true; };
   }, [refresh, scope]);
@@ -95,13 +97,13 @@ export function usePanelSessions(view: ChatChannel) {
 
   /** 탭에 쓸 세션을 정한다. 빈 세션이 있으면 재사용하고, 없을 때만 새로 만든다. 동시 호출은 한 요청으로 묶는다. */
   const claimSession = useCallback(async (channel: ChatChannel) => {
-    if (!scope || readyScope !== scope) throw new Error("대화를 준비 중입니다. 잠시 후 다시 시도해 주세요.");
+    if (!scope || readyScope !== scope) throw new Error(t("sessions.notReady"));
     let pending = creating.current[channel];
     if (!pending) {
       pending = (async () => {
         const catalog = await refresh();
         const session = findReusableEmptySession(catalog, stateRef.current.selected, channel) ?? await createChatSession();
-        if (scopeRef.current !== scope) throw new Error("워크스페이스가 변경됐습니다.");
+        if (scopeRef.current !== scope) throw new Error(t("sessions.workspaceChanged"));
         commit(selectPanelSession(stateRef.current, channel, session.id, channel));
         return session;
       })();
@@ -114,7 +116,7 @@ export function usePanelSessions(view: ChatChannel) {
     } finally {
       if (creating.current[channel] === pending) delete creating.current[channel];
     }
-  }, [commit, readyScope, refresh, scope]);
+  }, [commit, readyScope, refresh, scope, t]);
 
   const ensureWritable = useCallback(async (channel: ChatChannel) => {
     const selected = stateRef.current.selected[channel];
@@ -143,7 +145,8 @@ export function usePanelSessions(view: ChatChannel) {
 
   const claimFailure = claimFailures[view];
   const isAtSessionLimit = isChatSessionLimitError(claimFailure);
-  const claimError = claimFailure && !isAtSessionLimit ? getErrorMessage(claimFailure, "대화를 만들지 못했습니다.") : null;
+  const claimError = claimFailure && !isAtSessionLimit ? getErrorMessage(claimFailure, t("sessions.createFailed")) : null;
+  const loadError = error ? getErrorMessage(error, t("sessions.loadFailed")) : null;
 
-  return { scope, ready, error: error ?? claimError, isAtSessionLimit, selected: state.selected, channels: state.channels, activeChannel: state.channels[state.selected[view] ?? ""], select, ensureWritable, startNewSession: claimSession, loadSessions };
+  return { scope, ready, error: loadError ?? claimError, isAtSessionLimit, selected: state.selected, channels: state.channels, activeChannel: state.channels[state.selected[view] ?? ""], select, ensureWritable, startNewSession: claimSession, loadSessions };
 }

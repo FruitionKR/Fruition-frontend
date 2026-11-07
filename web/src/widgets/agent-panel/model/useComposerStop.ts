@@ -3,6 +3,7 @@ import { publishNotice } from "@/features/document-notifications";
 import { requestAgentTurnCancel } from "@/features/agent-chat/api/agent";
 import { activeTurnStopOutcome, isTurnCancelAccepted, type CancelAcceptedTurn, type StalledTurnCancelResult } from "@/features/agent-chat/lib/stalledTurns";
 import type { ComposerStopTarget } from "../lib/composerStop";
+import { useTranslations } from "next-intl";
 
 /** 중지 요청을 이만큼만 기다린다. 응답이 없으면 전하지 못한 것으로 보고 다시 따라간다. */
 const CANCEL_REQUEST_TIMEOUT_MS = 10_000;
@@ -52,6 +53,7 @@ export function useComposerStop({
   /** 서버가 중지(취소)를 받아들인 turn과 그때의 상태. 되돌리는 중이면 "취소하는 중…"으로 보인다. */
   onCancelAccepted?: (accepted: readonly CancelAcceptedTurn[]) => void;
 }) {
+  const t = useTranslations("agentChat");
   // 멈추는 대상. 끝날 때까지 안내 문구를 이 대상으로 유지한다(멈추는 사이 대상이 바뀌어도).
   const [stoppingTarget, setStoppingTarget] = useState<ComposerStopTarget | null>(null);
   // 같은 렌더 안에서 Esc가 두 번 들어와도 한 번만 멈춘다.
@@ -61,13 +63,13 @@ export function useComposerStop({
     stopFollowing();
     const result = await requestCancel(turnId);
     if (isTurnCancelAccepted(result)) onCancelAccepted?.([{ turnId, status: result.status, error: result.error }]);
-    const outcome = activeTurnStopOutcome(result);
+    const outcome = activeTurnStopOutcome(result, t);
     if (outcome.refresh) await refreshMessages().catch(() => undefined);
     if (outcome.release) releaseTurns([turnId]);
     // 다시 받은 목록에 취소("취소하는 중…"·"취소됨")가 보인 뒤 진행 카드를 내린다. 다시 따라가면 진행 카드를 이어서 쓴다.
     if (outcome.resume) resumeFollowing(turnId);
     else finishFollowing();
-    if (outcome.notice) publishNotice({ kind: "failed", title: "작업 중지 실패", message: outcome.notice });
+    if (outcome.notice) publishNotice({ kind: "failed", title: t("notice.stopFailed"), message: outcome.notice });
   }
 
   function finishStopping() {

@@ -1,13 +1,13 @@
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { Loader2, Square, Volume2 } from "lucide-react";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import { AgentResultCard } from "./AgentResultCard";
 import { StatusList } from "./StatusList";
 import { AgentChevronIcon } from "./AgentIcons";
 import { buildProgressSteps } from "../lib/progressSteps";
 import { messageStatusTitle } from "../lib/statusSteps";
-import { STALLED_QUERY_DETAIL, STALLED_QUERY_RELEASED_DETAIL, STALLED_TURN_TITLE } from "../lib/stalledTurns";
 import { resolveChatTurnPresentation } from "../lib/agentTurn";
 import { formatAnswerMarkdown } from "../lib/answerMarkdown";
 import { useCitationLinks } from "../model/useCitationLinks";
@@ -30,24 +30,25 @@ export type StalledQueryView = {
 
 /** 질의 말풍선 자리의 '응답을 받지 못했어요' 안내와 다시 질문·닫기(작업 탭 stalled 카드와 같은 모양). */
 function StalledQueryNotice({ stall }: { stall: StalledQueryView }) {
-  if (stall.state === "released") return <p className={styles["task-note"]}>{STALLED_QUERY_RELEASED_DETAIL}</p>;
+  const t = useTranslations("agentChat");
+  if (stall.state === "released") return <p className={styles["task-note"]}>{t("stalled.queryReleasedDetail")}</p>;
   return (
     <div className={styles["stalled-query"]}>
       <p className={styles["task-note"]} role="alert">
-        <strong>{STALLED_TURN_TITLE}</strong>
+        <strong>{t("stalled.turnTitle")}</strong>
         {"\n"}
-        {STALLED_QUERY_DETAIL}
+        {t("stalled.queryDetail")}
       </p>
       {(stall.onRetry || stall.onDismiss) && (
         <div className={styles["task-actions"]}>
           {stall.onRetry && (
             <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={stall.isClosing} onClick={stall.onRetry}>
-              다시 질문
+              {t("actions.askAgain")}
             </button>
           )}
           {stall.onDismiss && (
             <button type="button" className={styles["task-pill"]} disabled={stall.isClosing} aria-busy={stall.isClosing || undefined} onClick={stall.onDismiss}>
-              {stall.isClosing ? "닫는 중…" : "닫기"}
+              {stall.isClosing ? t("actions.closing") : t("actions.close")}
             </button>
           )}
         </div>
@@ -85,6 +86,7 @@ export function AssistantThread({
   /** 응답을 받지 못한 질의면 진행 표시 대신 안내와 다시 질문·닫기를 보인다. */
   stall?: StalledQueryView | null;
 }) {
+  const t = useTranslations("agentChat");
   const presentation = resolveChatTurnPresentation(message.action);
   // 진행 중에 취소돼 서버가 닫은 응답. 본문이 비어 있으면 "요청 취소됨" 상태 목록만 남긴다.
   const isCancelled = message.status === "cancelled";
@@ -94,7 +96,7 @@ export function AssistantThread({
   // 완료된 답변만 서버가 음성으로 만든다(진행 중·실패는 409). 작업(계획) 문답은 작업 탭에 있어 여기 오지 않는다.
   const canListen = Boolean(onToggleSpeech) && message.status === "completed";
   const speechStatus = speechPlayback?.messageId === message.id ? speechPlayback.status : null;
-  const resultCards = buildSourceDocumentCards(message, nodes);
+  const resultCards = buildSourceDocumentCards(message, nodes, t);
   const citationLinks = useCitationLinks({ references: message.references, runId: message.run_id, nodes, onOpenSourceBlocks });
 
   return (
@@ -102,17 +104,17 @@ export function AssistantThread({
       {stall && <StalledQueryNotice stall={stall} />}
       {!stall && ((message.progress?.length ?? 0) > 0 || message.status === "pending" || isCancelled) && (
         <StatusList
-          title={messageStatusTitle(message.status)}
+          title={messageStatusTitle(message.status, t)}
           isLoading={message.status === "pending"}
           hasResponse={message.status === "completed"}
-          steps={message.progress?.length ? buildProgressSteps(message.progress, message.status === "pending")
-            : isCancelled ? [] : [["요청을 전달하고 있어요.", "active"]]}
+          steps={message.progress?.length ? buildProgressSteps(message.progress, message.status === "pending", t)
+            : isCancelled ? [] : [[t("status.sending"), "active"]]}
         />
       )}
 
       {isSearchAnswer && resultCards.length > 0 && (!isAnimated || visibleAnswerStage >= STAGE_RESULTS) && (
         <div className={cx(styles.results, isAnimated && styles["agent-stage"])}>
-          <p>찾은 자료 {resultCards.length}건</p>
+          <p>{t("sources.found", { count: resultCards.length })}</p>
           {resultCards.map((card) => (
             // 근거로 쓰인 원본 문서. 누르면 원본을 열고 근거 block을 강조한다.
             <AgentResultCard
@@ -131,7 +133,7 @@ export function AssistantThread({
       {(!isAnimated || visibleAnswerStage >= STAGE_ANSWER) && !((stall || isCancelled) && !message.content.trim()) && (
         <section
           className={cx(styles["agent-answer"], isAnimated && styles["agent-stage"])}
-          aria-label={isSearchAnswer ? "실행 중 발견 사항" : "답변"}
+          aria-label={isSearchAnswer ? t("chat.findings") : t("chat.answer")}
         >
           {isSearchAnswer && (
             <button
@@ -140,7 +142,7 @@ export function AssistantThread({
               aria-expanded={isAnswerExpanded}
               onClick={() => setIsAnswerExpanded((current) => !current)}
             >
-              <span>실행 중 발견 사항</span>
+              <span>{t("chat.findings")}</span>
               <AgentChevronIcon isWide className={isAnswerExpanded ? undefined : styles["is-collapsed"]} />
             </button>
           )}
@@ -154,7 +156,7 @@ export function AssistantThread({
               <button
                 type="button"
                 className={cx(styles["answer-listen"], speechStatus && styles["is-active"])}
-                aria-label={speechStatus ? "음성 멈추기" : "답변 듣기"}
+                aria-label={speechStatus ? t("speech.stopLabel") : t("speech.listenLabel")}
                 aria-pressed={speechStatus !== null}
                 aria-busy={speechStatus === "loading" || undefined}
                 onClick={() => onToggleSpeech?.(message.id)}
@@ -164,7 +166,7 @@ export function AssistantThread({
                   : speechStatus === "playing"
                     ? <Square size={11} aria-hidden />
                     : <Volume2 size={14} aria-hidden />}
-                <span>{speechStatus === "loading" ? "음성 준비 중" : speechStatus === "playing" ? "멈추기" : "듣기"}</span>
+                <span>{speechStatus === "loading" ? t("speech.preparing") : speechStatus === "playing" ? t("speech.stop") : t("speech.listen")}</span>
               </button>
             </div>
           )}

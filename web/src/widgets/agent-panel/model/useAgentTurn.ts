@@ -8,7 +8,6 @@ import { requestAgentTurn, resumeAgentTurn } from "@/features/agent-chat";
 import {
   buildAgentTurnRequest,
   prepareMarkdownEditPreview,
-  PURGED_EDIT_MESSAGE,
   resolveChatTurnPresentation,
   draftSourceDocumentId,
   resolveGeneratedDocumentFolderId,
@@ -56,6 +55,7 @@ import { AgentTurnLostError } from "@/features/agent-chat/lib/turnFollow";
 import { agentTurnFailure, createAiTaskFailureReporter, markdownCreateFailure } from "@/features/agent-chat/lib/aiTaskFailure";
 import { setAsideProposal, takeSetAsideProposal, type SetAsideProposal, type SetAsideProposals } from "@/features/agent-chat/lib/setAsideProposals";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
+import { useTranslations } from "next-intl";
 
 const NO_DECISIONS: EditProposalDecisions = {};
 const NO_SET_ASIDE_PROPOSALS: SetAsideProposals = new Map();
@@ -102,6 +102,7 @@ export function useAgentTurn({
   /** 자동으로 실은 열린 문서를 뺀 요청이 받아들여졌다. 다음 요청에 다시 싣지 않고 안내하는 데 쓴다. */
   onOpenDocumentDropped?: (documentId: string) => void;
 }) {
+  const t = useTranslations("agentChat");
   const [agentTurnResponse, setAgentTurnResponse] = useState<AgentTurnResponse | null>(null);
   const [agentTurnRequest, setAgentTurnRequest] = useState<AgentTurnRequest | null>(null);
   const [agentTurnErrorMessage, setAgentTurnErrorMessage] = useState<string | null>(null);
@@ -188,20 +189,20 @@ export function useAgentTurn({
   } | null>(() => {
     if (!agentTurnRequest || !agentTurnResponse || agentTurnResponse.result.action !== "markdown_edit") return null;
     try {
-      const preview = prepareMarkdownEditPreview(agentTurnRequest, agentTurnResponse);
+      const preview = prepareMarkdownEditPreview(agentTurnRequest, agentTurnResponse, t);
       if (!markdownEditContext) {
-        return { preview, validationError: "편집 중인 문서를 다시 열고 재생성해주세요." };
+        return { preview, validationError: t("edit.reopenDocument") };
       }
       try {
-        validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
+        validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext, t);
         return { preview, validationError: null };
       } catch (error) {
-        return { preview, validationError: getErrorMessage(error, "편집 결과를 적용할 수 없습니다.") };
+        return { preview, validationError: getErrorMessage(error, t("edit.cannotApply")) };
       }
     } catch (error) {
-      return { preview: null, validationError: getErrorMessage(error, "편집 응답 계약이 올바르지 않습니다.") };
+      return { preview: null, validationError: getErrorMessage(error, t("edit.invalidResponse")) };
     }
-  }, [agentTurnRequest, agentTurnResponse, markdownEditContext]);
+  }, [agentTurnRequest, agentTurnResponse, markdownEditContext, t]);
   const reviewSegments = useMemo<EditReviewSegment[] | null>(() => {
     const edit = agentTurnResponse?.result.edit;
     const sourceMarkdown = agentTurnRequest?.editorSnapshot?.markdown;
@@ -215,9 +216,9 @@ export function useAgentTurn({
   );
   const editPreviewErrorMessage = !editPreviewState || editPreviewState.preview
     ? null
-    : editPreviewState.validationError === PURGED_EDIT_MESSAGE
-      ? PURGED_EDIT_MESSAGE
-      : `${editPreviewState.validationError ?? "편집 결과를 적용할 수 없습니다."} 원문은 변경되지 않았습니다. 최신 문서에서 다시 요청해주세요.`;
+    : editPreviewState.validationError === t("edit.purged")
+      ? t("edit.purged")
+      : t("edit.previewFailed", { reason: editPreviewState.validationError ?? t("edit.cannotApply") });
 
   const queryClient = useQueryClient();
   const autoApprovalSettings = useAgentAutoApprovalSettings();
@@ -271,8 +272,8 @@ export function useAgentTurn({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        const lockedMessage = documentLockedTurnMessage(error, { openDocumentTitle: openDocumentTitleRef.current, hasAttachments: referenceDocumentIds.length > 0 });
-        setAgentTurnErrorMessage(lockedMessage ?? getErrorMessage(error, "작업 요청에 실패했습니다."));
+        const lockedMessage = documentLockedTurnMessage(error, { openDocumentTitle: openDocumentTitleRef.current, hasAttachments: referenceDocumentIds.length > 0 }, t);
+        setAgentTurnErrorMessage(lockedMessage ?? (error instanceof AgentTurnLostError ? t("turn.lost") : getErrorMessage(error, t("turn.requestFailed"))));
         if (isInsufficientCreditError(error)) onInsufficientCredit?.(question);
         const turnId = getTurnId();
         if (shouldRestoreAttachments(error, { referenceDocumentIds, turnId })) onReferencesRestored?.(question, referenceDocumentIds);
@@ -449,7 +450,7 @@ export function useAgentTurn({
   function regenerateAgentTurn() {
     const needsDocument = agentTurnRequest?.documentId !== undefined;
     if (!agentTurnRequest || (needsDocument && !markdownEditContext) || !activeSessionId || !selectedModel) {
-      setAgentTurnErrorMessage("편집 중인 문서를 다시 열고 재생성해주세요.");
+      setAgentTurnErrorMessage(t("edit.reopenDocument"));
       return;
     }
     startAgentTurn(agentTurnRequest.message, needsDocument ? markdownEditContext ?? null : null, activeSessionId, selectedModel, selectedPairIds, agentTurnRequest.folder_id ?? null, agentTurnRequest.reference_document_ids);
@@ -463,21 +464,21 @@ export function useAgentTurn({
   function applyEditedMarkdown(nextMarkdown: string, outcome: "applied" | "auto_applied" = "applied"): boolean {
     if (!agentTurnRequest || !agentTurnResponse || !markdownEditContext || !editPreviewState?.preview) return false;
     try {
-      validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext);
-      if (!markdownEditContext.isWritable) throw new Error("지금은 이 문서를 저장할 수 없어 편집안을 적용하지 않았습니다. 편집 권한과 로그인 상태를 확인해 주세요.");
+      validateMarkdownEditApplication(agentTurnRequest, agentTurnResponse, markdownEditContext, t);
+      if (!markdownEditContext.isWritable) throw new Error(t("edit.notWritable"));
       const applied = markdownEditContext.applyMarkdown(
         agentTurnRequest.editorSnapshot?.markdown ?? "",
         nextMarkdown,
         agentTurnResponse.apply_operation_id
       );
-      if (!applied) throw new Error("적용 직전에 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
+      if (!applied) throw new Error(t("edit.changedBeforeApply"));
       markOutcome(agentTurnResponse.requestId, outcome);
       setAgentTurnRequest(null);
       setAgentTurnResponse(null);
       setAgentTurnErrorMessage(null);
       return true;
     } catch (error) {
-      setAgentTurnErrorMessage(getErrorMessage(error, "편집 결과를 적용하지 못했습니다."));
+      setAgentTurnErrorMessage(getErrorMessage(error, t("edit.applyFailed")));
       return false;
     }
   }
@@ -522,7 +523,7 @@ export function useAgentTurn({
     if (!editPreviewState?.preview) return;
     const preview = editPreviewState.preview;
     const draft: GeneratedMarkdownDraft = {
-      title: preview.summary.trim() || "AI 편집안",
+      title: preview.summary.trim() || t("edit.newDocumentTitle"),
       summary: preview.summary,
       markdown: preview.nextMarkdown
     };
@@ -536,7 +537,7 @@ export function useAgentTurn({
         setAgentTurnResponse(null);
       })
       .catch((error: unknown) => {
-        setAgentTurnErrorMessage(getErrorMessage(error, "편집안을 새 Markdown 문서로 만들지 못했습니다."));
+        setAgentTurnErrorMessage(getErrorMessage(error, t("edit.openAsNewFailed")));
       })
       .finally(() => setIsCreatingMarkdown(false));
   }
@@ -555,7 +556,7 @@ export function useAgentTurn({
       })
       .catch((error: unknown) => {
         reportAiTaskFailure(markdownCreateFailure(error, runId));
-        setMarkdownCreateErrorMessage(getErrorMessage(error, "새 Markdown 문서를 만들지 못했습니다."));
+        setMarkdownCreateErrorMessage(getErrorMessage(error, t("create.failed")));
         // 자동 재시도하지 않고 오류와 함께 기존 화면으로 돌아간다.
         setManualTurnIds((current) => new Set([...current, runId]));
       })

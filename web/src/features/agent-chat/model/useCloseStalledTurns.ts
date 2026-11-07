@@ -1,7 +1,9 @@
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { requestAgentTurnCancel, resumeAgentTurn } from "../api/agent";
+import type { AgentChatTranslator } from "../lib/agentChatTranslator";
 import { isTurnCancelAccepted, stalledTurnCancelOutcome, type CancelAcceptedTurn, type StalledTurnCancelResult } from "../lib/stalledTurns";
 
 /** 닫기 취소 요청·끝난 turn 조회를 이만큼만 기다린다. 응답이 없어도 화면 잠금은 푼다. */
@@ -20,13 +22,13 @@ async function requestCancel(turnId: string): Promise<StalledTurnCancelResult> {
  * 닫으려던 turn이 이미 끝나 있었으면(409) 그 turn을 다시 받아 끝난 결과를 알린다. 지난 기록의 turn은 편집안을 다시 띄울
  * 요청 문맥이 없어, 결과는 다시 받은 작업 목록에서 보고 여기서는 완료·실패만 알린다.
  */
-export async function announceFinishedTurn(turnId: string): Promise<void> {
+export async function announceFinishedTurn(turnId: string, t: AgentChatTranslator): Promise<void> {
   try {
     await resumeAgentTurn(turnId, { signal: AbortSignal.timeout(CANCEL_REQUEST_TIMEOUT_MS) });
-    publishNotice({ kind: "info", title: "이미 끝난 작업", message: "닫으려던 작업이 이미 끝나 있었어요. 작업 목록에서 결과를 확인해 주세요." });
+    publishNotice({ kind: "info", title: t("notice.finishedTurn.title"), message: t("notice.finishedTurn.completed") });
   } catch (error) {
     if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) return;
-    publishNotice({ kind: "failed", title: "이미 끝난 작업", message: getErrorMessage(error, "닫으려던 작업이 이미 실패로 끝나 있었어요.") });
+    publishNotice({ kind: "failed", title: t("notice.finishedTurn.title"), message: getErrorMessage(error, t("notice.finishedTurn.failed")) });
   }
 }
 
@@ -47,13 +49,14 @@ export function useCloseStalledTurns({
   /** 서버가 취소를 받아들인 turn과 그때의 상태. 목록이 아직 pending이어도 취소로 보이게 한다. */
   onCancelAccepted?: (accepted: readonly CancelAcceptedTurn[]) => void;
 }) {
+  const t = useTranslations("agentChat");
   const [closingTurnIds, setClosingTurnIds] = useState<ReadonlySet<string>>(NO_TURNS);
 
   const closeStalledTurns = useCallback(async (turnIds: readonly string[]): Promise<string[]> => {
     if (turnIds.length === 0) return [];
     setClosingTurnIds((current) => new Set([...current, ...turnIds]));
     const results = await Promise.all(turnIds.map(requestCancel));
-    const outcomes = results.map(stalledTurnCancelOutcome);
+    const outcomes = results.map((result) => stalledTurnCancelOutcome(result, t));
     const accepted = turnIds.flatMap((turnId, index) => {
       const result = results[index];
       return isTurnCancelAccepted(result) ? [{ turnId, status: result.status, error: result.error }] : [];
@@ -63,9 +66,9 @@ export function useCloseStalledTurns({
     releaseTurns(turnIds);
     setClosingTurnIds((current) => new Set([...current].filter((turnId) => !turnIds.includes(turnId))));
     [...new Set(outcomes.flatMap((outcome) => (outcome.notice ? [outcome.notice] : [])))]
-      .forEach((message) => publishNotice({ kind: "failed", title: "작업 취소 확인 실패", message }));
+      .forEach((message) => publishNotice({ kind: "failed", title: t("notice.turnCancelCheckFailed"), message }));
     return turnIds.filter((_, index) => outcomes[index].showResult);
-  }, [onCancelAccepted, refreshMessages, releaseTurns]);
+  }, [onCancelAccepted, refreshMessages, releaseTurns, t]);
 
   return { closingTurnIds, closeStalledTurns };
 }

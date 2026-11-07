@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { streamSpeechSynthesis } from "../api/speech";
 import {
   describeSpeechPlaybackError,
   isSpeechSynthesisDisabledError,
-  SPEECH_PLAYBACK_MESSAGES,
   SPEECH_SAMPLE_RATE
 } from "../lib/speechPlayback";
 
@@ -48,6 +48,7 @@ function abortPlayback(active: ActivePlayback) {
  * 받은 PCM 조각은 Web Audio 버퍼로 이어 붙여 끊김 없이 재생한다. 세션이 바뀌거나 언마운트되거나 패널이 숨겨지면 멈춘다.
  */
 export function useSpeechPlayback(activeSessionId: string | null, isVisible = true) {
+  const t = useTranslations("agentChat");
   const [playback, setPlayback] = useState<SpeechPlaybackState>(null);
   const [error, setError] = useState<SpeechPlaybackError | null>(null);
   // 서버가 답변 듣기를 껐다고 알렸다(403 SPEECH_SYNTHESIS_DISABLED). 화면이 듣기 버튼을 숨긴다.
@@ -108,7 +109,7 @@ export function useSpeechPlayback(activeSessionId: string | null, isVisible = tr
     stop();
     setError(null);
     if (!isSpeechPlaybackSupported()) {
-      setError({ messageId, message: SPEECH_PLAYBACK_MESSAGES.unsupported });
+      setError({ messageId, message: t("speech.unsupported") });
       return;
     }
     // 클릭 핸들러 안에서 만들어야 자동 재생 정책에 막히지 않는다.
@@ -137,7 +138,7 @@ export function useSpeechPlayback(activeSessionId: string | null, isVisible = tr
       if (activeRef.current !== active) return;
       stop();
       if (isSpeechSynthesisDisabledError(caught)) setIsDisabled(true);
-      const message = describeSpeechPlaybackError(caught);
+      const message = describeSpeechPlaybackError(caught, t);
       if (message) setError({ messageId, message });
     }
   }

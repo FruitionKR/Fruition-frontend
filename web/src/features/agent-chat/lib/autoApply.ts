@@ -1,3 +1,4 @@
+import type { AgentChatTranslator } from "./agentChatTranslator";
 import type { AgentTurnAction, GeneratedMarkdownDraft } from "./agentTurn";
 
 /**
@@ -46,14 +47,11 @@ export function resolveTurnAutoApply(input: {
   return canApply ? "edit" : null;
 }
 
-const AUTO_APPLIED_PREFIX = "설정의 'AI 에이전트 자동 승인'에 따라 확인 없이 적용했어요.";
-const EDIT_ROLLBACK_HINT = "이전 내용으로 돌아가려면 로그 화면에서 이 작업을 롤백하세요. 그 뒤에 고친 내용도 함께 되돌아갑니다.";
-
 /** 자동 처리한 작업 줄에 보일 안내. 되돌리는 방법을 함께 적는다. */
-export function autoAppliedTaskNote(action: string | null | undefined): string {
+export function autoAppliedTaskNote(action: string | null | undefined, t: AgentChatTranslator): string {
   return action === "markdown_create"
-    ? `${AUTO_APPLIED_PREFIX} 새로 만든 문서가 필요 없으면 휴지통으로 옮기세요.`
-    : `${AUTO_APPLIED_PREFIX} ${EDIT_ROLLBACK_HINT}`;
+    ? `${t("autoApply.prefix")} ${t("autoApply.createHint")}`
+    : `${t("autoApply.prefix")} ${t("autoApply.editRollbackHint")}`;
 }
 
 /**
@@ -67,7 +65,7 @@ export function appliedTaskNote({ action, isAutoApplied, isAppliedHere, isServer
   isAppliedHere: boolean;
   /** 서버 버전 기록으로 저장을 확인했다. */
   isServerApplied: boolean;
-}): string | null {
-  if (isAutoApplied) return autoAppliedTaskNote(action);
-  return isServerApplied && !isAppliedHere ? EDIT_ROLLBACK_HINT : null;
+}, t: AgentChatTranslator): string | null {
+  if (isAutoApplied) return autoAppliedTaskNote(action, t);
+  return isServerApplied && !isAppliedHere ? t("autoApply.editRollbackHint") : null;
 }

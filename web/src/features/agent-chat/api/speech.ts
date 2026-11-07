@@ -3,11 +3,13 @@ import {
   createPcmAssembler,
   createSpeechEventParser,
   decodeBase64,
-  SPEECH_PLAYBACK_MESSAGES,
   SpeechStreamError
 } from "../lib/speechPlayback";
 
 type SpeechTranscriptionResponse = { text: string };
+
+/** 응답에 문구가 없는 음성 생성 실패. 화면은 이 문구 대신 agentChat.speech.failed를 보여 준다(describeSpeechPlaybackError). */
+const SPEECH_SYNTHESIS_FAILED = "음성을 만들지 못했습니다.";
 
 /**
  * 녹음한 음성을 텍스트로 바꾼다. 본문은 오디오 bytes 그대로(multipart 아님)이고
@@ -40,8 +42,8 @@ export async function streamSpeechSynthesis(
     cache: "no-store",
     signal
   });
-  if (!response.ok) throw await parseApiError(response, SPEECH_PLAYBACK_MESSAGES.failed);
-  if (!response.body) throw new Error(SPEECH_PLAYBACK_MESSAGES.failed);
+  if (!response.ok) throw await parseApiError(response, SPEECH_SYNTHESIS_FAILED);
+  if (!response.body) throw new Error(SPEECH_SYNTHESIS_FAILED);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const parser = createSpeechEventParser();
@@ -56,7 +58,7 @@ export async function streamSpeechSynthesis(
         else throw new SpeechStreamError(event.code);
       }
       // 종결 이벤트 없이 연결이 끊긴 것은 실패다.
-      if (done) throw new Error(SPEECH_PLAYBACK_MESSAGES.failed);
+      if (done) throw new Error(SPEECH_SYNTHESIS_FAILED);
     }
   } finally {
     await reader.cancel().catch(() => undefined);

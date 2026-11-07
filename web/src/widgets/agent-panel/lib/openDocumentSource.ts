@@ -1,4 +1,5 @@
 import type { SkillResponse } from "@/entities/skill";
+import type { AgentChatTranslator } from "@/features/agent-chat/lib/agentChatTranslator";
 import { slashCommandSlug } from "@/features/agent-chat/lib/taskThread";
 import { skillRunIntent, type SkillRunIntent } from "@/widgets/workspace/lib/skillRunTarget";
 
@@ -23,8 +24,8 @@ export function isOpenDocumentOptIn(intent: SkillRunIntent | null): boolean {
 /**
  * 보기 권한으로 연 문서는 첨부로 실리는데 서버 한도(3개)가 차면 빠진다. "모두 고쳐 줘" 같은 요청에서 조용히 빠지지 않게 입력창에 알린다.
  */
-export function readOnlyOverflowNotice({ isReadOnlyOpen, hasRoom }: { isReadOnlyOpen: boolean; hasRoom: boolean }): string | null {
-  return isReadOnlyOpen && !hasRoom ? "첨부가 가득 차 현재 문서는 보기 권한 문서로 함께 보내지 않아요." : null;
+export function readOnlyOverflowNotice({ isReadOnlyOpen, hasRoom }: { isReadOnlyOpen: boolean; hasRoom: boolean }, t: AgentChatTranslator): string | null {
+  return isReadOnlyOpen && !hasRoom ? t("documents.readOnlyOverflow") : null;
 }
 
 /**

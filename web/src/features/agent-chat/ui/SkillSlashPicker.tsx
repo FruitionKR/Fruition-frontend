@@ -3,6 +3,7 @@ import { cx } from "@/shared/lib/classNames";
 import type { SkillPickerGroup, SkillPickerItem } from "../lib/taskThread";
 import { AgentAssetIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 export const SKILL_PICKER_LIST_ID = "agent-skill-picker";
 
@@ -30,10 +31,11 @@ export function SkillSlashPicker({
   onHover: (skillId: string) => void;
   onManageSkills?: () => void;
 }) {
+  const t = useTranslations("agentChat");
   return (
     <div className={styles["skill-picker"]}>
       {groups.length > 0 ? (
-        <div className={styles["skill-picker-groups"]} role="listbox" id={SKILL_PICKER_LIST_ID} aria-label="스킬">
+        <div className={styles["skill-picker-groups"]} role="listbox" id={SKILL_PICKER_LIST_ID} aria-label={t("skillPicker.label")}>
           {groups.map((group) => (
             <div key={group.kind} className={styles["skill-picker-group"]} role="group" aria-label={group.label}>
               <p className={styles["skill-picker-group-label"]} aria-hidden>{group.label}</p>
@@ -57,14 +59,14 @@ export function SkillSlashPicker({
           ))}
         </div>
       ) : (
-        <p className={styles["skill-picker-empty"]} role="status">{statusMessage ?? "맞는 스킬이 없어요."}</p>
+        <p className={styles["skill-picker-empty"]} role="status">{statusMessage ?? t("skillPicker.noMatch")}</p>
       )}
       <hr className={styles["skill-picker-divider"]} />
       <div className={styles["skill-picker-footer"]}>
-        <span>스킬 없이 질문·요청하려면 Enter</span>
+        <span>{t("skillPicker.enterHint")}</span>
         {onManageSkills && (
           <button type="button" className={styles["skill-picker-manage"]} onMouseDown={(event) => event.preventDefault()} onClick={onManageSkills}>
-            스킬 관리
+            {t("skillPicker.manage")}
             <AgentAssetIcon src={skillPickerArrowIcon} size={16} className={styles["skill-picker-manage-arrow"]} />
           </button>
         )}

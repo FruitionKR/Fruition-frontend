@@ -3,6 +3,7 @@ import { cx } from "@/shared/lib/classNames";
 import { buildStatusSteps, type StatusStep } from "../lib/statusSteps";
 import { AgentChevronIcon, AgentStepCheckIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 export function StatusList({
   title,
@@ -15,9 +16,10 @@ export function StatusList({
   hasResponse: boolean;
   steps?: StatusStep[];
 }) {
+  const t = useTranslations("agentChat");
   const [isExpanded, setIsExpanded] = useState(true);
   // steps가 주어지면(SSE 실단계) 그대로 쓰고, 없으면 기존 고정 3단계로 폴백한다.
-  const resolvedSteps = steps ?? buildStatusSteps(isLoading, hasResponse);
+  const resolvedSteps = steps ?? buildStatusSteps(isLoading, hasResponse, t);
 
   return (
     <div className={styles["status-list"]}>

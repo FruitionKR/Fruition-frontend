@@ -1,4 +1,5 @@
 import type { Locale } from "../locale";
+import koAgentChat from "./ko/agentChat.json";
 import koAuth from "./ko/auth.json";
 import koCommon from "./ko/common.json";
 import koInvitation from "./ko/invitation.json";
@@ -6,6 +7,7 @@ import koLanding from "./ko/landing.json";
 import koLegal from "./ko/legal.json";
 import koMetadata from "./ko/metadata.json";
 import koSettings from "./ko/settings.json";
+import enAgentChat from "./en/agentChat.json";
 import enAuth from "./en/auth.json";
 import enCommon from "./en/common.json";
 import enInvitation from "./en/invitation.json";
@@ -25,7 +27,8 @@ const ko = {
   auth: koAuth,
   invitation: koInvitation,
   settings: koSettings,
-  legal: koLegal
+  legal: koLegal,
+  agentChat: koAgentChat
 };
 
 export type AppMessages = typeof ko;
@@ -39,6 +42,7 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     auth: enAuth,
     invitation: enInvitation,
     settings: enSettings,
-    legal: enLegal
+    legal: enLegal,
+    agentChat: enAgentChat
   }
 };
