@@ -221,6 +221,7 @@ export function SettingsContent({
   phoneNav?: React.ReactNode;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const workspaceName = useWorkspaceName();
 
   /** 탈퇴가 막힌 워크스페이스의 멤버 관리로 간다. 다른 워크스페이스면 전환 후 새로 그려 멤버 관리를 다시 연다. */
@@ -248,7 +249,7 @@ export function SettingsContent({
         if (!cancelled) setAiModels(models);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setAiModelError(getErrorMessage(error, t("workspace.modelsLoadFailed")));
+        if (!cancelled) setAiModelError(getErrorMessage(error, t("workspace.modelsLoadFailed"), tShared));
       });
     fetchWorkspaceAiModelSettings()
       .then((settings) => {
@@ -257,7 +258,7 @@ export function SettingsContent({
         setCanUpdateAiModel(settings.can_update === true);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setAiModelError(getErrorMessage(error, t("workspace.modelSettingsLoadFailed")));
+        if (!cancelled) setAiModelError(getErrorMessage(error, t("workspace.modelSettingsLoadFailed"), tShared));
       });
 
     return () => {
@@ -281,7 +282,7 @@ export function SettingsContent({
       setAiModelSelection(settings.ingest_lint);
       setCanUpdateAiModel(settings.can_update === true);
     } catch (error: unknown) {
-      setAiModelError(getErrorMessage(error, t("workspace.modelSettingsSaveFailed")));
+      setAiModelError(getErrorMessage(error, t("workspace.modelSettingsSaveFailed"), tShared));
     } finally {
       setIsAiModelSaving(false);
     }

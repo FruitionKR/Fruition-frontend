@@ -24,6 +24,7 @@ export function MfaSetupModal({
   onClose: () => void;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const [step, setStep] = useState<SetupStep>("connect");
   const [code, setCode] = useState("");
   const [codesSaved, setCodesSaved] = useState(false);
@@ -39,7 +40,7 @@ export function MfaSetupModal({
       onActivated();
       setStep("recovery");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("mfa.setup.verifyFailed")));
+      setError(getErrorMessage(cause, t("mfa.setup.verifyFailed"), tShared));
     } finally {
       setBusy(false);
     }

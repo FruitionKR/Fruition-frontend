@@ -11,6 +11,7 @@ import { FlowError, AccountFlowModal, FlowNextButton } from "./AccountFlowModal"
 /** 다단계 인증 해제 모달 (Figma 1127:5158). */
 export function MfaDisableModal({ onDisabled, onClose }: { onDisabled: () => void; onClose: () => void }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function MfaDisableModal({ onDisabled, onClose }: { onDisabled: () => voi
       await disableMfa(code.trim());
       onDisabled();
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("mfa.disable.failed")));
+      setError(getErrorMessage(cause, t("mfa.disable.failed"), tShared));
     } finally {
       setBusy(false);
     }

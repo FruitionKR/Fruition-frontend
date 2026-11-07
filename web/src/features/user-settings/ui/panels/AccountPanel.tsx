@@ -24,13 +24,14 @@ export function AccountPanel({
   onOpenMembers: (workspaceId: string) => void;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const { data: me, error: loadError } = useMe();
   const [showDelete, setShowDelete] = useState(resumeAccountDelete);
 
   return (
     <div className={styles.detail}>
       <SettingsPanelTitle title={t("account.title")} description={t("account.description")} />
-      {loadError && <small className={styles["field-error"]} role="alert">{getErrorMessage(loadError, t("common.accountLoadFailed"))}</small>}
+      {loadError && <small className={styles["field-error"]} role="alert">{getErrorMessage(loadError, t("common.accountLoadFailed"), tShared)}</small>}
 
       {/* 설정을 연 뒤 한 번 클릭으로 탈퇴 화면에 닿아야 한다(다크패턴 방지 가이드라인). */}
       <div className={styles.section}>

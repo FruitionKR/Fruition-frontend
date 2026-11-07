@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, fetchAiModels, fetchUsageCharges,
-  formatUsageRange, resolveUsageRange, summarizeModelUsage, usageRefetchInterval, type AiUsagePeriod
+  LOCKED_AI_MODELS, fetchAiModels, fetchUsageCharges,
+  formatUsageRange, resolveUsageRange, localizedAiUsagePeriodOptions, summarizeModelUsage, usageRefetchInterval, type AiUsagePeriod
 } from "@/entities/ai";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
@@ -23,6 +23,8 @@ import usageStyles from "./AiUsageSection.module.css";
  */
 export function AiUsageSection() {
   const t = useTranslations("settings.ai.usage");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
   /** 사용량은 실행이 끝난 뒤 수집된다. 제목 옆 물음표에 띄운다(스킬 입력의 HelpTip과 같은 모양). */
   const USAGE_LAG_NOTE = t("lagNote");
   const [period, setPeriod] = useState<AiUsagePeriod>("this_month");
@@ -60,7 +62,7 @@ export function AiUsageSection() {
           <small>{t("scope")}</small>
         </div>
         <div className={usageStyles.period}>
-          <OptionSelect value={period} placeholder={t("periodPlaceholder")} options={AI_USAGE_PERIOD_OPTIONS} ariaLabel={t("periodLabel")} floating
+          <OptionSelect value={period} placeholder={t("periodPlaceholder")} options={localizedAiUsagePeriodOptions(tShared)} ariaLabel={t("periodLabel")} floating
             onChange={(value) => setPeriod(value as AiUsagePeriod)} />
         </div>
       </div>
@@ -74,7 +76,7 @@ export function AiUsageSection() {
         <UsageEmpty title={t("emptyTitle")} description={t("emptyDescription")} />
       ) : (
         <div className={usageStyles.body}>
-          <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range)} />
+          <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range, locale)} />
         </div>
       )}
     </section>
@@ -116,12 +118,13 @@ function UsageEmpty({ title, description }: { title: string; description?: strin
 /** 404는 백엔드에 경로가 아직 없는 경우라 다시 시도해도 같다. 중립 안내만 보인다. */
 function UsageError({ error, retrying, onRetry }: { error: unknown; retrying: boolean; onRetry: () => void }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   if (error instanceof ApiError && error.status === 404) {
     return <UsageEmpty title={t("ai.usage.unavailable")} />;
   }
   return (
     <div className={usageStyles.error}>
-      <small className={styles["field-error"]} role="alert">{getErrorMessage(error, t("ai.usage.loadFailed"))}</small>
+      <small className={styles["field-error"]} role="alert">{getErrorMessage(error, t("ai.usage.loadFailed"), tShared)}</small>
       <button type="button" className={styles.btn} disabled={retrying} onClick={onRetry}>
         {retrying ? t("common.retrying") : t("common.retry")}
       </button>

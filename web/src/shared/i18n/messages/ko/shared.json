@@ -181,7 +181,8 @@
       "oauthLink": "소셜 계정을 연동하지 못했습니다.",
       "oauthUnlink": "소셜 계정 연동을 해제하지 못했습니다.",
       "sessions": "로그인된 기기를 불러오지 못했습니다.",
-      "sessionRevoke": "기기를 로그아웃하지 못했습니다."
+      "sessionRevoke": "기기를 로그아웃하지 못했습니다.",
+      "locale": "언어 설정을 저장하지 못했습니다."
     },
     "rateLimit": {
       "generic": "시도가 너무 많습니다.",
@@ -333,5 +334,71 @@
       "createDocument": "문서를 만들지 못했어요.",
       "saveContent": "문서 본문을 저장하지 못했어요."
     }
+  },
+  "api": {
+    "loginRequired": "로그인이 필요합니다.",
+    "loginFailed": "로그인에 실패했습니다.",
+    "signupFailed": "회원가입에 실패했습니다.",
+    "workspaceRequired": "워크스페이스를 선택해주세요.",
+    "workspaceCreateFailed": "워크스페이스 생성에 실패했습니다.",
+    "uploadFailed": "문서 업로드에 실패했습니다.",
+    "documentDeleteFailed": "문서 삭제에 실패했습니다.",
+    "documentRenameFailed": "문서 이름 변경에 실패했습니다.",
+    "documentConvertFailed": "Markdown 변환 요청에 실패했습니다.",
+    "editLockHeld": "다른 사용자가 편집 중입니다.",
+    "editLockLost": "다른 사용자가 편집을 시작해 편집 권한을 잃었습니다. 이후 변경은 저장되지 않습니다.",
+    "editLockExpired": "연결이 끊긴 동안 편집 권한이 만료되었습니다. 이후 변경은 저장되지 않습니다.",
+    "editLockForbidden": "문서 소유자만 편집할 수 있습니다.",
+    "editLockMissing": "문서를 찾을 수 없습니다.",
+    "editLockUnsupported": "편집할 수 없는 문서입니다.",
+    "editLockFailed": "편집 잠금을 확인하지 못해 읽기 전용으로 열었습니다.",
+    "noteDraftLoadFailed": "노트 draft를 불러오지 못했습니다.",
+    "noteDraftSaveFailed": "노트 draft를 저장하지 못했습니다.",
+    "documentOriginalLoadFailed": "원본 문서를 불러오지 못했습니다.",
+    "documentBlocksLoadFailed": "근거 위치를 불러오지 못했습니다.",
+    "queryFailed": "질의에 실패했습니다.",
+    "aiModelsLoadFailed": "AI 모델 목록을 불러오지 못했습니다.",
+    "agentTurnFailed": "AI 편집 요청에 실패했습니다.",
+    "speechTranscribeFailed": "말한 내용을 글로 바꾸지 못했습니다.",
+    "chatLoadFailed": "채팅 기록을 불러오지 못했습니다.",
+    "chatSessionFailed": "채팅 세션을 준비하지 못했습니다.",
+    "documentsLoadFailed": "문서 목록을 불러오지 못했습니다.",
+    "wikiExportFailed": "위키 내보내기에 실패했습니다.",
+    "wikiGraphLoadFailed": "Wiki graph를 불러오지 못했습니다.",
+    "wikiPageLoadFailed": "Wiki page를 불러오지 못했습니다.",
+    "wikiPageSaveFailed": "Wiki page를 저장하지 못했습니다.",
+    "workspaceLoadFailed": "워크스페이스를 불러오지 못했습니다.",
+    "meLoadFailed": "사용자 정보를 불러오지 못했습니다.",
+    "authRefreshUnavailable": "인증을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "workspaceGone": "워크스페이스를 찾을 수 없습니다.",
+    "imageLoadFailed": "이미지를 불러오지 못했습니다.",
+    "accessGateCheckFailed": "접근 코드 상태를 확인하지 못했습니다.",
+    "documentTransportCheckFailed": "문서 전송 연결을 확인하지 못했습니다.",
+    "documentServerInvalid": "문서 서버 주소가 올바르지 않습니다."
+  },
+  "workspace": {
+    "requestFailed": {
+      "rename": "워크스페이스 이름을 변경하지 못했습니다.",
+      "autoIngest": "자동 편입 설정을 변경하지 못했습니다.",
+      "describeFigures": "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다.",
+      "delete": "워크스페이스를 삭제하지 못했습니다.",
+      "iconUpload": "아이콘 이미지를 업로드하지 못했습니다.",
+      "iconLoad": "아이콘 이미지를 불러오지 못했습니다.",
+      "invitationLoad": "초대 정보를 불러오지 못했습니다.",
+      "invitationAccept": "초대를 수락하지 못했습니다.",
+      "storageLoad": "저장 공간 사용량을 불러오지 못했습니다.",
+      "storageInvalid": "저장 공간 사용량 응답이 올바르지 않습니다.",
+      "membersLoad": "멤버 목록을 불러오지 못했습니다.",
+      "memberRole": "멤버 권한을 변경하지 못했습니다.",
+      "memberPermissions": "멤버 권한 항목을 변경하지 못했습니다.",
+      "memberRemove": "멤버를 제거하지 못했습니다.",
+      "invite": "초대 메일을 보내지 못했습니다."
+    },
+    "limitExceeded": "무료 워크스페이스를 더 만들 수 없습니다. 사용하지 않는 워크스페이스를 삭제한 뒤 다시 시도해 주세요.",
+    "storage": {
+      "used": "내 저장 공간 {used} 사용",
+      "usedOfLimit": "내 저장 공간 {used} / {limit} 사용"
+    },
+    "iconFallback": "워"
   }
 }

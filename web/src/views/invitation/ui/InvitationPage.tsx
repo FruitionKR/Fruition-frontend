@@ -12,6 +12,7 @@ import styles from "@/views/workspaces/ui/WorkspacesPage.module.css";
 
 export default function InvitationPage({ token }: { token: string }) {
   const t = useTranslations("invitation");
+  const tShared = useTranslations("shared");
   const format = useFormatter();
   const queryClient = useQueryClient();
   const { signOut } = useSignOut();
@@ -37,7 +38,7 @@ export default function InvitationPage({ token }: { token: string }) {
       clearWorkspaceGone(accepted.workspace_id);
       window.location.assign("/home");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("acceptFailed")));
+      setError(getErrorMessage(cause, t("acceptFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -69,7 +70,7 @@ export default function InvitationPage({ token }: { token: string }) {
           </div>
           <p className={styles["error-support"]}>{t("returnNotice")}</p>
         </>}
-        {(error || loadError) && <p className={styles["error-detail"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"))}</p>}
+        {(error || loadError) && <p className={styles["error-detail"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"), tShared)}</p>}
       </section>
     </main>
   );

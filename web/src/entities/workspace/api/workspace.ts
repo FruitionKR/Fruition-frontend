@@ -1,4 +1,5 @@
 import { apiFetch, idempotencyKey, parseJsonOrThrow, throwIfNotOk, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 import type { WorkspaceListResponse, WorkspaceResponse } from "@/entities/workspace/model/workspace";
 
 export async function fetchWorkspaces(): Promise<WorkspaceListResponse> {
@@ -12,7 +13,7 @@ export async function renameWorkspace(workspaceId: string, name: string): Promis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name })
   });
-  return parseJsonOrThrow<WorkspaceResponse>(response, "워크스페이스 이름을 변경하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceResponse>(response, sharedText("workspace.requestFailed.rename", "워크스페이스 이름을 변경하지 못했습니다."));
 }
 
 /**
@@ -28,7 +29,7 @@ export async function updateWorkspaceAutoIngest(workspaceId: string, field: Auto
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ [field]: enabled })
   });
-  return parseJsonOrThrow<WorkspaceResponse>(response, "자동 편입 설정을 변경하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceResponse>(response, sharedText("workspace.requestFailed.autoIngest", "자동 편입 설정을 변경하지 못했습니다."));
 }
 
 /** PDF 그림 설명(외부 AI 전송) 설정을 바꾼다. 자동 편입 설정과 같이 OWNER만 바꿀 수 있다. */
@@ -38,7 +39,7 @@ export async function updateWorkspaceDescribePdfFigures(workspaceId: string, ena
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ describe_pdf_figures: enabled })
   });
-  return parseJsonOrThrow<WorkspaceResponse>(response, "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceResponse>(response, sharedText("workspace.requestFailed.describeFigures", "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다."));
 }
 
 /** 워크스페이스를 삭제한다. OWNER만 가능하다. */
@@ -47,7 +48,7 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
     method: "DELETE",
     headers: { "Idempotency-Key": idempotencyKey() }
   });
-  await throwIfNotOk(response, "워크스페이스를 삭제하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("workspace.requestFailed.delete", "워크스페이스를 삭제하지 못했습니다."));
 }
 
 export async function createWorkspace(name: string): Promise<WorkspaceResponse> {
@@ -63,11 +64,11 @@ export async function uploadWorkspaceIcon(workspaceId: string, file: File): Prom
   const body = new FormData();
   body.append("file", file);
   const response = await apiFetch(workspacePath(workspaceId, "icon", "image"), { method: "PUT", body });
-  return parseJsonOrThrow<WorkspaceResponse>(response, "아이콘 이미지를 업로드하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceResponse>(response, sharedText("workspace.requestFailed.iconUpload", "아이콘 이미지를 업로드하지 못했습니다."));
 }
 
 export async function fetchWorkspaceIcon(workspaceId: string): Promise<Blob> {
   const response = await apiFetch(workspacePath(workspaceId, "icon", "image"), { cache: "no-store" });
-  await throwIfNotOk(response, "아이콘 이미지를 불러오지 못했습니다.");
+  await throwIfNotOk(response, sharedText("workspace.requestFailed.iconLoad", "아이콘 이미지를 불러오지 못했습니다."));
   return response.blob();
 }

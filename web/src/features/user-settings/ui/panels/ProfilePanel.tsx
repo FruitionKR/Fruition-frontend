@@ -28,6 +28,7 @@ export function ProfilePanel({
   resumeEmailChange?: boolean;
 }) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const { data: me, error: loadError } = useMe();
   const [showEmail, setShowEmail] = useState(resumeEmailChange);
   const [emailSaved, setEmailSaved] = useState(false);
@@ -65,12 +66,12 @@ export function ProfilePanel({
       setNicknameDraft((current) => current === nickname ? null : current);
       setNameSaved(true);
     } catch (error: unknown) {
-      setNameError(getErrorMessage(error, t("profile.nickname.saveFailed")));
+      setNameError(getErrorMessage(error, t("profile.nickname.saveFailed"), tShared));
     } finally {
       nameRequestPending.current = false;
       setSavingName(false);
     }
-  }, [me, nickname, nicknameDraft, composingName, queryClient, t]);
+  }, [me, nickname, nicknameDraft, composingName, queryClient, t, tShared]);
 
   useEffect(() => {
     if (savingName || nameError || composingName || nicknameDraft === null) return;
@@ -90,7 +91,7 @@ export function ProfilePanel({
       void queryClient.invalidateQueries({ queryKey: ["workspace-members"] });
       setPhotoMessage(done);
     } catch (error: unknown) {
-      setPhotoError(avatarUploadErrorMessage(error, fallback));
+      setPhotoError(avatarUploadErrorMessage(error, fallback, tShared));
     } finally {
       setPhotoBusy(false);
     }
@@ -98,7 +99,7 @@ export function ProfilePanel({
 
   function savePhoto(file: File) {
     // 형식·1MB는 보내기 전에 거른다. 서버는 매직 바이트로 다시 판별해 400·413을 돌려줄 수 있다.
-    const problem = validateAvatarFile(file);
+    const problem = validateAvatarFile(file, tShared);
     if (problem) {
       setPhotoMessage(null);
       setPhotoError(problem);
@@ -123,7 +124,7 @@ export function ProfilePanel({
               disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
               onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
               onBlur={() => void saveName()} />
-            {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, t("common.accountLoadFailed"))}</small>}
+            {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, t("common.accountLoadFailed"), tShared)}</small>}
             {savingName ? <small role="status">{t("common.saving")}</small> : nameSaved && nicknameDraft === null && <small role="status">{t("profile.nickname.saved")}</small>}
           </div>
 
