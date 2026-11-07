@@ -2,6 +2,7 @@ import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useTreeReasonText } from "@/entities/tree/model/useTreeReasonText";
+import { graphIngestBlockReasonKey } from "@/features/wiki-ingest/model/graphDocuments";
 import { cx } from "@/shared/lib/classNames";
 import type { Project, TreeItem } from "@/entities/tree";
 import { SidebarCheckOnIcon, SidebarChevronIcon } from "./SidebarIcons";
@@ -95,7 +96,12 @@ function IngestRow({
   onToggleOpen: (itemId: string) => void;
 }) {
   const t = useTranslations("documents.wiki.select");
-  const reasonText = useTreeReasonText();
+  const tBlock = useTranslations("wiki.ingestBlock");
+  const treeReasonText = useTreeReasonText();
+  const reasonText = (value: string) => {
+    const key = graphIngestBlockReasonKey(value);
+    return key ? tBlock(key) : treeReasonText(value);
+  };
   const isFolder = item.type === "folder";
   const isOpen = isFolder && !collapsedIds.has(item.id);
   const fileReason = getTreeItemBlockReason(item, blockReasons);

@@ -47,6 +47,7 @@ type RowMenu = WorkspaceMenuRole & {
  */
 export function SidebarWorkspaceHeader() {
   const t = useTranslations("documents.workspace");
+  const tShared = useTranslations("shared");
   const selectedWorkspace = useSelectedWorkspace();
   const name = selectedWorkspace?.name ?? t("fallbackName");
   const [isOpen, setIsOpen] = useState(false);
@@ -78,13 +79,13 @@ export function SidebarWorkspaceHeader() {
         setLoadErrorMessage(null);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, t("loadFailed")));
+        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, t("loadFailed"), tShared));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isOpen, t]);
+  }, [isOpen, t, tShared]);
 
   async function handleCreateWorkspace() {
     if (isCreating) return;
@@ -93,7 +94,7 @@ export function SidebarWorkspaceHeader() {
       const workspace = await createWorkspace(t("newName"));
       switchWorkspace(workspace.id);
     } catch (error: unknown) {
-      setLoadErrorMessage(describeLimitError(error) ?? getErrorMessage(error, t("createFailed")));
+      setLoadErrorMessage(describeLimitError(error) ?? getErrorMessage(error, t("createFailed"), tShared));
       setIsCreating(false);
     }
   }
@@ -116,7 +117,7 @@ export function SidebarWorkspaceHeader() {
         : current);
     } catch (error: unknown) {
       setRowMenu(null);
-      setLoadErrorMessage(getErrorMessage(error, t("roleFailed")));
+      setLoadErrorMessage(getErrorMessage(error, t("roleFailed"), tShared));
     }
   }
 
@@ -142,7 +143,7 @@ export function SidebarWorkspaceHeader() {
         .catch(() => {});
     } catch (error: unknown) {
       setIsOpen(true);
-      setLoadErrorMessage(getErrorMessage(error, t(`${action}.failed`)));
+      setLoadErrorMessage(getErrorMessage(error, t(`${action}.failed`), tShared));
     }
     setRunningAction(null);
   }

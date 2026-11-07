@@ -6,10 +6,14 @@ type OperationLogDateGroup = {
   items: OperationLogItem[];
 };
 
-/** Figma 로그 사이드바처럼 최신순 작업을 사용자의 날짜 기준으로 묶는다. */
+/**
+ * Figma 로그 사이드바처럼 최신순 작업을 사용자의 날짜 기준으로 묶는다.
+ * locale(화면 언어, 기본 한국어)로 그룹 이름("9월 23일" / "September 23")을 쓴다. 묶는 기준은 언어와 관계없다.
+ */
 export function groupOperationLogsByDate(
   items: OperationLogItem[],
-  timeZone?: string
+  timeZone?: string,
+  locale = "ko-KR"
 ): OperationLogDateGroup[] {
   const formatter = new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
@@ -17,6 +21,7 @@ export function groupOperationLogsByDate(
     day: "numeric",
     timeZone
   });
+  const labelFormatter = new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", timeZone });
   const groups: OperationLogDateGroup[] = [];
 
   for (const item of items) {
@@ -29,7 +34,7 @@ export function groupOperationLogsByDate(
     if (current?.dateKey === dateKey) {
       current.items.push(item);
     } else {
-      groups.push({ dateKey, label: `${month}월 ${day}일`, items: [item] });
+      groups.push({ dateKey, label: labelFormatter.format(new Date(item.created_at)), items: [item] });
     }
   }
 
@@ -55,9 +60,9 @@ export function filterOperationLogsByType(
   return type ? items.filter((item) => item.operation_type === type) : items;
 }
 
-/** 로그 행 앞머리 시각. Figma "Sep 23, 9:52 AM"을 한국어 표기("9월 23일 오전 9:52")로 쓴다. */
-export function formatOperationLogDateTime(iso: string, timeZone?: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
+/** 로그 행 앞머리 시각. Figma "Sep 23, 9:52 AM"을 화면 언어 표기(한국어면 "9월 23일 오전 9:52")로 쓴다. */
+export function formatOperationLogDateTime(iso: string, timeZone?: string, locale = "ko-KR"): string {
+  return new Intl.DateTimeFormat(locale, {
     month: "long",
     day: "numeric",
     hour: "numeric",
@@ -69,13 +74,15 @@ export function formatOperationLogDateTime(iso: string, timeZone?: string): stri
 /** 목록과 상세 헤더가 같은 문서·작업 설명을 사용한다. */
 export function formatOperationLogDescription(
   item: Pick<OperationLogItem, "summary">,
-  documentTitle?: string
+  documentTitle?: string,
+  /** 문서 이름·요약이 모두 없을 때 문구. 화면은 workspace.logMessages.noDetail을 넘긴다. */
+  emptyText = "상세 정보 없음"
 ): string {
   const summary = item.summary?.trim();
   if (documentTitle && summary && summary !== documentTitle) {
     return `${documentTitle} / ${summary}`;
   }
-  return documentTitle ?? summary ?? "상세 정보 없음";
+  return documentTitle ?? summary ?? emptyText;
 }
 
 /**

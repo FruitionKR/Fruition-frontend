@@ -1,5 +1,7 @@
 import type { DocumentPermission } from "@/entities/document/model/document";
 import { ApiError } from "@/shared/lib/apiErrors";
+import type koDocuments from "@/shared/i18n/messages/ko/documents.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
 
 type DocumentAccessFields = { can_edit?: boolean; can_delete?: boolean; can_convert?: boolean; ai_origin?: string | null } | null | undefined;
 
@@ -61,8 +63,12 @@ export function permissionIndicatorLabel(permission: DocumentPermission | null |
   return null;
 }
 
-/** 권한 저장 성공 알림 본문. 이름 뒤 조사 문제를 피하려고 "'이름' 권한을 …으로" 형태로 쓴다. */
-export function permissionChangedMessage(label: string, access: DocumentPermission | null): string {
+/**
+ * 권한 저장 성공 알림 본문. 이름 뒤 조사 문제를 피하려고 "'이름' 권한을 …으로" 형태로 쓴다.
+ * t(`useTranslations("documents.permission")`)를 넘기면 지금 언어로 쓴다.
+ */
+export function permissionChangedMessage(label: string, access: DocumentPermission | null, t?: MessageTranslate<typeof koDocuments.permission>): string {
+  if (t) return t("changed", { label, access: access ?? "inherit" });
   const phrase = permissionIndicatorLabel(access) ?? "상위 설정 따름";
   return `'${label}' 권한을 ${phrase}으로 바꿨습니다.`;
 }

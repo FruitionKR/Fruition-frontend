@@ -201,6 +201,7 @@ export function DocumentSidebar({
   onCloseContextMenu: () => void;
 }) {
   const t = useTranslations("documents.sidebar");
+  const tShared = useTranslations("shared");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // 터치 기기의 여러 항목 선택 모드. Cmd/Shift+클릭 대신 행을 눌러 고른다.
   const [isTouchSelecting, setIsTouchSelecting] = useState(false);
@@ -260,7 +261,7 @@ export function DocumentSidebar({
         void downloadTreeItemOriginal(contextMenuItem, {
           title: t("downloadFailed.title"),
           message: t("downloadFailed.message", { filename: contextMenuItem.label })
-        });
+        }, tShared);
       }
     },
     delete: onDeleteContextTarget

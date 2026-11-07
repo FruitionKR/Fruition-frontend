@@ -2,6 +2,8 @@ import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isDocumentConverting } from "@/entities/document/lib/documentKind";
 import type { OperationLogItem } from "@/entities/operation-log/model/operationLog";
 import { OPERATION_TYPE_LABELS } from "@/entities/operation-log/model/operationType";
+import type koWiki from "@/shared/i18n/messages/ko/wiki.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
 
 /** 사이드바 진행 작업 팝오버에 그릴 한 줄 */
 interface WikiWorkRow {
@@ -68,13 +70,16 @@ function sortNewestFirst<T>(items: T[], getStartedAt: (item: T) => string | unde
  * 진행 중인 문서(selectActiveIngestDocuments로 거른 목록)와 lint·롤백 작업을
  * 위키 편입 / 위키 최신화 / PDF→MD 변환 / 롤백 네 구역으로 나눈다. 행이 없는 구역은 제외한다.
  * 각 구역 안에서는 최근에 시작한 작업이 위에 온다. folderPaths(문서 id → 상위 폴더 경로)가 있으면 문서 행에 붙인다.
+ * t(`useTranslations("wiki.workList")`)를 넘기면 구역 제목·작업 이름을 지금 언어로 쓴다.
  */
 export function buildWikiWorkSections(
   activeDocuments: DocumentItemResponse[],
   activeLint: OperationLogItem | null,
   activeRestores: OperationLogItem[] = [],
-  folderPaths: ReadonlyMap<string, string> = new Map()
+  folderPaths: ReadonlyMap<string, string> = new Map(),
+  t?: MessageTranslate<typeof koWiki.workList>
 ): WikiWorkSection[] {
+  const title = (kind: WikiWorkKind) => (t ? t(kind) : WIKI_WORK_TITLES[kind]);
   const ingestRows: WikiWorkRow[] = [];
   const convertRows: WikiWorkRow[] = [];
   for (const document of sortNewestFirst(activeDocuments, (item) => item.processing_started_at)) {
@@ -83,20 +88,20 @@ export function buildWikiWorkSections(
     else ingestRows.push(toRow("ingest", document, folderPaths));
   }
   const lintRows: WikiWorkRow[] = activeLint
-    ? [{ key: `lint-${activeLint.operation_id}`, label: "위키 최신화", startTime: formatWorkStartTime(activeLint.created_at) }]
+    ? [{ key: `lint-${activeLint.operation_id}`, label: title("lint"), startTime: formatWorkStartTime(activeLint.created_at) }]
     : [];
 
   const restoreRows: WikiWorkRow[] = sortNewestFirst(activeRestores, (item) => item.created_at).map((restore) => ({
     key: `restore-${restore.operation_id}`,
-    label: restore.target_display_name || restore.summary || "롤백",
+    label: restore.target_display_name || restore.summary || title("restore"),
     startTime: formatWorkStartTime(restore.created_at)
   }));
 
   const sections: WikiWorkSection[] = [
-    { kind: "ingest", title: WIKI_WORK_TITLES.ingest, rows: ingestRows },
-    { kind: "lint", title: WIKI_WORK_TITLES.lint, rows: lintRows },
-    { kind: "convert", title: WIKI_WORK_TITLES.convert, rows: convertRows },
-    { kind: "restore", title: WIKI_WORK_TITLES.restore, rows: restoreRows }
+    { kind: "ingest", title: title("ingest"), rows: ingestRows },
+    { kind: "lint", title: title("lint"), rows: lintRows },
+    { kind: "convert", title: title("convert"), rows: convertRows },
+    { kind: "restore", title: title("restore"), rows: restoreRows }
   ];
   return sections.filter((section) => section.rows.length > 0);
 }

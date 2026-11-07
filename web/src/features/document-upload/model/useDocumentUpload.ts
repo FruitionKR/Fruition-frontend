@@ -52,6 +52,7 @@ export function useDocumentUpload({
   onNotionZip?: (file: File, folderId: string | null) => void;
 }) {
   const t = useTranslations("documents.upload");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const uploadPickerTargetRef = useRef<UploadPickerTarget | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -198,7 +199,7 @@ export function useDocumentUpload({
       await reflectDocumentToWiki(document.id, "EDITABLE");
       return { ...document, status: "processing" };
     } catch (error) {
-      publishNotice({ kind: "failed", notificationKey: "ingestFailed", title: t("ingestFailed.title"), message: t("ingestFailed.message", { filename: document.filename, reason: getErrorMessage(error, t("ingestFailed.fallback")) }) });
+      publishNotice({ kind: "failed", notificationKey: "ingestFailed", title: t("ingestFailed.title"), message: t("ingestFailed.message", { filename: document.filename, reason: getErrorMessage(error, t("ingestFailed.fallback"), tShared) }) });
       return document;
     }
   }

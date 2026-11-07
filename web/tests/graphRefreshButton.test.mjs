@@ -64,6 +64,8 @@ test("실패하면 오류 알림을 띄우고 idle로 돌아가 다시 시도할
   assert.equal(view.rerender().status, "idle");
   assert.deepEqual(notices, [{
     kind: "failed",
+    // 제목이 언어마다 달라 알림 설정 항목(기타 안내)을 명시한다.
+    notificationKey: "other",
     title: ko("workspace.graph.refresh.failedTitle"),
     message: ko("workspace.graph.refresh.failedMessage")
   }]);

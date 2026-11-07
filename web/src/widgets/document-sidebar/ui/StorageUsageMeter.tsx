@@ -11,9 +11,10 @@ import styles from "./StorageUsageMeter.module.css";
  */
 export function StorageUsageMeter() {
   const t = useTranslations("documents.sidebar");
+  const tShared = useTranslations("shared");
   const { data, isError } = useStorageUsage();
   if (isError || !data) return null;
-  const view = describeStorageUsage(data);
+  const view = describeStorageUsage(data, tShared);
 
   return (
     <div className={cx(styles.meter, view.isWarning && styles["is-warning"])}>

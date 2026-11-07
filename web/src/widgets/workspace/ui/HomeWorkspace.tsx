@@ -6,7 +6,7 @@ import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree";
+import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
@@ -89,6 +89,8 @@ import styles from "./HomeWorkspace.module.css";
 export function HomeWorkspace() {
   const t = useTranslations("workspace");
   const tWiki = useTranslations("wiki");
+  const tTree = useTranslations("documents.tree");
+  const rootDocumentsTitle = tTree("rootTitle");
   const queryClient = useQueryClient();
   const { location, locationKey, activeView, isAccessLocked, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
     useWorkspaceNavigation();
@@ -229,13 +231,14 @@ export function HomeWorkspace() {
   });
 
   const selectedDocumentParentLabel = useMemo(() => {
-    if (!selection.selectedTreeItemId) return ROOT_DOCUMENTS_TITLE;
+    if (!selection.selectedTreeItemId) return rootDocumentsTitle;
     for (const project of projectTree.projects) {
-      const parentLabel = findParentLabel(project.items, selection.selectedTreeItemId, project.title);
+      const projectTitle = project.id === ROOT_DOCUMENTS_PROJECT_ID ? rootDocumentsTitle : project.title;
+      const parentLabel = findParentLabel(project.items, selection.selectedTreeItemId, projectTitle);
       if (parentLabel) return parentLabel;
     }
-    return ROOT_DOCUMENTS_TITLE;
-  }, [projectTree.projects, selection.selectedTreeItemId]);
+    return rootDocumentsTitle;
+  }, [projectTree.projects, rootDocumentsTitle, selection.selectedTreeItemId]);
 
   const selectedDocumentStatus = useMemo(() => {
     if (!selection.selectedDocumentId) return undefined;
@@ -265,7 +268,7 @@ export function HomeWorkspace() {
     [documents, markdownEditContext?.documentId]
   );
   const chatEvidenceState = getChatEvidenceState(chatContextDocument);
-  const chatIngestGate = getWikiActionGate(wikiActions.canIngest, "ingest");
+  const chatIngestGate = getWikiActionGate(wikiActions.canIngest, "ingest", tWiki);
   const firstSidebarNote = useMemo(() => {
     const documentIds = new Set(documents.map((document) => document.id));
     for (const project of projectTree.projects) {
@@ -741,7 +744,7 @@ export function HomeWorkspace() {
             actionLabel: chatEvidenceState === "processing" ? null : tWiki(`chatEvidence.${chatEvidenceState}.action`),
             // handleGraphIngest는 다른 위키 작업이 진행 중이거나 편입 권한이 없으면(확인 중 포함) 요청을 무시하므로 그동안 버튼을 막는다.
             isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending || chatIngestGate.isBlocked,
-            disabledReason: chatIngestGate.hint === null ? null : tWiki("ingestPermissionHint"),
+            disabledReason: chatIngestGate.hint,
             isIngesting: wikiActionPending === "ingest" && wikiActions.ingestTargetIds.includes(chatContextDocument.id),
             onIngest: () => requestGraphIngest([chatContextDocument])
           } : null}
@@ -844,7 +847,7 @@ export function HomeWorkspace() {
         return (
           <MoveDialog
             label={isBulk ? t("tree.itemCount", { count: movingIds.size }) : `"${(project && findTreeItem(project.items, itemId)?.label) ?? t("tree.itemFallback")}"`}
-            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE, projectTree.isFolderWriteDenied)}
+            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, rootDocumentsTitle, projectTree.isFolderWriteDenied)}
             onSelect={projectTree.confirmMoveTo}
             onClose={projectTree.closeMoveDialog}
           />

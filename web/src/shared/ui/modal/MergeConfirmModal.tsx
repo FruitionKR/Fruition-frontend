@@ -9,7 +9,7 @@ export function MergeConfirmModal({
   onConfirm,
   onCancel
 }: {
-  target: { sourceLabel: string; targetLabel: string };
+  target: { sourceLabel: string; targetLabel: string; folderLabel: string };
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -18,7 +18,7 @@ export function MergeConfirmModal({
     <ConfirmModal
       titleId="merge-confirm-title"
       title={t("ui.mergeConfirm.title")}
-      description={t("ui.mergeConfirm.description", { source: target.sourceLabel, target: target.targetLabel })}
+      description={t("ui.mergeConfirm.description", { source: target.sourceLabel, target: target.targetLabel, folder: target.folderLabel })}
       confirmLabel={t("ui.mergeConfirm.confirm")}
       onConfirm={onConfirm}
       onCancel={onCancel}

@@ -37,6 +37,10 @@ export function useBackendData({
   setProjects: Dispatch<SetStateAction<Project[]>>;
 }) {
   const t = useTranslations("workspace");
+  const tShared = useTranslations("shared");
+  // 트리 병합 콜백은 의존성을 늘리지 않도록 최신 공용 번역 함수를 ref로 읽는다(실패 사유 문구에 쓴다).
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const isPageVisible = usePageVisible();
@@ -68,8 +72,8 @@ export function useBackendData({
   // 백엔드 데이터가 갱신될 때 프로젝트 트리에 병합한다.
   useEffect(() => {
     if (!backendData?.tree) return;
-    setProjects((current) => projectsFromServerTree(backendData.tree!, current));
-  }, [backendData, setProjects]);
+    setProjects((current) => projectsFromServerTree(backendData.tree!, current, tShared));
+  }, [backendData, setProjects, tShared]);
 
   const { refetch } = query;
   const { refetch: refetchGraph } = graphQuery;
@@ -116,7 +120,7 @@ export function useBackendData({
     // 트리 변경 큐의 다음 작업이 렌더를 기다리지 않고 최신 트리를 보도록 바로 병합한다.
     // 위 effect가 같은 데이터로 다시 병합해도 결과는 같다.
     const tree = documentsResult.data?.tree;
-    if (tree) setProjects((current) => projectsFromServerTree(tree, current));
+    if (tree) setProjects((current) => projectsFromServerTree(tree, current, tSharedRef.current));
   }, [refetch, refetchGraph, setProjects]);
 
   // 그래프 새로고침 버튼은 렌더 시점이 아니라 누른 시점의 데이터와 비교해야 하므로 ref로 최신값을 둔다.
@@ -134,7 +138,7 @@ export function useBackendData({
       refetchGraph({ throwOnError: true })
     ]);
     const tree = documentsResult.data?.tree;
-    if (tree) setProjects((current) => projectsFromServerTree(tree, current));
+    if (tree) setProjects((current) => projectsFromServerTree(tree, current, tSharedRef.current));
     const changed = hasGraphDataChanged(
       before.graph ? { graph: before.graph, documents: before.documents ?? EMPTY_DOCUMENTS } : undefined,
       { graph: graphResult.data ?? EMPTY_GRAPH, documents: documentsResult.data?.documents ?? EMPTY_DOCUMENTS }
@@ -161,7 +165,7 @@ export function useBackendData({
     setDocuments,
     wikiGraph: graphQuery.data ?? EMPTY_GRAPH,
     isGraphLoading: graphQuery.isLoading,
-    apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, t("dataLoadFailed")) : null,
+    apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, t("dataLoadFailed"), tShared) : null,
     refreshBackendData,
     refreshGraph,
     /** 위키 페이지를 바꾼 작업(롤백 등)이 끝났을 때 그래프만 조용히 다시 받는다. 몰린 호출은 한 번으로 묶인다. */

@@ -144,7 +144,7 @@
     },
     "mergeConfirm": {
       "title": "새 폴더로 묶으시겠습니까?",
-      "description": "「{source}」와 「{target}」를 담는 새 폴더 「새 문서 묶음」이 만들어집니다. 폴더 이름은 나중에 바꿀 수 있습니다.",
+      "description": "「{source}」와 「{target}」를 담는 새 폴더 「{folder}」이 만들어집니다. 폴더 이름은 나중에 바꿀 수 있습니다.",
       "confirm": "폴더 만들기"
     },
     "quotedName": "「{name}」"
@@ -400,5 +400,53 @@
       "usedOfLimit": "내 저장 공간 {used} / {limit} 사용"
     },
     "iconFallback": "워"
+  },
+  "documentRequests": {
+    "operationLog": {
+      "load": "로그를 불러오지 못했습니다.",
+      "detail": "로그 상세를 불러오지 못했습니다.",
+      "restorePreview": "롤백 대상을 확인하지 못했습니다.",
+      "restore": "롤백 요청에 실패했습니다."
+    },
+    "notifications": {
+      "load": "알림을 불러오지 못했습니다.",
+      "markRead": "알림을 읽음 처리하지 못했습니다.",
+      "markAllRead": "알림을 모두 읽음 처리하지 못했습니다."
+    },
+    "wikiLint": {
+      "status": "위키 상태를 불러오지 못했습니다.",
+      "request": "위키 최신화 요청에 실패했습니다.",
+      "runStatus": "위키 최신화 상태를 불러오지 못했습니다.",
+      "failed": "위키 최신화에 실패했습니다.",
+      "timeout": "위키 최신화 처리 시간이 초과되었습니다."
+    },
+    "document": {
+      "nameConflict": "같은 폴더에 ''{filename}'' 이름의 항목이 이미 있습니다. 다른 이름을 사용해 주세요.",
+      "notFound": "문서를 찾을 수 없습니다. 목록을 새로고침해 주세요.",
+      "uploadFolderMissing": "업로드할 폴더를 찾을 수 없습니다.",
+      "workspaceChanged": "워크스페이스가 변경되어 위키 편입을 중단했습니다.",
+      "ingestStartFailed": "위키 편입 시작에 실패했습니다.",
+      "permissionSaveFailed": "권한을 변경하지 못했습니다.",
+      "trashLoad": "휴지통을 불러오지 못했습니다.",
+      "restore": "문서를 복구하지 못했습니다.",
+      "contentConflict": "다른 편집 내용이 먼저 저장되었습니다.",
+      "versionsLoad": "버전 기록을 불러오지 못했습니다.",
+      "editLockHolder": "{name}님이 편집 중입니다."
+    },
+    "upload": {
+      "cancelled": "파일 업로드가 중단되었습니다.",
+      "invalidParts": "파일 분할 정보가 올바르지 않습니다.",
+      "partStatus": "파일 조각 전송 실패 ({status})",
+      "partFailed": "파일 조각 전송에 실패했습니다.",
+      "partSendFailed": "파일 조각을 전송하지 못했습니다.",
+      "partStalled": "파일 조각 전송이 응답하지 않아 중단했습니다."
+    },
+    "tree": {
+      "load": "폴더 목록을 불러오지 못했습니다.",
+      "invalidResponse": "폴더 목록 응답이 올바르지 않습니다.",
+      "folderCreate": "폴더를 생성하지 못했습니다.",
+      "stale": "항목이 이동되거나 삭제되었습니다. 목록을 새로고침해 주세요.",
+      "mutate": "폴더 또는 문서를 변경하지 못했습니다."
+    }
   }
 }

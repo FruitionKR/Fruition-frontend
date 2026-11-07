@@ -98,9 +98,10 @@ export function SourcePreviewPanel({
   const tAccess = useTranslations("documents.access");
   const reasonText = useTreeReasonText();
   // 본문 불러오기 effect는 언어가 바뀌어도 다시 받지 않도록 실패 문구를 ref로 읽는다.
-  const loadFailedTextRef = useRef({ wiki: t("wikiLoadFailed"), document: t("documentLoadFailed") });
+  const tShared = useTranslations("shared");
+  const loadFailedTextRef = useRef({ wiki: t("wikiLoadFailed"), document: t("documentLoadFailed"), tShared });
   useEffect(() => {
-    loadFailedTextRef.current = { wiki: t("wikiLoadFailed"), document: t("documentLoadFailed") };
+    loadFailedTextRef.current = { wiki: t("wikiLoadFailed"), document: t("documentLoadFailed"), tShared };
   });
   const documentConverting = documentConversion !== null;
   const conversionRevision = documentConversion?.revision;
@@ -265,9 +266,9 @@ export function SourcePreviewPanel({
       kind: "failed",
       notificationKey: "noteSaveFailed",
       title: t("detachedSaveFailed.title"),
-      message: getErrorMessage(result.error, t("detachedSaveFailed.message"))
+      message: getErrorMessage(result.error, t("detachedSaveFailed.message"), tShared)
     });
-  }, [onRefreshDocuments, t]);
+  }, [onRefreshDocuments, t, tShared]);
 
   async function commitTitle() {
     if (!isMarkdownFile || isTitleReadOnly || !documentId || !onRenameDocument || isRenaming) return;
@@ -282,7 +283,7 @@ export function SourcePreviewPanel({
       await onRenameDocument(documentId, nextFilename);
     } catch (error) {
       setTitleInput(getMarkdownDocumentTitle(title));
-      setRenameError(getErrorMessage(error, t("renameFailed")));
+      setRenameError(reasonText(getErrorMessage(error, t("renameFailed"), tShared)));
     } finally {
       setIsRenaming(false);
     }
@@ -305,7 +306,7 @@ export function SourcePreviewPanel({
         if (!ignore) setPage(nextPage);
       })
       .catch((error) => {
-        if (!ignore) setErrorMessage(getErrorMessage(error, loadFailedTextRef.current.wiki));
+        if (!ignore) setErrorMessage(getErrorMessage(error, loadFailedTextRef.current.wiki, loadFailedTextRef.current.tShared));
       })
       .finally(() => {
         if (!ignore) setIsLoading(false);
@@ -404,7 +405,7 @@ export function SourcePreviewPanel({
 
     void loadDocument()
       .catch((error: unknown) => {
-        if (!ignore) setErrorMessage(getErrorMessage(error, loadFailedTextRef.current.document));
+        if (!ignore) setErrorMessage(getErrorMessage(error, loadFailedTextRef.current.document, loadFailedTextRef.current.tShared));
       })
       .finally(() => {
         if (ignore) return;

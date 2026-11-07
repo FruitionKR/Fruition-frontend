@@ -20,9 +20,10 @@ export function useGraphWikiStatus({
   pending: "ingest" | "lint" | null;
 }) {
   const t = useTranslations("documents.wiki.hint");
+  const tProgress = useTranslations("wiki.lintProgress");
   const activeIngestDocuments = selectActiveIngestDocuments(selectGraphDocuments(documents));
   const activeLintOperation = useActiveLintOperation(pending === "lint");
-  const lintProgressLabel = formatLintProgressLabel(activeLintOperation, pending === "lint");
+  const lintProgressLabel = formatLintProgressLabel(activeLintOperation, pending === "lint", Date.now(), tProgress);
   const isIngestActive = pending === "ingest" || activeIngestDocuments.length > 0;
   const isLintActive = lintProgressLabel !== null;
   const {

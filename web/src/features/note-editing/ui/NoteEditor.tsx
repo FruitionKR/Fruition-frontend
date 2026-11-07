@@ -35,7 +35,7 @@ import { refitImageBlocks } from "../model/imageBlockHeight";
 import { ALLOW_EXTERNAL_IMAGES_META, blockedImagePlaceholderUrl, createExternalImageGuard, createExternalImagePasteHandler } from "../model/externalImageGuard";
 import { $prose } from "@milkdown/utils";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
-import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
+import { classifyImageSource, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { useUserPreferences } from "@/entities/user";
 import { DocumentMarkdownViewer as MarkdownViewer } from "@/shared/ui/markdown/DocumentMarkdownViewer";
@@ -72,7 +72,7 @@ function observeMutations(root: HTMLElement, options: MutationObserverInit, onMu
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
 const lastExternalImageNoticeAt = new Map<string, number>();
 
-function notifyExternalImageBlocked(title: string, message: string = EXTERNAL_IMAGE_BLOCKED_MESSAGE) {
+function notifyExternalImageBlocked(title: string, message: string) {
   const now = Date.now();
   if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
   lastExternalImageNoticeAt.set(message, now);
@@ -110,6 +110,7 @@ export function NoteEditor({
   const onServerMergeRef = useRef<(merge: NoteServerMerge) => void>(() => {});
   const { preferences } = useUserPreferences();
   const t = useTranslations("documents.editor");
+  const tShared = useTranslations("shared");
   const editorMessages = useMessages().documents.editor;
   // 편집기는 effect에서 한 번 만들므로 그 안의 문구·알림은 최신 번역을 ref로 읽는다.
   const textRef = useRef({ t, editorMessages });
@@ -118,6 +119,7 @@ export function NoteEditor({
   });
   const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
     documentId,
+    tShared,
     marker,
     initialVersion,
     onDetachedSaveComplete,
@@ -147,6 +149,7 @@ export function NoteEditor({
   // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
   const editLock = useEditLock({
     documentId,
+    tShared,
     onLockLost: (message) => {
       reportSaveBlock("lock-lost", message);
       // 저장 상태 표시만으로는 놓치기 쉬운 상황이라 알림으로도 알린다.
@@ -524,7 +527,7 @@ export function NoteEditor({
       if (!target.value || isAllowedImageSource(target.value)) return;
       event.stopPropagation();
       target.value = "";
-      notifyExternalImageBlocked(textRef.current.t("image.externalBlockedTitle"));
+      notifyExternalImageBlocked(textRef.current.t("image.externalBlockedTitle"), textRef.current.t("image.externalBlockedMessage"));
     };
     root.addEventListener("input", onInput, true);
     return () => root.removeEventListener("input", onInput, true);
@@ -582,7 +585,7 @@ export function NoteEditor({
     };
 
     const { t: text, editorMessages: messages } = textRef.current;
-    const notifyBlocked = () => notifyExternalImageBlocked(text("image.externalBlockedTitle"));
+    const notifyBlocked = () => notifyExternalImageBlocked(text("image.externalBlockedTitle"), text("image.externalBlockedMessage"));
     const crepe = new Crepe({
       root: host,
       defaultValue: bodyRef.current,

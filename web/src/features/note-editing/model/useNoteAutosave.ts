@@ -16,6 +16,7 @@ import {
 import { trackPendingDocumentSave } from "./pendingDocumentSaveTracker";
 import { registerDocumentSaveFlusher, waitForPendingDocumentSave } from "@/shared/lib/documentSaveBarrier";
 import { isWriteForbiddenError } from "@/entities/document/lib/documentAccess";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
 /**
  * 저장 실패 안내 문구. 편집기가 화면 언어로 옮긴 documents.editor.save.* 문구를 넘긴다.
@@ -64,7 +65,8 @@ export function useNoteAutosave({
   onServerMerge,
   beforeFlush,
   autoSave = true,
-  messages = NOTE_SAVE_MESSAGE_CODES
+  messages = NOTE_SAVE_MESSAGE_CODES,
+  tShared
 }: {
   documentId: string;
   marker: string;
@@ -82,6 +84,8 @@ export function useNoteAutosave({
    */
   autoSave?: boolean;
   messages?: NoteSaveMessages;
+  /** 서버 오류 문구를 지금 언어로 고르는 공용 번역 함수(`useTranslations("shared")`). */
+  tShared?: SharedTranslate;
 }) {
   const [status, setStatus] = useState<NoteSaveStatus>("saved");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -117,6 +121,8 @@ export function useNoteAutosave({
   onDetachedSaveCompleteRef.current = onDetachedSaveComplete;
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   const autoSaveRef = useRef(autoSave);
   autoSaveRef.current = autoSave;
   const beforeFlushRef = useRef(beforeFlush);
@@ -298,7 +304,7 @@ export function useNoteAutosave({
         if (mountedRef.current) setStatus("error");
       }
       if (mountedRef.current) {
-        setErrorMessage(isWriteForbiddenError(error) ? messagesRef.current.writeForbidden : getErrorMessage(error, messagesRef.current.saveFailed));
+        setErrorMessage(isWriteForbiddenError(error) ? messagesRef.current.writeForbidden : getErrorMessage(error, messagesRef.current.saveFailed, tSharedRef.current));
       } else {
         onDetachedSaveCompleteRef.current?.({ success: false, error });
       }

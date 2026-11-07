@@ -1,5 +1,6 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import { pollUntil } from "@/shared/lib/pollUntil";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /**
  * Lint 요청. dryRun이면 실제 변경 없이 바뀔 페이지 수만 계산한다.
@@ -17,7 +18,7 @@ export async function fetchWikiMaintenanceStatus(): Promise<WikiMaintenanceStatu
     workspacePath(getWorkspaceId(), "wiki", "maintenance", "status"),
     { cache: "no-store" }
   );
-  return parseJsonOrThrow<WikiMaintenanceStatus>(response, "위키 상태를 불러오지 못했습니다.");
+  return parseJsonOrThrow<WikiMaintenanceStatus>(response, sharedText("documentRequests.wikiLint.status", "위키 상태를 불러오지 못했습니다."));
 }
 
 export async function requestWikiLint(
@@ -34,7 +35,7 @@ export async function requestWikiLint(
   // operation_id는 실제 실행(dry_run=false)에서만 온다. AI 작업 로그 알림과 중복을 거르는 데 쓴다.
   const queued = await parseJsonOrThrow<{ run_id: string; operation_id?: string }>(
     response,
-    "위키 최신화 요청에 실패했습니다."
+    sharedText("documentRequests.wikiLint.request", "위키 최신화 요청에 실패했습니다.")
   );
   return pollUntil({
     poll: async () => {
@@ -51,16 +52,16 @@ export async function requestWikiLint(
         /** 실패 코드(document #119 이후). */
         error_code?: string;
         manifest?: { task_result?: { changed_pages?: unknown[] } };
-      }>(polled, "위키 최신화 상태를 불러오지 못했습니다.");
+      }>(polled, sharedText("documentRequests.wikiLint.runStatus", "위키 최신화 상태를 불러오지 못했습니다."));
       if (run.status === "succeeded") {
         return {
           changedPageCount: run.manifest?.task_result?.changed_pages?.length ?? 0,
           operationId: queued.operation_id
         };
       }
-      if (run.status === "failed") throw new Error(run.error || "위키 최신화에 실패했습니다.");
+      if (run.status === "failed") throw new Error(run.error || sharedText("documentRequests.wikiLint.failed", "위키 최신화에 실패했습니다."));
       return null;
     },
-    timeoutMessage: "위키 최신화 처리 시간이 초과되었습니다."
+    timeoutMessage: sharedText("documentRequests.wikiLint.timeout", "위키 최신화 처리 시간이 초과되었습니다.")
   });
 }

@@ -58,8 +58,8 @@ test("컨텍스트 메뉴는 변환 권한이 없으면 Markdown으로 변환을
   assert.match(tree, /isDisabled: !canConvertContextItem \|\|/);
   assert.match(tree, /disabledReason: canConvertContextItem \? undefined : CONVERT_FORBIDDEN_REASON/);
   assert.match(tree, /if \(!itemId \|\| !documentId \|\| !canConvertContextItem\) return;/);
-  // PDF 위키 편입은 변환부터 하므로 권한이 없으면 convert 요청 전에 같은 이유로 실패시킨다.
-  assert.match(ingest, /if \(!canConvertDocument\(document\)\) throw new Error\(CONVERT_FORBIDDEN_REASON\);\s*const storageKey = storageKeyRef\.current;\s*const converted = await convertDocumentToMarkdown/);
+  // PDF 위키 편입은 변환부터 하므로 권한이 없으면 convert 요청 전에 같은 이유(지금 언어 문구)로 실패시킨다.
+  assert.match(ingest, /if \(!canConvertDocument\(document\)\) throw new Error\(tAccess\("convertForbidden"\)\);\s*const storageKey = storageKeyRef\.current;\s*const converted = await convertDocumentToMarkdown/);
 });
 
 /** 업로더(OWNER 아님)·document.convert 없는 멤버·권한 있는 멤버로 mock 응답과 convert 판정을 확인한다. */

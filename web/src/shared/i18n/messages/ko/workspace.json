@@ -223,5 +223,84 @@
         "permissionRequired": "브라우저 알림 권한이 필요합니다."
       }
     }
+  },
+  "logMessages": {
+    "noDetail": "상세 정보 없음",
+    "restoreFailed": "롤백 요청에 실패했습니다.",
+    "restorePurged": "영구 삭제된 문서의 변경은 되돌릴 수 없어요.",
+    "restoreTrashed": "문서가 휴지통에 있어 되돌릴 수 없어요. 휴지통에서 복구한 뒤 다시 시도해 주세요.",
+    "restoreMissing": "문서를 찾을 수 없어 되돌릴 수 없어요.",
+    "documentRestore": "{description} 문서를 {from}에서 {to} 버전으로 되돌립니다.",
+    "documentRestoreLaterEdits": "{message} 이 작업 뒤에 저장한 수정(직접 편집, 다른 멤버의 편집, 다른 AI 작업)도 함께 사라집니다."
+  },
+  "notificationsView": {
+    "title": "알림",
+    "subtitle": "알림 리스트입니다.",
+    "tabsLabel": "알림 종류",
+    "tabs": {
+      "workspace": "워크스페이스 알림",
+      "task": "작업 알림"
+    },
+    "empty": {
+      "workspace": "워크스페이스 알림이 없습니다.",
+      "task": "작업 알림이 없습니다."
+    },
+    "changeCount": "{count}개 변경",
+    "unread": "안 읽음",
+    "tabUnread": "안 읽은 알림 있음",
+    "openLog": "로그에서 자세히 보기",
+    "readAll": "전체 읽음 처리",
+    "loading": "알림을 불러오는 중입니다.",
+    "readFailedTitle": "알림 읽음 처리 실패",
+    "readFailed": "알림을 읽음 처리하지 못했습니다.",
+    "membersFailed": "멤버 목록을 불러오지 못했습니다.",
+    "tasksFailed": "작업 알림을 불러오지 못했습니다.",
+    "taskLabel": {
+      "ingest": "문서 처리",
+      "lint": "위키 최신화",
+      "restore": "복구(롤백)",
+      "document_edit": "AI 편집 반영",
+      "wiki_edit": "위키 직접 편집"
+    },
+    "taskStatus": {
+      "succeeded": "완료",
+      "partially_succeeded": "일부 완료",
+      "failed": "실패",
+      "conflict": "충돌"
+    },
+    "taskTitle": "{label} {status}",
+    "taskSentence": {
+      "succeeded": "{label} 작업이 완료되었습니다.",
+      "partially_succeeded": "{label} 작업이 일부만 완료되었습니다.",
+      "failed": "{label} 작업이 실패했습니다.",
+      "conflict": "{label} 작업이 충돌로 끝났습니다."
+    },
+    "targetDocument": "대상 문서: {name}",
+    "summary": "요약: {summary}",
+    "changedDocuments": "바뀐 문서 {count}개",
+    "memberJoinedTitle": "새 멤버 참여",
+    "memberJoined": "{name}님이 워크스페이스에 참여했습니다.",
+    "memberRole": "역할: {role}",
+    "roles": {
+      "owner": "소유자",
+      "member": "멤버"
+    },
+    "time": {
+      "now": "지금",
+      "minutes": "{count}분 전",
+      "hours": "{count}시간 전",
+      "days": "{count}일 전"
+    }
+  },
+  "workspacesPage": {
+    "defaultName": "나의 워크스페이스",
+    "preparing": "워크스페이스 준비 중…",
+    "prepareFailed": "워크스페이스를 준비하지 못했습니다.",
+    "eyebrow": "CONNECTION ERROR",
+    "title": "워크스페이스를 불러오지 못했어요",
+    "description": "일시적인 연결 문제일 수 있습니다. 잠시 후 다시 시도해 주세요. 계정과 작업 내용은 그대로 유지됩니다.",
+    "retry": "다시 시도",
+    "toLogin": "로그인 화면으로",
+    "support": "문제가 계속되면 잠시 후 다시 접속하거나 관리자에게 문의해 주세요."
   }
 }

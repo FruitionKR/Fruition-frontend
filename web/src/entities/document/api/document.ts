@@ -4,6 +4,7 @@ import { apiFetch, throwIfNotOk, parseApiError, parseJsonOrThrow, getWorkspaceId
 import { hasPdfExtension } from "@/entities/document/lib/documentKind";
 import { CHAT_EXPORT_TITLE_LOCKED_MESSAGE, DOCUMENT_TITLE_LOCKED_CODE } from "@/entities/document/lib/documentAccess";
 import { ApiError } from "@/shared/lib/apiErrors";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 import { publishConvertStarted } from "@/entities/document/model/documentConvertEvents";
 import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentListResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
 
@@ -15,7 +16,7 @@ import { createConcurrencyLimiter } from "@/shared/lib/concurrencyLimit";
 
 export class DocumentNameConflictError extends Error {
   constructor(filename: string) {
-    super(`같은 폴더에 '${filename}' 이름의 항목이 이미 있습니다. 다른 이름을 사용해 주세요.`);
+    super(sharedText("documentRequests.document.nameConflict", `같은 폴더에 '${filename}' 이름의 항목이 이미 있습니다. 다른 이름을 사용해 주세요.`, { filename }));
     this.name = "DocumentNameConflictError";
   }
 }
@@ -34,13 +35,13 @@ async function withUniqueDocumentName<T>(
   const name = normalize(filename);
   const tree = await fetchDocumentTree(workspaceId);
   const parentId = excludedDocumentId ? findServerParent(tree.items, excludedDocumentId) : folderId;
-  if (parentId === undefined) throw new Error("문서를 찾을 수 없습니다. 목록을 새로고침해 주세요.");
+  if (parentId === undefined) throw new Error(sharedText("documentRequests.document.notFound", "문서를 찾을 수 없습니다. 목록을 새로고침해 주세요."));
   const reservation = JSON.stringify([workspaceId, parentId, name]);
   if (pendingDocumentNames.has(reservation)) throw new DocumentNameConflictError(filename);
   pendingDocumentNames.add(reservation);
   try {
     const parent = parentId ? findServerTreeItem(tree.items, parentId) : null;
-    if (parentId && (!parent || parent.type !== "folder")) throw new Error("업로드할 폴더를 찾을 수 없습니다.");
+    if (parentId && (!parent || parent.type !== "folder")) throw new Error(sharedText("documentRequests.document.uploadFolderMissing", "업로드할 폴더를 찾을 수 없습니다."));
     const siblings = parent ? parent.children ?? [] : tree.items;
     if (siblings.some((item) => item.id !== excludedDocumentId && normalize(item.name) === name)) {
       throw new DocumentNameConflictError(filename);
@@ -157,12 +158,12 @@ function assertUploadSize(file: { size: number }, maxBytes: number): void {
 async function startDocumentIngest(documentId: string): Promise<void> {
   const workspaceId = getWorkspaceId();
   await flushPendingDocumentSave(documentId);
-  if (getWorkspaceId() !== workspaceId) throw new Error("워크스페이스가 변경되어 위키 편입을 중단했습니다.");
+  if (getWorkspaceId() !== workspaceId) throw new Error(sharedText("documentRequests.document.workspaceChanged", "워크스페이스가 변경되어 위키 편입을 중단했습니다."));
   const response = await apiFetch(
     workspacePath(workspaceId, "documents", documentId, "ingest"),
     { method: "POST" }
   );
-  await throwIfNotOk(response, "위키 편입 시작에 실패했습니다.");
+  await throwIfNotOk(response, sharedText("documentRequests.document.ingestStartFailed", "위키 편입 시작에 실패했습니다."));
 }
 
 /**

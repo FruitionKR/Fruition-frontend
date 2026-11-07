@@ -1,14 +1,15 @@
 import { apiFetch, getWorkspaceId, workspacePath, parseJsonOrThrow, throwIfNotOk, idempotentJsonHeaders } from "@/shared/api/client";
 import { findServerTreeItem, type DocumentTreeResponse, type FolderResponse } from "@/entities/tree/model/serverTree";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 export async function fetchDocumentTree(
   workspaceId = getWorkspaceId(),
   // 문서 목록 폴링처럼 트리를 다른 용도로 받을 때 그 용도에 맞는 실패 문구를 쓴다.
-  failureMessage = "폴더 목록을 불러오지 못했습니다."
+  failureMessage = sharedText("documentRequests.tree.load", "폴더 목록을 불러오지 못했습니다.")
 ): Promise<DocumentTreeResponse> {
   const response = await apiFetch(workspacePath(workspaceId, "document-tree"), { cache: "no-store" });
   const tree = await parseJsonOrThrow<DocumentTreeResponse>(response, failureMessage);
-  if (!Array.isArray(tree.items)) throw new Error("폴더 목록 응답이 올바르지 않습니다.");
+  if (!Array.isArray(tree.items)) throw new Error(sharedText("documentRequests.tree.invalidResponse", "폴더 목록 응답이 올바르지 않습니다."));
   return tree;
 }
 
@@ -17,19 +18,19 @@ export async function createFolder(name: string, parentFolderId: string | null =
     method: "POST", headers: idempotentJsonHeaders(),
     body: JSON.stringify({ name, parent_folder_id: parentFolderId })
   });
-  return parseJsonOrThrow<FolderResponse>(response, "폴더를 생성하지 못했습니다.");
+  return parseJsonOrThrow<FolderResponse>(response, sharedText("documentRequests.tree.folderCreate", "폴더를 생성하지 못했습니다."));
 }
 
 async function mutateTreeItem(id: string, type: "folder" | "document", method: string, suffix: string[], payload: Record<string, unknown>) {
   const workspaceId = getWorkspaceId();
   const tree = await fetchDocumentTree(workspaceId);
   const item = findServerTreeItem(tree.items, id);
-  if (!item || item.type !== type) throw new Error("항목이 이동되거나 삭제되었습니다. 목록을 새로고침해 주세요.");
+  if (!item || item.type !== type) throw new Error(sharedText("documentRequests.tree.stale", "항목이 이동되거나 삭제되었습니다. 목록을 새로고침해 주세요."));
   const response = await apiFetch(workspacePath(workspaceId, type === "folder" ? "folders" : "documents", id, ...suffix), {
     method, headers: idempotentJsonHeaders(),
     body: JSON.stringify({ ...payload, base_version: item.current_version })
   });
-  await throwIfNotOk(response, "폴더 또는 문서를 변경하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("documentRequests.tree.mutate", "폴더 또는 문서를 변경하지 못했습니다."));
 }
 
 export const renameFolder = (id: string, name: string) => mutateTreeItem(id, "folder", "PATCH", [], { name });
