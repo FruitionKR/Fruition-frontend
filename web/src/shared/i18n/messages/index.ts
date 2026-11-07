@@ -6,6 +6,7 @@ import koLanding from "./ko/landing.json";
 import koLegal from "./ko/legal.json";
 import koMeeting from "./ko/meeting.json";
 import koMetadata from "./ko/metadata.json";
+import koNotionImport from "./ko/notionImport.json";
 import koSettings from "./ko/settings.json";
 import koSkills from "./ko/skills.json";
 import enAuth from "./en/auth.json";
@@ -15,6 +16,7 @@ import enLanding from "./en/landing.json";
 import enLegal from "./en/legal.json";
 import enMeeting from "./en/meeting.json";
 import enMetadata from "./en/metadata.json";
+import enNotionImport from "./en/notionImport.json";
 import enSettings from "./en/settings.json";
 import enSkills from "./en/skills.json";
 
@@ -31,7 +33,8 @@ const ko = {
   settings: koSettings,
   legal: koLegal,
   skills: koSkills,
-  meeting: koMeeting
+  meeting: koMeeting,
+  notionImport: koNotionImport
 };
 
 export type AppMessages = typeof ko;
@@ -47,6 +50,7 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     settings: enSettings,
     legal: enLegal,
     skills: enSkills,
-    meeting: enMeeting
+    meeting: enMeeting,
+    notionImport: enNotionImport
   }
 };

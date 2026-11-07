@@ -8,6 +8,7 @@ import { createConcurrencyLimiter } from "@/shared/lib/concurrencyLimit";
 import { planAttachmentBatches } from "@/shared/lib/markdown-import/attachmentBatches";
 import { renderImages, renderLinks } from "../lib/notionLinks";
 import type { ImportPlan, PlanDocument, PlanPdf } from "../lib/notionPlan";
+import type { NotionImportTranslate } from "../lib/notionImportTranslate";
 
 /** 문서 생성·본문 저장 동시 요청 수. 문서 업로드와 같이 2개씩 보낸다. */
 export const IMPORT_CONCURRENCY = 2;
@@ -15,15 +16,20 @@ export const IMPORT_CONCURRENCY = 2;
 /** 이 오류가 나면 남은 요청도 같은 이유로 실패하므로 멈춘다. */
 const FATAL_CODES = new Set(["STORAGE_QUOTA_EXCEEDED", "IMPORT_INVALID", "IMPORT_NOT_FOUND"]);
 
-const IMPORT_ERROR_MESSAGES: Record<string, string> = {
-  IMPORT_INVALID: "가져오기 세션이 끝났거나 올바르지 않아요. 처음부터 다시 가져와 주세요.",
-  IMPORT_NOT_FOUND: "가져오기 기록을 찾을 수 없어요. 처음부터 다시 가져와 주세요.",
-  INVALID_REQUEST: "요청 내용이 올바르지 않아 서버가 받지 않았어요.",
-  FILE_TOO_LARGE: "파일이 너무 커서 올리지 못했어요. PDF는 100MB 이하만 가져올 수 있어요."
-};
+/** 서버 code → notionImport 메시지 errors 아래 키. 여기 없는 code는 서버 문구를 그대로 쓴다. */
+const IMPORT_ERROR_KEYS = {
+  IMPORT_INVALID: "importInvalid",
+  IMPORT_NOT_FOUND: "importNotFound",
+  INVALID_REQUEST: "invalidRequest",
+  FILE_TOO_LARGE: "fileTooLarge"
+} as const;
 
-export function importErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.code && IMPORT_ERROR_MESSAGES[error.code]) return IMPORT_ERROR_MESSAGES[error.code];
+function isImportErrorCode(code: string): code is keyof typeof IMPORT_ERROR_KEYS {
+  return Object.hasOwn(IMPORT_ERROR_KEYS, code);
+}
+
+export function importErrorMessage(error: unknown, fallback: string, t: NotionImportTranslate): string {
+  if (error instanceof ApiError && error.code && isImportErrorCode(error.code)) return t(`errors.${IMPORT_ERROR_KEYS[error.code]}`);
   return getErrorMessage(error, fallback);
 }
 
@@ -97,6 +103,7 @@ export type RunOptions = {
   state: RunState;
   signal?: AbortSignal;
   onProgress?: (progress: ImportProgress) => void;
+  t: NotionImportTranslate;
 };
 
 export type RunResult = {
@@ -116,7 +123,7 @@ async function settleAll(tasks: Promise<void>[]): Promise<void> {
 }
 
 /** 계획을 실행한다. 이미 끝난 항목은 state를 보고 건너뛴다. */
-export async function runImport(plan: ImportPlan, { importId, writer, state, signal, onProgress }: RunOptions): Promise<RunResult> {
+export async function runImport(plan: ImportPlan, { importId, writer, state, signal, onProgress, t }: RunOptions): Promise<RunResult> {
   const total = countImportSteps(plan);
   let fatalMessage: string | null = null;
   const doneCount = () => state.folderIds.size + state.documents.size + state.contentDone.size;
@@ -131,7 +138,7 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
       state.failures.delete(key);
     } catch (error) {
       if (signal?.aborted) throw new StopImport();
-      const message = importErrorMessage(error, fallback);
+      const message = importErrorMessage(error, fallback, t);
       state.failures.set(key, { key, label, message });
       if (error instanceof ApiError && error.code && FATAL_CODES.has(error.code)) {
         fatalMessage = message;
@@ -148,10 +155,10 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
     if (state.documents.has(document.key)) return;
     const folderId = parentId(document.folderKey);
     if (folderId === undefined) {
-      state.failures.set(document.key, { key: document.key, label: document.name, message: "상위 폴더를 만들지 못해 건너뛰었어요." });
+      state.failures.set(document.key, { key: document.key, label: document.name, message: t("failures.parentFolderMissing") });
       return;
     }
-    await attempt(document.key, document.name, "문서를 만들지 못했어요.", async () => {
+    await attempt(document.key, document.name, t("failures.createDocument"), async () => {
       const created = await writer.createDocument(document.name, initialMarkdown(document), folderId, await importKey(importId, document.key, "document"));
       state.documents.set(document.key, { id: created.id, version: created.current_version ?? 1 });
       if (!needsContentPass(document)) state.contentDone.add(document.key);
@@ -164,10 +171,10 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
     if (state.documents.has(pdf.key)) return;
     const folderId = parentId(pdf.folderKey);
     if (folderId === undefined) {
-      state.failures.set(pdf.key, { key: pdf.key, label: pdf.name, message: "상위 폴더를 만들지 못해 건너뛰었어요." });
+      state.failures.set(pdf.key, { key: pdf.key, label: pdf.name, message: t("failures.parentFolderMissing") });
       return;
     }
-    await attempt(pdf.key, pdf.name, "PDF를 올리지 못했어요.", async () => {
+    await attempt(pdf.key, pdf.name, t("failures.uploadPdf"), async () => {
       const file = new File([pdf.read() as Uint8Array<ArrayBuffer>], pdf.name, { type: "application/pdf" });
       const created = await writer.uploadPdf(file, folderId, await importKey(importId, pdf.key, "pdf"));
       state.documents.set(pdf.key, { id: created.id, version: 1 });
@@ -178,7 +185,7 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
   async function saveDocumentContent(document: PlanDocument) {
     const created = state.documents.get(document.key);
     if (!created || state.contentDone.has(document.key)) return;
-    await attempt(`${document.key}#content`, document.name, "문서 본문을 저장하지 못했어요.", async () => {
+    await attempt(`${document.key}#content`, document.name, t("failures.saveContent"), async () => {
       const withLinks = renderLinks(document.markdown, document.links, (key) => state.documents.get(key)?.id);
       const saved = state.savedImages.get(document.key) ?? new Map<number, string>();
       state.savedImages.set(document.key, saved);
@@ -214,10 +221,10 @@ export async function runImport(plan: ImportPlan, { importId, writer, state, sig
       if (!state.folderIds.has(folder.key)) {
         const parent = parentId(folder.parentKey);
         if (parent === undefined) {
-          state.failures.set(folder.key, { key: folder.key, label: folder.name, message: `상위 폴더 '${folderNames.get(folder.parentKey ?? "") ?? ""}'를 만들지 못해 건너뛰었어요.` });
+          state.failures.set(folder.key, { key: folder.key, label: folder.name, message: t("failures.parentFolderNamed", { name: folderNames.get(folder.parentKey ?? "") ?? "" }) });
           continue;
         }
-        await attempt(folder.key, folder.name, "폴더를 만들지 못했어요.", async () => {
+        await attempt(folder.key, folder.name, t("failures.createFolder"), async () => {
           const created = await writer.createFolder(folder.name, parent, await importKey(importId, folder.key, "folder"));
           state.folderIds.set(folder.key, created.id);
         });

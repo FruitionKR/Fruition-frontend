@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ID, PDF, PNG, notionExportFiles, registerSrcHooks, zipFiles } from "./notionImportFixture.mjs";
+import { ID, PDF, PNG, notionExportFiles, registerSrcHooks, zipFiles, notionImportKo } from "./notionImportFixture.mjs";
 
 registerSrcHooks();
 const { analyzeNotionZip } = await import("../src/features/notion-import/model/analyzeNotionZip.ts");
 const { runImport, createRunState, summarizeRun, countImportSteps, deterministicUuid, importKey } = await import("../src/features/notion-import/model/importRunner.ts");
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
+const t = await notionImportKo();
 
 const ATTACHMENT = /attachment:\/\/([0-9a-f-]{36})/g;
 
@@ -63,7 +64,7 @@ test("폴더 → 문서 → 링크·이미지 본문 순서로 보내고, 하위
   const writer = fakeWriter();
   const state = createRunState();
   const progress = [];
-  const result = await runImport(plan, { importId: "imp_1", writer, state, onProgress: (value) => progress.push(value) });
+  const result = await runImport(plan, { t, importId: "imp_1", writer, state, onProgress: (value) => progress.push(value) });
   assert.deepEqual(result, { fatalMessage: null, cancelled: false });
 
   assert.deepEqual([writer.calls[0].kind, writer.calls[0].name], ["folder", "홈"]);
@@ -100,7 +101,7 @@ test("이미지가 20개를 넘으면 저장을 나누고 앞 저장의 서버 �
   for (let index = 0; index < 25; index += 1) files[`p/${index}.png`] = new Uint8Array([...PNG, index]);
   const plan = await analyzeNotionZip(zipFiles(files));
   const writer = fakeWriter();
-  await runImport(plan, { importId: "imp_2", writer, state: createRunState() });
+  await runImport(plan, { t, importId: "imp_2", writer, state: createRunState() });
   const saves = writer.calls.filter((call) => call.kind === "content");
   assert.deepEqual(saves.map((call) => call.attachments.length), [20, 5]);
   assert.deepEqual(saves.map((call) => call.baseVersion), [1, 2]);
@@ -125,7 +126,7 @@ test("실패한 항목만 같은 멱등 키로 다시 보낸다", async () => {
     }
   });
   const state = createRunState();
-  await runImport(plan, { importId: "imp_3", writer, state });
+  await runImport(plan, { t, importId: "imp_3", writer, state });
   assert.deepEqual([...state.failures.values()].map((failure) => [failure.label, failure.message]), [["하위", "일시적 오류"]]);
   // 홈 본문은 하위 링크를 글자로만 담았다.
   const homeId = state.documents.get(`홈 ${ID.home}.md`).id;
@@ -133,7 +134,7 @@ test("실패한 항목만 같은 멱등 키로 다시 보낸다", async () => {
 
   const firstKey = writer.calls.find((call) => call.kind === "document" && call.name === "하위").key;
   writer.calls.length = 0;
-  await runImport(plan, { importId: "imp_3", writer, state });
+  await runImport(plan, { t, importId: "imp_3", writer, state });
   assert.deepEqual(writer.calls.map((call) => [call.kind, call.name ?? writer.documents.get(call.documentId)?.name]), [["document", "하위"], ["content", "하위"]]);
   assert.equal(writer.calls[0].key, firstKey);
   assert.equal(state.failures.size, 0);
@@ -143,7 +144,7 @@ test("저장 용량 초과면 남은 요청을 멈추고 그 이유를 돌려준
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
   const writer = fakeWriter({ fail: (kind) => kind === "document" ? new ApiError("저장 공간 부족", 413, "STORAGE_QUOTA_EXCEEDED") : null });
   const state = createRunState();
-  const result = await runImport(plan, { importId: "imp_4", writer, state });
+  const result = await runImport(plan, { t, importId: "imp_4", writer, state });
   assert.equal(result.fatalMessage, "저장 공간 부족");
   // 이미 보낸 동시 요청(최대 2개)만 끝나고 더 보내지 않는다.
   assert.ok(writer.calls.filter((call) => call.kind === "document").length <= 2);
@@ -160,7 +161,7 @@ test("멈추면 더 보내지 않는다", async () => {
     controller.abort();
     return result;
   };
-  const result = await runImport(plan, { importId: "imp_5", writer, state: createRunState(), signal: controller.signal });
+  const result = await runImport(plan, { t, importId: "imp_5", writer, state: createRunState(), signal: controller.signal });
   assert.equal(result.cancelled, true);
   assert.deepEqual(writer.calls.map((call) => call.kind), ["folder"]);
 });
@@ -169,7 +170,7 @@ test("PDF는 행 문서 옆 폴더에 결정적 키로 올리고(변환은 요�
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
   const writer = fakeWriter();
   const state = createRunState();
-  await runImport(plan, { importId: "imp_6", writer, state });
+  await runImport(plan, { t, importId: "imp_6", writer, state });
   const rowDir = `홈 ${ID.home}/할일 ${ID.db}/행 ${ID.row}`;
   const upload = writer.calls.find((call) => call.kind === "pdf");
   assert.deepEqual(upload, { kind: "pdf", name: "첨부.pdf", folderId: `folder_행`, key: await importKey("imp_6", `${rowDir}/첨부.pdf`, "pdf"), type: "application/pdf", size: PDF.length });
@@ -198,11 +199,11 @@ test("PDF는 원본으로만 올리고 변환은 요청하지 않으며, 업로�
   });
   assert.equal("convertPdf" in writer, false);
   const state = createRunState();
-  await runImport(plan, { importId: "imp_7", writer, state });
+  await runImport(plan, { t, importId: "imp_7", writer, state });
   assert.deepEqual([...state.failures.values()].map((failure) => failure.label), ["첨부.pdf"]);
   const firstKey = writer.calls.find((call) => call.kind === "pdf").key;
   writer.calls.length = 0;
-  await runImport(plan, { importId: "imp_7", writer, state });
+  await runImport(plan, { t, importId: "imp_7", writer, state });
   // 본문은 이미 저장돼 다시 보내지 않는다(실패했던 PDF 링크는 글자로 남는다. 문서 재시도와 같은 동작).
   assert.deepEqual(writer.calls.map((call) => call.kind), ["pdf"]);
   assert.equal(writer.calls[0].key, firstKey);
@@ -213,6 +214,7 @@ test("PDF는 원본으로만 올리고 변환은 요청하지 않으며, 업로�
 test("PDF 업로드가 저장 용량을 넘으면 멈추고, 너무 큰 PDF는 그 항목만 실패로 남긴다", async () => {
   const plan = await analyzeNotionZip(zipFiles(notionExportFiles()));
   const quota = await runImport(plan, {
+    t,
     importId: "imp_8",
     writer: fakeWriter({ fail: (kind) => kind === "pdf" ? new ApiError("저장 공간 부족", 413, "STORAGE_QUOTA_EXCEEDED") : null }),
     state: createRunState()
@@ -221,6 +223,7 @@ test("PDF 업로드가 저장 용량을 넘으면 멈추고, 너무 큰 PDF는 �
 
   const state = createRunState();
   const tooLarge = await runImport(plan, {
+    t,
     importId: "imp_9",
     writer: fakeWriter({ fail: (kind) => kind === "pdf" ? new ApiError("PDF 파일은 100MB 이하로 올려 주세요.", 413, "FILE_TOO_LARGE") : null }),
     state

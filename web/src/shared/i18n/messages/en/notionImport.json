@@ -1,0 +1,133 @@
+{
+  "title": "Import from Notion",
+  "close": "Close",
+  "cancel": "Cancel",
+  "analyzing": "Reviewing “{fileName}”. Nothing has been uploaded to the server yet.",
+  "errors": {
+    "notZip": "Choose a zip file exported from Notion as 'Markdown & CSV'.",
+    "readFailed": "Couldn't read the zip file.",
+    "runFailed": "Something went wrong during the import.",
+    "startFailed": "Couldn't start the import.",
+    "estimateFailed": "Couldn't estimate the cost of adding to the wiki.",
+    "importInvalid": "The import session has ended or isn't valid. Please start the import again.",
+    "importNotFound": "Couldn't find the import record. Please start the import again.",
+    "invalidRequest": "The server didn't accept the request because it wasn't valid.",
+    "fileTooLarge": "The file is too large to upload. PDFs must be 100 MB or smaller."
+  },
+  "failures": {
+    "parentFolderMissing": "Skipped because the parent folder couldn't be created.",
+    "parentFolderNamed": "Skipped because the parent folder “{name}” couldn't be created.",
+    "createDocument": "Couldn't create the document.",
+    "uploadPdf": "Couldn't upload the PDF.",
+    "saveContent": "Couldn't save the document content.",
+    "createFolder": "Couldn't create the folder."
+  },
+  "blocker": {
+    "empty": "There are no Notion pages or databases to import.",
+    "quota": "There isn't enough storage to import this. Delete documents you don't need, then try again."
+  },
+  "skipReasons": {
+    "documentTooLarge": "Document larger than 5 MB",
+    "tableTooLarge": "Table larger than 5 MB",
+    "pdfTooLarge": "PDF larger than 100 MB",
+    "notPdf": "Not a valid PDF file",
+    "unsupportedAttachment": "Not imported: attachment that isn't a PDF or image (e.g. PPTX)",
+    "imageTooLarge": "Image larger than 10 MB",
+    "unsupportedImage": "Image that isn't PNG, JPEG, GIF, or WebP",
+    "unusedImage": "Image not used in any page",
+    "nestedZip": "Zip nested more than one level deep"
+  },
+  "review": {
+    "failedCount": "Couldn't import {count, plural, one {# item} other {# items}}. Retrying sends only the failed items again.",
+    "failuresLabel": "Items that couldn't be imported",
+    "finish": "Finish anyway",
+    "retry": "Retry failed items"
+  },
+  "counts": {
+    "folders": "Folders",
+    "documents": "Documents",
+    "tables": "Tables (databases)",
+    "rowPages": "Row pages",
+    "images": "Images",
+    "pdfs": "PDFs"
+  },
+  "preview": {
+    "intro": "Here's what will be imported from “{fileName}”. Review it, then start.",
+    "uploadSize": "Upload size {size}",
+    "remaining": " · Storage left {size}",
+    "itemsWithPdf": " · {count, plural, one {# document, image, or PDF} other {# documents, images, and PDFs}}",
+    "items": " · {count, plural, one {# document or image} other {# documents and images}}",
+    "rowPages": "{count, plural, one {# row page} other {# row pages}} → documents. Each database row becomes a document in a folder with the same name next to the table document, and the table's title column links to it.",
+    "pdfs": "{count, plural, one {# PDF} other {# PDFs}} → PDF documents. PDFs are imported as originals, and you can choose to convert them after the import. Other attachments such as PPTX aren't imported; only their link text remains.",
+    "pageFolders": "Pages with subpages are split into a document and a folder with the same name. Subpages go into the folder next to the document.",
+    "notionLinks": "{count, plural, one {# Notion link} other {# Notion links}} → linked to documents in the app.",
+    "brokenLinks": "{count, plural, one {# link} other {# links}} whose target isn't in the zip will keep only their text.",
+    "noAutoIngest": "Imported documents aren't added to the wiki right away. You can choose whether to add them after the import finishes.",
+    "skipped": "{count, plural, one {# file} other {# files}} won't be imported",
+    "skippedMore": "and {count, number} more",
+    "start": "Start import"
+  },
+  "running": {
+    "phases": {
+      "folders": "Creating folders",
+      "documents": "Creating documents",
+      "content": "Filling in links and images"
+    },
+    "progress": "{phase} · {done, number} / {total, number}",
+    "cancelling": "Stopping. Waiting for requests already sent to finish.",
+    "progressLabel": "Import progress",
+    "stop": "Stop import"
+  },
+  "summary": {
+    "cancelled": "Import stopped. ",
+    "done": "Import finished. ",
+    "created": "Created {pages, plural, one {# document} other {# documents}}{tables, plural, =0 {} one {, # table} other {, # tables}}{pdfs, plural, =0 {} one {, # PDF} other {, # PDFs}}{failed, plural, =0 {} other { (# items couldn't be imported)}}.",
+    "converting": "{count, plural, one {# PDF shows} other {# PDFs show}} as “Converting” in the document list while being converted to Markdown. Converted notes aren't added to the wiki automatically, so add them from the document after conversion finishes.",
+    "unconverted": "{count, plural, one {# PDF was} other {# PDFs were}} kept as original PDFs. Convert them to Markdown from the document later to add them to the wiki."
+  },
+  "cost": {
+    "krw": "about ₩{won, number}",
+    "usd": "about ${amount}",
+    "estimate": "Estimated cost {amount}",
+    "estimateBoth": "Estimated cost {krw} ({usd})",
+    "max": "Up to {amount}",
+    "maxBoth": "Up to {krw} ({usd})",
+    "unknown": "Estimated cost isn't available yet",
+    "convertHint": "The actual cost is usually lower. AI only fixes pages with garbled text."
+  },
+  "convert": {
+    "confirmMax": "This could use up to {amount}. Continue?",
+    "confirmCount": "Converting {count, plural, one {# PDF} other {# PDFs}} could be expensive. Continue?",
+    "confirmMeta": "{label} · {count, plural, one {# PDF} other {# PDFs}}. {hint}",
+    "continue": "Continue converting",
+    "question": "Convert {count, plural, one {# PDF} other {# PDFs}} to documents? ({label})",
+    "why": "PDFs must be converted before they can be added to the wiki. If you don't convert them, they stay as original PDFs and you can convert them from the document later.",
+    "qualityNotice": "Converted Markdown may not match the original PDF's content or layout and may be harder to read.",
+    "requesting": "Requesting conversion {queued, number}/{total, number}",
+    "progressLabel": "PDF conversion request progress",
+    "later": "Do it later",
+    "skip": "Don't convert",
+    "retry": "Retry converting remaining PDFs",
+    "all": "Convert all {count, plural, one {# PDF} other {# PDFs}}",
+    "failed": "Couldn't request PDF conversion.",
+    "stalled": "Couldn't queue the remaining PDFs for conversion. Please try again in a moment."
+  },
+  "ingest": {
+    "done": "Queued {count, plural, one {# document} other {# documents}} for the wiki. You can track progress in wiki tasks.",
+    "skipped": "You can add documents to the wiki later by selecting them in the graph view.",
+    "question": "Add {count, plural, one {# document} other {# documents}} to the wiki?",
+    "requesting": "Requesting {queued, number}/{total, number}",
+    "progressLabel": "Wiki request progress",
+    "confirmCost": "This could use {amount}. Continue?",
+    "confirmCount": "Adding {count, plural, one {# document} other {# documents}} could be expensive. Continue?",
+    "confirmMeta": "{label} · {count, plural, one {# document} other {# documents}}. The actual cost depends on document length.",
+    "continue": "Continue",
+    "later": "Do it later",
+    "skip": "Don't add",
+    "retry": "Retry remaining documents",
+    "all": "Add {count, plural, one {# document} other {# documents}} to the wiki",
+    "limited": "{message} {count, plural, one {# document has} other {# documents have}} been queued so far. You can retry the rest later.",
+    "failed": "Couldn't request adding to the wiki.",
+    "stalled": "Couldn't queue the remaining documents for the wiki. Please try again in a moment."
+  }
+}

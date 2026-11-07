@@ -25,7 +25,11 @@ test("변환을 시작하는 확인 화면은 모두 변환 품질 안내를 보
     source("../src/features/notion-import/ui/NotionImportDialog.tsx"),
     source("../src/widgets/workspace/ui/HomeWorkspace.tsx")
   ]);
-  for (const text of [convertModal, ingestModal, notionDialog]) assert.match(text, /PDF_CONVERT_QUALITY_NOTICE/);
+  for (const text of [convertModal, ingestModal]) assert.match(text, /PDF_CONVERT_QUALITY_NOTICE/);
+  // Notion 가져오기는 화면 언어를 따르는 notionImport 메시지의 같은 안내를 쓴다.
+  assert.match(notionDialog, /t\("convert\.qualityNotice"\)/);
+  const notionKo = JSON.parse(await source("../src/shared/i18n/messages/ko/notionImport.json"));
+  assert.equal(notionKo.convert.qualityNotice, PDF_CONVERT_QUALITY_NOTICE);
   assert.match(convertModal, /confirmLabel="확인"/);
   // 트리 메뉴의 변환은 확인 모달의 확인 버튼으로만 시작한다.
   assert.match(home, /<PdfConvertConfirmModal[\s\S]*?onConfirm=\{projectTree\.confirmConvert\}[\s\S]*?onCancel=\{projectTree\.cancelConvert\}/);
