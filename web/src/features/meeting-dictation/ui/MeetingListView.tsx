@@ -1,7 +1,7 @@
+import { useFormatter, useTranslations } from "next-intl";
 import type { MeetingListItem } from "@/entities/meeting";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
-import { formatRelativeTime } from "@/shared/lib/relativeTime";
 import { meetingListBadge } from "../lib/meetingResume";
 import { useMeetingList } from "../model/useMeetingList";
 import styles from "./MeetingNotes.module.css";
@@ -20,16 +20,17 @@ export function MeetingListView({
   /** 고른 회의를 열지 못했을 때 문구 */
   openErrorMessage: string | null;
 }) {
+  const t = useTranslations("meeting");
   const list = useMeetingList();
   const items = list.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <section className={styles["meeting-view"]} aria-label="지난 회의">
+    <section className={styles["meeting-view"]} aria-label={t("list.title")}>
       <div className={styles["meeting-container"]}>
         <div className={styles["meeting-title-row"]}>
-          <h2 className={styles["meeting-list-title"]}>지난 회의</h2>
+          <h2 className={styles["meeting-list-title"]}>{t("list.title")}</h2>
           <div className={styles["meeting-title-actions"]}>
-            <button type="button" className={styles["meeting-close"]} onClick={onClose}>닫기</button>
+            <button type="button" className={styles["meeting-close"]} onClick={onClose}>{t("list.close")}</button>
           </div>
         </div>
         <div className={cx(styles["meeting-card"], styles["meeting-list-card"])}>
@@ -42,7 +43,7 @@ export function MeetingListView({
               ))}
             </ul>
           ) : (
-            !list.isPending && !list.isError && <p className={styles["meeting-card-empty"]}>아직 만든 회의가 없어요. 회의 녹음하기나 녹음 파일 올리기로 시작해 보세요.</p>
+            !list.isPending && !list.isError && <p className={styles["meeting-card-empty"]}>{t("list.empty")}</p>
           )}
           {list.hasNextPage && (
             <button
@@ -51,7 +52,7 @@ export function MeetingListView({
               disabled={list.isFetchingNextPage}
               onClick={() => void list.fetchNextPage()}
             >
-              {list.isFetchingNextPage ? "불러오는 중…" : "더 보기"}
+              {list.isFetchingNextPage ? t("list.loadingMore") : t("list.more")}
             </button>
           )}
         </div>
@@ -60,12 +61,12 @@ export function MeetingListView({
         {list.isPending && (
           <div className={styles["meeting-progress"]} role="status">
             <span aria-hidden><i /><i /><i /></span>
-            <p>회의 목록을 불러오고 있어요…</p>
+            <p>{t("list.loading")}</p>
           </div>
         )}
         {list.isError && (
           <p className={cx(styles["meeting-notice"], styles["is-error"])} role="alert">
-            {getErrorMessage(list.error, "회의 목록을 불러오지 못했습니다.")}
+            {getErrorMessage(list.error, t("errors.listFailed"))}
           </p>
         )}
         {openErrorMessage && (
@@ -73,7 +74,7 @@ export function MeetingListView({
         )}
         {list.isError && (
           <div className={styles["meeting-actions"]}>
-            <button type="button" onClick={() => void list.refetch()}>다시 시도</button>
+            <button type="button" onClick={() => void list.refetch()}>{t("list.retry")}</button>
           </div>
         )}
       </div>
@@ -82,9 +83,11 @@ export function MeetingListView({
 }
 
 function MeetingListRow({ item, onOpen }: { item: MeetingListItem; onOpen: (item: MeetingListItem) => void }) {
+  const t = useTranslations("meeting");
+  const format = useFormatter();
   const badge = meetingListBadge(item);
-  const details = [formatRelativeTime(item.created_at), item.source === "upload" ? "녹음 파일" : "실시간 녹음"];
-  if (item.has_recording) details.push("녹음 있음");
+  const details = [format.relativeTime(new Date(item.created_at)), item.source === "upload" ? t("list.sourceUpload") : t("list.sourceLive")];
+  if (item.has_recording) details.push(t("list.hasRecording"));
   return (
     <button type="button" className={styles["meeting-list-item"]} onClick={() => onOpen(item)}>
       <span className={styles["meeting-list-text"]}>
@@ -94,7 +97,7 @@ function MeetingListRow({ item, onOpen }: { item: MeetingListItem; onOpen: (item
           {details.slice(1).map((detail) => <span key={detail}> · {detail}</span>)}
         </span>
       </span>
-      <span className={cx(styles["meeting-list-badge"], styles[`is-${badge.tone}`])}>{badge.label}</span>
+      <span className={cx(styles["meeting-list-badge"], styles[`is-${badge.tone}`])}>{t(`badges.${badge.label}`)}</span>
     </button>
   );
 }

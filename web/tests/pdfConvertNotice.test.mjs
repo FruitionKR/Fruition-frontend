@@ -30,7 +30,12 @@ test("변환을 시작하는 확인 화면은 모두 변환 품질 안내를 보
     source("../src/widgets/workspace/ui/HomeWorkspace.tsx")
   ]);
   for (const text of [convertModal, ingestModal]) assert.match(text, /t\("pdfConvertQualityNotice"\)/);
-  assert.match(notionDialog, /PDF_CONVERT_QUALITY_NOTICE|pdfConvertQualityNotice/);
+  // Notion 가져오기는 notionImport 메시지에 같은 안내를 두고 화면 언어로 보여 준다.
+  assert.match(notionDialog, /t\("convert\.qualityNotice"\)/);
+  const [notionKo, notionEn] = await Promise.all(["ko", "en"].map(async (locale) => JSON.parse(await source(`../src/shared/i18n/messages/${locale}/notionImport.json`))));
+  const wikiEn = JSON.parse(await source("../src/shared/i18n/messages/en/wiki.json"));
+  assert.equal(notionKo.convert.qualityNotice, ko("wiki.ingest.pdfConvertQualityNotice"));
+  assert.equal(notionEn.convert.qualityNotice, wikiEn.ingest.pdfConvertQualityNotice);
   assert.match(convertModal, /confirmLabel=\{t\("confirm"\)\}/);
   // 트리 메뉴의 변환은 확인 모달의 확인 버튼으로만 시작한다.
   assert.match(home, /<PdfConvertConfirmModal[\s\S]*?onConfirm=\{projectTree\.confirmConvert\}[\s\S]*?onCancel=\{projectTree\.cancelConvert\}/);

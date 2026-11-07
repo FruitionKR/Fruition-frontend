@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import {
   deleteSkill,
   enableSkill,
@@ -21,6 +22,7 @@ export type SkillDraft = { name: string; description: string; instructionsMarkdo
  * 같은 쿼리 키(["skills", workspaceId])를 쓴다.
  */
 export function useSkillCatalog(workspaceId: string | null) {
+  const t = useTranslations("skills");
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["skills", workspaceId] as const, [workspaceId]);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function useSkillCatalog(workspaceId: string | null) {
       enableAttemptedIds.current.add(skill.id);
       enableSkill(workspaceId, skill.id)
         .then(replaceSkill)
-        .catch((error: unknown) => setActionError(getErrorMessage(error, "스킬을 사용 상태로 바꾸지 못했습니다.")));
+        .catch((error: unknown) => setActionError(getErrorMessage(error, t("view.enableFailed"))));
     }
     // replaceSkill은 queryKey로만 결정되어 목록·워크스페이스가 바뀔 때만 다시 본다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,7 +74,7 @@ export function useSkillCatalog(workspaceId: string | null) {
   return {
     skills: listQuery.data ?? [],
     isLoading: listQuery.isLoading,
-    loadError: listQuery.error ? getErrorMessage(listQuery.error, "스킬 목록을 불러오지 못했습니다.") : null,
+    loadError: listQuery.error ? getErrorMessage(listQuery.error, t("view.loadFailed")) : null,
     actionError,
     updateMutation,
     deleteMutation,

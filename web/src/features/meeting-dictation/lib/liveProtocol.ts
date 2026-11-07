@@ -1,5 +1,6 @@
 // 실시간 받아쓰기 WebSocket 계약(document docs/api/meetings.md `WS /api/meetings/{id}/live`)의 순수 규칙.
 import { AI_USAGE_LIMIT_FAILURE_MESSAGE } from "@/shared/lib/aiErrorCodes";
+import type { MeetingTranslate } from "./meetingTranslate";
 // 브라우저 API를 다루는 쪽은 model/liveSession.ts다.
 
 export type LiveServerEvent =
@@ -21,23 +22,31 @@ export const LIVE_ROLLOVER_MS = 55 * 60_000;
 // ai_usage_limit_exceeded: 사용자별 AI 사용 한도로 연결을 받자마자 닫는다(document MeetingLiveHandler).
 const FATAL_ERROR_CODES = new Set(["insufficient_credit", "ai_usage_limit_exceeded", "transcript_limit", "meeting_not_open", "live_in_use"]);
 
-const LIVE_ERROR_MESSAGES: Record<string, string> = {
-  invalid_audio: "녹음 연결이 오디오를 받지 못했습니다.",
-  meeting_not_open: "더 이상 녹음할 수 없는 회의입니다.",
-  transcript_limit: "글로 옮길 수 있는 분량(10만 자)을 다 채워 녹음을 멈췄습니다. 지금까지 글로 옮긴 내용으로 회의록을 만들 수 있습니다.",
-  insufficient_credit: "크레딧이 부족합니다. 녹음을 멈췄고 지금까지 글로 옮긴 내용은 저장돼 있습니다.",
-  ai_usage_limit_exceeded: AI_USAGE_LIMIT_FAILURE_MESSAGE,
-  segment_conflict: "글로 옮긴 문장을 저장하는 중 충돌이 생겼습니다.",
-  transcript_incomplete: "일부 문장을 저장하지 못했습니다.",
-  transcript_save_failed: "글로 옮긴 문장을 저장하지 못했습니다.",
-  backpressure: "네트워크가 느려 녹음 연결이 끊겼습니다.",
-  transcription_failed: "글로 옮기는 서비스에 연결하지 못했습니다.",
-  live_in_use: "이 회의는 이미 다른 곳에서 녹음하고 있습니다.",
-  disconnected: "녹음 연결이 끊겼습니다. 지금까지 글로 옮긴 내용은 저장돼 있습니다."
-};
+/** 화면 문구가 있는 오류 code. 문구는 meeting 메시지 liveErrors에 둔다. AI 사용 한도는 앱 공통 안내를 쓴다. */
+const LIVE_ERROR_CODES = [
+  "invalid_audio",
+  "meeting_not_open",
+  "transcript_limit",
+  "insufficient_credit",
+  "segment_conflict",
+  "transcript_incomplete",
+  "transcript_save_failed",
+  "backpressure",
+  "transcription_failed",
+  "live_in_use",
+  "disconnected"
+] as const;
 
-export function describeLiveError(code: string): string {
-  return LIVE_ERROR_MESSAGES[code] ?? LIVE_ERROR_MESSAGES.transcription_failed;
+type LiveErrorCode = (typeof LIVE_ERROR_CODES)[number];
+
+function isLiveErrorCode(code: string): code is LiveErrorCode {
+  return (LIVE_ERROR_CODES as readonly string[]).includes(code);
+}
+
+/** 오류 code → 안내 문구. 모르는 code는 글로 옮기기 서비스 연결 실패로 안내한다. */
+export function describeLiveError(code: string, t: MeetingTranslate): string {
+  if (code === "ai_usage_limit_exceeded") return AI_USAGE_LIMIT_FAILURE_MESSAGE;
+  return t(`liveErrors.${isLiveErrorCode(code) ? code : "transcription_failed"}`);
 }
 
 /** 새 ticket으로 다시 연결해도 같은 결과인 오류. 크레딧·한도·회의 상태·다른 곳 사용 중. */

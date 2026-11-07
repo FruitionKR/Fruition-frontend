@@ -1,0 +1,134 @@
+{
+  "titles": {
+    "starting": "녹음 준비 중",
+    "recording": "녹음하는 중",
+    "reconnecting": "다시 연결하는 중",
+    "finishing": "녹음 마무리 중",
+    "stopped": "대화 내용",
+    "generating": "회의록 작성 중",
+    "ready": "회의록",
+    "previewing": "문서 끝에 추가 미리보기",
+    "saving": "회의록 저장 중",
+    "applied": "회의록 저장됨",
+    "uploading": "녹음 파일 올리는 중",
+    "transcribing": "녹음 파일 글로 옮기는 중",
+    "deleting": "회의 삭제 중",
+    "opening": "회의 불러오는 중"
+  },
+  "progress": {
+    "uploading": "녹음 파일을 올리고 있어요…",
+    "uploadingPercent": "녹음 파일을 올리고 있어요… {percent}%",
+    "transcribing": "녹음 파일을 글로 옮기고 있어요. 긴 녹음은 몇 분 걸릴 수 있어요…",
+    "deleting": "회의를 삭제하고 있어요…",
+    "opening": "회의를 불러오고 있어요…",
+    "starting": "마이크를 켜고 녹음을 준비하고 있어요…",
+    "recording": "녹음하면서 글로 옮기고 있어요…",
+    "reconnecting": "연결이 끊겨 다시 연결하고 있어요…",
+    "finishing": "남은 문장을 저장하고 있어요…",
+    "generating": "답변을 작성하고 있어요…",
+    "saving": "문서에 저장하고 있어요…"
+  },
+  "messages": {
+    "unsupported": "이 브라우저는 회의 녹음을 지원하지 않습니다.",
+    "emptyTranscript": "글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
+    "incompleteTranscript": "일부 구간이 저장되지 않았습니다. 저장된 내용만으로 회의록을 만들 수 있습니다.",
+    "liveStillOpen": "녹음 연결이 아직 닫히지 않았습니다. 잠시 후 다시 시도해 주세요.",
+    "notesCancelled": "회의록 만들기를 취소했습니다.",
+    "revisionChanged": "미리 본 뒤 문서가 바뀌었습니다. 다시 미리 보고 저장해 주세요.",
+    "outdated": "더 최근에 만든 회의록이 있습니다. 최신 회의록으로 다시 시도해 주세요.",
+    "alreadyApplied": "이 회의록은 이미 저장했거나 저장하는 중입니다. 잠시 후 회의를 다시 열어 확인해 주세요.",
+    "duplicateName": "같은 이름의 문서가 많아 저장하지 못했습니다. 다시 시도하면 다음 번호로 저장합니다.",
+    "saved": "회의록을 문서로 저장했습니다.",
+    "autoSaved": "설정의 'AI 에이전트 자동 승인'에 따라 회의록을 확인 없이 새 문서로 저장했습니다. 필요 없으면 그 문서를 휴지통으로 옮기세요.",
+    "emptyRecordingTranscript": "녹음에서 글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
+    "uploadCancelled": "녹음 파일 올리기를 취소했습니다.",
+    "uploadCancelTooLate": "올리기를 취소하기 전에 글로 옮기기가 시작됐고 멈추지 못했어요. 글로 옮기기 취소를 눌러 주세요.",
+    "awaitingUpload": "녹음 파일을 아직 올리지 않은 회의예요. 녹음 파일을 다시 올려 주세요.",
+    "liveConnected": "다른 화면에서 이 회의를 녹음하고 있어요. 녹음을 멈춘 뒤 회의록을 만들 수 있어요."
+  },
+  "errors": {
+    "createFailed": "회의를 시작하지 못했습니다.",
+    "notesFailed": "회의록을 요청하지 못했습니다.",
+    "notesCancelFailed": "회의록 만들기를 취소하지 못했습니다.",
+    "previewFailed": "문서 끝에 추가할 내용을 미리 보지 못했습니다.",
+    "applyFailed": "회의록을 문서로 저장하지 못했습니다.",
+    "loadFailed": "회의 상태를 불러오지 못했습니다.",
+    "listFailed": "회의 목록을 불러오지 못했습니다.",
+    "uploadFailed": "녹음 파일을 올리지 못했습니다.",
+    "transcriptionCancelFailed": "글로 옮기기를 취소하지 못했습니다.",
+    "recordingUrlFailed": "녹음을 불러오지 못했습니다.",
+    "deleteFailed": "회의를 삭제하지 못했습니다.",
+    "playbackFailed": "녹음을 재생하지 못했습니다."
+  },
+  "liveErrors": {
+    "invalid_audio": "녹음 연결이 오디오를 받지 못했습니다.",
+    "meeting_not_open": "더 이상 녹음할 수 없는 회의입니다.",
+    "transcript_limit": "글로 옮길 수 있는 분량(10만 자)을 다 채워 녹음을 멈췄습니다. 지금까지 글로 옮긴 내용으로 회의록을 만들 수 있습니다.",
+    "insufficient_credit": "크레딧이 부족합니다. 녹음을 멈췄고 지금까지 글로 옮긴 내용은 저장돼 있습니다.",
+    "segment_conflict": "글로 옮긴 문장을 저장하는 중 충돌이 생겼습니다.",
+    "transcript_incomplete": "일부 문장을 저장하지 못했습니다.",
+    "transcript_save_failed": "글로 옮긴 문장을 저장하지 못했습니다.",
+    "backpressure": "네트워크가 느려 녹음 연결이 끊겼습니다.",
+    "transcription_failed": "글로 옮기는 서비스에 연결하지 못했습니다.",
+    "live_in_use": "이 회의는 이미 다른 곳에서 녹음하고 있습니다.",
+    "disconnected": "녹음 연결이 끊겼습니다. 지금까지 글로 옮긴 내용은 저장돼 있습니다."
+  },
+  "badges": {
+    "transcribing": "글로 옮기는 중",
+    "awaitingUpload": "올리기 전",
+    "failed": "글로 옮기기 실패",
+    "hasNotes": "회의록 있음",
+    "transcribed": "글로 옮기기 완료",
+    "recorded": "녹음"
+  },
+  "documentName": {
+    "plain": "회의록",
+    "withTime": "회의록 {date} {hour}시 {minute}분"
+  },
+  "view": {
+    "ariaLabel": "회의 녹음",
+    "delete": "삭제",
+    "close": "닫기",
+    "notesLabel": "회의록",
+    "previewLabel": "문서 끝에 추가한 결과",
+    "transcriptLabel": "대화 내용",
+    "emptyUpload": "녹음 파일을 글로 옮기면 대화 내용이 여기에 보여요.",
+    "emptyLive": "말씀을 시작하면 글로 옮긴 문장이 여기에 쌓여요."
+  },
+  "actions": {
+    "cancelUpload": "올리기 취소",
+    "cancelTranscription": "글로 옮기기 취소",
+    "cancelNotes": "회의록 만들기 취소",
+    "reuploadRecording": "녹음 파일 다시 올리기",
+    "pickRecording": "녹음 파일 고르기",
+    "generatePartial": "저장된 내용으로 회의록 만들기",
+    "generate": "회의록 만들기",
+    "regenerate": "다시 만들기",
+    "append": "문서 끝에 추가",
+    "saveAsNew": "새 문서로 저장",
+    "cancel": "취소"
+  },
+  "list": {
+    "title": "지난 회의",
+    "close": "닫기",
+    "empty": "아직 만든 회의가 없어요. 회의 녹음하기나 녹음 파일 올리기로 시작해 보세요.",
+    "loadingMore": "불러오는 중…",
+    "more": "더 보기",
+    "loading": "회의 목록을 불러오고 있어요…",
+    "retry": "다시 시도",
+    "sourceUpload": "녹음 파일",
+    "sourceLive": "실시간 녹음",
+    "hasRecording": "녹음 있음"
+  },
+  "deleteConfirm": {
+    "title": "회의를 삭제하시겠습니까?",
+    "description": "「{name}」 회의의 대화 내용과 회의록 초안{hasRecording, select, true {, 녹음 파일} other {}}이 삭제됩니다. 문서로 저장한 회의록은 남습니다. 이 작업은 되돌릴 수 없습니다.",
+    "confirm": "삭제"
+  },
+  "player": {
+    "loading": "녹음 불러오는 중…",
+    "listen": "녹음 듣기",
+    "audioLabel": "녹음 재생",
+    "retry": "다시 시도"
+  }
+}
