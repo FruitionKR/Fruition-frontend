@@ -2074,6 +2074,11 @@ button.result-link:focus-visible {
   overflow-y: auto;
 }
 
+.plan-details li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .plan-details li p {
   margin: 4px 0 0;
   color: var(--color-muted);

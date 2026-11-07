@@ -254,8 +254,8 @@ const OPERATION_FAILURE_REASONS: Record<string, string> = {
 };
 
 /** 실패한 작업의 이유 문장 */
-export function planOperationFailureReason({ status }: Pick<AgentPlanOperation, "status">): string {
-  return OPERATION_FAILURE_REASONS[status] ?? "실행하지 못했어요.";
+export function planOperationFailureReason(operation: Pick<AgentPlanOperation, "status" | "error_code">): string {
+  return agentPlanOperationFailureMessage(operation) ?? OPERATION_FAILURE_REASONS[operation.status] ?? "실행하지 못했어요.";
 }
 
 export type PlanOperationResults = {
@@ -466,4 +466,27 @@ export function describePlanOperations(plan: AgentPlan, tree: PlanTreeItem[]) {
     }
     return { ...operation, description: description.normalize("NFC") };
   });
+}
+
+// 항목별 error_code는 AgentRun API가 그대로 전달한다. 예외 원문이나 내부 식별자는 화면에 노출하지 않는다.
+const OPERATION_FAILURE_MESSAGES: Record<string, string> = {
+  tool_http_403: "이 문서를 바꿀 권한이 없어 실행하지 못했어요. 권한을 확인해 주세요.",
+  tool_http_404: "대상을 찾을 수 없어 실행하지 못했어요. 삭제되었는지 확인해 주세요.",
+  tool_http_409: "그 사이 내용이 바뀌어 적용하지 못했어요. 최신 내용을 확인해 주세요.",
+  tool_http_423: "다른 사람이 편집 중이라 적용하지 못했어요. 편집이 끝난 뒤 다시 요청해 주세요.",
+  tool_http_unavailable: "문서 서비스에 연결하지 못했어요. 작업 결과를 확인한 뒤 다시 요청해 주세요.",
+  dependency_failed: "앞선 작업이 실패해 이 작업은 건너뛰었어요. 앞선 작업의 결과를 확인해 주세요.",
+  unresolved_dependency: "앞선 작업의 결과를 찾지 못해 실행하지 못했어요. 작업 결과를 확인해 주세요.",
+  rollback_snapshot_invalid: "변경 전 상태를 안전하게 보관할 수 없어 실행하지 못했어요. 문서 상태를 확인해 주세요.",
+  state_mismatch: "실행 결과가 계획과 달라요. 문서 상태를 확인해 주세요.",
+  document_purged: "영구 삭제된 문서라 실행하지 않았어요. 다른 문서를 골라 주세요."
+};
+const OPERATION_FAILURE_STATUSES = new Set(["failed", "forbidden", "conflicted", "verification_failed", "skipped"]);
+
+function agentPlanOperationFailureMessage(operation: Pick<AgentPlanOperation, "status" | "error_code">): string | null {
+  if (!OPERATION_FAILURE_STATUSES.has(operation.status) || isOperationNotSelected(operation)) return null;
+  const code = operation.error_code ?? "";
+  if (Object.hasOwn(OPERATION_FAILURE_MESSAGES, code)) return OPERATION_FAILURE_MESSAGES[code];
+  if (/^tool_http_\d{3}$/.test(code)) return "문서 서비스가 요청을 처리하지 못했어요. 작업 결과를 확인한 뒤 다시 요청해 주세요.";
+  return null;
 }
