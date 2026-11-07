@@ -25,6 +25,7 @@ const modalSource = readFileSync(
   new URL("../src/features/user-settings/ui/modals/PasswordChangeModal.tsx", import.meta.url),
   "utf8"
 );
+const settingsMessages = JSON.parse(readFileSync(new URL("../src/shared/i18n/messages/ko/settings.json", import.meta.url), "utf8"));
 const withCode = (code, status = 400, extra = {}) => Object.assign(new Error("server"), { code, status, ...extra });
 
 test("비밀번호 변경은 로그인한 계정 이메일만 읽기 전용으로 보여 주고 다른 이메일로 바꿀 수 없다", () => {
@@ -124,11 +125,14 @@ test("인증 코드 확인 제한(MFA_RATE_LIMITED)은 서버가 준 초만큼 �
 });
 
 test("새 비밀번호 단계는 인증 코드 확인 제한 동안 제출을 막고 남은 초를 보여 주며, 인증번호 요청 타이머와 섞지 않는다", () => {
-  assert.match(modalSource, /applyFailure\(cause, "비밀번호를 변경하지 못했습니다\.", setSubmitBlockedUntil\)/);
-  assert.match(modalSource, /applyFailure\(cause, "인증번호를 보내지 못했습니다\.", setBlockedUntil\)/);
+  assert.match(modalSource, /applyFailure\(cause, t\("passwordChange\.failed"\), setSubmitBlockedUntil\)/);
+  assert.match(modalSource, /applyFailure\(cause, t\("common\.sendCodeFailed"\), setBlockedUntil\)/);
   assert.match(modalSource, /if \(!token \|\| Date\.now\(\) < submitBlockedUntil\) return;/);
   assert.match(modalSource, /: submitBlockedSeconds === 0 && newPassword\.length > 0/);
-  assert.match(modalSource, /step === "password" \? \(submitBlockedSeconds > 0 \? `\$\{submitBlockedSeconds\}초 후 가능`/);
+  assert.match(modalSource, /step === "password" \? \(submitBlockedSeconds > 0 \? t\("common\.secondsLeft", \{ seconds: submitBlockedSeconds \}\)/);
+  assert.equal(settingsMessages.common.secondsLeft, "{seconds}초 후 가능");
+  assert.equal(settingsMessages.passwordChange.failed, "비밀번호를 변경하지 못했습니다.");
+  assert.equal(settingsMessages.common.sendCodeFailed, "인증번호를 보내지 못했습니다.");
 });
 
 test("비밀번호 변경 실패 code마다 모달이 할 일을 정한다", () => {

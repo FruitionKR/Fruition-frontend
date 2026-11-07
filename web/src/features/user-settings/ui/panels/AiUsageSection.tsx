@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
   AI_USAGE_PERIOD_OPTIONS, LOCKED_AI_MODELS, fetchAiModels, fetchUsageCharges,
@@ -15,15 +16,15 @@ import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import { AiUsageBreakdown } from "./AiUsageBreakdown";
 import usageStyles from "./AiUsageSection.module.css";
 
-/** 사용량은 실행이 끝난 뒤 수집된다. 제목 옆 물음표에 띄운다(스킬 입력의 HelpTip과 같은 모양). */
-const USAGE_LAG_NOTE = "방금 쓴 사용량은 늦게 보일 수 있어요. 일부 작업은 최대 하루 정도 걸려요.";
-
 /**
  * AI 설정의 AI 사용량: 참여한 모든 워크스페이스에서 내 계정으로 실행한 AI 작업의 모델별 토큰과 실제 금액.
  * GET users/me/usage/charges 하나만 쓰므로 워크스페이스 선택에 의존하지 않는다.
  * 청구는 실행이 끝난 뒤 수집되어 방금 쓴 사용량은 늦게 보일 수 있다. 크레딧·충전은 사업자 등록 전까지 보이지 않는다(users/me/credits 미호출).
  */
 export function AiUsageSection() {
+  const t = useTranslations("settings.ai.usage");
+  /** 사용량은 실행이 끝난 뒤 수집된다. 제목 옆 물음표에 띄운다(스킬 입력의 HelpTip과 같은 모양). */
+  const USAGE_LAG_NOTE = t("lagNote");
   const [period, setPeriod] = useState<AiUsagePeriod>("this_month");
   const usage = useQuery({
     queryKey: ["aiUsage", period],
@@ -45,21 +46,21 @@ export function AiUsageSection() {
 
   return (
     <section className={styles.section} aria-labelledby="ai-usage-heading">
-      <SettingsSectionHeader id="ai-usage-heading">AI 사용량</SettingsSectionHeader>
+      <SettingsSectionHeader id="ai-usage-heading">{t("section")}</SettingsSectionHeader>
       <div className={usageStyles.head}>
         <div className={styles["row-title"]}>
           <span className={usageStyles["title-row"]}>
-            <strong>내 계정에서 쓴 토큰</strong>
+            <strong>{t("heading")}</strong>
             <Tooltip content={USAGE_LAG_NOTE} placement="top" describe={false} openOnTap>
-              <button type="button" className={usageStyles["help-button"]} aria-label={`사용량 반영 시점 설명: ${USAGE_LAG_NOTE}`}>
+              <button type="button" className={usageStyles["help-button"]} aria-label={t("lagNoteLabel", { note: USAGE_LAG_NOTE })}>
                 <SvgIcon src={questionMarkIcon} className={usageStyles["help-icon"]} />
               </button>
             </Tooltip>
           </span>
-          <small>참여한 모든 워크스페이스에서 내 계정으로 실행한 AI 작업을 합산합니다.</small>
+          <small>{t("scope")}</small>
         </div>
         <div className={usageStyles.period}>
-          <OptionSelect value={period} placeholder="기간" options={AI_USAGE_PERIOD_OPTIONS} ariaLabel="사용량 기간" floating
+          <OptionSelect value={period} placeholder={t("periodPlaceholder")} options={AI_USAGE_PERIOD_OPTIONS} ariaLabel={t("periodLabel")} floating
             onChange={(value) => setPeriod(value as AiUsagePeriod)} />
         </div>
       </div>
@@ -70,7 +71,7 @@ export function AiUsageSection() {
       ) : !summary || !usage.data ? (
         <UsageSkeleton />
       ) : summary.models.length === 0 ? (
-        <UsageEmpty title="이 기간에 AI 사용 기록이 없어요." description="AI 작업을 실행하면 모델별 사용량이 여기에 쌓여요." />
+        <UsageEmpty title={t("emptyTitle")} description={t("emptyDescription")} />
       ) : (
         <div className={usageStyles.body}>
           <AiUsageBreakdown summary={summary} rangeLabel={formatUsageRange(usage.data.range)} />
@@ -82,9 +83,10 @@ export function AiUsageSection() {
 
 /** 실제 화면 모양(합계 카드 + 모델 막대 두 줄)을 그대로 비운 자리 표시 */
 function UsageSkeleton() {
+  const t = useTranslations("settings.ai.usage");
   return (
     <div className={usageStyles.skeleton} aria-busy="true">
-      <span className={usageStyles["sr-only"]} role="status">AI 사용량을 불러오는 중…</span>
+      <span className={usageStyles["sr-only"]} role="status">{t("loading")}</span>
       <div className={usageStyles["skeleton-hero"]}>
         <span className={usageStyles["skeleton-line"]} style={{ width: 120 }} />
         <span className={usageStyles["skeleton-total"]} />
@@ -113,14 +115,15 @@ function UsageEmpty({ title, description }: { title: string; description?: strin
 
 /** 404는 백엔드에 경로가 아직 없는 경우라 다시 시도해도 같다. 중립 안내만 보인다. */
 function UsageError({ error, retrying, onRetry }: { error: unknown; retrying: boolean; onRetry: () => void }) {
+  const t = useTranslations("settings");
   if (error instanceof ApiError && error.status === 404) {
-    return <UsageEmpty title="아직 AI 사용량을 볼 수 없어요." />;
+    return <UsageEmpty title={t("ai.usage.unavailable")} />;
   }
   return (
     <div className={usageStyles.error}>
-      <small className={styles["field-error"]} role="alert">{getErrorMessage(error, "AI 사용량을 불러오지 못했습니다.")}</small>
+      <small className={styles["field-error"]} role="alert">{getErrorMessage(error, t("ai.usage.loadFailed"))}</small>
       <button type="button" className={styles.btn} disabled={retrying} onClick={onRetry}>
-        {retrying ? "다시 불러오는 중…" : "다시 시도"}
+        {retrying ? t("common.retrying") : t("common.retry")}
       </button>
     </div>
   );

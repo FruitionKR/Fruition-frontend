@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const {
   canRemoveMember, effectiveSelection, selectAllState, toggleAllSelection, toggleSelection, summarizeMemberNames, removalNotice
 } = await import("../src/features/user-settings/lib/memberList.ts");
+
+const memberMessages = JSON.parse(
+  readFileSync(new URL("../src/shared/i18n/messages/ko/settings.json", import.meta.url), "utf8")
+).members;
 
 const owner = { isOwner: true, selfId: "me", ownerCount: 2 };
 
@@ -46,15 +51,23 @@ test("행 체크 칸 토글은 새 집합을 돌려준다", () => {
 });
 
 test("이름은 5명까지 나열하고 나머지는 외 N명으로 줄인다", () => {
-  assert.equal(summarizeMemberNames(["가", "나"]), "「가」, 「나」");
-  assert.equal(summarizeMemberNames(["1", "2", "3", "4", "5", "6", "7"]), "「1」, 「2」, 「3」, 「4」, 「5」 외 2명");
+  assert.deepEqual(summarizeMemberNames(["가", "나"]), { shown: ["가", "나"], hiddenCount: 0 });
+  assert.deepEqual(summarizeMemberNames(["1", "2", "3", "4", "5", "6", "7"]), { shown: ["1", "2", "3", "4", "5"], hiddenCount: 2 });
+  // 문구는 settings 메시지가 만든다: 「이름」, 「이름」 외 N명
+  assert.equal(memberMessages.nameQuoted, "「{name}」");
+  assert.equal(memberMessages.namesMore, "{names} 외 {count}명");
 });
 
 test("삭제 결과는 성공만이면 완료 문구, 실패가 있으면 성공·실패 수와 이유를 한 번에 알린다", () => {
-  assert.deepEqual(removalNotice(3, []), { ok: true, text: "멤버 3명을 삭제했습니다." });
+  assert.deepEqual(removalNotice(3, []), { ok: true, succeeded: 3, failed: 0, shownFailures: [], hiddenFailures: 0 });
   assert.deepEqual(removalNotice(1, [{ name: "피카츄", reason: "권한이 없습니다." }]), {
-    ok: false, text: "성공 1명, 실패 1명 · 「피카츄」: 권한이 없습니다."
+    ok: false, succeeded: 1, failed: 1, shownFailures: [{ name: "피카츄", reason: "권한이 없습니다." }], hiddenFailures: 0
   });
   const many = Array.from({ length: 7 }, (_, index) => ({ name: `m${index}`, reason: "오류" }));
-  assert.match(removalNotice(0, many).text, /^성공 0명, 실패 7명 · .* · 외 2명$/);
+  const notice = removalNotice(0, many);
+  assert.equal(notice.shownFailures.length, 5);
+  assert.equal(notice.hiddenFailures, 2);
+  assert.equal(memberMessages.removed, "멤버 {count}명을 삭제했습니다.");
+  assert.equal(memberMessages.removalSummary, "성공 {succeeded}명, 실패 {failed}명");
+  assert.equal(memberMessages.removalMoreFailures, "외 {count}명");
 });

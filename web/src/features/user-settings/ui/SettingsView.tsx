@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   fetchAiModels,
   fetchWorkspaceAiModelSettings,
@@ -115,9 +116,10 @@ export function SettingsNav({
   activeSection: SettingsSection;
   onSelect: (section: SettingsSection) => void;
 }) {
+  const t = useTranslations("settings");
   const { signOut } = useSignOut();
   const { data: me } = useMe();
-  const name = me?.display_name || "사용자";
+  const name = me?.display_name || t("common.userFallback");
   const navRef = useRef<HTMLElement | null>(null);
 
   // 뒤로 가기·본문 안 이동처럼 메뉴를 누르지 않고 섹션이 바뀌면, 전에 누른 메뉴에 포커스가 남는다.
@@ -132,44 +134,44 @@ export function SettingsNav({
   }, [activeSection]);
 
   return (
-    <nav ref={navRef} className={styles.nav} aria-label="설정 메뉴">
+    <nav ref={navRef} className={styles.nav} aria-label={t("nav.label")}>
       <div className={styles["nav-group"]}>
-        <p className={styles["nav-label"]}>계정</p>
+        <p className={styles["nav-label"]}>{t("nav.groupAccount")}</p>
         {/* 사용자 설정: 프로필 사진(없으면 이니셜)을 아이콘 자리에 보여 준다 */}
-        <NavRow section="profile" activeSection={activeSection} onSelect={onSelect} label={`사용자 설정 (${name})`}>
+        <NavRow section="profile" activeSection={activeSection} onSelect={onSelect} label={t("nav.profileWithName", { name })}>
           <UserAvatar avatarUrl={me?.avatar_url} name={name} className={styles["nav-avatar"]} />
-          <span>사용자 설정</span>
+          <span>{t("nav.profile")}</span>
         </NavRow>
         <NavRow section="account" activeSection={activeSection} onSelect={onSelect}>
           <NavIcon src={navSecurityIcon} />
-          <span>계정 보안</span>
+          <span>{t("nav.account")}</span>
         </NavRow>
         <NavRow section="notifications" activeSection={activeSection} onSelect={onSelect}>
           <NavIcon src={navBellIcon} />
-          <span>알림 설정</span>
+          <span>{t("nav.notifications")}</span>
         </NavRow>
         <NavRow section="ai" activeSection={activeSection} onSelect={onSelect}>
           <AiSettingsIcon className={styles["nav-icon"]} />
-          <span>AI 설정</span>
+          <span>{t("nav.ai")}</span>
         </NavRow>
       </div>
       <div className={styles["nav-group"]}>
-        <p className={styles["nav-label"]}>설정</p>
+        <p className={styles["nav-label"]}>{t("nav.groupSettings")}</p>
         <NavRow section="general" activeSection={activeSection} onSelect={onSelect}>
           <NavIcon src={navWorkspaceIcon} />
-          <span>워크스페이스 설정</span>
+          <span>{t("nav.general")}</span>
         </NavRow>
         <NavRow section="preferences" activeSection={activeSection} onSelect={onSelect}>
           <NavIcon src={navDisplayIcon} />
-          <span>디스플레이 설정</span>
+          <span>{t("nav.preferences")}</span>
         </NavRow>
         <NavRow section="members" activeSection={activeSection} onSelect={onSelect}>
           <NavIcon src={navMembersIcon} />
-          <span>멤버 관리</span>
+          <span>{t("nav.members")}</span>
         </NavRow>
         <NavRow section="documents" activeSection={activeSection} onSelect={onSelect}>
           <DocumentsIcon className={styles["nav-icon"]} />
-          <span>휴지통</span>
+          <span>{t("nav.documents")}</span>
         </NavRow>
       </div>
       {/* 계정 동작은 메뉴 맨 아래 구분선 뒤에 둔다 (디스코드 설정의 로그아웃 위치) */}
@@ -180,7 +182,7 @@ export function SettingsNav({
           onClick={() => void signOut({ callLogout: true, reason: "user" })}
         >
           <LogoutIcon className={styles["nav-icon"]} />
-          <span>로그아웃</span>
+          <span>{t("nav.logout")}</span>
         </button>
       </div>
     </nav>
@@ -218,6 +220,7 @@ export function SettingsContent({
   /** 휴대폰에서 본문 위에 가로로 펼치는 설정 메뉴. 넓은 화면에서는 사이드바의 메뉴를 쓰고 이 자리는 그리지 않는다. */
   phoneNav?: React.ReactNode;
 }) {
+  const t = useTranslations("settings");
   const workspaceName = useWorkspaceName();
 
   /** 탈퇴가 막힌 워크스페이스의 멤버 관리로 간다. 다른 워크스페이스면 전환 후 새로 그려 멤버 관리를 다시 연다. */
@@ -245,7 +248,7 @@ export function SettingsContent({
         if (!cancelled) setAiModels(models);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setAiModelError(getErrorMessage(error, "LLM Provider 목록을 불러오지 못했습니다."));
+        if (!cancelled) setAiModelError(getErrorMessage(error, t("workspace.modelsLoadFailed")));
       });
     fetchWorkspaceAiModelSettings()
       .then((settings) => {
@@ -254,15 +257,17 @@ export function SettingsContent({
         setCanUpdateAiModel(settings.can_update === true);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setAiModelError(getErrorMessage(error, "LLM Provider 설정을 불러오지 못했습니다."));
+        if (!cancelled) setAiModelError(getErrorMessage(error, t("workspace.modelSettingsLoadFailed")));
       });
 
     return () => {
       cancelled = true;
     };
+    // 실패 문구만 t를 쓴다. 언어가 바뀌어도 목록을 다시 받지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const wsName = workspaceName ?? "워크스페이스";
+  const wsName = workspaceName ?? t("common.workspaceFallback");
 
   async function selectAiModel(selected: AiModel) {
     if (!canUpdateAiModel || isSameSelection(selected, aiModelSelection) || isAiModelSaving) return;
@@ -276,14 +281,14 @@ export function SettingsContent({
       setAiModelSelection(settings.ingest_lint);
       setCanUpdateAiModel(settings.can_update === true);
     } catch (error: unknown) {
-      setAiModelError(getErrorMessage(error, "LLM Provider 설정을 저장하지 못했습니다."));
+      setAiModelError(getErrorMessage(error, t("workspace.modelSettingsSaveFailed")));
     } finally {
       setIsAiModelSaving(false);
     }
   }
 
   return (
-    <section className={styles.view} aria-label="설정">
+    <section className={styles.view} aria-label={t("view.label")}>
       {phoneNav && <PhoneSettingsNav activeSection={section}>{phoneNav}</PhoneSettingsNav>}
       <div className={styles.content}>
         {section === "profile" && <ProfilePanel resumeEmailChange={resume === "email-change"} />}
