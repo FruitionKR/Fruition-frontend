@@ -27,6 +27,7 @@ import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
+import { useOAuthCallbackGate } from "@/views/auth/model/useOAuthCallbackGate";
 import { useServerWake, type AccessCodeResult } from "@/views/auth/model/useServerWake";
 import { getLoginErrorMessage } from "@/views/auth/lib/loginErrorMessage";
 import { OAuthSignupConsentForm } from "@/views/auth/ui/OAuthSignupConsentForm";
@@ -82,14 +83,12 @@ function LoginPageContent() {
     requestBeforeSubmit,
     isServerUnready
   } = useServerWake();
-  // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 돌아갈 화면을 먼저 가져가지 않게 처음 값을 유지한다.
-  const [isOAuthLinkCallback] = useState(() => parseOAuthLinkCallback(searchParams) !== null);
-  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error") || parseOAuthSignupToken(searchParams))
-    || isOAuthLinkCallback;
+  // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 code 교환과 겹치지 않게 첫 렌더 값을 유지한다.
+  const { isOAuthLinkCallback, hasOAuthParams, canCheckSession, finishOAuthLoginAttempt } = useOAuthCallbackGate(searchParams);
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
-  // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
+  // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)을 처리하는 동안은 그 처리가 우선이라 건너뛴다.
   // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
-  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken && !signupToken && !isAccountDeleted });
+  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: canCheckSession && !mfaToken && !signupToken && !isAccountDeleted });
 
   const formRef = useTypedFormValues({ email: setEmail, password: setPassword });
 
@@ -157,6 +156,7 @@ function LoginPageContent() {
     exchangeOAuthCode(code as string)
       .then((tokens) => {
         if (tokens.mfa_required) {
+          finishOAuthLoginAttempt();
           setMfaToken(tokens.mfa_token);
           setIsSubmitting(false);
           return;
@@ -166,10 +166,11 @@ function LoginPageContent() {
         router.replace(takeAfterLoginPath());
       })
       .catch(() => {
+        finishOAuthLoginAttempt();
         setErrorMessage(OAUTH_LOGIN_FAILED_MESSAGE);
         setIsSubmitting(false);
       });
-  }, [isAccountDeleted, queryClient, router, searchParams]);
+  }, [finishOAuthLoginAttempt, isAccountDeleted, queryClient, router, searchParams]);
 
   // 칸을 벗어나면 바로 확인해, 이메일·비밀번호를 입력하는 동안 서버 기동이 시작되게 한다.
   async function handleAccessCodeBlur() {
