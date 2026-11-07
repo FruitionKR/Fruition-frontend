@@ -21,6 +21,7 @@ import { appendDictation } from "../lib/dictation";
 import { useDictation } from "../model/useDictation";
 import { AgentChevronIcon, AgentSendIcon, AgentWaveMark } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 export type AiModelCatalogStatus = "loading" | "ready" | "empty" | "error";
 
@@ -64,7 +65,7 @@ function moveFocus(container: HTMLElement | null, step: number) {
 export function AgentComposer({
   value = "",
   isLoading,
-  placeholder = "AI 에이전트에게 무엇이든 물어보세요.",
+  placeholder: placeholderProp,
   models,
   selectedModel,
   modelCatalogStatus,
@@ -76,10 +77,10 @@ export function AgentComposer({
   onSubmit,
   onCancel,
   isCancelling = false,
-  cancelHint = "입력창에서 Esc를 누르면 질문을 취소합니다.",
+  cancelHint: cancelHintProp,
   statusMessage,
   meetingControl,
-  inputLabel = "Query 질문 입력",
+  inputLabel: inputLabelProp,
   header,
   onInputKeyDown,
   onCaretChange,
@@ -116,6 +117,11 @@ export function AgentComposer({
   /** 입력창이 여는 목록(스킬·문서 고르기)의 combobox 속성 */
   inputPopup?: { isOpen: boolean; listId: string; activeOptionId: string | null };
 }) {
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
+  const placeholder = placeholderProp ?? t("composer.placeholder");
+  const cancelHint = cancelHintProp ?? t("composer.stop.hint.query");
+  const inputLabel = inputLabelProp ?? t("composer.queryInputLabel");
   const [isModelListOpen, setIsModelListOpen] = useState(false);
   // 오른쪽 하위 메뉴에 모델을 보여 주는 provider. 메뉴를 열 때 선택된 모델의 provider로 맞춘다.
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
@@ -282,10 +288,10 @@ export function AgentComposer({
   }
 
   const emptyModelLabel = modelCatalogStatus === "empty"
-    ? "사용 가능한 모델 없음"
+    ? t("composer.model.empty")
     : modelCatalogStatus === "error"
-      ? "모델 불러오기 실패"
-      : "모델 불러오는 중";
+      ? t("composer.model.failed")
+      : t("composer.model.loading");
 
   return (
     <form className={styles.composer} ref={formRef} onSubmit={submitComposer}>
@@ -330,7 +336,7 @@ export function AgentComposer({
             type="button"
             className={styles["composer-model-trigger"]}
             ref={modelTriggerRef}
-            aria-label="모델 선택"
+            aria-label={t("composer.model.select")}
             aria-expanded={isModelListOpen}
             disabled={isLoading || !selectedModel}
             onClick={() => (isModelListOpen ? setIsModelListOpen(false) : openModelList())}
@@ -339,7 +345,7 @@ export function AgentComposer({
             {selectedModel && allowWebSearch && (
               <span className={styles["composer-model-extra"]}>
                 <span aria-hidden>·</span>
-                <span>웹 서칭</span>
+                <span>{t("composer.webSearch.label")}</span>
               </span>
             )}
             <AgentChevronIcon isWide className={cx(isModelListOpen && styles["is-open"])} />
@@ -349,7 +355,7 @@ export function AgentComposer({
             // data-agent-floating-menu: 메뉴가 열린 동안 채팅 패널을 알림 카드(z 50) 위로 올린다(agent-panel-shell.css).
             <div className={styles["composer-model-menu"]} style={modelMenuPosition} ref={modelMenuRef} data-agent-floating-menu>
               <div className={styles["composer-model-list"]}>
-                <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label="모델 제공사">
+                <div ref={providerListRef} className={styles["composer-model-providers"]} role="group" aria-label={t("composer.model.providers")}>
                   {modelGroups.map((group) => {
                     const isActive = group.provider === activeProvider;
                     const isLocked = isProviderLocked(group.models);
@@ -359,8 +365,8 @@ export function AgentComposer({
                         key={group.provider}
                         type="button"
                         className={cx(styles["composer-model-provider"], isActive && styles["is-active"], isLocked && styles["is-locked"])}
-                        aria-label={isLocked ? `${providerLabel}, ${getAiModelLockMessage("cost_policy")}` : undefined}
-                        title={isLocked ? getAiModelLockMessage("cost_policy") : undefined}
+                        aria-label={isLocked ? `${providerLabel}, ${getAiModelLockMessage("cost_policy", tShared)}` : undefined}
+                        title={isLocked ? getAiModelLockMessage("cost_policy", tShared) : undefined}
                         aria-haspopup="listbox"
                         aria-expanded={isActive}
                         aria-controls={isActive ? modelSubmenuId : undefined}
@@ -381,12 +387,12 @@ export function AgentComposer({
                 {onWebSearchChange && (
                   <div className={styles["composer-web-search"]}>
                     <div className={styles["composer-web-search-label"]}>
-                      <span>웹 서칭</span>
-                      <span>필요시, 웹에서 정보를 추가 검색합니다.</span>
+                      <span>{t("composer.webSearch.label")}</span>
+                      <span>{t("composer.webSearch.description")}</span>
                     </div>
                     <Switch
                       checked={allowWebSearch}
-                      label="웹 서칭"
+                      label={t("composer.webSearch.label")}
                       classNames={{ root: styles["composer-switch"], on: styles["is-on"] }}
                       onClick={() => onWebSearchChange(!allowWebSearch)}
                     />
@@ -404,13 +410,13 @@ export function AgentComposer({
                       id={modelSubmenuId}
                       ref={modelSubmenuRef}
                       role="listbox"
-                      aria-label={`${getProviderLabel(activeGroup.provider)} 모델`}
+                      aria-label={t("composer.model.providerModels", { provider: getProviderLabel(activeGroup.provider) })}
                       className={styles["composer-model-options"]}
                       style={{ maxHeight: modelOptionsMaxHeight }}
                     >
                       {activeGroup.models.map((model) => {
                         const isSelected = modelKey(model) === selectedKey;
-                        const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
+                        const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason, tShared) : null;
                         return (
                           <button
                             key={modelKey(model)}
@@ -448,7 +454,7 @@ export function AgentComposer({
                 isRecording && styles["is-recording"],
                 isMeetingCapturing && styles["is-meeting-recording"]
               )}
-              aria-label={isMeetingCapturing ? "회의 녹음 멈추기" : isRecording ? "말로 입력 멈추기" : meetingControl ? "음성 기능" : "말로 입력하기"}
+              aria-label={isMeetingCapturing ? t("composer.voice.stopMeeting") : isRecording ? t("composer.voice.stopDictation") : meetingControl ? t("composer.voice.menu") : t("composer.voice.dictate")}
               ref={waveButtonRef}
               aria-pressed={opensVoiceMenu ? undefined : isMeetingCapturing || isRecording}
               aria-haspopup={opensVoiceMenu ? "menu" : undefined}
@@ -459,7 +465,7 @@ export function AgentComposer({
               {isRecording ? <Square size={12} aria-hidden /> : <AgentWaveMark size="small" />}
             </button>
             {isVoiceMenuOpen && meetingControl && (
-              <div className={styles["composer-voice-menu"]} role="menu" aria-label="음성 기능">
+              <div className={styles["composer-voice-menu"]} role="menu" aria-label={t("composer.voice.menu")}>
                 <button
                   type="button"
                   role="menuitem"
@@ -468,8 +474,8 @@ export function AgentComposer({
                     void dictation.start();
                   }}
                 >
-                  <span>말로 입력하기</span>
-                  <span>말하면 글자로 바꿔 입력창에 넣어요. 한 번에 60초까지</span>
+                  <span>{t("composer.voice.dictate")}</span>
+                  <span>{t("composer.voice.dictateDescription")}</span>
                 </button>
                 <button
                   type="button"
@@ -480,8 +486,8 @@ export function AgentComposer({
                     meetingControl.onStart();
                   }}
                 >
-                  <span>회의 녹음하기</span>
-                  <span>{meetingControl.state === "idle" ? "회의를 녹음하면 대화를 글로 옮기고 회의록을 만들어요" : "지금 열린 회의 화면을 닫으면 시작할 수 있어요"}</span>
+                  <span>{t("composer.voice.recordMeeting")}</span>
+                  <span>{meetingControl.state === "idle" ? t("composer.voice.recordMeetingDescription") : t("composer.voice.closeMeetingToStart")}</span>
                 </button>
                 {meetingControl.onPickRecording && (
                   <button
@@ -493,8 +499,8 @@ export function AgentComposer({
                       meetingControl.onPickRecording?.();
                     }}
                   >
-                    <span>녹음 파일 올리기</span>
-                    <span>{meetingControl.state === "idle" ? "이미 녹음한 파일로 회의록을 만들어요 (MP3·M4A·WAV·WebM, 500MB까지)" : "지금 열린 회의 화면을 닫으면 시작할 수 있어요"}</span>
+                    <span>{t("composer.voice.uploadRecording")}</span>
+                    <span>{meetingControl.state === "idle" ? t("composer.voice.uploadRecordingDescription") : t("composer.voice.closeMeetingToStart")}</span>
                   </button>
                 )}
                 {meetingControl.onOpenMeetingList && (
@@ -507,8 +513,8 @@ export function AgentComposer({
                       meetingControl.onOpenMeetingList?.();
                     }}
                   >
-                    <span>지난 회의 보기</span>
-                    <span>{meetingControl.state === "idle" ? "글로 옮기던 회의를 이어서 보거나, 만든 회의록을 다시 열어요" : "지금 열린 회의 화면을 닫으면 볼 수 있어요"}</span>
+                    <span>{t("composer.voice.pastMeetings")}</span>
+                    <span>{meetingControl.state === "idle" ? t("composer.voice.pastMeetingsDescription") : t("composer.voice.closeMeetingToView")}</span>
                   </button>
                 )}
               </div>
@@ -517,7 +523,7 @@ export function AgentComposer({
           <button
             type="submit"
             className={styles["composer-send"]}
-            aria-label="전송"
+            aria-label={t("composer.send")}
             disabled={isLoading || !canSubmit || value.trim().length === 0}
           >
             <AgentSendIcon />

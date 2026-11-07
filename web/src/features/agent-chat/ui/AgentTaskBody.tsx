@@ -14,7 +14,8 @@ import { autoApprovedPlanNote, isAutoApprovedPlan, isPlanRunSettled, isWorkspace
 import { buildProgressSteps } from "../lib/progressSteps";
 import { useServerAppliedTurnIds } from "../model/useServerAppliedTurnIds";
 import { summarizeFolderOrganizeRows, type FolderOrganizeRequest } from "../lib/folderOrganize";
-import { STALLED_TURN_DETAIL, TURN_CANCELLING_DETAIL, TURN_ROLLBACK_FAILED_DETAIL, TURN_ROLLBACK_PARTIAL_DETAIL, type TurnCancelState } from "../lib/stalledTurns";
+import type { TurnCancelState } from "../lib/stalledTurns";
+import type { AgentChatTranslator } from "../lib/agentChatTranslator";
 import { supersededFolderPlans, type FolderPlanSupersession } from "../lib/folderPlanSupersede";
 import { useSupersedeFolderPlans } from "../model/useSupersedeFolderPlans";
 import { newAttentionKeys, revealScrollDelta } from "../lib/revealScroll";
@@ -43,13 +44,11 @@ import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
 import { AgentAssetIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 /** Figma 1610:9608: 완료 묶음 아래 안내 */
-const DONE_NOTICE = "작업기록은 LLM Wiki에 들어가지 않습니다. 문서·파일의 변경 이력으로만 남습니다.";
 /** 실패한 turn에 서버 안내 문구가 없을 때 */
-const FAILED_TASK_FALLBACK = "작업을 처리하지 못했어요. 다시 시도해 주세요.";
 /** 후속 요청에 자리를 내준 제안의 안내 */
-const SET_ASIDE_PROPOSAL_NOTE = "아직 문서에 적용하지 않았어요. 다시 검토하면 수락하거나 거절할 수 있어요.";
 /** 새로 생기면 보이도록 굴려 줄 카드 묶음(할 일이 남은 묶음과, 진행 카드가 실패로 끝나 옮겨 간 '일부 실패'·'실패') */
 const ATTENTION_GROUPS: ReadonlySet<TaskGroup> = new Set(["running", "approval", "clarify", "partial_failed", "failed"]);
 const PENDING_ATTENTION_KEY = "pending";
@@ -76,9 +75,9 @@ type TaskEntry = {
 };
 
 /** 완료 행 "저장됨(N) · 제외 M · 새 폴더 K"에 쓸 수. 폴더 정리는 줄 단위, 그 밖의 계획은 작업 단위로 센다. */
-function countPlanResults(action: string | null, run: AgentPlanRun | null): { applied: number; excluded: number; createdFolders: number } {
+function countPlanResults(action: string | null, run: AgentPlanRun | null, t: AgentChatTranslator): { applied: number; excluded: number; createdFolders: number } {
   if (action === "folder_organize" && run?.plan) {
-    const { saved, excluded, createdFolders } = summarizeFolderOrganizeRows(run.plan);
+    const { saved, excluded, createdFolders } = summarizeFolderOrganizeRows(run.plan, t);
     return { applied: saved, excluded, createdFolders };
   }
   const { applied, excluded } = summarizePlanOperationResults(run?.plan?.operations ?? []);
@@ -130,7 +129,9 @@ function TaskCard({
   meta?: string | null;
   children?: ReactNode;
 }) {
-  const { heading, quote } = describeTaskRequest(action, request);
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
+  const { heading, quote } = describeTaskRequest(action, request, t);
   const shownQuote = summary && quote === request.trim() ? summary : quote;
   return (
     <article className={styles["task-card"]}>
@@ -139,7 +140,7 @@ function TaskCard({
           <AgentAssetIcon src={taskBoltIcon} size={12} />
           <span>{heading}</span>
         </span>
-        {createdAt && <time dateTime={createdAt}>{formatRelativeTime(createdAt)}</time>}
+        {createdAt && <time dateTime={createdAt}>{formatRelativeTime(createdAt, tShared)}</time>}
       </header>
       <p className={styles["task-card-title"]}>{title ?? `"${shownQuote}"`}</p>
       {meta && <p className={styles["task-card-meta"]}>{meta}</p>}
@@ -254,6 +255,7 @@ export function AgentTaskBody({
   /** 앞선 승인 대기 계획을 새 계획으로 대체해 서버에 거절했다. question은 새 run을 보낸 요청이다. */
   onFolderPlanSuperseded?: (supersession: FolderPlanSupersession & { question: string }) => void;
 }) {
+  const t = useTranslations("agentChat");
   const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const { reduceMotion } = useUserPreferences();
@@ -291,7 +293,7 @@ export function AgentTaskBody({
     onSuperseded: (supersession) => {
       const newer = planItems.find((item) => item.turnId === supersession.supersededBy);
       const newerRun = newer ? runsByKey.get(newer.key)?.data : null;
-      onFolderPlanSuperseded?.({ ...supersession, question: resolveTaskRequest(newer?.request, newerRun?.request_summary).request });
+      onFolderPlanSuperseded?.({ ...supersession, question: resolveTaskRequest(newer?.request, newerRun?.request_summary, t).request });
     }
   });
   // 거절 응답 전(승인 대기)에도, 거절된 뒤 새로 고침해도 같은 폴더의 새 계획에 대체된 계획은 "새 실행으로 대체됨"으로 보인다.
@@ -322,7 +324,7 @@ export function AgentTaskBody({
     const run = query?.data ?? null;
     // 계획 전체 수가 아니라 실제로 저장된 작업만 센다(고르지 않은·실패한 작업 제외).
     // 폴더 정리는 미리보기("4개 중 3개 선택")처럼 줄(문서·항목) 단위로 세고 새 폴더는 따로 적는다.
-    const results = countPlanResults(item.action, run);
+    const results = countPlanResults(item.action, run, t);
     const status = withAutoApprovalLabel(resolveTaskStatus({
       action: item.action,
       messageStatus: item.messageStatus,
@@ -344,13 +346,13 @@ export function AgentTaskBody({
       isRejected: item.turnId !== null && rejectedTurnIds.has(item.turnId),
       isCancelled: item.turnId !== null && cancelledTurnIds.has(item.turnId),
       hasLaterTask: index < visibleItems.length - 1 || Boolean(pendingTask)
-    }), isAutoApprovedPlan(run) || (item.turnId !== null && autoAppliedTurnIds.has(item.turnId)));
-    const { request, summary } = resolveTaskRequest(item.request, run?.request_summary);
+    }, t), isAutoApprovedPlan(run) || (item.turnId !== null && autoAppliedTurnIds.has(item.turnId)), t);
+    const { request, summary } = resolveTaskRequest(item.request, run?.request_summary, t);
     return {
       item,
       status,
       // 스킬 실행은 진행 중·완료 카드 머리글과 같이 "문서 : /slug"로 적는다(Figma 1571:27625 완료 행).
-      title: `${taskHeadingKind(item.action, request)} : ${request}`,
+      title: `${taskHeadingKind(item.action, request, t)} : ${request}`,
       request,
       summary,
       run,
@@ -359,7 +361,7 @@ export function AgentTaskBody({
       refetchRun: () => { void query?.refetch(); }
     };
   });
-  const sections = groupTaskEntries(entries);
+  const sections = groupTaskEntries(entries, t);
   const hasPreviewEntry = entries.some((entry) => entry.status.group === "approval" && entry.item.turnId === activePreviewTurnId);
 
   const isOrphanPreview = Boolean(activePreview) && !hasPreviewEntry;
@@ -402,10 +404,10 @@ export function AgentTaskBody({
     const cancelState = item.turnId !== null ? cancelStates.get(item.turnId) : undefined;
     const isCancelledTurn = item.messageStatus === "cancelled" || (item.messageStatus === "pending" && item.turnId !== null && cancelAcceptedTurnIds.has(item.turnId));
     if (isCancelledTurn && (cancelState === "requested" || cancelState === "rolling_back")) {
-      return <TaskNote role="status">{TURN_CANCELLING_DETAIL[cancelState]}</TaskNote>;
+      return <TaskNote role="status">{t(`stalled.cancellingDetail.${cancelState}`)}</TaskNote>;
     }
-    if (isCancelledTurn && cancelState === "rollback_failed") return <TaskNote role="alert">{TURN_ROLLBACK_FAILED_DETAIL}</TaskNote>;
-    if (isCancelledTurn && cancelState === "rollback_partial") return <TaskNote role="alert">{TURN_ROLLBACK_PARTIAL_DETAIL}</TaskNote>;
+    if (isCancelledTurn && cancelState === "rollback_failed") return <TaskNote role="alert">{t("stalled.rollbackFailedDetail")}</TaskNote>;
+    if (isCancelledTurn && cancelState === "rollback_partial") return <TaskNote role="alert">{t("stalled.rollbackPartialDetail")}</TaskNote>;
     if (isWorkspacePlanAction(item.action ?? undefined) && status.group !== "done") {
       return (
         <AgentPlanTaskDetail
@@ -426,12 +428,12 @@ export function AgentTaskBody({
       );
     }
     if (status.group === "approval" && item.turnId === activePreviewTurnId) return activePreview;
-    if (status.group === "approval" && item.turnId !== null && setAsideTurnIds.has(item.turnId)) return <TaskNote>{SET_ASIDE_PROPOSAL_NOTE}</TaskNote>;
+    if (status.group === "approval" && item.turnId !== null && setAsideTurnIds.has(item.turnId)) return <TaskNote>{t("task.setAsideNote")}</TaskNote>;
     if (item.turnId !== null && stalledTurnIds.has(item.turnId) && item.messageStatus === "pending") {
-      return <TaskNote role="alert">{STALLED_TURN_DETAIL}</TaskNote>;
+      return <TaskNote role="alert">{t("stalled.turnDetail")}</TaskNote>;
     }
     if (status.group === "failed" && item.answer) return <TaskNote role="alert">{item.answer}</TaskNote>;
-    if (item.messageStatus === "failed") return <TaskNote role="alert">{FAILED_TASK_FALLBACK}</TaskNote>;
+    if (item.messageStatus === "failed") return <TaskNote role="alert">{t("task.failedFallback")}</TaskNote>;
     if (isAnswerTask(item)) {
       if (item.action === "folder_lookup" || !onOpenSourceBlocks) return <TaskAnswer text={item.answer} />;
       return <TaskCitedAnswer text={item.answer} references={item.references} runId={item.turnId} nodes={nodes} onOpenSourceBlocks={onOpenSourceBlocks} />;
@@ -464,7 +466,7 @@ export function AgentTaskBody({
           summary={entry.summary}
           createdAt={item.createdAt}
           title={isQuestion ? item.answer : undefined}
-          meta={isQuestion ? `요청 : ${entry.request}` : (isActivePreview && activePreviewMeta) || status.label}
+          meta={isQuestion ? t("task.requestMeta", { request: entry.request }) : (isActivePreview && activePreviewMeta) || status.label}
         >
           {renderDetail(entry)}
         </TaskCard>
@@ -472,13 +474,13 @@ export function AgentTaskBody({
           <div className={styles["task-actions"]}>
             {SKILL_MODE_CHOICES.map((choice) => (
               <button
-                key={choice.label}
+                key={choice.id}
                 type="button"
                 className={cx(styles["task-pill"], styles["is-primary"])}
-                onClick={() => onAnswerSkillQuestion(skillModeAnswer(questionSlug, choice), choice.createsDocument)}
+                onClick={() => onAnswerSkillQuestion(skillModeAnswer(questionSlug, choice, t), choice.createsDocument)}
               >
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
-                {choice.label}
+                {t(`task.skillMode.${choice.id}.label`)}
               </button>
             ))}
           </div>
@@ -487,7 +489,7 @@ export function AgentTaskBody({
           <div className={styles["task-actions"]}>
             <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onRetryFailed?.(item)}>
               <AgentAssetIcon src={taskBoltIcon} size={12} />
-              다시 시도
+              {t("actions.tryAgain")}
             </button>
           </div>
         )}
@@ -496,7 +498,7 @@ export function AgentTaskBody({
             {onRetryStalled && (
               <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={closingTurnIds.has(stalledTurnId)} onClick={() => onRetryStalled(item)}>
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
-                다시 시도
+                {t("actions.tryAgain")}
               </button>
             )}
             {onDismissStalled && (
@@ -507,7 +509,7 @@ export function AgentTaskBody({
                 aria-busy={closingTurnIds.has(stalledTurnId) || undefined}
                 onClick={() => onDismissStalled(stalledTurnId)}
               >
-                {closingTurnIds.has(stalledTurnId) ? "닫는 중…" : "닫기"}
+                {closingTurnIds.has(stalledTurnId) ? t("actions.closing") : t("actions.close")}
               </button>
             )}
           </div>
@@ -517,19 +519,19 @@ export function AgentTaskBody({
             {setAsideTurnId && (
               <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} disabled={!onReopenProposal} onClick={() => onReopenProposal?.(setAsideTurnId)}>
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
-                다시 검토
+                {t("task.reopenReview")}
               </button>
             )}
             {isActivePreview && onShortenActivePreview && (
               <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onShortenActivePreview}>
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
-                더 짧게
+                {t("task.shorten")}
               </button>
             )}
             {onSaveRequestAsSkill && (
               <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={() => onSaveRequestAsSkill(entry.request)}>
                 <AgentAssetIcon src={taskBoltIcon} size={12} />
-                이 요청을 스킬로 저장
+                {t("task.saveAsSkill")}
               </button>
             )}
           </div>
@@ -546,12 +548,12 @@ export function AgentTaskBody({
       <div className={styles["task-entry"]} data-attention-key={PENDING_ATTENTION_KEY} aria-live="polite">
         <TaskCard action={null} request={pendingTask.request} createdAt={null}>
           <StatusList
-            title="요청 처리 중"
+            title={t("status.title.pending")}
             isLoading
             hasResponse={false}
             steps={pendingTask.stages.length
-              ? buildProgressSteps(pendingTask.stages, true)
-              : [[pendingTask.waitingLabel || "요청을 전달하고 있어요.", "active"]]}
+              ? buildProgressSteps(pendingTask.stages, true, t)
+              : [[pendingTask.waitingLabel || t("status.sending"), "active"]]}
           />
           {pendingTask.notice && <TaskNote role="status">{pendingTask.notice}</TaskNote>}
         </TaskCard>
@@ -565,11 +567,12 @@ export function AgentTaskBody({
     <div className={styles["task-body"]} ref={bodyRef}>
       {isEmpty && (
         <div className={styles["task-empty"]}>
-          <p>문서 편집·폴더 정리·스킬 실행을 요청해 보세요.</p>
-          <p>/를 입력하면 스킬을 고를 수 있어요. 위키 내용 질문은 채팅 탭에서 할 수 있어요.</p>
+          <p>{t("task.empty.title")}</p>
+          <p>{t("task.empty.hint")}</p>
         </div>
       )}
-      {TASK_GROUPS.map(({ group, label }) => {
+      {TASK_GROUPS.map((group) => {
+        const label = t(`task.group.${group}`);
         const groupEntries = sectionEntries.get(group) ?? [];
         const extra = extraByGroup[group];
         if (groupEntries.length === 0 && !extra) return null;
@@ -586,7 +589,7 @@ export function AgentTaskBody({
                       title={entry.title}
                       status={entry.status}
                       note={entry.run?.plan && isAutoApprovedPlan(entry.run) && entry.run.status === "completed"
-                        ? autoApprovedPlanNote(entry.run.plan)
+                        ? autoApprovedPlanNote(entry.run.plan, t)
                         : entry.item.turnId !== null
                           ? [
                               appliedTaskNote({
@@ -594,14 +597,14 @@ export function AgentTaskBody({
                                 isAutoApplied: autoAppliedTurnIds.has(entry.item.turnId),
                                 isAppliedHere: appliedTurnIds.has(entry.item.turnId),
                                 isServerApplied: serverAppliedTurnIds.has(entry.item.turnId)
-                              }),
+                              }, t),
                               entry.item.turnId === autoAppliedNotice?.turnId ? autoAppliedNotice.text : null
                             ].filter(Boolean).join(" ") || null
                           : null}
                     />)}
                   </div>
                 ))}
-                <TaskNote>{DONE_NOTICE}</TaskNote>
+                <TaskNote>{t("task.doneNotice")}</TaskNote>
               </>
             ) : groupEntries.map(renderCard)}
             {extra}
@@ -613,7 +616,7 @@ export function AgentTaskBody({
         <div className={styles["task-actions"]}>
           <button type="button" className={cx(styles["task-pill"], styles["is-primary"])} onClick={onRecheck}>
             <AgentAssetIcon src={taskBoltIcon} size={12} />
-            결과 다시 확인
+            {t("task.recheckResult")}
           </button>
         </div>
       )}

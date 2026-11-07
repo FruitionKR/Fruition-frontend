@@ -12,6 +12,7 @@ import {
   type TurnCancelState,
   type TurnCheckResult
 } from "../lib/stalledTurns";
+import { useTranslations } from "next-intl";
 
 function turnCancelQueryKey(workspaceId: string, turnId: string) {
   return ["agentTurnCancel", workspaceId, turnId] as const;
@@ -26,6 +27,7 @@ function turnCancelQueryKey(workspaceId: string, turnId: string) {
  * seed: 취소 요청 응답으로 받은 상태를 바로 써서 첫 조회를 기다리지 않게 한다.
  */
 export function useTurnCancelStates(turnIds: readonly string[]) {
+  const t = useTranslations("agentChat");
   const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const queries = useQueries({
@@ -53,11 +55,11 @@ export function useTurnCancelStates(turnIds: readonly string[]) {
   const previous = useRef<ReadonlyMap<string, TurnCancelState>>(new Map());
   useEffect(() => {
     for (const [turnId, state] of states) {
-      const message = turnCancelSettledNotice(previous.current.get(turnId), state);
-      if (message) publishNotice({ kind: "failed", title: "작업 취소 확인 실패", message });
+      const message = turnCancelSettledNotice(previous.current.get(turnId), state, t);
+      if (message) publishNotice({ kind: "failed", notificationKey: "taskCancelFailed", title: t("notice.turnCancelCheckFailed"), message });
     }
     previous.current = states;
-  }, [states]);
+  }, [states, t]);
 
   const seed = useCallback((turnId: string, result: TurnCheckResult) => {
     client.setQueryData(turnCancelQueryKey(workspaceId, turnId), result);

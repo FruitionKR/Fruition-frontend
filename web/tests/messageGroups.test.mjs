@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
   return next(specifier, context);
 } });
 const { groupMessagesByPair } = await import("../src/features/agent-chat/lib/messageGroups.ts");
-const { buildSourceDocumentCards } = await import("../src/features/agent-chat/lib/relatedPageCards.ts");
+const { buildSourceDocumentCards: buildSourceDocumentCardsWith } = await import("../src/features/agent-chat/lib/relatedPageCards.ts");
+const buildSourceDocumentCards = (...args) => buildSourceDocumentCardsWith(...args, agentChatT);
 
 test("groupMessagesByPair는 pair_id별로 묶고 pair 없는 메시지는 단독 그룹으로 둔다", () => {
   const groups = groupMessagesByPair([

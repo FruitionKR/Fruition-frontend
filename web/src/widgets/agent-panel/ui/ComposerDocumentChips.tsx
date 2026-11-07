@@ -6,6 +6,7 @@ import { documentDisplayName } from "@/features/skill-authoring/lib/referenceDoc
 import { cx } from "@/shared/lib/classNames";
 import { composerDocumentChipLabel } from "../lib/composerDocuments";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 /** 첨부한 문서 칩과 "+ 문서 추가". 3개를 다 고르면 버튼을 막고 이유를 옆에 보여 준다. */
 export function ComposerDocumentChips({
@@ -26,6 +27,7 @@ export function ComposerDocumentChips({
   onRemove: (documentId: string) => void;
   onAdd: () => void;
 }) {
+  const t = useTranslations("agentChat");
   return (
     <>
       {attachments.map((document) => {
@@ -35,7 +37,7 @@ export function ComposerDocumentChips({
             key={document.id}
             type="button"
             className={cx(styles["task-context-chip"], styles["is-document"])}
-            aria-label={`${title} 첨부 빼기`}
+            aria-label={t("documents.removeAttachment", { title })}
             title={title}
             onClick={() => onRemove(document.id)}
           >
@@ -53,7 +55,7 @@ export function ComposerDocumentChips({
         title={limitMessage ?? undefined}
         onClick={onAdd}
       >
-        + 문서 추가
+        {t("documents.add")}
       </button>
       {limitMessage && <span className={styles["task-context-limit"]} role="status">{limitMessage}</span>}
     </>

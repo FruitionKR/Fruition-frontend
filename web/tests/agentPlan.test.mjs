@@ -1,15 +1,32 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { planOperationFailureReason, createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    // 앱 소스의 확장자 없는 상대 import(./agentChatTranslator)를 .ts로 푼다.
+    if (context.parentURL?.includes("/src/") && specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
     return nextResolve(specifier, context);
   }
 });
+const agentPlan = await import("../src/features/agent-chat/lib/agentPlan.ts");
 const { fetchAgentPlanRun, fetchAgentRunEditPreviews, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
+
+const { createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } = agentPlan;
+// 문구를 만드는 함수는 화면과 같이 한국어 agentChat 메시지로 푼다.
+const withT = (fn) => (...args) => fn(...args, agentChatT);
+const planOperationFailureReason = (operation) => agentPlan.planOperationFailureReason(operation, agentChatT);
+const planOperationResultLabel = (operation) => agentPlan.planOperationResultLabel(operation, agentChatT);
+const agentPlanClarificationMessage = (run) => agentPlan.agentPlanClarificationMessage(run, agentChatT);
+const agentPlanFailureMessage = (run) => agentPlan.agentPlanFailureMessage(run, agentChatT);
+const agentPlanStatusLabel = (status) => agentPlan.agentPlanStatusLabel(status, agentChatT);
+const buildPlanPreviewTree = withT(agentPlan.buildPlanPreviewTree);
+const describePlanOperations = withT(agentPlan.describePlanOperations);
 const plan = { id: "plan-1", version: 2, operation_hash: "a".repeat(64), status: "awaiting_approval", operations: [] };
 
 test("채팅 기록의 turn ID에서 실제 승인 대상 run을 조회한다", async (t) => {

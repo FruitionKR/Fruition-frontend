@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ERROR_MESSAGES } from "@/shared/api/client";
+import { useTranslations } from "next-intl";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { transcribeSpeech } from "../api/speech";
 import {
   DICTATION_MAX_BYTES,
   DICTATION_MAX_MS,
-  DICTATION_MESSAGES,
   describeMicrophoneError,
-  pickRecordingMimeType
+  pickRecordingMimeType,
+  type DictationMessageKey
 } from "../lib/dictation";
 
 export type DictationStatus = "idle" | "recording" | "transcribing";
@@ -28,7 +28,10 @@ function stopTracks(stream: MediaStream) {
  */
 export function useDictation(onText: (text: string) => void) {
   const [status, setStatus] = useState<DictationStatus>("idle");
+  const t = useTranslations("agentChat.dictation");
+  const tShared = useTranslations("shared");
   const [message, setMessage] = useState<string | null>(null);
+  const notify = (key: DictationMessageKey) => setMessage(t(key));
   const activeRef = useRef<ActiveRecording | null>(null);
   const isMountedRef = useRef(true);
   // 전사가 끝날 때의 입력창 내용으로 이어 붙이도록 최신 콜백을 쓴다.
@@ -51,16 +54,16 @@ export function useDictation(onText: (text: string) => void) {
   async function transcribe(audio: Blob) {
     if (audio.size === 0) {
       setStatus("idle");
-      setMessage(DICTATION_MESSAGES.empty);
+      notify("empty");
       return;
     }
     if (audio.size > DICTATION_MAX_BYTES) {
       setStatus("idle");
-      setMessage(DICTATION_MESSAGES.tooLarge);
+      notify("tooLarge");
       return;
     }
     setStatus("transcribing");
-    setMessage(DICTATION_MESSAGES.transcribing);
+    notify("transcribing");
     try {
       const text = (await transcribeSpeech(audio)).trim();
       if (!isMountedRef.current) return;
@@ -68,11 +71,11 @@ export function useDictation(onText: (text: string) => void) {
         onTextRef.current(text);
         setMessage(null);
       } else {
-        setMessage(DICTATION_MESSAGES.empty);
+        notify("empty");
       }
     } catch (error) {
       // 402 등 서버가 보낸 문구는 그대로 보여준다.
-      if (isMountedRef.current) setMessage(getErrorMessage(error, ERROR_MESSAGES.speechTranscribeFailed));
+      if (isMountedRef.current) setMessage(getErrorMessage(error, t("transcribeFailed"), tShared));
     } finally {
       if (isMountedRef.current) setStatus("idle");
     }
@@ -81,19 +84,19 @@ export function useDictation(onText: (text: string) => void) {
   async function start() {
     if (activeRef.current || status !== "idle") return;
     if (!isDictationSupported()) {
-      setMessage(DICTATION_MESSAGES.unsupported);
+      notify("unsupported");
       return;
     }
     const mimeType = pickRecordingMimeType((type) => MediaRecorder.isTypeSupported(type));
     if (!mimeType) {
-      setMessage(DICTATION_MESSAGES.unsupported);
+      notify("unsupported");
       return;
     }
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (error) {
-      setMessage(describeMicrophoneError(error));
+      notify(describeMicrophoneError(error));
       return;
     }
     if (!isMountedRef.current) {
@@ -119,7 +122,7 @@ export function useDictation(onText: (text: string) => void) {
     activeRef.current = { recorder, stream, timer };
     recorder.start();
     setStatus("recording");
-    setMessage(DICTATION_MESSAGES.recording);
+    notify("recording");
   }
 
   function stop() {

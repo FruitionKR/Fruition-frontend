@@ -6,6 +6,8 @@ import test from "node:test";
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "react") return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
+    // 훅의 useTranslations는 한국어 agentChat 메시지로 푼다.
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
     if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
     return nextResolve(specifier, context);
@@ -19,9 +21,8 @@ const { render } = await import("./reactHookShim.mjs");
 const {
   createPcmAssembler,
   createSpeechEventParser,
-  describeSpeechPlaybackError,
+  describeSpeechPlaybackError: describeSpeechPlaybackErrorWith,
   isSpeechSynthesisDisabledError,
-  SPEECH_PLAYBACK_MESSAGES,
   SpeechStreamError
 } = await import("../src/features/agent-chat/lib/speechPlayback.ts");
 const { streamSpeechSynthesis } = await import("../src/features/agent-chat/api/speech.ts");
@@ -29,6 +30,12 @@ const { useSpeechPlayback } = await import("../src/features/agent-chat/model/use
 const { ApiError, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { fetchAiModelCatalog } = await import("../src/entities/ai/api/aiModels.ts");
+// 안내 문구는 agentChat.speech 메시지에 있다. 화면과 같이 한국어 메시지로 확인한다.
+const { koMessages, useTranslations } = await import("./fakeNextIntl.mjs");
+const agentChatT = useTranslations("agentChat");
+const koAgentChat = koMessages.agentChat;
+const SPEECH_PLAYBACK_MESSAGES = koAgentChat.speech;
+const describeSpeechPlaybackError = (error) => describeSpeechPlaybackErrorWith(error, agentChatT);
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -101,7 +108,7 @@ test("스트림 도중 error 이벤트는 코드를 담은 SpeechStreamError로,
   await assert.rejects(streamSpeechSynthesis("msg_2", { signal: new AbortController().signal, onAudio() {} }), { name: "SpeechStreamError", code: "provider_unavailable" });
 
   t.mock.method(globalThis, "fetch", async () => ndjsonResponse([`{"type":"audio","delta":"${pcmBase64([1])}"}\n`]));
-  await assert.rejects(streamSpeechSynthesis("msg_2", { signal: new AbortController().signal, onAudio() {} }), { message: SPEECH_PLAYBACK_MESSAGES.failed });
+  await assert.rejects(streamSpeechSynthesis("msg_2", { signal: new AbortController().signal, onAudio() {} }), { message: "음성을 만들지 못했습니다." });
 });
 
 test("스트림 시작 전 HTTP 오류는 status·code를 보존한 ApiError로 던진다", async (t) => {
