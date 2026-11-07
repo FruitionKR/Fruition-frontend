@@ -54,6 +54,7 @@ import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectS
 import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { ConvertedIngestConfirmModal } from "@/features/wiki-ingest/ui/ConvertedIngestConfirmModal";
+import { PdfConvertConfirmModal } from "@/features/wiki-ingest/ui/PdfConvertConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { createMarkdownDocument } from "@/entities/document";
@@ -814,6 +815,13 @@ export function HomeWorkspace() {
           target={projectTree.bulkDeleteConfirm}
           onConfirm={projectTree.confirmBulkDelete}
           onCancel={projectTree.cancelBulkDelete}
+        />
+      )}
+      {projectTree.convertConfirm && (
+        <PdfConvertConfirmModal
+          filename={projectTree.convertConfirm.label}
+          onConfirm={projectTree.confirmConvert}
+          onCancel={projectTree.cancelConvert}
         />
       )}
       {projectTree.deleteConfirm && (
