@@ -23,6 +23,16 @@ export async function updateDisplayName(displayName: string): Promise<UserMeResp
   return parseJsonOrThrow<UserMeResponse>(response, "닉네임을 변경하지 못했습니다.");
 }
 
+/** 화면 언어를 계정에 저장한다(PATCH /api/auth/me/locale). 응답은 MeResponse다. */
+export async function updateAccountLocale(locale: "ko" | "en"): Promise<UserMeResponse> {
+  const response = await apiFetch("/api/auth/me/locale", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ locale })
+  });
+  return parseJsonOrThrow<UserMeResponse>(response, "언어 설정을 저장하지 못했습니다.");
+}
+
 /** 프로필 사진 업로드(PUT /api/auth/me/avatar). Content-Type은 브라우저 multipart boundary에 맡긴다. */
 export async function uploadAvatar(file: File): Promise<UserMeResponse> {
   const body = new FormData();

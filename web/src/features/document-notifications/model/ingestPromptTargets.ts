@@ -24,12 +24,6 @@ export function selectIngestPromptTargets(
   });
 }
 
-export function ingestPromptMessage(documents: readonly Pick<DocumentItemResponse, "filename">[]): string {
-  return documents.length === 1
-    ? `"${documents[0].filename}" 문서의 위키 편입을 시작해 보세요.`
-    : `${documents.length}개 문서의 위키 편입을 시작해 보세요.`;
-}
-
 /**
  * 한 번이라도 위키에 편입된 적이 있는 문서인지. 재편입 제안("마지막 위키 편입 이후 수정됨")은 이런 문서에만 띄운다.
  * 편입 run이 있어야(pipeline_run_id, PDF 변환 run `convert:` 제외) 편입한 적 있다고 본다.

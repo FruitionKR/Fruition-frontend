@@ -75,16 +75,18 @@ export function summarizeLabels(labels: readonly string[], limit = SUMMARY_LIST_
   return labels.length > limit ? `${shown} 외 ${labels.length - limit}개` : shown;
 }
 
-/** 묶음 작업 결과를 한 번의 알림 문구로 만든다. 실패·건너뜀은 이유와 함께 나열한다. */
-export function bulkResultNotice(action: string, succeeded: number, failures: readonly SkippedTreeItem[]) {
+/**
+ * 묶음 작업 결과를 한 번의 알림에 담을 값으로 요약한다. 실패·건너뜀은 앞에서부터 이유와 함께 나열하고 나머지는 개수만 남긴다.
+ * 문구는 알림을 띄우는 훅이 언어에 맞춰 만든다.
+ */
+export function summarizeBulkResult(succeeded: number, failures: readonly SkippedTreeItem[]) {
   const failed = failures.length;
-  const title = failed === 0 ? `${action} 완료` : succeeded === 0 ? `${action} 실패` : `일부 ${action} 실패`;
-  const head = failed === 0 ? `${succeeded}개 항목을 ${action}했습니다.` : `성공 ${succeeded}개, 실패 ${failed}개`;
-  const shown = failures.slice(0, SUMMARY_LIST_LIMIT).map((entry) => `「${entry.label}」: ${entry.reason}`);
-  if (failed > SUMMARY_LIST_LIMIT) shown.push(`외 ${failed - SUMMARY_LIST_LIMIT}개`);
+  const outcome: "completed" | "failed" | "partial" = failed === 0 ? "completed" : succeeded === 0 ? "failed" : "partial";
   return {
-    kind: failed === 0 ? "completed" as const : "failed" as const,
-    title,
-    message: [head, ...shown].join("\n")
+    outcome,
+    succeeded,
+    failed,
+    listed: failures.slice(0, SUMMARY_LIST_LIMIT),
+    restCount: Math.max(0, failed - SUMMARY_LIST_LIMIT)
   };
 }

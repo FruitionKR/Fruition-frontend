@@ -1,17 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { fetchWikiPage, saveWikiPageContent, WikiPageVersionConflictError } from "@/entities/wiki";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import type { WikiPageDetailResponse } from "@/entities/wiki";
 import {
   buildWikiPageSaveRequest,
   createWikiPageEditSession,
-  describeWikiPageSaveError,
+  getWikiPageSaveErrorCode,
   isWikiPageIdempotencyConflict,
   prepareWikiPageSave,
   rebaseWikiPageEditSession,
-  WIKI_PAGE_CONFLICT_MESSAGE,
   type WikiPageEditSession
 } from "./wikiPageEdit";
 
@@ -48,6 +48,7 @@ export function useWikiPageEdit({
   /** 충돌 뒤 내 편집을 버리고 최신 본문으로 돌아갈 때. 호출부가 페이지 상태를 통째로 바꾼다. */
   onReplaced: (latest: WikiPageDetailResponse) => void;
 }) {
+  const t = useTranslations("wiki.pageEditing");
   const [state, setState] = useState<WikiPageEditState>({ mode: "view" });
   const pageId = page?.id ?? null;
   // 페이지를 바꾸면 편집 중이던 내용은 버린다(다른 페이지의 revision으로 저장하면 안 된다).
@@ -81,10 +82,15 @@ export function useWikiPageEdit({
     } catch (error) {
       if (activePageIdRef.current !== targetPageId) return;
       setState((current) => current.mode === "edit" && current.conflict
-        ? { ...current, conflict: { currentRevision, latest: null, isLoading: false, loadError: getErrorMessage(error, "최신 본문을 불러오지 못했습니다.") } }
+        ? { ...current, conflict: { currentRevision, latest: null, isLoading: false, loadError: getErrorMessage(error, t("latestLoadFailed")) } }
         : current);
     }
-  }, []);
+  }, [t]);
+
+  const describeSaveError = useCallback((error: unknown) => {
+    const code = getWikiPageSaveErrorCode(error);
+    return code ? t(`saveError.${code}`) : getErrorMessage(error, t("saveError.fallback"));
+  }, [t]);
 
   const saveSession = useCallback(async (targetPageId: string, pending: WikiPageEditSession) => {
     const session = prepareWikiPageSave(pending);
@@ -100,16 +106,16 @@ export function useWikiPageEdit({
       if (error instanceof WikiPageVersionConflictError || isWikiPageIdempotencyConflict(error)) {
         const currentRevision = error instanceof WikiPageVersionConflictError ? error.currentRevision : null;
         setState((current) => current.mode === "edit"
-          ? { ...current, isSaving: false, error: WIKI_PAGE_CONFLICT_MESSAGE, conflict: { currentRevision, latest: null, isLoading: true, loadError: null } }
+          ? { ...current, isSaving: false, error: t("conflict"), conflict: { currentRevision, latest: null, isLoading: true, loadError: null } }
           : current);
         void loadLatest(targetPageId, currentRevision);
         return;
       }
       setState((current) => current.mode === "edit"
-        ? { ...current, isSaving: false, error: describeWikiPageSaveError(error) }
+        ? { ...current, isSaving: false, error: describeSaveError(error) }
         : current);
     }
-  }, [loadLatest, onSaved]);
+  }, [describeSaveError, loadLatest, onSaved, t]);
 
   const save = useCallback(() => {
     if (!pageId || state.mode !== "edit" || state.isSaving) return;

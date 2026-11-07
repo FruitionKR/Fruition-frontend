@@ -15,6 +15,7 @@ registerHooks({
     if (specifier === "react") {
       return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
     }
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     // 알림 버스만 필요하고 배럴은 .tsx 컴포넌트를 끌고 오므로 버스 모듈로 직접 연결한다.
     if (specifier === "@/features/document-notifications") {
       return nextResolve(new URL("../src/features/document-notifications/model/noticeBus.ts", import.meta.url).href, context);
