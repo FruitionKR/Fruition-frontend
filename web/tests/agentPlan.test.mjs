@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
+import { planOperationFailureReason, createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, planOperationResultLabel, agentPlanClarificationMessage, agentPlanFailureMessage, agentPlanStatusLabel, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, buildPlanPreviewTree, canApproveAgentPlan, describePlanOperations, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } from "../src/features/agent-chat/lib/agentPlan.ts";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -443,4 +443,25 @@ test("이 세션에서 시작하지 않은 계획은 첫 조회가 종료면 알
   assert.equal(started.takeSettled("turn_2", "completed"), false);
   assert.equal(started.takeSettled(null, "completed"), false);
   assert.equal(started.takeSettled(undefined, "completed"), false);
+});
+
+test("API의 항목별 실패 코드는 기존 카드의 공통 이유 함수로 전달한다", async (t) => {
+  const codes = ["tool_http_403", "tool_http_404", "tool_http_409", "tool_http_423", "tool_http_unavailable", "dependency_failed", "unresolved_dependency", "rollback_snapshot_invalid", "state_mismatch"];
+  const operations = codes.map((error_code, index) => ({ id: `fixture-${index}`, status: error_code === "dependency_failed" ? "skipped" : "failed", error_code }));
+  t.mock.method(globalThis, "fetch", async () => Response.json({ id: "fixture-run", status: "failed", plan: { ...plan, operations } }));
+  const result = await fetchAgentPlanRun("fixture-workspace", "fixture-turn", undefined, "fixture-run");
+  const messages = result.plan.operations.map(planOperationFailureReason);
+  assert.equal(new Set(messages).size, codes.length);
+  messages.forEach((message, index) => { assert.ok(message); assert.ok(!message.includes(codes[index])); });
+  assert.match(planOperationFailureReason({ status: "failed", error_code: "tool_http_503" }), /문서 서비스/);
+  for (const error_code of [null, "unknown:private-fixture", "constructor", "__proto__"]) {
+    assert.equal(planOperationFailureReason({ status: "failed", error_code }), "실행하지 못했어요.");
+  }
+});
+
+test("제외·성공·복구된 작업에 오래된 오류 코드 안내를 덧붙이지 않는다", () => {
+  assert.equal(planOperationFailureReason({ status: "skipped", error_code: "not_selected" }), "앞선 작업이 실패해 실행하지 못했어요.");
+  assert.equal(planOperationFailureReason({ status: "rolled_back", error_code: "tool_http_403" }), "실행한 뒤 되돌렸어요.");
+  assert.equal(planOperationOutcome({ status: "skipped", error_code: "not_selected" }), "excluded");
+  assert.equal(planOperationOutcome({ status: "succeeded", error_code: "tool_http_403" }), "applied");
 });
