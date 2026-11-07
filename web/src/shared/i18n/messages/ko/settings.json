@@ -398,6 +398,7 @@
     "description": "이 계정에서 보는 화면을 설정합니다.",
     "language": {
       "note": "이 브라우저에 저장됩니다.",
+      "accountNote": "계정에 저장됩니다.",
       "koDescription": "화면을 한국어로 봅니다.",
       "enDescription": "Use Fruition in English."
     },

@@ -11,5 +11,6 @@ export * from "./model/useMe";
 export * from "./model/useSignOut";
 export * from "./ui/SessionExpiryGate";
 export * from "./ui/UserAvatar";
+export * from "./ui/AccountLocaleSync";
 export * from "./lib/avatarFile";
 export * from "./model/UserPreferencesProvider";
