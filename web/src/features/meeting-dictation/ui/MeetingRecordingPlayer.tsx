@@ -17,6 +17,7 @@ type RecordingSource = { url: string; expiresAt: number };
  */
 export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
   const t = useTranslations("meeting");
+  const tShared = useTranslations("shared");
   const [source, setSource] = useState<RecordingSource | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,11 +35,11 @@ export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
       setSource({ url: response.url, expiresAt: Date.parse(response.expires_at) });
     } catch (loadError) {
       resumeRef.current = null;
-      setError(describeRecordingError(loadError, t("errors.recordingUrlFailed")));
+      setError(describeRecordingError(loadError, t("errors.recordingUrlFailed"), tShared));
     } finally {
       setIsLoading(false);
     }
-  }, [meetingId, t]);
+  }, [meetingId, t, tShared]);
 
   if (!source) {
     return (

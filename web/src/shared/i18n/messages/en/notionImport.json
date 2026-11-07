@@ -129,5 +129,19 @@
     "limited": "{message} {count, plural, one {# document has} other {# documents have}} been queued so far. You can retry the rest later.",
     "failed": "Couldn't request adding to the wiki.",
     "stalled": "Couldn't queue the remaining documents for the wiki. Please try again in a moment."
+  },
+  "zipSafety": {
+    "unreadable": "Couldn't read the zip file. Check that it's a zip file exported from Notion.",
+    "zip64": "Zip files larger than 4 GB (ZIP64) can't be imported yet. Export from Notion in smaller parts.",
+    "tooManyEntries": "The zip contains more than {count, number} files and can't be imported.",
+    "corrupt": "The zip file is damaged.",
+    "corruptEntry": "The zip file is damaged: {path}",
+    "unsafePath": "The zip contains a path that points outside the archive and can't be imported: {path}",
+    "symlink": "The zip contains a symbolic link and can't be imported: {path}",
+    "encrypted": "Password-protected zip files can't be imported.",
+    "unsupportedMethod": "Unsupported compression method: {path}",
+    "compressionRatio": "The zip contains a file with an abnormally high compression ratio and can't be imported: {path}",
+    "sizeMismatch": "The extracted size doesn't match: {path}",
+    "tooLarge": "The extracted size exceeds 2 GB and can't be imported."
   }
 }

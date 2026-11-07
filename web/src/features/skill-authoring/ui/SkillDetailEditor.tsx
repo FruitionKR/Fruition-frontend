@@ -89,6 +89,7 @@ export function SkillDetailEditor({
   onDelete: () => Promise<void>;
 }) {
   const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const { kindOptions, resultOptions, scopeOptions } = useSkillOptions();
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
@@ -380,7 +381,7 @@ export function SkillDetailEditor({
 
         {saveMutation.isError && (
           <p className={styles.error} role="alert">
-            {describeSkillSaveError(saveMutation.error, t)}
+            {describeSkillSaveError(saveMutation.error, t, tShared)}
           </p>
         )}
       </div>
@@ -394,7 +395,7 @@ export function SkillDetailEditor({
         >
           {deleteMutation.isError && (
             <p className={styles.error} role="alert">
-              {getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"))}
+              {getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}
             </p>
           )}
           <div className="modal-actions">
