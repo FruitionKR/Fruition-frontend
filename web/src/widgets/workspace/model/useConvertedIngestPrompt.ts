@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { reflectDocumentToWiki, type DocumentItemResponse } from "@/entities/document";
 import { useSelectedWorkspace } from "@/entities/workspace";
 import { publishNotice } from "@/features/document-notifications";
-import { shouldPromptConvertedIngest } from "@/features/wiki-ingest/model/autoIngestPolicy";
+import { autoIngestContextOf, shouldPromptConvertedIngest } from "@/features/wiki-ingest/model/autoIngestPolicy";
 import { useWikiActionPermissions } from "@/features/wiki-ingest/model/useWikiActionPermissions";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
@@ -56,14 +56,13 @@ export function useConvertedIngestPrompt({
 }) {
   const { canIngest } = useWikiActionPermissions();
   const workspace = useSelectedWorkspace();
-  const serverAutoIngest = workspace ? workspace.auto_ingest_on_upload === true : null;
+  const autoIngestContext = autoIngestContextOf(workspace, canIngest);
   const [target, setTarget] = useState<DocumentItemResponse | null>(null);
   // 이번에 열어 둔 동안 이미 물은 문서. 다른 문서를 열면 비워서 다시 열 때 또 물을 수 있게 한다.
   const promptedIdRef = useRef<string | null>(null);
   const openDocument = openDocumentId ? documents.find((document) => document.id === openDocumentId) : undefined;
   const shouldPrompt = shouldPromptConvertedIngest(openDocument, {
-    serverAutoIngest,
-    canIngest,
+    ...autoIngestContext,
     isDismissed: openDocumentId ? readDismissedIds().includes(openDocumentId) : false,
     isQueued: openDocumentId ? pendingDocumentIds.includes(openDocumentId) : false
   });
@@ -86,7 +85,7 @@ export function useConvertedIngestPrompt({
     setTarget(null);
     // 묻는 동안 편입이 시작됐거나 문서가 사라졌으면 다시 보내지 않는다.
     const latest = documents.find((document) => document.id === id);
-    if (!shouldPromptConvertedIngest(latest, { serverAutoIngest, canIngest, isDismissed: false, isQueued: pendingDocumentIds.includes(id) })) return;
+    if (!shouldPromptConvertedIngest(latest, { ...autoIngestContext, isDismissed: false, isQueued: pendingDocumentIds.includes(id) })) return;
     void reflectDocumentToWiki(id, "EDITABLE")
       .then(() => {
         publishNotice({ kind: "completed", title: "위키 편입 요청", message: `${filename}: 위키 편입을 요청했습니다.` });

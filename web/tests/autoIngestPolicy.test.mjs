@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { shouldAutoIngestUpload, shouldPromptConvertedIngest } = await import("../src/features/wiki-ingest/model/autoIngestPolicy.ts");
+const { autoIngestContextOf, shouldAutoIngestUpload, shouldPromptConvertedIngest } = await import("../src/features/wiki-ingest/model/autoIngestPolicy.ts");
 
 const ALLOWED = { serverAutoIngest: false, canIngest: true };
 
@@ -78,4 +78,41 @@ test("세션에 거절했거나 변환 후 편입을 기다리거나 서버 자�
   assert.equal(shouldPromptConvertedIngest(convertedNote(), { ...PROMPT_ALLOWED, serverAutoIngest: null }), false);
   assert.equal(shouldPromptConvertedIngest(convertedNote(), { ...PROMPT_ALLOWED, canIngest: false }), false);
   assert.equal(shouldPromptConvertedIngest(convertedNote(), { ...PROMPT_ALLOWED, canIngest: null }), false);
+});
+
+test("워크스페이스 응답에서 판정 입력을 만든다(구 서버는 Markdown 설정이 없다)", () => {
+  assert.deepEqual(autoIngestContextOf(null, true), { serverAutoIngest: null, canIngest: true });
+  assert.deepEqual(autoIngestContextOf({ auto_ingest_on_upload: false }, true), { serverAutoIngest: false, markdownServerAutoIngest: undefined, canIngest: true });
+  assert.deepEqual(
+    autoIngestContextOf({ auto_ingest_on_upload: true, auto_ingest_markdown_on_upload: false }, false),
+    { serverAutoIngest: true, markdownServerAutoIngest: false, canIngest: false }
+  );
+});
+
+test("새 서버에서 Markdown 설정이 켜져 있으면 서버가 편입하므로 프론트는 업로드 편입을 보내지 않는다", () => {
+  assert.equal(shouldAutoIngestUpload(markdownUpload(), { ...ALLOWED, markdownServerAutoIngest: true }), false);
+});
+
+test("새 서버에서 Markdown 설정이 꺼져 있으면 사용자가 끈 것이라 프론트도 편입하지 않는다", () => {
+  assert.equal(shouldAutoIngestUpload(markdownUpload(), { ...ALLOWED, markdownServerAutoIngest: false }), false);
+  assert.equal(shouldAutoIngestUpload(markdownUpload({ mime_type: "text/plain" }), { ...ALLOWED, markdownServerAutoIngest: false }), false);
+});
+
+test("auto_ingest_scheduled=true인 변환본은 서버가 곧 편입하므로 묻지 않는다", () => {
+  assert.equal(shouldPromptConvertedIngest(convertedNote({ auto_ingest_scheduled: true }), PROMPT_ALLOWED), false);
+  assert.equal(shouldPromptConvertedIngest(convertedNote({ auto_ingest_scheduled: true }), { ...PROMPT_ALLOWED, serverAutoIngest: true }), false);
+});
+
+test("auto_ingest_scheduled=false면 PDF 설정이 켜져 있어도 서버가 편입하지 않는 변환본이라 묻는다", () => {
+  assert.equal(shouldPromptConvertedIngest(convertedNote({ auto_ingest_scheduled: false }), { ...PROMPT_ALLOWED, serverAutoIngest: true }), true);
+  assert.equal(shouldPromptConvertedIngest(convertedNote({ auto_ingest_scheduled: false }), { ...PROMPT_ALLOWED, serverAutoIngest: null }), true);
+  assert.equal(shouldPromptConvertedIngest(convertedNote({ auto_ingest_scheduled: false }), PROMPT_ALLOWED), true);
+});
+
+test("auto_ingest_scheduled=false여도 권한 없음·거절·편입 대기·편입 시작 후에는 묻지 않는다", () => {
+  const unscheduled = convertedNote({ auto_ingest_scheduled: false });
+  assert.equal(shouldPromptConvertedIngest(unscheduled, { ...PROMPT_ALLOWED, canIngest: false }), false);
+  assert.equal(shouldPromptConvertedIngest(unscheduled, { ...PROMPT_ALLOWED, isDismissed: true }), false);
+  assert.equal(shouldPromptConvertedIngest(unscheduled, { ...PROMPT_ALLOWED, isQueued: true }), false);
+  assert.equal(shouldPromptConvertedIngest(convertedNote({ auto_ingest_scheduled: false, pipeline_run_id: "ingest:1" }), PROMPT_ALLOWED), false);
 });

@@ -19,7 +19,7 @@ import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { newAnalyticsId } from "@/shared/lib/analytics/events";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { publishNotice } from "@/features/document-notifications";
-import { shouldAutoIngestUpload } from "@/features/wiki-ingest/model/autoIngestPolicy";
+import { autoIngestContextOf, shouldAutoIngestUpload } from "@/features/wiki-ingest/model/autoIngestPolicy";
 import { useWikiActionPermissions } from "@/features/wiki-ingest/model/useWikiActionPermissions";
 import { saveNoteDraft } from "@/features/note-editing/api/note";
 import { ZipSafetyError } from "@/shared/lib/markdown-import/zipArchive";
@@ -64,10 +64,10 @@ export function useDocumentUpload({
   const uploadPickerTargetRef = useRef<UploadPickerTarget | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [hasRejectedFiles, setHasRejectedFiles] = useState(false);
-  // Markdown 업로드 자동 편입. 설정(auto_ingest_on_upload)이 켜져 있으면 서버가 편입하므로 꺼져 있을 때만 프론트가 요청한다.
+  // Markdown 업로드 자동 편입. 서버가 편입하는 설정이면 보내지 않고, 구 서버에서 설정이 꺼져 있을 때만 프론트가 요청한다(shouldAutoIngestUpload).
   const { canIngest } = useWikiActionPermissions();
   const workspace = useSelectedWorkspace();
-  const autoIngestContext = { serverAutoIngest: workspace ? workspace.auto_ingest_on_upload === true : null, canIngest };
+  const autoIngestContext = autoIngestContextOf(workspace, canIngest);
 
   function openUploadPicker(projectId: string, folderId: string | null) {
     uploadPickerTargetRef.current = { projectId, folderId };
