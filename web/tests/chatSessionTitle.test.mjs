@@ -1,6 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chatSessionTitle, resolveUntitledSessionTitles } from "../src/entities/chat/lib/sessionTitle.ts";
+import { SERVER_DEFAULT_CHAT_TITLE, chatSessionDisplayTitle, chatSessionTitle, isDefaultChatTitle, resolveUntitledSessionTitles } from "../src/entities/chat/lib/sessionTitle.ts";
+
+test("영어 화면은 빈 제목·서버 기본 제목(새 채팅)을 지금 언어의 기본 제목으로 보이고 한국어를 섞지 않는다", () => {
+  for (const title of [null, undefined, "", "  ", "새 채팅", " 새 채팅 "]) {
+    assert.equal(chatSessionDisplayTitle(title, "New chat"), "New chat");
+    assert.equal(chatSessionTitle(title, [], "New chat"), "New chat");
+    assert.equal(chatSessionTitle(title, [{ role: "user", content: "  " }], "New chat"), "New chat");
+  }
+});
+
+test("사용자가 지은 제목·AI 제목·첫 질문은 언어와 상관없이 그대로 보인다", () => {
+  assert.equal(chatSessionDisplayTitle(" 센서 운영 가이드 ", "New chat"), "센서 운영 가이드");
+  assert.equal(chatSessionDisplayTitle("새 채팅 정리", "New chat"), "새 채팅 정리");
+  assert.equal(chatSessionTitle("Sensor guide", [], "New chat"), "Sensor guide");
+  assert.equal(chatSessionTitle("새 채팅", [{ role: "user", content: "How do I invite?" }], "New chat"), "How do I invite?");
+});
+
+test("기본 제목 인자를 생략하면 서버 기본 제목을 남겨 목록 상태의 기본 제목 판정이 유지된다", () => {
+  assert.equal(chatSessionTitle(null), SERVER_DEFAULT_CHAT_TITLE);
+  assert.equal(isDefaultChatTitle(chatSessionTitle(null)), true);
+});
 
 test("첫 질문은 답변 완료 전부터 제목이 되고 후속 질문으로 바뀌지 않는다", () => {
   const messages = [
