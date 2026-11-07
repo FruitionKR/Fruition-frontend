@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import type { Element } from "hast";
 import { codeBlockCopyText, codeBlockLanguage, codeBlockLineCount, hastText } from "@/shared/lib/markdown/codeBlock";
 
@@ -10,12 +11,8 @@ const COPY_FEEDBACK_MS = 1500;
 
 type CopyState = "idle" | "copied" | "failed";
 
-const COPY_LABEL: Record<CopyState, string> = { idle: "Copy", copied: "복사됨", failed: "복사 실패" };
-const COPY_ANNOUNCEMENT: Record<CopyState, string> = {
-  idle: "",
-  copied: "코드를 복사했습니다.",
-  failed: "코드를 복사하지 못했습니다. 직접 선택해 복사해 주세요."
-};
+const COPY_LABEL_KEYS = { idle: "ui.codeBlock.copy", copied: "ui.codeBlock.copied", failed: "ui.codeBlock.copyFailed" } as const;
+const COPY_ANNOUNCEMENT_KEYS = { copied: "ui.codeBlock.copiedAnnouncement", failed: "ui.codeBlock.copyFailedAnnouncement" } as const;
 
 /** 편집기(Crepe) Copy 버튼과 같은 아이콘 */
 function CopyIcon() {
@@ -36,6 +33,7 @@ export function MarkdownCodeBlock({ node, children }: { node?: Element; children
   const copyText = codeBlockCopyText(hastText(codeNode));
   const lineCount = codeBlockLineCount(copyText);
 
+  const t = useTranslations("shared");
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -63,13 +61,13 @@ export function MarkdownCodeBlock({ node, children }: { node?: Element; children
           type="button"
           className="markdown-codeblock-tool markdown-codeblock-copy"
           data-state={copyState}
-          aria-label="코드 복사"
+          aria-label={t("ui.codeBlock.copyLabel")}
           onClick={() => void copyCode()}
         >
           <CopyIcon />
-          {COPY_LABEL[copyState]}
+          {t(COPY_LABEL_KEYS[copyState])}
         </button>
-        <span className="markdown-codeblock-status" role="status">{COPY_ANNOUNCEMENT[copyState]}</span>
+        <span className="markdown-codeblock-status" role="status">{copyState === "idle" ? "" : t(COPY_ANNOUNCEMENT_KEYS[copyState])}</span>
       </div>
       <div className="markdown-codeblock-body">
         <div className="markdown-codeblock-gutter" aria-hidden="true">

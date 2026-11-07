@@ -12,6 +12,7 @@ import koSettings from "./ko/settings.json";
 import koSkills from "./ko/skills.json";
 import koWiki from "./ko/wiki.json";
 import koWorkspace from "./ko/workspace.json";
+import koShared from "./ko/shared.json";
 import enAuth from "./en/auth.json";
 import enCommon from "./en/common.json";
 import enDocuments from "./en/documents.json";
@@ -25,6 +26,7 @@ import enSettings from "./en/settings.json";
 import enSkills from "./en/skills.json";
 import enWiki from "./en/wiki.json";
 import enWorkspace from "./en/workspace.json";
+import enShared from "./en/shared.json";
 
 /**
  * 화면 문구. 기능 영역별 네임스페이스 JSON을 언어마다 같은 키로 둔다(키 일치는 tests/i18nMessages.test.mjs가 확인).
@@ -43,7 +45,8 @@ const ko = {
   notionImport: koNotionImport,
   wiki: koWiki,
   workspace: koWorkspace,
-  documents: koDocuments
+  documents: koDocuments,
+  shared: koShared
 };
 
 export type AppMessages = typeof ko;
@@ -63,6 +66,7 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     notionImport: enNotionImport,
     wiki: enWiki,
     workspace: enWorkspace,
-    documents: enDocuments
+    documents: enDocuments,
+    shared: enShared
   }
 };

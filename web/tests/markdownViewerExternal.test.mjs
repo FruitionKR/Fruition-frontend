@@ -13,6 +13,7 @@ import * as sourceBlocks from "../src/shared/lib/markdown/markdownSourceBlocks.t
 import * as customTokens from "../src/shared/lib/markdown/remarkCustomTokens.ts";
 import * as externalResources from "../src/shared/lib/markdown/externalResources.ts";
 import * as codeBlock from "../src/shared/lib/markdown/codeBlock.ts";
+import { fakeNextIntl, translator } from "./helpers/i18nMessages.mjs";
 
 // 실제 MarkdownViewer와 ManagedImage를 함께 렌더해 외부 주소의 <img>·링크가 만들어지지 않는지 본다(이슈 #77).
 const require = createRequire(import.meta.url);
@@ -25,12 +26,20 @@ function load(path, aliases) {
   return exports;
 }
 
+// 문구는 한국어 메시지(shared.json)로 그린다. 기대 문구도 같은 메시지에서 만든다.
+const t = translator("ko", "shared");
+const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const externalNotice = (host) => new RegExp(escape(t("ui.image.external", { host })));
+const unsupportedNotice = new RegExp(escape(t("ui.image.unsupported")), "g");
+
 const assets = { acquireAssetObjectUrl: () => new Promise(() => {}), releaseAssetObjectUrl() {} };
 const { ManagedImage } = load("../src/shared/ui/markdown/ManagedImage.tsx", {
+  "next-intl": fakeNextIntl("ko"),
   "@/shared/api/assets": assets,
   "@/shared/lib/markdown/externalResources": externalResources
 });
 const { MarkdownCodeBlock } = load("../src/shared/ui/markdown/MarkdownCodeBlock.tsx", {
+  "next-intl": fakeNextIntl("ko"),
   "@/shared/lib/markdown/codeBlock": codeBlock
 });
 const { MarkdownViewer } = load("../src/shared/ui/markdown/MarkdownViewer.tsx", {
@@ -59,24 +68,24 @@ test("외부 이미지는 요청하지 않고 도메인만 알리는 자리 표�
 
   assert.deepEqual(imgSources(html), []);
   assert.doesNotMatch(html, /attacker\.example\/p\.png|https?:\/\/|\/\/cdn/);
-  assert.match(html, /외부 이미지는 표시하지 않습니다 · attacker\.example/);
-  assert.match(html, /외부 이미지는 표시하지 않습니다 · cdn\.example/);
+  assert.match(html, externalNotice("attacker.example"));
+  assert.match(html, externalNotice("cdn.example"));
   // markdown은 `\`를 %5C로 인코딩하므로 `/\host`는 같은 출처 경로가 되어 역시 요청하지 않는다
-  assert.match(html, /표시할 수 없는 이미지입니다/);
-  assert.match(html, /외부 이미지는 표시하지 않습니다 · pixel\.example/);
+  assert.match(html, unsupportedNotice);
+  assert.match(html, externalNotice("pixel.example"));
   assert.doesNotMatch(html, /raw-html\.example/);
 });
 
 test("관리 경로가 아닌 같은 출처 이미지도 요청하지 않는다", () => {
   const html = render("![a](/logo.png) ![b](images/b.png)");
   assert.deepEqual(imgSources(html), []);
-  assert.equal(html.match(/표시할 수 없는 이미지입니다/g)?.length, 2);
+  assert.equal(html.match(unsupportedNotice)?.length, 2);
 });
 
 test("관리 이미지는 인증 fetch로 받은 뒤에 그리므로 서버 렌더링에서는 원본 경로를 넣지 않는다", () => {
   const html = render("![](/api/workspaces/ws/assets/a1/content)");
   assert.deepEqual(imgSources(html), []);
-  assert.doesNotMatch(html, /표시하지 않습니다|표시할 수 없는/);
+  assert.doesNotMatch(html, /markdown-image-blocked|markdown-image-missing/);
 });
 
 test("기본 정책은 외부 링크를 그대로 누를 수 있게 두되 Referer·opener를 넘기지 않는다", () => {
@@ -106,7 +115,7 @@ test("코드 블록은 언어 라벨·코드 복사 버튼·선택에서 빠지�
 
   assert.match(html, /<span class="markdown-codeblock-tool markdown-codeblock-language">js<\/span>/);
   assert.match(html, /<span class="markdown-codeblock-tool markdown-codeblock-language">Text<\/span>/);
-  assert.equal([...html.matchAll(/aria-label="코드 복사"/g)].length, 2);
+  assert.equal([...html.matchAll(new RegExp(`aria-label="${escape(t("ui.codeBlock.copyLabel"))}"`, "g"))].length, 2);
   assert.match(html, /<div class="markdown-codeblock-gutter" aria-hidden="true"><span>1<\/span><span>2<\/span><\/div>/);
   // 줄 번호는 pre 밖에 있어 코드 텍스트(복사·선택 대상)에 섞이지 않는다
   assert.match(html, /<pre class="markdown-codeblock-scroll"><code class="language-js">const a = 1;\nconst b = 2;\n<\/code><\/pre>/);

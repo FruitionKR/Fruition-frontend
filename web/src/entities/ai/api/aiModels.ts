@@ -1,5 +1,6 @@
 import { apiFetch, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import type { AiModel, AiModelCatalog, AiModelsResponse, AiModelSelection, WorkspaceAiModelSettings } from "../model/aiModel";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /**
  * 선택 가능한 provider/model 조합과 답변 듣기 사용 가능 여부를 백엔드 카탈로그에서 가져온다.
@@ -23,7 +24,7 @@ export async function fetchWorkspaceAiModelSettings(): Promise<WorkspaceAiModelS
     workspacePath(workspaceId, "ai-model-settings"),
     { cache: "no-store" }
   );
-  return parseJsonOrThrow<WorkspaceAiModelSettings>(response, "LLM Provider 설정을 불러오지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceAiModelSettings>(response, sharedText("ai.requestFailed.providerLoad", "LLM Provider 설정을 불러오지 못했습니다."));
 }
 
 /** OWNER가 고른 ingest·lint provider/model 설정을 저장한다. */
@@ -39,5 +40,5 @@ export async function updateWorkspaceAiModelSettings(
       body: JSON.stringify({ ingest_lint: selection })
     }
   );
-  return parseJsonOrThrow<WorkspaceAiModelSettings>(response, "LLM Provider 설정을 저장하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceAiModelSettings>(response, sharedText("ai.requestFailed.providerSave", "LLM Provider 설정을 저장하지 못했습니다."));
 }

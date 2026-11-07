@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import modalStyles from "@/shared/ui/modal/CenteredModal.module.css";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 
@@ -16,6 +17,7 @@ export function SearchModalHeader({
   onChange: (value: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("shared");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export function SearchModalHeader({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      <button type="button" className={modalStyles["modal-close"]} aria-label="검색 닫기" onClick={onClose}>
+      <button type="button" className={modalStyles["modal-close"]} aria-label={t("ui.closeSearch")} onClick={onClose}>
         <SvgIcon src={plusIcon} className={modalStyles["modal-close-icon"]} />
       </button>
     </div>

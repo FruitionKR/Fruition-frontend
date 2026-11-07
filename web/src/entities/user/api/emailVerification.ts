@@ -2,6 +2,7 @@ import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/cli
 import { throwRateLimited } from "@/entities/user/api/account";
 import type { SignupConsentFields } from "@/entities/user/model/consent";
 import { localizedFetch } from "@/shared/i18n/requestLocale";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 type EmailVerificationResponse = {
   verification_id: string;
@@ -31,7 +32,7 @@ export async function requestEmailVerification(
   });
 
   if (response.status === 429) return throwRateLimited(response);
-  return parseJsonOrThrow<EmailVerificationResponse>(response, "인증번호 요청에 실패했습니다.");
+  return parseJsonOrThrow<EmailVerificationResponse>(response, sharedText("user.requestFailed.verificationRequest", "인증번호 요청에 실패했습니다."));
 }
 
 export async function checkEmailAvailability(email: string): Promise<EmailAvailabilityResponse> {
@@ -42,7 +43,7 @@ export async function checkEmailAvailability(email: string): Promise<EmailAvaila
   });
 
   if (response.status === 429) return throwRateLimited(response);
-  return parseJsonOrThrow<EmailAvailabilityResponse>(response, "이메일 중복 확인에 실패했습니다.");
+  return parseJsonOrThrow<EmailAvailabilityResponse>(response, sharedText("user.requestFailed.emailAvailability", "이메일 중복 확인에 실패했습니다."));
 }
 
 export async function confirmEmailVerification(
@@ -58,7 +59,7 @@ export async function confirmEmailVerification(
     }
   );
 
-  return parseJsonOrThrow<VerificationConfirmResponse>(response, "인증번호 확인에 실패했습니다.");
+  return parseJsonOrThrow<VerificationConfirmResponse>(response, sharedText("user.requestFailed.verificationConfirm", "인증번호 확인에 실패했습니다."));
 }
 
 export async function signupWithEmail(
@@ -99,5 +100,5 @@ export async function resetPasswordWithVerification(
     })
   });
 
-  await throwIfNotOk(response, "비밀번호 재설정에 실패했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.passwordReset", "비밀번호 재설정에 실패했습니다."));
 }
