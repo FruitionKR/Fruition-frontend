@@ -1,6 +1,7 @@
 import type { SkillTestRunRequest, SkillTestRunResponse } from "@/entities/skill/model/skill";
 import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
 import { ApiError, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { SkillsTranslate } from "./skillsTranslate";
 import { skillCapabilities, skillRequiresSourceOption, validateSkillCreateForm, type SkillCreateForm } from "./skillCreateForm";
 
@@ -82,14 +83,14 @@ export function skillChangeDiffLines(change: { before: string; after: string }):
   return lineDiff(change.before, change.after);
 }
 
-/** 테스트 실행 실패 → 카드 안내 문구. 서버가 준 문구는 그대로 쓴다. */
-export function describeSkillTestRunError(error: unknown, t: SkillsTranslate): string {
+/** 테스트 실행 실패 → 카드 안내 문구. 서버가 준 문구는 그대로 쓴다. 크레딧 안내는 ts(shared)로 지금 언어에 맞춘다. */
+export function describeSkillTestRunError(error: unknown, t: SkillsTranslate, ts?: SharedTranslate): string {
   if (error instanceof SessionExpiredError) return error.message;
   if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
     return t("testRun.error.timeout");
   }
   if (!(error instanceof ApiError)) return t("testRun.error.unavailable");
-  if (isInsufficientCreditError(error)) return t("testRun.error.insufficientCredit", { message: INSUFFICIENT_CREDIT_MESSAGE });
+  if (isInsufficientCreditError(error)) return t("testRun.error.insufficientCredit", { message: ts ? ts("errors.insufficientCredit") : INSUFFICIENT_CREDIT_MESSAGE });
   if (error.code === "SKILL_TEST_RUN_UNAVAILABLE") return t("testRun.error.notReady");
   if (error.code === "SKILL_TEST_RUN_UNSUPPORTED") return t("testRun.error.unsupported");
   if (error.status === 408 || error.status >= 500) return t("testRun.error.unavailable");

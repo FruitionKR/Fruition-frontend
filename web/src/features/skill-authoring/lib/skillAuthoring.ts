@@ -1,5 +1,6 @@
 import type { SkillAuthoringResult, SkillExecutionOptions, SkillUpdateRequest } from "@/entities/skill/model/skill";
 import { ApiError, getErrorMessage, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { SkillsTranslate } from "./skillsTranslate";
 
 type SkillAuthorErrorNotice = { title: string; description: string };
@@ -15,8 +16,9 @@ const SERVER_MESSAGE_CODES = new Set(["SKILL_INTENT_AMBIGUOUS", "SKILL_INSTRUCTI
  * 크레딧 부족(402 INSUFFICIENT_CREDIT)은 공통 문의 안내로 보여 준다(#153).
  * 사유 없는 거절(SKILL_REQUEST_REJECTED)과 알 수 없는 400은 중립 문구로 안내한다.
  * AI 서버 장애·5xx·타임아웃·네트워크 오류는 다시 시도하면 풀릴 수 있어 재시도 문구로 구분한다.
+ * 공용 문구(크레딧·권한·연결 오류)는 ts(shared)로 지금 언어에 맞춘다.
  */
-export function describeSkillAuthorError(error: unknown, t: SkillsTranslate): SkillAuthorErrorNotice {
+export function describeSkillAuthorError(error: unknown, t: SkillsTranslate, ts?: SharedTranslate): SkillAuthorErrorNotice {
   const rejectedTitle = t("authorError.rejectedTitle");
   const unavailableTitle = t("authorError.unavailableTitle");
   if (error instanceof SessionExpiredError) {
@@ -27,7 +29,7 @@ export function describeSkillAuthorError(error: unknown, t: SkillsTranslate): Sk
     return { title: unavailableTitle, description: t("authorError.unavailable") };
   }
   if (isInsufficientCreditError(error)) {
-    return { title: unavailableTitle, description: INSUFFICIENT_CREDIT_MESSAGE };
+    return { title: unavailableTitle, description: ts ? ts("errors.insufficientCredit") : INSUFFICIENT_CREDIT_MESSAGE };
   }
   if (error.code === "SKILL_AI_UNAVAILABLE" || error.status >= 500 || error.status === 408) {
     return { title: unavailableTitle, description: t("authorError.unavailable") };
@@ -44,7 +46,7 @@ export function describeSkillAuthorError(error: unknown, t: SkillsTranslate): Sk
   if (error.code === "SKILL_REQUEST_REJECTED" || error.status === 400) {
     return { title: rejectedTitle, description: t("authorError.rejected") };
   }
-  return { title: rejectedTitle, description: getErrorMessage(error, t("authorError.fallback")) };
+  return { title: rejectedTitle, description: getErrorMessage(error, t("authorError.fallback"), ts) };
 }
 
 /**
@@ -125,7 +127,7 @@ const CAPABILITIES_REJECTION_CODES = new Set(["SKILL_CAPABILITIES_INVALID", "inv
  *   AI 내부 표현일 수 있어 정해 둔 문구로 종류·결과 방식을 다시 고르게 한다.
  * 그 밖에는 서버 message나 정해 둔 실패 문구다. 문구는 t(skills 네임스페이스)로 현재 언어에 맞춘다.
  */
-export function describeSkillSaveError(error: unknown, t: SkillsTranslate): string {
+export function describeSkillSaveError(error: unknown, t: SkillsTranslate, ts?: SharedTranslate): string {
   const fallback = t("saveError.fallback");
   if (error instanceof ApiError && error.code != null) {
     if (error.code === "SKILL_TARGETS_INVALID") {
@@ -135,5 +137,5 @@ export function describeSkillSaveError(error: unknown, t: SkillsTranslate): stri
     if (RESULT_MODE_REJECTION_CODES.has(error.code)) return t("saveError.resultModeInvalid");
     if (CAPABILITIES_REJECTION_CODES.has(error.code)) return t("saveError.capabilitiesInvalid");
   }
-  return getErrorMessage(error, fallback);
+  return getErrorMessage(error, fallback, ts);
 }

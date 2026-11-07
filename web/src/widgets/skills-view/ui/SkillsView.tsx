@@ -86,6 +86,7 @@ export function SkillsView({
   testRunTarget?: HTMLElement | null;
 }) {
   const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const workspaceId = getSelectedWorkspaceId();
   const catalog = useSkillCatalog(workspaceId);
   const { updateMutation, deleteMutation } = catalog;
@@ -330,7 +331,7 @@ export function SkillsView({
         <h2 id={`${idPrefix}-delete-title`}>{t("deleteConfirm.title")}</h2>
         <p>{t("deleteConfirm.description", { slug: deleteTarget?.slug ?? "" })}</p>
         {deleteMutation.isError && (
-          <p className={styles.error} role="alert">{getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"))}</p>
+          <p className={styles.error} role="alert">{getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}</p>
         )}
         <div className="modal-actions">
           <button type="button" className="modal-cancel-button" autoFocus disabled={deleteMutation.isPending}

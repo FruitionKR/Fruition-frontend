@@ -34,6 +34,7 @@ const DIFF_LINE_LABEL_KEY = { delete: "testRun.deletedLine", insert: "testRun.in
  */
 export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: string; form: SkillCreateForm; label: string }) {
   const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const [documentId, setDocumentId] = useState(NO_DOCUMENT);
@@ -110,7 +111,7 @@ export function SkillTestRunCard({ workspaceId, form, label }: { workspaceId: st
             {runMutation.isPending && <p className={styles.note}>{t("testRun.running")}</p>}
             {!runMutation.isPending && runMutation.isError && (
               <p className={styles.error} role="alert">
-                {describeSkillTestRunError(runMutation.error, t)}
+                {describeSkillTestRunError(runMutation.error, t, tShared)}
               </p>
             )}
             {!runMutation.isPending && view != null && <SkillTestRunResult view={view} />}

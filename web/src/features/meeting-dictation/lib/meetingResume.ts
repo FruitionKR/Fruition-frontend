@@ -2,6 +2,7 @@ import type { MeetingListItem, MeetingNotesResponse, MeetingResponse } from "@/e
 import { describeMeetingNotesError, describeMeetingTranscriptionFailure } from "@/shared/lib/aiErrorCodes";
 import { hasFinalSegments, transcriptFromSegments } from "./liveTranscript";
 import type { MeetingPhase } from "./meetingNotesFlow";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { MeetingTranslate } from "./meetingTranslate";
 
 // 회의 목록에서 고른 회의를 다시 열 때(진행 중인 회의 이어 보기) 서버 상태를 회의 화면 단계로 옮긴다.
@@ -33,17 +34,19 @@ export function shouldLoadNotesOnResume(
  * - failed·awaiting_upload: 멈춘 화면 + 안내(녹음 파일 다시 올리기)
  * - open: 회의록이 생성 중이면 대기, 만들어졌으면 회의록, 저장됐으면 저장됨, 없거나 실패면 받아쓴 내용
  * 녹음 재생은 단계와 상관없이 회의의 has_recording으로 보여 준다.
+ * 실패 사유(공용 AI 오류 문구)는 ts(shared)로 지금 언어에 맞춘다.
  */
 export function resumedMeetingView(
   meeting: Pick<MeetingResponse, "status" | "source" | "error" | "segments" | "live_connected">,
   notes: Pick<MeetingNotesResponse, "status" | "error_code"> | null,
-  t: MeetingTranslate
+  t: MeetingTranslate,
+  ts?: SharedTranslate
 ): ResumedMeetingView {
   switch (meeting.status) {
     case "transcribing":
       return { phase: "transcribing", notice: null };
     case "failed":
-      return { phase: "stopped", notice: { text: describeMeetingTranscriptionFailure(meeting.error), tone: "error" } };
+      return { phase: "stopped", notice: { text: describeMeetingTranscriptionFailure(meeting.error, ts), tone: "error" } };
     case "awaiting_upload":
       return { phase: "stopped", notice: { text: t("messages.awaitingUpload"), tone: "info" } };
     default:
@@ -54,7 +57,7 @@ export function resumedMeetingView(
   if (notes?.status === "applied") return { phase: "applied", notice: null };
   if (notes?.status === "failed") {
     const isCancelled = notes.error_code === "MEETING_NOTES_CANCELLED";
-    return { phase: "stopped", notice: { text: describeMeetingNotesError(notes.error_code), tone: isCancelled ? "info" : "error" } };
+    return { phase: "stopped", notice: { text: describeMeetingNotesError(notes.error_code, ts), tone: isCancelled ? "info" : "error" } };
   }
   if (meeting.live_connected) return { phase: "stopped", notice: { text: t("messages.liveConnected"), tone: "info" } };
   if (!hasFinalSegments(transcriptFromSegments(meeting.segments))) {
