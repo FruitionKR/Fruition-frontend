@@ -11,7 +11,7 @@ registerHooks({
   }
 });
 
-const { checkRecordingFile, meetingNameFromFile, MEETING_RECORDING_MAX_BYTES, MEETING_RECORDING_FILE_MESSAGES } = await import("../src/entities/meeting/lib/recordingFile.ts");
+const { checkRecordingFile, meetingNameFromFile, MEETING_RECORDING_MAX_BYTES } = await import("../src/entities/meeting/lib/recordingFile.ts");
 const { uploadMeetingRecording, fetchMeetingRecordingUrl, deleteMeeting, cancelMeetingTranscription } = await import("../src/entities/meeting/api/meetings.ts");
 const { describeMeetingRecordingError, describeMeetingTranscriptionFailure } = await import("../src/shared/lib/aiErrorCodes.ts");
 const { canDeleteMeetingInPhase, describeRecordingError, isMeetingBusyPhase, meetingProgressText, meetingTitle, shouldConfirmLeavingPhase } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
@@ -36,11 +36,11 @@ test("녹음 파일은 서버가 받는 형식이면 그대로, 브라우저가 
 });
 
 test("지원하지 않는 형식·빈 파일·500 MiB 초과는 올리기 전에 막는다", () => {
-  assert.deepEqual(checkRecordingFile(file("a.mp4", "video/mp4", 10)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.unsupported });
-  assert.deepEqual(checkRecordingFile(file("a.txt", "text/plain", 10)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.unsupported });
-  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", 0)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.empty });
+  assert.deepEqual(checkRecordingFile(file("a.mp4", "video/mp4", 10)), { ok: false, reason: "unsupported" });
+  assert.deepEqual(checkRecordingFile(file("a.txt", "text/plain", 10)), { ok: false, reason: "unsupported" });
+  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", 0)), { ok: false, reason: "empty" });
   assert.equal(checkRecordingFile(file("a.wav", "audio/wav", MEETING_RECORDING_MAX_BYTES)).ok, true);
-  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", MEETING_RECORDING_MAX_BYTES + 1)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.tooLarge });
+  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", MEETING_RECORDING_MAX_BYTES + 1)), { ok: false, reason: "tooLarge" });
 });
 
 test("회의 이름은 확장자를 뺀 파일 이름이고 200자로 자른다", () => {

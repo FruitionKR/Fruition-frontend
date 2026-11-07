@@ -6,6 +6,8 @@ import test from "node:test";
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "react") return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
+    // 훅의 useTranslations는 한국어 agentChat 메시지로 푼다.
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
     if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
     return nextResolve(specifier, context);
@@ -16,7 +18,11 @@ registerHooks({
 globalThis.window = { localStorage: { getItem: () => "ws_test", setItem() {}, removeItem() {} } };
 
 const { render } = await import("./reactHookShim.mjs");
-const { appendDictation, describeMicrophoneError, pickRecordingMimeType, DICTATION_MESSAGES, DICTATION_MAX_MS } = await import("../src/features/agent-chat/lib/dictation.ts");
+const { appendDictation, describeMicrophoneError, pickRecordingMimeType, DICTATION_MAX_MS } = await import("../src/features/agent-chat/lib/dictation.ts");
+// 안내 문구는 agentChat.dictation 메시지에 있다. 훅은 한국어 메시지로 풀린다.
+const { koMessages } = await import("./fakeNextIntl.mjs");
+const koAgentChat = koMessages.agentChat;
+const DICTATION_MESSAGES = koAgentChat.dictation;
 const { transcribeSpeech } = await import("../src/features/agent-chat/api/speech.ts");
 const { useDictation } = await import("../src/features/agent-chat/model/useDictation.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
@@ -31,9 +37,9 @@ test("녹음 형식은 서버가 받는 순서대로 브라우저가 지원하�
 
 test("마이크 오류는 권한 거부·마이크 없음·그 밖으로 안내한다", () => {
   const named = (name) => Object.assign(new Error(name), { name });
-  assert.equal(describeMicrophoneError(named("NotAllowedError")), DICTATION_MESSAGES.permissionDenied);
-  assert.equal(describeMicrophoneError(named("NotFoundError")), DICTATION_MESSAGES.noMicrophone);
-  assert.equal(describeMicrophoneError(new Error("boom")), DICTATION_MESSAGES.microphoneFailed);
+  assert.equal(describeMicrophoneError(named("NotAllowedError")), "permissionDenied");
+  assert.equal(describeMicrophoneError(named("NotFoundError")), "noMicrophone");
+  assert.equal(describeMicrophoneError(new Error("boom")), "microphoneFailed");
 });
 
 test("받아쓴 텍스트는 입력창 내용 뒤에 띄어 붙이고 빈 결과는 바꾸지 않는다", () => {

@@ -304,6 +304,36 @@
     "loadFailed": "We couldn't load the auto-approval settings.",
     "saveFailed": "We couldn't save the auto-approval settings."
   },
+  "meeting": {
+    "requestFailed": {
+      "create": "Couldn't start the meeting.",
+      "ticket": "Couldn't prepare the recording connection.",
+      "notes": "Couldn't request the meeting notes.",
+      "notesLoad": "Couldn't load the meeting notes.",
+      "notesCancel": "Couldn't cancel creating the meeting notes.",
+      "preview": "Couldn't preview the content to add to the end of the document.",
+      "apply": "Couldn't save the meeting notes as a document.",
+      "load": "Couldn't load the meeting status.",
+      "list": "Couldn't load the meeting list.",
+      "upload": "Couldn't upload the recording file.",
+      "transcriptionCancel": "Couldn't cancel the transcription.",
+      "recordingUrl": "Couldn't load the recording.",
+      "delete": "Couldn't delete the meeting."
+    },
+    "uploadAborted": "The file upload was stopped."
+  },
+  "notionImport": {
+    "requestFailed": {
+      "start": "Couldn't start the import.",
+      "complete": "Couldn't finish the import.",
+      "estimate": "Couldn't estimate the cost of adding to the wiki.",
+      "ingest": "Couldn't start adding to the wiki.",
+      "convert": "Couldn't start the PDF conversion.",
+      "createFolder": "Couldn't create the folder.",
+      "createDocument": "Couldn't create the document.",
+      "saveContent": "Couldn't save the document content."
+    }
+  },
   "documentRequests": {
     "operationLog": {
       "load": "Couldn't load the logs.",

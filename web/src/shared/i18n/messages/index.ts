@@ -1,4 +1,5 @@
 import type { Locale } from "../locale";
+import koAgentChat from "./ko/agentChat.json";
 import koAuth from "./ko/auth.json";
 import koCommon from "./ko/common.json";
 import koDocuments from "./ko/documents.json";
@@ -13,6 +14,7 @@ import koSkills from "./ko/skills.json";
 import koWiki from "./ko/wiki.json";
 import koWorkspace from "./ko/workspace.json";
 import koShared from "./ko/shared.json";
+import enAgentChat from "./en/agentChat.json";
 import enAuth from "./en/auth.json";
 import enCommon from "./en/common.json";
 import enDocuments from "./en/documents.json";
@@ -46,7 +48,8 @@ const ko = {
   wiki: koWiki,
   workspace: koWorkspace,
   documents: koDocuments,
-  shared: koShared
+  shared: koShared,
+  agentChat: koAgentChat
 };
 
 export type AppMessages = typeof ko;
@@ -67,6 +70,7 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     wiki: enWiki,
     workspace: enWorkspace,
     documents: enDocuments,
-    shared: enShared
+    shared: enShared,
+    agentChat: enAgentChat
   }
 };

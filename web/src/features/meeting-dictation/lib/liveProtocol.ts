@@ -1,5 +1,6 @@
 // 실시간 받아쓰기 WebSocket 계약(document docs/api/meetings.md `WS /api/meetings/{id}/live`)의 순수 규칙.
 import { AI_USAGE_LIMIT_FAILURE_MESSAGE } from "@/shared/lib/aiErrorCodes";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { MeetingTranslate } from "./meetingTranslate";
 // 브라우저 API를 다루는 쪽은 model/liveSession.ts다.
 
@@ -43,9 +44,9 @@ function isLiveErrorCode(code: string): code is LiveErrorCode {
   return (LIVE_ERROR_CODES as readonly string[]).includes(code);
 }
 
-/** 오류 code → 안내 문구. 모르는 code는 글로 옮기기 서비스 연결 실패로 안내한다. */
-export function describeLiveError(code: string, t: MeetingTranslate): string {
-  if (code === "ai_usage_limit_exceeded") return AI_USAGE_LIMIT_FAILURE_MESSAGE;
+/** 오류 code → 안내 문구. 모르는 code는 글로 옮기기 서비스 연결 실패로 안내한다. AI 사용 한도는 ts(shared)로 고른다. */
+export function describeLiveError(code: string, t: MeetingTranslate, ts?: SharedTranslate): string {
+  if (code === "ai_usage_limit_exceeded") return ts ? ts("errors.aiDailyLimit") : AI_USAGE_LIMIT_FAILURE_MESSAGE;
   return t(`liveErrors.${isLiveErrorCode(code) ? code : "transcription_failed"}`);
 }
 

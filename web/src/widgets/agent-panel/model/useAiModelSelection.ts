@@ -3,9 +3,12 @@ import type { AiModelCatalogStatus } from "@/features/agent-chat/ui/AgentCompose
 import { fetchAiModelCatalog, resolveInitialModel, type AiModel } from "@/entities/ai";
 import { useUserPreferences } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
+import { useTranslations } from "next-intl";
 
 /** 채팅에 쓸 AI 모델 카탈로그·선택과 웹 검색 설정. 선택은 사용자 설정에 저장한다. */
 export function useAiModelSelection() {
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [aiModels, setAiModels] = useState<AiModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<AiModel | null>(null);
   const [aiModelCatalogStatus, setAiModelCatalogStatus] = useState<AiModelCatalogStatus>("loading");
@@ -23,16 +26,16 @@ export function useAiModelSelection() {
         setIsSpeechSynthesisEnabled(speechEnabled);
         if (models.length === 0) {
           setAiModelCatalogStatus("empty");
-          setAiModelsErrorMessage("사용 가능한 AI 모델이 없습니다.");
+          setAiModelsErrorMessage(t("models.empty"));
           return;
         }
         setAiModelCatalogStatus("ready");
       })
       .catch((error: unknown) => {
         setAiModelCatalogStatus("error");
-        setAiModelsErrorMessage(getErrorMessage(error, "AI 모델 목록을 불러오지 못했습니다."));
+        setAiModelsErrorMessage(getErrorMessage(error, t("models.loadFailed"), tShared));
       });
-  }, []);
+  }, [t, tShared]);
   // 카탈로그와 저장된 설정이 모두 준비된 뒤 초기 선택을 확정한다.
   useEffect(() => {
     if (!preferencesReady || aiModels.length === 0 || selectedModel) return;

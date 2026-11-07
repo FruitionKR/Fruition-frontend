@@ -1,5 +1,6 @@
 import { folderWritable } from "@/entities/tree/lib/treePermission";
 import type { ServerTreeItem } from "@/entities/tree/model/serverTree";
+import type { AgentChatTranslator } from "./agentChatTranslator";
 import type { AgentPlan, AgentPlanOperation } from "./agentPlan";
 
 export type PlanAccess = {
@@ -136,25 +137,25 @@ export function checkRowAccess(
   return { verdict, blockedCount, partlyBlockedCount };
 }
 
-const NO_ACCESS_REASON = "대상 문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어";
+/** 권한 안내에서 세는 단위. 폴더 정리 줄은 item(항목), 문서 수정 계획은 document(문서)다. */
+export type PlanAccessUnit = "task" | "item" | "document";
 
-/** 수락 전에 보여 줄 권한 안내. 막힌 작업이 없으면 null이다. unit은 세는 단위(폴더 정리 줄은 "항목")다. */
-export function planAccessMessage({ verdict, blockedCount, partlyBlockedCount = 0, unit = "작업" }: Pick<PlanAccess, "verdict" | "blockedCount"> & { partlyBlockedCount?: number; unit?: string }): string | null {
-  if (verdict === "all_blocked") {
-    return `${NO_ACCESS_REASON} 수락해도 실행할 수 없어요. 워크스페이스 OWNER에게 권한을 요청해 주세요.`;
-  }
+/**
+ * 수락 전에 보여 줄 권한 안내. 막힌 작업이 없으면 null이다.
+ * 항목별 안내 문구는 agentChat.plan.access.operationBlocked·rowPartlyBlocked에 있다.
+ */
+export function planAccessMessage(
+  { verdict, blockedCount, partlyBlockedCount = 0, unit = "task" }: Pick<PlanAccess, "verdict" | "blockedCount"> & { partlyBlockedCount?: number; unit?: PlanAccessUnit },
+  t: AgentChatTranslator
+): string | null {
+  if (verdict === "all_blocked") return t("plan.access.allBlocked");
   if (verdict === "some_blocked") {
     return [
-      blockedCount > 0 && `${unit} ${blockedCount}개는 ${NO_ACCESS_REASON} 실행되지 않아요.`,
-      partlyBlockedCount > 0 && `${unit} ${partlyBlockedCount}개는 권한이 없는 작업을 빼고 실행돼요.`,
-      blockedCount === 0 && partlyBlockedCount === 0 && `일부 작업은 ${NO_ACCESS_REASON} 실행되지 않아요.`,
-      `나머지 ${unit}만 실행돼요.`
+      blockedCount > 0 && t(`plan.access.blocked.${unit}`, { count: blockedCount }),
+      partlyBlockedCount > 0 && t(`plan.access.partlyBlocked.${unit}`, { count: partlyBlockedCount }),
+      blockedCount === 0 && partlyBlockedCount === 0 && t("plan.access.someBlocked"),
+      t(`plan.access.rest.${unit}`)
     ].filter(Boolean).join(" ");
   }
   return null;
 }
-
-/** 항목별 안내 문구 */
-export const PLAN_OPERATION_BLOCKED_NOTE = "문서를 편집하거나 폴더에 넣거나 꺼낼 권한이 없어 실행되지 않아요.";
-/** 줄의 작업 중 일부만 막혔을 때의 안내 문구 */
-export const PLAN_ROW_PARTLY_BLOCKED_NOTE = "일부 작업은 권한이 없어 실행되지 않아요.";

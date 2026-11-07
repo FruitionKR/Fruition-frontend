@@ -55,6 +55,7 @@ export function ReferenceDocumentPickerModal({
   filterDocuments?: (documents: DocumentItemResponse[], query: string) => DocumentItemResponse[];
 }) {
   const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const modalLabel = ariaLabel ?? t("picker.ariaLabel");
   const [query, setQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -84,7 +85,7 @@ export function ReferenceDocumentPickerModal({
       setPinnedDocs((current) => [uploaded, ...current.filter((doc) => doc.id !== uploaded.id)]);
       setQuery("");
     } catch (error) {
-      setUploadError(describeSkillReferenceUploadError(error, t));
+      setUploadError(describeSkillReferenceUploadError(error, t, tShared));
     } finally {
       setIsUploading(false);
     }

@@ -1,3 +1,5 @@
+import { isKnownKey, type AgentChatTranslator } from "./agentChatTranslator";
+
 export type AgentPlanOperation = {
   id: string;
   sequence: number;
@@ -71,7 +73,7 @@ export type PlanPreviewNode = {
  * 서버 트리를 복사한 뒤 계획 순서대로 적용해 변경 관련 가지를 보여준다. 실행 결과가 있으면 그대로 따른다:
  * 실패한 작업은 적용하지 않고 항목에 실패로 표시하며, 고르지 않은 작업은 뺀다.
  */
-export function buildPlanPreviewTree(plan: AgentPlan, tree: PlanTreeItem[]) {
+export function buildPlanPreviewTree(plan: AgentPlan, tree: PlanTreeItem[], t: AgentChatTranslator) {
   const nodes = new Map<string, PlanPreviewNode>();
   const parents = new Map<string, string | null>();
   const changed = new Set<string>();
@@ -140,17 +142,15 @@ export function buildPlanPreviewTree(plan: AgentPlan, tree: PlanTreeItem[]) {
     else if (operation.error_code === ROLLBACK_DOCUMENT_PURGED) unrecoverableCount += 1;
     else if (outcome !== "excluded") counts[operation.tool_name] = (counts[operation.tool_name] ?? 0) + 1;
   }
-  const summary = [
-    ["create_folder", "폴더", "생성"], ["move_document", "문서", "이동"],
-    ["move_folder", "폴더", "이동"], ["rename_folder", "폴더", "이름 변경"],
-    ["rename_document", "문서", "이름 변경"], ["create_document", "문서", "생성"],
-    ["apply_document_edit", "문서", "편집"]
-  ].filter(([tool]) => counts[tool]).map(([tool, label, verb]) => `${label} ${counts[tool]}개 ${verb}`);
-  if (rolledBackCount > 0) summary.push(`복구 ${rolledBackCount}개`);
-  if (unrecoverableCount > 0) summary.push(`영구 삭제로 되돌리지 못함 ${unrecoverableCount}개`);
-  if (failedCount > 0) summary.push(`실패 ${failedCount}개`);
+  const summary = SUMMARY_TOOLS.filter((tool) => counts[tool]).map((tool) => t(`plan.summary.${tool}`, { count: counts[tool] }));
+  if (rolledBackCount > 0) summary.push(t("plan.summary.rolledBack", { count: rolledBackCount }));
+  if (unrecoverableCount > 0) summary.push(t("plan.summary.unrecoverable", { count: unrecoverableCount }));
+  if (failedCount > 0) summary.push(t("plan.summary.failed", { count: failedCount }));
   return { nodes: relevant(roots), summary: summary.join(" · ") };
 }
+
+/** 계획 미리 보기 요약에 세어 보여 주는 작업 종류(순서대로) */
+const SUMMARY_TOOLS = ["create_folder", "move_document", "move_folder", "rename_folder", "rename_document", "create_document", "apply_document_edit"] as const;
 
 export function isWorkspacePlanAction(action: string | undefined): boolean {
   return action === "folder_organize" || action === "workspace_workflow";
@@ -191,24 +191,21 @@ export function createStartedPlanTurns() {
 
 export const startedPlanTurns = createStartedPlanTurns();
 
-export function agentPlanStatusLabel(status: string | undefined): string {
-  const labels: Record<string, string> = {
-    queued: "계획 생성 대기", planning: "계획 생성 중", awaiting_approval: "승인 대기",
-    executing: "실행 중", verifying: "결과 확인 중", completed: "실행 완료",
-    partial_failed: "일부 실패", failed: "실행 실패", conflicted: "변경 충돌",
-    rejected: "계획 거절됨", clarification_required: "추가 설명 필요",
-    cancel_requested: "취소 요청 중", rolling_back: "변경 복구 중",
-    rollback_failed: "변경 복구 실패", cancelled: "취소됨"
-  };
-  return status ? labels[status] ?? "상태 확인 필요" : "계획 불러오는 중";
+/** 상태 문구(agentChat.plan.status)를 둔 run 상태 */
+const PLAN_RUN_STATUSES = [
+  "queued", "planning", "awaiting_approval", "executing", "verifying", "completed", "partial_failed", "failed", "conflicted",
+  "rejected", "clarification_required", "cancel_requested", "rolling_back", "rollback_failed", "cancelled"
+] as const;
+
+export function agentPlanStatusLabel(status: string | undefined, t: AgentChatTranslator): string {
+  if (!status) return t("plan.statusLoading");
+  return isKnownKey(PLAN_RUN_STATUSES, status) ? t(`plan.status.${status}`) : t("plan.statusUnknown");
 }
 
-const DEFAULT_CLARIFICATION_MESSAGE = "원하는 정리 기준을 작업 입력창에 더 구체적으로 알려주세요.";
-
 /** 명확화 요청일 때 카드에 보일 문장. AI가 되물은 질문이 있으면 그 문장을, 없으면 기본 안내를 쓴다. */
-export function agentPlanClarificationMessage(run: AgentPlanRun | null | undefined): string | null {
+export function agentPlanClarificationMessage(run: AgentPlanRun | null | undefined, t: AgentChatTranslator): string | null {
   if (run?.status !== "clarification_required") return null;
-  return run.clarification_question?.trim().normalize("NFC") || DEFAULT_CLARIFICATION_MESSAGE;
+  return run.clarification_question?.trim().normalize("NFC") || t("plan.clarificationDefault");
 }
 
 /** 부분 승인에서 고르지 않아 실행하지 않은 작업. 실패가 아니라 제외로 보여 준다. */
@@ -244,18 +241,14 @@ export function planOperationOutcome({ status, error_code }: Pick<AgentPlanOpera
   return FAILED_OPERATION_STATUSES.has(status) ? "failed" : "pending";
 }
 
-const OPERATION_FAILURE_REASONS: Record<string, string> = {
-  forbidden: "권한이 없어 실행하지 못했어요.",
-  conflicted: "다른 변경과 충돌해 실행하지 못했어요.",
-  skipped: "앞선 작업이 실패해 실행하지 못했어요.",
-  verification_failed: "실행 결과를 확인하지 못했어요.",
-  cancelled: "취소되어 실행하지 못했어요.",
-  rolled_back: "실행한 뒤 되돌렸어요."
-};
+/** 상태별 실패 이유 문구(agentChat.plan.operationReason)를 둔 작업 상태 */
+const OPERATION_FAILURE_REASON_STATUSES = ["forbidden", "conflicted", "skipped", "verification_failed", "cancelled", "rolled_back"] as const;
 
 /** 실패한 작업의 이유 문장 */
-export function planOperationFailureReason(operation: Pick<AgentPlanOperation, "status" | "error_code">): string {
-  return agentPlanOperationFailureMessage(operation) ?? OPERATION_FAILURE_REASONS[operation.status] ?? "실행하지 못했어요.";
+export function planOperationFailureReason(operation: Pick<AgentPlanOperation, "status" | "error_code">, t: AgentChatTranslator): string {
+  const byCode = agentPlanOperationFailureMessage(operation, t);
+  if (byCode) return byCode;
+  return isKnownKey(OPERATION_FAILURE_REASON_STATUSES, operation.status) ? t(`plan.operationReason.${operation.status}`) : t("plan.operationReason.fallback");
 }
 
 export type PlanOperationResults = {
@@ -308,44 +301,43 @@ export function savedEditDocumentIds(plan: Pick<AgentPlan, "operations"> | null 
   }))];
 }
 
-const OPERATION_STATUS_LABELS: Record<string, string> = {
-  succeeded: "완료", completed: "완료", running: "실행 중", failed: "실패", skipped: "건너뜀", forbidden: "권한 없음",
-  conflicted: "변경 충돌", verification_failed: "결과 확인 실패", cancelled: "취소됨", rolled_back: "복구됨"
-};
+/** 상태 칩 문구(agentChat.plan.operationStatus)를 둔 작업 상태 */
+const OPERATION_STATUSES = ["succeeded", "completed", "running", "failed", "skipped", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back"] as const;
 
-export function planOperationStatusLabel(status: string): string {
-  return OPERATION_STATUS_LABELS[status] ?? "상태 확인 필요";
+export function planOperationStatusLabel(status: string, t: AgentChatTranslator): string {
+  return isKnownKey(OPERATION_STATUSES, status) ? t(`plan.operationStatus.${status}`) : t("plan.statusUnknown");
 }
 
 /** 작업 결과 칩 문구. 건너뛴 작업은 이유에 따라 나눠 적는다. */
-export function planOperationResultLabel(operation: Pick<AgentPlanOperation, "status" | "error_code">): string {
-  if (isOperationNotSelected(operation)) return "제외됨";
-  if (isOperationPurged(operation)) return "영구 삭제됨";
-  return planOperationStatusLabel(operation.status);
+export function planOperationResultLabel(operation: Pick<AgentPlanOperation, "status" | "error_code">, t: AgentChatTranslator): string {
+  if (isOperationNotSelected(operation)) return t("plan.excluded");
+  if (isOperationPurged(operation)) return t("plan.purged");
+  return planOperationStatusLabel(operation.status, t);
 }
 
-/** 실행 실패(run error_code)별 안내. AI는 예외 원문 없이 코드만 내려준다(ai failure_codes). */
-const PLAN_FAILURE_MESSAGES: Record<string, string> = {
-  plan_out_of_scope: "선택한 폴더 밖으로 옮기거나 선택한 폴더 자체를 바꾸는 작업만 있어 정리 계획을 만들지 못했어요. 규칙을 조정해 다시 시도해 주세요.",
-  input_rejected: "AI가 만든 계획이 검증을 통과하지 못해 정리 계획을 만들지 못했어요. 규칙을 조정하거나 다시 시도해 주세요.",
-  provider_rate_limited: "AI 요청이 많아 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
-  provider_unavailable: "AI 서비스에 연결하지 못해 계획을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
-  deadline_exceeded: "계획을 만드는 데 너무 오래 걸려 중단했어요. 다시 시도해 주세요.",
-  [ROLLBACK_DOCUMENT_PURGED]: "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요."
-};
-export const PLAN_FAILURE_FALLBACK = "작업을 완료하지 못했습니다. 다시 시도해 주세요.";
-/** 카드와 미리보기가 함께 쓴다. 항목별 결과는 두 화면 모두 바로 볼 수 있어 위치를 가리키지 않는다. */
-export const PLAN_EXECUTION_FAILURE_FALLBACK = "작업을 완료하지 못했어요. 항목별 결과를 확인해 주세요.";
-export const PLAN_PARTIAL_FAILURE_MESSAGE = "일부 작업을 완료하지 못했어요. 항목별 결과를 확인해 주세요.";
+/** 원인별 안내(agentChat.plan.failure)를 둔 실행 실패 코드(run error_code). AI는 예외 원문 없이 코드만 내려준다(ai failure_codes). */
+const PLAN_FAILURE_CODES = ["plan_out_of_scope", "input_rejected", "provider_rate_limited", "provider_unavailable", "deadline_exceeded", ROLLBACK_DOCUMENT_PURGED] as const;
 const FAILED_PLAN_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
 
-/** 실패한 run이면 카드에 보일 이유, 아니면 null. 알려진 코드는 원인별 문구, 모르는 코드는 기본 안내를 쓴다. */
-export function agentPlanFailureMessage(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined): string | null {
+/**
+ * 실패한 run의 안내 종류. code: 원인별 문구, fallback: 계획을 세우지 못함, partial: 일부 실행 실패, execution: 실행 실패.
+ * 문서 수정 계획처럼 원인을 모르는 실패를 따로 풀어 쓰는 화면이 종류로 나눈다. 실패가 아니면 null.
+ */
+export function agentPlanFailureKind(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined): "code" | "fallback" | "partial" | "execution" | null {
   if (!run || !FAILED_PLAN_RUN_STATUSES.has(run.status)) return null;
-  const known = run.error_code ? PLAN_FAILURE_MESSAGES[run.error_code] : undefined;
-  if (known) return known;
-  if (!run.plan) return PLAN_FAILURE_FALLBACK;
-  return run.status === "partial_failed" ? PLAN_PARTIAL_FAILURE_MESSAGE : PLAN_EXECUTION_FAILURE_FALLBACK;
+  if (isKnownKey(PLAN_FAILURE_CODES, run.error_code)) return "code";
+  if (!run.plan) return "fallback";
+  return run.status === "partial_failed" ? "partial" : "execution";
+}
+
+/** 실패한 run이면 카드에 보일 이유, 아니면 null. 알려진 코드는 원인별 문구, 모르는 코드는 기본 안내를 쓴다. */
+export function agentPlanFailureMessage(run: Pick<AgentPlanRun, "status" | "error_code" | "plan"> | null | undefined, t: AgentChatTranslator): string | null {
+  const kind = agentPlanFailureKind(run);
+  if (kind === "code" && isKnownKey(PLAN_FAILURE_CODES, run?.error_code)) return t(`plan.failure.${run.error_code}`);
+  if (kind === "fallback") return t("plan.failure.fallback");
+  // 카드와 미리보기가 함께 쓴다. 항목별 결과는 두 화면 모두 바로 볼 수 있어 위치를 가리키지 않는다.
+  if (kind === "partial") return t("plan.failure.partial");
+  return kind === "execution" ? t("plan.failure.execution") : null;
 }
 
 /**
@@ -362,17 +354,22 @@ export function canRetryAgentPlanRun(run: Pick<AgentPlanRun, "status" | "plan"> 
  * - 대상 폴더 자체의 이름 변경·이동 작업을 계획에서 뺐을 때
  * - 계획에 없는 문서끼리 본문이 거의 같을 때. 이름에 `.`이 들어갈 수 있어 따옴표 쌍 기준으로 맞춘다.
  * - 본문 중복을 확인하지 못한 문서가 있을 때
+ * 영어로 요청한 계획(response_language=en)은 같은 안내를 영어 고정 문장으로 붙인다(ai *_NOTE_EN).
  */
 const PLAN_SUMMARY_NOTE_PATTERNS = [
   /\s*대상 폴더 밖으로 옮기는 작업 \d+개는 계획에서 뺐어요\.?/,
   /\s*대상 폴더 자체는 바꿀 수 없어 그 폴더의 이름 변경·이동 작업 \d+개는 계획에서 뺐어요\./,
   /\s*계획에 없는 문서 중 내용이 거의 같은 문서가 있어요: (?:'[^']*'와\(과\) '[^']*'(?:, )?)+\./,
-  /\s*문서 \d+개는 내용 중복을 확인하지 못했어요\./
+  /\s*문서 \d+개는 내용 중복을 확인하지 못했어요\./,
+  /\s*Removed \d+ operations that move items outside the target folder from the plan\.?/,
+  /\s*Removed \d+ rename or move operations on the target folder itself from the plan because the target folder can['’]t be changed\./,
+  /\s*Some documents not in the plan have nearly identical content: (?:'[^']*' and '[^']*'(?:, )?)+\./,
+  /\s*Couldn['’]t check \d+ documents for duplicate content\./
 ];
 
 /** 이미 실행을 시작한 run. AI가 승인 전에 쓴 요약의 "아직 변경된 사항은 없으며"가 더는 맞지 않다. */
 const EXECUTED_RUN_STATUSES = new Set(["executing", "verifying", "completed", "partial_failed", "failed", "conflicted", "rolling_back", "rollback_failed"]);
-const NOTHING_CHANGED_YET_SENTENCE = /아직\s*(?:변경|적용|실행|저장|이동)[^.!?]*(?:없|않)/;
+const NOTHING_CHANGED_YET_SENTENCE = /아직\s*(?:변경|적용|실행|저장|이동)[^.!?]*(?:없|않)|\bnothing has (?:changed|been (?:changed|applied|saved|moved)) yet\b/i;
 
 function dropNothingChangedYet(text: string): string {
   return text.split(/(?<=[.!?])\s+/).filter((sentence) => !NOTHING_CHANGED_YET_SENTENCE.test(sentence)).join(" ");
@@ -409,15 +406,15 @@ export function isAutoApprovedPlan(run: Pick<AgentPlanRun, "plan"> | null | unde
  * 자동 승인으로 실행한 계획에 보일 안내. 계획에 든 작업 종류별로 되돌리는 방법을 덧붙인다.
  * 자동 승인 대상은 서버가 편집·생성·이동·이름 변경으로 제한하므로 모두 되돌릴 수 있다.
  */
-export function autoApprovedPlanNote(plan: Pick<AgentPlan, "operations">): string {
+export function autoApprovedPlanNote(plan: Pick<AgentPlan, "operations">, t: AgentChatTranslator): string {
   const tools = new Set(plan.operations.map((operation) => operation.tool_name));
   const hints = [
-    tools.has("apply_document_edit") && "편집한 문서는 로그 화면에서 이 작업을 롤백해 되돌릴 수 있어요.",
-    tools.has("create_document") && "새로 만든 문서는 휴지통으로 옮길 수 있어요.",
+    tools.has("apply_document_edit") && t("plan.autoApproved.editHint"),
+    tools.has("create_document") && t("plan.autoApproved.createHint"),
     [...tools].some((tool) => tool.startsWith("move_") || tool.startsWith("rename_") || tool === "create_folder")
-      && "옮기거나 바꾼 이름, 새 폴더는 문서 목록에서 다시 정리할 수 있어요."
+      && t("plan.autoApproved.moveHint")
   ].filter(Boolean);
-  return ["설정의 'AI 에이전트 자동 승인'에 따라 확인 없이 실행했어요.", ...hints].join(" ");
+  return [t("plan.autoApproved.prefix"), ...hints].join(" ");
 }
 
 export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boolean {
@@ -425,7 +422,7 @@ export function canApproveAgentPlan(run: AgentPlanRun | null | undefined): boole
 }
 
 /** 새 폴더 참조도 이름으로 풀어 승인할 이동 경로를 보여준다. */
-export function describePlanOperations(plan: AgentPlan, tree: PlanTreeItem[]) {
+export function describePlanOperations(plan: AgentPlan, tree: PlanTreeItem[], t: AgentChatTranslator) {
   const paths = new Map<string, string>();
   function visit(items: PlanTreeItem[], parent: string) {
     for (const item of items) {
@@ -437,56 +434,50 @@ export function describePlanOperations(plan: AgentPlan, tree: PlanTreeItem[]) {
   visit(tree, "");
   const createdPaths = new Map<string, string>();
   function destination(value: unknown): string {
-    if (value === null) return "최상위";
-    if (typeof value === "string") return paths.get(value) ?? "폴더 이름 확인 불가";
+    if (value === null) return t("plan.describe.root");
+    if (typeof value === "string") return paths.get(value) ?? t("plan.describe.unknownFolder");
     if (value && typeof value === "object" && "$operation_result" in value) {
-      return createdPaths.get(String(value.$operation_result)) ?? "새 폴더 이름 확인 불가";
+      return createdPaths.get(String(value.$operation_result)) ?? t("plan.describe.unknownNewFolder");
     }
-    return "위치 확인 불가";
+    return t("plan.describe.unknownLocation");
   }
   return [...plan.operations].sort((a, b) => a.sequence - b.sequence).map((operation) => {
     const args = operation.arguments;
-    const target = paths.get(operation.target_id ?? "") ?? "항목 이름 확인 불가";
+    const target = paths.get(operation.target_id ?? "") ?? t("plan.describe.unknownItem");
     const name = String(args.name ?? args.display_name ?? "");
-    const parent = destination(operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id);
-    const createdPath = parent === "최상위" ? name : `${parent} / ${name}`;
+    const parentValue = operation.tool_name.endsWith("folder") ? args.parent_folder_id : args.folder_id;
+    const parent = destination(parentValue);
+    const createdPath = parentValue === null ? name : `${parent} / ${name}`;
     let description: string;
     switch (operation.tool_name) {
       case "create_folder":
         createdPaths.set(operation.id, createdPath);
-        description = `폴더 생성: ${createdPath}`;
+        description = t("plan.describe.createFolder", { path: createdPath });
         break;
       case "move_document":
       case "move_folder": description = `${target} → ${parent}`; break;
       case "rename_folder":
-      case "rename_document": description = `이름 변경: ${target} → ${name}`; break;
-      case "create_document": description = `문서 생성: ${createdPath}`; break;
-      case "apply_document_edit": description = `문서 편집: ${target}`; break;
-      default: description = "지원하지 않는 작업";
+      case "rename_document": description = t("plan.describe.rename", { target, name }); break;
+      case "create_document": description = t("plan.describe.createDocument", { path: createdPath }); break;
+      case "apply_document_edit": description = t("plan.describe.editDocument", { target }); break;
+      default: description = t("plan.describe.unsupported");
     }
     return { ...operation, description: description.normalize("NFC") };
   });
 }
 
 // 항목별 error_code는 AgentRun API가 그대로 전달한다. 예외 원문이나 내부 식별자는 화면에 노출하지 않는다.
-const OPERATION_FAILURE_MESSAGES: Record<string, string> = {
-  tool_http_403: "이 문서를 바꿀 권한이 없어 실행하지 못했어요. 권한을 확인해 주세요.",
-  tool_http_404: "대상을 찾을 수 없어 실행하지 못했어요. 삭제되었는지 확인해 주세요.",
-  tool_http_409: "그 사이 내용이 바뀌어 적용하지 못했어요. 최신 내용을 확인해 주세요.",
-  tool_http_423: "다른 사람이 편집 중이라 적용하지 못했어요. 편집이 끝난 뒤 다시 요청해 주세요.",
-  tool_http_unavailable: "문서 서비스에 연결하지 못했어요. 작업 결과를 확인한 뒤 다시 요청해 주세요.",
-  dependency_failed: "앞선 작업이 실패해 이 작업은 건너뛰었어요. 앞선 작업의 결과를 확인해 주세요.",
-  unresolved_dependency: "앞선 작업의 결과를 찾지 못해 실행하지 못했어요. 작업 결과를 확인해 주세요.",
-  rollback_snapshot_invalid: "변경 전 상태를 안전하게 보관할 수 없어 실행하지 못했어요. 문서 상태를 확인해 주세요.",
-  state_mismatch: "실행 결과가 계획과 달라요. 문서 상태를 확인해 주세요.",
-  document_purged: "영구 삭제된 문서라 실행하지 않았어요. 다른 문서를 골라 주세요."
-};
+/** 코드별 안내(agentChat.plan.operationError)를 둔 작업 실패 코드 */
+const OPERATION_FAILURE_CODES = [
+  "tool_http_403", "tool_http_404", "tool_http_409", "tool_http_423", "tool_http_unavailable", "dependency_failed",
+  "unresolved_dependency", "rollback_snapshot_invalid", "state_mismatch", "document_purged"
+] as const;
 const OPERATION_FAILURE_STATUSES = new Set(["failed", "forbidden", "conflicted", "verification_failed", "skipped"]);
 
-function agentPlanOperationFailureMessage(operation: Pick<AgentPlanOperation, "status" | "error_code">): string | null {
+function agentPlanOperationFailureMessage(operation: Pick<AgentPlanOperation, "status" | "error_code">, t: AgentChatTranslator): string | null {
   if (!OPERATION_FAILURE_STATUSES.has(operation.status) || isOperationNotSelected(operation)) return null;
   const code = operation.error_code ?? "";
-  if (Object.hasOwn(OPERATION_FAILURE_MESSAGES, code)) return OPERATION_FAILURE_MESSAGES[code];
-  if (/^tool_http_\d{3}$/.test(code)) return "문서 서비스가 요청을 처리하지 못했어요. 작업 결과를 확인한 뒤 다시 요청해 주세요.";
+  if (isKnownKey(OPERATION_FAILURE_CODES, code)) return t(`plan.operationError.${code}`);
+  if (/^tool_http_\d{3}$/.test(code)) return t("plan.operationError.toolHttpOther");
   return null;
 }

@@ -19,22 +19,19 @@ const TYPE_BY_EXTENSION: Record<string, string> = {
 /** 파일 선택 창의 accept. 형식과 확장자를 함께 적어 브라우저마다 다른 MIME 판별에 기대지 않는다. */
 export const MEETING_RECORDING_ACCEPT = "audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/webm,.wav,.mp3,.m4a,.webm";
 
-export const MEETING_RECORDING_FILE_MESSAGES = {
-  unsupported: "WAV, MP3, M4A, WebM 녹음 파일만 올릴 수 있습니다.",
-  empty: "녹음 파일이 비어 있습니다.",
-  tooLarge: "녹음 파일은 500MB 이하로 올려 주세요."
-} as const;
+/** 올릴 수 없는 녹음 파일의 사유. 문구는 meeting 메시지 recordingFile 아래에 둔다. */
+export type RecordingFileRejection = "unsupported" | "empty" | "tooLarge";
 
-export type RecordingFileCheck = { ok: true; contentType: string } | { ok: false; message: string };
+export type RecordingFileCheck = { ok: true; contentType: string } | { ok: false; reason: RecordingFileRejection };
 
 /** 업로드 시작(content_type·size)에 보낼 형식을 정하고, 서버가 거절할 파일은 올리기 전에 막는다. */
 export function checkRecordingFile(file: { name: string; type: string; size: number }): RecordingFileCheck {
   const declared = file.type.split(";", 1)[0].trim().toLowerCase();
   const extension = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
   const contentType = ACCEPTED_TYPES.has(declared) ? declared : TYPE_BY_EXTENSION[extension];
-  if (!contentType) return { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.unsupported };
-  if (file.size <= 0) return { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.empty };
-  if (file.size > MEETING_RECORDING_MAX_BYTES) return { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.tooLarge };
+  if (!contentType) return { ok: false, reason: "unsupported" };
+  if (file.size <= 0) return { ok: false, reason: "empty" };
+  if (file.size > MEETING_RECORDING_MAX_BYTES) return { ok: false, reason: "tooLarge" };
   return { ok: true, contentType };
 }
 
