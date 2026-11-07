@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ko } from "./fakeNextIntl.mjs";
 import {
-  getChatEvidenceNotice,
+  getChatEvidenceState,
   getWikiReflectLabel,
   getWikiReflectState,
   isLintActionEnabled,
   isWikiReflectEligible
 } from "../src/features/wiki-ingest/model/wikiReflectState.ts";
+
+/** HomeWorkspace가 채팅 근거 안내를 만드는 방식과 같다(상태 → ko 문구). */
+function getChatEvidenceNotice(document) {
+  const state = getChatEvidenceState(document);
+  if (!state) return null;
+  return {
+    message: ko(`wiki.chatEvidence.${state}.message`),
+    actionLabel: state === "processing" ? null : ko(`wiki.chatEvidence.${state}.action`)
+  };
+}
 
 function makeDocument(overrides) {
   return {

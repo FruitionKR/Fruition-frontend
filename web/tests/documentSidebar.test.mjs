@@ -36,8 +36,8 @@ test("문서/그래프 전환은 사이드바 세그먼트 대신 레일 버튼�
   ]);
 
   assert.doesNotMatch(sidebarSource, /SidebarMenuRow|문서 화면 전환/);
-  assert.match(railSource, /id: "home", label: "홈", Icon: RailHomeIcon, isActive: \(view\) => view === "home" \}/);
-  assert.match(railSource, /id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
+  assert.match(railSource, /id: "home", Icon: RailHomeIcon, isActive: \(view\) => view === "home" \}/);
+  assert.match(railSource, /id: "graph", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
 });
 
 test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 최상위 생성 메뉴를 연다", async () => {

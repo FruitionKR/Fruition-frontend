@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { documentDataQueryKey, fetchDocumentData, fetchWikiGraph } from "@/entities/wiki";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
@@ -35,6 +36,7 @@ export function useBackendData({
 }: {
   setProjects: Dispatch<SetStateAction<Project[]>>;
 }) {
+  const t = useTranslations("workspace");
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const isPageVisible = usePageVisible();
@@ -159,7 +161,7 @@ export function useBackendData({
     setDocuments,
     wikiGraph: graphQuery.data ?? EMPTY_GRAPH,
     isGraphLoading: graphQuery.isLoading,
-    apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, "백엔드 데이터를 불러오지 못했습니다.") : null,
+    apiError: query.error || graphQuery.error ? getErrorMessage(query.error ?? graphQuery.error, t("dataLoadFailed")) : null,
     refreshBackendData,
     refreshGraph,
     /** 위키 페이지를 바꾼 작업(롤백 등)이 끝났을 때 그래프만 조용히 다시 받는다. 몰린 호출은 한 번으로 묶인다. */
