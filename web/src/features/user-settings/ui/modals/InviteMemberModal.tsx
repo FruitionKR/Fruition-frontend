@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { inviteMember, type WorkspaceRole } from "@/entities/workspace/api/members";
 import modalCloseIcon from "@/shared/assets/svg/settings/modal-close.svg";
@@ -23,6 +24,7 @@ export function InviteMemberModal({
   onInvited: (message: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("settings.invite");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<WorkspaceRole>("MEMBER");
   const [busy, setBusy] = useState(false);
@@ -35,18 +37,18 @@ export function InviteMemberModal({
     setError(null);
     try {
       await inviteMember(workspaceId, email.trim(), role);
-      onInvited("초대 메일을 보냈습니다. 상대가 수락하면 멤버 목록에 표시됩니다.");
+      onInvited(t("sent"));
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "초대 메일을 보내지 못했습니다."));
+      setError(getErrorMessage(cause, t("failed")));
       setBusy(false);
     }
   }
 
   return (
     <AccountFlowModal
-      title="멤버 초대"
-      subtitle="초대할 사람의 이메일과 권한을 입력하세요."
-      ariaLabel="멤버 초대"
+      title={t("title")}
+      subtitle={t("subtitle")}
+      ariaLabel={t("title")}
       canClose={!busy}
       onClose={onClose}
       onSubmit={(event) => void invite(event)}
@@ -55,7 +57,7 @@ export function InviteMemberModal({
     >
       <div className={styles.fields}>
         <div className={styles.field}>
-          <label htmlFor="invite-email">이메일</label>
+          <label htmlFor="invite-email">{t("emailLabel")}</label>
           <input
             id="invite-email"
             type="email"
@@ -70,12 +72,12 @@ export function InviteMemberModal({
           />
         </div>
         <div className={styles.field}>
-          <label htmlFor="invite-role">권한</label>
+          <label htmlFor="invite-role">{t("roleLabel")}</label>
           {/* 권한 목록 (Figma 1610:9350): 닫힌 상자 아래로 띄워 펼치고 고른 권한에 체크 */}
           <OptionSelect
             id="invite-role"
             value={role}
-            placeholder="권한 선택"
+            placeholder={t("rolePlaceholder")}
             options={MEMBER_ROLE_OPTIONS}
             disabled={busy}
             floating
@@ -87,7 +89,7 @@ export function InviteMemberModal({
 
       <div className={cx(flowStyles.footer, flowStyles["is-end"])}>
         <button type="submit" className={styles.submit} disabled={busy || email.trim().length === 0}>
-          {busy ? "전송 중…" : "초대하기"}
+          {busy ? t("sending") : t("submit")}
         </button>
       </div>
     </AccountFlowModal>

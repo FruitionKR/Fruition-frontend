@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,9 +30,6 @@ import styles from "../SettingsModal.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import panelStyles from "./ProfilePanel.module.css";
 
-/** 시안(1691:16834)의 서비스 이름. 로그인 화면·안내 문구는 entities의 이름(Google)을 그대로 쓴다. */
-const PROVIDER_LABELS: Record<OAuthProvider, string> = { kakao: "카카오", naver: "네이버", google: "구글" };
-
 /** 서비스 로고 칸 52px (Figma 1691:16921 카카오 / 1691:16931 네이버 / 1691:16969 구글). */
 function ProviderLogo({ provider }: { provider: OAuthProvider }) {
   if (provider === "naver") {
@@ -56,6 +54,8 @@ function ProviderLogo({ provider }: { provider: OAuthProvider }) {
 
 /** 사용자 설정 > 연동된 계정 (Figma 1691:16834): 서비스별 2열 격자, 행마다 로고·상태·연동 버튼. */
 export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }) {
+  const t = useTranslations("settings.linkedAccounts");
+  const tCommon = useTranslations("settings.common");
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<OAuthProvider | null>(null);
   const [result, setResult] = useState<OAuthLinkResult | null>(null);
@@ -85,7 +85,7 @@ export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }
       setAfterLoginPath(`${window.location.pathname}${window.location.search}`);
       window.location.assign(getOAuthLinkAuthorizationUrl(provider, linkToken));
     } catch (error: unknown) {
-      setResult({ ok: false, message: oauthAccountErrorMessage(error, "소셜 계정 연동을 시작하지 못했습니다.") });
+      setResult({ ok: false, message: oauthAccountErrorMessage(error, t("linkStartFailed")) });
       setPending(null);
     }
   }
@@ -96,9 +96,9 @@ export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }
     try {
       await unlinkOAuthAccount(provider);
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-      setResult({ ok: true, message: `${oauthProviderName(provider)} 연동을 해제했습니다.` });
+      setResult({ ok: true, message: t("unlinked", { provider: oauthProviderName(provider) }) });
     } catch (error: unknown) {
-      setResult({ ok: false, message: oauthAccountErrorMessage(error, "소셜 계정 연동을 해제하지 못했습니다.") });
+      setResult({ ok: false, message: oauthAccountErrorMessage(error, t("unlinkFailed")) });
     } finally {
       setPending(null);
     }
@@ -106,28 +106,29 @@ export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }
 
   return (
     <div className={styles.section}>
-      <SettingsSectionHeader>연동된 계정</SettingsSectionHeader>
-      <ul className={panelStyles["provider-grid"]} aria-label="연동된 계정">
+      <SettingsSectionHeader>{t("title")}</SettingsSectionHeader>
+      <ul className={panelStyles["provider-grid"]} aria-label={t("title")}>
         {OAUTH_PROVIDER_OPTIONS.map(({ provider }) => {
           const isLinked = linkedProviders.includes(provider);
-          const label = PROVIDER_LABELS[provider];
+          // 시안(1691:16834)의 서비스 이름. 로그인 화면·안내 문구는 entities의 이름(Google)을 그대로 쓴다.
+          const label = t(`providers.${provider}`);
           return (
             <li className={panelStyles["provider-row"]} key={provider}>
               <div className={panelStyles["provider-title"]}>
                 <ProviderLogo provider={provider} />
                 <div className={panelStyles["provider-text"]}>
                   <strong>{label}</strong>
-                  <small>{isLinked ? "연동됨" : "연동되지 않음"}</small>
+                  <small>{isLinked ? t("linked") : t("notLinked")}</small>
                 </div>
               </div>
               <button
                 type="button"
                 className={styles.btn}
-                aria-label={`${label} ${isLinked ? "연동 해제" : "연동"}`}
+                aria-label={t(isLinked ? "unlinkLabel" : "linkLabel", { provider: label })}
                 disabled={!me || pending !== null}
                 onClick={() => void (isLinked ? unlink(provider) : link(provider))}
               >
-                {pending === provider ? "처리 중…" : isLinked ? "연동 해제" : "연동"}
+                {pending === provider ? tCommon("processing") : isLinked ? t("unlink") : t("link")}
               </button>
             </li>
           );

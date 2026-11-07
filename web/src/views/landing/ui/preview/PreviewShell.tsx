@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { fileIcon, sourceIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import {
@@ -35,15 +36,16 @@ function TreeIcon({ row }: { row: TreeRow }) {
 }
 
 export function SidebarPanel({ rows }: { rows: readonly TreeRow[] }) {
+  const t = useTranslations("landing.preview.sidebar");
   return (
     <div className={styles["sidebar-panel"]}>
       <p className={styles["search"]}>
         <SidebarSearchIcon />
-        통합 검색
+        {t("search")}
       </p>
       <div className={styles["segment"]}>
-        <span className={styles["is-active"]}>문서</span>
-        <span>그래프</span>
+        <span className={styles["is-active"]}>{t("documents")}</span>
+        <span>{t("graph")}</span>
       </div>
       <p className={styles["sidebar-index"]}>FILE</p>
       <ul className={styles["tree"]}>
@@ -61,7 +63,8 @@ export function SidebarPanel({ rows }: { rows: readonly TreeRow[] }) {
         ))}
       </ul>
       <p className={styles["tree-add"]}>
-        <SidebarPlusIcon size={20} />새 노트 추가
+        <SidebarPlusIcon size={20} />
+        {t("addNote")}
       </p>
     </div>
   );

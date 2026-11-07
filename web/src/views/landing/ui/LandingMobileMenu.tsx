@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { LANDING_NAV } from "../model/landingContent";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { ThemeSwitch } from "./ThemeSwitch";
 import styles from "./LandingPage.module.css";
 
-/** 좁은 화면의 헤더 메뉴. 넓은 화면에서는 CSS로 숨기고, 헤더의 메뉴·테마 선택을 그대로 쓴다. */
+/** 좁은 화면의 헤더 메뉴. 넓은 화면에서는 CSS로 숨기고, 헤더의 메뉴·테마·언어 선택을 그대로 쓴다. */
 export function LandingMobileMenu() {
+  const t = useTranslations("landing");
+  const tLanguage = useTranslations("common.language");
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -37,7 +41,7 @@ export function LandingMobileMenu() {
         ref={buttonRef}
         type="button"
         className={styles["menu-button"]}
-        aria-label="메뉴"
+        aria-label={t("header.menu")}
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => setIsOpen((current) => !current)}
@@ -52,20 +56,24 @@ export function LandingMobileMenu() {
         </svg>
       </button>
       <div id={panelId} className={styles["menu-panel"]} hidden={!isOpen}>
-        <nav aria-label="주요 메뉴">
+        <nav aria-label={t("header.nav")}>
           <ul>
             {LANDING_NAV.map((item) => (
               <li key={item.href}>
                 <Link href={item.href} replace onClick={() => setIsOpen(false)}>
-                  {item.label}
+                  {t(`nav.${item.key}`)}
                 </Link>
               </li>
             ))}
           </ul>
         </nav>
         <div className={styles["menu-theme"]}>
-          <span>화면 테마</span>
+          <span>{t("header.theme")}</span>
           {isOpen ? <ThemeSwitch /> : null}
+        </div>
+        <div className={styles["menu-theme"]}>
+          <span>{tLanguage("label")}</span>
+          {isOpen ? <LanguageSwitch /> : null}
         </div>
       </div>
     </div>

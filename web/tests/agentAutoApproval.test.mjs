@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -10,7 +11,6 @@ registerHooks({
 });
 
 const {
-  AGENT_AUTO_APPROVAL_ALWAYS_MANUAL_NOTE,
   AGENT_AUTO_APPROVAL_CATEGORIES,
   CLIENT_AUTO_APPROVAL_CATEGORIES,
   DEFAULT_AGENT_AUTO_APPROVAL,
@@ -19,10 +19,16 @@ const {
 const { fetchAgentAutoApproval, saveAgentAutoApproval } = await import("../src/features/user-settings/api/agentAutoApproval.ts");
 const { autoApprovedPlanNote, canApproveAgentPlan, isAutoApprovedPlan } = await import("../src/features/agent-chat/lib/agentPlan.ts");
 const { resolveTaskStatus, withAutoApprovalLabel } = await import("../src/features/agent-chat/lib/taskThread.ts");
+// 분류 이름·설명·경고 문구는 settings 메시지(ai.autoApproval)에 있다. 한국어 문구를 기준으로 확인한다.
+const autoApprovalMessages = JSON.parse(
+  readFileSync(new URL("../src/shared/i18n/messages/ko/settings.json", import.meta.url), "utf8")
+).ai.autoApproval;
+const categoryCopy = (key) => autoApprovalMessages.categories[key];
+const AGENT_AUTO_APPROVAL_ALWAYS_MANUAL_NOTE = autoApprovalMessages.alwaysManualNote;
 
 test("자동 승인은 기본으로 모두 꺼져 있다", () => {
   assert.deepEqual(DEFAULT_AGENT_AUTO_APPROVAL, { content_edit: false, organize: false });
-  assert.deepEqual(AGENT_AUTO_APPROVAL_CATEGORIES.map((category) => category.key), ["organize", "content_edit"]);
+  assert.deepEqual(AGENT_AUTO_APPROVAL_CATEGORIES, ["organize", "content_edit"]);
 });
 
 for (const [key, expected] of [
@@ -45,9 +51,13 @@ for (const [key, expected] of [
 
 test("모든 자동 처리 스위치의 경고는 무엇이 바뀌는지와 되돌리는 방법을 적는다", () => {
   const warnings = Object.fromEntries(
-    [...AGENT_AUTO_APPROVAL_CATEGORIES, ...CLIENT_AUTO_APPROVAL_CATEGORIES].map((category) => [category.key, category.confirmOnEnable])
+    [...AGENT_AUTO_APPROVAL_CATEGORIES, ...CLIENT_AUTO_APPROVAL_CATEGORIES].map((key) => {
+      const copy = categoryCopy(key);
+      return [key, { title: copy.confirmTitle, description: copy.confirmDescription, confirmLabel: copy.confirmLabel }];
+    })
   );
   assert.deepEqual(Object.keys(warnings).sort(), ["autoPublishSkillDrafts", "autoSaveMeetingNotes", "content_edit", "organize"]);
+  assert.deepEqual(Object.keys(autoApprovalMessages.categories).sort(), Object.keys(warnings).sort());
   for (const warning of Object.values(warnings)) {
     assert.ok(warning.title && warning.description && warning.confirmLabel);
     assert.match(warning.description, /확인 없이|미리 보기 없이/);
@@ -62,7 +72,7 @@ test("모든 자동 처리 스위치의 경고는 무엇이 바뀌는지와 되�
 
 test("앱에 없는 버전 기록 화면을 되돌리는 방법으로 안내하지 않는다", () => {
   const copy = [...AGENT_AUTO_APPROVAL_CATEGORIES, ...CLIENT_AUTO_APPROVAL_CATEGORIES]
-    .flatMap((category) => [category.description, category.confirmOnEnable.description]);
+    .flatMap((key) => [categoryCopy(key).description, categoryCopy(key).confirmDescription]);
   for (const text of copy) assert.doesNotMatch(text, /버전 기록/);
 });
 

@@ -18,29 +18,39 @@ export type LegalDocumentMeta = {
   slug: LegalDocumentSlug;
   /** 공개 경로. 로그인·접근 코드 없이 열린다(middleware는 /api만 막는다). */
   path: `/${LegalDocumentSlug}`;
-  title: string;
   currentVersion: string;
 };
 
+/** 문서 이름은 언어별 메시지 legal.documents.<slug>에 있다(본문은 한국어 원문만 있다). */
 export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocumentMeta> = {
-  terms: { slug: "terms", path: TERMS_PATH, title: "이용약관", currentVersion: LEGAL_TERMS_VERSION },
-  privacy: { slug: "privacy", path: PRIVACY_PATH, title: "개인정보 처리방침", currentVersion: LEGAL_PRIVACY_VERSION }
+  terms: { slug: "terms", path: TERMS_PATH, currentVersion: LEGAL_TERMS_VERSION },
+  privacy: { slug: "privacy", path: PRIVACY_PATH, currentVersion: LEGAL_PRIVACY_VERSION }
 };
 
 /**
  * 하단 운영자 정보. 사업자등록·통신판매업 신고 뒤에 채운다(전자상거래법 제10조①).
- * 값이 PENDING_VALUE면 화면에 "[확정 필요]"로 눈에 띄게 표시한다.
+ * 값이 OPERATOR_INFO_PENDING이면 화면에 "[확정 필요]"(legal.footer.pending)로 눈에 띄게 표시한다.
+ * 항목 이름은 언어별 메시지 legal.footer.operator.<key>에 있다.
  */
-export const OPERATOR_INFO_PENDING = "[확정 필요]";
+export const OPERATOR_INFO_PENDING = null;
 
-export const OPERATOR_INFO: readonly { label: string; value: string }[] = [
-  { label: "상호", value: OPERATOR_INFO_PENDING },
-  { label: "대표자", value: OPERATOR_INFO_PENDING },
-  { label: "사업자등록번호", value: OPERATOR_INFO_PENDING },
-  { label: "통신판매업 신고번호", value: OPERATOR_INFO_PENDING },
-  { label: "주소", value: OPERATOR_INFO_PENDING },
-  { label: "연락처", value: OPERATOR_INFO_PENDING },
-  { label: "개인정보 보호책임자(CPO)", value: OPERATOR_INFO_PENDING }
+export type OperatorInfoKey =
+  | "company"
+  | "representative"
+  | "businessNumber"
+  | "mailOrderNumber"
+  | "address"
+  | "contact"
+  | "privacyOfficer";
+
+export const OPERATOR_INFO: readonly { key: OperatorInfoKey; value: string | typeof OPERATOR_INFO_PENDING }[] = [
+  { key: "company", value: OPERATOR_INFO_PENDING },
+  { key: "representative", value: OPERATOR_INFO_PENDING },
+  { key: "businessNumber", value: OPERATOR_INFO_PENDING },
+  { key: "mailOrderNumber", value: OPERATOR_INFO_PENDING },
+  { key: "address", value: OPERATOR_INFO_PENDING },
+  { key: "contact", value: OPERATOR_INFO_PENDING },
+  { key: "privacyOfficer", value: OPERATOR_INFO_PENDING }
 ];
 
 export type LegalVersion = {

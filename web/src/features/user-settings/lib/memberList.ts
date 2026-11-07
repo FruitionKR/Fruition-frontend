@@ -88,16 +88,27 @@ export function toggleSelection(selectedIds: ReadonlySet<string>, id: string): S
   return next;
 }
 
-/** 이름 목록을 "「a」, 「b」 외 N명"으로 줄인다. */
-export function summarizeMemberNames(names: readonly string[], limit = LISTED_NAME_LIMIT): string {
-  const shown = names.slice(0, limit).map((name) => `「${name}」`).join(", ");
-  return names.length > limit ? `${shown} 외 ${names.length - limit}명` : shown;
+/** 이름 목록을 앞에서 limit명까지와 나머지 수로 나눈다. 문구("「a」, 「b」 외 N명")는 화면이 언어에 맞춰 만든다. */
+export function summarizeMemberNames(names: readonly string[], limit = LISTED_NAME_LIMIT): { shown: string[]; hiddenCount: number } {
+  return { shown: names.slice(0, limit), hiddenCount: Math.max(0, names.length - limit) };
 }
 
-/** 삭제 결과를 한 번의 알림 문구로 만든다. 실패는 이유와 함께 나열한다. */
-export function removalNotice(succeeded: number, failures: readonly RemovalFailure[]): { ok: boolean; text: string } {
-  if (failures.length === 0) return { ok: true, text: `멤버 ${succeeded}명을 삭제했습니다.` };
-  const shown = failures.slice(0, LISTED_NAME_LIMIT).map((failure) => `「${failure.name}」: ${failure.reason}`);
-  if (failures.length > LISTED_NAME_LIMIT) shown.push(`외 ${failures.length - LISTED_NAME_LIMIT}명`);
-  return { ok: false, text: [`성공 ${succeeded}명, 실패 ${failures.length}명`, ...shown].join(" · ") };
+export type RemovalNotice = {
+  ok: boolean;
+  succeeded: number;
+  failed: number;
+  /** 이유와 함께 나열할 실패(최대 LISTED_NAME_LIMIT명) */
+  shownFailures: RemovalFailure[];
+  hiddenFailures: number;
+};
+
+/** 삭제 결과를 한 번의 알림에 담을 값으로 만든다. 실패가 있으면 앞에서부터 이유와 함께 나열한다. */
+export function removalNotice(succeeded: number, failures: readonly RemovalFailure[]): RemovalNotice {
+  return {
+    ok: failures.length === 0,
+    succeeded,
+    failed: failures.length,
+    shownFailures: failures.slice(0, LISTED_NAME_LIMIT),
+    hiddenFailures: Math.max(0, failures.length - LISTED_NAME_LIMIT)
+  };
 }

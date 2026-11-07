@@ -2,13 +2,14 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { requestEmailVerification } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
-import { confirmVerificationCode } from "@/views/auth/lib/confirmVerificationCode";
+import { confirmVerificationCode, InvalidVerificationCodeError } from "@/views/auth/lib/confirmVerificationCode";
 import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { useVerificationResend } from "@/views/auth/model/useVerificationResend";
@@ -25,6 +26,7 @@ export default function ForgotPasswordPage() {
 function ForgotPasswordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("auth");
   const { passwordResetDraft, setPasswordResetDraft } = useAuthFlow();
   // 설정 모달 등에서 ?email= 로 진입하면 이메일을 프리필한다.
   const [email, setEmail] = useState(
@@ -79,7 +81,7 @@ function ForgotPasswordPageContent() {
       });
       setIsCodeStep(true);
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, "이메일 인증에 실패했습니다."));
+      setErrorMessage(getErrorMessage(error, t("forgotPassword.verificationFailed")));
     } finally {
       setIsSubmitting(false);
     }
@@ -104,7 +106,9 @@ function ForgotPasswordPageContent() {
       });
       router.push("/reset-password");
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, "이메일 인증에 실패했습니다."));
+      setErrorMessage(error instanceof InvalidVerificationCodeError
+        ? t("verification.invalidCode")
+        : getErrorMessage(error, t("forgotPassword.verificationFailed")));
     } finally {
       setIsSubmitting(false);
     }
@@ -132,13 +136,13 @@ function ForgotPasswordPageContent() {
   }
 
   return (
-    <AuthScreen shellModifier="password" title="비밀번호 찾기">
+    <AuthScreen shellModifier="password" title={t("forgotPassword.title")}>
       <form className="auth-form" method="post" onSubmit={handleSubmit} ref={formRef}>
         <div className="auth-field-with-error">
           <div className="auth-field-stack">
             <AuthField
               autoComplete="email"
-              label="이메일 인증"
+              label={t("forgotPassword.emailLabel")}
               name="email"
               onChange={(event) => handleEmailChange(event.target.value)}
               placeholder="example@email.com"
@@ -148,7 +152,7 @@ function ForgotPasswordPageContent() {
             />
             {/* Figma 시안처럼 인증번호 칸을 처음부터 두고, 발송 전에는 입력과 타이머를 막는다. */}
             <AuthField
-              label="인증번호"
+              label={t("fields.verificationCode")}
               name="verificationCode"
               onChange={(event) => setVerificationCode(event.target.value)}
               placeholder="code"
@@ -157,11 +161,11 @@ function ForgotPasswordPageContent() {
               value={verificationCode}
             />
           </div>
-          {isRequestingVerification ? <p className="auth-prompt" role="status">인증번호를 발송하고 있습니다.</p> : null}
+          {isRequestingVerification ? <p className="auth-prompt" role="status">{t("verification.sending")}</p> : null}
           {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
         </div>
         <AuthSubmitButton disabled={isSubmitting}>
-          {isRequestingVerification ? "발송 중" : "인증 요청"}
+          {isRequestingVerification ? t("verification.sendingButton") : t("verification.request")}
         </AuthSubmitButton>
       </form>
       <ResendCodePrompt

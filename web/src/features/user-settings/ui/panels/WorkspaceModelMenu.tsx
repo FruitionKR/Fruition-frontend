@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { Lock } from "lucide-react";
 import {
@@ -47,6 +48,7 @@ export function WorkspaceModelMenu({
   isSaving: boolean;
   onSelect: (model: AiModel) => void;
 }) {
+  const t = useTranslations("settings.workspace.model");
   const [isOpen, setIsOpen] = useState(false);
   // provider를 고르면 오른쪽 모델 메뉴만 바뀐다. 저장은 모델을 고를 때 한다.
   const [viewingProvider, setViewingProvider] = useState<string | null>(null);
@@ -80,13 +82,13 @@ export function WorkspaceModelMenu({
         aria-expanded={isOpen}
         onClick={toggle}
       >
-        모델 변경
+        {t("change")}
       </button>
 
       {isOpen && canUpdate && (
         <div className={panelStyles["model-menu"]}>
-          <div className={panelStyles["model-menu-card"]} role="group" aria-label="모델 제공사">
-            {providers.length === 0 && <p className={panelStyles["model-menu-empty"]}>사용할 수 있는 모델이 없습니다.</p>}
+          <div className={panelStyles["model-menu-card"]} role="group" aria-label={t("providers")}>
+            {providers.length === 0 && <p className={panelStyles["model-menu-empty"]}>{t("empty")}</p>}
             {providers.map((provider) => {
               const isActive = provider === activeProvider;
               // 모델이 모두 잠긴 provider(Claude)도 눌러서 잠긴 모델을 볼 수 있다. 자물쇠로 쓸 수 없음을 알린다.
@@ -103,7 +105,7 @@ export function WorkspaceModelMenu({
                 >
                   <span className={panelStyles["provider-name"]}>
                     {getProviderLabel(provider)}
-                    {isLocked && <Lock size={12} aria-label="사용 불가" role="img" />}
+                    {isLocked && <Lock size={12} aria-label={t("locked")} role="img" />}
                   </span>
                   {isActive && <Image src={modelMenuArrowIcon} alt="" aria-hidden className={panelStyles["provider-arrow"]} />}
                 </button>
@@ -113,7 +115,7 @@ export function WorkspaceModelMenu({
           {activeProvider && providerModels.length > 0 && (
             <div className={cx(panelStyles["model-menu-card"], panelStyles["is-models"])}>
               <p className={panelStyles["model-group-label"]} aria-hidden>{getProviderLabel(activeProvider)}</p>
-              <div role="group" aria-label={`${getProviderLabel(activeProvider)} 모델`} className={panelStyles["model-options"]}>
+              <div role="group" aria-label={t("providerModels", { provider: getProviderLabel(activeProvider) })} className={panelStyles["model-options"]}>
                 {providerModels.map((model) => {
                   const isSelected = isSameSelection(model, selection);
                   const lockMessage = model.lockReason ? getAiModelLockMessage(model.lockReason) : null;
@@ -124,7 +126,7 @@ export function WorkspaceModelMenu({
                       className={cx(panelStyles["model-option"], lockMessage && panelStyles["is-locked"])}
                       aria-pressed={isSelected}
                       aria-disabled={lockMessage ? true : undefined}
-                      aria-label={lockMessage ? `${model.display_name}, ${lockMessage}` : undefined}
+                      aria-label={lockMessage ? t("lockedModelLabel", { model: model.display_name, reason: lockMessage }) : undefined}
                       title={lockMessage ?? model.model}
                       disabled={isSaving}
                       // 잠긴 모델은 포커스는 받지만 고를 수 없다.

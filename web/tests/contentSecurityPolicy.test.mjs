@@ -5,7 +5,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier === "next/server") return nextResolve("next/server.js", context);
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   // 앱 모듈이 확장자 없이 부르는 상대 경로만 .ts로 푼다(next 내부 require는 건드리지 않는다)
-  const isAppModule = /\/(app\/csp-report|src\/shared\/lib)\//.test(context.parentURL ?? "");
+  const isAppModule = /\/(app\/csp-report|src\/shared\/lib|src\/shared\/i18n)\//.test(context.parentURL ?? "");
   if (specifier.startsWith(".") && isAppModule && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});

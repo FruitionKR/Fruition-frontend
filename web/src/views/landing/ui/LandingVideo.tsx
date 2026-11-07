@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import {
   isVideoPlayAborted,
@@ -17,8 +18,10 @@ const IN_VIEW_THRESHOLD = 0.5;
 /**
  * 소리 없는 시연 영상. 화면에 들어올 때 처음 파일을 받고, 화면 밖에서는 멈춘다.
  * 첫 프레임이 나오기 전이나 재생이 거부·실패한 동안에는 뒤에 깔린 포스터가 보인다.
+ * label은 스크린리더가 읽는 지금 언어의 영상 설명이다(landing.videos.<id>.label).
  */
-export function LandingVideo({ video }: { video: LandingVideoAsset }) {
+export function LandingVideo({ video, label }: { video: LandingVideoAsset; label: string }) {
+  const t = useTranslations("landing.video");
   const { reduceMotion } = useUserPreferences();
   const stageRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -87,7 +90,7 @@ export function LandingVideo({ video }: { video: LandingVideoAsset }) {
     >
       {/* 포스터를 못 받아도 빈 칸이 되지 않게 뒤에 이름을 둔다. */}
       <span className={styles["demo-video-fallback"]} aria-hidden="true">
-        {video.label}
+        {label}
       </span>
       {!hasPosterFailed && (
         // eslint-disable-next-line @next/next/no-img-element -- 크기가 정해진 포스터이고, 영상이 덮을 때까지만 보인다
@@ -110,7 +113,7 @@ export function LandingVideo({ video }: { video: LandingVideoAsset }) {
         src={hasSource ? video.src : undefined}
         width={video.width}
         height={video.height}
-        aria-label={video.label}
+        aria-label={label}
         autoPlay={!reduceMotion}
         muted
         playsInline
@@ -121,7 +124,7 @@ export function LandingVideo({ video }: { video: LandingVideoAsset }) {
       />
       {hasFailed && (
         <p className={styles["demo-video-status"]} role="status">
-          영상을 불러오지 못했습니다.
+          {t("failed")}
         </p>
       )}
       {control !== "hidden" && (
@@ -129,7 +132,7 @@ export function LandingVideo({ video }: { video: LandingVideoAsset }) {
           type="button"
           className={styles["demo-video-toggle"]}
           data-state={control}
-          aria-label={`${control === "pause" ? "일시정지" : "재생"}: ${video.label}`}
+          aria-label={t(control === "pause" ? "pause" : "play", { label })}
           onClick={toggle}
         >
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
