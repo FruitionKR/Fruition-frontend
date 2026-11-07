@@ -9,6 +9,8 @@ import koMetadata from "./ko/metadata.json";
 import koNotionImport from "./ko/notionImport.json";
 import koSettings from "./ko/settings.json";
 import koSkills from "./ko/skills.json";
+import koWiki from "./ko/wiki.json";
+import koWorkspace from "./ko/workspace.json";
 import enAuth from "./en/auth.json";
 import enCommon from "./en/common.json";
 import enInvitation from "./en/invitation.json";
@@ -19,6 +21,8 @@ import enMetadata from "./en/metadata.json";
 import enNotionImport from "./en/notionImport.json";
 import enSettings from "./en/settings.json";
 import enSkills from "./en/skills.json";
+import enWiki from "./en/wiki.json";
+import enWorkspace from "./en/workspace.json";
 
 /**
  * 화면 문구. 기능 영역별 네임스페이스 JSON을 언어마다 같은 키로 둔다(키 일치는 tests/i18nMessages.test.mjs가 확인).
@@ -34,7 +38,9 @@ const ko = {
   legal: koLegal,
   skills: koSkills,
   meeting: koMeeting,
-  notionImport: koNotionImport
+  notionImport: koNotionImport,
+  wiki: koWiki,
+  workspace: koWorkspace
 };
 
 export type AppMessages = typeof ko;
@@ -51,6 +57,8 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     legal: enLegal,
     skills: enSkills,
     meeting: enMeeting,
-    notionImport: enNotionImport
+    notionImport: enNotionImport,
+    wiki: enWiki,
+    workspace: enWorkspace
   }
 };

@@ -12,7 +12,8 @@ registerHooks({
   }
 });
 
-const { buildLogWorkers, logWorkerOf, UNKNOWN_WORKER_NAME } = await import("../src/widgets/log-view/model/logWorker.ts");
+const { buildLogWorkers, logWorkerOf } = await import("../src/widgets/log-view/model/logWorker.ts");
+const { ko } = await import("./fakeNextIntl.mjs");
 
 const member = (overrides) => ({ user_id: "u", email: "u@x.io", display_name: null, provider: "email", role: "MEMBER", permissions: [], joined_at: "", ...overrides });
 
@@ -27,6 +28,7 @@ test("로그 작업자는 멤버 목록의 이름과 프로필 사진 경로를 
 });
 
 test("목록에 없는(탈퇴·미로딩) 작업자는 '알 수 없는 작업자'와 기본 이미지다", () => {
-  assert.deepEqual(logWorkerOf(buildLogWorkers(undefined), "gone"), { name: UNKNOWN_WORKER_NAME, avatarUrl: null });
-  assert.equal(UNKNOWN_WORKER_NAME, "알 수 없는 작업자");
+  // 이름이 null이면 화면(LogWorkerBadge)이 언어에 맞춰 "알 수 없는 작업자"로 보인다.
+  assert.deepEqual(logWorkerOf(buildLogWorkers(undefined), "gone"), { name: null, avatarUrl: null });
+  assert.equal(ko("workspace.logs.unknownWorker"), "알 수 없는 작업자");
 });

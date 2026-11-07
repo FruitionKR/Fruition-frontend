@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { SkillResponse } from "@/entities/skill";
 import type { DocumentItemResponse } from "@/entities/document";
 import { findItemLocation, findTreeItem, type Project } from "@/entities/tree";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import {
   folderMarkdownCount,
+  isSkillRunSelectionOnly,
   resolveSkillRunTarget,
-  skillRunBlockedMessage,
   skillRunFolderId,
   skillRunMessage,
   skillRunPreview,
   skillRunSourceDocumentId,
+  type SkillRunInvalidReason,
+  type SkillRunPreview,
   type SkillRunTarget
 } from "../lib/skillRunTarget";
 
@@ -54,7 +57,19 @@ export function useSkillRun({
   onStart: () => void;
   onConfirmed: (request: SkillRunRequest) => void;
 }) {
+  const t = useTranslations("workspace.skillRun");
   const [skillRun, setSkillRun] = useState<SkillRunState | null>(null);
+
+  const invalidMessage = (reason: SkillRunInvalidReason, slug: string) => t(`invalid.${reason}`, { slug });
+  const previewText = (preview: SkillRunPreview | null) => {
+    if (!preview) return null;
+    if (preview.kind === "folderSources") {
+      return preview.limit === null
+        ? t("preview.folderSources", { name: preview.name, count: preview.count })
+        : t("preview.folderSourcesLimited", { name: preview.name, count: preview.count, limit: preview.limit });
+    }
+    return t(`preview.${preview.kind}`, { name: preview.name });
+  };
 
   // 스킬 화면을 벗어나면(레일·검색 결과 이동 등) 대상 고르기를 끝낸다.
   useEffect(() => {
@@ -63,7 +78,7 @@ export function useSkillRun({
 
   function startSkillRun(skill: SkillResponse) {
     onStart();
-    setSkillRun({ skill, target: null, errorMessage: skillRunBlockedMessage(skill.enabled_version, skill.slug), preview: null });
+    setSkillRun({ skill, target: null, errorMessage: isSkillRunSelectionOnly(skill.enabled_version) ? invalidMessage("selectionOnly", skill.slug) : null, preview: null });
   }
 
   /** 대상은 하나만 고른다. 같은 항목을 다시 누르면 고르기를 푼다. */
@@ -75,16 +90,16 @@ export function useSkillRun({
     const location = findItemLocation(projects, itemId);
     const project = projects.find((entry) => entry.id === location?.projectId);
     const parentFolderId = location ? location.folderId ?? project?.folderId ?? null : undefined;
-    const resolution = resolveSkillRunTarget(skillRun.skill.enabled_version, item, documents, skillRun.skill.slug, parentFolderId);
+    const resolution = resolveSkillRunTarget(skillRun.skill.enabled_version, item, documents, parentFolderId);
     if (resolution.status === "ignore") return;
     if (resolution.status === "invalid") {
-      setSkillRun({ ...skillRun, target: null, errorMessage: resolution.message, preview: null });
+      setSkillRun({ ...skillRun, target: null, errorMessage: invalidMessage(resolution.reason, skillRun.skill.slug), preview: null });
       return;
     }
     const isSame = skillRun.target?.itemId === resolution.target.itemId;
     const target = isSame ? null : resolution.target;
     // 폴더 문서 수는 사이드바 트리의 바로 아래 Markdown 문서로 센다(AI가 읽는 범위와 같다).
-    const preview = target ? skillRunPreview(skillRun.skill.enabled_version, target, folderMarkdownCount(item, documents)) : null;
+    const preview = target ? previewText(skillRunPreview(skillRun.skill.enabled_version, target, folderMarkdownCount(item, documents))) : null;
     setSkillRun({ ...skillRun, target, errorMessage: null, preview });
   }
 

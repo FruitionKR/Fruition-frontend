@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { GraphLink, GraphNode } from "@/entities/wiki";
 import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { GraphEmptyState } from "./GraphEmptyState";
@@ -29,6 +30,7 @@ export function GraphCanvas({
   ingestProgressInputs,
   revealRequest
 }: GraphCanvasProps) {
+  const t = useTranslations("workspace.graph");
   const { canvasRef, graphCanvasProps } = useGraphCanvas({
     nodes,
     links,
@@ -42,7 +44,7 @@ export function GraphCanvas({
 
   return (
     <div className={styles["graph-canvas"]} {...graphCanvasProps} style={{ touchAction: "none" }}>
-      <canvas ref={canvasRef} className={styles["graph-surface"]} aria-label="자료 관계 그래프 캔버스" />
+      <canvas ref={canvasRef} className={styles["graph-surface"]} aria-label={t("canvasLabel")} />
       {nodes.length === 0 && <GraphEmptyState loading={loading} errorMessage={errorMessage} />}
     </div>
   );

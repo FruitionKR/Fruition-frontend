@@ -102,7 +102,7 @@
     "continue": "Continue converting",
     "question": "Convert {count, plural, one {# PDF} other {# PDFs}} to documents? ({label})",
     "why": "PDFs must be converted before they can be added to the wiki. If you don't convert them, they stay as original PDFs and you can convert them from the document later.",
-    "qualityNotice": "Converted Markdown may not match the original PDF's content or layout and may be harder to read.",
+    "qualityNotice": "The converted Markdown may not match the original PDF’s content or layout, and may be harder to read.",
     "requesting": "Requesting conversion {queued, number}/{total, number}",
     "progressLabel": "PDF conversion request progress",
     "later": "Do it later",

@@ -28,9 +28,6 @@ export function getDocumentConversionView(document: ConversionSource | undefined
   };
 }
 
-/** PDF → Markdown 변환을 시작하기 전에 확인받는 안내. 변환 진입점(트리 메뉴·변환 후 편입·Notion 가져오기)이 함께 쓴다. */
-export const PDF_CONVERT_QUALITY_NOTICE = "변환된 Markdown은 원본 PDF와 내용·배치가 일치하지 않을 수 있고 가독성이 떨어질 수 있습니다.";
-
 /** 변환 중인 Markdown 위에 띄울 안내 문구. 원본 PDF가 아니라 변환 결과 MD를 보고 있다는 문맥으로 쓴다. */
 export function getConversionNotice(view: DocumentConversionView): string {
   if (view.stalled) {

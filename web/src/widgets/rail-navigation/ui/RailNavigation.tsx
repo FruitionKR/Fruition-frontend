@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ComponentType, ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { RailArchiveIcon, RailBellIcon, RailGraphIcon, RailHomeIcon, RailLightningIcon, RailLogoIcon } from "./RailIcons";
@@ -6,22 +7,12 @@ import styles from "./RailNavigation.module.css";
 
 export type RailView = "home" | "graph" | "skills" | "logs" | "notifications" | "settings";
 
-/** 화면 이름표. 빈 화면 aria-label 등에서 label만 쓴다. */
-export const railItems: { id: RailView; label: string }[] = [
-  { id: "home", label: "홈" },
-  { id: "graph", label: "그래프" },
-  { id: "skills", label: "스킬" },
-  { id: "logs", label: "로그" },
-  { id: "notifications", label: "알림" },
-  { id: "settings", label: "설정" }
-];
-
-// 레일에 아이콘으로 노출하는 화면 (Figma 1406:10278). 문서(홈)/그래프 전환도 레일 버튼이 맡는다.
-const navItems: { id: RailView; label: string; Icon: ComponentType<{ className?: string }>; isActive: (view: RailView) => boolean }[] = [
-  { id: "home", label: "홈", Icon: RailHomeIcon, isActive: (view) => view === "home" },
-  { id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: (view) => view === "graph" },
-  { id: "skills", label: "스킬", Icon: RailLightningIcon, isActive: (view) => view === "skills" },
-  { id: "logs", label: "로그", Icon: RailArchiveIcon, isActive: (view) => view === "logs" }
+// 레일에 아이콘으로 노출하는 화면 (Figma 1406:10278). 문서(홈)/그래프 전환도 레일 버튼이 맡는다. 이름은 workspace.rail.views에 있다.
+const navItems: { id: RailView; Icon: ComponentType<{ className?: string }>; isActive: (view: RailView) => boolean }[] = [
+  { id: "home", Icon: RailHomeIcon, isActive: (view) => view === "home" },
+  { id: "graph", Icon: RailGraphIcon, isActive: (view) => view === "graph" },
+  { id: "skills", Icon: RailLightningIcon, isActive: (view) => view === "skills" },
+  { id: "logs", Icon: RailArchiveIcon, isActive: (view) => view === "logs" }
 ];
 
 /**
@@ -102,19 +93,20 @@ export function RailNavigation({
   tools?: ReactNode;
   footer?: ReactNode;
 }) {
+  const t = useTranslations("workspace.rail");
   return (
-    <nav className={cx(styles.rail, isCollapsed && styles["is-collapsed"])} aria-label="워크스페이스 메뉴">
+    <nav className={cx(styles.rail, isCollapsed && styles["is-collapsed"])} aria-label={t("label")}>
       <div className={styles["rail-section"]}>
         <span className={styles["rail-logo"]}>
           <RailLogoIcon />
         </span>
         <RailDivider />
         <RailGroup>
-          {navItems.map(({ id, label, Icon, isActive }) => (
+          {navItems.map(({ id, Icon, isActive }) => (
             <RailButton
               key={id}
-              label={label}
-              phoneLabel={label}
+              label={t(`views.${id}`)}
+              phoneLabel={t(`views.${id}`)}
               isActive={isActive(activeView)}
               aria-current={isActive(activeView) ? "page" : undefined}
               onClick={(event) => {
@@ -127,8 +119,8 @@ export function RailNavigation({
           ))}
           {/* 알림 (Figma 1486:4958). 안 읽음 점은 알림 화면 탭에서만 보여 준다. */}
           <RailButton
-            label="알림"
-            phoneLabel="알림"
+            label={t("views.notifications")}
+            phoneLabel={t("views.notifications")}
             isActive={activeView === "notifications"}
             aria-current={activeView === "notifications" ? "page" : undefined}
             onClick={(event) => {
