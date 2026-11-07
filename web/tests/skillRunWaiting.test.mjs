@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
-const { skillRunWaitingState } = await import("../src/widgets/agent-panel/lib/skillRunWaiting.ts");
+const { skillRunWaitingState: skillRunWaitingStateWith } = await import("../src/widgets/agent-panel/lib/skillRunWaiting.ts");
+const skillRunWaitingState = (...args) => skillRunWaitingStateWith(...args, agentChatT);
 
 const idle = { stalledTurnCount: 0, hasBlockingPending: false, isQueryLoading: false, isAgentBusy: false, isWaitingForDocument: false };
 

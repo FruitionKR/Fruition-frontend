@@ -183,7 +183,7 @@ export function AgentPanel({
   const recordingInputRef = useRef<HTMLInputElement | null>(null);
   const pickRecording = useCallback(() => recordingInputRef.current?.click(), []);
   const handleMeetingDeleted = useCallback(() => {
-    publishNotice({ kind: "completed", title: t("notice.meetingDeleted.title"), message: t("notice.meetingDeleted.message") });
+    publishNotice({ kind: "completed", notificationKey: "meetingDeleted", title: t("notice.meetingDeleted.title"), message: t("notice.meetingDeleted.message") });
     // 회의 화면이 사라져 포커스가 body로 떨어지지 않게 입력창으로 옮긴다.
     requestAnimationFrame(() => panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
   }, []);
@@ -276,7 +276,7 @@ export function AgentPanel({
   const handleOpenDocumentDropped = useCallback((documentId: string) => {
     setExcludedDocumentId(documentId);
     const title = readOnlyOpenDocument?.id === documentId ? composerDocumentChipLabel(readOnlyOpenDocument) : null;
-    publishNotice({ kind: "info", title: t("notice.openDocumentDropped"), message: droppedOpenDocumentMessage(title, t) });
+    publishNotice({ kind: "info", notificationKey: "openDocumentDropped", title: t("notice.openDocumentDropped"), message: droppedOpenDocumentMessage(title, t) });
   }, [readOnlyOpenDocument]);
   const agentTurn = useAgentTurn({
     markdownEditContext,
@@ -443,7 +443,7 @@ export function AgentPanel({
     if (viewBeforeSkillSheetRef.current !== null) viewBeforeSkillSheetRef.current = "work";
     void sessions.ensureWritable("work").then((sessionId) => {
       agentTurn.submitAgentTurn(skillRun.message, skillRunContext, sessionId, selectedModel, [], skillRun.folderId);
-    }).catch((error) => publishNotice({ kind: "failed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed")) }));
+    }).catch((error) => publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed")) }));
     onSkillRunSent?.(skillRun.id);
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -529,7 +529,7 @@ export function AgentPanel({
       const sessionId = await sessions.ensureWritable("work");
       agentTurn.submitAgentTurn(request, context, sessionId, selectedModel, [], folderId, referenceDocumentIds);
     } catch (error) {
-      publishNotice({ kind: "failed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed")) });
+      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed")) });
     }
   }
 
@@ -626,7 +626,7 @@ export function AgentPanel({
     let targetSessionId: string;
     try { targetSessionId = await sessions.ensureWritable(activeView); }
     catch (error) {
-      publishNotice({ kind: "failed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.sessionFailed")) });
+      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.sessionFailed")) });
       return;
     }
     if (route === "task") {
@@ -688,6 +688,7 @@ export function AgentPanel({
         const ingest = response.status === "saved" ? onIngestExportedDocument : undefined;
         publishNotice({
           kind: "completed",
+          notificationKey: "chatExported",
           title: t("notice.exportCompleted"),
           message: getChatExportSuccessMessage(response.status, Boolean(ingest)),
           subjectIds: [response.exportDocumentId],
@@ -698,13 +699,14 @@ export function AgentPanel({
         const detail = getErrorMessage(error, t("panel.export.refreshFailedDetail"));
         const message = t("panel.export.refreshFailed", { detail });
         setExportErrorMessage(message);
-        publishNotice({ kind: "failed", title: t("notice.documentListRefreshFailed"), message });
+        publishNotice({ kind: "failed", notificationKey: "documentListFailed", title: t("notice.documentListRefreshFailed"), message });
       }
     } catch (error: unknown) {
       const message = getErrorMessage(error, t("panel.export.failed"));
       setExportErrorMessage(message);
       publishNotice({
         kind: "failed",
+        notificationKey: "chatExportFailed",
         title: t("notice.exportFailed"),
         message: t("panel.export.failedUncertain", { message })
       });

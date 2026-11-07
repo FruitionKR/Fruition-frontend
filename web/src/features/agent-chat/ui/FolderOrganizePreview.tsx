@@ -36,7 +36,7 @@ import { useAgentPlanRun } from "../model/useAgentPlanRun";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import styles from "./FolderOrganize.module.css";
 import { useTranslations } from "next-intl";
-import { agentChatErrorMessage } from "../lib/agentChatTranslator";
+import { agentChatErrorMessage } from "../lib/agentChatError";
 
 type SortOrder = "plan" | "asc" | "desc";
 const NEXT_SORT: Record<SortOrder, SortOrder> = { plan: "asc", asc: "desc", desc: "plan" };

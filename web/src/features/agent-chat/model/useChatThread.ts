@@ -215,7 +215,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       if (activeQueryRef.current !== request || request.cancelRequested) return false;
       querySucceeded = true;
       queryRelatedPages = queryResponse.related_pages ?? [];
-      publishNotice({ kind: "completed", title: t("notice.queryCompleted.title"), message: t("notice.queryCompleted.message", { question: shortQuestion }) });
+      publishNotice({ kind: "completed", notificationKey: "query", title: t("notice.queryCompleted.title"), message: t("notice.queryCompleted.message", { question: shortQuestion }) });
     } catch (error) {
       if (activeQueryRef.current !== request) return false;
       if (error instanceof QueryCancelledError) {
@@ -227,7 +227,7 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
       setQueryErrorMessage(getErrorMessage(error, t("chat.queryFailed")));
       setActiveTurn(null);
       setQueryStatusMessage(null);
-      publishNotice({ kind: "failed", title: t("notice.queryFailed.title"), message: t("notice.queryFailed.message", { question: shortQuestion }) });
+      publishNotice({ kind: "failed", notificationKey: "queryFailed", title: t("notice.queryFailed.title"), message: t("notice.queryFailed.message", { question: shortQuestion }) });
     } finally {
       // 취소를 시작했으면 HTTP/SSE 종료와 무관하게 복구 확인이 진행 상태를 소유한다.
       if (activeQueryRef.current === request && !(request.cancelRequested && request.run)) {

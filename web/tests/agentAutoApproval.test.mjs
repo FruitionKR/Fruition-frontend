@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    // 앱 소스의 확장자 없는 상대 import(./agentChatTranslator)를 .ts로 푼다.
+    if (context.parentURL?.includes("/src/") && specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
     return nextResolve(specifier, context);
   }
 });
@@ -17,8 +20,11 @@ const {
   toggleAgentAutoApproval
 } = await import("../src/features/user-settings/lib/agentAutoApproval.ts");
 const { fetchAgentAutoApproval, saveAgentAutoApproval } = await import("../src/features/user-settings/api/agentAutoApproval.ts");
-const { autoApprovedPlanNote, canApproveAgentPlan, isAutoApprovedPlan } = await import("../src/features/agent-chat/lib/agentPlan.ts");
-const { resolveTaskStatus, withAutoApprovalLabel } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const { autoApprovedPlanNote: autoApprovedPlanNoteWith, canApproveAgentPlan, isAutoApprovedPlan } = await import("../src/features/agent-chat/lib/agentPlan.ts");
+const autoApprovedPlanNote = (...args) => autoApprovedPlanNoteWith(...args, agentChatT);
+const { resolveTaskStatus: resolveTaskStatusWith, withAutoApprovalLabel: withAutoApprovalLabelWith } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const resolveTaskStatus = (input) => resolveTaskStatusWith(input, agentChatT);
+const withAutoApprovalLabel = (...args) => withAutoApprovalLabelWith(...args, agentChatT);
 // 분류 이름·설명·경고 문구는 settings 메시지(ai.autoApproval)에 있다. 한국어 문구를 기준으로 확인한다.
 const autoApprovalMessages = JSON.parse(
   readFileSync(new URL("../src/shared/i18n/messages/ko/settings.json", import.meta.url), "utf8")

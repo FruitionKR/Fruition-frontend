@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
-const { composerStopHint, composerStoppingMessage, resolveComposerStopTarget } = await import("../src/widgets/agent-panel/lib/composerStop.ts");
+const { composerStopHint: composerStopHintWith, composerStoppingMessage: composerStoppingMessageWith, resolveComposerStopTarget } = await import("../src/widgets/agent-panel/lib/composerStop.ts");
+const composerStopHint = (...args) => composerStopHintWith(...args, agentChatT);
+const composerStoppingMessage = (...args) => composerStoppingMessageWith(...args, agentChatT);
 
 const idle = {
   hasWaitingSkillRun: false,

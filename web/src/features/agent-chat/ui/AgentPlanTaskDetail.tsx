@@ -19,7 +19,7 @@ import { AgentAssetIcon } from "./AgentIcons";
 import { DocumentEditPlanPreview } from "./DocumentEditPlanPreview";
 import styles from "./AgentChat.module.css";
 import { useTranslations } from "next-intl";
-import { agentChatErrorMessage } from "../lib/agentChatTranslator";
+import { agentChatErrorMessage } from "../lib/agentChatError";
 
 function PlanTree({ nodes, depth = 0 }: { nodes: PlanPreviewNode[]; depth?: number }) {
   const t = useTranslations("agentChat");

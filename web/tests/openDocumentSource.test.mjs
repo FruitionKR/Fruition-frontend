@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -8,8 +9,8 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice, shouldSendOpenDocument } =
-  await import("../src/widgets/agent-panel/lib/openDocumentSource.ts");
+const { composerSkillIntent, isOpenDocumentOptIn, readOnlyOverflowNotice: readOnlyOverflowNoticeWith, shouldSendOpenDocument } = await import("../src/widgets/agent-panel/lib/openDocumentSource.ts");
+const readOnlyOverflowNotice = (...args) => readOnlyOverflowNoticeWith(...args, agentChatT);
 
 const skill = (slug, capabilities, resultMode, status = "enabled") => ({
   id: `skill_${slug}`,

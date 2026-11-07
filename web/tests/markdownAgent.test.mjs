@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -17,11 +18,13 @@ const {
   draftSourceDocumentId,
   resolveDraftPlacement,
   isDocumentCommandAction,
-  prepareMarkdownEditPreview,
+  prepareMarkdownEditPreview: prepareMarkdownEditPreviewWith,
   resolveChatTurnPresentation,
   resolveGeneratedDocumentFolderId,
-  validateMarkdownEditApplication
+  validateMarkdownEditApplication: validateMarkdownEditApplicationWith
 } = await import("../src/features/agent-chat/lib/agentTurn.ts");
+const prepareMarkdownEditPreview = (...args) => prepareMarkdownEditPreviewWith(...args, agentChatT);
+const validateMarkdownEditApplication = (...args) => validateMarkdownEditApplicationWith(...args, agentChatT);
 
 test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", () => {
   assert.deepEqual(resolveChatTurnPresentation("chat_answer"), { kind: "query", grounded: true });

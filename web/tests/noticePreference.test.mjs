@@ -109,6 +109,13 @@ test("실제 발행 코드의 고정 제목은 빠짐없이 설정 목록에 등
         if (title && ts.isStringLiteral(title.initializer)) {
           assert.notEqual(noticeNotificationKey(notice(title.initializer.text)), "other", `${path}: ${title.initializer.text}`);
           checked += 1;
+        } else if (title && ts.isCallExpression(title.initializer) && title.initializer.expression.getText(ast) === "t") {
+          // 메시지로 옮긴 제목은 언어마다 달라 제목으로 찾을 수 없어 notificationKey로 분류한다. 붙인 키는 설정 목록에 있어야 한다.
+          const key = node.arguments[0].properties.find((item) => ts.isPropertyAssignment(item) && item.name.getText(ast) === "notificationKey");
+          if (key && ts.isStringLiteral(key.initializer)) {
+            assert.ok(Object.hasOwn(NOTIFICATION_SETTINGS, key.initializer.text), `${path}: 등록되지 않은 notificationKey ${key.initializer.text}`);
+            checked += 1;
+          }
         }
       }
       ts.forEachChild(node, visit);

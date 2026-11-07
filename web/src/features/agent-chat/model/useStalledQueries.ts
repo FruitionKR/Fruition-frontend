@@ -61,7 +61,7 @@ export function useStalledQueries({
     const notice = stalledQueryCancelNotice(await requestCancel(runId), t);
     releaseRuns([runId]);
     setClosingQueryIds((current) => new Set([...current].filter((id) => id !== runId)));
-    if (notice) publishNotice({ kind: "failed", title: t("notice.queryCancelCheckFailed"), message: notice });
+    if (notice) publishNotice({ kind: "failed", notificationKey: "questionCancelFailed", title: t("notice.queryCancelCheckFailed"), message: notice });
   }, [releaseRuns, t]);
 
   return { stalledQueryIds, closingQueryIds, closeStalledQuery };

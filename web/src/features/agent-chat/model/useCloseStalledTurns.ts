@@ -25,10 +25,10 @@ async function requestCancel(turnId: string): Promise<StalledTurnCancelResult> {
 export async function announceFinishedTurn(turnId: string, t: AgentChatTranslator): Promise<void> {
   try {
     await resumeAgentTurn(turnId, { signal: AbortSignal.timeout(CANCEL_REQUEST_TIMEOUT_MS) });
-    publishNotice({ kind: "info", title: t("notice.finishedTurn.title"), message: t("notice.finishedTurn.completed") });
+    publishNotice({ kind: "info", notificationKey: "taskAlreadyFinished", title: t("notice.finishedTurn.title"), message: t("notice.finishedTurn.completed") });
   } catch (error) {
     if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) return;
-    publishNotice({ kind: "failed", title: t("notice.finishedTurn.title"), message: getErrorMessage(error, t("notice.finishedTurn.failed")) });
+    publishNotice({ kind: "failed", notificationKey: "taskAlreadyFinished", title: t("notice.finishedTurn.title"), message: getErrorMessage(error, t("notice.finishedTurn.failed")) });
   }
 }
 
@@ -66,7 +66,7 @@ export function useCloseStalledTurns({
     releaseTurns(turnIds);
     setClosingTurnIds((current) => new Set([...current].filter((turnId) => !turnIds.includes(turnId))));
     [...new Set(outcomes.flatMap((outcome) => (outcome.notice ? [outcome.notice] : [])))]
-      .forEach((message) => publishNotice({ kind: "failed", title: t("notice.turnCancelCheckFailed"), message }));
+      .forEach((message) => publishNotice({ kind: "failed", notificationKey: "taskCancelFailed", title: t("notice.turnCancelCheckFailed"), message }));
     return turnIds.filter((_, index) => outcomes[index].showResult);
   }, [onCancelAccepted, refreshMessages, releaseTurns, t]);
 

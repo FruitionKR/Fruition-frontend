@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDocumentCommandSteps, buildStatusSteps, messageStatusTitle } from "../src/features/agent-chat/lib/statusSteps.ts";
+import * as statusSteps from "../src/features/agent-chat/lib/statusSteps.ts";
+import { agentChatT } from "./agentChatMessages.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const buildStatusSteps = (...args) => statusSteps.buildStatusSteps(...args, agentChatT);
+const buildDocumentCommandSteps = (...args) => statusSteps.buildDocumentCommandSteps(...args, agentChatT);
+const messageStatusTitle = (status) => statusSteps.messageStatusTitle(status, agentChatT);
 
 test("일반 Query는 Wiki 검색과 근거 답변 단계를 유지한다", () => {
   assert.deepEqual(buildStatusSteps(false, true), [

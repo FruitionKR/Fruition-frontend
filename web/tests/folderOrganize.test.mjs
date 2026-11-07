@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
 // 앱 소스의 확장자 없는 상대 import(./agentPlan)를 .ts로 푼다.
 registerHooks({
@@ -11,19 +12,24 @@ registerHooks({
 });
 
 const {
-  buildFolderOrganizeView,
+  buildFolderOrganizeView: buildFolderOrganizeViewWith,
   canApplyFolderOrganizeSelection,
   folderOrganizeApproval,
-  folderOrganizeCardHint,
-  folderOrganizeNotice,
+  folderOrganizeCardHint: folderOrganizeCardHintWith,
+  folderOrganizeNotice: folderOrganizeNoticeWith,
   folderOrganizeSelection,
   initialDeselectedRowIds,
   isFolderOrganizeAction,
   parseSkillCommand,
   selectedCreatedFolders,
-  folderOrganizeResultNotice,
-  summarizeFolderOrganizeRows
+  folderOrganizeResultNotice: folderOrganizeResultNoticeWith,
+  summarizeFolderOrganizeRows: summarizeFolderOrganizeRowsWith
 } = await import("../src/features/agent-chat/lib/folderOrganize.ts");
+const buildFolderOrganizeView = (plan, tree, target) => buildFolderOrganizeViewWith(plan, tree, target, agentChatT);
+const folderOrganizeCardHint = (...args) => folderOrganizeCardHintWith(...args, agentChatT);
+const folderOrganizeNotice = (total, selected, folders, duplicates = 0) => folderOrganizeNoticeWith(total, selected, folders, duplicates, agentChatT);
+const folderOrganizeResultNotice = (...args) => folderOrganizeResultNoticeWith(...args, agentChatT);
+const summarizeFolderOrganizeRows = (...args) => summarizeFolderOrganizeRowsWith(...args, agentChatT);
 
 const tree = [
   { id: "root", name: "연간 활동 계획서", type: "folder", children: [

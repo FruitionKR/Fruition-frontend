@@ -111,13 +111,13 @@
     },
     "current": "Current document",
     "droppedOpen": {
-      "titled": "Couldn't read the current document '{title}', so the request was sent without it. Working without this document.",
+      "titled": "Couldn't read the current document ''{title}'', so the request was sent without it. Working without this document.",
       "untitled": "Couldn't read the current document, so the request was sent without it. Working without this document."
     },
     "limit": "You can attach up to {max} documents.",
     "locked": {
       "retryLater": "Please try again after they finish editing.",
-      "titled": "Someone else is editing the current document '{title}'.",
+      "titled": "Someone else is editing the current document ''{title}''.",
       "untitled": "Someone else is editing the current document.",
       "withAttachments": "Remove the current document chip to continue with your attachments."
     },
@@ -162,7 +162,7 @@
   "editPlan": {
     "approvalHint": {
       "allPurged": "There are no documents to edit. The target documents were permanently deleted.",
-      "excluded": "Editing without the {count} excluded {count, plural, one {document} other {documents}}.",
+      "excluded": "Editing without {count, plural, one {# excluded document} other {# excluded documents}}.",
       "selectOne": "Choose at least one document to edit."
     },
     "conflicted": "Couldn't save because the document changed. Please try again.",
@@ -197,7 +197,7 @@
       "incomplete": "Couldn't complete the task. Check the status of each document.",
       "noneSaved": "Couldn't save the documents. Check each document for the reason.",
       "savedSome": "Saved {saved} of {total} documents. Check each unsaved document for the reason.",
-      "savedSomePurged": "Saved {saved, plural, one {# document} other {# documents}}. Skipped {purged} permanently deleted {purged, plural, one {document} other {documents}}."
+      "savedSomePurged": "Saved {saved, plural, one {# document} other {# documents}}. Skipped {purged, plural, one {# permanently deleted document} other {# permanently deleted documents}}."
     },
     "trashed": "Couldn't save because the document is in the trash. Restore it and try again."
   },

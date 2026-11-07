@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { agentChatT, koAgentChat } from "./agentChatMessages.mjs";
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   return next(specifier, context);
 } });
-const { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, planAccessMessage } = await import("../src/features/agent-chat/lib/planAccess.ts");
+const { checkPlanAccess, checkRowAccess, planAccessMessage: planAccessMessageWith } = await import("../src/features/agent-chat/lib/planAccess.ts");
+const planAccessMessage = (...args) => planAccessMessageWith(...args, agentChatT);
+const PLAN_OPERATION_BLOCKED_NOTE = koAgentChat.plan.access.operationBlocked;
 
 function folder(id, permission, children = []) {
   return { type: "folder", id, name: id, sort_order: 0, current_version: 1, permission, children };
@@ -177,7 +180,7 @@ test("미리보기는 줄 단위로 센다: 한 줄에 묶인 작업 두 개가 
   assert.equal(access.blockedCount, 2, "작업으로는 2개다");
   const row = checkRowAccess(access, rows, new Set());
   assert.deepEqual(row, { verdict: "some_blocked", blockedCount: 1, partlyBlockedCount: 0 });
-  const message = planAccessMessage({ ...row, unit: "항목" });
+  const message = planAccessMessage({ ...row, unit: "item" });
   assert.match(message, /항목 1개는/);
   assert.match(message, /나머지 항목만 실행돼요/);
   assert.doesNotMatch(message, /작업 2개/);
@@ -203,7 +206,7 @@ test("줄의 작업 중 일부만 막히면 따로 세고, 막히지 않은 새 
   const tree = [doc("doc_mine", true), folder("folder_view", "view")];
   const row = checkRowAccess(checkPlanAccess(plan(partly), tree, MEMBER, null), [{ id: "doc_mine", operationIds: ["m", "r"] }], new Set());
   assert.deepEqual(row, { verdict: "some_blocked", blockedCount: 0, partlyBlockedCount: 1 });
-  assert.match(planAccessMessage({ ...row, unit: "항목" }), /항목 1개는 권한이 없는 작업을 빼고 실행돼요/);
+  assert.match(planAccessMessage({ ...row, unit: "item" }), /항목 1개는 권한이 없는 작업을 빼고 실행돼요/);
 
   const onlyFolderLeft = [
     op("c", "create_folder", null, { parent_folder_id: null }),
@@ -221,5 +224,5 @@ test("줄에 안 잡힌 작업만 막혀도 안내한다", () => {
   ];
   const row = checkRowAccess(checkPlanAccess(plan(operations), TREE, MEMBER, null), [{ id: "doc_editable", operationIds: ["r"] }], new Set());
   assert.equal(row.verdict, "some_blocked");
-  assert.match(planAccessMessage({ ...row, unit: "항목" }), /일부 작업은/);
+  assert.match(planAccessMessage({ ...row, unit: "item" }), /일부 작업은/);
 });

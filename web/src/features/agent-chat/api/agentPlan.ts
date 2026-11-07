@@ -2,7 +2,7 @@ import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from
 import { withRollbackPurgedOperations, type AgentPlan, type AgentPlanRun } from "@/features/agent-chat/lib/agentPlan";
 import { parseAgentRunEditPreviews, type AgentRunEditPreviews } from "@/features/agent-chat/lib/documentEditPreviews";
 import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
-import { AgentChatError } from "../lib/agentChatTranslator";
+import { AgentChatError } from "../lib/agentChatError";
 
 /**
  * 채팅의 turn ID와 실제 승인 대상 run ID는 서로 다르다. knownRunId(knownPlanRunId)를 알면 turn 조회를 건너뛰고

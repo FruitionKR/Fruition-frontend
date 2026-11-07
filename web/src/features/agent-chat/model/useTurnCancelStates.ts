@@ -56,7 +56,7 @@ export function useTurnCancelStates(turnIds: readonly string[]) {
   useEffect(() => {
     for (const [turnId, state] of states) {
       const message = turnCancelSettledNotice(previous.current.get(turnId), state, t);
-      if (message) publishNotice({ kind: "failed", title: t("notice.turnCancelCheckFailed"), message });
+      if (message) publishNotice({ kind: "failed", notificationKey: "taskCancelFailed", title: t("notice.turnCancelCheckFailed"), message });
     }
     previous.current = states;
   }, [states, t]);

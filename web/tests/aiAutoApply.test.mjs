@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { agentChatT } from "./agentChatMessages.mjs";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -11,11 +12,13 @@ registerHooks({
 });
 
 const {
-  appliedTaskNote,
-  autoAppliedTaskNote,
+  appliedTaskNote: appliedTaskNoteWith,
+  autoAppliedTaskNote: autoAppliedTaskNoteWith,
   isContentEditAutoApproved,
   resolveTurnAutoApply
 } = await import("../src/features/agent-chat/lib/autoApply.ts");
+const appliedTaskNote = (...args) => appliedTaskNoteWith(...args, agentChatT);
+const autoAppliedTaskNote = (...args) => autoAppliedTaskNoteWith(...args, agentChatT);
 const { shouldAutoSaveMeetingNotes } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
 const { shouldAutoPublishSkillDraft } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 const { parseTaskOutcomes, recordTaskOutcome, turnIdsWithOutcome } = await import("../src/features/agent-chat/lib/taskOutcomes.ts");

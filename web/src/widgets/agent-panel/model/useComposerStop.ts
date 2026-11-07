@@ -69,7 +69,7 @@ export function useComposerStop({
     // 다시 받은 목록에 취소("취소하는 중…"·"취소됨")가 보인 뒤 진행 카드를 내린다. 다시 따라가면 진행 카드를 이어서 쓴다.
     if (outcome.resume) resumeFollowing(turnId);
     else finishFollowing();
-    if (outcome.notice) publishNotice({ kind: "failed", title: t("notice.stopFailed"), message: outcome.notice });
+    if (outcome.notice) publishNotice({ kind: "failed", notificationKey: "taskStopFailed", title: t("notice.stopFailed"), message: outcome.notice });
   }
 
   function finishStopping() {
