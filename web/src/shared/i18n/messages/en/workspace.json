@@ -1,0 +1,227 @@
+{
+  "dataLoadFailed": "Couldn’t load data from the server.",
+  "retry": "Try again",
+  "closeSidebar": "Close sidebar",
+  "blankView": "{view} (empty)",
+  "documentNotFound": "Document not found",
+  "resizeChatPanel": "Resize chat panel",
+  "rail": {
+    "label": "Workspace menu",
+    "views": {
+      "home": "Home",
+      "graph": "Graph",
+      "skills": "Skills",
+      "logs": "Logs",
+      "notifications": "Notifications",
+      "settings": "Settings"
+    }
+  },
+  "graph": {
+    "label": "Knowledge graph",
+    "canvasLabel": "Knowledge graph canvas",
+    "loading": "Loading the graph.",
+    "empty": "There are no wiki nodes to show.",
+    "filter": {
+      "raw": "Raw documents",
+      "source": "Source pages",
+      "concept": "Concept pages"
+    },
+    "refresh": {
+      "label": "Refresh graph",
+      "upToDate": "Up to date",
+      "failedTitle": "Graph refresh failed",
+      "failedMessage": "Couldn’t load the graph. Please try again in a moment."
+    }
+  },
+  "tree": {
+    "changeFailed": "Couldn’t make the change.",
+    "staleTarget": "The item was already deleted or moved, so the request wasn’t sent.",
+    "newFolderName": "New folder",
+    "newDocumentGroupName": "New document group",
+    "failed": {
+      "folderCreate": "Couldn’t create folder",
+      "move": "Move failed",
+      "documentGroup": "Couldn’t create document group",
+      "convert": "Markdown conversion failed",
+      "delete": "Delete failed",
+      "rename": "Rename failed"
+    },
+    "duplicateInDestination": "An item with the same name already exists in the destination folder.",
+    "moveIntoOwnSubtree": "You can’t move a folder into itself or one of its subfolders.",
+    "moveItemFailed": "Couldn’t move it.",
+    "permissionChangedTitle": "Permission changed",
+    "folderFallback": "Folder",
+    "itemFallback": "Item",
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "uploadPending": "The upload hasn’t finished",
+    "deleteItemFailed": "Couldn’t delete it.",
+    "duplicateInFolder": "An item with the same name already exists in this folder.",
+    "bulk": {
+      "counts": "{succeeded} succeeded, {failed} failed",
+      "failureItem": "“{label}”: {reason}",
+      "more": "and {count} more",
+      "move": {
+        "done": "{count, plural, one {Moved # item.} other {Moved # items.}}",
+        "completed": "Move complete",
+        "failed": "Move failed",
+        "partial": "Some items couldn’t be moved"
+      },
+      "delete": {
+        "done": "{count, plural, one {Deleted # item.} other {Deleted # items.}}",
+        "completed": "Delete complete",
+        "failed": "Delete failed",
+        "partial": "Some items couldn’t be deleted"
+      }
+    }
+  },
+  "skillRun": {
+    "invalid": {
+      "selectionOnly": "This skill only works on a selected part of a document. Select part of a document, then type /{slug} in chat.",
+      "pickFolderForOrganize": "Pick the folder you want this folder organization skill to tidy up.",
+      "pickFolderForTemplate": "Pick the folder where this template skill should create the new document.",
+      "folderNotEditable": "You can only pick folders you can edit.",
+      "documentNotEditable": "You can only pick documents you can edit.",
+      "notMarkdown": "Skills only run on Markdown documents. Please pick a different document."
+    },
+    "preview": {
+      "folderWithoutSource": "Creates a new document in “{name}” (without source documents)",
+      "folderEmpty": "There are no documents to read in “{name}”",
+      "folderSources": "{count, plural, one {Reads # document in “{name}” to create a new document} other {Reads # documents in “{name}” to create a new document}}",
+      "folderSourcesLimited": "Reads the {limit} most recent of {count} documents in “{name}” to create a new document",
+      "documentSource": "Reads “{name}” and creates a new document in the same folder",
+      "documentWithoutSource": "Creates a new document in the folder containing “{name}” (without source documents)"
+    }
+  },
+  "logs": {
+    "title": "Logs",
+    "subtitle": "Activity history for this workspace.",
+    "typeTabsLabel": "Operation type",
+    "types": {
+      "all": "All",
+      "document_edit": "AI edits",
+      "ingest": "Wiki ingest",
+      "lint": "Wiki refresh",
+      "restore": "Rollback",
+      "wiki_edit": "Wiki edits"
+    },
+    "status": {
+      "processing": "Processing",
+      "applying": "Applying",
+      "notify_pending": "Applying",
+      "rebuilding": "Rebuilding",
+      "partially_succeeded": "Partially succeeded",
+      "failed": "Failed",
+      "conflict": "Conflict"
+    },
+    "changeType": {
+      "created": "Created",
+      "updated": "Updated",
+      "deleted": "Deleted",
+      "restored": "Restored",
+      "delegated": "Rewrite delegated",
+      "rebuilt": "Rewritten",
+      "rebuild_failed": "Rewrite failed",
+      "action_failed": "Action failed",
+      "link_removed": "Link removed",
+      "link_restored": "Link restored"
+    },
+    "pageType": {
+      "concept": "Concept",
+      "source": "Source",
+      "unknown": "Unknown type"
+    },
+    "wikiTitleCreated": "Created · {title}",
+    "wikiTitleDeleted": "Deleted · {title}",
+    "untitled": "Untitled",
+    "diffTooLarge": "The change is too large to show a diff.",
+    "lineCounts": "{additions} lines added · {deletions} lines deleted",
+    "noChangeContent": "There are no changes to show.",
+    "unknownWorker": "Unknown user",
+    "loading": "Loading logs…",
+    "loadFailed": "Couldn’t load logs.",
+    "loadMoreFailed": "Couldn’t load more logs.",
+    "detailLoadFailed": "Couldn’t load log details.",
+    "noWikiChanges": "No wiki pages were created or deleted.",
+    "noResourceChanges": "No resources were changed.",
+    "selectFromList": "Select an operation from the list on the left.",
+    "empty": "No AI operations have been recorded yet.",
+    "emptyType": "There are no operations of this type.",
+    "changedCount": "{count, plural, one {# change} other {# changes}}",
+    "loadingMore": "Loading…",
+    "retry": "Try again",
+    "loadMore": "Load more",
+    "restore": {
+      "button": "Rollback",
+      "processing": "Processing…",
+      "selectFirst": "Select an operation to roll back.",
+      "notAllowed": "This operation can’t be rolled back.",
+      "affectedPages": "{count, plural, one {Rolling back {description} will affect # wiki page.} other {Rolling back {description} will affect # wiki pages.}}",
+      "confirmTitle": "Roll back this operation?",
+      "confirm": "Roll back",
+      "failedTitle": "Rollback failed",
+      "requestedTitle": "Rollback requested",
+      "done": "The operation was rolled back.",
+      "started": "The rollback has started."
+    }
+  },
+  "accessCode": {
+    "title": "Access code",
+    "lockedDescription": "Enter an access code to use the service. Other features are locked until you do.",
+    "unlockedDescription": "This browser has a verified access code.",
+    "submit": "Verify",
+    "result": {
+      "ok": "Access code verified.",
+      "invalid": "That code isn’t valid.",
+      "rateLimited": "Too many attempts. Please try again in a moment.",
+      "error": "Something went wrong while verifying. Please try again."
+    }
+  },
+  "personalSettings": {
+    "title": "Personal settings",
+    "description": "Changes are saved automatically for you in this browser.",
+    "reset": "Restore defaults",
+    "display": "Display and accessibility",
+    "motion": {
+      "title": "Motion",
+      "description": "Reduces transitions, scrolling, and graph movement.",
+      "options": {
+        "system": "System setting",
+        "reduced": "Reduced",
+        "full": "Full"
+      }
+    },
+    "documentFont": {
+      "title": "Document font",
+      "description": "Applies to document text and the WYSIWYG preview."
+    },
+    "graph": {
+      "title": "Default graph view",
+      "description": "Node types to show when you open the graph. At least one type stays on.",
+      "showKind": "Show {kind} nodes",
+      "kinds": {
+        "raw": { "title": "Raw", "description": "Original uploaded documents" },
+        "source": { "title": "Source", "description": "Information extracted from sources" },
+        "concept": { "title": "Concept", "description": "Connected concepts" }
+      }
+    },
+    "notifications": {
+      "title": "Wiki ingest notifications",
+      "completed": {
+        "title": "Processing complete",
+        "description": "Notify me in the app when wiki ingest finishes.",
+        "label": "Wiki ingest complete notifications"
+      },
+      "failed": {
+        "title": "Processing failed",
+        "description": "Notify me in the app when wiki ingest fails.",
+        "label": "Wiki ingest failure notifications"
+      },
+      "browser": {
+        "title": "Browser notifications",
+        "description": "Notify me through the browser when the app is open but its tab isn’t visible.",
+        "unsupported": "This browser doesn’t support notifications.",
+        "permissionRequired": "Browser notification permission is required."
+      }
+    }
+  }
+}

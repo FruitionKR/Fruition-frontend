@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   appendLogPage,
   collectRestoredOperationIds,
@@ -22,6 +23,10 @@ const LOG_POLL_INTERVAL_MS = 5_000;
  * 항목 선택은 목록을 다시 받지 않으며, 더 보기만 커서로 다음 페이지를 이어붙인다.
  */
 export function useOperationLogFeed(isActive: boolean) {
+  const t = useTranslations("workspace.logs");
+  // 언어가 바뀌어도 목록을 다시 받지 않도록 오류 문구는 ref로 최신 번역기를 읽는다.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [items, setItems] = useState<OperationLogItem[]>([]);
   // 사용자가 고른(또는 복구 후 지정된) 작업. 화면에 보이는 선택은 목록과 함께 파생해 폴링이 선택을 되돌리지 않게 한다.
   const [chosenOperationId, setChosenOperationId] = useState<string | null>(null);
@@ -65,7 +70,7 @@ export function useOperationLogFeed(isActive: boolean) {
       if (preferredOperationId) setChosenOperationId(preferredOperationId);
     } catch (error: unknown) {
       if (requestIdRef.current === requestId && !silent) {
-        setErrorMessage(getErrorMessage(error, "로그를 불러오지 못했습니다."));
+        setErrorMessage(getErrorMessage(error, tRef.current("loadFailed")));
       }
     } finally {
       if (silent) silentPollInFlightRef.current = false;
@@ -125,7 +130,7 @@ export function useOperationLogFeed(isActive: boolean) {
       setNextCursor(response.next_cursor);
     } catch (error: unknown) {
       if (requestIdRef.current === requestId) {
-        setLoadMoreErrorMessage(getErrorMessage(error, "로그를 더 불러오지 못했습니다."));
+        setLoadMoreErrorMessage(getErrorMessage(error, tRef.current("loadMoreFailed")));
       }
     } finally {
       if (requestIdRef.current === requestId) setIsLoadingMore(false);

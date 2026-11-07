@@ -13,10 +13,17 @@ registerHooks({
 
 const { fetchWikiGraph, resetWikiGraphCache, saveWikiPageContent, WikiPageVersionConflictError } = await import("../src/entities/wiki/api/wiki.ts");
 const {
-  buildWikiPageSaveRequest, canEditWikiPage, createWikiPageEditSession, describeWikiPageSaveError,
+  buildWikiPageSaveRequest, canEditWikiPage, createWikiPageEditSession, getWikiPageSaveErrorCode,
   isWikiPageIdempotencyConflict, prepareWikiPageSave, rebaseWikiPageEditSession
 } = await import("../src/features/wiki-page-editing/model/wikiPageEdit.ts");
 const { ApiError, getErrorMessage, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
+const { ko } = await import("./fakeNextIntl.mjs");
+
+/** useWikiPageEdit가 저장 실패 문구를 만드는 방식과 같다(코드 → ko 문구, 그 밖은 공통 문구). */
+function describeWikiPageSaveError(error) {
+  const code = getWikiPageSaveErrorCode(error);
+  return code ? ko(`wiki.pageEditing.saveError.${code}`) : getErrorMessage(error, ko("wiki.pageEditing.saveError.fallback"));
+}
 const { state: mockState } = await import("../mock/state.mjs");
 const { registerWikiRoutes } = await import("../mock/routes/wiki.mjs");
 

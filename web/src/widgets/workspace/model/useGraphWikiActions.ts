@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { fetchWikiMaintenanceStatus, publishNotice, requestWikiLint } from "@/features/document-notifications";
-import { shouldRequestWikiLint, WIKI_UP_TO_DATE_NOTICE } from "@/features/document-notifications/model/wikiLintStatus";
+import { shouldRequestWikiLint } from "@/features/document-notifications/model/wikiLintStatus";
 import { isGraphIngestEligible } from "@/features/wiki-ingest/model/graphDocuments";
 import type { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { useWikiActionPermissions } from "@/features/wiki-ingest/model/useWikiActionPermissions";
@@ -22,6 +23,7 @@ export function useGraphWikiActions({
   pdfWikiIngest: ReturnType<typeof usePdfWikiIngest>;
   refreshBackendData: () => Promise<void>;
 }) {
+  const t = useTranslations("wiki.notifications");
   const [wikiActionPending, setWikiActionPending] = useState<"ingest" | "lint" | null>(null);
   // 진행 중인 편입 요청의 대상 문서. 채팅 안내 버튼이 "이 노트"가 편입 중인지 구분하는 데 쓴다.
   const [ingestTargetIds, setIngestTargetIds] = useState<readonly string[]>([]);
@@ -54,7 +56,7 @@ export function useGraphWikiActions({
     // 실패 사유는 백엔드 원문을 그대로 보여준다. 개수만 알려주면 원인을 알 수 없다.
     const failures = results.flatMap((result, index) =>
       result.status === "rejected"
-        ? [`${targets[index].filename}: ${getErrorMessage(result.reason, "요청에 실패했습니다.")}`]
+        ? [t("ingestRequest.failureItem", { filename: targets[index].filename, reason: getErrorMessage(result.reason, t("ingestPrompt.requestFailed")) })]
         : []
     );
     const startedCount = targets.length - failures.length;
@@ -63,14 +65,16 @@ export function useGraphWikiActions({
       await refreshBackendData().catch(() => {});
       publishNotice({
         kind: "completed",
-        title: "위키 편입 요청",
-        message: `${startedCount}개 문서 처리를 시작했습니다.`
+        notificationKey: "ingestRequested",
+        title: t("ingestRequest.title"),
+        message: t("ingestRequest.started", { count: startedCount })
       });
     }
     if (failures.length > 0) {
       publishNotice({
         kind: "failed",
-        title: "위키 편입 실패",
+        notificationKey: "ingestFailed",
+        title: t("ingestRequest.failedTitle"),
         message: failures.join(" / ")
       });
     }
@@ -108,7 +112,7 @@ export function useGraphWikiActions({
       // 마지막 다듬기 이후 위키 변경이 있을 때만 실제 lint를 보낸다.
       const { needs_lint } = await fetchWikiMaintenanceStatus();
       if (!shouldRequestWikiLint(needs_lint)) {
-        publishNotice({ kind: "info", ...WIKI_UP_TO_DATE_NOTICE });
+        publishNotice({ kind: "info", notificationKey: "lintUpToDate", title: t("upToDate.title"), message: t("upToDate.message") });
         return;
       }
       const { changedPageCount, operationId } = await requestWikiLint(false);
@@ -116,14 +120,15 @@ export function useGraphWikiActions({
       publishNotice({
         operation: { type: "lint", id: operationId },
         kind: "completed",
-        title: "위키 최신화 완료",
-        message: `${changedPageCount}개 페이지를 다듬었습니다.`
+        title: t("lint.completedTitle"),
+        message: t("lint.completedMessage", { count: changedPageCount })
       });
     } catch (error: unknown) {
       publishNotice({
         kind: "failed",
-        title: "위키 최신화 실패",
-        message: getErrorMessage(error, "위키 최신화 요청에 실패했습니다.")
+        notificationKey: "lintRequestFailed",
+        title: t("lint.failedTitle"),
+        message: getErrorMessage(error, t("lint.requestFailed"))
       });
     } finally {
       setWikiActionPending(null);

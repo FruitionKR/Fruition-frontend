@@ -4,6 +4,7 @@ import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { $prose } from "@milkdown/utils";
 import { publishNotice } from "@/features/document-notifications";
@@ -17,10 +18,6 @@ import { EXTERNAL_IMAGE_BLOCKED_MESSAGE } from "@/shared/lib/markdown/externalRe
 // 노트 편집기와 같은 Milkdown 테마·색 토큰을 쓴다.
 import styles from "@/features/note-editing/ui/NoteEditor.module.css";
 
-const externalImageGuard = $prose(() => createExternalImageGuard(() => {
-  publishNotice({ kind: "failed", title: "외부 이미지 차단", message: EXTERNAL_IMAGE_BLOCKED_MESSAGE });
-}));
-
 /**
  * 위키 페이지 본문 Markdown 편집기. 노트 편집기(NoteEditor)의 Milkdown 설정을 따르되 문서 전용인
  * 자동 저장·편집 잠금·이미지 첨부는 두지 않는다(위키 페이지는 첨부 저장소가 없다). 저장은 부모가 draft로 한다.
@@ -30,6 +27,10 @@ export function WikiPageEditor({ initialMarkdown, onChange }: { initialMarkdown:
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const initialMarkdownRef = useRef(initialMarkdown);
+  const t = useTranslations("wiki.pageEditing");
+  // 편집기는 한 번만 만들므로 알림 제목은 ref로 최신 언어를 읽는다.
+  const blockedTitleRef = useRef(t("externalImageBlockedTitle"));
+  blockedTitleRef.current = t("externalImageBlockedTitle");
 
   useEffect(() => {
     const root = rootRef.current;
@@ -38,6 +39,9 @@ export function WikiPageEditor({ initialMarkdown, onChange }: { initialMarkdown:
     // NoteEditor와 같은 이유로 인스턴스마다 전용 host를 둔다(create/destroy가 비동기라 DOM이 겹친다).
     const host = document.createElement("div");
     root.appendChild(host);
+    const externalImageGuard = $prose(() => createExternalImageGuard(() => {
+      publishNotice({ kind: "failed", notificationKey: "externalImageBlocked", title: blockedTitleRef.current, message: EXTERNAL_IMAGE_BLOCKED_MESSAGE });
+    }));
 
     const crepe = new Crepe({
       root: host,
