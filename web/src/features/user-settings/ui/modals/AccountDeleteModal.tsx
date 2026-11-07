@@ -2,6 +2,7 @@
 
 import { ChevronRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearSessionCache } from "@/entities/chat";
@@ -43,6 +44,7 @@ export function AccountDeleteModal({
   onOpenMembers: (workspaceId: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("settings");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isMfaEnabled, requireMfa } = useMfaRequirement();
@@ -75,7 +77,7 @@ export function AccountDeleteModal({
         setMfaCode("");
         requireMfa();
       }
-      setError(accountDeletionErrorMessage(cause, "회원 탈퇴에 실패했습니다."));
+      setError(accountDeletionErrorMessage(cause, t("accountDelete.failed")));
       setBusy(false);
     }
   }
@@ -98,11 +100,9 @@ export function AccountDeleteModal({
 
   return (
     <AccountFlowModal
-      title="회원 탈퇴"
-      subtitle={step === "notice"
-        ? "탈퇴하면 계정과 혼자 쓰던 워크스페이스가 삭제됩니다. 아래 내용을 확인해 주세요."
-        : "본인 확인 후 바로 탈퇴가 진행됩니다. 되돌릴 수 없습니다."}
-      ariaLabel="회원 탈퇴"
+      title={t("accountDelete.title")}
+      subtitle={step === "notice" ? t("accountDelete.noticeSubtitle") : t("accountDelete.confirmSubtitle")}
+      ariaLabel={t("accountDelete.title")}
       canClose={!busy}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -110,21 +110,20 @@ export function AccountDeleteModal({
       {step === "notice" && (
         <div className={styles.fields}>
           <div className={styles.field}>
-            <strong>삭제되는 것</strong>
+            <strong>{t("accountDelete.deletedTitle")}</strong>
             <ul className={styles["notice-list"]}>
-              <li>계정 정보(이메일, 닉네임, 로그인 수단, 다단계 인증)</li>
-              <li>혼자 쓰던 워크스페이스와 그 안의 문서·위키·채팅·회의 녹음</li>
+              <li>{t("accountDelete.deletedAccount")}</li>
+              <li>{t("accountDelete.deletedWorkspaces")}</li>
             </ul>
           </div>
           <div className={styles.field}>
-            <strong>남는 것</strong>
+            <strong>{t("accountDelete.keptTitle")}</strong>
             <ul className={styles["notice-list"]}>
-              <li>다른 멤버가 있는 워크스페이스에 올린 문서와 위키 (작성자 표시만 지워집니다)</li>
+              <li>{t("accountDelete.keptDocuments")}</li>
             </ul>
           </div>
           <p className={styles.hint}>
-            보관할 자료가 있으면 탈퇴 전에 워크스페이스의 위키 내보내기로 먼저 받아 두세요. 탈퇴 뒤에는 복구할 수 없습니다.
-            다른 멤버가 있는 워크스페이스의 유일한 OWNER라면 먼저 다른 멤버에게 OWNER를 넘겨야 합니다.
+            {t("accountDelete.exportHint")}
           </p>
         </div>
       )}
@@ -133,9 +132,9 @@ export function AccountDeleteModal({
         <div className={styles.fields}>
           <div className={styles.field}>
             <div className={styles["field-head"]}>
-              <label htmlFor="account-delete-password">비밀번호</label>
+              <label htmlFor="account-delete-password">{t("accountDelete.passwordLabel")}</label>
               {linkedProviders.length > 0 && (
-                <p className={styles["field-desc"]}>비밀번호 없이 소셜 계정으로만 로그인하는 경우 비워 두고 아래에서 다시 로그인해 확인해 주세요.</p>
+                <p className={styles["field-desc"]}>{t("accountDelete.socialPasswordHint")}</p>
               )}
             </div>
             <input
@@ -151,7 +150,7 @@ export function AccountDeleteModal({
           </div>
           {isMfaEnabled && (
             <div className={styles.field}>
-              <label htmlFor="account-delete-mfa">인증 코드 또는 복구 코드</label>
+              <label htmlFor="account-delete-mfa">{t("common.mfaCodeLabel")}</label>
               <input
                 id="account-delete-mfa"
                 autoComplete="one-time-code"
@@ -166,12 +165,12 @@ export function AccountDeleteModal({
           {linkedProviders.length > 0 && (
             <div className={styles.field}>
               <p className={styles["field-desc"]}>
-                {needsReauth ? "소셜 계정으로 다시 로그인하면 이 화면으로 돌아옵니다. 10분 안에 탈퇴를 완료해 주세요." : "소셜 계정으로 본인 확인"}
+                {needsReauth ? t("accountDelete.reauthNeeded") : t("accountDelete.reauthOption")}
               </p>
               <div className={styles["provider-row"]}>
                 {linkedProviders.map((provider) => (
                   <button key={provider} type="button" className={styles["btn-back"]} disabled={busy} onClick={() => reloginWith(provider)}>
-                    {oauthProviderName(provider)}로 다시 로그인
+                    {t("common.reloginWith", { provider: oauthProviderName(provider) })}
                   </button>
                 ))}
               </div>
@@ -179,13 +178,13 @@ export function AccountDeleteModal({
           )}
           {blockedWorkspaces && blockedWorkspaces.length > 0 && (
             <div className={styles.field}>
-              <p className={styles["field-desc"]}>다른 멤버에게 OWNER를 넘겨야 하는 워크스페이스</p>
+              <p className={styles["field-desc"]}>{t("accountDelete.blockedTitle")}</p>
               <ul className={styles["notice-list"]}>
                 {blockedWorkspaces.map((workspace) => (
                   <li key={workspace.id} className={styles["notice-row"]}>
                     <span>{workspace.name}</span>
                     <button type="button" className={styles["btn-back"]} disabled={busy} onClick={() => onOpenMembers(workspace.id)}>
-                      멤버 관리로 이동
+                      {t("accountDelete.openMembers")}
                     </button>
                   </li>
                 ))}
@@ -199,11 +198,11 @@ export function AccountDeleteModal({
       <div className={cx(styles.footer, step === "notice" && styles["is-end"])}>
         {step === "confirm" && (
           <button type="button" className={styles["btn-back"]} disabled={busy} onClick={() => { setStep("notice"); setError(null); }}>
-            이전
+            {t("common.back")}
           </button>
         )}
         <button type="submit" className={cx(styles["btn-next"], step === "confirm" && styles["is-danger"])} disabled={!canSubmit}>
-          {busy ? "탈퇴 중…" : step === "notice" ? "계속" : "탈퇴하기"}
+          {busy ? t("accountDelete.deleting") : step === "notice" ? t("accountDelete.continue") : t("accountDelete.submit")}
           {!busy && step === "notice" && <ChevronRight size={10} strokeWidth={2.5} aria-hidden />}
         </button>
       </div>

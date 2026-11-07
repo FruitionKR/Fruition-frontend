@@ -1,0 +1,17 @@
+{
+  "title": "Workspace invitation",
+  "loading": "Loading invitation…",
+  "invitedBy": "{inviter} invited you to {workspace}.",
+  "loginAs": "Log in as {email} to accept.",
+  "details": "Role: {role} · Expires: {expiresAt}",
+  "roles": {
+    "owner": "Owner",
+    "member": "Member"
+  },
+  "accept": "Accept invitation",
+  "accepting": "Accepting…",
+  "loginAsInvitee": "Log in or sign up as the invited account",
+  "returnNotice": "You'll return to this page after logging in.",
+  "acceptFailed": "Couldn't accept the invitation.",
+  "loadFailed": "Couldn't load the invitation."
+}

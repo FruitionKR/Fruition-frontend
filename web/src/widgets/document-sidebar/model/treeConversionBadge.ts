@@ -17,7 +17,8 @@ export const CONVERTED_MARKDOWN_LABEL = "변환본";
 const CONVERTED_SOURCE_LABEL = "원본 PDF";
 const UNKNOWN_SOURCE_DESCRIPTION = "PDF에서 만든 Markdown 문서입니다. 원본 PDF를 찾을 수 없습니다.";
 
-function isFailedConversion(document: DocumentItemResponse): boolean {
+/** 변환에 실패한 변환본인지. 트리·배지에서는 없는 것으로 본다. */
+export function isFailedConversion(document: DocumentItemResponse): boolean {
   return document.status === "failed" && document.pipeline_run_id?.startsWith("convert:") === true;
 }
 

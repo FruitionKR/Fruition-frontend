@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AVATAR_ACCEPT, ME_QUERY_KEY, UserAvatar, avatarUploadErrorMessage, deleteAvatar, updateDisplayName, uploadAvatar, useMe,
@@ -26,6 +27,7 @@ export function ProfilePanel({
   /** 소셜 재로그인에서 돌아와 이메일 변경 창을 바로 다시 열 때 */
   resumeEmailChange?: boolean;
 }) {
+  const t = useTranslations("settings");
   const { data: me, error: loadError } = useMe();
   const [showEmail, setShowEmail] = useState(resumeEmailChange);
   const [emailSaved, setEmailSaved] = useState(false);
@@ -47,7 +49,7 @@ export function ProfilePanel({
     if (!me || nameRequestPending.current || composingName || nicknameDraft === null) return;
     if (!nickname.trim()) {
       setNameSaved(false);
-      setNameError("닉네임을 입력해 주세요. 공백만으로는 저장할 수 없습니다.");
+      setNameError(t("profile.nickname.required"));
       return;
     }
     if (nickname.trim() === me.display_name) return;
@@ -63,12 +65,12 @@ export function ProfilePanel({
       setNicknameDraft((current) => current === nickname ? null : current);
       setNameSaved(true);
     } catch (error: unknown) {
-      setNameError(getErrorMessage(error, "닉네임을 변경하지 못했습니다."));
+      setNameError(getErrorMessage(error, t("profile.nickname.saveFailed")));
     } finally {
       nameRequestPending.current = false;
       setSavingName(false);
     }
-  }, [me, nickname, nicknameDraft, composingName, queryClient]);
+  }, [me, nickname, nicknameDraft, composingName, queryClient, t]);
 
   useEffect(() => {
     if (savingName || nameError || composingName || nicknameDraft === null) return;
@@ -102,41 +104,39 @@ export function ProfilePanel({
       setPhotoError(problem);
       return;
     }
-    void applyPhoto(() => uploadAvatar(file), "프로필 사진을 변경했습니다.", "프로필 사진을 올리지 못했습니다.");
+    void applyPhoto(() => uploadAvatar(file), t("profile.photo.uploaded"), t("profile.photo.uploadFailed"));
   }
 
-  const avatarName = me?.display_name || me?.email || "사용자";
+  const avatarName = me?.display_name || me?.email || t("common.userFallback");
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="사용자 설정" description="개인 계정 설정을 관리합니다." />
+      <SettingsPanelTitle title={t("profile.title")} description={t("profile.description")} />
 
       <div className={styles.section}>
-        <SettingsSectionHeader>프로필</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("profile.section")}</SettingsSectionHeader>
         <div className={panelStyles["profile-list"]}>
           <div className={cx(styles.field, panelStyles["profile-field"])}>
-            <label htmlFor="profile-nickname">닉네임</label>
+            <label htmlFor="profile-nickname">{t("profile.nickname.label")}</label>
             <input id="profile-nickname" type="text" value={nickname} maxLength={255} required
               aria-invalid={nameError ? true : undefined} aria-describedby={nameError ? "profile-nickname-error" : undefined}
               disabled={!me} onChange={(event) => { setNicknameDraft(event.target.value); setNameSaved(false); setNameError(null); }}
               onCompositionStart={() => setComposingName(true)} onCompositionEnd={() => setComposingName(false)}
               onBlur={() => void saveName()} />
-            {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
-            {savingName ? <small role="status">저장 중…</small> : nameSaved && nicknameDraft === null && <small role="status">닉네임을 변경했습니다.</small>}
+            {(nameError || loadError) && <small id="profile-nickname-error" className={styles["field-error"]} role="alert">{nameError || getErrorMessage(loadError, t("common.accountLoadFailed"))}</small>}
+            {savingName ? <small role="status">{t("common.saving")}</small> : nameSaved && nicknameDraft === null && <small role="status">{t("profile.nickname.saved")}</small>}
           </div>
 
           <div className={styles["tile-field"]}>
             <div className={styles["row-title"]}>
-              <strong>프로필 사진</strong>
+              <strong>{t("profile.photo.label")}</strong>
               {/* 시안 문구는 "업로드 미지원"이지만 사진 업로드 API(#avatar)가 있어 실제 동작을 안내한다. */}
               {/* 사진이 있으면 첫 글자 대신 사진이 보이므로 바꾸기·삭제를 안내한다. */}
               <small>
-                {me?.avatar_url
-                  ? "올린 사진으로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)로 바꾸거나, 사진 삭제로 닉네임 첫 글자 표시로 돌아갈 수 있습니다."
-                  : "닉네임의 첫 글자로 표시됩니다. 사진을 눌러 PNG·JPEG·WebP·GIF(1MB 이하)를 올릴 수 있습니다."}
+                {me?.avatar_url ? t("profile.photo.hintWithPhoto") : t("profile.photo.hintWithoutPhoto")}
               </small>
             </div>
-            <button type="button" className={styles["tile-button"]} aria-label="프로필 사진 업로드"
+            <button type="button" className={styles["tile-button"]} aria-label={t("profile.photo.upload")}
               disabled={!me || photoBusy} onClick={() => photoInput.current?.click()}>
               <UserAvatar avatarUrl={me?.avatar_url} name={avatarName} className={styles["tile-face"]} />
             </button>
@@ -146,11 +146,11 @@ export function ProfilePanel({
               <div className={styles["tile-actions"]}>
                 {me?.avatar_url && (
                   <button type="button" className={styles.btn} disabled={photoBusy}
-                    onClick={() => void applyPhoto(deleteAvatar, "프로필 사진을 지웠습니다.", "프로필 사진을 지우지 못했습니다.")}>
-                    사진 삭제
+                    onClick={() => void applyPhoto(deleteAvatar, t("profile.photo.deleted"), t("profile.photo.deleteFailed"))}>
+                    {t("profile.photo.delete")}
                   </button>
                 )}
-                {photoBusy && <small className={styles["status-text"]} role="status">사진 저장 중…</small>}
+                {photoBusy && <small className={styles["status-text"]} role="status">{t("profile.photo.saving")}</small>}
                 {photoMessage && <small className={styles["status-text"]} role="status">{photoMessage}</small>}
                 {photoError && <small className={styles["field-error"]} role="alert">{photoError}</small>}
               </div>
@@ -160,26 +160,26 @@ export function ProfilePanel({
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>계정 정보</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("profile.accountSection")}</SettingsSectionHeader>
         <div className={panelStyles["account-list"]}>
           <div className={cx(styles.row, panelStyles["account-row"])}>
             <div className={styles["row-title"]}>
-              <strong>이메일</strong>
-              <small>{me?.email || "이메일 정보를 불러오지 못했습니다."}</small>
+              <strong>{t("profile.email.label")}</strong>
+              <small>{me?.email || t("profile.email.loadFailed")}</small>
             </div>
             <button type="button" className={styles.btn} disabled={!me}
               onClick={() => { setShowEmail(true); setEmailSaved(false); }}>
-              이메일 변경
+              {t("profile.email.change")}
             </button>
           </div>
-          {emailSaved && <small className={styles["status-text"]} role="status">이메일을 변경했습니다.</small>}
+          {emailSaved && <small className={styles["status-text"]} role="status">{t("profile.email.changed")}</small>}
           <div className={cx(styles.row, panelStyles["account-row"])}>
             <div className={styles["row-title"]}>
-              <strong>비밀번호</strong>
-              <small>로그인에 사용하는 비밀번호를 변경하세요.</small>
+              <strong>{t("profile.password.label")}</strong>
+              <small>{t("profile.password.description")}</small>
             </div>
             <button type="button" className={styles.btn} disabled={!me} onClick={() => setShowPassword(true)}>
-              비밀번호 변경
+              {t("profile.password.change")}
             </button>
           </div>
         </div>

@@ -76,7 +76,9 @@ test("레일 프로필은 메뉴 없이 설정 화면을 바로 열고, 로그�
   assert.doesNotMatch(source, /SettingsModal|createPortal/);
   // 로그아웃은 설정 화면 메뉴에서 하고, 직접 로그아웃이라 랜딩으로 간다.
   assert.match(viewSource, /signOut\(\{ callLogout: true, reason: "user" \}\)/);
-  assert.match(viewSource, /<span>로그아웃<\/span>/);
+  assert.match(viewSource, /<span>\{t\("nav\.logout"\)\}<\/span>/);
+  const settingsMessages = JSON.parse(await readFile(new URL("../src/shared/i18n/messages/ko/settings.json", import.meta.url), "utf8"));
+  assert.equal(settingsMessages.nav.logout, "로그아웃");
 });
 
 test("프로필은 Wiki 관리에만 필요했던 프로젝트 목록을 받지 않는다", async () => {

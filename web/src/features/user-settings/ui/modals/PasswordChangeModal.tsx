@@ -4,6 +4,7 @@ import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVer
 import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import passwordHiddenIcon from "@/shared/assets/svg/auth/auth-password-hidden.svg";
 import passwordVisibleIcon from "@/shared/assets/svg/auth/auth-password-visible.svg";
 import {
@@ -23,13 +24,6 @@ import { FlowBackButton, FlowError, AccountFlowModal, FlowNextButton, isEmailCod
 
 type Step = "email" | "code" | "password" | "done";
 
-const SUBTITLES: Record<Step, string> = {
-  email: "현재 이메일 계정을 인증합니다.",
-  code: "인증번호 6자리를 입력하여 이메일을 인증하세요.",
-  password: "최소 15자의 문자 또는\n최소 8자의 문자와 숫자 조합을 비밀번호로 사용하세요.",
-  done: "비밀번호가 변경되었습니다.\n다른 기기의 로그인은 해제되었습니다."
-};
-
 function PasswordField({
   id,
   label,
@@ -43,6 +37,7 @@ function PasswordField({
   disabled: boolean;
   onChange: (value: string) => void;
 }) {
+  const t = useTranslations("settings.common");
   const [isRevealed, setIsRevealed] = useState(false);
   return (
     <div className={styles.field}>
@@ -61,7 +56,7 @@ function PasswordField({
         <button
           type="button"
           className={styles["field-toggle"]}
-          aria-label={isRevealed ? "비밀번호 숨기기" : "비밀번호 표시"}
+          aria-label={isRevealed ? t("passwordHide") : t("passwordShow")}
           aria-pressed={isRevealed}
           onClick={() => setIsRevealed((revealed) => !revealed)}
         >
@@ -90,8 +85,15 @@ export function PasswordChangeModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("settings");
   const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [step, setStep] = useState<Step>("email");
+  const SUBTITLES: Record<Step, string> = {
+    email: t("passwordChange.emailSubtitle"),
+    code: t("common.codeStepSubtitle"),
+    password: t("passwordChange.passwordSubtitle"),
+    done: t("passwordChange.doneSubtitle")
+  };
   const [code, setCode] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState(0);
@@ -162,7 +164,7 @@ export function PasswordChangeModal({
       setCode("");
       setStep("code");
     } catch (cause: unknown) {
-      applyFailure(cause, "인증번호를 보내지 못했습니다.", setBlockedUntil);
+      applyFailure(cause, t("common.sendCodeFailed"), setBlockedUntil);
     } finally {
       setBusy(false);
     }
@@ -177,7 +179,7 @@ export function PasswordChangeModal({
       setToken(result.verification_token);
       setStep("password");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "인증번호 확인에 실패했습니다."));
+      setError(getErrorMessage(cause, t("common.verifyCodeFailed")));
     } finally {
       setBusy(false);
     }
@@ -186,11 +188,11 @@ export function PasswordChangeModal({
   async function savePassword() {
     if (!token || Date.now() < submitBlockedUntil) return;
     if (!isPasswordAllowed(newPassword)) {
-      setError("최소 15자의 문자 또는 최소 8자의 문자와 숫자 조합이어야 합니다.");
+      setError(t("passwordChange.policyError"));
       return;
     }
     if (newPassword !== passwordConfirm) {
-      setError("새 비밀번호와 확인이 일치하지 않습니다.");
+      setError(t("passwordChange.mismatch"));
       return;
     }
     setBusy(true);
@@ -199,7 +201,7 @@ export function PasswordChangeModal({
       await changePasswordWithVerification(buildPasswordChangeBody({ newPassword, verificationToken: token, mfaCode }));
       setStep("done");
     } catch (cause: unknown) {
-      applyFailure(cause, "비밀번호를 변경하지 못했습니다.", setSubmitBlockedUntil);
+      applyFailure(cause, t("passwordChange.failed"), setSubmitBlockedUntil);
     } finally {
       setBusy(false);
     }
@@ -241,22 +243,22 @@ export function PasswordChangeModal({
         ? isEmailCodeComplete(code) && !countdown.isExpired
         : submitBlockedSeconds === 0 && newPassword.length > 0 && passwordConfirm.length > 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
   );
-  const submitLabel = busy ? "처리 중…"
-    : step === "email" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "다음으로") : step === "code" ? "인증하기" : step === "password" ? (submitBlockedSeconds > 0 ? `${submitBlockedSeconds}초 후 가능` : "비밀번호 변경") : "확인";
+  const submitLabel = busy ? t("common.processing")
+    : step === "email" ? (blockedSeconds > 0 ? t("common.secondsLeft", { seconds: blockedSeconds }) : t("common.next")) : step === "code" ? t("common.verify") : step === "password" ? (submitBlockedSeconds > 0 ? t("common.secondsLeft", { seconds: submitBlockedSeconds }) : t("passwordChange.submit")) : t("common.confirm");
 
   return (
     <AccountFlowModal
-      title="비밀번호 변경"
+      title={t("passwordChange.title")}
       subtitle={step === "done" ? <span role="status">{SUBTITLES.done}</span> : SUBTITLES[step]}
       subtitleStyle={{ whiteSpace: "pre-line" }}
-      ariaLabel="비밀번호 변경"
+      ariaLabel={t("passwordChange.title")}
       canClose={!busy}
       onClose={step === "done" ? onSaved : onClose}
       onSubmit={handleSubmit}
     >
       {step === "email" && (
         <div className={styles.field}>
-          <label htmlFor="password-change-email">이메일 주소</label>
+          <label htmlFor="password-change-email">{t("passwordChange.emailLabel")}</label>
           <input
             id="password-change-email"
             type="email"
@@ -277,21 +279,21 @@ export function PasswordChangeModal({
           </div>
           {countdown.isExpired ? (
             <button type="button" className={styles.resend} disabled={busy || blockedSeconds > 0} onClick={() => void sendCode()}>
-              인증번호가 만료되었습니다. 다시 받기
+              {t("passwordChange.codeExpired")}
             </button>
           ) : (
-            <p className={styles.hint}>{accountEmail} 주소로 인증번호를 보냈습니다.</p>
+            <p className={styles.hint}>{t("common.codeSentTo", { email: accountEmail })}</p>
           )}
           <FlowError error={error} />
         </div>
       )}
       {step === "password" && (
         <div className={styles.fields}>
-          <PasswordField id="password-change-new" label="새 비밀번호" value={newPassword} disabled={busy} onChange={setNewPassword} />
-          <PasswordField id="password-change-confirm" label="새 비밀번호 확인" value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
+          <PasswordField id="password-change-new" label={t("passwordChange.newPassword")} value={newPassword} disabled={busy} onChange={setNewPassword} />
+          <PasswordField id="password-change-confirm" label={t("passwordChange.newPasswordConfirm")} value={passwordConfirm} disabled={busy} onChange={setPasswordConfirm} />
           {isMfaEnabled && (
             <div className={styles.field}>
-              <label htmlFor="password-change-mfa">인증 코드 또는 복구 코드</label>
+              <label htmlFor="password-change-mfa">{t("common.mfaCodeLabel")}</label>
               <input
                 id="password-change-mfa"
                 autoComplete="one-time-code"
@@ -303,7 +305,7 @@ export function PasswordChangeModal({
               />
             </div>
           )}
-          <p className={styles.hint}>변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
+          <p className={styles.hint}>{t("passwordChange.sessionsHint")}</p>
           <FlowError error={error} />
         </div>
       )}

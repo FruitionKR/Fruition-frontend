@@ -1,0 +1,31 @@
+{
+  "documents": {
+    "terms": "이용약관",
+    "privacy": "개인정보 처리방침"
+  },
+  "page": {
+    "home": "서비스 홈",
+    "effective": "시행일 {date}",
+    "previousVersion": "이전 버전",
+    "versions": "시행일별 버전",
+    "versionLabel": "버전",
+    "current": " (현재)",
+    "body": "{title} 본문",
+    "changes": "변경 비교",
+    "koreanOnly": "이 문서는 한국어 원문으로만 제공됩니다."
+  },
+  "footer": {
+    "label": "서비스 운영 정보",
+    "links": "약관과 정책",
+    "pending": "[확정 필요]",
+    "operator": {
+      "company": "상호",
+      "representative": "대표자",
+      "businessNumber": "사업자등록번호",
+      "mailOrderNumber": "통신판매업 신고번호",
+      "address": "주소",
+      "contact": "연락처",
+      "privacyOfficer": "개인정보 보호책임자(CPO)"
+    }
+  }
+}

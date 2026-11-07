@@ -1,5 +1,6 @@
 "use client";
 
+import { PDF_CONVERT_QUALITY_NOTICE } from "@/entities/document/lib/documentConversion";
 import { formatBytes } from "@/entities/workspace/model/storageUsage";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import { previewBlocker, type NotionImportController, type NotionImportStep } from "../model/useNotionImport";
@@ -207,6 +208,7 @@ function ConvertStep({ step, controller }: { step: SummaryStep; controller: Noti
         <h3 id="notion-import-convert">PDF {askCount.toLocaleString()}개를 문서로 변환할까요? ({label})</h3>
         <p className={styles.meta}>{CONVERT_COST_HINT}</p>
         <p className={styles.meta}>변환해야 위키에 편입할 수 있어요. 변환하지 않으면 원본 PDF로 남고, 나중에 문서에서 변환할 수 있어요.</p>
+        <p className={styles.meta}>{PDF_CONVERT_QUALITY_NOTICE}</p>
         {running && progress && (
           <>
             <p className={styles.status} aria-live="polite">변환 요청 중 {progress.queued.toLocaleString()}/{progress.total.toLocaleString()}</p>

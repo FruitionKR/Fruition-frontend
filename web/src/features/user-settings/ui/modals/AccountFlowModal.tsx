@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { isDevelopmentVerificationCode } from "@/shared/lib/developmentVerificationCode";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
@@ -52,6 +53,7 @@ export function AccountFlowModal({
   closeIcon?: ReactNode;
   children: ReactNode;
 }) {
+  const t = useTranslations("settings.common");
   // 닫을 수 없는 동안에도 레이어는 유지해 Escape가 아래 설정 창으로 넘어가지 않게 한다.
   useEscapeKey(true, () => {
     if (canClose) onClose();
@@ -73,7 +75,7 @@ export function AccountFlowModal({
               {stepLabel && <p className={styles["step-label"]}>{stepLabel}</p>}
               <h2 className={styles.title}>{title}</h2>
             </div>
-            <button type="button" className={styles.close} aria-label="닫기" disabled={!canClose} onClick={onClose}>
+            <button type="button" className={styles.close} aria-label={t("close")} disabled={!canClose} onClick={onClose}>
               {closeIcon ?? <SvgIcon src={plusIcon} className={styles["close-icon"]} />}
             </button>
           </div>
@@ -122,9 +124,10 @@ export function VerificationCodeInput({
 
 /** 푸터의 '이전' 버튼. */
 export function FlowBackButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  const t = useTranslations("settings.common");
   return (
     <button type="button" className={styles["btn-back"]} disabled={disabled} onClick={onClick}>
-      <SvgIcon src={chevronLeftSmallIcon} className={styles["back-icon"]} /> 이전
+      <SvgIcon src={chevronLeftSmallIcon} className={styles["back-icon"]} /> {t("back")}
     </button>
   );
 }

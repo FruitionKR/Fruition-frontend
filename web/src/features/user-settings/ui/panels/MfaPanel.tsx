@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMfaStatus, registerMfa, MFA_QUERY_KEY, type MfaRegistration } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
@@ -11,6 +12,7 @@ import { MfaDisableModal } from "../modals/MfaDisableModal";
 
 /** 다단계 인증 스위치 행. 켜면 등록 모달, 끄면 해제 모달을 연다. */
 export function MfaPanel() {
+  const t = useTranslations("settings.mfa");
   const { data: status, error: loadError, refetch, isFetching } = useQuery({
     queryKey: MFA_QUERY_KEY, queryFn: fetchMfaStatus, retry: false
   });
@@ -31,7 +33,7 @@ export function MfaPanel() {
     try {
       setRegistration(await registerMfa());
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "다단계 인증 등록을 시작하지 못했습니다."));
+      setError(getErrorMessage(cause, t("startFailed")));
       void refetch();
     } finally {
       setBusy(false);
@@ -41,14 +43,14 @@ export function MfaPanel() {
   return <>
     <div className={styles.row}>
       <div className={styles["row-title"]}>
-        <strong>다단계 인증</strong>
-        <small>계정 보안을 위한 인증 단계에요.</small>
+        <strong>{t("label")}</strong>
+        <small>{t("description")}</small>
       </div>
-      <Switch checked={status?.enabled ?? false} label="다단계 인증"
+      <Switch checked={status?.enabled ?? false} label={t("label")}
         disabled={!status || busy || isFetching} onClick={() => void toggle()} />
     </div>
-    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, "다단계 인증 상태를 불러오지 못했습니다.")}</small>}
-    {loadError && <button type="button" className={styles.btn} disabled={isFetching} onClick={() => void refetch()}>다시 확인</button>}
+    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"))}</small>}
+    {loadError && <button type="button" className={styles.btn} disabled={isFetching} onClick={() => void refetch()}>{t("recheck")}</button>}
 
     {registration && (
       <MfaSetupModal

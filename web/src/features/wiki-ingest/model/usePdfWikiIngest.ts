@@ -1,5 +1,5 @@
 import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { convertDocumentToMarkdown, reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
@@ -120,5 +120,7 @@ export function usePdfWikiIngest(
     }
   }, [documents, documentsUpdatedAt, pending, refresh, updatePending]);
 
-  return { startPdfIngest, isPending: pending.length > 0 };
+  // 변환이 끝나면 이 훅이 편입하는 변환본 ID. 변환본을 열 때 편입 확인창을 다시 띄우지 않는 데 쓴다.
+  const pendingDocumentIds = useMemo(() => pending.map((task) => task.documentId), [pending]);
+  return { startPdfIngest, isPending: pending.length > 0, pendingDocumentIds };
 }

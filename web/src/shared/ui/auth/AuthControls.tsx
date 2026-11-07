@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useState, useSyncExternalStore } from "react";
 import type { ChangeEventHandler, FocusEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
 import errorIcon from "@/shared/assets/svg/auth/auth-error-circle.svg";
@@ -43,6 +44,7 @@ export function AuthField({
   type = "text",
   value
 }: AuthFieldProps) {
+  const t = useTranslations("auth.controls");
   const isPassword = type === "password";
   const [isPasswordRevealed, setIsPasswordRevealed] = useState(false);
   const inputType = isPassword && isPasswordRevealed ? "text" : type;
@@ -67,7 +69,7 @@ export function AuthField({
         {timer ? <span aria-hidden className="auth-field-timer">{timer}</span> : null}
         {isPassword ? (
           <button
-            aria-label={isPasswordRevealed ? "비밀번호 숨기기" : "비밀번호 표시"}
+            aria-label={isPasswordRevealed ? t("hidePassword") : t("showPassword")}
             aria-pressed={isPasswordRevealed}
             className="auth-password-toggle"
             onClick={() => setIsPasswordRevealed((revealed) => !revealed)}
@@ -114,28 +116,29 @@ export function AuthSubmitButton({ children, disabled = false }: { children: str
 
 /** disabled: 접근 코드 확인 전처럼 간편 로그인으로 넘어가면 안 될 때 버튼을 막는다. */
 export function SocialLoginButtons({ disabled = false }: { disabled?: boolean }) {
+  const t = useTranslations("auth.controls");
   const providers = [
-    { name: "카카오", provider: "kakao", logo: kakaoLogo },
-    { name: "네이버", provider: "naver", logo: naverLogo },
-    { name: "Google", provider: "google", logo: googleLogo }
+    { provider: "kakao", logo: kakaoLogo },
+    { provider: "naver", logo: naverLogo },
+    { provider: "google", logo: googleLogo }
   ] as const;
 
   return (
     <div className="auth-social">
       <div className="auth-social-divider">
         <span />
-        <p>간편 로그인</p>
+        <p>{t("socialDivider")}</p>
         <span />
       </div>
-      {disabled ? <p className="auth-prompt auth-prompt--wrap" role="status">접근 코드를 먼저 확인하면 간편 로그인을 사용할 수 있어요.</p> : null}
+      {disabled ? <p className="auth-prompt auth-prompt--wrap" role="status">{t("socialDisabledNotice")}</p> : null}
       <div className="auth-social-buttons">
-        {providers.map(({ logo, name, provider }) => (
+        {providers.map(({ logo, provider }) => (
           <button
-            aria-label={`${name}로 로그인`}
+            aria-label={t("socialLogin", { provider: t(`providers.${provider}`) })}
             className={`auth-social-button auth-social-button--${provider}`}
             disabled={disabled}
             key={provider}
-            title={disabled ? "접근 코드를 먼저 확인해 주세요." : undefined}
+            title={disabled ? t("socialDisabledTitle") : undefined}
             onClick={() => window.location.assign(getOAuthAuthorizationUrl(provider))}
             type="button"
           >

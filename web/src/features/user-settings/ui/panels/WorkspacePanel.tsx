@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   buildWorkspaceModelOptions,
@@ -12,7 +13,7 @@ import {
   type AiModelSelection
 } from "@/entities/ai";
 import { useUserPreferences } from "@/entities/user";
-import { renameWorkspace, updateWorkspaceAutoIngest, updateWorkspaceDescribePdfFigures, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
+import { renameWorkspace, updateWorkspaceAutoIngest, updateWorkspaceDescribePdfFigures, useSelectedWorkspace, useWorkspaceRole, type AutoIngestSettingField, type WorkspaceResponse } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { Switch } from "@/shared/ui/Switch";
@@ -49,6 +50,7 @@ export function WorkspacePanel({
   canUpdateAiModel,
   onSelectModel
 }: WorkspacePanelProps) {
+  const t = useTranslations("settings");
   const queryClient = useQueryClient();
   const { preferences, updatePreferences } = useUserPreferences();
   const [nameInput, setNameInput] = useState(wsName);
@@ -56,26 +58,27 @@ export function WorkspacePanel({
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
 
-  // 업로드 자동 편입 설정(access #32). 워크스페이스 목록 응답의 값을 보여 주고, OWNER만 바꾼다.
+  // 위키 자동 편입 설정(access #32). 워크스페이스 목록 응답의 값을 보여 주고, OWNER만 바꾼다.
+  // 새 서버는 Markdown 업로드·PDF 변환 설정을 따로 주므로 스위치 두 개를 두고, 구 서버는 하나짜리 설정만 보여 준다.
   const workspace = useSelectedWorkspace();
   const { isOwner } = useWorkspaceRole();
-  const autoIngestOnUpload = workspace?.auto_ingest_on_upload === true;
-  const [isAutoIngestSaving, setIsAutoIngestSaving] = useState(false);
-  const [autoIngestError, setAutoIngestError] = useState<string | null>(null);
+  const autoIngestRows = autoIngestSettingRows(workspace);
+  const [savingAutoIngestField, setSavingAutoIngestField] = useState<AutoIngestSettingField | null>(null);
+  const [autoIngestError, setAutoIngestError] = useState<{ field: AutoIngestSettingField; message: string } | null>(null);
 
-  async function toggleAutoIngest() {
+  async function toggleAutoIngest(field: AutoIngestSettingField, enabled: boolean) {
     const workspaceId = getSelectedWorkspaceId();
-    if (!workspaceId || !isOwner || isAutoIngestSaving) return;
-    setIsAutoIngestSaving(true);
+    if (!workspaceId || !isOwner || savingAutoIngestField) return;
+    setSavingAutoIngestField(field);
     setAutoIngestError(null);
     try {
-      await updateWorkspaceAutoIngest(workspaceId, !autoIngestOnUpload);
+      await updateWorkspaceAutoIngest(workspaceId, field, enabled);
       // useSelectedWorkspace가 새 설정값을 읽도록 목록 캐시를 무효화한다.
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setAutoIngestError(getErrorMessage(error, "자동 편입 설정을 변경하지 못했습니다."));
+      setAutoIngestError({ field, message: getErrorMessage(error, t("workspace.autoIngest.saveFailed")) });
     } finally {
-      setIsAutoIngestSaving(false);
+      setSavingAutoIngestField(null);
     }
   }
 
@@ -93,15 +96,18 @@ export function WorkspacePanel({
       await updateWorkspaceDescribePdfFigures(workspaceId, !describePdfFigures);
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setDescribeFiguresError(getErrorMessage(error, "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다."));
+      setDescribeFiguresError(getErrorMessage(error, t("workspace.describeFigures.saveFailed")));
     } finally {
       setIsDescribeFiguresSaving(false);
     }
   }
 
   // 워크스페이스 목록이 늦게 로드되면 초기값을 따라잡는다(사용자가 편집 중이 아닐 때만).
+  const workspaceFallback = t("common.workspaceFallback");
   useEffect(() => {
-    setNameInput((current) => (current === "" || current === "워크스페이스" ? wsName : current));
+    setNameInput((current) => (current === "" || current === workspaceFallback ? wsName : current));
+    // 대체 이름(workspaceFallback)이 바뀌었다고 입력을 다시 맞추지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsName]);
 
   const trimmedName = nameInput.trim();
@@ -113,7 +119,7 @@ export function WorkspacePanel({
     if (!workspaceId) return;
     if (!trimmedName) {
       setNameSaved(false);
-      setNameError("워크스페이스 이름을 입력해 주세요.");
+      setNameError(t("workspace.name.required"));
       return;
     }
     if (!canSaveName) return;
@@ -128,7 +134,7 @@ export function WorkspacePanel({
       // 사이드바 등 useWorkspaceName 소비처가 새 이름을 반영하도록 캐시를 무효화한다.
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setNameError(getErrorMessage(error, "워크스페이스 이름을 변경하지 못했습니다."));
+      setNameError(getErrorMessage(error, t("workspace.name.saveFailed")));
     } finally {
       setIsNameSaving(false);
     }
@@ -147,13 +153,13 @@ export function WorkspacePanel({
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="워크스페이스 설정" description="워크스페이스 설정입니다." />
+      <SettingsPanelTitle title={t("workspace.title")} description={t("workspace.description")} />
 
       <div className={styles.section}>
-        <SettingsSectionHeader>워크스페이스 이름</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("workspace.name.section")}</SettingsSectionHeader>
         <div className={styles.field}>
-          <label htmlFor="workspace-name">워크스페이스 이름</label>
-          <small id="workspace-name-hint">워크스페이스 이름은 최대 {WORKSPACE_NAME_MAX_LENGTH}자까지 입력할 수 있습니다.</small>
+          <label htmlFor="workspace-name">{t("workspace.name.label")}</label>
+          <small id="workspace-name-hint">{t("workspace.name.hint", { max: WORKSPACE_NAME_MAX_LENGTH })}</small>
           <input
             id="workspace-name"
             type="text"
@@ -169,34 +175,34 @@ export function WorkspacePanel({
             onBlur={() => void saveWorkspaceName()}
           />
           {nameError && <small id="workspace-name-error" className={styles["field-error"]} role="alert">{nameError}</small>}
-          {isNameSaving ? <small role="status">저장 중…</small> : nameSaved && <small role="status">워크스페이스 이름을 변경했습니다.</small>}
+          {isNameSaving ? <small role="status">{t("common.saving")}</small> : nameSaved && <small role="status">{t("workspace.name.saved")}</small>}
         </div>
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>워크스페이스 아이콘</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("workspace.icon.section")}</SettingsSectionHeader>
         <div className={styles["stack-20"]}>
           <WorkspaceIconSettings />
           <div className={styles.row}>
             <div className={styles["row-title"]}>
-              <strong>자동 저장</strong>
-              <small>편집한 내용을 자동으로 저장합니다.</small>
+              <strong>{t("workspace.autoSave.label")}</strong>
+              <small>{t("workspace.autoSave.description")}</small>
             </div>
-            <Switch checked={preferences.autoSave} label="자동 저장"
+            <Switch checked={preferences.autoSave} label={t("workspace.autoSave.label")}
               onClick={() => updatePreferences((current) => ({ ...current, autoSave: !current.autoSave }))} />
           </div>
         </div>
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>AI 모델</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("workspace.model.section")}</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>LLM Provider</strong>
-            <small>위키 생성•편집에 사용하는 모델</small>
-            {hasExcludedModels && <small>Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다.</small>}
-            {!canUpdateAiModel && <small>Provider 변경은 워크스페이스 OWNER만 할 수 있습니다.</small>}
-            {isSelectionFallback && <small>저장된 모델을 더 이상 사용할 수 없어 기본 모델로 처리합니다.</small>}
+            <strong>{t("workspace.model.label")}</strong>
+            <small>{t("workspace.model.description")}</small>
+            {hasExcludedModels && <small>{t("workspace.model.claudeChatOnly")}</small>}
+            {!canUpdateAiModel && <small>{t("workspace.model.ownerOnly")}</small>}
+            {isSelectionFallback && <small>{t("workspace.model.fallback")}</small>}
             {aiModelError && <small className={styles["row-error"]} role="alert">{aiModelError}</small>}
           </div>
           <WorkspaceModelMenu
@@ -210,39 +216,40 @@ export function WorkspacePanel({
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>위키 자동 편입</SettingsSectionHeader>
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>업로드한 문서를 자동으로 위키에 편입</strong>
-            <small>
-              문서를 올리면 변환 뒤 바로 팀 위키에 편입합니다. 편입은 LLM 비용이 들고,
-              멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버가 올린 문서에만 적용됩니다.
-            </small>
-            {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
-            {autoIngestError && <small className={styles["row-error"]} role="alert">{autoIngestError}</small>}
+        <SettingsSectionHeader>{t("workspace.autoIngest.section")}</SettingsSectionHeader>
+        {autoIngestRows.map((row) => (
+          <div key={row.field} className={styles.row}>
+            <div className={styles["row-title"]}>
+              <strong>{t(`workspace.autoIngest.rows.${row.key}.label`)}</strong>
+              <small>
+                {t(`workspace.autoIngest.rows.${row.key}.description`)} {t("workspace.autoIngest.costNote")}
+              </small>
+              {!isOwner && <small>{t("common.ownerOnlySetting")}</small>}
+              {autoIngestError?.field === row.field && <small className={styles["row-error"]} role="alert">{autoIngestError.message}</small>}
+            </div>
+            <Switch
+              checked={row.checked}
+              label={t(`workspace.autoIngest.rows.${row.key}.label`)}
+              // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 savingAutoIngestField 검사가 막는다.
+              disabled={!isOwner || !workspace}
+              onClick={() => void toggleAutoIngest(row.field, !row.checked)}
+            />
           </div>
-          <Switch
-            checked={autoIngestOnUpload}
-            label="업로드한 문서를 자동으로 위키에 편입"
-            // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 isAutoIngestSaving 검사가 막는다.
-            disabled={!isOwner || !workspace}
-            onClick={() => void toggleAutoIngest()}
-          />
-        </div>
+        ))}
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("workspace.describeFigures.section")}</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>PDF 속 그림을 AI가 글로 설명하기</strong>
-            <small>기본적으로는 이미지만 가져오나, 차트나 도표의 내용을 문서에 글로 남겨 AI 검색과 답변에 쓸 수 있게 합니다.</small>
-            {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
+            <strong>{t("workspace.describeFigures.label")}</strong>
+            <small>{t("workspace.describeFigures.description")}</small>
+            {!isOwner && <small>{t("common.ownerOnlySetting")}</small>}
             {describeFiguresError && <small className={styles["row-error"]} role="alert">{describeFiguresError}</small>}
           </div>
           <Switch
             checked={describePdfFigures}
-            label="PDF 속 그림을 AI가 글로 설명하기"
+            label={t("workspace.describeFigures.label")}
             disabled={!isOwner || !workspace}
             onClick={() => void toggleDescribePdfFigures()}
           />
@@ -250,4 +257,22 @@ export function WorkspacePanel({
       </div>
     </div>
   );
+}
+
+/** 문구는 settings 메시지 workspace.autoIngest.rows.<key>에 있다. */
+type AutoIngestSettingRow = { field: AutoIngestSettingField; key: "markdown" | "pdfOnConvert" | "legacyPdf"; checked: boolean };
+
+/** 자동 편입 스위치 목록. 새 서버(auto_ingest_markdown_on_upload가 있음)는 Markdown·PDF를 따로, 구 서버는 하나만 둔다. */
+function autoIngestSettingRows(workspace: WorkspaceResponse | null): AutoIngestSettingRow[] {
+  if (typeof workspace?.auto_ingest_markdown_on_upload === "boolean") {
+    return [
+      { field: "auto_ingest_markdown_on_upload", key: "markdown", checked: workspace.auto_ingest_markdown_on_upload },
+      {
+        field: "auto_ingest_pdf_on_convert",
+        key: "pdfOnConvert",
+        checked: (workspace.auto_ingest_pdf_on_convert ?? workspace.auto_ingest_on_upload) === true
+      }
+    ];
+  }
+  return [{ field: "auto_ingest_on_upload", key: "legacyPdf", checked: workspace?.auto_ingest_on_upload === true }];
 }

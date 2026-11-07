@@ -98,6 +98,8 @@ export function useProjectTree({
   const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
   const [permissionTarget, setPermissionTarget] = useState<PermissionDialogTarget | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ projectId: string; itemId: string } | null>(null);
+  // 변환 품질 안내를 확인받는 동안의 변환 대상
+  const [convertConfirm, setConvertConfirm] = useState<{ itemId: string; documentId: string; label: string } | null>(null);
   // Cmd/Ctrl+클릭·Shift+클릭으로 고른 묶음 이동·삭제 대상. Escape·일반 클릭·빈 영역 클릭으로 해제한다.
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<BulkDeleteConfirmTarget | null>(null);
@@ -369,13 +371,22 @@ export function useProjectTree({
     : null;
 
 
-  // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
-  // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
+  // Markdown 변환은 바로 요청하지 않고 변환 품질 안내 확인 모달을 연다. 실제 변환은 confirmConvert에서 한다.
   function convertContextTargetToMarkdown() {
     const itemId = contextMenuItem?.id;
     const documentId = contextMenuItem?.documentId;
+    const label = contextMenuItem?.label ?? "";
     setContextMenu(null);
     if (!itemId || !documentId || !canConvertContextItem) return;
+    setConvertConfirm({ itemId, documentId, label });
+  }
+
+  // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
+  // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
+  function confirmConvert() {
+    if (!convertConfirm) return;
+    const { itemId, documentId } = convertConfirm;
+    setConvertConfirm(null);
     void runTreeMutation(async (latest) => {
       if (!hasTreeItem(latest, itemId)) throw new Error(STALE_TARGET_MESSAGE);
       await convertDocumentToMarkdown(documentId);
@@ -625,6 +636,9 @@ export function useProjectTree({
     applyPermission,
     convertContextTarget,
     convertContextTargetToMarkdown,
+    convertConfirm,
+    confirmConvert,
+    cancelConvert: () => setConvertConfirm(null),
     deleteContextTarget,
     confirmDelete,
     cancelDelete,

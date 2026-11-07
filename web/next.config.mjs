@@ -1,3 +1,8 @@
+import createNextIntlPlugin from "next-intl/plugin";
+
+// 화면 언어(ko·en). URL 접두어 없이 쿠키로 정하며, 요청 설정은 src/shared/i18n/request.ts에 있다(docs/i18n.md).
+const withNextIntl = createNextIntlPlugin("./src/shared/i18n/request.ts");
+
 /** @type {import('next').NextConfig} */
 // 백엔드 분리: 인증·워크스페이스 CRUD는 access-svc(8081), 나머지 기능 경로는 document-svc(8080).
 const accessUrl = process.env.ACCESS_URL || "http://localhost:8081";
@@ -86,4 +91,4 @@ const nextConfig = {
   }
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

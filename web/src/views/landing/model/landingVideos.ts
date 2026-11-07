@@ -20,23 +20,23 @@ export interface LandingVideo {
   readonly poster: string;
   readonly width: number;
   readonly height: number;
-  /** 스크린리더가 읽는 설명. 영상에 소리가 없어 이 설명이 내용을 대신한다. */
-  readonly label: string;
 }
 
-function landingVideo(id: LandingVideoId, width: number, height: number, label: string): LandingVideo {
-  return { src: `${LANDING_MEDIA_BASE}/${id}.mp4`, poster: `${LANDING_MEDIA_BASE}/${id}.webp`, width, height, label };
+// 영상 제목·설명과 스크린리더 설명(label)은 언어별 메시지 landing.videos.<id>에 있다. 영상에 소리가 없어 label이 내용을 대신한다.
+// 영상 속 앱 화면은 한국어로 녹화돼 있어 영어 화면에서도 그대로 보인다.
+function landingVideo(id: LandingVideoId, width: number, height: number): LandingVideo {
+  return { src: `${LANDING_MEDIA_BASE}/${id}.mp4`, poster: `${LANDING_MEDIA_BASE}/${id}.webp`, width, height };
 }
 
 export const LANDING_VIDEOS: Readonly<Record<LandingVideoId, LandingVideo>> = {
-  "pdf-upload": landingVideo("pdf-upload", 1600, 1042, "PDF를 올리고 메뉴에서 Markdown으로 변환해, 표까지 옮겨진 변환본을 여는 화면 녹화"),
-  "document-editor": landingVideo("document-editor", 1600, 1044, "새 노트에 제목을 쓰고 / 메뉴로 목록과 표를 넣은 뒤 글자 서식을 바꾸는 화면 녹화"),
-  "wiki-ingest": landingVideo("wiki-ingest", 1600, 802, "문서를 골라 위키에 편입하고, 진행률이 끝나면 그래프에 새 페이지가 이어지는 화면 녹화"),
-  "wiki-lint": landingVideo("wiki-lint", 1600, 1042, "위키 최신화를 실행해 페이지를 다듬고 그래프에 개념과 연결이 늘어나는 화면 녹화"),
-  query: landingVideo("query", 1600, 1042, "문서를 연 채 질문하고, 답변의 번호를 눌러 본문의 근거 위치를 확인하는 화면 녹화"),
-  "ai-edit": landingVideo("ai-edit", 1600, 1044, "AI에게 편집을 요청해 본문에 표시된 제안을 수락하고, 표로 정리된 문서를 확인하는 화면 녹화"),
-  "skill-create": landingVideo("skill-create", 1600, 1042, "실행 규칙을 적어 AI로 다듬고 테스트 실행으로 결과를 확인한 뒤 스킬을 저장하는 화면 녹화"),
-  "skill-run": landingVideo("skill-run", 1600, 1042, "메모 문서에서 / 명령으로 스킬을 실행해 본문에 제안이 표시되는 화면 녹화")
+  "pdf-upload": landingVideo("pdf-upload", 1600, 1042),
+  "document-editor": landingVideo("document-editor", 1600, 1044),
+  "wiki-ingest": landingVideo("wiki-ingest", 1600, 802),
+  "wiki-lint": landingVideo("wiki-lint", 1600, 1042),
+  query: landingVideo("query", 1600, 1042),
+  "ai-edit": landingVideo("ai-edit", 1600, 1044),
+  "skill-create": landingVideo("skill-create", 1600, 1042),
+  "skill-run": landingVideo("skill-run", 1600, 1042)
 };
 
 /** auto는 화면에 따라 자동으로, playing·paused는 사용자가 버튼으로 고른 상태다. */

@@ -53,6 +53,8 @@ import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest"
 import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
 import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
+import { ConvertedIngestConfirmModal } from "@/features/wiki-ingest/ui/ConvertedIngestConfirmModal";
+import { PdfConvertConfirmModal } from "@/features/wiki-ingest/ui/PdfConvertConfirmModal";
 import { isPdfDocument } from "@/entities/document/lib/documentKind";
 import { isDocumentBodyLocked, isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { createMarkdownDocument } from "@/entities/document";
@@ -72,6 +74,7 @@ import { useWorkspacePanels } from "../model/useWorkspacePanels";
 import { useWorkspaceDocumentTitle } from "../model/useWorkspaceDocumentTitle";
 import { listMoveDestinations } from "../lib/treeMoveRules";
 import { useGraphWikiActions } from "../model/useGraphWikiActions";
+import { useConvertedIngestPrompt } from "../model/useConvertedIngestPrompt";
 import { useSkillRun, type SkillRunRequest } from "../model/useSkillRun";
 import { useFolderOrganizePreview } from "../model/useFolderOrganizePreview";
 import { FolderOrganizePreview } from "@/features/agent-chat/ui/FolderOrganizePreview";
@@ -207,6 +210,13 @@ export function HomeWorkspace() {
   const hasSourcePreview = Boolean(selection.selectedDocumentTitle);
   // 홈에서 문서가 메인 영역을 채우는 상태(Obsidian식 최근 문서 열람)
   const isDocumentMain = isHomeView && hasSourcePreview;
+  // 홈 문서 화면에 연 PDF 변환본이 아직 편입 전이면 편입할지 묻는다.
+  const convertedIngestPrompt = useConvertedIngestPrompt({
+    documents,
+    openDocumentId: isDocumentMain ? selection.selectedDocumentId : null,
+    pendingDocumentIds: pdfWikiIngest.pendingDocumentIds,
+    refreshBackendData
+  });
 
   const { handleChatDocumentExported, openSavedDocument } = usePendingDocumentOpen({
     documents,
@@ -647,6 +657,14 @@ export function HomeWorkspace() {
         />
       )}
 
+      {convertedIngestPrompt.target && (
+        <ConvertedIngestConfirmModal
+          filename={convertedIngestPrompt.target.filename}
+          onCancel={convertedIngestPrompt.cancel}
+          onConfirm={convertedIngestPrompt.confirm}
+        />
+      )}
+
       {/* 채팅 패널이 닫혀 있으면 우하단 원형 버튼으로 연다 (Figma 1426:15877 / 1406:14202). */}
       {!isAgentPanelShown && canShowAgentPanel(activeView) && (
         <AgentLauncher onOpen={panels.openAgentPanel} isAvoidingProposals={isCompactLayout && (editReview?.pendingCount ?? 0) > 0} />
@@ -797,6 +815,13 @@ export function HomeWorkspace() {
           target={projectTree.bulkDeleteConfirm}
           onConfirm={projectTree.confirmBulkDelete}
           onCancel={projectTree.cancelBulkDelete}
+        />
+      )}
+      {projectTree.convertConfirm && (
+        <PdfConvertConfirmModal
+          filename={projectTree.convertConfirm.label}
+          onConfirm={projectTree.confirmConvert}
+          onCancel={projectTree.cancelConvert}
         />
       )}
       {projectTree.deleteConfirm && (

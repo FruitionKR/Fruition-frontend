@@ -15,12 +15,18 @@ export async function renameWorkspace(workspaceId: string, name: string): Promis
   return parseJsonOrThrow<WorkspaceResponse>(response, "워크스페이스 이름을 변경하지 못했습니다.");
 }
 
-/** 업로드 자동 편입 설정을 바꾼다. OWNER만 가능하고, 그 외에는 이름 변경과 같은 규칙으로 404다. */
-export async function updateWorkspaceAutoIngest(workspaceId: string, enabled: boolean): Promise<WorkspaceResponse> {
+/**
+ * 자동 편입 설정 필드. auto_ingest_on_upload는 구 서버용 하나짜리 설정이고, 새 서버에 보내면 두 설정이 함께 바뀐다.
+ * 새 서버에서는 Markdown·PDF 설정을 각각 부분 갱신한다.
+ */
+export type AutoIngestSettingField = "auto_ingest_on_upload" | "auto_ingest_markdown_on_upload" | "auto_ingest_pdf_on_convert";
+
+/** 자동 편입 설정 하나를 바꾼다. OWNER만 가능하고, 그 외에는 이름 변경과 같은 규칙으로 404다. */
+export async function updateWorkspaceAutoIngest(workspaceId: string, field: AutoIngestSettingField, enabled: boolean): Promise<WorkspaceResponse> {
   const response = await apiFetch(workspacePath(workspaceId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ auto_ingest_on_upload: enabled })
+    body: JSON.stringify({ [field]: enabled })
   });
   return parseJsonOrThrow<WorkspaceResponse>(response, "자동 편입 설정을 변경하지 못했습니다.");
 }
