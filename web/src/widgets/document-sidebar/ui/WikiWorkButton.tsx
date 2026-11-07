@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { TreeItem } from "@/entities/tree/model/tree";
 import { useActiveLintOperation } from "@/features/wiki-ingest/model/useActiveLintOperation";
@@ -13,6 +14,7 @@ import styles from "./DocumentSidebar.module.css";
 
 /** 레일의 진행 중 작업 버튼 (Figma 1436:17585). 누르면 오른쪽에 진행 중 작업 팝오버를 연다. */
 export function WikiWorkButton({ documents = [], treeItems }: { documents?: DocumentItemResponse[]; treeItems?: TreeItem[] }) {
+  const t = useTranslations("documents.wiki.work");
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -27,8 +29,8 @@ export function WikiWorkButton({ documents = [], treeItems }: { documents?: Docu
   return (
     <div className={styles["rail-popover-anchor"]} ref={rootRef}>
       <RailButton
-        label="진행 중인 작업"
-        tooltip={workCount > 0 ? `진행 중인 작업 ${workCount}건` : "진행 중인 작업"}
+        label={t("title")}
+        tooltip={workCount > 0 ? t("titleWithCount", { count: workCount }) : t("title")}
         aria-expanded={isOpen}
         onClick={(event) => {
           event.stopPropagation();

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { agentChatT } from "./agentChatMessages.mjs";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 // 앱 소스의 확장자 없는 상대 import(./agentPlan)를 .ts로 푼다.
 registerHooks({

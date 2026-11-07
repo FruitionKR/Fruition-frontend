@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { describeStorageUsage, useStorageUsage } from "@/entities/workspace";
 import { cx } from "@/shared/lib/classNames";
 import styles from "./StorageUsageMeter.module.css";
@@ -9,6 +10,7 @@ import styles from "./StorageUsageMeter.module.css";
  * 불러오는 중이거나 실패하면 아무것도 그리지 않는다(업로드는 서버가 판단한다).
  */
 export function StorageUsageMeter() {
+  const t = useTranslations("documents.sidebar");
   const { data, isError } = useStorageUsage();
   if (isError || !data) return null;
   const view = describeStorageUsage(data);
@@ -23,7 +25,7 @@ export function StorageUsageMeter() {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={view.percent}
-          aria-valuetext={`${view.percent}% 사용`}
+          aria-valuetext={t("storageUsed", { percent: view.percent })}
           className={styles.track}
         >
           <span className={styles.fill} style={{ transform: `scaleX(${view.percent / 100})` }} />

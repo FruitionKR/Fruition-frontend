@@ -1,5 +1,4 @@
 import {
-  describeLiveError,
   isFatalLiveError,
   LIVE_CLOSE_IN_USE,
   LIVE_ROLLOVER_MS,
@@ -18,7 +17,11 @@ export type LiveSocket = {
   addEventListener(type: "close", listener: (event: { code: number }) => void): void;
 };
 
-export type LiveStopResult = { ok: true } | { ok: false; code: string; message: string };
+/**
+ * 받아쓰기 종료 결과. messageCode는 안내 문구를 고를 오류 code(describeLiveError)이고,
+ * serverMessage는 ticket 발급 실패처럼 서버가 준 문구가 있을 때 그 문구다(있으면 그대로 보여 준다).
+ */
+export type LiveStopResult = { ok: true } | { ok: false; code: string; messageCode: string; serverMessage?: string };
 
 type LiveSessionOptions = {
   issueTicket: () => Promise<string>;
@@ -53,7 +56,7 @@ export function createLiveSession(options: LiveSessionOptions) {
   let isDone = false;
   let reconnects = 0;
   let msSinceCommit = 0;
-  let lastError: { code: string; message: string } | null = null;
+  let lastError: { code: string; messageCode: string } | null = null;
   let pending: Uint8Array[] = [];
   let pendingBytes = 0;
   let rolloverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -104,10 +107,10 @@ export function createLiveSession(options: LiveSessionOptions) {
     } catch (error) {
       if (isDone) return;
       // ticket 발급 실패(409 MEETING_LIVE_IN_USE 등)는 서버 문구를 그대로 보여 준다.
-      const message = error instanceof Error && error.message ? error.message : describeLiveError("transcription_failed");
+      const serverMessage = error instanceof Error && error.message ? error.message : undefined;
       const code = (error as { code?: string } | null)?.code === "MEETING_LIVE_IN_USE" ? "live_in_use" : "ticket_failed";
       if (isStopping || code === "live_in_use" || reconnects >= maxReconnects) {
-        stop({ ok: false, code, message });
+        stop({ ok: false, code, messageCode: "transcription_failed", ...(serverMessage ? { serverMessage } : {}) });
         return;
       }
       scheduleReconnect();
@@ -134,7 +137,7 @@ export function createLiveSession(options: LiveSessionOptions) {
       } else if (event.type === "finished") {
         finishedReceived = true;
       } else if (event.type === "error") {
-        lastError = { code: event.code, message: describeLiveError(event.code) };
+        lastError = { code: event.code, messageCode: event.code };
       } else {
         options.onTranscriptEvent(event);
       }
@@ -150,7 +153,7 @@ export function createLiveSession(options: LiveSessionOptions) {
 
   function handleClose(code: number, finishedReceived: boolean) {
     if (isDone) return;
-    if (code === LIVE_CLOSE_IN_USE) return stop({ ok: false, code: "live_in_use", message: describeLiveError("live_in_use") });
+    if (code === LIVE_CLOSE_IN_USE) return stop({ ok: false, code: "live_in_use", messageCode: "live_in_use" });
     if (lastError && isFatalLiveError(lastError.code)) return stop({ ok: false, ...lastError });
     if (finishedReceived && isStopping) return stop({ ok: true });
     if (isRollingOver) {
@@ -163,10 +166,10 @@ export function createLiveSession(options: LiveSessionOptions) {
     }
     if (isStopping) {
       // 멈추는 중 끊겼다. 남은 구간이 저장되지 않았을 수 있다.
-      return stop({ ok: false, ...(lastError ?? { code: "disconnected", message: describeLiveError("disconnected") }) });
+      return stop({ ok: false, ...(lastError ?? { code: "disconnected", messageCode: "disconnected" }) });
     }
     if (reconnects >= maxReconnects) {
-      return stop({ ok: false, ...(lastError ?? { code: "disconnected", message: describeLiveError("disconnected") }) });
+      return stop({ ok: false, ...(lastError ?? { code: "disconnected", messageCode: "disconnected" }) });
     }
     scheduleReconnect();
   }
@@ -185,7 +188,7 @@ export function createLiveSession(options: LiveSessionOptions) {
     // finished가 오지 않으면 끊는다(연결은 interrupted로 기록된다). 이후는 close 처리가 정한다.
     finishTimer = setTimeout(() => {
       if (socket) socket.close(1000);
-      else if (isStopping) stop({ ok: false, code: "disconnected", message: describeLiveError("transcript_incomplete") });
+      else if (isStopping) stop({ ok: false, code: "disconnected", messageCode: "transcript_incomplete" });
     }, finishTimeoutMs);
   }
 

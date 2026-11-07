@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
@@ -33,9 +34,10 @@ test("서버 매핑으로 placeholder만 관리 경로로 치환하고 나머지
 test("이미지 형식·크기는 백엔드 제한과 같은 기준으로 먼저 거른다", () => {
   assert.equal(validateImageFile({ type: "image/png", size: 10 }), null);
   assert.equal(validateImageFile({ type: "image/webp", size: 10 * 1024 * 1024 }), null);
-  assert.match(validateImageFile({ type: "image/svg+xml", size: 10 }), /PNG, JPEG, WebP, GIF/);
-  assert.match(validateImageFile({ type: "image/png", size: 0 }), /빈 이미지/);
-  assert.match(validateImageFile({ type: "image/png", size: 10 * 1024 * 1024 + 1 }), /10MB/);
+  const t = koT("documents.editor.image.invalid");
+  assert.match(t(validateImageFile({ type: "image/svg+xml", size: 10 })), /PNG, JPEG, WebP, GIF/);
+  assert.match(t(validateImageFile({ type: "image/png", size: 0 })), /빈 이미지/);
+  assert.match(t(validateImageFile({ type: "image/png", size: 10 * 1024 * 1024 + 1 })), /10MB/);
 });
 
 test("관리 이미지 경로만 인증 fetch 대상으로 본다", () => {
@@ -56,7 +58,7 @@ test("붙여넣기 묶음에서 이미지가 아닌 파일은 무시하고 넣�
   ]);
   assert.deepEqual(result.accepted.map((f) => f.name), ["ok.png"]);
   assert.deepEqual(result.rejected.map((r) => r.file.name), ["vector.svg", "huge.jpg"]);
-  assert.match(result.rejected[1].reason, /10MB/);
+  assert.equal(result.rejected[1].reason, "tooLarge");
 });
 
 test("본문에서 관리 이미지 경로만 중복 없이 뽑는다", async () => {

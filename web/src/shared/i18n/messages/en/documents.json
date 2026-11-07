@@ -1,0 +1,363 @@
+{
+  "sidebar": {
+    "addNote": "Add note",
+    "expand": "Expand sidebar",
+    "collapse": "Collapse sidebar",
+    "search": "Search",
+    "touchSelection": {
+      "label": "Select multiple items",
+      "count": "{count} selected",
+      "move": "Move",
+      "delete": "Delete",
+      "done": "Done"
+    },
+    "resize": {
+      "label": "Resize sidebar",
+      "collapsed": "Collapsed"
+    },
+    "settings": "Settings",
+    "profile": "User settings ({name})",
+    "defaultUserName": "User",
+    "storageUsed": "{percent}% used",
+    "downloadFailed": {
+      "title": "Download failed",
+      "message": "Couldn't download “{filename}”."
+    }
+  },
+  "tree": {
+    "label": "Document tree",
+    "empty": "No documents yet",
+    "rowMenu": "Open item menu",
+    "uploading": "Uploading",
+    "uploadFailed": "Upload failed",
+    "dropHere": "Add here",
+    "dropDenied": "You don't have permission to move items into or out of this folder.",
+    "deleteSelected": "Delete {count} selected",
+    "permission": {
+      "view": "View only",
+      "inherited": "{label} (inherited from ''{folder}'')",
+      "hint": "Without edit permission, members can only read"
+    },
+    "menu": {
+      "newNote": "New note",
+      "newFolder": "New folder",
+      "upload": "Upload files",
+      "importNotion": "Import from Notion",
+      "convert": "Convert to Markdown",
+      "rename": "Rename",
+      "move": "Move to folder",
+      "select": "Select multiple",
+      "permission": "Permissions",
+      "download": "Download original",
+      "delete": "Delete"
+    },
+    "conversion": {
+      "label": {
+        "source": "Source PDF",
+        "converted": "Converted",
+        "converting": "Converting"
+      },
+      "convertedCount": "Converted {count}",
+      "description": {
+        "convertedFrom": "Markdown document created from a PDF.\n[{filename}]",
+        "sourceMissing": "Markdown document created from a PDF. The source PDF can't be found.",
+        "source": "Uploaded source PDF.\n[{filename}]",
+        "sourceConverting": "Uploaded source PDF. Converting to Markdown.",
+        "converting": "Converting the source PDF to Markdown."
+      },
+      "openConverted": "Click to open the converted document.",
+      "openSource": "Click to open the source PDF."
+    },
+    "rootTitle": "Documents"
+  },
+  "move": {
+    "title": "Move {label}",
+    "description": "Choose a destination folder.",
+    "blockedNote": "Dimmed folders can't be selected. You don't have permission to move items into or out of them.",
+    "empty": "There are no folders you can move this to.",
+    "cancel": "Cancel"
+  },
+  "permission": {
+    "folderTitle": "Folder permissions",
+    "documentTitle": "Document permissions",
+    "folderDescription": "Documents and subfolders in “{label}” follow this setting. Only OWNERs can change it.",
+    "documentDescription": "Choose whether other members can edit “{label}”. The document owner and OWNERs can always edit it.",
+    "legend": "Permission",
+    "options": {
+      "inherit": {
+        "label": "Inherit from parent",
+        "description": "Without a parent folder setting, the workspace default (can edit) applies."
+      },
+      "edit": {
+        "label": "Can edit",
+        "description": "Any workspace member can edit and rename it, regardless of parent folder settings."
+      },
+      "view": {
+        "label": "View only",
+        "description": "Only the document owner and OWNERs can edit. Other members can only view."
+      }
+    },
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "forbidden": "You can't change this permission. Only the document owner and workspace OWNERs can change document permissions, and only OWNERs can change folder permissions.",
+    "saveFailed": "Couldn't change the permission.",
+    "changed": "Changed the permission for ''{label}'' to {access, select, view {view only} edit {can edit} other {inherit from parent}}."
+  },
+  "access": {
+    "folderWriteForbidden": "You don't have permission to move items into or out of this folder.",
+    "folderEditForbidden": "You don't have permission to edit this folder.",
+    "folderWithItemsDelete": "Only workspace OWNERs can delete folders that aren't empty.",
+    "folderPermissionOwnerOnly": "Only workspace OWNERs can change folder permissions.",
+    "documentPermissionForbidden": "Only the document owner and workspace OWNERs can change document permissions.",
+    "convertForbidden": "You don't have permission to convert this PDF. PDFs uploaded by others need convert permission, and PDFs in view-only folders need folder edit permission.",
+    "chatExportTitleLocked": "Documents created from chat can't be renamed or edited.",
+    "readOnlyTitle": "You only have view access, so this document opened as read-only.",
+    "readOnlyHint": "To edit it, ask the document owner or a workspace OWNER for edit permission.",
+    "chatExportReadOnlyTitle": "Wiki pages created from chat are for reference only, so this opened as read-only.",
+    "chatExportReadOnlyHint": "To preserve the Q&A source, the name and content can't be changed. Copy it into a new document to make changes."
+  },
+  "workspace": {
+    "fallbackName": "Workspace",
+    "newName": "New workspace",
+    "create": "New workspace",
+    "creating": "Creating workspace…",
+    "loadFailed": "Couldn't load workspaces.",
+    "createFailed": "Couldn't create the workspace.",
+    "roleFailed": "Couldn't check your workspace role.",
+    "meMissing": "Couldn't verify your sign-in.",
+    "switch": "Switch workspace",
+    "switchWithName": "Switch workspace ({name})",
+    "options": "{name} options",
+    "freeLimitHint": "You can't create more free workspaces. Delete a workspace you no longer use.",
+    "checkingRole": "Checking your role…",
+    "lastOwnerHint": "Assign another OWNER before leaving.",
+    "leave": {
+      "title": "Leave this workspace?",
+      "description": "You'll lose access to “{name}”. You'll need a new invitation to rejoin.",
+      "confirm": "Leave",
+      "pending": "Leaving workspace…",
+      "failed": "Couldn't leave the workspace."
+    },
+    "delete": {
+      "title": "Delete this workspace?",
+      "description": "The “{name}” workspace and all of its documents, wiki, and chats will be deleted. This can't be undone.",
+      "confirm": "Delete",
+      "pending": "Deleting workspace…",
+      "failed": "Couldn't delete the workspace."
+    }
+  },
+  "wiki": {
+    "cancelSelection": "Cancel selection",
+    "ingest": {
+      "label": "Add to wiki",
+      "running": "Adding to wiki",
+      "litLabel": "Add to wiki, {count, plural, one {# document} other {# documents}} to add",
+      "litTooltip": "{count, plural, one {# document is} other {# documents are}} ready to add to the wiki"
+    },
+    "lint": {
+      "label": "Refresh wiki",
+      "recheck": "Recheck wiki refresh status",
+      "litLabel": "Refresh wiki, refresh available",
+      "litTooltip": "The wiki can be refreshed"
+    },
+    "hint": {
+      "inProgress": "In progress",
+      "blockedByLint": "Unavailable while the wiki is refreshing",
+      "blockedByIngest": "Unavailable while adding to the wiki",
+      "blockedBySelection": "Unavailable while selecting documents",
+      "statusFailed": "Couldn't load status · Click to retry",
+      "checkingStatus": "Checking status…",
+      "upToDate": "Up to date"
+    },
+    "select": {
+      "label": "Select documents to add to the wiki",
+      "heading": "Documents",
+      "noFolderMarkdown": "This folder has no Markdown documents you can select",
+      "unavailable": "This file can't be added to the wiki yet",
+      "expand": "Expand {name}",
+      "collapse": "Collapse {name}",
+      "confirm": "Add to wiki ({count})",
+      "confirmHint": "Adds the selected Markdown documents to the wiki. Documents already added and unchanged since can't be selected.",
+      "cancelHint": "Cancel the selection and return to the document list. (Esc)"
+    },
+    "work": {
+      "title": "Tasks in progress",
+      "titleWithCount": "{count, plural, one {# task} other {# tasks}} in progress",
+      "empty": "No tasks in progress"
+    }
+  },
+  "editor": {
+    "lockLostTitle": "Lost edit access",
+    "readOnlyNotice": "{reason} Opened as read-only.",
+    "overwritten": {
+      "title": "Saved your current version",
+      "message": "Your changes overlapped with edits made elsewhere, so your current version was saved."
+    },
+    "save": {
+      "failed": "Couldn't save the note.",
+      "writeForbidden": "Couldn't save because you no longer have edit access. Copy your text and ask the owner or an OWNER for edit permission.",
+      "legacyConflict": "This save didn't go through because changes were saved elsewhere first. Keep editing or press Cmd/Ctrl+S to save your current version again.",
+      "tooManyImages": "You can save up to {count} new images at a time."
+    },
+    "link": {
+      "open": "Open",
+      "openLabel": "Open linked document"
+    },
+    "toolbar": {
+      "bold": "Bold",
+      "italic": "Italic",
+      "strikethrough": "Strikethrough",
+      "inlineCode": "Inline code",
+      "math": "Math",
+      "link": "Link"
+    },
+    "image": {
+      "externalBlockedTitle": "External image blocked",
+      "attachFailed": "Couldn't attach image",
+      "invalid": {
+        "type": "Only PNG, JPEG, WebP, and GIF images are supported.",
+        "empty": "The image file is empty.",
+        "tooLarge": "Images must be 10 MB or smaller."
+      },
+      "rejectedMany": "{count} images couldn't be added. {reason}",
+      "externalPlaceholder": "External images aren't shown · {host}",
+      "unsupportedPlaceholder": "This image can't be displayed",
+      "uploadButton": "Choose image",
+      "uploadPlaceholder": "Choose an image file to upload",
+      "confirm": "Confirm",
+      "captionPlaceholder": "Add a caption"
+    },
+    "slashMenu": {
+      "textGroup": "Text",
+      "text": "Body text",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "quote": "Quote",
+      "divider": "Divider",
+      "listGroup": "Lists",
+      "bulletList": "Bulleted list",
+      "orderedList": "Numbered list",
+      "taskList": "Checklist",
+      "advancedGroup": "Advanced",
+      "image": "Image",
+      "codeBlock": "Code block",
+      "table": "Table",
+      "math": "Math"
+    },
+    "bodyPlaceholder": "Type '/' for Markdown commands, or start writing",
+    "math": {
+      "dialog": "Edit math",
+      "input": "LaTeX input",
+      "placeholder": "e.g. x^2 + y^2 = z^2",
+      "hint": "Enter to apply · Shift+Enter for a new line",
+      "cancel": "Cancel",
+      "apply": "Apply"
+    },
+    "loading": {
+      "module": "Loading the note editor.",
+      "lock": "Checking edit access.",
+      "editor": "Preparing the document for editing.",
+      "editorDetail": "Long documents or documents with tables and math may take a while.",
+      "failed": "Couldn't prepare the document. Please try again.",
+      "retry": "Try again"
+    }
+  },
+  "upload": {
+    "failed": {
+      "title": "Upload failed",
+      "message": "Couldn't upload \"{filename}\". {reason}"
+    },
+    "missingImages": {
+      "title": "Missing images",
+      "message": "\"{filename}\": {count, plural, one {# image is} other {# images are}} missing. To include images, select the .md file together with its images or upload a zip."
+    },
+    "zip": {
+      "notion": "Upload Notion export zips with 'Import from Notion'.",
+      "noMarkdown": "The zip has no Markdown (.md) files to upload.",
+      "unreadable": "Couldn't read the zip file."
+    },
+    "imagesSkipped": {
+      "title": "Some images skipped",
+      "unused": "{count, plural, one {# image wasn't} other {# images weren't}} uploaded because no document uses them.",
+      "rejected": "\"{filename}\": Only PNG, JPEG, GIF, and WebP images up to 10 MB are supported, so {count, plural, one {# image was} other {# images were}} skipped."
+    },
+    "imageUploadFailed": {
+      "title": "Image upload failed",
+      "message": "Couldn't add {count, plural, one {# image} other {# images}} to \"{filename}\". {reason}",
+      "fallback": "Couldn't save the images."
+    },
+    "ingestFailed": {
+      "title": "Couldn't start adding to wiki",
+      "message": "{filename}: {reason}",
+      "fallback": "The request to add to the wiki failed."
+    },
+    "newNoteName": "New note",
+    "unsupported": {
+      "title": "Unsupported file.",
+      "description": "Only md, txt, pdf, and zip files, plus images (png, jpg, gif, webp) selected with an .md file, are supported.",
+      "confirm": "OK"
+    }
+  },
+  "preview": {
+    "label": "Source document preview",
+    "saveStatus": {
+      "saving": "Saving",
+      "error": "Save failed",
+      "lockLost": "Lost edit access",
+      "sessionExpired": "Session expired",
+      "unsaved": "Not saved · Cmd/Ctrl+S"
+    },
+    "detachedSaveFailed": {
+      "title": "Couldn't save note",
+      "message": "Your edits couldn't be saved while switching documents."
+    },
+    "renameFailed": "Couldn't rename the document.",
+    "wikiLoadFailed": "Couldn't load the wiki page.",
+    "documentLoadFailed": "Couldn't load the document.",
+    "readOnlyBadge": "Read-only",
+    "loading": {
+      "body": "Loading content.",
+      "document": "Loading document.",
+      "detail": "After loading, the document view with tables and math will be prepared."
+    },
+    "titlePlaceholder": "Enter a title",
+    "titleLabel": "Document name",
+    "titleReadOnly": "You can't rename a document you can only view.",
+    "highlight": {
+      "loadFailed": "Couldn't load source locations, so only the content is shown.",
+      "noneLocated": "Couldn't find the sources in this document, so only the content is shown.",
+      "someMissing": "Some sources couldn't be located in this document."
+    },
+    "conversion": {
+      "stalled": "Conversion stalled. Right-click the source PDF and choose \"Convert to Markdown\" to try again.",
+      "progress": "Importing content from the source PDF (page {current} of {total}). You can edit once conversion finishes.",
+      "inProgress": "Importing content from the source PDF. You can edit once conversion finishes."
+    },
+    "wikiMarkdownMissing": "Couldn't find the Markdown content. Showing linked source documents only.",
+    "sourceDocuments": "Source documents",
+    "noWikiPage": "This item has no linked wiki page.",
+    "conversionReport": {
+      "label": "PDF conversion result",
+      "fallbackTitle": "{count, plural, one {# page uses} other {# pages use}} the original extracted text",
+      "fallbackDescription": "AI couldn't repair pages with garbled text, so the text extracted from the PDF was used as is. Please check it against the source PDF.",
+      "page": "Page {page}",
+      "causes": "Also found: {causes}",
+      "reasons": {
+        "font_mapping": "Couldn't read fonts",
+        "replacement_character": "Contains garbled characters",
+        "token_mismatch": "Tables or math out of place",
+        "extract_failed": "Couldn't extract text",
+        "repair_rejected": "AI repair didn't match the original, so it wasn't used",
+        "provider_error": "AI repair request failed",
+        "unknown": "Unknown reason"
+      },
+      "figures": {
+        "described": "Added descriptions to {count, plural, one {# image} other {# images}}",
+        "failed": "{count} failed",
+        "skipped": "{count} skipped"
+      }
+    }
+  }
+}

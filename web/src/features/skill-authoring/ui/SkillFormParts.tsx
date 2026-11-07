@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import {
   fetchDocuments,
   fetchSkillReferenceDocuments,
@@ -17,44 +18,70 @@ import { documentDisplayName } from "../lib/referenceDocumentPicker";
 import {
   requiresSourceFromChoice,
   SKILL_KIND_CARDS,
-  SKILL_SOURCE_OPTIONS,
-  SKILL_TARGET_OPTIONS,
-  SOURCE_UNSET_PLACEHOLDER,
+  SKILL_RESULT_MODES,
+  SKILL_SCOPES,
+  SKILL_SOURCE_CHOICES,
+  SKILL_TARGETS,
+  skillKindLabel,
+  skillResultModeLabel,
+  skillScopeLabel,
+  skillTargetLabel,
   sourceChoice,
   sourceHint,
   sourceLabel,
+  sourceUnsetLabel,
   type SkillTarget
 } from "../lib/skillCreateForm";
+import type { SkillsTranslate } from "../lib/skillsTranslate";
 import styles from "./SkillEditor.module.css";
 
 /** 스킬 만들기·스킬 상세 시트가 함께 쓰는 입력 조각. */
 
 export const REFERENCE_DOC_MAX = 3;
 
-// 안전 검토 issue category 한글 라벨 (AI safety 검사 카테고리)
-const ISSUE_CATEGORY_LABELS: Record<string, string> = {
-  approval_bypass: "권한 우회 표현",
-  sensitive_info: "민감정보로 보이는 내용",
-  tool_policy: "허용되지 않은 도구 사용",
-  permission_escalation: "권한을 넓히려는 표현",
-  forbidden_tool: "허용되지 않은 도구 사용",
-  policy_weakening: "안전 정책을 약화하는 표현",
-  hidden_prompt: "숨겨진 지시",
-  role_override: "역할을 바꾸려는 표현",
-  instruction_override: "기존 지시를 무시하게 하는 표현",
-  credential: "인증 정보로 보이는 내용",
-  secret: "비밀 정보로 보이는 내용"
-};
+// 안전 검토 issue category(AI safety 검사 카테고리). 이름은 skills 메시지 review.categories에 둔다.
+const ISSUE_CATEGORIES = [
+  "approval_bypass",
+  "sensitive_info",
+  "tool_policy",
+  "permission_escalation",
+  "forbidden_tool",
+  "policy_weakening",
+  "hidden_prompt",
+  "role_override",
+  "instruction_override",
+  "credential",
+  "secret"
+] as const;
 
-/** 게시 응답 issues 항목({category, text, reason, ...})을 표시용 텍스트로 변환한다. */
-export function issueText(issue: unknown): string {
+type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
+
+function isIssueCategory(value: string): value is IssueCategory {
+  return (ISSUE_CATEGORIES as readonly string[]).includes(value);
+}
+
+/** 게시 응답 issues 항목({category, text, reason, ...})을 표시용 텍스트로 변환한다. 모르는 category는 서버가 준 reason을 쓴다. */
+export function issueText(issue: unknown, t: SkillsTranslate): string {
   if (issue != null && typeof issue === "object") {
     const record = issue as Record<string, unknown>;
     const category = typeof record.category === "string" ? record.category : "";
-    const title = ISSUE_CATEGORY_LABELS[category] ?? String(record.reason ?? (category || "안전 검토 지적"));
-    return record.text ? `${title} — "${String(record.text)}"` : title;
+    const title = isIssueCategory(category)
+      ? t(`review.categories.${category}`)
+      : String(record.reason ?? (category || t("review.issueDefault")));
+    return record.text ? t("review.issueWithText", { title, text: String(record.text) }) : title;
   }
   return String(issue);
+}
+
+/** 선택 상자에 넣을 종류·결과 방식·저장범위·원문 문서 선택지(현재 언어 이름). */
+export function useSkillOptions() {
+  const t = useTranslations("skills");
+  return {
+    kindOptions: SKILL_KIND_CARDS.map((value) => ({ value, label: skillKindLabel(value, t) })),
+    resultOptions: SKILL_RESULT_MODES.map((value) => ({ value, label: skillResultModeLabel(value, t) })),
+    scopeOptions: SKILL_SCOPES.map((value) => ({ value, label: skillScopeLabel(value, t) })),
+    sourceOptions: SKILL_SOURCE_CHOICES.map((value) => ({ value, label: t(`sources.${value}`) }))
+  };
 }
 
 /** Figma check(20×20) 체크 표시. 테두리 상자는 CSS가 그린다. */
@@ -68,9 +95,10 @@ export function CheckMark() {
 
 /** 라벨 옆 물음표 설명 */
 export function HelpTip({ label, content }: { label: string; content: ReactNode }) {
+  const t = useTranslations("skills");
   return (
     <Tooltip content={content} placement="top" describe={false} openOnTap>
-      <button type="button" className={styles["help-button"]} aria-label={`${label} 설명`}>
+      <button type="button" className={styles["help-button"]} aria-label={t("help.label", { label })}>
         <SvgIcon src={questionMarkIcon} className={styles["help-icon"]} />
       </button>
     </Tooltip>
@@ -119,62 +147,78 @@ export function TargetChecks({
   targets: readonly SkillTarget[];
   onToggle: (target: SkillTarget, checked: boolean) => void;
 }) {
+  const t = useTranslations("skills");
   return (
     <div className={styles.checks}>
-      {SKILL_TARGET_OPTIONS.map((option) => (
-        <label key={option.value} className={styles["check-row"]}>
+      {SKILL_TARGETS.map((target) => (
+        <label key={target} className={styles["check-row"]}>
           <span className={styles.check}>
             <input
               type="checkbox"
-              checked={targets.includes(option.value)}
-              onChange={(event) => onToggle(option.value, event.target.checked)}
+              checked={targets.includes(target)}
+              onChange={(event) => onToggle(target, event.target.checked)}
             />
             <CheckMark />
           </span>
-          <span className={styles["check-label"]}>{option.label}</span>
+          <span className={styles["check-label"]}>{skillTargetLabel(target, t)}</span>
         </label>
       ))}
     </div>
   );
 }
 
-export const SCOPE_HELP = (
-  <>
-    개인 - 모든 워크스페이스에서 사용됩니다.
-    <br />
-    팀 - 현재 워크스페이스에서 사용됩니다.
-  </>
-);
+/** 저장범위 물음표 설명 */
+export function ScopeHelp() {
+  const t = useTranslations("skills");
+  return (
+    <>
+      {t("help.scopePersonal")}
+      <br />
+      {t("help.scopeTeam")}
+    </>
+  );
+}
 
 /** 스킬 종류 물음표 설명 (종류별 한 줄) */
-export const KIND_HELP = (
-  <>
-    {SKILL_KIND_CARDS.map((card, index) => (
-      <span key={card.value}>
-        {index > 0 && <br />}
-        {card.label} - {card.description}
-      </span>
-    ))}
-  </>
-);
+export function KindHelp() {
+  const t = useTranslations("skills");
+  return (
+    <>
+      {SKILL_KIND_CARDS.map((kind, index) => (
+        <span key={kind}>
+          {index > 0 && <br />}
+          {t("help.kindLine", { label: skillKindLabel(kind, t), description: t(`kindDescriptions.${kind}`) })}
+        </span>
+      ))}
+    </>
+  );
+}
 
-export const RESULT_HELP = (
-  <>
-    새 문서로 만들기 - 결과를 새 문서로 저장합니다.
-    <br />
-    열린 문서 고치기 - 실행한 문서를 바로 고칩니다.
-    <br />
-    상황에 맞게 - 요청에 따라 Agent가 고릅니다.
-  </>
-);
+/** 결과 방식 물음표 설명 */
+export function ResultHelp() {
+  const t = useTranslations("skills");
+  return (
+    <>
+      {t("help.resultCreate")}
+      <br />
+      {t("help.resultEdit")}
+      <br />
+      {t("help.resultAuto")}
+    </>
+  );
+}
 
-export const SOURCE_HELP = (
-  <>
-    읽음 - 폴더에 실행하면 폴더 안 Markdown 문서(최근 20개)를, 문서에 실행하면 그 문서를 원문으로 읽습니다.
-    <br />
-    읽지 않음 - 원문 없이 실행 규칙만으로 새 문서를 만듭니다.
-  </>
-);
+/** 원문 문서 물음표 설명 */
+export function SourceHelp() {
+  const t = useTranslations("skills");
+  return (
+    <>
+      {t("help.sourceRead")}
+      <br />
+      {t("help.sourceSkip")}
+    </>
+  );
+}
 
 /**
  * '원문 문서' 필드(requires_source). 읽음·읽지 않음을 고르고, 고르기 전(null)에는 '고르지 않음'과 게시 규칙 안내를 보인다.
@@ -193,32 +237,34 @@ export function SourceField({
   onChange: (value: boolean) => void;
   onUndo?: () => void;
 }) {
+  const t = useTranslations("skills");
+  const { sourceOptions } = useSkillOptions();
   const hintId = `${id}-hint`;
   return (
     <div className={styles.field}>
       <div className={styles["label-row"]}>
         <label className={styles.label} htmlFor={id}>
-          원문 문서
+          {t("form.source")}
         </label>
-        <HelpTip label="원문 문서" content={SOURCE_HELP} />
+        <HelpTip label={t("form.source")} content={<SourceHelp />} />
       </div>
       <div className={styles.menu}>
         <SelectBox
           id={id}
           value={sourceChoice(value)}
-          options={SKILL_SOURCE_OPTIONS}
-          placeholder={SOURCE_UNSET_PLACEHOLDER}
+          options={sourceOptions}
+          placeholder={sourceUnsetLabel(t)}
           describedBy={hintId}
           onChange={(choice) => onChange(requiresSourceFromChoice(choice))}
         />
         <p id={hintId} className={styles.hint}>
-          {sourceHint(value)}
+          {sourceHint(value, t)}
         </p>
         {note && onUndo && value === note.to && (
           <p className={styles["result-note"]} role="status">
-            <span>실행 규칙에 맞춰 AI가 원문 문서를 ‘{sourceLabel(note.to)}’으로 정했어요.</span>
+            <span>{t("form.sourceNote", { value: sourceLabel(note.to, t) })}</span>
             <button type="button" className={styles["result-note-undo"]} onClick={onUndo}>
-              ‘{note.from == null ? SOURCE_UNSET_PLACEHOLDER : sourceLabel(note.from)}’으로 되돌리기
+              {t("form.sourceUndo", { value: note.from == null ? sourceUnsetLabel(t) : sourceLabel(note.from, t) })}
             </button>
           </p>
         )}
@@ -306,6 +352,7 @@ export function SkillAuthorAssist({
   idleHint: string;
   onAuthor: () => void;
 }) {
+  const t = useTranslations("skills");
   return (
     <>
       <div className={styles.assist}>
@@ -313,11 +360,11 @@ export function SkillAuthorAssist({
           <button
             type="button"
             className={styles["chip-neutral"]}
-            aria-label={`참고 문서 선택 (${selectedDocs.length}/${REFERENCE_DOC_MAX})`}
+            aria-label={t("assist.openPicker", { count: selectedDocs.length, max: REFERENCE_DOC_MAX })}
             onClick={onOpenPicker}
           >
             <SvgIcon src={menuSearchIcon} className={styles["chip-icon"]} />
-            참고 문서 {selectedDocs.length}/{REFERENCE_DOC_MAX}
+            {t("assist.chip", { count: selectedDocs.length, max: REFERENCE_DOC_MAX })}
           </button>
           {selectedDocs.map((doc) => (
             <span key={doc.id} className={styles["doc-chip"]}>
@@ -325,7 +372,7 @@ export function SkillAuthorAssist({
               <button
                 type="button"
                 className={styles["doc-chip-remove"]}
-                aria-label={`${documentDisplayName(doc)} 선택 해제`}
+                aria-label={t("assist.removeDoc", { name: documentDisplayName(doc) })}
                 onClick={() => onRemoveDoc(doc.id)}
               >
                 ✕
@@ -335,7 +382,7 @@ export function SkillAuthorAssist({
         </div>
         <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={onAuthor}>
           <span aria-hidden>✦</span>
-          {isAuthoring ? "AI가 작성하는 중…" : "AI로 작성·보강"}
+          {isAuthoring ? t("assist.authoring") : t("assist.author")}
         </button>
       </div>
       <p className={styles.hint} role="status" aria-live="polite">
@@ -359,6 +406,7 @@ export function SkillSafetyIssues({
   onPreserve?: () => void;
 }) {
   // 시트 아래쪽에 생기면 보이지 않아 저장이 안 된 이유를 모른다. 새 지적이 오면 지적까지 스크롤한다.
+  const t = useTranslations("skills");
   const issuesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (issues.length > 0) issuesRef.current?.scrollIntoView({ block: "nearest" });
@@ -366,20 +414,20 @@ export function SkillSafetyIssues({
   if (issues.length === 0) return null;
   return (
     <div className={styles.issues} ref={issuesRef} role="alert">
-      <p className={styles["issues-title"]}>안전 검토에서 저장하지 못했습니다. 실행 규칙을 고쳐 주세요.</p>
+      <p className={styles["issues-title"]}>{t("review.issuesTitle")}</p>
       <ul className={styles["issue-list"]}>
         {issues.map((issue, index) => (
-          <li key={index}>{issueText(issue)}</li>
+          <li key={index}>{issueText(issue, t)}</li>
         ))}
       </ul>
       {onRegenerate != null && onPreserve != null && (
         <div className={styles["issue-actions"]}>
           <button type="button" className={styles["chip-primary"]} disabled={isBusy} onClick={onRegenerate}>
             <span aria-hidden>✦</span>
-            AI로 안전하게 다시 만들기
+            {t("review.regenerate")}
           </button>
           <button type="button" className={styles["chip-neutral"]} disabled={isBusy} onClick={onPreserve}>
-            고친 내용 다시 검토
+            {t("review.preserve")}
           </button>
         </div>
       )}

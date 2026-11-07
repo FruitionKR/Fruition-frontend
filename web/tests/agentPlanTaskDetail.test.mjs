@@ -6,7 +6,10 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { agentChatT } from "./agentChatMessages.mjs";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 // 앱 소스의 확장자 없는 상대 import(./agentChatTranslator)를 .ts로 푼다.
 registerHooks({

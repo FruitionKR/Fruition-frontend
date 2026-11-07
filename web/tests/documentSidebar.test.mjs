@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../src/widgets/document-sidebar/model/sidebarMenu.ts";
 
 const railNavigationPath = new URL(
@@ -132,5 +133,6 @@ test("트리 행 이름에는 전체 파일명 말풍선을 띄우지 않고, �
   assert.doesNotMatch(source, /<Tooltip content=\{item\.label\}/);
   assert.match(source, /<span className=\{styles\["tree-label-text"\]\}>\{display\.name\}<\/span>/);
   // ⋯ 버튼의 "항목 메뉴 열기" 툴팁은 유지한다.
-  assert.match(source, /<Tooltip content=\{ROW_MENU_LABEL\}/);
+  assert.match(source, /<Tooltip content=\{t\("rowMenu"\)\}/);
+  assert.equal(koT("documents.tree")("rowMenu"), "항목 메뉴 열기");
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { SkillResponse } from "@/entities/skill";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import { SearchModalHeader } from "@/shared/ui/modal/SearchModalHeader";
@@ -17,6 +18,7 @@ export function SkillSearchModal({
   onSelect: (skill: SkillResponse) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("skills");
   const [query, setQuery] = useState("");
 
   const normalizedQuery = query.trim().toLowerCase();
@@ -29,10 +31,10 @@ export function SkillSearchModal({
   }, [skills, normalizedQuery]);
 
   return (
-    <CenteredModal ariaLabel="스킬 검색" onClose={onClose}>
-      <SearchModalHeader placeholder="스킬 검색" value={query} onChange={setQuery} onClose={onClose} />
+    <CenteredModal ariaLabel={t("search.label")} onClose={onClose}>
+      <SearchModalHeader placeholder={t("search.placeholder")} value={query} onChange={setQuery} onClose={onClose} />
       <div className={styles["search-body"]}>
-        <div className={styles["search-results"]} role="group" aria-label="스킬 검색 결과">
+        <div className={styles["search-results"]} role="group" aria-label={t("search.resultsLabel")}>
           {results.length > 0 ? (
             results.map((skill) => {
               const description = (skill.enabled_version ?? skill.latest_version)?.description ?? "";
@@ -56,7 +58,7 @@ export function SkillSearchModal({
             })
           ) : (
             <p className={styles["search-empty"]}>
-              {normalizedQuery ? "검색 결과가 없습니다." : "표시할 스킬이 없습니다."}
+              {normalizedQuery ? t("search.noResults") : t("search.empty")}
             </p>
           )}
         </div>

@@ -1,6 +1,14 @@
 // Notion "Markdown & CSV" 내보내기 모양의 작은 zip을 테스트 안에서 만든다(실제 Notion 데이터는 쓰지 않는다).
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { strToU8, zipSync } from "fflate";
+
+/** 화면과 같이 notionImport 메시지 키를 한국어 문구로 바꾸는 번역 함수(문구까지 확인할 때 쓴다). */
+export async function notionImportKo() {
+  const { createTranslator } = await import("use-intl/core");
+  const messages = JSON.parse(readFileSync(new URL("../src/shared/i18n/messages/ko/notionImport.json", import.meta.url), "utf8"));
+  return createTranslator({ locale: "ko", messages: { notionImport: messages }, namespace: "notionImport" });
+}
 
 /** src의 `@/` 별칭과 확장자 없는 상대 import를 .ts로 푼다. */
 export function registerSrcHooks() {

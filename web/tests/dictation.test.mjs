@@ -5,10 +5,9 @@ import test from "node:test";
 // 앱의 경로 별칭을 같은 소스로 해석하고, react는 1회 렌더 shim으로 바꿔 훅을 실제로 실행한다.
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    // next-intl 대역이 쓰는 use-intl(node_modules)은 실제 react를 쓴다.
-    if (specifier === "react" && !context.parentURL?.includes("/node_modules/")) return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
+    if (specifier === "react") return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
     // 훅의 useTranslations는 한국어 agentChat 메시지로 푼다.
-    if (specifier === "next-intl") return nextResolve(new URL("./agentChatMessages.mjs", import.meta.url).href, context);
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
     if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
     return nextResolve(specifier, context);
@@ -21,7 +20,8 @@ globalThis.window = { localStorage: { getItem: () => "ws_test", setItem() {}, re
 const { render } = await import("./reactHookShim.mjs");
 const { appendDictation, describeMicrophoneError, pickRecordingMimeType, DICTATION_MAX_MS } = await import("../src/features/agent-chat/lib/dictation.ts");
 // 안내 문구는 agentChat.dictation 메시지에 있다. 훅은 한국어 메시지로 풀린다.
-const { koAgentChat } = await import("./agentChatMessages.mjs");
+const { koMessages } = await import("./fakeNextIntl.mjs");
+const koAgentChat = koMessages.agentChat;
 const DICTATION_MESSAGES = koAgentChat.dictation;
 const { transcribeSpeech } = await import("../src/features/agent-chat/api/speech.ts");
 const { useDictation } = await import("../src/features/agent-chat/model/useDictation.ts");

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { koAgentChat } from "./agentChatMessages.mjs";
+import { koMessages } from "./fakeNextIntl.mjs";
+
+const koAgentChat = koMessages.agentChat;
 
 const { supersededFolderPlans } = await import("../src/features/agent-chat/lib/folderPlanSupersede.ts");
 // 완료 묶음 행의 상태 문구는 agentChat 메시지에 있다.

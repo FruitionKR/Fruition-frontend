@@ -1,6 +1,7 @@
 import type { SkillTestRunRequest, SkillTestRunResponse } from "@/entities/skill/model/skill";
 import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
 import { ApiError, INSUFFICIENT_CREDIT_MESSAGE, isInsufficientCreditError, SessionExpiredError } from "@/shared/lib/apiErrors";
+import type { SkillsTranslate } from "./skillsTranslate";
 import { skillCapabilities, skillRequiresSourceOption, validateSkillCreateForm, type SkillCreateForm } from "./skillCreateForm";
 
 /**
@@ -8,9 +9,7 @@ import { skillCapabilities, skillRequiresSourceOption, validateSkillCreateForm, 
  * POST /skills/test-run 요청을 만들고, 응답·오류를 화면 문구로 바꾼다. 적용 범위는 고르지 않고 항상 문서 전체다.
  */
 
-/** 폴더 정리 스킬은 테스트 실행을 지원하지 않는다(서버도 SKILL_TEST_RUN_UNSUPPORTED). 카드는 문서 선택 대신 안내만 둔다. */
-export const SKILL_TEST_RUN_FOLDER_NOTE = "폴더 정리 스킬은 테스트 실행을 지원하지 않아요. 저장한 뒤 작업 탭에서 실행하면 승인 전에 정리 계획을 확인할 수 있어요.";
-
+/** 폴더 정리 스킬은 테스트 실행을 지원하지 않는다(서버도 SKILL_TEST_RUN_UNSUPPORTED). 카드는 문서 선택 대신 안내(testRun.folderNote)만 둔다. */
 export function supportsSkillTestRun(kind: SkillCreateForm["kind"]): boolean {
   return kind !== "folder";
 }
@@ -20,17 +19,20 @@ export function newSkillTestRunId(): string {
   return `skill_test_${crypto.randomUUID()}`;
 }
 
+/** 테스트를 시작할 수 없는 이유. skills 메시지 testRun.blocker 아래 키다. */
+export type SkillTestRunBlocker = "folder" | "fields" | "document";
+
 /**
  * 테스트를 시작할 수 없는 이유. 시작할 수 있으면 null.
  * 서버가 게시와 같은 이름·설명·지침 검증을 하므로 같은 필드가 채워져야 한다(커맨드 중복은 게시 때만 막는다).
  */
-export function skillTestRunBlocker(form: SkillCreateForm, documentId: string): string | null {
-  if (form.kind === "folder") return "폴더 정리 스킬은 테스트 실행을 지원하지 않아요.";
+export function skillTestRunBlocker(form: SkillCreateForm, documentId: string): SkillTestRunBlocker | null {
+  if (form.kind === "folder") return "folder";
   const errors = validateSkillCreateForm(form, []);
   if (errors.command != null || errors.description != null || errors.rules != null) {
-    return "커맨드명·설명·실행 규칙을 먼저 올바르게 입력해 주세요.";
+    return "fields";
   }
-  if (documentId === "") return "테스트할 문서를 골라 주세요.";
+  if (documentId === "") return "document";
   return null;
 }
 
@@ -80,29 +82,21 @@ export function skillChangeDiffLines(change: { before: string; after: string }):
   return lineDiff(change.before, change.after);
 }
 
-const UNAVAILABLE_MESSAGE = "AI가 지금 응답하지 않습니다. 잠시 후 다시 테스트해 주세요.";
-
-/** 테스트 실행 실패 → 카드 안내 문구 */
-export function describeSkillTestRunError(error: unknown): string {
+/** 테스트 실행 실패 → 카드 안내 문구. 서버가 준 문구는 그대로 쓴다. */
+export function describeSkillTestRunError(error: unknown, t: SkillsTranslate): string {
   if (error instanceof SessionExpiredError) return error.message;
   if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
-    return "테스트 응답이 너무 오래 걸려 중단했어요. 잠시 후 다시 테스트해 주세요.";
+    return t("testRun.error.timeout");
   }
-  if (!(error instanceof ApiError)) return UNAVAILABLE_MESSAGE;
-  if (isInsufficientCreditError(error)) return `${INSUFFICIENT_CREDIT_MESSAGE} 크레딧을 충전한 뒤 다시 테스트해 주세요.`;
-  if (error.code === "SKILL_TEST_RUN_UNAVAILABLE") {
-    return "테스트 실행을 아직 사용할 수 없어요. 서버 업데이트 후 다시 시도해 주세요.";
-  }
-  if (error.code === "SKILL_TEST_RUN_UNSUPPORTED") {
-    return "이 종류의 스킬은 테스트 실행을 지원하지 않아요. 문서 작성·수정·템플릿 스킬만 테스트할 수 있어요.";
-  }
-  if (error.status === 408 || error.status >= 500) return UNAVAILABLE_MESSAGE;
-  if (error.status === 404) return "테스트할 문서를 찾을 수 없어요. 다른 문서를 골라 주세요.";
-  if (error.status === 409) return "이미 처리된 테스트 요청이에요. 다시 테스트해 주세요.";
-  if (error.status === 413) return "문서가 너무 커서(5MB 초과) 테스트할 수 없어요.";
-  if (error.code === "INVALID_REQUEST") {
-    return "Markdown 문서만 테스트할 수 있어요. 다른 문서를 골라 주세요.";
-  }
-  if (error.code === "SKILL_REQUEST_REJECTED") return "AI가 이 스킬로 테스트를 진행하지 않았어요. 실행 규칙을 구체적으로 고쳐 주세요.";
-  return error.message || "스킬을 테스트하지 못했습니다.";
+  if (!(error instanceof ApiError)) return t("testRun.error.unavailable");
+  if (isInsufficientCreditError(error)) return t("testRun.error.insufficientCredit", { message: INSUFFICIENT_CREDIT_MESSAGE });
+  if (error.code === "SKILL_TEST_RUN_UNAVAILABLE") return t("testRun.error.notReady");
+  if (error.code === "SKILL_TEST_RUN_UNSUPPORTED") return t("testRun.error.unsupported");
+  if (error.status === 408 || error.status >= 500) return t("testRun.error.unavailable");
+  if (error.status === 404) return t("testRun.error.notFound");
+  if (error.status === 409) return t("testRun.error.conflict");
+  if (error.status === 413) return t("testRun.error.tooLarge");
+  if (error.code === "INVALID_REQUEST") return t("testRun.error.markdownOnly");
+  if (error.code === "SKILL_REQUEST_REJECTED") return t("testRun.error.rejected");
+  return error.message || t("testRun.error.fallback");
 }

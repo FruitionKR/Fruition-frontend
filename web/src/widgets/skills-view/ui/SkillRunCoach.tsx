@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useTranslations } from "next-intl";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { SkillCoachArrow } from "./SkillIcons";
 import styles from "./SkillRunCoach.module.css";
@@ -25,6 +26,7 @@ export function SkillRunCoach({
   onCancel: () => void;
   onNext: () => void;
 }) {
+  const t = useTranslations("skills");
   const titleId = useId();
   useEscapeKey(true, onCancel);
 
@@ -35,21 +37,21 @@ export function SkillRunCoach({
         <SkillCoachArrow className={styles.arrow} />
         <div className={styles.text}>
           <h2 id={titleId}>
-            <em>실행할 문서</em>를 선택해주세요.
+            {t.rich("runCoach.title", { em: (chunks) => <em>{chunks}</em> })}
           </h2>
           <p>
-            문서 스킬은 고칠 문서(또는 요약·변환할 문서나
+            {t("runCoach.descriptionLine1")}
             <br />
-            새 문서를 둘 폴더)를,
+            {t("runCoach.descriptionLine2")}
             <br />
-            폴더 정리 스킬은 정리할 폴더를 고릅니다.
+            {t("runCoach.descriptionLine3")}
           </p>
           {preview && !errorMessage && <p className={styles.preview} role="status">{preview}</p>}
           {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
         </div>
         <div className={styles.actions}>
-          <button type="button" className={styles.cancel} onClick={onCancel}>취소</button>
-          <button type="button" className={styles.next} disabled={!hasTarget} onClick={onNext}>다음</button>
+          <button type="button" className={styles.cancel} onClick={onCancel}>{t("common.cancel")}</button>
+          <button type="button" className={styles.next} disabled={!hasTarget} onClick={onNext}>{t("runCoach.next")}</button>
         </div>
       </section>
     </div>

@@ -20,6 +20,12 @@ const {
   skillTestRunRequest,
   skillTestRunView
 } = await import("../src/features/skill-authoring/lib/skillTestRun.ts");
+
+// 화면과 같이 skills 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readSkillsMessages } = await import("node:fs");
+const { createTranslator } = await import("use-intl/core");
+const skillsKo = JSON.parse(readSkillsMessages(new URL("../src/shared/i18n/messages/ko/skills.json", import.meta.url), "utf8"));
+const t = createTranslator({ locale: "ko", messages: { skills: skillsKo }, namespace: "skills" });
 const { ApiError, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
 
 const form = {
@@ -74,9 +80,10 @@ test("run_id는 매번 새로 만들고 서버 형식을 따른다", () => {
 
 test("폴더 정리·빈 필드·문서 미선택이면 테스트를 시작하지 않는다", () => {
   assert.equal(skillTestRunBlocker(form, documentId), null);
-  assert.match(skillTestRunBlocker({ ...form, kind: "folder" }, documentId), /폴더 정리/);
-  assert.match(skillTestRunBlocker({ ...form, command: "" }, documentId), /커맨드명/);
-  assert.match(skillTestRunBlocker(form, ""), /문서를 골라/);
+  const blockerText = (blocker) => t(`testRun.blocker.${blocker}`);
+  assert.match(blockerText(skillTestRunBlocker({ ...form, kind: "folder" }, documentId)), /폴더 정리/);
+  assert.match(blockerText(skillTestRunBlocker({ ...form, command: "" }, documentId)), /커맨드명/);
+  assert.match(blockerText(skillTestRunBlocker(form, "")), /문서를 골라/);
 });
 
 test("테스트 실행 capability는 고른 결과 방식을 따른다(기본 '상황에 맞게'는 수정 결과로 본다)", () => {
@@ -108,19 +115,19 @@ test("응답을 변경/생성/변경 없음/차단 화면으로 나눈다", () =
 
 test("테스트 실행 오류를 사유별 안내로 바꾼다", () => {
   const api = (status, code) => new ApiError("서버 메시지", status, code);
-  assert.ok(describeSkillTestRunError(api(402, "INSUFFICIENT_CREDIT")).includes(INSUFFICIENT_CREDIT_MESSAGE));
-  assert.match(describeSkillTestRunError(api(503, "SKILL_TEST_RUN_UNAVAILABLE")), /아직 사용할 수 없/);
-  assert.match(describeSkillTestRunError(api(503, "SKILL_AI_UNAVAILABLE")), /응답하지 않습니다/);
-  assert.match(describeSkillTestRunError(api(400, "SKILL_TEST_RUN_UNSUPPORTED")), /지원하지 않아요/);
-  assert.match(describeSkillTestRunError(api(400, "INVALID_REQUEST")), /Markdown 문서만/);
-  assert.match(describeSkillTestRunError(api(409)), /다시 테스트/);
-  assert.match(describeSkillTestRunError(api(413, "MARKDOWN_CONTENT_TOO_LARGE")), /5MB/);
-  assert.match(describeSkillTestRunError(new DOMException("timeout", "TimeoutError")), /오래 걸려/);
-  assert.match(describeSkillTestRunError(new TypeError("fetch failed")), /응답하지 않습니다/);
+  assert.ok(describeSkillTestRunError(api(402, "INSUFFICIENT_CREDIT"), t).includes(INSUFFICIENT_CREDIT_MESSAGE));
+  assert.match(describeSkillTestRunError(api(503, "SKILL_TEST_RUN_UNAVAILABLE"), t), /아직 사용할 수 없/);
+  assert.match(describeSkillTestRunError(api(503, "SKILL_AI_UNAVAILABLE"), t), /응답하지 않습니다/);
+  assert.match(describeSkillTestRunError(api(400, "SKILL_TEST_RUN_UNSUPPORTED"), t), /지원하지 않아요/);
+  assert.match(describeSkillTestRunError(api(400, "INVALID_REQUEST"), t), /Markdown 문서만/);
+  assert.match(describeSkillTestRunError(api(409), t), /다시 테스트/);
+  assert.match(describeSkillTestRunError(api(413, "MARKDOWN_CONTENT_TOO_LARGE"), t), /5MB/);
+  assert.match(describeSkillTestRunError(new DOMException("timeout", "TimeoutError"), t), /오래 걸려/);
+  assert.match(describeSkillTestRunError(new TypeError("fetch failed"), t), /응답하지 않습니다/);
 });
 
 const { skillChangeDiffLines, supportsSkillTestRun } = await import("../src/features/skill-authoring/lib/skillTestRun.ts");
-const { rulesPlaceholderHint, RULES_PLACEHOLDER_HINT } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+const { rulesPlaceholderHint } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
 
 test("섹션 변경 전후는 바뀐 줄만 지움·추가로, 그대로인 줄은 맥락으로 비교한다", () => {
   const before = "## 연구 개요\n첫 문장\n둘째 문장\n셋째 문장";
@@ -147,7 +154,8 @@ test("폴더 정리 스킬은 테스트 실행과 문서·선택 부분 자리�
   assert.equal(supportsSkillTestRun("folder"), false);
   assert.equal(supportsSkillTestRun("document"), true);
   assert.equal(supportsSkillTestRun("template"), true);
-  assert.equal(rulesPlaceholderHint("folder"), null);
-  assert.equal(rulesPlaceholderHint("document"), RULES_PLACEHOLDER_HINT);
-  assert.equal(rulesPlaceholderHint(null), RULES_PLACEHOLDER_HINT);
+  const hint = "{문서}, {선택한 부분}, {요청} 을 넣으면 실행할 때 채워집니다.";
+  assert.equal(rulesPlaceholderHint("folder", t), null);
+  assert.equal(rulesPlaceholderHint("document", t), hint);
+  assert.equal(rulesPlaceholderHint(null, t), hint);
 });

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildProgressSteps as buildProgressStepsWith } from "../src/features/agent-chat/lib/progressSteps.ts";
-import { agentChatT } from "./agentChatMessages.mjs";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 const buildProgressSteps = (events, isLoading) => buildProgressStepsWith(events, isLoading, agentChatT);
 const events = (...stages) => stages.map((stage, sequence) => ({stage, sequence, message: stage}));

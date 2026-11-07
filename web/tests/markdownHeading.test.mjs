@@ -35,7 +35,7 @@ test("슬래시 메뉴에서 제목 4·5·6을 뺀다", async () => {
   assert.match(labels, /h4: null,\s*h5: null,\s*h6: null,/);
   for (const editor of ["../src/features/note-editing/ui/NoteEditor.tsx", "../src/features/wiki-page-editing/ui/WikiPageEditor.tsx"]) {
     const source = await readFile(new URL(editor, import.meta.url), "utf8");
-    assert.match(source, /\.\.\.SLASH_MENU_LABELS/);
+    assert.match(source, /\.\.\.(SLASH_MENU_LABELS|buildSlashMenuLabels\(messages\.slashMenu\))/);
     assert.match(source, /\.use\(cappedHeadingInputRule\)/);
     assert.match(source, /disableSmallHeadingShortcuts\(ctx\)/);
   }

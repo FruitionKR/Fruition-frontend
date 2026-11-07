@@ -135,9 +135,9 @@ const escapeXml = (value: string) => value.replace(/[<>&"']/g, (char) => `&#${ch
 /**
  * 편집기 이미지 자리에 대신 보여줄 그림(data:image/svg+xml). 네트워크 요청이 없다.
  * <img> 안의 SVG는 문서 웹폰트를 쓰지 못하므로 시스템 한글 서체를 지정한다.
+ * label은 화면 언어로 옮긴 안내(documents.editor.image.externalBlocked·unsupported)다.
  */
-export function blockedImagePlaceholderUrl(host: string | null): string {
-  const label = host ? `외부 이미지는 표시하지 않습니다 · ${host}` : "표시할 수 없는 이미지입니다";
+export function blockedImagePlaceholderUrl(label: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="48" viewBox="0 0 560 48">`
     + `<rect x="0.5" y="0.5" width="559" height="47" rx="6" fill="none" stroke="#4a4a4a" stroke-dasharray="4 3"/>`
     + `<text x="16" y="29" fill="#9a9a9a" font-size="14" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif">${escapeXml(label)}</text>`

@@ -5,6 +5,7 @@ import type {
   SkillPublishRequest,
   SkillTargetValue
 } from "@/entities/skill/model/skill";
+import type { SkillsTranslate } from "./skillsTranslate";
 
 /**
  * 스킬 만들기 탭 입력값과 게시 요청 변환.
@@ -23,47 +24,45 @@ export type SkillTarget = "current-document" | "selection";
 export type SkillScope = "personal" | "team";
 export type SkillCapability = "document-create" | "document-edit" | "folder-organize" | "template";
 
-export const SKILL_KIND_LABELS: Record<SkillKind, string> = {
-  document: "문서",
-  folder: "폴더 정리",
-  template: "템플릿"
-};
-
 /**
  * 스킬 만들기에서 고르는 종류 카드는 문서·폴더 정리 두 가지다(디자인 '② 새 스킬 탭').
  * 템플릿 capability는 새로 만들 수 없고, 예전에 만든 템플릿 스킬을 열 때만 읽기 전용으로 보여 준다.
+ * 이름·설명은 skills 메시지(kinds·kindDescriptions)에 둔다.
  */
-export const SKILL_KIND_CARDS: ReadonlyArray<{ value: Exclude<SkillKind, "template">; label: string; description: string }> = [
-  { value: "document", label: "문서", description: "새 문서를 만들거나 열린 문서를 고칩니다. 미리보기로 확인한 뒤 저장돼요." },
-  { value: "folder", label: "폴더 정리", description: "폴더·문서 트리 항목을 만들고, 이름을 바꾸고, 옮깁니다. 승인한 항목만 저장돼요." }
-];
+export const SKILL_KIND_CARDS: readonly Exclude<SkillKind, "template">[] = ["document", "folder"];
 
-export const SKILL_RESULT_OPTIONS: ReadonlyArray<{ value: SkillResultMode; label: string }> = [
-  { value: "create", label: "새 문서로 만들기" },
-  { value: "edit", label: "열린 문서 고치기" },
-  { value: "auto", label: "상황에 맞게" }
-];
+/** 결과 방식 선택지 순서. 이름은 skills 메시지(resultModes)에 둔다. */
+export const SKILL_RESULT_MODES: readonly SkillResultMode[] = ["create", "edit", "auto"];
 
-export const SKILL_TARGET_OPTIONS: ReadonlyArray<{ value: SkillTarget; label: string }> = [
-  { value: "current-document", label: "현재 문서" },
-  { value: "selection", label: "선택한 부분" }
-];
+/** 대상 선택지 순서. 이름은 skills 메시지(targets)에 둔다. */
+export const SKILL_TARGETS: readonly SkillTarget[] = ["current-document", "selection"];
 
-export const SKILL_SCOPE_OPTIONS: ReadonlyArray<{ value: SkillScope; label: string }> = [
-  { value: "personal", label: "개인" },
-  { value: "team", label: "팀" }
-];
+/** 저장범위 선택지 순서. 이름은 skills 메시지(scopes)에 둔다. */
+export const SKILL_SCOPES: readonly SkillScope[] = ["personal", "team"];
 
 /** 원문 문서: read=읽음, skip=읽지 않음 (requires_source true/false) */
 export type SkillSourceChoice = "read" | "skip";
 
-export const SKILL_SOURCE_OPTIONS: ReadonlyArray<{ value: SkillSourceChoice; label: string }> = [
-  { value: "read", label: "읽음" },
-  { value: "skip", label: "읽지 않음" }
-];
+export const SKILL_SOURCE_CHOICES: readonly SkillSourceChoice[] = ["read", "skip"];
+
+const TARGET_MESSAGE_KEYS = { "current-document": "currentDocument", selection: "selection" } as const;
+
+export function skillKindLabel(kind: SkillKind, t: SkillsTranslate): string {
+  return t(`kinds.${kind}`);
+}
+
+export function skillTargetLabel(target: SkillTarget, t: SkillsTranslate): string {
+  return t(`targets.${TARGET_MESSAGE_KEYS[target]}`);
+}
+
+export function skillScopeLabel(scope: SkillScope, t: SkillsTranslate): string {
+  return t(`scopes.${scope}`);
+}
 
 /** 원문 문서를 아직 정하지 않았을 때(만들기 시트에서 고르기 전) 선택 상자에 보이는 문구 */
-export const SOURCE_UNSET_PLACEHOLDER = "고르지 않음";
+export function sourceUnsetLabel(t: SkillsTranslate): string {
+  return t("sources.unset");
+}
 
 export interface SkillCreateForm {
   kind: SkillKind;
@@ -102,12 +101,12 @@ export function skillCreateFormFromRequest(request: string): SkillCreateForm {
   return { ...INITIAL_SKILL_CREATE_FORM, rules: request.trim() };
 }
 
-/** 실행 규칙 아래 안내 (디자인 문구 그대로). 자리표시자 치환은 실행 쪽(AI pipeline)이 맡는다. */
-export const RULES_PLACEHOLDER_HINT = "{문서}, {선택한 부분}, {요청} 을 넣으면 실행할 때 채워집니다.";
-
-/** 실행 규칙 안내 문구. 폴더 정리 스킬은 문서·선택한 부분을 받지 않으므로 자리표시자 안내를 감춘다(null). */
-export function rulesPlaceholderHint(kind: SkillKind | null): string | null {
-  return kind === "folder" ? null : RULES_PLACEHOLDER_HINT;
+/**
+ * 실행 규칙 안내 문구(디자인 문구 그대로). 폴더 정리 스킬은 문서·선택한 부분을 받지 않으므로 자리표시자 안내를 감춘다(null).
+ * 자리표시자 이름({문서} 등)은 실행 쪽(AI pipeline)이 치환하는 그대로라 언어와 상관없이 같다.
+ */
+export function rulesPlaceholderHint(kind: SkillKind | null, t: SkillsTranslate): string | null {
+  return kind === "folder" ? null : t("form.rulesHint");
 }
 
 /** 결과 방식·대상은 문서 스킬에만 의미가 있다(폴더 정리·템플릿은 capability 하나로 정해진다). */
@@ -145,14 +144,14 @@ export function requiresSourceFromChoice(choice: SkillSourceChoice): boolean {
  * '원문 문서' 아래 안내. 정하지 않았으면(null) 게시할 때 적용되는 규칙을 알린다.
  * 게시는 의도를 다시 분류하지 않아, 고르지 않으면 {문서} 자리표시자가 있을 때만 원문을 읽는다(ai skills.md).
  */
-export function sourceHint(requiresSource: boolean | null): string {
-  if (requiresSource == null) return "고르지 않으면 {문서} 자리표시자가 있을 때만 원문을 읽어요. ‘AI로 작성·보강’을 누르면 AI가 골라 줘요.";
-  return requiresSource ? "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요" : "원문 없이 새 문서를 만들어요";
+export function sourceHint(requiresSource: boolean | null, t: SkillsTranslate): string {
+  if (requiresSource == null) return t("sourceHint.unset");
+  return requiresSource ? t("sourceHint.read") : t("sourceHint.skip");
 }
 
 /** 원문 문서 값 → 화면 라벨('읽음'·'읽지 않음') */
-export function sourceLabel(requiresSource: boolean): string {
-  return requiresSource ? "읽음" : "읽지 않음";
+export function sourceLabel(requiresSource: boolean, t: SkillsTranslate): string {
+  return t(`sources.${sourceChoice(requiresSource) ?? "skip"}`);
 }
 
 const TARGET_VALUES: Record<SkillTarget, SkillTargetValue> = {
@@ -162,7 +161,7 @@ const TARGET_VALUES: Record<SkillTarget, SkillTargetValue> = {
 
 /** 서버 targets 값 → 시트 대상. 모르는 값은 버리고 순서는 시트 옵션 순서로 맞춘다. */
 export function targetsFromValues(values: readonly string[]): SkillTarget[] {
-  return SKILL_TARGET_OPTIONS.map((option) => option.value).filter((target) => values.includes(TARGET_VALUES[target]));
+  return SKILL_TARGETS.filter((target) => values.includes(TARGET_VALUES[target]));
 }
 
 /**
@@ -176,7 +175,7 @@ export function skillExecutionOptions(
 ): SkillExecutionOptions {
   if (!isDocumentKind(kind)) return {};
   return {
-    targets: SKILL_TARGET_OPTIONS.filter((option) => targets.includes(option.value)).map((option) => TARGET_VALUES[option.value]),
+    targets: SKILL_TARGETS.filter((target) => targets.includes(target)).map((target) => TARGET_VALUES[target]),
     result_mode: resultMode
   };
 }
@@ -276,8 +275,8 @@ export function applyReviewedSkillDraft(
 }
 
 /** 결과 방식 값 → 화면 라벨('새 문서로 만들기' 등) */
-export function skillResultModeLabel(mode: SkillResultMode): string {
-  return SKILL_RESULT_OPTIONS.find((option) => option.value === mode)?.label ?? mode;
+export function skillResultModeLabel(mode: SkillResultMode, t: SkillsTranslate): string {
+  return t(`resultModes.${mode}`);
 }
 
 /**
@@ -307,34 +306,47 @@ export function draftSourceChange(
 
 export type SkillCreateField = "command" | "description" | "rules" | "targets";
 
-export const TARGETS_REQUIRED_MESSAGE = "대상을 하나 이상 골라 주세요.";
+/**
+ * 필드 오류. skills 메시지 validation 아래 키이고, 길이 초과는 한도(max)를 함께 넘긴다.
+ * 화면은 t(`validation.${error.key}`, { max: error.max })로 현재 언어 문구를 만든다.
+ */
+export type SkillFieldError =
+  | { key: "targetsRequired" | "commandRequired" | "commandPattern" | "commandTaken" | "descriptionRequired" | "rulesRequired" }
+  | { key: "descriptionTooLong" | "rulesTooLong"; max: number };
 
-/** 커맨드명(→ name·slug) 오류 문구. 문제가 없으면 null. 만들기·상세 시트가 같이 쓴다. */
-export function skillCommandError(value: string, existingSlugs: readonly string[]): string | null {
+export const TARGETS_REQUIRED_ERROR: SkillFieldError = { key: "targetsRequired" };
+
+/** 필드 오류 → 현재 언어 문구 */
+export function skillFieldErrorText(error: SkillFieldError, t: SkillsTranslate): string {
+  return "max" in error ? t(`validation.${error.key}`, { max: error.max }) : t(`validation.${error.key}`);
+}
+
+/** 커맨드명(→ name·slug) 오류. 문제가 없으면 null. 만들기·상세 시트가 같이 쓴다. */
+export function skillCommandError(value: string, existingSlugs: readonly string[]): SkillFieldError | null {
   const command = value.trim();
-  if (command === "") return "커맨드명을 입력해 주세요.";
-  if (!SKILL_NAME_PATTERN.test(command)) return "커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)";
-  if (existingSlugs.includes(command)) return "이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.";
+  if (command === "") return { key: "commandRequired" };
+  if (!SKILL_NAME_PATTERN.test(command)) return { key: "commandPattern" };
+  if (existingSlugs.includes(command)) return { key: "commandTaken" };
   return null;
 }
 
-/** 필드별 오류 문구. 오류가 없으면 빈 객체다. */
+/** 필드별 오류. 오류가 없으면 빈 객체다. */
 export function validateSkillCreateForm(
   form: SkillCreateForm,
   existingSlugs: readonly string[]
-): Partial<Record<SkillCreateField, string>> {
-  const errors: Partial<Record<SkillCreateField, string>> = {};
+): Partial<Record<SkillCreateField, SkillFieldError>> {
+  const errors: Partial<Record<SkillCreateField, SkillFieldError>> = {};
   const commandError = skillCommandError(form.command, existingSlugs);
   if (commandError != null) errors.command = commandError;
   const description = form.description.trim();
-  if (description === "") errors.description = "설명을 입력해 주세요.";
+  if (description === "") errors.description = { key: "descriptionRequired" };
   else if (description.length > SKILL_DESCRIPTION_MAX) {
-    errors.description = `설명은 ${SKILL_DESCRIPTION_MAX}자까지 쓸 수 있습니다.`;
+    errors.description = { key: "descriptionTooLong", max: SKILL_DESCRIPTION_MAX };
   }
-  if (form.rules.trim() === "") errors.rules = "실행 규칙을 입력해 주세요.";
+  if (form.rules.trim() === "") errors.rules = { key: "rulesRequired" };
   else if (form.rules.trim().length > SKILL_INSTRUCTIONS_MAX) {
-    errors.rules = `실행 규칙은 ${SKILL_INSTRUCTIONS_MAX.toLocaleString("ko-KR")}자까지 쓸 수 있습니다.`;
+    errors.rules = { key: "rulesTooLong", max: SKILL_INSTRUCTIONS_MAX };
   }
-  if (isDocumentKind(form.kind) && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_MESSAGE;
+  if (isDocumentKind(form.kind) && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_ERROR;
   return errors;
 }

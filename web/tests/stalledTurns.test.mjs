@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentChatT, koAgentChat } from "./agentChatMessages.mjs";
+import { koMessages, useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
+const koAgentChat = koMessages.agentChat;
 
 const {
   STALLED_QUERY_AGE_MS,
