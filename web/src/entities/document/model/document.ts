@@ -35,6 +35,8 @@ export type DocumentItemResponse = DocumentUploadResponse & {
   error_code?: string;
   processing_state?: DocumentProcessingState;
   processing_stage?: string;
+  /** PDF 변환본이고 변환 뒤 서버가 자동 편입하기로 정했으며 그 편입이 아직 시작되지 않았으면 true. 구 서버 응답은 생략된다. */
+  auto_ingest_scheduled?: boolean;
   /** 마지막 ingest 이후 편집본이 바뀌어 재분석이 필요한지 */
   needs_reingest?: boolean;
   /** 본문 저장·이름 변경·이동·버전 복원 가능 여부. false면 읽기 전용으로 연다. 구 서버 응답은 생략된다. */

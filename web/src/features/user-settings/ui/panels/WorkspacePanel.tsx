@@ -12,7 +12,7 @@ import {
   type AiModelSelection
 } from "@/entities/ai";
 import { useUserPreferences } from "@/entities/user";
-import { renameWorkspace, updateWorkspaceAutoIngest, updateWorkspaceDescribePdfFigures, useSelectedWorkspace, useWorkspaceRole } from "@/entities/workspace";
+import { renameWorkspace, updateWorkspaceAutoIngest, updateWorkspaceDescribePdfFigures, useSelectedWorkspace, useWorkspaceRole, type AutoIngestSettingField, type WorkspaceResponse } from "@/entities/workspace";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { Switch } from "@/shared/ui/Switch";
@@ -56,26 +56,27 @@ export function WorkspacePanel({
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
 
-  // 업로드 자동 편입 설정(access #32). 워크스페이스 목록 응답의 값을 보여 주고, OWNER만 바꾼다.
+  // 위키 자동 편입 설정(access #32). 워크스페이스 목록 응답의 값을 보여 주고, OWNER만 바꾼다.
+  // 새 서버는 Markdown 업로드·PDF 변환 설정을 따로 주므로 스위치 두 개를 두고, 구 서버는 하나짜리 설정만 보여 준다.
   const workspace = useSelectedWorkspace();
   const { isOwner } = useWorkspaceRole();
-  const autoIngestOnUpload = workspace?.auto_ingest_on_upload === true;
-  const [isAutoIngestSaving, setIsAutoIngestSaving] = useState(false);
-  const [autoIngestError, setAutoIngestError] = useState<string | null>(null);
+  const autoIngestRows = autoIngestSettingRows(workspace);
+  const [savingAutoIngestField, setSavingAutoIngestField] = useState<AutoIngestSettingField | null>(null);
+  const [autoIngestError, setAutoIngestError] = useState<{ field: AutoIngestSettingField; message: string } | null>(null);
 
-  async function toggleAutoIngest() {
+  async function toggleAutoIngest(field: AutoIngestSettingField, enabled: boolean) {
     const workspaceId = getSelectedWorkspaceId();
-    if (!workspaceId || !isOwner || isAutoIngestSaving) return;
-    setIsAutoIngestSaving(true);
+    if (!workspaceId || !isOwner || savingAutoIngestField) return;
+    setSavingAutoIngestField(field);
     setAutoIngestError(null);
     try {
-      await updateWorkspaceAutoIngest(workspaceId, !autoIngestOnUpload);
+      await updateWorkspaceAutoIngest(workspaceId, field, enabled);
       // useSelectedWorkspace가 새 설정값을 읽도록 목록 캐시를 무효화한다.
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setAutoIngestError(getErrorMessage(error, "자동 편입 설정을 변경하지 못했습니다."));
+      setAutoIngestError({ field, message: getErrorMessage(error, "자동 편입 설정을 변경하지 못했습니다.") });
     } finally {
-      setIsAutoIngestSaving(false);
+      setSavingAutoIngestField(null);
     }
   }
 
@@ -211,24 +212,25 @@ export function WorkspacePanel({
 
       <div className={styles.section}>
         <SettingsSectionHeader>위키 자동 편입</SettingsSectionHeader>
-        <div className={styles.row}>
-          <div className={styles["row-title"]}>
-            <strong>업로드한 문서를 자동으로 위키에 편입</strong>
-            <small>
-              문서를 올리면 변환 뒤 바로 팀 위키에 편입합니다. 편입은 LLM 비용이 들고,
-              멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버가 올린 문서에만 적용됩니다.
-            </small>
-            {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
-            {autoIngestError && <small className={styles["row-error"]} role="alert">{autoIngestError}</small>}
+        {autoIngestRows.map((row) => (
+          <div key={row.field} className={styles.row}>
+            <div className={styles["row-title"]}>
+              <strong>{row.label}</strong>
+              <small>
+                {row.description} 편입은 LLM 비용이 들고, 멤버 관리에서 &apos;위키 편입&apos; 권한을 받은 멤버의 문서에만 적용됩니다.
+              </small>
+              {!isOwner && <small>이 설정은 워크스페이스 OWNER만 바꿀 수 있습니다.</small>}
+              {autoIngestError?.field === row.field && <small className={styles["row-error"]} role="alert">{autoIngestError.message}</small>}
+            </div>
+            <Switch
+              checked={row.checked}
+              label={row.label}
+              // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 savingAutoIngestField 검사가 막는다.
+              disabled={!isOwner || !workspace}
+              onClick={() => void toggleAutoIngest(row.field, !row.checked)}
+            />
           </div>
-          <Switch
-            checked={autoIngestOnUpload}
-            label="업로드한 문서를 자동으로 위키에 편입"
-            // 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 toggleAutoIngest의 isAutoIngestSaving 검사가 막는다.
-            disabled={!isOwner || !workspace}
-            onClick={() => void toggleAutoIngest()}
-          />
-        </div>
+        ))}
       </div>
 
       <div className={styles.section}>
@@ -250,4 +252,34 @@ export function WorkspacePanel({
       </div>
     </div>
   );
+}
+
+type AutoIngestSettingRow = { field: AutoIngestSettingField; label: string; description: string; checked: boolean };
+
+/** 자동 편입 스위치 목록. 새 서버(auto_ingest_markdown_on_upload가 있음)는 Markdown·PDF를 따로, 구 서버는 하나만 둔다. */
+function autoIngestSettingRows(workspace: WorkspaceResponse | null): AutoIngestSettingRow[] {
+  if (typeof workspace?.auto_ingest_markdown_on_upload === "boolean") {
+    return [
+      {
+        field: "auto_ingest_markdown_on_upload",
+        label: "Markdown 업로드 시 자동으로 위키에 편입",
+        description: "Markdown·txt 문서를 올리면 바로 팀 위키에 편입합니다.",
+        checked: workspace.auto_ingest_markdown_on_upload
+      },
+      {
+        field: "auto_ingest_pdf_on_convert",
+        label: "PDF 변환본도 변환 직후 자동으로 위키에 편입",
+        description: "켜면 PDF의 Markdown 변환이 끝나는 대로 편입하고, 끄면 변환본을 열 때 편입할지 묻습니다.",
+        checked: (workspace.auto_ingest_pdf_on_convert ?? workspace.auto_ingest_on_upload) === true
+      }
+    ];
+  }
+  return [
+    {
+      field: "auto_ingest_on_upload",
+      label: "PDF 변환본도 자동으로 위키에 편입",
+      description: "Markdown·txt 문서는 이 설정과 상관없이 올리면 바로 위키에 편입합니다. 켜면 PDF도 Markdown 변환이 끝나는 대로 편입하고, 끄면 변환본을 열 때 편입할지 묻습니다.",
+      checked: workspace?.auto_ingest_on_upload === true
+    }
+  ];
 }
