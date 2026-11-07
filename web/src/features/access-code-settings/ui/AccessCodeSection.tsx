@@ -1,21 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { AccessCodeSubmitResult } from "@/shared/api/accessGate";
 import { cx } from "@/shared/lib/classNames";
 import { useAccessGate } from "../model/useAccessGate";
 import styles from "./AccessCodeSettingsPanel.module.css";
 
-const UNLOCK_MESSAGES: Record<AccessCodeSubmitResult, string> = {
-  ok: "접근 코드가 확인되었습니다.",
-  invalid: "코드가 올바르지 않습니다.",
-  "rate-limited": "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해주세요."
-};
+/** 확인 결과별 안내. error는 요청 자체가 실패한 경우다. 문구는 workspace.accessCode.result에 있다. */
+type UnlockMessage = AccessCodeSubmitResult | "error";
 
 export function AccessCodeSection() {
+  const t = useTranslations("workspace.accessCode");
   const { isEnabled, isLocked, unlock } = useAccessGate();
   const [code, setCode] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<UnlockMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isEnabled) return null;
@@ -27,38 +26,38 @@ export function AccessCodeSection() {
     setMessage(null);
     try {
       const result = await unlock(code.trim());
-      setMessage(UNLOCK_MESSAGES[result]);
+      setMessage(result);
       if (result === "ok") setCode("");
     } catch {
-      setMessage("확인 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setMessage("error");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <section className={cx(styles["settings-section"], isLocked && styles["is-locked"])} aria-label="접근 코드">
-      <h3>접근 코드</h3>
+    <section className={cx(styles["settings-section"], isLocked && styles["is-locked"])} aria-label={t("title")}>
+      <h3>{t("title")}</h3>
       <p className={styles["settings-section-description"]}>
         {isLocked
-          ? "서비스를 사용하려면 접근 코드를 입력하세요. 입력 전에는 다른 기능이 잠깁니다."
-          : "이 브라우저는 접근 코드가 확인된 상태입니다."}
+          ? t("lockedDescription")
+          : t("unlockedDescription")}
       </p>
       <form className={styles["settings-inline-form"]} onSubmit={handleSubmit}>
         <input
-          aria-label="접근 코드"
+          aria-label={t("title")}
           autoComplete="off"
           name="access-code"
-          placeholder="접근 코드"
+          placeholder={t("title")}
           type="password"
           value={code}
           onChange={(event) => setCode(event.target.value)}
         />
         <button type="submit" className={styles["settings-reset"]} disabled={isSubmitting || !code.trim()}>
-          확인
+          {t("submit")}
         </button>
       </form>
-      {message && <p className={styles["settings-message"]} role="status">{message}</p>}
+      {message && <p className={styles["settings-message"]} role="status">{t(`result.${message === "rate-limited" ? "rateLimited" : message}`)}</p>}
     </section>
   );
 }

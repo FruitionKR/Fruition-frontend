@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { reflectDocumentToWiki, type DocumentItemResponse } from "@/entities/document";
 import { useSelectedWorkspace } from "@/entities/workspace";
 import { publishNotice } from "@/features/document-notifications";
@@ -57,6 +58,7 @@ export function useConvertedIngestPrompt({
   const { canIngest } = useWikiActionPermissions();
   const workspace = useSelectedWorkspace();
   const autoIngestContext = autoIngestContextOf(workspace, canIngest);
+  const t = useTranslations("wiki.notifications.ingestRequest");
   const [target, setTarget] = useState<DocumentItemResponse | null>(null);
   // 이번에 열어 둔 동안 이미 물은 문서. 다른 문서를 열면 비워서 다시 열 때 또 물을 수 있게 한다.
   const promptedIdRef = useRef<string | null>(null);
@@ -88,11 +90,11 @@ export function useConvertedIngestPrompt({
     if (!shouldPromptConvertedIngest(latest, { ...autoIngestContext, isDismissed: false, isQueued: pendingDocumentIds.includes(id) })) return;
     void reflectDocumentToWiki(id, "EDITABLE")
       .then(() => {
-        publishNotice({ kind: "completed", title: "위키 편입 요청", message: `${filename}: 위키 편입을 요청했습니다.` });
+        publishNotice({ kind: "completed", notificationKey: "ingestRequested", title: t("title"), message: t("requestedOne", { filename }) });
         return refreshBackendData().catch(() => {});
       })
       .catch((error: unknown) => {
-        publishNotice({ kind: "failed", title: "위키 편입 실패", message: `${filename}: ${getErrorMessage(error, "위키 편입에 실패했습니다.")}` });
+        publishNotice({ kind: "failed", notificationKey: "ingestFailed", title: t("failedTitle"), message: t("failureItem", { filename, reason: getErrorMessage(error, t("failedFallback")) }) });
       });
   }
 

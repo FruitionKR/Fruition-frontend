@@ -8,7 +8,8 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { hasBeenIngestedToWiki, ingestPromptMessage, isAwaitingFirstIngest, selectIngestPromptTargets } = await import(
+const { ko } = await import("./fakeNextIntl.mjs");
+const { hasBeenIngestedToWiki, isAwaitingFirstIngest, selectIngestPromptTargets } = await import(
   "../src/features/document-notifications/model/ingestPromptTargets.ts"
 );
 
@@ -32,8 +33,9 @@ test("카드 대상은 목록에 남아 있고 아직 편입을 시작할 수 �
 });
 
 test("문구는 1개면 문서 이름, 여러 개면 개수를 보여 준다", () => {
-  assert.equal(ingestPromptMessage([doc("a")]), '"a.md" 문서의 위키 편입을 시작해 보세요.');
-  assert.equal(ingestPromptMessage([doc("a"), doc("b")]), "2개 문서의 위키 편입을 시작해 보세요.");
+  const message = (documents) => ko("wiki.notifications.ingestPrompt.message", { count: documents.length, filename: documents[0].filename });
+  assert.equal(message([doc("a")]), '"a.md" 문서의 위키 편입을 시작해 보세요.');
+  assert.equal(message([doc("a"), doc("b")]), "2개 문서의 위키 편입을 시작해 보세요.");
 });
 
 test("편입 run이 있는 문서만 편입한 적 있다 (uploaded·PDF 변환만 끝난 문서·직접 만든 노트는 아니다)", () => {
