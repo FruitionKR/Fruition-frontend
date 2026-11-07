@@ -1,6 +1,7 @@
 import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
 import { throwRateLimited } from "@/entities/user/api/account";
 import type { SignupConsentFields } from "@/entities/user/model/consent";
+import { localizedFetch } from "@/shared/i18n/requestLocale";
 import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 type EmailVerificationResponse = {
@@ -24,7 +25,7 @@ export async function requestEmailVerification(
   email: string,
   purpose: "signup" | "password_reset" | "email_change"
 ): Promise<EmailVerificationResponse> {
-  const response = await fetch("/api/auth/email-verifications", {
+  const response = await localizedFetch("/api/auth/email-verifications", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, purpose })
@@ -35,7 +36,7 @@ export async function requestEmailVerification(
 }
 
 export async function checkEmailAvailability(email: string): Promise<EmailAvailabilityResponse> {
-  const response = await fetch("/api/auth/email-availability", {
+  const response = await localizedFetch("/api/auth/email-availability", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email })
@@ -49,7 +50,7 @@ export async function confirmEmailVerification(
   verificationId: string,
   code: string
 ): Promise<VerificationConfirmResponse> {
-  const response = await fetch(
+  const response = await localizedFetch(
     `/api/auth/email-verifications/${encodeURIComponent(verificationId)}/confirm`,
     {
       method: "POST",
@@ -69,7 +70,7 @@ export async function signupWithEmail(
   /** 동의 UI가 꺼져 있으면 빈 객체라 동의 필드를 보내지 않는다. */
   consent: SignupConsentFields
 ): Promise<void> {
-  const response = await fetch("/api/auth/signup", {
+  const response = await localizedFetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -89,7 +90,7 @@ export async function resetPasswordWithVerification(
   newPassword: string,
   verificationToken: string
 ): Promise<void> {
-  const response = await fetch("/api/auth/password-reset", {
+  const response = await localizedFetch("/api/auth/password-reset", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

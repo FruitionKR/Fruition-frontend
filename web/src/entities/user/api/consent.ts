@@ -1,6 +1,7 @@
 import { apiFetch, parseJsonOrThrow, throwIfNotOk, ERROR_MESSAGES } from "@/shared/api/client";
 import type { ConsentBody, SignupConsentFields } from "@/entities/user/model/consent";
 import type { LoginResponse } from "./login";
+import { localizedFetch } from "@/shared/i18n/requestLocale";
 import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /**
@@ -8,7 +9,7 @@ import { sharedText } from "@/shared/i18n/sharedTranslate";
  * 동의 UI가 꺼져 있으면 consent는 빈 객체라 signup_token만 보낸다(서버 LEGAL_CONSENT_REQUIRED=false).
  */
 export async function completeOAuthSignup(signupToken: string, consent: SignupConsentFields): Promise<LoginResponse> {
-  const response = await fetch("/api/auth/oauth/signup/consent", {
+  const response = await localizedFetch("/api/auth/oauth/signup/consent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ signup_token: signupToken, ...consent })

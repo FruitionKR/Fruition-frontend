@@ -1,5 +1,6 @@
 import { apiFetch, parseJsonOrThrow } from "@/shared/api/client";
 import type { WorkspaceRole } from "./members";
+import { localizedFetch } from "@/shared/i18n/requestLocale";
 
 type InvitationPreview = {
   workspace_id: string;
@@ -11,7 +12,7 @@ type InvitationPreview = {
 };
 
 export async function fetchInvitation(token: string): Promise<InvitationPreview> {
-  const response = await fetch(`/api/invitations/${encodeURIComponent(token)}`, { cache: "no-store" });
+  const response = await localizedFetch(`/api/invitations/${encodeURIComponent(token)}`, { cache: "no-store" });
   return parseJsonOrThrow<InvitationPreview>(response, "초대 정보를 불러오지 못했습니다.");
 }
 

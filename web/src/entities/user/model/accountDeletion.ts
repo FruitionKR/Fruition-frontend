@@ -12,6 +12,33 @@ export function buildAccountDeletionBody(input: { password: string; mfaCode: str
   return body;
 }
 
+/**
+ * 탈퇴 확인 단계에서 보여 줄 본인 확인 방법. access Reauthenticator 규칙을 따른다:
+ * 비밀번호가 있는 계정은 비밀번호만 확인하고(소셜 재로그인으로는 통과하지 못한다), 없는 계정은 10분 안의 소셜 재로그인만 본다.
+ * has_password가 없는 구 서버는 어느 쪽인지 몰라 비밀번호 칸과 소셜 재로그인을 함께 보인다(기존 화면).
+ */
+export type AccountDeletionVerification = {
+  /** 비밀번호 칸을 보인다. */
+  showPassword: boolean;
+  /** 비밀번호를 넣어야 제출할 수 있다. */
+  requirePassword: boolean;
+  /** 연결된 소셜 계정으로 다시 로그인하는 버튼을 보인다. */
+  showSocialRelogin: boolean;
+  /** 비밀번호 칸 아래 "소셜 계정만 쓰면 비워 두라"는 안내를 보인다(구 서버에서만). */
+  showSocialPasswordHint: boolean;
+};
+
+export function accountDeletionVerification(me: { has_password?: boolean; oauth_providers?: string[] }): AccountDeletionVerification {
+  const hasProviders = (me.oauth_providers?.length ?? 0) > 0;
+  if (me.has_password === true) {
+    return { showPassword: true, requirePassword: true, showSocialRelogin: false, showSocialPasswordHint: false };
+  }
+  if (me.has_password === false) {
+    return { showPassword: false, requirePassword: false, showSocialRelogin: hasProviders, showSocialPasswordHint: false };
+  }
+  return { showPassword: true, requirePassword: false, showSocialRelogin: hasProviders, showSocialPasswordHint: hasProviders };
+}
+
 export const REAUTHENTICATION_REQUIRED_MESSAGE = "본인 확인을 위해 소셜 계정으로 다시 로그인한 뒤 10분 안에 탈퇴해 주세요.";
 
 const ACCOUNT_DELETION_ERRORS: Record<string, { message: string; key: SharedMessageKey }> = {
