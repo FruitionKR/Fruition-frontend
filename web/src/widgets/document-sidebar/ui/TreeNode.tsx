@@ -1,16 +1,16 @@
 import { cx } from "@/shared/lib/classNames";
 import Link from "next/link";
-import { effectivePermission, FOLDER_WRITE_FORBIDDEN_MESSAGE, isFileItem, permissionForChildren } from "@/entities/tree";
+import { useTranslations } from "next-intl";
+import { effectivePermission, isFileItem, permissionForChildren } from "@/entities/tree";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import type { DropTarget, InheritedPermission, TreeItem } from "@/entities/tree";
 import { InlineEditInput } from "./InlineEditInput";
-import { inheritedPermissionLabel, permissionIndicatorLabel } from "@/entities/document/lib/documentAccess";
 import { SidebarConversionLinkIcon, SidebarMoreIcon, SidebarPermissionIcon } from "./SidebarIcons";
 import { buildWorkspaceHref } from "@/widgets/workspace/lib/workspaceLocation";
 import { isUploadFailedItem, TreeNodeIcon } from "./TreeNodeIcon";
 import type { TreeInteractionProps } from "../model/treeInteraction";
 import { useTreeNodeDragDrop } from "../model/useTreeNodeDragDrop";
-import { describeTreeConversionBadge } from "../model/treeConversionBadge";
+import { treeConversionBadgeClickHint, type TreeConversionBadge } from "../model/treeConversionBadge";
 import { EMPTY_TREE_CONVERSION_GROUPS, groupedChildBadge, groupedSourceBadge, ungroupedTreeRows } from "../model/treeConversionGroups";
 import styles from "./DocumentSidebar.module.css";
 
@@ -19,9 +19,6 @@ const TREE_ROW_BASE_PADDING_PX = 10;
 const TREE_ROW_INDENT_PER_DEPTH_PX = 22;
 // 변환본 연결선은 원본 PDF 행 화살표(16px 칸) 가운데에서 시작한다.
 const TREE_CONVERSION_BRANCH_OFFSET_PX = 7;
-
-/** 행 ⋯ 버튼 툴팁·접근성 이름 */
-const ROW_MENU_LABEL = "항목 메뉴 열기";
 
 // mime type → 시안의 우측 파일 타입 배지 문구
 const MIME_TYPE_BADGES: [pattern: string, label: string][] = [
@@ -70,6 +67,7 @@ export function TreeNode({
   /** 원본 PDF 행 아래에 묶어 그리는 변환본 행이면 그 상태. isLast는 연결선을 └로 끝낼지 정한다 */
   conversionChild?: { isConverting: boolean; isLast: boolean };
 }) {
+  const t = useTranslations("documents.tree");
   const { draggedItemId, dropTarget, fileDropTarget, editing, selectedItemIds } = interaction;
   const isSelected = selectedItemIds.has(item.id);
   // 선택된 묶음 중 하나를 끌면 나머지 선택 항목도 함께 이동하므로 같이 흐리게 표시한다.
@@ -103,13 +101,14 @@ export function TreeNode({
     : conversionChild ? groupedChildBadge(ownConversionBadge, conversionChild.isConverting) : ownConversionBadge;
   const isConvertingChild = conversionChild?.isConverting === true;
   const relatedDocumentId = !isEditing && !interaction.isPickingTarget ? conversionBadge?.relatedDocumentId : null;
-  const conversionDescription = conversionBadge ? describeTreeConversionBadge(conversionBadge, Boolean(relatedDocumentId)) : "";
+  const conversionDescription = conversionBadge ? describeConversionBadge(t, conversionBadge, Boolean(relatedDocumentId)) : "";
+  const conversionLabel = conversionBadge ? conversionBadgeLabel(t, conversionBadge) : "";
   // 편집 가능은 기본 상태라 표시하지 않고, 직접 설정·상속 모두 보기 전용일 때만 표시한다.
   const permission = effectivePermission(item, inheritedPermission);
   const permissionLabel = permission?.access === "view" && (permission.source === "own"
-    ? permissionIndicatorLabel(permission.access)
-    : inheritedPermissionLabel(permission.access, permission.fromFolderName));
-  const permissionDescription = "편집 권한이 없으면 읽기만 가능";
+    ? t("permission.view")
+    : t("permission.inherited", { label: t("permission.view"), folder: permission.fromFolderName }));
+  const permissionDescription = t("permission.hint");
   // 파일·폴더 행 hover·키보드 포커스 시 우측에 ⋯ 버튼을 띄워 우클릭과 같은 메뉴(권한에 맞는 항목만)를 연다.
   // 편집·업로드·드래그·스킬 대상 고르기 중에는 숨긴다.
   const canShowRowActions = (isFolder || isFileItem(item))
@@ -272,9 +271,9 @@ export function TreeNode({
               </Tooltip>
             )}
             {isUploading
-              ? <small className={styles["tree-type-badge"]}>업로드 중</small>
+              ? <small className={styles["tree-type-badge"]}>{t("uploading")}</small>
               : isUploadFailed
-                ? <small className={cx(styles["tree-type-badge"], styles["is-upload-failed"])}>업로드 실패</small>
+                ? <small className={cx(styles["tree-type-badge"], styles["is-upload-failed"])}>{t("uploadFailed")}</small>
               : conversionBadge
                 ? (
                   <Tooltip content={conversionDescription} placement="right" disabled={Boolean(relatedDocumentId)} className={styles["tree-conversion-inline"]}>
@@ -283,27 +282,27 @@ export function TreeNode({
                     aria-label={relatedDocumentId ? undefined : conversionDescription}
                     aria-hidden={relatedDocumentId ? true : undefined}
                   >
-                    {conversionBadge.label}
+                    {conversionLabel}
                     {relatedDocumentId && <SidebarConversionLinkIcon className={styles["tree-conversion-icon"]} />}
                   </small>
                   </Tooltip>
                 )
                 : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
-            {isFileDropTarget && <small className={styles["tree-drop-hint"]}>여기에 추가</small>}
+            {isFileDropTarget && <small className={styles["tree-drop-hint"]}>{t("dropHere")}</small>}
           </>
         )}
       </button>
-      {isDropDenied && <span className={styles["tree-drop-denied"]} role="status">{FOLDER_WRITE_FORBIDDEN_MESSAGE}</span>}
+      {isDropDenied && <span className={styles["tree-drop-denied"]} role="status">{t("dropDenied")}</span>}
       {(canShowRowActions || Boolean(relatedDocumentId && conversionBadge)) && (
       // 행 버튼 안에 버튼·링크를 중첩하지 않고, 행 오른쪽 위에 형제로 겹쳐 놓는다. ⋯ 버튼은 배지를 덮고 배지 링크는 그 오른쪽에 남는다.
       <div className={styles["tree-row-trailing"]}>
       {canShowRowActions && (
         <div className={styles["tree-row-actions"]}>
-          <Tooltip content={ROW_MENU_LABEL} placement="bottom" describe={false}>
+          <Tooltip content={t("rowMenu")} placement="bottom" describe={false}>
             <button
               type="button"
               className={styles["tree-row-action"]}
-              aria-label="항목 메뉴 열기"
+              aria-label={t("rowMenu")}
               aria-haspopup="menu"
               aria-expanded={interaction.menuOpenItemId === item.id}
               data-folder-menu-trigger=""
@@ -334,7 +333,7 @@ export function TreeNode({
             if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) interaction.onClearSelectedItems();
           }}
         >
-          {conversionBadge.label}
+          {conversionLabel}
           <SidebarConversionLinkIcon className={styles["tree-conversion-icon"]} />
         </Link>
         </Tooltip>
@@ -371,4 +370,22 @@ export function TreeNode({
       ))}
     </div>
   );
+}
+
+type TreeTranslator = ReturnType<typeof useTranslations<"documents.tree">>;
+
+/** 변환 관계 배지 글자. 접은 원본 PDF 행은 「변환본 N」이다. */
+function conversionBadgeLabel(t: TreeTranslator, badge: TreeConversionBadge): string {
+  if (badge.collapsedCount !== undefined) return t("conversion.convertedCount", { count: badge.collapsedCount });
+  return t(`conversion.label.${badge.label}`);
+}
+
+/** title·aria-label로 읽히는 짝 문서 설명. 실제로 이동할 수 있는 링크에만 클릭 안내를 붙인다. */
+function describeConversionBadge(t: TreeTranslator, badge: TreeConversionBadge, linked: boolean): string {
+  const { description } = badge;
+  const text = "filename" in description
+    ? t(`conversion.description.${description.kind}`, { filename: description.filename })
+    : t(`conversion.description.${description.kind}`);
+  const hint = treeConversionBadgeClickHint(badge, linked);
+  return hint ? `${text}\n${t(`conversion.${hint}`)}` : text;
 }

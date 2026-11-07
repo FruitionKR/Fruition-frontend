@@ -1,10 +1,12 @@
 import type { ContextMenuState } from "@/entities/tree";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
+import { useTreeReasonText } from "@/entities/tree/model/useTreeReasonText";
 import { cx } from "@/shared/lib/classNames";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import { nextMenuItemIndex } from "../model/menuKeyboard";
-import { TREE_MENU_LABELS, type TreeMenuActionId } from "../model/treeItemActions";
+import { TREE_MENU_MESSAGE_KEYS, type TreeMenuActionId } from "../model/treeItemActions";
 import styles from "./DocumentSidebar.module.css";
 
 export function ContextMenu({
@@ -33,6 +35,8 @@ export function ContextMenu({
   onAction: (action: TreeMenuActionId) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("documents.tree");
+  const reasonText = useTreeReasonText();
   const menuRef = useRef<HTMLDivElement>(null);
   // 편집기 등은 click 전파를 막으므로 click이 아닌 pointerdown으로 바깥 입력을 감지한다.
   // 폴더 + 버튼은 자체 onClick으로 같은 폴더면 닫고 다른 폴더면 메뉴를 옮기므로 바깥으로 보지 않는다.
@@ -65,7 +69,8 @@ export function ContextMenu({
   }, [opener]);
 
   // 터치에는 툴팁이 없어 보이는 항목을 막은 이유를 메뉴 안에 글자로 적는다. 같은 이유는 한 번만.
-  const blockedReasons = [...new Set(sections.flat().flatMap((action) => blockedActions.get(action) ?? []))];
+  const convertReason = convertTarget?.disabledReason && reasonText(convertTarget.disabledReason);
+  const blockedReasons = [...new Set(sections.flat().flatMap((action) => blockedActions.get(action) ?? []).map(reasonText))];
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // 메뉴를 연 Enter를 누르고 있으면 키 반복이 포커스된 항목을 연달아 실행하지 않게 막는다.
@@ -102,7 +107,7 @@ export function ContextMenu({
     >
       {selectedCount > 1 && onDeleteSelected ? (
         <button type="button" role="menuitem" tabIndex={-1} className={styles.danger} onClick={onDeleteSelected}>
-          선택한 {selectedCount}개 삭제
+          {t("deleteSelected", { count: selectedCount })}
         </button>
       ) : <>
       {blockedReasons.map((reason) => <p key={reason} className={styles["menu-blocked-reason"]} role="note">{reason}</p>)}
@@ -117,11 +122,11 @@ export function ContextMenu({
               role="menuitem"
               tabIndex={-1}
               disabled={convertTarget.isDisabled}
-              title={convertTarget.disabledReason}
-              aria-description={convertTarget.disabledReason}
+              title={convertReason}
+              aria-description={convertReason}
               onClick={() => onAction(action)}
             >
-              {TREE_MENU_LABELS[action]}
+              {t(`menu.${TREE_MENU_MESSAGE_KEYS[action]}`)}
             </button>
           ) : (
             <button
@@ -130,12 +135,12 @@ export function ContextMenu({
               role="menuitem"
               tabIndex={-1}
               disabled={blockedActions.has(action)}
-              aria-description={blockedActions.get(action)}
+              aria-description={blockedActions.has(action) ? reasonText(blockedActions.get(action)!) : undefined}
               className={cx(action === "delete" && styles.danger)}
               data-menu-autofocus={(action === "new-note" && focusNewNote) || undefined}
               onClick={() => onAction(action)}
             >
-              {TREE_MENU_LABELS[action]}
+              {t(`menu.${TREE_MENU_MESSAGE_KEYS[action]}`)}
             </button>
           ))}
         </Fragment>

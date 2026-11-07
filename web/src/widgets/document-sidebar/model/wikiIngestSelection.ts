@@ -7,8 +7,8 @@ export { isMarkdownTreeItem };
 /** 문서 id별로 위키 편입 선택을 막는 이유. null이면 고를 수 있다. */
 export type IngestBlockReasons = ReadonlyMap<string, string | null>;
 
-/** 문서 목록에 아직 없는 항목(업로드 중 등)을 고를 수 없는 이유 */
-export const INGEST_UNAVAILABLE_REASON = "아직 편입할 수 없는 파일이에요";
+/** 문서 목록에 아직 없는 항목(업로드 중 등)을 고를 수 없는 이유의 표지. 화면은 documents.wiki.select.unavailable 문구로 보여 준다. */
+export const INGEST_UNAVAILABLE_REASON = "ingest-unavailable";
 
 /** 파일 행을 고를 수 없는 이유. 고를 수 있으면 null, 폴더는 대상이 아니라 null이다. */
 export function getTreeItemBlockReason(item: TreeItem, reasons: IngestBlockReasons): string | null {

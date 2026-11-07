@@ -8,7 +8,8 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 const { canWriteTreeFolder, effectivePermission, findEffectivePermission, folderWritable, permissionForChildren } = await import("../src/entities/tree/lib/treePermission.ts");
-const { inheritedPermissionLabel } = await import("../src/entities/document/lib/documentAccess.ts");
+const { koT } = await import("./koMessages.mjs");
+const tPermission = koT("documents.tree.permission");
 const { projectsFromServerTree } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
 
 const tree = [
@@ -56,8 +57,7 @@ test("effectivePermission·permissionForChildren은 상위 값을 그대로 넘�
 });
 
 test("상속 표시 문구는 출처 폴더 이름을 담는다", () => {
-  assert.equal(inheritedPermissionLabel("view", "팀"), "보기만 가능 (상위 폴더 '팀'에서 상속)");
-  assert.equal(inheritedPermissionLabel("edit", "공개"), "편집 가능 (상위 폴더 '공개'에서 상속)");
+  assert.equal(tPermission("inherited", { label: tPermission("view"), folder: "팀" }), "보기만 가능 (상위 폴더 '팀'에서 상속)");
 });
 
 test("서버 트리의 폴더 permission을 트리 항목으로 옮긴다(없으면 undefined)", () => {

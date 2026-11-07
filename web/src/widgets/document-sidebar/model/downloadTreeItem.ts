@@ -11,8 +11,9 @@ const OBJECT_URL_REVOKE_DELAY_MS = 1000;
 /**
  * 컨텍스트 메뉴 "원본 다운로드": 트리에 보이는 파일명(확장자 포함)으로 원본을 내려받는다.
  * Markdown 노트는 편집본이 원본보다 최신이라 저장 대기 후 편집본(없으면 원본)을 .md로 내려받는다.
+ * 실패 알림 문구는 화면 언어로 옮긴 것을 받는다.
  */
-export async function downloadTreeItemOriginal(item: TreeItem): Promise<void> {
+export async function downloadTreeItemOriginal(item: TreeItem, failure: { title: string; message: string }): Promise<void> {
   const documentId = item.documentId;
   if (!documentId) return;
   const filename = item.label;
@@ -25,7 +26,7 @@ export async function downloadTreeItemOriginal(item: TreeItem): Promise<void> {
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);
   } catch (error) {
-    publishNotice({ kind: "failed", title: "원본 다운로드 실패", message: getErrorMessage(error, `「${filename}」을 내려받지 못했습니다.`) });
+    publishNotice({ kind: "failed", title: failure.title, message: getErrorMessage(error, failure.message) });
   }
 }
 

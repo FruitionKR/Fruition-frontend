@@ -4,6 +4,7 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { nextIntlMock } from "./koMessages.mjs";
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -71,6 +72,7 @@ function renderMeter(queryResult) {
   const element = (type, props) => ({ type, props });
   const modules = {
     "react/jsx-runtime": { jsx: element, jsxs: element },
+    "next-intl": nextIntlMock,
     "@/entities/workspace": { ...storageModel, useStorageUsage: () => queryResult },
     "@/shared/lib/classNames": { cx: (...names) => names.filter(Boolean).join(" ") },
     "./StorageUsageMeter.module.css": { default: { meter: "meter", "is-warning": "is-warning", label: "label", track: "track", fill: "fill" } }

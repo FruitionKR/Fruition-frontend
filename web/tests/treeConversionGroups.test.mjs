@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { koT } from "./koMessages.mjs";
 
 registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -110,11 +111,14 @@ test("원본 PDF 배지는 펼치면 원본 PDF, 접으면 변환본 개수를 �
   const badge = getTreeConversionBadge(pdf, [pdf, md]);
   assert.equal(groupedSourceBadge(badge, 1, false), badge);
   const collapsed = groupedSourceBadge(badge, 2, true);
-  assert.equal(collapsed.label, "변환본 2");
+  assert.equal(collapsed.label, "converted");
+  assert.equal(collapsed.collapsedCount, 2);
+  assert.equal(koT("documents.tree.conversion")("convertedCount", { count: collapsed.collapsedCount }), "변환본 2");
   assert.equal(collapsed.relatedDocumentId, "a-md");
   // 변환 중이라 기존 배지가 없으면 링크 없는 원본 PDF 배지를 만든다.
   const converting = groupedSourceBadge(null, 1, false);
-  assert.equal(converting.label, "원본 PDF");
+  assert.equal(converting.label, "source");
+  assert.equal(converting.description.kind, "sourceConverting");
   assert.equal(converting.relatedDocumentId, null);
 });
 
@@ -124,7 +128,8 @@ test("변환 중인 자식 행은 링크 없는 변환 중 배지, 끝난 변환
   const badge = getTreeConversionBadge(md, [pdf, md]);
   assert.equal(groupedChildBadge(badge, false), badge);
   const converting = groupedChildBadge(badge, true);
-  assert.equal(converting.label, "변환 중");
+  assert.equal(converting.label, "converting");
+  assert.equal(koT("documents.tree.conversion")(`label.${converting.label}`), "변환 중");
   assert.equal(converting.relatedDocumentId, null);
 });
 

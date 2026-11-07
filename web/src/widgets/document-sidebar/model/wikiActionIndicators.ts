@@ -16,7 +16,7 @@ export function selectPendingIngestDocuments(documents: DocumentItemResponse[]):
   });
 }
 
-/** 위키 편입 버튼 불. 선택 중이거나 진행 중·최신화 중이라 막혀 있으면 끈다(스피너·사유가 대신 알린다). */
+/** 위키 편입 버튼 불. 선택 중이거나 진행 중·최신화 중이라 막혀 있으면 끈다(스피너·사유가 대신 알린다). 켜지면 화면이 편입할 문서 수를 함께 알린다. */
 export function getIngestIndicator({
   pendingCount,
   isSelecting,
@@ -25,13 +25,8 @@ export function getIngestIndicator({
   pendingCount: number;
   isSelecting: boolean;
   isDisabled: boolean;
-}): { isLit: boolean; tooltip: string | null; label: string | null } {
-  if (pendingCount === 0 || isSelecting || isDisabled) return { isLit: false, tooltip: null, label: null };
-  return {
-    isLit: true,
-    tooltip: `편입할 위키가 있어요 (${pendingCount}개 문서)`,
-    label: `위키 편입, 편입할 문서 ${pendingCount}개`
-  };
+}): { isLit: boolean } {
+  return { isLit: pendingCount > 0 && !isSelecting && !isDisabled };
 }
 
 /** 위키 최신화 버튼 불. needs_lint이고 바로 실행할 수 있을 때만 켠다. */
@@ -41,9 +36,8 @@ export function getLintIndicator({
 }: {
   isLintEnabled: boolean;
   isSelecting: boolean;
-}): { isLit: boolean; tooltip: string | null; label: string | null } {
-  if (!isLintEnabled || isSelecting) return { isLit: false, tooltip: null, label: null };
-  return { isLit: true, tooltip: "위키 최신화가 가능해요", label: "위키 최신화, 최신화 가능" };
+}): { isLit: boolean } {
+  return { isLit: isLintEnabled && !isSelecting };
 }
 
 /** 권한이 없어 막힌 레일 버튼의 말풍선 보조줄. 채팅 안내 버튼과 같은 문구를 쓴다. */

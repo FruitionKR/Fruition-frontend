@@ -81,8 +81,8 @@ test("비동기 실패(회의록 error_code·문서 error_message·실시간 받
 });
 
 test("업로드 실패 알림 문구는 파일 이름과 사유를 함께 보인다", async () => {
-  const { uploadFailureMessage } = await import("../src/features/document-upload/lib/uploadFailure.ts");
-  assert.equal(uploadFailureMessage("big.pdf", "파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요."),
+  const { koT } = await import("./koMessages.mjs");
+  assert.equal(koT("documents.upload.failed")("message", { filename: "big.pdf", reason: "파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요." }),
     '"big.pdf" 파일을 올리지 못했어요. 파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요.');
 });
 
