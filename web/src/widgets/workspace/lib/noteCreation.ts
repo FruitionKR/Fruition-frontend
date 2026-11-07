@@ -18,7 +18,7 @@ export function createSingleFlight() {
   };
 }
 
-const NOTE_TITLE_SELECTOR = 'input[aria-label="문서 이름"]';
+const NOTE_TITLE_SELECTOR = "input[data-note-title]";
 const FOCUS_WAIT_MS = 3000;
 
 /**

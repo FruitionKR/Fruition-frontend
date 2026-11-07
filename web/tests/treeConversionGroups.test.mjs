@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
-import { koT } from "./koMessages.mjs";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 
 registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);

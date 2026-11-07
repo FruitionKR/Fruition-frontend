@@ -26,7 +26,7 @@ export async function downloadTreeItemOriginal(item: TreeItem, failure: { title:
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);
   } catch (error) {
-    publishNotice({ kind: "failed", title: failure.title, message: getErrorMessage(error, failure.message) });
+    publishNotice({ kind: "failed", notificationKey: "downloadFailed", title: failure.title, message: getErrorMessage(error, failure.message) });
   }
 }
 

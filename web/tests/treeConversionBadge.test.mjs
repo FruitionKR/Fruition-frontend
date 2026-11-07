@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   return nextResolve(specifier, context);
 } });
 const { buildTreeConversionBadges, getTreeConversionBadge, treeConversionBadgeClickHint } = await import("../src/widgets/document-sidebar/model/treeConversionBadge.ts");
-const { koT } = await import("./koMessages.mjs");
+const { useTranslations: koT } = await import("./fakeNextIntl.mjs");
 const t = koT("documents.tree.conversion");
 const describe = (badge) => t(`description.${badge.description.kind}`, badge.description);
 

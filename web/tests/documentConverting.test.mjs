@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const { isDocumentConverting } = await import("../src/entities/document/lib/documentKind.ts");
 const { getDocumentConversionView, parseConvertProgress } = await import("../src/entities/document/lib/documentConversion.ts");
-const { koT } = await import("./koMessages.mjs");
+const { useTranslations: koT } = await import("./fakeNextIntl.mjs");
 const t = koT("documents.preview.conversion");
 
 test("PDF 변환 placeholder가 처리 중일 때만 변환 중으로 본다", () => {

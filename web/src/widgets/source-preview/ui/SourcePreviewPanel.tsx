@@ -263,6 +263,7 @@ export function SourcePreviewPanel({
     }
     publishNotice({
       kind: "failed",
+      notificationKey: "noteSaveFailed",
       title: t("detachedSaveFailed.title"),
       message: getErrorMessage(result.error, t("detachedSaveFailed.message"))
     });
@@ -558,6 +559,8 @@ export function SourcePreviewPanel({
               className={styles["source-preview-title-input"]}
               data-large-text=""
               aria-label={t("titleLabel")}
+              // 새 노트를 만든 뒤 제목 칸을 찾는 고정 표지(widgets/workspace/lib/noteCreation.ts). aria-label은 언어마다 달라 쓰지 않는다.
+              data-note-title=""
               title={readOnly ? t("titleReadOnly") : bodyLocked ? tAccess("chatExportTitleLocked") : titleHint}
               placeholder={t("titlePlaceholder")}
               value={titleInput}

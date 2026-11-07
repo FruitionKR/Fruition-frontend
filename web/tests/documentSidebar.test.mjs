@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { koT } from "./koMessages.mjs";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../src/widgets/document-sidebar/model/sidebarMenu.ts";
 
 const railNavigationPath = new URL(

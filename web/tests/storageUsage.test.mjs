@@ -4,7 +4,7 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { nextIntlMock } from "./koMessages.mjs";
+import * as nextIntlMock from "./fakeNextIntl.mjs";
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);

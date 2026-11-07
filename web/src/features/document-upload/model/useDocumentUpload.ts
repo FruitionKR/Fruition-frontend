@@ -63,12 +63,12 @@ export function useDocumentUpload({
 
   /** 업로드 실패 알림: 어떤 파일이 왜 실패했는지 함께 보인다. */
   function noticeUploadFailed(filename: string, reason: string) {
-    publishNotice({ kind: "failed", title: t("failed.title"), message: t("failed.message", { filename, reason }) });
+    publishNotice({ kind: "failed", notificationKey: "uploadFailed", title: t("failed.title"), message: t("failed.message", { filename, reason }) });
   }
 
   /** 본문이 가리키는데 함께 받지 못한 그림 안내(빠른 경고). */
   function noticeMissingImages(fileName: string, count: number) {
-    if (count > 0) publishNotice({ kind: "info", title: t("missingImages.title"), message: t("missingImages.message", { filename: fileName, count }) });
+    if (count > 0) publishNotice({ kind: "info", notificationKey: "uploadFailed", title: t("missingImages.title"), message: t("missingImages.message", { filename: fileName, count }) });
   }
 
   function openUploadPicker(projectId: string, folderId: string | null) {
@@ -156,7 +156,7 @@ export function useDocumentUpload({
       unused += plan.unused.length;
     }
     if (unused > 0) {
-      publishNotice({ kind: "info", title: t("imagesSkipped.title"), message: t("imagesSkipped.unused", { count: unused }) });
+      publishNotice({ kind: "info", notificationKey: "uploadFailed", title: t("imagesSkipped.title"), message: t("imagesSkipped.unused", { count: unused }) });
     }
     return documents;
   }
@@ -175,12 +175,12 @@ export function useDocumentUpload({
             documentId, markdown, baseVersion, undefined, undefined, attachments.map((attachment) => ({ ...attachment, objectUrl: "" })))
         });
         if (result.rejected.length > 0) {
-          publishNotice({ kind: "info", title: t("imagesSkipped.title"), message: t("imagesSkipped.rejected", { filename: name, count: result.rejected.length }) });
+          publishNotice({ kind: "info", notificationKey: "uploadFailed", title: t("imagesSkipped.title"), message: t("imagesSkipped.rejected", { filename: name, count: result.rejected.length }) });
         }
         if (result.failed) {
           const error = result.failed.error;
           const reason = describeLimitError(error) ?? (error instanceof Error ? error.message : t("imageUploadFailed.fallback"));
-          publishNotice({ kind: "failed", title: t("imageUploadFailed.title"), message: t("imageUploadFailed.message", { filename: name, count: result.failed.count, reason }) });
+          publishNotice({ kind: "failed", notificationKey: "uploadFailed", title: t("imageUploadFailed.title"), message: t("imageUploadFailed.message", { filename: name, count: result.failed.count, reason }) });
           if (error instanceof ApiError && error.code === "STORAGE_QUOTA_EXCEEDED") invalidateStorageUsage(queryClient);
         }
         return result.created;
@@ -198,7 +198,7 @@ export function useDocumentUpload({
       await reflectDocumentToWiki(document.id, "EDITABLE");
       return { ...document, status: "processing" };
     } catch (error) {
-      publishNotice({ kind: "failed", title: t("ingestFailed.title"), message: t("ingestFailed.message", { filename: document.filename, reason: getErrorMessage(error, t("ingestFailed.fallback")) }) });
+      publishNotice({ kind: "failed", notificationKey: "ingestFailed", title: t("ingestFailed.title"), message: t("ingestFailed.message", { filename: document.filename, reason: getErrorMessage(error, t("ingestFailed.fallback")) }) });
       return document;
     }
   }

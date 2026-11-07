@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { koT } from "./koMessages.mjs";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 import { registerSrcHooks } from "./notionImportFixture.mjs";
 
 registerSrcHooks();

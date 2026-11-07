@@ -76,7 +76,7 @@ function notifyExternalImageBlocked(title: string, message: string = EXTERNAL_IM
   const now = Date.now();
   if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
   lastExternalImageNoticeAt.set(message, now);
-  publishNotice({ kind: "failed", title, message });
+  publishNotice({ kind: "failed", notificationKey: "externalImageBlocked", title, message });
 }
 
 
@@ -150,7 +150,7 @@ export function NoteEditor({
     onLockLost: (message) => {
       reportSaveBlock("lock-lost", message);
       // 저장 상태 표시만으로는 놓치기 쉬운 상황이라 알림으로도 알린다.
-      publishNotice({ kind: "failed", title: textRef.current.t("lockLostTitle"), message });
+      publishNotice({ kind: "failed", notificationKey: "editPermissionLost", title: textRef.current.t("lockLostTitle"), message });
     }
   });
   // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
@@ -274,6 +274,7 @@ export function NoteEditor({
     if (!merge.notify) return;
     publishNotice({
       kind: "info",
+      notificationKey: "saveMerged",
       title: textRef.current.t("overwritten.title"),
       message: textRef.current.t("overwritten.message")
     });
@@ -599,7 +600,7 @@ export function NoteEditor({
           onUpload: async (file) => {
             const problem = validateImageFile(file);
             if (problem) {
-              publishNotice({ kind: "failed", title: text("image.attachFailed"), message: text(`image.invalid.${problem}`) });
+              publishNotice({ kind: "failed", notificationKey: "imageUploadFailed", title: text("image.attachFailed"), message: text(`image.invalid.${problem}`) });
               return Promise.reject(new Error(text(`image.invalid.${problem}`)));
             }
             return pendingImages.register(file);
@@ -681,6 +682,7 @@ export function NoteEditor({
           if (rejected.length > 0) {
             publishNotice({
               kind: "failed",
+              notificationKey: "imageUploadFailed",
               title: text("image.attachFailed"),
               message: rejected.length === 1
                 ? text(`image.invalid.${rejected[0].reason}`)

@@ -8,7 +8,7 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 const { canWriteTreeFolder, effectivePermission, findEffectivePermission, folderWritable, permissionForChildren } = await import("../src/entities/tree/lib/treePermission.ts");
-const { koT } = await import("./koMessages.mjs");
+const { useTranslations: koT } = await import("./fakeNextIntl.mjs");
 const tPermission = koT("documents.tree.permission");
 const { projectsFromServerTree } = await import("../src/entities/tree/lib/projectsFromServerTree.ts");
 
