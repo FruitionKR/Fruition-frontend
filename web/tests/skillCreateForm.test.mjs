@@ -19,9 +19,16 @@ const {
   skillCapabilities,
   skillExecutionOptions,
   skillPublishRequest,
+  skillFieldErrorText,
   targetsFromValues,
   validateSkillCreateForm
 } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+
+// 화면과 같이 skills 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync } = await import("node:fs");
+const { createTranslator } = await import("use-intl/core");
+const skillsKo = JSON.parse(readFileSync(new URL("../src/shared/i18n/messages/ko/skills.json", import.meta.url), "utf8"));
+const t = createTranslator({ locale: "ko", messages: { skills: skillsKo }, namespace: "skills" });
 
 const filledForm = {
   ...INITIAL_SKILL_CREATE_FORM,
@@ -102,13 +109,15 @@ test("폴더 정리·템플릿 게시 요청에는 targets·result_mode 키가 �
 test("필수값·커맨드 형식·중복 커맨드를 검증한다", () => {
   assert.deepEqual(Object.keys(validateSkillCreateForm(INITIAL_SKILL_CREATE_FORM, [])).sort(), ["command", "description", "rules"]);
   // 문서 스킬은 대상을 하나 이상 골라야 한다. 폴더 정리는 대상이 없다.
-  assert.match(validateSkillCreateForm({ ...filledForm, targets: [] }, []).targets, /대상/);
+  const errorText = (error) => skillFieldErrorText(error, t);
+  assert.match(errorText(validateSkillCreateForm({ ...filledForm, targets: [] }, []).targets), /대상/);
   assert.deepEqual(validateSkillCreateForm({ ...filledForm, kind: "folder", targets: [] }, []), {});
   assert.deepEqual(validateSkillCreateForm(filledForm, []), {});
-  assert.match(validateSkillCreateForm({ ...filledForm, command: "연구-요약" }, []).command, /영문 소문자/);
-  assert.match(validateSkillCreateForm({ ...filledForm, command: "Research" }, []).command, /영문 소문자/);
-  assert.match(validateSkillCreateForm(filledForm, ["research-summary"]).command, /이미 사용 중/);
-  assert.match(validateSkillCreateForm({ ...filledForm, description: "가".repeat(501) }, []).description, /500자/);
+  assert.match(errorText(validateSkillCreateForm({ ...filledForm, command: "연구-요약" }, []).command), /영문 소문자/);
+  assert.match(errorText(validateSkillCreateForm({ ...filledForm, command: "Research" }, []).command), /영문 소문자/);
+  assert.match(errorText(validateSkillCreateForm(filledForm, ["research-summary"]).command), /이미 사용 중/);
+  assert.match(errorText(validateSkillCreateForm({ ...filledForm, description: "가".repeat(501) }, []).description), /500자/);
+  assert.match(errorText(validateSkillCreateForm({ ...filledForm, rules: "가".repeat(30_001) }, []).rules), /30,000자/);
 });
 
 const { skillAuthoringOutcome } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
@@ -158,13 +167,13 @@ test("AI 초안의 capability로 기본 '상황에 맞게'를 덮고, capability
   assert.equal(applySkillDraft({ ...INITIAL_SKILL_CREATE_FORM, resultMode: "edit" }, { ...draft, capabilities: [] }).resultMode, "edit");
 });
 
-const { SKILL_KIND_CARDS, SKILL_RESULT_OPTIONS, skillCreateFormFromRequest } = await import(
+const { SKILL_KIND_CARDS, SKILL_RESULT_MODES, skillCreateFormFromRequest } = await import(
   "../src/features/skill-authoring/lib/skillCreateForm.ts"
 );
 
 test("스킬 종류 카드는 문서·폴더 정리 두 가지이고 결과 방식 라벨은 디자인과 같다", () => {
-  assert.deepEqual(SKILL_KIND_CARDS.map((card) => card.value), ["document", "folder"]);
-  assert.deepEqual(SKILL_RESULT_OPTIONS.map((option) => option.label), ["새 문서로 만들기", "열린 문서 고치기", "상황에 맞게"]);
+  assert.deepEqual(SKILL_KIND_CARDS, ["document", "folder"]);
+  assert.deepEqual(SKILL_RESULT_MODES.map((mode) => skillResultModeLabel(mode, t)), ["새 문서로 만들기", "열린 문서 고치기", "상황에 맞게"]);
 });
 
 test("AI 초안이 템플릿을 골라도 만들기에서 고른 종류를 유지한다", () => {
@@ -188,7 +197,7 @@ test("AI 초안이 문서 스킬의 결과 방식을 바꾸면 이전·이후 �
   const next = applySkillDraft(chosen, draft);
   assert.equal(next.resultMode, "edit");
   assert.deepEqual(draftResultModeChange(chosen, next), { from: "create", to: "edit" });
-  assert.equal(skillResultModeLabel("edit"), "열린 문서 고치기");
+  assert.equal(skillResultModeLabel("edit", t), "열린 문서 고치기");
   // 바뀌지 않았거나 문서 스킬이 아니면 알릴 것이 없다.
   assert.equal(draftResultModeChange(chosen, applySkillDraft(chosen, { ...draft, capabilities: ["document-create"] })), null);
   assert.equal(draftResultModeChange(chosen, { kind: "folder", resultMode: "create" }), null);
@@ -204,10 +213,10 @@ test("원문 문서 필드는 새 문서를 만들 수 있는 문서 스킬('새
 });
 
 test("원문 문서 안내는 고른 값마다 다르고, 고르기 전에는 {문서} 자리표시자가 있을 때만 읽는다고 알린다", () => {
-  assert.equal(sourceHint(true), "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요");
-  assert.equal(sourceHint(false), "원문 없이 새 문서를 만들어요");
-  assert.match(sourceHint(null), /^고르지 않으면 \{문서\} 자리표시자가 있을 때만 원문을 읽어요/);
-  assert.doesNotMatch(sourceHint(null), /저장할 때 AI가 정해요/);
+  assert.equal(sourceHint(true, t), "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요");
+  assert.equal(sourceHint(false, t), "원문 없이 새 문서를 만들어요");
+  assert.match(sourceHint(null, t), /^고르지 않으면 \{문서\} 자리표시자가 있을 때만 원문을 읽어요/);
+  assert.doesNotMatch(sourceHint(null, t), /저장할 때 AI가 정해요/);
 });
 
 test("AI 초안의 requires_source로 원문 문서를 채우고, 바뀌었으면 알릴 이전·이후 값을 준다", () => {

@@ -60,6 +60,12 @@ test("변환 중이거나 변환에 실패한 Markdown은 빼고, 편입만 실�
 const { orderPickerDocuments, skillReferenceFileError, describeSkillReferenceUploadError } = await import("../src/features/skill-authoring/lib/referenceDocumentPicker.ts");
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
 
+// 화면과 같이 skills 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readSkillsMessages } = await import("node:fs");
+const { createTranslator } = await import("use-intl/core");
+const skillsKo = JSON.parse(readSkillsMessages(new URL("../src/shared/i18n/messages/ko/skills.json", import.meta.url), "utf8"));
+const t = createTranslator({ locale: "ko", messages: { skills: skillsKo }, namespace: "skills" });
+
 test("피커 순서는 고정(선택·방금 올린) 문서 → 참고 문서 → 그 밖의 문서 최근 업로드 순이고 중복은 한 번만 넣는다", () => {
   const old = md({ id: "old", uploaded_at: "2026-01-01T00:00:00Z" });
   const recent = md({ id: "recent", uploaded_at: "2026-03-01T00:00:00Z" });
@@ -71,17 +77,17 @@ test("피커 순서는 고정(선택·방금 올린) 문서 → 참고 문서 �
 });
 
 test("참고 문서 업로드는 PDF를 막고 Markdown·txt만 받는다", () => {
-  assert.match(skillReferenceFileError({ name: "회의록.PDF" }), /PDF는 참고 문서로 올릴 수 없습니다/);
-  assert.match(skillReferenceFileError({ name: "image.png" }), /\.md.*\.txt/);
-  for (const name of ["양식.md", "양식.markdown", "memo.TXT"]) assert.equal(skillReferenceFileError({ name }), null);
+  assert.match(skillReferenceFileError({ name: "회의록.PDF" }, t), /PDF는 참고 문서로 올릴 수 없습니다/);
+  assert.match(skillReferenceFileError({ name: "image.png" }, t), /\.md.*\.txt/);
+  for (const name of ["양식.md", "양식.markdown", "memo.TXT"]) assert.equal(skillReferenceFileError({ name }, t), null);
 });
 
 test("참고 문서 업로드 실패는 413·415·이름 충돌·origin 오류를 구분해 안내한다", () => {
-  assert.match(describeSkillReferenceUploadError(new ApiError("x", 415, "UNSUPPORTED_FILE_TYPE")), /\.md.*\.txt/);
-  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "MARKDOWN_CONTENT_TOO_LARGE")), /5MB/);
-  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "STORAGE_QUOTA_EXCEEDED")), /저장 공간을 모두 사용했어요/);
-  assert.match(describeSkillReferenceUploadError(new ApiError("x", 409, "DUPLICATE_NAME")), /같은 이름/);
-  assert.match(describeSkillReferenceUploadError(new ApiError("x", 409)), /처리 중/);
-  assert.match(describeSkillReferenceUploadError(new ApiError("x", 400, "INVALID_DOCUMENT_ORIGIN")), /올릴 수 없는/);
-  assert.match(describeSkillReferenceUploadError(new TypeError("network")), /올리지 못했습니다/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 415, "UNSUPPORTED_FILE_TYPE"), t), /\.md.*\.txt/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "MARKDOWN_CONTENT_TOO_LARGE"), t), /5MB/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 413, "STORAGE_QUOTA_EXCEEDED"), t), /저장 공간을 모두 사용했어요/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 409, "DUPLICATE_NAME"), t), /같은 이름/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 409), t), /처리 중/);
+  assert.match(describeSkillReferenceUploadError(new ApiError("x", 400, "INVALID_DOCUMENT_ORIGIN"), t), /올릴 수 없는/);
+  assert.match(describeSkillReferenceUploadError(new TypeError("network"), t), /올리지 못했습니다/);
 });

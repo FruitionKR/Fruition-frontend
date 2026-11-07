@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ID, PDF, PNG, notionExportFiles, registerSrcHooks, zipFiles } from "./notionImportFixture.mjs";
+import { ID, PDF, PNG, notionExportFiles, registerSrcHooks, zipFiles, notionImportKo } from "./notionImportFixture.mjs";
 
 registerSrcHooks();
+const t = await notionImportKo();
 const { readZipArchive, isUnsafeZipPath, ZipSafetyError, MAX_ENTRY_COUNT } = await import("../src/shared/lib/markdown-import/zipArchive.ts");
 const { analyzeNotionZip } = await import("../src/features/notion-import/model/analyzeNotionZip.ts");
 
@@ -78,7 +79,7 @@ for (const folderIds of [true, false]) test(`내보내기 zip을 폴더·문서�
   assert.equal(plan.imageCount, 1);
   assert.equal(plan.itemCount, 8);
   assert.deepEqual(plan.brokenLinks.map((link) => link.href), [`없음 ${"d".repeat(32)}.md`]);
-  assert.deepEqual(plan.skipped.map((item) => item.reason).sort(), [
+  assert.deepEqual(plan.skipped.map((item) => t(`skipReasons.${item.reason}`)).sort(), [
     "PDF 형식이 아닌 파일",
     "PDF·이미지가 아닌 첨부(PPTX 등)라 가져오지 않음",
     "PNG·JPEG·GIF·WebP가 아닌 이미지"
@@ -241,7 +242,7 @@ test("PDF는 %PDF- 로 시작하고 100MB 이하일 때만 PDF 문서로 올리�
   assert.deepEqual(plan.pdfs.map((pdf) => [pdf.key, pdf.folderKey]), [["p/a.pdf", "p"]]);
   // PDF가 든 페이지 폴더는 하위 페이지처럼 페이지 옆 같은 이름 폴더가 된다.
   assert.deepEqual(plan.folders, [{ key: "p", name: "p", parentKey: null, pageDocumentKey: "p.md" }]);
-  assert.deepEqual(plan.skipped.map((item) => [item.path, item.reason]), [
+  assert.deepEqual(plan.skipped.map((item) => [item.path, t(`skipReasons.${item.reason}`)]), [
     ["p/big.pdf", "100MB를 넘는 PDF"],
     ["p/fake.pdf", "PDF 형식이 아닌 파일"],
     ["p/deck.pptx", "PDF·이미지가 아닌 첨부(PPTX 등)라 가져오지 않음"]

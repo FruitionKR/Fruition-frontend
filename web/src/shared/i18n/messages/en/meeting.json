@@ -1,0 +1,134 @@
+{
+  "titles": {
+    "starting": "Getting ready to record",
+    "recording": "Recording",
+    "reconnecting": "Reconnecting",
+    "finishing": "Finishing recording",
+    "stopped": "Transcript",
+    "generating": "Writing meeting notes",
+    "ready": "Meeting notes",
+    "previewing": "Preview: add to end of document",
+    "saving": "Saving meeting notes",
+    "applied": "Meeting notes saved",
+    "uploading": "Uploading recording",
+    "transcribing": "Transcribing recording",
+    "deleting": "Deleting meeting",
+    "opening": "Opening meeting"
+  },
+  "progress": {
+    "uploading": "Uploading the recording…",
+    "uploadingPercent": "Uploading the recording… {percent}%",
+    "transcribing": "Transcribing the recording. Long recordings can take a few minutes…",
+    "deleting": "Deleting the meeting…",
+    "opening": "Opening the meeting…",
+    "starting": "Turning on the microphone and getting ready to record…",
+    "recording": "Recording and transcribing…",
+    "reconnecting": "Connection lost. Reconnecting…",
+    "finishing": "Saving the remaining sentences…",
+    "generating": "Writing a response…",
+    "saving": "Saving to the document…"
+  },
+  "messages": {
+    "unsupported": "This browser doesn't support meeting recording.",
+    "emptyTranscript": "There's nothing transcribed yet, so meeting notes can't be created.",
+    "incompleteTranscript": "Some parts weren't saved. You can create meeting notes from what was saved.",
+    "liveStillOpen": "The recording connection hasn't closed yet. Please try again in a moment.",
+    "notesCancelled": "Canceled creating meeting notes.",
+    "revisionChanged": "The document changed after you previewed it. Preview again, then save.",
+    "outdated": "There are newer meeting notes. Please try again with the latest notes.",
+    "alreadyApplied": "These meeting notes were already saved or are being saved. Reopen the meeting in a moment to check.",
+    "duplicateName": "Couldn't save because there are too many documents with the same name. Try again to save with the next number.",
+    "saved": "Saved the meeting notes as a document.",
+    "autoSaved": "Saved the meeting notes as a new document without review because of the 'AI agent auto-approval' setting. If you don't need it, move that document to the trash.",
+    "emptyRecordingTranscript": "Nothing was transcribed from the recording, so meeting notes can't be created.",
+    "uploadCancelled": "Canceled uploading the recording.",
+    "uploadCancelTooLate": "Transcription started before the upload could be canceled and couldn't be stopped. Click Cancel transcription.",
+    "awaitingUpload": "The recording for this meeting hasn't been uploaded yet. Please upload the recording again.",
+    "liveConnected": "This meeting is being recorded on another screen. Stop that recording to create meeting notes."
+  },
+  "errors": {
+    "createFailed": "Couldn't start the meeting.",
+    "notesFailed": "Couldn't request meeting notes.",
+    "notesCancelFailed": "Couldn't cancel creating meeting notes.",
+    "previewFailed": "Couldn't preview what will be added to the end of the document.",
+    "applyFailed": "Couldn't save the meeting notes as a document.",
+    "loadFailed": "Couldn't load the meeting status.",
+    "listFailed": "Couldn't load meetings.",
+    "uploadFailed": "Couldn't upload the recording.",
+    "transcriptionCancelFailed": "Couldn't cancel transcription.",
+    "recordingUrlFailed": "Couldn't load the recording.",
+    "deleteFailed": "Couldn't delete the meeting.",
+    "playbackFailed": "Couldn't play the recording."
+  },
+  "liveErrors": {
+    "invalid_audio": "The recording connection didn't receive any audio.",
+    "meeting_not_open": "This meeting can no longer be recorded.",
+    "transcript_limit": "Recording stopped because the transcription limit (100,000 characters) was reached. You can create meeting notes from what's been transcribed so far.",
+    "insufficient_credit": "Not enough credits. Recording stopped, and everything transcribed so far has been saved.",
+    "segment_conflict": "A conflict occurred while saving transcribed sentences.",
+    "transcript_incomplete": "Some sentences couldn't be saved.",
+    "transcript_save_failed": "Couldn't save the transcribed sentences.",
+    "backpressure": "The recording connection dropped because the network is slow.",
+    "transcription_failed": "Couldn't connect to the transcription service.",
+    "live_in_use": "This meeting is already being recorded somewhere else.",
+    "disconnected": "The recording connection dropped. Everything transcribed so far has been saved."
+  },
+  "badges": {
+    "transcribing": "Transcribing",
+    "awaitingUpload": "Not uploaded",
+    "failed": "Transcription failed",
+    "hasNotes": "Has notes",
+    "transcribed": "Transcribed",
+    "recorded": "Recorded"
+  },
+  "documentName": {
+    "plain": "Meeting notes",
+    "withTime": "Meeting notes {date} {hour}:{minute}"
+  },
+  "view": {
+    "ariaLabel": "Meeting recording",
+    "delete": "Delete",
+    "close": "Close",
+    "notesLabel": "Meeting notes",
+    "previewLabel": "Result added to the end of the document",
+    "transcriptLabel": "Transcript",
+    "emptyUpload": "Once the recording is transcribed, the conversation will appear here.",
+    "emptyLive": "Start speaking and transcribed sentences will appear here."
+  },
+  "actions": {
+    "cancelUpload": "Cancel upload",
+    "cancelTranscription": "Cancel transcription",
+    "cancelNotes": "Cancel meeting notes",
+    "reuploadRecording": "Upload recording again",
+    "pickRecording": "Choose recording",
+    "generatePartial": "Create notes from saved content",
+    "generate": "Create meeting notes",
+    "regenerate": "Regenerate",
+    "append": "Add to end of document",
+    "saveAsNew": "Save as new document",
+    "cancel": "Cancel"
+  },
+  "list": {
+    "title": "Past meetings",
+    "close": "Close",
+    "empty": "No meetings yet. Start by recording a meeting or uploading a recording.",
+    "loadingMore": "Loading…",
+    "more": "Load more",
+    "loading": "Loading meetings…",
+    "retry": "Try again",
+    "sourceUpload": "Uploaded recording",
+    "sourceLive": "Live recording",
+    "hasRecording": "Has recording"
+  },
+  "deleteConfirm": {
+    "title": "Delete this meeting?",
+    "description": "The transcript and draft notes{hasRecording, select, true {, and the recording} other {}} for “{name}” will be deleted. Meeting notes saved as documents will remain. This can't be undone.",
+    "confirm": "Delete"
+  },
+  "player": {
+    "loading": "Loading recording…",
+    "listen": "Listen to recording",
+    "audioLabel": "Play recording",
+    "retry": "Try again"
+  }
+}
