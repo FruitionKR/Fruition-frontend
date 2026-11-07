@@ -8,7 +8,6 @@ import {
   getOAuthLinkAuthorizationUrl,
   ME_QUERY_KEY,
   OAUTH_PROVIDER_OPTIONS,
-  OAUTH_UNLINK_GUIDE,
   oauthAccountErrorMessage,
   oauthProviderName,
   startOAuthLink,
@@ -56,6 +55,7 @@ function ProviderLogo({ provider }: { provider: OAuthProvider }) {
 export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }) {
   const t = useTranslations("settings.linkedAccounts");
   const tCommon = useTranslations("settings.common");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<OAuthProvider | null>(null);
   const [result, setResult] = useState<OAuthLinkResult | null>(null);
@@ -85,7 +85,7 @@ export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }
       setAfterLoginPath(`${window.location.pathname}${window.location.search}`);
       window.location.assign(getOAuthLinkAuthorizationUrl(provider, linkToken));
     } catch (error: unknown) {
-      setResult({ ok: false, message: oauthAccountErrorMessage(error, t("linkStartFailed")) });
+      setResult({ ok: false, message: oauthAccountErrorMessage(error, t("linkStartFailed"), tShared) });
       setPending(null);
     }
   }
@@ -96,9 +96,9 @@ export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }
     try {
       await unlinkOAuthAccount(provider);
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-      setResult({ ok: true, message: t("unlinked", { provider: oauthProviderName(provider) }) });
+      setResult({ ok: true, message: t("unlinked", { provider: oauthProviderName(provider, tShared) }) });
     } catch (error: unknown) {
-      setResult({ ok: false, message: oauthAccountErrorMessage(error, t("unlinkFailed")) });
+      setResult({ ok: false, message: oauthAccountErrorMessage(error, t("unlinkFailed"), tShared) });
     } finally {
       setPending(null);
     }
@@ -135,7 +135,7 @@ export function LinkedAccountsSection({ me }: { me: UserMeResponse | undefined }
         })}
       </ul>
       {/* 해제한 소셜 계정으로 다시 로그인해도 두 번째 계정이 생기지 않고 이메일 로그인·재연동으로 안내된다(access #31). */}
-      <small className={styles["status-text"]}>{OAUTH_UNLINK_GUIDE}</small>
+      <small className={styles["status-text"]}>{tShared("user.oauth.unlinkGuide")}</small>
       {result && (result.ok
         ? <small className={styles["status-text"]} role="status">{result.message}</small>
         : <small className={styles["field-error"]} role="alert">{result.message}</small>)}

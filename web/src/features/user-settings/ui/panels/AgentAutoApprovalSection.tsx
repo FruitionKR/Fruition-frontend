@@ -31,6 +31,7 @@ type AutoApprovalWarning = { title: string; description: string; confirmLabel: s
 
 export function AgentAutoApprovalSection() {
   const t = useTranslations("settings.ai.autoApproval");
+  const tShared = useTranslations("shared");
   const label = (key: AgentAutoApprovalKey | ClientAutoApprovalKey) => t(`categories.${key}.label`);
   const description = (key: AgentAutoApprovalKey | ClientAutoApprovalKey) => t(`categories.${key}.description`);
   const warningFor = (key: AgentAutoApprovalKey | ClientAutoApprovalKey): AutoApprovalWarning => ({
@@ -104,7 +105,7 @@ export function AgentAutoApprovalSection() {
       ))}
       <div className={styles["row-title"]}>
         <small>{t("alwaysManualNote")}</small>
-        {error && <small className={styles["row-error"]} role="alert">{getErrorMessage(error, t("failed"))}</small>}
+        {error && <small className={styles["row-error"]} role="alert">{getErrorMessage(error, t("failed"), tShared)}</small>}
       </div>
       {confirming && (
         <ConfirmModal

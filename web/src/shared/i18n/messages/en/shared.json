@@ -181,7 +181,8 @@
       "oauthLink": "We couldn't link your social account.",
       "oauthUnlink": "We couldn't unlink your social account.",
       "sessions": "We couldn't load your signed-in devices.",
-      "sessionRevoke": "We couldn't sign out of that device."
+      "sessionRevoke": "We couldn't sign out of that device.",
+      "locale": "Couldn't save your language setting."
     },
     "rateLimit": {
       "generic": "Too many attempts.",
@@ -333,6 +334,72 @@
       "createDocument": "Couldn't create the document.",
       "saveContent": "Couldn't save the document content."
     }
+  },
+  "api": {
+    "loginRequired": "Please sign in.",
+    "loginFailed": "Sign-in failed.",
+    "signupFailed": "Sign-up failed.",
+    "workspaceRequired": "Please select a workspace.",
+    "workspaceCreateFailed": "Couldn't create the workspace.",
+    "uploadFailed": "Couldn't upload the document.",
+    "documentDeleteFailed": "Couldn't delete the document.",
+    "documentRenameFailed": "Couldn't rename the document.",
+    "documentConvertFailed": "Couldn't request the Markdown conversion.",
+    "editLockHeld": "Someone else is editing this document.",
+    "editLockLost": "Someone else started editing, so you lost edit access. Further changes won't be saved.",
+    "editLockExpired": "Your edit access expired while you were disconnected. Further changes won't be saved.",
+    "editLockForbidden": "Only the document owner can edit it.",
+    "editLockMissing": "Document not found.",
+    "editLockUnsupported": "This document can't be edited.",
+    "editLockFailed": "Couldn't check the edit lock, so the document opened read-only.",
+    "noteDraftLoadFailed": "Couldn't load the note draft.",
+    "noteDraftSaveFailed": "Couldn't save the note draft.",
+    "documentOriginalLoadFailed": "Couldn't load the original document.",
+    "documentBlocksLoadFailed": "Couldn't load the source locations.",
+    "queryFailed": "The question failed.",
+    "aiModelsLoadFailed": "Couldn't load the AI model list.",
+    "agentTurnFailed": "The AI edit request failed.",
+    "speechTranscribeFailed": "Couldn't turn your speech into text.",
+    "chatLoadFailed": "Couldn't load the chat history.",
+    "chatSessionFailed": "Couldn't prepare the chat session.",
+    "documentsLoadFailed": "Couldn't load the document list.",
+    "wikiExportFailed": "Couldn't export to the wiki.",
+    "wikiGraphLoadFailed": "Couldn't load the wiki graph.",
+    "wikiPageLoadFailed": "Couldn't load the wiki page.",
+    "wikiPageSaveFailed": "Couldn't save the wiki page.",
+    "workspaceLoadFailed": "Couldn't load the workspace.",
+    "meLoadFailed": "Couldn't load your account information.",
+    "authRefreshUnavailable": "Couldn't refresh your sign-in. Please try again in a moment.",
+    "workspaceGone": "Workspace not found.",
+    "imageLoadFailed": "Couldn't load the image.",
+    "accessGateCheckFailed": "Couldn't check the access code status.",
+    "documentTransportCheckFailed": "Couldn't check the document transfer connection.",
+    "documentServerInvalid": "The document server address is invalid."
+  },
+  "workspace": {
+    "requestFailed": {
+      "rename": "Couldn't rename the workspace.",
+      "autoIngest": "Couldn't change the auto-add setting.",
+      "describeFigures": "Couldn't change the setting for describing PDF images as text for AI.",
+      "delete": "Couldn't delete the workspace.",
+      "iconUpload": "Couldn't upload the icon image.",
+      "iconLoad": "Couldn't load the icon image.",
+      "invitationLoad": "Couldn't load the invitation.",
+      "invitationAccept": "Couldn't accept the invitation.",
+      "storageLoad": "Couldn't load your storage usage.",
+      "storageInvalid": "The storage usage response is invalid.",
+      "membersLoad": "Couldn't load the member list.",
+      "memberRole": "Couldn't change the member's role.",
+      "memberPermissions": "Couldn't change the member's permissions.",
+      "memberRemove": "Couldn't remove the member.",
+      "invite": "Couldn't send the invitation email."
+    },
+    "limitExceeded": "You can't create more free workspaces. Delete a workspace you no longer use and try again.",
+    "storage": {
+      "used": "My storage: {used} used",
+      "usedOfLimit": "My storage: {used} of {limit} used"
+    },
+    "iconFallback": "W"
   },
   "documentRequests": {
     "operationLog": {

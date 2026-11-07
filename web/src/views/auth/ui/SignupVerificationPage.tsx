@@ -21,6 +21,7 @@ import { MfaLoginForm } from "./MfaLoginForm";
 export default function SignupVerificationPage() {
   const router = useRouter();
   const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const { signupDraft, setSignupDraft } = useAuthFlow();
   const [verificationCode, setVerificationCode] = useState("");
@@ -90,7 +91,7 @@ export default function SignupVerificationPage() {
       // 409 EMAIL_REGISTERED_WITH_OAUTH는 같은 이메일의 소셜 계정으로 로그인한 뒤 연동하도록 안내한다(access #31).
       setErrorMessage(error instanceof InvalidVerificationCodeError
         ? t("verification.invalidCode")
-        : registeredEmailErrorMessage(error) ?? consentErrorMessage(error, getErrorMessage(error, t("signup.failed"))));
+        : registeredEmailErrorMessage(error, tShared) ?? consentErrorMessage(error, getErrorMessage(error, t("signup.failed"), tShared), tShared));
       setIsSubmitting(false);
     }
   }

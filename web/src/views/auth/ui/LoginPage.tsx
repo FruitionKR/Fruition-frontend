@@ -9,9 +9,6 @@ import {
   exchangeOAuthCode,
   loginWithEmail,
   ME_QUERY_KEY,
-  OAUTH_LINK_FAILED_MESSAGE,
-  OAUTH_LINK_SUCCESS_MESSAGE,
-  OAUTH_LOGIN_FAILED_MESSAGE,
   oauthAccountErrorMessage,
   oauthCallbackErrorMessage,
   parseOAuthCallbackError,
@@ -23,6 +20,7 @@ import {
   type OAuthLinkResult
 } from "@/entities/user";
 import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/auth/AuthControls";
@@ -64,6 +62,7 @@ function LoginPageContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const hasHandledOAuth = useRef(false);
   const isLoginRequestInFlight = useRef(false);
   const [email, setEmail] = useState("");
@@ -128,7 +127,7 @@ function LoginPageContent() {
     if (linkCallback) {
       hasHandledOAuth.current = true;
       window.history.replaceState({}, "", window.location.pathname);
-      finishOAuthLink(linkCallback, t("login.oauthLinkFailed"))
+      finishOAuthLink(linkCallback, t("login.oauthLinkFailed"), tShared)
         .then((result) => {
           saveOAuthLinkResult(result);
           void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
@@ -136,7 +135,7 @@ function LoginPageContent() {
         })
         // finishOAuthLink는 연동 실패를 결과로 돌려주므로, 여기 오는 건 결과 저장(sessionStorage) 등 후처리 실패다.
         .catch((error: unknown) => {
-          setErrorMessage(oauthAccountErrorMessage(error, t("login.oauthLinkResultFailed")));
+          setErrorMessage(oauthAccountErrorMessage(error, t("login.oauthLinkResultFailed"), tShared));
         });
       return;
     }
@@ -151,7 +150,7 @@ function LoginPageContent() {
     // error=email_registered&providers=local,google: 같은 이메일의 계정이 있어 가입을 거절한 콜백.
     // 그 계정의 로그인 수단(이메일 또는 소셜)으로 로그인한 뒤 설정에서 연동하도록 안내한다(access #31).
     if (callbackError) {
-      setErrorMessage(oauthCallbackErrorMessage(callbackError));
+      setErrorMessage(oauthCallbackErrorMessage(callbackError, tShared));
       return;
     }
 
@@ -170,10 +169,10 @@ function LoginPageContent() {
       })
       .catch(() => {
         finishOAuthLoginAttempt();
-        setErrorMessage(OAUTH_LOGIN_FAILED_MESSAGE);
+        setErrorMessage(tShared("user.oauth.loginFailed"));
         setIsSubmitting(false);
       });
-  }, [finishOAuthLoginAttempt, isAccountDeleted, queryClient, router, searchParams, t]);
+  }, [finishOAuthLoginAttempt, isAccountDeleted, queryClient, router, searchParams, t, tShared]);
 
   // 칸을 벗어나면 바로 확인해, 이메일·비밀번호를 입력하는 동안 서버 기동이 시작되게 한다.
   async function handleAccessCodeBlur() {
@@ -312,12 +311,12 @@ function LoginPageContent() {
   );
 }
 
-async function finishOAuthLink(callback: OAuthLinkCallback, failedMessage: string): Promise<OAuthLinkResult> {
-  if (callback.kind === "failed") return { ok: false, message: OAUTH_LINK_FAILED_MESSAGE };
+async function finishOAuthLink(callback: OAuthLinkCallback, failedMessage: string, tShared: SharedTranslate): Promise<OAuthLinkResult> {
+  if (callback.kind === "failed") return { ok: false, message: tShared("user.oauth.linkFailed") };
   try {
     await confirmOAuthLink(callback.linkCode);
-    return { ok: true, message: OAUTH_LINK_SUCCESS_MESSAGE };
+    return { ok: true, message: tShared("user.oauth.linkSuccess") };
   } catch (error: unknown) {
-    return { ok: false, message: oauthAccountErrorMessage(error, failedMessage) };
+    return { ok: false, message: oauthAccountErrorMessage(error, failedMessage, tShared) };
   }
 }

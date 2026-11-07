@@ -31,7 +31,7 @@ export async function updateAccountLocale(locale: "ko" | "en"): Promise<UserMeRe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ locale })
   });
-  return parseJsonOrThrow<UserMeResponse>(response, "언어 설정을 저장하지 못했습니다.");
+  return parseJsonOrThrow<UserMeResponse>(response, sharedText("user.requestFailed.locale", "언어 설정을 저장하지 못했습니다."));
 }
 
 /** 프로필 사진 업로드(PUT /api/auth/me/avatar). Content-Type은 브라우저 multipart boundary에 맡긴다. */

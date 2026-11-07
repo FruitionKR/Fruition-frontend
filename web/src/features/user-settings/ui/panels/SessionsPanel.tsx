@@ -34,6 +34,7 @@ const ACTIVITY_FORMAT = { year: "numeric", month: "long", day: "numeric", hour: 
 export function SessionsPanel() {
   const t = useTranslations("settings.sessions");
   const tCommon = useTranslations("settings.common");
+  const tShared = useTranslations("shared");
   const format = useFormatter();
   const { data: sessions, isPending, error: loadError, refetch } = useQuery({
     queryKey: SESSIONS_QUERY_KEY, queryFn: fetchSessions, retry: false
@@ -62,7 +63,7 @@ export function SessionsPanel() {
       setMessage(t("revoked"));
       void refetch();
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("revokeFailed")));
+      setError(getErrorMessage(cause, t("revokeFailed"), tShared));
       void refetch();
     } finally {
       setBusy(false);
@@ -117,6 +118,6 @@ export function SessionsPanel() {
       </div>
     )}
     {message && <small className={styles["status-text"]} role="status">{message}</small>}
-    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"))}</small>}
+    {(error || loadError) && <small className={styles["field-error"]} role="alert">{error || getErrorMessage(loadError, t("loadFailed"), tShared)}</small>}
   </>;
 }

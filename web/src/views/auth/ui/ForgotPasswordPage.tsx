@@ -27,6 +27,7 @@ function ForgotPasswordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const { passwordResetDraft, setPasswordResetDraft } = useAuthFlow();
   // 설정 모달 등에서 ?email= 로 진입하면 이메일을 프리필한다.
   const [email, setEmail] = useState(
@@ -81,7 +82,7 @@ function ForgotPasswordPageContent() {
       });
       setIsCodeStep(true);
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, t("forgotPassword.verificationFailed")));
+      setErrorMessage(getErrorMessage(error, t("forgotPassword.verificationFailed"), tShared));
     } finally {
       setIsSubmitting(false);
     }
@@ -108,7 +109,7 @@ function ForgotPasswordPageContent() {
     } catch (error: unknown) {
       setErrorMessage(error instanceof InvalidVerificationCodeError
         ? t("verification.invalidCode")
-        : getErrorMessage(error, t("forgotPassword.verificationFailed")));
+        : getErrorMessage(error, t("forgotPassword.verificationFailed"), tShared));
     } finally {
       setIsSubmitting(false);
     }

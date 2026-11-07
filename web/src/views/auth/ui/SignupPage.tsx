@@ -28,6 +28,7 @@ import { verificationWaitMessage } from "@/views/auth/lib/verificationWaitMessag
 export default function SignupPage() {
   const router = useRouter();
   const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const waitMessage = (seconds: number) => {
     const { key, values } = verificationWaitMessage(seconds);
     return t(`verification.wait.${key}`, values);
@@ -53,7 +54,7 @@ export default function SignupPage() {
     event.preventDefault();
     if (isSubmitting || isWaitingRetry) return;
 
-    const passwordError = getPasswordPolicyError(password);
+    const passwordError = getPasswordPolicyError(password, tShared);
     if (passwordError) {
       setErrorMessage(passwordError);
       return;
@@ -72,7 +73,7 @@ export default function SignupPage() {
     try {
       // 소셜 가입 계정이 있으면 available=false와 함께 oauth_providers가 와서 인증 요청이 409로 거절된다.
       // 인증 메일을 보내기 전에 그 소셜 로그인 뒤 연동하도록 먼저 안내한다(access #31).
-      const blockedMessage = signupAvailabilityMessage(await checkEmailAvailability(normalizedEmail));
+      const blockedMessage = signupAvailabilityMessage(await checkEmailAvailability(normalizedEmail), tShared);
       if (blockedMessage) {
         setErrorMessage(blockedMessage);
         setIsSubmitting(false);
@@ -80,7 +81,7 @@ export default function SignupPage() {
       }
     } catch (error: unknown) {
       const waitSeconds = verificationWaitSeconds(error);
-      setErrorMessage(waitSeconds !== null ? waitMessage(waitSeconds) : getErrorMessage(error, t("signup.emailCheckFailed")));
+      setErrorMessage(waitSeconds !== null ? waitMessage(waitSeconds) : getErrorMessage(error, t("signup.emailCheckFailed"), tShared));
       setIsSubmitting(false);
       return;
     }
@@ -114,7 +115,7 @@ export default function SignupPage() {
         ...pendingDraft,
         verificationRequestError: waitSeconds !== null
           ? waitMessage(waitSeconds)
-          : registeredEmailErrorMessage(error) ?? getErrorMessage(error, t("signup.verificationRequestFailed")),
+          : registeredEmailErrorMessage(error, tShared) ?? getErrorMessage(error, t("signup.verificationRequestFailed"), tShared),
         verificationRetryAt: waitSeconds !== null ? Date.now() + waitSeconds * 1000 : undefined
       });
       setIsSubmitting(false);
