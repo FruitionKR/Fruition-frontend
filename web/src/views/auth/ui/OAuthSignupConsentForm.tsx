@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   buildSignupConsentFields,
@@ -36,6 +37,7 @@ export function OAuthSignupConsentForm({
   onRestart: () => void;
 }) {
   const router = useRouter();
+  const t = useTranslations("auth.oauthSignup");
   const queryClient = useQueryClient();
   const [choices, setChoices] = useState<ConsentChoices>(EMPTY_CONSENT);
   const [busy, setBusy] = useState(false);
@@ -68,7 +70,7 @@ export function OAuthSignupConsentForm({
       queryClient.clear();
       router.replace(takeAfterLoginPath());
     } catch (cause: unknown) {
-      setError(registeredEmailErrorMessage(cause) ?? consentErrorMessage(cause, "회원가입에 실패했습니다."));
+      setError(registeredEmailErrorMessage(cause) ?? consentErrorMessage(cause, t("failed")));
       setIsTokenInvalid(isSignupTokenConsumed(cause));
       setIsEmailRegistered(isSignupEmailRegistered(cause));
       setBusy(false);
@@ -78,8 +80,8 @@ export function OAuthSignupConsentForm({
   return <>
     <p className="auth-prompt auth-prompt--wrap" role={LEGAL_PAGES_ENABLED ? undefined : "status"}>
       {LEGAL_PAGES_ENABLED
-        ? "소셜 계정으로 처음 가입합니다. 아래 항목에 동의하면 가입이 완료됩니다."
-        : "소셜 계정으로 처음 가입합니다. 가입을 완료하고 있습니다."}
+        ? t("consentDescription")
+        : t("autoDescription")}
     </p>
     <form className="auth-form" onSubmit={(event) => void submit(event)}>
       <div className="auth-field-with-error">
@@ -89,10 +91,10 @@ export function OAuthSignupConsentForm({
       {/* 동의 UI가 꺼져 있으면 자동 가입이 실패했을 때만 다시 시도 버튼을 보인다. */}
       {LEGAL_PAGES_ENABLED || error ? (
         <AuthSubmitButton disabled={busy || isTokenInvalid || !isSignupConsentReady(LEGAL_PAGES_ENABLED, choices)}>
-          {busy ? "가입 중…" : LEGAL_PAGES_ENABLED ? "동의하고 가입" : "가입 다시 시도"}
+          {busy ? t("submitting") : LEGAL_PAGES_ENABLED ? t("submitWithConsent") : t("retry")}
         </AuthSubmitButton>
       ) : null}
     </form>
-    <p className="auth-prompt"><button disabled={busy} onClick={onRestart} type="button">{isEmailRegistered ? "로그인 화면으로" : "로그인부터 다시 시작"}</button></p>
+    <p className="auth-prompt"><button disabled={busy} onClick={onRestart} type="button">{isEmailRegistered ? t("backToLogin") : t("restart")}</button></p>
   </>;
 }

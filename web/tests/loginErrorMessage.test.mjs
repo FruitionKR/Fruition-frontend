@@ -10,14 +10,16 @@ registerHooks({
 });
 
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
-const {
-  INVALID_CREDENTIALS_MESSAGE,
-  LOGIN_NETWORK_ERROR_MESSAGE,
-  LOGIN_SERVER_ERROR_MESSAGE,
-  SERVER_PREPARING_MESSAGE,
-  TOO_MANY_LOGIN_ATTEMPTS_MESSAGE,
-  getLoginErrorMessage
-} = await import("../src/views/auth/lib/loginErrorMessage.ts");
+const { getLoginErrorMessage: getLoginErrorMessageWith } = await import("../src/views/auth/lib/loginErrorMessage.ts");
+const { readFileSync } = await import("node:fs");
+// 화면과 같이 auth.loginErrors 키를 한국어 메시지로 바꿔 문구까지 확인한다.
+const { loginErrors } = JSON.parse(readFileSync(new URL("../src/shared/i18n/messages/ko/auth.json", import.meta.url), "utf8"));
+const getLoginErrorMessage = (error, isServerUnready) => getLoginErrorMessageWith(error, isServerUnready, (key) => loginErrors[key]);
+const INVALID_CREDENTIALS_MESSAGE = "가입하지 않은 아이디거나, 잘못된 비밀번호입니다.";
+const SERVER_PREPARING_MESSAGE = "서버가 아직 준비 중이에요. 준비가 끝나면 다시 로그인해 주세요.";
+const TOO_MANY_LOGIN_ATTEMPTS_MESSAGE = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+const LOGIN_SERVER_ERROR_MESSAGE = "서버 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+const LOGIN_NETWORK_ERROR_MESSAGE = "서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.";
 
 test("서버가 준비 중이면 원인과 관계없이 준비 중 문구를 쓴다", () => {
   assert.equal(getLoginErrorMessage(new ApiError("x", 401), true), SERVER_PREPARING_MESSAGE);

@@ -1,1 +1,17 @@
-{}
+{
+  "title": "워크스페이스 초대",
+  "loading": "초대 정보를 불러오는 중…",
+  "invitedBy": "{inviter} 님이 {workspace}에 초대했습니다.",
+  "loginAs": "{email} 계정으로 로그인한 뒤 수락해 주세요.",
+  "details": "권한: {role} · 만료: {expiresAt}",
+  "roles": {
+    "owner": "소유자",
+    "member": "멤버"
+  },
+  "accept": "초대 수락",
+  "accepting": "수락 중…",
+  "loginAsInvitee": "초대받은 계정으로 로그인 / 회원가입",
+  "returnNotice": "로그인을 마치면 이 화면으로 돌아옵니다.",
+  "acceptFailed": "초대를 수락하지 못했습니다.",
+  "loadFailed": "초대 정보를 불러오지 못했습니다."
+}

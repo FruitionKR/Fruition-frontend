@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { loginWithMfa } from "@/entities/user";
 import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
@@ -10,6 +11,7 @@ import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthCon
 
 export function MfaLoginForm({ token, onCancel }: { token: string; onCancel: () => void }) {
   const router = useRouter();
+  const t = useTranslations("auth.mfa");
   const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,19 +29,19 @@ export function MfaLoginForm({ token, onCancel }: { token: string; onCancel: () 
       setCode("");
       router.replace(takeAfterLoginPath());
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "다단계 인증에 실패했습니다."));
+      setError(getErrorMessage(cause, t("failed")));
       setBusy(false);
     }
   }
 
   return <>
-    <p className="auth-prompt">인증 앱의 6자리 코드 또는 사용하지 않은 복구 코드를 입력해 주세요.</p>
+    <p className="auth-prompt">{t("description")}</p>
     <form className="auth-form" onSubmit={(event) => void submit(event)}>
-      <AuthField label="인증 코드 또는 복구 코드" name="mfaCode" autoComplete="one-time-code"
-        placeholder="인증 코드" value={code} readOnly={busy} onChange={(event) => setCode(event.target.value)} />
+      <AuthField label={t("codeLabel")} name="mfaCode" autoComplete="one-time-code"
+        placeholder={t("codePlaceholder")} value={code} readOnly={busy} onChange={(event) => setCode(event.target.value)} />
       {error && <AuthError>{error}</AuthError>}
-      <AuthSubmitButton disabled={busy || !code.trim()}>{busy ? "확인 중…" : "인증하고 로그인"}</AuthSubmitButton>
+      <AuthSubmitButton disabled={busy || !code.trim()}>{busy ? t("submitting") : t("submit")}</AuthSubmitButton>
     </form>
-    <p className="auth-prompt"><button type="button" disabled={busy} onClick={onCancel}>로그인부터 다시 시작</button></p>
+    <p className="auth-prompt"><button type="button" disabled={busy} onClick={onCancel}>{t("restart")}</button></p>
   </>;
 }
