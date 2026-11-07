@@ -236,6 +236,7 @@ export function LogView({
 }) {
   const t = useTranslations("workspace.logs");
   const tMessages = useTranslations("workspace.logMessages");
+  const tSummary = useTranslations("workspace.logMessages.summary");
   const tShared = useTranslations("shared");
   const locale = useLocale();
   const restoreFailureText = { t: tMessages, tShared };
@@ -287,7 +288,7 @@ export function LogView({
     ? documentTitles.get(detail.target_document_id)
     : undefined);
   const description = detail
-    ? formatOperationLogDescription(detail, documentTitle, tMessages("noDetail"))
+    ? formatOperationLogDescription(detail, documentTitle, tMessages("noDetail"), tSummary)
     : "";
   // 위키 직접 편집(wiki_edit)은 서버가 되돌리기를 지원하지 않는다(400, document #130).
   const canRestore = detail != null
@@ -481,7 +482,7 @@ export function LogView({
                               {isSelected && <span className={styles["row-dot"]} aria-hidden />}
                             </span>
                             <span className={styles["row-description"]}>
-                              {formatOperationLogDescription(item, documentTitleOf(item), tMessages("noDetail"))}
+                              {formatOperationLogDescription(item, documentTitleOf(item), tMessages("noDetail"), tSummary)}
                             </span>
                             <span className={styles["row-meta"]}>
                               <span className={styles["row-meta-info"]}>

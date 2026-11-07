@@ -231,7 +231,28 @@
     "restoreTrashed": "문서가 휴지통에 있어 되돌릴 수 없어요. 휴지통에서 복구한 뒤 다시 시도해 주세요.",
     "restoreMissing": "문서를 찾을 수 없어 되돌릴 수 없어요.",
     "documentRestore": "{description} 문서를 {from}에서 {to} 버전으로 되돌립니다.",
-    "documentRestoreLaterEdits": "{message} 이 작업 뒤에 저장한 수정(직접 편집, 다른 멤버의 편집, 다른 AI 작업)도 함께 사라집니다."
+    "documentRestoreLaterEdits": "{message} 이 작업 뒤에 저장한 수정(직접 편집, 다른 멤버의 편집, 다른 AI 작업)도 함께 사라집니다.",
+    "summary": {
+      "ingestSucceeded": "Wiki ingest를 완료했습니다.",
+      "ingestPartial": "Wiki ingest를 일부만 반영했습니다.",
+      "ingestFailed": "Wiki ingest에 실패했습니다.",
+      "lintSucceeded": "Wiki lint로 페이지 {count}개를 변경했습니다.",
+      "lintPartial": "Wiki 정합성 검사를 일부만 반영했습니다.",
+      "lintFailed": "Wiki 정합성 검사에 실패했습니다.",
+      "restoreDocument": "버전 {from} 내용으로 되돌렸습니다. 새 버전 {to}",
+      "restoreRebuild": "페이지 변경 {changed}건 · 삭제 {deleted}건 · 링크 제거 {linksRemoved}건 · 링크 복원 {linksRestored}건 · 실패 {failed}건",
+      "restorePartial": "되돌리기를 일부만 반영했습니다.",
+      "restoreFailed": "되돌리기에 실패했습니다.",
+      "restoreConflictLater": "뒤에 실행한 작업과 충돌해 되돌리지 않았습니다. 뒤 작업부터 되돌려 주세요.",
+      "restoreStale": "복구 대상이 변경되었습니다. 미리보기를 다시 확인해 주세요.",
+      "documentEditApplied": "AI 편집을 문서에 반영했습니다.",
+      "documentEditUnchanged": "AI 편집 결과가 현재 본문과 같습니다.",
+      "documentEditPartial": "AI 편집을 일부만 반영했습니다.",
+      "documentEditFailed": "AI 편집을 반영하지 못했습니다.",
+      "documentEditConflict": "문서가 이미 변경되어 AI 편집을 반영하지 못했습니다.",
+      "wikiEditSucceeded": "Wiki 페이지 본문을 직접 수정했습니다.",
+      "wikiEditFailed": "Wiki 본문 수정을 반영하지 못했습니다."
+    }
   },
   "notificationsView": {
     "title": "알림",

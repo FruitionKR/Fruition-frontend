@@ -449,7 +449,7 @@ export function AgentPanel({
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skillRun?.id, isSkillRunReady]);
-  const sessionTitle = chatSessionTitle(activeSessionTitle, messages);
+  const sessionTitle = chatSessionTitle(activeSessionTitle, messages, t("header.newChat"));
   const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
   useEffect(() => {
     if (!activeSessionId) return;

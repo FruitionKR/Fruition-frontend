@@ -1,4 +1,5 @@
-import type { OperationLogItem, OperationType } from "@/entities/operation-log";
+import type { OperationLogItem, OperationSummaryTranslate, OperationType } from "@/entities/operation-log";
+import { isServerLintDisplayName, localizeOperationSummary } from "@/entities/operation-log/model/operationSummary";
 import type { WorkspaceMember } from "@/entities/workspace/api/members";
 import type koWorkspace from "@/shared/i18n/messages/ko/workspace.json";
 import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
@@ -63,9 +64,15 @@ function byNewest(a: NotificationItem, b: NotificationItem) {
 }
 
 /** 로그 화면과 같은 규칙: 문서 이름과 요약이 다르면 "문서 / 요약", 하나만 있으면 그것만 */
-function describeOperation(log: OperationLogItem, fallback: string) {
+/** 대상 문서 이름. 지금 언어로 쓸 때는 서버가 lint에 붙인 한국어 작업 이름을 문서 이름으로 보이지 않는다. */
+function targetName(log: OperationLogItem, tSummary?: OperationSummaryTranslate) {
   const name = log.target_display_name?.trim();
-  const summary = log.summary?.trim();
+  return tSummary && isServerLintDisplayName(log.operation_type, name) ? undefined : name;
+}
+
+function describeOperation(log: OperationLogItem, fallback: string, tSummary?: OperationSummaryTranslate) {
+  const name = targetName(log, tSummary);
+  const summary = localizeOperationSummary(log, tSummary);
   if (name && summary && name !== summary) return `${name} / ${summary}`;
   return name || summary || fallback;
 }
@@ -73,12 +80,12 @@ function describeOperation(log: OperationLogItem, fallback: string) {
 type TerminalStatus = "succeeded" | "partially_succeeded" | "failed" | "conflict";
 
 /** 작업 알림 한 건의 문구. t가 없으면 기존 한국어 문구를 만든다. */
-function taskText(log: OperationLogItem, status: TerminalStatus, t?: NotificationsViewTranslate) {
+function taskText(log: OperationLogItem, status: TerminalStatus, t?: NotificationsViewTranslate, tSummary?: OperationSummaryTranslate) {
   const koStatus = TERMINAL_STATUS_TEXT[status];
   const known = log.operation_type in TASK_LABELS;
   const label = t && known ? t(`taskLabel.${log.operation_type}`) : TASK_LABELS[log.operation_type] ?? log.operation_type;
-  const name = log.target_display_name?.trim();
-  const summary = log.summary?.trim();
+  const name = targetName(log, tSummary);
+  const summary = localizeOperationSummary(log, tSummary);
   if (!t) {
     return {
       title: `${label} ${koStatus.label}`,
@@ -99,21 +106,26 @@ function taskText(log: OperationLogItem, status: TerminalStatus, t?: Notificatio
 
 /**
  * 작업 알림: 종결된 AI 작업 로그(문서 처리·위키 최신화·복구·AI 편집). 진행 중 작업과
- * 바꾼 문서 없이 성공한 lint(로그 화면에서도 숨김)는 뺀다. t를 넘기면 지금 언어로 쓴다.
+ * 바꾼 문서 없이 성공한 lint(로그 화면에서도 숨김)는 뺀다. t를 넘기면 지금 언어로 쓰고,
+ * tSummary(workspace.logMessages.summary)를 넘기면 서버가 한국어로 저장한 알려진 작업 요약도 지금 언어로 쓴다.
  */
-export function buildTaskNotifications(logs: readonly OperationLogItem[], t?: NotificationsViewTranslate): NotificationItem[] {
+export function buildTaskNotifications(
+  logs: readonly OperationLogItem[],
+  t?: NotificationsViewTranslate,
+  tSummary?: OperationSummaryTranslate
+): NotificationItem[] {
   return logs.flatMap((log): NotificationItem[] => {
     const status = TERMINAL_STATUS_TEXT[log.status];
     if (!status) return [];
     if (log.operation_type === "lint" && log.status === "succeeded" && log.changed_resource_count === 0) return [];
     const occurredAt = parseTime(log.completed_at) ?? parseTime(log.created_at);
     if (occurredAt === null) return [];
-    const text = taskText(log, log.status as TerminalStatus, t);
+    const text = taskText(log, log.status as TerminalStatus, t, tSummary);
     return [{
       id: `task:${log.operation_id}`,
       category: "task",
       title: text.title,
-      description: describeOperation(log, text.sentence),
+      description: describeOperation(log, text.sentence, tSummary),
       occurredAt,
       changeCount: log.changed_resource_count > 0 ? log.changed_resource_count : null,
       details: [text.sentence, ...[text.target, text.summary, text.changed].filter((line): line is string => line !== null)],

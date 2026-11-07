@@ -5,6 +5,7 @@ import { deleteChatSession } from "@/entities/chat/api/chat";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
+import { chatSessionDisplayTitle } from "@/entities/chat/lib/sessionTitle";
 import { chatBubbleIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon, AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
@@ -140,11 +141,11 @@ export function AgentHeader({
     };
   }, [isListOpen, sessionTitle, loadSessions, t, tShared]);
 
-  // 세션 title이 없으면 헤더와 동일하게 "새 채팅"으로 표시한다
+  // 세션 title이 없거나 서버 기본 제목이면 헤더와 동일하게 지금 언어의 기본 제목으로 표시한다
   const fallbackTitle = t("header.newChat");
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const visibleSessions = sessions.filter((session) =>
-    (session.title ?? fallbackTitle).toLowerCase().includes(normalizedSearch)
+    chatSessionDisplayTitle(session.title, fallbackTitle).toLowerCase().includes(normalizedSearch)
   );
 
   return (
@@ -257,14 +258,15 @@ export function AgentHeader({
                     disabled={isInteractionLocked}
                     onClick={() => {
                       setRowMenu(null);
-                      onSelectSession(session.id, session.title ?? fallbackTitle);
+                      // 화면 문구가 아니라 서버 제목을 넘겨야 기본 제목 판정(isDefaultChatTitle)이 언어와 상관없이 맞는다.
+                      onSelectSession(session.id, session.title);
                       setIsListOpen(false);
                     }}
                   >
                     {isActive
                       ? <AgentAssetIcon src={fruitionLogo} size={14} className={styles["chat-session-logo"]} />
                       : <SvgIcon src={chatBubbleIcon} className={styles["chat-session-icon"]} />}
-                    <span className={styles["chat-session-label"]}>{session.title ?? fallbackTitle}</span>
+                    <span className={styles["chat-session-label"]}>{chatSessionDisplayTitle(session.title, fallbackTitle)}</span>
                   </button>
                   <div className={styles["chat-session-menu"]}>
                     <button

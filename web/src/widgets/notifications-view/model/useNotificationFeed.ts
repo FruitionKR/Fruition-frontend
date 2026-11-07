@@ -65,6 +65,7 @@ export function useNotificationFeed(isViewActive: boolean) {
   const { data: me } = useMe();
   const t = useTranslations("workspace.notificationsView");
   const tServer = useTranslations("wiki.notifications.server");
+  const tSummary = useTranslations("workspace.logMessages.summary");
   const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
@@ -96,7 +97,7 @@ export function useNotificationFeed(isViewActive: boolean) {
     retry: false
   });
 
-  const taskItems = useMemo(() => buildTaskNotifications(tasksQuery.data?.logs ?? [], t), [tasksQuery.data, t]);
+  const taskItems = useMemo(() => buildTaskNotifications(tasksQuery.data?.logs ?? [], t, tSummary), [tasksQuery.data, t, tSummary]);
   // 브라우저 읽음 기록을 쓰는 알림(멤버 참여). 서버 알림은 읽음을 서버가 가지므로 기준점 계산에 넣지 않는다.
   const memberItems = useMemo(
     () => buildWorkspaceNotifications(membersQuery.data ?? [], me?.id ?? null, t),
