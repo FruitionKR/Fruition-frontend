@@ -22,12 +22,12 @@
   "hero": {
     "titleLine1": "From piling notes",
     "titleLine2": "to knowledge you use.",
-    "sub": "Gather, connect, and put your scattered notes to work.",
-    "text": "More than document storage: a space where your notes grow into living knowledge.",
+    "sub": "Sources piling up, but hard to put to use?",
+    "text": "Find answers, refine documents, and reuse what you learn in your next task with Fruition.",
     "caption": "Documents, wiki, and chat on one screen. Sample screen for illustration."
   },
   "demo": {
-    "title": "How notes become knowledge",
+    "title": "Upload sources, find answers, and put them to work",
     "features": "{title} features",
     "slots": {
       "upload": {
@@ -242,5 +242,28 @@
       "weeklyReport": "Draft weekly report",
       "fileOrganize": "Organize folders"
     }
+  },
+  "problems": {
+    "label": "The hard part starts after saving",
+    "title": "Back to the beginning. Every time.",
+    "body": "Even with your sources saved, using them means finding, reading, and organizing them all over again.",
+    "findTitle": "“Where did I see that?”",
+    "findBody": "You search through documents, meeting notes, and conversations for something you have already read.",
+    "connectTitle": "“Found it. Now I have to read it all.”",
+    "connectBody": "You read across scattered sources and work out how the pieces fit together.",
+    "reuseTitle": "“I have done this before.”",
+    "reuseBody": "When insights and workflows are not saved, you repeat the same writing and editing work."
+  },
+  "solution": {
+    "label": "How Fruition helps",
+    "title": "From saved sources to your next task.",
+    "body": "Connect your sources, find the answers you need, and use them in your documents and recurring work.",
+    "findTitle": "Ask questions. Check the sources.",
+    "findBody": "Add documents to your wiki and ask questions about them. Follow the citations to check the original text.",
+    "connectTitle": "Understand the connections.",
+    "connectBody": "Explore concepts and relationships across documents in your wiki and graph. Save useful conversations as documents to add to your wiki.",
+    "reuseTitle": "Refine documents. Reuse your workflow.",
+    "reuseBody": "Ask AI to edit a document and accept the suggestions you need. Save recurring requests as skills to run with the same rules next time.",
+    "explore": "See how it works"
   }
 }

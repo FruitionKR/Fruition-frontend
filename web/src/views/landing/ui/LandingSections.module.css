@@ -1,4 +1,103 @@
-/* 랜딩 섹션 배치(시연 영상 · 함께하기 · 문서 보호 · FAQ · 마지막 안내). 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
+/* 랜딩 섹션 배치. 색은 --lp-* 토큰을 쓰고 모든 섹션이 테마를 따른다. */
+
+.story {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 40px;
+  max-width: var(--lp-wrap);
+  margin: 0 auto;
+  padding: var(--lp-section-pad) var(--lp-gutter);
+}
+
+.story-heading {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.story-label {
+  margin: 0;
+  color: var(--lp-accent-ink);
+  font-size: var(--lp-text-small);
+  font-weight: 600;
+}
+
+.problem-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.problem-list li {
+  padding: 28px;
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-card);
+  background: var(--lp-panel);
+}
+
+.problem-list h3,
+.solution-list h3 {
+  margin: 0 0 12px;
+  font-size: var(--lp-text-sub);
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+}
+
+.problem-list p,
+.solution-list p {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body);
+  line-height: 1.7;
+}
+
+.solution {
+  background: var(--lp-accent-weak);
+}
+
+.solution-list {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.solution-list li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 24px;
+  padding: 28px 0;
+  border-top: 1px solid var(--lp-line);
+}
+
+.solution-list li:last-child {
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.story-number {
+  color: var(--lp-accent-ink);
+  font-size: var(--lp-text-sub);
+  font-weight: 700;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767px) {
+  .problem-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .solution-list li {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 16px;
+  }
+}
 
 /* ───── 아이콘 글리프(칩 공통) ───── */
 .glyph {

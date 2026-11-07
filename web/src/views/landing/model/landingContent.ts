@@ -1,5 +1,5 @@
 /**
- * 랜딩 화면 구조. 히어로 → 시연 영상 3묶음 → 함께하기 → 문서 보호 → FAQ → 마지막 안내 순서다.
+ * 랜딩 화면 구조. 히어로 → 사용자 어려움 → 서비스 가치 → 시연 영상 3묶음 → 함께하기 → 문서 보호 → FAQ → 마지막 안내 순서다.
  * 문구는 언어별 메시지(src/shared/i18n/messages/{ko,en}/landing.json)에 있고, 여기에는 순서·키·영상만 둔다.
  * 함께하기 문구와 기능 칩의 한국어는 사용자가 정한 문구를 그대로 쓴다(영어 부제·괄호 병기 포함).
  */
@@ -69,7 +69,7 @@ export const LANDING_DEMO_SLOTS: readonly LandingDemoSlot[] = [
   }
 ];
 
-/** "기능 둘러보기"와 건너뛰기 링크가 가리키는 첫 영상 묶음 */
+/** "기능 둘러보기" 링크가 가리키는 첫 영상 묶음 */
 export const LANDING_FIRST_DEMO_ANCHOR = `#demo-${LANDING_DEMO_SLOTS[0].id}`;
 
 /** FAQ 순서. landing.faq.items 아래 메시지 키다. */

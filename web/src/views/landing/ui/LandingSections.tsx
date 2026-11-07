@@ -11,6 +11,65 @@ import { TogetherVisual } from "./preview/FeatureFragments";
 import styles from "./LandingPage.module.css";
 import sections from "./LandingSections.module.css";
 
+export function LandingProblems() {
+  const t = useTranslations("landing.problems");
+  return (
+    <section id="problems" className={sections["story"]} aria-labelledby="problems-title">
+      <div className={sections["story-heading"]}>
+        <p className={sections["story-label"]}>{t("label")}</p>
+        <h2 id="problems-title" className={styles["h2"]}>{t("title")}</h2>
+        <p className={styles["lead"]}>{t("body")}</p>
+      </div>
+      <ul className={sections["problem-list"]}>
+        <li>
+          <h3>{t("findTitle")}</h3>
+          <p>{t("findBody")}</p>
+        </li>
+        <li>
+          <h3>{t("connectTitle")}</h3>
+          <p>{t("connectBody")}</p>
+        </li>
+        <li>
+          <h3>{t("reuseTitle")}</h3>
+          <p>{t("reuseBody")}</p>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+export function LandingSolution() {
+  const t = useTranslations("landing.solution");
+  return (
+    <section id="solution" className={sections["solution"]} aria-labelledby="solution-title">
+      <div className={sections["story"]}>
+        <div className={sections["story-heading"]}>
+          <p className={sections["story-label"]}>{t("label")}</p>
+          <h2 id="solution-title" className={styles["h2"]}>{t("title")}</h2>
+          <p className={styles["lead"]}>{t("body")}</p>
+        </div>
+        <ol className={sections["solution-list"]}>
+          <li>
+            <span className={sections["story-number"]} aria-hidden="true">01</span>
+            <div><h3>{t("findTitle")}</h3><p>{t("findBody")}</p></div>
+          </li>
+          <li>
+            <span className={sections["story-number"]} aria-hidden="true">02</span>
+            <div><h3>{t("connectTitle")}</h3><p>{t("connectBody")}</p></div>
+          </li>
+          <li>
+            <span className={sections["story-number"]} aria-hidden="true">03</span>
+            <div><h3>{t("reuseTitle")}</h3><p>{t("reuseBody")}</p></div>
+          </li>
+        </ol>
+        <Link className={styles["button-ghost"]} href="#demo" replace>
+          {t("explore")} <span aria-hidden="true">↓</span>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function FeatureChips({ chips, label }: { chips: readonly LandingChipId[]; label: string }) {
   const t = useTranslations("landing.chips");
   return (

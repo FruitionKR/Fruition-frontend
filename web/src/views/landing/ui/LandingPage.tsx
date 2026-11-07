@@ -6,7 +6,7 @@ import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_FIRST_DEMO_ANCHOR, LANDING_NAV } from "../model/landingContent";
 import { LandingRedirect } from "./LandingRedirect";
 import { LandingMobileMenu } from "./LandingMobileMenu";
-import { LandingDataHandling, LandingDemo, LandingFaq, LandingStart, LandingTogether } from "./LandingSections";
+import { LandingDataHandling, LandingDemo, LandingFaq, LandingProblems, LandingSolution, LandingStart, LandingTogether } from "./LandingSections";
 import { HeroPreview } from "./preview/FeatureFragments";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -94,12 +94,14 @@ export default function LandingPage() {
   return (
     <div className={styles["landing-page"]}>
       <LandingRedirect />
-      <Link className={styles["skip-link"]} href={LANDING_FIRST_DEMO_ANCHOR} replace>
+      <Link className={styles["skip-link"]} href="#problems" replace>
         {t("skipLink")}
       </Link>
       <LandingHeader />
       <main>
         <LandingHero />
+        <LandingProblems />
+        <LandingSolution />
         <LandingDemo />
         <LandingTogether />
         <LandingDataHandling />
