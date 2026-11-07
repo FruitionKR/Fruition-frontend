@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   checkEmailAvailability,
   EMPTY_CONSENT,
@@ -9,7 +10,6 @@ import {
   registeredEmailErrorMessage,
   requestEmailVerification,
   signupAvailabilityMessage,
-  verificationWaitMessage,
   verificationWaitSeconds,
   type ConsentChoices
 } from "@/entities/user";
@@ -23,9 +23,16 @@ import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen } from "@/shared/ui/auth/AuthScreen";
 import { LoginLinkPrompt } from "@/views/auth/ui/LoginLinkPrompt";
+import { verificationWaitMessage } from "@/views/auth/lib/verificationWaitMessage";
 
 export default function SignupPage() {
   const router = useRouter();
+  const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
+  const waitMessage = (seconds: number) => {
+    const { key, values } = verificationWaitMessage(seconds);
+    return t(`verification.wait.${key}`, values);
+  };
   const { signupDraft, setSignupDraft, isCurrentSignupVerificationRequest } = useAuthFlow();
   const [nickname, setNickname] = useState(signupDraft?.nickname ?? "");
   const [email, setEmail] = useState(signupDraft?.email ?? "");
@@ -41,13 +48,13 @@ export default function SignupPage() {
   const retryCountdown = useExpiryCountdown(retryAt);
   const isWaitingRetry = retryAt > Date.now();
   const visibleError = errorMessage
-    ?? (isWaitingRetry ? verificationWaitMessage(Math.max(1, retryCountdown.seconds)) : retryAt > 0 ? null : draftError);
+    ?? (isWaitingRetry ? waitMessage(Math.max(1, retryCountdown.seconds)) : retryAt > 0 ? null : draftError);
 
   async function handleVerificationRequest(event: React.FormEvent) {
     event.preventDefault();
     if (isSubmitting || isWaitingRetry) return;
 
-    const passwordError = getPasswordPolicyError(password);
+    const passwordError = getPasswordPolicyError(password, tShared);
     if (passwordError) {
       setErrorMessage(passwordError);
       return;
@@ -55,7 +62,7 @@ export default function SignupPage() {
     // 버튼이 꺼져 있어도 Enter 제출은 들어올 수 있다. 필수 동의 없이는 인증 요청을 시작하지 않는다.
     // 약관 공개 플래그가 꺼져 있으면 동의를 묻지 않는다(서버 LEGAL_CONSENT_REQUIRED=false와 짝).
     if (!isSignupConsentReady(LEGAL_PAGES_ENABLED, consent)) {
-      setErrorMessage("만 18세 이상 확인과 이용약관 동의는 필수입니다.");
+      setErrorMessage(t("signup.consentRequired"));
       return;
     }
 
@@ -66,7 +73,7 @@ export default function SignupPage() {
     try {
       // 소셜 가입 계정이 있으면 available=false와 함께 oauth_providers가 와서 인증 요청이 409로 거절된다.
       // 인증 메일을 보내기 전에 그 소셜 로그인 뒤 연동하도록 먼저 안내한다(access #31).
-      const blockedMessage = signupAvailabilityMessage(await checkEmailAvailability(normalizedEmail));
+      const blockedMessage = signupAvailabilityMessage(await checkEmailAvailability(normalizedEmail), tShared);
       if (blockedMessage) {
         setErrorMessage(blockedMessage);
         setIsSubmitting(false);
@@ -74,7 +81,7 @@ export default function SignupPage() {
       }
     } catch (error: unknown) {
       const waitSeconds = verificationWaitSeconds(error);
-      setErrorMessage(waitSeconds !== null ? verificationWaitMessage(waitSeconds) : getErrorMessage(error, "이메일 중복 확인에 실패했습니다."));
+      setErrorMessage(waitSeconds !== null ? waitMessage(waitSeconds) : getErrorMessage(error, t("signup.emailCheckFailed"), tShared));
       setIsSubmitting(false);
       return;
     }
@@ -107,8 +114,8 @@ export default function SignupPage() {
       setSignupDraft({
         ...pendingDraft,
         verificationRequestError: waitSeconds !== null
-          ? verificationWaitMessage(waitSeconds)
-          : registeredEmailErrorMessage(error) ?? getErrorMessage(error, "인증번호 요청에 실패했습니다."),
+          ? waitMessage(waitSeconds)
+          : registeredEmailErrorMessage(error, tShared) ?? getErrorMessage(error, t("signup.verificationRequestFailed"), tShared),
         verificationRetryAt: waitSeconds !== null ? Date.now() + waitSeconds * 1000 : undefined
       });
       setIsSubmitting(false);
@@ -117,19 +124,19 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthScreen title="회원가입">
+    <AuthScreen title={t("signup.title")}>
       <form className="auth-form" method="post" onSubmit={handleVerificationRequest} ref={formRef}>
         <div className="auth-field-with-error">
           <div className="auth-field-stack">
-            <AuthField label="닉네임" name="nickname" onChange={(event) => setNickname(event.target.value)} placeholder="name" value={nickname} />
-            <AuthField autoComplete="email" label="이메일" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="example@email.com" type="email" value={email} />
-            <AuthField autoComplete="new-password" label="비밀번호" name="password" onChange={(event) => setPassword(event.target.value)} placeholder="password" type="password" value={password} />
+            <AuthField label={t("fields.nickname")} name="nickname" onChange={(event) => setNickname(event.target.value)} placeholder="name" value={nickname} />
+            <AuthField autoComplete="email" label={t("fields.email")} name="email" onChange={(event) => setEmail(event.target.value)} placeholder="example@email.com" type="email" value={email} />
+            <AuthField autoComplete="new-password" label={t("fields.password")} name="password" onChange={(event) => setPassword(event.target.value)} placeholder="password" type="password" value={password} />
             {LEGAL_PAGES_ENABLED ? <ConsentForm disabled={isSubmitting} idPrefix="signup-consent" onChange={setConsent} value={consent} /> : null}
           </div>
           {visibleError ? <AuthError>{visibleError}</AuthError> : null}
         </div>
         {/* 동의 UI가 켜져 있으면 필수 동의(만 18세·이용약관)를 모두 체크해야 가입을 시작할 수 있다. */}
-        <AuthSubmitButton disabled={isSubmitting || isWaitingRetry || !isSignupConsentReady(LEGAL_PAGES_ENABLED, consent)}>인증 요청</AuthSubmitButton>
+        <AuthSubmitButton disabled={isSubmitting || isWaitingRetry || !isSignupConsentReady(LEGAL_PAGES_ENABLED, consent)}>{t("signup.submit")}</AuthSubmitButton>
       </form>
       <LoginLinkPrompt />
     </AuthScreen>

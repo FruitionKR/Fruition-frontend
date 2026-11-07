@@ -5,20 +5,20 @@ import { deleteChatSession } from "@/entities/chat/api/chat";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissOnOutside } from "@/shared/hooks/useDismissOnOutside";
 import type { ChatSessionResponse } from "@/entities/chat/model/chat";
+import { chatSessionDisplayTitle } from "@/entities/chat/lib/sessionTitle";
 import { chatBubbleIcon, fruitionLogo, sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon, AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 export type AgentPanelView = "chat" | "work";
 
 /** 헤더 보기 탭이 가리키는 본문(tabpanel) id. 패널은 화면에 하나뿐이다. */
 export const AGENT_PANEL_VIEW_IDS: Record<AgentPanelView, string> = { chat: "agent-panel-view-chat", work: "agent-panel-view-work" };
 
-const VIEW_TABS: { view: AgentPanelView; label: string }[] = [
-  { view: "chat", label: "채팅" },
-  { view: "work", label: "작업" }
-];
+/** 보기 탭 순서. 이름은 agentChat.header.view.{view}다. */
+const VIEW_TABS: readonly AgentPanelView[] = ["chat", "work"];
 
 /**
  * 채팅 패널 헤더(Figma 1571:28010 GNB): 대화 제목 탭(제목 + 셰브론 = 세션 목록 드롭다운)
@@ -52,6 +52,8 @@ export function AgentHeader({
   onStartWikiExport: () => void;
   isSessionListInitiallyOpen?: boolean;
 }) {
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [isListOpen, setIsListOpen] = useState(isSessionListInitiallyOpen);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,7 +88,7 @@ export function AgentHeader({
       return true;
     } catch (error: unknown) {
       // 한도에 닿았으면 지울 대화를 바로 고르도록 목록과 함께 보여 준다(⋯ 메뉴에서 눌렀을 때도).
-      setNewChatErrorMessage(getErrorMessage(error, "새 채팅을 만들지 못했습니다."));
+      setNewChatErrorMessage(getErrorMessage(error, t("header.newChatFailed"), tShared));
       setIsListOpen(true);
       return false;
     } finally {
@@ -108,7 +110,7 @@ export function AgentHeader({
       if (remaining[0]) onSelectSession(remaining[0].id, remaining[0].title);
       else await startNewChat();
     } catch (error: unknown) {
-      setLoadErrorMessage(getErrorMessage(error, "채팅을 삭제하지 못했습니다."));
+      setLoadErrorMessage(getErrorMessage(error, t("header.deleteFailed"), tShared));
     }
   }
 
@@ -131,19 +133,19 @@ export function AgentHeader({
         setLoadErrorMessage(null);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, "채팅 세션을 불러오지 못했습니다."));
+        if (!cancelled) setLoadErrorMessage(getErrorMessage(error, t("header.sessionsLoadFailed"), tShared));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isListOpen, sessionTitle, loadSessions]);
+  }, [isListOpen, sessionTitle, loadSessions, t, tShared]);
 
-  // 세션 title이 없으면 헤더와 동일하게 "새 채팅"으로 표시한다
-  const fallbackTitle = "새 채팅";
+  // 세션 title이 없거나 서버 기본 제목이면 헤더와 동일하게 지금 언어의 기본 제목으로 표시한다
+  const fallbackTitle = t("header.newChat");
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const visibleSessions = sessions.filter((session) =>
-    (session.title ?? fallbackTitle).toLowerCase().includes(normalizedSearch)
+    chatSessionDisplayTitle(session.title, fallbackTitle).toLowerCase().includes(normalizedSearch)
   );
 
   return (
@@ -164,8 +166,9 @@ export function AgentHeader({
         </button>
       </div>
       <div className={styles["agent-header-actions"]}>
-        <div className={styles["agent-view-tabs"]} role="tablist" aria-label="채팅 패널 보기">
-          {VIEW_TABS.map(({ view, label }) => {
+        <div className={styles["agent-view-tabs"]} role="tablist" aria-label={t("header.viewTabs")}>
+          {VIEW_TABS.map((view) => {
+            const label = t(`header.view.${view}`);
             const isSelected = view === activeView;
             return (
               <button
@@ -181,7 +184,7 @@ export function AgentHeader({
                 onKeyDown={(event) => {
                   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                   event.preventDefault();
-                  const next = VIEW_TABS[(VIEW_TABS.findIndex((tab) => tab.view === view) + 1) % VIEW_TABS.length].view;
+                  const next = VIEW_TABS[(VIEW_TABS.indexOf(view) + 1) % VIEW_TABS.length];
                   onViewChange(next);
                   document.getElementById(`${AGENT_PANEL_VIEW_IDS[next]}-tab`)?.focus();
                 }}
@@ -195,7 +198,7 @@ export function AgentHeader({
           <button
             type="button"
             className={styles["panel-action"]}
-            aria-label="채팅 옵션"
+            aria-label={t("header.chatOptions")}
             aria-expanded={isMenuOpen}
             disabled={isInteractionLocked}
             onClick={() => setIsMenuOpen((open) => !open)}
@@ -204,7 +207,7 @@ export function AgentHeader({
           </button>
           {isMenuOpen && (
             <div className={styles["agent-header-menu-list"]} role="menu">
-              <button type="button" role="menuitem" onClick={startNewChat}>새 채팅</button>
+              <button type="button" role="menuitem" onClick={startNewChat}>{t("header.newChat")}</button>
               <button
                 type="button"
                 role="menuitem"
@@ -214,12 +217,12 @@ export function AgentHeader({
                   onStartWikiExport();
                 }}
               >
-                채팅을 문서로 편입
+                {t("header.exportToDocument")}
               </button>
             </div>
           )}
         </div>
-        <button type="button" className={styles["panel-action"]} aria-label="Agent 패널 숨기기" onClick={onClose}>
+        <button type="button" className={styles["panel-action"]} aria-label={t("header.hidePanel")} onClick={onClose}>
           <SvgIcon src={sidebarToggleIcon} className={styles["panel-toggle-icon"]} />
         </button>
       </div>
@@ -229,9 +232,9 @@ export function AgentHeader({
           <label className={styles["chat-session-search"]}>
             <Search size={12} />
             <input
-              aria-label="채팅 검색"
+              aria-label={t("header.searchChats")}
               value={searchTerm}
-              placeholder="채팅 검색"
+              placeholder={t("header.searchChats")}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </label>
@@ -239,7 +242,7 @@ export function AgentHeader({
           {loadErrorMessage ? (
             <p className={styles["chat-session-error"]} role="alert">{loadErrorMessage}</p>
           ) : visibleSessions.length === 0 ? (
-            <p className={styles["chat-session-empty"]}>채팅 세션이 없습니다.</p>
+            <p className={styles["chat-session-empty"]}>{t("header.noSessions")}</p>
           ) : (
             <div className={styles["chat-session-list"]}>
               {visibleSessions.map((session) => {
@@ -255,20 +258,21 @@ export function AgentHeader({
                     disabled={isInteractionLocked}
                     onClick={() => {
                       setRowMenu(null);
-                      onSelectSession(session.id, session.title ?? fallbackTitle);
+                      // 화면 문구가 아니라 서버 제목을 넘겨야 기본 제목 판정(isDefaultChatTitle)이 언어와 상관없이 맞는다.
+                      onSelectSession(session.id, session.title);
                       setIsListOpen(false);
                     }}
                   >
                     {isActive
                       ? <AgentAssetIcon src={fruitionLogo} size={14} className={styles["chat-session-logo"]} />
                       : <SvgIcon src={chatBubbleIcon} className={styles["chat-session-icon"]} />}
-                    <span className={styles["chat-session-label"]}>{session.title ?? fallbackTitle}</span>
+                    <span className={styles["chat-session-label"]}>{chatSessionDisplayTitle(session.title, fallbackTitle)}</span>
                   </button>
                   <div className={styles["chat-session-menu"]}>
                     <button
                       type="button"
                       className={styles["chat-session-more"]}
-                      aria-label="채팅 옵션"
+                      aria-label={t("header.chatOptions")}
                       aria-expanded={rowMenu?.id === session.id}
                       disabled={isInteractionLocked}
                       onClick={(event) => {
@@ -300,7 +304,7 @@ export function AgentHeader({
             }}
           >
             <Plus size={12} />
-            <span>새 채팅</span>
+            <span>{t("header.newChat")}</span>
           </button>
         </div>
       )}
@@ -318,7 +322,7 @@ export function AgentHeader({
             className={styles["is-danger"]}
             onClick={() => handleDeleteSession(rowMenu.id)}
           >
-            삭제
+            {t("actions.delete")}
           </button>
         </div>,
         document.body

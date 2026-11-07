@@ -1,3 +1,5 @@
+import type { AgentChatTranslator } from "@/features/agent-chat/lib/agentChatTranslator";
+
 /**
  * 입력창에 포커스가 있을 때 Esc로 멈출 대상. 테스트가 직접 import하므로 다른 모듈을 import하지 않는다.
  *
@@ -52,16 +54,16 @@ export function resolveComposerStopTarget({
 }
 
 /** 멈출 대상이 있는 동안 입력창 아래에 보이는 안내 */
-export function composerStopHint(target: ComposerStopTarget): string {
-  if (target.kind === "skill-run") return "입력창에서 Esc를 누르면 스킬 실행을 취소합니다.";
-  if (target.kind === "query" || target.kind === "pending-query") return "입력창에서 Esc를 누르면 질문을 취소합니다.";
-  return "입력창에서 Esc를 누르면 작업을 중지합니다.";
+export function composerStopHint(target: ComposerStopTarget, t: AgentChatTranslator): string {
+  if (target.kind === "skill-run") return t("composer.stop.hint.skillRun");
+  if (target.kind === "query" || target.kind === "pending-query") return t("composer.stop.hint.query");
+  return t("composer.stop.hint.turn");
 }
 
 /** Esc로 멈추는 동안 입력창 아래에 보이는 안내. 채팅 질의는 질의 쪽이 따로 안내한다. */
-export function composerStoppingMessage(target: ComposerStopTarget | null): string | null {
+export function composerStoppingMessage(target: ComposerStopTarget | null, t: AgentChatTranslator): string | null {
   if (!target) return null;
-  if (target.kind === "following-turn" || target.kind === "pending-turn") return "작업을 중지하는 중…";
-  if (target.kind === "pending-query") return "질문을 취소하는 중…";
+  if (target.kind === "following-turn" || target.kind === "pending-turn") return t("composer.stop.stopping.turn");
+  if (target.kind === "pending-query") return t("composer.stop.stopping.query");
   return null;
 }

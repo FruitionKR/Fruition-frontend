@@ -3,6 +3,7 @@
 import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import { verificationCodeLabel } from "@/shared/lib/developmentVerificationCode";
 import { useEffect, useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   buildEmailChangeBody,
@@ -44,6 +45,8 @@ export function EmailChangeModal({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const { isMfaEnabled, requireMfa } = useMfaRequirement();
   const [previousEmail] = useState(me.email);
@@ -79,7 +82,7 @@ export function EmailChangeModal({
     if (busy || Date.now() < retryAt) return;
     // 인증번호 요청은 로그인 없이 받는 요청이라 지금 쓰는 주소도 '다른 계정이 사용 중'(409)으로 거절된다. 보내기 전에 막는다.
     if (isSameEmail(email, me.email)) {
-      setError("지금 쓰는 이메일과 같습니다.");
+      setError(t("emailChange.sameEmail"));
       return;
     }
     setBusy(true);
@@ -94,7 +97,7 @@ export function EmailChangeModal({
       setRetryAt(Date.now() + result.retry_after * 1000);
     } catch (cause: unknown) {
       // 다른 계정이 쓰는 주소(409 DUPLICATE_EMAIL)는 변경 단계와 같은 문구로 알리고 이메일 입력에 머문다.
-      setError(emailCodeRequestFailureMessage(cause) ?? getErrorMessage(cause, "인증번호를 보내지 못했습니다."));
+      setError(emailCodeRequestFailureMessage(cause, tShared) ?? getErrorMessage(cause, t("common.sendCodeFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -109,7 +112,7 @@ export function EmailChangeModal({
       setToken(result.verification_token);
       setStep("reauth");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "인증번호 확인에 실패했습니다."));
+      setError(getErrorMessage(cause, t("common.verifyCodeFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -134,7 +137,7 @@ export function EmailChangeModal({
 
   /** 서버 error.code에 따라 고칠 입력만 다시 받는다. 본인 확인 실패는 같은 인증 토큰을 그대로 쓴다. */
   function recoverFrom(cause: unknown) {
-    const failure = emailChangeFailure(cause, "이메일을 변경하지 못했습니다.");
+    const failure = emailChangeFailure(cause, t("emailChange.failed"), tShared);
     setError(failure.message);
     setNeedsReauth(failure.recovery === "relogin");
     if (failure.recovery === "email") resetToEmail();
@@ -192,21 +195,21 @@ export function EmailChangeModal({
     : step === "code" ? isEmailCodeComplete(code)
     : blockedSeconds === 0 && (!isMfaEnabled || mfaCode.trim().length > 0)
   );
-  const submitLabel = busy ? "처리 중…"
-    : step === "email" ? (retrySeconds > 0 ? `${retrySeconds}초 후 가능` : "변경하기")
-    : step === "code" ? "인증하기"
-    : step === "reauth" ? (blockedSeconds > 0 ? `${blockedSeconds}초 후 가능` : "이메일 변경")
-    : "확인";
-  const subtitle = step === "email" ? "이 계정에 로그인할 때 사용할 이메일을 변경합니다."
-    : step === "code" ? "인증번호 6자리를 입력하여 이메일을 인증하세요."
-    : step === "reauth" ? (isMfaEnabled ? "본인 확인을 위해 현재 비밀번호와 인증 코드를 입력하세요." : "본인 확인을 위해 현재 비밀번호를 입력하세요.")
-    : <span role="status">이메일을 {email.trim()}(으)로 변경했습니다.</span>;
+  const submitLabel = busy ? t("common.processing")
+    : step === "email" ? (retrySeconds > 0 ? t("common.secondsLeft", { seconds: retrySeconds }) : t("emailChange.submitEmail"))
+    : step === "code" ? t("common.verify")
+    : step === "reauth" ? (blockedSeconds > 0 ? t("common.secondsLeft", { seconds: blockedSeconds }) : t("emailChange.submitChange"))
+    : t("common.confirm");
+  const subtitle = step === "email" ? t("emailChange.emailSubtitle")
+    : step === "code" ? t("common.codeStepSubtitle")
+    : step === "reauth" ? (isMfaEnabled ? t("emailChange.reauthSubtitleMfa") : t("emailChange.reauthSubtitle"))
+    : <span role="status">{t("emailChange.doneSubtitle", { email: email.trim() })}</span>;
 
   return (
     <AccountFlowModal
-      title="이메일 변경"
+      title={t("emailChange.title")}
       subtitle={subtitle}
-      ariaLabel="이메일 변경"
+      ariaLabel={t("emailChange.title")}
       canClose={!busy}
       // 변경을 마친 뒤에는 닫아도 완료로 처리한다.
       onClose={step === "done" ? onSaved : onClose}
@@ -214,7 +217,7 @@ export function EmailChangeModal({
     >
       {step === "email" && (
         <div className={styles.field}>
-          <label htmlFor="email-change-email">변경할 이메일 주소</label>
+          <label htmlFor="email-change-email">{t("emailChange.newEmailLabel")}</label>
           <input
             id="email-change-email"
             type="email"
@@ -226,18 +229,18 @@ export function EmailChangeModal({
             disabled={busy}
             onChange={(event) => setEmail(event.target.value)}
           />
-          <p className={styles.hint}>이메일을 변경하면 다른 기기의 로그인 갱신이 해제됩니다.</p>
+          <p className={styles.hint}>{t("emailChange.sessionsHint")}</p>
           <FlowError error={error} />
         </div>
       )}
 
       {step === "code" && (
         <div className={styles.field}>
-          <label htmlFor="email-change-code">{verificationCodeLabel()}</label>
+          <label htmlFor="email-change-code">{verificationCodeLabel(undefined, tShared)}</label>
           <VerificationCodeInput id="email-change-code" value={code} disabled={busy} onChange={setCode} />
-          <p className={styles.hint}>{email.trim()} 주소로 인증번호를 보냈습니다.</p>
+          <p className={styles.hint}>{t("common.codeSentTo", { email: email.trim() })}</p>
           <button type="button" className={styles.resend} disabled={busy || retrySeconds > 0} onClick={() => void sendCode()}>
-            {retrySeconds > 0 ? `${retrySeconds}초 후 재전송 가능` : "인증번호 재전송"}
+            {retrySeconds > 0 ? t("emailChange.resendIn", { seconds: retrySeconds }) : t("emailChange.resend")}
           </button>
           <FlowError error={error} />
         </div>
@@ -247,9 +250,9 @@ export function EmailChangeModal({
         <div className={styles.fields}>
           <div className={styles.field}>
             <div className={styles["field-head"]}>
-              <label htmlFor="email-change-password">현재 비밀번호</label>
+              <label htmlFor="email-change-password">{t("emailChange.currentPassword")}</label>
               {linkedProviders.length > 0 && (
-                <p className={styles["field-desc"]}>비밀번호 없이 소셜 계정으로만 로그인하는 경우 비워 두세요.</p>
+                <p className={styles["field-desc"]}>{t("common.socialOnlyPasswordHint")}</p>
               )}
             </div>
             <input
@@ -266,7 +269,7 @@ export function EmailChangeModal({
           </div>
           {isMfaEnabled && (
             <div className={styles.field}>
-              <label htmlFor="email-change-mfa">인증 코드 또는 복구 코드</label>
+              <label htmlFor="email-change-mfa">{t("common.mfaCodeLabel")}</label>
               <input
                 id="email-change-mfa"
                 autoComplete="one-time-code"
@@ -280,17 +283,17 @@ export function EmailChangeModal({
           )}
           {needsReauth && linkedProviders.length > 0 && (
             <div className={styles.field}>
-              <p className={styles["field-desc"]}>소셜 계정으로 다시 로그인하면 이 화면으로 돌아옵니다. 10분 안에 이메일 변경을 마쳐 주세요.</p>
+              <p className={styles["field-desc"]}>{t("emailChange.reloginHint")}</p>
               <div className={styles["provider-row"]}>
                 {linkedProviders.map((provider) => (
                   <button key={provider} type="button" className={styles["btn-back"]} disabled={busy} onClick={() => reloginWith(provider)}>
-                    {oauthProviderName(provider)}로 다시 로그인
+                    {t("common.reloginWith", { provider: oauthProviderName(provider, tShared) })}
                   </button>
                 ))}
               </div>
             </div>
           )}
-          <p className={styles.hint}>{email.trim()}(으)로 변경합니다. 변경 알림은 기존 이메일로 보내 드립니다.</p>
+          <p className={styles.hint}>{t("emailChange.changeTo", { email: email.trim() })}</p>
           <FlowError error={error} />
         </div>
       )}
@@ -298,7 +301,7 @@ export function EmailChangeModal({
       {step === "done" && (
         <div className={styles.field}>
           <p className={styles.hint}>
-            기존 이메일({previousEmail})로 변경 알림을 보냈습니다. 이 기기를 뺀 다른 기기의 로그인은 해제되었습니다.
+            {t("emailChange.doneHint", { email: previousEmail })}
           </p>
         </div>
       )}

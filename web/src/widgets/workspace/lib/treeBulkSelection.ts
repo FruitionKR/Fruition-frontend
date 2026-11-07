@@ -1,6 +1,7 @@
 import { isFileItem } from "@/entities/tree/lib/treeGuards";
 import { canWriteTreeFolder, folderDeleteBlockedReason } from "@/entities/tree/lib/treePermission";
 import type { Project, TreeItem } from "@/entities/tree/model/tree";
+import { TREE_SKIP_REASONS } from "@/entities/tree/lib/treeSkipReasons";
 
 /** 묶음 작업에서 건너뛴(또는 실패한) 항목과 그 이유. 요약 알림에 그대로 쓴다. */
 export type SkippedTreeItem = { label: string; reason: string };
@@ -61,9 +62,9 @@ export function planBulkDelete(projects: readonly Project[], selectedIds: Readon
   for (const item of selectedRootItems(projects, selectedIds)) {
     const folderReason = item.type === "folder" ? folderDeleteBlockedReason(item, canWriteTreeFolder(treeItems, item.id, isWorkspaceOwner) === false, isWorkspaceOwner) : null;
     if (folderReason) skipped.push({ label: item.label, reason: folderReason });
-    else if (item.generated) skipped.push({ label: item.label, reason: "자동 생성 항목은 삭제할 수 없습니다" });
-    else if (isPendingUpload(item)) skipped.push({ label: item.label, reason: "업로드가 끝나지 않았습니다" });
-    else if (item.canDelete === false) skipped.push({ label: item.label, reason: "삭제 권한이 없습니다" });
+    else if (item.generated) skipped.push({ label: item.label, reason: TREE_SKIP_REASONS.generatedDelete });
+    else if (isPendingUpload(item)) skipped.push({ label: item.label, reason: TREE_SKIP_REASONS.uploadPending });
+    else if (item.canDelete === false) skipped.push({ label: item.label, reason: TREE_SKIP_REASONS.noDeletePermission });
     else items.push(item);
   }
   return { items, skipped };
@@ -75,16 +76,18 @@ export function summarizeLabels(labels: readonly string[], limit = SUMMARY_LIST_
   return labels.length > limit ? `${shown} 외 ${labels.length - limit}개` : shown;
 }
 
-/** 묶음 작업 결과를 한 번의 알림 문구로 만든다. 실패·건너뜀은 이유와 함께 나열한다. */
-export function bulkResultNotice(action: string, succeeded: number, failures: readonly SkippedTreeItem[]) {
+/**
+ * 묶음 작업 결과를 한 번의 알림에 담을 값으로 요약한다. 실패·건너뜀은 앞에서부터 이유와 함께 나열하고 나머지는 개수만 남긴다.
+ * 문구는 알림을 띄우는 훅이 언어에 맞춰 만든다.
+ */
+export function summarizeBulkResult(succeeded: number, failures: readonly SkippedTreeItem[]) {
   const failed = failures.length;
-  const title = failed === 0 ? `${action} 완료` : succeeded === 0 ? `${action} 실패` : `일부 ${action} 실패`;
-  const head = failed === 0 ? `${succeeded}개 항목을 ${action}했습니다.` : `성공 ${succeeded}개, 실패 ${failed}개`;
-  const shown = failures.slice(0, SUMMARY_LIST_LIMIT).map((entry) => `「${entry.label}」: ${entry.reason}`);
-  if (failed > SUMMARY_LIST_LIMIT) shown.push(`외 ${failed - SUMMARY_LIST_LIMIT}개`);
+  const outcome: "completed" | "failed" | "partial" = failed === 0 ? "completed" : succeeded === 0 ? "failed" : "partial";
   return {
-    kind: failed === 0 ? "completed" as const : "failed" as const,
-    title,
-    message: [head, ...shown].join("\n")
+    outcome,
+    succeeded,
+    failed,
+    listed: failures.slice(0, SUMMARY_LIST_LIMIT),
+    restCount: Math.max(0, failed - SUMMARY_LIST_LIMIT)
   };
 }

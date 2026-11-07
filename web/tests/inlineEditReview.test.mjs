@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -16,10 +20,12 @@ const {
   countProposals,
   hasAcceptedProposal,
   headingAtLine,
-  proposalSourceLabel,
+  proposalSourceLabel: proposalSourceLabelWith,
   settleRemainingProposals
 } = await import("../src/features/agent-chat/lib/inlineEditReview.ts");
-const { prepareMarkdownEditPreview } = await import("../src/features/agent-chat/lib/agentTurn.ts");
+const proposalSourceLabel = (...args) => proposalSourceLabelWith(...args, agentChatT);
+const { prepareMarkdownEditPreview: prepareMarkdownEditPreviewWith } = await import("../src/features/agent-chat/lib/agentTurn.ts");
+const prepareMarkdownEditPreview = (...args) => prepareMarkdownEditPreviewWith(...args, agentChatT);
 
 const SOURCE = [
   "# 아동의 정서 발달",

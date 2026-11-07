@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { sidebarToggleIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { SidebarWorkspaceChevronIcon } from "@/widgets/document-sidebar/ui/SidebarIcons";
@@ -11,6 +12,7 @@ import styles from "./PreviewPanes.module.css";
  */
 
 export function AgentHeader({ title, tab }: { title: string; tab: "chat" | "task" }) {
+  const t = useTranslations("landing.preview.agent");
   return (
     <div className={styles["agent-header"]}>
       <span className={styles["agent-session"]}>
@@ -18,8 +20,8 @@ export function AgentHeader({ title, tab }: { title: string; tab: "chat" | "task
         <SidebarWorkspaceChevronIcon />
       </span>
       <span className={styles["agent-tabs"]}>
-        <span className={cx(tab === "chat" && styles["is-active"])}>채팅</span>
-        <span className={cx(tab === "task" && styles["is-active"])}>작업</span>
+        <span className={cx(tab === "chat" && styles["is-active"])}>{t("chat")}</span>
+        <span className={cx(tab === "task" && styles["is-active"])}>{t("task")}</span>
       </span>
       <SvgIcon src={sidebarToggleIcon} className={base["sidebar-toggle"]} />
     </div>
@@ -27,11 +29,12 @@ export function AgentHeader({ title, tab }: { title: string; tab: "chat" | "task
 }
 
 export function AgentComposer({ placeholder, children }: { placeholder: string; children?: ReactNode }) {
+  const t = useTranslations("landing.preview.agent");
   return (
     <div className={styles["composer"]}>
       {children ?? <p className={styles["composer-placeholder"]}>{placeholder}</p>}
       <p className={styles["composer-footer"]}>
-        <span>Claude · 웹 서칭</span>
+        <span>{t("model")}</span>
         <span className={styles["composer-actions"]}>
           <span className={styles["composer-voice"]}>
             <i />
@@ -62,6 +65,7 @@ export interface ChatThreadData {
 
 /** 채팅 탭 본문: 질문 → 실행 단계 → 찾은 자료 → 근거 답변 (Figma 1540:19718) */
 export function ChatThread({ data }: { data: ChatThreadData }) {
+  const t = useTranslations("landing.preview.agent");
   return (
     <div className={styles["agent-body"]}>
       <p className={styles["bubble"]} data-align="end">
@@ -69,7 +73,7 @@ export function ChatThread({ data }: { data: ChatThreadData }) {
       </p>
       {data.steps ? (
         <div className={styles["process"]}>
-          <p className={styles["agent-caption"]}>실행 단계 ⌄</p>
+          <p className={styles["agent-caption"]}>{t("steps")}</p>
           <ul className={styles["steps"]}>
             {data.steps.map((step) => (
               <li key={step.label} data-state={step.state}>
@@ -81,7 +85,7 @@ export function ChatThread({ data }: { data: ChatThreadData }) {
       ) : null}
       {data.found ? (
         <div className={styles["found"]}>
-          <p className={styles["agent-caption"]}>찾은 자료 {data.found.length}건</p>
+          <p className={styles["agent-caption"]}>{t("found", { count: data.found.length })}</p>
           {data.found.map((name) => (
             <p key={name} className={styles["found-link"]}>
               {name}

@@ -1,17 +1,23 @@
 import type { AppNotification } from "../api/notifications";
 import type { NoticePayload } from "./noticeBus";
+import type koWiki from "@/shared/i18n/messages/ko/wiki.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
+
+type ServerNoticeTranslate = MessageTranslate<typeof koWiki.notifications.server>;
 
 /**
  * 서버 알림을 사람이 읽을 제목·본문으로 바꾼다. 알림 목록과 우하단 카드가 같은 문구를 쓴다.
  * 전용 문구가 있던 편집 충돌 알림은 서버 자동 병합으로 없어져 지금은 모든 종류를 일반 문구로 보여준다.
+ * t(`useTranslations("wiki.notifications.server")`)를 넘기면 지금 언어로 쓴다.
  */
-export function describeNotification(notification: AppNotification): { title: string; message: string } {
+export function describeNotification(notification: AppNotification, t?: ServerNoticeTranslate): { title: string; message: string } {
+  if (t) return { title: t("title"), message: t("message", { type: notification.type }) };
   return { title: "알림", message: `${notification.type} 알림이 도착했습니다.` };
 }
 
-/** 우하단 카드용 payload. 실패가 아니라 정보성이므로 info로 보여준다. */
-export function toNoticePayload(notification: AppNotification): NoticePayload {
-  return { kind: "info", ...describeNotification(notification) };
+/** 우하단 카드용 payload. 실패가 아니라 정보성이므로 info로 보여준다. 제목이 언어마다 달라 알림 설정 항목(server)을 명시한다. */
+export function toNoticePayload(notification: AppNotification, t?: ServerNoticeTranslate): NoticePayload {
+  return { kind: "info", notificationKey: "server", ...describeNotification(notification, t) };
 }
 
 /**

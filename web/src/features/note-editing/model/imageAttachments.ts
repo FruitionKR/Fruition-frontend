@@ -23,11 +23,14 @@ export function extractAttachmentIds(markdown: string): string[] {
   return [...new Set([...markdown.matchAll(ATTACHMENT_PATTERN)].map((match) => match[1].toLowerCase()))];
 }
 
-/** 업로드 전 형식·크기 검사. 문제가 없으면 null, 있으면 사용자에게 보여줄 문구. */
-export function validateImageFile(file: { type: string; size: number }): string | null {
-  if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.type)) return "PNG, JPEG, WebP, GIF 이미지만 넣을 수 있습니다.";
-  if (file.size === 0) return "빈 이미지 파일입니다.";
-  if (file.size > MAX_IMAGE_BYTES) return "이미지는 10MB 이하만 넣을 수 있습니다.";
+/** 이미지를 넣을 수 없는 이유. 화면은 documents.editor.image.invalid.* 문구로 보여 준다. */
+export type ImageFileProblem = "type" | "empty" | "tooLarge";
+
+/** 업로드 전 형식·크기 검사. 문제가 없으면 null, 있으면 그 이유. */
+export function validateImageFile(file: { type: string; size: number }): ImageFileProblem | null {
+  if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.type)) return "type";
+  if (file.size === 0) return "empty";
+  if (file.size > MAX_IMAGE_BYTES) return "tooLarge";
   return null;
 }
 
@@ -35,9 +38,9 @@ export function validateImageFile(file: { type: string; size: number }): string 
  * 붙여넣기·드롭으로 들어온 파일 중 이미지가 아닌 것은 건드리지 않고, 이미지 가운데 넣을 수 없는 것만 걸러낸다.
  * Crepe uploader는 묶음을 Promise.all로 처리하므로 한 장이라도 던지면 전부 사라지고 로딩 표시가 남는다.
  */
-export function partitionImageFiles(files: ArrayLike<File>): { accepted: File[]; rejected: { file: File; reason: string }[] } {
+export function partitionImageFiles(files: ArrayLike<File>): { accepted: File[]; rejected: { file: File; reason: ImageFileProblem }[] } {
   const accepted: File[] = [];
-  const rejected: { file: File; reason: string }[] = [];
+  const rejected: { file: File; reason: ImageFileProblem }[] = [];
   for (const file of Array.from(files)) {
     if (!file.type.startsWith("image/")) continue;
     const reason = validateImageFile(file);

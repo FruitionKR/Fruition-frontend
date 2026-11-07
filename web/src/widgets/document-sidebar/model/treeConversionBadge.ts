@@ -1,23 +1,33 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import { isDocumentConverting, isMarkdownDocument, isPdfDocument } from "@/entities/document/lib/documentKind";
 
+/** 배지 글자. 원본 PDF·변환본·변환 중. 문구는 화면에서 documents.tree.conversion 메시지로 옮긴다. */
+export type TreeConversionBadgeLabel = "source" | "converted" | "converting";
+
+/** title·aria-label로 읽히는 짝 문서 설명의 종류. 짝 문서가 있으면 그 파일명을 함께 둔다. */
+export type TreeConversionBadgeDescription =
+  | { kind: "convertedFrom"; filename: string }
+  | { kind: "sourceMissing" }
+  | { kind: "source"; filename: string }
+  | { kind: "sourceConverting" }
+  | { kind: "converting" };
+
 /** 문서 트리 행의 확장자 배지를 PDF ↔ 변환본 관계로 바꿔 그릴 때 쓰는 값 */
 export type TreeConversionBadge = {
   /** 현재 문서의 역할. 원본 PDF 또는 변환본 */
-  label: string;
+  label: TreeConversionBadgeLabel;
+  /** 접은 원본 PDF 행이면 그 아래 변환본 개수(「변환본 N」으로 보인다) */
+  collapsedCount?: number;
   /** 변환을 마친 PDF 원본이면 true */
   isConverted: boolean;
   /** title·aria-label로 읽히는 짝 문서 설명 */
-  description: string;
+  description: TreeConversionBadgeDescription;
   /** 배지를 눌렀을 때 열 짝 문서. 삭제 등으로 없으면 링크를 만들지 않는다. */
   relatedDocumentId: string | null;
 };
 
-export const CONVERTED_MARKDOWN_LABEL = "변환본";
-const CONVERTED_SOURCE_LABEL = "원본 PDF";
-const UNKNOWN_SOURCE_DESCRIPTION = "PDF에서 만든 Markdown 문서입니다. 원본 PDF를 찾을 수 없습니다.";
-
-function isFailedConversion(document: DocumentItemResponse): boolean {
+/** 변환에 실패한 변환본인지. 트리·배지에서는 없는 것으로 본다. */
+export function isFailedConversion(document: DocumentItemResponse): boolean {
   return document.status === "failed" && document.pipeline_run_id?.startsWith("convert:") === true;
 }
 
@@ -38,9 +48,9 @@ export function getTreeConversionBadge(
   if (isConvertedMarkdown(document)) {
     const source = documents.find((item) => item.id === document.source_document_id);
     return {
-      label: CONVERTED_MARKDOWN_LABEL,
+      label: "converted",
       isConverted: false,
-      description: source ? `PDF에서 만든 Markdown 문서입니다.\n[${source.filename}]` : UNKNOWN_SOURCE_DESCRIPTION,
+      description: source ? { kind: "convertedFrom", filename: source.filename } : { kind: "sourceMissing" },
       relatedDocumentId: source?.id ?? null
     };
   }
@@ -53,17 +63,17 @@ export function getTreeConversionBadge(
     (Date.parse(b.uploaded_at ?? "") || 0) - (Date.parse(a.uploaded_at ?? "") || 0)
   )[0];
   return {
-    label: CONVERTED_SOURCE_LABEL,
+    label: "source",
     isConverted: true,
-    description: `업로드한 원본 PDF입니다.\n[${latest.filename}]`,
+    description: { kind: "source", filename: latest.filename },
     relatedDocumentId: latest.id
   };
 }
 
-/** 실제로 이동할 수 있는 링크에만 클릭 안내를 붙인다. */
-export function describeTreeConversionBadge(badge: TreeConversionBadge, linked = false): string {
-  if (!linked || !badge.relatedDocumentId) return badge.description;
-  return `${badge.description}\n클릭하면 ${badge.isConverted ? "변환본을" : "원본 PDF를"} 엽니다.`;
+/** 설명 뒤에 붙일 클릭 안내. 실제로 이동할 수 있는 링크에만 붙인다(없으면 null). */
+export function treeConversionBadgeClickHint(badge: TreeConversionBadge, linked = false): "openConverted" | "openSource" | null {
+  if (!linked || !badge.relatedDocumentId) return null;
+  return badge.isConverted ? "openConverted" : "openSource";
 }
 
 /** 문서 id별 변환 관계 배지. 관계가 없는 문서는 넣지 않는다. */

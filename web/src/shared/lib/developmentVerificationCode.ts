@@ -1,3 +1,5 @@
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 /** 로컬 개발 환경에서 메일 없이 쓰는 고정 인증번호(4자리). 운영(production) 빌드에서는 받지 않는다. */
 export const DEVELOPMENT_VERIFICATION_CODE = "9700";
 
@@ -6,7 +8,11 @@ export function isDevelopmentVerificationCode(code: string, nodeEnv: string | un
   return nodeEnv !== "production" && code.trim() === DEVELOPMENT_VERIFICATION_CODE;
 }
 
-/** 이메일 인증번호 입력 라벨. 운영은 6자리만 안내하고, 개발 환경은 고정 인증번호도 받는다는 것을 함께 적는다. */
-export function verificationCodeLabel(nodeEnv: string | undefined = process.env.NODE_ENV): string {
+/**
+ * 이메일 인증번호 입력 라벨. 운영은 6자리만 안내하고, 개발 환경은 고정 인증번호도 받는다는 것을 함께 적는다.
+ * t(`useTranslations("shared")`)를 넘기면 지금 언어 문구를 쓴다.
+ */
+export function verificationCodeLabel(nodeEnv: string | undefined = process.env.NODE_ENV, t?: SharedTranslate): string {
+  if (t) return nodeEnv === "production" ? t("verification.codeLabel") : t("verification.codeLabelDevelopment", { code: DEVELOPMENT_VERIFICATION_CODE });
   return nodeEnv === "production" ? "인증번호 6자리" : `인증번호 6자리 (개발: ${DEVELOPMENT_VERIFICATION_CODE})`;
 }

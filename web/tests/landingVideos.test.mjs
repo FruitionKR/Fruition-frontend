@@ -5,24 +5,32 @@ import test from "node:test";
 const { LANDING_VIDEOS, isVideoPlayAborted, shouldPlayVideo, videoControlState } = await import("../src/views/landing/model/landingVideos.ts");
 const { LANDING_DEMO_SLOTS } = await import("../src/views/landing/model/landingContent.ts");
 
+// 영상 제목·설명·스크린리더 설명은 언어별 메시지에 있다.
+const messages = (locale) => JSON.parse(readFileSync(new URL(`../src/shared/i18n/messages/${locale}/landing.json`, import.meta.url), "utf8"));
+const ko = messages("ko");
+const en = messages("en");
+
 const PUBLIC_DIR = new URL("../public/", import.meta.url);
 const publicFile = (path) => new URL(path.replace(/^\//, ""), PUBLIC_DIR);
 const AUTO = { isInView: true, reduceMotion: false, choice: "auto", isBlocked: false };
 
 test("시연 흐름은 세 묶음에 영상 8개를 한 번씩 배치한다", () => {
   assert.deepEqual(
-    LANDING_DEMO_SLOTS.map((slot) => [slot.index, slot.id, slot.steps.map((step) => step.videoId)]),
+    LANDING_DEMO_SLOTS.map((slot) => [slot.index, slot.id, slot.steps]),
     [
       ["01", "upload", ["pdf-upload", "document-editor"]],
       ["02", "connect-ask", ["wiki-ingest", "wiki-lint", "query"]],
       ["03", "edit-skill", ["ai-edit", "skill-create", "skill-run"]]
     ]
   );
-  const placed = LANDING_DEMO_SLOTS.flatMap((slot) => slot.steps.map((step) => step.videoId)).sort();
+  const placed = LANDING_DEMO_SLOTS.flatMap((slot) => slot.steps).sort();
   assert.deepEqual(placed, Object.keys(LANDING_VIDEOS).sort());
-  for (const step of LANDING_DEMO_SLOTS.flatMap((slot) => slot.steps)) {
-    assert.ok(step.title.length > 0, `${step.videoId} 제목`);
-    assert.ok(step.body.length > 0, `${step.videoId} 설명`);
+  for (const locale of [ko, en]) {
+    assert.deepEqual(Object.keys(locale.videos).sort(), placed);
+    for (const videoId of placed) {
+      assert.ok(locale.videos[videoId].title.length > 0, `${videoId} 제목`);
+      assert.ok(locale.videos[videoId].body.length > 0, `${videoId} 설명`);
+    }
   }
 });
 
@@ -32,7 +40,7 @@ test("영상과 포스터는 public/landing의 ASCII 파일명이고 실제 파�
     assert.match(video.poster, /^\/landing\/[a-z0-9-]+\.webp$/, id);
     assert.ok(existsSync(publicFile(video.src)), `${id} 영상`);
     assert.ok(statSync(publicFile(video.poster)).size > 0, `${id} 포스터`);
-    assert.ok(video.label.length > 0, `${id} 설명`);
+    for (const locale of [ko, en]) assert.ok(locale.videos[id].label.length > 0, `${id} 설명`);
   }
 });
 

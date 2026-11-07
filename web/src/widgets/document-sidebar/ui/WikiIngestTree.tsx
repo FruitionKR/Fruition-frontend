@@ -1,5 +1,8 @@
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useTreeReasonText } from "@/entities/tree/model/useTreeReasonText";
+import { graphIngestBlockReasonKey } from "@/features/wiki-ingest/model/graphDocuments";
 import { cx } from "@/shared/lib/classNames";
 import type { Project, TreeItem } from "@/entities/tree";
 import { SidebarCheckOnIcon, SidebarChevronIcon } from "./SidebarIcons";
@@ -8,6 +11,7 @@ import {
   collectFolderMarkdownIds,
   getSelectionState,
   getTreeItemBlockReason,
+  INGEST_UNAVAILABLE_REASON,
   type IngestBlockReasons
 } from "../model/wikiIngestSelection";
 import styles from "./DocumentSidebar.module.css";
@@ -16,7 +20,6 @@ import styles from "./DocumentSidebar.module.css";
 const INGEST_ROW_BASE_PADDING_PX = 10;
 const INGEST_ROW_INDENT_PER_DEPTH_PX = 22;
 
-const NO_FOLDER_MARKDOWN_REASON = "이 폴더에는 선택할 수 있는 Markdown 문서가 없어요";
 
 /**
  * 위키 편입 선택 모드 트리 (Figma 1027:6315).
@@ -36,6 +39,7 @@ export function WikiIngestTree({
   selectedIds: ReadonlySet<string>;
   onToggle: (documentIds: string[]) => void;
 }) {
+  const t = useTranslations("documents.wiki.select");
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
   const reportedOpen = useRef(false);
   useEffect(() => {
@@ -54,9 +58,9 @@ export function WikiIngestTree({
   }
 
   return (
-    <div className={styles["ingest-tree"]} role="group" aria-label="위키에 편입할 문서 선택">
+    <div className={styles["ingest-tree"]} role="group" aria-label={t("label")}>
       <div className={styles["ingest-title"]}>
-        <span>자료 목록</span>
+        <span>{t("heading")}</span>
       </div>
       {projects.flatMap((project) => project.items).map((item) => (
         <IngestRow
@@ -91,13 +95,22 @@ function IngestRow({
   onToggle: (documentIds: string[]) => void;
   onToggleOpen: (itemId: string) => void;
 }) {
+  const t = useTranslations("documents.wiki.select");
+  const tBlock = useTranslations("wiki.ingestBlock");
+  const treeReasonText = useTreeReasonText();
+  const reasonText = (value: string) => {
+    const key = graphIngestBlockReasonKey(value);
+    return key ? tBlock(key) : treeReasonText(value);
+  };
   const isFolder = item.type === "folder";
   const isOpen = isFolder && !collapsedIds.has(item.id);
   const fileReason = getTreeItemBlockReason(item, blockReasons);
   const targetIds = isFolder
     ? collectFolderMarkdownIds(item.children ?? [], blockReasons)
     : fileReason === null && item.documentId ? [item.documentId] : [];
-  const reason = isFolder ? (targetIds.length === 0 ? NO_FOLDER_MARKDOWN_REASON : null) : fileReason;
+  const reason = isFolder
+    ? (targetIds.length === 0 ? t("noFolderMarkdown") : null)
+    : fileReason === INGEST_UNAVAILABLE_REASON ? t("unavailable") : fileReason && reasonText(fileReason);
   const isDisabled = targetIds.length === 0;
   const state = getSelectionState(selectedIds, targetIds);
   const display = fileDisplay(item);
@@ -139,7 +152,7 @@ function IngestRow({
             type="button"
             className={styles["ingest-folder-toggle"]}
             aria-expanded={isOpen}
-            aria-label={`${display.name} ${isOpen ? "접기" : "펼치기"}`}
+            aria-label={isOpen ? t("collapse", { name: display.name }) : t("expand", { name: display.name })}
             onClick={(event) => {
               event.stopPropagation();
               onToggleOpen(item.id);

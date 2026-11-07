@@ -1,3 +1,4 @@
+import { useLocale, useTranslations } from "next-intl";
 import { useNotificationToggles, type NotificationKey } from "../../model/useNotificationToggles";
 import { cx } from "@/shared/lib/classNames";
 import { Switch } from "@/shared/ui/Switch";
@@ -9,6 +10,12 @@ import { isNotificationControlEnabled, NOTIFICATION_SETTINGS } from "@/entities/
 const NOTIFICATION_ROWS = Object.entries(NOTIFICATION_SETTINGS)
   .map(([key, setting]) => ({ key: key as NotificationKey, ...setting }));
 const NOTIFICATION_GROUPS = [...new Set(NOTIFICATION_ROWS.map((row) => row.group))];
+// 그룹 이름은 알림 설정 저장값(notificationControls.groups)의 키라 한국어 그대로 두고, 화면 이름만 번역한다.
+type NotificationGroupKey = "documents" | "wiki" | "suggestions" | "chat" | "editor" | "files" | "other" | "delivery";
+const GROUP_MESSAGE_KEYS: Readonly<Record<string, NotificationGroupKey>> = {
+  "문서·PDF": "documents", "위키": "wiki", "작업 제안": "suggestions", "채팅·AI": "chat",
+  "편집기": "editor", "파일·폴더": "files", "기타": "other", "전달 방식": "delivery"
+};
 function NotificationControlRow({ label, checked, disabled = false, onChange }: {
   label: string;
   checked: boolean;
@@ -27,15 +34,25 @@ function NotificationControlRow({ label, checked, disabled = false, onChange }: 
 
 /** 알림 설정 (Figma 1567:26085). 알림 설정은 이 패널에서만 바꾼다. 설정값은 이 기기(브라우저)에 저장된다. */
 export function NotificationsPanel() {
-  const { checkedValues, browserMessage, toggleNotification, notificationControls, setAllNotificationsEnabled, setGroupNotificationsEnabled } = useNotificationToggles();
+  const t = useTranslations("settings.notifications");
+  const locale = useLocale();
+  const { checkedValues, browserIssue, toggleNotification, notificationControls, setAllNotificationsEnabled, setGroupNotificationsEnabled } = useNotificationToggles();
+  const groupLabel = (group: string) => {
+    const key = GROUP_MESSAGE_KEYS[group];
+    return key ? t(`groups.${key}`) : group;
+  };
+  const rowLabel = (key: NotificationKey) => t(`items.${key}`);
+  const rowDescription = (key: NotificationKey) =>
+    key === "browser" ? t("browserDescription") : key === "server" ? t("serverDescription") : t("itemDescription", { label: rowLabel(key) });
+  const browserMessage = browserIssue === "unsupported" ? t("browserUnsupported") : browserIssue === "denied" ? t("browserDenied") : null;
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="알림 설정" description="우하단 알림 카드를 종류별로 켜고 끕니다. 알림 기록과 작업 결과는 삭제되지 않습니다." />
+      <SettingsPanelTitle title={t("title")} description={t("description")} />
 
       <div className={cx(styles.section, styles["notification-master-section"])}>
         <NotificationControlRow
-          label="전체 알림"
+          label={t("all")}
           checked={notificationControls.enabled}
           onChange={setAllNotificationsEnabled}
         />
@@ -45,18 +62,19 @@ export function NotificationsPanel() {
         <div key={group} className={styles.section}>
           <SettingsSectionHeader prominent action={
             <div className={cx(styles["notification-group-control"], !notificationControls.enabled && styles["is-disabled"])}>
-              <span>전체 알림 설정</span>
+              <span>{t("groupAll")}</span>
               <Switch
                 checked={notificationControls.groups[group] !== false}
                 disabled={!notificationControls.enabled}
-                label={`${group} 전체 알림 설정`}
+                label={t("groupAllLabel", { group: groupLabel(group) })}
                 onClick={() => setGroupNotificationsEnabled(group, notificationControls.groups[group] === false)}
               />
             </div>
-          }>{group}</SettingsSectionHeader>
+          }>{groupLabel(group)}</SettingsSectionHeader>
           {NOTIFICATION_ROWS
             .filter((row) => row.group === group)
-            .sort((a, b) => a.label.localeCompare(b.label, "ko", { numeric: true, sensitivity: "base" }))
+            .map((row) => ({ key: row.key, label: rowLabel(row.key), description: rowDescription(row.key) }))
+            .sort((a, b) => a.label.localeCompare(b.label, locale, { numeric: true, sensitivity: "base" }))
             .map(({ key, label, description }) => (
             <div key={key} className={cx(styles.row, styles["row-loose"], !isNotificationControlEnabled(key, notificationControls) && styles["is-disabled"])}>
               <div className={styles["row-title"]}>

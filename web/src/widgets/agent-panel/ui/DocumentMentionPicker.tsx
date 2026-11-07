@@ -3,6 +3,7 @@ import type { DocumentItemResponse } from "@/entities/document";
 import { documentDisplayName } from "@/features/skill-authoring/lib/referenceDocumentPicker";
 import { cx } from "@/shared/lib/classNames";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 export const DOCUMENT_PICKER_LIST_ID = "agent-document-picker";
 
@@ -27,6 +28,7 @@ export function DocumentMentionPicker({
   onPick: (document: DocumentItemResponse) => void;
   onHover: (documentId: string) => void;
 }) {
+  const t = useTranslations("agentChat");
   const activeRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     activeRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -35,7 +37,7 @@ export function DocumentMentionPicker({
   return (
     <div className={styles["skill-picker"]}>
       {options.length > 0 ? (
-        <div className={cx(styles["skill-picker-groups"], styles["document-picker-list"])} role="listbox" id={DOCUMENT_PICKER_LIST_ID} aria-label="첨부할 문서">
+        <div className={cx(styles["skill-picker-groups"], styles["document-picker-list"])} role="listbox" id={DOCUMENT_PICKER_LIST_ID} aria-label={t("documents.pickerLabel")}>
           {options.map((document) => {
             const isActive = document.id === activeOptionId;
             const title = documentDisplayName(document);
@@ -54,7 +56,7 @@ export function DocumentMentionPicker({
                 onClick={() => onPick(document)}
               >
                 <span className={cx(styles["skill-picker-slug"], styles["document-picker-title"])}>{title}</span>
-                {document.id === openDocumentId && <span className={styles["skill-picker-description"]}>현재 문서</span>}
+                {document.id === openDocumentId && <span className={styles["skill-picker-description"]}>{t("documents.current")}</span>}
               </div>
             );
           })}

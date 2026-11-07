@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import {
   applyThemePreference,
   parseThemePreference,
@@ -9,11 +10,7 @@ import {
 } from "@/shared/lib/themePreference";
 import styles from "./ThemeSwitch.module.css";
 
-const OPTIONS: readonly { value: ThemePreference; label: string }[] = [
-  { value: "system", label: "시스템 설정" },
-  { value: "light", label: "라이트" },
-  { value: "dark", label: "다크" }
-];
+const OPTIONS: readonly ThemePreference[] = ["system", "light", "dark"];
 
 function readStoredPreference(): ThemePreference {
   try {
@@ -67,6 +64,7 @@ function ThemeIcon({ value }: { value: ThemePreference }) {
  * 네이티브 라디오 버튼이라 화살표 키로 고르고 Tab으로 빠져나간다.
  */
 export function ThemeSwitch() {
+  const t = useTranslations("landing");
   // 서버에서는 저장 값을 모르므로 시스템으로 그린 뒤, 브라우저에서 저장 값으로 맞춘다(테마 자체는 첫 화면 스크립트가 이미 적용).
   // 헤더와 휴대폰 메뉴에 하나씩 있으므로 저장 값을 함께 구독해 둘이 어긋나지 않게 한다.
   const preference = useSyncExternalStore(subscribeToPreference, readStoredPreference, () => "system" as const);
@@ -79,18 +77,18 @@ export function ThemeSwitch() {
 
   return (
     <fieldset className={styles["theme-switch"]}>
-      <legend className={styles["sr-only"]}>화면 테마</legend>
+      <legend className={styles["sr-only"]}>{t("header.theme")}</legend>
       {OPTIONS.map((option) => (
-        <label key={option.value} className={styles["option"]} title={option.label}>
+        <label key={option} className={styles["option"]} title={t(`theme.${option}`)}>
           <input
             type="radio"
             name={groupName}
-            value={option.value}
-            checked={preference === option.value}
-            onChange={() => select(option.value)}
+            value={option}
+            checked={preference === option}
+            onChange={() => select(option)}
           />
-          <ThemeIcon value={option.value} />
-          <span className={styles["sr-only"]}>{option.label}</span>
+          <ThemeIcon value={option} />
+          <span className={styles["sr-only"]}>{t(`theme.${option}`)}</span>
         </label>
       ))}
     </fieldset>

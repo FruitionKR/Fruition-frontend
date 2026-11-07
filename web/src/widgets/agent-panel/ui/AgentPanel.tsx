@@ -2,6 +2,7 @@
 
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 import { analyticsEditType } from "@/shared/lib/analytics/events";
+import { useTranslations } from "next-intl";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
@@ -16,13 +17,10 @@ import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
-import { AGENT_TURN_SLOW_MESSAGE } from "@/features/agent-chat/lib/turnFollow";
 import {
   hasBlockingPendingMessages,
   isPendingAgentTurnMessage,
-  isPendingQueryMessage,
-  STALLED_QUERY_COMPOSER_NOTICE,
-  STALLED_TURN_COMPOSER_NOTICE
+  isPendingQueryMessage
 } from "@/features/agent-chat/lib/stalledTurns";
 import { useStalledQueries } from "@/features/agent-chat/model/useStalledQueries";
 import { useReleasedTurns, useStalledAgentTurns } from "@/features/agent-chat/model/useStalledAgentTurns";
@@ -40,8 +38,8 @@ import { SKILL_PICKER_LIST_ID, SkillSlashPicker, skillPickerOptionId } from "@/f
 import { editResultNotice, resolveSubmitRoute, selectionChipLabel, skillSheetPanelView, splitChatAndTaskMessages, isAttachmentTargetClarification, withReadOnlyDocumentClarification } from "@/features/agent-chat/lib/taskThread";
 import { useChatThread } from "@/features/agent-chat/model/useChatThread";
 import { publishNotice } from "@/features/document-notifications";
-import { exportChatWiki, getChatExportSuccessMessage, type ChatWikiExportResponse } from "@/features/wiki-export";
-import { CHAT_SESSION_LIMIT_MESSAGE, getErrorMessage } from "@/shared/lib/apiErrors";
+import { exportChatWiki, type ChatWikiExportResponse } from "@/features/wiki-export";
+import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getWorkspaceId } from "@/shared/api/client";
 import type { DocumentItemResponse } from "@/entities/document";
 import type { GeneratedMarkdownDraft } from "@/features/agent-chat/lib/agentTurn";
@@ -75,10 +73,8 @@ import { ComposerDocumentChips } from "./ComposerDocumentChips";
 import { DOCUMENT_PICKER_LIST_ID, DocumentMentionPicker, documentPickerOptionId } from "./DocumentMentionPicker";
 import styles from "@/features/agent-chat/ui/AgentChat.module.css";
 
-const PAIR_SELECTION_KIND_OPTIONS: { kind: ChatPairSelectionKind; label: string }[] = [
-  { kind: "range", label: "범위 선택" },
-  { kind: "individual", label: "개별 선택" }
-];
+/** 편입 문답 선택 방식. 이름은 agentChat.panel.export.kind.{kind}다. */
+const PAIR_SELECTION_KIND_OPTIONS: readonly ChatPairSelectionKind[] = ["range", "individual"];
 
 export function AgentPanel({
   onClose,
@@ -168,6 +164,8 @@ export function AgentPanel({
   /** 패널이 화면에 보이는지. 패널 없는 화면에서는 마운트된 채 숨겨진다. */
   isShown?: boolean;
 }) {
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const [activeView, setActiveView] = useState<AgentPanelView>("chat");
   const sessions = usePanelSessions(activeView);
   const activeSessionId = sessions.selected[activeView];
@@ -186,7 +184,7 @@ export function AgentPanel({
   const recordingInputRef = useRef<HTMLInputElement | null>(null);
   const pickRecording = useCallback(() => recordingInputRef.current?.click(), []);
   const handleMeetingDeleted = useCallback(() => {
-    publishNotice({ kind: "completed", title: "회의 삭제", message: "회의를 삭제했습니다. 문서로 저장한 회의록은 남아 있어요." });
+    publishNotice({ kind: "completed", notificationKey: "meetingDeleted", title: t("notice.meetingDeleted.title"), message: t("notice.meetingDeleted.message") });
     // 회의 화면이 사라져 포커스가 body로 떨어지지 않게 입력창으로 옮긴다.
     requestAnimationFrame(() => panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
   }, []);
@@ -279,7 +277,7 @@ export function AgentPanel({
   const handleOpenDocumentDropped = useCallback((documentId: string) => {
     setExcludedDocumentId(documentId);
     const title = readOnlyOpenDocument?.id === documentId ? composerDocumentChipLabel(readOnlyOpenDocument) : null;
-    publishNotice({ kind: "info", title: "현재 문서를 빼고 보냈어요", message: droppedOpenDocumentMessage(title) });
+    publishNotice({ kind: "info", notificationKey: "openDocumentDropped", title: t("notice.openDocumentDropped"), message: droppedOpenDocumentMessage(title, t) });
   }, [readOnlyOpenDocument]);
   const agentTurn = useAgentTurn({
     markdownEditContext,
@@ -317,8 +315,8 @@ export function AgentPanel({
     return splitChatAndTaskMessages(workThread.messages, runIds);
   }, [isSeparateWorkSession, workThread.messages, taskRunIds]);
   const displayedTaskItems = useMemo(
-    () => withReadOnlyDocumentClarification(taskItems, readOnlyDocumentId, agentTurn.readOnlyRequests),
-    [agentTurn.readOnlyRequests, readOnlyDocumentId, taskItems]
+    () => withReadOnlyDocumentClarification(taskItems, readOnlyDocumentId, agentTurn.readOnlyRequests, t),
+    [agentTurn.readOnlyRequests, readOnlyDocumentId, taskItems, t]
   );
   // 고칠 첨부를 못 정해 되물었으면 답을 보낼 때 같은 첨부가 함께 가도록 칩을 되돌린다. 다른 대화로 옮겨 갔으면 그 대화에 붙이지 않는다.
   const attachmentClarifyTurnId = isAttachmentTargetClarification(taskItems, agentTurn.requestTurnId) ? agentTurn.requestTurnId : null;
@@ -378,7 +376,7 @@ export function AgentPanel({
     isOptedIn: optedInDocumentId === openDocumentId,
     hasRoom: hasRoomForOpenDocument
   });
-  const openDocumentOverflowNotice = readOnlyOverflowNotice({ isReadOnlyOpen: readOnlySourceId !== null, hasRoom: hasRoomForOpenDocument });
+  const openDocumentOverflowNotice = readOnlyOverflowNotice({ isReadOnlyOpen: readOnlySourceId !== null, hasRoom: hasRoomForOpenDocument }, t);
   const attachedDocuments = referenceDocuments(composerAttachments.attachments, isDocumentIncluded ? openDocumentId : null);
   const documentPicker = useDocumentPicker({
     value: composerValue,
@@ -446,12 +444,12 @@ export function AgentPanel({
     if (viewBeforeSkillSheetRef.current !== null) viewBeforeSkillSheetRef.current = "work";
     void sessions.ensureWritable("work").then((sessionId) => {
       agentTurn.submitAgentTurn(skillRun.message, skillRunContext, sessionId, selectedModel, [], skillRun.folderId);
-    }).catch((error) => publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "작업 대화를 준비하지 못했습니다.") }));
+    }).catch((error) => publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed"), tShared) }));
     onSkillRunSent?.(skillRun.id);
     // 준비가 끝난 순간 한 번만 보낸다. 콜백·문맥 identity 변화로 다시 보내지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skillRun?.id, isSkillRunReady]);
-  const sessionTitle = chatSessionTitle(activeSessionTitle, messages);
+  const sessionTitle = chatSessionTitle(activeSessionTitle, messages, t("header.newChat"));
   const completedReplies = messages.filter((message) => message.role === "assistant" && message.status === "completed").length;
   useEffect(() => {
     if (!activeSessionId) return;
@@ -485,7 +483,7 @@ export function AgentPanel({
     isQueryLoading: isLoading,
     isAgentBusy: isCreatingMarkdown,
     isWaitingForDocument: Boolean(skillRun.documentId) && !skillRunContext
-  }) : null;
+  }, t) : null;
   // 입력창 Esc로 멈출 대상(가장 나중에 시작한 것 하나). 이미 닫았거나 닫는 중인 run은 뺀다.
   const pendingStopCandidates = useMemo<PendingStopCandidate[]>(() => messages.flatMap((message): PendingStopCandidate[] => {
     if (!message.run_id) return [];
@@ -522,7 +520,7 @@ export function AgentPanel({
   });
   const composerStopHintTarget = composerStop.stoppingTarget ?? stopTarget;
   const isComposerBusy = !sessions.ready || activeSessionId === null || isSubmitting || isPairSelectionMode || composerStop.isStopping;
-  const composerPlaceholder = isWorkView ? "이 작업에 추가 요청하기 (/스킬 · @문서)" : "AI 에이전트에게 무엇이든 물어보세요.";
+  const composerPlaceholder = isWorkView ? t("composer.workPlaceholder") : t("composer.placeholder");
 
   /** 입력창을 거치지 않는 요청. 같은 요청을 다시 보내거나 그 되묻기에 답하면 그 요청의 첨부를 이어받는다. */
   async function submitWorkRequest(request: string, context: ActiveMarkdownEditContext | null, folderId: string | null = null) {
@@ -532,7 +530,7 @@ export function AgentPanel({
       const sessionId = await sessions.ensureWritable("work");
       agentTurn.submitAgentTurn(request, context, sessionId, selectedModel, [], folderId, referenceDocumentIds);
     } catch (error) {
-      publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "작업 대화를 준비하지 못했습니다.") });
+      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.workSessionFailed"), tShared) });
     }
   }
 
@@ -575,7 +573,7 @@ export function AgentPanel({
         return;
       }
       agentTurn.forgetTurn(turnId);
-      if (finishedIds.has(turnId)) void announceFinishedTurn(turnId);
+      if (finishedIds.has(turnId)) void announceFinishedTurn(turnId, t, tShared);
     });
   }
 
@@ -629,7 +627,7 @@ export function AgentPanel({
     let targetSessionId: string;
     try { targetSessionId = await sessions.ensureWritable(activeView); }
     catch (error) {
-      publishNotice({ kind: "failed", title: "대화 준비 실패", message: getErrorMessage(error, "대화를 준비하지 못했습니다.") });
+      publishNotice({ kind: "failed", notificationKey: "conversationFailed", title: t("notice.sessionPrepareFailed"), message: getErrorMessage(error, t("panel.sessionFailed"), tShared) });
       return;
     }
     if (route === "task") {
@@ -691,25 +689,27 @@ export function AgentPanel({
         const ingest = response.status === "saved" ? onIngestExportedDocument : undefined;
         publishNotice({
           kind: "completed",
-          title: "채팅 편입 완료",
-          message: getChatExportSuccessMessage(response.status, Boolean(ingest)),
+          notificationKey: "chatExported",
+          title: t("notice.exportCompleted"),
+          message: response.status === "skipped" ? t("panel.export.success.skipped") : ingest ? t("panel.export.success.savedCanIngest") : t("panel.export.success.saved"),
           subjectIds: [response.exportDocumentId],
-          action: ingest ? { label: "위키 편입", onAction: () => ingest(response.exportDocumentId) } : undefined,
+          action: ingest ? { label: t("panel.export.ingest"), onAction: () => ingest(response.exportDocumentId) } : undefined,
           requiredPermission: ingest ? "wiki.ingest" : undefined
         });
       } catch (error: unknown) {
-        const detail = getErrorMessage(error, "워크스페이스 목록 갱신에 실패했습니다.");
-        const message = `문서는 저장했지만 워크스페이스 목록을 갱신하지 못했습니다. 페이지를 새로고침해 주세요. (${detail})`;
+        const detail = getErrorMessage(error, t("panel.export.refreshFailedDetail"), tShared);
+        const message = t("panel.export.refreshFailed", { detail });
         setExportErrorMessage(message);
-        publishNotice({ kind: "failed", title: "문서 목록 갱신 실패", message });
+        publishNotice({ kind: "failed", notificationKey: "documentListFailed", title: t("notice.documentListRefreshFailed"), message });
       }
     } catch (error: unknown) {
-      const message = getErrorMessage(error, "채팅을 문서로 편입하지 못했습니다.");
+      const message = getErrorMessage(error, t("panel.export.failed"), tShared);
       setExportErrorMessage(message);
       publishNotice({
         kind: "failed",
-        title: "채팅 편입 실패",
-        message: `${message} 처리 결과가 불확실할 수 있으니 문서 목록을 확인해 주세요.`
+        notificationKey: "chatExportFailed",
+        title: t("notice.exportFailed"),
+        message: t("panel.export.failedUncertain", { message })
       });
     } finally {
       setIsExporting(false);
@@ -737,7 +737,7 @@ export function AgentPanel({
   }, [isAutoApplying, isInlineReview, isShown, isWorkView, editPreviewState, agentTurnResponse]);
   const decideProposalRef = useRef(agentTurn.decideProposal);
   decideProposalRef.current = agentTurn.decideProposal;
-  const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "");
+  const reviewSourceLabel = proposalSourceLabel(agentTurnRequest?.message ?? "", t);
   const inlineReview = useMemo<InlineEditReviewState | null>(() => (
     isInlineReview && reviewSegments && reviewDocumentId ? {
       documentId: reviewDocumentId,
@@ -757,7 +757,7 @@ export function AgentPanel({
     ? headingAtLine(agentTurnRequest.editorSnapshot.markdown, agentTurnResponse.result.edit.actual_target.start_line)
     : null;
   const inlineReviewMeta = isInlineReview
-    ? [openDocumentTitle, reviewHeading, `제안 ${pendingProposalCount}개 (본문에 표시)`].filter(Boolean).join(" • ")
+    ? [openDocumentTitle, reviewHeading, t("review.inlineMeta", { count: pendingProposalCount })].filter(Boolean).join(" • ")
     : null;
 
   // 편집안·새 문서 초안은 작업 탭의 해당 작업 아래에 붙인다.
@@ -840,7 +840,7 @@ export function AgentPanel({
             pendingTask={isAgentTurnLoading && agentTurnRequest ? {
               request: agentTurnRequest.message,
               stages: agentTurn.agentStages,
-              notice: agentTurn.isAgentTurnSlow ? AGENT_TURN_SLOW_MESSAGE : null,
+              notice: agentTurn.isAgentTurnSlow ? t("turn.slow") : null,
               turnId: agentTurn.requestTurnId
             } : skillRun && waitingSkillRun ? {
               request: skillRun.message,
@@ -856,11 +856,11 @@ export function AgentPanel({
                       aria-busy={closingTurnIds.size > 0 || undefined}
                       onClick={() => void dismissStalledTurns([...stalledTurnIds])}
                     >
-                      {closingTurnIds.size > 0 ? "앞선 작업 닫는 중…" : "앞선 작업 닫고 실행"}
+                      {closingTurnIds.size > 0 ? t("skillRun.closingBlocking") : t("skillRun.closeBlockingAndRun")}
                     </button>
                   )}
                   <button type="button" className={styles["task-pill"]} onClick={() => onSkillRunSent?.(skillRun.id)}>
-                    실행 취소
+                    {t("skillRun.cancel")}
                   </button>
                 </>
               )
@@ -875,7 +875,7 @@ export function AgentPanel({
             cancelledTurnIds={agentTurn.cancelledTurnIds}
             setAsideTurnIds={agentTurn.setAsideTurnIds}
             onReopenProposal={isSubmitting ? undefined : agentTurn.reopenProposal}
-            onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn("더 짧게 줄여줘") : undefined}
+            onShortenActivePreview={isInlineReview && !isReviewBusy ? () => agentTurn.refineAgentTurn(t("review.shortenInstruction")) : undefined}
             errorMessage={(isRequestFailureListed ? null : agentTurn.agentTurnErrorMessage) ?? agentTurn.editPreviewErrorMessage ?? aiModelsErrorMessage}
             isShown={isShown}
             onSaveRequestAsSkill={onSaveRequestAsSkill}
@@ -945,8 +945,8 @@ export function AgentPanel({
       {isPairSelectionMode ? (
         <div className={styles["chat-selection-actions"]}>
           <div className={styles["chat-selection-toolbar"]}>
-            <div className={styles["chat-selection-kind"]} role="group" aria-label="편입 문답 선택 방식">
-              {PAIR_SELECTION_KIND_OPTIONS.map(({ kind, label }) => (
+            <div className={styles["chat-selection-kind"]} role="group" aria-label={t("panel.export.kindLabel")}>
+              {PAIR_SELECTION_KIND_OPTIONS.map((kind) => (
                 <button
                   key={kind}
                   type="button"
@@ -955,7 +955,7 @@ export function AgentPanel({
                   disabled={isExporting}
                   onClick={() => changePairSelectionKind(kind)}
                 >
-                  {label}
+                  {t(`panel.export.kind.${kind}`)}
                 </button>
               ))}
             </div>
@@ -963,23 +963,23 @@ export function AgentPanel({
               <button
                 type="button"
                 className={styles["chat-selection-reset"]}
-                aria-label="채팅 선택 다시 하기"
+                aria-label={t("panel.export.reset")}
                 disabled={isExporting || selectedPairIds.length === 0}
                 onClick={() => setPairSelection(EMPTY_CHAT_PAIR_RANGE_SELECTION)}
               >
                 <RotateCcw size={16} />
               </button>
               <button type="button" className={styles["chat-selection-cancel"]} disabled={isExporting} onClick={cancelPairSelection}>
-                취소
+                {t("actions.cancel")}
               </button>
               <button
                 type="button"
                 className={styles["chat-selection-confirm"]}
-                aria-label={selectedPairIds.length > 0 ? `${selectedPairIds.length}개 문답 편입 확인` : "편입할 문답을 선택하세요"}
+                aria-label={selectedPairIds.length > 0 ? t("panel.export.confirmLabel", { count: selectedPairIds.length }) : t("panel.export.selectPrompt")}
                 disabled={isExporting || selectedPairIds.length === 0}
                 onClick={() => void acceptExport()}
               >
-                확인
+                {t("actions.confirm")}
               </button>
             </div>
           </div>
@@ -988,11 +988,11 @@ export function AgentPanel({
       ) : null}
       <div className={styles["composer-region"]}>
         {sessions.activeChannel === "legacy" && (
-          <p className={styles["wiki-evidence-notice"]} role="status">이전 통합 대화입니다. 새 요청은 현재 탭의 별도 대화에 저장됩니다.</p>
+          <p className={styles["wiki-evidence-notice"]} role="status">{t("panel.legacySession")}</p>
         )}
         {sessions.isAtSessionLimit && (
           <div className={styles["wiki-evidence-notice"]}>
-            <p role="status">{CHAT_SESSION_LIMIT_MESSAGE}</p>
+            <p role="status">{tShared("errors.chatSessionLimit")}</p>
             <button
               type="button"
               onClick={() => {
@@ -1000,7 +1000,7 @@ export function AgentPanel({
                 setActiveView(isWorkView ? "chat" : "work");
               }}
             >
-              {isWorkView ? "채팅" : "작업"} 탭 대화 정리
+              {isWorkView ? t("panel.cleanUpChatTab") : t("panel.cleanUpWorkTab")}
             </button>
           </div>
         )}
@@ -1017,7 +1017,7 @@ export function AgentPanel({
                 title={wikiEvidenceNotice.disabledReason ?? undefined}
                 onClick={wikiEvidenceNotice.onIngest}
               >
-                {wikiEvidenceNotice.isIngesting ? "위키 편입 중…" : wikiEvidenceNotice.actionLabel}
+                {wikiEvidenceNotice.isIngesting ? t("panel.export.ingesting") : wikiEvidenceNotice.actionLabel}
               </button>
             )}
           </div>
@@ -1040,10 +1040,10 @@ export function AgentPanel({
             maxCount={REFERENCE_DOCUMENT_MAX}
             onToggle={documentPicker.pickFromDialog}
             onClose={documentPicker.closeDialog}
-            ariaLabel="첨부할 문서 검색"
-            placeholder={`첨부할 문서 검색 (${attachedDocuments.length}/${REFERENCE_DOCUMENT_MAX} 첨부)`}
+            ariaLabel={t("documents.searchLabel")}
+            placeholder={t("documents.searchPlaceholder", { count: attachedDocuments.length, max: REFERENCE_DOCUMENT_MAX })}
             emptyMessage={documentPicker.dialogStatusMessage}
-            documentMeta={(document) => (document.id === openDocumentId ? "현재 문서" : null)}
+            documentMeta={(document) => (document.id === openDocumentId ? t("documents.current") : null)}
             filterDocuments={filterPickerDocuments}
           />
         )}
@@ -1059,30 +1059,30 @@ export function AgentPanel({
         )}
         <AgentComposer
           value={composerValue}
-          inputLabel={isWorkView ? "작업 요청 입력" : undefined}
+          inputLabel={isWorkView ? t("composer.workInputLabel") : undefined}
           header={isWorkView ? (
             <div className={styles["task-context-chips"]}>
               {!openDocumentId ? null : isSourceOptIn ? (
                 // '새 문서로 만들기' 스킬: 열린 문서는 기본으로 빼고, 눌러야 원문으로 쓴다.
                 isDocumentIncluded ? (
-                  <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 원문에서 빼기" onClick={() => setOptedInDocumentId(null)}>
-                    현재 문서 · 원문으로 사용
+                  <button type="button" className={styles["task-context-chip"]} aria-label={t("documents.chip.removeSource")} onClick={() => setOptedInDocumentId(null)}>
+                    {t("documents.chip.usedAsSource")}
                     <AgentAssetIcon src={contextChipCloseIcon} size={12} />
                   </button>
                 ) : (
-                  <button type="button" className={styles["task-context-chip-add"]} aria-label="현재 문서를 새 문서의 원문으로 쓰기" title="눌러서 새 문서의 원문으로 쓰기" onClick={() => setOptedInDocumentId(openDocumentId)}>
-                    현재 문서
+                  <button type="button" className={styles["task-context-chip-add"]} aria-label={t("documents.chip.useAsSource")} title={t("documents.chip.useAsSourceTitle")} onClick={() => setOptedInDocumentId(openDocumentId)}>
+                    {t("documents.current")}
                   </button>
                 )
               ) : isDocumentIncluded ? (
-                <button type="button" className={styles["task-context-chip"]} aria-label="현재 문서를 작업 대상에서 빼기" onClick={() => setExcludedDocumentId(openDocumentId)}>
-                  현재 문서
+                <button type="button" className={styles["task-context-chip"]} aria-label={t("documents.chip.removeTarget")} onClick={() => setExcludedDocumentId(openDocumentId)}>
+                  {t("documents.current")}
                   <AgentAssetIcon src={contextChipCloseIcon} size={12} />
                 </button>
               ) : null}
               {isSelectionIncluded && markdownEditContext && editorTarget && (
-                <button type="button" className={`${styles["task-context-chip"]} ${styles["is-primary"]}`} aria-label="선택한 부분을 작업 대상에서 빼기" onClick={() => setExcludedSelectionKey(selectionKey)}>
-                  {selectionChipLabel(markdownEditContext.editorSnapshot.markdown, editorTarget.startLine, editorTarget.endLine)}
+                <button type="button" className={`${styles["task-context-chip"]} ${styles["is-primary"]}`} aria-label={t("documents.chip.removeSelection")} onClick={() => setExcludedSelectionKey(selectionKey)}>
+                  {selectionChipLabel(markdownEditContext.editorSnapshot.markdown, editorTarget.startLine, editorTarget.endLine, t)}
                   <AgentAssetIcon src={contextChipClosePrimaryIcon} size={12} />
                 </button>
               )}
@@ -1125,11 +1125,11 @@ export function AgentPanel({
           // 입력창에서 Esc: 진행 중인 질의·작업·보내기 전 스킬 실행 중 가장 나중에 시작한 것 하나를 멈춘다.
           onCancel={composerStopHintTarget ? composerStop.stop : undefined}
           isCancelling={isCancelling || composerStop.isStopping}
-          cancelHint={composerStopHintTarget ? composerStopHint(composerStopHintTarget) : undefined}
-          statusMessage={composerStoppingMessage(composerStop.stoppingTarget)
+          cancelHint={composerStopHintTarget ? composerStopHint(composerStopHintTarget, t) : undefined}
+          statusMessage={composerStoppingMessage(composerStop.stoppingTarget, t)
             ?? (stopTarget && stopTarget.kind !== "query" ? null : queryStatusMessage)
             ?? sessions.error
-            ?? (stalledTurnIds.size > 0 ? STALLED_TURN_COMPOSER_NOTICE : stalledQueryIds.size > 0 ? STALLED_QUERY_COMPOSER_NOTICE : null)}
+            ?? (stalledTurnIds.size > 0 ? t("stalled.turnComposerNotice") : stalledQueryIds.size > 0 ? t("stalled.queryComposerNotice") : null)}
           meetingControl={{
             state: isCapturingPhase(meeting.phase) ? "capturing" : meeting.phase === "idle" ? "idle" : "busy",
             onStart: () => {

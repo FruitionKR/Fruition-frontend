@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormatter, useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrashDocuments, restoreTrashDocument, TRASH_QUERY_KEY } from "@/entities/document/api/trash";
 import { describePurge, describeRestoreError, documentRestoredMessage, isRetentionExpired, restoredDocumentFolderName } from "@/entities/document/lib/trashRetention";
@@ -11,12 +12,7 @@ import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import sectionStyles from "./CollabSections.module.css";
 import styles from "./TrashList.module.css";
 
-
-const dateFormat = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-function formatTime(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : dateFormat.format(date);
-}
+const DELETED_AT_FORMAT = { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" } as const;
 
 /**
  * 설정 화면에 바로 표시하는 문서 휴지통 목록.
@@ -24,6 +20,9 @@ function formatTime(value: string) {
  * 복구는 문서 소유자와 OWNER만 할 수 있고, 다른 멤버는 서버 403을 문구로 안내받는다.
  */
 export function TrashList() {
+  const t = useTranslations("settings.trash");
+  const tShared = useTranslations("shared");
+  const format = useFormatter();
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const trash = useQuery({
@@ -44,15 +43,15 @@ export function TrashList() {
       await restoreTrashDocument(documentId, currentVersion);
       // 원래 폴더가 지워졌으면 최상위로 돌아가므로 실제 위치를 트리에서 찾는다. 찾지 못해도 복구는 끝났다.
       const folderName = await fetchDocumentTree().then((tree) => restoredDocumentFolderName(tree.items, documentId)).catch(() => undefined);
-      const message = documentRestoredMessage(name, folderName);
+      const message = documentRestoredMessage(name, folderName, tShared);
       setRestoreMessage(message);
       publishNotice({
         kind: "completed",
-        title: "문서 복구 완료",
+        title: t("restoredTitle"),
         message
       });
     } catch (error) {
-      setRestoreError(describeRestoreError(error));
+      setRestoreError(describeRestoreError(error, undefined, tShared));
     } finally {
       setRestoringId(null);
       await queryClient.invalidateQueries({ queryKey: TRASH_QUERY_KEY(workspaceId) });
@@ -61,16 +60,21 @@ export function TrashList() {
     }
   }
 
+  function formatTime(value: string) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : format.dateTime(date, DELETED_AT_FORMAT);
+  }
+
   return (
       <div className={styles.body} aria-busy={trash.isLoading}>
         <p className={styles.description}>
-          삭제한 문서는 30일 동안 보관된 뒤 영구 삭제됩니다. 복구는 문서 소유자와 OWNER만 할 수 있습니다.
+          {t("retention")}
         </p>
-        {trash.isLoading && <p className={styles.empty}>휴지통을 불러오는 중입니다.</p>}
+        {trash.isLoading && <p className={styles.empty}>{t("loading")}</p>}
         {trash.isError && (
-          <p className={sectionStyles["settings-message"]} role="alert">{getErrorMessage(trash.error, "휴지통을 불러오지 못했습니다.")}</p>
+          <p className={sectionStyles["settings-message"]} role="alert">{getErrorMessage(trash.error, t("loadFailed"), tShared)}</p>
         )}
-        {!trash.isLoading && !trash.isError && items.length === 0 && <p className={styles.empty}>휴지통이 비어 있습니다.</p>}
+        {!trash.isLoading && !trash.isError && items.length === 0 && <p className={styles.empty}>{t("empty")}</p>}
         <ul className={styles.list}>
           {items.map((item) => {
             const expired = isRetentionExpired(item.purge_at);
@@ -79,16 +83,16 @@ export function TrashList() {
               <li key={item.id} className={styles.item}>
                 <div className={styles["item-text"]}>
                   <p>{name}</p>
-                  <span>{formatTime(item.deleted_at)} 삭제 · {describePurge(item.purge_at)}</span>
+                  <span>{t("deletedAt", { time: formatTime(item.deleted_at), purge: describePurge(item.purge_at, undefined, tShared) })}</span>
                 </div>
                 <button
                   type="button"
                   className={`${sectionStyles["settings-small-button"]} ${sectionStyles["is-primary"]}`}
                   disabled={expired || restoringId === item.id}
-                  title={expired ? "보관 기간이 지나 복구할 수 없습니다." : undefined}
+                  title={expired ? t("expired") : undefined}
                   onClick={() => void restore(item.id, item.current_version, name)}
                 >
-                  {restoringId === item.id ? "복구 중…" : "복구"}
+                  {restoringId === item.id ? t("restoring") : t("restore")}
                 </button>
               </li>
             );

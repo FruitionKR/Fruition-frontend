@@ -15,8 +15,14 @@ registerHooks({
 });
 
 const { buildMeetingListQuery, MEETING_LIST_MAX_LIMIT, MEETING_LIST_DEFAULT_LIMIT } = await import("../src/entities/meeting/lib/meetingListQuery.ts");
-const { meetingListBadge, MEETING_RESUME_MESSAGES, resumedMeetingView, shouldLoadNotesOnResume } = await import("../src/features/meeting-dictation/lib/meetingResume.ts");
-const { canCloseMeetingInPhase, MEETING_MESSAGES } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+const { meetingListBadge, resumedMeetingView, shouldLoadNotesOnResume } = await import("../src/features/meeting-dictation/lib/meetingResume.ts");
+const { canCloseMeetingInPhase } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+
+// 화면과 같이 meeting 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readMeetingMessages } = await import("node:fs");
+const { createTranslator: createMeetingTranslator } = await import("use-intl/core");
+const meetingKo = JSON.parse(readMeetingMessages(new URL("../src/shared/i18n/messages/ko/meeting.json", import.meta.url), "utf8"));
+const tm = createMeetingTranslator({ locale: "ko", messages: { meeting: meetingKo }, namespace: "meeting" });
 
 const segment = (position, text) => ({ id: `s1_${position}`, position, status: "completed", text });
 const meetingOf = (overrides = {}) => ({ status: "open", source: "live", error: null, segments: [segment(1, "첫 문장")], live_connected: false, ...overrides });
@@ -37,13 +43,13 @@ test("회의 목록 쿼리: 상태는 쉼표 목록(중복 제거), cursor·limi
 });
 
 test("다시 열기: 전사 중은 진행 표시(조회 대기), 실패는 서버 사유, 올리기 전은 다시 올리기 안내로 연다", () => {
-  assert.deepEqual(resumedMeetingView(meetingOf({ status: "transcribing", source: "upload", segments: [] }), null), { phase: "transcribing", notice: null });
-  const failed = resumedMeetingView(meetingOf({ status: "failed", source: "upload", error: "음성이 없습니다." }), null);
+  assert.deepEqual(resumedMeetingView(meetingOf({ status: "transcribing", source: "upload", segments: [] }), null, tm), { phase: "transcribing", notice: null });
+  const failed = resumedMeetingView(meetingOf({ status: "failed", source: "upload", error: "음성이 없습니다." }), null, tm);
   assert.equal(failed.phase, "stopped");
   assert.equal(failed.notice.tone, "error");
   assert.match(failed.notice.text, /음성이 없습니다/);
-  assert.deepEqual(resumedMeetingView(meetingOf({ status: "awaiting_upload", source: "upload", segments: [] }), null), {
-    phase: "stopped", notice: { text: MEETING_RESUME_MESSAGES.awaitingUpload, tone: "info" }
+  assert.deepEqual(resumedMeetingView(meetingOf({ status: "awaiting_upload", source: "upload", segments: [] }), null, tm), {
+    phase: "stopped", notice: { text: tm("messages.awaitingUpload"), tone: "info" }
   });
   for (const status of ["transcribing", "failed", "awaiting_upload"]) {
     assert.equal(shouldLoadNotesOnResume(meetingOf({ status }), { has_notes: true }), false, status);
@@ -62,29 +68,31 @@ test("다시 열기: 회의록 초안은 있을 만할 때만 조회한다(없�
 });
 
 test("다시 열기: 끝난 회의는 회의록 초안 상태대로(생성 중·회의록·저장됨) 열고, 없으면 받아쓴 내용으로 연다", () => {
-  assert.equal(resumedMeetingView(meetingOf(), { status: "generating", error_code: null }).phase, "generating");
-  assert.equal(resumedMeetingView(meetingOf(), { status: "ready", error_code: null }).phase, "ready");
-  assert.equal(resumedMeetingView(meetingOf({ source: "upload" }), { status: "applied", error_code: null }).phase, "applied");
-  assert.deepEqual(resumedMeetingView(meetingOf(), null), { phase: "stopped", notice: null });
-  const failedNotes = resumedMeetingView(meetingOf(), { status: "failed", error_code: "MEETING_NOTES_TIMEOUT" });
+  assert.equal(resumedMeetingView(meetingOf(), { status: "generating", error_code: null }, tm).phase, "generating");
+  assert.equal(resumedMeetingView(meetingOf(), { status: "ready", error_code: null }, tm).phase, "ready");
+  assert.equal(resumedMeetingView(meetingOf({ source: "upload" }), { status: "applied", error_code: null }, tm).phase, "applied");
+  assert.deepEqual(resumedMeetingView(meetingOf(), null, tm), { phase: "stopped", notice: null });
+  const failedNotes = resumedMeetingView(meetingOf(), { status: "failed", error_code: "MEETING_NOTES_TIMEOUT" }, tm);
   assert.equal(failedNotes.phase, "stopped");
   assert.equal(failedNotes.notice.tone, "error");
-  assert.equal(resumedMeetingView(meetingOf(), { status: "failed", error_code: "MEETING_NOTES_CANCELLED" }).notice.tone, "info");
+  assert.equal(resumedMeetingView(meetingOf(), { status: "failed", error_code: "MEETING_NOTES_CANCELLED" }, tm).notice.tone, "info");
 });
 
 test("다시 열기: 받아쓴 문장이 없으면 회의록을 만들 수 없다고, 다른 화면에서 받아쓰는 중이면 그렇다고 알린다", () => {
-  assert.equal(resumedMeetingView(meetingOf({ segments: [] }), null).notice.text, MEETING_MESSAGES.emptyTranscript);
-  assert.equal(resumedMeetingView(meetingOf({ source: "upload", segments: [] }), null).notice.text, MEETING_MESSAGES.emptyRecordingTranscript);
-  assert.equal(resumedMeetingView(meetingOf({ live_connected: true }), null).notice.text, MEETING_RESUME_MESSAGES.liveConnected);
+  assert.equal(resumedMeetingView(meetingOf({ segments: [] }), null, tm).notice.text, tm("messages.emptyTranscript"));
+  assert.equal(resumedMeetingView(meetingOf({ source: "upload", segments: [] }), null, tm).notice.text, tm("messages.emptyRecordingTranscript"));
+  assert.equal(resumedMeetingView(meetingOf({ live_connected: true }), null, tm).notice.text, tm("messages.liveConnected"));
 });
 
 test("목록 표시: 전사 중·실패를 먼저 알리고, 끝난 회의는 회의록 여부를 보여 준다", () => {
-  assert.deepEqual(meetingListBadge({ status: "transcribing", has_notes: false, source: "upload" }), { label: "글로 옮기는 중", tone: "progress" });
-  assert.deepEqual(meetingListBadge({ status: "failed", has_notes: false, source: "upload" }), { label: "글로 옮기기 실패", tone: "error" });
-  assert.equal(meetingListBadge({ status: "awaiting_upload", has_notes: false, source: "upload" }).label, "올리기 전");
-  assert.equal(meetingListBadge({ status: "open", has_notes: true, source: "live" }).label, "회의록 있음");
-  assert.equal(meetingListBadge({ status: "open", has_notes: false, source: "upload" }).label, "글로 옮기기 완료");
-  assert.equal(meetingListBadge({ status: "open", has_notes: false, source: "live" }).label, "녹음");
+  assert.deepEqual(meetingListBadge({ status: "transcribing", has_notes: false, source: "upload" }), { label: "transcribing", tone: "progress" });
+  assert.equal(tm("badges.transcribing"), "글로 옮기는 중");
+  assert.deepEqual(meetingListBadge({ status: "failed", has_notes: false, source: "upload" }), { label: "failed", tone: "error" });
+  assert.equal(tm("badges.failed"), "글로 옮기기 실패");
+  assert.equal(tm(`badges.${meetingListBadge({ status: "awaiting_upload", has_notes: false, source: "upload" }).label}`), "올리기 전");
+  assert.equal(tm(`badges.${meetingListBadge({ status: "open", has_notes: true, source: "live" }).label}`), "회의록 있음");
+  assert.equal(tm(`badges.${meetingListBadge({ status: "open", has_notes: false, source: "upload" }).label}`), "글로 옮기기 완료");
+  assert.equal(tm(`badges.${meetingListBadge({ status: "open", has_notes: false, source: "live" }).label}`), "녹음");
 });
 
 test("전사·회의록 생성·불러오기 중에는 회의 화면을 닫을 수 있고, 올리는 중·받아쓰는 중에는 닫을 수 없다", () => {

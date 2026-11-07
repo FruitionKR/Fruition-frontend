@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { buildSignupConsentFields, consentErrorMessage, loginWithEmail, registeredEmailErrorMessage, signupWithEmail } from "@/entities/user";
 import { LEGAL_PAGES_ENABLED, LEGAL_TERMS_VERSION } from "@/shared/config/legal";
@@ -10,7 +11,7 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useAuthFlow } from "@/views/auth/model/AuthFlowContext";
 import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
-import { confirmVerificationCode } from "@/views/auth/lib/confirmVerificationCode";
+import { confirmVerificationCode, InvalidVerificationCodeError } from "@/views/auth/lib/confirmVerificationCode";
 import { useDevelopmentVerificationCode } from "@/shared/hooks/useDevelopmentVerificationCode";
 import { useExpiryCountdown } from "@/views/auth/model/useExpiryCountdown";
 import { useVerificationResend } from "@/views/auth/model/useVerificationResend";
@@ -19,6 +20,8 @@ import { MfaLoginForm } from "./MfaLoginForm";
 
 export default function SignupVerificationPage() {
   const router = useRouter();
+  const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const { signupDraft, setSignupDraft } = useAuthFlow();
   const [verificationCode, setVerificationCode] = useState("");
@@ -59,7 +62,7 @@ export default function SignupVerificationPage() {
     // 약관 공개 플래그가 꺼져 있으면 동의 필드를 아예 보내지 않는다(사용자 대신 동의 값을 만들지 않는다).
     const consent = buildSignupConsentFields(LEGAL_PAGES_ENABLED, draft.consent, LEGAL_TERMS_VERSION);
     if (!consent) {
-      setErrorMessage("약관 동의가 필요합니다. 가입 화면에서 다시 동의해 주세요.");
+      setErrorMessage(t("signup.consentMissing"));
       return;
     }
 
@@ -86,7 +89,9 @@ export default function SignupVerificationPage() {
     } catch (error: unknown) {
       // CONSENT_REQUIRED(약관 버전 불일치 등)는 동의만 고쳐 다시 보낼 수 있다. 인증 토큰은 소비되지 않는다.
       // 409 EMAIL_REGISTERED_WITH_OAUTH는 같은 이메일의 소셜 계정으로 로그인한 뒤 연동하도록 안내한다(access #31).
-      setErrorMessage(registeredEmailErrorMessage(error) ?? consentErrorMessage(error, getErrorMessage(error, "회원가입에 실패했습니다.")));
+      setErrorMessage(error instanceof InvalidVerificationCodeError
+        ? t("verification.invalidCode")
+        : registeredEmailErrorMessage(error, tShared) ?? consentErrorMessage(error, getErrorMessage(error, t("signup.failed"), tShared), tShared));
       setIsSubmitting(false);
     }
   }
@@ -102,17 +107,17 @@ export default function SignupVerificationPage() {
   }
 
   if (mfaToken) return (
-    <AuthScreen shellModifier="verification" title="다단계 인증">
+    <AuthScreen shellModifier="verification" title={t("mfa.title")}>
       <MfaLoginForm token={mfaToken} onCancel={() => router.replace("/login")} />
     </AuthScreen>
   );
 
   return (
-    <AuthScreen shellModifier="verification" title="회원가입">
+    <AuthScreen shellModifier="verification" title={t("signup.title")}>
       <form className="auth-form" method="post" onSubmit={handleVerificationConfirm}>
         <div className="auth-field-with-error">
           <AuthField
-            label="인증번호"
+            label={t("fields.verificationCode")}
             name="verificationCode"
             onChange={(event) => setVerificationCode(event.target.value)}
             placeholder="code"
@@ -120,12 +125,12 @@ export default function SignupVerificationPage() {
             timer={draft.expiresAt ? countdown.label : undefined}
             value={verificationCode}
           />
-          {isRequestingVerification ? <p className="auth-prompt" role="status">인증번호를 발송하고 있습니다.</p> : null}
+          {isRequestingVerification ? <p className="auth-prompt" role="status">{t("verification.sending")}</p> : null}
           {draft.verificationRequestError ? <AuthError>{draft.verificationRequestError}</AuthError> : null}
           {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
         </div>
         <AuthSubmitButton disabled={isSubmitting || !draft.verificationId}>
-          {isRequestingVerification ? "발송 중" : "인증 요청"}
+          {isRequestingVerification ? t("verification.sendingButton") : t("verification.request")}
         </AuthSubmitButton>
       </form>
       <ResendCodePrompt

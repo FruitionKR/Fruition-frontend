@@ -18,6 +18,8 @@ const PUBLIC_AUTH_PATHS = new Set([
 ]);
 
 let accessToken: string | null = null;
+// access token을 저장할 때마다 늘린다. 늦게 끝난 refresh가 그 사이 직접 로그인으로 받은 토큰을 덮어쓰지 않게 비교한다.
+let accessTokenVersion = 0;
 // 동시에 터진 401이 처리기를 N번 호출해 queryClient.clear()·router.replace를 반복하지 않게 하는 래치.
 let hasNotifiedSessionExpired = false;
 // 사용자가 이 탭에서 직접 로그아웃했으면 참. 랜딩이 남은 refresh 쿠키로 앱에 되돌려 보내지 않게 한다.
@@ -56,9 +58,15 @@ export function getAccessToken(): string | null {
 export function saveAccessToken(token: string) {
   removeLegacyStoredTokens();
   accessToken = token;
+  accessTokenVersion += 1;
   // 로그인·재발급이 성공했으면 다음 만료는 다시 알려야 한다.
   hasNotifiedSessionExpired = false;
   hasSignedOutByUser = false;
+}
+
+/** 마지막으로 access token을 저장한 순번. 요청 전후 값이 다르면 그 사이 다른 로그인·재발급이 토큰을 저장했다. */
+export function getAccessTokenVersion(): number {
+  return accessTokenVersion;
 }
 
 /** 사용자가 직접 로그아웃했음을 페이지 수명 동안 기억한다. 다시 로그인하면 풀린다. */

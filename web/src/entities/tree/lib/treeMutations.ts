@@ -76,6 +76,9 @@ function moveTreeItem(items: TreeItem[], itemId: string, target: DropTarget): Tr
   return insertTreeItem(result.items, result.removed, target);
 }
 
+/** 문서 위에 문서를 놓아 만드는 묶음 폴더의 한국어 기본 이름. 화면은 workspace.tree.newDocumentGroupName을 넘긴다. */
+const DEFAULT_DOCUMENT_GROUP_NAME = "새 문서 묶음";
+
 function mergeTreeItemsIntoFolder(items: TreeItem[], draggedId: string, targetId: string, folderName?: string): TreeItem[] {
   const draggedItem = findTreeItem(items, draggedId);
   const targetItem = findTreeItem(items, targetId);
@@ -86,7 +89,7 @@ function mergeTreeItemsIntoFolder(items: TreeItem[], draggedId: string, targetId
 
   const folder: TreeItem = {
     id: createClientId("merged-folder"),
-    label: folderName ?? availableFolderName([{ id: "", title: "", items }], "새 문서 묶음", findItemLocation([{ id: "", title: "", items }], targetId)),
+    label: folderName ?? availableFolderName([{ id: "", title: "", items }], DEFAULT_DOCUMENT_GROUP_NAME, findItemLocation([{ id: "", title: "", items }], targetId)),
     type: "folder",
     children: [targetItem, result.removed]
   };
@@ -94,12 +97,13 @@ function mergeTreeItemsIntoFolder(items: TreeItem[], draggedId: string, targetId
   return replaceTreeItem(result.items, targetId, folder);
 }
 
-/** 문서나 폴더를 같은 프로젝트 또는 다른 프로젝트의 지정 위치로 이동한다. */
+/** 문서나 폴더를 같은 프로젝트 또는 다른 프로젝트의 지정 위치로 이동한다. groupName은 묶음 폴더를 만들 때의 기본 이름이다. */
 export function moveProjectTreeItem(
   projects: Project[],
   sourceProjectId: string,
   itemId: string,
-  target: DropTarget
+  target: DropTarget,
+  groupName: string = DEFAULT_DOCUMENT_GROUP_NAME
 ): Project[] {
   const sourceProject = projects.find((project) => project.id === sourceProjectId);
   const targetProject = projects.find((project) => project.id === target.projectId);
@@ -110,7 +114,7 @@ export function moveProjectTreeItem(
     const targetItem = target.targetId ? findTreeItem(sourceProject.items, target.targetId) : null;
     let nextItems: TreeItem[];
     if (target.position === "inside" && target.targetId && dragged && targetItem && isFileItem(dragged) && isFileItem(targetItem)) {
-      nextItems = mergeTreeItemsIntoFolder(sourceProject.items, itemId, target.targetId, availableFolderName(projects, "새 문서 묶음", findItemLocation(projects, target.targetId!)));
+      nextItems = mergeTreeItemsIntoFolder(sourceProject.items, itemId, target.targetId, availableFolderName(projects, groupName, findItemLocation(projects, target.targetId!)));
     } else {
       const normalizedTarget = target.position === "inside" && targetItem && isFileItem(targetItem)
         ? { ...target, position: "after" as const }
@@ -134,7 +138,7 @@ export function moveProjectTreeItem(
     if (target.position === "inside" && isFileItem(movedItem) && isFileItem(targetItem)) {
       const folder: TreeItem = {
         id: createClientId("merged-folder"),
-        label: availableFolderName(projects, "새 문서 묶음", findItemLocation(projects, target.targetId!)),
+        label: availableFolderName(projects, groupName, findItemLocation(projects, target.targetId!)),
         type: "folder",
         children: [targetItem, movedItem]
       };

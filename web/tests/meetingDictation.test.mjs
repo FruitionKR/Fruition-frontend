@@ -14,7 +14,13 @@ registerHooks({
 const { buildLiveSocketUrl, describeLiveError, isFatalLiveError, parseLiveServerEvent, LIVE_CLOSE_IN_USE } = await import("../src/features/meeting-dictation/lib/liveProtocol.ts");
 const { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, transcriptLines } = await import("../src/features/meeting-dictation/lib/liveTranscript.ts");
 const { createResampler, encodePcm16, pcmDurationMs, shouldCommit, splitAudioFrames, COMMIT_MAX_MS, COMMIT_MIN_MS } = await import("../src/features/meeting-dictation/lib/pcm16.ts");
-const { describeNotesRequestError, describeNotesSaveError, isCapturingPhase, meetingProgressText, MEETING_MESSAGES } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+const { describeNotesRequestError, describeNotesSaveError, isCapturingPhase, meetingProgressText } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+
+// 화면과 같이 meeting 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readMeetingMessages } = await import("node:fs");
+const { createTranslator: createMeetingTranslator } = await import("use-intl/core");
+const meetingKo = JSON.parse(readMeetingMessages(new URL("../src/shared/i18n/messages/ko/meeting.json", import.meta.url), "utf8"));
+const tm = createMeetingTranslator({ locale: "ko", messages: { meeting: meetingKo }, namespace: "meeting" });
 const { meetingCardLines } = await import("../src/features/meeting-dictation/lib/meetingCardLines.ts");
 const { createLiveSession } = await import("../src/features/meeting-dictation/model/liveSession.ts");
 const { ApiError } = await import("../src/shared/lib/apiErrors.ts");
@@ -39,9 +45,9 @@ test("서버 이벤트를 계약대로 읽고 모르는 type·깨진 JSON·바�
 test("크레딧·10만 자 한도·회의 상태·다른 곳 사용 중은 다시 연결하지 않고 안내한다", () => {
   for (const code of ["insufficient_credit", "transcript_limit", "meeting_not_open", "live_in_use"]) assert.equal(isFatalLiveError(code), true, code);
   for (const code of ["transcription_failed", "backpressure", "transcript_save_failed"]) assert.equal(isFatalLiveError(code), false, code);
-  assert.match(describeLiveError("transcript_limit"), /10만 자/);
-  assert.match(describeLiveError("insufficient_credit"), /크레딧이 부족합니다/);
-  assert.equal(describeLiveError("모르는_코드"), describeLiveError("transcription_failed"));
+  assert.match(describeLiveError("transcript_limit", tm), /10만 자/);
+  assert.match(describeLiveError("insufficient_credit", tm), /크레딧이 부족합니다/);
+  assert.equal(describeLiveError("모르는_코드", tm), describeLiveError("transcription_failed", tm));
 });
 
 test("WebSocket 주소는 문서 API 오리진이 있으면 그쪽 wss, 없으면 화면 오리진으로 붙고 ticket을 인코딩한다", () => {
@@ -205,7 +211,8 @@ test("크레딧 부족·10만 자 한도 오류는 다시 연결하지 않고 �
     sockets[0].serverSend({ type: "error", code, message: "" });
     sockets[0].serverClose(1008);
     assert.equal(calls.reconnecting, 0, code);
-    assert.deepEqual(calls.stopped, [{ ok: false, code, message: describeLiveError(code) }]);
+    assert.deepEqual(calls.stopped, [{ ok: false, code, messageCode: code }]);
+    assert.match(describeLiveError(calls.stopped[0].messageCode, tm), code === "transcript_limit" ? /10만 자/ : /크레딧이 부족합니다/);
   }
 });
 
@@ -225,7 +232,8 @@ test("재연결을 다 써도 붙지 않으면 저장된 내용은 남아 있다
   sockets[1].serverClose(1006);
   assert.equal(calls.stopped.length, 1);
   assert.equal(calls.stopped[0].ok, false);
-  assert.equal(calls.stopped[0].message, describeLiveError("disconnected"));
+  assert.equal(calls.stopped[0].messageCode, "disconnected");
+  assert.match(describeLiveError(calls.stopped[0].messageCode, tm), /저장돼 있습니다/);
 });
 
 test("ticket 발급이 409 MEETING_LIVE_IN_USE면 다시 시도하지 않고 서버 문구로 끝낸다", async (t) => {
@@ -233,7 +241,7 @@ test("ticket 발급이 409 MEETING_LIVE_IN_USE면 다시 시도하지 않고 서
     issueTicket: async () => { throw new ApiError("이미 다른 곳에서 받아쓰고 있습니다.", 409, "MEETING_LIVE_IN_USE"); }
   });
   await session.start();
-  assert.deepEqual(calls.stopped, [{ ok: false, code: "live_in_use", message: "이미 다른 곳에서 받아쓰고 있습니다." }]);
+  assert.deepEqual(calls.stopped, [{ ok: false, code: "live_in_use", messageCode: "transcription_failed", serverMessage: "이미 다른 곳에서 받아쓰고 있습니다." }]);
 });
 
 test("연결 전에 멈추면 모아 둔 음성 없이 바로 끝낸다", async (t) => {
@@ -245,19 +253,19 @@ test("연결 전에 멈추면 모아 둔 음성 없이 바로 끝낸다", async 
 });
 
 test("회의록 요청 오류: 누락 전사는 저장된 내용으로 다시 만들 수 있고, 연결이 덜 닫혔으면 다시 보낸다", () => {
-  assert.deepEqual(describeNotesRequestError(new ApiError("x", 409, "MEETING_TRANSCRIPT_INCOMPLETE")), { message: MEETING_MESSAGES.incompleteTranscript, incomplete: true, liveStillOpen: false });
-  assert.equal(describeNotesRequestError(new ApiError("x", 409, "MEETING_LIVE_IN_USE")).liveStillOpen, true);
-  assert.equal(describeNotesRequestError(new ApiError("x", 422, "MEETING_TRANSCRIPT_EMPTY")).message, MEETING_MESSAGES.emptyTranscript);
-  assert.match(describeNotesRequestError(new ApiError("x", 409, "MEETING_NOTES_BUSY")).message, /워크스페이스/);
-  assert.equal(describeNotesRequestError(new ApiError("x", 402, "INSUFFICIENT_CREDIT")).message, "크레딧이 부족합니다.");
-  assert.equal(describeNotesSaveError(new ApiError("x", 409, "DOCUMENT_REVISION_CHANGED"), "f"), MEETING_MESSAGES.revisionChanged);
-  assert.equal(describeNotesSaveError(new ApiError("서버 문구", 403, "DOCUMENT_WRITE_FORBIDDEN"), "f"), "서버 문구");
+  assert.deepEqual(describeNotesRequestError(new ApiError("x", 409, "MEETING_TRANSCRIPT_INCOMPLETE"), tm), { message: tm("messages.incompleteTranscript"), incomplete: true, liveStillOpen: false });
+  assert.equal(describeNotesRequestError(new ApiError("x", 409, "MEETING_LIVE_IN_USE"), tm).liveStillOpen, true);
+  assert.equal(describeNotesRequestError(new ApiError("x", 422, "MEETING_TRANSCRIPT_EMPTY"), tm).message, tm("messages.emptyTranscript"));
+  assert.match(describeNotesRequestError(new ApiError("x", 409, "MEETING_NOTES_BUSY"), tm).message, /워크스페이스/);
+  assert.equal(describeNotesRequestError(new ApiError("x", 402, "INSUFFICIENT_CREDIT"), tm).message, "크레딧이 부족합니다.");
+  assert.equal(describeNotesSaveError(new ApiError("x", 409, "DOCUMENT_REVISION_CHANGED"), "f", tm), tm("messages.revisionChanged"));
+  assert.equal(describeNotesSaveError(new ApiError("서버 문구", 403, "DOCUMENT_WRITE_FORBIDDEN"), "f", tm), "서버 문구");
 });
 
 test("진행 표시는 받아쓰기·마무리·회의록 작성 중에만 보이고, 회의록 작성 중 문구는 시안과 같다", () => {
-  assert.equal(meetingProgressText("generating"), "답변을 작성하고 있어요…");
-  assert.equal(meetingProgressText("ready"), null);
-  assert.equal(meetingProgressText("stopped"), null);
+  assert.equal(meetingProgressText("generating", tm), "답변을 작성하고 있어요…");
+  assert.equal(meetingProgressText("ready", tm), null);
+  assert.equal(meetingProgressText("stopped", tm), null);
   assert.equal(isCapturingPhase("reconnecting"), true);
   assert.equal(isCapturingPhase("finishing"), false);
 });

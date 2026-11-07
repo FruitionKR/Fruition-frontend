@@ -2,6 +2,7 @@ import { findSourceNodeByDocumentId, makeRawId } from "@/entities/graph/lib/grap
 import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import type { GraphNode } from "@/entities/wiki/model/wiki";
+import type { AgentChatTranslator } from "./agentChatTranslator";
 
 type SourceDocumentCard = {
   key: string;
@@ -30,7 +31,7 @@ function referenceLocations(reference: ChatMessageReferenceResponse): { document
  * 그래프에 raw 노드가 없는 문서(삭제됨 등)는 열 수 없어 뺀다.
  * 그래프를 아직 받지 못했으면 제목을 알 수 없어(문서 id가 그대로 보인다) 받은 뒤에 보여 준다.
  */
-export function buildSourceDocumentCards(message: ChatMessageResponse, nodes: GraphNode[] | undefined): SourceDocumentCard[] {
+export function buildSourceDocumentCards(message: ChatMessageResponse, nodes: GraphNode[] | undefined, t: AgentChatTranslator): SourceDocumentCard[] {
   if (!nodes) return [];
   const sorted = [...message.references].sort((a, b) => (a.rank ?? UNRANKED) - (b.rank ?? UNRANKED));
   const cards = new Map<string, SourceDocumentCard>();
@@ -38,7 +39,7 @@ export function buildSourceDocumentCards(message: ChatMessageResponse, nodes: Gr
     for (const { documentId, blockId } of referenceLocations(reference)) {
       const title = nodes.find((node) => node.id === makeRawId(documentId))?.label;
       if (!title) continue;
-      const card = cards.get(documentId) ?? { key: `source-${documentId}`, documentId, title, meta: reference.text || "근거 원본", highlights: [] };
+      const card = cards.get(documentId) ?? { key: `source-${documentId}`, documentId, title, meta: reference.text || t("sources.fallbackMeta"), highlights: [] };
       const isNewBlock = blockId !== null && !card.highlights.some((item) => item.block_id === blockId);
       cards.set(documentId, isNewBlock
         ? { ...card, highlights: [...card.highlights, { block_id: blockId, rank: reference.rank ?? 0 }] }

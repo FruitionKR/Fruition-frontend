@@ -7,9 +7,10 @@ import {
   composerDocumentOptions,
   moveActiveOption,
   parseDocumentMention,
-  REFERENCE_DOCUMENT_LIMIT_MESSAGE,
+  REFERENCE_DOCUMENT_MAX,
   removeDocumentMention
 } from "../lib/composerDocuments";
+import { useTranslations } from "next-intl";
 
 /** "@" 목록에 그리는 최대 항목 수. 문서가 많으면 글자를 더 쳐서 거른다. */
 const MENTION_OPTION_LIMIT = 20;
@@ -39,6 +40,7 @@ export function useDocumentPicker({
   onChange: (value: string) => void;
   getInput: () => HTMLTextAreaElement | null | undefined;
 }) {
+  const t = useTranslations("agentChat");
   const [caret, setCaret] = useState<number | null>(null);
   const [dismissedValue, setDismissedValue] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -72,13 +74,13 @@ export function useDocumentPicker({
   const activeOption = mentionOptions.find((item) => item.id === activeId) ?? mentionOptions[0] ?? null;
   const isOpenDocumentDetached = openDocumentId !== null && !isOpenDocumentAttached;
   const canAdd = canAddComposerDocument(attachments.length, isOpenDocumentDetached, { isOpenDocumentReference, isOpenDocumentAttached });
-  const limitMessage = canAdd ? null : REFERENCE_DOCUMENT_LIMIT_MESSAGE;
+  const limitMessage = canAdd ? null : t("documents.limit", { max: REFERENCE_DOCUMENT_MAX });
   const listStatusMessage = documentsQuery.isLoading
-    ? "문서 목록을 불러오는 중이에요."
+    ? t("documents.picker.loading")
     : documentsQuery.error
-      ? "문서 목록을 불러오지 못했어요."
+      ? t("documents.picker.failed")
       : null;
-  const mentionStatusMessage = listStatusMessage ?? limitMessage ?? (query ? "맞는 문서가 없어요." : "첨부할 수 있는 문서가 없어요.");
+  const mentionStatusMessage = listStatusMessage ?? limitMessage ?? (query ? t("documents.picker.noMatch") : t("documents.picker.empty"));
 
   function attachDocument(document: DocumentItemResponse) {
     if (document.id === openDocumentId) openDocument.attach();

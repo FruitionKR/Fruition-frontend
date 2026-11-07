@@ -32,6 +32,15 @@ export const GRAPH_INGEST_BLOCK_REASONS = {
 } as const;
 
 /**
+ * 편입 불가 이유의 메시지 키(wiki.ingestBlock.*). 이유 값은 다른 모듈이 비교하므로 한국어 그대로 두고 화면에 보일 때 옮긴다.
+ * 변환 권한 없음(convertForbidden)은 documents.access.convertForbidden이라 여기서 빼고 트리 이유 문구로 옮긴다.
+ */
+export function graphIngestBlockReasonKey(reason: string): Exclude<keyof typeof GRAPH_INGEST_BLOCK_REASONS, "convertForbidden"> | null {
+  const entry = Object.entries(GRAPH_INGEST_BLOCK_REASONS).find(([key, value]) => key !== "convertForbidden" && value === reason);
+  return entry ? (entry[0] as Exclude<keyof typeof GRAPH_INGEST_BLOCK_REASONS, "convertForbidden">) : null;
+}
+
+/**
  * 위키 편입 선택 트리에서 문서를 고를 수 없는 이유. 고를 수 있으면 null.
  * - Markdown: 처리 중이거나 이미 최신으로 반영된 문서, 변환에 실패한 문서는 막는다.
  * - PDF: 아직 변환하지 않은 원본만 고를 수 있다(확인 후 Markdown으로 변환해 편입).

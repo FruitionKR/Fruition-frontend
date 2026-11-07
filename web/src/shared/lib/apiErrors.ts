@@ -1,3 +1,5 @@
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 /** 로그인 전 요청의 인증 거절. 세션 만료 알림 없이 로그인 화면으로 안내한다. */
 export class LoginRequiredError extends Error {
   constructor(message: string) {
@@ -88,6 +90,21 @@ export function workspacePermissionLabel(value: string): string {
   return (WORKSPACE_PERMISSION_LABELS as Record<string, string>)[value] ?? value;
 }
 
+/** 권한 값에 대응하는 공용 메시지 id(`shared.permissions.<id>.label`·`.description`). */
+export const WORKSPACE_PERMISSION_MESSAGE_IDS = {
+  "wiki.ingest": "wikiIngest",
+  "wiki.lint": "wikiLint",
+  "skill.author": "skillAuthor",
+  "wiki.restore": "wikiRestore",
+  "document.convert": "documentConvert"
+} as const satisfies Record<WorkspacePermission, string>;
+
+/** 지금 언어의 권한 라벨. 서버가 새 값을 보내면 값을 그대로 보여 준다(map 콜백으로 넘겨도 되게 workspacePermissionLabel과 따로 둔다). */
+export function localizedWorkspacePermissionLabel(value: string, t: SharedTranslate): string {
+  const id = WORKSPACE_PERMISSION_MESSAGE_IDS[value as WorkspacePermission];
+  return id ? t(`permissions.${id}.label`) : value;
+}
+
 /**
  * 403 WORKSPACE_PERMISSION_REQUIRED 메시지에서 필요한 권한 값을 찾는다(document #116은 `'wiki.ingest'`처럼 따옴표로 싼다).
  * 못 찾으면 null이다.
@@ -108,8 +125,13 @@ export function isWorkspacePermissionRequiredError(error: unknown): error is Api
  * 403 WORKSPACE_PERMISSION_REQUIRED 안내 문구. 서버 메시지에 필요한 항목(`'wiki.ingest'`)이 있으면 라벨로 보여 주고,
  * 권한은 OWNER만 부여할 수 있으므로 OWNER에게 요청하도록 안내한다.
  */
-export function workspacePermissionRequiredMessage(error: ApiError): string {
+export function workspacePermissionRequiredMessage(error: ApiError, t?: SharedTranslate): string {
   const required = findRequiredPermission(error.message);
+  if (t) {
+    return required
+      ? t("errors.permissionRequired", { permission: localizedWorkspacePermissionLabel(required, t) })
+      : t("errors.permissionRequiredGeneric");
+  }
   const subject = required ? `'${workspacePermissionLabel(required)}' 권한이` : "권한이";
   return `이 작업에는 ${subject} 필요합니다. 워크스페이스 OWNER에게 권한을 요청하세요.`;
 }
@@ -126,13 +148,20 @@ export function isInsufficientCreditError(error: unknown): boolean {
 export const AI_USAGE_LIMIT_EXCEEDED_CODE = "AI_USAGE_LIMIT_EXCEEDED";
 export const AI_DAILY_LIMIT_MESSAGE = "오늘 사용할 수 있는 AI 사용량을 모두 썼어요. 내일 다시 이용해 주세요.";
 
-/** 업로드 제한 거절 code별 안내. 한도 값은 서버 설정이라 문구에 숫자를 넣지 않는다. */
+/** 업로드 제한 거절 code별 안내. 한도 값은 서버 설정이라 문구에 숫자를 넣지 않는다. 영어 문구는 shared.errors.upload.* */
 export const UPLOAD_LIMIT_MESSAGES = {
   FILE_TOO_LARGE: "파일이 너무 커서 올릴 수 없어요. 더 작은 파일로 다시 올려 주세요.",
   TOO_MANY_FILES: "한 번에 올릴 수 있는 파일 수를 넘었어요. 나눠서 다시 올려 주세요.",
   STORAGE_QUOTA_EXCEEDED: "내 저장 공간을 모두 사용했어요. 사용하지 않는 문서를 삭제한 뒤 다시 올려 주세요.",
   UPLOAD_DAILY_LIMIT_EXCEEDED: "오늘 올릴 수 있는 파일 수를 넘었어요. 내일 다시 올려 주세요."
 } as const;
+
+const UPLOAD_LIMIT_MESSAGE_IDS = {
+  FILE_TOO_LARGE: "fileTooLarge",
+  TOO_MANY_FILES: "tooManyFiles",
+  STORAGE_QUOTA_EXCEEDED: "storageQuotaExceeded",
+  UPLOAD_DAILY_LIMIT_EXCEEDED: "uploadDailyLimitExceeded"
+} as const satisfies Record<keyof typeof UPLOAD_LIMIT_MESSAGES, string>;
 
 /** 서버 error 본문에서 함께 오는 한도 정보. snake_case(document 서비스 관례)와 camelCase를 모두 받는다. */
 export type UsageLimitDetail = { limit_type?: unknown; limitType?: unknown; reset_at?: unknown; resetAt?: unknown };
@@ -151,7 +180,7 @@ function seoulParts(date: Date): { year: number; month: number; day: number; hou
  * 초기화 시각 문구(한국 시간). 다음 날 0시면 "내일(11월 3일) 0시", 다른 날 0시면 "11월 5일 0시",
  * 그 밖에는 "11월 3일 오후 3:00"이다. 잘못된 값이면 null.
  */
-export function formatResetTime(value: unknown, now: Date = new Date()): string | null {
+export function formatResetTime(value: unknown, now: Date = new Date(), t?: SharedTranslate): string | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -161,8 +190,11 @@ export function formatResetTime(value: unknown, now: Date = new Date()): string 
     const today = seoulParts(now);
     const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
     const isTomorrow = reset.year === tomorrow.getUTCFullYear() && reset.month === tomorrow.getUTCMonth() + 1 && reset.day === tomorrow.getUTCDate();
+    // 날짜는 번역 함수의 시간대(request.ts의 Asia/Seoul)로 ICU가 그린다.
+    if (t) return t(isTomorrow ? "errors.resetTime.tomorrowMidnight" : "errors.resetTime.midnight", { date });
     return isTomorrow ? `내일(${dayLabel}) 0시` : `${dayLabel} 0시`;
   }
+  if (t) return t("errors.resetTime.dateTime", { date });
   const time = date.toLocaleTimeString("ko-KR", { timeZone: SEOUL, hour: "numeric", minute: "2-digit" });
   return `${dayLabel} ${time}`;
 }
@@ -171,16 +203,21 @@ export function formatResetTime(value: unknown, now: Date = new Date()): string 
  * AI 사용량 한도 안내. 서버 한도는 하루 토큰뿐이라 limit_type과 관계없이(모르는 값·없음 포함) 하루 한도 안내다.
  * 초기화 시각이 오면 "내일" 대신 그 시각을 알려 준다.
  */
-export function aiUsageLimitMessage(detail?: UsageLimitDetail | null, now: Date = new Date()): string {
-  const resetAt = formatResetTime(detail?.reset_at ?? detail?.resetAt, now);
+export function aiUsageLimitMessage(detail?: UsageLimitDetail | null, now: Date = new Date(), t?: SharedTranslate): string {
+  const resetAt = formatResetTime(detail?.reset_at ?? detail?.resetAt, now, t);
+  if (t) return resetAt ? t("errors.aiDailyLimitUntil", { resetAt }) : t("errors.aiDailyLimit");
   if (!resetAt) return AI_DAILY_LIMIT_MESSAGE;
   return `오늘 사용할 수 있는 AI 사용량을 모두 썼어요. ${resetAt}부터 다시 이용할 수 있어요.`;
 }
 
 /** 사용량·업로드 제한 code면 화면 안내 문구를, 아니면 null을 돌려준다. parseApiError가 서버 문구 대신 쓴다. */
-export function usageLimitMessage(code: string | undefined, detail?: UsageLimitDetail | null): string | null {
+export function usageLimitMessage(code: string | undefined, detail?: UsageLimitDetail | null, t?: SharedTranslate): string | null {
   if (!code) return null;
-  if (code === AI_USAGE_LIMIT_EXCEEDED_CODE) return aiUsageLimitMessage(detail);
+  if (code === AI_USAGE_LIMIT_EXCEEDED_CODE) return aiUsageLimitMessage(detail, new Date(), t);
+  if (t) {
+    const id = UPLOAD_LIMIT_MESSAGE_IDS[code as keyof typeof UPLOAD_LIMIT_MESSAGE_IDS];
+    return id ? t(`errors.upload.${id}`) : null;
+  }
   return (UPLOAD_LIMIT_MESSAGES as Record<string, string>)[code] ?? null;
 }
 
@@ -202,13 +239,15 @@ export const WORKSPACE_NOT_FOUND_MESSAGE = "워크스페이스를 찾을 수 없
  * 브라우저가 만든 영어 연결 오류(AbortSignal.timeout의 "signal timed out", fetch 중단·네트워크 끊김)를 한국어 안내로 바꾼다.
  * 연결 오류가 아니면 null.
  */
-export function connectionErrorMessage(error: unknown): string | null {
+export function connectionErrorMessage(error: unknown, t?: SharedTranslate): string | null {
   if (!(error instanceof Error) && !(typeof DOMException !== "undefined" && error instanceof DOMException)) return null;
   const { name, message } = error as Error;
-  if (name === "TimeoutError" || /signal timed out/i.test(message)) return REQUEST_TIMEOUT_MESSAGE;
-  if (name === "AbortError" || /(operation|signal) (was|is) aborted|BodyStreamBuffer was aborted/i.test(message)) return REQUEST_ABORTED_MESSAGE;
+  if (name === "TimeoutError" || /signal timed out/i.test(message)) return t ? t("errors.requestTimeout") : REQUEST_TIMEOUT_MESSAGE;
+  if (name === "AbortError" || /(operation|signal) (was|is) aborted|BodyStreamBuffer was aborted/i.test(message)) {
+    return t ? t("errors.requestAborted") : REQUEST_ABORTED_MESSAGE;
+  }
   if (error instanceof TypeError && /failed to fetch|networkerror|load failed|network error|network connection was lost|terminated/i.test(message)) {
-    return CONNECTION_LOST_MESSAGE;
+    return t ? t("errors.connectionLost") : CONNECTION_LOST_MESSAGE;
   }
   return null;
 }
@@ -216,19 +255,22 @@ export function connectionErrorMessage(error: unknown): string | null {
 /**
  * unknown 에러에서 사람이 읽을 메시지를 안전하게 추출합니다.
  * Error가 아니면 fallback 문구를 반환합니다.
+ * t(`useTranslations("shared")`)를 넘기면 앱이 정한 문구를 지금 언어로 고르고, 없으면 한국어 문구를 씁니다.
  */
-export function getErrorMessage(error: unknown, fallback: string): string {
-  if (isChatSessionLimitError(error)) return CHAT_SESSION_LIMIT_MESSAGE;
-  if (isInsufficientCreditError(error)) return INSUFFICIENT_CREDIT_MESSAGE;
-  if (isWorkspacePermissionRequiredError(error)) return workspacePermissionRequiredMessage(error);
+export function getErrorMessage(error: unknown, fallback: string, t?: SharedTranslate): string {
+  if (isChatSessionLimitError(error)) return t ? t("errors.chatSessionLimit") : CHAT_SESSION_LIMIT_MESSAGE;
+  if (isInsufficientCreditError(error)) return t ? t("errors.insufficientCredit") : INSUFFICIENT_CREDIT_MESSAGE;
+  if (isWorkspacePermissionRequiredError(error)) return workspacePermissionRequiredMessage(error, t);
   if (isErrorMessage(error, "agent_not_configured")) {
-    return "서버 설정으로 인해 AI 작업 기능을 사용할 수 없습니다. 관리자에게 문의해 주세요.";
+    return t ? t("errors.agentNotConfigured") : "서버 설정으로 인해 AI 작업 기능을 사용할 수 없습니다. 관리자에게 문의해 주세요.";
   }
   if (isErrorMessage(error, "agent_turn_route_contract_failed")) {
-    return "AI의 작업 분류 응답을 처리하지 못했습니다. 다시 시도해 주세요.";
+    return t ? t("errors.agentRouteContractFailed") : "AI의 작업 분류 응답을 처리하지 못했습니다. 다시 시도해 주세요.";
   }
-  if (error instanceof ApiError && error.status === 404 && error.code === "WORKSPACE_NOT_FOUND") return WORKSPACE_NOT_FOUND_MESSAGE;
-  const connectionMessage = connectionErrorMessage(error);
+  if (error instanceof ApiError && error.status === 404 && error.code === "WORKSPACE_NOT_FOUND") {
+    return t ? t("errors.workspaceNotFound") : WORKSPACE_NOT_FOUND_MESSAGE;
+  }
+  const connectionMessage = connectionErrorMessage(error, t);
   if (connectionMessage) return connectionMessage;
   return error instanceof Error ? error.message : fallback;
 }

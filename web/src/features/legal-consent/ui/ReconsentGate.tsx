@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   buildConsentBody,
@@ -39,6 +40,7 @@ export function ReconsentGate({ children }: { children: React.ReactNode }) {
 }
 
 function ReconsentScreen() {
+  const t = useTranslations("shared");
   const queryClient = useQueryClient();
   const { signOut } = useSignOut();
   const [choices, setChoices] = useState<ConsentChoices>(EMPTY_CONSENT);
@@ -58,7 +60,7 @@ function ReconsentScreen() {
         current ? { ...current, consent_required: false } : current
       );
     } catch (cause: unknown) {
-      setError(consentErrorMessage(cause, "약관 동의를 저장하지 못했습니다."));
+      setError(consentErrorMessage(cause, t("user.requestFailed.consentSave"), t));
       setBusy(false);
     }
   }
@@ -67,17 +69,17 @@ function ReconsentScreen() {
     <div className="auth-consent-overlay auth-screen auth-screen--login" role="dialog" aria-modal="true" aria-labelledby="reconsent-title">
       <section className="auth-shell auth-shell--verification">
         <div className="auth-content">
-          <h1 className="auth-title" id="reconsent-title">약관 동의</h1>
+          <h1 className="auth-title" id="reconsent-title">{t("legalConsent.reconsent.title")}</h1>
           <div className="auth-main-section">
-            <p className="auth-prompt auth-prompt--wrap">이용약관이 바뀌었습니다. 계속 이용하려면 아래 항목에 다시 동의해 주세요.</p>
+            <p className="auth-prompt auth-prompt--wrap">{t("legalConsent.reconsent.prompt")}</p>
             <form className="auth-form" onSubmit={(event) => void submit(event)}>
               <div className="auth-field-with-error">
                 <ConsentForm disabled={busy} idPrefix="reconsent" onChange={setChoices} value={choices} />
                 {error ? <AuthError>{error}</AuthError> : null}
               </div>
-              <AuthSubmitButton disabled={busy || !isConsentComplete(choices)}>{busy ? "저장 중…" : "동의하고 계속"}</AuthSubmitButton>
+              <AuthSubmitButton disabled={busy || !isConsentComplete(choices)}>{busy ? t("legalConsent.reconsent.saving") : t("legalConsent.reconsent.submit")}</AuthSubmitButton>
             </form>
-            <p className="auth-prompt">동의하지 않으시겠어요?<button disabled={busy} onClick={() => void signOut({ callLogout: true, reason: "user" })} type="button">로그아웃</button></p>
+            <p className="auth-prompt">{t("legalConsent.reconsent.declinePrompt")}<button disabled={busy} onClick={() => void signOut({ callLogout: true, reason: "user" })} type="button">{t("legalConsent.reconsent.signOut")}</button></p>
           </div>
         </div>
       </section>

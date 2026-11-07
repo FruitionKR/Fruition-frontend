@@ -1,20 +1,23 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import { Providers } from "@/app/providers";
 import "@/app/styles/globals.css";
 import { readCspNonce } from "@/shared/lib/security/contentSecurityPolicy";
 import { FAVICON_LINKS } from "@/shared/lib/favicon";
 import { THEME_INIT_SCRIPT } from "@/shared/lib/themePreference";
 import { FaviconSync } from "@/shared/ui/FaviconSync";
+import { SharedTranslatorBridge } from "@/shared/i18n/SharedTranslatorBridge";
 import { publicAnalyticsToken } from "@/shared/lib/analytics/config";
 
 // CSP nonce가 요청마다 달라 미리 만든 HTML로는 스크립트가 막힌다. 모든 화면을 요청 때 렌더링한다(이슈 #77).
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Fruition",
-  description: "흩어진 기록을 하나로 모으고 연결해, 쓰이는 지식으로 만드는 공간입니다."
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("metadata");
+  return { title: t("siteTitle"), description: t("siteDescription") };
+}
 
 export default async function RootLayout({
   children
@@ -23,9 +26,11 @@ export default async function RootLayout({
 }>) {
   // middleware가 요청 헤더의 CSP에 넣은 nonce. 인라인 테마 스크립트도 이 nonce로만 실행된다.
   const nonce = readCspNonce((await headers()).get("content-security-policy"));
+  // 미들웨어가 쿠키·IP·Accept-Language로 정한 화면 언어(src/shared/i18n/request.ts).
+  const locale = await getLocale();
   return (
     // 테마 스크립트가 hydration 전에 data-theme을 붙이므로 그 속성 차이는 경고하지 않는다.
-    <html lang="ko" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/* 고른 테마(라이트·다크)를 첫 화면 전에 적용한다. 고정 문자열이라 사용자 입력이 섞이지 않는다. */}
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
@@ -41,12 +46,16 @@ export default async function RootLayout({
       </head>
       <body>
         <FaviconSync />
+        {/* 서버 컴포넌트에서 렌더하므로 지금 언어의 문구 전체를 클라이언트 컴포넌트에 물려준다. */}
+        <NextIntlClientProvider>
+        <SharedTranslatorBridge />
         <Providers analytics={{
           token: publicAnalyticsToken(process.env.ANALYTICS_ENABLED, process.env.POSTHOG_PROJECT_TOKEN),
           environment: process.env.ANALYTICS_ENVIRONMENT === "production" ? "production" : process.env.ANALYTICS_ENVIRONMENT === "staging" ? "staging" : "local",
           appVersion: process.env.APP_VERSION ?? "local",
           nonce,
         }}>{children}</Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

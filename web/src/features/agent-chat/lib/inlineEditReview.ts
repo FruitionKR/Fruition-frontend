@@ -1,5 +1,6 @@
 import { lineDiff } from "@/shared/lib/lineDiff";
 import type { AgentTurnEdit } from "./agentTurn";
+import type { AgentChatTranslator } from "./agentChatTranslator";
 
 /**
  * 본문 안 편집 제안(Figma 1571:27625): 편집안을 원문 위치에 붙여 보여 주려고 문서를 글 조각과 제안 조각으로 나눈다.
@@ -154,9 +155,9 @@ export function composeReviewedMarkdown(segments: readonly EditReviewSegment[], 
 }
 
 /** 제안 머리글의 출처(Figma "[제안 : /research-summary]"). 스킬로 보낸 요청이면 "/slug", 아니면 "AI 편집". */
-export function proposalSourceLabel(request: string): string {
+export function proposalSourceLabel(request: string, t: AgentChatTranslator): string {
   const match = request.trim().match(/^\/([^\s/]+)/);
-  return match ? `/${match[1]}` : "AI 편집";
+  return match ? `/${match[1]}` : t("review.aiEdit");
 }
 
 /** 편집 대상 줄이 속한 제목(Figma 카드 보조 설명의 "연구 개요"). 제목이 없으면 null. */

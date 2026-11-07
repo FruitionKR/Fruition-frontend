@@ -2,14 +2,16 @@
 
 import { useEffect, useState, type ComponentProps } from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { afterPaint } from "@/shared/lib/afterPaint";
 import { DocumentLoading } from "@/shared/ui/DocumentLoading";
 import type { MarkdownViewer as MarkdownViewerComponent } from "./MarkdownViewer";
 
 function RenderingNotice() {
+  const t = useTranslations("shared");
   return (
-    <DocumentLoading inline detail="내용이 많거나 표·수식이 포함된 문서는 준비에 시간이 걸릴 수 있습니다.">
-      문서를 화면에 표시할 준비를 하고 있습니다.
+    <DocumentLoading inline detail={t("ui.documentRenderingDetail")}>
+      {t("ui.documentRendering")}
     </DocumentLoading>
   );
 }

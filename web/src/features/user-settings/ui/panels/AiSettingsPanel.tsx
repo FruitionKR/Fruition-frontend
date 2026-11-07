@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import { Switch } from "@/shared/ui/Switch";
 import styles from "../SettingsModal.module.css";
@@ -13,22 +14,23 @@ import { AiUsageSection } from "./AiUsageSection";
  * 시안에 없는 메뉴라 디스플레이 설정과 사용자 설정에 있던 항목을 같은 섹션 머리말·간격으로 모았다.
  */
 export function AiSettingsPanel() {
+  const t = useTranslations("settings.ai");
   const { preferences, updatePreferences } = useUserPreferences();
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="AI 설정" description="내 계정에서 쓰는 AI 기능과 사용량을 관리합니다." />
+      <SettingsPanelTitle title={t("title")} description={t("description")} />
 
       <div className={styles.section}>
-        <SettingsSectionHeader>채팅</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("chatSection")}</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>웹 검색 기본으로 켜기</strong>
-            <small>채팅에서 질문할 때 웹 검색을 함께 씁니다.</small>
+            <strong>{t("webSearch.label")}</strong>
+            <small>{t("webSearch.description")}</small>
           </div>
           <Switch
             checked={preferences.webSearch}
-            label="웹 검색 기본으로 켜기"
+            label={t("webSearch.label")}
             onClick={() => updatePreferences((current) => ({ ...current, webSearch: !current.webSearch }))}
           />
         </div>

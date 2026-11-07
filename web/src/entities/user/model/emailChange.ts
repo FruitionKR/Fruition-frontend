@@ -1,5 +1,7 @@
 // 이메일 변경(PUT /api/auth/me/email)에 쓰는 순수 로직: 요청 본문, 실패 code → 모달 상태.
 
+import type { SharedMessageKey, SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 export type EmailChangeBody = {
   new_email: string;
   verification_token: string;
@@ -35,18 +37,23 @@ export type EmailChangeFailure = { recovery: EmailChangeRecovery; message: strin
 
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
-const FAILURES: Record<string, { recovery: EmailChangeRecovery; message: string }> = {
-  INVALID_REQUEST: { recovery: "email", message: "이메일 주소 형식을 확인해 주세요." },
-  DUPLICATE_EMAIL: { recovery: "email", message: "이미 다른 계정이 사용 중인 이메일입니다." },
-  INVALID_VERIFICATION_TOKEN: { recovery: "code", message: "이메일 인증이 만료되었습니다. 인증번호를 다시 받아 입력해 주세요." },
-  INVALID_CREDENTIALS: { recovery: "password", message: "비밀번호가 올바르지 않습니다." },
-  INVALID_MFA_CODE: { recovery: "mfa", message: "인증 코드가 올바르지 않습니다." },
+const FAILURES: Record<string, { recovery: EmailChangeRecovery; message: string; key: SharedMessageKey }> = {
+  INVALID_REQUEST: { recovery: "email", message: "이메일 주소 형식을 확인해 주세요.", key: "user.emailChange.invalidRequest" },
+  DUPLICATE_EMAIL: { recovery: "email", message: "이미 다른 계정이 사용 중인 이메일입니다.", key: "user.emailChange.duplicateEmail" },
+  INVALID_VERIFICATION_TOKEN: {
+    recovery: "code",
+    message: "이메일 인증이 만료되었습니다. 인증번호를 다시 받아 입력해 주세요.",
+    key: "user.emailChange.invalidVerificationToken"
+  },
+  INVALID_CREDENTIALS: { recovery: "password", message: "비밀번호가 올바르지 않습니다.", key: "user.emailChange.invalidCredentials" },
+  INVALID_MFA_CODE: { recovery: "mfa", message: "인증 코드가 올바르지 않습니다.", key: "user.emailChange.invalidMfaCode" },
   REAUTHENTICATION_REQUIRED: {
     recovery: "relogin",
-    message: "본인 확인을 위해 소셜 계정으로 다시 로그인한 뒤 10분 안에 이메일 변경을 마쳐 주세요."
+    message: "본인 확인을 위해 소셜 계정으로 다시 로그인한 뒤 10분 안에 이메일 변경을 마쳐 주세요.",
+    key: "user.emailChange.reauthenticationRequired"
   },
-  PASSWORD_CHANGE_RATE_LIMITED: { recovery: "wait", message: "비밀번호 확인 시도가 너무 많습니다." },
-  MFA_RATE_LIMITED: { recovery: "wait", message: "인증 코드 확인 시도가 너무 많습니다." }
+  PASSWORD_CHANGE_RATE_LIMITED: { recovery: "wait", message: "비밀번호 확인 시도가 너무 많습니다.", key: "user.emailChange.passwordRateLimited" },
+  MFA_RATE_LIMITED: { recovery: "wait", message: "인증 코드 확인 시도가 너무 많습니다.", key: "user.emailChange.mfaRateLimited" }
 };
 
 /** Retry-After 헤더(초 또는 HTTP 날짜)를 초로 바꾼다. 없거나 읽을 수 없으면 null. */
@@ -58,16 +65,23 @@ export function parseRetryAfterSeconds(header: string | null, nowMs = Date.now()
   return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - nowMs) / 1000));
 }
 
-/** 이메일 변경 실패를 서버 error.code 기준으로 모달 상태로 바꾼다. 모르는 code면 서버 메시지, 없으면 fallback. */
-export function emailChangeFailure(error: unknown, fallback: string): EmailChangeFailure {
+/**
+ * 이메일 변경 실패를 서버 error.code 기준으로 모달 상태로 바꾼다. 모르는 code면 서버 메시지, 없으면 fallback.
+ * t(`useTranslations("shared")`)를 넘기면 정해 둔 문구를 지금 언어로 쓴다.
+ */
+export function emailChangeFailure(error: unknown, fallback: string, t?: SharedTranslate): EmailChangeFailure {
   const { code, status, retryAfter } = (error ?? {}) as { code?: unknown; status?: unknown; retryAfter?: unknown };
-  const known = typeof code === "string" ? FAILURES[code] : undefined;
+  const known = typeof code === "string" && Object.hasOwn(FAILURES, code) ? FAILURES[code] : undefined;
   if (known?.recovery === "wait" || (!known && status === 429)) {
     const seconds = typeof retryAfter === "number" && retryAfter > 0 ? retryAfter : DEFAULT_RETRY_AFTER_SECONDS;
+    if (t) {
+      const reason = known ? t(known.key) : t("user.rateLimit.generic");
+      return { recovery: "wait", message: t("user.rateLimit.retryIn", { reason, seconds }), retryAfter: seconds };
+    }
     const reason = known?.message ?? "시도가 너무 많습니다.";
     return { recovery: "wait", message: `${reason} ${seconds}초 후 다시 시도해 주세요.`, retryAfter: seconds };
   }
-  if (known) return { ...known };
+  if (known) return { recovery: known.recovery, message: t ? t(known.key) : known.message };
   return { recovery: "retry", message: error instanceof Error && error.message ? error.message : fallback };
 }
 
@@ -75,9 +89,10 @@ export function emailChangeFailure(error: unknown, fallback: string): EmailChang
  * 인증번호 요청(POST /api/auth/email-verifications, purpose=email_change)의 실패 문구.
  * 다른 계정이 쓰는 주소면 서버 원문(주소 포함) 대신 변경 단계와 같은 문구를 쓴다. 그 밖의 실패는 null(호출부 문구).
  */
-export function emailCodeRequestFailureMessage(error: unknown): string | null {
+export function emailCodeRequestFailureMessage(error: unknown, t?: SharedTranslate): string | null {
   const { code } = (error ?? {}) as { code?: unknown };
-  return code === "DUPLICATE_EMAIL" ? FAILURES.DUPLICATE_EMAIL.message : null;
+  if (code !== "DUPLICATE_EMAIL") return null;
+  return t ? t(FAILURES.DUPLICATE_EMAIL.key) : FAILURES.DUPLICATE_EMAIL.message;
 }
 
 /** 지금 쓰는 이메일과 같은 주소인지(앞뒤 공백·대소문자 무시). 같은 주소로는 인증번호를 요청하지 않는다(서버가 409로 거절한다). */

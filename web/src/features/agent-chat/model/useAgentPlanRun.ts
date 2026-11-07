@@ -5,12 +5,14 @@ import { documentDataQueryKey, fetchDocumentData } from "@/entities/wiki";
 import { decideAgentPlan, fetchAgentPlanRun } from "../api/agentPlan";
 import { publishDocumentContentSaved } from "@/entities/document/model/documentContentBus";
 import { agentPlanClarificationMessage, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, savedEditDocumentIds, shouldPollAgentPlan, startedPlanTurns, type AgentPlanRun } from "../lib/agentPlan";
+import { useTranslations } from "next-intl";
 
 /**
  * 작업 turn의 계획(run)과 승인·거절. 작업 탭 카드(AgentTaskBody)와 폴더 정리 미리보기 화면이 같은 쿼리 키를 공유해
  * 둘 다 떠 있어도 한 번만 폴링한다.
  */
 export function useAgentPlanRun(turnId: string | undefined) {
+  const t = useTranslations("agentChat");
   const workspaceId = readWorkspaceId();
   const client = useQueryClient();
   const queryKey = ["agentPlan", workspaceId, turnId];
@@ -61,7 +63,7 @@ export function useAgentPlanRun(turnId: string | undefined) {
     previousStatus.current = runStatus;
   }, [client, runStatus, turnId]);
 
-  const error = !turnId ? "이 답변에 계획 조회 정보가 없습니다. 다시 요청해주세요."
+  const error = !turnId ? t("plan.missingTurn")
     : query.error || tree.error || mutation.error;
 
   return {
@@ -73,7 +75,7 @@ export function useAgentPlanRun(turnId: string | undefined) {
     busy: mutation.isPending || query.isFetching || tree.isFetching,
     ready: canApproveAgentPlan(run) && Boolean(tree.data) && !query.error && !tree.error,
     hasQueryError: Boolean(query.error),
-    clarificationMessage: agentPlanClarificationMessage(run),
+    clarificationMessage: agentPlanClarificationMessage(run, t),
     retry: () => {
       mutation.reset();
       void query.refetch();

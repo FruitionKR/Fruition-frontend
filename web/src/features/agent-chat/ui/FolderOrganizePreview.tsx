@@ -31,10 +31,12 @@ import {
   type FolderOrganizeRequest,
   type FolderOrganizeRow
 } from "../lib/folderOrganize";
-import { checkPlanAccess, checkRowAccess, PLAN_OPERATION_BLOCKED_NOTE, PLAN_ROW_PARTLY_BLOCKED_NOTE, planAccessMessage } from "../lib/planAccess";
+import { checkPlanAccess, checkRowAccess, planAccessMessage } from "../lib/planAccess";
 import { useAgentPlanRun } from "../model/useAgentPlanRun";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import styles from "./FolderOrganize.module.css";
+import { useTranslations } from "next-intl";
+import { agentChatErrorMessage } from "../lib/agentChatError";
 
 type SortOrder = "plan" | "asc" | "desc";
 const NEXT_SORT: Record<SortOrder, SortOrder> = { plan: "asc", asc: "desc", desc: "plan" };
@@ -58,12 +60,14 @@ function CheckBox({ checked, label, disabled, onToggle }: { checked: boolean; la
  * 폴더·문서를 옮기거나 이름을 바꾸는 계획(action "folder_organize")만 메인 영역에 이 표로 보여 준다.
  */
 export function FolderOrganizePreview({ request, onClose }: { request: FolderOrganizeRequest; onClose: () => void }) {
+  const t = useTranslations("agentChat");
+  const tShared = useTranslations("shared");
   const { run, plan, tree, mutation, error, busy, ready, hasQueryError, clarificationMessage, retry } = useAgentPlanRun(request.turnId);
-  const view = plan ? buildFolderOrganizeView(plan, tree ?? [], run?.target_folder_id) : null;
+  const view = plan ? buildFolderOrganizeView(plan, tree ?? [], run?.target_folder_id, t) : null;
   const rows = view?.rows ?? [];
   const { rule } = parseSkillCommand(request.question);
   // 작업 탭 카드와 같은 머리글(Figma 1656:11824 "문서 : /file-organize"). 스킬 없이 요청했으면 "폴더 정리"만 둔다.
-  const { heading } = describeTaskRequest("folder_organize", (request.question ?? "").trim().normalize("NFC"));
+  const { heading } = describeTaskRequest("folder_organize", (request.question ?? "").trim().normalize("NFC"), t);
   // 사용자가 바꾼 선택. 계획(id·version)이 바뀌면 다시 AI가 권장한 기본 선택(suggested_selected)에서 시작한다.
   // 작업 탭 카드의 수락도 같은 선택을 쓰도록 turn별 저장소에 둔다.
   const planKey = plan ? `${plan.id}:${plan.version}` : null;
@@ -83,20 +87,20 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
     : null;
   // 표가 줄을 세므로 권한 안내도 줄 단위로 맞춘다(작업 2개가 묶인 1줄이 막히면 "항목 1개").
   const rowAccess = access && checkRowAccess(access, rows, deselectedIds);
-  const accessMessage = rowAccess && planAccessMessage({ ...rowAccess, unit: "항목" });
+  const accessMessage = rowAccess && planAccessMessage({ ...rowAccess, unit: "item" }, t);
   const canApply = ready && isSelectionValid && rowAccess?.verdict !== "all_blocked";
-  const failureMessage = agentPlanFailureMessage(run);
+  const failureMessage = agentPlanFailureMessage(run, t);
   const duplicateDeselected = approval?.duplicateExcludedCount ?? 0;
   const ruleText = run?.rule_summary?.trim().normalize("NFC") || rule;
   // 범위 밖 작업을 뺐다는 안내는 한 줄로 잘리는 설명과 따로 보여 준다.
   const planSummary = splitPlanSummary(plan?.summary, run?.status);
-  const description = ruleText ? `규칙: ${ruleText}` : planSummary.body;
+  const description = ruleText ? t("folder.preview.rule", { rule: ruleText }) : planSummary.body;
 
   /** 이 줄이 권한으로 막혔을 때의 안내. 작업 일부만 막혔으면 나머지는 실행된다고 알린다. */
   function rowBlockedNote(operationIds: readonly string[]): string | null {
     const blocked = operationIds.filter((id) => access?.blockedOperationIds.has(id)).length;
     if (blocked === 0) return null;
-    return blocked === operationIds.length ? PLAN_OPERATION_BLOCKED_NOTE : PLAN_ROW_PARTLY_BLOCKED_NOTE;
+    return blocked === operationIds.length ? t("plan.access.operationBlocked") : t("plan.access.rowPartlyBlocked");
   }
 
   function toggleRow(id: string) {
@@ -107,17 +111,17 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
   }
 
   return (
-    <section className={styles.preview} aria-label="폴더 정리 미리보기">
+    <section className={styles.preview} aria-label={t("folder.preview.label")}>
       <header className={styles.hero}>
         <div className={styles["title-row"]}>
-          <h1 className={styles.title}>{view?.targetFolderName ?? "폴더 정리"}</h1>
+          <h1 className={styles.title}>{view?.targetFolderName ?? t("task.kind.folderOrganize")}</h1>
           <div className={styles.badge}>
             {isAwaiting && <>
               <Image src={warningIcon} alt="" />
               <span className={styles["badge-arrow"]} aria-hidden="true"><Image src={tooltipArrowIcon} alt="" /></span>
             </>}
             <span className={styles["badge-label"]} role="status">
-              {isAwaiting ? "미리보기" : !run && error ? "계획 조회 실패" : agentPlanStatusLabel(run?.status)}
+              {isAwaiting ? t("folder.preview.awaiting") : !run && error ? t("folder.preview.loadFailed") : agentPlanStatusLabel(run?.status, t)}
             </span>
           </div>
         </div>
@@ -136,23 +140,23 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
 
       <div className={styles.body}>
         {plan && (
-          <div className={styles.table} role="table" aria-label="정리할 항목">
+          <div className={styles.table} role="table" aria-label={t("folder.preview.tableLabel")}>
             <div className={cx(styles.row, styles["is-head"])} role="row">
               <div className={styles.source} role="columnheader">
                 <CheckBox
                   checked={isAllSelected}
-                  label="모두 선택"
+                  label={t("folder.preview.selectAll")}
                   disabled={!isAwaiting || rows.length === 0}
                   onToggle={() => setDeselected(isAllSelected ? new Set(rows.map((row) => row.id)) : new Set())}
                 />
-                <button type="button" className={styles.sort} aria-label={`커맨드 정렬: ${{ plan: "계획 순서", asc: "이름 오름차순", desc: "이름 내림차순" }[sortOrder]}`} onClick={() => setSortOrder(NEXT_SORT[sortOrder])}>
-                  커맨드
+                <button type="button" className={styles.sort} aria-label={t("folder.preview.sortLabel", { order: t(`folder.preview.sort.${sortOrder}`) })} onClick={() => setSortOrder(NEXT_SORT[sortOrder])}>
+                  {t("folder.preview.command")}
                   <Image src={sortIcon} alt="" />
                 </button>
               </div>
               <span className={styles.arrow} aria-hidden="true"><Image src={arrowIcon} alt="" /></span>
-              <div className={styles.destination} role="columnheader">바뀔 위치 · 이름</div>
-              <div className={styles.change} role="columnheader">변경</div>
+              <div className={styles.destination} role="columnheader">{t("folder.preview.destination")}</div>
+              <div className={styles.change} role="columnheader">{t("folder.preview.change")}</div>
             </div>
             {sortRows(rows, sortOrder).map((row) => {
               // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
@@ -161,8 +165,8 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
               return (
                 <div key={row.id} className={cx(styles.row, row.duplicateWarning && styles["is-duplicate"], !isAwaiting && row.excluded && styles["is-excluded"])} role="row">
                   <div className={styles.source} role="cell">
-                    <CheckBox checked={checked} label={`${row.originalName || row.newName} 선택`} disabled={!isAwaiting || row.isPurged} onToggle={() => toggleRow(row.id)} />
-                    <span className={styles["source-name"]} title={row.originalName}>{row.originalName || "새 문서"}</span>
+                    <CheckBox checked={checked} label={t("folder.preview.selectRow", { name: row.originalName || row.newName })} disabled={!isAwaiting || row.isPurged} onToggle={() => toggleRow(row.id)} />
+                    <span className={styles["source-name"]} title={row.originalName}>{row.originalName || t("folder.preview.newDocument")}</span>
                   </div>
                   <span className={styles.arrow} aria-hidden="true"><Image src={arrowIcon} alt="" /></span>
                   <div className={styles.destination} role="cell">
@@ -180,7 +184,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                     {blockedNote && <p className={styles["reason-note"]} title={blockedNote}>{blockedNote}</p>}
                   </div>
                   <div className={styles.change} role="cell">
-                    <span className={cx(styles.chip, row.failure && styles["is-failed"])}>{row.isPurged ? "영구 삭제됨" : !isAwaiting && row.excluded ? "제외됨" : row.failure?.label ?? row.changeLabel}</span>
+                    <span className={cx(styles.chip, row.failure && styles["is-failed"])}>{row.isPurged ? t("plan.purged") : !isAwaiting && row.excluded ? t("plan.excluded") : row.failure?.label ?? row.changeLabel}</span>
                   </div>
                 </div>
               );
@@ -197,24 +201,25 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 selectedCount,
                 // 권한으로 막혀 만들어지지 않을 폴더는 "만들어져요"라고 하지 않는다.
                 selectedCreatedFolders((view?.createdFolders ?? []).filter((folder) => !access?.blockedOperationIds.has(folder.operationId)), operationIds),
-                duplicateDeselected
+                duplicateDeselected,
+                t
               )
               : plan && failureMessage
-                ? folderOrganizeResultNotice(summarizeFolderOrganizeRows(plan))
-                : clarificationMessage ?? agentPlanStatusLabel(run?.status)}
+                ? folderOrganizeResultNotice(summarizeFolderOrganizeRows(plan, t), t)
+                : clarificationMessage ?? agentPlanStatusLabel(run?.status, t)}
           </p>
           {plan && isAwaiting && !isSelectionValid && (
             <p className={styles["notice-hint"]}>
               {selectedCount === 0
-                ? "적용할 항목을 하나 이상 선택해주세요."
-                : `일부만 적용할 때는 한 번에 작업 ${MAX_SELECTED_OPERATIONS}개까지 고를 수 있어요. 선택을 줄이거나 모두 선택해주세요.`}
+                ? t("folder.preview.selectOne")
+                : t("folder.preview.tooMany", { max: MAX_SELECTED_OPERATIONS })}
             </p>
           )}
           {accessMessage && <p className={styles["notice-hint"]} role="status">{accessMessage}</p>}
           {failureMessage && <p className={styles["notice-error"]} role="alert">{failureMessage}</p>}
-          {error && <p className={styles["notice-error"]} role="alert">{typeof error === "string" ? error : getErrorMessage(error, "계획을 불러오지 못했습니다.")}</p>}
+          {error && <p className={styles["notice-error"]} role="alert">{typeof error === "string" ? error : agentChatErrorMessage(error, t("plan.loadFailed"), t, tShared)}</p>}
           <div className={styles.actions}>
-            {error && <button type="button" className={cx(styles.action, styles["is-primary"])} disabled={busy} onClick={retry}>다시 확인</button>}
+            {error && <button type="button" className={cx(styles.action, styles["is-primary"])} disabled={busy} onClick={retry}>{t("actions.checkAgain")}</button>}
             {isAwaiting ? <>
               <button
                 type="button"
@@ -223,7 +228,7 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 onClick={() => mutation.mutate({ decision: "reject" }, { onSuccess: onClose })}
               >
                 <Image src={cancelIcon} alt="" />
-                취소
+                {t("actions.cancel")}
               </button>
               <button
                 type="button"
@@ -233,12 +238,12 @@ export function FolderOrganizePreview({ request, onClose }: { request: FolderOrg
                 onClick={() => mutation.mutate({ decision: "approve", operationIds })}
               >
                 <Image src={applyIcon} alt="" />
-                {mutation.isPending ? "처리 중" : `선택한 ${selectedCount}개 적용`}
+                {mutation.isPending ? t("actions.processing") : t("folder.preview.applySelected", { count: selectedCount })}
               </button>
             </> : (
               <button type="button" className={cx(styles.action, styles["is-primary"])} onClick={onClose}>
                 <Image src={applyIcon} alt="" />
-                닫기
+                {t("actions.close")}
               </button>
             )}
           </div>

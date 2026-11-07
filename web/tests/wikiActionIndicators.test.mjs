@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 
 registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -31,22 +32,20 @@ test("PDF 원본·TXT·변환 중 문서는 세지 않고, 변환을 마친 Mark
 });
 
 test("편입 버튼 불은 편입할 문서가 있고 바로 누를 수 있을 때만 켜지고 개수를 말풍선에 보여 준다", () => {
-  assert.deepEqual(getIngestIndicator({ pendingCount: 3, isSelecting: false, isDisabled: false }), {
-    isLit: true,
-    tooltip: "편입할 위키가 있어요 (3개 문서)",
-    label: "위키 편입, 편입할 문서 3개"
-  });
+  assert.deepEqual(getIngestIndicator({ pendingCount: 3, isSelecting: false, isDisabled: false }), { isLit: true });
+  const t = koT("documents.wiki.ingest");
+  assert.equal(t("litTooltip", { count: 3 }), "편입할 위키가 있어요 (3개 문서)");
+  assert.equal(t("litLabel", { count: 3 }), "위키 편입, 편입할 문서 3개");
   assert.equal(getIngestIndicator({ pendingCount: 0, isSelecting: false, isDisabled: false }).isLit, false);
   assert.equal(getIngestIndicator({ pendingCount: 3, isSelecting: true, isDisabled: false }).isLit, false);
-  assert.equal(getIngestIndicator({ pendingCount: 3, isSelecting: false, isDisabled: true }).tooltip, null);
+  assert.equal(getIngestIndicator({ pendingCount: 3, isSelecting: false, isDisabled: true }).isLit, false);
 });
 
 test("최신화 버튼 불은 최신화를 바로 실행할 수 있고 문서 선택 중이 아닐 때만 켜진다", () => {
-  assert.deepEqual(getLintIndicator({ isLintEnabled: true, isSelecting: false }), {
-    isLit: true,
-    tooltip: "위키 최신화가 가능해요",
-    label: "위키 최신화, 최신화 가능"
-  });
+  assert.deepEqual(getLintIndicator({ isLintEnabled: true, isSelecting: false }), { isLit: true });
+  const t = koT("documents.wiki.lint");
+  assert.equal(t("litTooltip"), "위키 최신화가 가능해요");
+  assert.equal(t("litLabel"), "위키 최신화, 최신화 가능");
   assert.equal(getLintIndicator({ isLintEnabled: false, isSelecting: false }).isLit, false);
   assert.equal(getLintIndicator({ isLintEnabled: true, isSelecting: true }).isLit, false);
 });

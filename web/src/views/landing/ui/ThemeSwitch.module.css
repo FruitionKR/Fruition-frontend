@@ -21,6 +21,16 @@
   transition: background-color 160ms ease, color 160ms ease;
 }
 
+/* 글자 표기(언어 선택 KO·EN) */
+.option[data-text] {
+  width: auto;
+  min-width: 34px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .option input {
   position: absolute;
   inset: 0;
@@ -48,6 +58,10 @@
   .option {
     width: 44px;
     height: 44px;
+  }
+
+  .option[data-text] {
+    width: 44px;
   }
 }
 

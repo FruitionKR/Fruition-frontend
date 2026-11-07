@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,13 +17,13 @@ import sortVerticalIcon from "@/shared/assets/svg/settings/sort-vertical.svg";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { cx } from "@/shared/lib/classNames";
-import { WORKSPACE_PERMISSIONS, workspacePermissionLabel, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
+import { localizedWorkspacePermissionLabel, localizedWorkspacePermissions, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
 import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { OptionSelect } from "@/shared/ui/OptionSelect";
 import {
   canRemoveMember, effectiveSelection, excludeMember, memberDisplayName, removalNotice, selectAllState, selectVisibleMembers,
-  MEMBER_ROLE_OPTIONS, summarizeMemberNames, toggleAllSelection, toggleSelection, type MemberRoleFilter, type MemberSortDirection, type RemovalFailure,
+  MEMBER_ROLE_OPTIONS, summarizeMemberNames, toggleAllSelection, toggleSelection, type MemberRoleFilter, type MemberSortDirection, type RemovalFailure, type RemovalNotice,
   type SelectAllState
 } from "../../lib/memberList";
 import modalStyles from "../SettingsModal.module.css";
@@ -32,7 +33,6 @@ import { SettingsPanelTitle } from "../SettingsPanelTitle";
 
 // 권한 필터 순서. 빈 값은 전체.
 const ROLE_FILTERS: readonly MemberRoleFilter[] = ["", "OWNER", "MEMBER"];
-const ROLE_FILTER_LABELS: Record<MemberRoleFilter, string> = { "": "전체", OWNER: "OWNER", MEMBER: "MEMBER" };
 
 /**
  * 삭제 대상을 고르는 체크 칸 (Figma Check off 1482:10965, 켜짐은 같은 시안의 primary 채운 체크).
@@ -66,6 +66,9 @@ function SelectCheck({ checked, label, disabled, title, onToggle }: {
  * 권한 항목(위키 편입 등, access #32)은 시안 표에 열이 없어 행 끝 "…" 메뉴로 옮겼다.
  */
 export function MembersPanel() {
+  const t = useTranslations("settings.members");
+  const tCommon = useTranslations("settings.common");
+  const tShared = useTranslations("shared");
   const { data: me, isPending: isMePending } = useMe();
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
@@ -106,6 +109,23 @@ export function MembersPanel() {
   const selection = effectiveSelection(removableIds, selectedIds);
   const headCheck = selectAllState(removableIds, selectedIds);
 
+  /** 이름 목록 문구: 「a」, 「b」 외 N명 */
+  function formatNames(names: readonly string[]) {
+    const { shown, hiddenCount } = summarizeMemberNames(names);
+    const listed = shown.map((name) => t("nameQuoted", { name })).join(", ");
+    return hiddenCount > 0 ? t("namesMore", { names: listed, count: hiddenCount }) : listed;
+  }
+
+  function formatRemovalNotice(notice: RemovalNotice) {
+    if (notice.ok) return t("removed", { count: notice.succeeded });
+    const parts = [
+      t("removalSummary", { succeeded: notice.succeeded, failed: notice.failed }),
+      ...notice.shownFailures.map((failure) => t("removalFailure", { name: t("nameQuoted", { name: failure.name }), reason: failure.reason }))
+    ];
+    if (notice.hiddenFailures > 0) parts.push(t("removalMoreFailures", { count: notice.hiddenFailures }));
+    return parts.join(" · ");
+  }
+
   function replaceMember(updated: WorkspaceMember) {
     queryClient.setQueryData<WorkspaceMember[]>(queryKey, (current) => current?.map((item) => item.user_id === updated.user_id ? updated : item));
   }
@@ -119,7 +139,7 @@ export function MembersPanel() {
       await action();
       setMessage(done);
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, fallback));
+      setError(getErrorMessage(cause, fallback, tShared));
     } finally {
       setBusy(false);
     }
@@ -128,7 +148,7 @@ export function MembersPanel() {
   function changeRole(member: WorkspaceMember, role: WorkspaceRole) {
     if (!isOwner || role === member.role) return;
     void run(async () => replaceMember(await changeMemberRole(workspaceId!, member.user_id, role)),
-      "멤버 권한을 변경했습니다.", "멤버 권한을 변경하지 못했습니다.");
+      t("roleChanged"), t("roleChangeFailed"));
   }
 
   // 권한 항목 하나를 켜거나 끈다. 서버는 목록 전체를 교체하므로 현재 목록에서 더하거나 뺀 전체를 보낸다(access #32).
@@ -138,7 +158,7 @@ export function MembersPanel() {
       ? member.permissions.filter((item) => item !== permission)
       : [...member.permissions, permission];
     void run(async () => replaceMember(await updateMemberPermissions(workspaceId!, member.user_id, next)),
-      "멤버 권한 항목을 변경했습니다.", "멤버 권한 항목을 변경하지 못했습니다.");
+      t("permissionChanged"), t("permissionChangeFailed"));
   }
 
   function askRemove(targets: WorkspaceMember[]) {
@@ -161,12 +181,12 @@ export function MembersPanel() {
         await removeMember(workspaceId, member.user_id);
         succeeded += 1;
       } catch (cause: unknown) {
-        failures.push({ name: memberDisplayName(member), reason: getErrorMessage(cause, "멤버를 삭제하지 못했습니다.") });
+        failures.push({ name: memberDisplayName(member), reason: getErrorMessage(cause, t("removeFailed"), tShared) });
       }
     }
     const notice = removalNotice(succeeded, failures);
-    if (notice.ok) setMessage(notice.text);
-    else setError(notice.text);
+    if (notice.ok) setMessage(formatRemovalNotice(notice));
+    else setError(formatRemovalNotice(notice));
     setSelectedIds(new Set());
     try {
       await queryClient.invalidateQueries({ queryKey });
@@ -177,20 +197,20 @@ export function MembersPanel() {
 
   return (
     <div className={modalStyles.detail}>
-      <SettingsPanelTitle title="멤버 관리" description="워크스페이스에 있는 사람과 역할을 관리합니다." />
+      <SettingsPanelTitle title={t("title")} description={t("description")} />
       <div className={styles.list}>
         <div className={styles.toolbar}>
           <p className={styles.total}>
-            총 <strong>{otherMembers.length}</strong>명
-            {selection.length > 0 && <span className={styles["selected-count"]}> · {selection.length}명 선택</span>}
+            {t.rich("total", { count: otherMembers.length, strong: (chunks) => <strong>{chunks}</strong> })}
+            {selection.length > 0 && <span className={styles["selected-count"]}>{t("selectedCount", { count: selection.length })}</span>}
           </p>
           <div className={styles["toolbar-group"]}>
             {(searchOpen || search) && (
               <input
                 type="search"
                 className={styles["search-input"]}
-                aria-label="멤버 검색"
-                placeholder="이름 또는 이메일 검색"
+                aria-label={t("search")}
+                placeholder={t("searchPlaceholder")}
                 autoFocus
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -200,7 +220,7 @@ export function MembersPanel() {
             <button
               type="button"
               className={styles["icon-btn"]}
-              aria-label="멤버 검색"
+              aria-label={t("search")}
               aria-expanded={searchOpen || Boolean(search)}
               onClick={() => setSearchOpen(true)}
             >
@@ -209,11 +229,11 @@ export function MembersPanel() {
             <div className={styles["filter-wrap"]} ref={filterMenuRef}>
               <button type="button" className={styles["filter-btn"]} aria-haspopup="listbox" aria-expanded={filterOpen}
                 onClick={() => setFilterOpen(!filterOpen)}>
-                {filter ? <span className={styles["filter-accent"]}>권한 : {filter}</span> : "권한"}
+                {filter ? <span className={styles["filter-accent"]}>{t("roleFilterActive", { role: filter })}</span> : t("roleFilter")}
                 <Image src={chevronDownIcon} alt="" aria-hidden />
               </button>
               {filterOpen && (
-                <div className={styles["filter-menu"]} role="listbox" aria-label="권한 필터">
+                <div className={styles["filter-menu"]} role="listbox" aria-label={t("roleFilterLabel")}>
                   {ROLE_FILTERS.map((option) => (
                     <button
                       key={option}
@@ -226,7 +246,7 @@ export function MembersPanel() {
                         setFilterOpen(false);
                       }}
                     >
-                      {ROLE_FILTER_LABELS[option]}
+                      {option === "" ? t("filterAll") : option}
                     </button>
                   ))}
                 </div>
@@ -237,11 +257,11 @@ export function MembersPanel() {
               type="button"
               className={styles["delete-btn"]}
               disabled={!isOwner || busy || selection.length === 0}
-              aria-label={selection.length > 0 ? `선택한 ${selection.length}명 삭제` : "선택한 멤버 삭제"}
+              aria-label={selection.length > 0 ? t("deleteSelectedCount", { count: selection.length }) : t("deleteSelected")}
               aria-haspopup="dialog"
               onClick={() => askRemove(visibleMembers.filter((member) => selection.includes(member.user_id)))}
             >
-              삭제
+              {t("delete")}
             </button>
             <button
               type="button"
@@ -254,19 +274,18 @@ export function MembersPanel() {
                 setShowInvite(true);
               }}
             >
-              멤버 초대하기
+              {t("invite")}
             </button>
           </div>
         </div>
 
-        {(!workspaceId || error || loadError) && <p className={modalStyles["field-error"]} role="alert">{!workspaceId ? "워크스페이스를 선택해 주세요." : error || getErrorMessage(loadError, "멤버 목록을 불러오지 못했습니다.")}</p>}
+        {(!workspaceId || error || loadError) && <p className={modalStyles["field-error"]} role="alert">{!workspaceId ? t("selectWorkspace") : error || getErrorMessage(loadError, t("loadFailed"), tShared)}</p>}
         {message && <p className={styles.note} role="status">{message}</p>}
         {myMembership && !isOwner && (
           <p className={styles.note}>
-            내 권한 항목:{" "}
             {myMembership.permissions.length > 0
-              ? myMembership.permissions.map(workspacePermissionLabel).join(", ")
-              : "없음. 필요한 권한은 워크스페이스 OWNER에게 요청하세요."}
+              ? t("myPermissions", { permissions: myMembership.permissions.map((value) => localizedWorkspacePermissionLabel(value, tShared)).join(", ") })
+              : t("myPermissionsNone")}
           </p>
         )}
 
@@ -275,23 +294,23 @@ export function MembersPanel() {
             <div className={styles["cell-user"]}>
               <SelectCheck
                 checked={headCheck}
-                label="삭제할 멤버 모두 선택"
+                label={t("selectAll")}
                 disabled={busy || removableIds.length === 0}
                 onToggle={() => setSelectedIds(toggleAllSelection(removableIds, selectedIds))}
               />
               <button type="button" className={styles["sort-btn"]}
-                aria-label={`사용자 이름 ${sortDirection === "asc" ? "내림차순" : "오름차순"}으로 정렬`}
+                aria-label={sortDirection === "asc" ? t("sortDesc") : t("sortAsc")}
                 onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}>
-                사용자
+                {t("user")}
                 <Image src={sortVerticalIcon} alt="" aria-hidden />
               </button>
             </div>
-            <span className={styles["cell-role"]}>사용 권한</span>
+            <span className={styles["cell-role"]}>{t("role")}</span>
             <span className={styles["cell-more"]} aria-hidden />
           </div>
-          {isListPending && workspaceId && <p className={styles.empty} role="status">멤버를 불러오는 중…</p>}
+          {isListPending && workspaceId && <p className={styles.empty} role="status">{t("loading")}</p>}
           {!isListPending && !loadError && visibleMembers.length === 0 && (
-            <p className={styles.empty}>{otherMembers.length === 0 ? "아직 초대한 멤버가 없습니다." : "표시할 멤버가 없습니다."}</p>
+            <p className={styles.empty}>{otherMembers.length === 0 ? t("noMembers") : t("noMatches")}</p>
           )}
           {visibleMembers.map((member) => {
             const name = memberDisplayName(member);
@@ -303,9 +322,9 @@ export function MembersPanel() {
                 <div className={styles["cell-user"]}>
                   <SelectCheck
                     checked={selection.includes(member.user_id)}
-                    label={`${name} 선택`}
+                    label={t("select", { name })}
                     disabled={busy || !removable}
-                    title={isOwner && lastOwner ? "마지막 OWNER는 삭제할 수 없습니다." : undefined}
+                    title={isOwner && lastOwner ? t("lastOwnerDelete") : undefined}
                     onToggle={() => setSelectedIds(toggleSelection(selectedIds, member.user_id))}
                   />
                   <div className={styles.profile}>
@@ -313,7 +332,7 @@ export function MembersPanel() {
                       ? <UserAvatar avatarUrl={member.avatar_url} name={name} className={styles["profile-icon"]} />
                       : <Image src={memberAvatarIcon} alt="" aria-hidden className={styles["profile-icon"]} />}
                     <div className={styles["profile-text"]}>
-                      <span className={styles["profile-name"]}>{member.display_name || "사용자"}</span>
+                      <span className={styles["profile-name"]}>{member.display_name || tCommon("userFallback")}</span>
                       <span className={styles["profile-email"]}>{member.email}</span>
                     </div>
                   </div>
@@ -321,24 +340,24 @@ export function MembersPanel() {
                 <div className={styles["cell-role"]}>
                   <OptionSelect
                     value={member.role}
-                    placeholder="권한"
+                    placeholder={t("rolePlaceholder")}
                     options={MEMBER_ROLE_OPTIONS}
-                    ariaLabel={`${name} 권한: ${member.role}`}
+                    ariaLabel={t("roleLabel", { name, role: member.role })}
                     disabled={!isOwner || busy || lastOwner}
-                    title={lastOwner ? "마지막 OWNER의 권한은 변경할 수 없습니다." : undefined}
+                    title={lastOwner ? t("lastOwnerRole") : undefined}
                     floating
                     onChange={(value) => changeRole(member, value as WorkspaceRole)}
                   />
                 </div>
                 <div className={styles["cell-more"]} ref={isMenuOpen ? rowMenuRef : undefined}>
-                  <button type="button" className={styles["more-btn"]} aria-label={`${name} 더보기`} aria-haspopup="menu"
+                  <button type="button" className={styles["more-btn"]} aria-label={t("more", { name })} aria-haspopup="menu"
                     aria-expanded={isMenuOpen} onClick={() => setOpenMenuId(isMenuOpen ? null : member.user_id)}>
                     <Image src={moreDotsIcon} alt="" aria-hidden />
                   </button>
                   {isMenuOpen && (
-                    <div className={styles["more-menu"]} role="menu" aria-label={`${name} 메뉴`}>
-                      <p className={styles["menu-label"]}>권한 항목</p>
-                      {WORKSPACE_PERMISSIONS.map((item) => {
+                    <div className={styles["more-menu"]} role="menu" aria-label={t("menu", { name })}>
+                      <p className={styles["menu-label"]}>{t("permissionItems")}</p>
+                      {localizedWorkspacePermissions(tShared).map((item) => {
                         // OWNER는 항상 전부 가지므로 켜진 채 잠근다(서버도 OWNER_PERMISSIONS_FIXED로 거절한다).
                         const isMemberOwner = member.role === "OWNER";
                         const checked = isMemberOwner || member.permissions.includes(item.value);
@@ -352,11 +371,11 @@ export function MembersPanel() {
                             // 저장 중에는 disabled 대신 aria-disabled로 막는다. disabled로 바꾸면 누른 항목의 포커스가 body로 빠진다.
                             disabled={!isOwner || isMemberOwner}
                             aria-disabled={busy || undefined}
-                            title={isMemberOwner ? "OWNER는 모든 권한을 가집니다." : item.description}
+                            title={isMemberOwner ? t("ownerHasAll") : item.description}
                             onClick={() => togglePermission(member, item.value)}
                           >
                             <span>{item.label}</span>
-                            <span className={styles["perm-state"]}>{checked ? "켜짐" : "꺼짐"}</span>
+                            <span className={styles["perm-state"]}>{checked ? t("on") : t("off")}</span>
                           </button>
                         );
                       })}
@@ -366,10 +385,10 @@ export function MembersPanel() {
                           role="menuitem"
                           className={cx(styles["menu-option"], styles["is-danger"])}
                           disabled={!removable || busy}
-                          title={lastOwner ? "마지막 OWNER는 삭제할 수 없습니다." : undefined}
+                          title={lastOwner ? t("lastOwnerDelete") : undefined}
                           onClick={() => askRemove([member])}
                         >
-                          멤버 삭제
+                          {t("remove")}
                         </button>
                       )}
                     </div>
@@ -384,13 +403,9 @@ export function MembersPanel() {
       {removeTargets && createPortal(
         <ConfirmModal
           titleId="member-remove-confirm-title"
-          title={removeTargets.length === 1 ? "멤버를 삭제하시겠습니까?" : `멤버 ${removeTargets.length}명을 삭제하시겠습니까?`}
-          description={
-            <>
-              {summarizeMemberNames(removeTargets.map(memberDisplayName))} 님이 워크스페이스에서 삭제됩니다. 다시 참여하려면 새로 초대받아야 합니다.
-            </>
-          }
-          confirmLabel={removeTargets.length === 1 ? "삭제" : `${removeTargets.length}명 삭제`}
+          title={removeTargets.length === 1 ? t("removeConfirmTitleOne") : t("removeConfirmTitleMany", { count: removeTargets.length })}
+          description={t("removeConfirmDescription", { names: formatNames(removeTargets.map(memberDisplayName)) })}
+          confirmLabel={removeTargets.length === 1 ? t("delete") : t("removeConfirmMany", { count: removeTargets.length })}
           tone="danger"
           onConfirm={() => void removeSelected(removeTargets)}
           onCancel={() => setRemoveTargets(null)}

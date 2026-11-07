@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { authorSkill, fetchSkills, publishSkill } from "@/entities/skill";
 import { useUserPreferences } from "@/entities/user";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
@@ -16,16 +17,14 @@ import {
   draftSourceChange,
   INITIAL_SKILL_CREATE_FORM,
   isDocumentKind,
-  SKILL_KIND_CARDS,
   SKILL_NAME_MAX,
-  SKILL_RESULT_OPTIONS,
-  SKILL_SCOPE_OPTIONS,
-  SKILL_TARGET_OPTIONS,
+  SKILL_TARGETS,
   skillAuthorRequest,
   skillCreateFormFromRequest,
   rulesPlaceholderHint,
   showsSourceField,
   skillPublishRequest,
+  skillFieldErrorText,
   skillResultModeLabel,
   validateSkillCreateForm,
   type SkillAuthoringMode,
@@ -36,24 +35,20 @@ import {
 } from "../lib/skillCreateForm";
 import {
   HelpTip,
-  KIND_HELP,
-  RESULT_HELP,
-  SCOPE_HELP,
+  KindHelp,
+  ResultHelp,
+  ScopeHelp,
   SelectBox,
   SkillAuthorAssist,
   SkillSafetyIssues,
   SourceField,
   TargetChecks,
-  useReferenceDocuments
+  useReferenceDocuments,
+  useSkillOptions
 } from "./SkillFormParts";
 import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
-
-const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
-const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
-const AUTO_PUBLISHED_NOTICE = "설정의 'AI 에이전트 자동 승인'에 따라 AI가 쓴 초안을 확인 없이 게시했어요. 필요 없으면 스킬 화면에서 지우세요.";
-const KIND_OPTIONS = SKILL_KIND_CARDS.map(({ value, label }) => ({ value, label }));
 
 /**
  * 스킬 만들기 시트 (Figma 1671:13573). 스킬 화면 위에 열리고, 테스트 실행은 채팅 패널(testRunTarget)에 둔다.
@@ -81,6 +76,9 @@ export function SkillCreateEditor({
   /** autoPublishedNotice: 설정에 따라 확인 없이 게시했을 때 목록 화면에 보일 안내. 알림 카드는 스킬 화면에 뜨지 않는다. */
   onPublished: (autoPublishedNotice: string | null) => void;
 }) {
+  const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
+  const { kindOptions, resultOptions, scopeOptions } = useSkillOptions();
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   const prefill = prefillRequest?.trim() ?? "";
@@ -109,7 +107,7 @@ export function SkillCreateEditor({
   const isBlocked = Object.keys(errors).length > 0;
   const visibleError = (field: SkillCreateField) => (touched.has(field) ? errors[field] : undefined);
   const isDocument = isDocumentKind(form.kind);
-  const rulesHint = rulesPlaceholderHint(form.kind);
+  const rulesHint = rulesPlaceholderHint(form.kind, t);
 
   function update(patch: Partial<SkillCreateForm>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -124,7 +122,7 @@ export function SkillCreateEditor({
   function toggleTarget(target: SkillTarget, checked: boolean) {
     touch("targets");
     update({
-      targets: SKILL_TARGET_OPTIONS.map((option) => option.value).filter((value) =>
+      targets: SKILL_TARGETS.filter((value) =>
         value === target ? checked : form.targets.includes(value)
       )
     });
@@ -136,18 +134,18 @@ export function SkillCreateEditor({
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "review") {
         // 위험 표현이 발견돼 저장되지 않았다. 지적을 보여 주고 규칙을 고치게 한다.
-        setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
+        setIssues(result.issues?.length ? result.issues : [t("review.issueFallback")]);
         return;
       }
       if (outcome === "clarify") {
-        setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
+        setQuestion(result.question?.trim() || t("review.clarifyFallback"));
         return;
       }
-      onPublished(isAutomatic ? AUTO_PUBLISHED_NOTICE : null);
+      onPublished(isAutomatic ? t("create.autoPublished") : null);
       sheetClose.close();
     }
   });
-  const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error) : null;
+  const publishError = publishMutation.error != null ? describeSkillAuthorError(publishMutation.error, t, tShared) : null;
 
   const referenceDocs = useReferenceDocuments(workspaceId);
 
@@ -169,7 +167,7 @@ export function SkillCreateEditor({
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "clarify") {
         // 초안 없이 되묻는 응답이다. 입력은 그대로 두고 질문을 알린다.
-        setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
+        setQuestion(result.question?.trim() || t("review.clarifyFallback"));
         return;
       }
       const drafted = outcome === "review" ? applyReviewedSkillDraft(form, result) : applySkillDraft(form, result);
@@ -177,8 +175,8 @@ export function SkillCreateEditor({
       setResultModeNote(draftResultModeChange(form, drafted));
       setSourceNote(draftSourceChange(form, drafted));
       if (outcome === "review") {
-        setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
-        setAuthorStatus("안전 검토에서 고칠 부분이 발견되었습니다.");
+        setIssues(result.issues?.length ? result.issues : [t("review.issueFallback")]);
+        setAuthorStatus(t("assist.reviewFound"));
         return;
       }
       setIssues([]);
@@ -196,10 +194,10 @@ export function SkillCreateEditor({
         publishMutation.mutate({ target: drafted, isAutomatic: true });
         return;
       }
-      setAuthorStatus("AI가 작성한 실행 규칙을 채웠습니다. 확인 후 저장해 주세요.");
+      setAuthorStatus(t("assist.filled"));
     }
   });
-  const authorError = authorMutation.error != null ? describeSkillAuthorError(authorMutation.error) : null;
+  const authorError = authorMutation.error != null ? describeSkillAuthorError(authorMutation.error, t, tShared) : null;
 
   function runAuthor(mode: SkillAuthoringMode) {
     // 실행 규칙이 AI 지시문이라, 비어 있으면 필드 오류를 보여 주고 보내지 않는다.
@@ -222,23 +220,23 @@ export function SkillCreateEditor({
     };
   };
   const errorText = (field: SkillCreateField) => {
-    const message = visibleError(field);
-    return message == null ? null : (
+    const error = visibleError(field);
+    return error == null ? null : (
       <small id={fieldId(`${field}-error`)} className={styles.error} role="alert">
-        {message}
+        {skillFieldErrorText(error, t)}
       </small>
     );
   };
 
-  const testRun = <SkillTestRunCard workspaceId={workspaceId} form={form} label="새 스킬 만들기" />;
+  const testRun = <SkillTestRunCard workspaceId={workspaceId} form={form} label={t("create.testRunLabel")} />;
 
   return (
     <SkillSheet
       host={host}
       titleId={fieldId("title")}
-      headerLabel="스킬 만들기"
-      title="새 스킬"
-      subtitle="반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다."
+      headerLabel={t("create.headerLabel")}
+      title={t("create.title")}
+      subtitle={t("create.subtitle")}
       testRun={testRun}
       testRunTarget={testRunTarget}
       isClosable={!publishMutation.isPending}
@@ -248,7 +246,7 @@ export function SkillCreateEditor({
       actions={
         <>
           <button type="button" className={styles["cancel-button"]} onClick={sheetClose.requestClose}>
-            취소
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -257,7 +255,7 @@ export function SkillCreateEditor({
             aria-disabled={isBlocked}
             onClick={submit}
           >
-            {publishMutation.isPending ? "만드는 중…" : "스킬 만들기"}
+            {publishMutation.isPending ? t("create.submitting") : t("create.submit")}
           </button>
         </>
       }
@@ -265,7 +263,7 @@ export function SkillCreateEditor({
       {prefill !== "" && (
         <p className={styles.banner} role="note">
           <SvgIcon src={lightningSmallIcon} className={styles["banner-icon"]} />
-          <span>Agent 대화의 요청 “{prefill}”로 채웠어요. 필요한 부분만 고치세요.</span>
+          <span>{t("create.prefilled", { request: prefill })}</span>
         </p>
       )}
 
@@ -275,11 +273,11 @@ export function SkillCreateEditor({
         <div className={styles.field}>
           <div className={styles["label-row"]}>
             <label className={styles.label} htmlFor={fieldId("kind")}>
-              스킬 종류
+              {t("form.kind")}
             </label>
-            <HelpTip label="스킬 종류" content={KIND_HELP} />
+            <HelpTip label={t("form.kind")} content={<KindHelp />} />
           </div>
-          <SelectBox id={fieldId("kind")} value={form.kind} options={KIND_OPTIONS} onChange={(kind) => update({ kind })} />
+          <SelectBox id={fieldId("kind")} value={form.kind} options={kindOptions} onChange={(kind) => update({ kind })} />
         </div>
 
         {/* 문서 스킬만: 결과 방식 → capability + result_mode, 대상 → targets */}
@@ -288,15 +286,15 @@ export function SkillCreateEditor({
             <div className={styles.field}>
               <div className={styles["label-row"]}>
                 <label className={styles.label} htmlFor={fieldId("result")}>
-                  결과 방식
+                  {t("form.result")}
                 </label>
-                <HelpTip label="결과 방식" content={RESULT_HELP} />
+                <HelpTip label={t("form.result")} content={<ResultHelp />} />
               </div>
               <div className={styles.menu}>
                 <SelectBox
                   id={fieldId("result")}
                   value={form.resultMode}
-                  options={SKILL_RESULT_OPTIONS}
+                  options={resultOptions}
                   describedBy={fieldId("result-hint")}
                   onChange={(resultMode) => {
                     setResultModeNote(null);
@@ -304,11 +302,11 @@ export function SkillCreateEditor({
                   }}
                 />
                 <p id={fieldId("result-hint")} className={styles.hint}>
-                  &apos;상황에 맞게&apos;는 대상이 애매하면 Agent가 되물어요.
+                  {t("form.resultHint")}
                 </p>
                 {resultModeNote && form.resultMode === resultModeNote.to && (
                   <p className={styles["result-note"]} role="status">
-                    <span>AI 초안에 맞춰 결과 방식을 ‘{skillResultModeLabel(resultModeNote.to)}’로 바꿨어요.</span>
+                    <span>{t("form.resultNote", { mode: skillResultModeLabel(resultModeNote.to, t) })}</span>
                     <button
                       type="button"
                       className={styles["result-note-undo"]}
@@ -317,7 +315,7 @@ export function SkillCreateEditor({
                         setResultModeNote(null);
                       }}
                     >
-                      ‘{skillResultModeLabel(resultModeNote.from)}’로 되돌리기
+                      {t("form.resultUndo", { mode: skillResultModeLabel(resultModeNote.from, t) })}
                     </button>
                   </p>
                 )}
@@ -325,7 +323,7 @@ export function SkillCreateEditor({
             </div>
 
             <fieldset className={styles.field} {...errorProps("targets")}>
-              <legend className={cx(styles.label, styles.legend)}>대상</legend>
+              <legend className={cx(styles.label, styles.legend)}>{t("form.targets")}</legend>
               <TargetChecks targets={form.targets} onToggle={toggleTarget} />
               {errorText("targets")}
             </fieldset>
@@ -350,21 +348,21 @@ export function SkillCreateEditor({
         <div className={styles.field}>
           <div className={styles["label-row"]}>
             <label className={styles.label} htmlFor={fieldId("scope")}>
-              저장범위
+              {t("form.scope")}
             </label>
-            <HelpTip label="저장범위" content={SCOPE_HELP} />
+            <HelpTip label={t("form.scope")} content={<ScopeHelp />} />
           </div>
           <div className={styles.menu}>
-            <SelectBox id={fieldId("scope")} value={form.scope} options={SKILL_SCOPE_OPTIONS} onChange={(scope) => update({ scope })} />
+            <SelectBox id={fieldId("scope")} value={form.scope} options={scopeOptions} onChange={(scope) => update({ scope })} />
             {/* 팀 스킬은 지금 있는 워크스페이스 한 곳에만 게시한다(publish를 호출한 워크스페이스에 귀속). */}
-            {form.scope === "team" && <p className={styles.hint}>팀: 현재 워크스페이스에서 사용됩니다.</p>}
+            {form.scope === "team" && <p className={styles.hint}>{t("form.scopeTeamHint")}</p>}
           </div>
         </div>
 
         {/* 커맨드명 → name */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={fieldId("command")}>
-            커맨드명
+            {t("form.command")}
           </label>
           <div className={cx(styles.input, styles["command-input"])}>
             <span className={styles["command-prefix"]} aria-hidden>
@@ -374,7 +372,7 @@ export function SkillCreateEditor({
               id={fieldId("command")}
               type="text"
               maxLength={SKILL_NAME_MAX}
-              placeholder="research-summary"
+              placeholder={t("form.commandPlaceholder")}
               autoComplete="off"
               spellCheck={false}
               value={form.command}
@@ -388,7 +386,7 @@ export function SkillCreateEditor({
           </div>
           {errorText("command") ?? (
             <p id={fieldId("command-hint")} className={styles.hint}>
-              Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.
+              {t("form.commandHint")}
             </p>
           )}
         </div>
@@ -396,13 +394,13 @@ export function SkillCreateEditor({
         {/* 설명 → description */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={fieldId("description")}>
-            설명
+            {t("form.description")}
           </label>
           <input
             id={fieldId("description")}
             type="text"
             className={styles.input}
-            placeholder="연구 문서의 개요를 핵심 문장 3개로 정리합니다."
+            placeholder={t("form.descriptionPlaceholder")}
             value={form.description}
             {...errorProps("description")}
             onChange={(event) => update({ description: event.target.value })}
@@ -414,13 +412,13 @@ export function SkillCreateEditor({
         {/* 실행 규칙 → instructions_markdown */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={fieldId("rules")}>
-            실행 규칙
+            {t("form.rules")}
           </label>
           <textarea
             id={fieldId("rules")}
             className={cx(styles.input, styles.textarea)}
             rows={6}
-            placeholder={"'연구 개요' 섹션만 고친다. 다른 섹션은 바꾸지 않는다.\n원문에 없는 수치나 사실은 추가하지 않는다."}
+            placeholder={t("form.rulesPlaceholder")}
             value={form.rules}
             {...errorProps("rules", rulesHint != null ? fieldId("rules-hint") : undefined)}
             onChange={(event) => update({ rules: event.target.value })}
@@ -440,7 +438,7 @@ export function SkillCreateEditor({
             isBusy={isBusy}
             isAuthoring={authorMutation.isPending}
             status={authorStatus}
-            idleHint="적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요."
+            idleHint={t("assist.idleHint")}
             onAuthor={() => runAuthor("enhance")}
           />
         </div>
@@ -461,7 +459,7 @@ export function SkillCreateEditor({
           onClose={() => publishMutation.reset()}
         >
           <button type="button" className="modal-confirm-button" onClick={() => publishMutation.reset()}>
-            확인
+            {t("common.confirm")}
           </button>
         </AlertModal>
       )}
@@ -474,7 +472,7 @@ export function SkillCreateEditor({
           onClose={() => authorMutation.reset()}
         >
           <button type="button" className="modal-confirm-button" onClick={() => authorMutation.reset()}>
-            확인
+            {t("common.confirm")}
           </button>
         </AlertModal>
       )}
@@ -485,12 +483,12 @@ export function SkillCreateEditor({
       {question && (
         <AlertModal
           titleId={fieldId("clarify-title")}
-          title="실행 규칙을 조금 더 구체적으로 적어 주세요."
+          title={t("review.clarifyTitle")}
           description={question}
           onClose={() => setQuestion(null)}
         >
           <button type="button" className="modal-confirm-button" onClick={() => setQuestion(null)}>
-            확인
+            {t("common.confirm")}
           </button>
         </AlertModal>
       )}

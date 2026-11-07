@@ -1,3 +1,5 @@
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 /** 비밀번호 정책: 15자 이상이거나, 8자 이상이면서 문자와 숫자를 모두 포함해야 한다. */
 export const PASSWORD_MAX_LENGTH = 72;
 
@@ -9,12 +11,12 @@ export function isPasswordAllowed(password: string): boolean {
 
 const PASSWORD_MIN_LENGTH = 8;
 
-/** 비밀번호 생성 화면(회원가입·재설정)에 보여줄 정책 위반 안내. 허용되면 null. */
-export function getPasswordPolicyError(password: string): string | null {
+/** 비밀번호 생성 화면(회원가입·재설정)에 보여줄 정책 위반 안내. 허용되면 null. t를 넘기면 지금 언어 문구를 쓴다. */
+export function getPasswordPolicyError(password: string, t?: SharedTranslate): string | null {
   if (isPasswordAllowed(password)) return null;
-  if (password.length < PASSWORD_MIN_LENGTH) return "비밀번호는 8자 이상 입력해주세요.";
-  if (password.length > PASSWORD_MAX_LENGTH) return "비밀번호는 72자 이하로 입력해주세요.";
-  return "영어, 숫자 조합으로 입력해주세요.";
+  if (password.length < PASSWORD_MIN_LENGTH) return t ? t("password.tooShort") : "비밀번호는 8자 이상 입력해주세요.";
+  if (password.length > PASSWORD_MAX_LENGTH) return t ? t("password.tooLong") : "비밀번호는 72자 이하로 입력해주세요.";
+  return t ? t("password.needsLetterAndDigit") : "영어, 숫자 조합으로 입력해주세요.";
 }
 
 // 한글 완성형·호환 자모·첫가끝 자모. 한/영 전환을 놓쳐 입력된 글자를 알아본다.

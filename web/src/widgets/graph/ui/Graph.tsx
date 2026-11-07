@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import { DEFAULT_USER_PREFERENCES } from "@/entities/user/model/preferences";
 import type { GraphFilterKind, GraphNode } from "@/entities/wiki";
@@ -27,6 +28,7 @@ export function Graph({
   /** 있으면 범례 옆에 새로고침 버튼을 둔다. 바뀐 내용이 있었는지 돌려준다. */
   onRefreshGraph?: () => Promise<{ changed: boolean }>;
 }) {
+  const t = useTranslations("workspace.graph");
   const { preferences, preferencesReady, updatePreferences } = useUserPreferences();
   const [filtersReady, setFiltersReady] = useState(false);
   const [revealRequest, setRevealRequest] = useState(0);
@@ -78,7 +80,7 @@ export function Graph({
   }, [nodes, links, visibleKinds]);
 
   return (
-    <section className={styles["graph-stage"]} aria-label="자료 관계 그래프">
+    <section className={styles["graph-stage"]} aria-label={t("label")}>
       <GraphFilterChips
         rawDocumentCount={rawDocumentCount}
         sourceNodeCount={sourceNodeCount}

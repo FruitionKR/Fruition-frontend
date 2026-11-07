@@ -15,6 +15,7 @@ registerHooks({
     if (specifier === "react") {
       return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
     }
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     // 알림 버스만 필요하고 배럴은 .tsx 컴포넌트를 끌고 오므로 버스 모듈로 직접 연결한다.
     if (specifier === "@/features/document-notifications") {
       return nextResolve(new URL("../src/features/document-notifications/model/noticeBus.ts", import.meta.url).href, context);
@@ -126,6 +127,8 @@ test("다른 트리 변경이 진행 중이어도 Markdown 변환 요청은 버�
   opened.addProject();
   await new Promise((resolve) => setTimeout(resolve, 0));
   opened.convertContextTargetToMarkdown();
+  // 변환 품질 안내를 확인해야 요청을 보낸다.
+  view.rerender().confirmConvert();
 
   releaseSlowMutation();
   await new Promise((resolve) => setTimeout(resolve, 20));
@@ -159,11 +162,40 @@ test("Markdown 변환 실패는 알림으로 보고된다", async (t) => {
   const opened = view.rerender();
 
   opened.convertContextTargetToMarkdown();
+  view.rerender().confirmConvert();
   await new Promise((resolve) => setTimeout(resolve, 20));
 
   assert.equal(notices.length, 1, "실패는 조용히 묻히지 않는다");
   assert.equal(notices[0].title, "Markdown 변환 실패");
   assert.equal(notices[0].message, "이미 변환 중입니다.");
+});
+
+test("Markdown 변환은 변환 품질 안내를 확인받기 전에는 요청하지 않고, 취소하면 보내지 않는다", async (t) => {
+  domEnv(t);
+  const requested = [];
+  t.mock.method(globalThis, "fetch", async (path) => {
+    requested.push(path);
+    return Response.json({ id: "doc_md" });
+  });
+
+  const refreshRef = { current: async () => {} };
+  const view = render(() => useProjectTree({ refreshRef }));
+  view.result.setProjects([
+    { id: "project-uploaded-documents", folderId: null, title: "문서", items: [PDF_ITEM] }
+  ]);
+  view.result.openFolderMenu(
+    { preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0 },
+    "project-uploaded-documents",
+    PDF_ITEM.id
+  );
+  view.rerender().convertContextTargetToMarkdown();
+  const asking = view.rerender();
+  assert.deepEqual(asking.convertConfirm, { itemId: PDF_ITEM.id, documentId: PDF_ITEM.documentId, label: PDF_ITEM.label });
+
+  asking.cancelConvert();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(view.rerender().convertConfirm, null);
+  assert.ok(!requested.some((path) => path.endsWith("/convert-markdown")), "취소하면 변환 요청을 보내지 않는다");
 });
 
 const MENU_EVENT = { preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0 };

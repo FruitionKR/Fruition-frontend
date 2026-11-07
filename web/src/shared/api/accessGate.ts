@@ -1,3 +1,5 @@
+import { sharedText } from "@/shared/i18n/sharedTranslate";
+
 // 화면 서버의 접근 코드 게이트(/access/verify) 호출. 설정 화면과 로그인 화면이 함께 쓴다.
 type AccessGateStatus = { enabled: boolean; unlocked: boolean };
 
@@ -6,7 +8,7 @@ export type AccessCodeSubmitResult = "ok" | "invalid" | "rate-limited";
 
 export async function fetchAccessGateStatus(): Promise<AccessGateStatus> {
   const response = await fetch("/access/verify", { cache: "no-store" });
-  if (!response.ok) throw new Error("접근 코드 상태를 확인하지 못했습니다.");
+  if (!response.ok) throw new Error(sharedText("api.accessGateCheckFailed", "접근 코드 상태를 확인하지 못했습니다."));
   return response.json() as Promise<AccessGateStatus>;
 }
 

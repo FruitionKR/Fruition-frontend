@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import { browserEnv, createResolver, fakeUserPreferences, render } from "./asyncHookShim.mjs";
@@ -8,6 +9,10 @@ const { NOTIFICATION_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_NOTIFICATION_PR
 const { notificationSelection, setNotificationSelection } = await import("../src/features/user-settings/model/notificationSelection.ts");
 const { useNotificationToggles } = await import("../src/features/user-settings/model/useNotificationToggles.ts");
 const allKeys = Object.keys(NOTIFICATION_SETTINGS);
+// 브라우저 알림 안내 문구는 화면이 settings 메시지(notifications)로 만든다.
+const notificationMessages = JSON.parse(
+  readFileSync(new URL("../src/shared/i18n/messages/ko/settings.json", import.meta.url), "utf8")
+).notifications;
 const keysFor = (group) => allKeys.filter((key) => NOTIFICATION_SETTINGS[key].group === group);
 
 test("전체 끄기·켜기는 모든 알림 종류에 적용하며 원래 설정 객체는 바꾸지 않는다", () => {
@@ -74,7 +79,8 @@ test("전체 켜기에서 브라우저 권한이 차단돼도 다른 알림은 �
   await view.result.setNotifications(allKeys, true);
   view.rerender();
   assert.equal(view.result.checkedValues.browser, false);
-  assert.match(view.result.browserMessage, /차단/);
+  assert.equal(view.result.browserIssue, "denied");
+  assert.match(notificationMessages.browserDenied, /차단/);
   assert.equal(allKeys.filter((key) => key !== "browser").every((key) => view.result.checkedValues[key]), true);
 });
 
@@ -83,7 +89,8 @@ test("브라우저 알림 미지원 환경에서도 나머지 통합 설정은 �
   await view.result.setNotifications(allKeys, true);
   view.rerender();
   assert.equal(view.result.checkedValues.browser, false);
-  assert.match(view.result.browserMessage, /지원하지 않/);
+  assert.equal(view.result.browserIssue, "unsupported");
+  assert.match(notificationMessages.browserUnsupported, /지원하지 않/);
   assert.equal(view.result.checkedValues.trashRestore, true);
 });
 

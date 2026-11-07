@@ -6,6 +6,7 @@ import "@milkdown/crepe/theme/frame.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMessages, useTranslations } from "next-intl";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { TableNodeView } from "@milkdown/kit/component/table-block";
 import { EditorStatus, editorViewCtx, editorViewOptionsCtx, keymapCtx, parserCtx, serializerCtx } from "@milkdown/core";
@@ -20,22 +21,21 @@ import { buildMarkdownEditorSnapshot } from "@/features/agent-chat/lib/markdownE
 import type { ActiveMarkdownEditContext } from "@/features/agent-chat/lib/markdownEditContext";
 import type { NoteSaveStatus } from "@/entities/tree/model/tree";
 import { useNoteAutosave, type DetachedNoteSaveResult, type NoteServerMerge } from "../model/useNoteAutosave";
-import { OVERWRITTEN_NOTICE_MESSAGE, OVERWRITTEN_NOTICE_TITLE } from "../model/saveMerge";
 import { buildServerMergeTransaction, rebaseLocalEdits, resolveEditorBodyUpdate } from "../model/serverMergeTransaction";
 import { splitEditableNoteMarkdown, stripPageComments } from "@/entities/document/lib/noteMarkdown";
 import { useEditLock } from "../model/useEditLock";
 import { completedMathPlugin, configureMarkdownMath, disableBlockHandle, doubleDollarMathInputRule, insertMathFromSlash } from "../model/mathInputRules";
 import { configureStrikethrough, doubleTildeStrikethroughInputRule } from "../model/strikethroughInputRule";
 import { cappedHeadingInputRule, disableSmallHeadingShortcuts } from "../model/headingInputRules";
-import { NOTE_BODY_PLACEHOLDER, SLASH_MENU_LABELS } from "../model/slashMenuLabels";
-import { partitionImageFiles, pendingImages, settleAttachmentSubstitution, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
+import { buildSlashMenuLabels } from "../model/slashMenuLabels";
+import { MAX_IMAGES_PER_SAVE, partitionImageFiles, pendingImages, settleAttachmentSubstitution, substituteAttachmentPaths, validateImageFile, type SavedAttachment } from "../model/imageAttachments";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { preserveImageAlt } from "../model/preserveImageAltPlugin";
 import { refitImageBlocks } from "../model/imageBlockHeight";
 import { ALLOW_EXTERNAL_IMAGES_META, blockedImagePlaceholderUrl, createExternalImageGuard, createExternalImagePasteHandler } from "../model/externalImageGuard";
 import { $prose } from "@milkdown/utils";
 import { acquireAssetObjectUrl, extractManagedAssetPaths, getCachedAssetObjectUrl, peekAssetObjectUrl, releaseAssetObjectUrl } from "@/shared/api/assets";
-import { classifyImageSource, EXTERNAL_IMAGE_BLOCKED_MESSAGE, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
+import { classifyImageSource, isAllowedImageSource } from "@/shared/lib/markdown/externalResources";
 import { publishNotice } from "@/features/document-notifications";
 import { useUserPreferences } from "@/entities/user";
 import { DocumentMarkdownViewer as MarkdownViewer } from "@/shared/ui/markdown/DocumentMarkdownViewer";
@@ -72,14 +72,12 @@ function observeMutations(root: HTMLElement, options: MutationObserverInit, onMu
 const EXTERNAL_IMAGE_NOTICE_INTERVAL_MS = 3_000;
 const lastExternalImageNoticeAt = new Map<string, number>();
 
-function notifyExternalImageBlocked(message: string = EXTERNAL_IMAGE_BLOCKED_MESSAGE) {
+function notifyExternalImageBlocked(title: string, message: string) {
   const now = Date.now();
   if (now - (lastExternalImageNoticeAt.get(message) ?? 0) < EXTERNAL_IMAGE_NOTICE_INTERVAL_MS) return;
   lastExternalImageNoticeAt.set(message, now);
-  publishNotice({ kind: "failed", title: "외부 이미지 차단", message });
+  publishNotice({ kind: "failed", notificationKey: "externalImageBlocked", title, message });
 }
-
-const externalImageGuard = $prose(() => createExternalImageGuard(() => notifyExternalImageBlocked()));
 
 
 export function NoteEditor({
@@ -111,8 +109,17 @@ export function NoteEditor({
   const onAttachmentsSavedRef = useRef<(saved: SavedAttachment[]) => void>(() => {});
   const onServerMergeRef = useRef<(merge: NoteServerMerge) => void>(() => {});
   const { preferences } = useUserPreferences();
+  const t = useTranslations("documents.editor");
+  const tShared = useTranslations("shared");
+  const editorMessages = useMessages().documents.editor;
+  // 편집기는 effect에서 한 번 만들므로 그 안의 문구·알림은 최신 번역을 ref로 읽는다.
+  const textRef = useRef({ t, editorMessages });
+  useEffect(() => {
+    textRef.current = { t, editorMessages };
+  });
   const { status, errorMessage, contentVersion, queueSave, saveNow, reportSaveBlock } = useNoteAutosave({
     documentId,
+    tShared,
     marker,
     initialVersion,
     onDetachedSaveComplete,
@@ -131,26 +138,33 @@ export function NoteEditor({
         queueSaveRef.current(latestBody);
       });
     },
-    autoSave: preferences.autoSave
+    autoSave: preferences.autoSave,
+    messages: {
+      saveFailed: t("save.failed"),
+      writeForbidden: t("save.writeForbidden"),
+      legacyConflict: t("save.legacyConflict"),
+      tooManyImages: t("save.tooManyImages", { count: MAX_IMAGES_PER_SAVE })
+    }
   });
   // 편집 잠금을 쥐고 있을 때만 편집기를 연다. heartbeat 409로 잠금을 잃으면 autosave를 멈춘다.
   const editLock = useEditLock({
     documentId,
+    tShared,
     onLockLost: (message) => {
       reportSaveBlock("lock-lost", message);
       // 저장 상태 표시만으로는 놓치기 쉬운 상황이라 알림으로도 알린다.
-      publishNotice({ kind: "failed", title: "편집 권한 상실", message });
+      publishNotice({ kind: "failed", notificationKey: "editPermissionLost", title: textRef.current.t("lockLostTitle"), message });
     }
   });
   // 잠금을 잃어도 편집기는 유지한다. 입력하던 내용을 잃지 않게 하되 저장은 autosave가 멈춘다.
   const canEdit = editLock.phase === "granted" || editLock.phase === "lost";
   useEffect(() => {
     const message = !canEdit && editLock.phase !== "acquiring"
-      ? `${editLock.message} 읽기 전용으로 열었습니다.`
+      ? t("readOnlyNotice", { reason: editLock.message ?? "" })
       : null;
     onReadOnlyNoticeChange?.(documentId, message);
     return () => onReadOnlyNoticeChange?.(documentId, null);
-  }, [canEdit, documentId, editLock.message, editLock.phase, onReadOnlyNoticeChange]);
+  }, [canEdit, documentId, editLock.message, editLock.phase, onReadOnlyNoticeChange, t]);
   const [editorLoad, setEditorLoad] = useState<{ documentId: string; phase: "loading" | "ready" | "failed" }>({ documentId, phase: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
   const editorReady = editorLoad.documentId === documentId && editorLoad.phase === "ready";
@@ -263,8 +277,9 @@ export function NoteEditor({
     if (!merge.notify) return;
     publishNotice({
       kind: "info",
-      title: OVERWRITTEN_NOTICE_TITLE,
-      message: OVERWRITTEN_NOTICE_MESSAGE
+      notificationKey: "saveMerged",
+      title: textRef.current.t("overwritten.title"),
+      message: textRef.current.t("overwritten.message")
     });
   };
 
@@ -465,8 +480,8 @@ export function NoteEditor({
           button = document.createElement("button");
           button.type = "button";
           button.className = "link-open-button";
-          button.textContent = "열기";
-          button.setAttribute("aria-label", "링크한 문서 열기");
+          button.textContent = textRef.current.t("link.open");
+          button.setAttribute("aria-label", textRef.current.t("link.openLabel"));
           display.after(button);
         }
         if (button.getAttribute(OPEN_ATTRIBUTE) !== href) button.setAttribute(OPEN_ATTRIBUTE, href);
@@ -483,8 +498,9 @@ export function NoteEditor({
   useEffect(() => {
     const root = wysiwygRootRef.current;
     if (!root) return;
-    const LABELS_WITH_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "수식", "링크"];
-    const LABELS_WITHOUT_LATEX = ["볼드", "기울임꼴", "취소선", "인라인 코드", "링크"];
+    const toolbar = textRef.current.editorMessages.toolbar;
+    const LABELS_WITH_LATEX = [toolbar.bold, toolbar.italic, toolbar.strikethrough, toolbar.inlineCode, toolbar.math, toolbar.link];
+    const LABELS_WITHOUT_LATEX = [toolbar.bold, toolbar.italic, toolbar.strikethrough, toolbar.inlineCode, toolbar.link];
 
     return observeMutations(root, { subtree: true, childList: true }, () => {
       root.querySelectorAll<HTMLElement>(".milkdown-toolbar").forEach((toolbar) => {
@@ -511,7 +527,7 @@ export function NoteEditor({
       if (!target.value || isAllowedImageSource(target.value)) return;
       event.stopPropagation();
       target.value = "";
-      notifyExternalImageBlocked();
+      notifyExternalImageBlocked(textRef.current.t("image.externalBlockedTitle"), textRef.current.t("image.externalBlockedMessage"));
     };
     root.addEventListener("input", onInput, true);
     return () => root.removeEventListener("input", onInput, true);
@@ -568,6 +584,8 @@ export function NoteEditor({
       return acquireAssetObjectUrl(path);
     };
 
+    const { t: text, editorMessages: messages } = textRef.current;
+    const notifyBlocked = () => notifyExternalImageBlocked(text("image.externalBlockedTitle"), text("image.externalBlockedMessage"));
     const crepe = new Crepe({
       root: host,
       defaultValue: bodyRef.current,
@@ -585,8 +603,8 @@ export function NoteEditor({
           onUpload: async (file) => {
             const problem = validateImageFile(file);
             if (problem) {
-              publishNotice({ kind: "failed", title: "이미지 첨부 실패", message: problem });
-              return Promise.reject(new Error(problem));
+              publishNotice({ kind: "failed", notificationKey: "imageUploadFailed", title: text("image.attachFailed"), message: text(`image.invalid.${problem}`) });
+              return Promise.reject(new Error(text(`image.invalid.${problem}`)));
             }
             return pendingImages.register(file);
           },
@@ -599,8 +617,8 @@ export function NoteEditor({
             if (pending) return pending;
             if (!url) return url;
             const source = classifyImageSource(url);
-            if (source.kind === "external") return blockedImagePlaceholderUrl(source.host);
-            if (source.kind === "unsupported") return blockedImagePlaceholderUrl(null);
+            if (source.kind === "external") return blockedImagePlaceholderUrl(text("image.externalPlaceholder", { host: source.host }));
+            if (source.kind === "unsupported") return blockedImagePlaceholderUrl(text("image.unsupportedPlaceholder"));
             if (source.kind === "inline") return url;
             const cached = getCachedAssetObjectUrl(url);
             if (cached) {
@@ -610,12 +628,12 @@ export function NoteEditor({
             }
             return acquireManagedAsset(url).catch(() => url);
           },
-          inlineUploadButton: "이미지 선택",
-          inlineUploadPlaceholderText: "이미지 파일을 선택해 올려 주세요",
-          blockUploadButton: "이미지 선택",
-          blockUploadPlaceholderText: "이미지 파일을 선택해 올려 주세요",
-          blockConfirmButton: "확인",
-          blockCaptionPlaceholderText: "캡션 입력"
+          inlineUploadButton: messages.image.uploadButton,
+          inlineUploadPlaceholderText: messages.image.uploadPlaceholder,
+          blockUploadButton: messages.image.uploadButton,
+          blockUploadPlaceholderText: messages.image.uploadPlaceholder,
+          blockConfirmButton: messages.image.confirm,
+          blockCaptionPlaceholderText: messages.image.captionPlaceholder
         },
         // '/' 슬래시 메뉴 한글화
         [CrepeFeature.BlockEdit]: {
@@ -625,11 +643,11 @@ export function NoteEditor({
             const math = builder.getGroup("advanced").group.items.find((item) => item.key === "math");
             if (math) math.onRun = insertMathFromSlash;
           },
-          ...SLASH_MENU_LABELS
+          ...buildSlashMenuLabels(messages.slashMenu)
         },
         // 문서 전체가 비었을 때만 보여 준다(새 노트 본문은 비어 있다). 데코레이션이라 저장되는 마크다운에는 들어가지 않는다.
         [CrepeFeature.Placeholder]: {
-          text: NOTE_BODY_PLACEHOLDER,
+          text: messages.bodyPlaceholder,
           mode: "doc"
         }
       }
@@ -647,9 +665,9 @@ export function NoteEditor({
         queueSaveRef.current(nextBody);
       });
     });
-    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(cappedHeadingInputRule).use(externalImageGuard).config((ctx) => {
+    crepe.editor.use(doubleDollarMathInputRule).use(completedMathPlugin).use(doubleTildeStrikethroughInputRule).use(cappedHeadingInputRule).use($prose(() => createExternalImageGuard(notifyBlocked))).config((ctx) => {
       // direct prop이라 Milkdown clipboard plugin의 handlePaste보다 먼저 실행된다.
-      const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), () => notifyExternalImageBlocked());
+      const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), notifyBlocked);
       ctx.update(editorViewOptionsCtx, (previous) => ({
         ...previous,
         handlePaste: (view, event, slice) => guardPaste(view, event, slice) || (previous.handlePaste?.(view, event, slice) ?? false)
@@ -667,8 +685,11 @@ export function NoteEditor({
           if (rejected.length > 0) {
             publishNotice({
               kind: "failed",
-              title: "이미지 첨부 실패",
-              message: rejected.length === 1 ? rejected[0].reason : `${rejected.length}개 이미지를 넣을 수 없습니다. ${rejected[0].reason}`
+              notificationKey: "imageUploadFailed",
+              title: text("image.attachFailed"),
+              message: rejected.length === 1
+                ? text(`image.invalid.${rejected[0].reason}`)
+                : text("image.rejectedMany", { count: rejected.length, reason: text(`image.invalid.${rejected[0].reason}`) })
             });
           }
           if (accepted.length === 0) return Promise.resolve([]);
@@ -677,7 +698,7 @@ export function NoteEditor({
           return previous.uploader(transfer.files, schema, uploaderCtx, insertPos);
         }
       }));
-      configureMathEditor(ctx);
+      configureMathEditor(ctx, messages.math);
       disableBlockHandle(ctx);
       // commonmark 기본 Backspace(priority 50)보다 먼저 실행시킨다
       ctx.get(keymapCtx).add({ key: "Backspace", priority: 100, onRun: liftListItemOnBackspace });
@@ -755,7 +776,7 @@ export function NoteEditor({
     return (
       <div className={styles["note-editor-shell"]}>
         {editLock.phase === "acquiring" ? (
-          <DocumentLoading inline>편집 권한을 확인하는 중입니다.</DocumentLoading>
+          <DocumentLoading inline>{t("loading.lock")}</DocumentLoading>
         ) : (
           <>
             <MarkdownViewer markdown={initialBody} />
@@ -768,14 +789,14 @@ export function NoteEditor({
   return (
     <div className={styles["note-editor-shell"]}>
         {!editorReady && !editorFailed && (
-          <DocumentLoading inline detail="내용이 많거나 표·수식이 포함된 문서는 준비에 시간이 걸릴 수 있습니다.">
-            문서를 편집 화면으로 준비하는 중입니다.
+          <DocumentLoading inline detail={t("loading.editorDetail")}>
+            {t("loading.editor")}
           </DocumentLoading>
         )}
         {editorFailed && (
           <div className={styles["note-editor-load-error"]} role="alert">
-            <p>문서 화면을 준비하지 못했습니다. 다시 시도해 주세요.</p>
-            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>다시 시도</button>
+            <p>{t("loading.failed")}</p>
+            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>{t("loading.retry")}</button>
           </div>
         )}
         <div

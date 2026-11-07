@@ -1,32 +1,28 @@
 import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
 import type { DocumentItemResponse } from "@/entities/document";
-import type { NoticePayload } from "./noticeBus";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
 type FailedDocumentSummary = Pick<DocumentItemResponse, "filename" | "error_message" | "error_code">;
 
 // 요약 메시지에 나열하는 파일명 상한. 넘치는 문서는 "외 N개"로 줄인다.
 const MAX_LISTED_FILENAMES = 3;
 
+/** 실패 알림에 담을 값. 문구는 알림 훅이 언어에 맞춰 만든다. */
+export type FailedDocumentsNoticeValues =
+  | { type: "single"; filename: string; reason: string | null }
+  | { type: "multiple"; count: number; listedFilenames: string[]; restCount: number };
+
 // 대량 실패 시 문서 수만큼 카드가 쌓여 화면 밖으로 밀리지 않도록 실패 문서들을 알림 하나로 묶는다.
-export function buildFailedDocumentsNotice(failedDocuments: FailedDocumentSummary[]): NoticePayload {
+// t(`useTranslations("shared")`)를 넘기면 실패 사유를 지금 언어로 쓴다.
+export function summarizeFailedDocuments(failedDocuments: FailedDocumentSummary[], t?: SharedTranslate): FailedDocumentsNoticeValues {
   if (failedDocuments.length === 1) {
     const [failed] = failedDocuments;
-    return {
-      kind: "failed",
-      title: "문서 처리 실패",
-      message: `"${failed.filename}" 처리에 실패했습니다. ${describeDocumentFailure(failed.error_message, failed.error_code) ?? "실패 사유를 확인해 주세요."}`
-    };
+    return { type: "single", filename: failed.filename, reason: describeDocumentFailure(failed.error_message, failed.error_code, t) ?? null };
   }
-
-  const listed = failedDocuments
-    .slice(0, MAX_LISTED_FILENAMES)
-    .map((failed) => `"${failed.filename}"`)
-    .join(", ");
-  const restCount = failedDocuments.length - MAX_LISTED_FILENAMES;
-  const names = restCount > 0 ? `${listed} 외 ${restCount}개` : listed;
   return {
-    kind: "failed",
-    title: "문서 처리 실패",
-    message: `${failedDocuments.length}개 문서를 처리하지 못했습니다. (${names}) 실패 사유는 각 문서에서 확인해 주세요.`
+    type: "multiple",
+    count: failedDocuments.length,
+    listedFilenames: failedDocuments.slice(0, MAX_LISTED_FILENAMES).map((failed) => failed.filename),
+    restCount: Math.max(0, failedDocuments.length - MAX_LISTED_FILENAMES)
   };
 }

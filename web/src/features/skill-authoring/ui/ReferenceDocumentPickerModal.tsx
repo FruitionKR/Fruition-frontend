@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useTranslations } from "next-intl";
 import type { DocumentItemResponse } from "@/entities/document";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import { SearchModalHeader } from "@/shared/ui/modal/SearchModalHeader";
@@ -30,7 +31,7 @@ export function ReferenceDocumentPickerModal({
   onToggle,
   onUpload,
   onClose,
-  ariaLabel = "참고 문서 검색",
+  ariaLabel,
   placeholder,
   emptyMessage,
   documentMeta,
@@ -53,6 +54,9 @@ export function ReferenceDocumentPickerModal({
   /** 검색어로 목록을 거른다. 기본은 스킬 참고 문서 기준이다. */
   filterDocuments?: (documents: DocumentItemResponse[], query: string) => DocumentItemResponse[];
 }) {
+  const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
+  const modalLabel = ariaLabel ?? t("picker.ariaLabel");
   const [query, setQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // 열 때 선택돼 있던 문서와 여기서 올린 문서를 맨 앞에 고정한다. 토글할 때마다 순서가 바뀌지 않게 한다.
@@ -72,7 +76,7 @@ export function ReferenceDocumentPickerModal({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !onUpload) return;
-    const invalid = skillReferenceFileError(file);
+    const invalid = skillReferenceFileError(file, t);
     setUploadError(invalid);
     if (invalid) return;
     setIsUploading(true);
@@ -81,16 +85,16 @@ export function ReferenceDocumentPickerModal({
       setPinnedDocs((current) => [uploaded, ...current.filter((doc) => doc.id !== uploaded.id)]);
       setQuery("");
     } catch (error) {
-      setUploadError(describeSkillReferenceUploadError(error));
+      setUploadError(describeSkillReferenceUploadError(error, t, tShared));
     } finally {
       setIsUploading(false);
     }
   }
 
   return (
-    <CenteredModal ariaLabel={ariaLabel} onClose={onClose}>
+    <CenteredModal ariaLabel={modalLabel} onClose={onClose}>
       <SearchModalHeader
-        placeholder={placeholder ?? `참고 문서 검색 (${selectedIds.length}/${maxCount} 선택)`}
+        placeholder={placeholder ?? t("picker.placeholder", { count: selectedIds.length, max: maxCount })}
         value={query}
         onChange={setQuery}
         onClose={onClose}
@@ -105,10 +109,10 @@ export function ReferenceDocumentPickerModal({
             onClick={() => fileInputRef.current?.click()}
           >
             <SvgIcon src={plusIcon} className={pickerStyles["upload-icon"]} />
-            {isUploading ? "올리는 중…" : "참고 문서 올리기"}
+            {isUploading ? t("picker.uploading") : t("picker.upload")}
           </button>
           <span className={pickerStyles["upload-hint"]}>
-            {isFull ? `최대 ${maxCount}개까지 선택할 수 있습니다.` : ".md, .txt · 메인 문서 목록에는 보이지 않습니다."}
+            {isFull ? t("picker.full", { max: maxCount }) : t("picker.uploadHint")}
           </span>
           <input
             ref={fileInputRef}
@@ -123,7 +127,7 @@ export function ReferenceDocumentPickerModal({
             {uploadError}
           </p>
         )}
-        <div className={styles["search-results"]} role="group" aria-label={`${ariaLabel} 결과`}>
+        <div className={styles["search-results"]} role="group" aria-label={t("picker.resultsLabel", { label: modalLabel })}>
           {results.length > 0 ? (
             results.map((doc) => {
               const isSelected = selectedIds.includes(doc.id);
@@ -142,14 +146,14 @@ export function ReferenceDocumentPickerModal({
                     <span className={styles["search-result-label"]}>{documentDisplayName(doc)}</span>
                   </span>
                   <span className={styles["search-result-meta"]}>
-                    {isSelected ? "선택됨 ✓" : isReference ? "참고용 업로드" : documentMeta?.(doc) ?? ""}
+                    {isSelected ? t("picker.selected") : isReference ? t("picker.reference") : documentMeta?.(doc) ?? ""}
                   </span>
                 </button>
               );
             })
           ) : (
             <p className={styles["search-empty"]}>
-              {hasQuery ? "검색 결과가 없습니다." : emptyMessage ?? "선택할 문서가 없습니다."}
+              {hasQuery ? t("picker.noResults") : emptyMessage ?? t("picker.empty")}
             </p>
           )}
         </div>

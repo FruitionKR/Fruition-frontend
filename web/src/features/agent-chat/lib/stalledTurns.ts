@@ -1,28 +1,21 @@
 /**
  * 응답이 끝나지 않는 작업 turn·채팅 질의(작업자 중단 등으로 서버 메시지가 pending에 머문 경우).
  * pending 메시지가 있으면 입력창·세션 전환·스킬 실행이 모두 막히므로, 오래 머문 turn·질의를 조회로 확인해
- * "응답을 받지 못했어요"로 바꾸고 다시 시도·닫기로 풀 수 있게 한다. 테스트가 직접 import하므로 다른 모듈을 import하지 않는다.
+ * "응답을 받지 못했어요"로 바꾸고 다시 시도·닫기로 풀 수 있게 한다. 테스트가 직접 import하므로 다른 모듈을 import하지 않는다(타입만 가져온다).
+ * 화면 문구는 agentChat.stalled 아래에 있다.
  */
+import type { AgentChatTranslator } from "./agentChatTranslator";
 
 /** 이만큼 지나도 pending인 turn은 조회로 끝났는지 확인한다. */
 export const STALLED_TURN_AGE_MS = 10 * 60_000;
 /** 확인 주기. pending 메시지가 바뀌지 않아도 이 간격으로 나이를 다시 잰다. */
 export const STALLED_TURN_TICK_MS = 30_000;
 
-export const STALLED_TURN_TITLE = "응답을 받지 못했어요";
-export const STALLED_TURN_DETAIL = "작업이 중단됐을 수 있어요. 다시 시도하거나 닫고 다른 요청을 보내 주세요.";
-/** 막힌 turn이 남아 있는 동안 입력창 아래에 보이는 안내 */
-export const STALLED_TURN_COMPOSER_NOTICE = "응답을 받지 못한 작업이 있어요. 작업 탭에서 다시 시도하거나 닫아 주세요.";
-
 /**
  * 이만큼 지나도 pending인 채팅 질의는 조회로 끝났는지 확인한다. 질의는 보통 1분 안에 끝나므로 작업 turn(10분)보다 짧게,
  * 이 앱이 AI 요청 하나를 가장 오래 기다리는 시간(agent turn 전체 타임아웃 300초)과 같게 둔다.
  */
 export const STALLED_QUERY_AGE_MS = 5 * 60_000;
-export const STALLED_QUERY_DETAIL = "질문 처리가 중단됐을 수 있어요. 다시 질문하거나 닫고 새로 질문해 주세요.";
-export const STALLED_QUERY_RELEASED_DETAIL = "응답을 받지 못해 닫은 질문이에요.";
-/** 막힌 질의가 남아 있는 동안 입력창 아래에 보이는 안내 */
-export const STALLED_QUERY_COMPOSER_NOTICE = "응답을 받지 못한 질문이 있어요. 채팅에서 다시 질문하거나 닫아 주세요.";
 
 /** agent turn run ID 접두사(document AgentTurnService). 질의 run은 query_로 시작한다. */
 const AGENT_RUN_PREFIX = "agent_";
@@ -148,10 +141,10 @@ export type StalledQueryCancelResult = TurnCheckResult | { kind: "failed" };
  * 닫기 취소 요청 결과에 대한 안내. 서버에 없거나(404) 취소를 받았으면 안내하지 않는다.
  * 화면 잠금은 결과와 상관없이 풀므로, 서버가 계속 처리 중일 수 있으면 그렇다고 알린다.
  */
-export function stalledQueryCancelNotice(result: StalledQueryCancelResult): string | null {
+export function stalledQueryCancelNotice(result: StalledQueryCancelResult, t: AgentChatTranslator): string | null {
   if (result.kind === "missing") return null;
-  if (result.kind === "failed") return "질문을 닫았지만 서버에 취소를 전하지 못했어요. 서버에서는 아직 처리 중일 수 있어요.";
-  if (result.status === "rollback_failed") return "질문을 닫았지만 서버가 질문의 변경을 복구하지 못했어요. 잠시 뒤 다시 확인해 주세요.";
+  if (result.kind === "failed") return t("stalled.notice.queryCancelUndelivered");
+  if (result.status === "rollback_failed") return t("stalled.notice.queryRollbackFailed");
   return null;
 }
 
@@ -179,14 +172,14 @@ export type StalledTurnCancelOutcome = { notice: string | null; refresh: boolean
  * - 409·그 밖의 상태: 이미 끝난 turn이라 결과가 묻히지 않게 다시 받아 보여 준다
  * - 전하지 못함: 서버가 계속 처리 중일 수 있다고 알린다
  */
-export function stalledTurnCancelOutcome(result: StalledTurnCancelResult): StalledTurnCancelOutcome {
+export function stalledTurnCancelOutcome(result: StalledTurnCancelResult, t: AgentChatTranslator): StalledTurnCancelOutcome {
   if (result.kind === "missing") return { notice: null, refresh: false, showResult: false };
   if (result.kind === "failed") {
-    return { notice: "작업을 닫았지만 서버에 취소를 전하지 못했어요. 서버에서는 아직 처리 중일 수 있어요.", refresh: false, showResult: false };
+    return { notice: t("stalled.notice.turnCancelUndelivered"), refresh: false, showResult: false };
   }
   if (result.kind === "finished" || !TURN_CANCEL_STATUSES.has(result.status)) return { notice: null, refresh: true, showResult: true };
   if (result.status === "rollback_failed") {
-    return { notice: result.error === ROLLBACK_DOCUMENT_PURGED ? TURN_ROLLBACK_PARTIAL_DETAIL : "작업을 닫았지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, showResult: false };
+    return { notice: result.error === ROLLBACK_DOCUMENT_PURGED ? t("stalled.rollbackPartialDetail") : t("stalled.notice.turnCloseRollbackFailed"), refresh: true, showResult: false };
   }
   return { notice: null, refresh: true, showResult: false };
 }
@@ -205,14 +198,14 @@ export type ActiveTurnStopOutcome = { notice: string | null; refresh: boolean; r
  * - 409·그 밖의 상태: 이미 끝난 turn이라 다시 따라가 결과를 보여 준다
  * - 전하지 못함: 다시 따라가고 알린다
  */
-export function activeTurnStopOutcome(result: StalledTurnCancelResult): ActiveTurnStopOutcome {
+export function activeTurnStopOutcome(result: StalledTurnCancelResult, t: AgentChatTranslator): ActiveTurnStopOutcome {
   if (result.kind === "missing") return { notice: null, refresh: false, release: true, resume: false };
   if (result.kind === "failed") {
-    return { notice: "작업을 중지하지 못했어요. 서버에 중지 요청을 전하지 못해 작업이 계속 진행 중이에요. 다시 Esc를 눌러 주세요.", refresh: false, release: false, resume: true };
+    return { notice: t("stalled.notice.stopUndelivered"), refresh: false, release: false, resume: true };
   }
   if (result.kind === "finished" || !TURN_CANCEL_STATUSES.has(result.status)) return { notice: null, refresh: false, release: false, resume: true };
   if (result.status === "rollback_failed") {
-    return { notice: result.error === ROLLBACK_DOCUMENT_PURGED ? TURN_ROLLBACK_PARTIAL_DETAIL : "작업을 중지했지만 서버가 작업의 변경을 복구하지 못했어요. 문서 내용을 확인해 주세요.", refresh: true, release: true, resume: false };
+    return { notice: result.error === ROLLBACK_DOCUMENT_PURGED ? t("stalled.rollbackPartialDetail") : t("stalled.notice.stopRollbackFailed"), refresh: true, release: true, resume: false };
   }
   return { notice: null, refresh: true, release: true, resume: false };
 }
@@ -227,16 +220,7 @@ export type TurnCancelState = "requested" | "rolling_back" | "cancelled" | "roll
 
 /** 취소 중인 turn을 이만큼만 다시 조회한다(조회 주기 × 횟수). 넘으면 "취소하는 중…"으로 두고 다음에 열 때 다시 확인한다. */
 export const TURN_CANCEL_POLL_LIMIT = 40;
-export const TURN_CANCELLING_LABEL = "취소하는 중…";
-export const TURN_ROLLBACK_FAILED_LABEL = "변경 복구 실패";
-export const TURN_ROLLBACK_FAILED_DETAIL = "취소했지만 변경을 되돌리지 못했어요. 문서 내용을 확인해 주세요.";
-export const TURN_ROLLBACK_PARTIAL_LABEL = "일부 되돌리지 못함";
-export const TURN_ROLLBACK_PARTIAL_DETAIL = "영구 삭제된 문서의 변경은 되돌릴 수 없어요. 나머지 변경은 되돌렸어요.";
-/** 취소하는 중인 작업 카드의 설명. 되돌리는 단계인지 알 수 있게 나눠 적는다. */
-export const TURN_CANCELLING_DETAIL: Record<"requested" | "rolling_back", string> = {
-  requested: "작업을 멈추고 있어요.",
-  rolling_back: "작업이 바꾼 내용을 되돌리고 있어요. 끝나면 '취소됨'으로 바뀌어요."
-};
+// 취소 진행 칩·설명 문구는 agentChat.stalled(cancellingLabel·rollbackFailed*·rollbackPartial*·cancellingDetail)에 있다.
 
 /**
  * turn 조회(또는 취소 응답) 결과 → 취소 진행 상태. 404(서버에 turn이 없음)와 취소 계열이 아닌 상태는 더 기다릴 것이 없어 취소됨으로 본다.
@@ -261,8 +245,8 @@ export function shouldPollTurnCancel(result: TurnCheckResult | null | undefined,
 }
 
 /** 이 화면에서 취소하는 중이던 turn이 복구 실패로 끝났을 때만 알림 문구. 새로 고침 뒤 처음 받은 상태로는 알리지 않는다. */
-export function turnCancelSettledNotice(previous: TurnCancelState | null | undefined, next: TurnCancelState | null | undefined): string | null {
+export function turnCancelSettledNotice(previous: TurnCancelState | null | undefined, next: TurnCancelState | null | undefined, t: AgentChatTranslator): string | null {
   if (!isTurnCancelling(previous)) return null;
-  if (next === "rollback_partial") return TURN_ROLLBACK_PARTIAL_DETAIL;
-  return next === "rollback_failed" ? TURN_ROLLBACK_FAILED_DETAIL : null;
+  if (next === "rollback_partial") return t("stalled.rollbackPartialDetail");
+  return next === "rollback_failed" ? t("stalled.rollbackFailedDetail") : null;
 }

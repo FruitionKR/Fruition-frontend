@@ -1,3 +1,5 @@
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 // 백엔드 GET /api/ai-models 응답의 모델 한 개.
 export type AiModel = {
   provider: string;
@@ -118,9 +120,11 @@ const LOCK_REASON_MESSAGES: Record<AiModelLockReason, string> = {
   workspace_claude: "Claude 모델은 채팅에서 직접 선택할 때만 사용할 수 있습니다."
 };
 
-/** 잠금 이유를 화면 문구로 바꾼다. */
-export function getAiModelLockMessage(reason: AiModelLockReason): string {
-  return LOCK_REASON_MESSAGES[reason];
+const LOCK_REASON_KEYS = { cost_policy: "ai.lock.costPolicy", workspace_claude: "ai.lock.workspaceClaude" } as const satisfies Record<AiModelLockReason, string>;
+
+/** 잠금 이유를 화면 문구로 바꾼다. t(`useTranslations("shared")`)를 넘기면 지금 언어로 쓴다. */
+export function getAiModelLockMessage(reason: AiModelLockReason, t?: SharedTranslate): string {
+  return t ? t(LOCK_REASON_KEYS[reason]) : LOCK_REASON_MESSAGES[reason];
 }
 
 /**

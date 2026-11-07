@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMe } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { AccountDeleteModal } from "../modals/AccountDeleteModal";
@@ -22,24 +23,26 @@ export function AccountPanel({
   resumeAccountDelete?: boolean;
   onOpenMembers: (workspaceId: string) => void;
 }) {
+  const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const { data: me, error: loadError } = useMe();
   const [showDelete, setShowDelete] = useState(resumeAccountDelete);
 
   return (
     <div className={styles.detail}>
-      <SettingsPanelTitle title="계정 보안" description="개인 계정 보안을 관리합니다." />
-      {loadError && <small className={styles["field-error"]} role="alert">{getErrorMessage(loadError, "계정 정보를 불러오지 못했습니다.")}</small>}
+      <SettingsPanelTitle title={t("account.title")} description={t("account.description")} />
+      {loadError && <small className={styles["field-error"]} role="alert">{getErrorMessage(loadError, t("common.accountLoadFailed"), tShared)}</small>}
 
       {/* 설정을 연 뒤 한 번 클릭으로 탈퇴 화면에 닿아야 한다(다크패턴 방지 가이드라인). */}
       <div className={styles.section}>
-        <SettingsSectionHeader>계정 관리</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("account.manageSection")}</SettingsSectionHeader>
         <div className={styles.row}>
           <div className={styles["row-title"]}>
-            <strong>내 계정 삭제</strong>
-            <small>계정을 영구적으로 삭제합니다. 더 이상 내 페이지나 소속된 워크스페이스에 접근할 수 없게 됩니다.</small>
+            <strong>{t("account.delete.title")}</strong>
+            <small>{t("account.delete.description")}</small>
           </div>
           <button type="button" className={`${styles.btn} ${styles["btn-danger"]}`} disabled={!me} onClick={() => setShowDelete(true)}>
-            내 계정 삭제
+            {t("account.delete.button")}
           </button>
         </div>
         {showDelete && me && (
@@ -53,7 +56,7 @@ export function AccountPanel({
       </div>
 
       <div className={styles.section}>
-        <SettingsSectionHeader>계정 보안</SettingsSectionHeader>
+        <SettingsSectionHeader>{t("account.securitySection")}</SettingsSectionHeader>
         {me && <MfaPanel />}
         {me && <SessionsPanel />}
       </div>

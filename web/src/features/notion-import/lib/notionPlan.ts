@@ -64,7 +64,19 @@ export type PlanDocument = {
 /** PDF 문서로 올릴 파일. 본문은 올릴 때 read()로 그때 푼다(미리 메모리에 들고 있지 않는다). */
 export type PlanPdf = { key: string; name: string; folderKey: string | null; size: number; read: () => Uint8Array };
 
-export type SkippedItem = { path: string; reason: string };
+/** 가져오지 않는 이유. 문구는 notionImport 메시지 skipReasons에 둔다. */
+export type SkipReason =
+  | "documentTooLarge"
+  | "tableTooLarge"
+  | "pdfTooLarge"
+  | "notPdf"
+  | "unsupportedAttachment"
+  | "imageTooLarge"
+  | "unsupportedImage"
+  | "unusedImage"
+  | "nestedZip";
+
+export type SkippedItem = { path: string; reason: SkipReason };
 
 export type ImportPlan = {
   /** 상위 폴더가 먼저 오는 순서 */
@@ -249,15 +261,15 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     const { extension } = splitExtension(lastSegment(file.path));
     if (extension === ".csv") continue;
     if (extension === ".md") {
-      if (file.size > MARKDOWN_MAX_BYTES) skipped.push({ path: file.path, reason: "5MB를 넘는 문서" });
+      if (file.size > MARKDOWN_MAX_BYTES) skipped.push({ path: file.path, reason: "documentTooLarge" });
       else pages.set(file.path, file);
     } else if (IMAGE_EXTENSIONS.has(extension)) images.set(file.path, file);
     else if (extension === ".pdf") {
-      if (file.size > PDF_MAX_BYTES) skipped.push({ path: file.path, reason: "100MB를 넘는 PDF" });
+      if (file.size > PDF_MAX_BYTES) skipped.push({ path: file.path, reason: "pdfTooLarge" });
       else if (!hasPdfMagic(file.readHead ? file.readHead(PDF_MAGIC.length) : file.read().slice(0, PDF_MAGIC.length))) {
-        skipped.push({ path: file.path, reason: "PDF 형식이 아닌 파일" });
+        skipped.push({ path: file.path, reason: "notPdf" });
       } else pdfs.set(file.path, file);
-    } else skipped.push({ path: file.path, reason: "PDF·이미지가 아닌 첨부(PPTX 등)라 가져오지 않음" });
+    } else skipped.push({ path: file.path, reason: "unsupportedAttachment" });
   }
 
   // 데이터베이스 행 페이지: 행 폴더 바로 아래 페이지 중 CSV 첫 열(제목)과 맞는 것. 남는 페이지는 일반 하위 페이지다.
@@ -405,7 +417,7 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     notionLinkCount += tokenized.notionLinks;
     const bytes = byteLength(tokenized.markdown);
     if (bytes > MARKDOWN_MAX_BYTES) {
-      skipped.push({ path: file.path, reason: "5MB를 넘는 표" });
+      skipped.push({ path: file.path, reason: "tableTooLarge" });
       continue;
     }
     tableCount += 1;
@@ -430,7 +442,7 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
     notionLinkCount += tokenized.notionLinks;
     const bytes = byteLength(tokenized.markdown);
     if (bytes > MARKDOWN_MAX_BYTES) {
-      skipped.push({ path, reason: "5MB를 넘는 문서" });
+      skipped.push({ path, reason: "documentTooLarge" });
       continue;
     }
     const planImages: PlanImage[] = tokenized.images.map(({ path: imagePath, alt }) => {
@@ -445,9 +457,9 @@ export async function buildImportPlan(input: SourceFile[], existing: ExistingNam
   for (const [path, file] of images) {
     if (referencedImages.has(path)) continue;
     const info = inspectImage(path);
-    if (file.size > ATTACHMENT_MAX_BYTES) skipped.push({ path, reason: "10MB를 넘는 이미지" });
-    else if (!info?.mime) skipped.push({ path, reason: "PNG·JPEG·GIF·WebP가 아닌 이미지" });
-    else skipped.push({ path, reason: "본문에서 쓰지 않는 이미지" });
+    if (file.size > ATTACHMENT_MAX_BYTES) skipped.push({ path, reason: "imageTooLarge" });
+    else if (!info?.mime) skipped.push({ path, reason: "unsupportedImage" });
+    else skipped.push({ path, reason: "unusedImage" });
   }
 
   // 건너뛴 문서를 가리키던 폴더 계획은 그대로 둔다(폴더 안 다른 문서가 있을 수 있다). 빈 폴더만 뺀다.

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   formatCompactTokenCount, formatKnownCharge, formatNonTokenUsage, formatPercentShare, formatTokenCount, getProviderLabel,
   toPercentShares, type ModelUsageSummary, type ModelUsageSummaryRow
@@ -20,8 +21,10 @@ const providerIcons: Record<string, SvgAsset> = {
  * 막대 목록은 aria-hidden이고 화면 낭독기는 같은 숫자를 숨긴 표로 읽는다.
  */
 export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeLabel: string }) {
+  const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const hasCache = summary.models.some((item) => item.cachedInputTokens > 0);
-  const hasNonTokenUsage = summary.models.some((item) => formatNonTokenUsage(item) !== null);
+  const hasNonTokenUsage = summary.models.some((item) => formatNonTokenUsage(item, tShared) !== null);
   const modelShares = toPercentShares(summary.models.map((item) => item.totalTokens));
 
   return (
@@ -29,8 +32,8 @@ export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageS
       <UsageHero summary={summary} rangeLabel={rangeLabel} />
       <div className={styles.models}>
         <div className={styles["models-head"]}>
-          <span>모델별</span>
-          <span>{summary.models.length}개 모델</span>
+          <span>{t("ai.usage.byModel")}</span>
+          <span>{t("ai.usage.modelCount", { count: summary.models.length })}</span>
         </div>
         <ol className={styles["model-list"]} aria-hidden="true">
           {summary.models.map((item, index) => (
@@ -39,17 +42,17 @@ export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageS
           ))}
         </ol>
         <table className={styles["sr-only"]}>
-          <caption>모델별 사용량 · {rangeLabel}</caption>
+          <caption>{t("ai.usage.tableCaption", { range: rangeLabel })}</caption>
           <thead>
             <tr>
-              <th scope="col">모델</th>
-              <th scope="col">입력 토큰</th>
-              <th scope="col">출력 토큰</th>
-              {hasCache && <th scope="col">캐시 토큰</th>}
-              <th scope="col">합계</th>
-              <th scope="col">비율</th>
-              {hasNonTokenUsage && <th scope="col">음성·글자</th>}
-              <th scope="col">금액</th>
+              <th scope="col">{t("ai.usage.colModel")}</th>
+              <th scope="col">{t("ai.usage.colInput")}</th>
+              <th scope="col">{t("ai.usage.colOutput")}</th>
+              {hasCache && <th scope="col">{t("ai.usage.colCache")}</th>}
+              <th scope="col">{t("ai.usage.colTotal")}</th>
+              <th scope="col">{t("ai.usage.colShare")}</th>
+              {hasNonTokenUsage && <th scope="col">{t("ai.usage.colNonToken")}</th>}
+              <th scope="col">{t("ai.usage.colCharge")}</th>
             </tr>
           </thead>
           <tbody>
@@ -61,8 +64,8 @@ export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageS
                 {hasCache && <td>{formatTokenCount(item.cachedInputTokens)}</td>}
                 <td>{formatTokenCount(item.totalTokens)}</td>
                 <td>{formatPercentShare(modelShares[index], item.totalTokens)}</td>
-                {hasNonTokenUsage && <td>{formatNonTokenUsage(item) ?? "없음"}</td>}
-                <td>{formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls) ?? "알 수 없음"}</td>
+                {hasNonTokenUsage && <td>{formatNonTokenUsage(item, tShared) ?? t("common.none")}</td>}
+                <td>{formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls, tShared) ?? t("common.unknown")}</td>
               </tr>
             ))}
           </tbody>
@@ -74,39 +77,43 @@ export function AiUsageBreakdown({ summary, rangeLabel }: { summary: ModelUsageS
 }
 
 function UsageNotes({ summary, hasCache }: { summary: ModelUsageSummary; hasCache: boolean }) {
+  const t = useTranslations("settings.ai.usage");
   const notes = [
-    hasCache ? "캐시 토큰은 입력에 포함되어 합계에 따로 더하지 않아요." : null,
-    summary.unpricedCalls > 0 ? `단가를 확인하지 못한 호출 ${formatTokenCount(summary.unpricedCalls)}건은 금액에서 빠졌어요.` : null,
-    summary.needsReviewCalls > 0 ? `사용량을 알 수 없는 호출 ${formatTokenCount(summary.needsReviewCalls)}건은 0원으로 처리됐어요.` : null
+    hasCache ? t("cacheNote") : null,
+    summary.unpricedCalls > 0 ? t("unpricedNote", { count: formatTokenCount(summary.unpricedCalls) }) : null,
+    summary.needsReviewCalls > 0 ? t("needsReviewNote", { count: formatTokenCount(summary.needsReviewCalls) }) : null
   ].filter(Boolean);
   return notes.length > 0 ? <p className={styles.note}>{notes.join(" ")}</p> : null;
 }
 
 function UsageHero({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeLabel: string }) {
+  const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
   const [inputShare, outputShare] = toPercentShares([summary.inputTokens, summary.outputTokens]);
-  const compact = formatCompactTokenCount(summary.totalTokens);
+  const compact = formatCompactTokenCount(summary.totalTokens, locale);
   const exact = formatTokenCount(summary.totalTokens);
-  const charge = formatKnownCharge(summary.chargeKrwMilli, summary.unpricedCalls);
+  const charge = formatKnownCharge(summary.chargeKrwMilli, summary.unpricedCalls, tShared);
 
   return (
     <div className={styles.hero}>
       <div className={styles["hero-top"]}>
         <div className={styles.total}>
-          <span className={styles.eyebrow}>합계 · {rangeLabel}</span>
+          <span className={styles.eyebrow}>{t("ai.usage.totalEyebrow", { range: rangeLabel })}</span>
           <p className={styles["total-value"]}>
-            <span aria-hidden={compact !== exact || undefined} title={`${exact} 토큰`}>{compact}</span>
-            <span className={styles["total-unit"]} aria-hidden={compact !== exact || undefined}>토큰</span>
-            {compact !== exact && <span className={styles["total-exact"]}>{exact} 토큰</span>}
+            <span aria-hidden={compact !== exact || undefined} title={t("ai.usage.tokens", { value: exact })}>{compact}</span>
+            <span className={styles["total-unit"]} aria-hidden={compact !== exact || undefined}>{t("ai.usage.tokenUnit")}</span>
+            {compact !== exact && <span className={styles["total-exact"]}>{t("ai.usage.tokens", { value: exact })}</span>}
           </p>
         </div>
         <dl className={styles["side-stats"]}>
           <div>
-            <dt>사용 금액</dt>
-            <dd>{charge ?? <span className={styles["cost-unknown"]}>알 수 없음</span>}</dd>
+            <dt>{t("ai.usage.charge")}</dt>
+            <dd>{charge ?? <span className={styles["cost-unknown"]}>{t("common.unknown")}</span>}</dd>
           </div>
           <div>
-            <dt>호출</dt>
-            <dd>{formatTokenCount(summary.calls)}<span>회</span></dd>
+            <dt>{t("ai.usage.calls")}</dt>
+            <dd>{t.rich("ai.usage.callCount", { value: formatTokenCount(summary.calls), unit: (chunks) => <span>{chunks}</span> })}</dd>
           </div>
         </dl>
       </div>
@@ -114,18 +121,18 @@ function UsageHero({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeL
       <ul className={styles.legend}>
         <li>
           <i className={styles["swatch-input"]} aria-hidden="true" />
-          <span className={styles["legend-label"]}>입력</span>
+          <span className={styles["legend-label"]}>{t("ai.usage.input")}</span>
           <strong>{formatTokenCount(summary.inputTokens)}</strong>
           <span className={styles["legend-share"]}>{formatPercentShare(inputShare, summary.inputTokens)}</span>
         </li>
         <li>
           <i className={styles["swatch-output"]} aria-hidden="true" />
-          <span className={styles["legend-label"]}>출력</span>
+          <span className={styles["legend-label"]}>{t("ai.usage.output")}</span>
           <strong>{formatTokenCount(summary.outputTokens)}</strong>
           <span className={styles["legend-share"]}>{formatPercentShare(outputShare, summary.outputTokens)}</span>
         </li>
       </ul>
-      <p className={styles["cost-note"]}>금액은 부가세 포함이에요.</p>
+      <p className={styles["cost-note"]}>{t("ai.usage.vatNote")}</p>
     </div>
   );
 }
@@ -133,22 +140,25 @@ function UsageHero({ summary, rangeLabel }: { summary: ModelUsageSummary; rangeL
 function ModelRow({ item, rank, share, ratio }: {
   item: ModelUsageSummaryRow; rank: number; share: number; ratio: number;
 }) {
+  const t = useTranslations("settings.ai.usage");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
   const icon = providerIcons[item.provider];
   const providerLabel = getProviderLabel(item.provider);
   const hasTokens = item.totalTokens > 0;
-  const nonTokenUsage = formatNonTokenUsage(item);
+  const nonTokenUsage = formatNonTokenUsage(item, tShared);
   const showTokenDetail = hasTokens || nonTokenUsage === null;
-  const charge = formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls);
+  const charge = formatKnownCharge(item.chargeKrwMilli, item.unpricedCalls, tShared);
   const detail = [
     providerLabel,
-    showTokenDetail ? `입력 ${formatTokenCount(item.inputTokens)}` : null,
-    showTokenDetail ? `출력 ${formatTokenCount(item.outputTokens)}` : null,
-    item.cachedInputTokens > 0 ? `캐시 ${formatTokenCount(item.cachedInputTokens)}` : null,
+    showTokenDetail ? t("inputDetail", { value: formatTokenCount(item.inputTokens) }) : null,
+    showTokenDetail ? t("outputDetail", { value: formatTokenCount(item.outputTokens) }) : null,
+    item.cachedInputTokens > 0 ? t("cacheDetail", { value: formatTokenCount(item.cachedInputTokens) }) : null,
     hasTokens ? nonTokenUsage : null
   ].filter(Boolean).join(" · ");
 
   return (
-    <li className={styles.model} title={`${item.label} · 합계 ${formatTokenCount(item.totalTokens)} 토큰`}>
+    <li className={styles.model} title={t("modelTitle", { model: item.label, value: formatTokenCount(item.totalTokens) })}>
       <span className={styles.rank}>{rank}</span>
       <span className={styles["provider-icon"]} data-provider={item.provider}>
         {icon ? <SvgIcon src={icon} /> : <span>{providerLabel.slice(0, 1).toUpperCase()}</span>}
@@ -158,7 +168,7 @@ function ModelRow({ item, rank, share, ratio }: {
         <small>{detail}</small>
       </span>
       <span className={styles["model-value"]}>
-        <strong>{hasTokens ? formatCompactTokenCount(item.totalTokens) : nonTokenUsage ?? "0"}</strong>
+        <strong>{hasTokens ? formatCompactTokenCount(item.totalTokens, locale) : nonTokenUsage ?? "0"}</strong>
         <small>
           {charge !== null && <span className={styles["model-cost"]}>{charge}</span>}
           {hasTokens && <span>{formatPercentShare(share, item.totalTokens)}</span>}

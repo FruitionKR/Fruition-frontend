@@ -1,4 +1,5 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, throwIfNotOk, workspacePath } from "@/shared/api/client";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /**
  * 앱 안 알림 종류. 편집 충돌 알림(edit_conflict_*)은 서버 자동 병합으로 없어져 지금 전용 문구를 둔 종류는 없다.
@@ -32,18 +33,18 @@ export async function fetchNotifications(query: NotificationListQuery = {}): Pro
   if (query.beforeId) params.set("before_id", query.beforeId);
   const search = params.size > 0 ? `?${params.toString()}` : "";
   const response = await apiFetch(`${workspacePath(getWorkspaceId(), "notifications")}${search}`, { cache: "no-store" });
-  const data = await parseJsonOrThrow<{ notifications: AppNotification[] }>(response, "알림을 불러오지 못했습니다.");
+  const data = await parseJsonOrThrow<{ notifications: AppNotification[] }>(response, sharedText("documentRequests.notifications.load", "알림을 불러오지 못했습니다."));
   return Array.isArray(data.notifications) ? data.notifications : [];
 }
 
 /** 알림 하나를 읽음 처리한다. 이미 읽었어도 204다. */
 export async function markNotificationRead(notificationId: string): Promise<void> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "notifications", notificationId, "read"), { method: "POST" });
-  await throwIfNotOk(response, "알림을 읽음 처리하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("documentRequests.notifications.markRead", "알림을 읽음 처리하지 못했습니다."));
 }
 
 /** 지금 나에게 보이는 알림을 모두 읽음 처리한다. */
 export async function markAllNotificationsRead(): Promise<void> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "notifications", "read-all"), { method: "POST" });
-  await throwIfNotOk(response, "알림을 모두 읽음 처리하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("documentRequests.notifications.markAllRead", "알림을 모두 읽음 처리하지 못했습니다."));
 }

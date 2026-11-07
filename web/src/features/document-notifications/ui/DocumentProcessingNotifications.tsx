@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import type { DocumentItemResponse } from "@/entities/document";
 import { useWorkspaceRole } from "@/entities/workspace";
 import { hasWorkspacePermission, type WorkspacePermission } from "@/shared/lib/workspacePermissions";
@@ -38,6 +39,7 @@ export function DocumentProcessingNotifications({
   onIngestStarted?: () => void;
   isDocumentsLoaded?: boolean;
 }) {
+  const t = useTranslations("wiki.notifications");
   const isNarrow = useIsNarrowViewport();
   const isDeferred = isOverlayOpen && isNarrow;
   const { notices, dismissNotice } = useDocumentProcessingNotifications(documents, isDeferred, !isViewportCorner);
@@ -71,7 +73,7 @@ export function DocumentProcessingNotifications({
         isAboveLauncher && !isViewportCorner && styles["is-above-launcher"],
         isViewportCorner && styles["is-viewport-corner"]
       ].filter(Boolean).join(" ")}
-      aria-label="문서 처리 알림"
+      aria-label={t("stackLabel")}
     >
       {shownNotices.map((notice) => (
         <div
@@ -91,7 +93,7 @@ export function DocumentProcessingNotifications({
                 className={styles["notice-cancel"]}
                 onClick={() => dismissNotice(notice.id)}
               >
-                취소
+                {t("cancel")}
               </button>
               <button
                 type="button"
@@ -110,7 +112,7 @@ export function DocumentProcessingNotifications({
               className={styles["notice-confirm"]}
               onClick={() => dismissNotice(notice.id)}
             >
-              확인
+              {t("confirm")}
             </button>
           )}
         </div>

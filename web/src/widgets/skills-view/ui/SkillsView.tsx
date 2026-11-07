@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { SkillResponse } from "@/entities/skill";
 import { SkillCreateEditor, SkillDetailEditor } from "@/features/skill-authoring";
 import { SkillSearchModal } from "./SkillSearchModal";
@@ -25,18 +26,15 @@ import { useSkillCatalog } from "../model/useSkillCatalog";
 import { SkillMoreIcon, SkillSearchIcon, SkillSortIcon } from "./SkillIcons";
 import styles from "./SkillsView.module.css";
 
-const TABS: { id: SkillTab; label: string }[] = [
-  { id: "all", label: "전체 스킬" },
-  { id: "team", label: "팀 스킬" },
-  { id: "personal", label: "개인 스킬" }
-];
+/** 탭 순서. 이름은 skills 메시지 view.tabs에 둔다. */
+const TABS: readonly SkillTab[] = ["all", "team", "personal"];
 
-/** Figma 1708:4528: 정렬 아이콘은 커맨드 열에만 있다. 저장범위는 탭으로 거른다. */
-const COLUMNS: { label: string; className: string; sortKey?: SkillSortKey }[] = [
-  { label: "커맨드", className: "col-command", sortKey: "command" },
-  { label: "설명", className: "col-description" },
-  { label: "저장범위", className: "col-scope" },
-  { label: "사용 상태", className: "col-state" }
+/** Figma 1708:4528: 정렬 아이콘은 커맨드 열에만 있다. 저장범위는 탭으로 거른다. 이름은 skills 메시지 view.columns에 둔다. */
+const COLUMNS: { id: "command" | "description" | "scope" | "state"; className: string; sortKey?: SkillSortKey }[] = [
+  { id: "command", className: "col-command", sortKey: "command" },
+  { id: "description", className: "col-description" },
+  { id: "scope", className: "col-scope" },
+  { id: "state", className: "col-state" }
 ];
 
 function ColumnHeader({ column, sort, onSort }: {
@@ -44,7 +42,9 @@ function ColumnHeader({ column, sort, onSort }: {
   sort: SkillSort;
   onSort: (key: SkillSortKey) => void;
 }) {
+  const t = useTranslations("skills");
   const { sortKey } = column;
+  const label = t(`view.columns.${column.id}`);
   const direction = sortKey && sort?.key === sortKey ? sort.direction : null;
   return (
     <div
@@ -54,11 +54,11 @@ function ColumnHeader({ column, sort, onSort }: {
     >
       {sortKey ? (
         <button type="button" className={cx(styles["sort-button"], direction && styles["is-sorted"])} onClick={() => onSort(sortKey)}>
-          {column.label}
+          {label}
           <SkillSortIcon className={styles["sort-icon"]} />
         </button>
       ) : (
-        <span className={styles["column-label"]}>{column.label}</span>
+        <span className={styles["column-label"]}>{label}</span>
       )}
     </div>
   );
@@ -85,6 +85,8 @@ export function SkillsView({
   /** 채팅 패널 입력창 위의 테스트 실행 자리. 없으면 시트 본문 끝에 둔다. */
   testRunTarget?: HTMLElement | null;
 }) {
+  const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
   const workspaceId = getSelectedWorkspaceId();
   const catalog = useSkillCatalog(workspaceId);
   const { updateMutation, deleteMutation } = catalog;
@@ -162,38 +164,38 @@ export function SkillsView({
   const errorMessage = catalog.loadError ?? catalog.actionError;
 
   return (
-    <section ref={sectionRef} className={styles.skills} aria-label="스킬">
+    <section ref={sectionRef} className={styles.skills} aria-label={t("view.ariaLabel")}>
       <div className={styles["list-panel"]}>
         <header className={styles.hero}>
           <div className={styles.heading}>
-            <h1 id={`${idPrefix}-title`}>스킬</h1>
-            <p>반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다.</p>
+            <h1 id={`${idPrefix}-title`}>{t("view.title")}</h1>
+            <p>{t("view.subtitle")}</p>
           </div>
           <div className={styles.tabs}>
-            <div role="tablist" aria-label="스킬 저장범위" className={styles["tab-list"]}>
+            <div role="tablist" aria-label={t("view.tabsLabel")} className={styles["tab-list"]}>
               {TABS.map((tab) => (
                 <button
-                  key={tab.id}
+                  key={tab}
                   type="button"
                   role="tab"
-                  id={`${idPrefix}-tab-${tab.id}`}
-                  aria-selected={activeTab === tab.id}
+                  id={`${idPrefix}-tab-${tab}`}
+                  aria-selected={activeTab === tab}
                   aria-controls={panelId}
-                  className={cx(styles.tab, activeTab === tab.id && styles["is-active"])}
-                  onClick={() => setActiveTab(tab.id)}
+                  className={cx(styles.tab, activeTab === tab && styles["is-active"])}
+                  onClick={() => setActiveTab(tab)}
                 >
-                  {tab.label}
+                  {t(`view.tabs.${tab}`)}
                 </button>
               ))}
             </div>
             <div className={styles.actions}>
               {searchText && (
-                <button type="button" className={styles["search-chip"]} aria-label="스킬 검색 해제" onClick={() => setSearchText("")}>
-                  검색 : {searchText}
+                <button type="button" className={styles["search-chip"]} aria-label={t("view.clearSearch")} onClick={() => setSearchText("")}>
+                  {t("view.searchChip", { query: searchText })}
                   <span aria-hidden>✕</span>
                 </button>
               )}
-              <button type="button" className={styles["icon-button"]} aria-label="스킬 검색" onClick={() => setIsSearchOpen(true)}>
+              <button type="button" className={styles["icon-button"]} aria-label={t("view.search")} onClick={() => setIsSearchOpen(true)}>
                 <SkillSearchIcon />
               </button>
               <button
@@ -202,7 +204,7 @@ export function SkillsView({
                 disabled={workspaceId == null}
                 onClick={openCreate}
               >
-                스킬 만들기
+                {t("view.create")}
               </button>
             </div>
           </div>
@@ -211,18 +213,18 @@ export function SkillsView({
         <div id={panelId} role="tabpanel" aria-labelledby={`${idPrefix}-tab-${activeTab}`} className={styles.panel}>
           {errorMessage && <p className={styles.error} role="alert">{errorMessage}</p>}
           {autoPublishedNotice && <p className={styles.message} role="status">{autoPublishedNotice}</p>}
-          <div className={styles.table} role="table" aria-label="스킬 목록">
+          <div className={styles.table} role="table" aria-label={t("view.tableLabel")}>
             <div className={cx(styles.row, styles["row-head"])} role="row">
               {COLUMNS.map((column) => (
-                <ColumnHeader key={column.label} column={column} sort={sort} onSort={(key) => setSort((current) => nextSkillSort(current, key))} />
+                <ColumnHeader key={column.id} column={column} sort={sort} onSort={(key) => setSort((current) => nextSkillSort(current, key))} />
               ))}
               <span className={styles["col-more"]} aria-hidden />
             </div>
 
-            {catalog.isLoading && <p className={styles.message} role="status">스킬 목록을 불러오는 중입니다.</p>}
+            {catalog.isLoading && <p className={styles.message} role="status">{t("view.loading")}</p>}
             {!catalog.isLoading && catalog.loadError == null && visibleSkills.length === 0 && (
               <p className={styles.message}>
-                {catalog.skills.length === 0 ? "등록된 스킬이 없습니다." : "조건에 맞는 스킬이 없습니다."}
+                {catalog.skills.length === 0 ? t("view.empty") : t("view.noMatch")}
               </p>
             )}
 
@@ -235,7 +237,7 @@ export function SkillsView({
                   <div className={cx(styles.row, styles["is-clickable"])} role="row" onClick={() => openDetail(skill)}>
                     {/* 커맨드 (Figma 1708:4537): 일반 텍스트 */}
                     <div className={cx(styles.cell, styles["col-command"], styles.command)} role="cell" title={command}>
-                      <button type="button" className={styles["command-button"]} aria-label={`${command} 상세 열기`}>
+                      <button type="button" className={styles["command-button"]} aria-label={t("view.openDetail", { command })}>
                         {command}
                       </button>
                     </div>
@@ -243,14 +245,14 @@ export function SkillsView({
                       {skillDescription(skill)}
                     </div>
                     <div className={cx(styles.cell, styles["col-scope"])} role="cell">
-                      <span className={styles.scope}>{isPersonalSkill(skill) ? "개인" : "팀"}</span>
+                      <span className={styles.scope}>{isPersonalSkill(skill) ? t("scopes.personal") : t("scopes.team")}</span>
                     </div>
                     {/* 사용 상태: 실행(Figma 1482:10981). 스킬은 항상 사용 상태다. */}
                     <div className={cx(styles.cell, styles["col-state"])} role="cell">
                       <button type="button" className={styles.run} onClick={(event) => {
                         event.stopPropagation();
                         onRunSkill(skill);
-                      }}>실행</button>
+                      }}>{t("view.run")}</button>
                     </div>
                     <div
                       className={styles["col-more"]}
@@ -261,7 +263,7 @@ export function SkillsView({
                       <button
                         type="button"
                         className={styles["more-button"]}
-                        aria-label={`${command} 더보기`}
+                        aria-label={t("view.more", { command })}
                         aria-haspopup="menu"
                         aria-expanded={isMenuOpen}
                         onClick={() => setOpenMenuId(isMenuOpen ? null : skill.id)}
@@ -275,7 +277,7 @@ export function SkillsView({
                             deleteMutation.reset();
                             setDeleteTarget(skill);
                           }}>
-                            삭제
+                            {t("common.delete")}
                           </button>
                         </div>
                       )}
@@ -326,21 +328,21 @@ export function SkillsView({
           if (!deleteMutation.isPending) setDeleteTarget(null);
         }}
       >
-        <h2 id={`${idPrefix}-delete-title`}>스킬을 삭제하시겠습니까?</h2>
-        <p>「/{deleteTarget?.slug}」 스킬과 저장된 버전이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+        <h2 id={`${idPrefix}-delete-title`}>{t("deleteConfirm.title")}</h2>
+        <p>{t("deleteConfirm.description", { slug: deleteTarget?.slug ?? "" })}</p>
         {deleteMutation.isError && (
-          <p className={styles.error} role="alert">{getErrorMessage(deleteMutation.error, "스킬을 삭제하지 못했습니다.")}</p>
+          <p className={styles.error} role="alert">{getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}</p>
         )}
         <div className="modal-actions">
           <button type="button" className="modal-cancel-button" autoFocus disabled={deleteMutation.isPending}
-            onClick={() => setDeleteTarget(null)}>취소</button>
+            onClick={() => setDeleteTarget(null)}>{t("common.cancel")}</button>
           <button type="button" className="modal-delete-button" disabled={deleteMutation.isPending}
             onClick={() => {
               if (!deleteTarget) return;
               deleteMutation.mutate(deleteTarget, {
                 onSuccess: () => setDeleteTarget(null)
               });
-            }}>{deleteMutation.isPending ? "삭제 중…" : "삭제"}</button>
+            }}>{deleteMutation.isPending ? t("common.deleting") : t("common.delete")}</button>
         </div>
       </dialog>
 

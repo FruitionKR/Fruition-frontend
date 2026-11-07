@@ -1,10 +1,11 @@
 import { apiFetch, throwIfNotOk, parseJsonOrThrow } from "@/shared/api/client";
 import type { OAuthProvider } from "./login";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /** 소셜 계정 연동을 시작할 1회용 토큰(60초)을 받는다. */
 export async function startOAuthLink(provider: OAuthProvider): Promise<string> {
   const response = await apiFetch(`/api/auth/me/oauth-accounts/${encodeURIComponent(provider)}/link`, { method: "POST" });
-  const data = await parseJsonOrThrow<{ link_token: string }>(response, "소셜 계정 연동을 시작하지 못했습니다.");
+  const data = await parseJsonOrThrow<{ link_token: string }>(response, sharedText("user.requestFailed.oauthLinkStart", "소셜 계정 연동을 시작하지 못했습니다."));
   return data.link_token;
 }
 
@@ -15,10 +16,10 @@ export async function confirmOAuthLink(linkCode: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ link_code: linkCode })
   });
-  await throwIfNotOk(response, "소셜 계정을 연동하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.oauthLink", "소셜 계정을 연동하지 못했습니다."));
 }
 
 export async function unlinkOAuthAccount(provider: OAuthProvider): Promise<void> {
   const response = await apiFetch(`/api/auth/me/oauth-accounts/${encodeURIComponent(provider)}`, { method: "DELETE" });
-  await throwIfNotOk(response, "소셜 계정 연동을 해제하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.oauthUnlink", "소셜 계정 연동을 해제하지 못했습니다."));
 }
