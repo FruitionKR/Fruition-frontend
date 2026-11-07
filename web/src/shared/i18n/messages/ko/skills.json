@@ -1,0 +1,264 @@
+{
+  "common": {
+    "cancel": "취소",
+    "confirm": "확인",
+    "delete": "삭제",
+    "deleting": "삭제 중…"
+  },
+  "view": {
+    "ariaLabel": "스킬",
+    "title": "스킬",
+    "subtitle": "반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다.",
+    "tabsLabel": "스킬 저장범위",
+    "tabs": {
+      "all": "전체 스킬",
+      "team": "팀 스킬",
+      "personal": "개인 스킬"
+    },
+    "columns": {
+      "command": "커맨드",
+      "description": "설명",
+      "scope": "저장범위",
+      "state": "사용 상태"
+    },
+    "searchChip": "검색 : {query}",
+    "clearSearch": "스킬 검색 해제",
+    "search": "스킬 검색",
+    "create": "스킬 만들기",
+    "tableLabel": "스킬 목록",
+    "loading": "스킬 목록을 불러오는 중입니다.",
+    "empty": "등록된 스킬이 없습니다.",
+    "noMatch": "조건에 맞는 스킬이 없습니다.",
+    "openDetail": "{command} 상세 열기",
+    "run": "실행",
+    "more": "{command} 더보기",
+    "loadFailed": "스킬 목록을 불러오지 못했습니다.",
+    "enableFailed": "스킬을 사용 상태로 바꾸지 못했습니다."
+  },
+  "deleteConfirm": {
+    "title": "스킬을 삭제하시겠습니까?",
+    "description": "「/{slug}」 스킬과 저장된 버전이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "failed": "스킬을 삭제하지 못했습니다."
+  },
+  "search": {
+    "label": "스킬 검색",
+    "placeholder": "스킬 검색",
+    "resultsLabel": "스킬 검색 결과",
+    "noResults": "검색 결과가 없습니다.",
+    "empty": "표시할 스킬이 없습니다."
+  },
+  "runCoach": {
+    "title": "<em>실행할 문서</em>를 선택해주세요.",
+    "descriptionLine1": "문서 스킬은 고칠 문서(또는 요약·변환할 문서나",
+    "descriptionLine2": "새 문서를 둘 폴더)를,",
+    "descriptionLine3": "폴더 정리 스킬은 정리할 폴더를 고릅니다.",
+    "next": "다음"
+  },
+  "kinds": {
+    "document": "문서",
+    "folder": "폴더 정리",
+    "template": "템플릿"
+  },
+  "kindDescriptions": {
+    "document": "새 문서를 만들거나 열린 문서를 고칩니다. 미리보기로 확인한 뒤 저장돼요.",
+    "folder": "폴더·문서 트리 항목을 만들고, 이름을 바꾸고, 옮깁니다. 승인한 항목만 저장돼요."
+  },
+  "resultModes": {
+    "create": "새 문서로 만들기",
+    "edit": "열린 문서 고치기",
+    "auto": "상황에 맞게"
+  },
+  "targets": {
+    "currentDocument": "현재 문서",
+    "selection": "선택한 부분"
+  },
+  "scopes": {
+    "personal": "개인",
+    "team": "팀"
+  },
+  "sources": {
+    "read": "읽음",
+    "skip": "읽지 않음",
+    "unset": "고르지 않음"
+  },
+  "sourceHint": {
+    "unset": "고르지 않으면 '{문서}' 자리표시자가 있을 때만 원문을 읽어요. ‘AI로 작성·보강’을 누르면 AI가 골라 줘요.",
+    "read": "폴더에 실행하면 폴더 안 문서를 원문으로 읽어 새 문서를 만들어요",
+    "skip": "원문 없이 새 문서를 만들어요"
+  },
+  "help": {
+    "label": "{label} 설명",
+    "kindLine": "{label} - {description}",
+    "scopePersonal": "개인 - 모든 워크스페이스에서 사용됩니다.",
+    "scopeTeam": "팀 - 현재 워크스페이스에서 사용됩니다.",
+    "resultCreate": "새 문서로 만들기 - 결과를 새 문서로 저장합니다.",
+    "resultEdit": "열린 문서 고치기 - 실행한 문서를 바로 고칩니다.",
+    "resultAuto": "상황에 맞게 - 요청에 따라 Agent가 고릅니다.",
+    "sourceRead": "읽음 - 폴더에 실행하면 폴더 안 Markdown 문서(최근 20개)를, 문서에 실행하면 그 문서를 원문으로 읽습니다.",
+    "sourceSkip": "읽지 않음 - 원문 없이 실행 규칙만으로 새 문서를 만듭니다."
+  },
+  "form": {
+    "kind": "스킬 종류",
+    "unknownKind": "알 수 없음",
+    "result": "결과 방식",
+    "resultHint": "'상황에 맞게'는 대상이 애매하면 Agent가 되물어요.",
+    "resultNote": "AI 초안에 맞춰 결과 방식을 ‘{mode}’로 바꿨어요.",
+    "resultUndo": "‘{mode}’로 되돌리기",
+    "targets": "대상",
+    "source": "원문 문서",
+    "sourceNote": "실행 규칙에 맞춰 AI가 원문 문서를 ‘{value}’으로 정했어요.",
+    "sourceUndo": "‘{value}’으로 되돌리기",
+    "scope": "저장범위",
+    "scopeTeamHint": "팀: 현재 워크스페이스에서 사용됩니다.",
+    "command": "커맨드명",
+    "commandPlaceholder": "research-summary",
+    "commandHint": "Agent 입력창에서 / 를 치면 이 이름으로 찾습니다.",
+    "description": "설명",
+    "descriptionPlaceholder": "연구 문서의 개요를 핵심 문장 3개로 정리합니다.",
+    "rules": "실행 규칙",
+    "rulesPlaceholder": "'연구 개요' 섹션만 고친다. 다른 섹션은 바꾸지 않는다.\n원문에 없는 수치나 사실은 추가하지 않는다.",
+    "rulesHint": "'{문서}, {선택한 부분}, {요청}' 을 넣으면 실행할 때 채워집니다."
+  },
+  "validation": {
+    "targetsRequired": "대상을 하나 이상 골라 주세요.",
+    "commandRequired": "커맨드명을 입력해 주세요.",
+    "commandPattern": "커맨드는 영문 소문자·숫자·하이픈만 사용할 수 있습니다. (예: meeting-summary)",
+    "commandTaken": "이미 사용 중인 커맨드입니다. 다른 커맨드 이름을 입력해 주세요.",
+    "descriptionRequired": "설명을 입력해 주세요.",
+    "descriptionTooLong": "설명은 {max, number}자까지 쓸 수 있습니다.",
+    "rulesRequired": "실행 규칙을 입력해 주세요.",
+    "rulesTooLong": "실행 규칙은 {max, number}자까지 쓸 수 있습니다."
+  },
+  "authorError": {
+    "rejectedTitle": "스킬 검토 요청이 거부되었습니다.",
+    "unavailableTitle": "스킬 검토를 완료하지 못했습니다.",
+    "rejected": "요청한 작업을 이해하지 못했거나 스킬로는 불가능한 작업입니다. 무엇을 할지 구체적으로 적어 주세요.",
+    "unavailable": "AI 검토가 지금 응답하지 않습니다. 잠시 후 다시 시도해 주세요.",
+    "unsupported": "스킬로는 불가능한 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중 하나로 적어 주세요.",
+    "referenceTooLarge": "참고 문서는 한 개당 30,000자까지 쓸 수 있습니다. 더 짧은 문서를 골라 주세요.",
+    "fallback": "스킬 초안을 생성하지 못했습니다."
+  },
+  "saveError": {
+    "targetsInvalid": "실행 대상이 이 스킬과 맞지 않아 저장하지 못했어요. 대상을 확인해 주세요.",
+    "resultModeInvalid": "결과 방식이 스킬 종류와 맞지 않아 저장하지 못했어요. 스킬 종류·결과 방식을 다시 골라 주세요.",
+    "capabilitiesInvalid": "이 스킬 종류로는 저장할 수 없어요. 스킬 종류·결과 방식을 다시 골라 주세요.",
+    "fallback": "스킬 정의를 수정하지 못했습니다."
+  },
+  "review": {
+    "clarifyTitle": "실행 규칙을 조금 더 구체적으로 적어 주세요.",
+    "clarifyFallback": "무엇을 할지 조금 더 구체적으로 적어 주세요.",
+    "issueFallback": "안전 검토에서 위험한 표현이 발견되었습니다.",
+    "issuesTitle": "안전 검토에서 저장하지 못했습니다. 실행 규칙을 고쳐 주세요.",
+    "issueDefault": "안전 검토 지적",
+    "issueWithText": "{title} — \"{text}\"",
+    "regenerate": "AI로 안전하게 다시 만들기",
+    "preserve": "고친 내용 다시 검토",
+    "categories": {
+      "approval_bypass": "권한 우회 표현",
+      "sensitive_info": "민감정보로 보이는 내용",
+      "tool_policy": "허용되지 않은 도구 사용",
+      "permission_escalation": "권한을 넓히려는 표현",
+      "forbidden_tool": "허용되지 않은 도구 사용",
+      "policy_weakening": "안전 정책을 약화하는 표현",
+      "hidden_prompt": "숨겨진 지시",
+      "role_override": "역할을 바꾸려는 표현",
+      "instruction_override": "기존 지시를 무시하게 하는 표현",
+      "credential": "인증 정보로 보이는 내용",
+      "secret": "비밀 정보로 보이는 내용"
+    }
+  },
+  "assist": {
+    "openPicker": "참고 문서 선택 ({count}/{max})",
+    "chip": "참고 문서 {count}/{max}",
+    "removeDoc": "{name} 선택 해제",
+    "authoring": "AI가 작성하는 중…",
+    "author": "AI로 작성·보강",
+    "idleHint": "적은 실행 규칙과 참고 문서로 AI가 규칙을 다듬어 채워요.",
+    "reviewFound": "안전 검토에서 고칠 부분이 발견되었습니다.",
+    "filled": "AI가 작성한 실행 규칙을 채웠습니다. 확인 후 저장해 주세요."
+  },
+  "create": {
+    "headerLabel": "스킬 만들기",
+    "title": "새 스킬",
+    "subtitle": "반복 작업을 안전한 실행 규칙으로 만들어 Fruition Agent에서 재사용합니다.",
+    "testRunLabel": "새 스킬 만들기",
+    "submit": "스킬 만들기",
+    "submitting": "만드는 중…",
+    "prefilled": "Agent 대화의 요청 “{request}”로 채웠어요. 필요한 부분만 고치세요.",
+    "autoPublished": "설정의 'AI 에이전트 자동 승인'에 따라 AI가 쓴 초안을 확인 없이 게시했어요. 필요 없으면 스킬 화면에서 지우세요."
+  },
+  "detail": {
+    "headerLabel": "스킬 상세",
+    "title": "스킬",
+    "testRunLabel": "스킬 수정 · /{slug}",
+    "delete": "스킬 삭제",
+    "save": "저장",
+    "saving": "저장 중…"
+  },
+  "sheet": {
+    "discardTitle": "수정한 내용을 버리시겠습니까?",
+    "discardDescription": "저장하지 않은 내용은 반영되지 않습니다.",
+    "keepEditing": "계속 수정",
+    "discard": "버리기"
+  },
+  "picker": {
+    "ariaLabel": "참고 문서 검색",
+    "resultsLabel": "{label} 결과",
+    "placeholder": "참고 문서 검색 ({count}/{max} 선택)",
+    "uploading": "올리는 중…",
+    "upload": "참고 문서 올리기",
+    "full": "최대 {max}개까지 선택할 수 있습니다.",
+    "uploadHint": ".md, .txt · 메인 문서 목록에는 보이지 않습니다.",
+    "selected": "선택됨 ✓",
+    "reference": "참고용 업로드",
+    "noResults": "검색 결과가 없습니다.",
+    "empty": "선택할 문서가 없습니다."
+  },
+  "referenceUpload": {
+    "pdf": "PDF는 참고 문서로 올릴 수 없습니다. Markdown(.md)이나 텍스트(.txt) 파일을 올려 주세요.",
+    "unsupportedType": "Markdown(.md)이나 텍스트(.txt) 파일만 참고 문서로 올릴 수 있습니다.",
+    "tooLarge": "Markdown 파일은 5MB 이하만 참고 문서로 올릴 수 있습니다.",
+    "duplicateName": "같은 이름의 참고 문서가 이미 있습니다. 파일 이름을 바꿔 다시 올려 주세요.",
+    "inProgress": "같은 업로드 요청이 처리 중입니다. 잠시 후 다시 시도해 주세요.",
+    "invalid": "참고 문서로 올릴 수 없는 파일입니다. 파일을 확인하고 다시 올려 주세요.",
+    "failed": "참고 문서를 올리지 못했습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "testRun": {
+    "title": "테스트 실행",
+    "subtitle": "저장 전에 문서 하나로 결과를 확인합니다. 문서는 바뀌지 않아요.",
+    "folderNote": "폴더 정리 스킬은 테스트 실행을 지원하지 않아요. 저장한 뒤 작업 탭에서 실행하면 승인 전에 정리 계획을 확인할 수 있어요.",
+    "documentLabel": "테스트할 문서",
+    "documentsLoading": "문서를 불러오는 중…",
+    "documentPlaceholder": "테스트할 문서 선택",
+    "noDocuments": "테스트할 Markdown 문서가 없어요. 문서를 먼저 만들어 주세요.",
+    "running": "AI가 테스트하는 중… 최대 1분쯤 걸려요.",
+    "runningButton": "테스트 중…",
+    "rerun": "다시 테스트",
+    "blockedTitle": "안전 검토에서 막혀 실행하지 않았어요. 실행 규칙을 고쳐 주세요.",
+    "created": "만들어질 문서",
+    "unchanged": "바뀐 내용이 없어요.",
+    "changeHeading": "{section} · {start}–{end}줄",
+    "diffLabel": "변경 전후 줄 비교",
+    "deletedLine": "지운 줄: ",
+    "insertedLine": "추가한 줄: ",
+    "untouched": "다른 섹션 변경 없음 ({sections})",
+    "blocker": {
+      "folder": "폴더 정리 스킬은 테스트 실행을 지원하지 않아요.",
+      "fields": "커맨드명·설명·실행 규칙을 먼저 올바르게 입력해 주세요.",
+      "document": "테스트할 문서를 골라 주세요."
+    },
+    "error": {
+      "unavailable": "AI가 지금 응답하지 않습니다. 잠시 후 다시 테스트해 주세요.",
+      "timeout": "테스트 응답이 너무 오래 걸려 중단했어요. 잠시 후 다시 테스트해 주세요.",
+      "insufficientCredit": "{message} 크레딧을 충전한 뒤 다시 테스트해 주세요.",
+      "notReady": "테스트 실행을 아직 사용할 수 없어요. 서버 업데이트 후 다시 시도해 주세요.",
+      "unsupported": "이 종류의 스킬은 테스트 실행을 지원하지 않아요. 문서 작성·수정·템플릿 스킬만 테스트할 수 있어요.",
+      "notFound": "테스트할 문서를 찾을 수 없어요. 다른 문서를 골라 주세요.",
+      "conflict": "이미 처리된 테스트 요청이에요. 다시 테스트해 주세요.",
+      "tooLarge": "문서가 너무 커서(5MB 초과) 테스트할 수 없어요.",
+      "markdownOnly": "Markdown 문서만 테스트할 수 있어요. 다른 문서를 골라 주세요.",
+      "rejected": "AI가 이 스킬로 테스트를 진행하지 않았어요. 실행 규칙을 구체적으로 고쳐 주세요.",
+      "fallback": "스킬을 테스트하지 못했습니다."
+    }
+  }
+}
