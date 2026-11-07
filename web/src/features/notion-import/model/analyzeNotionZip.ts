@@ -7,6 +7,6 @@ export async function analyzeNotionZip(bytes: Uint8Array, existing?: ExistingNam
   const plan = await buildImportPlan(entries, existing);
   return {
     ...plan,
-    skipped: [...plan.skipped, ...skippedNestedZips.map((path) => ({ path, reason: "두 단계 이상 중첩된 zip" }))]
+    skipped: [...plan.skipped, ...skippedNestedZips.map((path) => ({ path, reason: "nestedZip" as const }))]
   };
 }

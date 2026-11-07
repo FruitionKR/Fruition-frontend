@@ -1,0 +1,264 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "OK",
+    "delete": "Delete",
+    "deleting": "Deleting…"
+  },
+  "view": {
+    "ariaLabel": "Skills",
+    "title": "Skills",
+    "subtitle": "Turn repetitive work into safe, reusable rules for Fruition Agent.",
+    "tabsLabel": "Skill scope",
+    "tabs": {
+      "all": "All skills",
+      "team": "Team skills",
+      "personal": "Personal skills"
+    },
+    "columns": {
+      "command": "Command",
+      "description": "Description",
+      "scope": "Scope",
+      "state": "Status"
+    },
+    "searchChip": "Search: {query}",
+    "clearSearch": "Clear skill search",
+    "search": "Search skills",
+    "create": "Create skill",
+    "tableLabel": "Skill list",
+    "loading": "Loading skills…",
+    "empty": "No skills yet.",
+    "noMatch": "No skills match your filters.",
+    "openDetail": "Open details for {command}",
+    "run": "Run",
+    "more": "More options for {command}",
+    "loadFailed": "Couldn't load skills.",
+    "enableFailed": "Couldn't turn the skill on."
+  },
+  "deleteConfirm": {
+    "title": "Delete this skill?",
+    "description": "The skill “/{slug}” and all its saved versions will be deleted. This can't be undone.",
+    "failed": "Couldn't delete the skill."
+  },
+  "search": {
+    "label": "Search skills",
+    "placeholder": "Search skills",
+    "resultsLabel": "Skill search results",
+    "noResults": "No results found.",
+    "empty": "No skills to show."
+  },
+  "runCoach": {
+    "title": "Select a <em>document to run on</em>.",
+    "descriptionLine1": "For document skills, pick the document to edit (or the document to summarize or convert,",
+    "descriptionLine2": "or the folder for the new document).",
+    "descriptionLine3": "For folder skills, pick the folder to organize.",
+    "next": "Next"
+  },
+  "kinds": {
+    "document": "Document",
+    "folder": "Folder organization",
+    "template": "Template"
+  },
+  "kindDescriptions": {
+    "document": "Creates a new document or edits the open one. You review a preview before anything is saved.",
+    "folder": "Creates, renames, and moves folders and documents in the tree. Only the items you approve are saved."
+  },
+  "resultModes": {
+    "create": "Create a new document",
+    "edit": "Edit the open document",
+    "auto": "Decide automatically"
+  },
+  "targets": {
+    "currentDocument": "Current document",
+    "selection": "Selected text"
+  },
+  "scopes": {
+    "personal": "Personal",
+    "team": "Team"
+  },
+  "sources": {
+    "read": "Read",
+    "skip": "Don't read",
+    "unset": "Not selected"
+  },
+  "sourceHint": {
+    "unset": "If you leave this unselected, the source is read only when the rules include the '{문서}' (document) placeholder. Click “Write with AI” and AI will choose for you.",
+    "read": "When run on a folder, it reads the documents in that folder as the source and creates a new document",
+    "skip": "Creates a new document without a source"
+  },
+  "help": {
+    "label": "About {label}",
+    "kindLine": "{label} - {description}",
+    "scopePersonal": "Personal - Available in all your workspaces.",
+    "scopeTeam": "Team - Available in the current workspace.",
+    "resultCreate": "Create a new document - Saves the result as a new document.",
+    "resultEdit": "Edit the open document - Edits the document it runs on directly.",
+    "resultAuto": "Decide automatically - Agent chooses based on the request.",
+    "sourceRead": "Read - When run on a folder, reads the Markdown documents in it (up to the 20 most recent); when run on a document, reads that document as the source.",
+    "sourceSkip": "Don't read - Creates a new document from the rules alone, without a source."
+  },
+  "form": {
+    "kind": "Skill type",
+    "unknownKind": "Unknown",
+    "result": "Result",
+    "resultHint": "With 'Decide automatically', Agent asks you when the target is unclear.",
+    "resultNote": "Changed the result to “{mode}” to match the AI draft.",
+    "resultUndo": "Change back to “{mode}”",
+    "targets": "Target",
+    "source": "Source document",
+    "sourceNote": "AI set the source document to “{value}” to match the rules.",
+    "sourceUndo": "Change back to “{value}”",
+    "scope": "Scope",
+    "scopeTeamHint": "Team: Available in the current workspace.",
+    "command": "Command",
+    "commandPlaceholder": "research-summary",
+    "commandHint": "Type / in the Agent input to find the skill by this name.",
+    "description": "Description",
+    "descriptionPlaceholder": "Summarizes the overview of a research document in three key sentences.",
+    "rules": "Rules",
+    "rulesPlaceholder": "Edit only the 'Research overview' section. Don't change other sections.\nDon't add numbers or facts that aren't in the source.",
+    "rulesHint": "Add '{문서}' (document), '{선택한 부분}' (selected text), or '{요청}' (request) and they're filled in when the skill runs."
+  },
+  "validation": {
+    "targetsRequired": "Select at least one target.",
+    "commandRequired": "Enter a command.",
+    "commandPattern": "Commands can only use lowercase letters, numbers, and hyphens (e.g. meeting-summary).",
+    "commandTaken": "This command is already in use. Enter a different command.",
+    "descriptionRequired": "Enter a description.",
+    "descriptionTooLong": "Descriptions can be up to {max, number} characters.",
+    "rulesRequired": "Enter the rules.",
+    "rulesTooLong": "Rules can be up to {max, number} characters."
+  },
+  "authorError": {
+    "rejectedTitle": "The skill review request was declined.",
+    "unavailableTitle": "Couldn't finish reviewing the skill.",
+    "rejected": "The request wasn't clear, or it's something a skill can't do. Describe exactly what the skill should do.",
+    "unavailable": "AI review isn't responding right now. Please try again in a moment.",
+    "unsupported": "A skill can't do this. Describe it as writing, editing, folder organization, or a template.",
+    "referenceTooLarge": "Each reference document can be up to 30,000 characters. Choose a shorter document.",
+    "fallback": "Couldn't create a skill draft."
+  },
+  "saveError": {
+    "targetsInvalid": "Couldn't save because the target doesn't fit this skill. Check the target.",
+    "resultModeInvalid": "Couldn't save because the result doesn't fit the skill type. Choose the skill type and result again.",
+    "capabilitiesInvalid": "This skill type can't be saved. Choose the skill type and result again.",
+    "fallback": "Couldn't update the skill."
+  },
+  "review": {
+    "clarifyTitle": "Make the rules a bit more specific.",
+    "clarifyFallback": "Describe what the skill should do in a bit more detail.",
+    "issueFallback": "The safety review found risky wording.",
+    "issuesTitle": "Couldn't save because of the safety review. Please revise the rules.",
+    "issueDefault": "Safety review finding",
+    "issueWithText": "{title} — \"{text}\"",
+    "regenerate": "Rewrite safely with AI",
+    "preserve": "Review my edits again",
+    "categories": {
+      "approval_bypass": "Wording that bypasses approval",
+      "sensitive_info": "Content that looks like sensitive information",
+      "tool_policy": "Use of a tool that isn't allowed",
+      "permission_escalation": "Wording that tries to expand permissions",
+      "forbidden_tool": "Use of a tool that isn't allowed",
+      "policy_weakening": "Wording that weakens safety policies",
+      "hidden_prompt": "Hidden instructions",
+      "role_override": "Wording that tries to change the AI's role",
+      "instruction_override": "Wording that tells the AI to ignore existing instructions",
+      "credential": "Content that looks like credentials",
+      "secret": "Content that looks like a secret"
+    }
+  },
+  "assist": {
+    "openPicker": "Select reference documents ({count}/{max})",
+    "chip": "References {count}/{max}",
+    "removeDoc": "Remove {name}",
+    "authoring": "AI is writing…",
+    "author": "Write with AI",
+    "idleHint": "AI refines your rules using what you wrote and the reference documents.",
+    "reviewFound": "The safety review found something to fix.",
+    "filled": "Filled in the rules AI wrote. Review them, then save."
+  },
+  "create": {
+    "headerLabel": "Create skill",
+    "title": "New skill",
+    "subtitle": "Turn repetitive work into safe, reusable rules for Fruition Agent.",
+    "testRunLabel": "New skill",
+    "submit": "Create skill",
+    "submitting": "Creating…",
+    "prefilled": "Filled in from your Agent request “{request}”. Edit only what you need.",
+    "autoPublished": "Published the AI draft without review because of the 'AI agent auto-approval' setting. If you don't need it, delete it from the Skills screen."
+  },
+  "detail": {
+    "headerLabel": "Skill details",
+    "title": "Skill",
+    "testRunLabel": "Edit skill · /{slug}",
+    "delete": "Delete skill",
+    "save": "Save",
+    "saving": "Saving…"
+  },
+  "sheet": {
+    "discardTitle": "Discard your changes?",
+    "discardDescription": "Unsaved changes will be lost.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
+  },
+  "picker": {
+    "ariaLabel": "Search reference documents",
+    "resultsLabel": "{label} results",
+    "placeholder": "Search reference documents ({count}/{max} selected)",
+    "uploading": "Uploading…",
+    "upload": "Upload reference document",
+    "full": "You can select up to {max}.",
+    "uploadHint": ".md, .txt · Not shown in the main document list.",
+    "selected": "Selected ✓",
+    "reference": "Reference upload",
+    "noResults": "No results found.",
+    "empty": "No documents to select."
+  },
+  "referenceUpload": {
+    "pdf": "PDFs can't be used as reference documents. Upload a Markdown (.md) or text (.txt) file.",
+    "unsupportedType": "Only Markdown (.md) or text (.txt) files can be uploaded as reference documents.",
+    "tooLarge": "Markdown files must be 5 MB or smaller to use as reference documents.",
+    "duplicateName": "A reference document with the same name already exists. Rename the file and upload it again.",
+    "inProgress": "The same upload is already in progress. Please try again in a moment.",
+    "invalid": "This file can't be used as a reference document. Check the file and upload it again.",
+    "failed": "Couldn't upload the reference document. Please try again in a moment."
+  },
+  "testRun": {
+    "title": "Test run",
+    "subtitle": "Check the result on one document before saving. The document won't change.",
+    "folderNote": "Folder organization skills don't support test runs. After saving, run it from the Tasks tab to review the plan before you approve it.",
+    "documentLabel": "Document to test",
+    "documentsLoading": "Loading documents…",
+    "documentPlaceholder": "Select a document to test",
+    "noDocuments": "There are no Markdown documents to test. Create a document first.",
+    "running": "AI is testing… This can take up to about a minute.",
+    "runningButton": "Testing…",
+    "rerun": "Test again",
+    "blockedTitle": "Didn't run because of the safety review. Please revise the rules.",
+    "created": "Document to be created",
+    "unchanged": "Nothing changed.",
+    "changeHeading": "{section} · lines {start}–{end}",
+    "diffLabel": "Line-by-line comparison",
+    "deletedLine": "Removed line: ",
+    "insertedLine": "Added line: ",
+    "untouched": "No changes to other sections ({sections})",
+    "blocker": {
+      "folder": "Folder organization skills don't support test runs.",
+      "fields": "Enter a valid command, description, and rules first.",
+      "document": "Select a document to test."
+    },
+    "error": {
+      "unavailable": "AI isn't responding right now. Please test again in a moment.",
+      "timeout": "The test took too long and was stopped. Please test again in a moment.",
+      "insufficientCredit": "{message} Add credits, then test again.",
+      "notReady": "Test runs aren't available yet. Please try again after the server is updated.",
+      "unsupported": "This type of skill doesn't support test runs. Only writing, editing, and template skills can be tested.",
+      "notFound": "Couldn't find the document to test. Select a different document.",
+      "conflict": "This test request was already processed. Please test again.",
+      "tooLarge": "The document is too large to test (over 5 MB).",
+      "markdownOnly": "Only Markdown documents can be tested. Select a different document.",
+      "rejected": "AI didn't run a test with this skill. Make the rules more specific.",
+      "fallback": "Couldn't test the skill."
+    }
+  }
+}

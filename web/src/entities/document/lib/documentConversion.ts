@@ -28,6 +28,3 @@ export function getDocumentConversionView(document: ConversionSource | undefined
     revision: `${document.processing_stage ?? ""}|${document.updated_at ?? ""}`
   };
 }
-
-/** PDF → Markdown 변환을 시작하기 전에 확인받는 안내. 변환 진입점(트리 메뉴·변환 후 편입·Notion 가져오기)이 함께 쓴다. */
-export const PDF_CONVERT_QUALITY_NOTICE = "변환된 Markdown은 원본 PDF와 내용·배치가 일치하지 않을 수 있고 가독성이 떨어질 수 있습니다.";

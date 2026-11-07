@@ -359,8 +359,5 @@
         "skipped": "{count} skipped"
       }
     }
-  },
-  "conversion": {
-    "qualityNotice": "The converted Markdown may not match the source PDF's content or layout, and may be harder to read."
   }
 }

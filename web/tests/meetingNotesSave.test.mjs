@@ -17,7 +17,13 @@ const {
   numberedMeetingDocumentName,
   saveNotesUnderUniqueName
 } = await import("../src/features/meeting-dictation/lib/meetingNotesSave.ts");
-const { describeNotesSaveError, MEETING_MESSAGES } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+const { describeNotesSaveError } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+
+// 화면과 같이 meeting 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readMeetingMessages } = await import("node:fs");
+const { createTranslator: createMeetingTranslator } = await import("use-intl/core");
+const meetingKo = JSON.parse(readMeetingMessages(new URL("../src/shared/i18n/messages/ko/meeting.json", import.meta.url), "utf8"));
+const tm = createMeetingTranslator({ locale: "ko", messages: { meeting: meetingKo }, namespace: "meeting" });
 
 const duplicateName = () => new ApiError("같은 이름", 409, "DUPLICATE_NAME");
 const startedAt = new Date(2026, 10, 4, 9, 5).toISOString();
@@ -119,7 +125,7 @@ test("최신 회의록이 applied가 아니거나 조회에 실패하면 저장�
 });
 
 test("이름 중복·이미 저장됨 오류 문구는 실제 상태와 다음 행동을 알려 준다", () => {
-  assert.equal(describeNotesSaveError(duplicateName(), "f"), MEETING_MESSAGES.duplicateName);
-  assert.match(MEETING_MESSAGES.duplicateName, /다음 번호/);
-  assert.match(MEETING_MESSAGES.alreadyApplied, /저장하는 중/);
+  assert.equal(describeNotesSaveError(duplicateName(), "f", tm), tm("messages.duplicateName"));
+  assert.match(tm("messages.duplicateName"), /다음 번호/);
+  assert.match(tm("messages.alreadyApplied"), /저장하는 중/);
 });

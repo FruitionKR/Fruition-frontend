@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AgentChevronIcon } from "@/features/agent-chat/ui/AgentIcons";
 import { cx } from "@/shared/lib/classNames";
 import { transcriptLines } from "../lib/liveTranscript";
 import { meetingCardLines } from "../lib/meetingCardLines";
-import { canCloseMeetingInPhase, canDeleteMeetingInPhase, MEETING_TITLES, meetingProgressText } from "../lib/meetingNotesFlow";
+import { canCloseMeetingInPhase, canDeleteMeetingInPhase, meetingProgressText, meetingTitle } from "../lib/meetingNotesFlow";
 import type { MeetingSessionState } from "../model/useMeetingSession";
 import { MeetingDeleteConfirm } from "./MeetingDeleteConfirm";
 import { MeetingRecordingPlayer } from "./MeetingRecordingPlayer";
@@ -19,6 +20,7 @@ const STICK_TO_BOTTOM_PX = 24;
  * onPickRecording은 녹음 파일 선택 창을 연다(실패한 녹음 파일 회의에 다시 올리기).
  */
 export function MeetingNotesView({ session, onPickRecording }: { session: MeetingSessionState; onPickRecording?: () => void }) {
+  const t = useTranslations("meeting");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -42,20 +44,20 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
   }, [body, isCollapsed, isTopAligned]);
 
   if (phase === "idle") return null;
-  const progressText = meetingProgressText(phase, session.uploadPercent);
+  const progressText = meetingProgressText(phase, t, session.uploadPercent);
   const meeting = session.meeting;
   const canDelete = Boolean(meeting) && canDeleteMeetingInPhase(phase);
   const canClose = canCloseMeetingInPhase(phase);
   const showsPlayer = Boolean(meeting?.has_recording) && phase !== "uploading" && phase !== "deleting";
   // 회의를 불러오는 중에는 진행 표시만 보여 준다.
   const emptyText = phase === "opening" ? "" : session.source === "upload"
-    ? "녹음 파일을 글로 옮기면 대화 내용이 여기에 보여요."
-    : "말씀을 시작하면 글로 옮긴 문장이 여기에 쌓여요.";
-  const title = MEETING_TITLES[phase];
+    ? t("view.emptyUpload")
+    : t("view.emptyLive");
+  const title = meetingTitle(phase, t);
   const canAppend = Boolean(session.meeting?.document_id);
 
   return (
-    <section className={styles["meeting-view"]} aria-label="회의 녹음">
+    <section className={styles["meeting-view"]} aria-label={t("view.ariaLabel")}>
       <div className={cx(styles["meeting-container"], isCollapsed && styles["is-collapsed"])}>
         <div className={styles["meeting-title-row"]}>
           <button
@@ -73,10 +75,10 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             <div className={styles["meeting-title-actions"]}>
               {canDelete && (
                 <button type="button" className={cx(styles["meeting-close"], styles["is-danger"])} onClick={() => setIsConfirmingDelete(true)}>
-                  삭제
+                  {t("view.delete")}
                 </button>
               )}
-              {canClose && <button type="button" className={styles["meeting-close"]} onClick={session.close}>닫기</button>}
+              {canClose && <button type="button" className={styles["meeting-close"]} onClick={session.close}>{t("view.close")}</button>}
             </div>
           )}
         </div>
@@ -86,7 +88,7 @@ export function MeetingNotesView({ session, onPickRecording }: { session: Meetin
             ref={cardRef}
             className={styles["meeting-card"]}
             tabIndex={0}
-            aria-label={showsNotes ? "회의록" : phase === "previewing" ? "문서 끝에 추가한 결과" : "대화 내용"}
+            aria-label={showsNotes ? t("view.notesLabel") : phase === "previewing" ? t("view.previewLabel") : t("view.transcriptLabel")}
             aria-live={phase === "recording" ? "polite" : undefined}
             onScroll={(event) => {
               const card = event.currentTarget;
@@ -149,25 +151,26 @@ function MeetingActions({
   canAppend: boolean;
   onPickRecording?: () => void;
 }) {
+  const t = useTranslations("meeting");
   const { phase } = session;
   if (phase === "uploading") {
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" onClick={session.cancelUpload}>올리기 취소</button>
+        <button type="button" onClick={session.cancelUpload}>{t("actions.cancelUpload")}</button>
       </div>
     );
   }
   if (phase === "transcribing") {
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" onClick={() => void session.cancelTranscription()}>글로 옮기기 취소</button>
+        <button type="button" onClick={() => void session.cancelTranscription()}>{t("actions.cancelTranscription")}</button>
       </div>
     );
   }
   if (phase === "generating") {
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" onClick={() => void session.cancelNotes()}>회의록 만들기 취소</button>
+        <button type="button" onClick={() => void session.cancelNotes()}>{t("actions.cancelNotes")}</button>
       </div>
     );
   }
@@ -177,13 +180,13 @@ function MeetingActions({
       <div className={styles["meeting-actions"]}>
         {canReupload && (
           <button type="button" className={cx(!session.hasTranscript && styles["is-primary"])} onClick={onPickRecording}>
-            {session.meeting ? "녹음 파일 다시 올리기" : "녹음 파일 고르기"}
+            {session.meeting ? t("actions.reuploadRecording") : t("actions.pickRecording")}
           </button>
         )}
         {session.hasTranscript && (session.canRequestPartial ? (
-          <button type="button" className={styles["is-primary"]} onClick={() => session.regenerate(true)}>저장된 내용으로 회의록 만들기</button>
+          <button type="button" className={styles["is-primary"]} onClick={() => session.regenerate(true)}>{t("actions.generatePartial")}</button>
         ) : (
-          <button type="button" className={styles["is-primary"]} onClick={() => session.regenerate()}>회의록 만들기</button>
+          <button type="button" className={styles["is-primary"]} onClick={() => session.regenerate()}>{t("actions.generate")}</button>
         ))}
       </div>
     );
@@ -192,12 +195,12 @@ function MeetingActions({
     const isSaving = phase === "saving";
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" disabled={isSaving} onClick={() => session.regenerate()}>다시 만들기</button>
+        <button type="button" disabled={isSaving} onClick={() => session.regenerate()}>{t("actions.regenerate")}</button>
         {canAppend && (
-          <button type="button" disabled={isSaving} onClick={() => void session.previewAppend()}>문서 끝에 추가</button>
+          <button type="button" disabled={isSaving} onClick={() => void session.previewAppend()}>{t("actions.append")}</button>
         )}
         <button type="button" className={styles["is-primary"]} disabled={isSaving} onClick={() => void session.saveAsNewDocument()}>
-          새 문서로 저장
+          {t("actions.saveAsNew")}
         </button>
       </div>
     );
@@ -205,8 +208,8 @@ function MeetingActions({
   if (phase === "previewing") {
     return (
       <div className={styles["meeting-actions"]}>
-        <button type="button" onClick={session.cancelPreview}>취소</button>
-        <button type="button" className={styles["is-primary"]} onClick={() => void session.confirmAppend()}>문서 끝에 추가</button>
+        <button type="button" onClick={session.cancelPreview}>{t("actions.cancel")}</button>
+        <button type="button" className={styles["is-primary"]} onClick={() => void session.confirmAppend()}>{t("actions.append")}</button>
       </div>
     );
   }

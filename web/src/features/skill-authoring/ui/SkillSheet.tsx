@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { cx } from "@/shared/lib/classNames";
@@ -90,6 +91,7 @@ export function SkillSheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const t = useTranslations("skills");
   const sheetRef = useRef<HTMLElement>(null);
   const discardTitleId = useId();
   useEscapeKey(true, () => {
@@ -132,16 +134,16 @@ export function SkillSheet({
       {discardConfirm?.isOpen && (
         <AlertModal
           titleId={discardTitleId}
-          title="수정한 내용을 버리시겠습니까?"
-          description="저장하지 않은 내용은 반영되지 않습니다."
+          title={t("sheet.discardTitle")}
+          description={t("sheet.discardDescription")}
           onClose={discardConfirm.onKeep}
         >
           <div className="modal-actions">
             <button type="button" className="modal-cancel-button" autoFocus onClick={discardConfirm.onKeep}>
-              계속 수정
+              {t("sheet.keepEditing")}
             </button>
             <button type="button" className="modal-delete-button" onClick={discardConfirm.onDiscard}>
-              버리기
+              {t("sheet.discard")}
             </button>
           </div>
         </AlertModal>

@@ -5,8 +5,11 @@ import koDocuments from "./ko/documents.json";
 import koInvitation from "./ko/invitation.json";
 import koLanding from "./ko/landing.json";
 import koLegal from "./ko/legal.json";
+import koMeeting from "./ko/meeting.json";
 import koMetadata from "./ko/metadata.json";
+import koNotionImport from "./ko/notionImport.json";
 import koSettings from "./ko/settings.json";
+import koSkills from "./ko/skills.json";
 import koWiki from "./ko/wiki.json";
 import koWorkspace from "./ko/workspace.json";
 import enAuth from "./en/auth.json";
@@ -15,8 +18,11 @@ import enDocuments from "./en/documents.json";
 import enInvitation from "./en/invitation.json";
 import enLanding from "./en/landing.json";
 import enLegal from "./en/legal.json";
+import enMeeting from "./en/meeting.json";
 import enMetadata from "./en/metadata.json";
+import enNotionImport from "./en/notionImport.json";
 import enSettings from "./en/settings.json";
+import enSkills from "./en/skills.json";
 import enWiki from "./en/wiki.json";
 import enWorkspace from "./en/workspace.json";
 
@@ -32,6 +38,9 @@ const ko = {
   invitation: koInvitation,
   settings: koSettings,
   legal: koLegal,
+  skills: koSkills,
+  meeting: koMeeting,
+  notionImport: koNotionImport,
   wiki: koWiki,
   workspace: koWorkspace,
   documents: koDocuments
@@ -49,6 +58,9 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     invitation: enInvitation,
     settings: enSettings,
     legal: enLegal,
+    skills: enSkills,
+    meeting: enMeeting,
+    notionImport: enNotionImport,
     wiki: enWiki,
     workspace: enWorkspace,
     documents: enDocuments
