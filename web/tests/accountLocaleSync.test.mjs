@@ -18,6 +18,52 @@ const { decideLocaleSync, shouldSaveChosenLocale, supportsAccountLocale } = awai
 const { accountDeletionVerification, buildAccountDeletionBody } = await import("../src/entities/user/model/accountDeletion.ts");
 const { apiFetch } = await import("../src/shared/api/client.ts");
 const { updateAccountLocale } = await import("../src/entities/user/api/auth.ts");
+const { readCachedMe, subscribeToMeCache } = await import("../src/entities/user/model/meCache.ts");
+const { QueryClient, QueryObserver } = await import("@tanstack/react-query");
+
+/** react-query는 캐시 알림을 다음 tick에 묶어 보낸다. */
+const flushNotifications = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test("로그인 흐름이 queryClient.clear()로 me를 지운 뒤 새로 받은 me로 계정 언어를 적용한다(#256 회귀)", async (t) => {
+  const queryClient = new QueryClient();
+  t.after(() => queryClient.clear());
+  queryClient.setQueryData(["me"], { id: "old", locale: "ko" });
+  // 예전 방식: useMe({ enabled: false })와 같은 observer는 clear 뒤 지워진 query에 남는다.
+  const staleObserver = new QueryObserver(queryClient, { queryKey: ["me"], enabled: false });
+  const unsubscribeStale = staleObserver.subscribe(() => undefined);
+  t.after(unsubscribeStale);
+  const seen = [];
+  const unsubscribe = subscribeToMeCache(queryClient, () => seen.push(readCachedMe(queryClient)));
+  t.after(unsubscribe);
+
+  // 로그인 성공: 토큰 저장 → clear → 이동한 화면의 useMe가 새 me를 받는다.
+  queryClient.clear();
+  await queryClient.fetchQuery({ queryKey: ["me"], queryFn: async () => ({ id: "u1", locale: "en" }) });
+  await flushNotifications();
+
+  assert.equal(staleObserver.getCurrentResult().data?.locale, "ko");
+  assert.deepEqual(seen.at(-1), { id: "u1", locale: "en" });
+  const me = readCachedMe(queryClient);
+  assert.deepEqual(decideLocaleSync({ serverLocale: me.locale, chosenLocale: null }), { type: "adopt", locale: "en" });
+});
+
+test("me 캐시 구독은 다른 query 변경에는 반응하지 않고, 구독을 풀면 더 부르지 않는다", async () => {
+  const queryClient = new QueryClient();
+  let calls = 0;
+  const unsubscribe = subscribeToMeCache(queryClient, () => { calls++; });
+  queryClient.setQueryData(["documents"], []);
+  await flushNotifications();
+  assert.equal(calls, 0);
+  queryClient.setQueryData(["me"], { id: "u1", locale: "ko" });
+  await flushNotifications();
+  assert.ok(calls > 0);
+  unsubscribe();
+  const before = calls;
+  queryClient.setQueryData(["me"], { id: "u1", locale: "en" });
+  await flushNotifications();
+  assert.equal(calls, before);
+  queryClient.clear();
+});
 
 /** 브라우저의 document(쿠키·<html lang>)를 잠시 흉내 낸다. */
 function withDocument(t, { cookie = "", lang = "" }) {
