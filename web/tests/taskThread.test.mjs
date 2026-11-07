@@ -2,38 +2,53 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    // 앱 소스의 확장자 없는 상대 import(./agentChatTranslator)를 .ts로 푼다.
+    if (context.parentURL?.includes("/src/") && specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
     return nextResolve(specifier, context);
   }
 });
 
 const {
-  buildSkillPickerGroups,
+  buildSkillPickerGroups: buildSkillPickerGroupsWith,
   collectServerAppliedTurnIds,
-  describeTaskRequest,
-  groupTaskEntries,
+  describeTaskRequest: describeTaskRequestWith,
+  groupTaskEntries: groupTaskEntriesWith,
   isAnswerTask,
   isApplyCheckUnresolved,
   isAttachmentTargetClarification,
-  withReadOnlyDocumentClarification,
+  withReadOnlyDocumentClarification: withReadOnlyDocumentClarificationWith,
   isServerAppliableTask,
   classifySessionChannel,
   editResultNotice,
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
-  resolveTaskRequest,
+  resolveTaskRequest: resolveTaskRequestWith,
   skillSheetPanelView,
-  resolveTaskStatus,
-  selectionChipLabel,
+  resolveTaskStatus: resolveTaskStatusWith,
+  selectionChipLabel: selectionChipLabelWith,
   splitChatAndTaskMessages,
   supersededTaskKeys,
-  taskHeadingKind,
-  taskKindLabel
+  taskHeadingKind: taskHeadingKindWith,
+  taskKindLabel: taskKindLabelWith
 } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const buildSkillPickerGroups = (...args) => buildSkillPickerGroupsWith(...args, agentChatT);
+const describeTaskRequest = (...args) => describeTaskRequestWith(...args, agentChatT);
+const groupTaskEntries = (...args) => groupTaskEntriesWith(...args, agentChatT);
+const withReadOnlyDocumentClarification = (...args) => withReadOnlyDocumentClarificationWith(...args, agentChatT);
+const resolveTaskRequest = (...args) => resolveTaskRequestWith(...args, agentChatT);
+const resolveTaskStatus = (input) => resolveTaskStatusWith(input, agentChatT);
+const selectionChipLabel = (markdown, start, end, maxLength) => selectionChipLabelWith(markdown, start, end, agentChatT, maxLength);
+const taskHeadingKind = (...args) => taskHeadingKindWith(...args, agentChatT);
+const taskKindLabel = (...args) => taskKindLabelWith(...args, agentChatT);
 const {
   READ_ONLY_REQUEST_LIMIT,
   readOnlyRequestStorageKey,
@@ -253,7 +268,8 @@ test("스킬 시트가 열리면 작업 탭으로 옮기고 원래 탭을 기억
 });
 
 test("스킬로 보낸 작업의 새 문서·문서 수정 되묻기에는 커맨드를 붙인 두 답을 만든다", async () => {
-  const { SKILL_MODE_CHOICES, skillModeAnswer, skillModeQuestionSlug } = await import("../src/features/agent-chat/lib/taskThread.ts");
+  const { SKILL_MODE_CHOICES, skillModeAnswer: skillModeAnswerWith, skillModeQuestionSlug } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const skillModeAnswer = (...args) => skillModeAnswerWith(...args, agentChatT);
   const question = "새 문서로 만들까요, 지금 문서를 수정할까요?";
   assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/summary-maker", answer: question }), "summary-maker");
   assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/any 정리해 줘", answer: question }), "any");

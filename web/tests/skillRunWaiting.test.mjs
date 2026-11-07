@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
 
-const { skillRunWaitingState } = await import("../src/widgets/agent-panel/lib/skillRunWaiting.ts");
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
+
+const { skillRunWaitingState: skillRunWaitingStateWith } = await import("../src/widgets/agent-panel/lib/skillRunWaiting.ts");
+const skillRunWaitingState = (...args) => skillRunWaitingStateWith(...args, agentChatT);
 
 const idle = { stalledTurnCount: 0, hasBlockingPending: false, isQueryLoading: false, isAgentBusy: false, isWaitingForDocument: false };
 

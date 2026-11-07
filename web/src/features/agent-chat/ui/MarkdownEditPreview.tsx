@@ -2,6 +2,7 @@ import { MarkdownViewer } from "@/shared/ui/markdown/LazyMarkdownViewer";
 import type { MarkdownEditPreview as MarkdownEditPreviewData } from "../lib/agentTurn";
 import { DocumentDiffLines } from "./DocumentDiffLines";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 export function MarkdownEditPreview({
   preview,
@@ -26,17 +27,18 @@ export function MarkdownEditPreview({
   newDocumentBlockedReason?: string | null;
   onRegenerate: () => void;
 }) {
+  const t = useTranslations("agentChat");
   return (
-    <section className={styles["markdown-edit-preview"]} aria-label="AI Markdown 편집 제안">
+    <section className={styles["markdown-edit-preview"]} aria-label={t("edit.regionLabel")}>
       <header>
         <div>
           <strong>{preview.summary}</strong>
           <details className={styles["markdown-edit-details"]}>
             <summary>
               <p>{preview.replacementMarkdown}</p>
-              <span className={styles["markdown-edit-details-label"]}>변경 내용 자세히 보기</span>
+              <span className={styles["markdown-edit-details-label"]}>{t("edit.details")}</span>
             </summary>
-            <DocumentDiffLines label="원문과 편집안 line diff" groups={[{ key: "all", lines: preview.diffLines }]} />
+            <DocumentDiffLines label={t("edit.diffLabel")} groups={[{ key: "all", lines: preview.diffLines }]} />
             <div className={styles["markdown-edit-rendered-preview"]}>
               <MarkdownViewer markdown={preview.replacementMarkdown} linkPolicy="inert-external" />
             </div>
@@ -48,14 +50,14 @@ export function MarkdownEditPreview({
       {newDocumentBlockedReason && <p className={styles["markdown-edit-error"]} role="status">{newDocumentBlockedReason}</p>}
 
       <footer>
-        <button type="button" disabled={isLoading} onClick={onCancel}>취소</button>
+        <button type="button" disabled={isLoading} onClick={onCancel}>{t("actions.cancel")}</button>
         <button type="button" disabled={isLoading} onClick={onRegenerate}>
-          {isLoading ? "재시도 중" : "재시도"}
+          {isLoading ? t("actions.retrying") : t("actions.retry")}
         </button>
-        <button type="button" disabled={isLoading || Boolean(newDocumentBlockedReason)} onClick={onOpenAsNewDocument}>새 문서로 열기</button>
+        <button type="button" disabled={isLoading || Boolean(newDocumentBlockedReason)} onClick={onOpenAsNewDocument}>{t("create.openAsNew")}</button>
         {hasProposals && (
           <button type="button" className={styles["is-primary"]} disabled={isLoading || Boolean(validationError)} onClick={onApply}>
-            수락
+            {t("actions.accept")}
           </button>
         )}
       </footer>

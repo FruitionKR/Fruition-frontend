@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -21,11 +25,13 @@ const {
   turnReferenceDocumentIds,
   removeDocumentMention,
   autoIncludedOpenDocumentId,
-  droppedOpenDocumentMessage,
-  documentLockedTurnMessage,
+  droppedOpenDocumentMessage: droppedOpenDocumentMessageWith,
+  documentLockedTurnMessage: documentLockedTurnMessageWith,
   sendTurnDroppingOpenDocument,
   shouldRestoreAttachments
 } = await import("../src/widgets/agent-panel/lib/composerDocuments.ts");
+const droppedOpenDocumentMessage = (...args) => droppedOpenDocumentMessageWith(...args, agentChatT);
+const documentLockedTurnMessage = (...args) => documentLockedTurnMessageWith(...args, agentChatT);
 const { ApiError, DocumentLockedError } = await import("../src/shared/lib/apiErrors.ts");
 
 const doc = (id, filename, extra = {}) => ({
