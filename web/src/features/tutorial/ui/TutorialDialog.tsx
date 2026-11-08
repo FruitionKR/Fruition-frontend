@@ -40,6 +40,11 @@ export function TutorialDialog({ onClose }: { onClose: () => void }) {
     rootRef.current?.focus();
   }, []);
 
+  // 휴대폰 가로 칩에서 지금 섹션이 화면 밖이면 보이는 곳까지 옮긴다. 넓은 화면 세로 목록에서도 같은 규칙이다.
+  useEffect(() => {
+    rootRef.current?.querySelector<HTMLElement>(`[data-section-index="${position.sectionIndex}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [position.sectionIndex]);
+
   if (!section || !step) return null;
 
   function finish() {
@@ -73,6 +78,7 @@ export function TutorialDialog({ onClose }: { onClose: () => void }) {
                     type="button"
                     className={cx(styles.section, isActive && styles["is-active"], index < position.sectionIndex && styles["is-done"])}
                     aria-current={isActive ? "step" : undefined}
+                    data-section-index={index}
                     onClick={() => tutorial.goToSection(index)}
                   >
                     <span className={styles["section-icon"]}>
@@ -119,11 +125,10 @@ export function TutorialDialog({ onClose }: { onClose: () => void }) {
                 {pad(position.stepIndex + 1)}
                 <span className={styles["step-of"]}>/{pad(section.steps.length)}</span>
               </span>
-              {step.icon && (
-                <span className={styles["step-icon"]}>
-                  <TutorialIconGlyph name={step.icon} />
-                </span>
-              )}
+              {/* 단계 아이콘은 선택이라, 없으면 섹션 아이콘으로 카드 모양을 맞춘다. */}
+              <span className={styles["step-icon"]}>
+                <TutorialIconGlyph name={step.icon ?? section.icon} />
+              </span>
             </div>
             <h4 className={styles["step-title"]}>{text(`steps.${step.id}.title`)}</h4>
             <p className={styles["step-body"]}>{text(`steps.${step.id}.body`)}</p>
