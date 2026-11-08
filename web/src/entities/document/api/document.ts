@@ -5,7 +5,6 @@ import { hasPdfExtension } from "@/entities/document/lib/documentKind";
 import { CHAT_EXPORT_TITLE_LOCKED_MESSAGE, DOCUMENT_TITLE_LOCKED_CODE } from "@/entities/document/lib/documentAccess";
 import { ApiError } from "@/shared/lib/apiErrors";
 import { sharedText } from "@/shared/i18n/sharedTranslate";
-import { publishConvertStarted } from "@/entities/document/model/documentConvertEvents";
 import { SKILL_REFERENCE_ORIGIN, type DocumentBlocksResponse, type DocumentItemResponse, type DocumentListResponse, type DocumentRole, type DocumentUploadResponse } from "@/entities/document/model/document";
 
 import { getDocumentTransport } from "@/shared/api/documentTransport";
@@ -170,7 +169,7 @@ async function startDocumentIngest(documentId: string): Promise<void> {
  * PDF 원본 문서의 Markdown 변환을 요청한다.
  * 202와 함께 processing 상태로 생성된 markdown 문서 요약을 반환한다.
  */
-export async function convertDocumentToMarkdown(documentId: string, options?: { openWhenReady?: boolean }) {
+export async function convertDocumentToMarkdown(documentId: string) {
   const workspaceId = getWorkspaceId();
   const response = await apiFetch(
     workspacePath(workspaceId, "documents", documentId, "convert-markdown"),
@@ -179,10 +178,7 @@ export async function convertDocumentToMarkdown(documentId: string, options?: { 
       headers: { "Idempotency-Key": idempotencyKey() }
     }
   );
-  const created = await parseJsonOrThrow<DocumentItemResponse>(response, ERROR_MESSAGES.documentConvertFailed);
-  // 트리거 경로와 무관하게 변환 완료 후 자동 열기가 동작하도록 시작 이벤트를 발행한다.
-  if (options?.openWhenReady !== false) publishConvertStarted(created.id);
-  return created;
+  return parseJsonOrThrow<DocumentItemResponse>(response, ERROR_MESSAGES.documentConvertFailed);
 }
 
 /**
