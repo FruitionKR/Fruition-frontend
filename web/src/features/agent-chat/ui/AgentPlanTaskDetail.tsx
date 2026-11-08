@@ -17,6 +17,7 @@ import { useDocumentEditPreviews } from "../model/useDocumentEditPreviews";
 import type { AgentDocumentEditPreview } from "../lib/documentEditPreviews";
 import { useFolderOrganizeDeselection } from "../model/useFolderOrganizeDeselection";
 import { cx } from "@/shared/lib/classNames";
+import { documentHref } from "@/features/notion-import/lib/notionLinks";
 import { AgentAssetIcon } from "./AgentIcons";
 import { DocumentEditDiff, DocumentEditPlanPreview } from "./DocumentEditPlanPreview";
 import styles from "./AgentChat.module.css";
@@ -314,7 +315,11 @@ export function AgentPlanTaskDetail({
                   </label>
                   {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
                   {convertedSource && convertedSource !== "invalid" && <p className={styles["task-card-meta"]}>
-                    {t("plan.mcpSelection.convertedSource", convertedSource)}
+                    {/* /home?doc=는 현재 워크스페이스에서 열리므로 승인 대상 워크스페이스와 같을 때만 링크로 둔다. */}
+                    {readWorkspaceId() === mcpContext.workspaceId
+                      ? <a href={documentHref(convertedSource.documentId)} target="_blank" rel="noopener">{t("plan.mcpSelection.convertedSourceOpen")}</a>
+                      : t("plan.mcpSelection.convertedSourceLabel")}
+                    {" "}{t("plan.mcpSelection.convertedSourceNote")}
                   </p>}
                   {operation.warning?.message?.trim() && <p className={styles["plan-operation-blocked"]}>{operation.warning.message.trim().normalize("NFC")}</p>}
                   {operation.depends_on && operation.depends_on.length > 0 && <p>{t("plan.mcpSelection.requires", { count: operation.depends_on.length })}</p>}

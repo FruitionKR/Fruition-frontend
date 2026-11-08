@@ -419,7 +419,9 @@
       "existingReused": "A receipt-confirmed existing result was reused. It was not newly created and is not a new charge or rollback target."
     },
     "mcpSelection": {
-      "convertedSource": "PDF conversion. Based on source document {documentId} with content hash {contentHash}; nothing is saved if the source changed by approval or save time.",
+      "convertedSourceLabel": "Source PDF",
+      "convertedSourceNote": "PDF conversion. If the source changes, it must be reviewed again.",
+      "convertedSourceOpen": "Open source PDF",
       "createPreview": "New document content preview",
       "dependenciesChanged": "{count, plural, one {# required or dependent operation was also changed} other {# required or dependent operations were also changed}} to keep the selection valid.",
       "editPreview": "Document edit preview",

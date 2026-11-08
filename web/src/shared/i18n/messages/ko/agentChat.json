@@ -419,7 +419,9 @@
       "existingReused": "영수증으로 확인된 기존 결과를 재사용했습니다. 새로 생성하지 않았으며 새 과금이나 롤백 대상이 아닙니다."
     },
     "mcpSelection": {
-      "convertedSource": "PDF 변환본입니다. 원본 문서 {documentId}의 내용 hash {contentHash} 기준이며, 승인·저장 시점에 원본이 바뀌었으면 저장하지 않습니다.",
+      "convertedSourceLabel": "원본 PDF",
+      "convertedSourceNote": "PDF 변환본입니다. 원본이 변경되면 다시 확인해야 합니다.",
+      "convertedSourceOpen": "원본 PDF 열기",
       "createPreview": "새 문서 내용 미리보기",
       "dependenciesChanged": "유효한 선택을 유지하도록 필수 또는 의존 작업 {count}개도 함께 변경했습니다.",
       "editPreview": "문서 편집 미리보기",
