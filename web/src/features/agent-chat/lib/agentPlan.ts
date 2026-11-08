@@ -53,8 +53,9 @@ export type McpPriceSnapshot = {
 
 export type McpApprovalQuote = {
   client_name: string;
-  selected_operation_count: number;
-  price_snapshot: McpPriceSnapshot;
+  selected_operation_count?: number;
+  price_snapshot?: McpPriceSnapshot | null;
+  unavailable_reason?: "TARGET_VERSION_CHANGED" | null;
 };
 
 export type McpSettlement = {

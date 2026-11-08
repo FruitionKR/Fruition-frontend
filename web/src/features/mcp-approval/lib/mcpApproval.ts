@@ -41,7 +41,7 @@ export function validMcpPriceSnapshot(value: unknown): value is McpPriceSnapshot
 
 export type McpApprovalAvailability =
   | { available: true; priceSnapshot: McpPriceSnapshot }
-  | { available: false; reason: "not_mcp" | "missing_authority" | "unsupported_plan" | "quote_unavailable" | "quote_mismatch" | "not_approvable" };
+  | { available: false; reason: "not_mcp" | "missing_authority" | "unsupported_plan" | "target_version_changed" | "quote_unavailable" | "quote_mismatch" | "not_approvable" };
 
 function referencedOperationIds(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(referencedOperationIds);
@@ -151,16 +151,21 @@ export function mcpApprovalAvailability(run: AgentPlanRun | null | undefined): M
   if (!canApproveAgentPlan(run)) return { available: false, reason: "not_approvable" };
   if (!validMcpPlan(run.plan)) return { available: false, reason: "unsupported_plan" };
   const quote = run.mcp_approval_quote;
-  if (!quote?.client_name?.trim() || !validMcpPriceSnapshot(quote.price_snapshot)) {
+  if (quote?.client_name?.trim() && quote.unavailable_reason === "TARGET_VERSION_CHANGED") {
+    return { available: false, reason: "target_version_changed" };
+  }
+  const priceSnapshot = quote?.price_snapshot;
+  if (!quote?.client_name?.trim() || !validMcpPriceSnapshot(priceSnapshot)) {
     return { available: false, reason: "quote_unavailable" };
   }
-  if (!Number.isSafeInteger(quote.selected_operation_count) || quote.selected_operation_count < 1
-    || quote.selected_operation_count > run.plan.operations.length || quote.selected_operation_count > MAX_MCP_OPERATIONS) {
+  const selectedOperationCount = quote.selected_operation_count;
+  if (typeof selectedOperationCount !== "number" || !Number.isSafeInteger(selectedOperationCount) || selectedOperationCount < 1
+    || selectedOperationCount > run.plan.operations.length || selectedOperationCount > MAX_MCP_OPERATIONS) {
     return { available: false, reason: "quote_mismatch" };
   }
-  const quotedIds = run.plan.operations.slice(0, quote.selected_operation_count).map((operation) => operation.id);
+  const quotedIds = run.plan.operations.slice(0, selectedOperationCount).map((operation) => operation.id);
   const quotedPrice = mcpPriceSnapshotForSelection(quote, quotedIds);
-  if (!quotedPrice || quotedPrice.maximum_charge_minor !== quote.price_snapshot.maximum_charge_minor) {
+  if (!quotedPrice || quotedPrice.maximum_charge_minor !== priceSnapshot.maximum_charge_minor) {
     return { available: false, reason: "quote_mismatch" };
   }
   const selectedPrice = mcpPriceSnapshotForSelection(quote, initialMcpSelectedOperationIds(run.plan));

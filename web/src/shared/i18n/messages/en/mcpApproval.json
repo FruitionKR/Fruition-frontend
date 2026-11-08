@@ -57,6 +57,7 @@
     "not_mcp": "This run is not a server-verified MCP proposal, so it cannot be approved here.",
     "missing_authority": "The current grant or client authority cannot be verified. Approval is unavailable.",
     "unsupported_plan": "This proposal is not a valid 1–20 operation MCP plan using the supported document and folder tools.",
+    "target_version_changed": "The document changed. In Claude Code or Codex, read the latest document and submit the edit again. The new proposal must be approved again.",
     "quote_unavailable": "The server fee quote or registered client name is unavailable. Approval is disabled; refresh the status.",
     "quote_mismatch": "The fee quote is missing, zero, unsafe, or no longer matches the reviewed plan. Approval is disabled; refresh the status.",
     "not_approvable": "This run is no longer awaiting approval.",

@@ -55,6 +55,7 @@ test("server-attributed 1..20 supported operations with an exact KRW quote are a
   assert.equal(mcpApprovalAvailability({ ...run, plan: { ...plan, operations: twenty } }).available, true);
   assert.equal(mcpApprovalAvailability({ ...run, plan: { ...plan, operations: [...twenty, { ...operation, id: "op-21", sequence: 21 }] } }).reason, "unsupported_plan");
   assert.equal(mcpApprovalAvailability({ ...run, plan: { ...plan, operations: [{ ...operation, tool_name: "delete_document" }] } }).reason, "unsupported_plan");
+  assert.equal(mcpApprovalAvailability({ ...run, mcp_approval_quote: { client_name: "Claude Code", unavailable_reason: "TARGET_VERSION_CHANGED" } }).reason, "target_version_changed");
   assert.equal(mcpApprovalAvailability({ ...run, mcp_approval_quote: null }).reason, "quote_unavailable");
   assert.equal(mcpApprovalAvailability({ ...run, mcp_approval_quote: { ...run.mcp_approval_quote, selected_operation_count: 2 } }).reason, "quote_mismatch");
   assert.equal(validMcpPriceSnapshot({ ...price, currency: "mKRW" }), false, "ledger milli-KRW is not a browser quote");

@@ -19,7 +19,7 @@ const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../src/features/mcp-approval/ui/McpApprovalPage.tsx", import.meta.url), "utf8");
 const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 const price = { unit_price_minor: 100, plan_cap_minor: 500, currency: "KRW", price_version: "v1", maximum_charge_minor: 100 };
-const run = {
+let run = {
   id: "run-1", status: "awaiting_approval", error_code: null, origin: "MCP_CLIENT", grant_id: "grant-1", client_id: "https://client.example/metadata", policy_generation: 1,
   plan: { id: "plan-1", version: 1, operation_hash: "a".repeat(64), summary: "<script>bad()</script>", status: "awaiting_approval", operations: [{ id: "op-1", sequence: 1, tool_name: "apply_document_edit", target_id: "doc-1", arguments: {}, reason: "<img src=https://attacker.invalid/x>", status: "planned" }] },
   mcp_approval_quote: { client_name: "<img src=x onerror=alert(1)>", selected_operation_count: 1, price_snapshot: price }, mcp_settlement: null
@@ -29,7 +29,7 @@ const aliases = {
   "@/entities/user": { useMe: () => ({ data: { id: "user-1" }, isPending: false, error: null }) },
   "@/features/agent-chat/api/agentPlan": { cancelAgentPlanRun: async () => { mutations += 1; }, fetchAgentPlanRunById: async () => run },
   "@/features/agent-chat/lib/agentPlan": { agentPlanStatusLabel: () => "승인 대기", canApproveAgentPlan: () => true },
-  "@/features/agent-chat/ui/AgentPlanTaskDetail": { AgentPlanTaskDetail: ({ mcpQuote }) => React.createElement("button", { type: "button" }, mcpQuote ? "Explicit approval only" : "Disabled") },
+  "@/features/agent-chat/ui/AgentPlanTaskDetail": { AgentPlanTaskDetail: ({ mcpQuote, approvalDisabledReason }) => React.createElement("button", { type: "button" }, mcpQuote ? "Explicit approval only" : `Disabled: ${approvalDisabledReason}`) },
   "@/shared/lib/apiErrors": { LoginRequiredError: class LoginRequiredError extends Error {} },
   "@/shared/lib/authSessionStorage": { setAfterLoginPath() {} },
   "../lib/mcpApproval": approval,
@@ -54,4 +54,15 @@ test("MCP review renders untrusted labels as text and never approves, cancels, o
   assert.doesNotMatch(html, /<img|<script|revise|regenerate/i);
   assert.match(html, /KRW 100/);
   assert.match(html, /Explicit approval only/);
+});
+
+test("source version conflicts keep the registered client visible but approval disabled with a distinct reason", () => {
+  const current = run;
+  run = { ...run, mcp_approval_quote: { client_name: "Claude Code", unavailable_reason: "TARGET_VERSION_CHANGED" } };
+  const html = renderToStaticMarkup(React.createElement(McpApprovalPage, { workspaceId: "ws-1", runId: "run-1" }));
+  run = current;
+  assert.match(html, /Claude Code/);
+  assert.match(html, /unavailable.target_version_changed/);
+  assert.match(html, /Disabled:/);
+  assert.doesNotMatch(html, /Explicit approval only/);
 });
