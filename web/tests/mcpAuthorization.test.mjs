@@ -76,14 +76,14 @@ test("public consent route는 analytics에 OAuth query나 client 값을 남기�
   assert.doesNotMatch(JSON.stringify(clean), /secret|client_id|state/);
 });
 
-test("preview는 기존 refresh readiness 뒤 현재 Bearer·cookie·JSON Accept로 원 query를 보낸다", async (t) => {
-  auth.clearAuth();
+test("preview는 만료 Bearer의 refresh 뒤 cookie·JSON Accept로 원 query를 보낸다", async (t) => {
+  auth.saveAccessToken("expired-access");
   const query = "?response_type=code&client_id=client&redirect_uri=http%3A%2F%2Flocalhost%3A43123%2Fcallback&scope=read&state=encoded%2Bstate&code_challenge=challenge&code_challenge_method=S256&resource=https%3A%2F%2Fmcp.example%2Fmcp";
   const calls = [];
   t.mock.method(globalThis, "fetch", async (path, init) => {
     calls.push({ path, init, authorization: init.headers?.get("Authorization") ?? null });
     if (path === "/api/auth/refresh") return Response.json({ access_token: "preview-access" });
-    if (!init.headers.get("Authorization")) return new Response(null, { status: 401 });
+    if (init.headers.get("Authorization") === "Bearer expired-access") return new Response(null, { status: 401 });
     return Response.json(pending(), { headers: { "X-CSRF-TOKEN": "csrf-from-server" } });
   });
 
@@ -91,7 +91,7 @@ test("preview는 기존 refresh readiness 뒤 현재 Bearer·cookie·JSON Accept
   assert.equal(result.csrfToken, "csrf-from-server");
   assert.equal(result.accessToken, "preview-access");
   assert.deepEqual(calls.map((call) => [call.path, call.authorization]), [
-    [`/oauth2/authorize${query}`, null],
+    [`/oauth2/authorize${query}`, "Bearer expired-access"],
     ["/api/auth/refresh", null],
     [`/oauth2/authorize${query}`, "Bearer preview-access"]
   ]);
@@ -99,6 +99,61 @@ test("preview는 기존 refresh readiness 뒤 현재 Bearer·cookie·JSON Accept
     assert.equal(call.init.credentials, "include");
     assert.equal(call.init.cache, "no-store");
     assert.equal(call.init.headers.get("Accept"), "application/json");
+  }
+});
+
+test("reload restores memory Bearer before cookie-authenticated consent returns 200", async (t) => {
+  auth.clearAuth();
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    const bearer = init.headers?.get("Authorization") ?? null;
+    calls.push([path, bearer]);
+    if (path === "/api/auth/me") return bearer
+      ? Response.json({ id: "user" })
+      : new Response(null, { status: 401 });
+    if (path === "/api/auth/refresh") return Response.json({ access_token: "restored-access" });
+    // JSESSIONID accepts this request even without a memory access token.
+    return Response.json(pending(), { headers: { "X-CSRF-TOKEN": "session-csrf" } });
+  });
+  const result = await mcp.previewMcpAuthorization("?scope=read");
+  assert.equal(result.accessToken, "restored-access");
+  assert.equal(result.accessTokenVersion, auth.getAccessTokenVersion());
+  assert.equal(result.csrfToken, "session-csrf");
+  assert.deepEqual(calls, [
+    ["/api/auth/me", null],
+    ["/api/auth/refresh", null],
+    ["/api/auth/me", "Bearer restored-access"],
+    ["/oauth2/authorize?scope=read", "Bearer restored-access"]
+  ]);
+});
+
+test("first login uses its memory token without restoring the session", async (t) => {
+  auth.saveAccessToken("login-access");
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    calls.push([path, init.headers.get("Authorization")]);
+    return Response.json(pending(), { headers: { "X-CSRF-TOKEN": "login-csrf" } });
+  });
+  const result = await mcp.previewMcpAuthorization("?scope=read");
+  assert.equal(result.accessToken, "login-access");
+  assert.deepEqual(calls, [["/oauth2/authorize?scope=read", "Bearer login-access"]]);
+  auth.clearAuth();
+  await assert.rejects(mcp.decideMcpAuthorization(result, "DENY"), { code: "AUTH_CHANGED" });
+  assert.equal(calls.length, 1);
+});
+
+test("rejected reload session requires login without requesting consent", async (t) => {
+  for (const status of [401, 403]) {
+    auth.clearAuth();
+    const calls = [];
+    const mock = t.mock.method(globalThis, "fetch", async (path) => {
+      calls.push(path);
+      return new Response(null, { status: path === "/api/auth/refresh" ? status : 401 });
+    });
+    await assert.rejects(mcp.previewMcpAuthorization("?scope=read"), { name: "LoginRequiredError" });
+    assert.deepEqual(calls, ["/api/auth/me", "/api/auth/refresh"]);
+    assert.equal(auth.getAccessToken(), null);
+    mock.mock.restore();
   }
 });
 

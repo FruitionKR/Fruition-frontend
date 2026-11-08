@@ -53,6 +53,7 @@ const aliases = {
     DocumentEditPlanPreview: () => null
   },
   "@/features/mcp-approval/lib/mcpApproval": mcpApproval,
+  "@/features/notion-import/lib/notionLinks": { documentHref: (id) => `/home?doc=${encodeURIComponent(id)}` },
   "../model/useFolderOrganizeDeselection": { useFolderOrganizeDeselection: () => [new Set(), () => {}] },
   "@/shared/lib/classNames": { cx: (...values) => values.filter(Boolean).join(" ") },
   "./AgentIcons": { AgentAssetIcon: () => null },

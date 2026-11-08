@@ -5,6 +5,8 @@ export type AgentPlanOperation = {
   sequence: number;
   tool_name: string;
   target_id: string | null;
+  /** 대상의 기대 버전. 문서·Skill 수정 제안에만 있다. */
+  base_version?: number | null;
   source_parent_id: string | null;
   destination_parent_id: string | null;
   arguments: Record<string, unknown>;
@@ -499,6 +501,7 @@ export function describePlanOperations(plan: AgentPlan, tree: PlanTreeItem[], t:
       case "rename_document": description = t("plan.describe.rename", { target, name }); break;
       case "create_document": description = t("plan.describe.createDocument", { path: createdPath }); break;
       case "apply_document_edit": description = t("plan.describe.editDocument", { target }); break;
+      case "publish_skill_definition": description = t("plan.describe.publishSkill", { name }); break;
       default: description = t("plan.describe.unsupported");
     }
     return { ...operation, description: description.normalize("NFC") };

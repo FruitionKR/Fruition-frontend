@@ -98,6 +98,7 @@ function renderAt(stepId, locale = "ko") {
     "../model/tutorialContent": content,
     "../model/useTutorial": { useTutorialProgress: () => tutorial },
     "./TutorialIcons": { TutorialIconGlyph: ({ name }) => React.createElement("svg", { "data-icon": name }) },
+    "./McpServerCommands": { McpServerCommands: () => React.createElement("div", { "data-mcp-commands": true }) },
     "./TutorialDialog.module.css": cssModule
   };
   const exports = {};

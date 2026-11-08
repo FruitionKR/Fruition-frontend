@@ -7,7 +7,7 @@ const { TUTORIAL_SECTIONS } = await import("../src/features/tutorial/model/tutor
 // 튜토리얼 구조는 TS 모델에, 문구는 tutorialContent 네임스페이스 메시지에 있다.
 const messages = (locale) => JSON.parse(readFileSync(new URL(`../src/shared/i18n/messages/${locale}/tutorialContent.json`, import.meta.url), "utf8"));
 const LOCALES = ["ko", "en"];
-const SECTION_RANGE = [8, 12];
+const SECTION_RANGE = [8, 13];
 const STEP_RANGE = [2, 5];
 const KEBAB_CASE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const ICONS = new Set(["start", "document", "upload", "pdf", "wiki", "graph", "chat", "agent", "skill", "meeting", "import", "settings", "language", "log"]);

@@ -11,6 +11,7 @@ import { cx } from "@/shared/lib/classNames";
 import { AgentAssetIcon, AgentChevronIcon, AgentMoreIcon } from "./AgentIcons";
 import styles from "./AgentChat.module.css";
 import { useTranslations } from "next-intl";
+import { TutorialDialog } from "@/features/tutorial";
 
 export type AgentPanelView = "chat" | "work";
 
@@ -56,6 +57,7 @@ export function AgentHeader({
   const tShared = useTranslations("shared");
   const [isListOpen, setIsListOpen] = useState(isSessionListInitiallyOpen);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMcpGuideOpen, setIsMcpGuideOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sessions, setSessions] = useState<ChatSessionResponse[]>([]);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
@@ -219,8 +221,19 @@ export function AgentHeader({
               >
                 {t("header.exportToDocument")}
               </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsMcpGuideOpen(true);
+                }}
+              >
+                {t("header.mcpGuide")}
+              </button>
             </div>
           )}
+          {isMcpGuideOpen && <TutorialDialog initialSectionId="mcp-connection" onClose={() => setIsMcpGuideOpen(false)} />}
         </div>
         <button type="button" className={styles["panel-action"]} aria-label={t("header.hidePanel")} onClick={onClose}>
           <SvgIcon src={sidebarToggleIcon} className={styles["panel-toggle-icon"]} />

@@ -126,7 +126,7 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
               {quote && <div><dt>{t("fees.operations")}</dt><dd>{selectedOperationCount}</dd></div>}
               <div><dt>{t("fees.unit")}</dt><dd>{money(priceSnapshot.unit_price_minor)}</dd></div>
               <div><dt>{t("fees.cap")}</dt><dd>{money(priceSnapshot.plan_cap_minor)}</dd></div>
-              <div><dt>{t("fees.maximum")}</dt><dd>{money(priceSnapshot.maximum_charge_minor)}</dd></div>
+              <div><dt>{t("fees.maximum")}</dt><dd>{priceSnapshot.maximum_charge_minor === 0 ? t("fees.free") : money(priceSnapshot.maximum_charge_minor)}</dd></div>
               <div><dt>{t("fees.currency")}</dt><dd>{priceSnapshot.currency}</dd></div>
               <div><dt>{t("fees.version")}</dt><dd>{priceSnapshot.price_version}</dd></div>
             </dl>
