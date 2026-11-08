@@ -3091,3 +3091,24 @@ button.result-link:focus-visible {
     max-height: calc(100dvh - var(--keyboard-inset, 0px) - 120px) !important;
   }
 }
+
+/* MCP Skill 정의 승인 미리보기: 서버가 확정한 값을 읽기 전용 표로 보여 준다. */
+.mcp-skill-definition {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 8px 0;
+}
+
+.mcp-skill-definition dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mcp-skill-instructions {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}

@@ -27,6 +27,7 @@ import {
   initialMcpSelectedOperationIds,
   mcpApprovalSelectionKey,
   mcpConvertedSource,
+  mcpSkillDefinition,
   mcpPriceSnapshotForSelection,
   toggleMcpOperationSelection,
   validMcpOperationSelection
@@ -297,6 +298,7 @@ export function AgentPlanTaskDetail({
                   && (run?.mcp_settlement?.forward_status === "UNKNOWN" || run?.mcp_settlement?.settlement_status === "PENDING_RECONCILIATION");
                 const existingResult = operation.existing_result;
                 const convertedSource = mcpConvertedSource(operation);
+                const skillDefinition = mcpSkillDefinition(operation);
                 const reusedExisting = Boolean(["create_document", "create_folder"].includes(operation.tool_name) && existingResult
                   && ["DOCUMENT", "FOLDER"].includes(existingResult.resource_type)
                   && existingResult.resource_id?.trim()
@@ -330,6 +332,28 @@ export function AgentPlanTaskDetail({
                   {operation.error_code === "react_tool_budget_insufficient" && <p className={styles["plan-operation-blocked"]}>{t("plan.mcpResult.budgetUnstarted")}</p>}
                   {operation.error_code === "mcp_create_pending_reconciliation" && <p className={styles["plan-operation-blocked"]}>{t("plan.mcpResult.createHeld")}</p>}
                   {reusedExisting && <p className={styles["task-card-meta"]}>{t("plan.mcpResult.existingReused")}</p>}
+                  {skillDefinition && skillDefinition !== "invalid" && <details className={styles["edit-plan-doc"]} open>
+                    <summary>{t("plan.mcpSkill.preview")}</summary>
+                    <p className={styles["task-card-meta"]}>{t("plan.mcpSkill.free")}</p>
+                    <dl className={styles["mcp-skill-definition"]}>
+                      <dt>{t("plan.mcpSkill.change")}</dt>
+                      <dd>{skillDefinition.expected_version === null ? t("plan.mcpSkill.create")
+                        : t("plan.mcpSkill.update", { from: skillDefinition.expected_version, to: skillDefinition.expected_version + 1 })}</dd>
+                      <dt>{t("plan.mcpSkill.scope")}</dt>
+                      <dd>{t(skillDefinition.scope_type === "team" ? "plan.mcpSkill.scopeTeam" : "plan.mcpSkill.scopePersonal")}</dd>
+                      <dt>{t("plan.mcpSkill.name")}</dt><dd>{skillDefinition.name.normalize("NFC")}</dd>
+                      <dt>{t("plan.mcpSkill.description")}</dt><dd>{skillDefinition.description.normalize("NFC")}</dd>
+                      <dt>{t("plan.mcpSkill.capabilities")}</dt><dd>{skillDefinition.capabilities.join(", ")}</dd>
+                      <dt>{t("plan.mcpSkill.targets")}</dt><dd>{skillDefinition.targets.join(", ") || t("plan.mcpSkill.none")}</dd>
+                      <dt>{t("plan.mcpSkill.resultMode")}</dt><dd>{skillDefinition.result_mode ?? t("plan.mcpSkill.none")}</dd>
+                      <dt>{t("plan.mcpSkill.requiresSource")}</dt>
+                      <dd>{t(skillDefinition.requires_source ? "plan.mcpSkill.yes" : "plan.mcpSkill.no")}</dd>
+                      <dt>{t("plan.mcpSkill.allowedTools")}</dt><dd>{skillDefinition.allowed_tools.join(", ") || t("plan.mcpSkill.none")}</dd>
+                    </dl>
+                    <p>{t("plan.mcpSkill.instructions")}</p>
+                    {/* 외부 AI가 쓴 지침은 신뢰하지 않는 글이라 Markdown으로 그리지 않고 글자 그대로 보여 준다. */}
+                    <pre className={styles["mcp-skill-instructions"]}>{skillDefinition.instructions_markdown}</pre>
+                  </details>}
                   {contentRow && <details className={styles["edit-plan-doc"]} open={selected}>
                     <summary>{t(operation.tool_name === "create_document" ? "plan.mcpSelection.createPreview" : "plan.mcpSelection.editPreview")}</summary>
                     <DocumentEditDiff row={contentRow} missingNote={t("plan.mcpSelection.previewMissing")} />

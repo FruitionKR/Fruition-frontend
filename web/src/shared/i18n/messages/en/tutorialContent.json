@@ -248,7 +248,7 @@
     },
     "mcp-check-tools": {
       "title": "Check the connection",
-      "body": "In your AI tool's /mcp view, check that fruition is connected and its tools are listed. Try a read-only request first, such as “Find my documents in Fruition”. When the external AI proposes a change you get an approval link; it is saved only after you review the content and maximum cost on the web approval page. Only successful changes incur the existing MCP fee shown there; the external AI's own usage is billed by that AI service."
+      "body": "In your AI tool's /mcp view, check that fruition is connected and its tools are listed. Try a read-only request first, such as “Find my documents in Fruition”. When the external AI proposes a change you get an approval link; it is saved only after you review the content and maximum cost on the web approval page. Successful document or wiki changes incur the existing MCP fee shown there (saving a Skill is free); the external AI's own usage is billed by that AI service."
     },
     "mcp-manage-connection": {
       "title": "Manage or disconnect",

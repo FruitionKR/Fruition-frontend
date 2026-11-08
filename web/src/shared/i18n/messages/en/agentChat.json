@@ -385,6 +385,7 @@
     "describe": {
       "createDocument": "Create document: {path}",
       "createFolder": "Create folder: {path}",
+      "publishSkill": "Publish Skill: {name}",
       "editDocument": "Edit document: {target}",
       "rename": "Rename: {target} → {name}",
       "root": "Top level",
@@ -418,6 +419,27 @@
       "budgetUnstarted": "This operation was not started because the execution budget was exhausted.",
       "createHeld": "Creation is on hold while an earlier uncertain matching create is reconciled. It is not shown as newly created, chargeable, or rollbackable.",
       "existingReused": "A receipt-confirmed existing result was reused. It was not newly created and is not a new charge or rollback target."
+    },
+    "mcpSkill": {
+      "preview": "Skill definition preview",
+      "change": "Change",
+      "create": "Create a new Skill",
+      "update": "Update v{from} → v{to}",
+      "scope": "Scope",
+      "scopeTeam": "Team (whole workspace)",
+      "scopePersonal": "Personal",
+      "name": "Name",
+      "description": "Description",
+      "capabilities": "Capabilities",
+      "targets": "Targets",
+      "resultMode": "Result mode",
+      "requiresSource": "Requires source",
+      "allowedTools": "Allowed tools",
+      "instructions": "Instructions (written by the external AI)",
+      "none": "None",
+      "yes": "Yes",
+      "no": "No",
+      "free": "Saving a Skill is free. Running the saved Skill incurs the normal document or wiki fees for that work."
     },
     "mcpSelection": {
       "convertedSourceLabel": "Source PDF",

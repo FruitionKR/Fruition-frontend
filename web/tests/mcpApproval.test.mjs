@@ -18,6 +18,7 @@ const {
   mcpApprovalRoute,
   mcpApprovalSelectionKey,
   mcpConvertedSource,
+  mcpSkillDefinition,
   mcpDecisionErrorKey,
   shouldPollMcpApproval,
   mcpPriceSnapshotForSelection,
@@ -118,4 +119,27 @@ test("PDF conversion create shows its pinned source and a half or malformed sour
     assert.equal(mcpConvertedSource(broken), "invalid");
     assert.deepEqual(mcpApprovalAvailability(withOperation(broken)), { available: false, reason: "unsupported_plan" });
   }
+});
+
+test("Skill definition publish is a strict single read-only operation and any drift blocks approval", () => {
+  const skillId = "00000000-0000-4000-8000-000000000009";
+  const definition = { skill_id: skillId, expected_version: 3, scope_type: "team", name: "weekly-summary", description: "요약",
+    instructions_markdown: "<script>x</script> {문서}", capabilities: ["document-edit"], allowed_tools: ["apply_document_edit"],
+    targets: ["current_document"], result_mode: "edit", requires_source: true };
+  const skill = (args, extra = {}) => ({ ...operation, tool_name: "publish_skill_definition", target_id: skillId, base_version: 3,
+    depends_on: [], arguments: { ...definition, ...args }, ...extra });
+  const withOperations = (operations) => ({ ...run, plan: { ...plan, operations } });
+
+  assert.deepEqual(mcpSkillDefinition(skill({})), definition);
+  assert.equal(mcpSkillDefinition(skill({ skill_id: null, expected_version: null }, { target_id: null, base_version: null })).expected_version, null);
+  assert.equal(mcpSkillDefinition(operation), null);
+  assert.equal(mcpApprovalAvailability(withOperations([skill({})])).available, true);
+  for (const broken of [skill({ extra: 1 }), skill({ expected_version: 4 }), skill({ scope_type: "public" }), skill({ capabilities: [] }),
+    skill({ targets: ["folder"] }), skill({ skill_id: null }), skill({}, { depends_on: ["op-0"] })]) {
+    assert.equal(mcpSkillDefinition(broken), "invalid");
+    assert.deepEqual(mcpApprovalAvailability(withOperations([broken])), { available: false, reason: "unsupported_plan" });
+  }
+  const mixed = withOperations([skill({}), { ...operation, id: "op-2", sequence: 2 }]);
+  assert.deepEqual(mcpApprovalAvailability({ ...mixed, mcp_approval_quote: { ...run.mcp_approval_quote, selected_operation_count: 2 } }),
+    { available: false, reason: "unsupported_plan" });
 });

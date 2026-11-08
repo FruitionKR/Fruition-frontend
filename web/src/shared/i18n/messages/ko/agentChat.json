@@ -385,6 +385,7 @@
     "describe": {
       "createDocument": "문서 생성: {path}",
       "createFolder": "폴더 생성: {path}",
+      "publishSkill": "Skill 게시: {name}",
       "editDocument": "문서 편집: {target}",
       "rename": "이름 변경: {target} → {name}",
       "root": "최상위",
@@ -418,6 +419,27 @@
       "budgetUnstarted": "실행 예산이 소진되어 이 작업은 시작하지 않았습니다.",
       "createHeld": "결과가 불확실한 앞선 생성과 같은 후보인지 대사하는 동안 생성을 보류합니다. 새로 생성됨·과금 대상·롤백 대상으로 표시하지 않습니다.",
       "existingReused": "영수증으로 확인된 기존 결과를 재사용했습니다. 새로 생성하지 않았으며 새 과금이나 롤백 대상이 아닙니다."
+    },
+    "mcpSkill": {
+      "preview": "Skill 정의 미리보기",
+      "change": "변경",
+      "create": "새 Skill 만들기",
+      "update": "수정 v{from} → v{to}",
+      "scope": "공개 범위",
+      "scopeTeam": "팀(워크스페이스 전체)",
+      "scopePersonal": "개인",
+      "name": "이름",
+      "description": "설명",
+      "capabilities": "기능",
+      "targets": "대상",
+      "resultMode": "결과 방식",
+      "requiresSource": "원문 필요",
+      "allowedTools": "허용 도구",
+      "instructions": "지침(외부 AI가 작성한 원문)",
+      "none": "없음",
+      "yes": "예",
+      "no": "아니요",
+      "free": "Skill 저장에는 수수료가 없어요. 저장한 Skill을 실행할 때 그 작업의 문서·위키 수수료가 붙어요."
     },
     "mcpSelection": {
       "convertedSourceLabel": "원본 PDF",

@@ -10,10 +10,48 @@ import {
 
 const MCP_PLAN_TOOLS = new Set([
   "create_folder", "create_document", "rename_folder", "rename_document",
-  "move_folder", "move_document", "apply_document_edit"
+  "move_folder", "move_document", "apply_document_edit", "publish_skill_definition"
 ]);
 const MAX_MCP_OPERATIONS = 20;
 const CONTENT_HASH = /^sha256:[0-9a-f]{64}$/;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SKILL_FIELDS = ["skill_id", "expected_version", "scope_type", "name", "description", "instructions_markdown",
+  "capabilities", "allowed_tools", "targets", "result_mode", "requires_source"];
+const SKILL_CAPABILITIES = new Set(["document-create", "document-edit", "folder-organize", "template"]);
+const SKILL_TARGETS = new Set(["current_document", "selection"]);
+
+export type McpSkillDefinition = {
+  skill_id: string | null; expected_version: number | null; scope_type: "personal" | "team";
+  name: string; description: string; instructions_markdown: string;
+  capabilities: string[]; allowed_tools: string[]; targets: string[];
+  result_mode: "create" | "edit" | "auto" | null; requires_source: boolean;
+};
+
+const strings = (value: unknown, allowed?: Set<string>): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string" && item.trim() !== "" && (!allowed || allowed.has(item)));
+
+/**
+ * 외부 AI가 제안한 Skill 정의 게시. 서버가 확정해 operation_hash로 묶은 값이라 읽기만 한다.
+ * Skill 게시가 아니면 null, 필드·형식·대상 버전이 하나라도 어긋나면 "invalid"(승인 불가).
+ */
+export function mcpSkillDefinition(operation: AgentPlanOperation): McpSkillDefinition | null | "invalid" {
+  if (operation.tool_name !== "publish_skill_definition") return null;
+  const args = operation.arguments ?? {};
+  const keys = Object.keys(args);
+  if (keys.length !== SKILL_FIELDS.length || !SKILL_FIELDS.every((key) => keys.includes(key))) return "invalid";
+  const { skill_id: skillId, expected_version: version } = args;
+  const create = skillId === null && version === null;
+  const update = typeof skillId === "string" && UUID.test(skillId) && Number.isSafeInteger(version) && (version as number) > 0;
+  if ((!create && !update) || (operation.target_id ?? null) !== skillId || (operation.base_version ?? null) !== version
+    || (operation.depends_on?.length ?? 0) > 0) return "invalid";
+  const text = (value: unknown) => typeof value === "string" && value.trim() !== "";
+  if (!["personal", "team"].includes(String(args.scope_type)) || !text(args.name) || !text(args.description)
+    || !text(args.instructions_markdown) || !strings(args.capabilities, SKILL_CAPABILITIES) || args.capabilities.length < 1
+    || !strings(args.allowed_tools) || !strings(args.targets, SKILL_TARGETS)
+    || ![null, "create", "edit", "auto"].includes(args.result_mode as string | null) || typeof args.requires_source !== "boolean") return "invalid";
+  return args as McpSkillDefinition;
+}
 
 /** PDF 변환본 생성이 고정한 원본 문서·hash. 원본 표시가 없으면 null, 한쪽만 있거나 형식이 틀리면 "invalid"(승인 불가). */
 export function mcpConvertedSource(operation: AgentPlanOperation): { documentId: string; contentHash: string } | null | "invalid" {
@@ -78,13 +116,14 @@ function validMcpPlan(plan: AgentPlan | null | undefined): plan is AgentPlan {
   for (const [index, operation] of ordered.entries()) {
     if (!operation.id?.trim() || ids.has(operation.id) || !MCP_PLAN_TOOLS.has(operation.tool_name)
       || operation.sequence !== index + 1 || sequences.has(operation.sequence)
-      || mcpConvertedSource(operation) === "invalid") return false;
+      || mcpConvertedSource(operation) === "invalid" || mcpSkillDefinition(operation) === "invalid") return false;
     const earlier = new Set(ordered.filter((candidate) => candidate.sequence < operation.sequence).map((candidate) => candidate.id));
     if (operationDependencies(operation).some((id) => !earlier.has(id))) return false;
     ids.add(operation.id);
     sequences.add(operation.sequence);
   }
-  return true;
+  // Skill 게시는 다른 작업과 섞지 않는 단일 작업 계획으로만 승인한다.
+  return !ordered.some((operation) => operation.tool_name === "publish_skill_definition") || ordered.length === 1;
 }
 
 /** 서버 권장 선택을 계획 순서로 좁히되, 의존 작업이 빠진 항목은 실행 권한으로 만들지 않는다. */
