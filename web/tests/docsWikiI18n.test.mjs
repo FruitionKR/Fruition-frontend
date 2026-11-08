@@ -227,7 +227,7 @@ test("권한 변경 알림 본문을 지금 언어로 쓴다", () => {
 });
 
 /** 이 PR이 맡은 영역. 알림 발행·API 기본 문구 검사 범위다. */
-const SCOPE = /\/(widgets\/(document-sidebar|graph|workspace|log-view|notifications-view|source-preview)|features\/(wiki-ingest|wiki-page-editing|wiki-export|document-notifications|note-editing|document-upload|document-search)|entities\/(operation-log|document|tree))\//;
+const SCOPE = /\/(widgets\/(document-sidebar|graph|workspace|log-view|notifications-view|source-preview)|features\/(wiki-ingest|wiki-export|document-notifications|note-editing|document-upload|document-search)|entities\/(operation-log|document|tree))\//;
 
 function scopeSources() {
   const root = new URL("../src/", import.meta.url);
