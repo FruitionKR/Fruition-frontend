@@ -190,7 +190,7 @@ export function SkillsView({
             </div>
             <div className={styles.actions}>
               {searchText && (
-                <button type="button" className={styles["search-chip"]} aria-label={t("view.clearSearch")} onClick={() => setSearchText("")}>
+                <button type="button" className={styles["search-chip"]} aria-label={`${t("view.searchChip", { query: searchText })}, ${t("view.clearSearch")}`} onClick={() => setSearchText("")}>
                   {t("view.searchChip", { query: searchText })}
                   <span aria-hidden>✕</span>
                 </button>

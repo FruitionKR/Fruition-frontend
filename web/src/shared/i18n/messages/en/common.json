@@ -3,5 +3,10 @@
     "label": "Language",
     "ko": "한국어",
     "en": "English"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "Please check the address. The page may have moved or been deleted.",
+    "back": "Back to the start"
   }
 }

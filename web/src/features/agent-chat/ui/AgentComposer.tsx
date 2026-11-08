@@ -336,7 +336,7 @@ export function AgentComposer({
             type="button"
             className={styles["composer-model-trigger"]}
             ref={modelTriggerRef}
-            aria-label={t("composer.model.select")}
+            aria-label={`${selectedModel?.display_name ?? emptyModelLabel}${selectedModel && allowWebSearch ? ` ${t("composer.webSearch.label")}` : ""}, ${t("composer.model.select")}`}
             aria-expanded={isModelListOpen}
             disabled={isLoading || !selectedModel}
             onClick={() => (isModelListOpen ? setIsModelListOpen(false) : openModelList())}
