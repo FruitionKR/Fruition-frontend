@@ -197,6 +197,7 @@
     }
   },
   "editor": {
+    "bodyLabel": "문서 본문",
     "lockLostTitle": "편집 권한 상실",
     "readOnlyNotice": "{reason} 읽기 전용으로 열었습니다.",
     "overwritten": {
