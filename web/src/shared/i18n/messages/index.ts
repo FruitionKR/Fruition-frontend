@@ -14,6 +14,7 @@ import koSkills from "./ko/skills.json";
 import koWiki from "./ko/wiki.json";
 import koWorkspace from "./ko/workspace.json";
 import koShared from "./ko/shared.json";
+import koTutorial from "./ko/tutorial.json";
 import koTutorialContent from "./ko/tutorialContent.json";
 import enAgentChat from "./en/agentChat.json";
 import enAuth from "./en/auth.json";
@@ -30,6 +31,7 @@ import enSkills from "./en/skills.json";
 import enWiki from "./en/wiki.json";
 import enWorkspace from "./en/workspace.json";
 import enShared from "./en/shared.json";
+import enTutorial from "./en/tutorial.json";
 import enTutorialContent from "./en/tutorialContent.json";
 
 /**
@@ -52,6 +54,7 @@ const ko = {
   documents: koDocuments,
   shared: koShared,
   agentChat: koAgentChat,
+  tutorial: koTutorial,
   tutorialContent: koTutorialContent
 };
 
@@ -75,6 +78,7 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     documents: enDocuments,
     shared: enShared,
     agentChat: enAgentChat,
+    tutorial: enTutorial,
     tutorialContent: enTutorialContent
   }
 };
