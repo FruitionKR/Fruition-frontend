@@ -670,6 +670,12 @@ export function NoteEditor({
       const guardPaste = createExternalImagePasteHandler((markdown) => ctx.get(parserCtx)(markdown), notifyBlocked);
       ctx.update(editorViewOptionsCtx, (previous) => ({
         ...previous,
+        attributes: (state) => ({
+          ...(typeof previous.attributes === "function" ? previous.attributes(state) : previous.attributes),
+          role: "textbox",
+          "aria-label": textRef.current.t("bodyLabel"),
+          "aria-multiline": "true"
+        }),
         handlePaste: (view, event, slice) => guardPaste(view, event, slice) || (previous.handlePaste?.(view, event, slice) ?? false)
       }));
       configureMarkdownMath(ctx);

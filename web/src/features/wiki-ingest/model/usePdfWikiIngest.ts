@@ -75,7 +75,7 @@ export function usePdfWikiIngest(
     // 변환 권한이 없으면 403이 날 요청을 보내지 않고 같은 이유로 실패시킨다(호출부가 실패 알림에 싣는다).
     if (!canConvertDocument(document)) throw new Error(tAccess("convertForbidden"));
     const storageKey = storageKeyRef.current;
-    const converted = await convertDocumentToMarkdown(document.id, { openWhenReady: false });
+    const converted = await convertDocumentToMarkdown(document.id);
     updatePending((current) => [
       ...current.filter((task) => task.documentId !== converted.id),
       { documentId: converted.id, filename: document.filename }

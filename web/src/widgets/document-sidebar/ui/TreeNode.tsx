@@ -327,7 +327,7 @@ export function TreeNode({
           href={buildWorkspaceHref({ kind: "document", documentId: relatedDocumentId })}
           prefetch={false}
           draggable={false}
-          aria-label={conversionDescription}
+          aria-label={`${conversionLabel}, ${conversionDescription}`}
           onClick={(event) => {
             event.stopPropagation();
             if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) interaction.onClearSelectedItems();
