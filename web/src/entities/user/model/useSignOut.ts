@@ -24,7 +24,7 @@ export function useSignOut() {
       // 사용자 범위 react-query 캐시(me·workspaces 등)를 비워 다음 로그인에 이전 사용자 데이터가 남지 않게 한다.
       queryClient.clear();
       clearAuth();
-      // 서버 로그아웃이 실패해 refresh 쿠키가 남아도 랜딩이 곧장 앱으로 되돌려 보내지 않게 표시한다.
+      // 서버 로그아웃이 실패해 refresh 쿠키가 남아도 로그인 화면이 곧장 앱으로 되돌려 보내지 않게 표시한다.
       if (options?.reason === "user") markSignedOutByUser();
       router.replace(signOutDestination(options?.reason));
     },
