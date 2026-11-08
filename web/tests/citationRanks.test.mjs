@@ -141,3 +141,35 @@ test("citableRanks 없이 렌더하면 숫자 괄호를 원문으로 둔다", ()
   assert.deepEqual(buttons(html), []);
   assert.match(html, /근거\[1, 2\]/);
 });
+
+for (const [mode, props] of [
+  ["인용 답변", {}],
+  ["문서·미리보기", { citationRankMap: undefined, citableRanks: undefined }]
+]) {
+  for (const [markdown, expected] of [
+    ["완료율은 **9 ÷ 12 = 75%**입니다.", "완료율은 <strong>9 ÷ 12 = 75%</strong>입니다."],
+    ["**총 12건**이며", "<strong>총 12건</strong>이며"],
+    ["**“인용”**을", "<strong>“인용”</strong>을"],
+    ["**bold**word", "<strong>bold</strong>word"],
+    ["**75%**word", "**75%**word"]
+  ]) {
+    test(`${mode}: ${markdown} 강조 경계를 렌더링한다`, () => {
+      assert.ok(render(markdown, props).includes(expected));
+    });
+  }
+
+  test(`${mode}: 코드 블록·인라인 코드·이스케이프의 별표는 보존한다`, () => {
+    const html = render("```text\n**75%**입니다[2]\n```\n\n`**75%**입니다[2]`\n\n\\*\\*75%\\*\\*입니다", props);
+    assert.match(html, /<code class="language-text">\*\*75%\*\*입니다\[2\]\n<\/code>/);
+    assert.match(html, /<code>\*\*75%\*\*입니다\[2\]<\/code>/);
+    assert.match(html, /<p>\*\*75%\*\*입니다<\/p>/);
+    assert.doesNotMatch(html, /<strong>/);
+    assert.deepEqual(buttons(html), []);
+  });
+}
+
+test("굵은 백분율 바로 뒤 인용은 강조 밖의 버튼으로 남고 대표 번호를 따른다", () => {
+  const html = render("**75%**[2]");
+  assert.match(html, /<strong>75%<\/strong><button[^>]*>\[1\]<\/button>/);
+  assert.deepEqual(buttons(html), [1]);
+});
