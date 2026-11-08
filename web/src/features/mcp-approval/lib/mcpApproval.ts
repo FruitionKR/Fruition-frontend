@@ -13,6 +13,18 @@ const MCP_PLAN_TOOLS = new Set([
   "move_folder", "move_document", "apply_document_edit"
 ]);
 const MAX_MCP_OPERATIONS = 20;
+const CONTENT_HASH = /^sha256:[0-9a-f]{64}$/;
+
+/** PDF 변환본 생성이 고정한 원본 문서·hash. 원본 표시가 없으면 null, 한쪽만 있거나 형식이 틀리면 "invalid"(승인 불가). */
+export function mcpConvertedSource(operation: AgentPlanOperation): { documentId: string; contentHash: string } | null | "invalid" {
+  const args = operation.arguments ?? {};
+  if (!("source_document_id" in args) && !("source_content_hash" in args)) return null;
+  const { source_document_id: documentId, source_content_hash: contentHash } = args;
+  return operation.tool_name === "create_document" && typeof documentId === "string" && documentId.trim()
+    && typeof contentHash === "string" && CONTENT_HASH.test(contentHash)
+    ? { documentId, contentHash }
+    : "invalid";
+}
 
 export function mcpApprovalRoute(workspaceId: string, runId: string): string {
   return `/mcp/workspaces/${encodeURIComponent(workspaceId)}/runs/${encodeURIComponent(runId)}`;
@@ -65,7 +77,8 @@ function validMcpPlan(plan: AgentPlan | null | undefined): plan is AgentPlan {
   const sequences = new Set<number>();
   for (const [index, operation] of ordered.entries()) {
     if (!operation.id?.trim() || ids.has(operation.id) || !MCP_PLAN_TOOLS.has(operation.tool_name)
-      || operation.sequence !== index + 1 || sequences.has(operation.sequence)) return false;
+      || operation.sequence !== index + 1 || sequences.has(operation.sequence)
+      || mcpConvertedSource(operation) === "invalid") return false;
     const earlier = new Set(ordered.filter((candidate) => candidate.sequence < operation.sequence).map((candidate) => candidate.id));
     if (operationDependencies(operation).some((id) => !earlier.has(id))) return false;
     ids.add(operation.id);

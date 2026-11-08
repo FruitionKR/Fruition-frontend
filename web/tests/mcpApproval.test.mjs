@@ -17,6 +17,7 @@ const {
   mcpApprovalQueryKey,
   mcpApprovalRoute,
   mcpApprovalSelectionKey,
+  mcpConvertedSource,
   mcpDecisionErrorKey,
   shouldPollMcpApproval,
   mcpPriceSnapshotForSelection,
@@ -100,4 +101,21 @@ test("approval errors distinguish hard denial from an ambiguous result that need
   assert.equal(mcpDecisionErrorKey({ status: 503, code: "MCP_PRICE_UNCONFIGURED" }), "price");
   assert.equal(mcpDecisionErrorKey({ status: 504 }), "ambiguous");
   assert.equal(mcpDecisionErrorKey(new TypeError("Failed to fetch")), "ambiguous");
+});
+
+test("PDF conversion create shows its pinned source and a half or malformed source pair blocks approval", () => {
+  const hash = `sha256:${"b".repeat(64)}`;
+  const convert = (args) => ({ ...operation, tool_name: "create_document", target_id: null,
+    arguments: { display_name: "x", folder_id: null, content_artifact_id: "artifact-1", content_hash: hash, ...args } });
+  const withOperation = (op) => ({ ...run, plan: { ...plan, operations: [op] } });
+  const valid = convert({ source_document_id: "doc_pdf", source_content_hash: hash });
+
+  assert.deepEqual(mcpConvertedSource(valid), { documentId: "doc_pdf", contentHash: hash });
+  assert.equal(mcpConvertedSource(convert({})), null);
+  assert.equal(mcpApprovalAvailability(withOperation(valid)).available, true);
+  for (const broken of [convert({ source_document_id: "doc_pdf" }), convert({ source_document_id: "doc_pdf", source_content_hash: "sha256:XYZ" }),
+    { ...operation, arguments: { source_document_id: "doc_pdf", source_content_hash: hash } }]) {
+    assert.equal(mcpConvertedSource(broken), "invalid");
+    assert.deepEqual(mcpApprovalAvailability(withOperation(broken)), { available: false, reason: "unsupported_plan" });
+  }
 });

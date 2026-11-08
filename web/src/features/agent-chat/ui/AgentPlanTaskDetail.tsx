@@ -25,6 +25,7 @@ import { agentChatErrorMessage } from "../lib/agentChatError";
 import {
   initialMcpSelectedOperationIds,
   mcpApprovalSelectionKey,
+  mcpConvertedSource,
   mcpPriceSnapshotForSelection,
   toggleMcpOperationSelection,
   validMcpOperationSelection
@@ -294,6 +295,7 @@ export function AgentPlanTaskDetail({
                 const attemptedUnknown = operation.status === "running"
                   && (run?.mcp_settlement?.forward_status === "UNKNOWN" || run?.mcp_settlement?.settlement_status === "PENDING_RECONCILIATION");
                 const existingResult = operation.existing_result;
+                const convertedSource = mcpConvertedSource(operation);
                 const reusedExisting = Boolean(["create_document", "create_folder"].includes(operation.tool_name) && existingResult
                   && ["DOCUMENT", "FOLDER"].includes(existingResult.resource_type)
                   && existingResult.resource_id?.trim()
@@ -311,6 +313,9 @@ export function AgentPlanTaskDetail({
                     <strong>{operation.description}</strong>
                   </label>
                   {operation.reason && <p>{operation.reason.normalize("NFC")}</p>}
+                  {convertedSource && convertedSource !== "invalid" && <p className={styles["task-card-meta"]}>
+                    {t("plan.mcpSelection.convertedSource", convertedSource)}
+                  </p>}
                   {operation.warning?.message?.trim() && <p className={styles["plan-operation-blocked"]}>{operation.warning.message.trim().normalize("NFC")}</p>}
                   {operation.depends_on && operation.depends_on.length > 0 && <p>{t("plan.mcpSelection.requires", { count: operation.depends_on.length })}</p>}
                   {access?.blockedOperationIds.has(operation.id) && <p className={styles["plan-operation-blocked"]}>{t("plan.access.operationBlocked")}</p>}
