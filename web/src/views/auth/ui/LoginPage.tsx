@@ -21,7 +21,7 @@ import {
 } from "@/entities/user";
 import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
 import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
-import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
+import { isSignedOutByUser, saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
@@ -90,7 +90,8 @@ function LoginPageContent() {
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
   // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)을 처리하는 동안은 그 처리가 우선이라 건너뛴다.
   // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
-  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: canCheckSession && !mfaToken && !signupToken && !isAccountDeleted });
+  // 방금 직접 로그아웃한 사용자는 서버 로그아웃이 실패해 refresh 쿠키가 남았더라도 방금 나온 계정으로 되돌려 보내지 않는다.
+  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: canCheckSession && !mfaToken && !signupToken && !isAccountDeleted && !isSignedOutByUser() });
 
   const formRef = useTypedFormValues({ email: setEmail, password: setPassword });
 
