@@ -28,6 +28,35 @@ function events(text) {
   return new Response(text, { headers: { "Content-Type": "text/event-stream" } });
 }
 
+test("질의 접수 후 작업자가 시작되기 전에는 준비 안내를 표시하고 첫 진행에서 해제한다", async (t) => {
+  setup(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let stream;
+  let opened;
+  let progressed;
+  const streamOpened = new Promise((resolve) => { opened = resolve; });
+  const firstStage = new Promise((resolve) => { progressed = resolve; });
+  const notices = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (init.method === "POST") return Response.json({ request_id: run.requestId, status: "pending" });
+    if (path.endsWith("/events")) return new Response(new ReadableStream({ start(controller) { stream = controller; opened(); } }));
+    return Response.json({ status: "completed", result: { answer: "답변" } });
+  });
+  const pending = runQueryStream("질문", model, { onStage: () => progressed(), onWaiting: (value) => notices.push(value) });
+  await streamOpened;
+  t.mock.timers.tick(5000);
+  assert.deepEqual(notices, [true]);
+  const encoder = new TextEncoder();
+  stream.enqueue(encoder.encode('event: query.log\ndata: {"stage":"query_started","message":"시작","sequence":1}\n\n'));
+  await firstStage;
+  assert.deepEqual(notices, [true, false]);
+  stream.enqueue(encoder.encode("event: query.completed\ndata: {}\n\n"));
+  stream.close();
+  assert.equal((await pending).answer, "답변");
+  t.mock.timers.tick(10000);
+  assert.deepEqual(notices, [true, false]);
+});
+
 test("다른 탭의 활성 세션이 바뀌어도 질의는 명시한 채팅 세션에 저장한다", async (t) => {
   setup(t);
   setActiveChatSession("work-session");

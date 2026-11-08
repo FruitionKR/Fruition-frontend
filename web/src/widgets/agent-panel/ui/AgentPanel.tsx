@@ -17,6 +17,7 @@ import { isCapturingPhase, MeetingListView, MeetingNotesView, RecordingFileInput
 import { MarkdownCreatePreview } from "@/features/agent-chat/ui/MarkdownCreatePreview";
 import { MarkdownEditPreview } from "@/features/agent-chat/ui/MarkdownEditPreview";
 import { AgentTaskBody } from "@/features/agent-chat/ui/AgentTaskBody";
+import { AI_PREPARATION_MESSAGE } from "@/shared/lib/runPreparationNotice";
 import {
   hasBlockingPendingMessages,
   isPendingAgentTurnMessage,
@@ -840,7 +841,7 @@ export function AgentPanel({
             pendingTask={isAgentTurnLoading && agentTurnRequest ? {
               request: agentTurnRequest.message,
               stages: agentTurn.agentStages,
-              notice: agentTurn.isAgentTurnSlow ? t("turn.slow") : null,
+              notice: agentTurn.isAgentTurnSlow ? t("turn.slow") : agentTurn.isAgentTurnPreparing ? AI_PREPARATION_MESSAGE : null,
               turnId: agentTurn.requestTurnId
             } : skillRun && waitingSkillRun ? {
               request: skillRun.message,

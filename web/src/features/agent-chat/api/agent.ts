@@ -2,6 +2,7 @@ import { analyticsSessionHeaders } from "@/shared/lib/analytics/client";
 import { apiFetch, parseJsonOrThrow, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import { ApiError, isAiUsageLimitError } from "@/shared/lib/apiErrors";
 import { readRunEvents, RunFailedError, type RunStageEvent } from "@/shared/lib/runEventStream";
+import { startRunPreparationNotice } from "@/shared/lib/runPreparationNotice";
 import { followAgentTurn } from "@/features/agent-chat/lib/turnFollow";
 import { isPurgedEditTurn, type AgentTurnRequest, type AgentTurnResponse } from "@/features/agent-chat/lib/agentTurn";
 import type { StalledTurnCancelResult, TurnCheckResult } from "../lib/stalledTurns";
@@ -42,6 +43,7 @@ type AgentTurnHandlers = {
   onAccepted?: (requestId: string) => void;
   /** 진행 연결이 끊겨 조회로 확인하는 중일 때. 화면은 빨간 오류 대신 기다림 안내를 보여 준다. */
   onSlow?: () => void;
+  onWaiting?: (waiting: boolean) => void;
 };
 
 /**
@@ -89,20 +91,24 @@ export function resumeAgentTurn(
 function followAgentTurnRun(workspaceId: string, turnId: string, handlers: AgentTurnHandlers): Promise<AgentTurnResponse> {
   const { signal } = handlers;
   const path = workspacePath(workspaceId, "agent", "turn", turnId);
+  const stopWaiting = startRunPreparationNotice(handlers.onWaiting, signal);
   return followAgentTurn({
     readEvents: async () => {
       const events = await apiFetch(`${path}/events`, {
         headers: { Accept: "text/event-stream" }, cache: "no-store", signal
       });
       if (!events.ok || !events.body) throw await parseApiError(events, ERROR_MESSAGES.agentTurnFailed);
-      return readRunEvents(events, handlers.onStage, ERROR_MESSAGES.agentTurnFailed);
+      return readRunEvents(events, (event) => {
+        stopWaiting();
+        handlers.onStage(event);
+      }, ERROR_MESSAGES.agentTurnFailed).finally(stopWaiting);
     },
     fetchTerminal: () => fetchTerminalTurn(path, signal),
     isFatal: isFatalTurnError,
-    onSlow: handlers.onSlow,
+    onSlow: () => { stopWaiting(); handlers.onSlow?.(); },
     signal,
     cancelledMessage: AGENT_TURN_CANCELLED_MESSAGE
-  });
+  }).finally(stopWaiting);
 }
 
 /**

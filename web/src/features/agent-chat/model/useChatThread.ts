@@ -8,6 +8,7 @@ import { fetchMessagesForRequest } from "../lib/chatMessagesForRequest";
 import { getErrorMessage, isInsufficientCreditError } from "@/shared/lib/apiErrors";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { mergeQueryAnswer } from "../lib/queryAnswerMessages";
+import { AI_PREPARATION_MESSAGE } from "@/shared/lib/runPreparationNotice";
 import { hasBlockingPendingMessages } from "../lib/stalledTurns";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
 import type { QueryRelatedPageResponse } from "@/entities/wiki/model/wiki";
@@ -203,6 +204,11 @@ export function useChatThread(activeSessionId?: string | null, releasedTurnIds: 
         sessionContext,
         allowWebSearch,
         signal: request.controller.signal,
+        onWaiting: (waiting) => {
+          if (activeQueryRef.current === request && !request.cancelRequested) {
+            setQueryStatusMessage(waiting ? AI_PREPARATION_MESSAGE : null);
+          }
+        },
         onStarted: (run) => {
           request.run = run;
           if (request.cancelRequested && activeQueryRef.current === request) cancelQuery();
