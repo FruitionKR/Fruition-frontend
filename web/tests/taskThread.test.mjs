@@ -749,3 +749,20 @@ test("끝난 편집 턴의 본문이 지워졌거나 document_purged로 닫혔�
   assert.equal(isPurgedEditTurn({ status: "completed", result: { action: "clarify" } }), false);
   assert.equal(isPurgedEditTurn({ status: "pending" }), false);
 });
+
+for (const answer of ["설정 → AI 설정 → 웹 검색 기본으로 켜기", "Settings → AI settings → Turn on web search by default"]) {
+  test(`사용법 안내는 새로고침 후 작업 탭에 본문으로 남는다: ${answer}`, () => {
+    const messages = [
+      message({ id: "u", role: "user", content: "Fruition help", pair_id: "help" }),
+      message({ id: "a", role: "assistant", content: answer, status: "completed", pair_id: "help", run_id: "agent_help", action: "product_help" })
+    ];
+    assert.equal(classifySessionChannel(messages), "work");
+    const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
+    assert.equal(chatMessages.length, 0);
+    assert.equal(taskItems.length, 1);
+    assert.equal(taskItems[0].answer, answer);
+    assert.equal(isAnswerTask(taskItems[0]), true);
+    assert.equal(resolveSubmitRoute("chat", "Fruition help"), "query");
+    assert.equal(resolveSubmitRoute("work", "Fruition help"), "task");
+  });
+}

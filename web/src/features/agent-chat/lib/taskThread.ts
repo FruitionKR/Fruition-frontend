@@ -403,7 +403,7 @@ export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "requ
 
 /** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회와 대화형 답변(첨부 문서를 근거로 한 답 등)은 답이 곧 결과다. */
 export function isAnswerTask(item: Pick<TaskMessageItem, "action" | "messageStatus" | "answer">): boolean {
-  const isAnswerAction = item.action === "folder_lookup" || (item.action !== null && CHAT_ANSWER_ACTIONS.has(item.action));
+  const isAnswerAction = item.action === "product_help" || item.action === "folder_lookup" || (item.action !== null && CHAT_ANSWER_ACTIONS.has(item.action));
   return isAnswerAction && item.messageStatus === "completed" && item.answer !== "";
 }
 
