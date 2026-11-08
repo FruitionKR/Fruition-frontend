@@ -77,6 +77,33 @@ test("en 문구에 한글이 없다", () => {
   }
 });
 
+// 위키는 LLM이 정리한 내용이라 사용자가 직접 고치지 않는다. 위키를 직접 편집한다는 안내가 다시 들어오지 않게 막는다.
+const WIKI_DIRECT_EDIT = {
+  ko: [/직접\s*(편집|고치|고쳐|수정)/, /위키\s*(페이지)?.{0,12}['‘]?편집['’]?\s*을\s*누르/],
+  en: [/wiki edits?\b/i, /edit (a|the|your) wiki page/i, /edit.{0,20}wiki page/i]
+};
+
+test("위키 직접 편집 단계가 없다", () => {
+  assert.ok(!allSteps().some((step) => step.id === "edit-wiki-page"), "edit-wiki-page");
+});
+
+for (const locale of LOCALES) {
+  test(`${locale}: 위키를 직접 편집한다는 문구가 없다`, () => {
+    const all = messages(locale);
+    for (const key of flatten(all)) {
+      const text = key.split(".").reduce((value, part) => value[part], all);
+      for (const pattern of WIKI_DIRECT_EDIT[locale]) assert.doesNotMatch(text, pattern, key);
+    }
+  });
+}
+
+test("시작하기 섹션에서 위키가 채팅 답변의 근거이고 질문 전에 편입해야 한다고 알린다", () => {
+  const gettingStarted = TUTORIAL_SECTIONS.find((section) => section.id === "getting-started");
+  assert.ok(gettingStarted.steps.some((step) => step.id === "wiki-basics"), "getting-started에 wiki-basics");
+  const { body } = messages("ko").steps["wiki-basics"];
+  for (const word of ["LLM", "채팅 답변", "편입"]) assert.ok(body.includes(word), word);
+});
+
 test("ko 단계 본문은 해요체 2~4문장이다", () => {
   const { steps } = messages("ko");
   for (const step of allSteps()) {

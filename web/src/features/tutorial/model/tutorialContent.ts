@@ -28,7 +28,7 @@ export const TUTORIAL_SECTIONS: TutorialSection[] = [
   {
     id: "getting-started",
     icon: "start",
-    steps: [{ id: "choose-workspace" }, { id: "screen-layout" }, { id: "chat-panel-tabs", icon: "chat" }]
+    steps: [{ id: "choose-workspace" }, { id: "wiki-basics", icon: "wiki" }, { id: "screen-layout" }, { id: "chat-panel-tabs", icon: "chat" }]
   },
   {
     id: "documents",
@@ -60,7 +60,7 @@ export const TUTORIAL_SECTIONS: TutorialSection[] = [
   {
     id: "graph",
     icon: "graph",
-    steps: [{ id: "graph-nodes" }, { id: "graph-explore" }, { id: "edit-wiki-page", icon: "wiki" }]
+    steps: [{ id: "graph-nodes" }, { id: "graph-explore" }]
   },
   {
     id: "chat",
