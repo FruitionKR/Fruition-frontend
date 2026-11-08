@@ -63,7 +63,8 @@ test("server-attributed 1..20 supported operations with an exact KRW quote are a
   assert.equal(validMcpPriceSnapshot({ ...price, currency: "mKRW" }), false, "ledger milli-KRW is not a browser quote");
   assert.equal(validMcpPriceSnapshot({ ...price, maximum_charge_minor: undefined }), false, "missing amounts never default to zero");
   assert.equal(validMcpPriceSnapshot({ ...price, unit_price_minor: 0 }), false, "zero price fails closed");
-  assert.equal(mcpPriceSnapshotForSelection({ client_name: "client", selected_operation_count: 1, price_snapshot: { ...price, unit_price_minor: Number.MAX_SAFE_INTEGER } }, ["one", "two"]), null, "unsafe multiplication fails closed");
+  assert.equal(mcpPriceSnapshotForSelection({ client_name: "client", selected_operation_count: 1, price_snapshot: { ...price, unit_price_minor: Number.MAX_SAFE_INTEGER } }, ["one", "two"],
+    { operations: [{ ...operation, id: "one" }, { ...operation, id: "two" }] }), null, "unsafe multiplication fails closed");
   assert.deepEqual(mcpApprovalAvailability({ ...run, plan: { ...plan, operations: [{ ...operation, suggested_selected: false }] } }), {
     available: true,
     priceSnapshot: { ...price, maximum_charge_minor: 0 }
@@ -82,7 +83,7 @@ test("selection starts from deterministic warnings, stays dependency-closed, and
   assert.equal(validMcpOperationSelection(dependencyPlan, ["folder", "document"]), true);
   assert.equal(validMcpOperationSelection(dependencyPlan, ["document"]), false);
   assert.equal(validMcpOperationSelection(dependencyPlan, ["document", "folder"]), false, "request order is canonical plan order");
-  assert.deepEqual(mcpPriceSnapshotForSelection(run.mcp_approval_quote, ["folder", "document"]), { ...price, maximum_charge_minor: 200 });
+  assert.deepEqual(mcpPriceSnapshotForSelection(run.mcp_approval_quote, ["folder", "document"], dependencyPlan), { ...price, maximum_charge_minor: 200 });
 });
 
 test("terminal execution keeps polling while forwarding or settlement remains uncertain", () => {
@@ -133,7 +134,12 @@ test("Skill definition publish is a strict single read-only operation and any dr
   assert.deepEqual(mcpSkillDefinition(skill({})), definition);
   assert.equal(mcpSkillDefinition(skill({ skill_id: null, expected_version: null }, { target_id: null, base_version: null })).expected_version, null);
   assert.equal(mcpSkillDefinition(operation), null);
-  assert.equal(mcpApprovalAvailability(withOperations([skill({})])).available, true);
+  // Skill 정의 저장만 있는 계획은 단가·상한은 그대로, 최대 청구액 0으로 승인한다.
+  const free = withOperations([skill({})]);
+  free.mcp_approval_quote = { ...free.mcp_approval_quote, price_snapshot: { ...price, maximum_charge_minor: 0 } };
+  assert.deepEqual(mcpApprovalAvailability(free), { available: true, priceSnapshot: { ...price, maximum_charge_minor: 0 } });
+  assert.deepEqual(mcpApprovalAvailability(withOperations([skill({})])), { available: false, reason: "quote_mismatch" },
+    "a nonzero quote for a free Skill save is a mismatch, not a charge");
   for (const broken of [skill({ extra: 1 }), skill({ expected_version: 4 }), skill({ scope_type: "public" }), skill({ capabilities: [] }),
     skill({ targets: ["folder"] }), skill({ skill_id: null }), skill({}, { depends_on: ["op-0"] })]) {
     assert.equal(mcpSkillDefinition(broken), "invalid");

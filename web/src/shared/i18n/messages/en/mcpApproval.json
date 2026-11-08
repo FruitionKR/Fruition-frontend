@@ -15,6 +15,7 @@
     "unit": "Unit price",
     "cap": "Per-approval cap",
     "maximum": "Maximum charge",
+    "free": "Free (₩0)",
     "currency": "Currency",
     "version": "Price version",
     "scope": "This cap applies to this approval only, not the conversation total. The displayed server quote is bound to approval.",

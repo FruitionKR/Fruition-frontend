@@ -83,7 +83,8 @@ export function validMcpPriceSnapshot(value: unknown): value is McpPriceSnapshot
   const price = value as Partial<McpPriceSnapshot>;
   return validMoney(price.unit_price_minor)
     && validMoney(price.plan_cap_minor)
-    && validMoney(price.maximum_charge_minor)
+    // Skill 정의 저장만 고른 계획은 무료라 최대 청구액이 0일 수 있다. 단가·상한은 그대로 양수다.
+    && typeof price.maximum_charge_minor === "number" && Number.isSafeInteger(price.maximum_charge_minor) && price.maximum_charge_minor >= 0
     && price.currency === "KRW"
     && typeof price.price_version === "string"
     && price.price_version.trim().length > 0;
@@ -182,16 +183,21 @@ export function validMcpOperationSelection(plan: AgentPlan, operationIds: readon
     .every((operation) => operationDependencies(operation).every((id) => selected.has(id)));
 }
 
-export function mcpPriceSnapshotForSelection(quote: McpApprovalQuote, operationIds: readonly string[]): McpPriceSnapshot | null {
+/** Skill 정의 저장은 수수료 대상이 아니다. 나머지 고른 작업 수로 최대 청구액을 계산한다. */
+const FREE_MCP_TOOLS = new Set(["publish_skill_definition"]);
+
+export function mcpPriceSnapshotForSelection(quote: McpApprovalQuote, operationIds: readonly string[], plan: AgentPlan): McpPriceSnapshot | null {
   if (!validMcpPriceSnapshot(quote.price_snapshot) || operationIds.length > MAX_MCP_OPERATIONS) return null;
   const { unit_price_minor, plan_cap_minor, currency, price_version } = quote.price_snapshot;
-  if (operationIds.length > 0 && unit_price_minor > Number.MAX_SAFE_INTEGER / operationIds.length) return null;
+  const selected = new Set(operationIds);
+  const billable = plan.operations.filter((operation) => selected.has(operation.id) && !FREE_MCP_TOOLS.has(operation.tool_name)).length;
+  if (billable > 0 && unit_price_minor > Number.MAX_SAFE_INTEGER / billable) return null;
   return {
     unit_price_minor,
     plan_cap_minor,
     currency,
     price_version,
-    maximum_charge_minor: Math.min(unit_price_minor * operationIds.length, plan_cap_minor)
+    maximum_charge_minor: Math.min(unit_price_minor * billable, plan_cap_minor)
   };
 }
 
@@ -216,11 +222,11 @@ export function mcpApprovalAvailability(run: AgentPlanRun | null | undefined): M
     return { available: false, reason: "quote_mismatch" };
   }
   const quotedIds = run.plan.operations.slice(0, selectedOperationCount).map((operation) => operation.id);
-  const quotedPrice = mcpPriceSnapshotForSelection(quote, quotedIds);
+  const quotedPrice = mcpPriceSnapshotForSelection(quote, quotedIds, run.plan);
   if (!quotedPrice || quotedPrice.maximum_charge_minor !== priceSnapshot.maximum_charge_minor) {
     return { available: false, reason: "quote_mismatch" };
   }
-  const selectedPrice = mcpPriceSnapshotForSelection(quote, initialMcpSelectedOperationIds(run.plan));
+  const selectedPrice = mcpPriceSnapshotForSelection(quote, initialMcpSelectedOperationIds(run.plan), run.plan);
   return selectedPrice ? { available: true, priceSnapshot: selectedPrice } : { available: false, reason: "quote_mismatch" };
 }
 

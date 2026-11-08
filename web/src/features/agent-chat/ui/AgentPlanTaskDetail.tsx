@@ -139,8 +139,8 @@ export function AgentPlanTaskDetail({
   const [mcpSelectionNotice, setMcpSelectionNotice] = useState<string | null>(null);
   const selectedMcpOperationIds = mcpSelection.key === mcpSelectionKey ? mcpSelection.ids : initialMcpSelection;
   const mcpPriceSnapshot = useMemo(
-    () => mcpQuote ? mcpPriceSnapshotForSelection(mcpQuote, selectedMcpOperationIds) : null,
-    [mcpQuote, selectedMcpOperationIds]
+    () => mcpQuote && plan ? mcpPriceSnapshotForSelection(mcpQuote, selectedMcpOperationIds, plan) : null,
+    [mcpQuote, selectedMcpOperationIds, plan]
   );
   const mcpSelectionValid = Boolean(plan && mcpContext && validMcpOperationSelection(plan, selectedMcpOperationIds));
   const mutation = useMutation({
