@@ -1,6 +1,12 @@
-import { WORKSPACE_PERMISSION_LABELS, type WorkspacePermission } from "./apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+import { WORKSPACE_PERMISSION_LABELS, WORKSPACE_PERMISSION_MESSAGE_IDS, type WorkspacePermission } from "./apiErrors";
 
-export { findRequiredPermission, workspacePermissionLabel, type WorkspacePermission } from "./apiErrors";
+export {
+  findRequiredPermission,
+  localizedWorkspacePermissionLabel,
+  workspacePermissionLabel,
+  type WorkspacePermission
+} from "./apiErrors";
 
 /**
  * 워크스페이스 멤버 권한 항목(access #32, ADR 0019). OWNER는 항상 전부 가지고, MEMBER는 OWNER가 부여한 항목만 가진다.
@@ -16,8 +22,18 @@ const WORKSPACE_PERMISSION_DESCRIPTIONS: Record<WorkspacePermission, string> = {
 
 export const ALL_WORKSPACE_PERMISSIONS = Object.keys(WORKSPACE_PERMISSION_LABELS) as readonly WorkspacePermission[];
 
-export const WORKSPACE_PERMISSIONS: readonly { value: WorkspacePermission; label: string; description: string }[] =
+type WorkspacePermissionItem = { value: WorkspacePermission; label: string; description: string };
+
+export const WORKSPACE_PERMISSIONS: readonly WorkspacePermissionItem[] =
   ALL_WORKSPACE_PERMISSIONS.map((value) => ({ value, label: WORKSPACE_PERMISSION_LABELS[value], description: WORKSPACE_PERMISSION_DESCRIPTIONS[value] }));
+
+/** 설정 화면용 권한 목록을 지금 언어로 만든다(shared.permissions.*). 순서는 WORKSPACE_PERMISSIONS와 같다. */
+export function localizedWorkspacePermissions(t: SharedTranslate): readonly WorkspacePermissionItem[] {
+  return ALL_WORKSPACE_PERMISSIONS.map((value) => {
+    const id = WORKSPACE_PERMISSION_MESSAGE_IDS[value];
+    return { value, label: t(`permissions.${id}.label`), description: t(`permissions.${id}.description`) };
+  });
+}
 
 /**
  * 본인이 이 워크스페이스에서 그 권한을 가졌는지. OWNER는 항상 가지고, MEMBER는 부여된 항목만 가진다.

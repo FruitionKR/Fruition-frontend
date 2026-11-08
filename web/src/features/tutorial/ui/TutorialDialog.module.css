@@ -1,0 +1,578 @@
+/* 사용 방법 모달. 설정 화면(SettingsModal.module.css)의 메뉴 줄·라벨과 같은 시각 언어를 쓰고,
+   색은 base.css --color-* 토큰만 써서 라이트·다크가 같은 레이아웃을 유지한다. */
+
+.box {
+  --tutorial-nav-width: 248px;
+  --tutorial-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  width: 920px;
+  height: 620px;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.root {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: var(--tutorial-nav-width) minmax(0, 1fr);
+  outline: none;
+}
+
+/* --- 왼쪽 섹션 목록: 본문보다 한 단 내려앉은 surface 면 --- */
+.nav {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 28px 12px 20px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.title {
+  margin: 0 8px 20px;
+  color: var(--color-foreground);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.nav-label {
+  margin: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sections {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+
+/* 메뉴 줄(설정 .nav-row와 같은 40px·12 간격). 지금 섹션은 캔버스 면으로 떠올라 본문과 이어진다. */
+.section {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  color: var(--color-body);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.14px;
+  text-align: left;
+  transition: transform var(--duration-fast, 150ms) ease;
+}
+
+.section:hover,
+.section:focus-visible {
+  --button-hover-overlay: none;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+}
+
+.section:focus-visible,
+.step-dot:focus-visible,
+.prev:focus-visible,
+.next:focus-visible,
+.close:focus-visible {
+  outline: 2px solid var(--color-primary-default);
+  outline-offset: 1px;
+}
+
+.section:active {
+  transform: scale(0.985);
+}
+
+.section.is-active {
+  color: var(--color-foreground);
+  font-weight: 600;
+  background: var(--color-canvas);
+  box-shadow: 0 1px 2px var(--color-shadow), 0 0 0 1px var(--color-border);
+}
+
+.section-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+}
+
+.section-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.section.is-active .section-icon {
+  color: var(--color-primary);
+}
+
+.section-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 섹션 단계 수. 지난 섹션은 체크 대신 흐린 숫자로 둔다. */
+.section-count {
+  min-width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  color: var(--color-muted);
+  background: var(--color-surface-strong);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.section.is-active .section-count {
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
+}
+
+.section.is-done .section-count {
+  opacity: 0.6;
+}
+
+/* --- 오른쪽 본문 --- */
+.main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 36px 40px 0;
+}
+
+.head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: baseline;
+  padding-right: 32px;
+}
+
+/* 섹션 번호: 큰 숫자로 위계를 주되 색은 흐리게 */
+.eyebrow {
+  grid-row: span 2;
+  margin: 0;
+  color: var(--color-subtle);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.section-heading {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+}
+
+.summary {
+  margin: 6px 0 0;
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 섹션 안 단계 점: 지금 단계는 넓은 primary 알약, 지난 단계는 옅은 primary, 남은 단계는 surface */
+.steps {
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+  list-style: none;
+}
+
+.step-dot {
+  min-width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: transform var(--duration-fast, 150ms) ease;
+}
+
+.step-dot:hover {
+  --button-hover-overlay: none;
+  color: var(--color-foreground);
+  background: var(--color-surface-strong);
+}
+
+.step-dot:active {
+  transform: scale(0.94);
+}
+
+.step-dot.is-done {
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
+}
+
+.step-dot.is-active,
+.step-dot.is-active:hover {
+  min-width: 44px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+/* 지금 단계 카드 */
+.step {
+  min-height: 0;
+  flex: 0 1 auto;
+  margin-top: 20px;
+  padding: 28px 28px 24px;
+  overflow-y: auto;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px var(--color-shadow);
+  animation: tutorial-step-in 260ms var(--tutorial-ease) both;
+}
+
+.step-mark {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.step-number {
+  color: var(--color-primary);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -1.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.step-of {
+  margin-left: 4px;
+  color: var(--color-subtle);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.step-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary-weak-foreground);
+  background: var(--color-primary-weak);
+  border-radius: 12px;
+}
+
+.step-title {
+  margin: 20px 0 0;
+  color: var(--color-foreground);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.35;
+}
+
+.step-body {
+  margin: 10px 0 0;
+  max-width: 560px;
+  color: var(--color-body);
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+/* --- 아래: 진행 표시와 이전/다음 --- */
+.footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 0 24px;
+}
+
+.progress {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-text {
+  flex: 0 0 auto;
+  color: var(--color-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  width: 120px;
+  height: 4px;
+  flex: 0 1 auto;
+  overflow: hidden;
+  background: var(--color-surface-strong);
+  border-radius: 2px;
+}
+
+.progress-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: inherit;
+  transform-origin: left center;
+  transition: transform 320ms var(--tutorial-ease);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.prev,
+.next {
+  min-width: 88px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform var(--duration-fast, 150ms) ease;
+}
+
+.prev {
+  color: var(--color-foreground);
+  background: var(--color-surface);
+}
+
+.prev:hover {
+  --button-hover-overlay: none;
+  background: var(--color-surface-strong);
+}
+
+.prev[aria-disabled="true"],
+.prev[aria-disabled="true"]:hover {
+  color: var(--color-subtle);
+  background: var(--color-surface);
+  cursor: default;
+}
+
+.next {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.prev:not([aria-disabled="true"]):active,
+.next:active {
+  transform: scale(0.97);
+}
+
+.close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.close:hover {
+  background: var(--color-surface);
+}
+
+@keyframes tutorial-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step {
+    animation: none;
+  }
+
+  .section,
+  .step-dot,
+  .progress-fill,
+  .prev,
+  .next {
+    transition: none;
+  }
+
+  .section:active,
+  .step-dot:active,
+  .prev:not([aria-disabled="true"]):active,
+  .next:active {
+    transform: none;
+  }
+}
+
+/* 휴대폰: 모달이 화면 전체로 펴지고(CenteredModal), 섹션 목록은 위쪽 가로 칩으로 바뀐다. */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .box {
+    height: auto;
+    padding: 0;
+    gap: 0;
+  }
+
+  .root {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nav {
+    flex: 0 0 auto;
+    gap: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 10px;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .title {
+    margin: 0 64px 12px 16px;
+    line-height: 32px;
+  }
+
+  .nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .sections {
+    flex-direction: row;
+    gap: 6px;
+    padding: 0 16px 2px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .sections::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sections li {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .section {
+    width: auto;
+    height: 36px;
+    gap: 6px;
+    padding: 0 12px 0 8px;
+    border-radius: 18px;
+  }
+
+  .section-count {
+    display: none;
+  }
+
+  .main {
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 20px 16px 0;
+  }
+
+  .head {
+    padding-right: 0;
+  }
+
+  .eyebrow {
+    font-size: 26px;
+  }
+
+  .section-heading {
+    font-size: 19px;
+  }
+
+  .steps {
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .step {
+    margin-top: 16px;
+    padding: 20px 18px;
+  }
+
+  .step-number {
+    font-size: 32px;
+  }
+
+  .step-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .footer {
+    padding: 14px 0 calc(env(safe-area-inset-bottom, 0px) + 14px);
+  }
+
+  .progress-track {
+    width: 56px;
+  }
+
+  .prev,
+  .next {
+    min-width: 0;
+    height: 44px;
+    padding: 0 16px;
+  }
+
+  .close {
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    right: 12px;
+    width: 44px;
+    height: 32px;
+  }
+}

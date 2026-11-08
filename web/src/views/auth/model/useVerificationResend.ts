@@ -20,6 +20,7 @@ type UseVerificationResendOptions = {
 // 인증번호 재요청 공통 로직. 성공 시 갱신된 verificationId/expiresAt을 onSuccess로 전달한다.
 export function useVerificationResend({ email, purpose, onSuccess, setErrorMessage }: UseVerificationResendOptions) {
   const t = useTranslations("auth.verification");
+  const tShared = useTranslations("shared");
   const [isResending, setIsResending] = useState(false);
 
   async function resend() {
@@ -35,7 +36,7 @@ export function useVerificationResend({ email, purpose, onSuccess, setErrorMessa
         expiresAt: Date.now() + response.expires_in * 1000
       });
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, t("resendFailed")));
+      setErrorMessage(getErrorMessage(error, t("resendFailed"), tShared));
     } finally {
       setIsResending(false);
     }

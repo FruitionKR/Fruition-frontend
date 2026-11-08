@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { ConsentChoices } from "@/entities/user";
 import { PRIVACY_PATH, TERMS_PATH } from "@/shared/config/legal";
 
@@ -14,11 +15,12 @@ type ConsentItemProps = {
 };
 
 function ConsentItem({ id, checked, disabled, required, onChange, children }: ConsentItemProps) {
+  const t = useTranslations("shared.legalConsent");
   return (
     <div className="auth-consent-item">
       <input checked={checked} disabled={disabled} id={id} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
       <label htmlFor={id}>
-        <span className={required ? "auth-consent-tag auth-consent-tag--required" : "auth-consent-tag"}>{required ? "필수" : "선택"}</span>
+        <span className={required ? "auth-consent-tag auth-consent-tag--required" : "auth-consent-tag"}>{required ? t("required") : t("optional")}</span>
         {children}
       </label>
     </div>
@@ -40,9 +42,12 @@ export function ConsentForm({
   disabled?: boolean;
   idPrefix?: string;
 }) {
+  const t = useTranslations("shared.legalConsent");
+  const termsLink = (chunks: React.ReactNode) => <Link href={TERMS_PATH} rel="noopener" target="_blank">{chunks}</Link>;
+  const privacyLink = (chunks: React.ReactNode) => <Link href={PRIVACY_PATH} rel="noopener" target="_blank">{chunks}</Link>;
   return (
     <fieldset className="auth-consent" disabled={disabled}>
-      <legend className="auth-consent-legend">약관 동의</legend>
+      <legend className="auth-consent-legend">{t("legend")}</legend>
       <ConsentItem
         checked={value.ageConfirmed}
         disabled={disabled}
@@ -50,7 +55,7 @@ export function ConsentForm({
         onChange={(ageConfirmed) => onChange({ ...value, ageConfirmed })}
         required
       >
-        만 18세 이상입니다.
+        {t("age")}
       </ConsentItem>
       <ConsentItem
         checked={value.termsAccepted}
@@ -59,7 +64,7 @@ export function ConsentForm({
         onChange={(termsAccepted) => onChange({ ...value, termsAccepted })}
         required
       >
-        <Link href={TERMS_PATH} rel="noopener" target="_blank">이용약관</Link>에 동의합니다.
+        {t.rich("terms", { link: termsLink })}
       </ConsentItem>
       <ConsentItem
         checked={value.marketingOptIn}
@@ -68,10 +73,10 @@ export function ConsentForm({
         onChange={(marketingOptIn) => onChange({ ...value, marketingOptIn })}
         required={false}
       >
-        새 기능·소식 등 마케팅 정보를 받습니다.
+        {t("marketing")}
       </ConsentItem>
       <p className="auth-consent-note">
-        개인정보는 <Link href={PRIVACY_PATH} rel="noopener" target="_blank">개인정보 처리방침</Link>에 따라 서비스 제공에 필요한 범위에서 처리됩니다.
+        {t.rich("privacy", { link: privacyLink })}
       </p>
     </fieldset>
   );

@@ -1,4 +1,7 @@
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
+import type koWorkspace from "@/shared/i18n/messages/ko/workspace.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { OperationLogDetail } from "./operationLog";
 
 /** 되돌릴 작업의 문서가 지금 어디 있는지. unknown은 확인하지 못한 것이고, 그때는 영구 삭제로 단정하지 않는다. */
@@ -33,10 +36,18 @@ export function isPurgedIngestRestore(error: unknown, detail: Pick<OperationLogD
   return detail.operation_type === "ingest" && detail.target_document_id === null && Boolean(detail.target_display_name);
 }
 
-/** 롤백 실패 안내. location은 shouldCheckRestoreDocument가 참일 때 확인한 문서 위치이고, 확인하지 않았으면 null이다. */
-export function restoreFailureMessage(error: unknown, location: RestoreDocumentLocation | null): string {
-  if (location === "purged") return PURGED_DOCUMENT_MESSAGE;
-  if (location === "trash") return TRASHED_DOCUMENT_MESSAGE;
-  if (location === "unknown" && error instanceof ApiError && error.status === 404) return MISSING_DOCUMENT_MESSAGE;
-  return getErrorMessage(error, RESTORE_FAILURE_FALLBACK).replace(INTERNAL_ID_SUFFIX, "");
+/**
+ * 롤백 실패 안내. location은 shouldCheckRestoreDocument가 참일 때 확인한 문서 위치이고, 확인하지 않았으면 null이다.
+ * t(`useTranslations("workspace.logMessages")`)·tShared(`useTranslations("shared")`)를 넘기면 지금 언어로 쓴다.
+ */
+export function restoreFailureMessage(
+  error: unknown,
+  location: RestoreDocumentLocation | null,
+  t?: MessageTranslate<typeof koWorkspace.logMessages>,
+  tShared?: SharedTranslate
+): string {
+  if (location === "purged") return t ? t("restorePurged") : PURGED_DOCUMENT_MESSAGE;
+  if (location === "trash") return t ? t("restoreTrashed") : TRASHED_DOCUMENT_MESSAGE;
+  if (location === "unknown" && error instanceof ApiError && error.status === 404) return t ? t("restoreMissing") : MISSING_DOCUMENT_MESSAGE;
+  return getErrorMessage(error, t ? t("restoreFailed") : RESTORE_FAILURE_FALLBACK, tShared).replace(INTERNAL_ID_SUFFIX, "");
 }

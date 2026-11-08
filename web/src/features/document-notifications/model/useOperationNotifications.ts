@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import { isNotificationControlEnabled } from "@/entities/user/model/preferences";
-import { fetchOperationLogs, OPERATION_TYPE_LABELS, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
+import { fetchOperationLogs, type OperationLogItem, type OperationStatus } from "@/entities/operation-log";
 import { publishNotice, type NoticePayload } from "./noticeBus";
 import { nextOperationPollDelay } from "./operationPolling";
 
@@ -17,24 +18,21 @@ const ACTIVE_QUERIES: { type: "lint" | "restore"; status: OperationStatus }[] = 
   { type: "restore", status: "notify_pending" }
 ];
 
-// ingest는 문서 처리 알림이 담당하고, document_edit은 채팅 화면에서 즉시 확인되므로 제외한다.
-const WATCHED_TYPES: Record<string, string> = {
-  lint: OPERATION_TYPE_LABELS.lint,
-  restore: OPERATION_TYPE_LABELS.restore
-};
-
 function isTerminal(status: string) {
   return TERMINAL_STATUSES.has(status);
 }
 
-function noticeFor(item: OperationLogItem): NoticePayload {
-  const label = WATCHED_TYPES[item.operation_type];
-  const isFailed = item.status === "failed" || item.status === "conflict";
+type OperationTranslator = ReturnType<typeof useTranslations<"wiki.notifications.operation">>;
+
+// ingest는 문서 처리 알림이 담당하고, document_edit은 채팅 화면에서 즉시 확인되므로 lint·restore만 다룬다.
+function noticeFor(item: OperationLogItem, t: OperationTranslator): NoticePayload {
+  const type = item.operation_type as "lint" | "restore";
+  const result = item.status === "failed" || item.status === "conflict" ? "failed" : "completed";
   return {
-    operation: { type: item.operation_type as "lint" | "restore", id: item.operation_id },
-    kind: isFailed ? ("failed" as const) : ("completed" as const),
-    title: `${label} ${isFailed ? "실패" : "완료"}`,
-    message: item.summary || `${label} 작업이 ${isFailed ? "실패했습니다." : "완료되었습니다."}`
+    operation: { type, id: item.operation_id },
+    kind: result,
+    title: t(`${type}.${result}Title`),
+    message: item.summary || t(`${type}.${result}Message`)
   };
 }
 
@@ -49,6 +47,10 @@ export function useOperationNotifications() {
   const watchLint = isNotificationControlEnabled("lint", notificationControls) && (notifications.lint || notifications.lintFailed);
   const watchRestore = isNotificationControlEnabled("restore", notificationControls) && (notifications.restore || notifications.restoreFailed);
   const knownStatusesRef = useRef<Map<string, string> | null>(null);
+  const t = useTranslations("wiki.notifications.operation");
+  // 폴링을 언어가 바뀔 때마다 다시 시작하지 않도록 최신 번역기는 ref로 읽는다.
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     // 다시 켠 시점의 종결 작업은 새 알림으로 발행하지 않는다.
@@ -90,7 +92,7 @@ export function useOperationNotifications() {
           const previousStatus = previous.get(log.operation_id);
           // 진행 중이었다가 종결됐거나, 폴링 사이에 새로 나타나 이미 종결된 작업
           if (!previousStatus || !isTerminal(previousStatus)) {
-            publishNotice(noticeFor(log));
+            publishNotice(noticeFor(log, tRef.current));
           }
         }
       }

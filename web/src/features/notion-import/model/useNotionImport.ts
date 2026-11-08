@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { findServerTreeItem } from "@/entities/tree/model/serverTree";
 import { fetchStorageUsage } from "@/entities/workspace/api/storage";
@@ -19,8 +20,9 @@ import {
 } from "../api/imports";
 import type { ImportPlan } from "../lib/notionPlan";
 import { ZipSafetyError } from "@/shared/lib/markdown-import/zipArchive";
+import { describeZipSafetyError } from "../lib/zipSafetyMessage";
 import { analyzeNotionZip } from "./analyzeNotionZip";
-import { CONVERT_MESSAGES, convertEstimateOf, needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
+import { convertEstimateOf, needsIngestConfirmation, runIngestLoop, type IngestProgress } from "./importIngest";
 import { createRunState, importErrorMessage, runImport, summarizeRun, type ImportFailure, type ImportProgress, type RunState } from "./importRunner";
 
 export type StorageQuota = { usedBytes: number; limitBytes: number | null };
@@ -61,10 +63,10 @@ export type NotionImportStep =
     ingestError: string | null;
   };
 
-/** 미리보기에서 시작을 막는 이유. 없으면 null */
-export function previewBlocker(plan: ImportPlan, quota: StorageQuota | null): string | null {
-  if (plan.documents.length === 0 && plan.pdfs.length === 0) return "가져올 Notion 페이지나 데이터베이스가 없어요.";
-  if (quota?.limitBytes != null && quota.usedBytes + plan.totalBytes > quota.limitBytes) return "저장 공간이 부족해 가져올 수 없어요. 사용하지 않는 문서를 삭제한 뒤 다시 시도해 주세요.";
+/** 미리보기에서 시작을 막는 이유(notionImport 메시지 blocker 아래 키). 없으면 null */
+export function previewBlocker(plan: ImportPlan, quota: StorageQuota | null): "empty" | "quota" | null {
+  if (plan.documents.length === 0 && plan.pdfs.length === 0) return "empty";
+  if (quota?.limitBytes != null && quota.usedBytes + plan.totalBytes > quota.limitBytes) return "quota";
   return null;
 }
 
@@ -84,6 +86,8 @@ async function existingNames(folderId: string | null) {
 }
 
 export function useNotionImport({ refreshBackendData }: { refreshBackendData: () => Promise<void> }) {
+  const t = useTranslations("notionImport");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const targetFolderRef = useRef<string | null>(null);
@@ -112,7 +116,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
 
   async function analyzeFile(file: File) {
     if (!/\.zip$/i.test(file.name)) {
-      setStep({ kind: "error", message: "Notion에서 'Markdown & CSV'로 내보낸 zip 파일을 골라 주세요." });
+      setStep({ kind: "error", message: t("errors.notZip") });
       return;
     }
     setStep({ kind: "analyzing", fileName: file.name });
@@ -126,7 +130,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       const plan = await analyzeNotionZip(bytes, names);
       setStep({ kind: "preview", fileName: file.name, plan, quota });
     } catch (error) {
-      const message = error instanceof ZipSafetyError ? error.message : getErrorMessage(error, "zip 파일을 읽지 못했어요.");
+      const message = error instanceof ZipSafetyError ? describeZipSafetyError(error, t) : getErrorMessage(error, t("errors.readFailed"), tShared);
       setStep({ kind: "error", message });
     }
   }
@@ -143,8 +147,10 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       writer: importWriter(session.importId, session.workspaceId, controller.signal),
       state: session.state,
       signal: controller.signal,
-      onProgress: (progress) => setStep((current) => current.kind === "running" ? { ...current, progress } : current)
-    }).catch((error: unknown) => ({ fatalMessage: getErrorMessage(error, "가져오기 중 오류가 났어요."), cancelled: false }));
+      onProgress: (progress) => setStep((current) => current.kind === "running" ? { ...current, progress } : current),
+      t,
+      ts: tShared
+    }).catch((error: unknown) => ({ fatalMessage: getErrorMessage(error, t("errors.runFailed"), tShared), cancelled: false }));
     abortRef.current = null;
     void refreshBackendData().catch(() => {});
     invalidateStorageUsage(queryClient);
@@ -164,7 +170,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       const session = await createImportSession(plan.itemCount, plan.totalBytes, workspaceId);
       sessionRef.current = { importId: session.import_id, workspaceId, state: createRunState(), completed: false };
     } catch (error) {
-      setStep({ kind: "error", message: importErrorMessage(error, "가져오기를 시작하지 못했어요.") });
+      setStep({ kind: "error", message: importErrorMessage(error, t("errors.startFailed"), t, tShared) });
       return;
     }
     await execute(plan);
@@ -184,7 +190,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
       }
       if (counts.created > 0) estimate = await fetchImportIngestEstimate(session.importId, session.workspaceId);
     } catch (error) {
-      estimateError = importErrorMessage(error, "위키 편입 비용을 계산하지 못했어요.");
+      estimateError = importErrorMessage(error, t("errors.estimateFailed"), t, tShared);
     }
     setStep({ kind: "summary", plan, createdCount: counts.created, createdPages: counts.createdPages, createdTables: counts.createdTables, createdPdfs: counts.createdPdfs, failedCount: counts.failed, cancelled, estimate, estimateError,
       convert: convertEstimateOf(estimate) ? "idle" : "skipped", convertProgress: null, convertError: null,
@@ -216,7 +222,9 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     update({ convert: "running", convertError: null, convertProgress: { queued: alreadyQueued, total: alreadyQueued + total } });
     const result = await runIngestLoop(() => startImportConvert(session.importId, session.workspaceId), {
       total,
-      messages: CONVERT_MESSAGES,
+      kind: "convert",
+      t,
+      ts: tShared,
       onProgress: (progress) => update({ convertProgress: { queued: alreadyQueued + progress.queued, total: alreadyQueued + progress.total } })
     });
     void refreshBackendData().catch(() => {});
@@ -249,6 +257,8 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     update({ ingest: "running", ingestError: null, ingestProgress: { queued: alreadyQueued, total: alreadyQueued + total } });
     const result = await runIngestLoop(() => startImportIngest(session.importId, session.workspaceId), {
       total,
+      t,
+      ts: tShared,
       onProgress: (progress) => update({ ingestProgress: { queued: alreadyQueued + progress.queued, total: alreadyQueued + progress.total } })
     });
     void refreshBackendData().catch(() => {});
@@ -258,7 +268,7 @@ export function useNotionImport({ refreshBackendData }: { refreshBackendData: ()
     }
     const queuedSoFar = alreadyQueued + result.queued;
     const message = result.status === "limited"
-      ? `${result.message} 지금까지 ${queuedSoFar.toLocaleString()}개를 편입 대기열에 넣었어요. 나머지는 나중에 다시 시도할 수 있어요.`
+      ? t("ingest.limited", { message: result.message, count: queuedSoFar })
       : result.message;
     update({ ingest: "stopped", ingestError: message });
   }

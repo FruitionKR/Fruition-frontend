@@ -4,7 +4,6 @@ import { cx } from "@/shared/lib/classNames";
 import { LegalFooter } from "@/shared/ui/LegalFooter";
 import { RailLogoIcon } from "@/widgets/rail-navigation/ui/RailIcons";
 import { LANDING_FIRST_DEMO_ANCHOR, LANDING_NAV } from "../model/landingContent";
-import { LandingRedirect } from "./LandingRedirect";
 import { LandingMobileMenu } from "./LandingMobileMenu";
 import { LandingDataHandling, LandingDemo, LandingFaq, LandingProblems, LandingSolution, LandingStart, LandingTogether } from "./LandingSections";
 import { HeroPreview } from "./preview/FeatureFragments";
@@ -93,7 +92,6 @@ export default function LandingPage() {
   const t = useTranslations("landing");
   return (
     <div className={styles["landing-page"]}>
-      <LandingRedirect />
       <Link className={styles["skip-link"]} href="#problems" replace>
         {t("skipLink")}
       </Link>

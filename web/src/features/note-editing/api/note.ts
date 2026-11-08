@@ -1,6 +1,7 @@
 import { apiFetch, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
 import type { NoteContentResponse } from "@/entities/document/model/document";
 import type { PendingImage, SavedAttachment } from "../model/imageAttachments";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /**
  * 저장 409(DOCUMENT_VERSION_CONFLICT). 자동 병합을 하는 서버는 더 이상 보내지 않고, 자동 병합 이전 서버만 보낸다.
@@ -142,7 +143,7 @@ export async function saveNoteDraft(
   );
   if (response.status === 409) {
     const conflict = parseVersionConflict(await response.json().catch(() => null));
-    throw new NoteContentConflictError(conflict.message ?? "다른 편집 내용이 먼저 저장되었습니다.", conflict.currentRevision);
+    throw new NoteContentConflictError(conflict.message ?? sharedText("documentRequests.document.contentConflict", "다른 편집 내용이 먼저 저장되었습니다."), conflict.currentRevision);
   }
   const saved = await parseJsonOrThrow<DocumentContentSaveResponse>(
     response,

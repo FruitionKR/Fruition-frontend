@@ -1,6 +1,8 @@
 import { throwIfNotOk, parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
 import { throwRateLimited } from "@/entities/user/api/account";
 import type { SignupConsentFields } from "@/entities/user/model/consent";
+import { localizedFetch } from "@/shared/i18n/requestLocale";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 type EmailVerificationResponse = {
   verification_id: string;
@@ -23,32 +25,32 @@ export async function requestEmailVerification(
   email: string,
   purpose: "signup" | "password_reset" | "email_change"
 ): Promise<EmailVerificationResponse> {
-  const response = await fetch("/api/auth/email-verifications", {
+  const response = await localizedFetch("/api/auth/email-verifications", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, purpose })
   });
 
   if (response.status === 429) return throwRateLimited(response);
-  return parseJsonOrThrow<EmailVerificationResponse>(response, "인증번호 요청에 실패했습니다.");
+  return parseJsonOrThrow<EmailVerificationResponse>(response, sharedText("user.requestFailed.verificationRequest", "인증번호 요청에 실패했습니다."));
 }
 
 export async function checkEmailAvailability(email: string): Promise<EmailAvailabilityResponse> {
-  const response = await fetch("/api/auth/email-availability", {
+  const response = await localizedFetch("/api/auth/email-availability", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email })
   });
 
   if (response.status === 429) return throwRateLimited(response);
-  return parseJsonOrThrow<EmailAvailabilityResponse>(response, "이메일 중복 확인에 실패했습니다.");
+  return parseJsonOrThrow<EmailAvailabilityResponse>(response, sharedText("user.requestFailed.emailAvailability", "이메일 중복 확인에 실패했습니다."));
 }
 
 export async function confirmEmailVerification(
   verificationId: string,
   code: string
 ): Promise<VerificationConfirmResponse> {
-  const response = await fetch(
+  const response = await localizedFetch(
     `/api/auth/email-verifications/${encodeURIComponent(verificationId)}/confirm`,
     {
       method: "POST",
@@ -57,7 +59,7 @@ export async function confirmEmailVerification(
     }
   );
 
-  return parseJsonOrThrow<VerificationConfirmResponse>(response, "인증번호 확인에 실패했습니다.");
+  return parseJsonOrThrow<VerificationConfirmResponse>(response, sharedText("user.requestFailed.verificationConfirm", "인증번호 확인에 실패했습니다."));
 }
 
 export async function signupWithEmail(
@@ -68,7 +70,7 @@ export async function signupWithEmail(
   /** 동의 UI가 꺼져 있으면 빈 객체라 동의 필드를 보내지 않는다. */
   consent: SignupConsentFields
 ): Promise<void> {
-  const response = await fetch("/api/auth/signup", {
+  const response = await localizedFetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -88,7 +90,7 @@ export async function resetPasswordWithVerification(
   newPassword: string,
   verificationToken: string
 ): Promise<void> {
-  const response = await fetch("/api/auth/password-reset", {
+  const response = await localizedFetch("/api/auth/password-reset", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -98,5 +100,5 @@ export async function resetPasswordWithVerification(
     })
   });
 
-  await throwIfNotOk(response, "비밀번호 재설정에 실패했습니다.");
+  await throwIfNotOk(response, sharedText("user.requestFailed.passwordReset", "비밀번호 재설정에 실패했습니다."));
 }

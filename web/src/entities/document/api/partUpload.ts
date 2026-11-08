@@ -1,3 +1,5 @@
+import { sharedText } from "@/shared/i18n/sharedTranslate";
+
 /**
  * 조각이 이만큼 한 바이트도 나아가지 않으면 블랙홀로 보고 끊는다.
  *
@@ -25,7 +27,7 @@ export function putPartWithIdleTimeout(
 ): Promise<PartUploadResult> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
-      reject(new Error("파일 업로드가 중단되었습니다."));
+      reject(new Error(sharedText("documentRequests.upload.cancelled", "파일 업로드가 중단되었습니다.")));
       return;
     }
     const request = new XMLHttpRequest();
@@ -66,13 +68,13 @@ export function putPartWithIdleTimeout(
     };
     request.onerror = () => {
       cleanUp();
-      reject(new Error("파일 조각을 전송하지 못했습니다."));
+      reject(new Error(sharedText("documentRequests.upload.partSendFailed", "파일 조각을 전송하지 못했습니다.")));
     };
     request.onabort = () => {
       cleanUp();
       reject(new Error(isIdleTimeout
-        ? "파일 조각 전송이 응답하지 않아 중단했습니다."
-        : "파일 업로드가 중단되었습니다."));
+        ? sharedText("documentRequests.upload.partStalled", "파일 조각 전송이 응답하지 않아 중단했습니다.")
+        : sharedText("documentRequests.upload.cancelled", "파일 업로드가 중단되었습니다.")));
     };
     // send 전에 타이머를 걸어 둔다. 동기적으로 끝나는 응답에서도 타이머가 남지 않는다.
     restartIdleTimer();

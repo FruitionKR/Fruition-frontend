@@ -1,39 +1,41 @@
 export type StatusStepState = "done" | "active" | "pending";
 export type StatusStep = [label: string, state: StatusStepState];
 
-export function buildStatusSteps(isLoading: boolean, hasResponse: boolean): StatusStep[] {
+export function buildStatusSteps(isLoading: boolean, hasResponse: boolean, t: AgentChatTranslator): StatusStep[] {
   return [
-    ["질문 분석", isLoading || hasResponse ? "done" : "pending"],
-    ["관련 Wiki page 검색", hasResponse ? "done" : isLoading ? "active" : "pending"],
-    ["근거 기반 답변 작성", hasResponse ? "done" : "pending"]
+    [t("status.steps.analyze"), isLoading || hasResponse ? "done" : "pending"],
+    [t("status.steps.searchWiki"), hasResponse ? "done" : isLoading ? "active" : "pending"],
+    [t("status.steps.writeAnswer"), hasResponse ? "done" : "pending"]
   ];
 }
 
 export function buildDocumentCommandSteps(
   action: DocumentCommandAction,
   isLoading: boolean,
-  hasResponse: boolean
+  hasResponse: boolean,
+  t: AgentChatTranslator
 ): StatusStep[] {
   return [
-    ["질문 분석", isLoading || hasResponse ? "done" : "pending"],
-    ["LLM 답변 생성", hasResponse ? "done" : isLoading ? "active" : "pending"],
-    [documentCommandLabel(action), hasResponse ? "done" : "pending"]
+    [t("status.steps.analyze"), isLoading || hasResponse ? "done" : "pending"],
+    [t("status.steps.generate"), hasResponse ? "done" : isLoading ? "active" : "pending"],
+    [documentCommandLabel(action, t), hasResponse ? "done" : "pending"]
   ];
 }
 
-function documentCommandLabel(action: DocumentCommandAction): string {
-  if (action === "markdown_edit") return "문서 편집";
-  if (action === "markdown_create") return "새 문서 생성";
-  if (action === "folder_organize") return "폴더 정리";
-  if (action === "workspace_workflow") return "워크스페이스 작업";
-  return "Skill 작성";
+function documentCommandLabel(action: DocumentCommandAction, t: AgentChatTranslator): string {
+  if (action === "markdown_edit") return t("status.command.markdownEdit");
+  if (action === "markdown_create") return t("status.command.markdownCreate");
+  if (action === "folder_organize") return t("status.command.folderOrganize");
+  if (action === "workspace_workflow") return t("status.command.workspaceWorkflow");
+  return t("status.command.skill");
 }
+import type { AgentChatTranslator } from "./agentChatTranslator";
 import type { DocumentCommandAction } from "./agentTurn";
 
 /** 말풍선 상태 목록의 제목. 취소는 작업 탭의 "취소됨"과 맞춰 적는다. */
-export function messageStatusTitle(status: string): string {
-  if (status === "pending") return "요청 처리 중";
-  if (status === "completed") return "요청 처리 완료";
-  if (status === "cancelled") return "요청 취소됨";
-  return "요청 처리 종료";
+export function messageStatusTitle(status: string, t: AgentChatTranslator): string {
+  if (status === "pending") return t("status.title.pending");
+  if (status === "completed") return t("status.title.completed");
+  if (status === "cancelled") return t("status.title.cancelled");
+  return t("status.title.ended");
 }

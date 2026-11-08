@@ -5,7 +5,8 @@ import { captureAnalytics } from "@/shared/lib/analytics/client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ROOT_DOCUMENTS_TITLE } from "@/entities/tree/lib/projectsFromServerTree";
+import { useTranslations } from "next-intl";
+import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
 import { AgentLauncher } from "@/widgets/agent-panel/ui/AgentLauncher";
 import { AgentPanel } from "@/widgets/agent-panel/ui/AgentPanel";
 import { DocumentSidebar } from "@/widgets/document-sidebar/ui/DocumentSidebar";
@@ -18,7 +19,6 @@ import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-
 import { AccessCodeSettingsPanel } from "@/features/access-code-settings";
 import { SettingsContent, SettingsNav, takeSettingsResume, type SettingsResume } from "@/features/user-settings";
 import { DocumentProcessingNotifications } from "@/features/document-notifications";
-import { railItems } from "@/widgets/rail-navigation/ui/RailNavigation";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
 import { DeleteConfirmModal } from "@/shared/ui/modal/DeleteConfirmModal";
 import { BulkDeleteConfirmModal } from "@/shared/ui/modal/BulkDeleteConfirmModal";
@@ -50,7 +50,7 @@ import { buildDocumentPathSuffixes } from "@/entities/graph/lib/documentLabels";
 import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
 import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
-import { getChatEvidenceNotice } from "@/features/wiki-ingest/model/wikiReflectState";
+import { getChatEvidenceState } from "@/features/wiki-ingest/model/wikiReflectState";
 import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
 import { PdfIngestConfirmModal } from "@/features/wiki-ingest/ui/PdfIngestConfirmModal";
 import { ConvertedIngestConfirmModal } from "@/features/wiki-ingest/ui/ConvertedIngestConfirmModal";
@@ -87,6 +87,10 @@ import styles from "./HomeWorkspace.module.css";
 
 
 export function HomeWorkspace() {
+  const t = useTranslations("workspace");
+  const tWiki = useTranslations("wiki");
+  const tTree = useTranslations("documents.tree");
+  const rootDocumentsTitle = tTree("rootTitle");
   const queryClient = useQueryClient();
   const { location, locationKey, activeView, isAccessLocked, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
     useWorkspaceNavigation();
@@ -227,13 +231,14 @@ export function HomeWorkspace() {
   });
 
   const selectedDocumentParentLabel = useMemo(() => {
-    if (!selection.selectedTreeItemId) return ROOT_DOCUMENTS_TITLE;
+    if (!selection.selectedTreeItemId) return rootDocumentsTitle;
     for (const project of projectTree.projects) {
-      const parentLabel = findParentLabel(project.items, selection.selectedTreeItemId, project.title);
+      const projectTitle = project.id === ROOT_DOCUMENTS_PROJECT_ID ? rootDocumentsTitle : project.title;
+      const parentLabel = findParentLabel(project.items, selection.selectedTreeItemId, projectTitle);
       if (parentLabel) return parentLabel;
     }
-    return ROOT_DOCUMENTS_TITLE;
-  }, [projectTree.projects, selection.selectedTreeItemId]);
+    return rootDocumentsTitle;
+  }, [projectTree.projects, rootDocumentsTitle, selection.selectedTreeItemId]);
 
   const selectedDocumentStatus = useMemo(() => {
     if (!selection.selectedDocumentId) return undefined;
@@ -262,8 +267,8 @@ export function HomeWorkspace() {
     () => documents.find((document) => document.id === markdownEditContext?.documentId),
     [documents, markdownEditContext?.documentId]
   );
-  const chatEvidenceNotice = getChatEvidenceNotice(chatContextDocument);
-  const chatIngestGate = getWikiActionGate(wikiActions.canIngest, "ingest");
+  const chatEvidenceState = getChatEvidenceState(chatContextDocument);
+  const chatIngestGate = getWikiActionGate(wikiActions.canIngest, "ingest", tWiki);
   const firstSidebarNote = useMemo(() => {
     const documentIds = new Set(documents.map((document) => document.id));
     for (const project of projectTree.projects) {
@@ -373,7 +378,7 @@ export function HomeWorkspace() {
   const isMissingDocument = isHomeView && isDocumentLocation(location) && isWorkspaceDataReady && !selectedDocumentLabel;
   const screenTitle = isHomeView
     ? selectedDocumentLabel
-    : railItems.find((item) => item.id === activeView)?.label ?? null;
+    : t(`rail.views.${activeView}`);
   useWorkspaceDocumentTitle(screenTitle, locationKey);
 
   function openSourceBlocks(documentId: string, title: string, highlights: SourceBlockHighlight[]) {
@@ -589,13 +594,13 @@ export function HomeWorkspace() {
 
       {/* 좁은 화면에서 겹쳐 연 사이드바 바깥을 누르면 닫는다. 스킬 대상을 고르는 동안에는 안내의 버튼을 가리지 않게 두지 않는다. */}
       {isCompactLayout && panels.isCompactSidebarOpen && !skillRun && (
-        <button type="button" tabIndex={-1} className="compact-sidebar-backdrop" aria-label="사이드바 닫기" onClick={panels.collapseSidebar} />
+        <button type="button" tabIndex={-1} className="compact-sidebar-backdrop" aria-label={t("closeSidebar")} onClick={panels.collapseSidebar} />
       )}
 
       {isHomeView && apiError && (
         <div className="workspace-api-error" role="alert">
           <span>{apiError}</span>
-          <button type="button" onClick={() => void refreshBackendData()}>다시 시도</button>
+          <button type="button" onClick={() => void refreshBackendData()}>{t("retry")}</button>
         </div>
       )}
 
@@ -622,8 +627,8 @@ export function HomeWorkspace() {
             fillMain
           />
         ) : (
-          <section className="blank-view" aria-label="홈 빈 화면">
-            {isMissingDocument && <p className={styles["blank-view-message"]} role="status">문서를 찾을 수 없습니다</p>}
+          <section className="blank-view" aria-label={t("blankView", { view: t("rail.views.home") })}>
+            {isMissingDocument && <p className={styles["blank-view-message"]} role="status">{t("documentNotFound")}</p>}
           </section>
         )
       )}
@@ -676,7 +681,7 @@ export function HomeWorkspace() {
           role="separator"
           tabIndex={0}
           className={cx("agent-panel-resize-handle", agentPanelLayout.isDragging && "is-dragging")}
-          aria-label="채팅 패널 폭 조절"
+          aria-label={t("resizeChatPanel")}
           aria-orientation="vertical"
           aria-valuenow={agentPanelLayout.visibleWidth}
           aria-valuemin={AGENT_PANEL_LIMITS.min}
@@ -734,8 +739,9 @@ export function HomeWorkspace() {
             setSkillCreateRequest({ id: Date.now(), text: request });
             handleViewChange("skills");
           }}
-          wikiEvidenceNotice={chatContextDocument && chatEvidenceNotice ? {
-            ...chatEvidenceNotice,
+          wikiEvidenceNotice={chatContextDocument && chatEvidenceState ? {
+            message: tWiki(`chatEvidence.${chatEvidenceState}.message`),
+            actionLabel: chatEvidenceState === "processing" ? null : tWiki(`chatEvidence.${chatEvidenceState}.action`),
             // handleGraphIngest는 다른 위키 작업이 진행 중이거나 편입 권한이 없으면(확인 중 포함) 요청을 무시하므로 그동안 버튼을 막는다.
             isDisabled: wikiActionPending !== null || pdfWikiIngest.isPending || chatIngestGate.isBlocked,
             disabledReason: chatIngestGate.hint,
@@ -783,7 +789,7 @@ export function HomeWorkspace() {
             />
           )
         ) : (
-          <section className="blank-view" aria-label={`${railItems.find((item) => item.id === activeView)?.label ?? ""} 빈 화면`} />
+          <section className="blank-view" aria-label={t("blankView", { view: screenTitle ?? "" })} />
         )
       )}
 
@@ -840,8 +846,8 @@ export function HomeWorkspace() {
         const currentFolderId = isBulk ? undefined : findItemLocation(projectTree.projects, itemId)?.folderId;
         return (
           <MoveDialog
-            label={isBulk ? `${movingIds.size}개 항목` : `"${(project && findTreeItem(project.items, itemId)?.label) ?? "항목"}"`}
-            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, ROOT_DOCUMENTS_TITLE, projectTree.isFolderWriteDenied)}
+            label={isBulk ? t("tree.itemCount", { count: movingIds.size }) : `"${(project && findTreeItem(project.items, itemId)?.label) ?? t("tree.itemFallback")}"`}
+            destinations={listMoveDestinations(project?.items ?? [], movingIds, currentFolderId, rootDocumentsTitle, projectTree.isFolderWriteDenied)}
             onSelect={projectTree.confirmMoveTo}
             onClose={projectTree.closeMoveDialog}
           />

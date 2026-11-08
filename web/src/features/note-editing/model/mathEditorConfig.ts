@@ -1,28 +1,32 @@
 import type { Ctx } from "@milkdown/ctx";
 import type { EditorView } from "@milkdown/prose/view";
 import { NodeSelection, TextSelection } from "@milkdown/prose/state";
+import koDocuments from "@/shared/i18n/messages/ko/documents.json";
+
+/** 수식 편집 창 문구(documents.editor.math 메시지) */
+export type MathEditorLabels = typeof koDocuments.editor.math;
 
 /** 수식 입력에는 중첩 ProseMirror 대신 일반 textarea를 사용한다. */
-function createMathEditor(view: EditorView) {
+function createMathEditor(view: EditorView, labels: MathEditorLabels) {
   const root = document.createElement("div");
   root.className = "note-math-editor";
   root.setAttribute("role", "dialog");
-  root.setAttribute("aria-label", "수식 편집");
+  root.setAttribute("aria-label", labels.dialog);
   root.hidden = true;
   const input = document.createElement("textarea");
-  input.setAttribute("aria-label", "LaTeX 수식 입력");
-  input.placeholder = "예: x^2 + y^2 = z^2";
+  input.setAttribute("aria-label", labels.input);
+  input.placeholder = labels.placeholder;
   input.rows = 3;
   input.spellcheck = false;
   const hint = document.createElement("p");
-  hint.textContent = "Enter 적용 · Shift+Enter 줄바꿈";
+  hint.textContent = labels.hint;
   const actions = document.createElement("div");
   const cancel = document.createElement("button");
   cancel.type = "button";
-  cancel.textContent = "취소";
+  cancel.textContent = labels.cancel;
   const apply = document.createElement("button");
   apply.type = "button";
-  apply.textContent = "적용";
+  apply.textContent = labels.apply;
   actions.append(cancel, apply);
   root.append(input, hint, actions);
   view.dom.parentElement!.append(root);
@@ -101,6 +105,7 @@ function createMathEditor(view: EditorView) {
   };
 }
 
-export function configureMathEditor(ctx: Ctx) {
-  ctx.set("INLINE_LATEX_TOOLTIP_SPEC", { view: createMathEditor });
+/** labels를 주지 않으면 한국어 문구를 쓴다(화면 언어를 받지 않는 편집기용). */
+export function configureMathEditor(ctx: Ctx, labels: MathEditorLabels = koDocuments.editor.math) {
+  ctx.set("INLINE_LATEX_TOOLTIP_SPEC", { view: (view: EditorView) => createMathEditor(view, labels) });
 }

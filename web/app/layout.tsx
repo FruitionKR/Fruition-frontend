@@ -8,6 +8,7 @@ import { readCspNonce } from "@/shared/lib/security/contentSecurityPolicy";
 import { FAVICON_LINKS } from "@/shared/lib/favicon";
 import { THEME_INIT_SCRIPT } from "@/shared/lib/themePreference";
 import { FaviconSync } from "@/shared/ui/FaviconSync";
+import { SharedTranslatorBridge } from "@/shared/i18n/SharedTranslatorBridge";
 import { publicAnalyticsToken } from "@/shared/lib/analytics/config";
 
 // CSP nonce가 요청마다 달라 미리 만든 HTML로는 스크립트가 막힌다. 모든 화면을 요청 때 렌더링한다(이슈 #77).
@@ -47,6 +48,7 @@ export default async function RootLayout({
         <FaviconSync />
         {/* 서버 컴포넌트에서 렌더하므로 지금 언어의 문구 전체를 클라이언트 컴포넌트에 물려준다. */}
         <NextIntlClientProvider>
+        <SharedTranslatorBridge />
         <Providers analytics={{
           token: publicAnalyticsToken(process.env.ANALYTICS_ENABLED, process.env.POSTHOG_PROJECT_TOKEN),
           environment: process.env.ANALYTICS_ENVIRONMENT === "production" ? "production" : process.env.ANALYTICS_ENVIRONMENT === "staging" ? "staging" : "local",

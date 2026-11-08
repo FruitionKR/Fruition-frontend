@@ -25,6 +25,7 @@ export function InviteMemberModal({
   onClose: () => void;
 }) {
   const t = useTranslations("settings.invite");
+  const tShared = useTranslations("shared");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<WorkspaceRole>("MEMBER");
   const [busy, setBusy] = useState(false);
@@ -39,7 +40,7 @@ export function InviteMemberModal({
       await inviteMember(workspaceId, email.trim(), role);
       onInvited(t("sent"));
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("failed")));
+      setError(getErrorMessage(cause, t("failed"), tShared));
       setBusy(false);
     }
   }

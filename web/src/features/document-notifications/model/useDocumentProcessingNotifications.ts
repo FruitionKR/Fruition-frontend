@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import { isNotificationControlEnabled } from "@/entities/user/model/preferences";
 import type { DocumentItemResponse } from "@/entities/document";
 import { createClientId, type DocumentStatus } from "@/entities/tree";
 import { isDocumentInFlight, isDocumentPipelineActive } from "@/entities/document/lib/documentKind";
 import { usePageVisible } from "@/shared/hooks/usePageVisible";
-import { buildFailedDocumentsNotice } from "./failedDocumentsNotice";
+import { summarizeFailedDocuments } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
 import { enqueueNotice, promoteParkedNotices, reconcileNotices, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
@@ -26,15 +27,12 @@ function promote(notices: DocumentProcessingNotice[]) {
   return promoteParkedNotices(notices, { max: MAX_VISIBLE_NOTICES, now: Date.now() });
 }
 
-function wasProcessing(status: DocumentStatus | undefined) {
-  return isDocumentInFlight(status);
+function quoteNames(names: string[]) {
+  return names.map((name) => `"${name}"`).join(", ");
 }
 
-function completedNoticeText(count: number) {
-  return {
-    title: "문서 처리 완료",
-    message: count === 1 ? "위키 편입이 완료되었습니다." : `${count}개 문서의 위키 편입이 완료되었습니다.`
-  };
+function wasProcessing(status: DocumentStatus | undefined) {
+  return isDocumentInFlight(status);
 }
 
 /**
@@ -42,6 +40,8 @@ function completedNoticeText(count: number) {
  * 자동 닫힘 타이머를 멈춘다. 다시 보이면 남은 일반 카드에 타이머를 새로 건다.
  */
 export function useDocumentProcessingNotifications(documents: DocumentItemResponse[], isPaused = false, allowWorkSuggestions = true) {
+  const t = useTranslations("wiki.notifications");
+  const tShared = useTranslations("shared");
   const { preferences, reduceMotion } = useUserPreferences();
   const notificationSettings = preferences.notifications;
   const notificationControls = preferences.notificationControls;
@@ -186,16 +186,25 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     });
 
     if (completedCount > 0) {
-      publishNotice({ kind: "completed", ...completedNoticeText(completedCount) });
+      publishNotice({ kind: "completed", notificationKey: "completed", title: t("processed.title"), message: t("processed.message", { count: completedCount }) });
     }
     if (convertedCount > 0) {
-      publishNotice({ kind: "completed", title: "PDF 변환 완료", message: `${convertedCount}개 PDF의 Markdown 변환이 완료되었습니다.` });
+      publishNotice({ kind: "completed", notificationKey: "pdfCompleted", title: t("pdfConverted.title"), message: t("pdfConverted.message", { count: convertedCount }) });
     }
     // 문서별 카드 대신 요약 카드 하나만 발행한다 (대량 실패 시 스택 넘침 방지).
     if (failedDocuments.length > 0) {
-      publishNotice(buildFailedDocumentsNotice(failedDocuments));
+      const summary = summarizeFailedDocuments(failedDocuments, tShared);
+      const message = summary.type === "single"
+        ? t("failed.single", { filename: summary.filename, reason: summary.reason ?? t("failed.reasonFallback") })
+        : t("failed.multiple", {
+          count: summary.count,
+          names: summary.restCount > 0
+            ? t("failed.namesWithRest", { names: quoteNames(summary.listedFilenames), count: summary.restCount })
+            : quoteNames(summary.listedFilenames)
+        });
+      publishNotice({ kind: "failed", notificationKey: "failed", title: t("failed.title"), message });
     }
-  }, [documents]);
+  }, [documents, t, tShared]);
 
   // 위 effect가 이전 기준점을 소비한 뒤에 다시 기록하도록 뒤에 둔다.
   // 처리 완료 문서가 하나도 없으면(첫 로드 전 빈 목록 포함) 기준점을 두지 않아 전체 문서가 알림으로 뜨지 않게 한다.

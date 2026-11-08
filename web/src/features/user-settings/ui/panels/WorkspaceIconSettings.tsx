@@ -16,6 +16,7 @@ import styles from "../SettingsModal.module.css";
  */
 export function WorkspaceIconSettings() {
   const t = useTranslations("settings.workspace.icon");
+  const tShared = useTranslations("shared");
   const workspace = useSelectedWorkspace();
   const { data: me } = useMe();
   const { data: members, error: membersError } = useQuery({
@@ -52,13 +53,13 @@ export function WorkspaceIconSettings() {
       void queryClient.invalidateQueries({ queryKey: ["workspace-icon", workspace.id] });
       setSaved(true);
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("saveFailed")));
+      setError(getErrorMessage(cause, t("saveFailed"), tShared));
     } finally {
       setBusy(false);
     }
   }
 
-  const loadError = error || (membersError ? getErrorMessage(membersError, t("permissionLoadFailed")) : null);
+  const loadError = error || (membersError ? getErrorMessage(membersError, t("permissionLoadFailed"), tShared) : null);
 
   return <div className={styles["tile-field"]}>
     <div className={styles["row-title"]}>

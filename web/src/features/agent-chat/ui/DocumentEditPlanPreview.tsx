@@ -1,22 +1,23 @@
 import { useRef, useState } from "react";
 import { cx } from "@/shared/lib/classNames";
-import { missingDiffNote, PURGED_DIFF_NOTE, type DocumentEditRow } from "../lib/documentEditPlan";
+import { missingDiffNote, type DocumentEditRow } from "../lib/documentEditPlan";
 import { DIFF_LINE_PAGE, limitDiffHunks } from "../lib/documentEditPreviews";
-import { PLAN_OPERATION_BLOCKED_NOTE, PLAN_ROW_PARTLY_BLOCKED_NOTE } from "../lib/planAccess";
 import { DocumentDiffLines } from "./DocumentDiffLines";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
 function DocumentEditDiff({ row, missingNote }: { row: DocumentEditRow; missingNote: string }) {
+  const t = useTranslations("agentChat");
   const [limit, setLimit] = useState(DIFF_LINE_PAGE);
   const regionRef = useRef<HTMLDivElement | null>(null);
   if (!row.hunks) return <p className={styles["edit-plan-note"]}>{missingNote}</p>;
   const { hunks, hiddenLines } = limitDiffHunks(row.hunks, limit);
-  if (hunks.length === 0) return <p className={styles["edit-plan-note"]}>보여 줄 변경 줄이 없어요.</p>;
+  if (hunks.length === 0) return <p className={styles["edit-plan-note"]}>{t("editPlan.diff.noLines")}</p>;
   return <>
     <DocumentDiffLines
       regionRef={regionRef}
-      label={`${row.title} 변경 내용`}
-      groups={hunks.map((hunk, index) => ({ key: `${hunk.before_start}-${index}`, heading: `${hunk.before_start}행부터`, lines: hunk.lines }))}
+      label={t("editPlan.diff.label", { title: row.title })}
+      groups={hunks.map((hunk, index) => ({ key: `${hunk.before_start}-${index}`, heading: t("editPlan.diff.fromLine", { line: hunk.before_start }), lines: hunk.lines }))}
     />
     {hiddenLines > 0 && (
       <button
@@ -28,7 +29,7 @@ function DocumentEditDiff({ row, missingNote }: { row: DocumentEditRow; missingN
           if (hiddenLines <= DIFF_LINE_PAGE) regionRef.current?.focus();
         }}
       >
-        더 보기 ({hiddenLines}줄 남음)
+        {t("editPlan.diff.more", { count: hiddenLines })}
       </button>
     )}
   </>;
@@ -60,9 +61,10 @@ export function DocumentEditPlanPreview({
   blockedRowIds: ReadonlySet<string>;
   onToggle: (rowId: string) => void;
 }) {
-  const missingNote = missingDiffNote({ isLoading: isLoadingPreviews, isAwaiting, isExpired: isPreviewExpired });
+  const t = useTranslations("agentChat");
+  const missingNote = missingDiffNote({ isLoading: isLoadingPreviews, isAwaiting, isExpired: isPreviewExpired }, t);
   return (
-    <ul className={styles["edit-plan-list"]} aria-label="수정할 문서">
+    <ul className={styles["edit-plan-list"]} aria-label={t("editPlan.listLabel")}>
       {rows.map((row, index) => {
         // 승인 뒤에는 서버 결과(고르지 않은 작업은 skipped·not_selected)로 선택 여부를 보여 준다.
         const isBlocked = blockedRowIds.has(row.id);
@@ -72,14 +74,14 @@ export function DocumentEditPlanPreview({
           <li key={row.id} className={cx(styles["edit-plan-item"], !isSelected && styles["is-excluded"])}>
             {/* 체크박스는 summary 밖에 둔다. 안에 두면 누를 때마다 펼침이 함께 바뀐다. */}
             <label className={styles["edit-plan-check"]}>
-              <input type="checkbox" aria-label={`${row.title} 수정`} checked={isSelected} disabled={!canSelect || row.isPurged || isBlocked} onChange={() => onToggle(row.id)} />
+              <input type="checkbox" aria-label={t("editPlan.rowCheckbox", { title: row.title })} checked={isSelected} disabled={!canSelect || row.isPurged || isBlocked} onChange={() => onToggle(row.id)} />
             </label>
             <details className={styles["edit-plan-doc"]} open={index === 0}>
               <summary>
                 <span className={styles["edit-plan-head"]}>
                   <span className={styles["edit-plan-title"]}>{row.title}</span>
                   {row.hunks && (
-                    <span className={styles["edit-plan-counts"]} aria-label={`${row.addedLines}줄 추가, ${row.removedLines}줄 삭제`}>
+                    <span className={styles["edit-plan-counts"]} aria-label={t("editPlan.lineCounts", { added: row.addedLines, removed: row.removedLines })}>
                       <span className={styles["is-added"]}>+{row.addedLines}</span>
                       <span className={styles["is-removed"]}>−{row.removedLines}</span>
                     </span>
@@ -87,12 +89,12 @@ export function DocumentEditPlanPreview({
                 </span>
                 {row.summary && <span className={styles["edit-plan-summary"]}>{row.summary}</span>}
                 {row.warning && <span className={cx(styles["edit-plan-note"], styles["is-warning"])}>{row.warning}</span>}
-                {isAwaiting && isBlocked && <span className={styles["edit-plan-note"]}>{PLAN_OPERATION_BLOCKED_NOTE}</span>}
-                {isAwaiting && isPartlyBlocked && <span className={styles["edit-plan-note"]}>{PLAN_ROW_PARTLY_BLOCKED_NOTE}</span>}
+                {isAwaiting && isBlocked && <span className={styles["edit-plan-note"]}>{t("plan.access.operationBlocked")}</span>}
+                {isAwaiting && isPartlyBlocked && <span className={styles["edit-plan-note"]}>{t("plan.access.rowPartlyBlocked")}</span>}
                 {row.resultLabel && <span className={cx(styles["edit-plan-note"], styles["is-result"], row.isFailure && styles["is-failure"])}>{row.resultLabel}</span>}
               </summary>
               <div className={styles["edit-plan-body"]}>
-                <DocumentEditDiff row={row} missingNote={row.isPurged ? PURGED_DIFF_NOTE : missingNote} />
+                <DocumentEditDiff row={row} missingNote={row.isPurged ? t("editPlan.purgedDiff") : missingNote} />
               </div>
             </details>
           </li>

@@ -1,5 +1,6 @@
 import { apiFetch, getWorkspaceId, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
 import type { DocumentRole } from "@/entities/document/model/document";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /** 휴지통 목록 항목. purge_at은 deleted_at + 보관 기간(30일)이며 구 서버는 생략한다. */
 export type TrashDocument = {
@@ -19,7 +20,7 @@ export const TRASH_QUERY_KEY = (workspaceId: string | null) => ["document-trash"
 /** 보관 기간이 지나지 않은 삭제 문서를 삭제 시각 역순으로 받는다. */
 export async function fetchTrashDocuments(): Promise<TrashDocument[]> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", "trash"), { cache: "no-store" });
-  const data = await parseJsonOrThrow<{ documents: TrashDocument[] }>(response, "휴지통을 불러오지 못했습니다.");
+  const data = await parseJsonOrThrow<{ documents: TrashDocument[] }>(response, sharedText("documentRequests.document.trashLoad", "휴지통을 불러오지 못했습니다."));
   return Array.isArray(data.documents) ? data.documents : [];
 }
 
@@ -33,5 +34,5 @@ export async function restoreTrashDocument(documentId: string, currentVersion: n
     headers: idempotentJsonHeaders(),
     body: JSON.stringify({ base_version: currentVersion })
   });
-  await parseJsonOrThrow<unknown>(response, "문서를 복구하지 못했습니다.");
+  await parseJsonOrThrow<unknown>(response, sharedText("documentRequests.document.restore", "문서를 복구하지 못했습니다."));
 }

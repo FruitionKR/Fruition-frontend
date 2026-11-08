@@ -1,0 +1,174 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire, registerHooks } from "node:module";
+import test from "node:test";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { browserEnv } from "./asyncHookShim.mjs";
+import { translator } from "./helpers/i18nMessages.mjs";
+
+// 설정·인증·공용 API 영역이 영어 화면에서 한국어를 섞지 않는지 본다(번역 함수를 넘기지 않던 호출처 정리).
+// 앱 소스의 경로 별칭(@/)과 확장자 없는 상대 import만 .ts로 푼다. react는 그대로 둔다(컴포넌트 렌더가 CJS로 부른다).
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith("@/")) {
+      const base = new URL(`../src/${specifier.slice(2)}`, import.meta.url);
+      return nextResolve(existsSync(new URL(`${base.href}.ts`)) ? `${base.href}.ts` : `${base.href}/index.ts`, context);
+    }
+    if (specifier.startsWith(".") && context.parentURL?.includes("/src/") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
+    return nextResolve(specifier, context);
+  }
+});
+
+const { ERROR_MESSAGES, apiFetch, parseApiError } = await import("../src/shared/api/client.ts");
+const { saveAccessToken, setSessionExpiredHandler } = await import("../src/shared/lib/authSessionStorage.ts");
+const { registerSharedTranslate, currentSharedTranslate } = await import("../src/shared/i18n/sharedTranslate.ts");
+const { describeLimitError } = await import("../src/entities/workspace/model/workspaceLimits.ts");
+const { describeStorageUsage } = await import("../src/entities/workspace/model/storageUsage.ts");
+const { fetchMembers } = await import("../src/entities/workspace/api/members.ts");
+const { fetchInvitation } = await import("../src/entities/workspace/api/invitations.ts");
+const { updateAccountLocale } = await import("../src/entities/user/api/account.ts");
+const { ApiError, SessionExpiredError, UPLOAD_LIMIT_MESSAGES } = await import("../src/shared/lib/apiErrors.ts");
+const aiUsage = await import("../src/entities/ai/model/aiUsage.ts");
+const aiModel = await import("../src/entities/ai/model/aiModel.ts");
+
+const ko = translator("ko", "shared");
+const en = translator("en", "shared");
+const HANGUL = /[가-힣]/;
+
+/** 브라우저 전역을 두고 SharedTranslatorBridge처럼 번역 함수를 등록한다. 끝나면 등록을 지운다. */
+function useLocaleBridge(t, translate) {
+  // after 훅은 등록 순서대로 돈다. window를 되돌리기 전에 등록을 지워야 한다(window가 없으면 무시된다).
+  t.after(() => registerSharedTranslate(null));
+  browserEnv(t);
+  registerSharedTranslate(translate);
+}
+
+/** 서버가 message 없이 실패를 돌려주는 fetch. */
+function failingFetch(t, status = 500, body = {}) {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  t.after(() => { globalThis.fetch = original; });
+}
+
+test("공통 에러 메시지는 등록된 언어로 읽히고, 등록이 없으면 한국어 원문이다", (t) => {
+  const korean = { ...ERROR_MESSAGES };
+  assert.equal(Object.keys(korean).length > 30, true, "열거할 수 있어 기존처럼 펼쳐 쓸 수 있다");
+  for (const value of Object.values(korean)) assert.match(value, HANGUL);
+
+  useLocaleBridge(t, ko);
+  assert.deepEqual({ ...ERROR_MESSAGES }, korean, "ko 메시지는 기존 한국어 원문과 같다");
+
+  registerSharedTranslate(en);
+  for (const [key, value] of Object.entries(ERROR_MESSAGES)) assert.doesNotMatch(value, HANGUL, `${key}: ${value}`);
+  assert.equal(ERROR_MESSAGES.loginRequired, "Please sign in.");
+});
+
+test("API 함수의 기본 오류 문구(서버 message가 빈 경우)가 지금 언어로 나온다", async (t) => {
+  useLocaleBridge(t, en);
+  failingFetch(t);
+  await assert.rejects(fetchMembers("ws_test"), { message: "Couldn't load the member list." });
+  await assert.rejects(fetchInvitation("token"), { message: "Couldn't load the invitation." });
+  await assert.rejects(updateAccountLocale("en"), { message: "Couldn't save your language setting." });
+
+  registerSharedTranslate(null);
+  await assert.rejects(fetchMembers("ws_test"), { message: "멤버 목록을 불러오지 못했습니다." }, "번역 함수가 없으면(서버 렌더·테스트) 한국어");
+});
+
+test("세션 만료·인증 갱신 실패 에러 메시지가 지금 언어로 나온다", async (t) => {
+  useLocaleBridge(t, en);
+  t.after(() => setSessionExpiredHandler(null));
+  setSessionExpiredHandler(() => {});
+  saveAccessToken("test-access");
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 401 }));
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), (error) => {
+    assert.ok(error instanceof SessionExpiredError);
+    assert.equal(error.message, "Please sign in.");
+    return true;
+  });
+
+  saveAccessToken("test-access");
+  t.mock.method(globalThis, "fetch", async (path) => new Response(null, { status: String(path).includes("/refresh") ? 503 : 401 }));
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), { message: "Couldn't refresh your sign-in. Please try again in a moment." });
+});
+
+test("서버 message는 그대로 두고, 사용량·업로드 한도 안내만 앱 문구를 지금 언어로 고른다", async (t) => {
+  useLocaleBridge(t, en);
+  const json = (status, body) => new Response(JSON.stringify(body), { status });
+  assert.equal((await parseApiError(json(500, { error: { message: "Server said" } }), "fallback")).message, "Server said");
+  for (const code of Object.keys(UPLOAD_LIMIT_MESSAGES)) {
+    const error = await parseApiError(json(413, { error: { code, message: "서버 문구" } }), "fallback");
+    assert.doesNotMatch(error.message, HANGUL, code);
+  }
+  const daily = await parseApiError(json(429, { error: { code: "AI_USAGE_LIMIT_EXCEEDED", message: "서버 문구" } }), "fallback");
+  assert.doesNotMatch(daily.message, HANGUL);
+});
+
+test("워크스페이스 제한 안내: t를 넘기거나 브라우저에 등록된 언어를 따른다", (t) => {
+  const errors = [...Object.keys(UPLOAD_LIMIT_MESSAGES), "WORKSPACE_LIMIT_EXCEEDED"].map((code) => new ApiError("server", 409, code));
+  const fallback = errors.map((error) => describeLimitError(error));
+  for (const message of fallback) assert.match(message, HANGUL);
+  assert.deepEqual(errors.map((error) => describeLimitError(error, ko)), fallback, "ko 메시지는 기존 한국어 문구와 같다");
+  for (const error of errors) assert.doesNotMatch(describeLimitError(error, en), HANGUL);
+  assert.equal(describeLimitError(new ApiError("server", 409, "OTHER"), en), null);
+  assert.equal(describeLimitError(new ApiError("server", 429, "AI_USAGE_LIMIT_EXCEEDED"), en), null, "AI 한도는 업로드 제한 안내가 아니다");
+
+  useLocaleBridge(t, en);
+  assert.equal(currentSharedTranslate(), en);
+  assert.equal(describeLimitError(errors.at(-1)), "You can't create more free workspaces. Delete a workspace you no longer use and try again.");
+});
+
+test("저장 공간 문구를 t로 지금 언어에 맞춘다", () => {
+  const GB = 1024 ** 3;
+  for (const storage of [{ used_bytes: GB, limit_bytes: 5 * GB }, { used_bytes: GB, limit_bytes: null }]) {
+    const fallback = describeStorageUsage(storage);
+    assert.deepEqual(describeStorageUsage(storage, ko), fallback);
+    assert.doesNotMatch(describeStorageUsage(storage, en).label, HANGUL);
+  }
+});
+
+// AiUsageBreakdown을 실제 메시지로 렌더한다. 외부 모듈은 순수 모델만 쓰고 아이콘·CSS는 대역이다.
+const require = createRequire(import.meta.url);
+function loadComponent(path, aliases) {
+  const output = ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true }
+  }).outputText;
+  const exports = {};
+  runInNewContext(output, { exports, require: (id) => aliases[id] ?? require(id) });
+  return exports;
+}
+
+function renderUsage(locale) {
+  const intl = { useTranslations: (namespace) => translator(locale, namespace), useLocale: () => locale };
+  const { AiUsageBreakdown } = loadComponent("../src/features/user-settings/ui/panels/AiUsageBreakdown.tsx", {
+    "next-intl": intl,
+    "@/entities/ai": { ...aiUsage, ...aiModel },
+    "@/shared/ui/SvgIcon": { claudeIcon: {}, geminiIcon: {}, gptIcon: {}, SvgIcon: () => null },
+    "./AiUsageSection.module.css": new Proxy({}, { get: (_, key) => String(key) })
+  });
+  const row = (label, provider, tokens, extra = {}) => ({
+    key: label, label, provider, inputTokens: tokens * 0.7, outputTokens: tokens * 0.3, cachedInputTokens: 0,
+    totalTokens: tokens, calls: 3, audioSeconds: 0, ttsCharacters: 0, chargeKrwMilli: 1_240_400, unpricedCalls: 0, ...extra
+  });
+  const summary = {
+    models: [
+      row("GPT-5", "openai", 78_257),
+      row("GPT Transcribe", "openai", 0, { audioSeconds: 125, chargeKrwMilli: 300 }),
+      row("GPT-4o Mini TTS", "openai", 0, { ttsCharacters: 1800, chargeKrwMilli: 0, unpricedCalls: 1 })
+    ],
+    inputTokens: 54_780, outputTokens: 23_477, totalTokens: 78_257, calls: 9, chargeKrwMilli: 1_240_700, unpricedCalls: 1, needsReviewCalls: 1
+  };
+  const rangeLabel = aiUsage.formatUsageRange({ from: new Date(2026, 10, 1), to: new Date(2026, 10, 8) }, locale);
+  return renderToStaticMarkup(React.createElement(AiUsageBreakdown, { summary, rangeLabel }));
+}
+
+test("AI 사용량 표(음성 시간·글자 수·1원 미만·축약 토큰)가 영어 화면에서 한국어를 섞지 않는다", () => {
+  const korean = renderUsage("ko");
+  assert.match(korean, /음성 2분 5초/);
+  assert.match(korean, /7\.8만/);
+  const english = renderUsage("en");
+  assert.doesNotMatch(english, HANGUL, english.match(/.{0,40}[가-힣]+.{0,40}/)?.[0]);
+  assert.match(english, /78\.3K/);
+});

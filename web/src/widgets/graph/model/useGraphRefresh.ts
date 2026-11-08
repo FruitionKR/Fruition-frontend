@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { publishNotice } from "@/features/document-notifications/model/noticeBus";
 
 export type GraphRefreshStatus = "idle" | "loading" | "upToDate";
@@ -6,16 +7,12 @@ export type GraphRefreshStatus = "idle" | "loading" | "upToDate";
 /** 바뀐 것이 없을 때 "최신 상태예요"를 보여 주는 시간 */
 export const GRAPH_UP_TO_DATE_FEEDBACK_MS = 2_000;
 
-export const GRAPH_REFRESH_ERROR_NOTICE = {
-  title: "그래프 새로고침 실패",
-  message: "그래프를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
-};
-
 /**
  * 그래프 새로고침 버튼 상태. 진행 중 반복 요청은 무시하고, 바뀐 것이 없으면 잠깐 upToDate를 보인다.
  * 실패하면 알림 카드로 알리고 지금 그래프는 그대로 둔다.
  */
 export function useGraphRefresh(refresh: () => Promise<{ changed: boolean }>) {
+  const t = useTranslations("workspace.graph.refresh");
   const [status, setStatus] = useState<GraphRefreshStatus>("idle");
   const isRefreshingRef = useRef(false);
   const feedbackTimerRef = useRef<number | null>(null);
@@ -45,11 +42,11 @@ export function useGraphRefresh(refresh: () => Promise<{ changed: boolean }>) {
       }, GRAPH_UP_TO_DATE_FEEDBACK_MS);
     } catch {
       setStatus("idle");
-      publishNotice({ kind: "failed", ...GRAPH_REFRESH_ERROR_NOTICE });
+      publishNotice({ kind: "failed", notificationKey: "other", title: t("failedTitle"), message: t("failedMessage") });
     } finally {
       isRefreshingRef.current = false;
     }
-  }, [refresh]);
+  }, [refresh, t]);
 
   return { status, refresh: run };
 }

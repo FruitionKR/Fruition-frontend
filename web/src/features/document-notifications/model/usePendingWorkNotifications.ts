@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import { useUserPreferences } from "@/entities/user";
 import { reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { fetchWikiMaintenanceStatus, requestWikiLint } from "../api/wikiLint";
-import { hasBeenIngestedToWiki, ingestPromptMessage, isAwaitingFirstIngest, selectIngestPromptTargets } from "./ingestPromptTargets";
+import { hasBeenIngestedToWiki, isAwaitingFirstIngest, selectIngestPromptTargets } from "./ingestPromptTargets";
 import { isNoticeSubjectVisible, noticeSubjectHiddenAt, publishNotice } from "./noticeBus";
 
 // 연속 업로드를 한 장의 카드로 묶기 위한 대기 시간
@@ -51,11 +53,27 @@ function savePromptMemory(key: string | null, serialized: string) {
   }
 }
 
+type NotificationsTranslator = ReturnType<typeof useTranslations<"wiki.notifications">>;
+
+/** 편입 제안 카드 종류. 제목과 알림 설정 항목이 종류마다 다르다. */
+type IngestPromptKind = "waiting" | "newDocument" | "stalled" | "changed";
+
+const INGEST_PROMPT_NOTIFICATION_KEYS = {
+  waiting: "suggest",
+  newDocument: "newDocument",
+  stalled: "ingestStalled",
+  changed: "ingestChanged"
+} as const satisfies Record<IngestPromptKind, string>;
+
 type PromptHandlers = {
   /** 버튼을 누른 시점의 최신 문서 목록 */
   getDocuments: () => DocumentItemResponse[];
   /** 하나라도 편입 요청이 접수되면 부른다. 문서 목록을 바로 다시 받아 진행 상태(빠른 폴링)를 놓치지 않게 한다. */
   onStarted: () => void;
+  /** 카드를 발행하는 시점의 번역기 */
+  t: NotificationsTranslator;
+  /** 서버 오류 문구를 지금 언어로 고르는 공용 번역기 */
+  tShared: SharedTranslate;
 };
 
 /**
@@ -64,26 +82,29 @@ type PromptHandlers = {
  */
 function publishIngestPrompt(
   candidates: DocumentItemResponse[],
-  title: string,
-  { getDocuments, onStarted }: PromptHandlers
+  kind: IngestPromptKind,
+  { getDocuments, onStarted, t, tShared }: PromptHandlers
 ) {
+  const promptMessage = (targets: readonly DocumentItemResponse[]) =>
+    t("ingestPrompt.message", { count: targets.length, filename: targets[0]?.filename ?? "" });
   // PDF 원본은 ingest 대상이 아니므로 분석 제안에서 제외한다.
   const documents = selectIngestPromptTargets(candidates.map((document) => document.id), candidates);
   if (documents.length === 0) return;
   const ids = documents.map((document) => document.id);
   publishNotice({
     kind: "info",
-    title,
-    message: ingestPromptMessage(documents),
+    notificationKey: INGEST_PROMPT_NOTIFICATION_KEYS[kind],
+    title: t(`ingestPrompt.title.${kind}`),
+    message: promptMessage(documents),
     subjectIds: ids,
     requiredPermission: "wiki.ingest",
     reconcile: (latest) => {
       const targets = selectIngestPromptTargets(ids, latest);
       if (targets.length === 0) return null;
-      return { message: ingestPromptMessage(targets), subjectIds: targets.map((document) => document.id) };
+      return { message: promptMessage(targets), subjectIds: targets.map((document) => document.id) };
     },
     action: {
-      label: "위키 편입",
+      label: t("ingestPrompt.action"),
       onAction: () => {
         const targets = selectIngestPromptTargets(ids, getDocuments());
         if (targets.length === 0) return;
@@ -94,13 +115,14 @@ function publishIngestPrompt(
           // 실패 사유는 백엔드 원문을 그대로 보여준다. 개수만 알려주면 원인을 알 수 없다.
           const failures = results.flatMap((result, index) =>
             result.status === "rejected"
-              ? [`${targets[index].filename}: ${getErrorMessage(result.reason, "요청에 실패했습니다.")}`]
+              ? [t("ingestPrompt.failureItem", { filename: targets[index].filename, reason: getErrorMessage(result.reason, t("ingestPrompt.requestFailed"), tShared) })]
               : []
           );
           if (failures.length > 0) {
             publishNotice({
               kind: "failed",
-              title: "위키 편입 시작 실패",
+              notificationKey: "ingestFailed",
+              title: t("ingestPrompt.startFailedTitle"),
               message: failures.join(" / ")
             });
           }
@@ -138,6 +160,12 @@ export function usePendingWorkNotifications(
     isDocumentsLoaded?: boolean;
   }
 ) {
+  const t = useTranslations("wiki.notifications");
+  const tShared = useTranslations("shared");
+  const tRef = useRef(t);
+  tRef.current = t;
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   const { preferences } = useUserPreferences();
   const lintSuggestEnabled = preferences.notifications.lintSuggest;
   const documentsRef = useRef(documents);
@@ -147,7 +175,9 @@ export function usePendingWorkNotifications(
   // 제안 카드 버튼은 누르는 시점의 최신 목록으로 대상을 다시 고르고, 요청이 접수되면 목록을 다시 받게 한다.
   const promptHandlers: PromptHandlers = {
     getDocuments: () => documentsRef.current,
-    onStarted: () => onIngestStartedRef.current?.()
+    onStarted: () => onIngestStartedRef.current?.(),
+    t,
+    tShared
   };
   const knownIdsRef = useRef<Set<string> | null>(null);
   const promptedIdsRef = useRef(new Set<string>());
@@ -221,7 +251,7 @@ export function usePendingWorkNotifications(
       const initial = awaiting.filter((document) => !promptedIdsRef.current.has(document.id));
       initial.forEach((document) => promptedIdsRef.current.add(document.id));
       persistPromptMemory();
-      publishIngestPrompt(initial, "위키 편입 대기 중인 문서가 있습니다", promptHandlers);
+      publishIngestPrompt(initial, "waiting", promptHandlers);
       return;
     }
 
@@ -244,7 +274,7 @@ export function usePendingWorkNotifications(
         const targets = documentsRef.current.filter(
           (document) => queuedIds.has(document.id) && isAwaitingFirstIngest(document)
         );
-        publishIngestPrompt(targets, "새 문서가 추가되었습니다", promptHandlers);
+        publishIngestPrompt(targets, "newDocument", { ...promptHandlers, t: tRef.current });
       }, INGEST_PROMPT_DEBOUNCE_MS);
     }
     // syncWorkspaceBaseline은 ref만 다룬다.
@@ -289,7 +319,7 @@ export function usePendingWorkNotifications(
       });
       persistPromptMemory();
 
-      publishIngestPrompt(stalled, "위키 편입이 아직 시작되지 않았습니다", promptHandlers);
+      publishIngestPrompt(stalled, "stalled", { ...promptHandlers, t: tRef.current });
     }
 
     checkStalledUploads();
@@ -320,7 +350,7 @@ export function usePendingWorkNotifications(
     }
     fresh.forEach((document) => reingestNotifiedRef.current.add(document.id));
     persistPromptMemory();
-    publishIngestPrompt(fresh, "마지막 위키 편입 이후 수정된 문서가 있습니다", promptHandlers);
+    publishIngestPrompt(fresh, "changed", promptHandlers);
   }, [documents, canIngest]);
 
   // 위키 최신화(lint) 필요 감지: 문서가 completed로 전이하면 유지보수 상태를 확인한다 (DB 비교라 저렴)
@@ -344,28 +374,32 @@ export function usePendingWorkNotifications(
     fetchWikiMaintenanceStatus()
       .then(({ needs_lint }) => {
         if (!needs_lint) return;
+        const t = tRef.current;
         publishNotice({
           kind: "info",
-          title: "위키 최신화 제안",
+          notificationKey: "lintSuggest",
+          title: t("lintSuggest.title"),
           requiredPermission: "wiki.lint",
-          message: "새 문서 반영 후 위키 페이지가 변경되었습니다. 위키 최신화를 실행할 수 있습니다.",
+          message: t("lintSuggest.message"),
           action: {
-            label: "위키 최신화",
+            label: t("lintSuggest.action"),
             onAction: () => {
               requestWikiLint(false)
                 .then(({ changedPageCount, operationId }) => {
                   publishNotice({
                     operation: { type: "lint", id: operationId },
+                    notificationKey: "lint",
                     kind: "completed",
-                    title: "위키 최신화 완료",
-                    message: `${changedPageCount}개 페이지를 다듬었습니다.`
+                    title: t("lint.completedTitle"),
+                    message: t("lint.completedMessage", { count: changedPageCount })
                   });
                 })
                 .catch((error: unknown) => {
                   publishNotice({
                     kind: "failed",
-                    title: "위키 최신화 실패",
-                    message: getErrorMessage(error, "위키 최신화 요청에 실패했습니다.")
+                    notificationKey: "lintRequestFailed",
+                    title: t("lint.failedTitle"),
+                    message: getErrorMessage(error, t("lint.requestFailed"), tSharedRef.current)
                   });
                 });
             }

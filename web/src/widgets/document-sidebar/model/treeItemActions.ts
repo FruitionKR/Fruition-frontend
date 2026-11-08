@@ -23,19 +23,20 @@ export type TreeMenuActionId =
   | "download"
   | "delete";
 
-export const TREE_MENU_LABELS: Record<TreeMenuActionId, string> = {
-  "new-note": "새 노트",
-  "new-folder": "새 폴더",
-  upload: "파일 업로드",
-  "import-notion": "Notion에서 가져오기",
-  convert: "Markdown으로 변환",
-  rename: "이름 변경",
-  move: "다른 폴더로 이동",
-  select: "여러 항목 선택",
-  permission: "권한 설정",
-  download: "원본 다운로드",
-  delete: "삭제"
-};
+/** 메뉴 항목의 메시지 키(documents.tree.menu.*) */
+export const TREE_MENU_MESSAGE_KEYS = {
+  "new-note": "newNote",
+  "new-folder": "newFolder",
+  upload: "upload",
+  "import-notion": "importNotion",
+  convert: "convert",
+  rename: "rename",
+  move: "move",
+  select: "select",
+  permission: "permission",
+  download: "download",
+  delete: "delete"
+} as const satisfies Record<TreeMenuActionId, string>;
 
 export type TreeItemMenuAccess = {
   /** 새 노트·새 폴더·파일 업로드 등 생성 항목. 폴더·최상위에서만 연다(파일에는 없다). */

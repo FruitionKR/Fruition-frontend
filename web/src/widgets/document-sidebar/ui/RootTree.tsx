@@ -1,4 +1,5 @@
 import type { DragEvent as ReactDragEvent } from "react";
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { hasDroppedFiles } from "@/entities/tree";
 import type { Project } from "@/entities/tree";
@@ -8,6 +9,7 @@ import styles from "./DocumentSidebar.module.css";
 
 /** 루트 문서·폴더를 한 트리로 보여준다. 빈 여백에 항목을 끌어다 놓으면 루트로 이동한다. */
 export function RootTree({ project, interaction }: { project: Project; interaction: TreeInteractionProps }) {
+  const t = useTranslations("documents.tree");
   const { dropTarget } = interaction;
   const isRootDropTarget = dropTarget?.projectId === project.id && dropTarget.targetId === null;
 
@@ -27,7 +29,7 @@ export function RootTree({ project, interaction }: { project: Project; interacti
   return (
     <div
       role="tree"
-      aria-label="문서 트리"
+      aria-label={t("label")}
       // 스킬 대상 고르기에서는 한 항목만 고른다.
       aria-multiselectable={!interaction.isPickingTarget}
       className={cx(styles["tree-root"], isRootDropTarget && styles["is-tree-drop-target"])}
@@ -36,7 +38,7 @@ export function RootTree({ project, interaction }: { project: Project; interacti
     >
       {project.items.length > 0
         ? <SidebarTree items={project.items} projectId={project.id} interaction={interaction} />
-        : <p className={styles["tree-root-empty"]}>아직 문서가 없습니다</p>}
+        : <p className={styles["tree-root-empty"]}>{t("empty")}</p>}
     </div>
   );
 }

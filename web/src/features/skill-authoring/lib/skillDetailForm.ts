@@ -5,13 +5,14 @@ import {
   kindFromCapabilities,
   SKILL_DESCRIPTION_MAX,
   SKILL_INSTRUCTIONS_MAX,
-  SKILL_TARGET_OPTIONS,
+  SKILL_TARGETS,
   showsSourceField,
   skillCapabilities,
   skillCommandError,
   skillExecutionOptions,
   targetsFromValues,
-  TARGETS_REQUIRED_MESSAGE,
+  TARGETS_REQUIRED_ERROR,
+  type SkillFieldError,
   type SkillCapability,
   type SkillCreateForm,
   type SkillKind,
@@ -59,9 +60,7 @@ export interface ParsedSkillInstructions {
 
 /** 이전 만들기 시트가 만들던 지침 문자열 그대로. 되읽은 결과가 이것과 같아야 기계가 붙인 절로 본다. */
 function legacyInstructions(rules: string, targets: readonly SkillTarget[], hasAutoLine: boolean): string {
-  const lines = SKILL_TARGET_OPTIONS.filter((option) => targets.includes(option.value)).map(
-    (option) => LEGACY_TARGET_LINES[option.value]
-  );
+  const lines = SKILL_TARGETS.filter((target) => targets.includes(target)).map((target) => LEGACY_TARGET_LINES[target]);
   if (hasAutoLine) lines.push(LEGACY_AUTO_RESULT_LINE);
   return `${rules}\n\n${LEGACY_TARGET_SECTION_HEADING}\n\n${lines.join("\n")}`;
 }
@@ -79,9 +78,7 @@ export function parseSkillInstructions(markdown: string): ParsedSkillInstruction
 
   const rules = trimmed.slice(0, index).trim();
   const lines = trimmed.slice(index + marker.length).split("\n");
-  const targets = SKILL_TARGET_OPTIONS.map((option) => option.value).filter((target) =>
-    lines.includes(LEGACY_TARGET_LINES[target])
-  );
+  const targets = SKILL_TARGETS.filter((target) => lines.includes(LEGACY_TARGET_LINES[target]));
   const hasAutoLine = lines.includes(LEGACY_AUTO_RESULT_LINE);
   if (rules === "" || legacyInstructions(rules, targets, hasAutoLine) !== trimmed) return untouched;
   return { rules, targets };
@@ -219,24 +216,24 @@ export function requiresSourceDrift(
 
 export type SkillDetailField = "command" | "description" | "rules" | "targets";
 
-/** 필드별 오류 문구. otherSlugs는 이 스킬을 뺀 다른 스킬의 커맨드다. */
+/** 필드별 오류. otherSlugs는 이 스킬을 뺀 다른 스킬의 커맨드다. 문구는 skillFieldErrorText로 만든다. */
 export function validateSkillDetailForm(
   form: SkillDetailForm,
   otherSlugs: readonly string[]
-): Partial<Record<SkillDetailField, string>> {
-  const errors: Partial<Record<SkillDetailField, string>> = {};
+): Partial<Record<SkillDetailField, SkillFieldError>> {
+  const errors: Partial<Record<SkillDetailField, SkillFieldError>> = {};
   const commandError = skillCommandError(form.command, otherSlugs);
   if (commandError != null) errors.command = commandError;
   const description = form.description.trim();
-  if (description === "") errors.description = "설명을 입력해 주세요.";
+  if (description === "") errors.description = { key: "descriptionRequired" };
   else if (description.length > SKILL_DESCRIPTION_MAX) {
-    errors.description = `설명은 ${SKILL_DESCRIPTION_MAX}자까지 쓸 수 있습니다.`;
+    errors.description = { key: "descriptionTooLong", max: SKILL_DESCRIPTION_MAX };
   }
-  if (form.rules.trim() === "") errors.rules = "실행 규칙을 입력해 주세요.";
+  if (form.rules.trim() === "") errors.rules = { key: "rulesRequired" };
   else if (form.rules.trim().length > SKILL_INSTRUCTIONS_MAX) {
-    errors.rules = `실행 규칙은 ${SKILL_INSTRUCTIONS_MAX.toLocaleString("ko-KR")}자까지 쓸 수 있습니다.`;
+    errors.rules = { key: "rulesTooLong", max: SKILL_INSTRUCTIONS_MAX };
   }
-  if (form.kind === "document" && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_MESSAGE;
+  if (form.kind === "document" && form.targets.length === 0) errors.targets = TARGETS_REQUIRED_ERROR;
   return errors;
 }
 

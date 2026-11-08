@@ -12,6 +12,7 @@ import { AuthError, AuthField, AuthSubmitButton } from "@/shared/ui/auth/AuthCon
 export function MfaLoginForm({ token, onCancel }: { token: string; onCancel: () => void }) {
   const router = useRouter();
   const t = useTranslations("auth.mfa");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,7 +30,7 @@ export function MfaLoginForm({ token, onCancel }: { token: string; onCancel: () 
       setCode("");
       router.replace(takeAfterLoginPath());
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, t("failed")));
+      setError(getErrorMessage(cause, t("failed"), tShared));
       setBusy(false);
     }
   }

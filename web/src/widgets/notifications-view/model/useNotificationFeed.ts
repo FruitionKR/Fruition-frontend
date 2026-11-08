@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { fetchOperationLogs } from "@/entities/operation-log";
 import { useMe } from "@/entities/user";
 import { fetchMembers } from "@/entities/workspace/api/members";
@@ -62,6 +63,10 @@ function writeStoredState(key: string, state: NotificationReadState) {
  */
 export function useNotificationFeed(isViewActive: boolean) {
   const { data: me } = useMe();
+  const t = useTranslations("workspace.notificationsView");
+  const tServer = useTranslations("wiki.notifications.server");
+  const tSummary = useTranslations("workspace.logMessages.summary");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const workspaceId = getSelectedWorkspaceId();
   const storageKey = me?.id && workspaceId ? readStateStorageKey(me.id, workspaceId) : null;
@@ -92,13 +97,13 @@ export function useNotificationFeed(isViewActive: boolean) {
     retry: false
   });
 
-  const taskItems = useMemo(() => buildTaskNotifications(tasksQuery.data?.logs ?? []), [tasksQuery.data]);
+  const taskItems = useMemo(() => buildTaskNotifications(tasksQuery.data?.logs ?? [], t, tSummary), [tasksQuery.data, t, tSummary]);
   // 브라우저 읽음 기록을 쓰는 알림(멤버 참여). 서버 알림은 읽음을 서버가 가지므로 기준점 계산에 넣지 않는다.
   const memberItems = useMemo(
-    () => buildWorkspaceNotifications(membersQuery.data ?? [], me?.id ?? null),
-    [membersQuery.data, me?.id]
+    () => buildWorkspaceNotifications(membersQuery.data ?? [], me?.id ?? null, t),
+    [membersQuery.data, me?.id, t]
   );
-  const serverItems = useMemo(() => buildServerNotifications(serverQuery.data ?? []), [serverQuery.data]);
+  const serverItems = useMemo(() => buildServerNotifications(serverQuery.data ?? [], tServer), [serverQuery.data, tServer]);
   const workspaceItems = useMemo(
     () => [...memberItems, ...serverItems].sort((a, b) => b.occurredAt - a.occurredAt),
     [memberItems, serverItems]
@@ -158,9 +163,9 @@ export function useNotificationFeed(isViewActive: boolean) {
       else await markAllServerNotificationsRead();
       queryClient.setQueryData<AppNotification[]>(serverQueryKey, (current) => markServerRead(current ?? [], ids));
     } catch (error) {
-      publishNotice({ kind: "failed", title: "알림 읽음 처리 실패", message: getErrorMessage(error, "알림을 읽음 처리하지 못했습니다.") });
+      publishNotice({ kind: "failed", notificationKey: "notificationReadFailed", title: t("readFailedTitle"), message: getErrorMessage(error, t("readFailed"), tShared) });
     }
-  }, [queryClient, serverQueryKey]);
+  }, [queryClient, serverQueryKey, t, tShared]);
 
   const markRead = useCallback((id: string) => {
     const serverId = parseServerNotificationId(id);
@@ -182,13 +187,13 @@ export function useNotificationFeed(isViewActive: boolean) {
       items: workspaceItems,
       hasUnread: hasUnreadWorkspace,
       isLoading: membersQuery.isPending && Boolean(workspaceId),
-      errorMessage: membersQuery.error ? getErrorMessage(membersQuery.error, "멤버 목록을 불러오지 못했습니다.") : null
+      errorMessage: membersQuery.error ? getErrorMessage(membersQuery.error, t("membersFailed"), tShared) : null
     },
     task: {
       items: taskItems,
       hasUnread: hasUnreadTask,
       isLoading: tasksQuery.isPending && Boolean(workspaceId),
-      errorMessage: tasksQuery.error ? getErrorMessage(tasksQuery.error, "작업 알림을 불러오지 못했습니다.") : null
+      errorMessage: tasksQuery.error ? getErrorMessage(tasksQuery.error, t("tasksFailed"), tShared) : null
     },
     hasUnread,
     isUnread,

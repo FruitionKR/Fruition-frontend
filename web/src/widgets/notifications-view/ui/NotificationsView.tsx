@@ -1,21 +1,14 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { formatNotificationTime, type NotificationCategory, type NotificationItem } from "../lib/notificationFeed";
 import type { NotificationFeed } from "../model/useNotificationFeed";
 import styles from "./NotificationsView.module.css";
 
-// 알림 설정은 설정 모달에서만 바꾼다. 알림 화면에는 설정 탭을 두지 않는다.
-const TABS: { id: NotificationCategory; label: string }[] = [
-  { id: "workspace", label: "워크스페이스 알림" },
-  { id: "task", label: "작업 알림" }
-];
-
-const EMPTY_MESSAGES: Record<NotificationCategory, string> = {
-  workspace: "워크스페이스 알림이 없습니다.",
-  task: "작업 알림이 없습니다."
-};
+// 알림 설정은 설정 모달에서만 바꾼다. 알림 화면에는 설정 탭을 두지 않는다. 문구는 workspace.notificationsView.tabs·empty에 있다.
+const TABS: readonly NotificationCategory[] = ["workspace", "task"];
 
 /** 상대 시간("1분 전")을 다시 계산하는 주기 */
 const CLOCK_TICK_MS = 60_000;
@@ -29,8 +22,6 @@ function NotificationIcon() {
     </svg>
   );
 }
-
-const ABSOLUTE_TIME_FORMAT = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" });
 
 function NotificationRow({
   item,
@@ -48,6 +39,9 @@ function NotificationRow({
   onOpenOperation: (operationId: string) => void;
 }) {
   const detailId = useId();
+  const t = useTranslations("workspace.notificationsView");
+  const format = useFormatter();
+  const locale = useLocale();
   return (
     <li className={cx(styles.row, isUnread && styles["is-unread"], isExpanded && styles["is-expanded"])}>
       <button
@@ -63,12 +57,12 @@ function NotificationRow({
             <strong className={cx(styles["row-title"], item.tone === "failure" && styles["is-failure"])}>{item.title}</strong>
             <span className={styles["row-description"]}>{item.description}</span>
           </span>
-          {item.changeCount !== null && <span className={styles["row-chip"]}>{item.changeCount}개 변경</span>}
+          {item.changeCount !== null && <span className={styles["row-chip"]}>{t("changeCount", { count: item.changeCount })}</span>}
         </span>
         <span className={styles["row-meta"]}>
           <span className={styles["row-dot"]} aria-hidden />
-          {isUnread && <span className={styles["sr-only"]}>안 읽음</span>}
-          <time dateTime={new Date(item.occurredAt).toISOString()}>{formatNotificationTime(item.occurredAt, now)}</time>
+          {isUnread && <span className={styles["sr-only"]}>{t("unread")}</span>}
+          <time dateTime={new Date(item.occurredAt).toISOString()}>{formatNotificationTime(item.occurredAt, now, t, locale)}</time>
         </span>
       </button>
       {/* 누르면 화면을 옮기지 않고 짧은 설명을 펼친다. 작업 알림은 로그로 가는 버튼을 함께 둔다. */}
@@ -76,11 +70,11 @@ function NotificationRow({
         <div className={styles["row-detail-inner"]}>
           <ul className={styles["detail-lines"]}>
             {item.details.map((line) => <li key={line}>{line}</li>)}
-            <li className={styles["detail-time"]}>{ABSOLUTE_TIME_FORMAT.format(item.occurredAt)}</li>
+            <li className={styles["detail-time"]}>{format.dateTime(item.occurredAt, { dateStyle: "medium", timeStyle: "short" })}</li>
           </ul>
           {item.operationId && (
             <button type="button" className={styles["detail-link"]} onClick={() => onOpenOperation(item.operationId!)}>
-              로그에서 자세히 보기
+              {t("openLog")}
             </button>
           )}
         </div>
@@ -101,6 +95,7 @@ export function NotificationsView({
   /** 작업 알림을 펼쳐 "로그에서 자세히 보기"를 누르면 로그 화면에서 그 작업을 연다 */
   onOpenOperation: (operationId: string) => void;
 }) {
+  const t = useTranslations("workspace.notificationsView");
   const [activeTab, setActiveTab] = useState<NotificationCategory>("workspace");
   const [now, setNow] = useState(() => Date.now());
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -123,28 +118,28 @@ export function NotificationsView({
     <section className={styles.notifications} aria-labelledby={`${tabIdPrefix}-title`}>
       <header className={styles.hero}>
         <div className={styles.heading}>
-          <h1 id={`${tabIdPrefix}-title`}>알림</h1>
-          <p>알림 리스트입니다.</p>
+          <h1 id={`${tabIdPrefix}-title`}>{t("title")}</h1>
+          <p>{t("subtitle")}</p>
         </div>
         <div className={styles.tabs}>
-          <div role="tablist" aria-label="알림 종류" className={styles["tab-list"]}>
+          <div role="tablist" aria-label={t("tabsLabel")} className={styles["tab-list"]}>
             {TABS.map((tab) => (
               <button
-                key={tab.id}
+                key={tab}
                 type="button"
                 role="tab"
-                id={`${tabIdPrefix}-tab-${tab.id}`}
-                aria-selected={activeTab === tab.id}
+                id={`${tabIdPrefix}-tab-${tab}`}
+                aria-selected={activeTab === tab}
                 aria-controls={panelId}
-                className={cx(styles.tab, activeTab === tab.id && styles["is-active"])}
-                onClick={() => setActiveTab(tab.id)}
+                className={cx(styles.tab, activeTab === tab && styles["is-active"])}
+                onClick={() => setActiveTab(tab)}
               >
-                {tab.label}
+                {t(`tabs.${tab}`)}
                 {/* 레일 알림 종의 노란 점과 같은 표시. 이 탭에 안 읽은 알림이 있을 때만 보인다. */}
-                {feed[tab.id].hasUnread && (
+                {feed[tab].hasUnread && (
                   <>
                     <span className={styles["tab-badge"]} aria-hidden />
-                    <span className={styles["sr-only"]}>안 읽은 알림 있음</span>
+                    <span className={styles["sr-only"]}>{t("tabUnread")}</span>
                   </>
                 )}
               </button>
@@ -156,7 +151,7 @@ export function NotificationsView({
             disabled={!feed.hasUnread}
             onClick={feed.markAllRead}
           >
-            전체 읽음 처리
+            {t("readAll")}
           </button>
         </div>
       </header>
@@ -165,9 +160,9 @@ export function NotificationsView({
         {list.errorMessage ? (
           <p className={styles.message} role="alert">{list.errorMessage}</p>
         ) : list.isLoading ? (
-          <p className={styles.message} role="status">알림을 불러오는 중입니다.</p>
+          <p className={styles.message} role="status">{t("loading")}</p>
         ) : list.items.length === 0 ? (
-          <p className={styles.message}>{EMPTY_MESSAGES[activeTab]}</p>
+          <p className={styles.message}>{t(`empty.${activeTab}`)}</p>
         ) : (
           <ul className={styles.list}>
             {list.items.map((item) => (

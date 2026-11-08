@@ -3,6 +3,7 @@ import { findItemLocation, folderItems, normalizeTreeName, serverFolderId } from
 import { findTreeItem } from "@/entities/tree/lib/treeQueries";
 import { canWriteTreeFolder, FOLDER_EDIT_FORBIDDEN_MESSAGE, FOLDER_WRITE_FORBIDDEN_MESSAGE } from "@/entities/tree/lib/treePermission";
 import type { FolderLocation } from "@/entities/tree/lib/treeNames";
+import { TREE_SKIP_REASONS } from "@/entities/tree/lib/treeSkipReasons";
 import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 import { selectedRootItems, type SkippedTreeItem } from "./treeBulkSelection";
 
@@ -132,11 +133,11 @@ function resolveManyMove(
 
 /** 묶음 이동에서 이 항목을 건너뛸 이유. 옮길 수 있으면 null. */
 function manyMoveSkipReason(item: TreeItem, destination: FolderLocation, takenNames: ReadonlySet<string>): string | null {
-  if (item.generated) return "자동 생성 항목은 옮길 수 없습니다";
-  if (item.status === "uploading" || (isFileItem(item) && !item.documentId)) return "업로드가 끝나지 않았습니다";
-  if (item.canEdit === false) return "편집 권한이 없습니다";
-  if (movesIntoOwnSubtree(item, destination)) return "자기 자신이나 하위 폴더 안으로 옮길 수 없습니다";
-  if (takenNames.has(normalizeTreeName(item.label))) return "대상 폴더에 같은 이름의 항목이 있습니다";
+  if (item.generated) return TREE_SKIP_REASONS.generatedMove;
+  if (item.status === "uploading" || (isFileItem(item) && !item.documentId)) return TREE_SKIP_REASONS.uploadPending;
+  if (item.canEdit === false) return TREE_SKIP_REASONS.noEditPermission;
+  if (movesIntoOwnSubtree(item, destination)) return TREE_SKIP_REASONS.intoOwnSubtree;
+  if (takenNames.has(normalizeTreeName(item.label))) return TREE_SKIP_REASONS.duplicateName;
   return null;
 }
 

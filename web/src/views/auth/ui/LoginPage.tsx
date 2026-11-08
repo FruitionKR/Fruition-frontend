@@ -9,9 +9,6 @@ import {
   exchangeOAuthCode,
   loginWithEmail,
   ME_QUERY_KEY,
-  OAUTH_LINK_FAILED_MESSAGE,
-  OAUTH_LINK_SUCCESS_MESSAGE,
-  OAUTH_LOGIN_FAILED_MESSAGE,
   oauthAccountErrorMessage,
   oauthCallbackErrorMessage,
   parseOAuthCallbackError,
@@ -23,11 +20,13 @@ import {
   type OAuthLinkResult
 } from "@/entities/user";
 import { useTypedFormValues } from "@/shared/hooks/useTypedFormValues";
-import { saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+import { isSignedOutByUser, saveAccessToken, takeAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { hasHangul } from "@/shared/lib/passwordPolicy";
 import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/shared/ui/auth/AuthControls";
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
+import { useOAuthCallbackGate } from "@/views/auth/model/useOAuthCallbackGate";
 import { useServerWake, type AccessCodeResult } from "@/views/auth/model/useServerWake";
 import { getLoginErrorMessage } from "@/views/auth/lib/loginErrorMessage";
 import { OAuthSignupConsentForm } from "@/views/auth/ui/OAuthSignupConsentForm";
@@ -63,6 +62,7 @@ function LoginPageContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const hasHandledOAuth = useRef(false);
   const isLoginRequestInFlight = useRef(false);
   const [email, setEmail] = useState("");
@@ -85,14 +85,13 @@ function LoginPageContent() {
     requestBeforeSubmit,
     isServerUnready
   } = useServerWake();
-  // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 돌아갈 화면을 먼저 가져가지 않게 처음 값을 유지한다.
-  const [isOAuthLinkCallback] = useState(() => parseOAuthLinkCallback(searchParams) !== null);
-  const hasOAuthParams = Boolean(searchParams.get("code") || searchParams.get("error") || parseOAuthSignupToken(searchParams))
-    || isOAuthLinkCallback;
+  // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 code 교환과 겹치지 않게 첫 렌더 값을 유지한다.
+  const { isOAuthLinkCallback, hasOAuthParams, canCheckSession, finishOAuthLoginAttempt } = useOAuthCallbackGate(searchParams);
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
-  // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)이 붙어 있으면 그 처리가 우선이라 건너뛴다.
+  // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)을 처리하는 동안은 그 처리가 우선이라 건너뛴다.
   // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
-  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: !hasOAuthParams && !mfaToken && !signupToken && !isAccountDeleted });
+  // 방금 직접 로그아웃한 사용자는 서버 로그아웃이 실패해 refresh 쿠키가 남았더라도 방금 나온 계정으로 되돌려 보내지 않는다.
+  const { isSuccess: isAlreadySignedIn } = useMe({ enabled: canCheckSession && !mfaToken && !signupToken && !isAccountDeleted && !isSignedOutByUser() });
 
   const formRef = useTypedFormValues({ email: setEmail, password: setPassword });
 
@@ -129,7 +128,7 @@ function LoginPageContent() {
     if (linkCallback) {
       hasHandledOAuth.current = true;
       window.history.replaceState({}, "", window.location.pathname);
-      finishOAuthLink(linkCallback, t("login.oauthLinkFailed"))
+      finishOAuthLink(linkCallback, t("login.oauthLinkFailed"), tShared)
         .then((result) => {
           saveOAuthLinkResult(result);
           void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
@@ -137,7 +136,7 @@ function LoginPageContent() {
         })
         // finishOAuthLink는 연동 실패를 결과로 돌려주므로, 여기 오는 건 결과 저장(sessionStorage) 등 후처리 실패다.
         .catch((error: unknown) => {
-          setErrorMessage(oauthAccountErrorMessage(error, t("login.oauthLinkResultFailed")));
+          setErrorMessage(oauthAccountErrorMessage(error, t("login.oauthLinkResultFailed"), tShared));
         });
       return;
     }
@@ -152,7 +151,7 @@ function LoginPageContent() {
     // error=email_registered&providers=local,google: 같은 이메일의 계정이 있어 가입을 거절한 콜백.
     // 그 계정의 로그인 수단(이메일 또는 소셜)으로 로그인한 뒤 설정에서 연동하도록 안내한다(access #31).
     if (callbackError) {
-      setErrorMessage(oauthCallbackErrorMessage(callbackError));
+      setErrorMessage(oauthCallbackErrorMessage(callbackError, tShared));
       return;
     }
 
@@ -160,6 +159,7 @@ function LoginPageContent() {
     exchangeOAuthCode(code as string)
       .then((tokens) => {
         if (tokens.mfa_required) {
+          finishOAuthLoginAttempt();
           setMfaToken(tokens.mfa_token);
           setIsSubmitting(false);
           return;
@@ -169,10 +169,11 @@ function LoginPageContent() {
         router.replace(takeAfterLoginPath());
       })
       .catch(() => {
-        setErrorMessage(OAUTH_LOGIN_FAILED_MESSAGE);
+        finishOAuthLoginAttempt();
+        setErrorMessage(tShared("user.oauth.loginFailed"));
         setIsSubmitting(false);
       });
-  }, [isAccountDeleted, queryClient, router, searchParams, t]);
+  }, [finishOAuthLoginAttempt, isAccountDeleted, queryClient, router, searchParams, t, tShared]);
 
   // 칸을 벗어나면 바로 확인해, 이메일·비밀번호를 입력하는 동안 서버 기동이 시작되게 한다.
   async function handleAccessCodeBlur() {
@@ -311,12 +312,12 @@ function LoginPageContent() {
   );
 }
 
-async function finishOAuthLink(callback: OAuthLinkCallback, failedMessage: string): Promise<OAuthLinkResult> {
-  if (callback.kind === "failed") return { ok: false, message: OAUTH_LINK_FAILED_MESSAGE };
+async function finishOAuthLink(callback: OAuthLinkCallback, failedMessage: string, tShared: SharedTranslate): Promise<OAuthLinkResult> {
+  if (callback.kind === "failed") return { ok: false, message: tShared("user.oauth.linkFailed") };
   try {
     await confirmOAuthLink(callback.linkCode);
-    return { ok: true, message: OAUTH_LINK_SUCCESS_MESSAGE };
+    return { ok: true, message: tShared("user.oauth.linkSuccess") };
   } catch (error: unknown) {
-    return { ok: false, message: oauthAccountErrorMessage(error, failedMessage) };
+    return { ok: false, message: oauthAccountErrorMessage(error, failedMessage, tShared) };
   }
 }

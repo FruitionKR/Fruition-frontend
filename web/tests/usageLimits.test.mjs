@@ -75,14 +75,15 @@ test("비동기 실패(회의록 error_code·문서 error_message·실시간 받
   assert.equal(describeDocumentFailure(undefined, "AI_USAGE_LIMIT_EXCEEDED"), AI_DAILY_LIMIT_MESSAGE);
   assert.equal(describeDocumentFailure("크레딧이 부족해 작업을 시작하지 않았습니다.", "INSUFFICIENT_CREDIT"), "크레딧이 부족해 작업을 시작하지 않았습니다.");
   assert.equal(describeDocumentFailure("페이지를 추출하지 못했습니다.", null), "페이지를 추출하지 못했습니다.");
-  assert.equal(describeLiveError("ai_usage_limit_exceeded"), AI_DAILY_LIMIT_MESSAGE);
+  // AI 사용 한도는 meeting 메시지를 쓰지 않고 앱 공통 안내를 그대로 쓴다.
+  assert.equal(describeLiveError("ai_usage_limit_exceeded", () => "meeting 메시지"), AI_DAILY_LIMIT_MESSAGE);
   // 다시 연결해도 같은 결과라 재연결하지 않는다.
   assert.equal(isFatalLiveError("ai_usage_limit_exceeded"), true);
 });
 
 test("업로드 실패 알림 문구는 파일 이름과 사유를 함께 보인다", async () => {
-  const { uploadFailureMessage } = await import("../src/features/document-upload/lib/uploadFailure.ts");
-  assert.equal(uploadFailureMessage("big.pdf", "파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요."),
+  const { useTranslations: koT } = await import("./fakeNextIntl.mjs");
+  assert.equal(koT("documents.upload.failed")("message", { filename: "big.pdf", reason: "파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요." }),
     '"big.pdf" 파일을 올리지 못했어요. 파일이 너무 커요. 100MB 이하 파일만 올릴 수 있어요.');
 });
 

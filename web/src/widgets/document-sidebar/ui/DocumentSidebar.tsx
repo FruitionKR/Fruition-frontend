@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { findTreeItem, type ContextMenuState, type DropTarget, type EditingState, type FileDropTarget, type Project } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
@@ -199,6 +200,8 @@ export function DocumentSidebar({
   onDeleteContextTarget: () => void;
   onCloseContextMenu: () => void;
 }) {
+  const t = useTranslations("documents.sidebar");
+  const tShared = useTranslations("shared");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // 터치 기기의 여러 항목 선택 모드. Cmd/Shift+클릭 대신 행을 눌러 고른다.
   const [isTouchSelecting, setIsTouchSelecting] = useState(false);
@@ -254,7 +257,12 @@ export function DocumentSidebar({
     permission: () => onSetPermissionContextTarget?.(),
     download: () => {
       onCloseContextMenu();
-      if (contextMenuItem) void downloadTreeItemOriginal(contextMenuItem);
+      if (contextMenuItem) {
+        void downloadTreeItemOriginal(contextMenuItem, {
+          title: t("downloadFailed.title"),
+          message: t("downloadFailed.message", { filename: contextMenuItem.label })
+        }, tShared);
+      }
     },
     delete: onDeleteContextTarget
   };
@@ -348,7 +356,7 @@ export function DocumentSidebar({
           }}
         >
           <SidebarPlusIcon size={20} />
-          새 노트 추가
+          {t("addNote")}
         </button>
       )}
       {contextMenu && hasContextMenuItems && (
@@ -382,12 +390,12 @@ export function DocumentSidebar({
       <div className={styles["sidebar-topbar"]}>
         {isCollapsed ? (
           <>
-            <SidebarToggleButton label="사이드바 펼치기" onToggle={onExpandSidebar} />
+            <SidebarToggleButton label={t("expand")} onToggle={onExpandSidebar} />
             <span className={styles["phone-title"]}>{phoneTitle}</span>
             <button
               type="button"
               className={styles["phone-search"]}
-              aria-label="통합 검색"
+              aria-label={t("search")}
               aria-haspopup="dialog"
               aria-expanded={isSearchOpen}
               onClick={(event) => {
@@ -401,7 +409,7 @@ export function DocumentSidebar({
         ) : (
           <>
             <SidebarWorkspaceHeader />
-            <SidebarToggleButton label="사이드바 접기" onToggle={onCollapseSidebar} />
+            <SidebarToggleButton label={t("collapse")} onToggle={onCollapseSidebar} />
           </>
         )}
       </div>
@@ -466,7 +474,7 @@ export function DocumentSidebar({
               }}
             >
               <SidebarSearchIcon className={styles["sidebar-search-icon"]} />
-              <span>통합 검색</span>
+              <span>{t("search")}</span>
             </button>
           </div>
           <input
@@ -505,10 +513,10 @@ export function DocumentSidebar({
           </div>
           )}
           {isTouchSelecting && (
-            <div className={styles["touch-selection-bar"]} role="toolbar" aria-label="여러 항목 선택">
-              <span role="status">{selectedItemIds.size}개 선택</span>
-              <button type="button" disabled={selectedItemIds.size === 0} onClick={() => rootProject && onMoveSelectedItems?.(rootProject.id)}>이동</button>
-              <button type="button" className={styles.danger} disabled={selectedItemIds.size === 0} onClick={onDeleteSelectedItems}>삭제</button>
+            <div className={styles["touch-selection-bar"]} role="toolbar" aria-label={t("touchSelection.label")}>
+              <span role="status">{t("touchSelection.count", { count: selectedItemIds.size })}</span>
+              <button type="button" disabled={selectedItemIds.size === 0} onClick={() => rootProject && onMoveSelectedItems?.(rootProject.id)}>{t("touchSelection.move")}</button>
+              <button type="button" className={styles.danger} disabled={selectedItemIds.size === 0} onClick={onDeleteSelectedItems}>{t("touchSelection.delete")}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -516,7 +524,7 @@ export function DocumentSidebar({
                   setIsTouchSelecting(false);
                 }}
               >
-                완료
+                {t("touchSelection.done")}
               </button>
             </div>
           )}
@@ -530,12 +538,12 @@ export function DocumentSidebar({
         role="separator"
         tabIndex={0}
         className={styles["sidebar-resize-handle"]}
-        aria-label="사이드바 폭 조절"
+        aria-label={t("resize.label")}
         aria-orientation="vertical"
         aria-valuenow={resizeHandle.valueNow}
         aria-valuemin={resizeHandle.valueMin}
         aria-valuemax={resizeHandle.valueMax}
-        aria-valuetext={isCollapsed ? "접힘" : `${resizeHandle.valueNow}px`}
+        aria-valuetext={isCollapsed ? t("resize.collapsed") : `${resizeHandle.valueNow}px`}
         onPointerDown={resizeHandle.onPointerDown}
         onKeyDown={resizeHandle.onKeyDown}
       />

@@ -1,6 +1,7 @@
 import { ERROR_MESSAGES } from "@/shared/api/client";
 import { SessionExpiredError } from "@/shared/lib/apiErrors";
 import type { EditLockResponse } from "../api/editLock";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 /** 만료가 임박해도 초당 요청으로 번지지 않게 하는 하한. */
 export const HEARTBEAT_MIN_MS = 5_000;
@@ -81,5 +82,5 @@ export function resolveHeartbeatFailure(
 /** 423 보유자 안내 문구. 표시 이름이 없으면 누구인지 밝히지 않고 편집 중임만 알린다. */
 export function describeEditLockHolder(lock: EditLockResponse): string {
   const holder = lock.holder_display_name?.trim();
-  return holder ? `${holder}님이 편집 중입니다.` : ERROR_MESSAGES.editLockHeld;
+  return holder ? sharedText("documentRequests.document.editLockHolder", `${holder}님이 편집 중입니다.`, { name: holder }) : ERROR_MESSAGES.editLockHeld;
 }

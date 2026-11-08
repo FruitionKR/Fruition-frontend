@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { useModalFocus } from "@/shared/hooks/useModalFocus";
 import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 
@@ -14,6 +15,7 @@ export function MeetingDeleteConfirm({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("meeting");
   const containerRef = useRef<HTMLDivElement | null>(null);
   useModalFocus(containerRef);
   useEffect(() => {
@@ -23,14 +25,9 @@ export function MeetingDeleteConfirm({
     <div ref={containerRef}>
       <ConfirmModal
         titleId="meeting-delete-confirm-title"
-        title="회의를 삭제하시겠습니까?"
-        description={
-          <>
-            「{meetingName}」 회의의 대화 내용과 회의록 초안{hasRecording ? ", 녹음 파일" : ""}이 삭제됩니다.
-            문서로 저장한 회의록은 남습니다. 이 작업은 되돌릴 수 없습니다.
-          </>
-        }
-        confirmLabel="삭제"
+        title={t("deleteConfirm.title")}
+        description={t("deleteConfirm.description", { name: meetingName, hasRecording: hasRecording ? "true" : "false" })}
+        confirmLabel={t("deleteConfirm.confirm")}
         tone="danger"
         onConfirm={onConfirm}
         onCancel={onCancel}

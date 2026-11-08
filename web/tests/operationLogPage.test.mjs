@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
 import {
+  formatOperationLogTitle,
+  OPERATION_TYPE_LABELS
+} from "../src/entities/operation-log/model/operationType.ts";
+import { formatElapsedMinutes } from "../src/features/wiki-ingest/model/activeLintOperation.ts";
+
+// 확장자 없는 상대 import(작업 요약 번역 모듈)를 .ts 소스로 해석한다.
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith(".") && context.parentURL?.includes("/src/") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
+  return nextResolve(specifier, context);
+} });
+
+const {
   appendLogPage,
   collectRestoredOperationIds,
   filterOperationLogsByType,
@@ -10,12 +23,7 @@ import {
   groupOperationLogsByDate,
   mergeRefreshedLogPage,
   pickSelectedOperationId
-} from "../src/entities/operation-log/model/operationLogPage.ts";
-import {
-  formatOperationLogTitle,
-  OPERATION_TYPE_LABELS
-} from "../src/entities/operation-log/model/operationType.ts";
-import { formatElapsedMinutes } from "../src/features/wiki-ingest/model/activeLintOperation.ts";
+} = await import("../src/entities/operation-log/model/operationLogPage.ts");
 
 function log(operationId, operationType = "document_edit") {
   return { operation_id: operationId, operation_type: operationType };

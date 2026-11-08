@@ -1,4 +1,6 @@
 import type { DocumentItemResponse } from "@/entities/document/model/document";
+import type koWiki from "@/shared/i18n/messages/ko/wiki.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
 
 /**
  * 문서가 위키에 반영된 정도.
@@ -15,6 +17,9 @@ const WIKI_REFLECT_LABELS: Partial<Record<WikiReflectState, string>> = {
   "not-included": "미편입",
   retry: "편입 실패"
 };
+
+/** 위 라벨의 메시지 키(wiki.reflect.label.*). */
+export const WIKI_REFLECT_LABEL_KEYS = { changed: "changed", "not-included": "notIncluded", retry: "retry" } as const;
 
 /**
  * 반영 작업이 아직 끝나지 않은 처리 단계.
@@ -66,37 +71,34 @@ export function isWikiReflectEligible(document: DocumentItemResponse): boolean {
   return state !== "processing" && state !== "up-to-date";
 }
 
-export function getWikiReflectLabel(document: DocumentItemResponse): string | null {
-  return WIKI_REFLECT_LABELS[getWikiReflectState(document)] ?? null;
+/** t(`useTranslations("wiki.reflect.label")`)를 넘기면 지금 언어로 쓴다. */
+export function getWikiReflectLabel(document: DocumentItemResponse, t?: MessageTranslate<typeof koWiki.reflect.label>): string | null {
+  const state = getWikiReflectState(document);
+  if (!(state in WIKI_REFLECT_LABEL_KEYS)) return null;
+  return t ? t(WIKI_REFLECT_LABEL_KEYS[state as keyof typeof WIKI_REFLECT_LABEL_KEYS]) : WIKI_REFLECT_LABELS[state] ?? null;
 }
 
-type ChatEvidenceNotice = {
-  message: string;
-  /** 편입을 요청하는 버튼 문구. 편입이 진행 중이면 누를 것이 없어 null이다. */
-  actionLabel: string | null;
-};
+/** 채팅 근거 안내가 필요한 상태. processing이면 편입 중이라 누를 버튼이 없다. 문구는 wiki.chatEvidence에 있다. */
+export type ChatEvidenceState = "notIncluded" | "changed" | "retry" | "processing";
 
-const CHAT_EVIDENCE_NOTICES: Partial<Record<WikiReflectState, ChatEvidenceNotice>> = {
-  "not-included": {
-    message: "이 노트는 위키에 편입되지 않아 채팅에서 내용을 찾을 수 없습니다. 위키에 편입하면 이 노트를 근거로 답합니다.",
-    actionLabel: "위키에 편입"
-  },
-  changed: { message: "마지막 편입 이후 수정한 내용은 답변에 반영되지 않습니다.", actionLabel: "수정 내용 반영" },
-  retry: { message: "위키 편입에 실패해 이 노트를 답변 근거로 쓸 수 없습니다.", actionLabel: "다시 편입" },
-  processing: { message: "위키에 편입하는 중입니다. 끝나면 이 노트를 근거로 답합니다.", actionLabel: null }
+const CHAT_EVIDENCE_STATES: Partial<Record<WikiReflectState, ChatEvidenceState>> = {
+  "not-included": "notIncluded",
+  changed: "changed",
+  retry: "retry",
+  processing: "processing"
 };
 
 /**
- * 채팅 답변 근거는 위키 페이지만 검색하므로, 열린 노트의 최신 내용이 편입돼 있지 않으면 상태별 안내를 돌려준다.
+ * 채팅 답변 근거는 위키 페이지만 검색하므로, 열린 노트의 최신 내용이 편입돼 있지 않으면 안내할 상태를 돌려준다.
  * 최신 내용이 편입돼 있으면 안내하지 않는다. PDF 원본과 PDF 변환 중인 노트는 편입 대상이 아니라 안내하지 않는다.
  */
-export function getChatEvidenceNotice(document: DocumentItemResponse | undefined): ChatEvidenceNotice | null {
+export function getChatEvidenceState(document: DocumentItemResponse | undefined): ChatEvidenceState | null {
   if (!document || document.mime_type === "application/pdf") return null;
   const state = getWikiReflectState(document);
   // PDF 변환 중인 노트는 편입 대상이 아니다. documentKind의 isDocumentConverting은 status만 보고,
   // 테스트 런타임에서 @/ alias import가 풀리지 않아 processing_state까지 포함해 여기서 직접 판정한다.
   if (state === "processing" && document.pipeline_run_id?.startsWith("convert:")) return null;
-  return CHAT_EVIDENCE_NOTICES[state] ?? null;
+  return CHAT_EVIDENCE_STATES[state] ?? null;
 }
 
 export function isLintActionEnabled({

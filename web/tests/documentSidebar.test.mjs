@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 import { canCreateProjectFromView, getBlankAreaContextProjectId } from "../src/widgets/document-sidebar/model/sidebarMenu.ts";
 
 const railNavigationPath = new URL(
@@ -35,8 +36,8 @@ test("문서/그래프 전환은 사이드바 세그먼트 대신 레일 버튼�
   ]);
 
   assert.doesNotMatch(sidebarSource, /SidebarMenuRow|문서 화면 전환/);
-  assert.match(railSource, /id: "home", label: "홈", Icon: RailHomeIcon, isActive: \(view\) => view === "home" \}/);
-  assert.match(railSource, /id: "graph", label: "그래프", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
+  assert.match(railSource, /id: "home", Icon: RailHomeIcon, isActive: \(view\) => view === "home" \}/);
+  assert.match(railSource, /id: "graph", Icon: RailGraphIcon, isActive: \(view\) => view === "graph" \}/);
 });
 
 test("FILE 제목은 홈에서도 추가 버튼 없이 표시하고, 맨 아래 새 노트 추가는 최상위 생성 메뉴를 연다", async () => {
@@ -132,5 +133,6 @@ test("트리 행 이름에는 전체 파일명 말풍선을 띄우지 않고, �
   assert.doesNotMatch(source, /<Tooltip content=\{item\.label\}/);
   assert.match(source, /<span className=\{styles\["tree-label-text"\]\}>\{display\.name\}<\/span>/);
   // ⋯ 버튼의 "항목 메뉴 열기" 툴팁은 유지한다.
-  assert.match(source, /<Tooltip content=\{ROW_MENU_LABEL\}/);
+  assert.match(source, /<Tooltip content=\{t\("rowMenu"\)\}/);
+  assert.equal(koT("documents.tree")("rowMenu"), "항목 메뉴 열기");
 });

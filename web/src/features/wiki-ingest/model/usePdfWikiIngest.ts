@@ -1,9 +1,10 @@
 import { describeDocumentFailure } from "@/shared/lib/aiErrorCodes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { convertDocumentToMarkdown, reflectDocumentToWiki } from "@/entities/document";
 import type { DocumentItemResponse } from "@/entities/document";
 import { publishNotice } from "@/features/document-notifications";
-import { canConvertDocument, CONVERT_FORBIDDEN_REASON } from "@/entities/document/lib/documentAccess";
+import { canConvertDocument } from "@/entities/document/lib/documentAccess";
 import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPdfIngestTaskStep } from "./pdfIngestTask";
@@ -19,6 +20,9 @@ export function usePdfWikiIngest(
   refresh: () => Promise<void>,
   documentsUpdatedAt: number
 ) {
+  const t = useTranslations("wiki.ingest.pdfIngest");
+  const tShared = useTranslations("shared");
+  const tAccess = useTranslations("documents.access");
   // 매 렌더에 다시 읽어 워크스페이스가 바뀌면 그 워크스페이스의 대기 목록으로 갈아탄다.
   const workspaceId = getSelectedWorkspaceId();
   const [pending, setPending] = useState<PendingIngest[]>([]);
@@ -69,14 +73,14 @@ export function usePdfWikiIngest(
 
   const startPdfIngest = useCallback(async (document: DocumentItemResponse) => {
     // 변환 권한이 없으면 403이 날 요청을 보내지 않고 같은 이유로 실패시킨다(호출부가 실패 알림에 싣는다).
-    if (!canConvertDocument(document)) throw new Error(CONVERT_FORBIDDEN_REASON);
+    if (!canConvertDocument(document)) throw new Error(tAccess("convertForbidden"));
     const storageKey = storageKeyRef.current;
     const converted = await convertDocumentToMarkdown(document.id, { openWhenReady: false });
     updatePending((current) => [
       ...current.filter((task) => task.documentId !== converted.id),
       { documentId: converted.id, filename: document.filename }
     ], storageKey);
-  }, [updatePending]);
+  }, [tAccess, updatePending]);
 
   useEffect(() => {
     const isNewSnapshot = documentsUpdatedAt !== lastDocumentsUpdatedAtRef.current;
@@ -94,19 +98,19 @@ export function usePdfWikiIngest(
         try {
           // waiting이 아닌데 문서가 없으면 placeholder가 목록에서 사라진(missing) 경우다.
           if (!document) {
-            throw new Error("변환 문서가 목록에서 사라져 위키에 편입하지 못했습니다.");
+            throw new Error(t("missingDocument"));
           }
           if (step === "failed") {
-            throw new Error(describeDocumentFailure(document.error_message, document.error_code) || "PDF 변환에 실패하여 위키에 편입하지 못했습니다.");
+            throw new Error(describeDocumentFailure(document.error_message, document.error_code, tShared) || t("conversionFailed"));
           }
           // 편입 요청 직후 새로고침한 경우 서버에서 이미 완료된 작업을 다시 보내지 않는다.
           const alreadyIngested = document.status === "completed"
             && document.needs_reingest === false
             && document.pipeline_run_id && !document.pipeline_run_id.startsWith("convert:");
           if (!alreadyIngested) await reflectDocumentToWiki(document.id, "EDITABLE");
-          publishNotice({ kind: "completed", title: "PDF 위키 편입 요청", message: `${task.filename}: Markdown 변환을 마치고 위키 편입을 요청했습니다.` });
+          publishNotice({ kind: "completed", notificationKey: "pdfIngestRequested", title: t("requestedTitle"), message: t("requestedMessage", { filename: task.filename }) });
         } catch (error) {
-          publishNotice({ kind: "failed", title: "PDF 위키 편입 실패", message: `${task.filename}: ${getErrorMessage(error, "위키 편입에 실패했습니다.")}` });
+          publishNotice({ kind: "failed", notificationKey: "pdfIngestFailed", title: t("failedTitle"), message: t("failedMessage", { filename: task.filename, reason: getErrorMessage(error, t("failedFallback"), tShared) }) });
         } finally {
           // 워크스페이스가 바뀌었으면 바뀐 쪽 목록·화면을 갱신하지 않는다.
           if (storageKey === storageKeyRef.current) {
@@ -118,7 +122,7 @@ export function usePdfWikiIngest(
         }
       })();
     }
-  }, [documents, documentsUpdatedAt, pending, refresh, updatePending]);
+  }, [documents, documentsUpdatedAt, pending, refresh, t, tShared, updatePending]);
 
   // 변환이 끝나면 이 훅이 편입하는 변환본 ID. 변환본을 열 때 편입 확인창을 다시 띄우지 않는 데 쓴다.
   const pendingDocumentIds = useMemo(() => pending.map((task) => task.documentId), [pending]);

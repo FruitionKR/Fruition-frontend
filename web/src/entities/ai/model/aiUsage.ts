@@ -1,3 +1,4 @@
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import type { AiModel } from "./aiModel";
 
 export type AiUsagePeriod = "this_month" | "last_30_days" | "last_month";
@@ -7,6 +8,13 @@ export const AI_USAGE_PERIOD_OPTIONS: ReadonlyArray<{ value: AiUsagePeriod; labe
   { value: "last_30_days", label: "지난 30일" },
   { value: "last_month", label: "지난 달" }
 ];
+
+const AI_USAGE_PERIOD_KEYS = { this_month: "thisMonth", last_30_days: "last30Days", last_month: "lastMonth" } as const satisfies Record<AiUsagePeriod, string>;
+
+/** 기간 선택지를 지금 언어로 만든다(shared.ai.usagePeriods.*). 순서는 AI_USAGE_PERIOD_OPTIONS와 같다. */
+export function localizedAiUsagePeriodOptions(t: SharedTranslate): ReadonlyArray<{ value: AiUsagePeriod; label: string }> {
+  return AI_USAGE_PERIOD_OPTIONS.map(({ value }) => ({ value, label: t(`ai.usagePeriods.${AI_USAGE_PERIOD_KEYS[value]}`) }));
+}
 
 export type UsageRange = { from: Date; to: Date };
 
@@ -167,9 +175,13 @@ export function formatTokenCount(value: number): string {
 const COMPACT_FORMAT = new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 });
 const COMPACT_FROM = 10_000;
 
-/** 큰 토큰 수를 만·억 단위로 줄인다(78,257 → 7.8만). 1만 미만은 줄이지 않고 천 단위 구분 기호로 보인다. */
-export function formatCompactTokenCount(value: number): string {
-  return value < COMPACT_FROM ? formatTokenCount(value) : COMPACT_FORMAT.format(value);
+/**
+ * 큰 토큰 수를 만·억 단위로 줄인다(78,257 → 7.8만). 1만 미만은 줄이지 않고 천 단위 구분 기호로 보인다.
+ * locale(`useLocale()`)을 넘기면 그 언어의 단위로 줄인다(en: 78.3K).
+ */
+export function formatCompactTokenCount(value: number, locale?: string): string {
+  if (value < COMPACT_FROM) return formatTokenCount(value);
+  return locale ? new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(value) : COMPACT_FORMAT.format(value);
 }
 
 /**
@@ -197,11 +209,15 @@ export function formatPercentShare(share: number, value: number): string {
 
 const DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" });
 
-/** 표 캡션의 기간 문구. to는 포함하지 않으므로 하루 전 날짜를 끝으로 보이되, 지금까지(to가 자정이 아님)면 그날이다. */
-export function formatUsageRange({ from, to }: UsageRange): string {
+/**
+ * 표 캡션의 기간 문구. to는 포함하지 않으므로 하루 전 날짜를 끝으로 보이되, 지금까지(to가 자정이 아님)면 그날이다.
+ * locale(`useLocale()`)을 넘기면 그 언어의 날짜 표기를 쓴다.
+ */
+export function formatUsageRange({ from, to }: UsageRange, locale?: string): string {
   const isMidnight = to.getHours() === 0 && to.getMinutes() === 0 && to.getSeconds() === 0 && to.getMilliseconds() === 0;
   const last = isMidnight ? new Date(to.getTime() - 1) : to;
-  return `${DATE_FORMAT.format(from)} ~ ${DATE_FORMAT.format(last)}`;
+  const format = locale ? new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }) : DATE_FORMAT;
+  return `${format.format(from)} ~ ${format.format(last)}`;
 }
 
 /**
@@ -244,30 +260,40 @@ const KRW_FORMAT = new Intl.NumberFormat("ko-KR", { style: "currency", currency:
  * milli-KRW 금액을 원 단위로 반올림해 보인다(1,240,400 → ₩1,240). 0은 ₩0, 0원 초과 1원 미만(milli-KRW 1~499)은 "₩1 미만"이다.
  * 원화는 소수 자리를 쓰지 않으므로 작은 금액도 소수로 늘이지 않는다.
  */
-export function formatKrwMilli(value: number): string {
+export function formatKrwMilli(value: number, t?: SharedTranslate): string {
   const safe = count(value);
-  if (safe > 0 && safe < 500) return `${KRW_FORMAT.format(1)} 미만`;
+  if (safe > 0 && safe < 500) return t ? t("ai.lessThan", { amount: KRW_FORMAT.format(1) }) : `${KRW_FORMAT.format(1)} 미만`;
   return KRW_FORMAT.format(Math.round(safe / 1000));
 }
 
 /** 청구 금액 문구. 단가 없는 호출만 있어 0원이면 실제 0원과 구분하도록 null이다. */
-export function formatKnownCharge(chargeKrwMilli: number, unpricedCalls: number): string | null {
-  return count(chargeKrwMilli) === 0 && unpricedCalls > 0 ? null : formatKrwMilli(chargeKrwMilli);
+export function formatKnownCharge(chargeKrwMilli: number, unpricedCalls: number, t?: SharedTranslate): string | null {
+  return count(chargeKrwMilli) === 0 && unpricedCalls > 0 ? null : formatKrwMilli(chargeKrwMilli, t);
 }
 
-function formatAudioDuration(seconds: number): string {
+function formatAudioDuration(seconds: number, t?: SharedTranslate): string {
   const total = Math.ceil(seconds);
   const minutes = Math.floor(total / 60);
   const rest = total % 60;
+  if (t) {
+    if (minutes === 0) return t("ai.duration.seconds", { seconds: rest });
+    const minuteText = formatTokenCount(minutes);
+    return rest === 0 ? t("ai.duration.minutes", { minutes: minuteText }) : t("ai.duration.minutesSeconds", { minutes: minuteText, seconds: rest });
+  }
   if (minutes === 0) return `${rest}초`;
   return rest === 0 ? `${formatTokenCount(minutes)}분` : `${formatTokenCount(minutes)}분 ${rest}초`;
 }
 
-/** 토큰 밖 사용량 문구(음성 2분 5초 · 1,800자). 없으면 null이다. */
-export function formatNonTokenUsage({ audioSeconds, ttsCharacters }: Pick<ModelUsageSummaryRow, "audioSeconds" | "ttsCharacters">): string | null {
+/** 토큰 밖 사용량 문구(음성 2분 5초 · 1,800자). 없으면 null이다. t를 넘기면 지금 언어로 쓴다. */
+export function formatNonTokenUsage(
+  { audioSeconds, ttsCharacters }: Pick<ModelUsageSummaryRow, "audioSeconds" | "ttsCharacters">,
+  t?: SharedTranslate
+): string | null {
+  const audio = (duration: string) => (t ? t("ai.audio", { duration }) : `음성 ${duration}`);
+  const characters = (value: string) => (t ? t("ai.characters", { count: value }) : `${value}자`);
   const parts = [
-    audioSeconds > 0 ? `음성 ${formatAudioDuration(audioSeconds)}` : null,
-    ttsCharacters > 0 ? `${formatTokenCount(ttsCharacters)}자` : null
+    audioSeconds > 0 ? audio(formatAudioDuration(audioSeconds, t)) : null,
+    ttsCharacters > 0 ? characters(formatTokenCount(ttsCharacters)) : null
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : null;
 }

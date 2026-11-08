@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   applyMeetingNotes,
   cancelMeetingNotes,
@@ -9,7 +10,6 @@ import {
   fetchMeeting,
   fetchMeetingNotes,
   issueMeetingLiveTicket,
-  MEETING_ERROR_MESSAGES,
   meetingNameFromFile,
   previewMeetingNotesAppend,
   requestMeetingNotes,
@@ -25,16 +25,15 @@ import { getDocumentTransport } from "@/shared/api/documentTransport";
 import { describeMeetingNotesError, describeMeetingTranscriptionFailure } from "@/shared/lib/aiErrorCodes";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { startSerialPolling } from "@/shared/lib/serialPolling";
-import { describeMicrophoneError } from "@/features/agent-chat/lib/dictation";
-import { buildLiveSocketUrl } from "../lib/liveProtocol";
+import { buildLiveSocketUrl, describeLiveError } from "../lib/liveProtocol";
 import { applyLiveEvent, EMPTY_TRANSCRIPT, hasFinalSegments, transcriptFromSegments, type LiveTranscript } from "../lib/liveTranscript";
 import {
   canCloseMeetingInPhase,
   canDeleteMeetingInPhase,
+  describeMeetingMicrophoneError,
   describeNotesRequestError,
   describeNotesSaveError,
   describeRecordingError,
-  MEETING_MESSAGES,
   shouldAutoSaveMeetingNotes,
   shouldConfirmLeavingPhase,
   type MeetingPhase
@@ -80,6 +79,14 @@ export function useMeetingSession({
   /** 회의를 지워 회의 화면이 닫힌 뒤 부른다(안내·포커스 이동). */
   onMeetingDeleted?: () => void;
 }) {
+  // 알림 문구는 일이 끝난 시점의 언어로 만든다. 콜백이 매번 새로 만들어지지 않게 번역 함수는 ref로 본다.
+  const t = useTranslations("meeting");
+  const tRef = useRef(t);
+  tRef.current = t;
+  // 공용 문구(AI 실패·크레딧·권한·연결 오류)는 shared 번역으로 고른다.
+  const tShared = useTranslations("shared");
+  const tsRef = useRef(tShared);
+  tsRef.current = tShared;
   const [phase, setPhase] = useState<MeetingPhase>("idle");
   const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
   const [transcript, setTranscript] = useState<LiveTranscript>(EMPTY_TRANSCRIPT);
@@ -141,13 +148,13 @@ export function useMeetingSession({
         setNotes(response);
         if (response.status === "ready") setPhase("ready");
         else if (response.status === "failed") {
-          setNotice({ text: describeMeetingNotesError(response.error_code), tone: "error" });
+          setNotice({ text: describeMeetingNotesError(response.error_code, tsRef.current), tone: "error" });
           setPhase("stopped");
         }
         return;
       } catch (error) {
         if (isAbandoned()) return;
-        const described = describeNotesRequestError(error);
+        const described = describeNotesRequestError(error, tRef.current, tsRef.current);
         if (described.liveStillOpen && attempt < LIVE_RELEASE_RETRIES) {
           await wait(LIVE_RELEASE_DELAY_MS);
           if (isAbandoned()) return;
@@ -165,10 +172,10 @@ export function useMeetingSession({
     sessionRef.current = null;
     releaseCapture();
     if (!isMountedRef.current) return;
-    if (!result.ok) setNotice({ text: result.message, tone: "error" });
+    if (!result.ok) setNotice({ text: result.serverMessage ?? describeLiveError(result.messageCode, tRef.current, tsRef.current), tone: "error" });
     // 저장된 문장이 없으면 회의록을 만들 수 없다(422). 정상 종료면 바로 회의록을 만든다.
     if (!hasFinalSegments(transcriptRef.current)) {
-      if (result.ok) setNotice({ text: MEETING_MESSAGES.emptyTranscript, tone: "info" });
+      if (result.ok) setNotice({ text: tRef.current("messages.emptyTranscript"), tone: "info" });
       setPhase("stopped");
       return;
     }
@@ -179,7 +186,7 @@ export function useMeetingSession({
   const start = useCallback(async () => {
     if (phase !== "idle") return;
     if (!isMicrophoneCaptureSupported()) {
-      setNotice({ text: MEETING_MESSAGES.unsupported, tone: "error" });
+      setNotice({ text: tRef.current("messages.unsupported"), tone: "error" });
       return;
     }
     setPhase("starting");
@@ -202,7 +209,7 @@ export function useMeetingSession({
       });
     } catch (error) {
       if (isAbandoned()) return;
-      setNotice({ text: describeMicrophoneError(error), tone: "error" });
+      setNotice({ text: describeMeetingMicrophoneError(error, tRef.current), tone: "error" });
       setPhase("idle");
       return;
     }
@@ -216,7 +223,7 @@ export function useMeetingSession({
     } catch (error) {
       releaseCapture();
       if (isAbandoned()) return;
-      setNotice({ text: getErrorMessage(error, MEETING_ERROR_MESSAGES.createFailed), tone: "error" });
+      setNotice({ text: getErrorMessage(error, tRef.current("errors.createFailed"), tsRef.current), tone: "error" });
       setPhase("idle");
       return;
     }
@@ -270,7 +277,7 @@ export function useMeetingSession({
         if (cancelled || latest.status === "generating") return;
         setNotes(latest);
         if (latest.status === "failed") {
-          setNotice({ text: describeMeetingNotesError(latest.error_code), tone: "error" });
+          setNotice({ text: describeMeetingNotesError(latest.error_code, tsRef.current), tone: "error" });
           setPhase("stopped");
         } else {
           setPhase(latest.status === "applied" ? "applied" : "ready");
@@ -293,7 +300,7 @@ export function useMeetingSession({
       return;
     }
     if (target.status === "failed") {
-      setNotice({ text: describeMeetingTranscriptionFailure(target.error), tone: options.cancelled ? "info" : "error" });
+      setNotice({ text: describeMeetingTranscriptionFailure(target.error, tsRef.current), tone: options.cancelled ? "info" : "error" });
       setPhase("stopped");
       return;
     }
@@ -304,7 +311,7 @@ export function useMeetingSession({
     const transcribed = transcriptFromSegments(target.segments);
     setTranscript(transcribed);
     if (!hasFinalSegments(transcribed)) {
-      setNotice({ text: MEETING_MESSAGES.emptyRecordingTranscript, tone: "info" });
+      setNotice({ text: tRef.current("messages.emptyRecordingTranscript"), tone: "info" });
       setPhase("stopped");
       return;
     }
@@ -336,7 +343,7 @@ export function useMeetingSession({
     if (!reusable) setMeeting(null);
     const checked = checkRecordingFile(file);
     if (!checked.ok) {
-      setNotice({ text: checked.message, tone: "error" });
+      setNotice({ text: tRef.current(`recordingFile.${checked.reason}`), tone: "error" });
       setPhase("stopped");
       return;
     }
@@ -362,7 +369,7 @@ export function useMeetingSession({
       applyRecordingMeeting(uploaded);
       // complete 중에 취소했는데 전사 취소까지 실패했다. 전사(과금)가 돌고 있음을 알리고 전사 취소를 받는다.
       if (controller.signal.aborted && uploaded.status === "transcribing") {
-        setNotice({ text: MEETING_MESSAGES.uploadCancelTooLate, tone: "error" });
+        setNotice({ text: tRef.current("messages.uploadCancelTooLate"), tone: "error" });
       }
     } catch (error) {
       if (!isMountedRef.current) return;
@@ -371,11 +378,11 @@ export function useMeetingSession({
         if (target && !reusable) await deleteMeeting(target.meeting_id).catch(() => undefined);
         if (!isMountedRef.current) return;
         if (!reusable) setMeeting(null);
-        setNotice({ text: MEETING_MESSAGES.uploadCancelled, tone: "info" });
+        setNotice({ text: tRef.current("messages.uploadCancelled"), tone: "info" });
         setPhase("stopped");
         return;
       }
-      setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.uploadFailed), tone: "error" });
+      setNotice({ text: describeRecordingError(error, tRef.current("errors.uploadFailed"), tsRef.current), tone: "error" });
       setPhase("stopped");
     } finally {
       if (uploadAbortRef.current === controller) uploadAbortRef.current = null;
@@ -420,7 +427,7 @@ export function useMeetingSession({
         if (cancelled) return true;
         // 다른 탭에서 지웠으면 더 기다릴 회의가 없다. 그 밖의 일시적인 조회 실패는 다음 주기에 다시 묻는다.
         if (error instanceof ApiError && error.status === 404) {
-          setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.loadFailed), tone: "error" });
+          setNotice({ text: describeRecordingError(error, tRef.current("errors.loadFailed"), tsRef.current), tone: "error" });
           setMeeting(null);
           setPhase("stopped");
           return true;
@@ -451,7 +458,7 @@ export function useMeetingSession({
           return;
         }
       }
-      setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.transcriptionCancelFailed), tone: "error" });
+      setNotice({ text: describeRecordingError(error, tRef.current("errors.transcriptionCancelFailed"), tsRef.current), tone: "error" });
     }
   }, [meeting, phase, settleTranscription]);
 
@@ -481,7 +488,7 @@ export function useMeetingSession({
       if (!isMountedRef.current) return;
       // 이미 지워졌으면(404) 지운 것과 같다.
       if (!(error instanceof ApiError && error.status === 404)) {
-        setNotice({ text: describeRecordingError(error, MEETING_ERROR_MESSAGES.deleteFailed), tone: "error" });
+        setNotice({ text: describeRecordingError(error, tRef.current("errors.deleteFailed"), tsRef.current), tone: "error" });
         setPhase(phaseBeforeDeleteRef.current);
         return;
       }
@@ -498,20 +505,20 @@ export function useMeetingSession({
       const cancelled = await cancelMeetingNotes(meeting.meeting_id);
       if (!isMountedRef.current || viewRun !== viewRunRef.current) return;
       setNotes(cancelled);
-      setNotice({ text: MEETING_MESSAGES.notesCancelled, tone: "info" });
+      setNotice({ text: tRef.current("messages.notesCancelled"), tone: "info" });
       setPhase("stopped");
     } catch (error) {
       if (!isMountedRef.current || viewRun !== viewRunRef.current) return;
       // 이미 끝났으면(409 MEETING_NOTES_NOT_GENERATING) 다음 조회가 결과를 보여 준다.
-      setNotice({ text: getErrorMessage(error, MEETING_ERROR_MESSAGES.notesCancelFailed), tone: "error" });
+      setNotice({ text: getErrorMessage(error, tRef.current("errors.notesCancelFailed"), tsRef.current), tone: "error" });
     }
   }, [meeting, phase]);
 
-  const finishSave = useCallback(async (saved: MeetingNotesResponse, savedText: string = MEETING_MESSAGES.saved) => {
+  const finishSave = useCallback(async (saved: MeetingNotesResponse, savedText?: string) => {
     setNotes(saved);
     setPreview(null);
     setPhase("applied");
-    setNotice({ text: savedText, tone: "info" });
+    setNotice({ text: savedText ?? tRef.current("messages.saved"), tone: "info" });
     if (saved.applied) await Promise.resolve(onDocumentSavedRef.current?.(saved.applied.document_id)).catch(() => undefined);
   }, []);
 
@@ -524,7 +531,7 @@ export function useMeetingSession({
       return;
     }
     setPreview(null);
-    setNotice({ text: describeNotesSaveError(error, fallback), tone: "error" });
+    setNotice({ text: describeNotesSaveError(error, fallback, tRef.current, tsRef.current), tone: "error" });
     setPhase("ready");
   }, [finishSave]);
 
@@ -544,7 +551,8 @@ export function useMeetingSession({
     saveAttemptRef.current = { noteId, attempt };
     try {
       const saved = await saveNotesUnderUniqueName({
-        baseName: meetingDocumentBaseName(notes.display_name, meeting.created_at),
+        baseName: meetingDocumentBaseName(notes.display_name, meeting.created_at, (stamp) =>
+          stamp ? tRef.current("documentName.withTime", stamp) : tRef.current("documentName.plain")),
         attempt,
         createKey: () => crypto.randomUUID(),
         onAttemptChange: (next) => {
@@ -554,7 +562,7 @@ export function useMeetingSession({
       });
       await finishSave(saved, savedText);
     } catch (error) {
-      await handleSaveFailure(meetingId, error, MEETING_ERROR_MESSAGES.applyFailed, savedText);
+      await handleSaveFailure(meetingId, error, tRef.current("errors.applyFailed"), savedText);
     }
   }, [finishSave, handleSaveFailure, meeting, notes, phase]);
 
@@ -578,7 +586,7 @@ export function useMeetingSession({
     wasGeneratingRef.current = false;
     if (!shouldSave || tryKey === null) return;
     autoSaveTriedRef.current.add(tryKey);
-    void saveAsNewDocument(MEETING_MESSAGES.autoSaved);
+    void saveAsNewDocument(tRef.current("messages.autoSaved"));
   }, [meeting, notes, phase, preferences.autoSaveMeetingNotes, saveAsNewDocument]);
 
   const previewAppend = useCallback(async () => {
@@ -589,7 +597,7 @@ export function useMeetingSession({
       setPreview(await previewMeetingNotesAppend(meeting.meeting_id, notes.version));
       setPhase("previewing");
     } catch (error) {
-      await handleSaveFailure(meeting.meeting_id, error, MEETING_ERROR_MESSAGES.previewFailed);
+      await handleSaveFailure(meeting.meeting_id, error, tRef.current("errors.previewFailed"));
     }
   }, [handleSaveFailure, meeting, notes, phase]);
 
@@ -604,7 +612,7 @@ export function useMeetingSession({
         base_revision: preview.base_revision
       }));
     } catch (error) {
-      await handleSaveFailure(meeting.meeting_id, error, MEETING_ERROR_MESSAGES.applyFailed);
+      await handleSaveFailure(meeting.meeting_id, error, tRef.current("errors.applyFailed"));
     }
   }, [finishSave, handleSaveFailure, meeting, notes, phase, preview]);
 
@@ -656,7 +664,7 @@ export function useMeetingSession({
         })
         : null;
       if (isAbandoned()) return null;
-      const view = resumedMeetingView(target, latestNotes);
+      const view = resumedMeetingView(target, latestNotes, tRef.current, tsRef.current);
       setSource(target.source);
       setMeeting(target);
       setNotes(latestNotes);
@@ -667,7 +675,7 @@ export function useMeetingSession({
     } catch (error) {
       if (isAbandoned()) return null;
       setPhase("idle");
-      return describeRecordingError(error, MEETING_ERROR_MESSAGES.loadFailed);
+      return describeRecordingError(error, tRef.current("errors.loadFailed"), tsRef.current);
     }
   }, [phase]);
 

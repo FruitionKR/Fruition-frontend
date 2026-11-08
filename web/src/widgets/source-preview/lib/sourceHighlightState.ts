@@ -1,11 +1,14 @@
 import { resolveSourceBlockRanges, type ResolvedSourceBlockRanges } from "@/entities/document/lib/sourceBlockRanges";
 import type { DocumentBlocksResponse } from "@/entities/document/model/document";
 
+/** 하이라이트 안내 종류. 화면은 documents.preview.highlight.* 문구로 보여 준다. */
 export const HIGHLIGHT_NOTICES = {
-  loadFailed: "근거 위치를 불러오지 못해 본문만 표시합니다.",
-  noneLocated: "문서에서 근거 위치를 찾지 못해 본문만 표시합니다.",
-  someMissing: "일부 근거는 문서에서 위치를 찾지 못했습니다."
+  loadFailed: "loadFailed",
+  noneLocated: "noneLocated",
+  someMissing: "someMissing"
 } as const;
+
+export type HighlightNotice = (typeof HIGHLIGHT_NOTICES)[keyof typeof HIGHLIGHT_NOTICES];
 
 /** 화면 본문 한 번의 로드. loadId는 문서를 오가도 다시 쓰지 않아 로드마다 고유하다. */
 export type MarkdownLoad = { documentId: string; loadId: number };
@@ -87,7 +90,7 @@ type SourceBlocksQueryState = {
 type SourceHighlightStatus = {
   /** block 조회가 끝나야 하이라이트 블록을 그릴 수 있으므로 본문 로딩과 함께 본다. */
   isLoading: boolean;
-  notice: string | null;
+  notice: HighlightNotice | null;
 };
 
 /**

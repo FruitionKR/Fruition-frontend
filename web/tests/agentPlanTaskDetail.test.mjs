@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { createRequire, registerHooks } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import * as agentPlan from "../src/features/agent-chat/lib/agentPlan.ts";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
+
+// 앱 소스의 확장자 없는 상대 import(./agentChatTranslator)를 .ts로 푼다.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (context.parentURL?.includes("/src/") && specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
+    return nextResolve(specifier, context);
+  }
+});
+const agentPlan = await import("../src/features/agent-chat/lib/agentPlan.ts");
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../src/features/agent-chat/ui/AgentPlanTaskDetail.tsx", import.meta.url), "utf8");
@@ -17,6 +29,9 @@ const aliases = {
   "@tanstack/react-query": { useQuery: () => ({ data: [], isFetching: false }), useQueryClient: () => ({}), useMutation: () => ({ isPending: false }) },
   "@/shared/api/client": { readWorkspaceId: () => "fixture-workspace" },
   "@/shared/lib/apiErrors": { getErrorMessage: () => "조회 실패" },
+  // 화면과 같이 agentChat 메시지를 한국어로 푼다.
+  "next-intl": { useTranslations: () => agentChatT },
+  "../lib/agentChatError": { agentChatErrorMessage: () => "조회 실패" },
   "@/entities/wiki": { documentDataQueryKey: () => ["fixture-tree"] },
   "../api/agentPlan": {},
   "../lib/agentPlan": agentPlan,

@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import { advance, browserEnv, createResolver, render } from "./asyncHookShim.mjs";
+import { ko } from "./fakeNextIntl.mjs";
 
 registerHooks({ resolve: createResolver() });
 
-const { useGraphRefresh, GRAPH_UP_TO_DATE_FEEDBACK_MS, GRAPH_REFRESH_ERROR_NOTICE } =
+const { useGraphRefresh, GRAPH_UP_TO_DATE_FEEDBACK_MS } =
   await import("../src/widgets/graph/model/useGraphRefresh.ts");
 const { subscribeNotices } = await import("../src/features/document-notifications/model/noticeBus.ts");
 
@@ -61,8 +62,14 @@ test("실패하면 오류 알림을 띄우고 idle로 돌아가 다시 시도할
   void view.rerender().refresh();
   await advance(t, 0);
   assert.equal(view.rerender().status, "idle");
-  assert.deepEqual(notices, [{ kind: "failed", ...GRAPH_REFRESH_ERROR_NOTICE }]);
-  assert.equal(GRAPH_REFRESH_ERROR_NOTICE.message, "그래프를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+  assert.deepEqual(notices, [{
+    kind: "failed",
+    // 제목이 언어마다 달라 알림 설정 항목(기타 안내)을 명시한다.
+    notificationKey: "other",
+    title: ko("workspace.graph.refresh.failedTitle"),
+    message: ko("workspace.graph.refresh.failedMessage")
+  }]);
+  assert.equal(notices[0].message, "그래프를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
 
   void view.rerender().refresh();
   await advance(t, 0);

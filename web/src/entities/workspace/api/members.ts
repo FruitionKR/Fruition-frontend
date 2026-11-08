@@ -1,4 +1,5 @@
 import { apiFetch, parseJsonOrThrow, throwIfNotOk, workspacePath } from "@/shared/api/client";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 import type { WorkspacePermission } from "@/shared/lib/workspacePermissions";
 
 export type WorkspaceRole = "OWNER" | "MEMBER";
@@ -17,7 +18,7 @@ export type WorkspaceMember = {
 
 export async function fetchMembers(workspaceId: string): Promise<WorkspaceMember[]> {
   const response = await apiFetch(workspacePath(workspaceId, "members"), { cache: "no-store" });
-  const data = await parseJsonOrThrow<{ members: WorkspaceMember[] }>(response, "멤버 목록을 불러오지 못했습니다.");
+  const data = await parseJsonOrThrow<{ members: WorkspaceMember[] }>(response, sharedText("workspace.requestFailed.membersLoad", "멤버 목록을 불러오지 못했습니다."));
   return data.members;
 }
 
@@ -27,7 +28,7 @@ export async function changeMemberRole(workspaceId: string, userId: string, role
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role })
   });
-  return parseJsonOrThrow<WorkspaceMember>(response, "멤버 권한을 변경하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceMember>(response, sharedText("workspace.requestFailed.memberRole", "멤버 권한을 변경하지 못했습니다."));
 }
 
 /** MEMBER의 권한 항목 전체를 교체한다. OWNER만 호출할 수 있고, 대상이 OWNER면 400 OWNER_PERMISSIONS_FIXED다. */
@@ -37,12 +38,12 @@ export async function updateMemberPermissions(workspaceId: string, userId: strin
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ permissions })
   });
-  return parseJsonOrThrow<WorkspaceMember>(response, "멤버 권한 항목을 변경하지 못했습니다.");
+  return parseJsonOrThrow<WorkspaceMember>(response, sharedText("workspace.requestFailed.memberPermissions", "멤버 권한 항목을 변경하지 못했습니다."));
 }
 
 export async function removeMember(workspaceId: string, userId: string): Promise<void> {
   const response = await apiFetch(workspacePath(workspaceId, "members", userId), { method: "DELETE" });
-  await throwIfNotOk(response, "멤버를 제거하지 못했습니다.");
+  await throwIfNotOk(response, sharedText("workspace.requestFailed.memberRemove", "멤버를 제거하지 못했습니다."));
 }
 
 export async function inviteMember(workspaceId: string, email: string, role: WorkspaceRole): Promise<void> {
@@ -51,5 +52,5 @@ export async function inviteMember(workspaceId: string, email: string, role: Wor
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, role })
   });
-  await throwIfNotOk(response, "초대 메일을 보내지 못했습니다.");
+  await throwIfNotOk(response, sharedText("workspace.requestFailed.invite", "초대 메일을 보내지 못했습니다."));
 }

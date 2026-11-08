@@ -3,6 +3,7 @@
 import { captureAnalytics } from "@/shared/lib/analytics/client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -41,36 +42,29 @@ import { retryIcon, chevronDownSmallIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { buildLogWorkers, logWorkerOf, type LogWorker } from "../model/logWorker";
 import styles from "./LogView.module.css";
 
-const STATUS_LABELS: Record<string, string> = {
-  processing: "처리 중",
-  applying: "반영 중",
-  notify_pending: "반영 중",
-  rebuilding: "재조립 중",
-  partially_succeeded: "일부 성공",
-  failed: "실패",
-  conflict: "충돌"
-};
+// 행에 상태를 따로 표시하는 작업 상태. 문구는 workspace.logs.status에 있다.
+const LABELED_STATUSES = ["processing", "applying", "notify_pending", "rebuilding", "partially_succeeded", "failed", "conflict"] as const;
+type LabeledStatus = (typeof LABELED_STATUSES)[number];
 
-// diff가 없는 변경(삭제·복원 등)은 문구 대신 변경 종류만 보여준다. 값은 document-svc ChangeType.
-const CHANGE_TYPE_LABELS: Record<string, string> = {
-  created: "생성",
-  updated: "수정",
-  deleted: "삭제",
-  restored: "복원",
-  delegated: "재작성 위임",
-  rebuilt: "재작성",
-  rebuild_failed: "재작성 실패",
-  action_failed: "작업 실패",
-  link_removed: "링크 제거",
-  link_restored: "링크 복원"
-};
+function isLabeledStatus(status: string): status is LabeledStatus {
+  return (LABELED_STATUSES as readonly string[]).includes(status);
+}
+
+// diff가 없는 변경(삭제·복원 등)은 문구 대신 변경 종류만 보여준다. 값은 document-svc ChangeType. 문구는 workspace.logs.changeType에 있다.
+const LABELED_CHANGE_TYPES = ["created", "updated", "deleted", "restored", "delegated", "rebuilt", "rebuild_failed", "action_failed", "link_removed", "link_restored"] as const;
+type LabeledChangeType = (typeof LABELED_CHANGE_TYPES)[number];
+
+function isLabeledChangeType(type: string): type is LabeledChangeType {
+  return (LABELED_CHANGE_TYPES as readonly string[]).includes(type);
+}
 
 /** Wiki 본문 대신 유형별로 생성·삭제된 페이지 제목을 보여준다. */
 function WikiTitles({ changes }: { changes: OperationChange[] }) {
+  const t = useTranslations("workspace.logs");
   const groups = [
-    { type: "concept", label: "Concept" },
-    { type: "source", label: "Source" },
-    { type: undefined, label: "유형 정보 없음" }
+    { type: "concept", label: t("pageType.concept") },
+    { type: "source", label: t("pageType.source") },
+    { type: undefined, label: t("pageType.unknown") }
   ];
   return (
     <div className={styles["card-body"]}>
@@ -83,7 +77,7 @@ function WikiTitles({ changes }: { changes: OperationChange[] }) {
             <ul className={styles["wiki-titles"]}>
               {pages.map((page) => (
                 <li key={page.id}>
-                  {page.change_type === "created" ? "생성" : "삭제"} · {page.resource_display_name || "제목 없음"}
+                  {t(page.change_type === "created" ? "wikiTitleCreated" : "wikiTitleDeleted", { title: page.resource_display_name || t("untitled") })}
                 </li>
               ))}
             </ul>
@@ -96,6 +90,7 @@ function WikiTitles({ changes }: { changes: OperationChange[] }) {
 
 /** 변경 리소스 하나의 diff를 Figma 754:10436 형태로 렌더링한다. */
 function ChangeDiff({ change }: { change: OperationChange }) {
+  const t = useTranslations("workspace.logs");
   const heading = change.resource_display_name
     || change.change_summary
     || `${change.resource_type} · ${change.change_type}`;
@@ -104,12 +99,12 @@ function ChangeDiff({ change }: { change: OperationChange }) {
     <div className={styles["change"]}>
       <p className={styles["change-heading"]}>{heading}</p>
       {change.diff_too_large ? (
-        <p className={styles["change-notice"]}>변경 폭이 커서 diff를 표시할 수 없습니다.</p>
+        <p className={styles["change-notice"]}>{t("diffTooLarge")}</p>
       ) : !change.hunks?.length ? (
         <p className={styles["change-notice"]}>
           {change.additions != null || change.deletions != null
-            ? `추가 ${change.additions ?? 0}줄 · 삭제 ${change.deletions ?? 0}줄`
-            : CHANGE_TYPE_LABELS[change.change_type] ?? change.change_summary ?? "표시할 변경 내용이 없습니다."}
+            ? t("lineCounts", { additions: change.additions ?? 0, deletions: change.deletions ?? 0 })
+            : isLabeledChangeType(change.change_type) ? t(`changeType.${change.change_type}`) : change.change_summary ?? t("noChangeContent")}
         </p>
       ) : (
         change.hunks.map((hunk, hunkIndex) => (
@@ -146,17 +141,19 @@ function ChangeDiff({ change }: { change: OperationChange }) {
 
 /** 작업자 (Figma 1485:1725): 20px 원 안에 프로필 사진, 없거나 못 받으면 기본 프로필 이미지 + 이름. */
 function LogWorkerBadge({ worker }: { worker: LogWorker }) {
+  const t = useTranslations("workspace.logs");
+  const name = worker.name ?? t("unknownWorker");
   return (
     <span className={styles["row-worker"]}>
       <span className={styles["row-worker-icon"]} aria-hidden>
         <UserAvatar
           avatarUrl={worker.avatarUrl}
-          name={worker.name}
+          name={name}
           className={styles["row-worker-avatar"]}
           fallback={<Image src={defaultAvatarIcon} alt="" width={18} height={18} />}
         />
       </span>
-      {worker.name}
+      {name}
     </span>
   );
 }
@@ -173,13 +170,8 @@ type OperationLogFeedState = {
   onLoadMore: () => void;
 };
 
-// 유형 탭 (Figma 1436:16604 "위키 페이지 생성 / 다른 로그 명"). 실제 작업 유형으로 나누고 첫 탭은 전체.
-const TYPE_TABS: Array<{ type: OperationType | null; label: string }> = [
-  { type: null, label: "전체" },
-  ...(Object.entries(OPERATION_TYPE_LABELS) as Array<[OperationType, string]>).map(
-    ([type, label]) => ({ type, label })
-  )
-];
+// 유형 탭 (Figma 1436:16604 "위키 페이지 생성 / 다른 로그 명"). 실제 작업 유형으로 나누고 첫 탭(null)은 전체.
+const TYPE_TABS: Array<OperationType | null> = [null, ...(Object.keys(OPERATION_TYPE_LABELS) as OperationType[])];
 
 /** 선택한 작업의 변경 상세. 선택 행 아래에 펼친다. */
 function OperationDetailBody({
@@ -189,13 +181,14 @@ function OperationDetailBody({
   detail: OperationLogDetail | null;
   errorMessage: string | null;
 }) {
+  const t = useTranslations("workspace.logs");
   if (errorMessage) return <p className={styles["detail-notice"]} role="alert">{errorMessage}</p>;
-  if (!detail) return <p className={styles["detail-notice"]}>로그 불러오는 중…</p>;
+  if (!detail) return <p className={styles["detail-notice"]}>{t("loading")}</p>;
   const isWikiOperation = detail.operation_type === "ingest" || detail.operation_type === "lint" || detail.operation_type === "wiki_edit";
   if (detail.changes.length === 0) {
     return (
       <p className={styles["detail-notice"]}>
-        {isWikiOperation ? "생성되거나 삭제된 Wiki가 없습니다." : "변경된 리소스가 없습니다."}
+        {isWikiOperation ? t("noWikiChanges") : t("noResourceChanges")}
       </p>
     );
   }
@@ -214,12 +207,18 @@ function OperationDetailBody({
  * 상단 탭 바(GNB)는 웹 화면이라 적용하지 않는다.
  * feed가 없으면 선택된 작업 1건만 행으로 보여준다.
  */
+/** 롤백 실패 문구를 지금 언어로 고를 번역 함수(workspace.logMessages·shared). */
+type RestoreFailureText = {
+  t: NonNullable<Parameters<typeof restoreFailureMessage>[2]>;
+  tShared: NonNullable<Parameters<typeof restoreFailureMessage>[3]>;
+};
+
 /** 실패 안내 문구. 문서가 없어진 실패면 문서가 휴지통에 있는지 영구 삭제됐는지 확인해 이유를 말한다. */
-async function describeRestoreFailure(error: unknown, detail: OperationLogDetail | null): Promise<string> {
+async function describeRestoreFailure(error: unknown, detail: OperationLogDetail | null, { t, tShared }: RestoreFailureText): Promise<string> {
   const documentId = detail ? restoreTargetDocumentId(detail) : null;
-  if (!documentId && isPurgedIngestRestore(error, detail)) return restoreFailureMessage(error, "purged");
-  if (!documentId || !shouldCheckRestoreDocument(error, documentId)) return restoreFailureMessage(error, null);
-  return restoreFailureMessage(error, await fetchRestoreDocumentLocation(documentId));
+  if (!documentId && isPurgedIngestRestore(error, detail)) return restoreFailureMessage(error, "purged", t, tShared);
+  if (!documentId || !shouldCheckRestoreDocument(error, documentId)) return restoreFailureMessage(error, null, t, tShared);
+  return restoreFailureMessage(error, await fetchRestoreDocumentLocation(documentId), t, tShared);
 }
 
 export function LogView({
@@ -235,6 +234,12 @@ export function LogView({
   documentTitles: ReadonlyMap<string, string>;
   onRestoreComplete: (operationId: string) => Promise<void>;
 }) {
+  const t = useTranslations("workspace.logs");
+  const tMessages = useTranslations("workspace.logMessages");
+  const tSummary = useTranslations("workspace.logMessages.summary");
+  const tShared = useTranslations("shared");
+  const locale = useLocale();
+  const restoreFailureText = { t: tMessages, tShared };
   const [detail, setDetail] = useState<OperationLogDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -274,16 +279,16 @@ export function LogView({
       })
       .catch((error: unknown) => {
         if (requestIdRef.current === requestId) {
-          setErrorMessage(getErrorMessage(error, "로그 상세를 불러오지 못했습니다."));
+          setErrorMessage(getErrorMessage(error, t("detailLoadFailed"), tShared));
         }
       });
-  }, [operationId]);
+  }, [operationId, t, tShared]);
 
   const documentTitle = detail?.target_display_name ?? (detail?.target_document_id
     ? documentTitles.get(detail.target_document_id)
     : undefined);
   const description = detail
-    ? formatOperationLogDescription(detail, documentTitle)
+    ? formatOperationLogDescription(detail, documentTitle, tMessages("noDetail"), tSummary)
     : "";
   // 위키 직접 편집(wiki_edit)은 서버가 되돌리기를 지원하지 않는다(400, document #130).
   const canRestore = detail != null
@@ -309,13 +314,13 @@ export function LogView({
         operationId: detail.operation_id,
         previewToken: preview.preview_token,
         message: preview.document
-          ? documentRestoreMessage(description, preview.document, detail.changes)
-          : `${description} 작업을 롤백하면 ${affectedCount}개 Wiki 페이지에 영향을 줍니다.`
+          ? documentRestoreMessage(description, preview.document, detail.changes, tMessages)
+          : t("restore.affectedPages", { description, count: affectedCount })
       });
     } catch (error: unknown) {
-      const message = await describeRestoreFailure(error, detail);
+      const message = await describeRestoreFailure(error, detail, restoreFailureText);
       if (requestIdRef.current !== requestId) return;
-      publishNotice({ kind: "failed", title: "롤백 실패", message });
+      publishNotice({ kind: "failed", notificationKey: "restoreRequestFailed", title: t("restore.failedTitle"), message });
       setIsRestoring(false);
     }
   }
@@ -336,13 +341,14 @@ export function LogView({
       publishNotice({
         // 즉시 끝난 경우에만 작업 id로 로그 폴링의 완료 알림과 중복을 거른다. 시작 안내는 완료 알림과 별개다.
         operation: { type: "restore", id: result.status === "succeeded" ? result.operation_id : undefined },
+        notificationKey: "restore",
         kind: "completed",
-        title: "롤백 요청 완료",
-        message: result.status === "succeeded" ? "작업을 롤백했습니다." : "롤백 작업을 시작했습니다."
+        title: t("restore.requestedTitle"),
+        message: result.status === "succeeded" ? t("restore.done") : t("restore.started")
       });
       await onRestoreComplete(restoreOperationId);
     } catch (error: unknown) {
-      publishNotice({ kind: "failed", title: "롤백 실패", message: await describeRestoreFailure(error, detail) });
+      publishNotice({ kind: "failed", notificationKey: "restoreRequestFailed", title: t("restore.failedTitle"), message: await describeRestoreFailure(error, detail, restoreFailureText) });
     } finally {
       // 실행 중 다른 작업으로 이동해 새 요청이 시작됐다면, 늦은 해제가 새 작업의 "처리 중" 표시를 풀지 않게 한다.
       if (requestIdRef.current === requestId) setIsRestoring(false);
@@ -352,10 +358,10 @@ export function LogView({
   // feed가 없으면 상세 응답(목록 항목 필드 포함)을 행 1개로 쓴다.
   const allItems = feed?.items ?? (detail ? [detail] : []);
   const visibleItems = filterOperationLogsByType(allItems, typeFilter);
-  const groups = groupOperationLogsByDate(visibleItems);
+  const groups = groupOperationLogsByDate(visibleItems, undefined, locale);
   const rollbackDisabledReason = !detail
-    ? "롤백할 작업을 선택하세요."
-    : canRestore ? undefined : "롤백할 수 없는 작업입니다.";
+    ? t("restore.selectFirst")
+    : canRestore ? undefined : t("restore.notAllowed");
 
   function selectType(type: OperationType | null) {
     setTypeFilter(type);
@@ -380,24 +386,24 @@ export function LogView({
   }
 
   return (
-    <section className={styles["logs"]} aria-label="로그">
+    <section className={styles["logs"]} aria-label={t("title")}>
       <header className={styles["logs-hero"]}>
         <div className={styles["logs-title"]}>
-          <h2>로그</h2>
-          <p>워크스페이스 활동 기록입니다.</p>
+          <h2>{t("title")}</h2>
+          <p>{t("subtitle")}</p>
         </div>
         <div className={styles["tabs-bar"]}>
-          <div className={styles["tabs"]} role="tablist" aria-label="작업 유형">
-            {TYPE_TABS.map(({ type, label }) => (
+          <div className={styles["tabs"]} role="tablist" aria-label={t("typeTabsLabel")}>
+            {TYPE_TABS.map((type) => (
               <button
-                key={label}
+                key={type ?? "all"}
                 type="button"
                 role="tab"
                 aria-selected={typeFilter === type}
                 className={cx(styles["tab"], typeFilter === type && styles["is-active"])}
                 onClick={() => selectType(type)}
               >
-                {label}
+                {type ? t(`types.${type}`) : t("types.all")}
               </button>
             ))}
           </div>
@@ -409,7 +415,7 @@ export function LogView({
             title={rollbackDisabledReason}
           >
             <SvgIcon src={retryIcon} className={styles["rollback-icon"]} />
-            {isRestoring ? "처리 중…" : "Rollback"}
+            {isRestoring ? t("restore.processing") : t("restore.button")}
           </button>
         </div>
       </header>
@@ -418,16 +424,16 @@ export function LogView({
         {feed?.errorMessage ? (
           <p className={styles["logs-message"]} role="alert">{feed.errorMessage}</p>
         ) : feed?.isLoading && allItems.length === 0 ? (
-          <p className={styles["logs-message"]}>로그 불러오는 중…</p>
+          <p className={styles["logs-message"]}>{t("loading")}</p>
         ) : !feed && !operationId ? (
-          <p className={styles["logs-message"]}>왼쪽 목록에서 작업을 선택하세요.</p>
+          <p className={styles["logs-message"]}>{t("selectFromList")}</p>
         ) : !feed && errorMessage ? (
           <p className={styles["logs-message"]} role="alert">{errorMessage}</p>
         ) : !feed && !detail ? (
-          <p className={styles["logs-message"]}>로그 불러오는 중…</p>
+          <p className={styles["logs-message"]}>{t("loading")}</p>
         ) : visibleItems.length === 0 ? (
           <p className={styles["logs-message"]}>
-            {allItems.length === 0 ? "아직 기록된 AI 작업이 없습니다." : "이 유형의 작업이 없습니다."}
+            {allItems.length === 0 ? t("empty") : t("emptyType")}
           </p>
         ) : (
           groups.map((group) => {
@@ -453,7 +459,7 @@ export function LogView({
                   <ul className={styles["rows"]}>
                     {group.items.map((item) => {
                       const isSelected = item.operation_id === operationId;
-                      const rowStatusLabel = STATUS_LABELS[item.status];
+                      const rowStatusLabel = isLabeledStatus(item.status) ? t(`status.${item.status}`) : null;
                       return (
                         <li
                           key={item.operation_id}
@@ -468,15 +474,15 @@ export function LogView({
                             <span className={styles["row-title-line"]}>
                               <span className={styles["row-heading"]}>
                                 <span className={styles["row-date"]}>
-                                  {formatOperationLogDateTime(item.created_at)}
+                                  {formatOperationLogDateTime(item.created_at, undefined, locale)}
                                 </span>
                                 <span className={styles["row-divider"]} aria-hidden />
-                                <span className={styles["row-title"]}>{formatOperationLogTitle(item)}</span>
+                                <span className={styles["row-title"]}>{formatOperationLogTitle(item, (type) => t(`types.${type}`))}</span>
                               </span>
                               {isSelected && <span className={styles["row-dot"]} aria-hidden />}
                             </span>
                             <span className={styles["row-description"]}>
-                              {formatOperationLogDescription(item, documentTitleOf(item))}
+                              {formatOperationLogDescription(item, documentTitleOf(item), tMessages("noDetail"), tSummary)}
                             </span>
                             <span className={styles["row-meta"]}>
                               <span className={styles["row-meta-info"]}>
@@ -484,7 +490,7 @@ export function LogView({
                                 {item.user_id ? (
                                   <LogWorkerBadge worker={logWorkerOf(workers, item.user_id)} />
                                 ) : (
-                                  <span>변경 {item.changed_resource_count}건</span>
+                                  <span>{t("changedCount", { count: item.changed_resource_count })}</span>
                                 )}
                                 {rowStatusLabel && (
                                   <span className={cx(styles["row-status"], item.status === "failed" && styles["is-failed"])}>
@@ -492,7 +498,7 @@ export function LogView({
                                   </span>
                                 )}
                               </span>
-                              <span className={styles["row-time"]}>{formatRelativeTime(item.created_at)}</span>
+                              <span className={styles["row-time"]}>{formatRelativeTime(item.created_at, tShared)}</span>
                             </span>
                           </button>
                           {isSelected && (
@@ -516,7 +522,7 @@ export function LogView({
             onClick={feed.onLoadMore}
             disabled={feed.isLoadingMore}
           >
-            {feed.isLoadingMore ? "불러오는 중…" : feed.loadMoreErrorMessage ? "다시 시도" : "더 보기"}
+            {feed.isLoadingMore ? t("loadingMore") : feed.loadMoreErrorMessage ? t("retry") : t("loadMore")}
           </button>
         )}
         {feed?.loadMoreErrorMessage && (
@@ -526,9 +532,9 @@ export function LogView({
       {pendingRestore && (
         <ConfirmModal
           titleId="restore-confirm-title"
-          title="작업을 롤백하시겠습니까?"
+          title={t("restore.confirmTitle")}
           description={pendingRestore.message}
-          confirmLabel="롤백"
+          confirmLabel={t("restore.confirm")}
           onConfirm={() => void executeRestore()}
           onCancel={cancelRestore}
         />

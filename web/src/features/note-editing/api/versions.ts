@@ -1,4 +1,5 @@
 import { apiFetch, getWorkspaceId, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 
 export type DocumentVersionItem = {
   version: number;
@@ -20,7 +21,7 @@ export type DocumentVersionList = {
 /** 편집 Markdown 문서의 본문 저장 이력(최신순). */
 export async function fetchDocumentVersions(documentId: string): Promise<DocumentVersionList> {
   const response = await apiFetch(workspacePath(getWorkspaceId(), "documents", documentId, "versions"), { cache: "no-store" });
-  const data = await parseJsonOrThrow<DocumentVersionList>(response, "버전 기록을 불러오지 못했습니다.");
+  const data = await parseJsonOrThrow<DocumentVersionList>(response, sharedText("documentRequests.document.versionsLoad", "버전 기록을 불러오지 못했습니다."));
   return { ...data, versions: Array.isArray(data.versions) ? data.versions : [] };
 }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SessionExpiryGate, UserPreferencesProvider } from "@/entities/user";
+import { AccountLocaleSync, SessionExpiryGate, UserPreferencesProvider } from "@/entities/user";
 import { ReconsentGate } from "@/features/legal-consent";
 import { LEGAL_PAGES_ENABLED } from "@/shared/config/legal";
 import { AnalyticsProvider } from "./AnalyticsProvider";
@@ -23,6 +23,8 @@ export function Providers({ children, analytics }: { children: React.ReactNode; 
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* 계정에 저장한 화면 언어와 이 브라우저의 언어 쿠키를 맞춘다. */}
+      <AccountLocaleSync />
       <AnalyticsProvider config={analytics}>
       <SessionExpiryGate>
         <UserPreferencesProvider>

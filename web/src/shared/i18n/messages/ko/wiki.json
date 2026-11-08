@@ -1,0 +1,182 @@
+{
+  "ingestPermissionHint": "위키 편입 권한이 없어요",
+  "ingest": {
+    "confirm": "확인",
+    "pdfConvertQualityNotice": "변환된 Markdown은 원본 PDF와 내용·배치가 일치하지 않을 수 있고 가독성이 떨어질 수 있습니다.",
+    "convertedConfirm": {
+      "title": "이 문서를 위키에 편입할까요?",
+      "description": "\"{filename}\"은 PDF에서 변환한 Markdown입니다. 위키에 편입하면 채팅 답변의 근거로 쓸 수 있습니다."
+    },
+    "pdfConvertConfirm": {
+      "title": "PDF를 Markdown으로 변환할까요?",
+      "description": "\"{filename}\": {qualityNotice} 변환할까요?"
+    },
+    "pdfIngestConfirm": {
+      "title": "PDF를 변환한 뒤 위키에 편입할까요?",
+      "description": "선택한 PDF {count}개는 먼저 Markdown으로 변환한 뒤 위키에 편입합니다. 변환에 시간이 걸릴 수 있습니다. {qualityNotice}"
+    },
+    "pdfIngest": {
+      "missingDocument": "변환 문서가 목록에서 사라져 위키에 편입하지 못했습니다.",
+      "conversionFailed": "PDF 변환에 실패하여 위키에 편입하지 못했습니다.",
+      "requestedTitle": "PDF 위키 편입 요청",
+      "requestedMessage": "{filename}: Markdown 변환을 마치고 위키 편입을 요청했습니다.",
+      "failedTitle": "PDF 위키 편입 실패",
+      "failedMessage": "{filename}: {reason}",
+      "failedFallback": "위키 편입에 실패했습니다."
+    }
+  },
+  "pageEditing": {
+    "permissionHint": "위키 페이지를 고치려면 OWNER이거나 위키 편입(wiki.ingest) 권한이 있어야 합니다. OWNER에게 권한을 요청해 주세요.",
+    "edit": "편집",
+    "discardConfirm": "편집한 내용을 버리시겠습니까?",
+    "saveOverLatest": "내 편집을 최신 본문 위에 저장",
+    "adoptLatest": "내 편집 버리고 최신 본문 보기",
+    "reloadLatest": "최신 본문 다시 불러오기",
+    "cancel": "취소",
+    "save": "저장",
+    "savingButton": "저장 중…",
+    "saving": "저장 중",
+    "revisionCompare": "내 기준 revision {base} · 서버 revision {current}",
+    "latestTitle": "최신 서버 본문",
+    "latestTitleWithRevision": "최신 서버 본문 (revision {revision})",
+    "latestLoading": "최신 본문을 불러오는 중입니다.",
+    "latestLoadFailed": "최신 본문을 불러오지 못했습니다.",
+    "conflict": "다른 작업이 먼저 반영됐습니다. 최신 본문을 확인한 뒤 내 편집을 그 위에 다시 저장하거나, 내 편집을 버리고 최신 본문으로 돌아갈 수 있습니다.",
+    "saveError": {
+      "unavailable": "AI 서비스가 응답하지 않아 저장하지 못했습니다. 잠시 뒤 다시 저장해 주세요.",
+      "tooLarge": "본문이 5MB를 넘어 저장할 수 없습니다.",
+      "notFound": "페이지를 찾을 수 없습니다. 삭제됐거나 다른 워크스페이스의 페이지입니다.",
+      "fallback": "Wiki page를 저장하지 못했습니다."
+    },
+    "editorLoading": "편집기를 불러오는 중입니다.",
+    "externalImageBlockedTitle": "외부 이미지 차단"
+  },
+  "chatEvidence": {
+    "notIncluded": {
+      "message": "이 노트는 위키에 편입되지 않아 채팅에서 내용을 찾을 수 없습니다. 위키에 편입하면 이 노트를 근거로 답합니다.",
+      "action": "위키에 편입"
+    },
+    "changed": {
+      "message": "마지막 편입 이후 수정한 내용은 답변에 반영되지 않습니다.",
+      "action": "수정 내용 반영"
+    },
+    "retry": {
+      "message": "위키 편입에 실패해 이 노트를 답변 근거로 쓸 수 없습니다.",
+      "action": "다시 편입"
+    },
+    "processing": {
+      "message": "위키에 편입하는 중입니다. 끝나면 이 노트를 근거로 답합니다."
+    }
+  },
+  "notifications": {
+    "stackLabel": "문서 처리 알림",
+    "cancel": "취소",
+    "confirm": "확인",
+    "processed": {
+      "title": "문서 처리 완료",
+      "message": "{count, plural, =1 {위키 편입이 완료되었습니다.} other {#개 문서의 위키 편입이 완료되었습니다.}}"
+    },
+    "pdfConverted": {
+      "title": "PDF 변환 완료",
+      "message": "{count}개 PDF의 Markdown 변환이 완료되었습니다."
+    },
+    "failed": {
+      "title": "문서 처리 실패",
+      "single": "\"{filename}\" 처리에 실패했습니다. {reason}",
+      "reasonFallback": "실패 사유를 확인해 주세요.",
+      "multiple": "{count}개 문서를 처리하지 못했습니다. ({names}) 실패 사유는 각 문서에서 확인해 주세요.",
+      "namesWithRest": "{names} 외 {count}개"
+    },
+    "operation": {
+      "lint": {
+        "completedTitle": "위키 최신화 완료",
+        "failedTitle": "위키 최신화 실패",
+        "completedMessage": "위키 최신화 작업이 완료되었습니다.",
+        "failedMessage": "위키 최신화 작업이 실패했습니다."
+      },
+      "restore": {
+        "completedTitle": "롤백 완료",
+        "failedTitle": "롤백 실패",
+        "completedMessage": "롤백 작업이 완료되었습니다.",
+        "failedMessage": "롤백 작업이 실패했습니다."
+      }
+    },
+    "ingestPrompt": {
+      "title": {
+        "waiting": "위키 편입 대기 중인 문서가 있습니다",
+        "newDocument": "새 문서가 추가되었습니다",
+        "stalled": "위키 편입이 아직 시작되지 않았습니다",
+        "changed": "마지막 위키 편입 이후 수정된 문서가 있습니다"
+      },
+      "message": "{count, plural, =1 {\"{filename}\" 문서의 위키 편입을 시작해 보세요.} other {#개 문서의 위키 편입을 시작해 보세요.}}",
+      "action": "위키 편입",
+      "failureItem": "{filename}: {reason}",
+      "requestFailed": "요청에 실패했습니다.",
+      "startFailedTitle": "위키 편입 시작 실패"
+    },
+    "ingestRequest": {
+      "title": "위키 편입 요청",
+      "started": "{count}개 문서 처리를 시작했습니다.",
+      "requestedOne": "{filename}: 위키 편입을 요청했습니다.",
+      "failedTitle": "위키 편입 실패",
+      "failureItem": "{filename}: {reason}",
+      "failedFallback": "위키 편입에 실패했습니다."
+    },
+    "lintSuggest": {
+      "title": "위키 최신화 제안",
+      "message": "새 문서 반영 후 위키 페이지가 변경되었습니다. 위키 최신화를 실행할 수 있습니다.",
+      "action": "위키 최신화"
+    },
+    "lint": {
+      "completedTitle": "위키 최신화 완료",
+      "completedMessage": "{count}개 페이지를 다듬었습니다.",
+      "failedTitle": "위키 최신화 실패",
+      "requestFailed": "위키 최신화 요청에 실패했습니다."
+    },
+    "upToDate": {
+      "title": "Wiki 최신 상태",
+      "message": "Wiki가 이미 최신 상태입니다."
+    },
+    "server": {
+      "title": "알림",
+      "message": "{type} 알림이 도착했습니다."
+    }
+  },
+  "lintPermissionHint": "위키 최신화 권한이 없어요",
+  "lintProgress": {
+    "elapsed": "{minutes}분째 실행 중",
+    "running": "위키 최신화 · {elapsed}",
+    "pending": "위키 최신화 진행 중"
+  },
+  "reflect": {
+    "label": {
+      "changed": "수정됨",
+      "notIncluded": "미편입",
+      "retry": "편입 실패"
+    },
+    "description": {
+      "notIncluded": "위키에 아직 편입하지 않은 문서",
+      "changed": "위키 편입 후 수정된 문서",
+      "retry": "위키 편입에 실패한 문서"
+    }
+  },
+  "ingestBlock": {
+    "notMarkdown": "Markdown 문서만 위키에 편입할 수 있어요",
+    "pdfConverted": "이미 Markdown으로 변환했어요. 변환된 Markdown 문서를 선택해 주세요",
+    "pdfConverting": "Markdown으로 변환하는 중이에요",
+    "conversionFailed": "Markdown 변환에 실패한 문서예요",
+    "processing": "처리 중이라 지금은 편입할 수 없어요",
+    "upToDate": "이미 최신 내용이 위키에 반영돼 있어요"
+  },
+  "workList": {
+    "ingest": "위키 편입",
+    "lint": "위키 최신화",
+    "convert": "PDF → MD 변환",
+    "restore": "롤백"
+  },
+  "export": {
+    "skipped": "동일한 내용의 원문 문서가 있어 기존 문서를 열었습니다.",
+    "savedCanIngest": "채팅을 원문 문서로 저장했습니다. ‘위키 편입’을 누르면 채팅 답변 근거로 쓸 수 있게 위키에 편입합니다.",
+    "saved": "채팅을 원문 문서로 저장했습니다. 위키에 편입하려면 ‘위키 편입’에서 문서를 선택해 주세요."
+  }
+}

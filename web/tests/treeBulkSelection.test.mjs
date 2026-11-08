@@ -7,9 +7,10 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const {
-  visibleSelectableIds, rangeSelection, selectedRootItems, planBulkDelete, bulkResultNotice
+  visibleSelectableIds, rangeSelection, selectedRootItems, planBulkDelete, summarizeBulkResult
 } = await import("../src/widgets/workspace/lib/treeBulkSelection.ts");
 const { resolveTreeMove } = await import("../src/widgets/workspace/lib/treeMoveRules.ts");
+const { ko } = await import("./fakeNextIntl.mjs");
 
 const ROOT = "project-uploaded-documents";
 const file = (id, label, extra = {}) => ({ id, label, type: "file", documentId: `doc-${id}`, ...extra });
@@ -63,14 +64,19 @@ test("묶음 삭제는 자동 생성·업로드 중·삭제 권한 없는 항목
 });
 
 test("요약 알림은 성공·실패 개수와 실패 이유를 한 번에 담는다", () => {
-  assert.deepEqual(bulkResultNotice("삭제", 2, []), { kind: "completed", title: "삭제 완료", message: "2개 항목을 삭제했습니다." });
-  const partial = bulkResultNotice("이동", 1, [{ label: "x.md", reason: "권한 없음" }]);
-  assert.equal(partial.kind, "failed");
-  assert.equal(partial.title, "일부 이동 실패");
-  assert.equal(partial.message, "성공 1개, 실패 1개\n「x.md」: 권한 없음");
-  const many = bulkResultNotice("삭제", 0, Array.from({ length: 7 }, (_, i) => ({ label: `${i}`, reason: "r" })));
-  assert.equal(many.title, "삭제 실패");
-  assert.match(many.message, /외 2개$/);
+  assert.deepEqual(summarizeBulkResult(2, []), { outcome: "completed", succeeded: 2, failed: 0, listed: [], restCount: 0 });
+  const partial = summarizeBulkResult(1, [{ label: "x.md", reason: "권한 없음" }]);
+  assert.deepEqual(partial, { outcome: "partial", succeeded: 1, failed: 1, listed: [{ label: "x.md", reason: "권한 없음" }], restCount: 0 });
+  const many = summarizeBulkResult(0, Array.from({ length: 7 }, (_, i) => ({ label: `${i}`, reason: "r" })));
+  assert.equal(many.outcome, "failed");
+  assert.equal(many.listed.length, 5);
+  assert.equal(many.restCount, 2);
+  // 문구는 알림 훅(useProjectTree)이 ko·en 메시지로 만든다.
+  assert.equal(ko("workspace.tree.bulk.delete.done", { count: 2 }), "2개 항목을 삭제했습니다.");
+  assert.equal(ko("workspace.tree.bulk.move.partial"), "일부 이동 실패");
+  assert.equal(ko("workspace.tree.bulk.counts", { succeeded: 1, failed: 1 }), "성공 1개, 실패 1개");
+  assert.equal(ko("workspace.tree.bulk.failureItem", { label: "x.md", reason: "권한 없음" }), "「x.md」: 권한 없음");
+  assert.equal(ko("workspace.tree.bulk.more", { count: 2 }), "외 2개");
 });
 
 test("묶음 이동은 하위 항목을 중복으로 옮기지 않고 트리 순서를 지킨다", () => {

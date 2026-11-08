@@ -51,6 +51,7 @@ export function WorkspacePanel({
   onSelectModel
 }: WorkspacePanelProps) {
   const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const queryClient = useQueryClient();
   const { preferences, updatePreferences } = useUserPreferences();
   const [nameInput, setNameInput] = useState(wsName);
@@ -76,7 +77,7 @@ export function WorkspacePanel({
       // useSelectedWorkspace가 새 설정값을 읽도록 목록 캐시를 무효화한다.
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setAutoIngestError({ field, message: getErrorMessage(error, t("workspace.autoIngest.saveFailed")) });
+      setAutoIngestError({ field, message: getErrorMessage(error, t("workspace.autoIngest.saveFailed"), tShared) });
     } finally {
       setSavingAutoIngestField(null);
     }
@@ -96,7 +97,7 @@ export function WorkspacePanel({
       await updateWorkspaceDescribePdfFigures(workspaceId, !describePdfFigures);
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setDescribeFiguresError(getErrorMessage(error, t("workspace.describeFigures.saveFailed")));
+      setDescribeFiguresError(getErrorMessage(error, t("workspace.describeFigures.saveFailed"), tShared));
     } finally {
       setIsDescribeFiguresSaving(false);
     }
@@ -134,7 +135,7 @@ export function WorkspacePanel({
       // 사이드바 등 useWorkspaceName 소비처가 새 이름을 반영하도록 캐시를 무효화한다.
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     } catch (error: unknown) {
-      setNameError(getErrorMessage(error, t("workspace.name.saveFailed")));
+      setNameError(getErrorMessage(error, t("workspace.name.saveFailed"), tShared));
     } finally {
       setIsNameSaving(false);
     }
