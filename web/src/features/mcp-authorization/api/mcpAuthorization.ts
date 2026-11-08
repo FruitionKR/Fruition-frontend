@@ -1,3 +1,4 @@
+import { fetchMe } from "@/entities/user/api/account";
 import { apiFetch } from "@/shared/api/client";
 import { getAccessToken, getAccessTokenVersion } from "@/shared/lib/authSessionStorage";
 
@@ -175,6 +176,8 @@ export function safeOAuthRedirect(value: unknown): string {
 
 export async function previewMcpAuthorization(rawSearch: string): Promise<McpAuthorizationSession> {
   const path = authorizationResumePath(rawSearch).replace(AUTHORIZATION_PATH, "/oauth2/authorize");
+  // Cookie 인증만으로 성공하는 authorize 요청 전에 메모리 Bearer 세션을 복원한다.
+  if (!getAccessToken()) await fetchMe();
   const response = await apiFetch(path, {
     cache: "no-store",
     credentials: "include",

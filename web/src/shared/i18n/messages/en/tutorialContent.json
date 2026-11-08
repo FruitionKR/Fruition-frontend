@@ -244,11 +244,11 @@
     },
     "mcp-login-consent": {
       "title": "Sign in and consent",
-      "body": "On first connection a Fruition sign-in page opens in your browser. Sign in as usual, then review the workspace and permissions (read, propose changes, wiki updates) and consent."
+      "body": "On first connection a Fruition sign-in page opens in your browser. Sign in as usual, then review the workspace and permissions (read, propose changes, wiki updates) and consent. If the connection request fails to load, check that you are signed in to Fruition and select “Restart request”. An unregistered client needs administrator approval; reinstalling the AI tool may change its client ID, so ask the administrator to check the current ID."
     },
     "mcp-check-tools": {
       "title": "Check the connection",
-      "body": "In your AI tool's /mcp view, check that fruition is connected and its tools are listed. Try a read-only request first, such as “Find my documents in Fruition”. When the external AI proposes a change you get an approval link; it is saved only after you review the content and maximum cost on the web approval page. Successful document or wiki changes incur the existing MCP fee shown there (saving a Skill is free); the external AI's own usage is billed by that AI service."
+      "body": "In your AI tool's /mcp view, check the fruition connection and tool list; this command does not run a search. After connecting, enter a read-only request in the conversation, such as “Search the Fruition wiki for onboarding procedures and cite your sources; do not change any documents or wiki pages”. When the external AI proposes a change you get an approval link; it is saved only after you review the content and maximum cost on the web approval page. Successful document or wiki changes incur the existing MCP fee shown there (saving a Skill is free); the external AI's own usage is billed by that AI service."
     },
     "mcp-manage-connection": {
       "title": "Manage or disconnect",
