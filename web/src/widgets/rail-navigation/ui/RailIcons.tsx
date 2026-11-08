@@ -97,6 +97,17 @@ export function RailSettingIcon({ className }: IconProps) {
   );
 }
 
+/** 사용 방법 (원 안 물음표 24×24). 톱니와 같은 1.6 선 굵기로 그린다. */
+export function RailHelpIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden className={className} width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M9.7 9.6C9.7 8.3 10.75 7.4 12 7.4C13.25 7.4 14.3 8.3 14.3 9.5C14.3 10.5 13.7 11 12.9 11.5C12.35 11.85 12 12.3 12 13V13.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="16.4" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** 프로필 아바타 + 온라인 점 (Figma UserCircle 24.6×24.6). 색은 토큰으로 테마를 따른다. */
 export function RailUserIcon({ className }: IconProps) {
   return (

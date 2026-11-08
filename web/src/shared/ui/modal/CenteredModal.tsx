@@ -15,12 +15,15 @@ import styles from "./CenteredModal.module.css";
  */
 export function CenteredModal({
   ariaLabel,
+  labelledBy,
   className,
   overlayClassName,
   onClose,
   children
 }: {
   ariaLabel: string;
+  /** 화면에 보이는 제목 요소 id. 주면 aria-label 대신 aria-labelledby로 이름을 붙인다. */
+  labelledBy?: string;
   /** 모달 박스(.modal-box)에 덧붙일 소비자 측 클래스 */
   className?: string;
   /** 오버레이(.modal-overlay)에 덧붙일 클래스. 알림 카드보다 위에 떠야 하는 모달이 z-index를 올린다. */
@@ -40,7 +43,8 @@ export function CenteredModal({
         className={cx(styles["modal-box"], className)}
         role="dialog"
         aria-modal="true"
-        aria-label={ariaLabel}
+        aria-label={labelledBy ? undefined : ariaLabel}
+        aria-labelledby={labelledBy}
         onClick={(event) => event.stopPropagation()}
       >
         {children}

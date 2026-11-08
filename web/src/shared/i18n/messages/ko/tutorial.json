@@ -1,0 +1,13 @@
+{
+  "ui": {
+    "open": "사용 방법",
+    "openShort": "도움말",
+    "title": "Fruition 사용 방법",
+    "close": "사용 방법 닫기",
+    "prev": "이전",
+    "next": "다음",
+    "done": "완료",
+    "progress": "{current} / {total}",
+    "sections": "섹션"
+  }
+}
