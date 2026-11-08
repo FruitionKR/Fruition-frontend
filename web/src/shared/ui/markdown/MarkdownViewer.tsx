@@ -4,6 +4,7 @@ import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { Element } from "hast";
@@ -25,6 +26,8 @@ import { MarkdownCodeBlock } from "@/shared/ui/markdown/MarkdownCodeBlock";
 
 // 렌더마다 배열 참조가 바뀌면 react-markdown이 재파싱하므로 모듈 상수로 유지한다.
 const REMARK_PLUGINS: PluggableList = [
+  // 문장부호로 끝나는 강조 뒤에 한글 조사가 붙어도 닫는 **를 인식한다.
+  remarkCjkFriendly,
   // "5~7초" 같은 범위 표기가 취소선이 되지 않도록 `~~`만 인정한다.
   [remarkGfm, { singleTilde: false }],
   // 금액의 $는 그대로 표시하고, 수식은 $$...$$로 작성한다.
@@ -141,7 +144,7 @@ function MarkdownViewerContent({
 }) {
   const remarkPlugins = useMemo<PluggableList>(
     () => citationRankMap || citableRanks
-      ? [[remarkGfm, { singleTilde: false }], [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap, citableRanks }]]
+      ? [remarkCjkFriendly, [remarkGfm, { singleTilde: false }], [remarkMath, { singleDollarTextMath: false }], remarkClosedMath, [remarkCustomTokens, { citationRankMap, citableRanks }]]
       : REMARK_PLUGINS,
     [citationRankMap, citableRanks]
   );
