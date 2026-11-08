@@ -1,0 +1,672 @@
+{
+  "actions": {
+    "accept": "Accept",
+    "askAgain": "Ask again",
+    "cancel": "Cancel",
+    "checkAgain": "Check again",
+    "close": "Close",
+    "closing": "Closing…",
+    "confirm": "OK",
+    "delete": "Delete",
+    "processing": "Processing",
+    "regenerate": "Regenerate",
+    "reject": "Reject",
+    "retry": "Retry",
+    "retrying": "Retrying",
+    "tryAgain": "Try again"
+  },
+  "aiNotice": {
+    "message": "This service's chat, wiki, and document writing features run on generative AI. AI-generated content may be inaccurate, so review it before use.",
+    "title": "About generative AI"
+  },
+  "autoApply": {
+    "createHint": "If you don't need the new document, move it to the trash.",
+    "editRollbackHint": "To go back to the previous content, roll back this task from the log screen. Edits made after it will be reverted too.",
+    "prefix": "Applied without confirmation because of the 'AI agent auto-approval' setting."
+  },
+  "chat": {
+    "answer": "Answer",
+    "cancellingTitle": "Cancelling question",
+    "checkingRollback": "Checking undo",
+    "findings": "Findings",
+    "historyLoadFailed": "Couldn't load chat history.",
+    "progressLoadFailed": "Couldn't load progress.",
+    "queryCancelFailed": "Couldn't cancel the question. Press Esc to try again.",
+    "queryCancelled": "Question cancelled.",
+    "queryCancelling": "Cancelling the question and undoing changes…",
+    "queryFailed": "The question failed.",
+    "searchingTitle": "Running search",
+    "writingAnswer": "Writing an answer…"
+  },
+  "composer": {
+    "model": {
+      "empty": "No models available",
+      "failed": "Couldn't load models",
+      "loading": "Loading models",
+      "providerModels": "{provider} models",
+      "providers": "Model providers",
+      "select": "Choose model"
+    },
+    "placeholder": "Ask the AI agent anything.",
+    "queryInputLabel": "Question input",
+    "send": "Send",
+    "stop": {
+      "hint": {
+        "query": "Press Esc in the input to cancel the question.",
+        "skillRun": "Press Esc in the input to cancel the skill run.",
+        "turn": "Press Esc in the input to stop the task."
+      },
+      "stopping": {
+        "query": "Cancelling the question…",
+        "turn": "Stopping the task…"
+      }
+    },
+    "voice": {
+      "closeMeetingToStart": "Close the open meeting screen to start",
+      "closeMeetingToView": "Close the open meeting screen to view",
+      "dictate": "Voice input",
+      "dictateDescription": "Speak and it's typed into the input. Up to 60 seconds at a time",
+      "menu": "Voice features",
+      "pastMeetings": "Past meetings",
+      "pastMeetingsDescription": "Continue a transcription in progress or reopen meeting notes",
+      "recordMeeting": "Record a meeting",
+      "recordMeetingDescription": "Record a meeting to transcribe the conversation and create meeting notes",
+      "stopDictation": "Stop voice input",
+      "stopMeeting": "Stop meeting recording",
+      "uploadRecording": "Upload a recording",
+      "uploadRecordingDescription": "Create meeting notes from an existing recording (MP3, M4A, WAV, WebM, up to 500MB)"
+    },
+    "webSearch": {
+      "description": "Searches the web for more information when needed.",
+      "label": "Web search"
+    },
+    "workInputLabel": "Task request input",
+    "workPlaceholder": "Add a request to this task (/skill · @document)"
+  },
+  "create": {
+    "creating": "Creating document",
+    "failed": "Couldn't create the new Markdown document.",
+    "heading": "New document draft",
+    "openAsNew": "Open as new document",
+    "regionLabel": "AI Markdown document draft"
+  },
+  "dictation": {
+    "empty": "We couldn't make out any speech. Please try again.",
+    "microphoneFailed": "The microphone isn't available. Please try again in a moment.",
+    "noMicrophone": "No microphone was found.",
+    "permissionDenied": "Microphone access was denied. Allow the microphone in your browser settings.",
+    "recording": "Listening. Press the button again when you're done (up to 60 seconds)",
+    "tooLarge": "The recording is too long. Please keep it under 60 seconds.",
+    "transcribeFailed": "Couldn't turn your speech into text.",
+    "transcribing": "Turning your speech into text…",
+    "unsupported": "This browser doesn't support voice input."
+  },
+  "documents": {
+    "add": "+ Add document",
+    "chip": {
+      "removeSelection": "Remove the selection from the task",
+      "removeSource": "Stop using the current document as the source",
+      "removeTarget": "Remove the current document from the task",
+      "useAsSource": "Use the current document as the source for the new document",
+      "useAsSourceTitle": "Click to use as the source for the new document",
+      "usedAsSource": "Current document · used as source"
+    },
+    "current": "Current document",
+    "droppedOpen": {
+      "titled": "Couldn't read the current document ''{title}'', so the request was sent without it. Working without this document.",
+      "untitled": "Couldn't read the current document, so the request was sent without it. Working without this document."
+    },
+    "limit": "You can attach up to {max} documents.",
+    "locked": {
+      "retryLater": "Please try again after they finish editing.",
+      "titled": "Someone else is editing the current document ''{title}''.",
+      "untitled": "Someone else is editing the current document.",
+      "withAttachments": "Remove the current document chip to continue with your attachments."
+    },
+    "picker": {
+      "empty": "No documents to attach.",
+      "failed": "Couldn't load documents.",
+      "loading": "Loading documents.",
+      "noMatch": "No matching documents."
+    },
+    "pickerLabel": "Documents to attach",
+    "readOnlyOverflow": "Attachments are full, so the current view-only document won't be sent along.",
+    "removeAttachment": "Remove attachment {title}",
+    "searchLabel": "Search documents to attach",
+    "searchPlaceholder": "Search documents to attach ({count}/{max} attached)"
+  },
+  "edit": {
+    "applyFailed": "Couldn't apply the edit.",
+    "cannotApply": "The edit can't be applied.",
+    "changedBeforeApply": "The document changed just before applying. Regenerate from the latest content.",
+    "details": "View change details",
+    "diffLabel": "Line diff between the original and the edit",
+    "invalid": {
+      "changed": "The document changed after the request. Regenerate from the latest content.",
+      "documentMismatch": "The response document doesn't match the requested document.",
+      "empty": "An empty Markdown edit can't be applied.",
+      "insertTarget": "The continue-writing target isn't a section or the whole document.",
+      "noDocument": "An edit can't be applied to a request made without an open document. Open the document and try again.",
+      "notEdit": "This isn't a Markdown edit response.",
+      "outOfRange": "The Markdown edit range is outside the document.",
+      "targetMismatch": "The edited range in the response doesn't match the requested range.",
+      "versionMismatch": "The document version in the response doesn't match the request."
+    },
+    "invalidResponse": "The edit response is invalid.",
+    "newDocumentTitle": "AI edit",
+    "notWritable": "This document can't be saved right now, so the edit wasn't applied. Check your edit access and sign-in status.",
+    "openAsNewFailed": "Couldn't create a new Markdown document from the edit.",
+    "previewFailed": "{reason} The original wasn't changed. Request again from the latest document.",
+    "purged": "The document was permanently deleted, so the proposed edit is gone.",
+    "regionLabel": "AI Markdown edit proposal",
+    "reopenDocument": "Reopen the document you're editing and regenerate."
+  },
+  "editPlan": {
+    "approvalHint": {
+      "allPurged": "There are no documents to edit. The target documents were permanently deleted.",
+      "excluded": "Editing without {count, plural, one {# excluded document} other {# excluded documents}}.",
+      "selectOne": "Choose at least one document to edit."
+    },
+    "conflicted": "Couldn't save because the document changed. Please try again.",
+    "decisionNote": "Nothing has changed yet. Approve to edit {count, plural, one {# document} other {# documents}}.",
+    "decisionNoteEmpty": "Nothing has changed yet.",
+    "diff": {
+      "expired": "The changes are past their retention period and can't be shown. You can check them in the log.",
+      "failed": "Couldn't load the changes.",
+      "fromLine": "From line {line}",
+      "label": "Changes to {title}",
+      "loading": "Loading changes.",
+      "more": "Show more ({count, plural, one {# line} other {# lines}} left)",
+      "noLines": "No changed lines to show."
+    },
+    "lineCounts": "{added} lines added, {removed} lines removed",
+    "listLabel": "Documents to edit",
+    "operationError": {
+      "document_purged": "Didn't run because the document was permanently deleted.",
+      "rollback_document_purged": "Couldn't undo because the document was permanently deleted.",
+      "tool_http_404": "Document not found.",
+      "tool_http_423": "Couldn't save because someone else is editing."
+    },
+    "previewNotice": {
+      "expired": "These changes are past their retention period and can't be accepted. Please request them again.",
+      "failed": "Couldn't load the changes. If you accept, the selected documents will be edited without your review.",
+      "missing": "Couldn't load the changes for {count, plural, one {# document} other {# documents}}. If you accept, they will be edited without your review too."
+    },
+    "purgedDiff": "The document was permanently deleted, so its changes can't be shown.",
+    "reloadChanges": "Reload changes",
+    "rowCheckbox": "Edit {title}",
+    "runNote": {
+      "incomplete": "Couldn't complete the task. Check the status of each document.",
+      "noneSaved": "Couldn't save the documents. Check each document for the reason.",
+      "savedSome": "Saved {saved} of {total} documents. Check each unsaved document for the reason.",
+      "savedSomePurged": "Saved {saved, plural, one {# document} other {# documents}}. Skipped {purged, plural, one {# permanently deleted document} other {# permanently deleted documents}}."
+    },
+    "trashed": "Couldn't save because the document is in the trash. Restore it and try again."
+  },
+  "errors": {
+    "invalidSelection": "The selected items can't be applied. Items that must be applied together may be missing, or the plan may have changed. Check your selection and apply again.",
+    "planMissing": "Couldn't find the plan for this answer. Please request it again.",
+    "planRequestFailed": "The plan request failed."
+  },
+  "folder": {
+    "cardHint": {
+      "duplicatesExcluded": "Applying without {count, plural, one {# item} other {# items}} flagged as possible duplicates.",
+      "excluded": "Applying without {count, plural, one {# item} other {# items}}.",
+      "none": "Nothing to apply. Choose items in the Preview tab.",
+      "someDuplicatesExcluded": "Applying without {count, plural, one {# item} other {# items}} (including {duplicates} possible duplicates).",
+      "tooMany": "When applying only some items, you can include up to {max} tasks. Adjust your selection in the Preview tab."
+    },
+    "change": {
+      "create": "Create",
+      "edit": "Edit",
+      "move": "Move",
+      "rename": "Rename"
+    },
+    "failure": {
+      "partial": "Partly failed",
+      "partialNote": "Some tasks failed. {reason}"
+    },
+    "notice": {
+      "createdFolders": "{count, plural, one {# new folder} other {# new folders}} ({names}) will be created.",
+      "duplicateDeselected": "{count, plural, one {# item} other {# items}} deselected as possible duplicates",
+      "selected": "{selected} of {total} selected"
+    },
+    "preview": {
+      "applySelected": "Apply {count} selected",
+      "awaiting": "Preview",
+      "change": "Change",
+      "command": "Command",
+      "destination": "New location · name",
+      "label": "Folder organizing preview",
+      "loadFailed": "Couldn't load plan",
+      "newDocument": "New document",
+      "rule": "Rule: {rule}",
+      "selectAll": "Select all",
+      "selectOne": "Select at least one item to apply.",
+      "selectRow": "Select {name}",
+      "sort": {
+        "asc": "Name ascending",
+        "desc": "Name descending",
+        "plan": "Plan order"
+      },
+      "sortLabel": "Sort commands: {order}",
+      "tableLabel": "Items to organize",
+      "tooMany": "When applying only some items, you can choose up to {max} tasks at once. Select fewer, or select all."
+    },
+    "purgedRowName": "Deleted document",
+    "result": {
+      "excluded": "{count} excluded",
+      "failed": "{count} failed",
+      "partial": "{count} partly saved",
+      "rolledBack": "{count} undone",
+      "saved": "{count} saved"
+    }
+  },
+  "header": {
+    "chatOptions": "Chat options",
+    "deleteFailed": "Couldn't delete the chat.",
+    "exportToDocument": "Save chat as document",
+    "hidePanel": "Hide agent panel",
+    "newChat": "New chat",
+    "newChatFailed": "Couldn't create a new chat.",
+    "noSessions": "No chats yet.",
+    "searchChats": "Search chats",
+    "sessionsLoadFailed": "Couldn't load chats.",
+    "view": {
+      "chat": "Chat",
+      "work": "Tasks"
+    },
+    "viewTabs": "Chat panel view"
+  },
+  "models": {
+    "empty": "No AI models are available.",
+    "loadFailed": "Couldn't load AI models."
+  },
+  "notice": {
+    "documentListRefreshFailed": "Couldn't refresh the document list",
+    "exportCompleted": "Chat saved as document",
+    "exportFailed": "Couldn't save chat as document",
+    "finishedTurn": {
+      "completed": "The task you tried to close had already finished. Check the result in the task list.",
+      "failed": "The task you tried to close had already failed.",
+      "title": "Task already finished"
+    },
+    "meetingDeleted": {
+      "message": "The meeting was deleted. Meeting notes saved as documents are kept.",
+      "title": "Meeting deleted"
+    },
+    "openDocumentDropped": "Sent without the current document",
+    "queryCancelCheckFailed": "Couldn't confirm question cancellation",
+    "queryCompleted": {
+      "message": "The answer to \"{question}\" has arrived.",
+      "title": "Answer ready"
+    },
+    "queryFailed": {
+      "message": "Couldn't answer \"{question}\".",
+      "title": "Question failed"
+    },
+    "sessionPrepareFailed": "Couldn't prepare the conversation",
+    "stopFailed": "Couldn't stop the task",
+    "turnCancelCheckFailed": "Couldn't confirm task cancellation"
+  },
+  "pairSelection": {
+    "excludedCommand": "Not selectable · document or skill command",
+    "incomplete": "Not selectable · not a completed Q&A",
+    "rangeHint": "Selectable · click to set the range",
+    "selectItemLabel": "Select this Q&A to add",
+    "selectRangeLabel": "Select this Q&A as the range to add",
+    "selected": "Selected",
+    "toggleHint": "Selectable · click to select or clear"
+  },
+  "panel": {
+    "cleanUpChatTab": "Clean up Chat tab conversations",
+    "cleanUpWorkTab": "Clean up Tasks tab conversations",
+    "export": {
+      "confirmLabel": "Save {count, plural, one {# Q&A} other {# Q&As}}",
+      "failed": "Couldn't save the chat as a document.",
+      "failedUncertain": "{message} The result may be uncertain, so please check the document list.",
+      "ingest": "Add to wiki",
+      "ingesting": "Adding to wiki…",
+      "kind": {
+        "individual": "Select individually",
+        "range": "Select range"
+      },
+      "kindLabel": "How to select Q&A to save",
+      "refreshFailed": "The document was saved, but the workspace list couldn't be refreshed. Please reload the page. ({detail})",
+      "refreshFailedDetail": "Couldn't refresh the workspace list.",
+      "reset": "Reset chat selection",
+      "selectPrompt": "Select Q&A to save",
+      "success": {
+        "saved": "The chat was saved as a source document. To add it to the wiki, choose the document in 'Add to wiki'.",
+        "savedCanIngest": "The chat was saved as a source document. Click 'Add to wiki' to add it to the wiki so chat answers can cite it.",
+        "skipped": "A source document with the same content already exists, so it was opened instead."
+      }
+    },
+    "legacySession": "This is a legacy combined conversation. New requests are saved to a separate conversation in the current tab.",
+    "open": "Open AI agent panel",
+    "sessionFailed": "Couldn't prepare the conversation.",
+    "workSessionFailed": "Couldn't prepare the task conversation."
+  },
+  "plan": {
+    "acceptLabel": {
+      "edit": "Accept and edit",
+      "folderOrganize": "Accept and organize",
+      "workspace": "Accept and run"
+    },
+    "access": {
+      "allBlocked": "You don't have permission to edit the target documents or move items in or out of these folders, so this can't run even if you accept. Ask the workspace OWNER for access.",
+      "blocked": {
+        "document": "{count, plural, one {# document won't run} other {# documents won't run}} because you don't have permission to edit the target documents or move items in or out of these folders.",
+        "item": "{count, plural, one {# item won't run} other {# items won't run}} because you don't have permission to edit the target documents or move items in or out of these folders.",
+        "task": "{count, plural, one {# task won't run} other {# tasks won't run}} because you don't have permission to edit the target documents or move items in or out of these folders."
+      },
+      "operationBlocked": "Won't run: you don't have permission to edit this document or move items in or out of this folder.",
+      "partlyBlocked": {
+        "document": "{count, plural, one {# document will run} other {# documents will run}} without the parts you don't have permission for.",
+        "item": "{count, plural, one {# item will run} other {# items will run}} without the parts you don't have permission for.",
+        "task": "{count, plural, one {# task will run} other {# tasks will run}} without the parts you don't have permission for."
+      },
+      "rest": {
+        "document": "Only the remaining documents will run.",
+        "item": "Only the remaining items will run.",
+        "task": "Only the remaining tasks will run."
+      },
+      "rowPartlyBlocked": "Some tasks won't run because you don't have permission.",
+      "someBlocked": "Some tasks won't run because you don't have permission to edit the target documents or move items in or out of these folders."
+    },
+    "autoApproved": {
+      "createHint": "You can move new documents to the trash.",
+      "editHint": "You can revert edited documents by rolling back this task from the log screen.",
+      "moveHint": "You can reorganize moved or renamed items and new folders from the document list.",
+      "prefix": "Ran without confirmation because of the 'AI agent auto-approval' setting."
+    },
+    "clarificationDefault": "Describe how you want things organized in more detail in the task input.",
+    "describe": {
+      "createDocument": "Create document: {path}",
+      "createFolder": "Create folder: {path}",
+      "editDocument": "Edit document: {target}",
+      "rename": "Rename: {target} → {name}",
+      "root": "Top level",
+      "unknownFolder": "Unknown folder",
+      "unknownItem": "Unknown item",
+      "unknownLocation": "Unknown location",
+      "unknownNewFolder": "Unknown new folder",
+      "unsupported": "Unsupported task"
+    },
+    "details": "Details",
+    "excluded": "Excluded",
+    "failure": {
+      "deadline_exceeded": "Planning took too long and was stopped. Please try again.",
+      "execution": "Couldn't complete the task. Check the result for each item.",
+      "fallback": "Couldn't complete the task. Please try again.",
+      "input_rejected": "The AI's plan didn't pass validation, so no organizing plan was made. Adjust the rules or try again.",
+      "partial": "Some tasks couldn't be completed. Check the result for each item.",
+      "plan_out_of_scope": "Couldn't make an organizing plan because every task would move items outside the selected folder or change the folder itself. Adjust the rules and try again.",
+      "provider_rate_limited": "Too many AI requests, so the plan couldn't be made. Please try again in a moment.",
+      "provider_unavailable": "Couldn't reach the AI service, so the plan couldn't be made. Please try again in a moment.",
+      "rollback_document_purged": "Changes to permanently deleted documents can't be undone. The other changes were undone."
+    },
+    "label": {
+      "edit": "Document edit plan",
+      "folderOrganize": "Folder organizing plan",
+      "workspace": "Workspace task plan"
+    },
+    "loadFailed": "Couldn't load the plan.",
+    "missingTaskTurn": "This task has no plan information. Please request it again.",
+    "missingTurn": "This answer has no plan information. Please request it again.",
+    "openPreview": "Open Preview tab",
+    "operationError": {
+      "dependency_failed": "Skipped because an earlier task failed. Check the earlier task's result.",
+      "document_purged": "Didn't run because the document was permanently deleted. Choose another document.",
+      "rollback_snapshot_invalid": "Couldn't run because the previous state couldn't be saved safely. Check the document.",
+      "state_mismatch": "The result doesn't match the plan. Check the document.",
+      "toolHttpOther": "The document service couldn't process the request. Check the task results, then try again.",
+      "tool_http_403": "Couldn't run because you don't have permission to change this document. Check your access.",
+      "tool_http_404": "Couldn't run because the target wasn't found. Check whether it was deleted.",
+      "tool_http_409": "Couldn't apply because the content changed in the meantime. Check the latest content.",
+      "tool_http_423": "Couldn't apply because someone else is editing. Try again after they finish.",
+      "tool_http_unavailable": "Couldn't reach the document service. Check the task results, then try again.",
+      "unresolved_dependency": "Couldn't run because the earlier task's result wasn't found. Check the task results."
+    },
+    "operationReason": {
+      "cancelled": "Didn't run because it was cancelled.",
+      "conflicted": "Couldn't run: it conflicted with another change.",
+      "fallback": "Couldn't run.",
+      "forbidden": "Couldn't run: no permission.",
+      "rolled_back": "Ran, then undone.",
+      "skipped": "Couldn't run because an earlier task failed.",
+      "verification_failed": "Couldn't verify the result."
+    },
+    "operationStatus": {
+      "cancelled": "Cancelled",
+      "completed": "Done",
+      "conflicted": "Conflict",
+      "failed": "Failed",
+      "forbidden": "No permission",
+      "rolled_back": "Undone",
+      "running": "Running",
+      "skipped": "Skipped",
+      "succeeded": "Done",
+      "verification_failed": "Verification failed"
+    },
+    "purged": "Permanently deleted",
+    "reviewBeforeApprove": "Review the folder and document changes before approving. Only approved items are saved.",
+    "status": {
+      "awaiting_approval": "Awaiting approval",
+      "cancel_requested": "Cancelling",
+      "cancelled": "Cancelled",
+      "clarification_required": "Needs more detail",
+      "completed": "Completed",
+      "conflicted": "Conflict",
+      "executing": "Running",
+      "failed": "Failed",
+      "partial_failed": "Partly failed",
+      "planning": "Planning",
+      "queued": "Waiting to plan",
+      "rejected": "Plan rejected",
+      "rollback_failed": "Undo failed",
+      "rolling_back": "Undoing changes",
+      "verifying": "Checking results"
+    },
+    "statusLoading": "Loading plan",
+    "statusUnknown": "Status unknown",
+    "summary": {
+      "apply_document_edit": "Edit {count, plural, one {# document} other {# documents}}",
+      "create_document": "Create {count, plural, one {# document} other {# documents}}",
+      "create_folder": "Create {count, plural, one {# folder} other {# folders}}",
+      "failed": "{count} failed",
+      "move_document": "Move {count, plural, one {# document} other {# documents}}",
+      "move_folder": "Move {count, plural, one {# folder} other {# folders}}",
+      "rename_document": "Rename {count, plural, one {# document} other {# documents}}",
+      "rename_folder": "Rename {count, plural, one {# folder} other {# folders}}",
+      "rolledBack": "{count} undone",
+      "unrecoverable": "{count} not undone (permanently deleted)"
+    },
+    "tree": {
+      "label": "Folder structure after organizing",
+      "newFolder": "New folder"
+    }
+  },
+  "progress": {
+    "answering": "Generating an answer.",
+    "intent": "Understanding your question.",
+    "reviewing": "Reviewing the answer.",
+    "wiki": "Exploring the wiki."
+  },
+  "review": {
+    "acceptLabel": "Accept {label}",
+    "aiEdit": "AI edit",
+    "badge": "{count, plural, one {# proposal} other {# proposals}} in progress",
+    "deletes": "This part will be deleted.",
+    "inlineMeta": "{count, plural, one {# proposal} other {# proposals}} (shown in the document)",
+    "proposal": "Proposal {number}",
+    "regionLabel": "Review AI edit proposals",
+    "rejectLabel": "Reject {label}",
+    "shortenInstruction": "Make it shorter",
+    "source": "[Proposal: {source}]"
+  },
+  "sessions": {
+    "createFailed": "Couldn't create a conversation.",
+    "loadFailed": "Couldn't load conversations.",
+    "notReady": "The conversation is still being prepared. Please try again in a moment.",
+    "workspaceChanged": "The workspace changed."
+  },
+  "skillPicker": {
+    "enterHint": "Press Enter to ask or request without a skill",
+    "failed": "Couldn't load skills.",
+    "label": "Skills",
+    "loading": "Loading skills.",
+    "manage": "Manage skills",
+    "noMatch": "No matching skills.",
+    "none": "No skills are enabled."
+  },
+  "skillRun": {
+    "cancel": "Cancel run",
+    "closeBlockingAndRun": "Close the earlier task and run",
+    "closingBlocking": "Closing the earlier task…",
+    "waiting": {
+      "blocked": "Runs as soon as the earlier task finishes.",
+      "document": "Opening the target document.",
+      "preparing": "Preparing your request.",
+      "query": "Runs as soon as the chat answer finishes.",
+      "stalled": "Can't run yet because an earlier task stopped responding. Close it and this will run right away."
+    }
+  },
+  "sources": {
+    "fallbackMeta": "Source document",
+    "found": "{count, plural, one {# source found} other {# sources found}}"
+  },
+  "speech": {
+    "disabled": "Listening to answers isn't available right now.",
+    "failed": "Couldn't generate audio.",
+    "listen": "Listen",
+    "listenLabel": "Listen to answer",
+    "network": "Check your network connection and try again.",
+    "preparing": "Preparing audio",
+    "stop": "Stop",
+    "stopLabel": "Stop audio",
+    "unsupported": "This browser doesn't support audio playback."
+  },
+  "stalled": {
+    "cancellingDetail": {
+      "requested": "Stopping the task.",
+      "rolling_back": "Undoing the task's changes. It will show 'Cancelled' when done."
+    },
+    "cancellingLabel": "Cancelling…",
+    "notice": {
+      "queryCancelUndelivered": "The question was closed, but the cancellation didn't reach the server. It may still be processing there.",
+      "queryRollbackFailed": "The question was closed, but the server couldn't undo its changes. Please check again in a moment.",
+      "stopRollbackFailed": "The task was stopped, but the server couldn't undo its changes. Please check the document.",
+      "stopUndelivered": "Couldn't stop the task. The stop request didn't reach the server, so the task is still running. Press Esc again.",
+      "turnCancelUndelivered": "The task was closed, but the cancellation didn't reach the server. It may still be processing there.",
+      "turnCloseRollbackFailed": "The task was closed, but the server couldn't undo its changes. Please check the document."
+    },
+    "queryComposerNotice": "A question didn't get a response. Ask again or close it in Chat.",
+    "queryDetail": "Processing may have stopped. Ask again, or close it and ask a new question.",
+    "queryReleasedDetail": "This question was closed because no response arrived.",
+    "rollbackFailedDetail": "Cancelled, but the changes couldn't be undone. Please check the document.",
+    "rollbackFailedLabel": "Undo failed",
+    "rollbackPartialDetail": "Changes to permanently deleted documents can't be undone. The other changes were undone.",
+    "rollbackPartialLabel": "Partly undone",
+    "turnComposerNotice": "A task didn't respond. Retry or close it in the Tasks tab.",
+    "turnDetail": "The task may have stopped. Try again, or close it and send a different request.",
+    "turnTitle": "No response received"
+  },
+  "status": {
+    "command": {
+      "folderOrganize": "Organize folder",
+      "markdownCreate": "Create new document",
+      "markdownEdit": "Edit document",
+      "skill": "Write skill",
+      "workspaceWorkflow": "Workspace task"
+    },
+    "sending": "Sending your request.",
+    "steps": {
+      "analyze": "Analyzing the question",
+      "generate": "Generating the LLM answer",
+      "searchWiki": "Searching related wiki pages",
+      "writeAnswer": "Writing an answer from sources"
+    },
+    "title": {
+      "cancelled": "Request cancelled",
+      "completed": "Request completed",
+      "ended": "Request ended",
+      "pending": "Processing request"
+    }
+  },
+  "task": {
+    "doneNotice": "Task records aren't added to the LLM Wiki. They remain only in document and file change history.",
+    "empty": {
+      "hint": "Type / to choose a skill. Ask questions about your wiki in the Chat tab.",
+      "title": "Ask to edit documents, organize folders, or run skills."
+    },
+    "emptyRequest": "No request",
+    "failedFallback": "Couldn't process the task. Please try again.",
+    "group": {
+      "approval": "Needs review",
+      "clarify": "Needs a choice",
+      "done": "Done",
+      "failed": "Failed",
+      "partial_failed": "Partly failed",
+      "running": "In progress"
+    },
+    "kind": {
+      "document": "Document",
+      "folderLookup": "Folder lookup",
+      "folderOrganize": "Folder organize",
+      "skill": "Skill",
+      "task": "Task",
+      "workspace": "Workspace"
+    },
+    "readOnlyClarification": "You only have view access to this document, so it can't be edited. To edit it, ask the document owner or the workspace OWNER for edit access.",
+    "recheckResult": "Check result again",
+    "reopenReview": "Review again",
+    "requestMeta": "Request: {request}",
+    "saveAsSkill": "Save this request as a skill",
+    "selectionChip": {
+      "lines": "Selection: lines {start}–{end}",
+      "text": "Selection: {text}"
+    },
+    "setAsideNote": "Not applied to the document yet. Review it again to accept or reject.",
+    "shorten": "Make it shorter",
+    "skillMode": {
+      "create": {
+        "label": "Create a new document",
+        "request": "Create it as a new document"
+      },
+      "edit": {
+        "label": "Edit the current document",
+        "request": "Edit the current document"
+      }
+    },
+    "status": {
+      "answered": "Answered",
+      "autoApproved": "Auto-approved",
+      "awaitingReview": "Awaiting review",
+      "cancelled": "Cancelled",
+      "documentPurged": "Document permanently deleted",
+      "excludedCount": "{count} excluded",
+      "failed": "Failed",
+      "needsAnswer": "Needs an answer",
+      "newFolderCount": "{count, plural, one {# new folder} other {# new folders}}",
+      "notAccepted": "Not accepted",
+      "pastQuestion": "Past question",
+      "proposed": "Proposed",
+      "rejected": "Rejected",
+      "released": "Stopped",
+      "rerun": "Run again",
+      "running": "In progress",
+      "saved": "Saved",
+      "savedCount": "Saved ({count})",
+      "superseded": "Replaced by a new run",
+      "unprocessable": "Can't process"
+    }
+  },
+  "turn": {
+    "cancelled": "The request was cancelled.",
+    "lost": "Couldn't confirm the response. The task may still be running, so check again in a moment.",
+    "requestFailed": "The task request failed.",
+    "rollbackFailed": "The request was cancelled, but undoing its changes failed. Please check the document.",
+    "slow": "The response is taking a while. Still checking."
+  }
+}

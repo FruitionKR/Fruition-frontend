@@ -1,6 +1,7 @@
 import { isDocumentReadOnly } from "@/entities/document/lib/documentAccess";
 import { isDocumentConverting, isMarkdownDocument } from "@/entities/document/lib/documentKind";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
+import type { AgentChatTranslator } from "@/features/agent-chat/lib/agentChatTranslator";
 import type { AgentTurnRequest } from "@/features/agent-chat/lib/agentTurn";
 import { slashCommandSlug } from "@/features/agent-chat/lib/taskThread";
 import { documentDisplayName, filterPickerDocuments, orderPickerDocuments } from "@/features/skill-authoring/lib/referenceDocumentPicker";
@@ -8,7 +9,6 @@ import { ApiError, DocumentLockedError, isInsufficientCreditError } from "@/shar
 
 /** 한 요청에 첨부할 수 있는 문서 수(document AgentTurnRequest.reference_document_ids 계약). 열린 문서는 따로 실려 세지 않는다. */
 export const REFERENCE_DOCUMENT_MAX = 3;
-export const REFERENCE_DOCUMENT_LIMIT_MESSAGE = `문서는 ${REFERENCE_DOCUMENT_MAX}개까지 첨부할 수 있어요.`;
 
 export type DocumentMention = {
   /** 커서 앞까지의 검색어 */
@@ -92,8 +92,8 @@ export async function sendTurnDroppingOpenDocument<T>({ referenceDocumentIds, au
 }
 
 /** 자동으로 실은 열린 문서를 빼고 보냈을 때의 안내. */
-export function droppedOpenDocumentMessage(title: string | null): string {
-  return `${title ? `현재 문서 '${title}'` : "현재 문서"} 내용을 읽을 수 없어 빼고 요청을 보냈어요. 이 문서 없이 작업합니다.`;
+export function droppedOpenDocumentMessage(title: string | null, t: AgentChatTranslator): string {
+  return title ? t("documents.droppedOpen.titled", { title }) : t("documents.droppedOpen.untitled");
 }
 
 /**
@@ -184,12 +184,12 @@ export function shouldRestoreAttachments(error: unknown, { referenceDocumentIds,
  * 열린 문서 잠금(423) 안내. 첨부 문서가 잠긴 것처럼 읽히지 않게 어느 문서인지 밝히고, 첨부가 있으면 계속할 방법을 알려 준다.
  * 제목은 서버 값을 먼저 쓰고, 없으면 현재 문서 칩의 문서 제목을 쓴다. 423이 아니면 null이다.
  */
-export function documentLockedTurnMessage(error: unknown, { openDocumentTitle, hasAttachments }: { openDocumentTitle: string | null; hasAttachments: boolean }): string | null {
+export function documentLockedTurnMessage(error: unknown, { openDocumentTitle, hasAttachments }: { openDocumentTitle: string | null; hasAttachments: boolean }, t: AgentChatTranslator): string | null {
   if (!(error instanceof ApiError) || error.status !== 423) return null;
   const title = (error instanceof DocumentLockedError ? error.documentTitle : null) ?? openDocumentTitle;
-  const subject = title ? `현재 문서 '${title}'에서` : "현재 문서에서";
-  const next = hasAttachments ? "현재 문서 칩을 빼면 첨부 문서로 계속할 수 있어요." : "편집이 끝난 뒤 다시 시도해 주세요.";
-  return `${subject} 다른 사람이 편집 중이에요. ${next}`;
+  const subject = title ? t("documents.locked.titled", { title }) : t("documents.locked.untitled");
+  const next = hasAttachments ? t("documents.locked.withAttachments") : t("documents.locked.retryLater");
+  return `${subject} ${next}`;
 }
 
 /** 되돌린 첨부 중 지금 고를 수 없는 문서(삭제·권한 회수·변환 중)를 뺀다. */

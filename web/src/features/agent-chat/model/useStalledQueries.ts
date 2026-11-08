@@ -9,6 +9,7 @@ import {
 } from "../lib/stalledTurns";
 import { useStalledRuns } from "./useStalledAgentTurns";
 import type { ChatMessageResponse } from "@/entities/chat/model/chat";
+import { useTranslations } from "next-intl";
 
 /** 닫기 취소 요청을 이만큼만 기다린다. 응답이 없어도 화면 잠금은 푼다. */
 const CANCEL_REQUEST_TIMEOUT_MS = 10_000;
@@ -51,16 +52,17 @@ export function useStalledQueries({
     enabled: !isQueryActive,
     refreshMessages
   });
+  const t = useTranslations("agentChat");
   const [closingQueryIds, setClosingQueryIds] = useState<ReadonlySet<string>>(NO_RUNS);
 
   /** 서버 취소를 먼저 요청하고, 결과와 상관없이 잠금을 푼다. 서버에 전하지 못했으면 알림으로 알린다. */
   const closeStalledQuery = useCallback(async (runId: string) => {
     setClosingQueryIds((current) => new Set([...current, runId]));
-    const notice = stalledQueryCancelNotice(await requestCancel(runId));
+    const notice = stalledQueryCancelNotice(await requestCancel(runId), t);
     releaseRuns([runId]);
     setClosingQueryIds((current) => new Set([...current].filter((id) => id !== runId)));
-    if (notice) publishNotice({ kind: "failed", title: "질문 취소 확인 실패", message: notice });
-  }, [releaseRuns]);
+    if (notice) publishNotice({ kind: "failed", notificationKey: "questionCancelFailed", title: t("notice.queryCancelCheckFailed"), message: notice });
+  }, [releaseRuns, t]);
 
   return { stalledQueryIds, closingQueryIds, closeStalledQuery };
 }

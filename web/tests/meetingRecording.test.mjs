@@ -11,10 +11,16 @@ registerHooks({
   }
 });
 
-const { checkRecordingFile, meetingNameFromFile, MEETING_RECORDING_MAX_BYTES, MEETING_RECORDING_FILE_MESSAGES } = await import("../src/entities/meeting/lib/recordingFile.ts");
+const { checkRecordingFile, meetingNameFromFile, MEETING_RECORDING_MAX_BYTES } = await import("../src/entities/meeting/lib/recordingFile.ts");
 const { uploadMeetingRecording, fetchMeetingRecordingUrl, deleteMeeting, cancelMeetingTranscription } = await import("../src/entities/meeting/api/meetings.ts");
 const { describeMeetingRecordingError, describeMeetingTranscriptionFailure } = await import("../src/shared/lib/aiErrorCodes.ts");
-const { canDeleteMeetingInPhase, describeRecordingError, isMeetingBusyPhase, meetingProgressText, MEETING_TITLES, shouldConfirmLeavingPhase } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+const { canDeleteMeetingInPhase, describeRecordingError, isMeetingBusyPhase, meetingProgressText, meetingTitle, shouldConfirmLeavingPhase } = await import("../src/features/meeting-dictation/lib/meetingNotesFlow.ts");
+
+// 화면과 같이 meeting 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readMeetingMessages } = await import("node:fs");
+const { createTranslator: createMeetingTranslator } = await import("use-intl/core");
+const meetingKo = JSON.parse(readMeetingMessages(new URL("../src/shared/i18n/messages/ko/meeting.json", import.meta.url), "utf8"));
+const tm = createMeetingTranslator({ locale: "ko", messages: { meeting: meetingKo }, namespace: "meeting" });
 const { transcriptFromSegments, transcriptLines, hasFinalSegments } = await import("../src/features/meeting-dictation/lib/liveTranscript.ts");
 const { ApiError, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
@@ -30,11 +36,11 @@ test("녹음 파일은 서버가 받는 형식이면 그대로, 브라우저가 
 });
 
 test("지원하지 않는 형식·빈 파일·500 MiB 초과는 올리기 전에 막는다", () => {
-  assert.deepEqual(checkRecordingFile(file("a.mp4", "video/mp4", 10)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.unsupported });
-  assert.deepEqual(checkRecordingFile(file("a.txt", "text/plain", 10)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.unsupported });
-  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", 0)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.empty });
+  assert.deepEqual(checkRecordingFile(file("a.mp4", "video/mp4", 10)), { ok: false, reason: "unsupported" });
+  assert.deepEqual(checkRecordingFile(file("a.txt", "text/plain", 10)), { ok: false, reason: "unsupported" });
+  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", 0)), { ok: false, reason: "empty" });
   assert.equal(checkRecordingFile(file("a.wav", "audio/wav", MEETING_RECORDING_MAX_BYTES)).ok, true);
-  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", MEETING_RECORDING_MAX_BYTES + 1)), { ok: false, message: MEETING_RECORDING_FILE_MESSAGES.tooLarge });
+  assert.deepEqual(checkRecordingFile(file("a.wav", "audio/wav", MEETING_RECORDING_MAX_BYTES + 1)), { ok: false, reason: "tooLarge" });
 });
 
 test("회의 이름은 확장자를 뺀 파일 이름이고 200자로 자른다", () => {
@@ -60,10 +66,10 @@ test("올리는 중은 닫을 수 없고(전사 중은 회의 목록에서 다�
   for (const phase of ["stopped", "ready", "applied", "generating", "previewing", "transcribing"]) assert.equal(isMeetingBusyPhase(phase), false, phase);
   assert.deepEqual(["stopped", "ready", "applied"].filter(canDeleteMeetingInPhase), ["stopped", "ready", "applied"]);
   for (const phase of ["transcribing", "generating", "uploading", "saving", "recording"]) assert.equal(canDeleteMeetingInPhase(phase), false, phase);
-  assert.equal(meetingProgressText("uploading", 42), "녹음 파일을 올리고 있어요… 42%");
-  assert.equal(meetingProgressText("uploading"), "녹음 파일을 올리고 있어요…");
-  assert.match(meetingProgressText("transcribing"), /글로 옮기고 있어요/);
-  assert.equal(MEETING_TITLES.transcribing, "녹음 파일 글로 옮기는 중");
+  assert.equal(meetingProgressText("uploading", tm, 42), "녹음 파일을 올리고 있어요… 42%");
+  assert.equal(meetingProgressText("uploading", tm), "녹음 파일을 올리고 있어요…");
+  assert.match(meetingProgressText("transcribing", tm), /글로 옮기고 있어요/);
+  assert.equal(meetingTitle("transcribing", tm), "녹음 파일 글로 옮기는 중");
 });
 
 test("녹음 파일 조각을 올리는 중에만 탭을 닫기 전에 확인을 받는다(전사는 서버에서 이어지고 목록에서 다시 연다)", () => {

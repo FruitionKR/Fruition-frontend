@@ -1,8 +1,11 @@
 import { getDocumentTransport, usesDocumentTransport } from "@/shared/api/documentTransport";
+import { currentRequestLocale, localizedFetch, withLocaleHeader } from "@/shared/i18n/requestLocale";
+import { currentSharedTranslate, sharedText } from "@/shared/i18n/sharedTranslate";
 import { notifyWorkspacePermissionDenied, permissionDeniedWorkspaceId } from "@/shared/lib/workspacePermissionSignal";
 import { ApiError, DocumentLockedError, EMAIL_REGISTERED_ERROR_CODES, EmailRegisteredError, LoginRequiredError, SessionExpiredError, usageLimitMessage, type UsageLimitDetail } from "@/shared/lib/apiErrors";
 import {
   getAccessToken,
+  getAccessTokenVersion,
   getSelectedWorkspaceId,
   notifySessionExpired,
   saveAccessToken,
@@ -16,8 +19,8 @@ import {
   workspaceIdFromPath
 } from "@/shared/lib/workspaceAccess";
 
-// 공통 에러 메시지 상수
-export const ERROR_MESSAGES = {
+// 공통 에러 메시지의 한국어 원문. 영어 문구는 shared.api.* 에 같은 키로 둔다.
+const ERROR_MESSAGE_TEXT = {
   loginRequired: "로그인이 필요합니다.",
   loginFailed: "로그인에 실패했습니다.",
   signupFailed: "회원가입에 실패했습니다.",
@@ -48,11 +51,21 @@ export const ERROR_MESSAGES = {
   wikiExportFailed: "위키 내보내기에 실패했습니다.",
   wikiGraphLoadFailed: "Wiki graph를 불러오지 못했습니다.",
   wikiPageLoadFailed: "Wiki page를 불러오지 못했습니다.",
-  wikiPageSaveFailed: "Wiki page를 저장하지 못했습니다.",
   workspaceLoadFailed: "워크스페이스를 불러오지 못했습니다.",
   meLoadFailed: "사용자 정보를 불러오지 못했습니다.",
   authRefreshUnavailable: "인증을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요."
 } as const;
+
+type ErrorMessageKey = keyof typeof ERROR_MESSAGE_TEXT;
+
+/**
+ * 공통 에러 메시지. 읽을 때마다 지금 화면 언어 문구를 돌려준다(sharedText).
+ * 브라우저에 번역 함수가 등록되지 않은 서버 렌더·테스트에서는 한국어 원문이다.
+ */
+export const ERROR_MESSAGES = {} as { readonly [K in ErrorMessageKey]: string };
+for (const key of Object.keys(ERROR_MESSAGE_TEXT) as ErrorMessageKey[]) {
+  Object.defineProperty(ERROR_MESSAGES, key, { enumerable: true, get: () => sharedText(`api.${key}`, ERROR_MESSAGE_TEXT[key]) });
+}
 
 // HTTP 응답에서 에러 메시지를 추출하는 공통 헬퍼
 export async function parseErrorResponse(response: Response, fallback: string): Promise<string> {
@@ -75,7 +88,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
     const detailMessage = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
     const code = typeof body?.error?.code === "string" ? body.error.code : undefined;
     // 사용량·업로드 한도 거절은 서버 문구 대신 정해 둔 안내를 쓴다. 화면마다 따로 고치지 않고 모든 호출부가 같은 문구를 받는다.
-    const message = usageLimitMessage(code, body?.error) || body?.error?.message || detailMessage || fallback;
+    const message = usageLimitMessage(code, body?.error, currentSharedTranslate()) || body?.error?.message || detailMessage || fallback;
     // 같은 이메일의 계정이 있어 가입을 막은 409는 로그인 수단 목록을 함께 보존해 화면이 그 방법으로 로그인하도록 안내한다.
     if (code && (EMAIL_REGISTERED_ERROR_CODES as readonly string[]).includes(code)) {
       return new EmailRegisteredError(message, response.status, code, providerList(body?.oauth_providers ?? body?.providers));
@@ -103,15 +116,19 @@ let refreshPromise: Promise<RefreshOutcome> | null = null;
 async function tryRefreshTokens(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
     refreshPromise = withAuthRefreshLock(async (): Promise<RefreshOutcome> => {
+      // refresh를 기다리는 동안 OAuth·비밀번호 로그인이 토큰을 저장했을 수 있다.
+      const versionBeforeRefresh = getAccessTokenVersion();
       try {
-        const response = await fetch("/api/auth/refresh", {
+        const response = await localizedFetch("/api/auth/refresh", {
           method: "POST"
         });
         if (response.status === 401 || response.status === 403) return "rejected";
         if (!response.ok) return "unavailable";
         const body = await response.json() as { access_token?: string };
         if (!body.access_token) return "unavailable";
-        saveAccessToken(body.access_token);
+        // 그 사이 저장된 직접 로그인 토큰에는 auth_time이 있어 탈퇴·이메일 변경의 본인 확인에 쓰인다.
+        // refresh로 받은 토큰(auth_time 없음)으로 덮어쓰지 않고, 원요청은 그 토큰으로 재시도한다(#253).
+        if (getAccessTokenVersion() === versionBeforeRefresh) saveAccessToken(body.access_token);
         return "refreshed";
       } catch {
         return "unavailable";
@@ -125,7 +142,8 @@ async function tryRefreshTokens(): Promise<RefreshOutcome> {
 
 function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
   const token = getAccessToken();
-  const headers = new Headers(init?.headers);
+  // 화면 언어를 실어 서버 오류 message와 AI 답변 언어를 맞춘다(SSE·스트리밍·직접 접속 경로 포함).
+  const headers = withLocaleHeader(init?.headers, currentRequestLocale());
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(path, { ...init, headers });
 }
@@ -139,7 +157,7 @@ function fetchWithToken(path: string, init?: RequestInit): Promise<Response> {
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   // 접근할 수 없게 된 워크스페이스로 가는 요청(남은 폴링 등)은 보내지 않는다. 화면은 안내로 바뀐다.
   if (isRequestToGoneWorkspace(path)) {
-    throw new ApiError("워크스페이스를 찾을 수 없습니다.", 404, WORKSPACE_NOT_FOUND_CODE);
+    throw new ApiError(sharedText("api.workspaceGone", "워크스페이스를 찾을 수 없습니다."), 404, WORKSPACE_NOT_FOUND_CODE);
   }
   let requestPath = path;
   let requestInit = init;

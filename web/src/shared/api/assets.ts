@@ -1,3 +1,4 @@
+import { sharedText } from "@/shared/i18n/sharedTranslate";
 import { apiFetch, throwIfNotOk } from "@/shared/api/client";
 
 // 관리 이미지 경로 판별은 외부 이미지 분류와 같은 기준을 쓰도록 externalResources에 둔다.
@@ -39,7 +40,7 @@ export function acquireAssetObjectUrl(path: string): Promise<string> {
   const entry: AssetEntry = { promise: Promise.resolve(""), url: null, refs: 1 };
   entry.promise = (async () => {
     const response = await apiFetch(path, { cache: "no-store" });
-    await throwIfNotOk(response, "이미지를 불러오지 못했습니다.");
+    await throwIfNotOk(response, sharedText("api.imageLoadFailed", "이미지를 불러오지 못했습니다."));
     const url = URL.createObjectURL(await response.blob());
     // 기다리는 동안 모두 놓았으면 바로 정리한다. 그 사이 같은 경로로 새 엔트리가 생겼을 수 있으니 자기 것일 때만 지운다.
     if (entry.refs <= 0) {

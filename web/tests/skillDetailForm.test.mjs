@@ -24,6 +24,13 @@ const {
   skillDetailForm,
   validateSkillDetailForm
 } = await import("../src/features/skill-authoring/lib/skillDetailForm.ts");
+const { skillFieldErrorText } = await import("../src/features/skill-authoring/lib/skillCreateForm.ts");
+
+// 화면과 같이 skills 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readSkillsMessages } = await import("node:fs");
+const { createTranslator } = await import("use-intl/core");
+const skillsKo = JSON.parse(readSkillsMessages(new URL("../src/shared/i18n/messages/ko/skills.json", import.meta.url), "utf8"));
+const t = createTranslator({ locale: "ko", messages: { skills: skillsKo }, namespace: "skills" });
 
 const RULES = "'연구 개요' 섹션만 고친다.\n문체는 '~다'체로 맞춘다.";
 
@@ -175,10 +182,10 @@ test("validateSkillDetailForm은 빈·잘못된·중복 커맨드, 빈 설명·�
   // 문서 스킬이 아니면 대상 필드가 없어 검사하지 않는다.
   assert.deepEqual(validateSkillDetailForm({ ...form, kind: "folder", targets: [] }, []), {});
   assert.deepEqual(validateSkillDetailForm({ ...form, kind: null, targets: [] }, []), {});
-  assert.match(validateSkillDetailForm({ ...form, command: "Bad Name" }, []).command, /소문자/);
-  assert.match(validateSkillDetailForm({ ...form, command: "taken" }, ["taken"]).command, /이미 사용 중/);
-  assert.match(validateSkillDetailForm({ ...form, description: "a".repeat(501) }, []).description, /500자/);
-  assert.match(validateSkillDetailForm({ ...form, rules: "a".repeat(30_001) }, []).rules, /30,000자/);
+  assert.match(skillFieldErrorText(validateSkillDetailForm({ ...form, command: "Bad Name" }, []).command, t), /소문자/);
+  assert.match(skillFieldErrorText(validateSkillDetailForm({ ...form, command: "taken" }, ["taken"]).command, t), /이미 사용 중/);
+  assert.match(skillFieldErrorText(validateSkillDetailForm({ ...form, description: "a".repeat(501) }, []).description, t), /500자/);
+  assert.match(skillFieldErrorText(validateSkillDetailForm({ ...form, rules: "a".repeat(30_001) }, []).rules, t), /30,000자/);
 });
 
 test("skillDetailAuthorForm은 상세 값을 테스트 실행 카드의 만들기 시트 모양으로 옮긴다(바꾼 종류·결과 방식을 따른다)", () => {

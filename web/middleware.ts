@@ -1,17 +1,22 @@
 import type { NextRequest } from "next/server";
 import { handleAccessGate } from "@/shared/lib/security/accessGateMiddleware";
 import { applyContentSecurityPolicy } from "@/shared/lib/security/contentSecurityHeaders";
+import { LOCALE_HEADER } from "@/shared/i18n/locale";
+import { decideRequestLocale, rememberLocaleDecision } from "@/shared/i18n/localeMiddleware";
 
 // Next.js는 라우팅 app/과 같은 위치(프로젝트 루트)의 middleware.ts만 인식한다.
 // 그래서 이 파일은 루트에 두고, 게이트 로직은 src/shared/lib/security/accessGateMiddleware.ts에 둔다.
 export function middleware(request: NextRequest) {
   if (/^\/api(\/|$)/.test(request.nextUrl.pathname)) return handleAccessGate(request);
-  return applyContentSecurityPolicy(request);
+  // 화면 언어를 정해 서버 렌더에 헤더로 넘기고, 새로 판정했으면 쿠키로 남긴다(src/shared/i18n/locale.ts).
+  const decision = decideRequestLocale(request);
+  const response = applyContentSecurityPolicy(request, { [LOCALE_HEADER]: decision.locale });
+  return rememberLocaleDecision(response, decision);
 }
 
 // Next가 빌드 시 정적으로 읽는 값이라 다른 모듈에서 가져오지 않고 이 파일에 직접 선언한다.
-// 두 번째 항목은 CSP를 붙일 화면 요청이다. 정적 청크·폰트·랜딩 영상과 화면이 아닌 경로(헬스체크·웨이크·CSP 보고·탭 아이콘)에는 붙이지 않는다.
+// 두 번째 항목은 CSP를 붙일 화면 요청이다. 정적 청크·폰트·랜딩 영상·튜토리얼 캡처와 화면이 아닌 경로(헬스체크·웨이크·CSP 보고·탭 아이콘)에는 붙이지 않는다.
 // 화면 아닌 경로는 경로 끝이나 /까지 맞춰 이름이 같은 접두어로 시작하는 화면(/healthzone 등)은 빼지 않는다.
 export const config = {
-  matcher: ["/api/:path*", "/((?!api/|_next/|fonts/|favicon/|landing/|(?:healthz|wake|csp-report|favicon\\.ico)(?:/|$)).*)"]
+  matcher: ["/api/:path*", "/((?!api/|_next/|fonts/|favicon/|landing/|tutorial/|(?:healthz|wake|csp-report|favicon\\.ico)(?:/|$)).*)"]
 };

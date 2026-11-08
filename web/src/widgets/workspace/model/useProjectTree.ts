@@ -1,5 +1,6 @@
 import type { Dispatch, MouseEvent as ReactMouseEvent, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { convertDocumentToMarkdown, deleteDocument, renameDocument } from "@/entities/document";
 import { canConvertDocument, CONVERT_FORBIDDEN_REASON, permissionChangedMessage } from "@/entities/document/lib/documentAccess";
 import { setDocumentPermission, setFolderPermission } from "@/entities/document/api/permission";
@@ -7,12 +8,13 @@ import type { DocumentPermission } from "@/entities/document/model/document";
 import type { PermissionDialogTarget } from "@/widgets/document-sidebar/ui/PermissionDialog";
 import { createFolder, renameFolder, deleteFolder, moveFolder, moveDocument } from "@/entities/tree/api/documentTree";
 import { ROOT_DOCUMENTS_PROJECT_ID } from "@/entities/tree/lib/projectsFromServerTree";
+import { useTreeReasonText } from "@/entities/tree/model/useTreeReasonText";
 import { publishNotice } from "@/features/document-notifications";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { useEscapeLayer } from "@/shared/hooks/useEscapeLayer";
 import { isDropDeniedByFolder, moveDeniedReason, resolveTreeMove } from "../lib/treeMoveRules";
-import { bulkResultNotice, planBulkDelete, rangeSelection, type SkippedTreeItem } from "../lib/treeBulkSelection";
+import { planBulkDelete, rangeSelection, summarizeBulkResult, type SkippedTreeItem } from "../lib/treeBulkSelection";
 import { collectDeletedTreeIds, type DeletedTreeIds } from "../lib/deletedTreeIds";
 import {
   findTreeItem,
@@ -31,8 +33,22 @@ import type { ContextMenuState, DropTarget, EditingState, FileDropTarget, Folder
 /** + 버튼 아래로 메뉴를 띄울 때 버튼과의 간격 (px) */
 const FOLDER_MENU_ANCHOR_GAP_PX = 4;
 
-/** 큐에서 기다리는 동안 대상이 삭제·이동되면 요청을 보내지 않고 이 문구로 알린다. */
-const STALE_TARGET_MESSAGE = "대상이 이미 삭제되었거나 이동되어 요청을 보내지 않았습니다.";
+/** 트리 변경 실패 알림 종류. 제목과 알림 설정 항목이 종류마다 다르다. */
+type TreeMutationFailure = "folderCreate" | "move" | "documentGroup" | "convert" | "delete" | "rename";
+
+const TREE_FAILURE_NOTIFICATION_KEYS = {
+  folderCreate: "folderCreateFailed",
+  move: "moveFailed",
+  documentGroup: "documentGroupFailed",
+  convert: "pdfConvertFailed",
+  delete: "deleteFailed",
+  rename: "renameFailed"
+} as const satisfies Record<TreeMutationFailure, string>;
+
+const BULK_NOTIFICATION_KEYS = {
+  move: { completed: "moveCompleted", failed: "moveFailed" },
+  delete: { completed: "deleteCompleted", failed: "deleteFailed" }
+} as const;
 
 function hasTreeItem(projects: Project[], itemId: string) {
   return findItemLocation(projects, itemId) !== undefined;
@@ -63,6 +79,8 @@ type BulkDeleteConfirmTarget = {
 type MergeConfirmTarget = {
   sourceLabel: string;
   targetLabel: string;
+  /** 만들어질 묶음 폴더 이름. 확인 모달 문구와 실제로 만드는 폴더 이름을 맞춘다. */
+  folderLabel: string;
   run: () => void;
 };
 
@@ -80,6 +98,10 @@ export function useProjectTree({
   // 큐에서 늦게 실행되는 삭제도 최신 렌더의 콜백을 부르도록 ref로 들고 있는다.
   const onDeletedRef = useRef(onDeleted);
   onDeletedRef.current = onDeleted;
+  const t = useTranslations("workspace.tree");
+  const tShared = useTranslations("shared");
+  const tPermission = useTranslations("documents.permission");
+  const reasonText = useTreeReasonText();
   const [projects, setProjectsState] = useState<Project[]>(initialProjects);
   // 큐의 작업은 실행 시점의 최신 트리를 읽어야 한다. 렌더를 기다리지 않도록 갱신과 동시에 ref에 반영한다.
   const projectsRef = useRef<Project[]>(initialProjects);
@@ -98,6 +120,8 @@ export function useProjectTree({
   const [mergeConfirm, setMergeConfirm] = useState<MergeConfirmTarget | null>(null);
   const [permissionTarget, setPermissionTarget] = useState<PermissionDialogTarget | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ projectId: string; itemId: string } | null>(null);
+  // 변환 품질 안내를 확인받는 동안의 변환 대상
+  const [convertConfirm, setConvertConfirm] = useState<{ itemId: string; documentId: string; label: string } | null>(null);
   // Cmd/Ctrl+클릭·Shift+클릭으로 고른 묶음 이동·삭제 대상. Escape·일반 클릭·빈 영역 클릭으로 해제한다.
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<BulkDeleteConfirmTarget | null>(null);
@@ -138,12 +162,38 @@ export function useProjectTree({
   // 사용자는 요청도 안내도 없이 메뉴가 닫히는 것만 본다. 직렬로 줄을 세운다.
   // 작업은 큐에 넣을 때가 아니라 실행할 때의 최신 트리(latest)로 이름과 대상을 정한다.
   const enqueueMutation = useRef(createSerialQueue()).current;
-  function runTreeMutation(action: (latest: Project[]) => Promise<void>, title: string): Promise<void> {
+  function runTreeMutation(action: (latest: Project[]) => Promise<void>, failure: TreeMutationFailure): Promise<void> {
     return enqueueMutation(async () => {
       try { await action(projectsRef.current); }
-      catch (error) { publishNotice({ kind: "failed", title, message: getErrorMessage(error, "변경하지 못했습니다.") }); }
+      catch (error) {
+        publishNotice({
+          kind: "failed",
+          notificationKey: TREE_FAILURE_NOTIFICATION_KEYS[failure],
+          title: t(`failed.${failure}`),
+          message: getErrorMessage(error, t("changeFailed"), tShared)
+        });
+      }
       finally { await refreshRef.current().catch(() => {}); }
     });
+  }
+
+  /** 묶음 이동·삭제 결과 알림. 실패·건너뜀은 앞에서부터 이유와 함께 나열한다. */
+  function bulkNotice(action: "move" | "delete", succeeded: number, failures: readonly SkippedTreeItem[]) {
+    const summary = summarizeBulkResult(succeeded, failures);
+    const lines = [
+      summary.failed === 0
+        ? t(`bulk.${action}.done`, { count: summary.succeeded })
+        : t("bulk.counts", { succeeded: summary.succeeded, failed: summary.failed }),
+      ...summary.listed.map((entry) => t("bulk.failureItem", { label: entry.label, reason: reasonText(entry.reason) })),
+      ...(summary.restCount > 0 ? [t("bulk.more", { count: summary.restCount })] : [])
+    ];
+    const kind = summary.outcome === "completed" ? "completed" as const : "failed" as const;
+    return {
+      kind,
+      notificationKey: BULK_NOTIFICATION_KEYS[action][kind],
+      title: t(`bulk.${action}.${summary.outcome}`),
+      message: lines.join("\n")
+    };
   }
 
   function addProject() {
@@ -156,13 +206,13 @@ export function useProjectTree({
     } : undefined;
     setContextMenu(null);
     void runTreeMutation(async (latest) => {
-      if (location && !hasFolderLocation(latest, location)) throw new Error(STALE_TARGET_MESSAGE);
+      if (location && !hasFolderLocation(latest, location)) throw new Error(t("staleTarget"));
       const parentId = location ? serverFolderId(latest, location) : null;
-      const folder = await createFolder(availableFolderName(latest, "새 폴더", location), parentId);
+      const folder = await createFolder(availableFolderName(latest, t("newFolderName"), location), parentId);
       editingCancelRef.current = false;
       // 루트 폴더도 트리 행이므로 재조회 후 나타나는 행에서 바로 이름을 편집한다.
       setEditing({ projectId: location?.projectId ?? ROOT_DOCUMENTS_PROJECT_ID, itemId: folder.id, label: folder.name });
-    }, "폴더 생성 실패");
+    }, "folderCreate");
   }
 
   function moveTreeEntry(target: DropTarget, dragged = draggedItem) {
@@ -172,29 +222,29 @@ export function useProjectTree({
     const resolution = resolveTreeMove(projects, dragged, target, selectedItemIds, isWorkspaceOwner);
     if (resolution.kind === "invalid") return;
     if (resolution.kind === "forbidden") {
-      publishNotice({ kind: "failed", title: "이동 실패", message: FOLDER_WRITE_FORBIDDEN_MESSAGE });
+      publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: reasonText(FOLDER_WRITE_FORBIDDEN_MESSAGE) });
       return;
     }
     if (resolution.kind === "conflict") {
-      publishNotice({ kind: "failed", title: "이동 실패", message: "대상 폴더에 같은 이름의 항목이 있습니다." });
+      publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: t("duplicateInDestination") });
       return;
     }
     if (resolution.kind === "cycle") {
-      publishNotice({ kind: "failed", title: "이동 실패", message: "폴더를 자기 자신이나 하위 폴더 안으로 옮길 수 없습니다." });
+      publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: t("moveIntoOwnSubtree") });
       return;
     }
     if (resolution.kind === "move-many") {
       const { items: selectedItems, skipped, destination, folderId } = resolution;
       setSelectedItemIds(new Set());
       void runTreeMutation(async (latest) => {
-        if (!hasFolderLocation(latest, destination)) throw new Error(STALE_TARGET_MESSAGE);
+        if (!hasFolderLocation(latest, destination)) throw new Error(t("staleTarget"));
         const failures = [...skipped];
         let moved = 0;
         // 트리 순서대로 하나씩 대상 폴더 끝에 붙여 상대 순서를 지킨다. 하나가 실패해도 나머지는 계속 옮긴다.
         for (const entry of selectedItems) {
           // 기다리는 동안 사라진 항목은 건너뛴다.
           if (!hasTreeItem(latest, entry.id)) {
-            failures.push({ label: entry.label, reason: STALE_TARGET_MESSAGE });
+            failures.push({ label: entry.label, reason: t("staleTarget") });
             continue;
           }
           try {
@@ -202,12 +252,12 @@ export function useProjectTree({
             else await moveFolder(entry.id, folderId);
             moved += 1;
           } catch (error) {
-            failures.push({ label: entry.label, reason: getErrorMessage(error, "옮기지 못했습니다.") });
+            failures.push({ label: entry.label, reason: getErrorMessage(error, t("moveItemFailed"), tShared) });
           }
         }
         // 결과는 한 번만 알리고, finally의 재조회가 실제 위치를 보여준다.
-        publishNotice(bulkResultNotice("이동", moved, failures));
-      }, "항목 이동 실패");
+        publishNotice(bulkNotice("move", moved, failures));
+      }, "move");
       return;
     }
     if (resolution.kind === "merge") {
@@ -218,24 +268,25 @@ export function useProjectTree({
       setMergeConfirm({
         sourceLabel: sourceItem.label,
         targetLabel: targetItem.label,
+        folderLabel: availableFolderName(projects, t("newDocumentGroupName"), destination),
         run: () => void runTreeMutation(async (latest) => {
           if (!hasTreeItem(latest, sourceItem.id) || !hasTreeItem(latest, targetItem.id) || !hasFolderLocation(latest, destination)) {
-            throw new Error(STALE_TARGET_MESSAGE);
+            throw new Error(t("staleTarget"));
           }
-          const folder = await createFolder(availableFolderName(latest, "새 문서 묶음", destination), folderId);
+          const folder = await createFolder(availableFolderName(latest, t("newDocumentGroupName"), destination), folderId);
           // 부분 실패 시에도 최종 서버 위치를 재조회해 실제 상태를 표시한다.
           await moveDocument(targetDocumentId, folder.id);
           await moveDocument(sourceDocumentId, folder.id);
-        }, "문서 묶음 생성 실패")
+        }, "documentGroup")
       });
       return;
     }
     const { item, destination, folderId, position } = resolution;
     void runTreeMutation(async (latest) => {
-      if (!hasTreeItem(latest, item.id) || !hasFolderLocation(latest, destination)) throw new Error(STALE_TARGET_MESSAGE);
+      if (!hasTreeItem(latest, item.id) || !hasFolderLocation(latest, destination)) throw new Error(t("staleTarget"));
       if (item.documentId) await moveDocument(item.documentId, folderId, position);
       else await moveFolder(item.id, folderId, position);
-    }, "항목 이동 실패");
+    }, "move");
   }
 
   /** 터치 기기의 이동 대상 고르기: 메뉴의 "다른 폴더로 이동"에서 연다. */
@@ -352,7 +403,7 @@ export function useProjectTree({
         : await setFolderPermission(permissionTarget.id, access);
       // 서버가 확정한 값(access)을 우선하고, 응답에 없으면 요청한 값으로 안내한다.
       const savedAccess = result?.access !== undefined ? result.access : access;
-      publishNotice({ kind: "completed", title: "권한 변경", message: permissionChangedMessage(permissionTarget.label, savedAccess) });
+      publishNotice({ kind: "completed", notificationKey: "permissionChanged", title: t("permissionChangedTitle"), message: permissionChangedMessage(permissionTarget.label, savedAccess, tPermission) });
     } finally {
       await refreshRef.current().catch(() => {});
     }
@@ -369,17 +420,26 @@ export function useProjectTree({
     : null;
 
 
-  // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
-  // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
+  // Markdown 변환은 바로 요청하지 않고 변환 품질 안내 확인 모달을 연다. 실제 변환은 confirmConvert에서 한다.
   function convertContextTargetToMarkdown() {
     const itemId = contextMenuItem?.id;
     const documentId = contextMenuItem?.documentId;
+    const label = contextMenuItem?.label ?? "";
     setContextMenu(null);
     if (!itemId || !documentId || !canConvertContextItem) return;
+    setConvertConfirm({ itemId, documentId, label });
+  }
+
+  // Markdown 변환을 요청한다. 다른 트리 변경과 같은 경로를 써서
+  // 성공·실패 모두 서버 상태로 재동기화하고, 실패는 알림으로 알린다.
+  function confirmConvert() {
+    if (!convertConfirm) return;
+    const { itemId, documentId } = convertConfirm;
+    setConvertConfirm(null);
     void runTreeMutation(async (latest) => {
-      if (!hasTreeItem(latest, itemId)) throw new Error(STALE_TARGET_MESSAGE);
+      if (!hasTreeItem(latest, itemId)) throw new Error(t("staleTarget"));
       await convertDocumentToMarkdown(documentId);
-    }, "Markdown 변환 실패");
+    }, "convert");
   }
 
   // 컨텍스트 메뉴의 삭제는 즉시 실행하지 않고 확인 모달을 연다. 실제 삭제는 confirmDelete에서 수행한다.
@@ -389,7 +449,7 @@ export function useProjectTree({
     const projectId = contextMenu.projectId;
     const project = projects.find((project) => project.id === projectId);
     if (contextMenu.itemId === null) {
-      setDeleteConfirm({ projectId, itemId: null, label: project?.title ?? "폴더", kind: "folder" });
+      setDeleteConfirm({ projectId, itemId: null, label: project?.title ?? t("folderFallback"), kind: "folder" });
       setContextMenu(null);
       return;
     }
@@ -399,7 +459,7 @@ export function useProjectTree({
       projectId,
       itemId: contextMenu.itemId,
       documentId: item?.documentId,
-      label: item?.label ?? "항목",
+      label: item?.label ?? t("itemFallback"),
       kind: isFolder ? "folder" : "document"
     });
     setContextMenu(null);
@@ -417,7 +477,7 @@ export function useProjectTree({
       else if (documentId) await deleteDocument(documentId);
       else return;
       onDeletedRef.current?.(deleted);
-    }, "삭제 실패");
+    }, "delete");
   }
 
   function cancelDelete() {
@@ -434,7 +494,7 @@ export function useProjectTree({
     setContextMenu(null);
     const { items, skipped } = planBulkDelete(projects, selectedItemIds, isWorkspaceOwner);
     if (items.length === 0) {
-      if (skipped.length > 0) publishNotice(bulkResultNotice("삭제", 0, skipped));
+      if (skipped.length > 0) publishNotice(bulkNotice("delete", 0, skipped));
       return;
     }
     setBulkDeleteConfirm({
@@ -464,15 +524,15 @@ export function useProjectTree({
         try {
           if (target.kind === "folder") await deleteFolder(target.id);
           else if (item.documentId) await deleteDocument(item.documentId);
-          else throw new Error("업로드가 끝나지 않았습니다");
+          else throw new Error(t("uploadPending"));
           deletedCount += 1;
           onDeletedRef.current?.(deleted);
         } catch (error) {
-          failures.push({ label: target.label, reason: getErrorMessage(error, "삭제하지 못했습니다.") });
+          failures.push({ label: target.label, reason: getErrorMessage(error, t("deleteItemFailed"), tShared) });
         }
       }
-      publishNotice(bulkResultNotice("삭제", deletedCount, failures));
-    }, "삭제 실패");
+      publishNotice(bulkNotice("delete", deletedCount, failures));
+    }, "delete");
   }
 
   function cancelBulkDelete() {
@@ -491,17 +551,17 @@ export function useProjectTree({
     const isDuplicateName = (tree: Project[]) => !item?.documentId
       && folderNames(tree, itemId ?? projectId, itemId ? findItemLocation(tree, itemId) : undefined).has(normalizeTreeName(nextLabel));
     if (isDuplicateName(projects)) {
-      publishNotice({ kind: "failed", title: "이름 변경 실패", message: "같은 폴더 안에 같은 이름의 항목이 있습니다." });
+      publishNotice({ kind: "failed", notificationKey: "renameFailed", title: t("failed.rename"), message: t("duplicateInFolder") });
       return;
     }
     void runTreeMutation(async (latest) => {
       const exists = itemId ? hasTreeItem(latest, itemId) : latest.some((entry) => entry.id === projectId);
-      if (!exists) throw new Error(STALE_TARGET_MESSAGE);
+      if (!exists) throw new Error(t("staleTarget"));
       // 기다리는 동안 같은 폴더에 같은 이름이 생겼을 수 있어 실행 시점에 다시 확인한다.
-      if (isDuplicateName(latest)) throw new Error("같은 폴더 안에 같은 이름의 항목이 있습니다.");
+      if (isDuplicateName(latest)) throw new Error(t("duplicateInFolder"));
       if (item?.documentId) await renameDocument(item.documentId, nextLabel);
       else if (projectId !== ROOT_DOCUMENTS_PROJECT_ID || itemId) await renameFolder(itemId ?? projectId, nextLabel);
-    }, "이름 변경 실패");
+    }, "rename");
   }
 
   function cancelEditing() {
@@ -524,7 +584,7 @@ export function useProjectTree({
     if (selectedItemIds.has(itemId) && selectedItemIds.size > 1) return true;
     const reason = itemMoveDeniedReason(itemId);
     if (!reason) return true;
-    publishNotice({ kind: "failed", title: "이동 실패", message: reason });
+    publishNotice({ kind: "failed", notificationKey: "moveFailed", title: t("failed.move"), message: reasonText(reason) });
     return false;
   }
 
@@ -625,6 +685,9 @@ export function useProjectTree({
     applyPermission,
     convertContextTarget,
     convertContextTargetToMarkdown,
+    convertConfirm,
+    confirmConvert,
+    cancelConvert: () => setConvertConfirm(null),
     deleteContextTarget,
     confirmDelete,
     cancelDelete,

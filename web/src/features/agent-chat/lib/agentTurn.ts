@@ -1,6 +1,7 @@
 import type { ActiveMarkdownEditContext, MarkdownEditorSnapshot } from "./markdownEditContext";
 import type { AiModelSelection } from "@/entities/ai";
 import { lineDiff, type MarkdownDiffLine } from "@/shared/lib/lineDiff";
+import type { AgentChatTranslator } from "./agentChatTranslator";
 
 /** 작업 탭 요청 표시. 서버는 이 값이 있으면 문서 없이도 받고 채팅 답변 갈래를 고르지 않는다(document·ai 계약). */
 export const AGENT_TURN_TASK_MODE = "task";
@@ -48,6 +49,7 @@ type AgentTurnRequestContext = {
 export type AgentTurnAction =
   | "chat_answer"
   | "conversation_reply"
+  | "product_help"
   | "markdown_edit"
   | "markdown_create"
   | "clarify"
@@ -59,7 +61,7 @@ export type AgentTurnAction =
   | "skill_authoring"
   | "skill_draft_proposal";
 
-export type DocumentCommandAction = Exclude<AgentTurnAction, "chat_answer" | "conversation_reply" | "clarify" | "reject" | "folder_lookup">;
+export type DocumentCommandAction = Exclude<AgentTurnAction, "chat_answer" | "conversation_reply" | "product_help" | "clarify" | "reject" | "folder_lookup">;
 
 export type AgentTurnEdit = {
   operation: "replace" | "insert_after";
@@ -246,8 +248,7 @@ function targetsMatch(request: DocumentAgentTurnRequest, edit: AgentTurnEdit): b
     && requestTarget.endLine === edit.requested_target.end_line;
 }
 
-/** 끝난 편집 turn에서 편집안이 지워졌을 때의 안내. 문서를 영구 삭제하면 AI가 result.edit를 뺀다(ai document-purge). */
-export const PURGED_EDIT_MESSAGE = "문서가 영구 삭제되어 편집안이 남아 있지 않아요.";
+// 끝난 편집 turn에서 편집안이 지워졌을 때의 안내는 agentChat.edit.purged다. 문서를 영구 삭제하면 AI가 result.edit를 뺀다(ai document-purge).
 
 /**
  * 문서 영구 삭제로 편집안이 지워진 turn인지. 끝난 turn은 result.edit만 사라지고(ai document-purge),
@@ -258,45 +259,50 @@ export function isPurgedEditTurn(turn: { status?: string | null; error?: string 
   return turn.status === "completed" && turn.result?.action === "markdown_edit" && !turn.result.edit;
 }
 
+/** 편집안을 쓸 수 없을 때의 오류. code는 agentChat.edit.invalid 아래 메시지 키이고 purged는 문서 영구 삭제다. */
+export class MarkdownEditPreviewError extends Error {
+  readonly code: MarkdownEditPreviewErrorCode;
+
+  constructor(code: MarkdownEditPreviewErrorCode, message: string) {
+    super(message);
+    this.name = "MarkdownEditPreviewError";
+    this.code = code;
+  }
+}
+
+export type MarkdownEditPreviewErrorCode =
+  | "noDocument" | "documentMismatch" | "versionMismatch" | "notEdit" | "purged" | "targetMismatch" | "empty" | "insertTarget" | "outOfRange" | "changed";
+
+function editError(code: MarkdownEditPreviewErrorCode, t: AgentChatTranslator): MarkdownEditPreviewError {
+  return new MarkdownEditPreviewError(code, code === "purged" ? t("edit.purged") : t(`edit.invalid.${code}`));
+}
+
 export function prepareMarkdownEditPreview(
   anyRequest: AgentTurnRequest,
-  response: AgentTurnResponse
+  response: AgentTurnResponse,
+  t: AgentChatTranslator
 ): MarkdownEditPreview {
-  if (!isDocumentAgentTurnRequest(anyRequest)) {
-    throw new Error("문서를 열지 않은 요청에는 편집안을 적용할 수 없습니다. 문서를 열고 다시 요청해주세요.");
-  }
+  if (!isDocumentAgentTurnRequest(anyRequest)) throw editError("noDocument", t);
   const request = anyRequest;
-  if (response.documentId !== request.documentId) {
-    throw new Error("응답 문서가 요청 문서와 일치하지 않습니다.");
-  }
-  if (response.baseVersion !== request.baseVersion) {
-    throw new Error("응답의 문서 version이 요청과 일치하지 않습니다.");
-  }
-  if (response.result.action !== "markdown_edit") {
-    throw new Error("Markdown 편집 응답이 아닙니다.");
-  }
-  if (!response.result.edit) {
-    throw new Error(PURGED_EDIT_MESSAGE);
-  }
-  if (!targetsMatch(request, response.result.edit)) {
-    throw new Error("응답의 편집 대상이 요청 범위와 일치하지 않습니다.");
-  }
+  if (response.documentId !== request.documentId) throw editError("documentMismatch", t);
+  if (response.baseVersion !== request.baseVersion) throw editError("versionMismatch", t);
+  if (response.result.action !== "markdown_edit") throw editError("notEdit", t);
+  if (!response.result.edit) throw editError("purged", t);
+  if (!targetsMatch(request, response.result.edit)) throw editError("targetMismatch", t);
   const edit = response.result.edit;
   const actualTarget = edit.actual_target;
-  if (!edit.replacement_markdown.trim()) {
-    throw new Error("비어 있는 Markdown 편집 결과는 적용할 수 없습니다.");
-  }
+  if (!edit.replacement_markdown.trim()) throw editError("empty", t);
   if (edit.operation === "insert_after"
     && actualTarget.type !== "current_section"
     && actualTarget.type !== "whole_document") {
-    throw new Error("이어 쓰기 대상이 section 또는 전체 문서가 아닙니다.");
+    throw editError("insertTarget", t);
   }
 
   const sourceLines = request.editorSnapshot.markdown.split("\n");
   if (actualTarget.start_line < 1
     || actualTarget.end_line < actualTarget.start_line
     || actualTarget.end_line > sourceLines.length) {
-    throw new Error("Markdown 편집 범위가 문서 경계를 벗어났습니다.");
+    throw editError("outOfRange", t);
   }
 
   const replacementLines = edit.replacement_markdown.split("\n");
@@ -322,11 +328,12 @@ export function prepareMarkdownEditPreview(
 export function validateMarkdownEditApplication(
   request: AgentTurnRequest,
   response: AgentTurnResponse,
-  currentContext: Pick<ActiveMarkdownEditContext, "documentId" | "editorSnapshot">
+  currentContext: Pick<ActiveMarkdownEditContext, "documentId" | "editorSnapshot">,
+  t: AgentChatTranslator
 ): void {
-  prepareMarkdownEditPreview(request, response);
+  prepareMarkdownEditPreview(request, response, t);
   if (currentContext.documentId !== request.documentId
     || currentContext.editorSnapshot.markdown !== request.editorSnapshot?.markdown) {
-    throw new Error("요청 이후 문서가 변경되었습니다. 최신 내용으로 재생성해주세요.");
+    throw editError("changed", t);
   }
 }

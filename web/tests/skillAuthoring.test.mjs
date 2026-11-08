@@ -16,6 +16,12 @@ const { parseApiError, parseJsonOrThrow } = await import("../src/shared/api/clie
 const { ApiError, SessionExpiredError } = await import("../src/shared/lib/apiErrors.ts");
 const { describeSkillAuthorError, describeSkillSaveError, isSkillFormDirty, skillAuthoringOutcome, skillUpdateRequest } = await import("../src/features/skill-authoring/lib/skillAuthoring.ts");
 
+// 화면과 같이 skills 메시지 키를 한국어 문구로 바꿔 문구까지 확인한다.
+const { readFileSync: readSkillsMessages } = await import("node:fs");
+const { createTranslator } = await import("use-intl/core");
+const skillsKo = JSON.parse(readSkillsMessages(new URL("../src/shared/i18n/messages/ko/skills.json", import.meta.url), "utf8"));
+const t = createTranslator({ locale: "ko", messages: { skills: skillsKo }, namespace: "skills" });
+
 const jsonResponse = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 test("실패 응답의 error.code와 status를 ApiError에 보존한다", async () => {
@@ -46,14 +52,14 @@ test("parseJsonOrThrow는 기존 메시지를 유지한 ApiError를 던진다", 
 
 test("크레딧 부족(402 INSUFFICIENT_CREDIT)은 거절이 아니라 공통 문의 안내로 보여 준다(#153)", async () => {
   const error = await parseApiError(jsonResponse(402, { error: { code: "INSUFFICIENT_CREDIT", message: "크레딧이 부족해 작업을 시작하지 않았습니다." } }), "실패");
-  const notice = describeSkillAuthorError(error);
+  const notice = describeSkillAuthorError(error, t);
   assert.equal(notice.title, "스킬 검토를 완료하지 못했습니다.");
   assert.equal(notice.description, "크레딧이 부족합니다.");
 });
 
 test("거절(400·SKILL_REQUEST_REJECTED)은 위험 표현이 아니라 중립 문구로 안내한다", () => {
   for (const error of [new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), new ApiError("bad", 400)]) {
-    const notice = describeSkillAuthorError(error);
+    const notice = describeSkillAuthorError(error, t);
     assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
     assert.match(notice.description, /구체적으로/);
     assert.doesNotMatch(notice.description, /위험한 표현/);
@@ -67,7 +73,7 @@ test("사유 code(의도 불명확·지침 오류)는 응답 파싱을 거친 �
   ];
   for (const [code, message] of cases) {
     const error = await parseApiError(jsonResponse(400, { error: { code, message } }), "스킬 초안을 생성하지 못했습니다.");
-    const notice = describeSkillAuthorError(error);
+    const notice = describeSkillAuthorError(error, t);
     assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
     assert.equal(notice.description, message);
   }
@@ -75,7 +81,7 @@ test("사유 code(의도 불명확·지침 오류)는 응답 파싱을 거친 �
 
 test("불가능한 작업은 서버 message와 관계없이 '불가능한 작업'으로 안내한다", () => {
   for (const message of ["지원하지 않는 작업입니다. 문서 작성·수정·폴더 정리·템플릿 중에서 골라 주세요.", ""]) {
-    const notice = describeSkillAuthorError(new ApiError(message, 400, "SKILL_INTENT_UNSUPPORTED"));
+    const notice = describeSkillAuthorError(new ApiError(message, 400, "SKILL_INTENT_UNSUPPORTED"), t);
     assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
     assert.match(notice.description, /불가능한 작업/);
     assert.doesNotMatch(notice.description, /지원하지 않는/);
@@ -87,7 +93,7 @@ test("참고 문서 한 개가 너무 길면(413) AI의 내부 용어 대신 글
     jsonResponse(413, { error: { code: "REFERENCE_DOCUMENT_TOO_LARGE", message: "EDITABLE 참조 문서는 30,000자 이하여야 합니다." } }),
     "스킬 초안을 생성하지 못했습니다."
   );
-  const notice = describeSkillAuthorError(error);
+  const notice = describeSkillAuthorError(error, t);
   assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
   assert.match(notice.description, /30,000자/);
   assert.doesNotMatch(notice.description, /EDITABLE/);
@@ -99,7 +105,7 @@ test("사유 없는 거절은 상태 코드와 관계없이, 알 수 없는 400 
     new ApiError("Skill 요청이 거부되었습니다.", 422, "SKILL_REQUEST_REJECTED"),
     new ApiError("알 수 없음", 400, "SKILL_SOMETHING_NEW")
   ]) {
-    const notice = describeSkillAuthorError(error);
+    const notice = describeSkillAuthorError(error, t);
     assert.equal(notice.title, "스킬 검토 요청이 거부되었습니다.");
     assert.match(notice.description, /구체적으로/);
   }
@@ -115,15 +121,15 @@ test("AI 장애·5xx·타임아웃·네트워크 오류는 재시도 문구로 �
     new DOMException("The operation was aborted.", "AbortError")
   ];
   for (const error of errors) {
-    const notice = describeSkillAuthorError(error);
+    const notice = describeSkillAuthorError(error, t);
     assert.equal(notice.title, "스킬 검토를 완료하지 못했습니다.");
     assert.match(notice.description, /잠시 후 다시 시도/);
   }
 });
 
 test("그 밖의 4xx는 서버 메시지를, 세션 만료는 그 안내를 보여준다", () => {
-  assert.equal(describeSkillAuthorError(new ApiError("권한이 없습니다.", 403)).description, "권한이 없습니다.");
-  assert.equal(describeSkillAuthorError(new SessionExpiredError("로그인이 필요합니다.")).description, "로그인이 필요합니다.");
+  assert.equal(describeSkillAuthorError(new ApiError("권한이 없습니다.", 403), t).description, "권한이 없습니다.");
+  assert.equal(describeSkillAuthorError(new SessionExpiredError("로그인이 필요합니다."), t).description, "로그인이 필요합니다.");
 });
 
 test("author 응답 status로 되묻기·검토·통과를 나눈다", () => {
@@ -170,19 +176,19 @@ test("시트 입력을 고쳤는지는 처음 값과 비교해 정한다(저장 
 
 test("결과 방식 불일치(모든 표기)·허용되지 않는 종류 거절은 종류·결과 방식을 다시 고르라는 정해 둔 문구다", () => {
   for (const code of ["invalid_result_mode", "INVALID_RESULT_MODE", "SKILL_INVALID_RESULT_MODE", "SKILL_RESULT_MODE_INVALID"]) {
-    assert.match(describeSkillSaveError(new ApiError("result_mode mismatch", 400, code), "fb"), /결과 방식이 스킬 종류와 맞지 않아/, code);
+    assert.match(describeSkillSaveError(new ApiError("result_mode mismatch", 400, code), t), /결과 방식이 스킬 종류와 맞지 않아/, code);
   }
   for (const code of ["SKILL_CAPABILITIES_INVALID", "invalid_capabilities"]) {
-    assert.match(describeSkillSaveError(new ApiError("bad capabilities", 400, code), "fb"), /이 스킬 종류로는 저장할 수 없어요/, code);
+    assert.match(describeSkillSaveError(new ApiError("bad capabilities", 400, code), t), /이 스킬 종류로는 저장할 수 없어요/, code);
   }
   // 사유 없는 거절은 서버 문구 그대로다.
-  assert.equal(describeSkillSaveError(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), "fb"), "Skill 요청이 거부되었습니다.");
+  assert.equal(describeSkillSaveError(new ApiError("Skill 요청이 거부되었습니다.", 400, "SKILL_REQUEST_REJECTED"), t), "Skill 요청이 거부되었습니다.");
 });
 
 test("대상 오류(SKILL_TARGETS_INVALID)는 결과 방식 문제가 아니며 서버의 대상 안내를 보여 준다", () => {
   const error = new ApiError("선택한 부분은 이 스킬의 대상이 될 수 없습니다.", 400, "SKILL_TARGETS_INVALID");
-  assert.equal(describeSkillSaveError(error, "스킬 정의를 수정하지 못했습니다."), "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
-  assert.match(describeSkillSaveError(new ApiError("스킬 정의를 수정하지 못했습니다.", 400, "SKILL_TARGETS_INVALID"), "스킬 정의를 수정하지 못했습니다."), /실행 대상/);
-  assert.equal(describeSkillAuthorError(error).description, "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
-  assert.equal(describeSkillSaveError(new ApiError("기타", 400, "X"), "fb"), "기타");
+  assert.equal(describeSkillSaveError(error, t), "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
+  assert.match(describeSkillSaveError(new ApiError("스킬 정의를 수정하지 못했습니다.", 400, "SKILL_TARGETS_INVALID"), t), /실행 대상/);
+  assert.equal(describeSkillAuthorError(error, t).description, "선택한 부분은 이 스킬의 대상이 될 수 없습니다.");
+  assert.equal(describeSkillSaveError(new ApiError("기타", 400, "X"), t), "기타");
 });

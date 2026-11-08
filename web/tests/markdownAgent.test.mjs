@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -17,15 +21,19 @@ const {
   draftSourceDocumentId,
   resolveDraftPlacement,
   isDocumentCommandAction,
-  prepareMarkdownEditPreview,
+  prepareMarkdownEditPreview: prepareMarkdownEditPreviewWith,
   resolveChatTurnPresentation,
   resolveGeneratedDocumentFolderId,
-  validateMarkdownEditApplication
+  validateMarkdownEditApplication: validateMarkdownEditApplicationWith
 } = await import("../src/features/agent-chat/lib/agentTurn.ts");
+const prepareMarkdownEditPreview = (...args) => prepareMarkdownEditPreviewWith(...args, agentChatT);
+const validateMarkdownEditApplication = (...args) => validateMarkdownEditApplicationWith(...args, agentChatT);
 
 test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", () => {
   assert.deepEqual(resolveChatTurnPresentation("chat_answer"), { kind: "query", grounded: true });
   assert.deepEqual(resolveChatTurnPresentation("conversation_reply"), { kind: "query", grounded: false });
+  assert.deepEqual(resolveChatTurnPresentation("product_help"), { kind: "query", grounded: false });
+  assert.equal(isDocumentCommandAction("product_help"), false);
   assert.deepEqual(resolveChatTurnPresentation("clarify"), { kind: "query", grounded: false });
   assert.deepEqual(resolveChatTurnPresentation("reject"), { kind: "query", grounded: false });
   assert.deepEqual(resolveChatTurnPresentation("markdown_edit"), {

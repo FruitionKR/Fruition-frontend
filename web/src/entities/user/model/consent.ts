@@ -1,6 +1,8 @@
 // 가입 동의(만 18세 확인·이용약관·마케팅)와 재동의에 쓰는 순수 로직.
 // 약관 버전은 호출부가 src/shared/config/legal.ts의 LEGAL_TERMS_VERSION을 넘긴다(node:test에서 별칭 없이 쓰기 위해 import하지 않는다).
 
+import type { SharedMessageKey, SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 export type ConsentChoices = {
   ageConfirmed: boolean;
   termsAccepted: boolean;
@@ -55,9 +57,9 @@ export function isSignupConsentReady(consentEnabled: boolean, choices: ConsentCh
 export const CONSENT_REQUIRED_MESSAGE = "만 18세 이상 확인과 현재 이용약관 동의가 필요합니다. 항목을 다시 확인해 주세요.";
 export const INVALID_SIGNUP_TOKEN_MESSAGE = "가입 요청이 만료되었거나 이미 사용되었습니다. 소셜 로그인부터 다시 시작해 주세요.";
 
-const CONSENT_ERROR_MESSAGES: Record<string, string> = {
-  CONSENT_REQUIRED: CONSENT_REQUIRED_MESSAGE,
-  INVALID_SIGNUP_TOKEN: INVALID_SIGNUP_TOKEN_MESSAGE
+const CONSENT_ERRORS: Record<string, { message: string; key: SharedMessageKey }> = {
+  CONSENT_REQUIRED: { message: CONSENT_REQUIRED_MESSAGE, key: "user.consent.required" },
+  INVALID_SIGNUP_TOKEN: { message: INVALID_SIGNUP_TOKEN_MESSAGE, key: "user.consent.invalidSignupToken" }
 };
 
 function errorCode(error: unknown): string | null {
@@ -65,10 +67,14 @@ function errorCode(error: unknown): string | null {
   return typeof code === "string" ? code : null;
 }
 
-/** 동의 관련 실패를 서버 error.code 기준으로 안내한다. 모르는 code면 에러 메시지, 없으면 fallback. */
-export function consentErrorMessage(error: unknown, fallback: string): string {
+/**
+ * 동의 관련 실패를 서버 error.code 기준으로 안내한다. 모르는 code면 에러 메시지, 없으면 fallback.
+ * t(`useTranslations("shared")`)를 넘기면 정해 둔 문구를 지금 언어로 쓴다.
+ */
+export function consentErrorMessage(error: unknown, fallback: string, t?: SharedTranslate): string {
   const code = errorCode(error);
-  if (code && CONSENT_ERROR_MESSAGES[code]) return CONSENT_ERROR_MESSAGES[code];
+  const known = code && Object.hasOwn(CONSENT_ERRORS, code) ? CONSENT_ERRORS[code] : undefined;
+  if (known) return t ? t(known.key) : known.message;
   return error instanceof Error && error.message ? error.message : fallback;
 }
 

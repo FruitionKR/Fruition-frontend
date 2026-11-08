@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { QRCodeSVG } from "qrcode.react";
 import { activateMfa, type MfaRegistration } from "@/entities/user";
 import { cx } from "@/shared/lib/classNames";
@@ -22,6 +23,8 @@ export function MfaSetupModal({
   onActivated: () => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("settings");
+  const tShared = useTranslations("shared");
   const [step, setStep] = useState<SetupStep>("connect");
   const [code, setCode] = useState("");
   const [codesSaved, setCodesSaved] = useState(false);
@@ -37,7 +40,7 @@ export function MfaSetupModal({
       onActivated();
       setStep("recovery");
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "인증 코드를 확인하지 못했습니다."));
+      setError(getErrorMessage(cause, t("mfa.setup.verifyFailed"), tShared));
     } finally {
       setBusy(false);
     }
@@ -46,23 +49,23 @@ export function MfaSetupModal({
   async function copyCodes() {
     try {
       await navigator.clipboard.writeText(registration.recovery_codes.join("\n"));
-      setMessage("복구 코드를 복사했습니다.");
+      setMessage(t("mfa.setup.copied"));
       setError(null);
     } catch {
-      setError("복사하지 못했습니다. 다운로드하거나 직접 보관해 주세요.");
+      setError(t("mfa.setup.copyFailed"));
     }
   }
 
   function downloadCodes() {
     const url = URL.createObjectURL(
-      new Blob(["Fruition 복구 코드\n\n", registration.recovery_codes.join("\n")], { type: "text/plain;charset=utf-8" })
+      new Blob([`${t("mfa.setup.fileHeading")}\n\n`, registration.recovery_codes.join("\n")], { type: "text/plain;charset=utf-8" })
     );
     const link = document.createElement("a");
     link.href = url;
     link.download = "fruition-recovery-codes.txt";
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setMessage("복구 코드 다운로드를 시작했습니다.");
+    setMessage(t("mfa.setup.downloadStarted"));
   }
 
   function handleSubmit(event: FormEvent) {
@@ -74,12 +77,12 @@ export function MfaSetupModal({
   }
 
   const meta = {
-    connect: { label: "STEP 1/3", title: "인증 앱 연결", subtitle: "Google Authenticator 등 인증 앱에서 QR코드를 스캔해 주세요." },
-    verify: { label: "STEP 2/3", title: "인증번호 확인", subtitle: "인증 앱에 표시된 6자리 코드를 입력해 주세요." },
+    connect: { label: t("mfa.setup.connect.label"), title: t("mfa.setup.connect.title"), subtitle: t("mfa.setup.connect.subtitle") },
+    verify: { label: t("mfa.setup.verify.label"), title: t("mfa.setup.verify.title"), subtitle: t("mfa.setup.verify.subtitle") },
     recovery: {
-      label: "STEP 3/3",
-      title: "복구 코드 보관",
-      subtitle: <>인증 앱을 사용할 수 없을 때 로그인할 수 있도록 복구 코드를 보관해 주세요.<br />각 코드는 한 번만 사용할 수 있으며, 이 화면을 닫으면 볼 수 없습니다.</>
+      label: t("mfa.setup.recovery.label"),
+      title: t("mfa.setup.recovery.title"),
+      subtitle: <>{t("mfa.setup.recovery.subtitleKeep")}<br />{t("mfa.setup.recovery.subtitleOnce")}</>
     }
   }[step];
   // 복구 코드 단계는 보관 확인 전에 닫을 수 없다.
@@ -90,7 +93,7 @@ export function MfaSetupModal({
       title={meta.title}
       stepLabel={meta.label}
       subtitle={meta.subtitle}
-      ariaLabel="다단계 인증 설정"
+      ariaLabel={t("mfa.setup.ariaLabel")}
       canClose={canClose}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -98,12 +101,12 @@ export function MfaSetupModal({
       {step === "connect" && (
         <div className={styles["qr-block"]}>
           <div className={styles.qr}>
-            <QRCodeSVG value={registration.otpauth_uri} size={184} marginSize={0} level="M" role="img" aria-label="인증 앱 등록 QR코드" />
+            <QRCodeSVG value={registration.otpauth_uri} size={184} marginSize={0} level="M" role="img" aria-label={t("mfa.setup.qrLabel")} />
           </div>
           <div className={styles.field}>
             <div className={styles["field-head"]}>
-              <label htmlFor="mfa-secret">인증 앱 설정 키</label>
-              <p className={styles["field-desc"]}>QR 인증이 되지 않는다면 인증 앱에서 직접 계정을 추가하고, 키 유형을 시간 기반으로 선택해 주세요.</p>
+              <label htmlFor="mfa-secret">{t("mfa.setup.secretLabel")}</label>
+              <p className={styles["field-desc"]}>{t("mfa.setup.secretHint")}</p>
             </div>
             <input id="mfa-secret" readOnly value={registration.secret} onFocus={(event) => event.target.select()} />
           </div>
@@ -112,8 +115,8 @@ export function MfaSetupModal({
       {step === "verify" && (
         <div className={styles.field}>
           <div className={styles["field-head"]}>
-            <label htmlFor="mfa-code">코드 6자리</label>
-            <p className={styles["field-desc"]}>방금 사용한 코드라면 다음 코드가 표시된 뒤 입력해 주세요.</p>
+            <label htmlFor="mfa-code">{t("mfa.setup.codeLabel")}</label>
+            <p className={styles["field-desc"]}>{t("common.mfaCodeReuseHint")}</p>
           </div>
           <VerificationCodeInput id="mfa-code" value={code} disabled={busy} onChange={setCode} />
           <FlowError error={error} />
@@ -122,12 +125,12 @@ export function MfaSetupModal({
       {step === "recovery" && (
         <div className={styles.field}>
           <div className={styles["field-title-row"]}>
-            <label>복구 코드</label>
+            <label>{t("mfa.setup.recoveryCodes")}</label>
             <div className={styles["icon-actions"]}>
-              <button type="button" className={styles["icon-button"]} aria-label="복구 코드 복사" onClick={() => void copyCodes()}>
+              <button type="button" className={styles["icon-button"]} aria-label={t("mfa.setup.copy")} onClick={() => void copyCodes()}>
                 <SvgIcon src={copyIcon} />
               </button>
-              <button type="button" className={styles["icon-button"]} aria-label="복구 코드 다운로드" onClick={downloadCodes}>
+              <button type="button" className={styles["icon-button"]} aria-label={t("mfa.setup.download")} onClick={downloadCodes}>
                 <SvgIcon src={downloadIcon} />
               </button>
             </div>
@@ -139,7 +142,7 @@ export function MfaSetupModal({
           </div>
           <label className={styles["check-row"]}>
             <input type="checkbox" checked={codesSaved} onChange={(event) => setCodesSaved(event.target.checked)} />
-            복구 코드를 안전한 곳에 보관했습니다.
+            {t("mfa.setup.savedCheck")}
           </label>
           {message && <p className={styles.status} role="status">{message}</p>}
           <FlowError error={error} />
@@ -152,7 +155,7 @@ export function MfaSetupModal({
           disabled={busy || (step === "verify" && code.trim().length !== CODE_LENGTH) || (step === "recovery" && !codesSaved)}
           showChevron={!busy && step !== "recovery"}
         >
-          {busy ? "확인 중…" : step === "connect" ? "다음으로" : step === "verify" ? "인증하기" : "설정 완료"}
+          {busy ? t("common.checking") : step === "connect" ? t("common.next") : step === "verify" ? t("common.verify") : t("mfa.setup.finish")}
         </FlowNextButton>
       </div>
     </AccountFlowModal>

@@ -1,4 +1,5 @@
 import { parseJsonOrThrow, ERROR_MESSAGES } from "@/shared/api/client";
+import { localizedFetch } from "@/shared/i18n/requestLocale";
 
 export type AuthTokensResponse = {
   access_token: string;
@@ -10,12 +11,12 @@ export type AuthTokensResponse = {
 export type LoginResponse = AuthTokensResponse | { mfa_required: true; mfa_token: string };
 
 export async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", { method: "POST" });
+  await localizedFetch("/api/auth/logout", { method: "POST" });
 }
 export type OAuthProvider = "google" | "naver" | "kakao";
 
 export async function loginWithEmail(email: string, password: string): Promise<LoginResponse> {
-  const response = await fetch("/api/auth/login", {
+  const response = await localizedFetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
@@ -37,7 +38,7 @@ export function getOAuthLinkAuthorizationUrl(provider: OAuthProvider, linkToken:
 }
 
 export async function exchangeOAuthCode(code: string): Promise<LoginResponse> {
-  const response = await fetch("/api/auth/oauth/exchange", {
+  const response = await localizedFetch("/api/auth/oauth/exchange", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code })

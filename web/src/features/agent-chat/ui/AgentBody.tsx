@@ -13,9 +13,10 @@ import type { SourceBlockHighlight } from "@/entities/document/model/document";
 import { cx } from "@/shared/lib/classNames";
 import { useSmoothScroll } from "../model/useSmoothScroll";
 import { useSpeechPlayback } from "../model/useSpeechPlayback";
+import type { AgentChatTranslator } from "../lib/agentChatTranslator";
 import styles from "./AgentChat.module.css";
+import { useTranslations } from "next-intl";
 
-const SEARCH_STATUS_TITLE = "서치 명령 실행 중";
 const NO_RUN_IDS: ReadonlySet<string> = new Set();
 
 function getPairSelectionLabel({
@@ -28,11 +29,11 @@ function getPairSelectionLabel({
   isSelected: boolean;
   isExcluded: boolean;
   isIndividualSelection: boolean;
-}): string {
-  if (!isSelectable) return isExcluded ? "선택 불가 · 문서·Skill 명령" : "선택 불가 · 완료된 문답이 아닙니다";
+}, t: AgentChatTranslator): string {
+  if (!isSelectable) return isExcluded ? t("pairSelection.excludedCommand") : t("pairSelection.incomplete");
   // 개별 선택은 체크박스가 선택 상태를 보여 주므로 라벨에 ✓를 중복하지 않는다.
-  if (isSelected) return isIndividualSelection ? "선택됨" : "✓ 선택됨";
-  return isIndividualSelection ? "선택 가능 · 클릭하여 선택·해제" : "선택 가능 · 클릭하여 범위 지정";
+  if (isSelected) return isIndividualSelection ? t("pairSelection.selected") : `✓ ${t("pairSelection.selected")}`;
+  return isIndividualSelection ? t("pairSelection.toggleHint") : t("pairSelection.rangeHint");
 }
 
 export function AgentBody({
@@ -92,6 +93,7 @@ export function AgentBody({
   onRetryStalledQuery?: (runId: string, question: string) => void;
   onDismissStalledQuery?: (runId: string) => void;
 }) {
+  const t = useTranslations("agentChat");
   const showAgentStatus = isLoading && activeTurn === null;
   const [visibleAnswerStage, setVisibleAnswerStage] = useState(STAGE_ANSWER);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -174,21 +176,21 @@ export function AgentBody({
   const selectedRangeStart = isIndividualSelection ? null : selectedPairIds[0] ?? null;
   const selectedRangeEnd = isIndividualSelection ? null : selectedPairIds.at(-1) ?? null;
   // SSE로 받은 실제 진행 단계를 상태 목록으로 표시한다. 마지막 단계는 아직 진행 중이면 active로 둔다.
-  const stageSteps = buildProgressSteps(queryStages, isLoading);
+  const stageSteps = buildProgressSteps(queryStages, isLoading, t);
   // 아직 받은 단계가 없으면 상태 목록 대신 타이핑 표시(Figma 1436:17311)를 보여 준다.
   const pendingStatusThread = (
     <div className={styles["agent-thread"]}>
       {isCancelling || stageSteps.length > 0 ? (
         <StatusList
-          title={isCancelling ? "질의 취소 중" : SEARCH_STATUS_TITLE}
+          title={isCancelling ? t("chat.cancellingTitle") : t("chat.searchingTitle")}
           isLoading={isLoading}
           hasResponse={false}
-          steps={isCancelling ? [["변경 복구 확인", "active"]] : stageSteps}
+          steps={isCancelling ? [[t("chat.checkingRollback"), "active"]] : stageSteps}
         />
       ) : (
         <div className={styles.typing} role="status">
           <span aria-hidden><i /><i /><i /></span>
-          <p>답변을 작성하고 있어요…</p>
+          <p>{t("chat.writingAnswer")}</p>
         </div>
       )}
     </div>
@@ -225,7 +227,7 @@ export function AgentBody({
                 {isIndividualSelection && isSelectable && (
                   <span className={styles["chat-pair-checkbox"]} aria-hidden="true">{isSelected ? "✓" : null}</span>
                 )}
-                {getPairSelectionLabel({ isSelectable, isSelected, isExcluded, isIndividualSelection })}
+                {getPairSelectionLabel({ isSelectable, isSelected, isExcluded, isIndividualSelection }, t)}
               </div>
             )}
             {isPairSelectionMode && isSelectable && (
@@ -235,7 +237,7 @@ export function AgentBody({
                 className={styles["chat-selection-overlay"]}
                 aria-checked={isIndividualSelection ? isSelected : undefined}
                 aria-pressed={isIndividualSelection ? undefined : isSelected}
-                aria-label={isIndividualSelection ? "이 문답을 편입 대상으로 선택" : "이 문답을 편입 범위로 선택"}
+                aria-label={isIndividualSelection ? t("pairSelection.selectItemLabel") : t("pairSelection.selectRangeLabel")}
                 onClick={() => onSelectPair(group.pairId as string)}
               />
             )}

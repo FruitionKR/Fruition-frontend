@@ -2,38 +2,53 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+    // 앱 소스의 확장자 없는 상대 import(./agentChatTranslator)를 .ts로 푼다.
+    if (context.parentURL?.includes("/src/") && specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
     return nextResolve(specifier, context);
   }
 });
 
 const {
-  buildSkillPickerGroups,
+  buildSkillPickerGroups: buildSkillPickerGroupsWith,
   collectServerAppliedTurnIds,
-  describeTaskRequest,
-  groupTaskEntries,
+  describeTaskRequest: describeTaskRequestWith,
+  groupTaskEntries: groupTaskEntriesWith,
   isAnswerTask,
   isApplyCheckUnresolved,
   isAttachmentTargetClarification,
-  withReadOnlyDocumentClarification,
+  withReadOnlyDocumentClarification: withReadOnlyDocumentClarificationWith,
   isServerAppliableTask,
   classifySessionChannel,
   editResultNotice,
   isTaskMessage,
   parseSkillSlashQuery,
   resolveSubmitRoute,
-  resolveTaskRequest,
+  resolveTaskRequest: resolveTaskRequestWith,
   skillSheetPanelView,
-  resolveTaskStatus,
-  selectionChipLabel,
+  resolveTaskStatus: resolveTaskStatusWith,
+  selectionChipLabel: selectionChipLabelWith,
   splitChatAndTaskMessages,
   supersededTaskKeys,
-  taskHeadingKind,
-  taskKindLabel
+  taskHeadingKind: taskHeadingKindWith,
+  taskKindLabel: taskKindLabelWith
 } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const buildSkillPickerGroups = (...args) => buildSkillPickerGroupsWith(...args, agentChatT);
+const describeTaskRequest = (...args) => describeTaskRequestWith(...args, agentChatT);
+const groupTaskEntries = (...args) => groupTaskEntriesWith(...args, agentChatT);
+const withReadOnlyDocumentClarification = (...args) => withReadOnlyDocumentClarificationWith(...args, agentChatT);
+const resolveTaskRequest = (...args) => resolveTaskRequestWith(...args, agentChatT);
+const resolveTaskStatus = (input) => resolveTaskStatusWith(input, agentChatT);
+const selectionChipLabel = (markdown, start, end, maxLength) => selectionChipLabelWith(markdown, start, end, agentChatT, maxLength);
+const taskHeadingKind = (...args) => taskHeadingKindWith(...args, agentChatT);
+const taskKindLabel = (...args) => taskKindLabelWith(...args, agentChatT);
 const {
   READ_ONLY_REQUEST_LIMIT,
   readOnlyRequestStorageKey,
@@ -253,7 +268,8 @@ test("스킬 시트가 열리면 작업 탭으로 옮기고 원래 탭을 기억
 });
 
 test("스킬로 보낸 작업의 새 문서·문서 수정 되묻기에는 커맨드를 붙인 두 답을 만든다", async () => {
-  const { SKILL_MODE_CHOICES, skillModeAnswer, skillModeQuestionSlug } = await import("../src/features/agent-chat/lib/taskThread.ts");
+  const { SKILL_MODE_CHOICES, skillModeAnswer: skillModeAnswerWith, skillModeQuestionSlug } = await import("../src/features/agent-chat/lib/taskThread.ts");
+const skillModeAnswer = (...args) => skillModeAnswerWith(...args, agentChatT);
   const question = "새 문서로 만들까요, 지금 문서를 수정할까요?";
   assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/summary-maker", answer: question }), "summary-maker");
   assert.equal(skillModeQuestionSlug({ action: "clarify", request: "/any 정리해 줘", answer: question }), "any");
@@ -733,3 +749,20 @@ test("끝난 편집 턴의 본문이 지워졌거나 document_purged로 닫혔�
   assert.equal(isPurgedEditTurn({ status: "completed", result: { action: "clarify" } }), false);
   assert.equal(isPurgedEditTurn({ status: "pending" }), false);
 });
+
+for (const answer of ["설정 → AI 설정 → 웹 검색 기본으로 켜기", "Settings → AI settings → Turn on web search by default"]) {
+  test(`사용법 안내는 새로고침 후 작업 탭에 본문으로 남는다: ${answer}`, () => {
+    const messages = [
+      message({ id: "u", role: "user", content: "Fruition help", pair_id: "help" }),
+      message({ id: "a", role: "assistant", content: answer, status: "completed", pair_id: "help", run_id: "agent_help", action: "product_help" })
+    ];
+    assert.equal(classifySessionChannel(messages), "work");
+    const { chatMessages, taskItems } = splitChatAndTaskMessages(messages);
+    assert.equal(chatMessages.length, 0);
+    assert.equal(taskItems.length, 1);
+    assert.equal(taskItems[0].answer, answer);
+    assert.equal(isAnswerTask(taskItems[0]), true);
+    assert.equal(resolveSubmitRoute("chat", "Fruition help"), "query");
+    assert.equal(resolveSubmitRoute("work", "Fruition help"), "task");
+  });
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { resetPasswordWithVerification } from "@/entities/user";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { getPasswordPolicyError } from "@/shared/lib/passwordPolicy";
@@ -12,6 +13,8 @@ import { LoginLinkPrompt } from "@/views/auth/ui/LoginLinkPrompt";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const t = useTranslations("auth");
+  const tShared = useTranslations("shared");
   const { passwordResetDraft } = useAuthFlow();
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -33,10 +36,10 @@ export default function ResetPasswordPage() {
     if (isSubmitting || !draft || !verificationToken) return;
 
     if (password !== passwordConfirmation) {
-      setErrorMessage("비밀번호가 일치하지 않습니다.");
+      setErrorMessage(t("resetPassword.mismatch"));
       return;
     }
-    const passwordError = getPasswordPolicyError(password);
+    const passwordError = getPasswordPolicyError(password, tShared);
     if (passwordError) {
       setErrorMessage(passwordError);
       return;
@@ -53,22 +56,22 @@ export default function ResetPasswordPage() {
       );
       router.replace("/login");
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, "비밀번호 재설정에 실패했습니다."));
+      setErrorMessage(getErrorMessage(error, t("resetPassword.failed"), tShared));
       setIsSubmitting(false);
     }
   }
 
   return (
-    <AuthScreen shellModifier="password" title="비밀번호 재설정">
+    <AuthScreen shellModifier="password" title={t("resetPassword.title")}>
       <form className="auth-form" method="post" onSubmit={handlePasswordReset}>
         <div className="auth-field-with-error">
           <div className="auth-field-stack">
-            <AuthField autoComplete="new-password" label="비밀번호" name="password" onChange={(event) => setPassword(event.target.value)} placeholder="password" type="password" value={password} />
-            <AuthField autoComplete="new-password" label="비밀번호 재확인" name="passwordConfirmation" onChange={(event) => setPasswordConfirmation(event.target.value)} placeholder="password" type="password" value={passwordConfirmation} />
+            <AuthField autoComplete="new-password" label={t("fields.password")} name="password" onChange={(event) => setPassword(event.target.value)} placeholder="password" type="password" value={password} />
+            <AuthField autoComplete="new-password" label={t("resetPassword.confirmLabel")} name="passwordConfirmation" onChange={(event) => setPasswordConfirmation(event.target.value)} placeholder="password" type="password" value={passwordConfirmation} />
           </div>
           {errorMessage ? <AuthError>{errorMessage}</AuthError> : null}
         </div>
-        <AuthSubmitButton disabled={isSubmitting}>확인</AuthSubmitButton>
+        <AuthSubmitButton disabled={isSubmitting}>{t("resetPassword.submit")}</AuthSubmitButton>
       </form>
       <LoginLinkPrompt />
     </AuthScreen>

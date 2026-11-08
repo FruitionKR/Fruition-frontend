@@ -1,4 +1,5 @@
 import type { OperationLogItem, OperationType } from "./operationLog";
+import { isServerLintDisplayName, localizeOperationSummary, type OperationSummaryTranslate } from "./operationSummary";
 
 type OperationLogDateGroup = {
   dateKey: string;
@@ -6,10 +7,14 @@ type OperationLogDateGroup = {
   items: OperationLogItem[];
 };
 
-/** Figma 로그 사이드바처럼 최신순 작업을 사용자의 날짜 기준으로 묶는다. */
+/**
+ * Figma 로그 사이드바처럼 최신순 작업을 사용자의 날짜 기준으로 묶는다.
+ * locale(화면 언어, 기본 한국어)로 그룹 이름("9월 23일" / "September 23")을 쓴다. 묶는 기준은 언어와 관계없다.
+ */
 export function groupOperationLogsByDate(
   items: OperationLogItem[],
-  timeZone?: string
+  timeZone?: string,
+  locale = "ko-KR"
 ): OperationLogDateGroup[] {
   const formatter = new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
@@ -17,6 +22,7 @@ export function groupOperationLogsByDate(
     day: "numeric",
     timeZone
   });
+  const labelFormatter = new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", timeZone });
   const groups: OperationLogDateGroup[] = [];
 
   for (const item of items) {
@@ -29,7 +35,7 @@ export function groupOperationLogsByDate(
     if (current?.dateKey === dateKey) {
       current.items.push(item);
     } else {
-      groups.push({ dateKey, label: `${month}월 ${day}일`, items: [item] });
+      groups.push({ dateKey, label: labelFormatter.format(new Date(item.created_at)), items: [item] });
     }
   }
 
@@ -47,6 +53,12 @@ export function filterVisibleOperationLogs(items: OperationLogItem[]): Operation
   );
 }
 
+/**
+ * 로그 화면 유형 탭(Figma 1436:16604). null은 전체 탭이다.
+ * 위키 직접 편집(wiki_edit)은 위키를 읽기 전용으로 바꿔 탭에서 뺀다. 과거 wiki_edit 기록은 전체 탭에 그대로 보인다.
+ */
+export const OPERATION_LOG_TYPE_TABS: ReadonlyArray<OperationType | null> = [null, "document_edit", "ingest", "lint", "restore"];
+
 /** 로그 화면 유형 탭. 유형을 고르지 않으면(전체) 목록을 그대로 돌려준다. */
 export function filterOperationLogsByType(
   items: OperationLogItem[],
@@ -55,9 +67,9 @@ export function filterOperationLogsByType(
   return type ? items.filter((item) => item.operation_type === type) : items;
 }
 
-/** 로그 행 앞머리 시각. Figma "Sep 23, 9:52 AM"을 한국어 표기("9월 23일 오전 9:52")로 쓴다. */
-export function formatOperationLogDateTime(iso: string, timeZone?: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
+/** 로그 행 앞머리 시각. Figma "Sep 23, 9:52 AM"을 화면 언어 표기(한국어면 "9월 23일 오전 9:52")로 쓴다. */
+export function formatOperationLogDateTime(iso: string, timeZone?: string, locale = "ko-KR"): string {
+  return new Intl.DateTimeFormat(locale, {
     month: "long",
     day: "numeric",
     hour: "numeric",
@@ -66,16 +78,32 @@ export function formatOperationLogDateTime(iso: string, timeZone?: string): stri
   }).format(new Date(iso));
 }
 
-/** 목록과 상세 헤더가 같은 문서·작업 설명을 사용한다. */
+/**
+ * 목록과 상세 헤더가 같은 문서·작업 설명을 사용한다.
+ * tSummary(`useTranslations("workspace.logMessages.summary")`)를 넘기면 서버가 한국어로 저장한 알려진 요약을 지금 언어로 쓴다.
+ */
 export function formatOperationLogDescription(
-  item: Pick<OperationLogItem, "summary">,
-  documentTitle?: string
+  item: Partial<Pick<OperationLogItem, "operation_type" | "status" | "changed_resource_count">> & Pick<OperationLogItem, "summary">,
+  documentTitle?: string,
+  /** 문서 이름·요약이 모두 없을 때 문구. 화면은 workspace.logMessages.noDetail을 넘긴다. */
+  emptyText = "상세 정보 없음",
+  tSummary?: OperationSummaryTranslate
 ): string {
-  const summary = item.summary?.trim();
-  if (documentTitle && summary && summary !== documentTitle) {
-    return `${documentTitle} / ${summary}`;
+  const rawSummary = item.summary?.trim();
+  const summary = item.operation_type && tSummary
+    ? localizeOperationSummary({
+      operation_type: item.operation_type,
+      status: item.status ?? "",
+      summary: item.summary,
+      changed_resource_count: item.changed_resource_count ?? 0
+    }, tSummary) ?? undefined
+    : rawSummary;
+  // lint의 대상 이름은 서버가 붙인 한국어 작업 이름이라 문서 이름으로 쓰지 않는다(행 제목이 작업 종류를 이미 보인다).
+  const title = tSummary && isServerLintDisplayName(item.operation_type, documentTitle) ? undefined : documentTitle;
+  if (title && summary && rawSummary !== title) {
+    return `${title} / ${summary}`;
   }
-  return documentTitle ?? summary ?? "상세 정보 없음";
+  return title ?? summary ?? emptyText;
 }
 
 /**

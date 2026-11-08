@@ -43,6 +43,7 @@ export function useUserPreferences() {
 export function createResolver(overrides = {}) {
   return function resolve(specifier, context, nextResolve) {
     if (specifier === "react") return nextResolve(import.meta.url, context);
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     if (overrides[specifier]) return nextResolve(overrides[specifier], context);
     if (specifier.startsWith("@/")) {
       // 별칭이 디렉터리(배럴)를 가리키면 index.ts로 푼다.

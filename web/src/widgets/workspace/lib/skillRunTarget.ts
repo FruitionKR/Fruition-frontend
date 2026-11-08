@@ -24,9 +24,18 @@ export type SkillRunTarget =
   | { kind: "folder"; itemId: string; folderId: string; label: string };
 
 /** 고른 항목을 대상으로 쓸 수 없을 때 안내. ignore는 폴더 펼치기처럼 고르기로 보지 않는 클릭이다. */
+/** 고른 항목을 대상으로 쓸 수 없는 이유. 문구는 화면이 언어에 맞춰 만든다. */
+export type SkillRunInvalidReason =
+  | "selectionOnly"
+  | "pickFolderForOrganize"
+  | "pickFolderForTemplate"
+  | "folderNotEditable"
+  | "documentNotEditable"
+  | "notMarkdown";
+
 export type SkillRunTargetResolution =
   | { status: "ok"; target: SkillRunTarget }
-  | { status: "invalid"; message: string }
+  | { status: "invalid"; reason: SkillRunInvalidReason }
   | { status: "ignore" };
 
 type SkillVersionLike = Pick<SkillVersion, "capabilities" | "result_mode" | "targets" | "requires_source"> | null | undefined;
@@ -60,22 +69,15 @@ export function isFolderOrganizeSkill(version: SkillVersionLike): boolean {
 }
 
 /**
- * 사이드바에서 문서 전체를 고를 수 없는 스킬이면 안내 문구, 아니면 null.
+ * 사이드바에서 문서 전체를 고를 수 없는 스킬인지(문서에서 부분을 고른 뒤 채팅에 /slug로만 실행).
  * 대상(targets)이 '선택한 부분'뿐인 문서 스킬은 문서에서 부분을 고른 채 채팅으로만 실행할 수 있다.
  * targets가 없거나 비어 있으면(예전 응답·기본값) 문서 전체를 받는 것으로 본다.
  */
-export function skillRunBlockedMessage(version: SkillVersionLike, slug: string): string | null {
+export function isSkillRunSelectionOnly(version: SkillVersionLike): boolean {
   const targets = version?.targets ?? [];
   const intent = skillRunIntent(version);
-  if (intent === "organize" || intent === "template") return null;
-  if (targets.length === 0 || targets.includes("current_document")) return null;
-  return `이 스킬은 문서에서 선택한 부분에만 쓸 수 있어요. 문서에서 부분을 선택한 뒤 채팅에 /${slug}를 입력하세요.`;
-}
-
-function documentPickedMessage(intent: SkillRunIntent): string {
-  return intent === "organize"
-    ? "폴더 정리 스킬은 정리할 폴더를 골라 주세요."
-    : "템플릿 스킬은 새 문서를 둘 폴더를 골라 주세요.";
+  if (intent === "organize" || intent === "template") return false;
+  return !(targets.length === 0 || targets.includes("current_document"));
 }
 
 /**
@@ -86,25 +88,23 @@ export function resolveSkillRunTarget(
   version: SkillVersionLike,
   item: TreeItem,
   documents: readonly DocumentItemResponse[],
-  slug: string,
   parentFolderId?: string | null
 ): SkillRunTargetResolution {
-  const blocked = skillRunBlockedMessage(version, slug);
-  if (blocked != null) return { status: "invalid", message: blocked };
+  if (isSkillRunSelectionOnly(version)) return { status: "invalid", reason: "selectionOnly" };
   const intent = skillRunIntent(version);
   const kind = skillRunTargetKind(version);
   if (item.type === "folder") {
     // 문서만 받는 스킬에서 폴더를 누르면 펼치기만 한다.
     if (kind === "document") return { status: "ignore" };
-    if (item.canEdit === false) return { status: "invalid", message: "편집 권한이 있는 폴더만 고를 수 있습니다." };
+    if (item.canEdit === false) return { status: "invalid", reason: "folderNotEditable" };
     return { status: "ok", target: { kind: "folder", itemId: item.id, folderId: item.id, label: item.label } };
   }
   if (!item.documentId) return { status: "ignore" };
-  if (kind === "folder") return { status: "invalid", message: documentPickedMessage(intent) };
-  if (item.canEdit === false) return { status: "invalid", message: "편집 권한이 있는 문서만 고를 수 있습니다." };
+  if (kind === "folder") return { status: "invalid", reason: intent === "organize" ? "pickFolderForOrganize" : "pickFolderForTemplate" };
+  if (item.canEdit === false) return { status: "invalid", reason: "documentNotEditable" };
   const document = documents.find((entry) => entry.id === item.documentId);
   if (!document || !isMarkdownDocument(document)) {
-    return { status: "invalid", message: "Markdown 문서만 스킬을 실행할 수 있습니다. 다른 문서를 골라 주세요." };
+    return { status: "invalid", reason: "notMarkdown" };
   }
   return {
     status: "ok",
@@ -156,12 +156,13 @@ export function folderMarkdownCount(folder: TreeItem, documents: readonly Docume
   }).length;
 }
 
-/** 받침 유무로 고른 조사. 한글이 아니면 받침 없는 쪽(spec 문구 '를'·'가')을 쓴다. */
-function particle(word: string, withFinal: string, withoutFinal: string): string {
-  const code = word.trim().charCodeAt(word.trim().length - 1) - 0xac00;
-  if (Number.isNaN(code) || code < 0 || code > 11171) return withoutFinal;
-  return code % 28 === 0 ? withoutFinal : withFinal;
-}
+/** 대상 미리보기 값. 문구는 화면이 언어에 맞춰 만든다. limit은 원문을 최근 몇 개만 읽는지(넘치지 않으면 null)다. */
+export type SkillRunPreview =
+  | { kind: "folderWithoutSource"; name: string }
+  | { kind: "folderEmpty"; name: string }
+  | { kind: "folderSources"; name: string; count: number; limit: number | null }
+  | { kind: "documentSource"; name: string }
+  | { kind: "documentWithoutSource"; name: string };
 
 /**
  * 대상을 고른 뒤 안내 말풍선에 보일 미리보기. 원문 문서를 어떻게 쓸지 알 수 있는 경우에만 문구를 만들고, 아니면 null이다.
@@ -170,23 +171,19 @@ function particle(word: string, withFinal: string, withoutFinal: string): string
  * 폴더 정리·열린 문서 고치기, '상황에 맞게'에 문서를 고른 경우(고칠 수도 있다), requires_source를 모르면(구버전 백엔드) null이다.
  * folderMarkdownCount는 폴더 대상의 바로 아래 Markdown 문서 수다.
  */
-export function skillRunPreview(version: SkillVersionLike, target: SkillRunTarget, folderMarkdownCount = 0): string | null {
+export function skillRunPreview(version: SkillVersionLike, target: SkillRunTarget, folderMarkdownCount = 0): SkillRunPreview | null {
   const requiresSource = skillRunRequiresSource(version);
   const intent = skillRunIntent(version);
   if (requiresSource == null || intent === "organize" || intent === "edit") return null;
   if (target.kind === "folder") {
-    const name = `'${target.label}'`;
-    if (!requiresSource) return `${name} 폴더에 새 문서를 만들어요 (원문 없이)`;
+    const name = target.label;
+    if (!requiresSource) return { kind: "folderWithoutSource", name };
     // 읽을 문서가 없으면 AI가 초안 없이 다른 대상을 고르라고 되묻는다(clarify, ai agent.md).
-    if (folderMarkdownCount === 0) return `${name} 폴더에 읽을 문서가 없어요`;
-    const limit = folderMarkdownCount > FOLDER_SOURCE_LIMIT ? ` (최근 ${FOLDER_SOURCE_LIMIT}개만)` : "";
-    return `${name} 폴더 문서 ${folderMarkdownCount}개를 읽어 새 문서를 만들어요${limit}`;
+    if (folderMarkdownCount === 0) return { kind: "folderEmpty", name };
+    return { kind: "folderSources", name, count: folderMarkdownCount, limit: folderMarkdownCount > FOLDER_SOURCE_LIMIT ? FOLDER_SOURCE_LIMIT : null };
   }
   if (intent !== "create") return null;
   // 사이드바처럼 Markdown 확장자는 빼고 보여 준다.
-  const title = getMarkdownDocumentTitle(target.label);
-  const document = `'${title}'`;
-  return requiresSource
-    ? `${document}${particle(title, "을", "를")} 읽어 같은 폴더에 새 문서를 만들어요`
-    : `${document}${particle(title, "이", "가")} 있는 폴더에 새 문서를 만들어요 (원문 없이)`;
+  const name = getMarkdownDocumentTitle(target.label);
+  return requiresSource ? { kind: "documentSource", name } : { kind: "documentWithoutSource", name };
 }

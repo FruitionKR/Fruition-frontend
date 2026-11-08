@@ -1,0 +1,13 @@
+{
+  "ui": {
+    "open": "How to use",
+    "openShort": "Help",
+    "title": "How to use Fruition",
+    "close": "Close guide",
+    "prev": "Previous",
+    "next": "Next",
+    "done": "Done",
+    "progress": "{current} / {total}",
+    "sections": "Sections"
+  }
+}

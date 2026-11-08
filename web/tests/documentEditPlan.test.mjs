@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations } from "./fakeNextIntl.mjs";
+
+// 화면과 같이 agentChat 메시지를 한국어로 풀어 문구까지 확인한다.
+const agentChatT = useTranslations("agentChat");
 
 // 앱 소스의 확장자 없는 상대 import(./agentPlan)를 .ts로 푼다.
 registerHooks({
@@ -12,21 +16,29 @@ registerHooks({
 
 const {
   blockedEditRowIds,
-  buildDocumentEditRows,
+  buildDocumentEditRows: buildDocumentEditRowsWith,
   documentEditRowsNeedTrash,
   documentEditApproval,
-  documentEditApprovalHint,
-  documentEditDecisionNote,
+  documentEditApprovalHint: documentEditApprovalHintWith,
+  documentEditDecisionNote: documentEditDecisionNoteWith,
   documentEditMessageNotice,
-  documentEditOperationLabel,
+  documentEditOperationLabel: documentEditOperationLabelWith,
   documentEditRunnableCount,
-  documentEditRunNote,
-  editPreviewNotice,
+  documentEditRunNote: documentEditRunNoteWith,
+  editPreviewNotice: editPreviewNoticeWith,
   isDocumentEditPlan,
-  missingDiffNote
+  missingDiffNote: missingDiffNoteWith
 } = await import("../src/features/agent-chat/lib/documentEditPlan.ts");
+const buildDocumentEditRows = (plan, rows, previews, tree, trash = []) => buildDocumentEditRowsWith(plan, rows, previews, tree, trash, agentChatT);
+const documentEditApprovalHint = (approval, purged = 0, blocked = 0) => documentEditApprovalHintWith(approval, purged, blocked, agentChatT);
+const documentEditDecisionNote = (...args) => documentEditDecisionNoteWith(...args, agentChatT);
+const documentEditOperationLabel = (...args) => documentEditOperationLabelWith(...args, agentChatT);
+const documentEditRunNote = (...args) => documentEditRunNoteWith(...args, agentChatT);
+const editPreviewNotice = (...args) => editPreviewNoticeWith(...args, agentChatT);
+const missingDiffNote = (...args) => missingDiffNoteWith(...args, agentChatT);
 const { editPreviewExpiryDelayMs, isEditPreviewExpired, limitDiffHunks, parseAgentRunEditPreviews } = await import("../src/features/agent-chat/lib/documentEditPreviews.ts");
-const { buildFolderOrganizeView, folderOrganizeApproval, initialDeselectedRowIds } = await import("../src/features/agent-chat/lib/folderOrganize.ts");
+const { buildFolderOrganizeView: buildFolderOrganizeViewWith, folderOrganizeApproval, initialDeselectedRowIds } = await import("../src/features/agent-chat/lib/folderOrganize.ts");
+const buildFolderOrganizeView = (plan, tree, target) => buildFolderOrganizeViewWith(plan, tree, target, agentChatT);
 
 function editOperation(id, documentId, extra = {}) {
   return {

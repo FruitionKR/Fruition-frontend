@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import test from "node:test";
-import {
+
+// 앱의 경로 별칭과 확장자 없는 상대 import를 .ts 소스로 해석한다(작업 요약 번역 모듈).
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
+  if (specifier.startsWith(".") && context.parentURL?.includes("/src/") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(`${specifier}.ts`, context);
+  return nextResolve(specifier, context);
+} });
+
+const {
   buildTaskNotifications,
   buildWorkspaceNotifications,
   countUnreadNotifications,
@@ -11,7 +20,7 @@ import {
   MAX_READ_IDS,
   parseReadState,
   readStateStorageKey
-} from "../src/widgets/notifications-view/lib/notificationFeed.ts";
+} = await import("../src/widgets/notifications-view/lib/notificationFeed.ts");
 
 const log = (overrides) => ({
   operation_id: "op1",

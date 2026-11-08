@@ -1,17 +1,9 @@
 import type { ChatMessageReferenceResponse, ChatMessageResponse } from "@/entities/chat/model/chat";
-import { READ_ONLY_DOCUMENT_HINT } from "@/entities/document/lib/documentAccess";
 import type { SkillResponse } from "@/entities/skill/model/skill";
+import type { AgentChatTranslator } from "@/features/agent-chat/lib/agentChatTranslator";
 import { agentPlanStatusLabel, isWorkspacePlanAction, shouldPollAgentPlan } from "@/features/agent-chat/lib/agentPlan";
-import { SUPERSEDED_PLAN_LABEL } from "@/features/agent-chat/lib/folderPlanSupersede";
 import type { ReadOnlyRequests } from "@/features/agent-chat/lib/readOnlyRequests";
-import {
-  isTurnCancelling,
-  STALLED_TURN_TITLE,
-  TURN_CANCELLING_LABEL,
-  TURN_ROLLBACK_FAILED_LABEL,
-  TURN_ROLLBACK_PARTIAL_LABEL,
-  type TurnCancelState
-} from "@/features/agent-chat/lib/stalledTurns";
+import { isTurnCancelling, type TurnCancelState } from "@/features/agent-chat/lib/stalledTurns";
 
 /**
  * 채팅 탭과 작업 탭의 분리(2026-10-19 계약).
@@ -123,8 +115,8 @@ export function splitChatAndTaskMessages(
   return { chatMessages, taskItems };
 }
 
-/** 첨부를 다 읽지 못했다는 안내의 시작(ai reference_document_notice). */
-const REFERENCE_NOTICE_PATTERN = /^첨부한 문서(가 길어 앞부분만| 중 \d+개는 너무 길어)/;
+/** 첨부를 다 읽지 못했다는 안내의 시작(ai reference_document_notice). 영어로 요청하면 영어 문장으로 온다. */
+const REFERENCE_NOTICE_PATTERN = /^(?:첨부한 문서(가 길어 앞부분만| 중 \d+개는 너무 길어)|\d+ of the attached documents were too long|The attached document is long, so I only read the beginning)/;
 
 /**
  * 편집 결과 메시지에서 첨부를 다 읽지 못했다는 안내 문단만 꺼낸다. 메시지 나머지는 요약과 "아직 적용하지 않았어요"처럼
@@ -136,26 +128,29 @@ export function editResultNotice(message: string | null | undefined): string | n
 }
 
 /** 작업 종류(Figma 1610:9600 "문서 : …"의 앞부분). */
-export function taskKindLabel(action: string | null): string {
+export function taskKindLabel(action: string | null, t: AgentChatTranslator): string {
   switch (action) {
-    case "folder_organize": return "폴더 정리";
-    case "folder_lookup": return "폴더 내용 확인";
-    case "workspace_workflow": return "워크스페이스";
+    case "folder_organize": return t("task.kind.folderOrganize");
+    case "folder_lookup": return t("task.kind.folderLookup");
+    case "workspace_workflow": return t("task.kind.workspace");
     case "markdown_edit":
-    case "markdown_create": return "문서";
+    case "markdown_create": return t("task.kind.document");
     case "skill_authoring":
-    case "skill_draft_proposal": return "스킬";
-    default: return "작업";
+    case "skill_draft_proposal": return t("task.kind.skill");
+    default: return t("task.kind.task");
   }
 }
 
 const SLASH_COMMAND_PATTERN = /^\/([a-z0-9][a-z0-9-]{0,62})(?:\s|$)/;
 
-/** '상황에 맞게' 스킬의 되묻기("새 문서로 만들까요, 지금 문서를 수정할까요?")에 답하는 두 선택. */
+/** '상황에 맞게' 스킬의 되묻기("새 문서로 만들까요, 지금 문서를 수정할까요?")에 답하는 두 선택. 버튼 문구와 보낼 요청은 agentChat.task.skillMode.{id}에 있다. */
 export const SKILL_MODE_CHOICES = [
-  { label: "새 문서로 만들기", request: "새 문서로 만들어 줘", createsDocument: true },
-  { label: "지금 문서 수정", request: "지금 문서를 수정해 줘", createsDocument: false }
+  { id: "create", createsDocument: true },
+  { id: "edit", createsDocument: false }
 ] as const;
+
+/** 되묻기 문장의 새 문서·수정 단어. 영어로 요청하면 영어 문장으로 온다(ai CLARIFY_SKILL_RESULT_MODE_MESSAGE). */
+const SKILL_MODE_QUESTION_WORDS: readonly (readonly [RegExp, RegExp])[] = [[/새 문서/, /수정/], [/new document/i, /\bedit\b/i]];
 
 /**
  * 스킬(`/slug …`)로 보낸 작업에 AI가 새 문서·문서 수정 중 무엇을 할지 되물었으면 그 slug, 아니면 null.
@@ -165,23 +160,24 @@ export function skillModeQuestionSlug(item: Pick<TaskMessageItem, "action" | "re
   if (item.action !== "clarify") return null;
   const match = SLASH_COMMAND_PATTERN.exec(item.request);
   if (!match) return null;
-  return /새 문서/.test(item.answer) && /수정/.test(item.answer) ? match[1] : null;
+  return SKILL_MODE_QUESTION_WORDS.some(([create, edit]) => create.test(item.answer) && edit.test(item.answer)) ? match[1] : null;
 }
 
 /** AI가 편집 문맥 없는 수정 요청에 되묻는 이유 코드(ai agent.md clarify_reason). */
 const MARKDOWN_DOCUMENT_REQUIRED = "markdown_document_required";
-/** 그 되묻기의 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE). 코드가 없는 과거 메시지·배포 전 서버를 판단할 때만 쓴다. */
-const OPEN_DOCUMENT_CLARIFICATION = "수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.";
-/** 첨부한 문서를 고치려 할 때의 되묻기 문장에 든 말(ai handle_agent_turn CLARIFY_REFERENCE_EDIT_MESSAGE). */
-const ATTACHED_DOCUMENT_CLARIFICATION_MARK = "첨부한 문서";
-const READ_ONLY_DOCUMENT_CLARIFICATION = `이 문서는 보기 권한만 있어 수정할 수 없어요. ${READ_ONLY_DOCUMENT_HINT}`;
+/**
+ * 그 되묻기의 문장(ai handle_agent_turn CLARIFY_MARKDOWN_DOCUMENT_MESSAGE, 영어 요청이면 영어 문장). 코드가 없는 과거 메시지·배포 전 서버를 판단할 때만 쓴다.
+ */
+const OPEN_DOCUMENT_CLARIFICATIONS = ["수정할 Markdown 문서를 연 뒤 다시 요청해 주세요.", "Open the Markdown document to edit, then try again."];
+/** 첨부한 문서를 고치려 할 때의 되묻기 문장에 든 말(ai handle_agent_turn CLARIFY_REFERENCE_EDIT_MESSAGE, 영어 요청이면 영어 문장). */
+const ATTACHED_DOCUMENT_CLARIFICATION_MARK = /첨부한 문서|attached document/i;
 
 /** 문서가 필요해 되물었는지. 코드가 있으면 코드만 보고(모르는 코드는 다른 이유), 코드가 없을 때만 문장으로 판단한다. */
 function asksForMarkdownDocument(item: Pick<TaskMessageItem, "clarifyReason" | "answer">): boolean {
   // 첨부한 문서를 고치려 한 되묻기도 같은 코드로 온다. 첨부 문서 이야기라 열린 문서의 보기 권한 안내로 바꾸지 않는다.
-  if (item.answer.includes(ATTACHED_DOCUMENT_CLARIFICATION_MARK)) return false;
+  if (ATTACHED_DOCUMENT_CLARIFICATION_MARK.test(item.answer)) return false;
   if (item.clarifyReason !== null) return item.clarifyReason === MARKDOWN_DOCUMENT_REQUIRED;
-  return item.answer.trim().normalize("NFC") === OPEN_DOCUMENT_CLARIFICATION;
+  return OPEN_DOCUMENT_CLARIFICATIONS.includes(item.answer.trim().normalize("NFC"));
 }
 
 /**
@@ -193,14 +189,15 @@ function asksForMarkdownDocument(item: Pick<TaskMessageItem, "clarifyReason" | "
 export function withReadOnlyDocumentClarification<T extends Pick<TaskMessageItem, "turnId" | "action" | "clarifyReason" | "readOnlyDocumentId" | "answer">>(
   items: T[],
   readOnlyDocumentId: string | null,
-  readOnlyRequests: ReadOnlyRequests
+  readOnlyRequests: ReadOnlyRequests,
+  t: AgentChatTranslator
 ): T[] {
   if (!readOnlyDocumentId) return items;
   return items.map((item) => (
     item.action === "clarify"
     && (item.readOnlyDocumentId ?? (item.turnId !== null ? readOnlyRequests.get(item.turnId) : undefined)) === readOnlyDocumentId
     && asksForMarkdownDocument(item)
-      ? { ...item, answer: READ_ONLY_DOCUMENT_CLARIFICATION }
+      ? { ...item, answer: t("task.readOnlyClarification") }
       : item
   ));
 }
@@ -220,21 +217,14 @@ export function slashCommandSlug(text: string): string | null {
 }
 
 /** 되묻기 선택 → 작업 탭으로 보낼 요청 문장 */
-export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES)[number]): string {
-  return `/${slug} ${choice.request}`;
+export function skillModeAnswer(slug: string, choice: (typeof SKILL_MODE_CHOICES)[number], t: AgentChatTranslator): string {
+  return `/${slug} ${t(`task.skillMode.${choice.id}.request`)}`;
 }
 
 export type TaskGroup = "running" | "approval" | "clarify" | "partial_failed" | "failed" | "done";
 
-/** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. */
-export const TASK_GROUPS: { group: TaskGroup; label: string }[] = [
-  { group: "running", label: "진행 중" },
-  { group: "approval", label: "확인 필요" },
-  { group: "clarify", label: "선택 필요" },
-  { group: "partial_failed", label: "일부 실패" },
-  { group: "failed", label: "실패" },
-  { group: "done", label: "완료" }
-];
+/** Figma 1671:13216처럼 상태별 묶음으로 보여 준다(확인 필요·선택 필요·완료). 할 일이 남은 묶음을 위에 둔다. 묶음 이름은 agentChat.task.group.{group}이다. */
+export const TASK_GROUPS: readonly TaskGroup[] = ["running", "approval", "clarify", "partial_failed", "failed", "done"];
 
 export type TaskStatusView = {
   group: TaskGroup;
@@ -244,21 +234,17 @@ export type TaskStatusView = {
   struck: boolean;
 };
 
-const DOCUMENT_PURGED_TASK_LABEL = "문서 영구 삭제됨";
-
-const CANCELLED_TASK_STATUS: TaskStatusView = { group: "done", label: "취소됨", tone: "muted", struck: true };
-
 const FAILED_RUN_STATUSES = new Set(["failed", "partial_failed", "conflicted", "rollback_failed"]);
 
 /**
  * 취소한 turn의 상태. 서버는 말풍선을 바로 cancelled로 닫지만 turn은 되돌리기를 마쳐야 끝나므로,
  * turn 조회로 받은 진행 상태(cancelState)를 따른다. 아직 모르면 "취소됨"으로 둔다.
  */
-function cancelledTaskStatus(cancelState: TurnCancelState | null): TaskStatusView {
-  if (isTurnCancelling(cancelState)) return { group: "running", label: TURN_CANCELLING_LABEL, tone: "muted", struck: false };
-  if (cancelState === "rollback_failed") return { group: "failed", label: TURN_ROLLBACK_FAILED_LABEL, tone: "danger", struck: false };
-  if (cancelState === "rollback_partial") return { group: "failed", label: TURN_ROLLBACK_PARTIAL_LABEL, tone: "danger", struck: false };
-  return CANCELLED_TASK_STATUS;
+function cancelledTaskStatus(cancelState: TurnCancelState | null, t: AgentChatTranslator): TaskStatusView {
+  if (isTurnCancelling(cancelState)) return { group: "running", label: t("stalled.cancellingLabel"), tone: "muted", struck: false };
+  if (cancelState === "rollback_failed") return { group: "failed", label: t("stalled.rollbackFailedLabel"), tone: "danger", struck: false };
+  if (cancelState === "rollback_partial") return { group: "failed", label: t("stalled.rollbackPartialLabel"), tone: "danger", struck: false };
+  return { group: "done", label: t("task.status.cancelled"), tone: "muted", struck: true };
 }
 
 export function resolveTaskStatus({
@@ -321,69 +307,67 @@ export function resolveTaskStatus({
   cancelState?: TurnCancelState | null;
   /** 같은 대상 폴더에 뒤에 실행한 새 계획이 승인 대기에 도달해 이 승인 대기 계획을 대신했는지(거절해 정리한다) */
   isPlanSuperseded?: boolean;
-}): TaskStatusView {
+}, t: AgentChatTranslator): TaskStatusView {
   if (messageStatus === "pending") {
-    if (isCancelAccepted) return cancelledTaskStatus(cancelState);
-    if (isReleased) return { group: "done", label: "중단됨", tone: "muted", struck: true };
-    if (isStalled) return { group: "failed", label: STALLED_TURN_TITLE, tone: "danger", struck: false };
-    return { group: "running", label: "진행 중", tone: "primary", struck: false };
+    if (isCancelAccepted) return cancelledTaskStatus(cancelState, t);
+    if (isReleased) return { group: "done", label: t("task.status.released"), tone: "muted", struck: true };
+    if (isStalled) return { group: "failed", label: t("stalled.turnTitle"), tone: "danger", struck: false };
+    return { group: "running", label: t("task.status.running"), tone: "primary", struck: false };
   }
-  if (messageStatus === "failed") return { group: "failed", label: "실패", tone: "danger", struck: true };
+  if (messageStatus === "failed") return { group: "failed", label: t("task.status.failed"), tone: "danger", struck: true };
   // 진행 중에 취소돼 서버가 닫은 turn(agent turn 취소 API). 편집안 초안을 취소한 것과 같은 "취소됨"으로 보인다.
-  if (messageStatus === "cancelled") return cancelledTaskStatus(cancelState);
+  if (messageStatus === "cancelled") return cancelledTaskStatus(cancelState, t);
   if (isWorkspacePlanAction(action ?? undefined)) {
-    if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined), tone: "muted", struck: false };
+    if (!runStatus) return { group: "running", label: agentPlanStatusLabel(undefined, t), tone: "muted", struck: false };
     if (isPlanSuperseded && (runStatus === "awaiting_approval" || runStatus === "rejected")) {
-      return { group: "done", label: SUPERSEDED_PLAN_LABEL, tone: "muted", struck: false };
+      return { group: "done", label: t("task.status.superseded"), tone: "muted", struck: false };
     }
-    if (runStatus === "awaiting_approval") return { group: "approval", label: "승인 대기", tone: "primary", struck: false };
+    if (runStatus === "awaiting_approval") return { group: "approval", label: t("plan.status.awaiting_approval"), tone: "primary", struck: false };
     if (runStatus === "clarification_required") {
       return isSuperseded
-        ? { group: "done", label: "다시 실행됨", tone: "muted", struck: false }
-        : { group: "clarify", label: "추가 설명 필요", tone: "primary", struck: false };
+        ? { group: "done", label: t("task.status.rerun"), tone: "muted", struck: false }
+        : { group: "clarify", label: t("plan.status.clarification_required"), tone: "primary", struck: false };
     }
     if (runStatus === "completed") {
       const label = [
-        `저장됨(${operationCount})`,
-        excludedCount > 0 && `제외 ${excludedCount}`,
-        createdFolderCount > 0 && `새 폴더 ${createdFolderCount}`
+        t("task.status.savedCount", { count: operationCount }),
+        excludedCount > 0 && t("task.status.excludedCount", { count: excludedCount }),
+        createdFolderCount > 0 && t("task.status.newFolderCount", { count: createdFolderCount })
       ].filter(Boolean).join(" · ");
       return { group: "done", label, tone: "primary", struck: false };
     }
-    if (runStatus === "rejected") return { group: "done", label: "거절됨", tone: "danger", struck: true };
-    if (runStatus === "cancelled") return { group: "done", label: "취소됨", tone: "danger", struck: true };
+    if (runStatus === "rejected") return { group: "done", label: t("task.status.rejected"), tone: "danger", struck: true };
+    if (runStatus === "cancelled") return { group: "done", label: t("task.status.cancelled"), tone: "danger", struck: true };
     // 일부는 저장됐으므로 전부 실패처럼 묶거나 취소선을 긋지 않는다.
-    if (runStatus === "partial_failed") return { group: "partial_failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: false };
-    if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus), tone: "danger", struck: true };
-    if (shouldPollAgentPlan(runStatus)) return { group: "running", label: agentPlanStatusLabel(runStatus), tone: "primary", struck: false };
-    return { group: "done", label: agentPlanStatusLabel(runStatus), tone: "muted", struck: false };
+    if (runStatus === "partial_failed") return { group: "partial_failed", label: agentPlanStatusLabel(runStatus, t), tone: "danger", struck: false };
+    if (FAILED_RUN_STATUSES.has(runStatus)) return { group: "failed", label: agentPlanStatusLabel(runStatus, t), tone: "danger", struck: true };
+    if (shouldPollAgentPlan(runStatus)) return { group: "running", label: agentPlanStatusLabel(runStatus, t), tone: "primary", struck: false };
+    return { group: "done", label: agentPlanStatusLabel(runStatus, t), tone: "muted", struck: false };
   }
   if (action === "clarify") {
     return hasLaterTask
-      ? { group: "done", label: "지난 질문", tone: "muted", struck: false }
-      : { group: "clarify", label: "답변 필요", tone: "primary", struck: false };
+      ? { group: "done", label: t("task.status.pastQuestion"), tone: "muted", struck: false }
+      : { group: "clarify", label: t("task.status.needsAnswer"), tone: "primary", struck: false };
   }
-  if (action === "reject") return { group: "failed", label: "처리 불가", tone: "danger", struck: false };
-  if (hasActivePreview) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
-  if (isApplied) return { group: "done", label: "저장됨", tone: "primary", struck: false };
-  if (isRejected) return { group: "done", label: "거절됨", tone: "danger", struck: true };
-  if (isCancelled) return { group: "done", label: "취소됨", tone: "muted", struck: true };
+  if (action === "reject") return { group: "failed", label: t("task.status.unprocessable"), tone: "danger", struck: false };
+  if (hasActivePreview) return { group: "approval", label: t("task.status.awaitingReview"), tone: "primary", struck: false };
+  if (isApplied) return { group: "done", label: t("task.status.saved"), tone: "primary", struck: false };
+  if (isRejected) return { group: "done", label: t("task.status.rejected"), tone: "danger", struck: true };
+  if (isCancelled) return { group: "done", label: t("task.status.cancelled"), tone: "muted", struck: true };
   if (action === "markdown_edit" || action === "markdown_create") {
-    if (isProposalSetAside) return { group: "approval", label: "검토 대기", tone: "primary", struck: false };
-    if (isDocumentPurged) return { group: "done", label: DOCUMENT_PURGED_TASK_LABEL, tone: "muted", struck: false };
+    if (isProposalSetAside) return { group: "approval", label: t("task.status.awaitingReview"), tone: "primary", struck: false };
+    if (isDocumentPurged) return { group: "done", label: t("task.status.documentPurged"), tone: "muted", struck: false };
     // 수락하지 않았다고 적는 것은 서버 버전 기록까지 확인한 편집뿐이다. 새 문서 초안은 서버로 확인할 수 없어 다른 브라우저에서 수락했을 수 있다.
     const isUnconfirmed = isProposalHeld || action === "markdown_create";
-    return { group: "done", label: isUnconfirmed ? "제안 완료" : "수락하지 않음", tone: "muted", struck: false };
+    return { group: "done", label: isUnconfirmed ? t("task.status.proposed") : t("task.status.notAccepted"), tone: "muted", struck: false };
   }
-  return { group: "done", label: "답변", tone: "muted", struck: false };
+  return { group: "done", label: t("task.status.answered"), tone: "muted", struck: false };
 }
 
-export const AUTO_APPROVED_LABEL = "자동 승인됨";
-
-/** 자동 승인으로 실행한 계획은 상태 뒤에 "자동 승인됨"을 붙여 직접 승인한 작업과 구별한다. */
-export function withAutoApprovalLabel(status: TaskStatusView, isAutoApproved: boolean): TaskStatusView {
+/** 자동 승인으로 실행한 계획은 상태 뒤에 "자동 승인됨"(agentChat.task.status.autoApproved)을 붙여 직접 승인한 작업과 구별한다. */
+export function withAutoApprovalLabel(status: TaskStatusView, isAutoApproved: boolean, t: AgentChatTranslator): TaskStatusView {
   if (!isAutoApproved || status.group === "approval") return status;
-  return { ...status, label: `${status.label} · ${AUTO_APPROVED_LABEL}` };
+  return { ...status, label: `${status.label} · ${t("task.status.autoApproved")}` };
 }
 
 /** 같은 작업을 다시 실행한 것으로 볼 기준: 스킬 요청은 `/slug`, 그 밖에는 요청 문장 그대로. */
@@ -419,7 +403,7 @@ export function supersededTaskKeys<T extends Pick<TaskMessageItem, "key" | "requ
 
 /** 완료 묶음에서 한 줄 대신 답을 카드로 보일 작업. 폴더 내용 조회와 대화형 답변(첨부 문서를 근거로 한 답 등)은 답이 곧 결과다. */
 export function isAnswerTask(item: Pick<TaskMessageItem, "action" | "messageStatus" | "answer">): boolean {
-  const isAnswerAction = item.action === "folder_lookup" || (item.action !== null && CHAT_ANSWER_ACTIONS.has(item.action));
+  const isAnswerAction = item.action === "product_help" || item.action === "folder_lookup" || (item.action !== null && CHAT_ANSWER_ACTIONS.has(item.action));
   return isAnswerAction && item.messageStatus === "completed" && item.answer !== "";
 }
 
@@ -462,9 +446,9 @@ export function collectServerAppliedTurnIds(
 }
 
 /** 상태별 묶음으로 나눈다. 묶음 안은 보낸 순서를 지킨다. 빈 묶음은 뺀다. */
-export function groupTaskEntries<T extends { status: TaskStatusView }>(entries: T[]) {
+export function groupTaskEntries<T extends { status: TaskStatusView }>(entries: T[], t: AgentChatTranslator) {
   return TASK_GROUPS
-    .map(({ group, label }) => ({ group, label, entries: entries.filter((entry) => entry.status.group === group) }))
+    .map((group) => ({ group, label: t(`task.group.${group}`), entries: entries.filter((entry) => entry.status.group === group) }))
     .filter((section) => section.entries.length > 0);
 }
 
@@ -478,11 +462,11 @@ export type SkillPickerItem = { id: string; slug: string; description: string };
 export type SkillPickerGroup = { kind: "document" | "folder"; label: string; items: SkillPickerItem[] };
 
 /** 사용 중인 스킬을 문서·폴더 정리 두 묶음으로 나누고 slug·설명으로 거른다. */
-export function buildSkillPickerGroups(skills: SkillResponse[], query: string): SkillPickerGroup[] {
+export function buildSkillPickerGroups(skills: SkillResponse[], query: string, t: AgentChatTranslator): SkillPickerGroup[] {
   const needle = query.trim().toLowerCase();
   const groups: SkillPickerGroup[] = [
-    { kind: "document", label: "문서", items: [] },
-    { kind: "folder", label: "폴더 정리", items: [] }
+    { kind: "document", label: t("task.kind.document"), items: [] },
+    { kind: "folder", label: t("task.kind.folderOrganize"), items: [] }
   ];
   for (const skill of skills) {
     const version = skill.enabled_version;
@@ -520,11 +504,11 @@ export function skillSheetPanelView(
 }
 
 /** 선택 칩 문구(Figma 1627:9923 "선택 : 연구 개요 문단"). 선택한 첫 줄을 짧게 줄인다. */
-export function selectionChipLabel(markdown: string, startLine: number, endLine: number, maxLength = 12): string {
+export function selectionChipLabel(markdown: string, startLine: number, endLine: number, t: AgentChatTranslator, maxLength = 12): string {
   const lines = markdown.split("\n").slice(Math.max(0, startLine - 1), Math.max(startLine, endLine));
   const text = lines.map((line) => line.replace(/^\s*(#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s*)/, "").trim()).find(Boolean) ?? "";
   const short = text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
-  return short ? `선택 : ${short}` : `선택 : ${startLine}~${endLine}줄`;
+  return short ? t("task.selectionChip.text", { text: short }) : t("task.selectionChip.lines", { start: startLine, end: endLine });
 }
 
 /**
@@ -535,20 +519,21 @@ export function selectionChipLabel(markdown: string, startLine: number, endLine:
  */
 export function resolveTaskRequest(
   itemRequest: string | null | undefined,
-  runSummary: string | null | undefined
+  runSummary: string | null | undefined,
+  t: AgentChatTranslator
 ): { request: string; summary: string | null } {
   const original = (itemRequest ?? "").trim();
   const summary = runSummary?.trim().normalize("NFC") || null;
   if (original.startsWith("/")) return { request: original, summary: summary === original ? null : summary };
-  return { request: summary || original || "요청 내용 없음", summary: null };
+  return { request: summary || original || t("task.emptyRequest"), summary: null };
 }
 
 /**
  * 작업 카드 머리글(Figma 1671:13225 "문서 : /research-summary")과 따옴표 안 요청 문장. "/slug 요청"이면 둘로 나눈다.
  * 폴더 정리도 스킬로 실행했으면 Figma 1656:11824·1656:11856처럼 "문서 : /file-organize"로 쓴다.
  */
-export function describeTaskRequest(action: string | null, request: string): { heading: string; quote: string } {
-  const kind = taskHeadingKind(action, request);
+export function describeTaskRequest(action: string | null, request: string, t: AgentChatTranslator): { heading: string; quote: string } {
+  const kind = taskHeadingKind(action, request, t);
   const match = request.match(SKILL_REQUEST_PATTERN);
   if (!match) return { heading: kind, quote: request };
   return { heading: `${kind} : /${match[1]}`, quote: match[2]?.trim() || `/${match[1]}` };
@@ -560,6 +545,6 @@ const SKILL_REQUEST_PATTERN = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/;
  * 작업 카드 머리글·완료 행 앞의 종류. `/slug` 스킬 실행은 결과 action이 정해지기 전(진행 중)과 뒤(완료·되묻기·실패)가
  * 같도록 늘 "문서"로 적는다(Figma 1571:27625 "문서 : /file-organize"). 스킬이 아닌 요청은 action별 라벨을 쓴다.
  */
-export function taskHeadingKind(action: string | null, request: string): string {
-  return SKILL_REQUEST_PATTERN.test(request.trim()) ? "문서" : taskKindLabel(action);
+export function taskHeadingKind(action: string | null, request: string, t: AgentChatTranslator): string {
+  return SKILL_REQUEST_PATTERN.test(request.trim()) ? t("task.kind.document") : taskKindLabel(action, t);
 }

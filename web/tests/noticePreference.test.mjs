@@ -109,6 +109,16 @@ test("실제 발행 코드의 고정 제목은 빠짐없이 설정 목록에 등
         if (title && ts.isStringLiteral(title.initializer)) {
           assert.notEqual(noticeNotificationKey(notice(title.initializer.text)), "other", `${path}: ${title.initializer.text}`);
           checked += 1;
+        } else if (title && /\bt\w*\(|\.t\(|text\(|failure\.title/.test(title.initializer.getText(ast))) {
+          // 번역 문구 제목은 언어마다 달라 제목으로 분류할 수 없으므로 notificationKey(작업 로그는 operation)가 있어야 한다.
+          const key = node.arguments[0].properties.some((property) => ts.isPropertyAssignment(property) && ["notificationKey", "operation"].includes(property.name.getText(ast)));
+          const notificationKey = node.arguments[0].properties.find((property) => ts.isPropertyAssignment(property) && property.name.getText(ast) === "notificationKey");
+          if (notificationKey && ts.isStringLiteral(notificationKey.initializer)) assert.ok(Object.hasOwn(NOTIFICATION_SETTINGS, notificationKey.initializer.text), `${path}: 등록되지 않은 notificationKey ${notificationKey.initializer.text}`);
+          // 아직 옮기는 중인 영역이 있어 문서 영역(사이드바·편집기·업로드·미리보기)과 채팅·에이전트 패널부터 확인한다.
+          if (/\/(widgets\/document-sidebar|features\/note-editing|features\/document-upload|widgets\/source-preview|features\/agent-chat|widgets\/agent-panel)\//.test(path)) {
+            assert.ok(key, `${path}: ${title.initializer.getText(ast)}에 notificationKey가 없다`);
+          }
+          checked += 1;
         }
       }
       ts.forEachChild(node, visit);

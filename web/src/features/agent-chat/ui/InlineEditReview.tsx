@@ -8,6 +8,7 @@ import taskRejectIcon from "@/shared/assets/svg/agent/task-reject.svg";
 import { cx } from "@/shared/lib/classNames";
 import type { EditProposalDecision, EditProposalDecisions, EditReviewSegment } from "../lib/inlineEditReview";
 import styles from "./InlineEditReview.module.css";
+import { useTranslations } from "next-intl";
 
 /** 열린 문서 본문에 붙여 보여 줄 편집 제안(Figma 1571:27625). 작업 탭 카드와 같은 결정을 공유한다. */
 export type InlineEditReviewState = {
@@ -32,15 +33,16 @@ export function ProposalDecisionButtons({
   /** 버튼 접근 이름에 붙일 대상 */
   label?: string;
 }) {
+  const t = useTranslations("agentChat");
   return (
     <div className={styles.decisions}>
-      <button type="button" className={cx(styles.decision, styles["is-reject"])} disabled={disabled} aria-label={label ? `${label} 거절` : undefined} onClick={() => onDecide("rejected")}>
+      <button type="button" className={cx(styles.decision, styles["is-reject"])} disabled={disabled} aria-label={label ? t("review.rejectLabel", { label }) : undefined} onClick={() => onDecide("rejected")}>
         <Image src={taskRejectIcon} alt="" />
-        거절
+        {t("actions.reject")}
       </button>
-      <button type="button" className={styles.decision} disabled={disabled} aria-label={label ? `${label} 수락` : undefined} onClick={() => onDecide("accepted")}>
+      <button type="button" className={styles.decision} disabled={disabled} aria-label={label ? t("review.acceptLabel", { label }) : undefined} onClick={() => onDecide("accepted")}>
         <Image src={taskAcceptIcon} alt="" />
-        수락
+        {t("actions.accept")}
       </button>
     </div>
   );
@@ -48,11 +50,12 @@ export function ProposalDecisionButtons({
 
 /** 문서 제목 옆 "제안 N건 진행 중"(Figma 1610:8929): 주황 느낌표 + 왼쪽 꼬리 말풍선. */
 export function EditProposalBadge({ count }: { count: number }) {
+  const t = useTranslations("agentChat");
   return (
     <div className={styles.badge}>
       <Image src={warningIcon} alt="" />
       <span className={styles["badge-arrow"]} aria-hidden="true"><Image src={tooltipArrowIcon} alt="" /></span>
-      <span className={styles["badge-label"]} role="status">제안 {count}건 진행 중</span>
+      <span className={styles["badge-label"]} role="status">{t("review.badge", { count })}</span>
     </div>
   );
 }
@@ -72,8 +75,9 @@ function SegmentText({ lines, className }: { lines: string[]; className?: string
  * "[제안 : 출처]"·편집안·거절/수락. 정한 제안은 고른 쪽 글로만 남는다.
  */
 export function InlineEditReview({ review }: { review: InlineEditReviewState }) {
+  const t = useTranslations("agentChat");
   return (
-    <div className={styles.review} aria-label="AI 편집 제안 검토">
+    <div className={styles.review} aria-label={t("review.regionLabel")}>
       {review.segments.map((segment, position) => {
         if (segment.kind === "text") return <SegmentText key={`text-${position}`} lines={segment.lines} />;
         const decision = review.decisions[segment.index];
@@ -82,17 +86,17 @@ export function InlineEditReview({ review }: { review: InlineEditReviewState }) 
         }
         const hasProposedText = segment.proposedLines.some((line) => line.trim());
         return (
-          <section key={`proposal-${segment.index}`} className={styles.proposal} aria-label={`제안 ${segment.index + 1}`}>
+          <section key={`proposal-${segment.index}`} className={styles.proposal} aria-label={t("review.proposal", { number: segment.index + 1 })}>
             <SegmentText lines={segment.originalLines} className={styles.original} />
             <div className={styles.notice}>
               <Image src={noticeTailIcon} alt="" className={styles["notice-tail"]} />
-              <p className={styles["notice-source"]}>[제안 : {review.sourceLabel}]</p>
+              <p className={styles["notice-source"]}>{t("review.source", { source: review.sourceLabel })}</p>
               {hasProposedText
                 ? <SegmentText lines={segment.proposedLines} className={styles["notice-text"]} />
-                : <p className={styles["notice-source"]}>이 부분을 지웁니다.</p>}
+                : <p className={styles["notice-source"]}>{t("review.deletes")}</p>}
               <ProposalDecisionButtons
                 disabled={review.isBusy}
-                label={`제안 ${segment.index + 1}`}
+                label={t("review.proposal", { number: segment.index + 1 })}
                 onDecide={(next) => review.onDecide(segment.index, next)}
               />
             </div>

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return next(specifier + ".ts", context);
@@ -9,7 +10,10 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const { DOCUMENT_PERMISSION_FORBIDDEN_MESSAGE, FOLDER_EDIT_FORBIDDEN_MESSAGE, FOLDER_PERMISSION_OWNER_ONLY_MESSAGE, FOLDER_WITH_ITEMS_DELETE_MESSAGE, FOLDER_WRITE_FORBIDDEN_MESSAGE } = await import("../src/entities/tree/lib/treePermission.ts");
 const { planBulkDelete } = await import("../src/widgets/workspace/lib/treeBulkSelection.ts");
-const { treeItemMenuAccess, treeContextMenuSections, treeMenuBlockedActions, TREE_MENU_LABELS } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
+const { treeItemMenuAccess, treeContextMenuSections, treeMenuBlockedActions, TREE_MENU_MESSAGE_KEYS } = await import("../src/widgets/document-sidebar/model/treeItemActions.ts");
+const tMenu = koT("documents.tree.menu");
+const tTree = koT("documents.tree");
+const TREE_MENU_LABELS = Object.fromEntries(Object.entries(TREE_MENU_MESSAGE_KEYS).map(([id, key]) => [id, tMenu(key)]));
 
 const source = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -121,7 +125,8 @@ test("새 노트 추가 메뉴는 새 노트 항목에 포커스를 두어 Enter
 
 test("행 hover에는 ⋯ 버튼 하나만 두고 우클릭과 같은 메뉴를 연다", async () => {
   const treeNode = await source("widgets/document-sidebar/ui/TreeNode.tsx");
-  assert.match(treeNode, /aria-label="항목 메뉴 열기"/);
+  assert.match(treeNode, /aria-label=\{t\("rowMenu"\)\}/);
+  assert.equal(tTree("rowMenu"), "항목 메뉴 열기");
   assert.match(treeNode, /aria-haspopup="menu"/);
   assert.match(treeNode, /aria-expanded=\{interaction\.menuOpenItemId === item\.id\}/);
   assert.match(treeNode, /interaction\.onOpenFolderMenuAt\(projectId, item\.id, event\.currentTarget\)/);

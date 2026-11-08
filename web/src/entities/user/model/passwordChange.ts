@@ -1,6 +1,8 @@
 // 로그인 상태 비밀번호 변경(POST /api/auth/me/password/verification → confirm → PUT /api/auth/me/password/verified,
 // 또는 현재 비밀번호로 PUT /api/auth/me/password)의 요청 본문과 실패 code → 모달 상태 변환. 이 파일은 테스트가 직접 import하므로 다른 모듈을 import하지 않는다.
 
+import type { SharedMessageKey, SharedTranslate } from "@/shared/i18n/sharedTranslate";
+
 export type PasswordChangeBody = {
   new_password: string;
   verification_token: string;
@@ -49,30 +51,43 @@ export type PasswordChangeFailure = { recovery: PasswordChangeRecovery; message:
 
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
-const FAILURES: Record<string, { recovery: PasswordChangeRecovery; message: string }> = {
+const FAILURES: Record<string, { recovery: PasswordChangeRecovery; message: string; key: SharedMessageKey }> = {
   PASSWORD_LOGIN_UNAVAILABLE: {
     recovery: "unavailable",
-    message: "소셜 계정으로 가입한 계정은 여기서 비밀번호를 설정할 수 없습니다. 연동한 소셜 계정으로 로그인해 주세요."
+    message: "소셜 계정으로 가입한 계정은 여기서 비밀번호를 설정할 수 없습니다. 연동한 소셜 계정으로 로그인해 주세요.",
+    key: "user.passwordChange.passwordLoginUnavailable"
   },
   INVALID_VERIFICATION_TOKEN: {
     recovery: "resend",
-    message: "이메일 인증이 만료되었습니다. 인증번호를 다시 받아 입력해 주세요."
+    message: "이메일 인증이 만료되었습니다. 인증번호를 다시 받아 입력해 주세요.",
+    key: "user.passwordChange.invalidVerificationToken"
   },
-  INVALID_MFA_CODE: { recovery: "mfa", message: "인증 코드가 올바르지 않습니다." },
-  VERIFICATION_RATE_LIMITED: { recovery: "wait", message: "인증번호 요청이 너무 많습니다." },
-  MFA_RATE_LIMITED: { recovery: "wait", message: "인증 코드 확인 시도가 너무 많습니다." },
-  EMAIL_SEND_FAILED: { recovery: "retry", message: "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요." }
+  INVALID_MFA_CODE: { recovery: "mfa", message: "인증 코드가 올바르지 않습니다.", key: "user.passwordChange.invalidMfaCode" },
+  VERIFICATION_RATE_LIMITED: { recovery: "wait", message: "인증번호 요청이 너무 많습니다.", key: "user.passwordChange.verificationRateLimited" },
+  MFA_RATE_LIMITED: { recovery: "wait", message: "인증 코드 확인 시도가 너무 많습니다.", key: "user.passwordChange.mfaRateLimited" },
+  EMAIL_SEND_FAILED: {
+    recovery: "retry",
+    message: "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    key: "user.passwordChange.emailSendFailed"
+  }
 };
 
-/** 비밀번호 변경 실패를 서버 error.code 기준으로 모달 상태로 바꾼다. 모르는 code면 서버 메시지, 없으면 fallback. */
-export function passwordChangeFailure(error: unknown, fallback: string): PasswordChangeFailure {
+/**
+ * 비밀번호 변경 실패를 서버 error.code 기준으로 모달 상태로 바꾼다. 모르는 code면 서버 메시지, 없으면 fallback.
+ * t(`useTranslations("shared")`)를 넘기면 정해 둔 문구를 지금 언어로 쓴다.
+ */
+export function passwordChangeFailure(error: unknown, fallback: string, t?: SharedTranslate): PasswordChangeFailure {
   const { code, status, retryAfter } = (error ?? {}) as { code?: unknown; status?: unknown; retryAfter?: unknown };
-  const known = typeof code === "string" ? FAILURES[code] : undefined;
+  const known = typeof code === "string" && Object.hasOwn(FAILURES, code) ? FAILURES[code] : undefined;
   if (known?.recovery === "wait" || (!known && status === 429)) {
     const seconds = typeof retryAfter === "number" && retryAfter > 0 ? retryAfter : DEFAULT_RETRY_AFTER_SECONDS;
+    if (t) {
+      const reason = known ? t(known.key) : t("user.rateLimit.generic");
+      return { recovery: "wait", message: t("user.rateLimit.retryIn", { reason, seconds }), retryAfter: seconds };
+    }
     const reason = known?.message ?? "시도가 너무 많습니다.";
     return { recovery: "wait", message: `${reason} ${seconds}초 후 다시 시도해 주세요.`, retryAfter: seconds };
   }
-  if (known) return { ...known };
+  if (known) return { recovery: known.recovery, message: t ? t(known.key) : known.message };
   return { recovery: "retry", message: error instanceof Error && error.message ? error.message : fallback };
 }

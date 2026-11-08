@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { fetchSkills, type SkillResponse } from "@/entities/skill";
 import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
 import { AlertModal } from "@/shared/ui/modal/AlertModal";
@@ -10,12 +11,10 @@ import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { describeSkillSaveError, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
 import {
   isDocumentKind,
-  SKILL_KIND_CARDS,
-  SKILL_KIND_LABELS,
   SKILL_NAME_MAX,
-  SKILL_RESULT_OPTIONS,
-  SKILL_SCOPE_OPTIONS,
-  SKILL_TARGET_OPTIONS,
+  SKILL_TARGETS,
+  skillFieldErrorText,
+  skillKindLabel,
   type SkillKind,
   type SkillTarget
 } from "../lib/skillCreateForm";
@@ -33,25 +32,31 @@ import {
   type SkillDetailField,
   type SkillDetailForm
 } from "../lib/skillDetailForm";
-import { HelpTip, KIND_HELP, RESULT_HELP, SCOPE_HELP, SelectBox, SkillSafetyIssues, SourceField, TargetChecks } from "./SkillFormParts";
+import {
+  HelpTip,
+  KindHelp,
+  ResultHelp,
+  ScopeHelp,
+  SelectBox,
+  SkillSafetyIssues,
+  SourceField,
+  TargetChecks,
+  useSkillOptions
+} from "./SkillFormParts";
 import { SkillSheet, useSkillSheetClose } from "./SkillSheet";
 import { SkillTestRunCard } from "./SkillTestRunCard";
 import styles from "./SkillEditor.module.css";
 import detailStyles from "./SkillDetailEditor.module.css";
 
-const CLARIFY_FALLBACK = "무엇을 할지 조금 더 구체적으로 적어 주세요.";
-const REVIEW_FALLBACK = "안전 검토에서 위험한 표현이 발견되었습니다.";
-
-/** 종류를 알 수 없는 스킬(capabilities 해석 불가)을 열었을 때 스킬 종류 선택 상자에 보이는 문구 */
-const UNKNOWN_KIND_PLACEHOLDER = "알 수 없음";
-
 /**
  * 스킬 종류 선택지. 만들기 시트와 같이 문서·폴더 정리를 고르고, 템플릿은 새로 고를 수 없어 저장된 종류가 템플릿일 때만 둔다.
  */
-function kindOptions(savedKind: SkillKind | null): ReadonlyArray<{ value: SkillKind; label: string }> {
-  const options: Array<{ value: SkillKind; label: string }> = SKILL_KIND_CARDS.map(({ value, label }) => ({ value, label }));
-  if (savedKind === "template") options.push({ value: "template", label: SKILL_KIND_LABELS.template });
-  return options;
+function withSavedKind(
+  options: ReadonlyArray<{ value: SkillKind; label: string }>,
+  savedKind: SkillKind | null,
+  templateLabel: string
+): ReadonlyArray<{ value: SkillKind; label: string }> {
+  return savedKind === "template" ? [...options, { value: "template", label: templateLabel }] : options;
 }
 
 /**
@@ -83,6 +88,9 @@ export function SkillDetailEditor({
   onSubmit: (draft: SkillDetailDraft) => Promise<SkillAuthoringResult>;
   onDelete: () => Promise<void>;
 }) {
+  const t = useTranslations("skills");
+  const tShared = useTranslations("shared");
+  const { kindOptions, resultOptions, scopeOptions } = useSkillOptions();
   const idPrefix = useId();
   const fieldId = (name: string) => `${idPrefix}-${name}`;
   // 저장한 뒤 AI가 원문 문서를 바꿔 시트를 열어 둘 때는 저장된 값을 새 기준으로 삼는다.
@@ -122,7 +130,7 @@ export function SkillDetailEditor({
   function toggleTarget(target: SkillTarget, checked: boolean) {
     touch("targets");
     update({
-      targets: SKILL_TARGET_OPTIONS.map((option) => option.value).filter((value) =>
+      targets: SKILL_TARGETS.filter((value) =>
         value === target ? checked : form.targets.includes(value)
       )
     });
@@ -133,11 +141,11 @@ export function SkillDetailEditor({
     onSuccess: (result, draft) => {
       const outcome = skillAuthoringOutcome(result);
       if (outcome === "review") {
-        setIssues(result.issues?.length ? result.issues : [REVIEW_FALLBACK]);
+        setIssues(result.issues?.length ? result.issues : [t("review.issueFallback")]);
         return;
       }
       if (outcome === "clarify") {
-        setQuestion(result.question?.trim() || CLARIFY_FALLBACK);
+        setQuestion(result.question?.trim() || t("review.clarifyFallback"));
         return;
       }
       const sourceDrift = requiresSourceDrift(initialForm.requiresSource, draft.requires_source, result);
@@ -171,10 +179,10 @@ export function SkillDetailEditor({
     };
   };
   const errorText = (field: SkillDetailField) => {
-    const message = visibleError(field);
-    return message == null ? null : (
+    const error = visibleError(field);
+    return error == null ? null : (
       <small id={fieldId(`${field}-error`)} className={styles.error} role="alert">
-        {message}
+        {skillFieldErrorText(error, t)}
       </small>
     );
   };
@@ -186,15 +194,15 @@ export function SkillDetailEditor({
   // 테스트 실행은 종류를 알아야 capability를 정할 수 있다. 알 수 없는 capability면 테스트 실행을 두지 않는다.
   const testRunForm = form.kind != null ? skillDetailAuthorForm(form) : null;
   const testRun = testRunForm != null
-    ? <SkillTestRunCard workspaceId={workspaceId} form={testRunForm} label={`스킬 수정 · /${skill.slug}`} />
+    ? <SkillTestRunCard workspaceId={workspaceId} form={testRunForm} label={t("detail.testRunLabel", { slug: skill.slug })} />
     : undefined;
 
   return (
     <SkillSheet
       host={host}
       titleId={fieldId("title")}
-      headerLabel="스킬 상세"
-      title="스킬"
+      headerLabel={t("detail.headerLabel")}
+      title={t("detail.title")}
       subtitle={`/${skill.slug}`}
       testRun={testRun}
       testRunTarget={testRunTarget}
@@ -212,13 +220,13 @@ export function SkillDetailEditor({
             setIsDeleteConfirmOpen(true);
           }}
         >
-          스킬 삭제
+          {t("detail.delete")}
         </button>
       }
       actions={
         <>
           <button type="button" className={styles["cancel-button"]} onClick={sheetClose.requestClose}>
-            취소
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -227,7 +235,7 @@ export function SkillDetailEditor({
             aria-disabled={isBlocked}
             onClick={submit}
           >
-            {saveMutation.isPending ? "저장 중…" : "저장"}
+            {saveMutation.isPending ? t("detail.saving") : t("detail.save")}
           </button>
         </>
       }
@@ -238,15 +246,15 @@ export function SkillDetailEditor({
         <div className={styles.field}>
           <div className={styles["label-row"]}>
             <label className={styles.label} htmlFor={fieldId("kind")}>
-              스킬 종류
+              {t("form.kind")}
             </label>
-            <HelpTip label="스킬 종류" content={KIND_HELP} />
+            <HelpTip label={t("form.kind")} content={<KindHelp />} />
           </div>
           <SelectBox
             id={fieldId("kind")}
             value={form.kind}
-            options={kindOptions(initialForm.kind)}
-            placeholder={UNKNOWN_KIND_PLACEHOLDER}
+            options={withSavedKind(kindOptions, initialForm.kind, skillKindLabel("template", t))}
+            placeholder={t("form.unknownKind")}
             onChange={(kind) => update({ kind })}
           />
         </div>
@@ -257,26 +265,26 @@ export function SkillDetailEditor({
             <div className={styles.field}>
               <div className={styles["label-row"]}>
                 <label className={styles.label} htmlFor={fieldId("result")}>
-                  결과 방식
+                  {t("form.result")}
                 </label>
-                <HelpTip label="결과 방식" content={RESULT_HELP} />
+                <HelpTip label={t("form.result")} content={<ResultHelp />} />
               </div>
               <div className={styles.menu}>
                 <SelectBox
                   id={fieldId("result")}
                   value={form.resultMode}
-                  options={SKILL_RESULT_OPTIONS}
+                  options={resultOptions}
                   describedBy={fieldId("result-hint")}
                   onChange={(resultMode) => update({ resultMode })}
                 />
                 <p id={fieldId("result-hint")} className={styles.hint}>
-                  &apos;상황에 맞게&apos;는 대상이 애매하면 Agent가 되물어요.
+                  {t("form.resultHint")}
                 </p>
               </div>
             </div>
 
             <fieldset className={styles.field} {...errorProps("targets")}>
-              <legend className={cx(styles.label, styles.legend)}>대상</legend>
+              <legend className={cx(styles.label, styles.legend)}>{t("form.targets")}</legend>
               <TargetChecks targets={form.targets} onToggle={toggleTarget} />
               {errorText("targets")}
             </fieldset>
@@ -301,17 +309,17 @@ export function SkillDetailEditor({
         <div className={styles.field}>
           <div className={styles["label-row"]}>
             <label className={styles.label} htmlFor={fieldId("scope")}>
-              저장범위
+              {t("form.scope")}
             </label>
-            <HelpTip label="저장범위" content={SCOPE_HELP} />
+            <HelpTip label={t("form.scope")} content={<ScopeHelp />} />
           </div>
-          <SelectBox id={fieldId("scope")} value={form.scope} options={SKILL_SCOPE_OPTIONS} disabled onChange={() => undefined} />
+          <SelectBox id={fieldId("scope")} value={form.scope} options={scopeOptions} disabled onChange={() => undefined} />
         </div>
 
         {/* 커맨드명 → name (PATCH가 이 값으로 slug를 바꾼다) */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={fieldId("command")}>
-            커맨드명
+            {t("form.command")}
           </label>
           <div className={cx(styles.input, styles["command-input"])}>
             <span className={styles["command-prefix"]} aria-hidden>
@@ -338,7 +346,7 @@ export function SkillDetailEditor({
         {/* 설명 → description */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={fieldId("description")}>
-            설명
+            {t("form.description")}
           </label>
           <input
             id={fieldId("description")}
@@ -355,7 +363,7 @@ export function SkillDetailEditor({
         {/* 실행 규칙 → instructions_markdown (이전 형식의 "실행 대상" 절은 떼어 위 대상 필드로 보여 준다) */}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={fieldId("rules")}>
-            실행 규칙
+            {t("form.rules")}
           </label>
           <textarea
             id={fieldId("rules")}
@@ -373,7 +381,7 @@ export function SkillDetailEditor({
 
         {saveMutation.isError && (
           <p className={styles.error} role="alert">
-            {describeSkillSaveError(saveMutation.error, "스킬 정의를 수정하지 못했습니다.")}
+            {describeSkillSaveError(saveMutation.error, t, tShared)}
           </p>
         )}
       </div>
@@ -381,13 +389,13 @@ export function SkillDetailEditor({
       {isDeleteConfirmOpen && (
         <AlertModal
           titleId={fieldId("delete-title")}
-          title="스킬을 삭제하시겠습니까?"
-          description={`「/${skill.slug}」 스킬과 저장된 버전이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`}
+          title={t("deleteConfirm.title")}
+          description={t("deleteConfirm.description", { slug: skill.slug })}
           onClose={closeDeleteConfirm}
         >
           {deleteMutation.isError && (
             <p className={styles.error} role="alert">
-              {getErrorMessage(deleteMutation.error, "스킬을 삭제하지 못했습니다.")}
+              {getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}
             </p>
           )}
           <div className="modal-actions">
@@ -398,7 +406,7 @@ export function SkillDetailEditor({
               disabled={deleteMutation.isPending}
               onClick={closeDeleteConfirm}
             >
-              취소
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -406,7 +414,7 @@ export function SkillDetailEditor({
               disabled={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate()}
             >
-              {deleteMutation.isPending ? "삭제 중…" : "삭제"}
+              {deleteMutation.isPending ? t("common.deleting") : t("common.delete")}
             </button>
           </div>
         </AlertModal>
@@ -415,12 +423,12 @@ export function SkillDetailEditor({
       {question && (
         <AlertModal
           titleId={fieldId("clarify-title")}
-          title="실행 규칙을 조금 더 구체적으로 적어 주세요."
+          title={t("review.clarifyTitle")}
           description={question}
           onClose={() => setQuestion(null)}
         >
           <button type="button" className="modal-confirm-button" onClick={() => setQuestion(null)}>
-            확인
+            {t("common.confirm")}
           </button>
         </AlertModal>
       )}

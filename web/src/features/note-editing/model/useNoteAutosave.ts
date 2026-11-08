@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchNoteDraft, NoteContentConflictError, saveNoteDraft, type NoteSaveMerge } from "../api/note";
-import { LEGACY_CONFLICT_MESSAGE } from "./saveMerge";
 import { MAX_IMAGES_PER_SAVE, pendingImages, substituteAttachmentPaths, type SavedAttachment } from "./imageAttachments";
 import { composeEditableNoteMarkdown } from "@/entities/document/lib/noteMarkdown";
 import { isSessionExpired } from "@/shared/lib/authSessionStorage";
@@ -17,9 +16,23 @@ import {
 import { trackPendingDocumentSave } from "./pendingDocumentSaveTracker";
 import { registerDocumentSaveFlusher, waitForPendingDocumentSave } from "@/shared/lib/documentSaveBarrier";
 import { isWriteForbiddenError } from "@/entities/document/lib/documentAccess";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 
-/** 저장 403(DOCUMENT_WRITE_FORBIDDEN): 편집 중 권한이 바뀐 경우다. 서버 원문 대신 할 일을 안내한다. */
-const WRITE_FORBIDDEN_SAVE_MESSAGE = "이 문서의 편집 권한이 없어 저장하지 못했습니다. 본문을 복사해 두고 소유자나 OWNER에게 편집 권한을 요청해 주세요.";
+/**
+ * 저장 실패 안내 문구. 편집기가 화면 언어로 옮긴 documents.editor.save.* 문구를 넘긴다.
+ * - writeForbidden: 저장 403(DOCUMENT_WRITE_FORBIDDEN). 편집 중 권한이 바뀐 경우라 서버 원문 대신 할 일을 안내한다.
+ * - legacyConflict: 자동 병합 이전 서버의 409를 두 번 연달아 받았을 때. 저장은 막지 않고 다음 편집·Cmd/Ctrl+S에서 다시 보낸다.
+ * - tooManyImages: 한 번에 저장할 수 있는 새 이미지 수를 넘었을 때.
+ */
+export type NoteSaveMessages = { saveFailed: string; writeForbidden: string; legacyConflict: string; tooManyImages: string };
+
+/** 문구를 넘기지 않으면(테스트 등) 이유 코드를 그대로 쓴다. */
+const NOTE_SAVE_MESSAGE_CODES: NoteSaveMessages = {
+  saveFailed: "saveFailed",
+  writeForbidden: "writeForbidden",
+  legacyConflict: "legacyConflict",
+  tooManyImages: "tooManyImages"
+};
 
 /** 저장을 영구히 멈추는 사유. 그대로 NoteSaveStatus로 쓰인다. */
 type NoteSaveBlock = "lock-lost" | "session-expired";
@@ -51,7 +64,9 @@ export function useNoteAutosave({
   onAttachmentsSaved,
   onServerMerge,
   beforeFlush,
-  autoSave = true
+  autoSave = true,
+  messages = NOTE_SAVE_MESSAGE_CODES,
+  tShared
 }: {
   documentId: string;
   marker: string;
@@ -68,6 +83,9 @@ export function useNoteAutosave({
    * Cmd/Ctrl+S(saveNow), 다른 문서로 이동(언마운트), AI 편집 적용은 그대로 저장한다.
    */
   autoSave?: boolean;
+  messages?: NoteSaveMessages;
+  /** 서버 오류 문구를 지금 언어로 고르는 공용 번역 함수(`useTranslations("shared")`). */
+  tShared?: SharedTranslate;
 }) {
   const [status, setStatus] = useState<NoteSaveStatus>("saved");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -101,6 +119,10 @@ export function useNoteAutosave({
   const flushSaveRef = useRef<(candidate: PendingNoteSave) => Promise<boolean>>(async () => false);
   const onDetachedSaveCompleteRef = useRef(onDetachedSaveComplete);
   onDetachedSaveCompleteRef.current = onDetachedSaveComplete;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   const autoSaveRef = useRef(autoSave);
   autoSaveRef.current = autoSave;
   const beforeFlushRef = useRef(beforeFlush);
@@ -198,7 +220,7 @@ export function useNoteAutosave({
       const markdownToSave = substituteAttachmentPaths(saveCandidate.markdown, savedAttachmentPathsRef.current);
       const attachments = pendingImages.collect(markdownToSave);
       if (attachments.length > MAX_IMAGES_PER_SAVE) {
-        throw new Error(`한 번에 저장할 수 있는 새 이미지는 ${MAX_IMAGES_PER_SAVE}개까지입니다.`);
+        throw new Error(messagesRef.current.tooManyImages);
       }
       const saved = await saveNoteDraft(
         documentId,
@@ -257,9 +279,9 @@ export function useNoteAutosave({
         legacyConflictRetryRef.current = false;
         if (mountedRef.current) {
           setStatus("error");
-          setErrorMessage(LEGACY_CONFLICT_MESSAGE);
+          setErrorMessage(messagesRef.current.legacyConflict);
         } else {
-          onDetachedSaveCompleteRef.current?.({ success: false, error: new Error(LEGACY_CONFLICT_MESSAGE) });
+          onDetachedSaveCompleteRef.current?.({ success: false, error: new Error(messagesRef.current.legacyConflict) });
         }
         return false;
       } else if (isWriteForbiddenError(error)) {
@@ -282,7 +304,7 @@ export function useNoteAutosave({
         if (mountedRef.current) setStatus("error");
       }
       if (mountedRef.current) {
-        setErrorMessage(isWriteForbiddenError(error) ? WRITE_FORBIDDEN_SAVE_MESSAGE : getErrorMessage(error, "노트를 저장하지 못했습니다."));
+        setErrorMessage(isWriteForbiddenError(error) ? messagesRef.current.writeForbidden : getErrorMessage(error, messagesRef.current.saveFailed, tSharedRef.current));
       } else {
         onDetachedSaveCompleteRef.current?.({ success: false, error });
       }

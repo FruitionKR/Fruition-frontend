@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ERROR_MESSAGES } from "@/shared/api/client";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { SessionExpiredError } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
 import { acquireEditLock, EditLockDeniedError, EditLockHeldError, EditLockLostError, EditLockUnsupportedError, releaseEditLock, sendEditLockHeartbeat, type EditLockResponse } from "../api/editLock";
 import { createEditLockHandoffs, type HeldEditLock } from "./editLockHandoff";
 import { HEARTBEAT_RETRY_MS, resolveHeartbeatDelayMs, resolveHeartbeatFailure, resolveLockElapsedMs, resolveLockRemainingMs, type LockClockAnchor } from "./editLockSchedule";
@@ -49,12 +50,17 @@ export function discardEditLockHandoffs() {
  */
 export function useEditLock({
   documentId,
-  onLockLost
+  onLockLost,
+  tShared
 }: {
   documentId: string;
   /** 잠금을 잃어 더 이상 저장해서는 안 될 때. useNoteAutosave의 reportSaveBlock에 연결한다. */
   onLockLost: (message: string) => void;
+  /** 서버 오류 문구를 지금 언어로 고르는 공용 번역 함수(`useTranslations("shared")`). */
+  tShared?: SharedTranslate;
 }): EditLockState {
+  const tSharedRef = useRef(tShared);
+  tSharedRef.current = tShared;
   const [state, setState] = useState<EditLockState>(() => {
     const unsupported = unsupportedLockDocuments.get(documentId);
     return unsupported ? { phase: "error", message: unsupported } : { phase: "acquiring", message: null };
@@ -137,7 +143,7 @@ export function useEditLock({
         }
         const action = resolveHeartbeatFailure(error, remainingMs, resolveLockElapsedMs(anchor, performance.now(), Date.now()));
         if (action === "terminal") {
-          loseLock(getErrorMessage(error, ERROR_MESSAGES.editLockExpired));
+          loseLock(getErrorMessage(error, ERROR_MESSAGES.editLockExpired, tSharedRef.current));
           return;
         }
         if (disposed) return;
@@ -178,7 +184,7 @@ export function useEditLock({
           || error instanceof SessionExpiredError
           ? error
           : lastError;
-        loseLock(getErrorMessage(reason, ERROR_MESSAGES.editLockExpired));
+        loseLock(getErrorMessage(reason, ERROR_MESSAGES.editLockExpired, tSharedRef.current));
       }
     }
 
@@ -251,7 +257,7 @@ export function useEditLock({
         setState(
           error instanceof EditLockHeldError
             ? { phase: "held", message: error.message }
-            : { phase: "error", message: getErrorMessage(error, ERROR_MESSAGES.editLockFailed) }
+            : { phase: "error", message: getErrorMessage(error, ERROR_MESSAGES.editLockFailed, tSharedRef.current) }
         );
       }
     );

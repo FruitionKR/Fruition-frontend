@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { DocumentItemResponse } from "@/entities/document";
 import { useWikiActionPermissions } from "@/features/wiki-ingest/model/useWikiActionPermissions";
 import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
@@ -28,11 +29,13 @@ export function GraphRailActions({
   onToggleSelecting: () => void;
   onLint: () => void;
 }) {
+  const t = useTranslations("documents.wiki");
+  const tWiki = useTranslations("wiki");
   const { isLintActive, isLintEnabled, lintHint, isMaintenanceStatusError, refetchMaintenanceStatus } =
     useGraphWikiStatus({ documents, pending });
   const { canIngest, canLint } = useWikiActionPermissions();
-  const ingestGate = getWikiActionGate(canIngest, "ingest");
-  const lintGate = getWikiActionGate(canLint, "lint");
+  const ingestGate = getWikiActionGate(canIngest, "ingest", tWiki);
+  const lintGate = getWikiActionGate(canLint, "lint", tWiki);
   const isIngestDisabled = !isSelecting && (ingestGate.isBlocked || pending !== null || isLintActive);
   // 말풍선 보조줄: 선택 중이면 취소 단축키, 막혀 있으면 짧은 사유
   const ingestHint = isSelecting
@@ -40,10 +43,11 @@ export function GraphRailActions({
     : ingestGate.isBlocked
       ? ingestGate.hint
       : isIngestDisabled
-        ? (pending === "ingest" ? "진행 중이에요" : "최신화 중에는 할 수 없어요")
+        ? (pending === "ingest" ? t("hint.inProgress") : t("hint.blockedByLint"))
         : null;
+  const pendingIngestCount = selectPendingIngestDocuments(documents).length;
   const ingestIndicator = getIngestIndicator({
-    pendingCount: selectPendingIngestDocuments(documents).length,
+    pendingCount: pendingIngestCount,
     isSelecting,
     isDisabled: isIngestDisabled
   });
@@ -52,8 +56,8 @@ export function GraphRailActions({
   return (
     <RailGroup>
       <RailButton
-        label={pending === "ingest" ? "위키 편입 중" : (ingestIndicator.label ?? "위키 편입")}
-        tooltip={isSelecting ? "선택 취소" : (ingestIndicator.tooltip ?? "위키 편입")}
+        label={pending === "ingest" ? t("ingest.running") : ingestIndicator.isLit ? t("ingest.litLabel", { count: pendingIngestCount }) : t("ingest.label")}
+        tooltip={isSelecting ? t("cancelSelection") : ingestIndicator.isLit ? t("ingest.litTooltip", { count: pendingIngestCount }) : t("ingest.label")}
         tooltipHint={ingestHint}
         isActive={isSelecting}
         hasIndicator={ingestIndicator.isLit}
@@ -68,10 +72,10 @@ export function GraphRailActions({
         <RailIngestIcon />
       </RailButton>
       <RailButton
-        label={isMaintenanceStatusError && !lintGate.isBlocked ? "위키 최신화 상태 재확인" : (lintIndicator.label ?? "위키 최신화")}
-        tooltip={lintIndicator.tooltip ?? "위키 최신화"}
+        label={isMaintenanceStatusError && !lintGate.isBlocked ? t("lint.recheck") : lintIndicator.isLit ? t("lint.litLabel") : t("lint.label")}
+        tooltip={lintIndicator.isLit ? t("lint.litTooltip") : t("lint.label")}
         hasIndicator={lintIndicator.isLit}
-        tooltipHint={isSelecting ? "문서 선택 중에는 할 수 없어요" : lintGate.isBlocked ? lintGate.hint : lintHint}
+        tooltipHint={isSelecting ? t("hint.blockedBySelection") : lintGate.isBlocked ? lintGate.hint : lintHint}
         className={cx(pending === "lint" && styles["is-spinning"])}
         disabled={isSelecting || lintGate.isBlocked || (!isLintEnabled && !isMaintenanceStatusError)}
         onClick={(event) => {

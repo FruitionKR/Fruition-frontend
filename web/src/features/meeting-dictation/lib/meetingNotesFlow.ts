@@ -1,5 +1,7 @@
 import { describeMeetingNotesError, describeMeetingRecordingError } from "@/shared/lib/aiErrorCodes";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
+import type { SharedTranslate } from "@/shared/i18n/sharedTranslate";
+import type { MeetingTranslate } from "./meetingTranslate";
 
 // 회의 화면의 단계와 단계별 문구. 화면(MeetingNotesView)과 상태 훅(useMeetingSession)이 같이 쓴다.
 
@@ -27,22 +29,10 @@ export function isCapturingPhase(phase: MeetingPhase): boolean {
   return phase === "starting" || phase === "recording" || phase === "reconnecting";
 }
 
-export const MEETING_TITLES: Record<Exclude<MeetingPhase, "idle">, string> = {
-  starting: "녹음 준비 중",
-  recording: "녹음하는 중",
-  reconnecting: "다시 연결하는 중",
-  finishing: "녹음 마무리 중",
-  stopped: "대화 내용",
-  generating: "회의록 작성 중",
-  ready: "회의록",
-  previewing: "문서 끝에 추가 미리보기",
-  saving: "회의록 저장 중",
-  applied: "회의록 저장됨",
-  uploading: "녹음 파일 올리는 중",
-  transcribing: "녹음 파일 글로 옮기는 중",
-  deleting: "회의 삭제 중",
-  opening: "회의 불러오는 중"
-};
+/** 회의 화면 제목. 문구는 meeting 메시지 titles에 둔다. */
+export function meetingTitle(phase: Exclude<MeetingPhase, "idle">, t: MeetingTranslate): string {
+  return t(`titles.${phase}`);
+}
 
 /**
  * 회의 화면을 닫을 수 없는 단계. 받아쓰기·업로드·저장·삭제가 끝나거나 취소한 뒤 닫는다.
@@ -88,43 +78,27 @@ export function canDeleteMeetingInPhase(phase: MeetingPhase): boolean {
 }
 
 /** 카드 아래 진행 표시(Figma 1540:22956) 문구. 진행 중이 아닌 단계는 null */
-export function meetingProgressText(phase: MeetingPhase, uploadPercent: number | null = null): string | null {
+export function meetingProgressText(phase: MeetingPhase, t: MeetingTranslate, uploadPercent: number | null = null): string | null {
   switch (phase) {
-    case "uploading": return uploadPercent === null ? "녹음 파일을 올리고 있어요…" : `녹음 파일을 올리고 있어요… ${uploadPercent}%`;
-    case "transcribing": return "녹음 파일을 글로 옮기고 있어요. 긴 녹음은 몇 분 걸릴 수 있어요…";
-    case "deleting": return "회의를 삭제하고 있어요…";
-    case "opening": return "회의를 불러오고 있어요…";
-    case "starting": return "마이크를 켜고 녹음을 준비하고 있어요…";
-    case "recording": return "녹음하면서 글로 옮기고 있어요…";
-    case "reconnecting": return "연결이 끊겨 다시 연결하고 있어요…";
-    case "finishing": return "남은 문장을 저장하고 있어요…";
-    case "generating": return "답변을 작성하고 있어요…";
-    case "saving": return "문서에 저장하고 있어요…";
+    case "uploading": return uploadPercent === null ? t("progress.uploading") : t("progress.uploadingPercent", { percent: uploadPercent });
+    case "transcribing":
+    case "deleting":
+    case "opening":
+    case "starting":
+    case "recording":
+    case "reconnecting":
+    case "finishing":
+    case "generating":
+    case "saving":
+      return t(`progress.${phase}`);
     default: return null;
   }
 }
 
-export const MEETING_MESSAGES = {
-  unsupported: "이 브라우저는 회의 녹음을 지원하지 않습니다.",
-  emptyTranscript: "글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
-  incompleteTranscript: "일부 구간이 저장되지 않았습니다. 저장된 내용만으로 회의록을 만들 수 있습니다.",
-  liveStillOpen: "녹음 연결이 아직 닫히지 않았습니다. 잠시 후 다시 시도해 주세요.",
-  notesCancelled: "회의록 만들기를 취소했습니다.",
-  revisionChanged: "미리 본 뒤 문서가 바뀌었습니다. 다시 미리 보고 저장해 주세요.",
-  outdated: "더 최근에 만든 회의록이 있습니다. 최신 회의록으로 다시 시도해 주세요.",
-  alreadyApplied: "이 회의록은 이미 저장했거나 저장하는 중입니다. 잠시 후 회의를 다시 열어 확인해 주세요.",
-  duplicateName: "같은 이름의 문서가 많아 저장하지 못했습니다. 다시 시도하면 다음 번호로 저장합니다.",
-  saved: "회의록을 문서로 저장했습니다.",
-  autoSaved: "설정의 'AI 에이전트 자동 승인'에 따라 회의록을 확인 없이 새 문서로 저장했습니다. 필요 없으면 그 문서를 휴지통으로 옮기세요.",
-  emptyRecordingTranscript: "녹음에서 글로 옮긴 내용이 없어 회의록을 만들 수 없습니다.",
-  uploadCancelled: "녹음 파일 올리기를 취소했습니다.",
-  uploadCancelTooLate: "올리기를 취소하기 전에 글로 옮기기가 시작됐고 멈추지 못했어요. 글로 옮기기 취소를 눌러 주세요."
-} as const;
-
-/** 녹음 파일 업로드·전사 취소·재생·삭제 오류 문구. 알려진 code는 화면 문구, 402·권한 등은 앱 공통 문구를 쓴다. */
-export function describeRecordingError(error: unknown, fallback: string): string {
+/** 녹음 파일 업로드·전사 취소·재생·삭제 오류 문구. 알려진 code는 화면 문구, 402·권한 등은 앱 공통 문구(ts)를 쓴다. */
+export function describeRecordingError(error: unknown, fallback: string, ts?: SharedTranslate): string {
   const code = error instanceof ApiError ? error.code : undefined;
-  return describeMeetingRecordingError(code) ?? getErrorMessage(error, fallback);
+  return describeMeetingRecordingError(code, ts) ?? getErrorMessage(error, fallback, ts);
 }
 
 type NotesRequestError = {
@@ -136,22 +110,30 @@ type NotesRequestError = {
 };
 
 /** 회의록 생성 요청(POST notes)의 HTTP 오류를 안내 문구로 바꾼다. */
-export function describeNotesRequestError(error: unknown): NotesRequestError {
+export function describeNotesRequestError(error: unknown, t: MeetingTranslate, ts?: SharedTranslate): NotesRequestError {
   const code = error instanceof ApiError ? error.code : undefined;
   const result = (message: string, flags: Partial<NotesRequestError> = {}) => ({ message, incomplete: false, liveStillOpen: false, ...flags });
-  if (code === "MEETING_TRANSCRIPT_INCOMPLETE") return result(MEETING_MESSAGES.incompleteTranscript, { incomplete: true });
-  if (code === "MEETING_TRANSCRIPT_EMPTY") return result(MEETING_MESSAGES.emptyTranscript);
-  if (code === "MEETING_LIVE_IN_USE") return result(MEETING_MESSAGES.liveStillOpen, { liveStillOpen: true });
-  if (code === "MEETING_NOTES_BUSY") return result(describeMeetingNotesError(code));
-  return result(getErrorMessage(error, "회의록을 요청하지 못했습니다."));
+  if (code === "MEETING_TRANSCRIPT_INCOMPLETE") return result(t("messages.incompleteTranscript"), { incomplete: true });
+  if (code === "MEETING_TRANSCRIPT_EMPTY") return result(t("messages.emptyTranscript"));
+  if (code === "MEETING_LIVE_IN_USE") return result(t("messages.liveStillOpen"), { liveStillOpen: true });
+  if (code === "MEETING_NOTES_BUSY") return result(describeMeetingNotesError(code, ts));
+  return result(getErrorMessage(error, t("errors.notesFailed"), ts));
 }
 
 /** 저장(apply)·미리보기(append-preview) 오류 문구 */
-export function describeNotesSaveError(error: unknown, fallback: string): string {
+export function describeNotesSaveError(error: unknown, fallback: string, t: MeetingTranslate, ts?: SharedTranslate): string {
   const code = error instanceof ApiError ? error.code : undefined;
-  if (code === "DOCUMENT_REVISION_CHANGED") return MEETING_MESSAGES.revisionChanged;
-  if (code === "MEETING_NOTES_OUTDATED") return MEETING_MESSAGES.outdated;
-  if (code === "MEETING_NOTES_ALREADY_APPLIED") return MEETING_MESSAGES.alreadyApplied;
-  if (code === "DUPLICATE_NAME") return MEETING_MESSAGES.duplicateName;
-  return getErrorMessage(error, fallback);
+  if (code === "DOCUMENT_REVISION_CHANGED") return t("messages.revisionChanged");
+  if (code === "MEETING_NOTES_OUTDATED") return t("messages.outdated");
+  if (code === "MEETING_NOTES_ALREADY_APPLIED") return t("messages.alreadyApplied");
+  if (code === "DUPLICATE_NAME") return t("messages.duplicateName");
+  return getErrorMessage(error, fallback, ts);
+}
+
+/** 마이크를 열지 못한 사유 문구(getUserMedia 오류 이름으로 고른다). */
+export function describeMeetingMicrophoneError(error: unknown, t: MeetingTranslate): string {
+  const name = error instanceof Error ? error.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return t("messages.microphoneDenied");
+  if (name === "NotFoundError" || name === "OverconstrainedError") return t("messages.noMicrophone");
+  return t("messages.microphoneFailed");
 }

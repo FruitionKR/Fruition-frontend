@@ -18,6 +18,7 @@ const STUB_NOTICES = `data:text/javascript,${encodeURIComponent(`
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "react") return nextResolve(new URL("./reactHookShim.mjs", import.meta.url).href, context);
+    if (specifier === "next-intl") return nextResolve(new URL("./fakeNextIntl.mjs", import.meta.url).href, context);
     if (specifier === "@/entities/document") return { url: STUB_DOCUMENT, shortCircuit: true };
     if (specifier === "@/features/document-notifications") return { url: STUB_NOTICES, shortCircuit: true };
     if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);

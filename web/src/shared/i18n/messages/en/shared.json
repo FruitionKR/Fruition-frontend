@@ -1,0 +1,451 @@
+{
+  "errors": {
+    "chatSessionLimit": "Each workspace can have up to 10 conversations. Delete one you no longer need from the ⋮ menu in the conversation list to start a new one.",
+    "insufficientCredit": "You don't have enough credits.",
+    "permissionRequired": "This action requires the ''{permission}'' permission. Ask a workspace OWNER to grant it.",
+    "permissionRequiredGeneric": "You don't have permission for this action. Ask a workspace OWNER to grant it.",
+    "aiDailyLimit": "You've used all of today's AI usage. Please try again tomorrow.",
+    "aiDailyLimitUntil": "You've used all of today's AI usage. You can use AI again from {resetAt}.",
+    "resetTime": {
+      "tomorrowMidnight": "midnight tomorrow ({date, date, ::MMMd})",
+      "midnight": "midnight on {date, date, ::MMMd}",
+      "dateTime": "{date, date, ::MMMd}, {date, time, ::jmm}"
+    },
+    "upload": {
+      "fileTooLarge": "This file is too large to upload. Try a smaller file.",
+      "tooManyFiles": "That's more files than you can upload at once. Upload them in smaller batches.",
+      "storageQuotaExceeded": "Your storage is full. Delete documents you no longer need and upload again.",
+      "uploadDailyLimitExceeded": "You've reached today's upload limit. Please try again tomorrow."
+    },
+    "requestTimeout": "The response took too long, so we stopped waiting. Please try again in a moment.",
+    "requestAborted": "The request was interrupted. Please try again.",
+    "connectionLost": "The connection to the server was lost before a response arrived. Please try again.",
+    "workspaceNotFound": "This workspace doesn't exist or you don't have access to it.",
+    "agentNotConfigured": "AI actions are unavailable because of the server configuration. Please contact your administrator.",
+    "agentRouteContractFailed": "We couldn't process the AI's task classification. Please try again."
+  },
+  "permissions": {
+    "wikiIngest": {
+      "label": "Add to wiki",
+      "description": "Add documents to the team wiki, including documents exported from chats."
+    },
+    "wikiLint": {
+      "label": "Refresh wiki",
+      "description": "Bring the whole team wiki up to date (wiki refresh)."
+    },
+    "skillAuthor": {
+      "label": "Write skills",
+      "description": "Write and publish team skills."
+    },
+    "wikiRestore": {
+      "label": "Undo actions",
+      "description": "Undo AI actions run by other members. You can always undo your own."
+    },
+    "documentConvert": {
+      "label": "Convert PDFs",
+      "description": "Convert PDFs uploaded by other members. You can always convert your own uploads."
+    }
+  },
+  "aiErrors": {
+    "tts": {
+      "providerUnavailable": "We couldn't reach the voice service. Please try again in a moment.",
+      "providerRateLimited": "Too many requests right now. Please try again in a moment.",
+      "deadlineExceeded": "Generating the audio took too long, so it was stopped.",
+      "internalError": "We couldn't generate the audio."
+    },
+    "meetingNotes": {
+      "inputRejected": "The meeting content is in a format we can't process. Check the recording or transcript.",
+      "unavailable": "We couldn't reach the meeting notes service. Please try again in a moment.",
+      "failed": "We couldn't create the meeting notes.",
+      "invalid": "The meeting notes result was invalid, so it wasn't saved.",
+      "timeout": "Creating the meeting notes took too long, so it was stopped.",
+      "cancelled": "Meeting notes creation was cancelled.",
+      "busy": "Other meeting notes are being created in this workspace. Please try again when they're done."
+    },
+    "meetingRecording": {
+      "tooLarge": "Recordings must be 500 MB or smaller.",
+      "unsupported": "Only WAV, MP3, M4A, and WebM recordings can be uploaded.",
+      "empty": "The recording is empty.",
+      "sizeMismatch": "The uploaded file size doesn't match. Please upload it again.",
+      "uploadRejected": "The upload expired or is invalid. Please upload it again.",
+      "notAllowed": "Recordings can't be uploaded right now.",
+      "liveInUse": "The recording connection hasn't closed yet. Please try again in a moment.",
+      "notTranscribing": "Transcription has already finished.",
+      "transcribing": "You can't delete this while it's being transcribed. Cancel the transcription or wait until it finishes.",
+      "changed": "The recording changed while it was being deleted. Please delete it again.",
+      "notFound": "There's no recording.",
+      "storageFailed": "We couldn't reach recording storage. Please try again in a moment.",
+      "meetingNotFound": "We couldn't find this meeting. It may already have been deleted."
+    },
+    "transcriptionFailed": "We couldn't transcribe the recording. Please upload it again."
+  },
+  "password": {
+    "tooShort": "Your password must be at least 8 characters.",
+    "tooLong": "Your password must be 72 characters or fewer.",
+    "needsLetterAndDigit": "Use a combination of letters and numbers."
+  },
+  "relativeTime": {
+    "justNow": "Just now",
+    "minutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+    "hours": "{count, plural, one {# hour ago} other {# hours ago}}",
+    "days": "{count, plural, one {# day ago} other {# days ago}}",
+    "weeks": "{count, plural, one {# week ago} other {# weeks ago}}",
+    "months": "{count, plural, one {# month ago} other {# months ago}}",
+    "years": "{count, plural, one {# year ago} other {# years ago}}"
+  },
+  "verification": {
+    "codeLabel": "6-digit code",
+    "codeLabelDevelopment": "6-digit code (development: {code})",
+    "tooFrequent": "Too many verification requests. Please try again in {wait}.",
+    "wait": {
+      "seconds": "{count, plural, one {# second} other {# seconds}}",
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "hours": "{count, plural, one {# hour} other {# hours}}",
+      "hoursMinutes": "{hours, plural, one {# hour} other {# hours}} {minutes, plural, one {# minute} other {# minutes}}"
+    }
+  },
+  "ui": {
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "documentLoading": "Loading the document.",
+    "documentRendering": "Preparing the document for display.",
+    "documentRenderingDetail": "Long documents or documents with tables and formulas can take a while to prepare.",
+    "closeSearch": "Close search",
+    "quotedName": "“{name}”",
+    "image": {
+      "alt": "Image",
+      "externalLabel": "External image not shown ({host})",
+      "external": "External images aren't shown · {host}",
+      "unsupported": "This image can't be shown",
+      "loadFailed": "We couldn't load this image"
+    },
+    "codeBlock": {
+      "copy": "Copy",
+      "copyLabel": "Copy code",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "copiedAnnouncement": "Code copied.",
+      "copyFailedAnnouncement": "We couldn't copy the code. Select it and copy it manually."
+    },
+    "deleteConfirm": {
+      "folderTitle": "Delete this folder?",
+      "documentTitle": "Delete this document?",
+      "folderDescription": "The folder “{name}” and everything in it will be deleted. Documents in the folder can be restored from the trash for 30 days.",
+      "documentDescription": "The document “{name}” will be deleted. You can restore it from the trash for 30 days.",
+      "confirm": "Delete"
+    },
+    "bulkDeleteConfirm": {
+      "title": "{count, plural, one {Delete # item?} other {Delete # items?}}",
+      "items": "{names} will be deleted.",
+      "itemsWithRest": "{names} and {rest, plural, one {# other item} other {# other items}} will be deleted.",
+      "folderNote": "Folders are deleted along with everything inside them.",
+      "skippedNote": "{count, plural, one {# item that can't be deleted will be skipped.} other {# items that can't be deleted will be skipped.}}",
+      "trashNote": "Deleted documents can be restored from the trash for 30 days.",
+      "confirm": "{count, plural, one {Delete # item} other {Delete # items}}"
+    },
+    "mergeConfirm": {
+      "title": "Group into a new folder?",
+      "description": "A new folder “{folder}” will be created containing “{source}” and “{target}”. You can rename the folder later.",
+      "confirm": "Create folder"
+    }
+  },
+  "user": {
+    "fallbackName": "User",
+    "avatar": {
+      "unsupported": "Only PNG, JPEG, WebP, and GIF images can be uploaded.",
+      "tooLarge": "Choose an image that's 1 MB or smaller.",
+      "empty": "Empty files can't be used. Choose an image that's 1 MB or smaller.",
+      "loadFailed": "We couldn't load the profile photo."
+    },
+    "requestFailed": {
+      "displayName": "We couldn't change your nickname.",
+      "avatarUpload": "We couldn't upload your profile photo.",
+      "avatarDelete": "We couldn't remove your profile photo.",
+      "passwordChange": "We couldn't change your password.",
+      "rateLimited": "Too many attempts. Please try again in a moment.",
+      "verificationSend": "We couldn't send the verification code.",
+      "emailChange": "We couldn't change your email.",
+      "accountDeletionBlocked": "Your account can't be deleted right now.",
+      "accountDeletion": "We couldn't delete your account.",
+      "consentSave": "We couldn't save your consent.",
+      "verificationRequest": "We couldn't request a verification code.",
+      "emailAvailability": "We couldn't check whether this email is available.",
+      "verificationConfirm": "We couldn't verify the code.",
+      "passwordReset": "We couldn't reset your password.",
+      "mfaLogin": "Multi-factor authentication failed.",
+      "mfaStatus": "We couldn't load your multi-factor authentication status.",
+      "mfaRegister": "We couldn't start multi-factor authentication setup.",
+      "mfaActivate": "We couldn't turn on multi-factor authentication.",
+      "mfaDisable": "We couldn't turn off multi-factor authentication.",
+      "oauthLinkStart": "We couldn't start linking your social account.",
+      "oauthLink": "We couldn't link your social account.",
+      "oauthUnlink": "We couldn't unlink your social account.",
+      "sessions": "We couldn't load your signed-in devices.",
+      "sessionRevoke": "We couldn't sign out of that device.",
+      "locale": "Couldn't save your language setting."
+    },
+    "rateLimit": {
+      "generic": "Too many attempts.",
+      "retryIn": "{reason} Please try again in {seconds, plural, one {# second} other {# seconds}}."
+    },
+    "accountDeletion": {
+      "reauthenticationRequired": "To confirm it's you, sign in again with your social account and delete your account within 10 minutes.",
+      "invalidCredentials": "Incorrect password.",
+      "invalidMfaCode": "Incorrect authentication code.",
+      "soleOwner": "First transfer OWNER of any workspace that has other members.",
+      "rateLimited": "Too many password attempts. Please try again in a moment."
+    },
+    "emailChange": {
+      "invalidRequest": "Check the email address format.",
+      "duplicateEmail": "This email is already used by another account.",
+      "invalidVerificationToken": "Email verification has expired. Request a new code and enter it.",
+      "invalidCredentials": "Incorrect password.",
+      "invalidMfaCode": "Incorrect authentication code.",
+      "reauthenticationRequired": "To confirm it's you, sign in again with your social account and finish changing your email within 10 minutes.",
+      "passwordRateLimited": "Too many password attempts.",
+      "mfaRateLimited": "Too many authentication code attempts."
+    },
+    "passwordChange": {
+      "passwordLoginUnavailable": "Accounts created with a social account can't set a password here. Sign in with your linked social account.",
+      "invalidVerificationToken": "Email verification has expired. Request a new code and enter it.",
+      "invalidMfaCode": "Incorrect authentication code.",
+      "verificationRateLimited": "Too many verification code requests.",
+      "mfaRateLimited": "Too many authentication code attempts.",
+      "emailSendFailed": "We couldn't send the verification email. Please try again in a moment."
+    },
+    "consent": {
+      "required": "You need to confirm you're 18 or older and accept the current Terms of Service. Please check the items again.",
+      "invalidSignupToken": "This sign-up request has expired or was already used. Start again from social sign-in."
+    },
+    "oauth": {
+      "providers": {
+        "kakao": "Kakao",
+        "naver": "Naver",
+        "google": "Google"
+      },
+      "linkSuccess": "Your social account is linked.",
+      "linkFailed": "Social account authentication failed. Please try again.",
+      "errors": {
+        "unsupportedProvider": "This sign-in service isn't supported.",
+        "invalidLinkCode": "The link request expired or is invalid. Please try again.",
+        "alreadyLinked": "This social account is already linked to another account, or another account from the same service is already linked.",
+        "notFound": "This social account isn't linked.",
+        "unlinkNotAllowed": "You can't unlink the social account you signed up with."
+      },
+      "registeredFallback": "This email is already registered. Sign in the way you did before, then link it in Settings > User settings.",
+      "registeredLocal": "This email is already registered with email sign-up. Sign in with your email and password, then link it in Settings > User settings.",
+      "registeredProviders": "This email is already registered with {providers}. Sign in with {providers}, then link it in Settings > User settings.",
+      "duplicateEmail": "This email is already registered.",
+      "loginFailed": "Social sign-in failed.",
+      "unlinkGuide": "Signing in again with an unlinked social account won't create a new account. You'll be asked to sign in with email and link it again here."
+    },
+    "sessionExpiry": {
+      "title": "Your session has expired.",
+      "description": "Unsaved edits stay on this screen until you sign in again. Copy your text first if you need to, then sign in.",
+      "relogin": "Sign in again",
+      "stay": "Stay on this screen"
+    }
+  },
+  "ai": {
+    "usagePeriods": {
+      "thisMonth": "This month",
+      "last30Days": "Last 30 days",
+      "lastMonth": "Last month"
+    },
+    "lessThan": "Less than {amount}",
+    "audio": "Audio {duration}",
+    "characters": "{count} chars",
+    "duration": {
+      "seconds": "{seconds}s",
+      "minutes": "{minutes}m",
+      "minutesSeconds": "{minutes}m {seconds}s"
+    },
+    "lock": {
+      "costPolicy": "Unavailable under the cost policy",
+      "workspaceClaude": "Claude models can only be used when you pick them directly in chat."
+    },
+    "requestFailed": {
+      "providerLoad": "We couldn't load the LLM provider settings.",
+      "providerSave": "We couldn't save the LLM provider settings.",
+      "usageLoad": "We couldn't load AI usage."
+    }
+  },
+  "trash": {
+    "purgeUnknown": "The permanent deletion date is unknown.",
+    "purgeSoon": "The retention period has ended. It will be permanently deleted soon.",
+    "purgeTomorrow": "Will be permanently deleted tomorrow.",
+    "purgeInDays": "{count, plural, one {Will be permanently deleted in # day.} other {Will be permanently deleted in # days.}}",
+    "retentionExpired": "The 30-day retention period has ended, so this can't be restored. The document will be permanently deleted soon.",
+    "workspaceRetentionExpired": "The 30-day workspace retention period has ended, so this can't be restored. The workspace will be permanently deleted soon.",
+    "restoreFailed": "We couldn't restore it.",
+    "restoreForbidden": "Only the document owner and workspace OWNERs can restore it.",
+    "restoreConflict": "The document changed elsewhere, so it couldn't be restored. Refresh the list and try again.",
+    "restored": "Restored the document “{name}”. Edited documents come back as not added to the wiki, so add them to the wiki again.",
+    "restoredToRoot": "Restored the document “{name}” to the top level. Edited documents come back as not added to the wiki, so add them to the wiki again.",
+    "restoredToFolder": "Restored the document “{name}” to the folder “{folder}”. Edited documents come back as not added to the wiki, so add them to the wiki again."
+  },
+  "legalConsent": {
+    "legend": "Terms",
+    "required": "Required",
+    "optional": "Optional",
+    "age": "I'm 18 or older.",
+    "terms": "I agree to the <link>Terms of Service</link>.",
+    "marketing": "Send me marketing updates about new features and news.",
+    "privacy": "Your personal information is processed only as needed to provide the service, as described in the <link>Privacy Policy</link>.",
+    "reconsent": {
+      "title": "Terms",
+      "prompt": "Our Terms of Service have changed. To keep using the service, please agree to the items below again.",
+      "saving": "Saving…",
+      "submit": "Agree and continue",
+      "declinePrompt": "Don't agree?",
+      "signOut": "Sign out"
+    }
+  },
+  "autoApproval": {
+    "loadFailed": "We couldn't load the auto-approval settings.",
+    "saveFailed": "We couldn't save the auto-approval settings."
+  },
+  "meeting": {
+    "requestFailed": {
+      "create": "Couldn't start the meeting.",
+      "ticket": "Couldn't prepare the recording connection.",
+      "notes": "Couldn't request the meeting notes.",
+      "notesLoad": "Couldn't load the meeting notes.",
+      "notesCancel": "Couldn't cancel creating the meeting notes.",
+      "preview": "Couldn't preview the content to add to the end of the document.",
+      "apply": "Couldn't save the meeting notes as a document.",
+      "load": "Couldn't load the meeting status.",
+      "list": "Couldn't load the meeting list.",
+      "upload": "Couldn't upload the recording file.",
+      "transcriptionCancel": "Couldn't cancel the transcription.",
+      "recordingUrl": "Couldn't load the recording.",
+      "delete": "Couldn't delete the meeting."
+    },
+    "uploadAborted": "The file upload was stopped."
+  },
+  "notionImport": {
+    "requestFailed": {
+      "start": "Couldn't start the import.",
+      "complete": "Couldn't finish the import.",
+      "estimate": "Couldn't estimate the cost of adding to the wiki.",
+      "ingest": "Couldn't start adding to the wiki.",
+      "convert": "Couldn't start the PDF conversion.",
+      "createFolder": "Couldn't create the folder.",
+      "createDocument": "Couldn't create the document.",
+      "saveContent": "Couldn't save the document content."
+    }
+  },
+  "api": {
+    "loginRequired": "Please sign in.",
+    "loginFailed": "Sign-in failed.",
+    "signupFailed": "Sign-up failed.",
+    "workspaceRequired": "Please select a workspace.",
+    "workspaceCreateFailed": "Couldn't create the workspace.",
+    "uploadFailed": "Couldn't upload the document.",
+    "documentDeleteFailed": "Couldn't delete the document.",
+    "documentRenameFailed": "Couldn't rename the document.",
+    "documentConvertFailed": "Couldn't request the Markdown conversion.",
+    "editLockHeld": "Someone else is editing this document.",
+    "editLockLost": "Someone else started editing, so you lost edit access. Further changes won't be saved.",
+    "editLockExpired": "Your edit access expired while you were disconnected. Further changes won't be saved.",
+    "editLockForbidden": "Only the document owner can edit it.",
+    "editLockMissing": "Document not found.",
+    "editLockUnsupported": "This document can't be edited.",
+    "editLockFailed": "Couldn't check the edit lock, so the document opened read-only.",
+    "noteDraftLoadFailed": "Couldn't load the note draft.",
+    "noteDraftSaveFailed": "Couldn't save the note draft.",
+    "documentOriginalLoadFailed": "Couldn't load the original document.",
+    "documentBlocksLoadFailed": "Couldn't load the source locations.",
+    "queryFailed": "The question failed.",
+    "aiModelsLoadFailed": "Couldn't load the AI model list.",
+    "agentTurnFailed": "The AI edit request failed.",
+    "speechTranscribeFailed": "Couldn't turn your speech into text.",
+    "chatLoadFailed": "Couldn't load the chat history.",
+    "chatSessionFailed": "Couldn't prepare the chat session.",
+    "documentsLoadFailed": "Couldn't load the document list.",
+    "wikiExportFailed": "Couldn't export to the wiki.",
+    "wikiGraphLoadFailed": "Couldn't load the wiki graph.",
+    "wikiPageLoadFailed": "Couldn't load the wiki page.",
+    "workspaceLoadFailed": "Couldn't load the workspace.",
+    "meLoadFailed": "Couldn't load your account information.",
+    "authRefreshUnavailable": "Couldn't refresh your sign-in. Please try again in a moment.",
+    "workspaceGone": "Workspace not found.",
+    "imageLoadFailed": "Couldn't load the image.",
+    "accessGateCheckFailed": "Couldn't check the access code status.",
+    "documentTransportCheckFailed": "Couldn't check the document transfer connection.",
+    "documentServerInvalid": "The document server address is invalid."
+  },
+  "workspace": {
+    "requestFailed": {
+      "rename": "Couldn't rename the workspace.",
+      "autoIngest": "Couldn't change the auto-add setting.",
+      "describeFigures": "Couldn't change the setting for describing PDF images as text for AI.",
+      "delete": "Couldn't delete the workspace.",
+      "iconUpload": "Couldn't upload the icon image.",
+      "iconLoad": "Couldn't load the icon image.",
+      "invitationLoad": "Couldn't load the invitation.",
+      "invitationAccept": "Couldn't accept the invitation.",
+      "storageLoad": "Couldn't load your storage usage.",
+      "storageInvalid": "The storage usage response is invalid.",
+      "membersLoad": "Couldn't load the member list.",
+      "memberRole": "Couldn't change the member's role.",
+      "memberPermissions": "Couldn't change the member's permissions.",
+      "memberRemove": "Couldn't remove the member.",
+      "invite": "Couldn't send the invitation email."
+    },
+    "limitExceeded": "You can't create more free workspaces. Delete a workspace you no longer use and try again.",
+    "storage": {
+      "used": "My storage: {used} used",
+      "usedOfLimit": "My storage: {used} of {limit} used"
+    },
+    "iconFallback": "W"
+  },
+  "documentRequests": {
+    "operationLog": {
+      "load": "Couldn't load the logs.",
+      "detail": "Couldn't load the log details.",
+      "restorePreview": "Couldn't check what will be rolled back.",
+      "restore": "Couldn't request the rollback."
+    },
+    "notifications": {
+      "load": "Couldn't load notifications.",
+      "markRead": "Couldn't mark the notification as read.",
+      "markAllRead": "Couldn't mark all notifications as read."
+    },
+    "wikiLint": {
+      "status": "Couldn't load the wiki status.",
+      "request": "Couldn't request a wiki refresh.",
+      "runStatus": "Couldn't load the wiki refresh status.",
+      "failed": "The wiki refresh failed.",
+      "timeout": "The wiki refresh took too long."
+    },
+    "document": {
+      "nameConflict": "An item named ''{filename}'' already exists in this folder. Please use a different name.",
+      "notFound": "The document can't be found. Please refresh the list.",
+      "uploadFolderMissing": "The upload folder can't be found.",
+      "workspaceChanged": "The workspace changed, so adding to the wiki was stopped.",
+      "ingestStartFailed": "Couldn't start adding to the wiki.",
+      "permissionSaveFailed": "Couldn't change the permission.",
+      "trashLoad": "Couldn't load the trash.",
+      "restore": "Couldn't restore the document.",
+      "contentConflict": "Another edit was saved first.",
+      "versionsLoad": "Couldn't load the version history.",
+      "editLockHolder": "{name} is editing."
+    },
+    "upload": {
+      "cancelled": "The file upload was stopped.",
+      "invalidParts": "The file part information is invalid.",
+      "partStatus": "Couldn't send a file part ({status})",
+      "partFailed": "Couldn't send a file part.",
+      "partSendFailed": "Couldn't send a file part.",
+      "partStalled": "Sending a file part stopped responding, so it was stopped."
+    },
+    "tree": {
+      "load": "Couldn't load the folder list.",
+      "invalidResponse": "The folder list response is invalid.",
+      "folderCreate": "Couldn't create the folder.",
+      "stale": "The item was moved or deleted. Please refresh the list.",
+      "mutate": "Couldn't change the folder or document."
+    }
+  }
+}

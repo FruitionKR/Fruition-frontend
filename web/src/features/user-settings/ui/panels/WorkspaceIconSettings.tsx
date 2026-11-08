@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
 import { uploadWorkspaceIcon, useSelectedWorkspace, type WorkspaceListResponse, type WorkspaceResponse } from "@/entities/workspace";
@@ -14,6 +15,8 @@ import styles from "../SettingsModal.module.css";
  * 이모티콘 선택은 없앴다. 예전에 저장한 icon_emoji는 서버에 그대로 두고 여기서는 이름 첫 글자를 보여 준다.
  */
 export function WorkspaceIconSettings() {
+  const t = useTranslations("settings.workspace.icon");
+  const tShared = useTranslations("shared");
   const workspace = useSelectedWorkspace();
   const { data: me } = useMe();
   const { data: members, error: membersError } = useQuery({
@@ -30,7 +33,7 @@ export function WorkspaceIconSettings() {
 
   async function save(file: File) {
     if (file.size === 0 || file.size > 1024 * 1024) {
-      setError("빈 파일은 사용할 수 없습니다. 1MB 이하 이미지를 선택해 주세요.");
+      setError(t("invalidFile"));
       setSaved(false);
       return;
     }
@@ -50,20 +53,20 @@ export function WorkspaceIconSettings() {
       void queryClient.invalidateQueries({ queryKey: ["workspace-icon", workspace.id] });
       setSaved(true);
     } catch (cause: unknown) {
-      setError(getErrorMessage(cause, "아이콘을 변경하지 못했습니다."));
+      setError(getErrorMessage(cause, t("saveFailed"), tShared));
     } finally {
       setBusy(false);
     }
   }
 
-  const loadError = error || (membersError ? getErrorMessage(membersError, "아이콘 변경 권한을 확인하지 못했습니다.") : null);
+  const loadError = error || (membersError ? getErrorMessage(membersError, t("permissionLoadFailed"), tShared) : null);
 
   return <div className={styles["tile-field"]}>
     <div className={styles["row-title"]}>
-      <strong>워크스페이스 아이콘</strong>
-      <small>이미지를 업로드하세요 (100*100 사이즈를 추천드립니다.)</small>
+      <strong>{t("label")}</strong>
+      <small>{t("hint")}</small>
     </div>
-    <button type="button" className={styles["tile-button"]} aria-label="워크스페이스 아이콘 이미지 업로드"
+    <button type="button" className={styles["tile-button"]} aria-label={t("upload")}
       disabled={!isOwner || busy} onClick={() => fileInput.current?.click()}>
       <WorkspaceIcon workspace={workspace} className={styles["tile-face"]} hideEmoji />
     </button>
@@ -71,9 +74,9 @@ export function WorkspaceIconSettings() {
       onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void save(file); }} />
     {(!isOwner || busy || saved || loadError) && (
       <div className={styles["tile-actions"]}>
-        {!isOwner && !membersError && <small className={styles["status-text"]}>아이콘 변경은 워크스페이스 OWNER만 할 수 있습니다.</small>}
-        {busy && <small className={styles["status-text"]} role="status">아이콘 저장 중…</small>}
-        {saved && <small className={styles["status-text"]} role="status">아이콘을 변경했습니다.</small>}
+        {!isOwner && !membersError && <small className={styles["status-text"]}>{t("ownerOnly")}</small>}
+        {busy && <small className={styles["status-text"]} role="status">{t("saving")}</small>}
+        {saved && <small className={styles["status-text"]} role="status">{t("saved")}</small>}
         {loadError && <small className={styles["field-error"]} role="alert">{loadError}</small>}
       </div>
     )}

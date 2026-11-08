@@ -2,6 +2,7 @@ import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from
 import { withRollbackPurgedOperations, type AgentPlan, type AgentPlanRun } from "@/features/agent-chat/lib/agentPlan";
 import { parseAgentRunEditPreviews, type AgentRunEditPreviews } from "@/features/agent-chat/lib/documentEditPreviews";
 import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
+import { AgentChatError } from "../lib/agentChatError";
 
 /**
  * 채팅의 turn ID와 실제 승인 대상 run ID는 서로 다르다. knownRunId(knownPlanRunId)를 알면 turn 조회를 건너뛰고
@@ -21,13 +22,13 @@ export async function fetchAgentPlanRun(
     /** 실패 코드. run 조회와 달리 turn 조회의 코드 필드는 error다(document AgentTurnResponse). */
     error?: string | null;
   }>(response, "작업 계획을 불러오지 못했습니다.");
-  if (turn.status === "failed") throw new Error("계획 생성 요청이 실패했습니다.");
+  if (turn.status === "failed") throw new AgentChatError("planRequestFailed", "계획 생성 요청이 실패했습니다.");
   // 문서 삭제 등으로 turn이 취소되면 run 없이 turn 상태만 온다. 취소 중은 폴링을 이어 가고, 종결(취소됨·복구 실패)은 폴링을 멈춘다(#141).
   if (TURN_CANCEL_STATUSES.has(turn.status)) {
     return { id: turnId, status: turn.status, plan: null, error_code: turn.error ?? null };
   }
   if (turn.status !== "completed") return null;
-  if (!turn.result?.run_id) throw new Error("이 답변의 계획 정보를 찾을 수 없습니다. 다시 요청해주세요.");
+  if (!turn.result?.run_id) throw new AgentChatError("planMissing", "이 답변의 계획 정보를 찾을 수 없습니다. 다시 요청해주세요.");
   return fetchRun(workspaceId, turn.result.run_id, signal);
 }
 
@@ -62,6 +63,6 @@ export async function decideAgentPlan(
     ...(decision === "approve" ? { body: JSON.stringify(approval) } : {})
   });
   // 400: operation_ids 중복·계획에 없는 ID·고르지 않은 작업에 의존하는 작업을 고름(AI 계약).
-  if (decision === "approve" && operationIds && response.status === 400) throw new Error(INVALID_SELECTION_MESSAGE);
+  if (decision === "approve" && operationIds && response.status === 400) throw new AgentChatError("invalidSelection", INVALID_SELECTION_MESSAGE);
   return parseJsonOrThrow<AgentPlanRun>(response, "계획 승인·거절을 처리하지 못했습니다. 최신 상태를 확인해주세요.");
 }

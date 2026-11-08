@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { LogIn, RefreshCw, WifiOff } from "lucide-react";
 import { clearSessionCache } from "@/entities/chat";
 import { fetchMe, useSignOut } from "@/entities/user";
@@ -12,10 +13,10 @@ import { getErrorMessage, LoginRequiredError, SessionExpiredError } from "@/shar
 import { LoadingOverlay } from "@/shared/ui/LoadingOverlay";
 import styles from "./WorkspacesPage.module.css";
 
-const DEFAULT_WORKSPACE_NAME = "나의 워크스페이스";
-
 export default function WorkspacesPage() {
   const router = useRouter();
+  const t = useTranslations("workspace.workspacesPage");
+  const tShared = useTranslations("shared");
   const { signOut } = useSignOut();
   const hasStarted = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export default function WorkspacesPage() {
     try {
       await fetchMe();
       const response = await fetchWorkspaces();
-      const workspace = response.workspaces?.[0] ?? await createWorkspace(DEFAULT_WORKSPACE_NAME);
+      const workspace = response.workspaces?.[0] ?? await createWorkspace(t("defaultName"));
       clearSessionCache();
       setSelectedWorkspaceId(workspace.id);
       clearWorkspaceGone(workspace.id);
@@ -35,9 +36,9 @@ export default function WorkspacesPage() {
         void signOut();
         return;
       }
-      setErrorMessage(getErrorMessage(error, "워크스페이스를 준비하지 못했습니다."));
+      setErrorMessage(getErrorMessage(error, t("prepareFailed"), tShared));
     }
-  }, [router, signOut]);
+  }, [router, signOut, t, tShared]);
 
   useEffect(() => {
     if (hasStarted.current) return;
@@ -45,7 +46,7 @@ export default function WorkspacesPage() {
     void prepareWorkspace();
   }, [prepareWorkspace]);
 
-  if (!errorMessage) return <LoadingOverlay message="워크스페이스 준비 중…" />;
+  if (!errorMessage) return <LoadingOverlay message={t("preparing")} />;
 
   return (
     <main className={styles["error-screen"]}>
@@ -53,12 +54,9 @@ export default function WorkspacesPage() {
         <div className={styles["error-icon"]} aria-hidden>
           <WifiOff size={28} strokeWidth={1.8} />
         </div>
-        <p className={styles["error-eyebrow"]}>CONNECTION ERROR</p>
-        <h1 id="workspace-error-title">워크스페이스를 불러오지 못했어요</h1>
-        <p className={styles["error-description"]}>
-          일시적인 연결 문제일 수 있습니다. 잠시 후 다시 시도해 주세요.
-          계정과 작업 내용은 그대로 유지됩니다.
-        </p>
+        <p className={styles["error-eyebrow"]}>{t("eyebrow")}</p>
+        <h1 id="workspace-error-title">{t("title")}</h1>
+        <p className={styles["error-description"]}>{t("description")}</p>
         <p className={styles["error-detail"]} role="alert">{errorMessage}</p>
 
         <div className={styles["error-actions"]}>
@@ -68,7 +66,7 @@ export default function WorkspacesPage() {
             onClick={() => void prepareWorkspace()}
           >
             <RefreshCw size={16} aria-hidden />
-            다시 시도
+            {t("retry")}
           </button>
           <button
             type="button"
@@ -76,14 +74,12 @@ export default function WorkspacesPage() {
             onClick={() => router.replace("/login")}
           >
             <LogIn size={16} aria-hidden />
-            로그인 화면으로
+            {t("toLogin")}
           </button>
         </div>
       </section>
 
-      <p className={styles["error-support"]}>
-        문제가 계속되면 잠시 후 다시 접속하거나 관리자에게 문의해 주세요.
-      </p>
+      <p className={styles["error-support"]}>{t("support")}</p>
     </main>
   );
 }

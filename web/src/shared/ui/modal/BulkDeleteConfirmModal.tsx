@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ConfirmModal } from "./ConfirmModal";
 
 /** 모달에 이름을 몇 개까지 나열할지. 나머지는 "외 N개"로 줄인다. */
@@ -15,23 +16,23 @@ export function BulkDeleteConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("shared");
   const { items, skipped } = target;
-  const names = items.slice(0, LISTED_LABEL_LIMIT).map((item) => `「${item.label}」`).join(", ");
+  const names = items.slice(0, LISTED_LABEL_LIMIT).map((item) => t("ui.quotedName", { name: item.label })).join(", ");
   const rest = items.length - LISTED_LABEL_LIMIT;
   const hasFolder = items.some((item) => item.kind === "folder");
+  const sentences = [
+    rest > 0 ? t("ui.bulkDeleteConfirm.itemsWithRest", { names, rest }) : t("ui.bulkDeleteConfirm.items", { names }),
+    hasFolder ? t("ui.bulkDeleteConfirm.folderNote") : null,
+    skipped.length > 0 ? t("ui.bulkDeleteConfirm.skippedNote", { count: skipped.length }) : null,
+    t("ui.bulkDeleteConfirm.trashNote")
+  ];
   return (
     <ConfirmModal
       titleId="bulk-delete-confirm-title"
-      title={`${items.length}개 항목을 삭제하시겠습니까?`}
-      description={
-        <>
-          {names}{rest > 0 ? ` 외 ${rest}개` : ""} 항목이 삭제됩니다.
-          {hasFolder && " 폴더는 폴더 안의 모든 항목도 함께 삭제됩니다."}
-          {skipped.length > 0 && ` 삭제할 수 없는 ${skipped.length}개 항목은 건너뜁니다.`}
-          {" "}삭제한 문서는 휴지통에서 30일 동안 복구할 수 있습니다.
-        </>
-      }
-      confirmLabel={`${items.length}개 삭제`}
+      title={t("ui.bulkDeleteConfirm.title", { count: items.length })}
+      description={sentences.filter(Boolean).join(" ")}
+      confirmLabel={t("ui.bulkDeleteConfirm.confirm", { count: items.length })}
       tone="danger"
       onConfirm={onConfirm}
       onCancel={onCancel}

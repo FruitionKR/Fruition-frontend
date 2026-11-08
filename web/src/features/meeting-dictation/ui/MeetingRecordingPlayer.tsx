@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import { fetchMeetingRecordingUrl, MEETING_ERROR_MESSAGES } from "@/entities/meeting";
+import { useTranslations } from "next-intl";
+import { fetchMeetingRecordingUrl } from "@/entities/meeting";
 import { describeRecordingError } from "../lib/meetingNotesFlow";
 import styles from "./MeetingNotes.module.css";
 
@@ -15,6 +16,8 @@ type RecordingSource = { url: string; expiresAt: number };
  * 주소가 만료됐으면(재생 시작 시 만료 임박, 또는 재생 오류) 새 주소를 받아 같은 위치부터 이어 간다.
  */
 export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
+  const t = useTranslations("meeting");
+  const tShared = useTranslations("shared");
   const [source, setSource] = useState<RecordingSource | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,17 +35,17 @@ export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
       setSource({ url: response.url, expiresAt: Date.parse(response.expires_at) });
     } catch (loadError) {
       resumeRef.current = null;
-      setError(describeRecordingError(loadError, MEETING_ERROR_MESSAGES.recordingUrlFailed));
+      setError(describeRecordingError(loadError, t("errors.recordingUrlFailed"), tShared));
     } finally {
       setIsLoading(false);
     }
-  }, [meetingId]);
+  }, [meetingId, t, tShared]);
 
   if (!source) {
     return (
       <div className={styles["meeting-recording"]}>
         <button type="button" className={styles["meeting-recording-load"]} disabled={isLoading} onClick={() => void loadUrl({ time: 0, play: true })}>
-          {isLoading ? "녹음 불러오는 중…" : "녹음 듣기"}
+          {isLoading ? t("player.loading") : t("player.listen")}
         </button>
         {error && <p className={styles["meeting-recording-error"]} role="alert">{error}</p>}
       </div>
@@ -57,7 +60,7 @@ export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
         src={source.url}
         controls
         preload="metadata"
-        aria-label="녹음 재생"
+        aria-label={t("player.audioLabel")}
         onLoadedMetadata={(event) => {
           const resume = resumeRef.current;
           resumeRef.current = null;
@@ -78,7 +81,7 @@ export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
         onError={(event) => {
           const audio = event.currentTarget;
           if (refreshCountRef.current >= MAX_URL_REFRESHES) {
-            setError("녹음을 재생하지 못했습니다.");
+            setError(t("errors.playbackFailed"));
             return;
           }
           refreshCountRef.current += 1;
@@ -96,7 +99,7 @@ export function MeetingRecordingPlayer({ meetingId }: { meetingId: string }) {
               void loadUrl({ time: audioRef.current?.currentTime ?? 0, play: true });
             }}
           >
-            다시 시도
+            {t("player.retry")}
           </button>
         </p>
       )}

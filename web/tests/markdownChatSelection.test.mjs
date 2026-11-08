@@ -139,3 +139,11 @@ test("채팅 Export 결과가 skipped면 기존 문서를 열었다고 안내한
   );
   assert.match(getChatExportSuccessMessage("saved"), /원문 문서로 저장했습니다/);
 });
+
+
+test("사용법 안내는 문서 변경 명령이 아닌 대화 편입 후보다", () => {
+  assert.deepEqual(classifyChatExportPairs([
+    { pair_id: "help", role: "user", content: "Fruition 사용법", status: "completed" },
+    { pair_id: "help", role: "assistant", content: "안내", status: "completed", action: "product_help" }
+  ]), { selectablePairIds: ["help"], excludedPairIds: [] });
+});

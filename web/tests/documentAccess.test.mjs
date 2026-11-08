@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
+import { useTranslations as koT } from "./fakeNextIntl.mjs";
 
 registerHooks({ resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) return next(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
@@ -9,14 +10,11 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const {
-  PERMISSION_FORBIDDEN_MESSAGE,
   READ_ONLY_DOCUMENT_HINT,
   READ_ONLY_DOCUMENT_MESSAGE,
   READ_ONLY_DOCUMENT_TITLE,
   canDeleteDocument,
-  describePermissionError,
   isDocumentBodyLocked,
-  CHAT_EXPORT_READ_ONLY_HINT,
   CHAT_EXPORT_TITLE_LOCKED_MESSAGE,
   isDocumentReadOnly,
   isWriteForbiddenError,
@@ -55,7 +53,8 @@ test("문서·폴더 권한은 PUT .../permission에 {access}로 보내고, 403�
     ["/api/workspaces/ws_test/documents/doc_1/permission", "PUT", { access: "view" }],
     ["/api/workspaces/ws_test/folders/folder_1/permission", "PUT", { access: null }]
   ]);
-  assert.equal(describePermissionError(error), PERMISSION_FORBIDDEN_MESSAGE);
+  assert.equal(isWriteForbiddenError(error), true);
+  assert.equal(error.code, "DOCUMENT_WRITE_FORBIDDEN");
 });
 
 test("읽기 전용 안내는 상태 문장과 권한 요청 안내 두 줄로 나뉜다", () => {
@@ -81,10 +80,9 @@ test("can_delete가 false일 때만 삭제 메뉴를 막는다", () => {
 test("403 DOCUMENT_WRITE_FORBIDDEN은 서버 원문 대신 누가 바꿀 수 있는지 안내한다", () => {
   const forbidden = new ApiError("forbidden", 403, "DOCUMENT_WRITE_FORBIDDEN");
   assert.equal(isWriteForbiddenError(forbidden), true);
-  assert.equal(describePermissionError(forbidden), PERMISSION_FORBIDDEN_MESSAGE);
   assert.equal(isWriteForbiddenError(new ApiError("conflict", 409, "DOCUMENT_VERSION_CONFLICT")), false);
-  assert.equal(describePermissionError(new Error("네트워크 오류")), "네트워크 오류");
-  assert.equal(describePermissionError("?", "기본 문구"), "기본 문구");
+  // 권한 설정 창은 403이면 서버 원문 대신 이 문구를 보인다.
+  assert.match(koT("documents.permission")("forbidden"), /문서 소유자와 워크스페이스 OWNER만, 폴더 권한은 OWNER만/);
 });
 
 test("서버 트리의 can_edit·can_delete·permission이 트리 항목으로 옮겨진다", () => {
@@ -137,6 +135,6 @@ test("채팅에서 만든 문서는 트리에서 이름이 잠기고 안내 문�
   assert.equal(chat.titleLocked, true);
   assert.equal(chat.canEdit, true, "이동은 권한을 그대로 따른다");
   assert.equal(note.titleLocked, false);
-  assert.match(CHAT_EXPORT_READ_ONLY_HINT, /이름과 본문은 고칠 수 없습니다/);
+  assert.match(koT("documents.access")("chatExportReadOnlyHint"), /이름과 본문은 고칠 수 없습니다/);
   assert.equal(CHAT_EXPORT_TITLE_LOCKED_MESSAGE, "채팅에서 만든 문서는 이름과 본문을 바꿀 수 없습니다.");
 });

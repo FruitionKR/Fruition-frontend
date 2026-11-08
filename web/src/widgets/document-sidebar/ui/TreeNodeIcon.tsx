@@ -12,12 +12,29 @@ export function isUploadFailedItem(item: TreeItem): boolean {
 export function TreeNodeIcon({
   item,
   isExpandable,
-  isOpen
+  isOpen,
+  onExpandClick
 }: {
   item: TreeItem;
   isExpandable: boolean;
   isOpen: boolean;
+  /** 파일 행(변환본을 거느린 원본 PDF)의 화살표만 눌러 접고 편다. 행 클릭(문서 열기)으로 번지지 않게 막는다 */
+  onExpandClick?: () => void;
 }) {
+  if (isFileItem(item) && onExpandClick && item.status !== "uploading") {
+    return (
+      <span
+        className={cx(styles["tree-folder-slot"], styles["is-toggle"])}
+        aria-hidden
+        onClick={(event) => {
+          event.stopPropagation();
+          onExpandClick();
+        }}
+      >
+        <SidebarChevronIcon className={cx(styles["tree-arrow"], isOpen && styles["is-open"])} />
+      </span>
+    );
+  }
   if (isFileItem(item)) {
     if (item.status === "uploading") return <span className={styles["tree-upload-spinner"]} aria-hidden />;
     if (isUploadFailedItem(item)) {

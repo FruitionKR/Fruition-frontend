@@ -11,12 +11,8 @@ registerHooks({
   }
 });
 
-const { fetchWikiGraph, resetWikiGraphCache, saveWikiPageContent, WikiPageVersionConflictError } = await import("../src/entities/wiki/api/wiki.ts");
-const {
-  buildWikiPageSaveRequest, canEditWikiPage, createWikiPageEditSession, describeWikiPageSaveError,
-  isWikiPageIdempotencyConflict, prepareWikiPageSave, rebaseWikiPageEditSession
-} = await import("../src/features/wiki-page-editing/model/wikiPageEdit.ts");
-const { ApiError, getErrorMessage, INSUFFICIENT_CREDIT_MESSAGE } = await import("../src/shared/lib/apiErrors.ts");
+// 위키 페이지는 화면에서 읽기 전용이다. 여기서는 그래프 ETag 조회와, 과거 wiki_edit 로그를 재현하는 mock 저장 라우트만 본다.
+const { fetchWikiGraph, resetWikiGraphCache } = await import("../src/entities/wiki/api/wiki.ts");
 const { state: mockState } = await import("../mock/state.mjs");
 const { registerWikiRoutes } = await import("../mock/routes/wiki.mjs");
 
@@ -28,73 +24,6 @@ function selectWorkspace(t, workspaceId = "ws_test") {
     else globalThis.window = previous;
   });
 }
-
-test("OWNER는 항상, MEMBER는 wiki.ingest가 있을 때만 편집할 수 있고 역할을 모르면 막는다", () => {
-  assert.equal(canEditWikiPage("OWNER", []), true);
-  assert.equal(canEditWikiPage("MEMBER", ["wiki.ingest"]), true);
-  assert.equal(canEditWikiPage("MEMBER", ["wiki.lint"]), false);
-  assert.equal(canEditWikiPage(null, ["wiki.ingest"]), false);
-});
-
-test("편집 세션은 페이지 revision을 base로 잡고 이력이 없으면 0으로 보낸다", () => {
-  const session = createWikiPageEditSession({ markdown: "# 제목", revision: 3 }, "w1");
-  assert.deepEqual(buildWikiPageSaveRequest(session), { markdown: "# 제목", base_revision: 3, revision_write_id: "w1" });
-  assert.equal(createWikiPageEditSession({ markdown: "본문" }, "w2").baseRevision, 0);
-});
-
-test("같은 본문을 다시 저장하면 write ID를 유지하고, 보낸 뒤 더 고쳤으면 새로 만든다", () => {
-  const first = prepareWikiPageSave({ ...createWikiPageEditSession({ markdown: "a", revision: 1 }, "w1"), draft: "b" }, "unused");
-  assert.equal(first.writeId, "w1");
-  assert.equal(first.sentDraft, "b");
-  // 503 뒤 같은 본문 재시도
-  assert.equal(prepareWikiPageSave(first, "unused").writeId, "w1");
-  // 실패 뒤 본문을 더 고친 저장
-  const edited = prepareWikiPageSave({ ...first, draft: "c" }, "w2");
-  assert.equal(edited.writeId, "w2");
-  assert.equal(edited.sentDraft, "c");
-});
-
-test("충돌 뒤 다시 저장은 내 편집을 유지한 채 최신 revision과 새 write ID를 쓴다", () => {
-  const session = { draft: "내 편집", baseRevision: 2, writeId: "w1", sentDraft: "내 편집" };
-  assert.deepEqual(rebaseWikiPageEditSession(session, 5, "w2"), { draft: "내 편집", baseRevision: 5, writeId: "w2", sentDraft: null });
-});
-
-test("저장 실패 문구: 403·402는 공통 문구, 503·413·404는 편집 화면 문구", () => {
-  const forbidden = new ApiError("이 작업에는 'wiki.ingest' 권한이 필요합니다.", 403, "WORKSPACE_PERMISSION_REQUIRED");
-  // 403 문구는 앱 공통 getErrorMessage 경로를 그대로 쓴다.
-  assert.equal(describeWikiPageSaveError(forbidden), getErrorMessage(forbidden, "Wiki page를 저장하지 못했습니다."));
-  assert.equal(describeWikiPageSaveError(new ApiError("x", 402, "INSUFFICIENT_CREDIT")), INSUFFICIENT_CREDIT_MESSAGE);
-  assert.match(describeWikiPageSaveError(new ApiError("x", 503, "WIKI_PAGE_PIPELINE_UNAVAILABLE")), /다시 저장/);
-  assert.match(describeWikiPageSaveError(new ApiError("x", 413, "MARKDOWN_CONTENT_TOO_LARGE")), /5MB/);
-  assert.equal(isWikiPageIdempotencyConflict(new ApiError("x", 409, "IDEMPOTENCY_CONFLICT")), true);
-  assert.equal(isWikiPageIdempotencyConflict(new ApiError("x", 409, "WIKI_PAGE_VERSION_CONFLICT")), false);
-});
-
-test("본문 저장은 PUT content로 보내고 409 버전 충돌의 current_revision을 보존한다", async (t) => {
-  selectWorkspace(t);
-  const calls = [];
-  const responses = [
-    Response.json({ page_id: "p1", revision: 4, updated_at: "2026-10-14T00:00:00Z", markdown: "# 새" }),
-    Response.json({ error: { code: "WIKI_PAGE_VERSION_CONFLICT", message: "충돌", current_revision: 5 } }, { status: 409 }),
-    Response.json({ error: { code: "IDEMPOTENCY_CONFLICT", message: "재사용" } }, { status: 409 })
-  ];
-  t.mock.method(globalThis, "fetch", async (path, init) => {
-    calls.push({ path, method: init?.method, body: JSON.parse(init?.body) });
-    return responses.shift();
-  });
-  const request = { markdown: "# 새", base_revision: 3, revision_write_id: "w1" };
-
-  assert.equal((await saveWikiPageContent("p1", request)).revision, 4);
-  assert.deepEqual(calls[0], { path: "/api/workspaces/ws_test/wiki/pages/p1/content", method: "PUT", body: request });
-
-  const conflict = await saveWikiPageContent("p1", request).catch((error) => error);
-  assert.ok(conflict instanceof WikiPageVersionConflictError);
-  assert.equal(conflict.currentRevision, 5);
-
-  const reused = await saveWikiPageContent("p1", request).catch((error) => error);
-  assert.ok(!(reused instanceof WikiPageVersionConflictError));
-  assert.equal(reused.code, "IDEMPOTENCY_CONFLICT");
-});
 
 test("그래프 조회는 받은 ETag를 If-None-Match로 보내고 304면 갖고 있던 그래프를 쓴다", async (t) => {
   selectWorkspace(t);

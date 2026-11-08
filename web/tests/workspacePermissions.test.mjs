@@ -59,11 +59,24 @@ test("자동 편입 토글은 PATCH workspaces/{id}에 auto_ingest_on_upload만 
     calls.push({ url: String(url), init });
     return Response.json({ id: "ws_1", name: "팀", icon_emoji: null, icon_url: null, auto_ingest_on_upload: true, created_at: "", updated_at: "" });
   });
-  const workspace = await updateWorkspaceAutoIngest("ws_1", true);
+  const workspace = await updateWorkspaceAutoIngest("ws_1", "auto_ingest_on_upload", true);
   assert.ok(calls[0].url.endsWith("/api/workspaces/ws_1"));
   assert.equal(calls[0].init.method, "PATCH");
   assert.deepEqual(JSON.parse(calls[0].init.body), { auto_ingest_on_upload: true });
   assert.equal(workspace.auto_ingest_on_upload, true);
+});
+
+test("새 서버의 Markdown·PDF 자동 편입 토글은 각자 그 필드만 PATCH한다", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    calls.push({ url: String(url), init });
+    return Response.json({ id: "ws_1", name: "팀", icon_emoji: null, icon_url: null, auto_ingest_on_upload: true, auto_ingest_markdown_on_upload: false, auto_ingest_pdf_on_convert: true, created_at: "", updated_at: "" });
+  });
+  await updateWorkspaceAutoIngest("ws_1", "auto_ingest_markdown_on_upload", false);
+  await updateWorkspaceAutoIngest("ws_1", "auto_ingest_pdf_on_convert", true);
+  assert.deepEqual(JSON.parse(calls[0].init.body), { auto_ingest_markdown_on_upload: false });
+  assert.deepEqual(JSON.parse(calls[1].init.body), { auto_ingest_pdf_on_convert: true });
+  assert.ok(calls.every((call) => call.init.method === "PATCH" && call.url.endsWith("/api/workspaces/ws_1")));
 });
 
 test("PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 토글은 PATCH workspaces/{id}에 describe_pdf_figures만 보낸다", async (t) => {

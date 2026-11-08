@@ -44,7 +44,8 @@ export function classifyChatExportPairs(messages: ChatPairMessage[]): ChatExport
       pair.isDocumentCommand = pair.isDocumentCommand
         || (message.action !== undefined
           && message.action !== "chat_answer"
-          && message.action !== "conversation_reply");
+          && message.action !== "conversation_reply"
+          && message.action !== "product_help");
     }
     pairs.set(message.pair_id, pair);
   }

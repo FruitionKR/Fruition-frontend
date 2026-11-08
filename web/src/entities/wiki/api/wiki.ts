@@ -1,16 +1,14 @@
 import { analyticsSessionHeaders } from "@/shared/lib/analytics/client";
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { readRunEvents, type RunStageEvent } from "@/shared/lib/runEventStream";
-import { apiFetch, parseJsonOrThrow, parseErrorResponse, parseApiError, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
-import { ApiError } from "@/shared/lib/apiErrors";
+import { apiFetch, parseJsonOrThrow, parseErrorResponse, getWorkspaceId, workspacePath, ERROR_MESSAGES } from "@/shared/api/client";
+import { startRunPreparationNotice } from "@/shared/lib/runPreparationNotice";
 import { getSessionContext } from "@/entities/chat/api/chat";
 import type { AiModelSelection } from "@/entities/ai";
 import type {
   BackendData,
   QueryResponse,
   WikiGraphResponse,
-  WikiPageContentSaveRequest,
-  WikiPageContentSaveResponse,
   WikiPageDetailResponse
 } from "@/entities/wiki/model/wiki";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
@@ -123,6 +121,7 @@ export async function runQueryStream(
   handlers: {
     onStage: (event: QueryStageEvent) => void;
     onStarted?: (run: QueryRun) => void;
+    onWaiting?: (waiting: boolean) => void;
     signal?: AbortSignal;
     allowWebSearch?: boolean;
     sessionContext?: { workspaceId: string; sessionId: string };
@@ -150,27 +149,36 @@ export async function runQueryStream(
   const requestId = created.request_id;
   handlers.onStarted?.({ workspaceId, requestId });
 
-  const eventsResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}/events`, {
-    headers: { Accept: "text/event-stream" },
-    signal: handlers.signal,
-    cache: "no-store"
-  });
-  if (!eventsResponse.ok || !eventsResponse.body) {
-    throw new Error(await parseErrorResponse(eventsResponse, ERROR_MESSAGES.queryFailed));
-  }
+  const stopWaiting = startRunPreparationNotice(handlers.onWaiting, handlers.signal);
+  try {
+    const eventsResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}/events`, {
+      headers: { Accept: "text/event-stream" },
+      signal: handlers.signal,
+      cache: "no-store"
+    });
+    if (!eventsResponse.ok || !eventsResponse.body) {
+      throw new Error(await parseErrorResponse(eventsResponse, ERROR_MESSAGES.queryFailed));
+    }
 
-  const terminal = await readRunEvents(eventsResponse, handlers.onStage, ERROR_MESSAGES.queryFailed);
-  if (terminal === "cancelled") throw new QueryCancelledError();
+    const terminal = await readRunEvents(eventsResponse, (event) => {
+      stopWaiting();
+      handlers.onStage(event);
+    }, ERROR_MESSAGES.queryFailed);
+    stopWaiting();
+    if (terminal === "cancelled") throw new QueryCancelledError();
 
-  // SSE가 종결 이벤트 없이 끊겨도 서버는 계속 처리한다. run이 끝날 때까지 상태를 폴링해 실패로 단정하지 않는다(#143).
-  while (true) {
-    const statusResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}`, { cache: "no-store", signal: handlers.signal });
-    const status = await parseJsonOrThrow<QueryRunStatusResponse>(statusResponse, ERROR_MESSAGES.queryFailed);
-    if (status.status === "cancelled") throw new QueryCancelledError();
-    if (status.result) return status.result;
-    if (!QUERY_RUN_ACTIVE_STATUSES.has(status.status)) throw new Error(status.error || ERROR_MESSAGES.queryFailed);
-    await new Promise((resolve) => setTimeout(resolve, QUERY_RUN_POLL_INTERVAL_MS));
-    handlers.signal?.throwIfAborted();
+    // SSE가 종결 이벤트 없이 끊겨도 서버는 계속 처리한다. run이 끝날 때까지 상태를 폴링해 실패로 단정하지 않는다(#143).
+    while (true) {
+      const statusResponse = await apiFetch(`/api/query/runs/${encodeURIComponent(requestId)}`, { cache: "no-store", signal: handlers.signal });
+      const status = await parseJsonOrThrow<QueryRunStatusResponse>(statusResponse, ERROR_MESSAGES.queryFailed);
+      if (status.status === "cancelled") throw new QueryCancelledError();
+      if (status.result) return status.result;
+      if (!QUERY_RUN_ACTIVE_STATUSES.has(status.status)) throw new Error(status.error || ERROR_MESSAGES.queryFailed);
+      await new Promise((resolve) => setTimeout(resolve, QUERY_RUN_POLL_INTERVAL_MS));
+      handlers.signal?.throwIfAborted();
+    }
+  } finally {
+    stopWaiting();
   }
 }
 
@@ -193,39 +201,4 @@ export async function fetchWikiPage(pageId: string): Promise<WikiPageDetailRespo
   );
 
   return parseJsonOrThrow<WikiPageDetailResponse>(response, ERROR_MESSAGES.wikiPageLoadFailed);
-}
-
-/** 본문 저장 409 WIKI_PAGE_VERSION_CONFLICT. currentRevision은 서버의 지금 revision(error.current_revision)이다. */
-export class WikiPageVersionConflictError extends ApiError {
-  readonly currentRevision: number | null;
-
-  constructor(message: string, currentRevision: number | null) {
-    super(message, 409, "WIKI_PAGE_VERSION_CONFLICT");
-    this.name = "WikiPageVersionConflictError";
-    this.currentRevision = currentRevision;
-  }
-}
-
-/**
- * 사람이 고친 본문을 저장한다(document #130). base_revision이 현재 revision과 다르면 409 WIKI_PAGE_VERSION_CONFLICT,
- * 같은 revision_write_id 재시도는 처음 결과를 돌려준다(503 뒤 재시도에 같은 ID를 쓴다).
- */
-export async function saveWikiPageContent(pageId: string, request: WikiPageContentSaveRequest): Promise<WikiPageContentSaveResponse> {
-  const response = await apiFetch(workspacePath(getWorkspaceId(), "wiki", "pages", pageId, "content"), {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request)
-  });
-  if (response.status === 409) {
-    const body = await response.clone().json().catch(() => null) as { error?: { code?: string; message?: string; current_revision?: unknown } } | null;
-    if (body?.error?.code === "WIKI_PAGE_VERSION_CONFLICT") {
-      const current = body.error.current_revision;
-      throw new WikiPageVersionConflictError(
-        body.error.message || ERROR_MESSAGES.wikiPageSaveFailed,
-        typeof current === "number" && Number.isFinite(current) ? current : null
-      );
-    }
-    throw await parseApiError(response, ERROR_MESSAGES.wikiPageSaveFailed);
-  }
-  return parseJsonOrThrow<WikiPageContentSaveResponse>(response, ERROR_MESSAGES.wikiPageSaveFailed);
 }

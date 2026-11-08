@@ -1,0 +1,156 @@
+{
+  "ingestPermissionHint": "You don’t have permission to add documents to the wiki",
+  "ingest": {
+    "confirm": "OK",
+    "pdfConvertQualityNotice": "The converted Markdown may not match the original PDF’s content or layout, and may be harder to read.",
+    "convertedConfirm": {
+      "title": "Add this document to the wiki?",
+      "description": "\"{filename}\" is Markdown converted from a PDF. Once it’s in the wiki, chat can use it as a source for answers."
+    },
+    "pdfConvertConfirm": {
+      "title": "Convert the PDF to Markdown?",
+      "description": "\"{filename}\": {qualityNotice} Convert it?"
+    },
+    "pdfIngestConfirm": {
+      "title": "Convert the PDFs and add them to the wiki?",
+      "description": "{count, plural, one {The selected PDF will be converted to Markdown first, then added to the wiki.} other {The # selected PDFs will be converted to Markdown first, then added to the wiki.}} Conversion may take a while. {qualityNotice}"
+    },
+    "pdfIngest": {
+      "missingDocument": "The converted document disappeared from the list, so it couldn’t be added to the wiki.",
+      "conversionFailed": "The PDF conversion failed, so it couldn’t be added to the wiki.",
+      "requestedTitle": "PDF wiki ingest requested",
+      "requestedMessage": "{filename}: Converted to Markdown and requested to add it to the wiki.",
+      "failedTitle": "PDF wiki ingest failed",
+      "failedMessage": "{filename}: {reason}",
+      "failedFallback": "Couldn’t add it to the wiki."
+    }
+  },
+  "chatEvidence": {
+    "notIncluded": {
+      "message": "This note isn’t in the wiki, so chat can’t find its content. Add it to the wiki to use it as a source for answers.",
+      "action": "Add to wiki"
+    },
+    "changed": {
+      "message": "Changes made since the last wiki ingest aren’t reflected in answers.",
+      "action": "Apply changes"
+    },
+    "retry": {
+      "message": "Adding this note to the wiki failed, so it can’t be used as a source for answers.",
+      "action": "Try again"
+    },
+    "processing": {
+      "message": "Adding this note to the wiki. Once it’s done, answers can use it as a source."
+    }
+  },
+  "notifications": {
+    "stackLabel": "Document processing notifications",
+    "cancel": "Cancel",
+    "confirm": "OK",
+    "processed": {
+      "title": "Documents processed",
+      "message": "{count, plural, =1 {Wiki ingest is complete.} other {Wiki ingest is complete for # documents.}}"
+    },
+    "pdfConverted": {
+      "title": "PDF conversion complete",
+      "message": "{count, plural, one {# PDF was converted to Markdown.} other {# PDFs were converted to Markdown.}}"
+    },
+    "failed": {
+      "title": "Document processing failed",
+      "single": "Couldn’t process \"{filename}\". {reason}",
+      "reasonFallback": "Check the reason for the failure.",
+      "multiple": "Couldn’t process {count} documents. ({names}) Check each document for the reason.",
+      "namesWithRest": "{names} and {count} more"
+    },
+    "operation": {
+      "lint": {
+        "completedTitle": "Wiki refresh complete",
+        "failedTitle": "Wiki refresh failed",
+        "completedMessage": "The wiki refresh has finished.",
+        "failedMessage": "The wiki refresh failed."
+      },
+      "restore": {
+        "completedTitle": "Rollback complete",
+        "failedTitle": "Rollback failed",
+        "completedMessage": "The rollback has finished.",
+        "failedMessage": "The rollback failed."
+      }
+    },
+    "ingestPrompt": {
+      "title": {
+        "waiting": "Some documents are waiting to be added to the wiki",
+        "newDocument": "New documents were added",
+        "stalled": "Wiki ingest hasn’t started yet",
+        "changed": "Some documents changed since the last wiki ingest"
+      },
+      "message": "{count, plural, =1 {Add \"{filename}\" to the wiki.} other {Add # documents to the wiki.}}",
+      "action": "Add to wiki",
+      "failureItem": "{filename}: {reason}",
+      "requestFailed": "The request failed.",
+      "startFailedTitle": "Couldn’t start wiki ingest"
+    },
+    "ingestRequest": {
+      "title": "Wiki ingest requested",
+      "started": "{count, plural, one {Started processing # document.} other {Started processing # documents.}}",
+      "requestedOne": "{filename}: Requested to add it to the wiki.",
+      "failedTitle": "Wiki ingest failed",
+      "failureItem": "{filename}: {reason}",
+      "failedFallback": "Couldn’t add it to the wiki."
+    },
+    "lintSuggest": {
+      "title": "Refresh the wiki?",
+      "message": "Wiki pages changed after new documents were added. You can run a wiki refresh.",
+      "action": "Refresh wiki"
+    },
+    "lint": {
+      "completedTitle": "Wiki refresh complete",
+      "completedMessage": "{count, plural, one {Polished # page.} other {Polished # pages.}}",
+      "failedTitle": "Wiki refresh failed",
+      "requestFailed": "Couldn’t request a wiki refresh."
+    },
+    "upToDate": {
+      "title": "Wiki is up to date",
+      "message": "The wiki is already up to date."
+    },
+    "server": {
+      "title": "Notification",
+      "message": "You have a new {type} notification."
+    }
+  },
+  "lintPermissionHint": "You don’t have permission to refresh the wiki",
+  "lintProgress": {
+    "elapsed": "running for {minutes, plural, one {# minute} other {# minutes}}",
+    "running": "Refreshing wiki · {elapsed}",
+    "pending": "Wiki refresh in progress"
+  },
+  "reflect": {
+    "label": {
+      "changed": "Edited",
+      "notIncluded": "Not in wiki",
+      "retry": "Failed"
+    },
+    "description": {
+      "notIncluded": "Not added to the wiki yet",
+      "changed": "Edited since it was added to the wiki",
+      "retry": "Couldn't be added to the wiki"
+    }
+  },
+  "ingestBlock": {
+    "notMarkdown": "Only Markdown documents can be added to the wiki",
+    "pdfConverted": "Already converted to Markdown. Select the converted Markdown document",
+    "pdfConverting": "Converting to Markdown",
+    "conversionFailed": "Markdown conversion failed for this document",
+    "processing": "Processing, so it can't be added right now",
+    "upToDate": "The latest content is already in the wiki"
+  },
+  "workList": {
+    "ingest": "Add to wiki",
+    "lint": "Refresh wiki",
+    "convert": "PDF → MD conversion",
+    "restore": "Rollback"
+  },
+  "export": {
+    "skipped": "A source document with the same content already exists, so we opened it.",
+    "savedCanIngest": "Saved the chat as a source document. Click ‘Add to wiki’ to add it to the wiki so chat answers can cite it.",
+    "saved": "Saved the chat as a source document. To add it to the wiki, select it under ‘Add to wiki’."
+  }
+}

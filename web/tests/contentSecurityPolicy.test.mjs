@@ -5,7 +5,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier === "next/server") return nextResolve("next/server.js", context);
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   // 앱 모듈이 확장자 없이 부르는 상대 경로만 .ts로 푼다(next 내부 require는 건드리지 않는다)
-  const isAppModule = /\/(app\/csp-report|src\/shared\/lib)\//.test(context.parentURL ?? "");
+  const isAppModule = /\/(app\/csp-report|src\/shared\/lib|src\/shared\/i18n)\//.test(context.parentURL ?? "");
   if (specifier.startsWith(".") && isAppModule && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});
@@ -91,14 +91,14 @@ test("production 화면 응답에는 요청마다 다른 nonce로 CSP를 강제�
   assert.notEqual(nonceOf(policy), nonceOf(second.headers.get("Content-Security-Policy")));
 });
 
-test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·화면 아닌 경로는 뺀다", async (t) => {
+test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·랜딩·튜토리얼 정적 파일·화면 아닌 경로는 뺀다", async (t) => {
   withNodeEnv(t, "production");
   // Next가 matcher를 해석하는 것과 같은 path-to-regexp로 확인한다
   const matchers = middlewareConfig.matcher.map((source) => getPathMatch(source));
   const matched = (path) => matchers.some((matches) => matches(path) !== false);
   // 화면 아닌 경로와 이름이 같은 접두어로 시작하는 화면은 그대로 CSP를 받는다
-  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/favicons", "/landing"]) assert.ok(matched(path), path);
-  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/a.woff2", "/fonts/pretendard/a.woff2", "/healthz", "/wake", "/csp-report", "/favicon/icon-dark.svg", "/favicon.ico", "/landing/query.mp4", "/landing/query.webp"]) {
+  for (const path of ["/", "/login", "/home", "/workspaces/ws", "/api/workspaces/ws/documents", "/healthzone", "/wakeup", "/csp-reports", "/favicons", "/landing", "/tutorial"]) assert.ok(matched(path), path);
+  for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/a.woff2", "/fonts/pretendard/a.woff2", "/healthz", "/wake", "/csp-report", "/favicon/icon-dark.svg", "/favicon.ico", "/landing/query.mp4", "/landing/query.webp", "/tutorial/ko/write-note.webp"]) {
     assert.equal(matched(path), false, path);
   }
   // /api 요청은 CSP 대신 접근 코드 게이트를 거친다

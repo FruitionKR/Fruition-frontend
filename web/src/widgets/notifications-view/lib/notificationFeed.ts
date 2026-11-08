@@ -1,5 +1,11 @@
-import type { OperationLogItem, OperationType } from "@/entities/operation-log";
+import type { OperationLogItem, OperationSummaryTranslate, OperationType } from "@/entities/operation-log";
+import { isServerLintDisplayName, localizeOperationSummary } from "@/entities/operation-log/model/operationSummary";
 import type { WorkspaceMember } from "@/entities/workspace/api/members";
+import type koWorkspace from "@/shared/i18n/messages/ko/workspace.json";
+import type { MessageTranslate } from "@/shared/i18n/messageTranslate";
+
+/** 알림 화면 문구(workspace.notificationsView). 순수 함수가 마지막 인자로 받는다. 넘기지 않으면 한국어를 쓴다. */
+export type NotificationsViewTranslate = MessageTranslate<typeof koWorkspace.notificationsView>;
 
 /** 알림 화면 하위 탭 (Figma 1486:3178). 워크스페이스 = 멤버 등 워크스페이스 이벤트, 작업 = AI 작업 종결 이력 */
 export type NotificationCategory = "workspace" | "task";
@@ -58,48 +64,82 @@ function byNewest(a: NotificationItem, b: NotificationItem) {
 }
 
 /** 로그 화면과 같은 규칙: 문서 이름과 요약이 다르면 "문서 / 요약", 하나만 있으면 그것만 */
-function describeOperation(log: OperationLogItem, fallback: string) {
+/** 대상 문서 이름. 지금 언어로 쓸 때는 서버가 lint에 붙인 한국어 작업 이름을 문서 이름으로 보이지 않는다. */
+function targetName(log: OperationLogItem, tSummary?: OperationSummaryTranslate) {
   const name = log.target_display_name?.trim();
-  const summary = log.summary?.trim();
+  return tSummary && isServerLintDisplayName(log.operation_type, name) ? undefined : name;
+}
+
+function describeOperation(log: OperationLogItem, fallback: string, tSummary?: OperationSummaryTranslate) {
+  const name = targetName(log, tSummary);
+  const summary = localizeOperationSummary(log, tSummary);
   if (name && summary && name !== summary) return `${name} / ${summary}`;
   return name || summary || fallback;
 }
 
+type TerminalStatus = "succeeded" | "partially_succeeded" | "failed" | "conflict";
+
+/** 작업 알림 한 건의 문구. t가 없으면 기존 한국어 문구를 만든다. */
+function taskText(log: OperationLogItem, status: TerminalStatus, t?: NotificationsViewTranslate, tSummary?: OperationSummaryTranslate) {
+  const koStatus = TERMINAL_STATUS_TEXT[status];
+  const known = log.operation_type in TASK_LABELS;
+  const label = t && known ? t(`taskLabel.${log.operation_type}`) : TASK_LABELS[log.operation_type] ?? log.operation_type;
+  const name = targetName(log, tSummary);
+  const summary = localizeOperationSummary(log, tSummary);
+  if (!t) {
+    return {
+      title: `${label} ${koStatus.label}`,
+      sentence: `${label} 작업이 ${koStatus.sentence}`,
+      target: name ? `대상 문서: ${name}` : null,
+      summary: summary ? `요약: ${summary}` : null,
+      changed: log.changed_resource_count > 0 ? `바뀐 문서 ${log.changed_resource_count}개` : null
+    };
+  }
+  return {
+    title: t("taskTitle", { label, status: t(`taskStatus.${status}`) }),
+    sentence: t(`taskSentence.${status}`, { label }),
+    target: name ? t("targetDocument", { name }) : null,
+    summary: summary ? t("summary", { summary }) : null,
+    changed: log.changed_resource_count > 0 ? t("changedDocuments", { count: log.changed_resource_count }) : null
+  };
+}
+
 /**
  * 작업 알림: 종결된 AI 작업 로그(문서 처리·위키 최신화·복구·AI 편집). 진행 중 작업과
- * 바꾼 문서 없이 성공한 lint(로그 화면에서도 숨김)는 뺀다.
+ * 바꾼 문서 없이 성공한 lint(로그 화면에서도 숨김)는 뺀다. t를 넘기면 지금 언어로 쓰고,
+ * tSummary(workspace.logMessages.summary)를 넘기면 서버가 한국어로 저장한 알려진 작업 요약도 지금 언어로 쓴다.
  */
-export function buildTaskNotifications(logs: readonly OperationLogItem[]): NotificationItem[] {
+export function buildTaskNotifications(
+  logs: readonly OperationLogItem[],
+  t?: NotificationsViewTranslate,
+  tSummary?: OperationSummaryTranslate
+): NotificationItem[] {
   return logs.flatMap((log): NotificationItem[] => {
     const status = TERMINAL_STATUS_TEXT[log.status];
     if (!status) return [];
     if (log.operation_type === "lint" && log.status === "succeeded" && log.changed_resource_count === 0) return [];
     const occurredAt = parseTime(log.completed_at) ?? parseTime(log.created_at);
     if (occurredAt === null) return [];
-    const label = TASK_LABELS[log.operation_type] ?? log.operation_type;
+    const text = taskText(log, log.status as TerminalStatus, t, tSummary);
     return [{
       id: `task:${log.operation_id}`,
       category: "task",
-      title: `${label} ${status.label}`,
-      description: describeOperation(log, `${label} 작업이 ${status.sentence}`),
+      title: text.title,
+      description: describeOperation(log, text.sentence, tSummary),
       occurredAt,
       changeCount: log.changed_resource_count > 0 ? log.changed_resource_count : null,
-      details: [
-        `${label} 작업이 ${status.sentence}`,
-        ...(log.target_display_name?.trim() ? [`대상 문서: ${log.target_display_name.trim()}`] : []),
-        ...(log.summary?.trim() ? [`요약: ${log.summary.trim()}`] : []),
-        ...(log.changed_resource_count > 0 ? [`바뀐 문서 ${log.changed_resource_count}개`] : [])
-      ],
+      details: [text.sentence, ...[text.target, text.summary, text.changed].filter((line): line is string => line !== null)],
       tone: status.tone,
       operationId: log.operation_id
     }];
   }).sort(byNewest);
 }
 
-/** 워크스페이스 알림: 나를 뺀 멤버의 참여. 백엔드에 워크스페이스 이벤트 피드가 없어 멤버 목록의 참여 시각으로 만든다. */
+/** 워크스페이스 알림: 나를 뺀 멤버의 참여. 백엔드에 워크스페이스 이벤트 피드가 없어 멤버 목록의 참여 시각으로 만든다. t를 넘기면 지금 언어로 쓴다. */
 export function buildWorkspaceNotifications(
   members: readonly WorkspaceMember[],
-  myUserId: string | null
+  myUserId: string | null,
+  t?: NotificationsViewTranslate
 ): NotificationItem[] {
   return members.flatMap((member): NotificationItem[] => {
     if (member.user_id === myUserId) return [];
@@ -110,13 +150,13 @@ export function buildWorkspaceNotifications(
     return [{
       id: `member:${member.user_id}`,
       category: "workspace",
-      title: "새 멤버 참여",
-      description: `${name}님이 워크스페이스에 참여했습니다.`,
+      title: t ? t("memberJoinedTitle") : "새 멤버 참여",
+      description: t ? t("memberJoined", { name }) : `${name}님이 워크스페이스에 참여했습니다.`,
       occurredAt,
       changeCount: null,
       details: [
         displayName ? `${displayName} (${member.email})` : member.email,
-        `역할: ${member.role === "OWNER" ? "소유자" : "멤버"}`
+        t ? t("memberRole", { role: t(member.role === "OWNER" ? "roles.owner" : "roles.member") }) : `역할: ${member.role === "OWNER" ? "소유자" : "멤버"}`
       ],
       tone: "success"
     }];
@@ -179,9 +219,20 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 const RELATIVE_DAYS_LIMIT = 7;
 
-/** 목록 오른쪽 시간 (Figma "지금" / "1분 전"). 일주일이 넘으면 날짜, 올해가 아니면 연도까지 쓴다. */
-export function formatNotificationTime(timestamp: number, now: number): string {
+/**
+ * 목록 오른쪽 시간 (Figma "지금" / "1분 전"). 일주일이 넘으면 날짜, 올해가 아니면 연도까지 쓴다.
+ * t와 locale(화면 언어)을 넘기면 지금 언어로 쓴다.
+ */
+export function formatNotificationTime(timestamp: number, now: number, t?: NotificationsViewTranslate, locale?: string): string {
   const elapsed = now - timestamp;
+  if (t) {
+    if (elapsed < MINUTE_MS) return t("time.now");
+    if (elapsed < HOUR_MS) return t("time.minutes", { count: Math.floor(elapsed / MINUTE_MS) });
+    if (elapsed < DAY_MS) return t("time.hours", { count: Math.floor(elapsed / HOUR_MS) });
+    if (elapsed < RELATIVE_DAYS_LIMIT * DAY_MS) return t("time.days", { count: Math.floor(elapsed / DAY_MS) });
+    const isThisYear = new Date(timestamp).getFullYear() === new Date(now).getFullYear();
+    return new Intl.DateTimeFormat(locale, isThisYear ? { month: "long", day: "numeric" } : { year: "numeric", month: "long", day: "numeric" }).format(timestamp);
+  }
   if (elapsed < MINUTE_MS) return "지금";
   if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)}분 전`;
   if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)}시간 전`;
