@@ -6,8 +6,8 @@ access-svc가 받는 워크스페이스 자체 CRUD·아이콘·멤버십·초�
 이 경로들을 명시적으로 access-svc로 보낸다. 직접 전송 정규식에 포함되지 않으므로 항상
 동일 출처 rewrite를 경유한다.
 
-- 호출 지점: 14
-- 호출 경로: 9
+- 호출 지점: 18
+- 호출 경로: 12
 
 ## 워크스페이스
 
@@ -43,6 +43,23 @@ access-svc가 받는 워크스페이스 자체 CRUD·아이콘·멤버십·초�
 | `GET /api/invitations/{token}` | 초대 링크 내용 미리보기 | `web/src/entities/workspace/api/invitations.ts` | 템플릿 결합 (`encodeURIComponent(token)`) | `cache: no-store` | 초대 정보 | raw `fetch`. 수신자가 아직 로그인하지 않았을 수 있어 Bearer를 붙이지 않는다. 최상위 경로이고 middleware `OPEN_API_PATTERNS`에 포함된다 |
 | `POST /api/invitations/{token}/accept` | 초대 수락 | `web/src/entities/workspace/api/invitations.ts` | 템플릿 결합 (`encodeURIComponent(token)`) | 본문 없음 | - | `apiFetch`. 수락은 로그인 상태를 요구하므로 Bearer를 붙인다 |
 
+## 워크스페이스 MCP 관리
+
+설정 > 워크스페이스 설정의 OWNER 전용 섹션이 `web/src/entities/workspace/api/mcp.ts`를 사용한다. 화면의 OWNER 판정은
+컨트롤 노출 힌트일 뿐이며 access-svc가 모든 요청에서 현재 OWNER를 다시 확인한다. 정책과 연결 캐시는 선택 워크스페이스와
+현재 사용자로 나뉘고, 워크스페이스 전환 시 draft·페이지 상태도 새 컴포넌트로 초기화된다.
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `GET /api/workspaces/{workspace_id}/mcp-policy` | 현재 MCP 허용 정책 조회 | `fetchWorkspaceMcpPolicy` | `workspacePath(workspaceId, "mcp-policy")` | `cache: no-store` | `workspace_id`, `enabled`, `allowed_scopes`, nullable `generation`·`updated_at` | 정책이 없으면 서버가 `enabled:false`, 빈 scope, nullable 메타데이터를 반환한다. UI가 오류를 꺼짐으로 대체하지 않는다 |
+| `PUT /api/workspaces/{workspace_id}/mcp-policy` | MCP 허용 여부와 scope 전체 교체 | `updateWorkspaceMcpPolicy` | 같은 경로 | 정확히 `{ enabled, allowed_scopes }`; scope는 `read`·`write_propose`·`wiki_write`, 빈 배열 허용 | 위와 같은 authoritative policy | 명시적 저장만 호출한다. 끄기·scope 변경은 확인 창을 거치며 성공 뒤 정책과 연결 페이지를 다시 조회한다. 변경은 과거 grant를 회수하므로 재연결이 필요하다 |
+| `GET /api/workspaces/{workspace_id}/mcp-connections?page={page}&size={size}` | OWNER가 워크스페이스 전체 연결 조회 | `fetchWorkspaceMcpConnections` | `workspacePath` + `URLSearchParams` | 0부터 시작하는 `page`, 고정 `size=20`, `cache:no-store` | `connections`, `page`, `size`, `has_next`; 행은 개인 연결 8필드 + `user_id` | 서버 정렬·페이지를 그대로 쓴다. 이름/last-used는 계약에 없고 만들지 않는다. Access 구현 보고서는 이 경로와 계약 테스트 완료를 기록했지만, 이 프런트 작업에서 실제 결합 E2E를 수행한 것은 아니다 |
+| `DELETE /api/workspaces/{workspace_id}/mcp-connections/{grant_id}` | OWNER 강제 회수 | `revokeWorkspaceMcpConnection` | 모든 segment를 인코딩하는 `workspacePath` | 본문 없음 | 204 body 없음 | `ACTIVE`·`USER_DISCONNECTED`만 화면에서 회수 가능하다. 204/404는 해당 workspace/user 캐시 행을 지운 뒤 재조회하고, 5xx는 목록을 바꾸지 않는다. 서버는 강한 `SECURITY_REVOKED`·`PURGED`를 낮추지 않는다 |
+
+로컬 proxy는 위 세 정확한 route shape를 `next.config.mjs`에서 access-svc로 보낸다. `SAME_ORIGIN_API=true`에서는 Next rewrite가
+없으므로 ALB가 같은 세 경로를 access-svc로 소유해야 한다. 기존 `/oauth2/authorize`, 개인 `/api/mcp/connections/**`,
+소셜 로그인 경로는 유지한다. 실제 ALB 규칙과 Access 병렬 구현을 합친 E2E는 배포 전 별도 게이트다.
+
 ## 권한 항목이 없을 때 (document #116)
 
 편입(수동 편입·채팅 내보내기 문서의 편입)·lint·남이 올린 PDF 변환·남이 실행한 AI 작업 되돌리기·팀 스킬 작성은
@@ -58,5 +75,5 @@ access-svc가 받는 워크스페이스 자체 CRUD·아이콘·멤버십·초�
 ## UI 위치
 
 - 워크스페이스 선택·생성: `web/src/views/workspaces/ui`
-- 아이콘·멤버·초대 관리: `web/src/features/settings/ui`, `web/src/entities/workspace/ui`
+- 아이콘·멤버·초대·MCP 정책/연결 관리: `web/src/features/user-settings/ui`, `web/src/entities/workspace`
 - 초대 수신 화면: `web/src/views/invitation/ui`

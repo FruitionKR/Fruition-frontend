@@ -15,7 +15,7 @@ registerHooks({
   }
 });
 const agentPlan = await import("../src/features/agent-chat/lib/agentPlan.ts");
-const { fetchAgentPlanRun, fetchAgentRunEditPreviews, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
+const { cancelAgentPlanRun, fetchAgentPlanRun, fetchAgentPlanRunById, fetchAgentRunEditPreviews, decideAgentPlan } = await import("../src/features/agent-chat/api/agentPlan.ts");
 
 const { createStartedPlanTurns, savedEditDocumentIds, withRollbackPurgedOperations, isOperationPurged, canRetryAgentPlanRun, planOperationOutcome, splitPlanSummary, summarizePlanOperationResults, canApproveAgentPlan, isPlanRunSettled, knownPlanRunId, shouldPollAgentPlan } = agentPlan;
 // 문구를 만드는 함수는 화면과 같이 한국어 agentChat 메시지로 푼다.
@@ -66,6 +66,44 @@ test("승인은 화면에서 검토한 버전·해시를 전송하고 충돌을 
     return Response.json({ detail: "계획이 변경되었습니다." }, { status: 409 });
   });
   await assert.rejects(decideAgentPlan("ws_test", "autonomous-1", "approve", plan), /계획이 변경/);
+});
+
+test("MCP 승인은 화면에 표시한 가격 snapshot을 그대로 묶고 known run만 직접 조회한다", async (t) => {
+  const expected = { unit_price_minor: 100, plan_cap_minor: 500, currency: "KRW", price_version: "v1", maximum_charge_minor: 100 };
+  const paths = [];
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    paths.push(path);
+    if (!init?.method) return Response.json({ id: "run-1", status: "awaiting_approval", plan });
+    assert.deepEqual(JSON.parse(init.body), { plan_version: 2, operation_hash: "a".repeat(64), operation_ids: ["op-1"], expected_price_snapshot: expected });
+    return Response.json({ id: "run-1", status: "executing", plan: null });
+  });
+  assert.equal((await fetchAgentPlanRunById("ws route", "run/1")).id, "run-1");
+  assert.equal((await decideAgentPlan("ws route", "run/1", "approve", plan, ["op-1"], expected)).status, "executing");
+  assert.deepEqual(paths, ["/api/workspaces/ws%20route/agent/runs/run%2F1", "/api/workspaces/ws%20route/agent/runs/run%2F1/approve"]);
+});
+
+test("MCP 가격 또는 plan 409는 승인 성공으로 처리하거나 자동 재시도하지 않는다", async (t) => {
+  let calls = 0;
+  const expected = { unit_price_minor: 100, plan_cap_minor: 500, currency: "KRW", price_version: "v2", maximum_charge_minor: 200 };
+  t.mock.method(globalThis, "fetch", async (_path, init) => {
+    calls += 1;
+    assert.deepEqual(JSON.parse(init.body), { plan_version: 2, operation_hash: "a".repeat(64), operation_ids: ["op-1", "op-2"], expected_price_snapshot: expected });
+    return Response.json({ detail: "price or plan changed" }, { status: 409 });
+  });
+  await assert.rejects(decideAgentPlan("ws", "run", "approve", plan, ["op-1", "op-2"], expected), /price or plan changed/);
+  assert.equal(calls, 1);
+});
+
+test("명시적 run 취소는 기존 역순 복구 endpoint를 한 번만 호출한다", async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    calls += 1;
+    assert.equal(path, "/api/workspaces/ws/agent/runs/run/cancel");
+    assert.equal(init.method, "POST");
+    return Response.json({ id: "run", status: "cancel_requested", plan: null });
+  });
+  assert.equal((await cancelAgentPlanRun("ws", "run")).status, "cancel_requested");
+  assert.equal(calls, 1);
 });
 
 test("부분 승인은 고른 작업 id를 operation_ids로 보내고 400을 선택 오류로 알린다", async (t) => {

@@ -6,7 +6,7 @@ import { DocumentDiffLines } from "./DocumentDiffLines";
 import styles from "./AgentChat.module.css";
 import { useTranslations } from "next-intl";
 
-function DocumentEditDiff({ row, missingNote }: { row: DocumentEditRow; missingNote: string }) {
+export function DocumentEditDiff({ row, missingNote }: { row: DocumentEditRow; missingNote: string }) {
   const t = useTranslations("agentChat");
   const [limit, setLimit] = useState(DIFF_LINE_PAGE);
   const regionRef = useRef<HTMLDivElement | null>(null);

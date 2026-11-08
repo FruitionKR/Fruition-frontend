@@ -1,0 +1,62 @@
+.notice,
+.policy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notice small {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.scopes legend {
+  padding: 0 4px;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.scopes label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--color-body);
+  cursor: pointer;
+}
+
+.scopes label > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scopes small {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.connections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.value {
+  overflow-wrap: anywhere;
+}

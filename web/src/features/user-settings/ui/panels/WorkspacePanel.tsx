@@ -21,6 +21,7 @@ import styles from "../SettingsModal.module.css";
 import { SettingsPanelTitle } from "../SettingsPanelTitle";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import { WorkspaceIconSettings } from "./WorkspaceIconSettings";
+import { WorkspaceMcpManagementSection } from "./WorkspaceMcpManagementSection";
 import { WorkspaceModelMenu } from "./WorkspaceModelMenu";
 
 /** 워크스페이스 이름 최대 길이 (서버 제한과 같다) */
@@ -256,6 +257,8 @@ export function WorkspacePanel({
           />
         </div>
       </div>
+
+      <WorkspaceMcpManagementSection />
     </div>
   );
 }

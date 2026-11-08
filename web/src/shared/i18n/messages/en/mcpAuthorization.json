@@ -1,0 +1,33 @@
+{
+  "title": "Connect an MCP client",
+  "loading": "Checking this connection request…",
+  "client": "Registered client",
+  "redirectHost": "Redirect host",
+  "scopesLabel": "Requested access",
+  "expiresAt": "Request expires",
+  "identityWarning": "The registered client name does not verify the identity of the app making this request.",
+  "loopbackWarning": "This request returns to an app on this device. Approve only if you started this connection.",
+  "workspaceLabel": "Choose a workspace",
+  "noWorkspaces": "No eligible workspace allows all requested access. You can still deny this request.",
+  "approve": "Approve connection",
+  "deny": "Deny",
+  "processing": "Sending decision…",
+  "restart": "Restart request",
+  "restartHint": "Return to your MCP client and start the connection again if this request cannot be restarted.",
+  "errors": {
+    "invalid": "This connection request is malformed or too large.",
+    "load": "We couldn't load this connection request.",
+    "expired": "This connection request has expired.",
+    "auth": "Your signed-in session changed. This connection request was cleared.",
+    "decision": "We couldn't confirm the decision. For safety, this request will not be submitted again."
+  },
+  "scopes": {
+    "read": "Read documents and wiki",
+    "write_propose": "Propose document changes",
+    "wiki_write": "Propose wiki changes"
+  },
+  "roles": {
+    "OWNER": "Owner",
+    "MEMBER": "Member"
+  }
+}

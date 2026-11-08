@@ -1,4 +1,5 @@
 export * from "./api/workspace";
+export * from "./api/mcp";
 export * from "./model/workspace";
 export * from "./model/useSelectedWorkspace";
 export * from "./model/useWorkspaceRole";

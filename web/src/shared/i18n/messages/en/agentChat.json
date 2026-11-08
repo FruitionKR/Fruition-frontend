@@ -412,6 +412,21 @@
       "workspace": "Workspace task plan"
     },
     "loadFailed": "Couldn't load the plan.",
+    "mcpResult": {
+      "attemptedUnknown": "This operation was attempted, but its receipt is still being reconciled. It will keep polling and is not final yet.",
+      "budgetUnstarted": "This operation was not started because the execution budget was exhausted.",
+      "createHeld": "Creation is on hold while an earlier uncertain matching create is reconciled. It is not shown as newly created, chargeable, or rollbackable.",
+      "existingReused": "A receipt-confirmed existing result was reused. It was not newly created and is not a new charge or rollback target."
+    },
+    "mcpSelection": {
+      "createPreview": "New document content preview",
+      "dependenciesChanged": "{count, plural, one {# required or dependent operation was also changed} other {# required or dependent operations were also changed}} to keep the selection valid.",
+      "editPreview": "Document edit preview",
+      "operationCheckbox": "Select operation: {operation}",
+      "previewMissing": "A selected document edit or creation preview is missing, malformed, or expired. Refresh the status; approval is disabled.",
+      "requires": "Requires {count, plural, one {# earlier operation} other {# earlier operations}}. Selecting or clearing either side updates its dependencies.",
+      "selectOne": "Select at least one operation. The selected operations must include every required earlier operation."
+    },
     "missingTaskTurn": "This task has no plan information. Please request it again.",
     "missingTurn": "This answer has no plan information. Please request it again.",
     "openPreview": "Open Preview tab",
@@ -443,10 +458,12 @@
       "conflicted": "Conflict",
       "failed": "Failed",
       "forbidden": "No permission",
+      "pending_reconciliation": "Pending reconciliation",
       "rolled_back": "Undone",
       "running": "Running",
       "skipped": "Skipped",
       "succeeded": "Done",
+      "unknown": "Outcome unknown",
       "verification_failed": "Verification failed"
     },
     "purged": "Permanently deleted",
@@ -460,6 +477,9 @@
       "conflicted": "Conflict",
       "executing": "Running",
       "failed": "Failed",
+      "expired": "Approval expired",
+      "halted": "Stopped by policy",
+      "invalidated": "Approval invalidated",
       "partial_failed": "Partly failed",
       "planning": "Planning",
       "queued": "Waiting to plan",

@@ -17,6 +17,12 @@ export type AgentPlanOperation = {
   warning?: AgentPlanOperationWarning | null;
   /** 화면의 기본 선택 여부. 없으면 선택으로 본다. */
   suggested_selected?: boolean;
+  /** 영수증으로 확인된 기존 생성 결과 재사용. 새 생성·과금·롤백 대상으로 표시하지 않는다. */
+  existing_result?: {
+    resource_type: "DOCUMENT" | "FOLDER";
+    resource_id: string;
+    current_version: number;
+  } | null;
 };
 
 export type AgentPlanOperationWarning = {
@@ -37,6 +43,33 @@ export type AgentPlan = {
   approved_by?: string | null;
 };
 
+export type McpPriceSnapshot = {
+  unit_price_minor: number;
+  plan_cap_minor: number;
+  currency: string;
+  price_version: string;
+  maximum_charge_minor: number;
+};
+
+export type McpApprovalQuote = {
+  client_name: string;
+  selected_operation_count?: number;
+  price_snapshot?: McpPriceSnapshot | null;
+  unavailable_reason?: "TARGET_VERSION_CHANGED" | null;
+};
+
+export type McpSettlement = {
+  approval_id: string;
+  execution_status: "RESERVED" | "FORWARDED" | "CANCELLED" | "HALTED" | "PURGED";
+  forward_status: "NOT_SENT" | "UNKNOWN" | "ACCEPTED";
+  settlement_status: "RESERVED" | "EXECUTING" | "PENDING_RECONCILIATION" | "SETTLED";
+  charged_minor: number;
+  maximum_charge_minor: number;
+  currency: string;
+  client_name: string;
+  price_snapshot: McpPriceSnapshot;
+};
+
 export type AgentPlanRun = {
   id: string;
   status: string;
@@ -49,6 +82,12 @@ export type AgentPlanRun = {
   target_folder_id?: string | null;
   /** 선택한 스킬의 규칙 요약. 스킬 없이 실행했거나 옛 run이면 비어 있다. */
   rule_summary?: string | null;
+  origin?: string | null;
+  grant_id?: string | null;
+  client_id?: string | null;
+  policy_generation?: number | null;
+  mcp_approval_quote?: McpApprovalQuote | null;
+  mcp_settlement?: McpSettlement | null;
   plan: AgentPlan | null;
 };
 
@@ -194,7 +233,7 @@ export const startedPlanTurns = createStartedPlanTurns();
 /** 상태 문구(agentChat.plan.status)를 둔 run 상태 */
 const PLAN_RUN_STATUSES = [
   "queued", "planning", "awaiting_approval", "executing", "verifying", "completed", "partial_failed", "failed", "conflicted",
-  "rejected", "clarification_required", "cancel_requested", "rolling_back", "rollback_failed", "cancelled"
+  "rejected", "clarification_required", "cancel_requested", "rolling_back", "rollback_failed", "cancelled", "halted", "invalidated", "expired"
 ] as const;
 
 export function agentPlanStatusLabel(status: string | undefined, t: AgentChatTranslator): string {
@@ -302,7 +341,7 @@ export function savedEditDocumentIds(plan: Pick<AgentPlan, "operations"> | null 
 }
 
 /** 상태 칩 문구(agentChat.plan.operationStatus)를 둔 작업 상태 */
-const OPERATION_STATUSES = ["succeeded", "completed", "running", "failed", "skipped", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back"] as const;
+const OPERATION_STATUSES = ["succeeded", "completed", "running", "failed", "skipped", "forbidden", "conflicted", "verification_failed", "cancelled", "rolled_back", "unknown", "pending_reconciliation"] as const;
 
 export function planOperationStatusLabel(status: string, t: AgentChatTranslator): string {
   return isKnownKey(OPERATION_STATUSES, status) ? t(`plan.operationStatus.${status}`) : t("plan.statusUnknown");

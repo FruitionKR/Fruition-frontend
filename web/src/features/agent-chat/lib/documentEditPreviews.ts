@@ -8,9 +8,10 @@ export type AgentDocumentEditHunk = { before_start: number; after_start: number;
 
 export type AgentDocumentEditPreview = {
   operation_id: string;
-  document_id: string;
+  tool_name: "apply_document_edit" | "create_document";
+  document_id: string | null;
   display_name: string;
-  base_version: number;
+  base_version: number | null;
   summary: string;
   added_lines: number;
   removed_lines: number;
@@ -54,9 +55,11 @@ export function parseAgentRunEditPreviews(value: unknown): AgentRunEditPreviews 
   if (!isRecord(value) || !Array.isArray(value.items)) throw new Error("변경 내용 응답 형식이 올바르지 않습니다.");
   const items = value.items.filter((item): item is Record<string, unknown> => isRecord(item) && typeof item.operation_id === "string").map((item) => ({
     operation_id: item.operation_id as string,
-    document_id: typeof item.document_id === "string" ? item.document_id : "",
+    // I5 응답에는 tool_name이 없다. 그 경우에만 기존 apply_document_edit로 해석한다.
+    tool_name: item.tool_name === "create_document" ? "create_document" as const : "apply_document_edit" as const,
+    document_id: typeof item.document_id === "string" ? item.document_id : null,
     display_name: typeof item.display_name === "string" ? item.display_name : "",
-    base_version: toCount(item.base_version),
+    base_version: item.base_version === null ? null : toCount(item.base_version),
     summary: typeof item.summary === "string" ? item.summary : "",
     added_lines: toCount(item.added_lines),
     removed_lines: toCount(item.removed_lines),

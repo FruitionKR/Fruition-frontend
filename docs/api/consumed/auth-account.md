@@ -2,11 +2,11 @@
 
 [API 배선 문서](../README.md) / [소비 API](README.md)
 
-access-svc의 `/api/auth/**`를 호출한다. 이 경로군은 `next.config.mjs` rewrite로 access-svc에
-전달되며, 직접 전송 정규식에 포함되지 않으므로 항상 동일 출처 rewrite를 경유한다.
+access-svc의 `/api/auth/**`와 MCP OAuth consent의 정확한 `/oauth2/authorize` 두 경로를 호출한다.
+로컬 proxy 모드에서는 `next.config.mjs` rewrite로 access-svc에 전달하고, 같은 출처 배포에서는 ALB가 맡는다.
 
-- 호출 지점: 28 (`apiFetch` 18, raw `fetch` 10)
-- 호출 경로: 23 — access-svc `/api/auth/**` 전체와 `/api/users/{user_id}/avatar`
+- 호출 지점: 30 (`apiFetch` 19, raw `fetch` 11)
+- 호출 경로: 25 — access-svc `/api/auth/**` 전체, `/api/users/{user_id}/avatar`, MCP OAuth consent 2개
 
 로그인·회원가입처럼 아직 토큰이 없는 요청은 Bearer를 붙일 필요가 없어 raw `fetch`를 쓴다.
 `/api/auth/me**`는 보호된 요청이므로 `apiFetch`를 쓴다.
@@ -21,6 +21,19 @@ access-svc의 `/api/auth/**`를 호출한다. 이 경로군은 `next.config.mjs`
 | `POST /api/auth/refresh` | access token 재발급 | `web/src/shared/api/client.ts` `tryRefreshTokens` | 리터럴 | 본문 없음(쿠키 기반) | `access_token` | `apiFetch` 내부에서 raw `fetch`로 호출한다. 진행 중 promise 공유 + `withAuthRefreshLock` |
 | `POST /api/auth/oauth/exchange` | OAuth 콜백 코드를 토큰으로 교환 | `web/src/entities/user/api/login.ts` `exchangeOauth` | 리터럴 | JSON | 토큰 | raw `fetch`. OAuth 시작은 `/oauth2/authorization/:provider` 서버 리다이렉트로 access-svc 오리진으로 직접 보낸다. 처음 들어온 소셜 계정은 콜백에 `?code=` 대신 `?signup_token=`이 붙어 아래 가입 동의 API로 간다. 같은 이메일의 계정이 이미 있으면 `?error=email_registered&providers=local,google`(쉼표 구분)로 돌아오고, `web/src/entities/user/model/oauthLink.ts` `parseOAuthCallbackError`가 읽어 `local`이면 이메일 로그인, 아니면 그 소셜 로그인 뒤 설정 > 계정 보안에서 연동하도록 안내한다(access #31). 그 밖의 실패는 `?error=oauth_failed` |
 | `POST /api/auth/oauth/signup/consent` | 소셜 신규 가입자의 동의를 받아 계정 생성·로그인 | `web/src/entities/user/api/consent.ts` `completeOAuthSignup` | 리터럴 | `{ signup_token, age_confirmed, terms_version, marketing_opt_in }` | 토큰·MFA 요구 여부(`LoginResponse`) | raw `fetch`. `400 CONSENT_REQUIRED`는 토큰이 남아 다시 보낼 수 있고, `401 INVALID_SIGNUP_TOKEN`은 소셜 로그인부터 다시 한다. `409 EMAIL_REGISTERED`(`providers` 포함, 토큰 소비됨)는 동의 화면에 머무는 사이 같은 이메일로 다른 가입이 끝난 것이라 재시도 없이 로그인 화면으로 유도한다(access #31). `terms_version`은 `web/src/shared/config/legal.ts` `LEGAL_TERMS_VERSION` |
+
+## MCP OAuth 동의
+
+공개 화면은 frontend의 `/mcp/authorize`다. 이 페이지는 query를 안전한 같은 출처 로그인 복귀 경로로만 보관하며,
+Access의 canonical authorization endpoint를 바꾸지 않는다. `SAME_ORIGIN_API=false`인 로컬 proxy에서만 아래 두 exact rewrite를
+두고 `/oauth2/:path*` 같은 포괄 규칙은 두지 않는다. `SAME_ORIGIN_API=true` 배포는 Next rewrite가 없으므로 ALB가 같은 출처의
+`GET /oauth2/authorize`와 `POST /oauth2/authorize/{pending_id}`를 access-svc로 전달해야 한다. 기존 소셜 로그인
+`/oauth2/authorization/{provider}` routing과 `/api/mcp/connections/**`도 그대로 유지해야 한다.
+
+| 메서드 + 경로 | 목적 | 호출 모듈 | 경로 생성 | 보내는 것 | 쓰는 응답 필드 | 비고 |
+|---|---|---|---|---|---|---|
+| `GET /oauth2/authorize?{original_oauth_query}` | 로그인된 사용자의 서버 검증 consent preview | `web/src/features/mcp-authorization/api/mcpAuthorization.ts` `previewMcpAuthorization` | 고정 경로 + 검증 후 보존한 원 query | 현재 web Bearer, `Accept: application/json`, `credentials: include`, `cache: no-store` | `pending_id`, 등록 client ID/name, redirect host, `app_identity_verified`, scopes, eligible workspaces, expiry 및 응답 `X-CSRF-TOKEN` | 안전한 GET만 기존 `apiFetch`의 refresh readiness를 쓴다. `SESSION`은 HttpOnly cookie로 유지하고 JS가 읽지 않는다. query의 unknown·duplicate·malformed·oversize는 전송 전에 거절한다 |
+| `POST /oauth2/authorize/{pending_id}` | 사용자의 명시적 approve/deny | 같은 모듈 `decideMcpAuthorization` | preview의 UUID를 `encodeURIComponent` | preview와 같은 Bearer/cookie/CSRF. body는 approve `{ decision, workspace_id }`, deny `{ decision }` | 서버 계산 `redirect_uri` | raw `fetch` 1회만 사용한다. 401·5xx·timeout에도 자동 refresh/retry하지 않으며, 서버 URI가 HTTPS 또는 loopback HTTP일 때만 그대로 이동한다. 인증 token/version이 preview 뒤 바뀌면 전송하지 않는다 |
 
 ## 회원가입·이메일 인증
 

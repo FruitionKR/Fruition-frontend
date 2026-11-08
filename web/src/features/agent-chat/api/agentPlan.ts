@@ -1,5 +1,5 @@
 import { apiFetch, idempotentJsonHeaders, parseJsonOrThrow, workspacePath } from "@/shared/api/client";
-import { withRollbackPurgedOperations, type AgentPlan, type AgentPlanRun } from "@/features/agent-chat/lib/agentPlan";
+import { withRollbackPurgedOperations, type AgentPlan, type AgentPlanRun, type McpPriceSnapshot } from "@/features/agent-chat/lib/agentPlan";
 import { parseAgentRunEditPreviews, type AgentRunEditPreviews } from "@/features/agent-chat/lib/documentEditPreviews";
 import { TURN_CANCEL_STATUSES } from "@/features/agent-chat/lib/stalledTurns";
 import { AgentChatError } from "../lib/agentChatError";
@@ -14,7 +14,7 @@ export async function fetchAgentPlanRun(
   signal?: AbortSignal,
   knownRunId?: string | null
 ): Promise<AgentPlanRun | null> {
-  if (knownRunId) return fetchRun(workspaceId, knownRunId, signal);
+  if (knownRunId) return fetchAgentPlanRunById(workspaceId, knownRunId, signal);
   const response = await apiFetch(workspacePath(workspaceId, "agent", "turn", turnId), { cache: "no-store", signal });
   const turn = await parseJsonOrThrow<{
     status: string;
@@ -29,10 +29,10 @@ export async function fetchAgentPlanRun(
   }
   if (turn.status !== "completed") return null;
   if (!turn.result?.run_id) throw new AgentChatError("planMissing", "이 답변의 계획 정보를 찾을 수 없습니다. 다시 요청해주세요.");
-  return fetchRun(workspaceId, turn.result.run_id, signal);
+  return fetchAgentPlanRunById(workspaceId, turn.result.run_id, signal);
 }
 
-async function fetchRun(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentPlanRun> {
+export async function fetchAgentPlanRunById(workspaceId: string, runId: string, signal?: AbortSignal): Promise<AgentPlanRun> {
   const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId), { cache: "no-store", signal });
   return withRollbackPurgedOperations(await parseJsonOrThrow<AgentPlanRun>(response, "작업 계획을 불러오지 못했습니다."));
 }
@@ -54,9 +54,15 @@ export async function decideAgentPlan(
   runId: string,
   decision: "approve" | "reject",
   plan: AgentPlan,
-  operationIds?: readonly string[] | null
+  operationIds?: readonly string[] | null,
+  expectedPriceSnapshot?: McpPriceSnapshot | null
 ): Promise<AgentPlanRun> {
-  const approval = { plan_version: plan.version, operation_hash: plan.operation_hash, ...(operationIds ? { operation_ids: operationIds } : {}) };
+  const approval = {
+    plan_version: plan.version,
+    operation_hash: plan.operation_hash,
+    ...(operationIds ? { operation_ids: operationIds } : {}),
+    ...(expectedPriceSnapshot ? { expected_price_snapshot: expectedPriceSnapshot } : {})
+  };
   const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId, decision), {
     method: "POST",
     headers: idempotentJsonHeaders(),
@@ -65,4 +71,13 @@ export async function decideAgentPlan(
   // 400: operation_ids 중복·계획에 없는 ID·고르지 않은 작업에 의존하는 작업을 고름(AI 계약).
   if (decision === "approve" && operationIds && response.status === 400) throw new AgentChatError("invalidSelection", INVALID_SELECTION_MESSAGE);
   return parseJsonOrThrow<AgentPlanRun>(response, "계획 승인·거절을 처리하지 못했습니다. 최신 상태를 확인해주세요.");
+}
+
+/** 명시적 사용자 취소. 이미 반영된 변경은 기존 역순 복구를 요청한다. */
+export async function cancelAgentPlanRun(workspaceId: string, runId: string): Promise<AgentPlanRun> {
+  const response = await apiFetch(workspacePath(workspaceId, "agent", "runs", runId, "cancel"), {
+    method: "POST",
+    headers: idempotentJsonHeaders()
+  });
+  return parseJsonOrThrow<AgentPlanRun>(response, "작업 취소 상태를 확인하지 못했습니다.");
 }

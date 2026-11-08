@@ -197,7 +197,6 @@
     }
   },
   "editor": {
-    "bodyLabel": "Document body",
     "lockLostTitle": "Lost edit access",
     "readOnlyNotice": "{reason} Opened as read-only.",
     "overwritten": {
@@ -273,7 +272,8 @@
       "editorDetail": "Long documents or documents with tables and math may take a while.",
       "failed": "Couldn't prepare the document. Please try again.",
       "retry": "Try again"
-    }
+    },
+    "bodyLabel": "Document body"
   },
   "upload": {
     "failed": {
