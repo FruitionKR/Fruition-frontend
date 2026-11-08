@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { cx } from "@/shared/lib/classNames";
 import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
 import modalStyles from "@/shared/ui/modal/CenteredModal.module.css";
 import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
-import { TUTORIAL_SECTIONS } from "../model/tutorialContent";
+import { TUTORIAL_IMAGE_SIZE, TUTORIAL_SECTIONS, tutorialImageSrc } from "../model/tutorialContent";
 import { useTutorialProgress } from "../model/useTutorial";
 import { TutorialIconGlyph } from "./TutorialIcons";
 import styles from "./TutorialDialog.module.css";
@@ -27,6 +27,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function TutorialDialog({ onClose }: { onClose: () => void }) {
   const t = useTranslations("tutorial.ui");
   const tc = useTranslations("tutorialContent");
+  const locale = useLocale();
   // 섹션·단계 id는 내용 파일(tutorialContent.ts)이 정하는 string이라 키 타입을 넓혀 쓴다.
   const text = (key: string) => tc(key as Parameters<typeof tc>[0]);
   const titleId = useId();
@@ -119,18 +120,34 @@ export function TutorialDialog({ onClose }: { onClose: () => void }) {
           )}
 
           {/* key로 단계마다 새로 그려 들어오는 움직임(transform·opacity)을 다시 재생한다. */}
-          <article key={step.id} className={styles.step} aria-live="polite">
+          <article key={step.id} className={cx(styles.step, step.image && styles["has-image"])} aria-live="polite">
             <div className={styles["step-mark"]}>
               <span className={styles["step-number"]}>
                 {pad(position.stepIndex + 1)}
                 <span className={styles["step-of"]}>/{pad(section.steps.length)}</span>
               </span>
-              {/* 단계 아이콘은 선택이라, 없으면 섹션 아이콘으로 카드 모양을 맞춘다. */}
-              <span className={styles["step-icon"]}>
-                <TutorialIconGlyph name={step.icon ?? section.icon} />
-              </span>
+              {/* 단계 아이콘은 선택이라, 없으면 섹션 아이콘으로 카드 모양을 맞춘다. 캡처가 있는 단계는 캡처가 그 자리를 대신한다. */}
+              {!step.image && (
+                <span className={styles["step-icon"]}>
+                  <TutorialIconGlyph name={step.icon ?? section.icon} />
+                </span>
+              )}
             </div>
             <h4 className={styles["step-title"]}>{text(`steps.${step.id}.title`)}</h4>
+            {/* 지금 단계 카드만 그려지므로 받는 캡처는 이 하나다. 다른 단계 캡처는 그 단계로 옮겨 갈 때 받는다.
+                lazy라 휴대폰에서 카드 아래로 밀려 안 보이면 스크롤할 때 받는다. */}
+            {step.image && (
+              // eslint-disable-next-line @next/next/no-img-element -- 크기가 정해진 정적 캡처라 next/image 최적화가 필요 없다
+              <img
+                className={styles["step-image"]}
+                src={tutorialImageSrc(locale, step.image)}
+                alt={text(`steps.${step.id}.title`)}
+                width={TUTORIAL_IMAGE_SIZE.width}
+                height={TUTORIAL_IMAGE_SIZE.height}
+                loading="lazy"
+                decoding="async"
+              />
+            )}
             <p className={styles["step-body"]}>{text(`steps.${step.id}.body`)}</p>
           </article>
 

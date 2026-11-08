@@ -6,7 +6,8 @@
   --tutorial-ease: cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   width: 920px;
-  height: 620px;
+  /* 캡처가 들어간 단계가 스크롤 없이 들어가는 높이. 단계마다 모달 크기가 바뀌지 않게 고정한다. */
+  height: 760px;
   gap: 0;
   padding: 0;
   overflow: hidden;
@@ -309,6 +310,35 @@
   line-height: 1.35;
 }
 
+/* 캡처가 있는 단계는 카드가 길어지므로 번호를 줄인다. */
+.step.has-image {
+  padding: 22px 28px 24px;
+}
+
+.has-image .step-number {
+  font-size: 28px;
+  letter-spacing: -1px;
+}
+
+.has-image .step-title {
+  margin-top: 12px;
+}
+
+/* 화면 캡처: 휴대폰에서는 카드 폭에 맞추고 16:9를 유지한다. 캡처 바탕이 흰색이라 다크 모드에서도 테두리로 경계를 그린다. */
+.step-image {
+  display: block;
+  width: 100%;
+  /* 2배 밀도 캡처(960px)가 1:1로 보이는 폭. 본문이 카드 안에 함께 들어가게 이보다 넓히지 않는다. */
+  max-width: 480px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 14px 0 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px var(--color-shadow), 0 4px 12px var(--color-shadow);
+}
+
 .step-body {
   margin: 10px 0 0;
   max-width: 560px;
@@ -552,6 +582,18 @@
   .step-icon {
     width: 40px;
     height: 40px;
+  }
+
+  .step.has-image {
+    padding: 18px 14px 20px;
+  }
+
+  .has-image .step-number {
+    font-size: 24px;
+  }
+
+  .step-image {
+    border-radius: 10px;
   }
 
   .footer {
