@@ -2,7 +2,7 @@ import type koDocuments from "@/shared/i18n/messages/ko/documents.json";
 
 type SlashMenuMessages = typeof koDocuments.editor.slashMenu;
 
-/** '/' 슬래시 메뉴 라벨. 노트 편집기와 위키 페이지 편집기가 같은 메뉴 이름을 쓴다. 문구는 documents.editor.slashMenu 메시지다. */
+/** '/' 슬래시 메뉴 라벨. 문구는 documents.editor.slashMenu 메시지다. */
 export function buildSlashMenuLabels(messages: SlashMenuMessages) {
   return {
     textGroup: {
