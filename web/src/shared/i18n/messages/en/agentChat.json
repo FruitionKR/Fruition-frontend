@@ -265,7 +265,8 @@
   "header": {
     "chatOptions": "Chat options",
     "deleteFailed": "Couldn't delete the chat.",
-    "exportToDocument": "Save chat as document",
+      "mcpGuide": "Connect an external AI",
+      "exportToDocument": "Save chat as document",
     "hidePanel": "Hide agent panel",
     "newChat": "New chat",
     "newChatFailed": "Couldn't create a new chat.",

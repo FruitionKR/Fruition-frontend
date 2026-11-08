@@ -123,6 +123,17 @@ export const TUTORIAL_SECTIONS: TutorialSection[] = [
     ]
   },
   {
+    id: "mcp-connection",
+    icon: "agent",
+    steps: [
+      { id: "mcp-external-ai-role" },
+      { id: "mcp-add-server" },
+      { id: "mcp-login-consent" },
+      { id: "mcp-check-tools" },
+      { id: "mcp-manage-connection", icon: "settings" }
+    ]
+  },
+  {
     id: "notion-import",
     icon: "import",
     steps: [{ id: "export-from-notion" }, { id: "preview-import", image: "preview-import.webp" }, { id: "after-import", icon: "wiki" }]

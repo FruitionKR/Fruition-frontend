@@ -9,6 +9,7 @@ import { plusIcon, SvgIcon } from "@/shared/ui/SvgIcon";
 import { TUTORIAL_IMAGE_SIZE, TUTORIAL_SECTIONS, tutorialImageSrc } from "../model/tutorialContent";
 import { useTutorialProgress } from "../model/useTutorial";
 import { TutorialIconGlyph } from "./TutorialIcons";
+import { McpServerCommands } from "./McpServerCommands";
 import styles from "./TutorialDialog.module.css";
 
 /** 01, 02 … 단계·섹션 번호 */
@@ -24,7 +25,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * 왼쪽 섹션 목록(휴대폰은 위쪽 가로 칩) · 오른쪽 섹션 머리와 지금 단계 · 아래 이전/다음과 진행 표시.
  * 마지막으로 본 단계는 localStorage에 남아 다시 열면 그 자리에서 이어진다(useTutorialProgress).
  */
-export function TutorialDialog({ onClose }: { onClose: () => void }) {
+export function TutorialDialog({ onClose, initialSectionId }: { onClose: () => void; initialSectionId?: string }) {
   const t = useTranslations("tutorial.ui");
   const tc = useTranslations("tutorialContent");
   const locale = useLocale();
@@ -33,7 +34,8 @@ export function TutorialDialog({ onClose }: { onClose: () => void }) {
   const titleId = useId();
   const sectionsLabelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
-  const tutorial = useTutorialProgress(TUTORIAL_SECTIONS);
+  const tutorial = useTutorialProgress(TUTORIAL_SECTIONS,
+    initialSectionId ? TUTORIAL_SECTIONS.findIndex((candidate) => candidate.id === initialSectionId) : undefined);
   const { section, step, position, progress } = tutorial;
 
   // 열리면 모달 안으로 포커스를 옮겨 바로 ←/→·Tab이 모달 안에서 동작하게 한다. 닫힐 때 복귀는 CenteredModal이 맡는다.
@@ -149,6 +151,7 @@ export function TutorialDialog({ onClose }: { onClose: () => void }) {
               />
             )}
             <p className={styles["step-body"]}>{text(`steps.${step.id}.body`)}</p>
+            {step.id === "mcp-add-server" && <McpServerCommands />}
           </article>
 
           <footer className={styles.footer}>

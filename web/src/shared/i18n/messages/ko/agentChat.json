@@ -265,7 +265,8 @@
   "header": {
     "chatOptions": "채팅 옵션",
     "deleteFailed": "채팅을 삭제하지 못했습니다.",
-    "exportToDocument": "채팅을 문서로 편입",
+      "mcpGuide": "외부 AI 연결 방법",
+      "exportToDocument": "채팅을 문서로 편입",
     "hidePanel": "Agent 패널 숨기기",
     "newChat": "새 채팅",
     "newChatFailed": "새 채팅을 만들지 못했습니다.",

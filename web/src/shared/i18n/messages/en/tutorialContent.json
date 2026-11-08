@@ -36,6 +36,10 @@
       "title": "Meeting notes",
       "summary": "Record a meeting or upload a recording to get meeting notes."
     },
+    "mcp-connection": {
+      "title": "External AI (MCP)",
+      "summary": "Connect an external AI such as Codex or Claude Code to work with your Fruition documents and wiki."
+    },
     "notion-import": {
       "title": "Import from Notion",
       "summary": "Bring in pages exported from Notion with their folder structure intact."
@@ -229,6 +233,26 @@
     "manage-members": {
       "title": "Manage members and permissions",
       "body": "In “Settings” › “Members”, click “Invite members” and enter an email and role to send an invitation. For each member, you can turn the “Add to wiki”, “Refresh wiki”, “Write skills”, “Undo actions”, and “Convert PDFs” permissions on or off. OWNERs have every permission."
+    },
+    "mcp-external-ai-role": {
+      "title": "What the external AI does",
+      "body": "Once connected, the external AI does the work Fruition's AI used to do (answers, edit proposals, wiki updates, meeting notes). Fruition's existing rules such as read permissions and saving stay the same. Results from the external AI are not saved directly; they wait for your approval."
+    },
+    "mcp-add-server": {
+      "title": "Add the MCP server",
+      "body": "Add the Fruition MCP server address to your AI tool (Codex or Claude Code). There is one address; you pick the workspace on the sign-in page in the next step."
+    },
+    "mcp-login-consent": {
+      "title": "Sign in and consent",
+      "body": "On first connection a Fruition sign-in page opens in your browser. Sign in as usual, then review the workspace and permissions (read, propose changes, wiki updates) and consent."
+    },
+    "mcp-check-tools": {
+      "title": "Check the connection",
+      "body": "In your AI tool's /mcp view, check that fruition is connected and its tools are listed. Try a read-only request first, such as “Find my documents in Fruition”. When the external AI proposes a change you get an approval link; it is saved only after you review the content and maximum cost on the web approval page. Only successful changes incur the existing MCP fee shown there; the external AI's own usage is billed by that AI service."
+    },
+    "mcp-manage-connection": {
+      "title": "Manage or disconnect",
+      "body": "In Settings → MCP connections you can see connected AI tools and the work they created. Disconnect ones you no longer use there."
     }
   }
 }
