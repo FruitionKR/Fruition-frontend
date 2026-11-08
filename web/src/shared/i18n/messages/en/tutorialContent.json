@@ -14,7 +14,7 @@
     },
     "wiki-ingest": {
       "title": "Adding to the wiki",
-      "summary": "The AI reads your documents and organizes them into the wiki. Only documents added to the wiki are used as sources for chat answers."
+      "summary": "The AI reads your documents and organizes them into the wiki. Chat only answers from documents you’ve added to the wiki."
     },
     "graph": {
       "title": "Graph",
@@ -56,19 +56,19 @@
     },
     "wiki-basics": {
       "title": "The wiki and chat answers",
-      "body": "The wiki is what the LLM writes down after reading your uploaded documents, like a set of notes. Chat answers are built from this wiki, so add a document to the wiki before you ask about it. To change what the wiki says, update the original document and add it again, or click “Refresh wiki”."
+      "body": "The wiki is a set of notes the LLM takes after reading your uploaded documents. Chat answers come from this wiki, so add a document to the wiki before you ask about it. To change what the wiki says, update the original document and add it again, or click “Refresh wiki”."
     },
     "screen-layout": {
       "title": "Screen layout",
-      "body": "Use the rail on the far left to move between “Home”, “Graph”, “Skills”, “Logs”, “Notifications”, and “Settings”. Next to it, the sidebar holds your document tree, the open document sits in the middle, and the chat panel for talking with the AI agent is on the right. Drag the edge of the sidebar or chat panel to resize it."
+      "body": "Use the rail on the far left to move between “Home”, “Graph”, “Skills”, “Logs”, “Notifications”, and “Settings”. The sidebar next to it holds your document tree, and the open document shows in the middle. The chat panel on the right is where you talk with the AI agent. Drag the edge of the sidebar or chat panel to resize it."
     },
     "chat-panel-tabs": {
       "title": "Two tabs in the chat panel",
-      "body": "Switch between the “Chat” and “Tasks” tabs at the top of the chat panel. Use “Chat” to ask questions about your wiki, and “Tasks” to have the AI agent edit documents, organize folders, or run skills."
+      "body": "Switch between the “Chat” and “Tasks” tabs at the top of the chat panel. Ask questions about your wiki in “Chat”. When you want the AI agent to edit documents, organize folders, or run skills, use “Tasks”."
     },
     "write-note": {
       "title": "Write a new note",
-      "body": "Click “Add note” at the bottom of the sidebar and choose “New note” to open a blank note. Type / in the body to insert headings, lists, checklists, tables, code blocks, math, or images, and select text to apply formatting such as bold or italic. Your writing saves automatically, and you can press Cmd/Ctrl+S to save right away."
+      "body": "Click “Add note” at the bottom of the sidebar and choose “New note” to open a blank note. Type / in the body to insert headings, lists, checklists, tables, code blocks, math, or images. Select text to apply formatting such as bold or italic. Your note saves automatically, and Cmd/Ctrl+S saves it right away."
     },
     "upload-files": {
       "title": "Upload files",
@@ -88,7 +88,7 @@
     },
     "convert-pdf": {
       "title": "Convert a PDF to Markdown",
-      "body": "Right-click an uploaded PDF and choose “Convert to Markdown”. Before converting, a notice explains that the converted Markdown may not match the original PDF’s content or layout and may be harder to read. Review it, then start the conversion."
+      "body": "Right-click an uploaded PDF and choose “Convert to Markdown”. A notice comes up before converting. It warns that the converted Markdown may differ from the original PDF in content or layout and may be harder to read, so read it before you start."
     },
     "track-conversion": {
       "title": "Track the conversion",
@@ -104,23 +104,23 @@
     },
     "markdown-auto-ingest": {
       "title": "Markdown is added as soon as you upload it",
-      "body": "When you upload Markdown or txt files, they’re added to the team wiki right away. Auto-ingest applies only to documents from members who have the “Add to wiki” permission in Members. OWNERs can turn it off under “Wiki auto-ingest” in “Workspace settings”."
+      "body": "When you upload Markdown or txt files, they’re added to the team wiki right away. Only documents uploaded by members with the “Add to wiki” permission in Members are added automatically. OWNERs can turn it off under “Wiki auto-ingest” in “Workspace settings”."
     },
     "converted-ingest-prompt": {
       "title": "PDF conversions ask when you open them",
-      "body": "The first time you open a PDF conversion, a dialog asks “Add this document to the wiki?”. Confirm to add it so it can back up chat answers, or skip it and add it yourself later. If “Also auto-ingest PDF conversions right after converting” is on, conversions are added as soon as they finish, without asking."
+      "body": "The first time you open a PDF conversion, a dialog asks “Add this document to the wiki?”. Confirm to add it so chat can use it in answers. If you skip it now, you can add it yourself later. If “Also auto-ingest PDF conversions right after converting” is on, conversions are added as soon as they finish, without asking."
     },
     "choose-ingest": {
       "title": "Choose documents to add",
-      "body": "Go to “Graph” in the rail and click the “Add to wiki” button that appears there to switch the sidebar into selection mode. Select the Markdown documents to add and click “Add to wiki (count)” at the bottom; progress is shown, and new pages join the graph when it finishes. An orange dot on the button means some documents are waiting, and Esc cancels the selection."
+      "body": "Go to “Graph” in the rail and click the “Add to wiki” button that appears there to switch the sidebar into selection mode. Select the Markdown documents to add and click “Add to wiki (count)” at the bottom. Progress is shown, and new pages join the graph when it’s done. An orange dot on the button means there are documents to add. Press Esc to cancel the selection."
     },
     "wiki-status-labels": {
       "title": "Wiki status labels",
-      "body": "Labels next to documents in the tree show their wiki status. “Not in wiki” means it hasn’t been added yet, “Edited” means it changed after being added, and “Failed” means adding it failed. Edits only reach chat answers after you add the document again."
+      "body": "Labels next to documents in the tree show their wiki status. “Not in wiki” means it hasn’t been added yet, “Edited” means it changed after being added, and “Failed” means it couldn’t be added. Edits only reach chat answers after you add the document again."
     },
     "refresh-wiki": {
       "title": "Refresh the wiki",
-      "body": "Click “Refresh wiki” in the rail on the Graph screen to polish wiki pages and add newly found concepts and links to the graph. When a refresh is available after new documents are added, the button shows an orange dot and a “Refresh the wiki?” notification appears. If you don’t like the result, roll that operation back on the “Logs” screen."
+      "body": "Click “Refresh wiki” in the rail on the Graph screen and the AI polishes wiki pages and adds newly found concepts and links to the graph. When a refresh is available after new documents are added, the button shows an orange dot and a “Refresh the wiki?” notification appears. If you don’t like the result, roll that operation back on the “Logs” screen."
     },
     "graph-nodes": {
       "title": "Three kinds of nodes",
@@ -128,23 +128,23 @@
     },
     "graph-explore": {
       "title": "Explore the graph",
-      "body": "Drag nodes to move them, and pan or zoom to look around. Double-click a node to open that page in the document area in the middle; wiki pages also list their connected source documents. If the graph looks out of date, click “Refresh graph”."
+      "body": "Drag nodes to move them, and pan or zoom to look around. Double-click a node to open that page in the document area in the middle. Wiki pages also show their connected source documents. If the graph looks out of date, click “Refresh graph”."
     },
     "ask-question": {
       "title": "Ask a question",
-      "body": "Type your question in the “Chat” tab of the chat panel and send it. The AI works out what you’re asking, searches the wiki, and writes an answer based on what it found. Only documents added to the wiki are used as sources. Turn on “Web search” to include information from the web, and choose the model from the input box."
+      "body": "Type your question in the “Chat” tab of the chat panel and send it. The AI figures out what you’re asking and looks through the wiki before it answers, using only documents added to the wiki as sources. Turn on “Web search” to look on the web as well. You can also pick the answering model from the input box."
     },
     "answer-sources": {
       "title": "Check sources and citations",
-      "body": "Above the answer, you’ll see how many sources were found along with a card for each source document. Click a card to open the original document with the supporting passage highlighted. Citation marks in the answer take you to the same place, and “Listen” reads the answer aloud."
+      "body": "Above the answer, you’ll see how many sources were found along with a card for each source document. Click a card to open the original document with the supporting passage highlighted. Citation marks in the answer take you to the same place. Click “Listen” to hear the answer read aloud."
     },
     "note-evidence-notice": {
       "title": "Notes that aren’t in the wiki",
-      "body": "If the note you have open isn’t in the wiki yet, a notice says chat can’t find its contents. Click “Add to wiki” in the notice to use that note in answers. If you edited it after adding it, click “Apply changes” to update the wiki."
+      "body": "If you haven’t added the note you have open to the wiki yet, a notice says chat can’t find its contents. Click “Add to wiki” in the notice so answers can use that note. If you edited it after adding it, click “Apply changes”."
     },
     "save-chat": {
       "title": "Save a chat as a document",
-      "body": "Open “Chat options” at the top of the chat panel, choose “Save chat as document”, and pick the Q&A pairs to keep; they’re saved as a source document. Click “Add to wiki” afterward to use it as a source for later questions. Use “New chat” in the same menu to start a separate conversation for each topic."
+      "body": "Open “Chat options” at the top of the chat panel, choose “Save chat as document”, and pick the Q&A pairs to keep. They’re saved as a source document. Click “Add to wiki” afterward and later questions can draw on it too. When the topic changes, start a separate conversation with “New chat” in the same menu."
     },
     "request-task": {
       "title": "Request a task",
@@ -152,27 +152,27 @@
     },
     "review-edit-proposals": {
       "title": "Review proposed edits",
-      "body": "When you ask for changes to the open document, the AI marks each change in the body as a proposal. Click “Accept” or “Reject” on each one, and only accepted proposals are applied. Proposals you set aside can be picked up again later with “Review again”."
+      "body": "When you ask for changes to the open document, the AI marks each change in the body as a proposal. Click “Accept” or “Reject” on each one, and only accepted proposals are applied. Anything you haven’t decided on yet comes back under “Review again”."
     },
     "approve-plan": {
       "title": "Review and approve a plan",
-      "body": "Requests that organize folders or change several documents arrive first as a plan card marked “Awaiting approval”. Click “Open Preview tab” to check new locations, names, and changes, select the items to apply, then click “Accept and organize”, “Accept and edit”, or “Accept and run”. Click “Reject” if you don’t want it; only the items you approve are saved."
+      "body": "Requests that organize folders or change several documents arrive first as a plan card marked “Awaiting approval”. Click “Open Preview tab” to check new locations, names, and changes, select the items to apply, then click “Accept and organize”, “Accept and edit”, or “Accept and run”. Click “Reject” if you don’t want it. Only the items you approve are saved."
     },
     "auto-approval": {
       "title": "Auto-approval",
-      "body": "If approving every time gets tedious, turn on “Creating, moving, and renaming folders” or “Editing and creating documents” under “AI agent auto-approval” in “Settings” › “AI settings”. Plans with AI review warnings or documents you can’t edit still need your approval. Roll back auto-applied edits on the “Logs” screen, and move unwanted new documents to the trash."
+      "body": "If approving every time gets tedious, turn on “Creating, moving, and renaming folders” or “Editing and creating documents” under “AI agent auto-approval” in “Settings” › “AI settings”. Plans with AI review warnings or documents you can’t edit still need your approval. Roll back auto-applied edits on the “Logs” screen. New documents you don’t want can go to the trash."
     },
     "browse-skills": {
       "title": "Browse skills",
-      "body": "Click “Skills” in the rail to see the skills you can use. Switch between the “All skills”, “Team skills”, and “Personal skills” tabs, and check each skill’s command, description, scope, and status."
+      "body": "Click “Skills” in the rail to see the skills you can use. Switch between the “All skills”, “Team skills”, and “Personal skills” tabs. Each skill shows its command, description, scope, and status."
     },
     "create-skill": {
       "title": "Create a skill",
-      "body": "Click “Create skill” and fill in the skill type (Document, Folder organization, or Template), command, description, and rules. Click “Write with AI” to have AI polish your rules using any reference documents, and the skill goes through a safety review before it’s saved. Choose “Personal” scope to use it in every workspace, or “Team” to share it in the current workspace."
+      "body": "Click “Create skill” and fill in the skill type (Document, Folder organization, or Template), command, description, and rules. Click “Write with AI” and AI polishes your rules using any reference documents. The skill goes through a safety review before it’s saved. With “Personal” scope you can use it in every workspace, and with “Team” it’s used in the current workspace."
     },
     "run-skill": {
       "title": "Run a skill",
-      "body": "Type / in the “Tasks” tab to pick a skill, or click “Run” on the Skills screen and choose the document or folder to run it on. Document skills are saved after you check a preview, and folder organization skills save only the items you approve."
+      "body": "Type / in the “Tasks” tab to pick a skill, or click “Run” on the Skills screen and choose the document or folder to run it on. Document skills are saved after you check a preview. Folder organization skills save only the items you approve."
     },
     "save-request-as-skill": {
       "title": "Save a request as a skill",
@@ -180,11 +180,11 @@
     },
     "record-meeting": {
       "title": "Record a meeting",
-      "body": "Click the microphone button in the chat panel’s input box and choose “Record a meeting”. While recording, speech is transcribed into the “Transcript”, and clicking the same button again stops the recording. “Voice input” in the same menu types up to 60 seconds of speech into the input box."
+      "body": "Click the microphone button in the chat panel’s input box and choose “Record a meeting”. While recording, speech is transcribed into the “Transcript”. Click the same button again to stop. “Voice input” in the same menu types up to 60 seconds of speech into the input box."
     },
     "upload-recording": {
       "title": "Upload a recording",
-      "body": "If you already have a recording, choose “Upload a recording” from the microphone menu. You can upload MP3, M4A, WAV, or WebM files up to 500MB, and long recordings may take a few minutes to transcribe."
+      "body": "If you already have a recording, choose “Upload a recording” from the microphone menu. You can upload MP3, M4A, WAV, or WebM files up to 500MB. Long recordings can take a few minutes to transcribe."
     },
     "create-meeting-notes": {
       "title": "Create and save meeting notes",
@@ -200,23 +200,23 @@
     },
     "preview-import": {
       "title": "Preview and start the import",
-      "body": "Choose “Add note” › “Import from Notion” and select the zip to see how many folders, documents, tables (databases), images, and PDFs it contains. Click “Start import” to begin: pages with subpages become a document plus a folder of the same name, and databases become a table document with one document per row. Notion links are reconnected to documents in the app."
+      "body": "Choose “Add note” › “Import from Notion” and select the zip to see how many folders, documents, tables (databases), images, and PDFs it contains. Click “Start import” to begin. Pages with subpages become a document plus a folder of the same name, and databases become a table document with one document per row. Notion links are reconnected to documents in the app."
     },
     "after-import": {
       "title": "Convert and add after importing",
-      "body": "Imported documents aren’t added to the wiki right away. When the import finishes, you can choose whether to convert PDFs to Markdown and whether to add documents to the wiki. Click “Do it later” to put it off and convert or add them yourself later."
+      "body": "Imported documents aren’t added to the wiki right away. When the import finishes, you can choose whether to convert PDFs to Markdown and whether to add documents to the wiki. Click “Do it later” to put it off and convert or add them yourself."
     },
     "view-logs": {
       "title": "View operation logs",
-      "body": "Click “Logs” in the rail to see a record of AI operations run in this workspace. Filter with the “AI edits”, “Wiki ingest”, “Wiki refresh”, and “Rollback” tabs, and select an operation to see what changed in documents and wiki pages."
+      "body": "“Logs” in the rail collects the AI operations run in this workspace. Filter with the “AI edits”, “Wiki ingest”, “Wiki refresh”, and “Rollback” tabs. Select an operation to see what changed in documents and wiki pages."
     },
     "rollback-operation": {
       "title": "Undo an operation",
-      "body": "Select the operation you want to undo and click “Rollback”; a confirmation dialog shows what will be affected. Rolling back a document edit also removes changes saved after that operation, so read the notice carefully. Undoing operations run by other members requires the “Undo actions” permission."
+      "body": "Select the operation you want to undo and click “Rollback”. A confirmation dialog shows what will be affected. Rolling back a document edit also removes changes saved after that operation, so read the notice carefully. Undoing operations run by other members requires the “Undo actions” permission."
     },
     "check-notifications": {
       "title": "Check notifications",
-      "body": "Under “Notifications” in the rail, view “Workspace” notifications (such as new members joining) and “Tasks” notifications (ingest, refresh, and rollback results) separately. Click “View details in logs” to open the record for that operation, or “Mark all as read” to clear them at once. Turn the notification cards in the bottom-right corner on or off by type in “Settings” › “Notifications”."
+      "body": "Under “Notifications” in the rail, view “Workspace” notifications (such as new members joining) and “Tasks” notifications (ingest, refresh, and rollback results) separately. Click “View details in logs” to open the record for that operation. When you’re done, “Mark all as read” clears them at once. Turn the notification cards in the bottom-right corner on or off by type in “Settings” › “Notifications”."
     },
     "change-language": {
       "title": "Change the display language",
@@ -228,7 +228,7 @@
     },
     "manage-members": {
       "title": "Manage members and permissions",
-      "body": "In “Settings” › “Members”, click “Invite members” and enter an email and role to send an invitation. For each member, you can turn the “Add to wiki”, “Refresh wiki”, “Write skills”, “Undo actions”, and “Convert PDFs” permissions on or off. OWNERs have all permissions."
+      "body": "In “Settings” › “Members”, click “Invite members” and enter an email and role to send an invitation. For each member, you can turn the “Add to wiki”, “Refresh wiki”, “Write skills”, “Undo actions”, and “Convert PDFs” permissions on or off. OWNERs have every permission."
     }
   }
 }
