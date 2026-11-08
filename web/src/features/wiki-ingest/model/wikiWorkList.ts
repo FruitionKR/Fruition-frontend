@@ -11,6 +11,7 @@ interface WikiWorkRow {
   label: string;
   /** 문서의 상위 폴더 경로. 같은 이름 문서를 구분한다. 최상위 문서·문서가 아닌 작업은 없다. */
   folderPath?: string;
+  stage?: string;
   /** 로컬 시각 HH:MM. 시작 시각이 없으면 --:-- */
   startTime: string;
 }
@@ -49,6 +50,7 @@ function toRow(kind: WikiWorkKind, document: DocumentItemResponse, folderPaths: 
     key: `${kind}-${document.id}`,
     label: document.filename,
     ...(folderPath ? { folderPath } : {}),
+    ...(kind === "ingest" && document.processing_stage ? { stage: document.processing_stage } : {}),
     startTime: formatWorkStartTime(document.processing_started_at)
   };
 }

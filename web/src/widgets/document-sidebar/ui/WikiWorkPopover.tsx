@@ -38,6 +38,7 @@ export function WikiWorkPopover({ documents, treeItems = [] }: { documents: Docu
                   <span className={styles["wiki-work-label"]}>
                     <span className={styles["wiki-work-name"]}>{row.label}</span>
                     {row.folderPath && <span className={styles["wiki-work-path"]}>{row.folderPath}</span>}
+                    {row.stage && <span className={styles["wiki-work-path"]}>{row.stage}</span>}
                   </span>
                   <span>{row.startTime}</span>
                 </li>

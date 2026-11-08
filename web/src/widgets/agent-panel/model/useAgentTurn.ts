@@ -112,6 +112,7 @@ export function useAgentTurn({
   const [agentStages, setAgentStages] = useState<RunStageEvent[]>([]);
   // 진행 연결이 끊겨 turn 조회로 끝을 확인하는 중인지. 진행 카드에 기다림 안내를 띄운다.
   const [isAgentTurnSlow, setIsAgentTurnSlow] = useState(false);
+  const [isAgentTurnPreparing, setIsAgentTurnPreparing] = useState(false);
   // 결과 확인이 끊긴 turn. '다시 확인'으로 같은 turn의 끝을 이어서 확인한다.
   const [unconfirmedTurnId, setUnconfirmedTurnId] = useState<string | null>(null);
   // 지금 보낸 요청(agentTurnRequest)을 서버가 받아 정한 turn ID. 따라가는 동안 진행 카드와 서버 기록을 같은 turn으로 묶는다.
@@ -389,6 +390,9 @@ export function useAgentTurn({
           onStage: (stage) => {
             if (!controller.signal.aborted) setAgentStages((current) => [...current, stage]);
           },
+          onWaiting: (waiting) => {
+            if (agentRequestRef.current === controller) setIsAgentTurnPreparing(waiting);
+          },
           onSlow: () => { if (!controller.signal.aborted) setIsAgentTurnSlow(true); }
         });
       }
@@ -611,6 +615,7 @@ export function useAgentTurn({
     agentTurnErrorMessage,
     isAgentTurnLoading,
     isAgentTurnSlow,
+    isAgentTurnPreparing,
     agentStages,
     canRecheckAgentTurn: unconfirmedTurnId !== null && !isAgentTurnLoading,
     unconfirmedTurnId,

@@ -38,6 +38,14 @@ function makeLog(overrides) {
   };
 }
 
+test("검색 인덱스 준비 중 문서는 진행 중 편입 목록에 준비 안내를 유지한다", () => {
+  const sections = buildWikiWorkSections([makeDocument({
+    status: "processing", pipeline_run_id: "ingest-1", processing_stage: "위키 검색을 준비하고 있어요"
+  })], null);
+  assert.equal(sections[0].kind, "ingest");
+  assert.equal(sections[0].rows[0].stage, "위키 검색을 준비하고 있어요");
+});
+
 /** 타임존에 안 흔들리게 로컬 시각으로 기대값을 만든다 */
 function localHHMM(iso) {
   const date = new Date(iso);
