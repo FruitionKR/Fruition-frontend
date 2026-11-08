@@ -32,6 +32,8 @@ const validateMarkdownEditApplication = (...args) => validateMarkdownEditApplica
 test("채팅 결과를 Query와 문서 명령 두 표현으로 구분한다", () => {
   assert.deepEqual(resolveChatTurnPresentation("chat_answer"), { kind: "query", grounded: true });
   assert.deepEqual(resolveChatTurnPresentation("conversation_reply"), { kind: "query", grounded: false });
+  assert.deepEqual(resolveChatTurnPresentation("product_help"), { kind: "query", grounded: false });
+  assert.equal(isDocumentCommandAction("product_help"), false);
   assert.deepEqual(resolveChatTurnPresentation("clarify"), { kind: "query", grounded: false });
   assert.deepEqual(resolveChatTurnPresentation("reject"), { kind: "query", grounded: false });
   assert.deepEqual(resolveChatTurnPresentation("markdown_edit"), {

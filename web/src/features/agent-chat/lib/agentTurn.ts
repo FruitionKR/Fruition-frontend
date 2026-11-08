@@ -49,6 +49,7 @@ type AgentTurnRequestContext = {
 export type AgentTurnAction =
   | "chat_answer"
   | "conversation_reply"
+  | "product_help"
   | "markdown_edit"
   | "markdown_create"
   | "clarify"
@@ -60,7 +61,7 @@ export type AgentTurnAction =
   | "skill_authoring"
   | "skill_draft_proposal";
 
-export type DocumentCommandAction = Exclude<AgentTurnAction, "chat_answer" | "conversation_reply" | "clarify" | "reject" | "folder_lookup">;
+export type DocumentCommandAction = Exclude<AgentTurnAction, "chat_answer" | "conversation_reply" | "product_help" | "clarify" | "reject" | "folder_lookup">;
 
 export type AgentTurnEdit = {
   operation: "replace" | "insert_after";
