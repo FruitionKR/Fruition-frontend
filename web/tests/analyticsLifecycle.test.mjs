@@ -19,7 +19,7 @@ registerHooks({
     return nextResolve(specifier, context);
   },
 });
-const { initializeAnalytics, captureAnalytics, identifyAnalytics, setAnalyticsWorkspace, resetAnalytics, analyticsSessionHeaders } = await import("../src/shared/lib/analytics/client.ts");
+const { initializeAnalytics, captureAnalytics, capturePageview, identifyAnalytics, setAnalyticsWorkspace, resetAnalytics, analyticsSessionHeaders } = await import("../src/shared/lib/analytics/client.ts");
 
 test("수집 토큰이 없거나 개인 키이면 SDK를 로드하지 않는다", async () => {
   await initializeAnalytics({ token: "", environment: "local", appVersion: "test" });
@@ -64,4 +64,14 @@ test("자동 수집·리플레이·원격 기능 평가는 꺼 두고 전송 경
   assert.equal(options.disable_external_dependency_loading, true);
   assert.equal(options.capture_pageview, false);
   assert.equal(typeof options.before_send, "function");
+});
+
+test("워크스페이스는 이벤트의 $groups로만 붙이고 $groupidentify는 보내지 않는다", async () => {
+  const { sanitizeAnalyticsEvent } = await import("../src/shared/lib/analytics/sanitize.ts");
+  identifyAnalytics("user_group");
+  for (let i = 0; i < 5; i++) setAnalyticsWorkspace("ws_same");
+  capturePageview("https://fruition.wiki/home");
+  assert.equal(calls.some(call => call.method === "group"), false);
+  assert.deepEqual(calls.findLast(call => call.event === "$pageview").properties.$groups, { workspace: "ws_same" });
+  assert.equal(sanitizeAnalyticsEvent({ event: "$groupidentify", properties: { $group_type: "workspace" } }), null);
 });
