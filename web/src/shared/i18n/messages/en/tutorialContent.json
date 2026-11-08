@@ -224,7 +224,7 @@
     },
     "auto-ingest-switches": {
       "title": "Wiki auto-ingest switches",
-      "body": "Under “Wiki auto-ingest” in “Settings” › “Workspace settings”, turn “Auto-ingest Markdown uploads into the wiki” and “Also auto-ingest PDF conversions right after converting” on or off. Adding documents to the wiki uses LLM credits, and only workspace OWNERs can change these switches."
+      "body": "Under “Wiki auto-ingest” in “Settings” › “Workspace settings”, turn “Auto-ingest Markdown uploads into the wiki” and “Also auto-ingest PDF conversions right after converting” on or off. Adding documents to the wiki incurs LLM costs, and only workspace OWNERs can change these switches."
     },
     "manage-members": {
       "title": "Manage members and permissions",
