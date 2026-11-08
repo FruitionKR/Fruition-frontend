@@ -37,9 +37,9 @@ test("헤더 메뉴는 문서 보호만 남고 그 섹션을 가리킨다", () =
   assert.equal(en.nav.dataHandling, "Data protection");
 });
 
-test("첫 화면 다음에 바로 영상이 오고, 장 카드와 영상이 다루는 소개 장은 없다", () => {
+test("첫 화면 다음에 사용자 어려움과 서비스 가치를 소개한 뒤 기능을 시연한다", () => {
   const page = read("LandingPage.tsx");
-  assert.match(page, /<LandingHero \/>\s*<LandingDemo \/>\s*<LandingTogether \/>\s*<LandingDataHandling \/>\s*<LandingFaq \/>\s*<LandingStart \/>/);
+  assert.match(page, /<LandingHero \/>\s*<LandingProblems \/>\s*<LandingSolution \/>\s*<LandingDemo \/>\s*<LandingTogether \/>\s*<LandingDataHandling \/>\s*<LandingFaq \/>\s*<LandingStart \/>/);
   const ui = listFiles(".tsx").map(read).join("\n");
   assert.doesNotMatch(ui, /ChapterCards|LandingChapters|CaptureVisual|ConnectVisual|DiscoverVisual|CHAPTER_ICONS/);
   assert.doesNotMatch(listFiles(".css").map(read).join("\n"), /chapter-card|lp-tint-(capture|connect|discover)/);
@@ -50,10 +50,11 @@ test("페이지 안 앵커는 모두 실제 대상이 있다", () => {
   const links = [...ui.matchAll(/href="(#[a-z-]+)"/g)].map((match) => match[1]);
   for (const href of links) assert.ok(ui.includes(`id="${href.slice(1)}"`), href);
   assert.doesNotMatch(ui, /#(capture|connect|discover|chapters)\b/);
-  // 기능 둘러보기와 건너뛰기 링크는 첫 영상 묶음으로 간다.
+  // 기능 둘러보기는 첫 영상으로, 건너뛰기는 사용자 어려움 소개로 간다.
   assert.equal(LANDING_FIRST_DEMO_ANCHOR, `#demo-${LANDING_DEMO_SLOTS[0].id}`);
   const page = read("LandingPage.tsx");
-  assert.equal(page.match(/href=\{LANDING_FIRST_DEMO_ANCHOR\}/g)?.length, 2);
+  assert.equal(page.match(/href=\{LANDING_FIRST_DEMO_ANCHOR\}/g)?.length, 1);
+  assert.match(page, /className=\{styles\["skip-link"\]\} href="#problems"/);
   assert.match(read("LandingSections.tsx"), /id=\{`demo-\$\{slot\.id\}`\}/);
 });
 
