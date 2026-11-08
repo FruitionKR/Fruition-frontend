@@ -1,4 +1,6 @@
 export * from "./api/auth";
+export * from "./api/mcpConnections";
+export * from "./api/mcpRuns";
 export * from "./model/user";
 export * from "./model/oauthLink";
 export * from "./model/consent";

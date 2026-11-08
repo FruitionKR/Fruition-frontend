@@ -6,10 +6,10 @@ import { fetchAgentRunEditPreviews } from "../api/agentPlan";
 import { editPreviewExpiryDelayMs, isEditPreviewExpired } from "../lib/documentEditPreviews";
 
 /** 문서 수정 계획의 변경 내용. 계획이 바뀌지 않는 한 내용도 같아 한 번만 받는다. */
-export function useDocumentEditPreviews(runId: string | null | undefined, enabled: boolean) {
-  const workspaceId = readWorkspaceId();
+export function useDocumentEditPreviews(runId: string | null | undefined, enabled: boolean, context?: { workspaceId: string; userId: string; runId: string }) {
+  const workspaceId = context?.workspaceId ?? readWorkspaceId();
   const query = useQuery({
-    queryKey: ["agentEditPreviews", workspaceId, runId],
+    queryKey: context ? ["mcpApproval", context.userId, workspaceId, context.runId, "editPreviews"] : ["agentEditPreviews", workspaceId, runId],
     queryFn: ({ signal }) => fetchAgentRunEditPreviews(workspaceId, runId!, signal),
     enabled: enabled && Boolean(runId) && Boolean(workspaceId),
     retry: false,

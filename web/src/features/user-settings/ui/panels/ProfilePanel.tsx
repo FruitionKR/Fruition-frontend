@@ -15,6 +15,7 @@ import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import { EmailChangeModal } from "../modals/EmailChangeModal";
 import { PasswordChangeModal } from "../modals/PasswordChangeModal";
 import { LinkedAccountsSection } from "./LinkedAccountsSection";
+import { McpConnectionsSection } from "./McpConnectionsSection";
 import panelStyles from "./ProfilePanel.module.css";
 
 /**
@@ -187,6 +188,8 @@ export function ProfilePanel({
       </div>
 
       <LinkedAccountsSection me={me} />
+
+      <McpConnectionsSection />
 
       {showEmail && me && (
         <EmailChangeModal

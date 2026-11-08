@@ -98,6 +98,55 @@
     "unlinkFailed": "소셜 계정 연동을 해제하지 못했습니다.",
     "unlinked": "{provider} 연동을 해제했습니다."
   },
+  "mcpConnections": {
+    "title": "MCP 연결",
+    "disclosure": "연결된 MCP 클라이언트를 확인하고 해제할 수 있습니다. 해제하면 이 연결의 이후 MCP 호출·제안·승인이 차단됩니다. 이미 실행 중인 웹 작업은 취소되지 않으므로 해당 작업에서 취소를 요청해야 합니다. 사람이 이미 승인한 실행은 현재 권한에 따라 계속될 수 있고 자동으로 되돌리지 않으므로, 완료된 변경은 명시적으로 역순 복구를 요청해야 합니다.",
+    "loading": "MCP 연결을 불러오는 중…",
+    "loadingPage": "페이지를 불러오는 중…",
+    "loadFailed": "MCP 연결을 불러오지 못했습니다.",
+    "disconnected": "MCP 연결을 해제했습니다.",
+    "tryAgain": "잠시 후 다시 확인해 주세요.",
+    "refreshAfterDisconnectFailed": "연결 해제는 완료했지만 목록을 새로고침하지 못했습니다. {error}",
+    "alreadyUnavailable": "이 연결은 더 이상 사용할 수 없습니다. 목록을 새로 확인했습니다.",
+    "unavailableRefreshFailed": "이 연결은 더 이상 사용할 수 없지만 목록을 새로고침하지 못했습니다. {error}",
+    "disconnectFailed": "MCP 연결을 해제하지 못했습니다.",
+    "workspace": "워크스페이스: {workspaceId}",
+    "scopes": "권한: {scopes}",
+    "none": "없음",
+    "status": "상태: {status}",
+    "statusLabels": {
+      "ACTIVE": "사용 중",
+      "USER_DISCONNECTED": "사용자 해제",
+      "ADMIN_REVOKED": "관리자 회수",
+      "SECURITY_REVOKED": "보안 회수",
+      "PURGED": "정리됨"
+    },
+    "connectedAt": "연결일: {date}",
+    "revocationReason": "해제 사유: {reason}",
+    "revokedAt": "해제일: {date}",
+    "viewTasks": "작업 보기",
+    "disconnect": "연결 해제",
+    "processing": "처리 중…",
+    "empty": "연결된 MCP가 없습니다.",
+    "previous": "이전",
+    "next": "다음",
+    "disconnectConfirmation": "{clientId} 연결을 해제하시겠습니까?\n\n해제하면 이 연결의 이후 MCP 호출·제안·승인이 차단됩니다. 이미 실행 중인 웹 작업은 취소되지 않으므로 해당 작업에서 취소를 요청해야 합니다. 사람이 이미 승인한 실행은 현재 권한에 따라 계속될 수 있고 자동으로 되돌리지 않습니다.",
+    "tasks": {
+      "title": "{clientId} 작업",
+      "disclosure": "연결을 해제하면 새 호출·제안·승인은 중단되지만 해제 전에 승인한 작업은 계속될 수 있습니다. 실제 작업을 열어 검토하거나 취소를 요청하세요.",
+      "cancelWarning": "취소는 완료된 변경의 역순 복구를 요청합니다. 이미 반영된 변경의 수수료는 환불되지 않습니다.",
+      "loading": "작업을 불러오는 중…",
+      "loadingPage": "작업 페이지를 불러오는 중…",
+      "loadFailed": "작업을 불러오지 못했습니다.",
+      "inaccessible": "작업이 없거나 더 이상 접근할 수 없습니다.",
+      "retry": "다시 시도",
+      "empty": "이 연결에서 만든 작업이 없습니다.",
+      "listLabel": "MCP 작업",
+      "status": "상태: {status}",
+      "previous": "이전",
+      "next": "다음"
+    }
+  },
   "account": {
     "title": "계정 보안",
     "description": "개인 계정 보안을 관리합니다.",
@@ -508,6 +557,78 @@
       "label": "PDF 속 그림을 AI가 글로 설명하기",
       "description": "기본적으로는 이미지만 가져오나, 차트나 도표의 내용을 문서에 글로 남겨 AI 검색과 답변에 쓸 수 있게 합니다.",
       "saveFailed": "PDF 변환시 이미지를 AI가 해석 가능하도록 글로 남김 설정을 변경하지 못했습니다."
+    },
+    "mcp": {
+      "title": "워크스페이스 MCP",
+      "disclosure": "멤버는 여기서 부여한 권한을 통해 공유 워크스페이스 콘텐츠를 외부 클라이언트와 커넥터에 노출할 수 있습니다.",
+      "identityWarning": "클라이언트 이름이나 허용 목록 등록은 멤버 기기에 설치된 앱의 신원을 검증하지 않습니다.",
+      "lifecycleWarning": "정책을 바꾸면 멤버가 다시 연결해야 하며 이전 제안을 되살릴 수 없습니다. 정책 비활성화와 강제 회수는 다음 변경 경계에서 승인된 작업을 중단하지만, 이미 반영된 변경을 되돌리지는 않습니다.",
+      "availabilityWarning": "아래 항목은 권한 경계입니다. 권한을 선택해도 해당 공개 도구가 출시되었다는 뜻은 아닙니다.",
+      "accessDenied": "이 워크스페이스의 MCP를 관리할 권한이 더 이상 없습니다.",
+      "none": "없음",
+      "scopes": {
+        "read": {
+          "label": "공유 워크스페이스 콘텐츠 읽기",
+          "description": "외부 클라이언트가 MCP를 통해 제공되는 콘텐츠를 읽는 권한입니다."
+        },
+        "write_propose": {
+          "label": "워크스페이스 변경 제안",
+          "description": "별도 검토와 승인을 위한 변경 제안을 제출하는 권한입니다."
+        },
+        "wiki_write": {
+          "label": "위키 콘텐츠 쓰기",
+          "description": "해당 도구가 제공될 때 위키 쓰기 작업에 적용되는 권한 경계입니다."
+        }
+      },
+      "policy": {
+        "loading": "MCP 정책을 불러오는 중…",
+        "loadFailed": "MCP 정책을 불러오지 못했습니다.",
+        "enabledLabel": "이 워크스페이스의 MCP 연결 허용",
+        "enabled": "선택한 권한 범위에서 MCP 연결을 허용합니다.",
+        "disabled": "기본값은 꺼짐입니다. 새 MCP 연결을 허용하지 않습니다.",
+        "noGeneration": "아직 발급된 정책 세대가 없습니다.",
+        "generation": "정책 세대: {generation}",
+        "updatedAt": "마지막 변경: {date}",
+        "scopesLabel": "허용 권한",
+        "save": "MCP 정책 저장",
+        "saving": "저장 중…",
+        "saved": "MCP 정책을 저장했습니다. 연결 목록을 새로 확인합니다.",
+        "saveFailed": "MCP 정책을 저장하지 못했습니다.",
+        "confirmTitle": "워크스페이스 MCP 정책을 변경하시겠습니까?",
+        "confirmDescription": "정책을 끄거나 권한을 바꾸면 이전 grant가 회수됩니다. 멤버는 다시 연결해야 하고 이전 제안을 되살릴 수 없으며, 이미 반영된 변경은 되돌아가지 않습니다.",
+        "confirm": "정책 변경"
+      },
+      "connections": {
+        "title": "워크스페이스 MCP 연결",
+        "description": "이 워크스페이스 전체의 연결을 확인하고 멤버의 grant를 강제로 회수합니다. 정책이 꺼져 있어도 기존 연결을 관리할 수 있습니다.",
+        "loading": "워크스페이스 MCP 연결을 불러오는 중…",
+        "loadingPage": "페이지를 불러오는 중…",
+        "loadFailed": "워크스페이스 MCP 연결을 불러오지 못했습니다.",
+        "empty": "워크스페이스 MCP 연결이 없습니다.",
+        "user": "멤버: {user}",
+        "scopes": "권한: {scopes}",
+        "status": "상태: {status}",
+        "createdAt": "연결일: {date}",
+        "reason": "회수 사유: {reason}",
+        "revokedAt": "회수일: {date}",
+        "statusLabels": {
+          "ACTIVE": "사용 중",
+          "USER_DISCONNECTED": "사용자 해제",
+          "ADMIN_REVOKED": "관리자 회수",
+          "SECURITY_REVOKED": "보안 회수",
+          "PURGED": "정리됨"
+        },
+        "revoke": "강제 회수",
+        "processing": "회수 중…",
+        "revoked": "워크스페이스 연결을 강제로 회수했습니다.",
+        "alreadyUnavailable": "이미 사용할 수 없는 연결이라 목록에서 제거했습니다.",
+        "revokeFailed": "워크스페이스 연결을 강제로 회수하지 못했습니다.",
+        "previous": "이전",
+        "next": "다음",
+        "confirmTitle": "이 워크스페이스 연결을 강제로 회수하시겠습니까?",
+        "confirmDescription": "{user} 멤버의 {clientId} 연결을 강제 회수하면 사용자 본인의 연결 해제가 아니라 관리자 중단으로 기록됩니다. 다음 변경 경계에서 작업을 막지만 이미 반영된 변경은 되돌리지 않습니다.",
+        "confirm": "강제 회수"
+      }
     }
   },
   "members": {

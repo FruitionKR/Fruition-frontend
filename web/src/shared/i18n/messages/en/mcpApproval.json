@@ -1,0 +1,155 @@
+{
+  "title": "Review MCP plan",
+  "origin": "Proposal from an MCP client",
+  "loading": "Loading the proposal…",
+  "login": "Sign in to review this proposal.",
+  "refresh": "Refresh status",
+  "client": "Registered client",
+  "grant": "Grant ID",
+  "runStatus": "Run status",
+  "planVersion": "Plan version",
+  "planHash": "Plan hash",
+  "fees": {
+    "title": "Fee quote before approval",
+    "operations": "Selected operations",
+    "unit": "Unit price",
+    "cap": "Per-approval cap",
+    "maximum": "Maximum charge",
+    "currency": "Currency",
+    "version": "Price version",
+    "scope": "This cap applies to this approval only, not the conversation total. The displayed server quote is bound to approval.",
+    "partial": "Only successfully changed selected operations are charged, up to this approval cap. NO_CHANGE and failed operations are free. Cancelling or rolling back later does not refund successful changes."
+  },
+  "settlement": {
+    "title": "Execution and settlement",
+    "execution": "Execution",
+    "forward": "Forwarding",
+    "status": "Settlement",
+    "charge": "Charge",
+    "notFinal": "Not final — reconciliation is still pending"
+  },
+  "execution": {
+    "RESERVED": "Reserved",
+    "FORWARDED": "Forwarded",
+    "CANCELLED": "Cancelled with reverse rollback requested",
+    "HALTED": "Stopped by an administrator or security policy",
+    "PURGED": "Purge in progress"
+  },
+  "forward": {
+    "NOT_SENT": "Not sent",
+    "UNKNOWN": "Attempt outcome unknown",
+    "ACCEPTED": "Accepted"
+  },
+  "settlementStatus": {
+    "RESERVED": "Reserved",
+    "EXECUTING": "Executing",
+    "PENDING_RECONCILIATION": "Pending reconciliation",
+    "SETTLED": "Settled"
+  },
+  "halted": "This run was stopped by an administrator or security policy. It will not roll back automatically; use the explicit cancel and reverse-rollback action if needed.",
+  "cancel": {
+    "notice": "Cancelling explicitly requests reverse rollback of committed changes. Successful changes remain chargeable.",
+    "confirm": "Cancel this run and request reverse rollback of changes already committed? Successful changes will not be refunded.",
+    "button": "Cancel and request rollback",
+    "processing": "Requesting cancellation…"
+  },
+  "unavailable": {
+    "not_mcp": "This run is not a server-verified MCP proposal, so it cannot be approved here.",
+    "missing_authority": "The current grant or client authority cannot be verified. Approval is unavailable.",
+    "unsupported_plan": "This proposal is not a valid 1–20 operation MCP plan using the supported document and folder tools.",
+    "quote_unavailable": "The server fee quote or registered client name is unavailable. Approval is disabled; refresh the status.",
+    "quote_mismatch": "The fee quote is missing, zero, unsafe, or no longer matches the reviewed plan. Approval is disabled; refresh the status.",
+    "not_approvable": "This run is no longer awaiting approval.",
+    "client": "Registered client unavailable",
+    "value": "Unavailable"
+  },
+  "errors": {
+    "inaccessible": "This proposal was not found or is not available to this account and workspace.",
+    "credit": "There is not enough credit to reserve the maximum charge. Nothing was approved.",
+    "conflict": "The plan or price changed. The latest status was requested; review it before approving again.",
+    "forbidden": "Your current workspace or document permission does not allow this action. The latest status was requested.",
+    "missing": "This proposal is no longer available. The latest status was requested.",
+    "price": "The server price is not configured, so approval is unavailable.",
+    "ambiguous": "The server response was unclear. The status was refreshed; do not approve again until the result is shown.",
+    "failed": "The action could not be completed. The latest status was requested."
+  },
+  "wiki": {
+    "title": "Review Wiki draft",
+    "origin": "Complete draft from an MCP client",
+    "loading": "Loading the Wiki draft…",
+    "login": "Sign in to review this draft.",
+    "refresh": "Refresh status",
+    "client": "Registered client",
+    "clientUnavailable": "Registered client information unavailable",
+    "kind": "Draft kind",
+    "version": "Draft version",
+    "draftHash": "Draft hash",
+    "publicHash": "Public-state hash",
+    "approvalStatus": "Approval",
+    "preview": {
+      "sources": "Frozen source documents",
+      "targets": "Affected existing Wiki pages",
+      "version": "Version {version}",
+      "kinds": {
+        "SOURCE_PAGE": "Source pages",
+        "CONCEPT_STATEMENT": "Concept statements",
+        "EVIDENCE_INVALIDATION": "Evidence invalidations",
+        "PAGE_DELETE": "Page deletions",
+        "ENTRY": "Entries",
+        "LINK": "Links",
+        "REFERENCE": "References",
+        "REVIVAL_LINK": "Revived links"
+      },
+      "actions": {
+        "ADD": "Add",
+        "UPDATE": "Update",
+        "REMOVE": "Remove",
+        "DELETE": "Delete",
+        "REVIVE": "Revive"
+      }
+    },
+    "fees": {
+      "title": "Immutable fee quote before approval",
+      "model": "Pricing model",
+      "quantity": "Server quantity",
+      "formula": "Price calculation",
+      "maximum": "Maximum charge",
+      "currency": "Currency",
+      "version": "Price version",
+      "bound": "This server quote is bound to this exact draft version, hashes, client, and source mapping. It is not recalculated in the browser.",
+      "charge": "A published actual change is charged once. NO_CHANGE and unpublished drafts are free. Restoring later does not refund a successful publication."
+    },
+    "status": {
+      "title": "Publication and settlement",
+      "publication": "Publication",
+      "settlement": "Settlement",
+      "charge": "Charge",
+      "error": "Result code",
+      "notFinal": "Not final",
+      "unknown": "The publication result is unknown. This is not proof of failure or a free operation; use read-only refresh while reconciliation continues.",
+      "pending": "Settlement is pending reconciliation even if execution has stopped.",
+      "publishedCharge": "The actual Wiki change was published and is charged once. A later restore does not refund this publication.",
+      "noChange": "No Wiki change was published, so the reservation is released without a charge.",
+      "history": "Open operation history and restore"
+    },
+    "approvalUnavailable": "This draft is no longer eligible for explicit approval.",
+    "clientApprovalUnavailable": "Trusted registered-client information is unavailable. History remains readable, but approval is disabled.",
+    "approve": "Approve the whole draft",
+    "approving": "Approving…",
+    "reject": "Reject the whole draft",
+    "rejectConfirm": "Reject this entire immutable draft?",
+    "cancel": "Cancel and request recovery",
+    "cancelling": "Requesting cancellation…",
+    "cancelConfirm": "Cancel this draft execution? Already published changes require the existing explicit restore flow and successful publication is not refunded.",
+    "errors": {
+      "credit": "There is not enough credit to reserve the full maximum charge. Nothing was approved.",
+      "conflict": "The draft, source, public state, or quote no longer matches. Review the refreshed status; a new preview is required before approval.",
+      "forbidden": "Current workspace or Wiki permission does not allow this action.",
+      "missing": "This draft expired, was purged, or is not available to this account and workspace. Its cached preview cannot be approved.",
+      "tooLarge": "The server rejected this preview as too large. No partial preview can be approved.",
+      "unavailable": "Authorization, pricing, or another required service is unavailable. Approval remains disabled.",
+      "ambiguous": "The mutation result is unclear. It was not retried; use read-only status refresh until the server reports the result.",
+      "failed": "The action could not be completed. The latest status was requested."
+    }
+  }
+}

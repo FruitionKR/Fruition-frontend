@@ -48,6 +48,7 @@ test("클라이언트 인증 초기화 시 메모리 토큰과 워크스페이�
 test("인증 화면과 랜딩 화면은 공개 경로로 판별한다", () => {
   assert.equal(isPublicAuthPath("/"), true);
   assert.equal(isPublicAuthPath("/login"), true);
+  assert.equal(isPublicAuthPath("/mcp/authorize"), true);
   assert.equal(isPublicAuthPath("/signup/verify"), true);
   assert.equal(isPublicAuthPath("/invitations/test-token"), true);
   assert.equal(isPublicAuthPath("/invitations/test-token/accept"), false);
@@ -110,7 +111,7 @@ test("세션 만료 안내는 공개 인증 화면에서 띄우지 않는다", a
   const gate = await readFile(new URL("../src/entities/user/ui/SessionExpiryGate.tsx", import.meta.url), "utf8");
   // 로그아웃 상태의 /me 실패나 지난 요청의 만료가 로그인 폼을 가리면 로그인할 수 없다.
   assert.match(gate, /isExpired && !isPublicAuthPath\(pathname\)/);
-  for (const path of ["/", "/login", "/signup", "/signup/verify", "/forgot-password", "/reset-password", "/oauth/callback"]) {
+  for (const path of ["/", "/login", "/mcp/authorize", "/signup", "/signup/verify", "/forgot-password", "/reset-password", "/oauth/callback"]) {
     assert.equal(isPublicAuthPath(path), true, path);
   }
 });

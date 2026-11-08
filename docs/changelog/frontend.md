@@ -2,6 +2,13 @@
 
 ## 2026-11-08
 
+### MCP Wiki 전체 초안 미리보기·명시적 승인
+
+- 기존 MCP 승인 화면 계열에 Wiki draft 전용 경로를 추가했다. INGEST·LINT의 source/concept/evidence invalidation/page delete/entry/link/reference/revival link 전체 cascade를 문서-qualified 근거와 함께 표시하고, 불완전·중복·내부 snapshot 노출·잘못된 매핑은 승인하지 않는다.
+- 서버가 초안 해시·원문 매핑에 고정한 Wiki 전용 견적만 표시하고, 브라우저 승인은 exact 네 필드만 보낸다. 거절·취소는 전체 초안 단위이며 mutation은 자동 실행·자동 재시도하지 않는다.
+- 공개 결과와 정산을 분리해 `UNKNOWN`/`NOT_FOUND`와 `PENDING_RECONCILIATION`을 유지한다. 실제 변경 공개는 한 번 과금, NO_CHANGE·미공개는 무료, 이후 복구는 환불되지 않음을 안내한다. 공개 뒤 복구는 기존 작업 이력 화면을 재사용한다.
+- 미리보기는 기존 literal diff와 `skipHtml`·외부 링크 비활성·관리 이미지 정책을 재사용한다. 클라이언트 이름·가격 산식·근거·본문은 평문으로 취급한다.
+
 ### 없는 경로 안내와 첫 화면 복귀
 
 - Next 기본 404 대신 한국어·영어 안내와 랜딩 복귀 링크를 제공한다. 기존 인증 화면의 셸·테마·타이포를 재사용하고, 404 경계에서 전역 provider의 인증 API 조회를 막는다.
