@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSelectedLayoutSegment } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountLocaleSync, SessionExpiryGate, UserPreferencesProvider } from "@/entities/user";
 import { ReconsentGate } from "@/features/legal-consent";
@@ -9,6 +10,7 @@ import { AnalyticsProvider } from "./AnalyticsProvider";
 import type { AnalyticsConfig } from "@/shared/lib/analytics/client";
 
 export function Providers({ children, analytics }: { children: React.ReactNode; analytics: AnalyticsConfig }) {
+  const segment = useSelectedLayoutSegment();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -20,6 +22,9 @@ export function Providers({ children, analytics }: { children: React.ReactNode; 
         }
       })
   );
+
+  // 없는 경로에서는 분석·재동의 등 전역 provider도 인증 API를 조회하지 않는다.
+  if (segment === "/_not-found") return children;
 
   return (
     <QueryClientProvider client={queryClient}>
