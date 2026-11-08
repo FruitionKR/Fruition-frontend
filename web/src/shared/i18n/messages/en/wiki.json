@@ -25,32 +25,6 @@
       "failedFallback": "Couldn’t add it to the wiki."
     }
   },
-  "pageEditing": {
-    "permissionHint": "To edit wiki pages, you need to be an OWNER or have the wiki ingest (wiki.ingest) permission. Ask an OWNER for access.",
-    "edit": "Edit",
-    "discardConfirm": "Discard your edits?",
-    "saveOverLatest": "Save my edits over the latest version",
-    "adoptLatest": "Discard my edits and view the latest version",
-    "reloadLatest": "Reload the latest version",
-    "cancel": "Cancel",
-    "save": "Save",
-    "savingButton": "Saving…",
-    "saving": "Saving",
-    "revisionCompare": "My base revision {base} · Server revision {current}",
-    "latestTitle": "Latest server version",
-    "latestTitleWithRevision": "Latest server version (revision {revision})",
-    "latestLoading": "Loading the latest version.",
-    "latestLoadFailed": "Couldn’t load the latest version.",
-    "conflict": "Another change was saved first. Review the latest version, then save your edits on top of it or discard them and go back to the latest version.",
-    "saveError": {
-      "unavailable": "The AI service didn’t respond, so the page wasn’t saved. Try saving again in a moment.",
-      "tooLarge": "The page is over 5MB and can’t be saved.",
-      "notFound": "Page not found. It may have been deleted or belong to another workspace.",
-      "fallback": "Couldn’t save the wiki page."
-    },
-    "editorLoading": "Loading the editor.",
-    "externalImageBlockedTitle": "External image blocked"
-  },
   "chatEvidence": {
     "notIncluded": {
       "message": "This note isn’t in the wiki, so chat can’t find its content. Add it to the wiki to use it as a source for answers.",

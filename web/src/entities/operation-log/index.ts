@@ -13,6 +13,7 @@ export {
   formatOperationLogDescription,
   groupOperationLogsByDate,
   mergeRefreshedLogPage,
+  OPERATION_LOG_TYPE_TABS,
   pickSelectedOperationId
 } from "./model/operationLogPage";
 export { documentRestoreMessage } from "./model/restoreMessage";

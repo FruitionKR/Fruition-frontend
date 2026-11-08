@@ -19,7 +19,7 @@ import {
   formatOperationLogDescription,
   formatOperationLogTitle,
   groupOperationLogsByDate,
-  OPERATION_TYPE_LABELS,
+  OPERATION_LOG_TYPE_TABS,
   restoreOperation,
   type OperationChange,
   type OperationLogDetail,
@@ -169,9 +169,6 @@ type OperationLogFeedState = {
   onSelect: (operationId: string | null) => void;
   onLoadMore: () => void;
 };
-
-// 유형 탭 (Figma 1436:16604 "위키 페이지 생성 / 다른 로그 명"). 실제 작업 유형으로 나누고 첫 탭(null)은 전체.
-const TYPE_TABS: Array<OperationType | null> = [null, ...(Object.keys(OPERATION_TYPE_LABELS) as OperationType[])];
 
 /** 선택한 작업의 변경 상세. 선택 행 아래에 펼친다. */
 function OperationDetailBody({
@@ -394,7 +391,7 @@ export function LogView({
         </div>
         <div className={styles["tabs-bar"]}>
           <div className={styles["tabs"]} role="tablist" aria-label={t("typeTabsLabel")}>
-            {TYPE_TABS.map((type) => (
+            {OPERATION_LOG_TYPE_TABS.map((type) => (
               <button
                 key={type ?? "all"}
                 type="button"

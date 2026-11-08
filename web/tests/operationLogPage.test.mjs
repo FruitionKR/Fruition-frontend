@@ -22,8 +22,10 @@ const {
   formatOperationLogDescription,
   groupOperationLogsByDate,
   mergeRefreshedLogPage,
+  OPERATION_LOG_TYPE_TABS,
   pickSelectedOperationId
 } = await import("../src/entities/operation-log/model/operationLogPage.ts");
+const { translator } = await import("./helpers/i18nMessages.mjs");
 
 function log(operationId, operationType = "document_edit") {
   return { operation_id: operationId, operation_type: operationType };
@@ -179,6 +181,26 @@ test("로그 화면 탭은 작업 유형으로 거르고, 유형이 없으면 �
   );
   assert.deepEqual(filterOperationLogsByType(items, "restore"), []);
   assert.equal(filterOperationLogsByType(items, null), items);
+});
+
+test("로그 화면 유형 탭에 위키 직접 편집(wiki_edit)은 없다", () => {
+  assert.deepEqual(OPERATION_LOG_TYPE_TABS, [null, "document_edit", "ingest", "lint", "restore"]);
+  assert.ok(!OPERATION_LOG_TYPE_TABS.includes("wiki_edit"));
+});
+
+test("과거 wiki_edit 로그는 전체 탭에 남고 제목·설명이 지금 언어로 보인다", () => {
+  const past = { ...log("op-wiki", "wiki_edit"), status: "succeeded", changed_resource_count: 1, summary: "Wiki 페이지 본문을 직접 수정했습니다." };
+  const items = [log("op1", "ingest"), past];
+
+  assert.deepEqual(filterOperationLogsByType(items, null).map((item) => item.operation_id), ["op1", "op-wiki"]);
+  assert.equal(formatOperationLogTitle(past), "위키 직접 편집");
+  assert.equal(formatOperationLogTitle(past, translator("ko", "workspace.logs.types")), "위키 직접 편집");
+  assert.equal(formatOperationLogTitle(past, translator("en", "workspace.logs.types")), "Wiki edits");
+  assert.equal(
+    formatOperationLogDescription(past, undefined, "No details", translator("en", "workspace.logMessages.summary")),
+    "Edited the wiki page content directly."
+  );
+  assert.equal(formatOperationLogDescription(past), "Wiki 페이지 본문을 직접 수정했습니다.");
 });
 
 test("로그 행 시각은 사용자 시간대의 월·일·시각으로 표시한다", () => {

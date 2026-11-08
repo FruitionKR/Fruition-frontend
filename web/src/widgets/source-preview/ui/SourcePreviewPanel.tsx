@@ -10,8 +10,6 @@ import { fetchDocumentBlocks, fetchDocumentOriginal, fetchDocumentReadUrl } from
 import { subscribeDocumentContentSaved } from "@/entities/document/model/documentContentBus";
 import { publishNotice } from "@/features/document-notifications";
 import { fetchWikiPage } from "@/entities/wiki";
-import { useWorkspaceRole } from "@/entities/workspace";
-import { canEditWikiPage, WikiPageContent } from "@/features/wiki-page-editing";
 import { fetchNoteDraft, waitForPendingDocumentSave, type DetachedNoteSaveResult } from "@/features/note-editing";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { withPathSuffix } from "@/entities/graph/lib/documentLabels";
@@ -189,9 +187,6 @@ export function SourcePreviewPanel({
   const visibleTitle = isMarkdownFile ? getMarkdownDocumentTitle(title) : title;
   // 자동 저장을 끄면 저장 전 편집분이 남으므로 "저장 안 됨"을 보여 준다(켜져 있으면 곧 저장 중으로 바뀌어 표시하지 않는다).
   const { preferences } = useUserPreferences();
-  // 위키 페이지 편집 버튼은 OWNER이거나 wiki.ingest 권한이 있는 멤버에게만 연다(document #130).
-  const { role, permissions } = useWorkspaceRole();
-  const canEditWiki = canEditWikiPage(role, permissions);
   const saveStatusLabel = noteSaveStatus === "dirty" && !preferences.autoSave
     ? t("saveStatus.unsaved")
     : noteSaveStatus in SAVE_STATUS_KEYS ? t(`saveStatus.${SAVE_STATUS_KEYS[noteSaveStatus as keyof typeof SAVE_STATUS_KEYS]}`) : undefined;
@@ -675,9 +670,8 @@ export function SourcePreviewPanel({
           />
         )}
         {pageId && errorMessage && <p>{errorMessage}</p>}
-        {pageId && !isLoading && !errorMessage && page?.markdown && (
-          <WikiPageContent page={page} canEdit={canEditWiki} onPageChange={setPage} onSaved={onRefreshDocuments} />
-        )}
+        {/* 위키 페이지는 LLM이 정리한 내용이라 읽기 전용이다. 고치려면 원본 문서를 고쳐 다시 편입하거나 위키 최신화를 쓴다. */}
+        {pageId && !isLoading && !errorMessage && page?.markdown && <MarkdownViewer markdown={page.markdown} linkPolicy="inert-external" />}
         {pageId && !isLoading && !errorMessage && !page?.markdown && page?.summary && <p>{page.summary}</p>}
         {pageId && !isLoading && !errorMessage && page && !page.markdown && (
           <p>{t("wikiMarkdownMissing")}</p>

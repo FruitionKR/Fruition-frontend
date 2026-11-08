@@ -366,7 +366,6 @@
     "wikiExportFailed": "Couldn't export to the wiki.",
     "wikiGraphLoadFailed": "Couldn't load the wiki graph.",
     "wikiPageLoadFailed": "Couldn't load the wiki page.",
-    "wikiPageSaveFailed": "Couldn't save the wiki page.",
     "workspaceLoadFailed": "Couldn't load the workspace.",
     "meLoadFailed": "Couldn't load your account information.",
     "authRefreshUnavailable": "Couldn't refresh your sign-in. Please try again in a moment.",

@@ -53,6 +53,12 @@ export function filterVisibleOperationLogs(items: OperationLogItem[]): Operation
   );
 }
 
+/**
+ * 로그 화면 유형 탭(Figma 1436:16604). null은 전체 탭이다.
+ * 위키 직접 편집(wiki_edit)은 위키를 읽기 전용으로 바꿔 탭에서 뺀다. 과거 wiki_edit 기록은 전체 탭에 그대로 보인다.
+ */
+export const OPERATION_LOG_TYPE_TABS: ReadonlyArray<OperationType | null> = [null, "document_edit", "ingest", "lint", "restore"];
+
 /** 로그 화면 유형 탭. 유형을 고르지 않으면(전체) 목록을 그대로 돌려준다. */
 export function filterOperationLogsByType(
   items: OperationLogItem[],
