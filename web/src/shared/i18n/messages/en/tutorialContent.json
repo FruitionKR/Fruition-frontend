@@ -2,7 +2,7 @@
   "sections": {
     "getting-started": {
       "title": "Getting started",
-      "summary": "Pick a workspace and learn how the screen is laid out."
+      "summary": "Pick a workspace, learn what the wiki is, and see how the screen is laid out."
     },
     "documents": {
       "title": "Working with documents",
@@ -14,7 +14,7 @@
     },
     "wiki-ingest": {
       "title": "Adding to the wiki",
-      "summary": "Only documents added to the wiki are used as sources for chat answers."
+      "summary": "The AI reads your documents and organizes them into the wiki. Only documents added to the wiki are used as sources for chat answers."
     },
     "graph": {
       "title": "Graph",
@@ -53,6 +53,10 @@
     "choose-workspace": {
       "title": "Choose a workspace",
       "body": "When you first sign in, a workspace is ready for you. Click the workspace name in the sidebar to switch to another workspace or create a “New workspace”. Documents, wiki, and chats are kept separately in each workspace."
+    },
+    "wiki-basics": {
+      "title": "The wiki and chat answers",
+      "body": "The wiki is what the LLM writes down after reading your uploaded documents, like a set of notes. Chat answers are built from this wiki, so add a document to the wiki before you ask about it. To change what the wiki says, update the original document and add it again, or click “Refresh wiki”."
     },
     "screen-layout": {
       "title": "Screen layout",
@@ -126,13 +130,9 @@
       "title": "Explore the graph",
       "body": "Drag nodes to move them, and pan or zoom to look around. Double-click a node to open that page in the document area in the middle; wiki pages also list their connected source documents. If the graph looks out of date, click “Refresh graph”."
     },
-    "edit-wiki-page": {
-      "title": "Edit a wiki page yourself",
-      "body": "On an open wiki page, click “Edit” to change the body and then “Save”. You need to be an OWNER or have the “Add to wiki” permission, and your change is recorded in “Logs” as a wiki edit."
-    },
     "ask-question": {
       "title": "Ask a question",
-      "body": "Type your question in the “Chat” tab of the chat panel and send it. The AI works out what you’re asking, searches the wiki, and writes an answer based on what it found. Turn on “Web search” to include information from the web, and choose the model from the input box."
+      "body": "Type your question in the “Chat” tab of the chat panel and send it. The AI works out what you’re asking, searches the wiki, and writes an answer based on what it found. Only documents added to the wiki are used as sources. Turn on “Web search” to include information from the web, and choose the model from the input box."
     },
     "answer-sources": {
       "title": "Check sources and citations",
@@ -208,7 +208,7 @@
     },
     "view-logs": {
       "title": "View operation logs",
-      "body": "Click “Logs” in the rail to see a record of AI operations run in this workspace. Filter with the “AI edits”, “Wiki ingest”, “Wiki refresh”, “Rollback”, and “Wiki edits” tabs, and select an operation to see what changed in documents and wiki pages."
+      "body": "Click “Logs” in the rail to see a record of AI operations run in this workspace. Filter with the “AI edits”, “Wiki ingest”, “Wiki refresh”, and “Rollback” tabs, and select an operation to see what changed in documents and wiki pages."
     },
     "rollback-operation": {
       "title": "Undo an operation",
