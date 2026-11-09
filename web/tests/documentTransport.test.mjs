@@ -4,6 +4,7 @@ import test from "node:test";
 registerHooks({ resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) return nextResolve(new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, context);
   if (specifier === "next/server") return nextResolve("next/server.js", context);
+  if (context.parentURL?.includes("/src/") && specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) return nextResolve(specifier + ".ts", context);
   return nextResolve(specifier, context);
 }});
 const { GET: transportRoute } = await import("../app/api/document-transport/route.ts");

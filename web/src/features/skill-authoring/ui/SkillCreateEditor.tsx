@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { authorSkill, fetchSkills, publishSkill } from "@/entities/skill";
 import { useUserPreferences } from "@/entities/user";
-import { AlertModal } from "@/shared/ui/modal/AlertModal";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { cx } from "@/shared/lib/classNames";
 import { SvgIcon } from "@/shared/ui/SvgIcon";
 import lightningSmallIcon from "@/shared/assets/svg/common/lightning-small.svg";
@@ -452,45 +452,42 @@ export function SkillCreateEditor({
       </div>
 
       {publishError && (
-        <AlertModal
+        <ConfirmModal
           titleId={fieldId("publish-error-title")}
           title={publishError.title}
           description={publishError.description}
-          onClose={() => publishMutation.reset()}
-        >
-          <button type="button" className="modal-confirm-button" onClick={() => publishMutation.reset()}>
-            {t("common.confirm")}
-          </button>
-        </AlertModal>
+          onCancel={() => publishMutation.reset()}
+          onConfirm={() => publishMutation.reset()}
+          confirmLabel={t("common.confirm")}
+          hideCancel
+        />
       )}
 
       {authorError && (
-        <AlertModal
+        <ConfirmModal
           titleId={fieldId("author-error-title")}
           title={authorError.title}
           description={authorError.description}
-          onClose={() => authorMutation.reset()}
-        >
-          <button type="button" className="modal-confirm-button" onClick={() => authorMutation.reset()}>
-            {t("common.confirm")}
-          </button>
-        </AlertModal>
+          onCancel={() => authorMutation.reset()}
+          onConfirm={() => authorMutation.reset()}
+          confirmLabel={t("common.confirm")}
+          hideCancel
+        />
       )}
 
       {/* 참고 문서 선택 — 네비게이션 검색과 동일한 중앙 모달 */}
       {referenceDocs.pickerModal}
 
       {question && (
-        <AlertModal
+        <ConfirmModal
           titleId={fieldId("clarify-title")}
           title={t("review.clarifyTitle")}
           description={question}
-          onClose={() => setQuestion(null)}
-        >
-          <button type="button" className="modal-confirm-button" onClick={() => setQuestion(null)}>
-            {t("common.confirm")}
-          </button>
-        </AlertModal>
+          onCancel={() => setQuestion(null)}
+          onConfirm={() => setQuestion(null)}
+          confirmLabel={t("common.confirm")}
+          hideCancel
+        />
       )}
     </SkillSheet>
   );

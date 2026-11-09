@@ -354,8 +354,8 @@ function loadMcpConnectionsSection(queryClient, queryResult, api = {}, locale = 
   const element = (type, props) => ({ type, props });
   runInNewContext(outputText, {
     exports,
-    window: { confirm: (message) => { confirmations.push(message); return true; } },
     require: (name) => ({
+      "@/shared/ui/modal/useConfirmation": { useConfirmation: () => ({ confirm: async ({ title }) => { confirmations.push(title); return true; }, confirmationDialog: null }) },
       react: { useEffect: () => {}, useState: () => [states.shift(), (value) => updates.push(value)] },
       "react/jsx-runtime": { jsx: element, jsxs: element },
       "next-intl": {

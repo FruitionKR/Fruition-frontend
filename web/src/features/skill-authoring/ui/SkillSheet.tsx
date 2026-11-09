@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useUserPreferences } from "@/entities/user";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { cx } from "@/shared/lib/classNames";
-import { AlertModal } from "@/shared/ui/modal/AlertModal";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import styles from "./SkillSheet.module.css";
 
 /** 시트가 오른쪽으로 빠져나가는 시간. SkillSheet.module.css의 skill-sheet-out과 맞춘다. */
@@ -132,21 +132,10 @@ export function SkillSheet({
         </footer>
       </section>
       {discardConfirm?.isOpen && (
-        <AlertModal
-          titleId={discardTitleId}
-          title={t("sheet.discardTitle")}
-          description={t("sheet.discardDescription")}
-          onClose={discardConfirm.onKeep}
-        >
-          <div className="modal-actions">
-            <button type="button" className="modal-cancel-button" autoFocus onClick={discardConfirm.onKeep}>
-              {t("sheet.keepEditing")}
-            </button>
-            <button type="button" className="modal-delete-button" onClick={discardConfirm.onDiscard}>
-              {t("sheet.discard")}
-            </button>
-          </div>
-        </AlertModal>
+        <ConfirmModal titleId={discardTitleId} title={t("sheet.discardTitle")}
+          description={t("sheet.discardDescription")} onCancel={discardConfirm.onKeep}
+          onConfirm={discardConfirm.onDiscard} cancelLabel={t("sheet.keepEditing")}
+          confirmLabel={t("sheet.discard")} tone="danger" />
       )}
     </div>
   );

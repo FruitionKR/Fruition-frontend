@@ -1,3 +1,4 @@
+import { compareTreeItemsByName } from "./treeSort";
 import { makeRawId } from "@/entities/graph/lib/graphBuilder";
 import type { DropTarget, Project, TreeItem } from "@/entities/tree/model/tree";
 import type { DocumentUploadResponse } from "@/entities/document/model/document";
@@ -159,9 +160,9 @@ export function moveProjectTreeItem(
 }
 
 export function appendItemsToFolder(items: TreeItem[], folderId: string | null, nextItems: TreeItem[]): TreeItem[] {
-  if (!folderId) return [...items, ...nextItems];
+  if (!folderId) return [...items, ...nextItems].sort(compareTreeItemsByName);
 
-  return mapTreeItemById(items, folderId, (item) => ({ ...item, children: [...(item.children ?? []), ...nextItems] }));
+  return mapTreeItemById(items, folderId, (item) => ({ ...item, children: [...(item.children ?? []), ...nextItems].sort(compareTreeItemsByName) }));
 }
 
 export function updateTreeItemStatus(items: TreeItem[], itemId: string, status: TreeItem["status"], errorMessage?: string): TreeItem[] {

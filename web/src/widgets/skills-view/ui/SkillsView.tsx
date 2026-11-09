@@ -9,7 +9,7 @@ import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { useDismissableMenu } from "@/shared/hooks/useDismissableMenu";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import {
   filterSkillsByTab,
   isPersonalSkill,
@@ -118,17 +118,6 @@ export function SkillsView({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useDismissableMenu(openMenuId !== null, () => setOpenMenuId(null));
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
-  const deleteDialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    if (deleteTarget) deleteDialogRef.current?.showModal();
-    else deleteDialogRef.current?.close();
-  }, [deleteTarget]);
-  // 삭제 확인도 ESC 레이어로 등록해 Escape 한 번에 대화상자만 닫히게 한다(삭제 중에는 유지).
-  useEscapeKey(deleteTarget !== null, () => {
-    if (!deleteMutation.isPending) setDeleteTarget(null);
-  });
-
   const visibleSkills = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
     const inTab = filterSkillsByTab(catalog.skills, activeTab).filter((skill) =>
@@ -318,33 +307,16 @@ export function SkillsView({
         />
       )}
 
-      <dialog
-        ref={deleteDialogRef}
-        className={styles["delete-dialog"]}
-        aria-labelledby={`${idPrefix}-delete-title`}
-        onCancel={(event) => {
-          // Escape는 레이어 스택이 처리한다. 브라우저 기본 닫기는 막고 상태로만 닫는다.
-          event.preventDefault();
-          if (!deleteMutation.isPending) setDeleteTarget(null);
-        }}
-      >
-        <h2 id={`${idPrefix}-delete-title`}>{t("deleteConfirm.title")}</h2>
-        <p>{t("deleteConfirm.description", { slug: deleteTarget?.slug ?? "" })}</p>
-        {deleteMutation.isError && (
-          <p className={styles.error} role="alert">{getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}</p>
-        )}
-        <div className="modal-actions">
-          <button type="button" className="modal-cancel-button" autoFocus disabled={deleteMutation.isPending}
-            onClick={() => setDeleteTarget(null)}>{t("common.cancel")}</button>
-          <button type="button" className="modal-delete-button" disabled={deleteMutation.isPending}
-            onClick={() => {
-              if (!deleteTarget) return;
-              deleteMutation.mutate(deleteTarget, {
-                onSuccess: () => setDeleteTarget(null)
-              });
-            }}>{deleteMutation.isPending ? t("common.deleting") : t("common.delete")}</button>
-        </div>
-      </dialog>
+      {deleteTarget && <ConfirmModal titleId={`${idPrefix}-delete-title`} title={t("deleteConfirm.title")}
+        description={t("deleteConfirm.description", { slug: deleteTarget.slug })}
+        confirmLabel={deleteMutation.isPending ? t("common.deleting") : t("common.delete")}
+        cancelLabel={t("common.cancel")} tone="danger" busy={deleteMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteMutation.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) })}>
+        {deleteMutation.isError && <p className={styles.error} role="alert">
+          {getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}
+        </p>}
+      </ConfirmModal>}
 
       {isSearchOpen && (
         <SkillSearchModal

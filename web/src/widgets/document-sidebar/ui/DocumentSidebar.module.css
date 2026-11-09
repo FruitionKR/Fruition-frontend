@@ -668,6 +668,11 @@
   overflow: hidden;
 }
 
+/* Figma 1486:4591: 문서는 16px 빈 아이콘 칸 뒤 이름 간격이 10px (폴더는 12px). */
+.tree-row.is-note {
+  gap: 10px;
+}
+
 /* Cmd/Ctrl+클릭으로 고른 항목: 이동 대상임을 주 색 블록으로 표시 (Figma 1027:7161) */
 .tree-row.is-selected,
 .tree-row.is-selected:hover,

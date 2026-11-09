@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmation } from "@/shared/ui/modal/useConfirmation";
+
 import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
@@ -32,6 +34,7 @@ const ACTIVITY_FORMAT = { year: "numeric", month: "long", day: "numeric", hour: 
 
 /** 로그인된 기기 행과 기기 목록 표 (Figma 1691:16307). 현재 기기는 "이 기기"로 강조한다. */
 export function SessionsPanel() {
+  const { confirm, confirmationDialog } = useConfirmation();
   const t = useTranslations("settings.sessions");
   const tCommon = useTranslations("settings.common");
   const tShared = useTranslations("shared");
@@ -50,7 +53,7 @@ export function SessionsPanel() {
     session.current ? t("now") : format.dateTime(new Date(session.created_at), ACTIVITY_FORMAT);
 
   async function remove(session: LoginSession) {
-    if (busy || !window.confirm(session.current ? t("confirmCurrent") : t("confirmOther"))) return;
+    if (busy || !await confirm({ title: session.current ? t("confirmCurrent") : t("confirmOther"), confirmLabel: t("logout") })) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -71,6 +74,7 @@ export function SessionsPanel() {
   }
 
   return <>
+    {confirmationDialog}
     <div className={cx(styles.row, panelStyles["sessions-row"])}>
       <div className={styles["row-title"]}>
         <strong>{t("label")}</strong>

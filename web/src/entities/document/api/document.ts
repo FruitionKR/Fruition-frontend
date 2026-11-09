@@ -1,3 +1,4 @@
+import { prepareConversionFolder, placeConvertedDocument } from "@/entities/tree/api/conversionFolder";
 import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { findServerTreeItem, findServerParent } from "@/entities/tree/model/serverTree";
 import { apiFetch, throwIfNotOk, parseApiError, parseJsonOrThrow, getWorkspaceId, workspacePath, ERROR_MESSAGES, idempotencyKey, idempotentJsonHeaders } from "@/shared/api/client";
@@ -170,6 +171,7 @@ async function startDocumentIngest(documentId: string): Promise<void> {
  * 202와 함께 processing 상태로 생성된 markdown 문서 요약을 반환한다.
  */
 export async function convertDocumentToMarkdown(documentId: string) {
+  const folderId = await prepareConversionFolder(documentId);
   const workspaceId = getWorkspaceId();
   const response = await apiFetch(
     workspacePath(workspaceId, "documents", documentId, "convert-markdown"),
@@ -178,7 +180,9 @@ export async function convertDocumentToMarkdown(documentId: string) {
       headers: { "Idempotency-Key": idempotencyKey() }
     }
   );
-  return parseJsonOrThrow<DocumentItemResponse>(response, ERROR_MESSAGES.documentConvertFailed);
+  const converted = await parseJsonOrThrow<DocumentItemResponse>(response, ERROR_MESSAGES.documentConvertFailed);
+  await placeConvertedDocument(converted.id, folderId);
+  return converted;
 }
 
 /**

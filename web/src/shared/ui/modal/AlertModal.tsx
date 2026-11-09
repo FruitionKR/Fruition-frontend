@@ -1,6 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useModalFocus } from "@/shared/hooks/useModalFocus";
 import { useBackdropClick } from "@/shared/hooks/useBackdropClick";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 
@@ -21,11 +23,19 @@ export function AlertModal({
   useEscapeKey(true, onClose);
   const backdropClick = useBackdropClick(onClose);
 
-  return (
+  const cardRef = useRef<HTMLDivElement>(null);
+  useModalFocus(cardRef);
+  useEffect(() => { cardRef.current?.focus(); }, []);
+
+  return createPortal(
     <div className="modal-backdrop" role="presentation" {...backdropClick}>
       <div
+        ref={cardRef}
+        tabIndex={-1}
         className="modal-card"
         role="alertdialog"
+        aria-modal="true"
+        aria-describedby={`${titleId}-description`}
         aria-labelledby={titleId}
         onClick={(event) => event.stopPropagation()}
       >
@@ -33,9 +43,10 @@ export function AlertModal({
           <path d="M12 2.5 23 21H1L12 2.5Zm0 6.1c-.6 0-1 .4-1 1v4.2c0 .6.4 1 1 1s1-.4 1-1V9.6c0-.6-.4-1-1-1Zm0 8.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z" />
         </svg>
         <h2 id={titleId}>{title}</h2>
-        <p>{description}</p>
+        <div className="modal-description" id={`${titleId}-description`}>{description}</div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

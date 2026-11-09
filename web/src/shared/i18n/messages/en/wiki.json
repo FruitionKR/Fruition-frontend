@@ -8,8 +8,8 @@
       "description": "\"{filename}\" is Markdown converted from a PDF. Once it’s in the wiki, chat can use it as a source for answers."
     },
     "pdfConvertConfirm": {
-      "title": "Convert the PDF to Markdown?",
-      "description": "\"{filename}\": {qualityNotice} Convert it?"
+      "title": "Convert \"{filename}\" PDF to Markdown?",
+      "description": "{qualityNotice}"
     },
     "pdfIngestConfirm": {
       "title": "Convert the PDFs and add them to the wiki?",

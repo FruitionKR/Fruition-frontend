@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { acknowledgeAiNotice, hasAcknowledgedAiNotice } from "@/shared/lib/aiNotice";
-import { CenteredModal } from "@/shared/ui/modal/CenteredModal";
-import styles from "./AiNoticeDialog.module.css";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { useTranslations } from "next-intl";
 
 /**
@@ -28,10 +27,8 @@ export function AiNoticeDialog({ userId }: { userId: string }) {
 
   return (
     // Escape·배경 클릭으로는 닫히지 않는다. 고지는 확인 버튼으로만 넘어간다.
-    <CenteredModal ariaLabel={t("aiNotice.title")} className={styles.dialog} onClose={() => {}}>
-      <h2 className={styles.title}>{t("aiNotice.title")}</h2>
-      <p className={styles.body}>{t("aiNotice.message")}</p>
-      <button type="button" className={styles.confirm} onClick={confirm}>{t("actions.confirm")}</button>
-    </CenteredModal>
+    <ConfirmModal titleId="ai-notice-title" title={t("aiNotice.title")}
+      description={t("aiNotice.message")} confirmLabel={t("actions.confirm")}
+      onConfirm={confirm} onCancel={() => {}} hideCancel />
   );
 }
