@@ -7,4 +7,3 @@ export const compareTreeItemsByName = (a: { label: string; type?: string }, b: {
   }
   return compareName(a.label, b.label);
 };
-
