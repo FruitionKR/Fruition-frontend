@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmation } from "@/shared/ui/modal/useConfirmation";
+
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
@@ -23,6 +25,7 @@ import {
 import styles from "./McpApprovalPage.module.css";
 
 export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: string; runId: string }) {
+  const { confirm, confirmationDialog } = useConfirmation();
   const t = useTranslations("mcpApproval");
   const tAgent = useTranslations("agentChat");
   const format = useFormatter();
@@ -88,8 +91,8 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
     setReviewSelection({ scope: selectionScope, ...selection });
   }, [selectionScope]);
 
-  function requestCancel() {
-    if (cancel.isPending || !window.confirm(t("cancel.confirm"))) return;
+  async function requestCancel() {
+    if (cancel.isPending || !await confirm({ title: t("cancel.confirm"), confirmLabel: t("cancel.button"), tone: "danger" })) return;
     cancel.mutate();
   }
 
@@ -102,6 +105,7 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
 
   return (
     <main className={styles.page}>
+      {confirmationDialog}
       <section className={styles.card} aria-labelledby="mcp-approval-title">
         <header className={styles.header}>
           <div>

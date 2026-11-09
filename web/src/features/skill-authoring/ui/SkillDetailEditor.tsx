@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { fetchSkills, type SkillResponse } from "@/entities/skill";
 import type { SkillAuthoringResult } from "@/entities/skill/model/skill";
-import { AlertModal } from "@/shared/ui/modal/AlertModal";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 import { cx } from "@/shared/lib/classNames";
 import { getErrorMessage } from "@/shared/lib/apiErrors";
 import { describeSkillSaveError, isSkillFormDirty, skillAuthoringOutcome } from "../lib/skillAuthoring";
@@ -387,50 +387,27 @@ export function SkillDetailEditor({
       </div>
 
       {isDeleteConfirmOpen && (
-        <AlertModal
-          titleId={fieldId("delete-title")}
-          title={t("deleteConfirm.title")}
+        <ConfirmModal titleId={fieldId("delete-title")} title={t("deleteConfirm.title")}
           description={t("deleteConfirm.description", { slug: skill.slug })}
-          onClose={closeDeleteConfirm}
-        >
-          {deleteMutation.isError && (
-            <p className={styles.error} role="alert">
-              {getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}
-            </p>
-          )}
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="modal-cancel-button"
-              autoFocus
-              disabled={deleteMutation.isPending}
-              onClick={closeDeleteConfirm}
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              type="button"
-              className="modal-delete-button"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
-            >
-              {deleteMutation.isPending ? t("common.deleting") : t("common.delete")}
-            </button>
-          </div>
-        </AlertModal>
+          onCancel={closeDeleteConfirm} onConfirm={() => deleteMutation.mutate()}
+          confirmLabel={deleteMutation.isPending ? t("common.deleting") : t("common.delete")}
+          cancelLabel={t("common.cancel")} tone="danger" busy={deleteMutation.isPending}>
+          {deleteMutation.isError && <p className={styles.error} role="alert">
+            {getErrorMessage(deleteMutation.error, t("deleteConfirm.failed"), tShared)}
+          </p>}
+        </ConfirmModal>
       )}
 
       {question && (
-        <AlertModal
+        <ConfirmModal
           titleId={fieldId("clarify-title")}
           title={t("review.clarifyTitle")}
           description={question}
-          onClose={() => setQuestion(null)}
-        >
-          <button type="button" className="modal-confirm-button" onClick={() => setQuestion(null)}>
-            {t("common.confirm")}
-          </button>
-        </AlertModal>
+          onCancel={() => setQuestion(null)}
+          onConfirm={() => setQuestion(null)}
+          confirmLabel={t("common.confirm")}
+          hideCancel
+        />
       )}
     </SkillSheet>
   );

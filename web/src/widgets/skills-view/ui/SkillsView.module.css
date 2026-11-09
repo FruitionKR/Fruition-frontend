@@ -398,20 +398,6 @@
   color: var(--color-danger);
 }
 
-.delete-dialog {
-  width: min(420px, calc(100vw - 32px));
-  margin: auto;
-  padding: 24px;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  color: var(--color-foreground);
-  background: var(--color-canvas);
-}
-
-.delete-dialog::backdrop { background: var(--color-overlay); }
-.delete-dialog h2 { margin: 0 0 12px; font-size: 18px; }
-.delete-dialog p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; }
-
 /* 기본 설정에서 애니메이션 "그대로"를 고르면(data-reduce-motion="false") OS 동작 줄이기와 상관없이 애니메이션을 둔다 */
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduce-motion="false"]) .tab,

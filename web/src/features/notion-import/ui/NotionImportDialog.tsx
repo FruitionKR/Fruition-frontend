@@ -1,4 +1,5 @@
 "use client";
+import { ConfirmModal } from "@/shared/ui/modal/ConfirmModal";
 
 import { useFormatter, useTranslations } from "next-intl";
 import { formatBytes } from "@/entities/workspace/model/storageUsage";
@@ -194,18 +195,11 @@ function ConvertStep({ step, controller }: { step: SummaryStep; controller: Noti
   const convertMaxCost = estimate ? formatKrw(estimate.estimated_credits, t) : null;
   if (step.convert === "confirm" && estimate) {
     return (
-      <>
-        <section className={styles.ingest} role="alertdialog" aria-labelledby="notion-import-convert-confirm">
-          <h3 id="notion-import-convert-confirm">
-            {convertMaxCost ? t("convert.confirmMax", { amount: convertMaxCost }) : t("convert.confirmCount", { count })}
-          </h3>
-          <p className={styles.meta}>{t("convert.confirmMeta", { label, count, hint: t("cost.convertHint") })}</p>
-        </section>
-        <div className={styles.actions}>
-          <button type="button" className={styles.secondary} onClick={controller.cancelConvertConfirm}>{t("cancel")}</button>
-          <button type="button" className={styles.primary} onClick={controller.confirmConvert}>{t("convert.continue")}</button>
-        </div>
-      </>
+      <ConfirmModal titleId="notion-import-convert-confirm"
+        title={convertMaxCost ? t("convert.confirmMax", { amount: convertMaxCost }) : t("convert.confirmCount", { count })}
+        description={t("convert.confirmMeta", { label, count, hint: t("cost.convertHint") })}
+        confirmLabel={t("convert.continue")} cancelLabel={t("cancel")}
+        onCancel={controller.cancelConvertConfirm} onConfirm={controller.confirmConvert} />
     );
   }
   const running = step.convert === "running";
@@ -262,20 +256,14 @@ function IngestStep({ step, controller }: { step: SummaryStep; controller: Notio
         </section>
       )}
       {step.ingest === "confirm" && step.estimate && (
-        <section className={styles.ingest} role="alertdialog" aria-labelledby="notion-import-confirm">
-          <h3 id="notion-import-confirm">
-            {ingestCost ? t("ingest.confirmCost", { amount: ingestCost }) : t("ingest.confirmCount", { count })}
-          </h3>
-          <p className={styles.meta}>{t("ingest.confirmMeta", { label: estimateLabel(step.estimate, t), count })}</p>
-        </section>
+        <ConfirmModal titleId="notion-import-confirm"
+          title={ingestCost ? t("ingest.confirmCost", { amount: ingestCost }) : t("ingest.confirmCount", { count })}
+          description={t("ingest.confirmMeta", { label: estimateLabel(step.estimate, t), count })}
+          confirmLabel={t("ingest.continue")} cancelLabel={t("cancel")}
+          onCancel={controller.cancelIngestConfirm} onConfirm={controller.confirmIngest} />
       )}
       <div className={styles.actions}>
-        {step.ingest === "confirm" ? (
-          <>
-            <button type="button" className={styles.secondary} onClick={controller.cancelIngestConfirm}>{t("cancel")}</button>
-            <button type="button" className={styles.primary} onClick={controller.confirmIngest}>{t("ingest.continue")}</button>
-          </>
-        ) : isAsking || step.ingest === "running" ? (
+        {step.ingest === "confirm" ? null : isAsking || step.ingest === "running" ? (
           <>
             <button type="button" className={styles.secondary} disabled={step.ingest === "running"} onClick={controller.skipIngest}>
               {step.ingest === "stopped" ? t("ingest.later") : t("ingest.skip")}

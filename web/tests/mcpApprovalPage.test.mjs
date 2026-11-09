@@ -26,6 +26,7 @@ let run = {
 };
 let mutations = 0;
 const aliases = {
+  "@/shared/ui/modal/useConfirmation": { useConfirmation: () => ({ confirm: async () => false, confirmationDialog: null }) },
   "@/entities/user": { useMe: () => ({ data: { id: "user-1" }, isPending: false, error: null }) },
   "@/features/agent-chat/api/agentPlan": { cancelAgentPlanRun: async () => { mutations += 1; }, fetchAgentPlanRunById: async () => run },
   "@/features/agent-chat/lib/agentPlan": { agentPlanStatusLabel: () => "승인 대기", canApproveAgentPlan: () => true },

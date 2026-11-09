@@ -1,9 +1,9 @@
-/* 공통 오버레이 모달 (Figma 512:10792, 513:10878) */
+/* 확인·취소 알림창 공통 스타일. 개별 화면에서 박스/버튼 스타일을 재정의하지 않는다. */
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,8 +15,8 @@
   max-width: calc(100vw - 48px);
   padding: 24px;
   border-radius: 16px;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
+  background: var(--color-canvas, #fff);
+  border: 1px solid var(--color-border, #dfe2e7);
   box-shadow: 0 16px 40px var(--color-shadow);
 }
 
@@ -31,13 +31,16 @@
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
-.modal-card p {
+.modal-card p,
+.modal-card .modal-description {
   margin: 0;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--color-muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .modal-confirm-button {
@@ -45,8 +48,8 @@
   margin-top: 20px;
   padding: 10px 0;
   border-radius: 10px;
-  background: var(--soft);
-  color: var(--yellow);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -54,7 +57,8 @@
 
 .modal-confirm-button:hover {
   --button-hover-overlay: none;
-  background: var(--color-surface-strong);
+  background: var(--color-primary);
+  filter: brightness(.95);
 }
 
 /* 삭제 확인 등 취소/실행 2버튼 액션 줄 */
@@ -75,7 +79,7 @@
 
 .modal-cancel-button {
   background: var(--soft);
-  color: var(--ink);
+  color: var(--color-foreground);
 }
 
 .modal-cancel-button:hover {
@@ -115,3 +119,7 @@
     min-height: 44px;
   }
 }
+
+.modal-card:focus { outline: none; }
+.modal-card h2 { overflow-wrap: anywhere; line-height: 1.5; }
+.modal-card button:disabled { opacity: .5; cursor: wait; }

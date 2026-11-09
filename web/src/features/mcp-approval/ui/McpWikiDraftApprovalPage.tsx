@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmation } from "@/shared/ui/modal/useConfirmation";
+
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,6 +29,7 @@ import { WikiDraftPreview } from "./WikiDraftPreview";
 import styles from "./McpApprovalPage.module.css";
 
 export default function McpWikiDraftApprovalPage({ workspaceId, draftId }: { workspaceId: string; draftId: string }) {
+  const { confirm, confirmationDialog } = useConfirmation();
   const t = useTranslations("mcpApproval.wiki");
   const format = useFormatter();
   const router = useRouter();
@@ -84,6 +87,7 @@ export default function McpWikiDraftApprovalPage({ workspaceId, draftId }: { wor
 
   return (
     <main className={styles.page}>
+      {confirmationDialog}
       <section className={styles.card} aria-labelledby="mcp-wiki-draft-title">
         <header className={styles.header}>
           <div><p className={styles.eyebrow}>{t("origin")}</p><h1 id="mcp-wiki-draft-title">{t("title")}</h1></div>
@@ -134,9 +138,9 @@ export default function McpWikiDraftApprovalPage({ workspaceId, draftId }: { wor
         {!canApprove && draft.approval.status === "AWAITING" && <p className={styles.warning} role="status">{draft.client_name ? t("approvalUnavailable") : t("clientApprovalUnavailable")}</p>}
         {actionError && <p role="alert">{errorMessage(actionError)}</p>}
         <div className={styles.actions}>
-          {draft.approval.status === "AWAITING" && <button type="button" className={styles.secondary} disabled={decisionPending} onClick={() => window.confirm(t("rejectConfirm")) && startDecision(reject.mutate)}>{t("reject")}</button>}
+          {draft.approval.status === "AWAITING" && <button type="button" className={styles.secondary} disabled={decisionPending} onClick={async () => { if (await confirm({ title: t("rejectConfirm"), confirmLabel: t("reject") })) startDecision(reject.mutate); }}>{t("reject")}</button>}
           {draft.approval.status === "AWAITING" && <button type="button" className={styles.primary} disabled={decisionPending || !canApprove} onClick={() => startDecision(approve.mutate)}>{approve.isPending ? t("approving") : t("approve")}</button>}
-          {canCancelMcpWikiDraft(draft) && <button type="button" className={styles.danger} disabled={decisionPending} onClick={() => window.confirm(t("cancelConfirm")) && startDecision(cancel.mutate)}>{cancel.isPending ? t("cancelling") : t("cancel")}</button>}
+          {canCancelMcpWikiDraft(draft) && <button type="button" className={styles.danger} disabled={decisionPending} onClick={async () => { if (await confirm({ title: t("cancelConfirm"), confirmLabel: t("cancel"), tone: "danger" })) startDecision(cancel.mutate); }}>{cancel.isPending ? t("cancelling") : t("cancel")}</button>}
         </div>
       </section>
     </main>

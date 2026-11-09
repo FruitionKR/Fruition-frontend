@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmation } from "@/shared/ui/modal/useConfirmation";
+
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +31,7 @@ function connectionQueryPrefix(userId: string) {
 }
 
 export function McpConnectionsSection() {
+  const { confirm, confirmationDialog } = useConfirmation();
   const t = useTranslations("settings.mcpConnections");
   const shared = useTranslations("shared");
   const format = useFormatter();
@@ -77,7 +80,7 @@ export function McpConnectionsSection() {
   }
 
   async function disconnect(connection: McpConnection) {
-    if (pendingGrantId || !window.confirm(t("disconnectConfirmation", { clientId: connection.client_id }))) return;
+    if (pendingGrantId || !await confirm({ title: t("disconnectConfirmation", { clientId: connection.client_id }), confirmLabel: t("disconnect") })) return;
     setPendingGrantId(connection.grant_id);
     setActionError(null);
     setMessage(null);
@@ -116,6 +119,7 @@ export function McpConnectionsSection() {
 
   return (
     <div className={styles.section}>
+      {confirmationDialog}
       <SettingsSectionHeader>{t("title")}</SettingsSectionHeader>
       <small className={styles["status-text"]}>
         {t("disclosure")}

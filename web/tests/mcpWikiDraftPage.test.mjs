@@ -24,6 +24,7 @@ const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../src/features/mcp-approval/ui/McpWikiDraftApprovalPage.tsx", import.meta.url), "utf8");
 const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 const aliases = {
+  "@/shared/ui/modal/useConfirmation": { useConfirmation: () => ({ confirm: async () => false, confirmationDialog: null }) },
   "react": { ...React, useEffect() {}, useRef: (value) => ({ current: value }) },
   "../api/wikiDraftApproval": { approveMcpWikiDraft: async () => { mutations += 1; }, cancelMcpWikiDraft: async () => { mutations += 1; }, fetchMcpWikiDraft: async () => draft, rejectMcpWikiDraft: async () => { mutations += 1; } },
   "../lib/wikiDraftPreview": contract,
