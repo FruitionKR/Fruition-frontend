@@ -33,11 +33,11 @@ test("문서 보호 섹션은 보관·접근·AI 처리·삭제 순서다", () =
 test("확인한 핵심 사실을 담는다", () => {
   const copy = allCopy();
   for (const fact of [
-    "AWS 서울 리전",
-    "TLS 1.2 이상",
+    "암호화",
+    "HTTPS",
     "워크스페이스 멤버가 아니면 문서를 볼 수 없고",
-    "최대 1시간",
-    "Fruition 서버 안의 모델",
+    "유효기간",
+    "Fruition 내부",
     "자동 편입은 기본으로 꺼져",
     "30일"
   ]) {
@@ -45,13 +45,19 @@ test("확인한 핵심 사실을 담는다", () => {
   }
 });
 
-test("숫자 개인정보 가림은 글자 요청·숫자 형태로 범위를 적는다", () => {
-  const ai = itemsOf(ko, DATA_HANDLING_GROUPS.find((group) => group.id === "ai")).join("\n");
-  assert.match(ai, /글자로 보내는 AI 요청에서는 주민등록번호·전화번호·카드번호·계좌번호 같은 숫자 형태 개인정보를 자동으로 가린 뒤 보냅니다/);
-  // "외부로 보내지 않습니다"는 임베딩 문장에만 쓴다.
-  const external = DATA_HANDLING_GROUPS.flatMap((group) => itemsOf(ko, group)).filter((item) => item.includes("외부로 보내지 않"));
-  assert.deepEqual(external.length, 1);
-  assert.match(external[0], /^검색을 위한 문서 분석\(임베딩\)/);
+test("개인정보 가림은 텍스트 요청에서 감지한 숫자 정보로 범위를 한정한다", () => {
+  assert.match(ko.items.redaction, /글자로 보내는 AI 요청에서는 숫자 형태 개인정보로 감지한 내용/);
+  assert.match(en.items.redaction, /text-based AI requests.*detected as numeric personal data/);
+});
+
+test("공개 문구와 번역에 내부 운영 세부 정보를 남기지 않는다", () => {
+  for (const locale of [ko, en]) {
+    const copy = JSON.stringify(locale.items);
+    assert.doesNotMatch(copy, /AWS|서울|Seoul|TLS|1시간|within an hour|전용 암호화 키|dedicated encryption key|서버 디스크|server disks|이전 버전|Previous file versions/i);
+    for (const group of DATA_HANDLING_GROUPS) {
+      for (const key of group.items) assert.equal(typeof locale.items[key], "string", key);
+    }
+  }
 });
 
 test("문서를 지키는 방식만 적고 제공사·음성 전송 고지는 넣지 않는다(처리방침·AI 사전 고지에서 다룸)", () => {

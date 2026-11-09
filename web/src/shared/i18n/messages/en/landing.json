@@ -129,18 +129,15 @@
       }
     },
     "items": {
-      "region": "Documents are stored in the AWS Seoul region.",
-      "encryption": "Original files are locked with a dedicated encryption key, and the database, cache, and server disks are all encrypted, so data on the storage devices can't be read without the keys.",
-      "https": "All data to and from the server travels only over encrypted connections (HTTPS, TLS 1.2 or later), and unencrypted connections are automatically redirected to HTTPS.",
+      "encryption": "Documents and original files are encrypted in storage.",
+      "https": "Documents are transferred over encrypted connections (HTTPS).",
       "members": "Only workspace members can see documents, and you can grant edit or view access per folder and per document.",
-      "serverCheck": "Permissions are checked on the server, not in the browser.",
-      "privateStorage": "Original files sit in private storage with no public address, and links that open them expire within an hour, so a shared link can't be used for long.",
-      "embedding": "Document analysis for search (embeddings) runs on a model inside Fruition's servers and is never sent outside.",
-      "redaction": "In text-based AI requests, numeric personal data such as resident registration, phone, card, and account numbers is automatically masked before sending.",
+      "privateStorage": "Original files are kept private, and links to open them have an expiration time.",
+      "embedding": "Document analysis for search (embeddings) is processed within Fruition.",
+      "redaction": "In text-based AI requests, content detected as numeric personal data is masked before sending.",
       "autoIngestOff": "Auto-ingest, where AI processes documents as soon as they're uploaded, is off by default and starts only after the workspace owner turns it on.",
-      "trash": "Deleted something by mistake? Restore it from the trash for 30 days; after that, it is permanently deleted along with the original file.",
-      "versions": "Previous file versions left in storage are cleaned up within the following 30 days.",
-      "deletePermission": "Only the document owner and the workspace owner can delete or restore, so other members can't delete things on a whim."
+      "trash": "Deleted documents can be restored from the trash for 30 days. After the retention period, documents and original files are processed for permanent deletion.",
+      "deletePermission": "Only the document owner and the workspace owner can delete or restore documents."
     }
   },
   "faq": {
