@@ -4,7 +4,8 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match.js";
 
 // Node 테스트에서도 앱의 TypeScript 경로 별칭을 같은 소스로 해석한다.
 registerHooks({
@@ -25,6 +26,9 @@ const { fetchMembers, changeMemberRole, inviteMember, removeMember } = await imp
 const { saveAccessToken } = await import("../src/shared/lib/authSessionStorage.ts");
 const { fetchInvitation, acceptInvitation } = await import("../src/entities/workspace/api/invitations.ts");
 const { loginWithEmail, exchangeOAuthCode, loginWithMfa, fetchMfaStatus, registerMfa, activateMfa, disableMfa } = await import("../src/entities/user/api/auth.ts");
+const { fetchMcpConnections, disconnectMcpConnection } = await import("../src/entities/user/api/mcpConnections.ts");
+const { registerSharedTranslate } = await import("../src/shared/i18n/sharedTranslate.ts");
+const apiErrors = await import("../src/shared/lib/apiErrors.ts");
 
 test("닉네임 저장은 인증된 PATCH와 서버 프로필 응답을 사용한다", async (t) => {
   saveAccessToken("test-access");
@@ -257,6 +261,235 @@ test("아이콘 프록시는 document-svc 기본 경로보다 먼저 access-svc�
   const defaultIndex = rules.findIndex((rule) => rule.source === "/api/:path*");
   assert.ok(iconIndex >= 0 && iconIndex < defaultIndex);
   assert.equal(rules[iconIndex].destination, `${process.env.ACCESS_URL || "http://localhost:8081"}/api/workspaces/:wid/icon/:path*`);
+});
+
+test("MCP 연결 목록은 페이지·Bearer·nullable DTO를 그대로 처리한다", async (t) => {
+  saveAccessToken("mcp-test-access");
+  const connection = {
+    grant_id: "grant_test",
+    workspace_id: "workspace_test",
+    client_id: "client_test",
+    scopes: ["read", "write_propose"],
+    status: "ACTIVE",
+    revocation_reason: null,
+    created_at: "2026-11-08T00:00:00Z",
+    revoked_at: null
+  };
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    assert.equal(path, "/api/mcp/connections?page=2&size=20");
+    assert.equal(init.headers.get("Authorization"), "Bearer mcp-test-access");
+    return Response.json({ connections: [connection], page: 2, size: 20, has_next: false });
+  });
+  const result = await fetchMcpConnections(2);
+  assert.deepEqual(result, { connections: [connection], page: 2, size: 20, has_next: false });
+  assert.equal("last_used" in result.connections[0], false);
+});
+
+test("MCP 연결 해제는 grant_id를 인코딩하고 204·404·5xx를 구분한다", async (t) => {
+  let call = 0;
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    call++;
+    assert.equal(init.method, "DELETE");
+    assert.equal(path, "/api/mcp/connections/grant%2Fwith%20space");
+    if (call === 1) return new Response(null, { status: 204 });
+    if (call === 2) return Response.json({ error: { message: "연결 없음" } }, { status: 404 });
+    return Response.json({ error: { message: "Access 장애" } }, { status: 503 });
+  });
+  await disconnectMcpConnection("grant/with space");
+  await assert.rejects(disconnectMcpConnection("grant/with space"), /연결 없음/);
+  await assert.rejects(disconnectMcpConnection("grant/with space"), /Access 장애/);
+});
+
+test("MCP 연결 rewrite는 base·하위 경로만 catch-all보다 먼저 access로 간다", async () => {
+  const { default: config } = await import("../next.config.mjs");
+  const rules = await config.rewrites();
+  const mcpIndex = rules.findIndex((rule) => rule.source === "/api/mcp/connections/:path*");
+  const defaultIndex = rules.findIndex((rule) => rule.source === "/api/:path*");
+  assert.ok(mcpIndex >= 0 && mcpIndex < defaultIndex);
+  assert.equal(rules[mcpIndex].destination, `${process.env.ACCESS_URL || "http://localhost:8081"}/api/mcp/connections/:path*`);
+  const match = getPathMatch(rules[mcpIndex].source);
+  assert.notEqual(match("/api/mcp/connections"), false);
+  assert.notEqual(match("/api/mcp/connections/grant_test"), false);
+  assert.equal(match("/api/mcp/tools"), false);
+});
+
+test("실제 QueryObserver는 실패한 refetch 결과를 기본으로는 반환하고 throwOnError에서만 거절한다", async (t) => {
+  const client = new QueryClient();
+  t.after(() => client.clear());
+  client.setQueryData(["mcp-connections", 0], { connections: [{ grant_id: "old" }] });
+  const observer = new QueryObserver(client, {
+    queryKey: ["mcp-connections", 0],
+    queryFn: async () => { throw new Error("GET failed"); },
+    retry: false
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  t.after(unsubscribe);
+  const result = await observer.refetch();
+  assert.equal(result.status, "error");
+  assert.equal(result.data.connections[0].grant_id, "old");
+  await assert.rejects(observer.refetch({ throwOnError: true }), /GET failed/);
+});
+
+function catalogTranslator(locale, namespace) {
+  const settings = JSON.parse(readFileSync(new URL(`../src/shared/i18n/messages/${locale}/settings.json`, import.meta.url), "utf8"));
+  const shared = JSON.parse(readFileSync(new URL(`../src/shared/i18n/messages/${locale}/shared.json`, import.meta.url), "utf8"));
+  const messages = { settings, shared };
+  return (key, values = {}) => {
+    const value = `${namespace}.${key}`.split(".").reduce((current, part) => current?.[part], messages);
+    assert.equal(typeof value, "string", `missing ${locale} translation: ${namespace}.${key}`);
+    return value.replace(/\{(\w+)\}/g, (_, name) => {
+      assert.ok(name in values, `missing ${locale} interpolation: ${namespace}.${key}.${name}`);
+      return String(values[name]);
+    });
+  };
+}
+
+function loadMcpConnectionsSection(queryClient, queryResult, api = {}, locale = "ko") {
+  const source = readFileSync(new URL("../src/features/user-settings/ui/panels/McpConnectionsSection.tsx", import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } });
+  const exports = {};
+  const states = [queryResult.page, null, null, null, null];
+  const updates = [];
+  const confirmations = [];
+  const element = (type, props) => ({ type, props });
+  runInNewContext(outputText, {
+    exports,
+    window: { confirm: (message) => { confirmations.push(message); return true; } },
+    require: (name) => ({
+      react: { useEffect: () => {}, useState: () => [states.shift(), (value) => updates.push(value)] },
+      "react/jsx-runtime": { jsx: element, jsxs: element },
+      "next-intl": {
+        useTranslations: (namespace) => catalogTranslator(locale, namespace),
+        useFormatter: () => ({ dateTime: (value, options) => new Intl.DateTimeFormat(locale, options).format(value) })
+      },
+      "@tanstack/react-query": { useQuery: () => queryResult, useQueryClient: () => queryClient },
+      "@/entities/user": {
+        MCP_CONNECTIONS_QUERY_KEY: ["mcp-connections"],
+        disconnectMcpConnection: api.disconnect ?? (async () => {}),
+        fetchMcpConnections: api.fetch ?? (async () => queryResult.data),
+        useMe: () => ({ data: { id: "user-test" }, error: null, isPending: false })
+      },
+      "../../lib/mcpConnectionRuns": { clearMcpConnectionRuns: () => {} },
+      "@/shared/lib/apiErrors": apiErrors,
+      "../SettingsModal.module.css": { default: {} },
+      "../SettingsSectionHeader": { SettingsSectionHeader: () => null },
+      "./ProfilePanel.module.css": { default: {} },
+      "./McpConnectionRunsPanel": { McpConnectionRunsPanel: () => null }
+    })[name]
+  });
+  return { tree: exports.McpConnectionsSection(), updates, confirmations };
+}
+
+function findButton(node, label) {
+  if (!node || typeof node !== "object") return undefined;
+  if (node.type === "button" && node.props?.children === label) return node;
+  return [node.props?.children].flat(Infinity).map((child) => findButton(child, label)).find(Boolean);
+}
+
+test("204 뒤 목록 새로고침이 실패해도 실제 섹션은 모든 MCP 페이지에서 해제된 행을 제거한다", async (t) => {
+  const client = new QueryClient();
+  t.after(() => client.clear());
+  const target = { grant_id: "grant-old", client_id: "client", workspace_id: "workspace", scopes: [], status: "ACTIVE", created_at: "2026-11-08", revocation_reason: null, revoked_at: null };
+  const other = { ...target, grant_id: "grant-keep", status: "USER_DISCONNECTED" };
+  client.setQueryData(["mcp-connections", "user-test", 0], { connections: [target, other], page: 0, size: 20, has_next: true });
+  client.setQueryData(["mcp-connections", "user-test", 1], { connections: [target, other], page: 1, size: 20, has_next: false });
+  client.setQueryData(["mcp-connections", "other-user", 0], { connections: [target], page: 0, size: 20, has_next: false });
+  client.setQueryData(["unrelated"], { connections: [target] });
+  const { tree, updates } = loadMcpConnectionsSection(client, {
+    data: client.getQueryData(["mcp-connections", "user-test", 0]), page: 0, isFetching: false, isPending: false, refetch: async () => ({})
+  }, { fetch: async () => { throw new Error("GET failed"); } });
+  findButton(tree, "작업 보기").props.onClick();
+  findButton(tree, "연결 해제").props.onClick();
+  for (let i = 0; i < 4; i += 1) await new Promise(setImmediate);
+  assert.deepEqual(client.getQueryData(["mcp-connections", "user-test", 0]).connections.map((row) => row.grant_id), ["grant-keep"]);
+  assert.deepEqual(client.getQueryData(["mcp-connections", "user-test", 1]).connections.map((row) => row.grant_id), ["grant-keep"]);
+  assert.deepEqual(client.getQueryData(["mcp-connections", "other-user", 0]).connections.map((row) => row.grant_id), ["grant-old"]);
+  assert.deepEqual(client.getQueryData(["unrelated"]).connections.map((row) => row.grant_id), ["grant-old"]);
+  assert.ok(updates.some((value) => value?.userId === "user-test" && value.connection === target), "captured task locator remains selected after 204");
+  assert.match(updates.find((value) => typeof value === "string" && value.includes("해제는 완료")), /해제는 완료했지만 목록을 새로고침하지 못했습니다/);
+});
+
+test("MCP 연결 섹션은 실제 한영 카탈로그로 고지·확인 문구를 보간한다", () => {
+  const connection = { grant_id: "grant-1", client_id: "Example Client", workspace_id: "workspace", scopes: [], status: "ACTIVE", created_at: "2026-11-08T00:00:00Z", revocation_reason: null, revoked_at: null };
+  const result = { data: { connections: [connection], page: 0, size: 20, has_next: false }, page: 0, isFetching: false, isPending: false, refetch: async () => ({}) };
+  const korean = loadMcpConnectionsSection(new QueryClient(), result);
+  const english = loadMcpConnectionsSection(new QueryClient(), result, {}, "en");
+  assert.match(JSON.stringify(korean.tree), /이미 실행 중인 웹 작업은 취소되지 않으므로/);
+  assert.match(JSON.stringify(english.tree), /It does not cancel a web task already running/);
+  findButton(korean.tree, "연결 해제").props.onClick();
+  findButton(english.tree, "Disconnect").props.onClick();
+  assert.match(korean.confirmations[0], /Example Client 연결을 해제하시겠습니까/);
+  assert.match(english.confirmations[0], /Disconnect Example Client\?/);
+});
+
+test("이미 해제된 연결도 실제 작업 보기 동작을 제공하고 자동 취소하지 않는다", () => {
+  const connection = { grant_id: "grant-old", client_id: "Example Client", workspace_id: "workspace-old", scopes: [], status: "USER_DISCONNECTED", created_at: "2026-11-08", revocation_reason: "USER_DISCONNECTED", revoked_at: "2026-11-08" };
+  const { tree, updates } = loadMcpConnectionsSection(new QueryClient(), {
+    data: { connections: [connection], page: 0, size: 20, has_next: false }, page: 0, isFetching: false, isPending: false, refetch: async () => ({})
+  });
+  assert.equal(findButton(tree, "연결 해제"), undefined);
+  findButton(tree, "작업 보기").props.onClick();
+  assert.ok(updates.some((value) => value?.userId === "user-test" && value.connection === connection));
+});
+
+test("404 disconnect keeps the captured task locator, while 5xx keeps the connection row", async (t) => {
+  const target = { grant_id: "grant-target", client_id: "client", workspace_id: "workspace", scopes: [], status: "ACTIVE", created_at: "2026-11-08", revocation_reason: null, revoked_at: null };
+  for (const status of [404, 503]) {
+    const client = new QueryClient();
+    t.after(() => client.clear());
+    client.setQueryData(["mcp-connections", "user-test", 0], { connections: [target], page: 0, size: 20, has_next: false });
+    const { tree, updates } = loadMcpConnectionsSection(client, {
+      data: client.getQueryData(["mcp-connections", "user-test", 0]), page: 0, isFetching: false, isPending: false,
+      refetch: async () => ({ data: { connections: [], page: 0, size: 20, has_next: false } })
+    }, { disconnect: async () => { throw new apiErrors.ApiError(status === 404 ? "missing" : "unavailable", status); } });
+    findButton(tree, "작업 보기").props.onClick();
+    findButton(tree, "연결 해제").props.onClick();
+    for (let i = 0; i < 4; i += 1) await new Promise(setImmediate);
+    assert.ok(updates.some((value) => value?.connection === target), `status ${status} retains the selected locator`);
+    assert.equal(client.getQueryData(["mcp-connections", "user-test", 0]).connections.length, status === 404 ? 0 : 1);
+  }
+});
+
+test("MCP 연결 섹션은 실제 shared 번역기로 영어 네트워크 오류를 표시한다", (t) => {
+  const client = new QueryClient();
+  t.after(() => client.clear());
+  const resultFor = (error) => ({ data: undefined, error, page: 0, isFetching: false, isPending: false, refetch: async () => ({}) });
+  const timeout = new Error("request timed out");
+  timeout.name = "TimeoutError";
+  const failedFetch = new TypeError("Failed to fetch");
+  assert.match(JSON.stringify(loadMcpConnectionsSection(client, resultFor(timeout), {}, "en").tree), /The response took too long, so we stopped waiting/);
+  assert.match(JSON.stringify(loadMcpConnectionsSection(client, resultFor(failedFetch), {}, "en").tree), /The connection to the server was lost before a response arrived/);
+});
+
+test("MCP API bodyless fallback uses the actual shared translation bridge and preserves server messages", async (t) => {
+  const originalWindow = globalThis.window;
+  globalThis.window = { localStorage: { getItem: () => null, removeItem() {} } };
+  t.after(() => {
+    registerSharedTranslate(null);
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  });
+  registerSharedTranslate(catalogTranslator("en", "shared"));
+  let call = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    call += 1;
+    return call <= 2 || call === 4
+      ? new Response(null, { status: 503 })
+      : Response.json({ error: { message: "Server-provided localized message" } }, { status: 503 });
+  });
+  await assert.rejects(fetchMcpConnections(), /We couldn't load your MCP connections/);
+  await assert.rejects(disconnectMcpConnection("grant-test"), /We couldn't disconnect this MCP connection/);
+  await assert.rejects(fetchMcpConnections(), /Server-provided localized message/);
+  registerSharedTranslate(catalogTranslator("ko", "shared"));
+  await assert.rejects(disconnectMcpConnection("grant-test"), /MCP 연결을 해제하지 못했습니다/);
+});
+
+test("실패한 다음 페이지에서도 실제 섹션은 이전 버튼을 남기고 응답 없는 다음 버튼을 막는다", () => {
+  const { tree } = loadMcpConnectionsSection(new QueryClient(), {
+    data: undefined, page: 1, isFetching: false, isPending: false, refetch: async () => ({})
+  });
+  assert.equal(findButton(tree, "이전").props.disabled, false);
+  assert.equal(findButton(tree, "다음").props.disabled, true);
 });
 
 for (const oauth of [false, true]) {

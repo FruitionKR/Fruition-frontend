@@ -9,6 +9,7 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/",
   "/forgot-password",
   "/login",
+  "/mcp/authorize",
   "/oauth/callback",
   "/privacy",
   "/reset-password",

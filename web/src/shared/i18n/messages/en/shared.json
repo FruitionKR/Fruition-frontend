@@ -182,6 +182,9 @@
       "oauthUnlink": "We couldn't unlink your social account.",
       "sessions": "We couldn't load your signed-in devices.",
       "sessionRevoke": "We couldn't sign out of that device.",
+      "mcpConnections": "We couldn't load your MCP connections.",
+      "mcpRuns": "We couldn't load this MCP connection's tasks.",
+      "mcpDisconnect": "We couldn't disconnect this MCP connection.",
       "locale": "Couldn't save your language setting."
     },
     "rateLimit": {
@@ -391,7 +394,11 @@
       "memberRole": "Couldn't change the member's role.",
       "memberPermissions": "Couldn't change the member's permissions.",
       "memberRemove": "Couldn't remove the member.",
-      "invite": "Couldn't send the invitation email."
+      "invite": "Couldn't send the invitation email.",
+      "mcpPolicyLoad": "Couldn't load the workspace MCP policy.",
+      "mcpPolicySave": "Couldn't save the workspace MCP policy.",
+      "mcpConnections": "Couldn't load the workspace MCP connections.",
+      "mcpRevoke": "Couldn't revoke the workspace MCP connection."
     },
     "limitExceeded": "You can't create more free workspaces. Delete a workspace you no longer use and try again.",
     "storage": {

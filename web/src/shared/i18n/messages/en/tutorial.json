@@ -8,6 +8,13 @@
     "next": "Next",
     "done": "Done",
     "progress": "{current} / {total}",
-    "sections": "Sections"
+    "sections": "Sections",
+    "mcp": {
+      "loading": "Checking the MCP server address.",
+      "unavailable": "No MCP server address is configured in this environment. Ask your administrator for it and add it as shown below.",
+      "address": "MCP server address",
+      "codex": "Codex: add the server in a terminal. If sign-in already opened during add, skip login. Check tools with /mcp inside Codex.",
+      "claude": "Claude Code: add the server in a terminal (applies to the current project by default; add --scope user for all projects). Run claude, pick fruition in /mcp, and choose Authenticate."
+    }
   }
 }

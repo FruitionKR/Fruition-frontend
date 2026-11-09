@@ -98,6 +98,55 @@
     "unlinkFailed": "Couldn't unlink the social account.",
     "unlinked": "{provider} unlinked."
   },
+  "mcpConnections": {
+    "title": "MCP connections",
+    "disclosure": "You can review and disconnect linked MCP clients. Disconnecting blocks this connection's future MCP calls, proposals, and approvals. It does not cancel a web task already running: request cancellation from that task. An execution already approved by a person may continue under its current authorization and is not automatically reversed; request an explicit reverse rollback for completed changes.",
+    "loading": "Loading MCP connections…",
+    "loadingPage": "Loading page…",
+    "loadFailed": "Couldn't load MCP connections.",
+    "disconnected": "MCP connection disconnected.",
+    "tryAgain": "Please try again later.",
+    "refreshAfterDisconnectFailed": "The connection was disconnected, but the list couldn't be refreshed. {error}",
+    "alreadyUnavailable": "This connection is no longer available. The list was refreshed.",
+    "unavailableRefreshFailed": "This connection is no longer available, but the list couldn't be refreshed. {error}",
+    "disconnectFailed": "Couldn't disconnect the MCP connection.",
+    "workspace": "Workspace: {workspaceId}",
+    "scopes": "Permissions: {scopes}",
+    "none": "None",
+    "status": "Status: {status}",
+    "statusLabels": {
+      "ACTIVE": "Active",
+      "USER_DISCONNECTED": "Disconnected by user",
+      "ADMIN_REVOKED": "Revoked by administrator",
+      "SECURITY_REVOKED": "Revoked for security",
+      "PURGED": "Purged"
+    },
+    "connectedAt": "Connected: {date}",
+    "revocationReason": "Disconnect reason: {reason}",
+    "revokedAt": "Disconnected: {date}",
+    "viewTasks": "View tasks",
+    "disconnect": "Disconnect",
+    "processing": "Processing…",
+    "empty": "No MCP clients are connected.",
+    "previous": "Previous",
+    "next": "Next",
+    "disconnectConfirmation": "Disconnect {clientId}?\n\nDisconnecting blocks this connection's future MCP calls, proposals, and approvals. It does not cancel a web task already running; request cancellation from that task. An execution already approved by a person may continue under its current authorization and is not automatically reversed.",
+    "tasks": {
+      "title": "Tasks from {clientId}",
+      "disclosure": "Disconnecting stops new calls, proposals, and approvals, but work approved before disconnecting may continue. Open the actual task to review or request cancellation.",
+      "cancelWarning": "Cancellation requests reverse recovery of completed changes. Fees for changes already committed are not refunded.",
+      "loading": "Loading tasks…",
+      "loadingPage": "Loading task page…",
+      "loadFailed": "Couldn't load tasks.",
+      "inaccessible": "These tasks are unavailable or you no longer have access.",
+      "retry": "Try again",
+      "empty": "This connection has no tasks.",
+      "listLabel": "MCP tasks",
+      "status": "Status: {status}",
+      "previous": "Previous",
+      "next": "Next"
+    }
+  },
   "account": {
     "title": "Account security",
     "description": "Manage the security of your personal account.",
@@ -508,6 +557,78 @@
       "label": "Have AI describe figures in PDFs",
       "description": "By default only the images are imported. With this on, the content of charts and diagrams is written into the document so AI search and answers can use it.",
       "saveFailed": "Couldn't change the PDF figure description setting."
+    },
+    "mcp": {
+      "title": "Workspace MCP",
+      "disclosure": "Members can expose shared workspace content to external clients and connectors through permissions granted here.",
+      "identityWarning": "A client name or allowlist entry does not verify the identity of the app installed on a member's device.",
+      "lifecycleWarning": "Policy changes require members to reconnect and cannot revive previous proposals. Disabling the policy or force-revoking a connection stops approved work at the next change boundary; it does not undo committed changes.",
+      "availabilityWarning": "These are permission boundaries. Selecting a permission does not mean a corresponding public tool has been released.",
+      "accessDenied": "You no longer have access to manage MCP for this workspace.",
+      "none": "None",
+      "scopes": {
+        "read": {
+          "label": "Read shared workspace content",
+          "description": "Permission for external clients to read content made available through MCP."
+        },
+        "write_propose": {
+          "label": "Propose workspace changes",
+          "description": "Permission to submit change proposals for separate review and approval."
+        },
+        "wiki_write": {
+          "label": "Write wiki content",
+          "description": "Permission boundary for wiki write operations when a corresponding tool is available."
+        }
+      },
+      "policy": {
+        "loading": "Loading the MCP policy…",
+        "loadFailed": "Couldn't load the MCP policy.",
+        "enabledLabel": "Allow MCP connections for this workspace",
+        "enabled": "MCP connections are allowed under the selected permissions.",
+        "disabled": "Off by default. New MCP connections are not allowed.",
+        "noGeneration": "No policy generation has been issued.",
+        "generation": "Policy generation: {generation}",
+        "updatedAt": "Last updated: {date}",
+        "scopesLabel": "Allowed permissions",
+        "save": "Save MCP policy",
+        "saving": "Saving…",
+        "saved": "MCP policy saved. Connections are being refreshed.",
+        "saveFailed": "Couldn't save the MCP policy.",
+        "confirmTitle": "Change the workspace MCP policy?",
+        "confirmDescription": "Disabling the policy or changing permissions revokes earlier grants. Members must reconnect, previous proposals cannot be revived, and committed changes are not undone.",
+        "confirm": "Change policy"
+      },
+      "connections": {
+        "title": "Workspace MCP connections",
+        "description": "Review connections across this workspace and force-revoke a member's grant. Policy-disabled workspaces can still manage existing connections.",
+        "loading": "Loading workspace MCP connections…",
+        "loadingPage": "Loading page…",
+        "loadFailed": "Couldn't load workspace MCP connections.",
+        "empty": "No workspace MCP connections were found.",
+        "user": "Member: {user}",
+        "scopes": "Permissions: {scopes}",
+        "status": "Status: {status}",
+        "createdAt": "Connected: {date}",
+        "reason": "Revocation reason: {reason}",
+        "revokedAt": "Revoked: {date}",
+        "statusLabels": {
+          "ACTIVE": "Active",
+          "USER_DISCONNECTED": "Disconnected by user",
+          "ADMIN_REVOKED": "Revoked by administrator",
+          "SECURITY_REVOKED": "Revoked for security",
+          "PURGED": "Purged"
+        },
+        "revoke": "Force revoke",
+        "processing": "Revoking…",
+        "revoked": "The workspace connection was force-revoked.",
+        "alreadyUnavailable": "The connection was already unavailable and was removed from this list.",
+        "revokeFailed": "Couldn't force-revoke the workspace connection.",
+        "previous": "Previous",
+        "next": "Next",
+        "confirmTitle": "Force-revoke this workspace connection?",
+        "confirmDescription": "Force-revoking {clientId} for {user} records an administrator stop, not the member's own disconnect. It blocks work at the next change boundary and does not undo committed changes.",
+        "confirm": "Force revoke"
+      }
     }
   },
   "members": {

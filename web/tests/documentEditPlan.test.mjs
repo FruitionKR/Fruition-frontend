@@ -102,6 +102,18 @@ test("숫자가 아닌 줄 수와 시작 줄은 항목을 깨지 않고 0으로 
   assert.equal(parsed.items[0].hunks[0].before_start, 0);
 });
 
+test("기존 preview route의 create_document는 null 문서 버전과 빈 본문 기준 diff를 보존한다", () => {
+  const parsed = parseAgentRunEditPreviews({ items: [{
+    ...preview("create-1", null), tool_name: "create_document", document_id: null, base_version: null,
+    display_name: "새 문서.md", removed_lines: 0
+  }] });
+  assert.equal(parsed.items[0].tool_name, "create_document");
+  assert.equal(parsed.items[0].document_id, null);
+  assert.equal(parsed.items[0].base_version, null);
+  assert.equal(parsed.items[0].removed_lines, 0);
+  assert.equal(parseAgentRunEditPreviews({ items: [preview("legacy", "doc_1")] }).items[0].tool_name, "apply_document_edit");
+});
+
 test("만료 시각이 지나면 만료다. 없거나 읽을 수 없으면 막지 않는다", () => {
   const now = Date.parse("2026-11-04T12:00:00Z");
   assert.equal(isEditPreviewExpired("2026-11-04T11:59:59Z", now), true);

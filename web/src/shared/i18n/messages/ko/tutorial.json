@@ -8,6 +8,13 @@
     "next": "다음",
     "done": "완료",
     "progress": "{current} / {total}",
-    "sections": "섹션"
+    "sections": "섹션",
+    "mcp": {
+      "loading": "MCP 서버 주소를 확인하고 있어요.",
+      "unavailable": "이 환경에는 MCP 서버 주소가 설정되어 있지 않아요. 관리자에게 주소를 받아 아래 방식으로 추가해 주세요.",
+      "address": "MCP 서버 주소",
+      "codex": "Codex: 터미널에서 서버를 추가해요. 추가할 때 로그인 창이 열려 이미 마쳤다면 login은 건너뛰어요. Codex 안에서 /mcp로 도구 목록을 확인해요.",
+      "claude": "Claude Code: 터미널에서 서버를 추가해요(기본은 지금 프로젝트에만 적용, 모든 프로젝트에 쓰려면 --scope user를 붙여요). claude를 실행해 /mcp에서 fruition을 고르고 Authenticate를 눌러요."
+    }
   }
 }

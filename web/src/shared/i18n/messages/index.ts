@@ -7,6 +7,8 @@ import koInvitation from "./ko/invitation.json";
 import koLanding from "./ko/landing.json";
 import koLegal from "./ko/legal.json";
 import koMeeting from "./ko/meeting.json";
+import koMcpAuthorization from "./ko/mcpAuthorization.json";
+import koMcpApproval from "./ko/mcpApproval.json";
 import koMetadata from "./ko/metadata.json";
 import koNotionImport from "./ko/notionImport.json";
 import koSettings from "./ko/settings.json";
@@ -24,6 +26,8 @@ import enInvitation from "./en/invitation.json";
 import enLanding from "./en/landing.json";
 import enLegal from "./en/legal.json";
 import enMeeting from "./en/meeting.json";
+import enMcpAuthorization from "./en/mcpAuthorization.json";
+import enMcpApproval from "./en/mcpApproval.json";
 import enMetadata from "./en/metadata.json";
 import enNotionImport from "./en/notionImport.json";
 import enSettings from "./en/settings.json";
@@ -48,6 +52,8 @@ const ko = {
   legal: koLegal,
   skills: koSkills,
   meeting: koMeeting,
+  mcpAuthorization: koMcpAuthorization,
+  mcpApproval: koMcpApproval,
   notionImport: koNotionImport,
   wiki: koWiki,
   workspace: koWorkspace,
@@ -72,6 +78,8 @@ export const MESSAGES: Readonly<Record<Locale, AppMessages>> = {
     legal: enLegal,
     skills: enSkills,
     meeting: enMeeting,
+    mcpAuthorization: enMcpAuthorization,
+    mcpApproval: enMcpApproval,
     notionImport: enNotionImport,
     wiki: enWiki,
     workspace: enWorkspace,

@@ -37,8 +37,11 @@ function browserStorage(): TutorialStorage | null {
  * 모달이 열려 있는 동안의 단계 위치. 모달을 열 때(마운트) 마지막으로 본 자리를 읽고, 옮길 때마다 저장한다.
  * finish는 저장을 지워 다음에 열면 처음부터 보이게 한다.
  */
-export function useTutorialProgress<S extends TutorialSectionShape>(sections: readonly S[]) {
-  const [position, setPosition] = useState<TutorialPosition>(() => readTutorialPosition(browserStorage(), sections));
+export function useTutorialProgress<S extends TutorialSectionShape>(sections: readonly S[], initialSectionIndex?: number) {
+  // 특정 섹션을 열어 달라는 진입점(채팅 ⋯ 메뉴의 외부 AI 연결 등)은 저장된 자리 대신 그 섹션 처음에서 시작한다.
+  const [position, setPosition] = useState<TutorialPosition>(() => initialSectionIndex !== undefined && initialSectionIndex >= 0
+    ? sectionStart(sections, initialSectionIndex)
+    : readTutorialPosition(browserStorage(), sections));
 
   useEffect(() => {
     writeTutorialPosition(browserStorage(), sections, position);

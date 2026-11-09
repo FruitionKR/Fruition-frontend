@@ -18,6 +18,17 @@ const faviconRewrite = { source: "/favicon.ico", destination: "/favicon/icon-lig
 const nextConfig = {
   output: sameOriginApi ? "standalone" : undefined,
   env: { NEXT_PUBLIC_DOCUMENT_DIRECT_API: process.env.BACKEND_URL || sameOriginApi ? "true" : "false" },
+  async headers() {
+    return [{
+      source: "/mcp/authorize",
+      headers: [
+        { key: "Cache-Control", value: "no-store" },
+        { key: "Pragma", value: "no-cache" },
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "X-Frame-Options", value: "DENY" }
+      ]
+    }];
+  },
   async redirects() {
     if (sameOriginApi) return [];
     // OAuth 시작은 access-svc 오리진으로 직접 이동해야 한다(redirect_uri가 서버 자신 오리진 기준).
@@ -35,6 +46,30 @@ const nextConfig = {
     // 배열 순서대로 먼저 매칭되는 규칙이 적용된다.
     return [
       faviconRewrite,
+      {
+        source: "/oauth2/authorize",
+        destination: `${accessUrl}/oauth2/authorize`
+      },
+      {
+        source: "/oauth2/authorize/:pendingId",
+        destination: `${accessUrl}/oauth2/authorize/:pendingId`
+      },
+      {
+        source: "/api/mcp/connections/:path*",
+        destination: `${accessUrl}/api/mcp/connections/:path*`
+      },
+      {
+        source: "/api/workspaces/:wid/mcp-policy",
+        destination: `${accessUrl}/api/workspaces/:wid/mcp-policy`
+      },
+      {
+        source: "/api/workspaces/:wid/mcp-connections",
+        destination: `${accessUrl}/api/workspaces/:wid/mcp-connections`
+      },
+      {
+        source: "/api/workspaces/:wid/mcp-connections/:grantId",
+        destination: `${accessUrl}/api/workspaces/:wid/mcp-connections/:grantId`
+      },
       {
         source: "/api/auth/:path*",
         destination: `${accessUrl}/api/auth/:path*`
