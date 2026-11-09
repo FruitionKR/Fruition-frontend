@@ -101,6 +101,12 @@ test("다른 트리 변경이 진행 중이어도 Markdown 변환 요청은 버�
   let releaseSlowMutation;
   t.mock.method(globalThis, "fetch", async (path) => {
     requested.push(path);
+    if (path.endsWith("/document-tree")) {
+      return Response.json({ items: [{ id: "pdf_folder", type: "folder", name: "원본", children: [
+        { id: "doc_pdf", type: "document", name: "원본.pdf", current_version: 1 },
+        { id: "doc_md", type: "document", name: "원본.md", current_version: 1, document: { source_document_id: "doc_pdf" } }
+      ] }] });
+    }
     if (path.endsWith("/folders")) {
       // 먼저 시작한 변경이 끝나지 않은 동안 변환 메뉴를 누르는 상황을 만든다.
       await new Promise((resolve) => { releaseSlowMutation = resolve; });

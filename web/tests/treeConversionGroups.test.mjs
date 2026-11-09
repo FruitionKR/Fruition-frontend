@@ -100,7 +100,7 @@ test("보이는 행 순서는 변환본을 원본 PDF 바로 뒤에 두고 접�
     "f", "document-file-a", "document-file-a-md", "document-file-memo", "document-file-z"
   ]);
   assert.deepEqual(visibleTreeRowIds(items, new Set(["f"]), groups, new Set(["document-file-a"])), [
-    "f", "document-file-a", "document-file-memo", "document-file-z"
+    "f", "document-file-memo", "document-file-z"
   ]);
   assert.deepEqual(visibleTreeRowIds(items, new Set(), groups, new Set()), ["f", "document-file-z"]);
 });

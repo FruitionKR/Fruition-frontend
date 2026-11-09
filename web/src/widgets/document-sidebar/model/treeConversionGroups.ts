@@ -82,8 +82,9 @@ export function visibleTreeRowIds(
   const result: string[] = [];
   const visit = (entries: readonly TreeItem[]) => {
     for (const item of ungroupedTreeRows(entries, groups)) {
-      result.push(item.id);
       const converted = groups.childrenBySourceId.get(item.id);
+      // 접힌 묶음 제목은 문서 선택 대상이 아니며 원본 행도 숨겨진다.
+      if (!converted || !collapsedSourceIds.has(item.id)) result.push(item.id);
       if (converted && !collapsedSourceIds.has(item.id)) result.push(...converted.map((child) => child.item.id));
       if (item.children && openIds.has(item.id)) visit(item.children);
     }

@@ -11,8 +11,8 @@ export function PdfConvertConfirmModal({ filename, onConfirm, onCancel }: {
   return (
     <ConfirmModal
       titleId="pdf-convert-confirm-title"
-      title={t("pdfConvertConfirm.title")}
-      description={t("pdfConvertConfirm.description", { filename, qualityNotice: t("pdfConvertQualityNotice") })}
+      title={t("pdfConvertConfirm.title", { filename })}
+      description={t("pdfConvertConfirm.description", { qualityNotice: t("pdfConvertQualityNotice") })}
       confirmLabel={t("confirm")}
       onConfirm={onConfirm}
       onCancel={onCancel}

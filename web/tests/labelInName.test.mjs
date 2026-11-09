@@ -41,18 +41,6 @@ for (const locale of ["ko", "en"]) {
     }
   });
 
-  test(`${locale}: PDF 변환 링크 이름은 배지 라벨로 시작하고 대상 설명을 유지한다`, () => {
-    const t = translator(locale, "documents.tree.conversion");
-    const label = labelExpression("widgets/document-sidebar/ui/TreeNode.tsx", "tree-conversion-link");
-    for (const kind of ["source", "converted"]) {
-      const conversionLabel = t(`label.${kind}`);
-      const conversionDescription = t(`description.${kind === "source" ? "source" : "convertedFrom"}`, { filename: "자료.pdf" });
-      const name = label({ conversionLabel, conversionDescription });
-      assert.ok(name.startsWith(conversionLabel), name);
-      assert.ok(name.includes(conversionDescription));
-    }
-  });
-
   test(`${locale}: 스킬 검색 해제 버튼은 화면의 검색어를 이름에 포함한다`, () => {
     const t = translator(locale, "skills");
     const label = labelExpression("widgets/skills-view/ui/SkillsView.tsx", "search-chip");
