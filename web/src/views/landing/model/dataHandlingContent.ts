@@ -1,5 +1,5 @@
 /**
- * 랜딩 "문서 보호" 섹션 문구(섹션 제목은 헤더 메뉴 이름을 쓴다). 법무·운영 검토가 쉽도록 문구를 이 파일 한 곳에만 둔다.
+ * 랜딩 "문서 보호" 섹션 문구(섹션 제목은 헤더 메뉴 이름을 쓴다). 법무·운영 검토가 쉽도록 표시 순서와 문구의 근거를 이 파일에 둔다.
  * 운영 설정과 코드로 확인한 내용 중 문서를 지키는 방식만 쓴다. 외부 AI 제공사 전송 고지는
  * 개인정보 처리방침·AI 사전 고지에서 다룬다(랜딩에서는 제외). 근거(2026-11-03, 각 저장소 origin/main 기준):
  *
@@ -29,20 +29,18 @@
  */
 
 // 문구는 언어별 메시지(src/shared/i18n/messages/{ko,en}/landing.json의 dataHandling)에 있고, 여기에는 순서와 키만 둔다.
+// 운영 세부 정보는 위 검토 근거에만 남기고 공개 문구에서는 제외한다.
 // 영어 문구도 위 근거 범위를 넘지 않게 쓴다(tests/landingDataHandling.test.mjs).
 
 export type DataHandlingItemId =
-  | "region"
   | "encryption"
   | "https"
   | "members"
-  | "serverCheck"
   | "privateStorage"
   | "embedding"
   | "redaction"
   | "autoIngestOff"
   | "trash"
-  | "versions"
   | "deletePermission";
 
 export interface DataHandlingGroup {
@@ -55,8 +53,8 @@ export interface DataHandlingGroup {
 }
 
 export const DATA_HANDLING_GROUPS: readonly DataHandlingGroup[] = [
-  { id: "store", english: "STORAGE", items: ["region", "encryption", "https"] },
-  { id: "access", english: "ACCESS", items: ["members", "serverCheck", "privateStorage"] },
+  { id: "store", english: "STORAGE", items: ["encryption", "https"] },
+  { id: "access", english: "ACCESS", items: ["members", "privateStorage"] },
   { id: "ai", english: "AI PROCESSING", items: ["embedding", "redaction", "autoIngestOff"] },
-  { id: "delete", english: "DELETION", items: ["trash", "versions", "deletePermission"] }
+  { id: "delete", english: "DELETION", items: ["trash", "deletePermission"] }
 ];
