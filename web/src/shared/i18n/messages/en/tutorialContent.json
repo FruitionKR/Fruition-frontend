@@ -76,7 +76,7 @@
     },
     "upload-files": {
       "title": "Upload files",
-      "body": "Choose “Add note” › “Upload files” to upload Markdown (.md), txt, or PDF files. For Markdown with images, select the .md file together with its image files (png, jpg, gif, webp) or upload them as a zip so the images come along. You can also drag files onto the sidebar tree."
+      "body": "Choose “Add note” › “Upload files” to upload Markdown (.md), txt, or PDF files, or drag files onto the sidebar tree. For Markdown with images, select the .md file together with its image files (png, jpg, gif, webp) or upload them as a zip so the images come along. Each file can be up to 5 MB for Markdown or txt, 100 MB for PDF, and 10 MB for images, and you can select several files at once. Your uploads, including items in the trash, can use up to 5 GB per person, and automatic wiki ingest uses credits."
     },
     "organize-folders": {
       "title": "Organize with folders",
@@ -205,6 +205,10 @@
     "preview-import": {
       "title": "Preview and start the import",
       "body": "Choose “Add note” › “Import from Notion” and select the zip to see how many folders, documents, tables (databases), images, and PDFs it contains. Click “Start import” to begin. Pages with subpages become a document plus a folder of the same name, and databases become a table document with one document per row. Notion links are reconnected to documents in the app."
+    },
+    "import-limits": {
+      "title": "Limits to know before importing",
+      "body": "A zip can hold up to 2 GB when unpacked and up to 10,000 items. Documents and tables over 5 MB, PDFs over 100 MB, and images over 10 MB are skipped and listed separately on the preview screen. Imported files count toward your 5 GB of storage, and PDF conversion and wiki ingest use credits."
     },
     "after-import": {
       "title": "Convert and add after importing",

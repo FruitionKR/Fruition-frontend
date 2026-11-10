@@ -136,7 +136,12 @@ export const TUTORIAL_SECTIONS: TutorialSection[] = [
   {
     id: "notion-import",
     icon: "import",
-    steps: [{ id: "export-from-notion" }, { id: "preview-import", image: "preview-import.webp" }, { id: "after-import", icon: "wiki" }]
+    steps: [
+      { id: "export-from-notion" },
+      { id: "preview-import", image: "preview-import.webp" },
+      { id: "import-limits" },
+      { id: "after-import", icon: "wiki" }
+    ]
   },
   {
     id: "logs-notifications",
