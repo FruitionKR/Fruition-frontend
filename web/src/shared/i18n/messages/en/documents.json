@@ -29,6 +29,7 @@
     "empty": "No documents yet",
     "rowMenu": "Open item menu",
     "uploading": "Uploading",
+    "uploadWaiting": "Waiting",
     "uploadFailed": "Upload failed",
     "dropHere": "Add here",
     "dropDenied": "You don't have permission to move items into or out of this folder.",
@@ -303,6 +304,17 @@
       "title": "Couldn't start adding to wiki",
       "message": "{filename}: {reason}",
       "fallback": "The request to add to the wiki failed."
+    },
+    "workspaceChanged": "The workspace changed, so the file wasn't uploaded again.",
+    "retry": "Retry",
+    "batch": {
+      "progressTitle": "Uploading files",
+      "progress": "{completed} of {total} done",
+      "progressWithFailed": "{completed} of {total} done ({failed} failed)",
+      "doneTitle": "Upload complete",
+      "done": "{count, plural, one {# file was} other {All # files were}} uploaded.",
+      "partialTitle": "Some uploads failed",
+      "partial": "Uploaded {succeeded} of {total} files; {failed, plural, one {# file} other {# files}} couldn't be uploaded. You can retry just the failed ones."
     },
     "newNoteName": "New note",
     "unsupported": {

@@ -29,6 +29,7 @@
     "empty": "아직 문서가 없습니다",
     "rowMenu": "항목 메뉴 열기",
     "uploading": "업로드 중",
+    "uploadWaiting": "대기 중",
     "uploadFailed": "업로드 실패",
     "dropHere": "여기에 추가",
     "dropDenied": "이 폴더에 넣거나 꺼낼 권한이 없습니다.",
@@ -303,6 +304,17 @@
       "title": "위키 편입 시작 실패",
       "message": "{filename}: {reason}",
       "fallback": "위키 편입 요청에 실패했습니다."
+    },
+    "workspaceChanged": "워크스페이스가 바뀌어 다시 올리지 않았어요.",
+    "retry": "다시 올리기",
+    "batch": {
+      "progressTitle": "파일 올리는 중",
+      "progress": "{total}개 중 {completed}개 완료",
+      "progressWithFailed": "{total}개 중 {completed}개 완료 (실패 {failed}개)",
+      "doneTitle": "업로드 완료",
+      "done": "파일 {count}개를 모두 올렸어요.",
+      "partialTitle": "일부 업로드 실패",
+      "partial": "{total}개 중 {succeeded}개를 올렸고 {failed}개는 올리지 못했어요. 실패한 파일만 다시 올릴 수 있어요."
     },
     "newNoteName": "새 노트",
     "unsupported": {
