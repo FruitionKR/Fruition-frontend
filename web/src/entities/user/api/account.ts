@@ -141,3 +141,13 @@ export async function deleteAccount(body: AccountDeletionBody): Promise<void> {
   }
   await throwIfNotOk(response, sharedText("user.requestFailed.accountDeletion", "회원 탈퇴에 실패했습니다."));
 }
+
+export type BetaCreditStatus = {
+  status: "pending" | "granted" | "exhausted" | "ineligible";
+  amount_krw_milli: number | null;
+};
+
+export async function fetchBetaCredit(): Promise<BetaCreditStatus> {
+  const response = await apiFetch("/api/auth/me/beta-credit", { cache: "no-store" });
+  return parseJsonOrThrow<BetaCreditStatus>(response, sharedText("user.requestFailed.betaCredit", "베타 크레딧 지급 상태를 불러오지 못했습니다."));
+}

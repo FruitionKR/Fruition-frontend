@@ -593,3 +593,15 @@ test("스킬 삭제 권한 거부를 성공으로 처리하지 않는다", async
   ));
   await assert.rejects(deleteSkill("ws_test", "skill_test"), /삭제 권한/);
 });
+
+test("베타 지급 상태는 로그인 계정으로 조회하고 지급액을 그대로 반환한다", async (t) => {
+  const { fetchBetaCredit } = await import("../src/entities/user/api/auth.ts");
+  saveAccessToken("test-access");
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    assert.equal(path, "/api/auth/me/beta-credit");
+    assert.equal(init.cache, "no-store");
+    assert.equal(init.headers.get("Authorization"), "Bearer test-access");
+    return Response.json({ status: "granted", amount_krw_milli: 7000000 });
+  });
+  assert.deepEqual(await fetchBetaCredit(), { status: "granted", amount_krw_milli: 7000000 });
+});

@@ -185,7 +185,8 @@
       "mcpConnections": "MCP 연결을 불러오지 못했습니다.",
       "mcpRuns": "이 MCP 연결의 작업을 불러오지 못했습니다.",
       "mcpDisconnect": "MCP 연결을 해제하지 못했습니다.",
-      "locale": "언어 설정을 저장하지 못했습니다."
+      "locale": "언어 설정을 저장하지 못했습니다.",
+      "betaCredit": "베타 크레딧 지급 상태를 불러오지 못했습니다."
     },
     "rateLimit": {
       "generic": "시도가 너무 많습니다.",
