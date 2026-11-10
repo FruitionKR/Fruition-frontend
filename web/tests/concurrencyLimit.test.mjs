@@ -42,3 +42,23 @@ test("작업이 동기적으로 던져도 자리를 비우고 그 호출만 실�
   await assert.rejects(failed, /sync/);
   assert.equal(await next, "next");
 });
+
+test("onStart는 자리가 비어 있으면 호출 안에서 바로, 기다린 작업은 자리를 얻을 때 받은 순서대로 부른다", async () => {
+  const limit = createConcurrencyLimiter(2);
+  const tasks = [deferred(), deferred(), deferred(), deferred()];
+  const startedEvents = [];
+  const results = tasks.map((task, index) => limit(() => task.promise, () => startedEvents.push(index)));
+  assert.deepEqual(startedEvents, [0, 1], "빈 자리 두 개는 같은 틱에 시작으로 알린다(\"대기 중\"이 보이지 않는다)");
+
+  tasks[0].resolve("a");
+  await flush();
+  assert.deepEqual(startedEvents, [0, 1, 2], "자리가 나야 기다리던 작업이 시작으로 바뀐다");
+
+  tasks[1].reject(new Error("b failed"));
+  await assert.rejects(results[1], /b failed/);
+  await flush();
+  assert.deepEqual(startedEvents, [0, 1, 2, 3]);
+  tasks[2].resolve("c");
+  tasks[3].resolve("d");
+  assert.deepEqual(await Promise.all([results[0], results[2], results[3]]), ["a", "c", "d"]);
+});

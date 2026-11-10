@@ -169,12 +169,18 @@ export function updateTreeItemStatus(items: TreeItem[], itemId: string, status: 
   return mapTreeItemById(items, itemId, (item) => ({ ...item, status, errorMessage }));
 }
 
+/** 업로드 자리표시 행을 진행 중으로 둔다. waiting이면 동시 업로드 자리를 기다리는 중("대기 중")으로 표시한다. */
+export function updateUploadWaiting(items: TreeItem[], itemId: string, waiting: boolean): TreeItem[] {
+  return mapTreeItemById(items, itemId, (item) => ({ ...item, status: "uploading", errorMessage: undefined, uploadWaiting: waiting }));
+}
+
 export function applyUploadedDocument(items: TreeItem[], itemId: string, document: DocumentUploadResponse): TreeItem[] {
   return mapTreeItemById(items, itemId, (item) => ({
     ...item,
     label: document.filename,
     status: document.status,
     errorMessage: undefined,
+    uploadWaiting: undefined,
     documentId: document.id,
     graphNodeId: makeRawId(document.id),
     mimeType: document.mime_type,

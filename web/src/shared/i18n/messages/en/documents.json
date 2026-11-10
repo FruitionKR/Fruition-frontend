@@ -29,6 +29,7 @@
     "empty": "No documents yet",
     "rowMenu": "Open item menu",
     "uploading": "Uploading",
+    "uploadWaiting": "Waiting",
     "uploadFailed": "Upload failed",
     "dropHere": "Add here",
     "dropDenied": "You don't have permission to move items into or out of this folder.",
@@ -303,6 +304,31 @@
       "title": "Couldn't start adding to wiki",
       "message": "{filename}: {reason}",
       "fallback": "The request to add to the wiki failed."
+    },
+    "workspaceChanged": "The workspace changed, so the file wasn't uploaded again.",
+    "retry": "Retry",
+    "ingestSkipped": {
+      "title": "Not added to wiki",
+      "single": {
+        "INSUFFICIENT_CREDIT": "\"{filename}\" was uploaded, but it wasn't added to the wiki because you're out of credits. You can open the document and add it to the wiki yourself later.",
+        "AI_USAGE_LIMIT_EXCEEDED": "\"{filename}\" was uploaded, but it wasn't added to the wiki because today's AI usage limit was reached. You can add it yourself tomorrow.",
+        "ERROR": "\"{filename}\" was uploaded, but adding it to the wiki couldn't start. You can try adding it yourself."
+      },
+      "batch": "{count, plural, one {# file wasn't} other {# files weren't}} added to the wiki ({reason}).",
+      "reason": {
+        "INSUFFICIENT_CREDIT": "out of credits",
+        "AI_USAGE_LIMIT_EXCEEDED": "AI usage limit reached",
+        "ERROR": "couldn't start"
+      }
+    },
+    "batch": {
+      "progressTitle": "Uploading files",
+      "progress": "{completed} of {total} done",
+      "progressWithFailed": "{completed} of {total} done ({failed} failed)",
+      "doneTitle": "Upload complete",
+      "done": "{count, plural, one {# file was} other {All # files were}} uploaded.",
+      "partialTitle": "Some uploads failed",
+      "partial": "Uploaded {succeeded} of {total} files; {failed, plural, one {# file} other {# files}} couldn't be uploaded. You can retry just the failed ones."
     },
     "newNoteName": "New note",
     "unsupported": {
