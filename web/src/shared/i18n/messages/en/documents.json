@@ -307,6 +307,20 @@
     },
     "workspaceChanged": "The workspace changed, so the file wasn't uploaded again.",
     "retry": "Retry",
+    "ingestSkipped": {
+      "title": "Not added to wiki",
+      "single": {
+        "INSUFFICIENT_CREDIT": "\"{filename}\" was uploaded, but it wasn't added to the wiki because you're out of credits. You can add it yourself after topping up.",
+        "AI_USAGE_LIMIT_EXCEEDED": "\"{filename}\" was uploaded, but it wasn't added to the wiki because today's AI usage limit was reached. You can add it yourself tomorrow.",
+        "ERROR": "\"{filename}\" was uploaded, but adding it to the wiki couldn't start. You can try adding it yourself."
+      },
+      "batch": "{count, plural, one {# file wasn't} other {# files weren't}} added to the wiki ({reason}).",
+      "reason": {
+        "INSUFFICIENT_CREDIT": "out of credits",
+        "AI_USAGE_LIMIT_EXCEEDED": "AI usage limit reached",
+        "ERROR": "couldn't start"
+      }
+    },
     "batch": {
       "progressTitle": "Uploading files",
       "progress": "{completed} of {total} done",

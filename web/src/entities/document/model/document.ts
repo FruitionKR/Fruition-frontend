@@ -20,6 +20,11 @@ export type DocumentUploadResponse = {
   source_uri: string;
   uploaded_at: string;
   document_role: DocumentRole;
+  /**
+   * 업로드 직후 서버 자동 위키 편입 결과(document #251). 구 서버·멱등 재생 응답·가져오기 세션에는 없다.
+   * 값은 서버가 정하므로 그대로 믿지 않고 parseWikiIngestSkip으로 읽는다.
+   */
+  wiki_ingest?: { status?: unknown; reason?: unknown } | null;
 };
 
 export type DocumentItemResponse = DocumentUploadResponse & {
