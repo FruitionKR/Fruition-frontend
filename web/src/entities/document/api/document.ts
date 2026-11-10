@@ -100,8 +100,9 @@ export const DOCUMENT_UPLOAD_CONCURRENCY = 2;
 const limitDocumentUpload = createConcurrencyLimiter(DOCUMENT_UPLOAD_CONCURRENCY);
 
 export type DocumentUploadHooks = {
+  /** beforeSend를 통과해 실제로 보내기 시작할 때 부른다. */
   onStart?: () => void;
-  /** 대기열에서 자리를 얻어 실제로 보내기 직전에 부른다. 던지면 보내지 않고 그 오류로 실패한다(워크스페이스가 바뀐 경우 등). */
+  /** 대기열에서 자리를 얻는 순간(onStart 전에) 부른다. 던지면 보내지 않고 그 오류로 실패한다(워크스페이스가 바뀐 경우 등). */
   beforeSend?: () => void;
 };
 
@@ -110,10 +111,20 @@ export function uploadDocumentFile(
   folderId: string | null = null,
   { onStart, beforeSend }: DocumentUploadHooks = {}
 ): Promise<DocumentUploadResponse> {
+  // 자리를 얻는 순간(빈 자리면 이 호출 안에서 동기적으로) 보내도 되는지 확인하고, 통과했을 때만 "업로드 중"으로 알린다.
+  let blocked: { error: unknown } | null = null;
   return limitDocumentUpload(() => {
-    beforeSend?.();
+    if (blocked) throw blocked.error;
     return sendDocumentUpload(file, folderId);
-  }, onStart);
+  }, () => {
+    try {
+      beforeSend?.();
+    } catch (error) {
+      blocked = { error };
+      return;
+    }
+    onStart?.();
+  });
 }
 
 async function sendDocumentUpload(file: File, folderId: string | null): Promise<DocumentUploadResponse> {

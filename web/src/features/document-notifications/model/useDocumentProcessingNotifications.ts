@@ -11,7 +11,7 @@ import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { summarizeFailedDocuments } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
-import { enqueueNotice, isWorkSuggestionNotice, promoteParkedNotices, reconcileNotices, replaceKeyedNotice, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
+import { dropKeyedNotice, enqueueNotice, isWorkSuggestionNotice, promoteParkedNotices, reconcileNotices, replaceKeyedNotice, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
 import { isNoticeEnabled } from "./noticePreference";
 
@@ -61,8 +61,13 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     noticesRef.current = notices;
   }, [notices]);
 
+  // 닫힌 replaceKey. 사용자가 닫은 업로드 묶음의 진행 카드는 다시 만들지 않고 최종 요약만 보인다.
+  const dismissedKeysRef = useRef(new Set<string>());
+
   // 닫기는 퇴장 표시(leaving) → NOTICE_EXIT_MS 뒤 제거 두 단계다. reduce-motion이면 바로 제거한다.
   const dismissNotice = useCallback((id: string) => {
+    const replaceKey = noticesRef.current.find((notice) => notice.id === id)?.replaceKey;
+    if (replaceKey) dismissedKeysRef.current.add(replaceKey);
     setNotices((current) => promote(
       reduceMotion
         ? current.filter((notice) => notice.id !== id)
@@ -72,10 +77,17 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
 
   // 카드 표시 + 백그라운드 탭이면 브라우저 알림까지. 모든 알림이 이 경로를 지난다.
   const pushNotice = useCallback((notice: NoticePayload) => {
-    if (!allowWorkSuggestions && isWorkSuggestionNotice(notice)) return;
-    if (!isNoticeEnabled(notice, notificationSettings, notificationControls)) return;
-    // 설정 확인은 위에서 공통 처리하고, 작업 id 중복만 거른다.
-    if (!operationFilterRef.current(notice, { lint: true, restore: true })) return;
+    const key = notice.replaceKey;
+    if (key && notice.keepOpen && dismissedKeysRef.current.has(key)) return;
+    const isShown = (allowWorkSuggestions || !isWorkSuggestionNotice(notice))
+      && isNoticeEnabled(notice, notificationSettings, notificationControls)
+      // 설정 확인은 위에서 공통 처리하고, 작업 id 중복만 거른다.
+      && operationFilterRef.current(notice, { lint: true, restore: true });
+    if (!isShown) {
+      // 같은 키의 진행 카드를 바꾸려던 알림(묶음 요약)이 설정으로 표시되지 않으면 진행 카드도 내려 남지 않게 한다.
+      if (key) setNotices((current) => promote(dropKeyedNotice(current, key, { removeImmediately: reduceMotion })));
+      return;
+    }
     const id = createClientId(notice.kind);
     // 같은 replaceKey 카드의 내용을 바꾸면 자동 닫힘 시간을 처음부터 다시 센다(아래 effect가 타이머를 새로 건다).
     const replaced = notice.replaceKey
@@ -86,7 +98,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
       window.clearTimeout(replacedTimer);
       autoDismissTimersRef.current.delete(replaced.id);
     }
-    setNotices((current) => replaceKeyedNotice(current, notice) ?? enqueueNotice(current, { id, ...notice }, {
+    setNotices((current) => replaceKeyedNotice(current, notice, id) ?? enqueueNotice(current, { id, ...notice }, {
       max: MAX_VISIBLE_NOTICES,
       now: Date.now(),
       removeImmediately: reduceMotion

@@ -5,7 +5,8 @@ import { ApiError } from "@/shared/lib/apiErrors";
 
 export type UploadBatchProgress = { total: number; completed: number; succeeded: number; failed: number };
 
-export type UploadOutcome<R> = { ok: true; value: R } | { ok: false; error: unknown };
+/** sent: 실패한 시도가 서버로 보내지기 시작했는지(보내기 전 막힌 실패는 서버에 문서가 생겼을 리 없다). */
+export type UploadOutcome<R> = { ok: true; value: R } | { ok: false; error: unknown; sent: boolean };
 
 /**
  * 업로드 묶음을 실행한다. 항목을 모두 한꺼번에 넘기고(동시 개수·순서는 uploadDocumentFile의 대기열이 정한다),
@@ -16,7 +17,7 @@ export async function runUploadBatch<E, R>(
   entries: readonly E[],
   run: (entry: E) => Promise<UploadOutcome<R>>,
   onProgress?: (progress: UploadBatchProgress) => void
-): Promise<{ results: (R | null)[]; failures: { entry: E; error: unknown }[]; progress: UploadBatchProgress }> {
+): Promise<{ results: (R | null)[]; failures: { entry: E; error: unknown; sent: boolean }[]; progress: UploadBatchProgress }> {
   let progress: UploadBatchProgress = { total: entries.length, completed: 0, succeeded: 0, failed: 0 };
   const outcomes = await Promise.all(entries.map((entry) => run(entry).then((outcome) => {
     progress = {
@@ -30,7 +31,7 @@ export async function runUploadBatch<E, R>(
   })));
   return {
     results: outcomes.map((outcome) => (outcome.ok ? outcome.value : null)),
-    failures: outcomes.flatMap((outcome, index) => (outcome.ok ? [] : [{ entry: entries[index], error: outcome.error }])),
+    failures: outcomes.flatMap((outcome, index) => (outcome.ok ? [] : [{ entry: entries[index], error: outcome.error, sent: outcome.sent }])),
     progress
   };
 }
@@ -69,7 +70,7 @@ function isSameOrNumberedName(candidate: string, filename: string): boolean {
 }
 
 /** 서버 시각(uploaded_at)과 브라우저 시각의 차이를 감안해, 시도 시작보다 이만큼 앞선 문서까지 그 시도의 결과일 수 있다고 본다. */
-export const ADOPTION_CLOCK_SKEW_MS = 2 * 60_000;
+export const ADOPTION_CLOCK_SKEW_MS = 30_000;
 
 /** 결과를 알 수 없이 실패한 일반 파일 업로드 하나(묶음 문서는 그림 첨부가 뒤따라야 해 넣지 않는다). */
 export type AdoptionCandidate = {

@@ -51,8 +51,11 @@ type UploadEntry = {
   workspaceId: string | null;
   adopted?: Promise<DocumentItemResponse | undefined>;
 };
-/** knownDocumentIds·startedAt: 실패한 시도를 시작할 때의 트리 문서 id와 시각. 결과를 알 수 없는 실패의 채택 판단에 쓴다. */
-type UploadFailure = { entry: UploadEntry; error: unknown; knownDocumentIds: ReadonlySet<string>; startedAt: number };
+/**
+ * knownDocumentIds·startedAt: 실패한 시도를 시작할 때의 트리 문서 id와 시각. sent: 그 시도가 서버로 보내지기 시작했는지.
+ * 결과를 알 수 없는 실패의 채택 판단에 쓴다.
+ */
+type UploadFailure = { entry: UploadEntry; error: unknown; sent: boolean; knownDocumentIds: ReadonlySet<string>; startedAt: number };
 
 function baseName(path: string) {
   return path.slice(path.lastIndexOf("/") + 1);
@@ -89,6 +92,10 @@ export function useDocumentUpload({
   projectsRef.current = projects;
   // 이 페이지에서 업로드 결과로 받은 문서 id. 다시 올리기의 채택 후보에서 뺀다(같은 묶음의 성공한 `a (2).md` 등).
   const uploadedDocumentIdsRef = useRef(new Set<string>());
+  // 진행 중인 업로드 묶음 수. 다른 묶음이 진행 중이면 그 결과와 헷갈릴 수 있어 다시 올리기에서 채택하지 않는다.
+  const activeBatchesRef = useRef(0);
+  // 다시 올리기는 알림 카드 버튼에서 나중에 불린다. 그때의 문구(t)·편입 설정·목록 갱신을 쓰도록 최신 렌더의 함수를 부른다.
+  const retryUploadsRef = useRef<(failures: UploadFailure[]) => Promise<(DocumentItemResponse | null)[]>>(() => Promise.resolve([]));
 
   /** 업로드 실패 알림: 어떤 파일이 왜 실패했는지 함께 보인다. retry가 있으면 "다시 올리기" 버튼을 단다. */
   function noticeUploadFailed(filename: string, reason: string, retry?: () => void) {
@@ -276,9 +283,18 @@ export function useDocumentUpload({
    * 실패가 있으면 요약 카드의 "다시 올리기"가 실패한 파일만 같은 대기열로 다시 보낸다. 파일 하나면 지금처럼 실패 카드만 띄운다.
    */
   async function runEntries(entries: UploadEntry[]): Promise<(DocumentItemResponse | null)[]> {
+    activeBatchesRef.current += 1;
+    try {
+      return await runBatch(entries);
+    } finally {
+      activeBatchesRef.current -= 1;
+    }
+  }
+
+  async function runBatch(entries: UploadEntry[]): Promise<(DocumentItemResponse | null)[]> {
     const knownDocumentIds = documentIdsInTree(projectsRef.current.flatMap((project) => project.items));
     const startedAt = Date.now();
-    const toFailure = (entry: UploadEntry, error: unknown): UploadFailure => ({ entry, error, knownDocumentIds, startedAt });
+    const toFailure = (entry: UploadEntry, error: unknown, sent: boolean): UploadFailure => ({ entry, error, sent, knownDocumentIds, startedAt });
     const isBatch = entries.length >= 2;
     const batchKey = isBatch ? createClientId("upload-batch") : null;
     const publishProgress = (progress: UploadBatchProgress) => {
@@ -298,7 +314,7 @@ export function useDocumentUpload({
 
     const batch = await runUploadBatch(
       entries,
-      (entry) => uploadEntry(entry, isBatch ? null : (error) => retryOnce([toFailure(entry, error)])),
+      (entry) => uploadEntry(entry, isBatch ? null : (error, sent) => retryOnce([toFailure(entry, error, sent)])),
       (progress) => {
         if (progress.completed < progress.total) publishProgress(progress);
       }
@@ -314,7 +330,7 @@ export function useDocumentUpload({
           replaceKey: batchKey,
           title: t("batch.partialTitle"),
           message: t("batch.partial", { total, succeeded, failed }),
-          action: { label: t("retry"), onAction: retryOnce(batch.failures.map(({ entry, error }) => toFailure(entry, error))) }
+          action: { label: t("retry"), onAction: retryOnce(batch.failures.map(({ entry, error, sent }) => toFailure(entry, error, sent))) }
         });
     }
     return batch.results;
@@ -329,28 +345,33 @@ export function useDocumentUpload({
     return () => {
       const current = pending;
       pending = null;
-      if (current) void retryUploads(current);
+      if (current) void retryUploadsRef.current(current);
     };
   }
 
   /**
    * 실패한 업로드만 같은 행·같은 폴더로 다시 대기열에 넣는다. 시도마다 새 Idempotency-Key를 쓴다(uploadDocumentFile).
-   * 그 사이 지운 실패 행은 다시 올리지 않는다. 결과를 알 수 없는 일반 파일 실패는 서버 트리를 한 번 받아(묶음당 1회)
-   * 그 업로드가 만든 문서로 특정되는 것만 결과로 채택하고 나머지는 다시 보낸다(planUploadAdoptions). 트리를 받지 못하면 모두 다시 보낸다.
+   * 그 사이 지운 실패 행은 다시 올리지 않는다. 서버로 보낸 뒤 결과를 알 수 없게 끝난 일반 파일 실패는 서버 트리를 한 번 받아(묶음당 1회)
+   * 그 업로드가 만든 문서로 특정되는 것만 결과로 채택하고 나머지는 다시 보낸다(planUploadAdoptions).
+   * 트리를 받지 못했거나 이 페이지의 다른 업로드 묶음이 진행 중이면 채택하지 않고 모두 다시 보낸다.
    */
   function retryUploads(failures: UploadFailure[]): Promise<(DocumentItemResponse | null)[]> {
     const alive = failures.filter(({ entry }) => projectsRef.current.some((project) => findTreeItem(project.items, entry.itemId)));
     if (alive.length === 0) return Promise.resolve([]);
-    const candidates = alive.flatMap(({ entry, error, knownDocumentIds, startedAt }) => {
+    const othersActive = () => activeBatchesRef.current > 0;
+    const candidates = othersActive() ? [] : alive.flatMap(({ entry, error, sent, knownDocumentIds, startedAt }) => {
       const file = entry.task.file;
-      // 워크스페이스를 바꿨으면 채택하지 않는다(보내기 직전 beforeSend가 실패로 끝낸다).
-      if (!file || !isAmbiguousUploadFailure(error) || entry.workspaceId !== getSelectedWorkspaceId()) return [];
+      // 보내기 전에 막힌 실패, 워크스페이스를 바꾼 경우(보내기 직전 beforeSend가 실패로 끝낸다)는 채택하지 않는다.
+      if (!file || !sent || !isAmbiguousUploadFailure(error) || entry.workspaceId !== getSelectedWorkspaceId()) return [];
       return [{ key: entry.itemId, folderId: entry.serverFolder, filename: file.name, size: file.size, mimeType: file.type, knownDocumentIds, startedAt }];
     });
     const adoptions = candidates.length === 0
       ? null
       : fetchDocumentTree()
-        .then((tree) => planUploadAdoptions(tree.items, candidates, uploadedDocumentIdsRef.current))
+        // 트리를 받는 사이 다른 묶음이 시작됐으면(이 다시 올리기 묶음 하나만 셈) 채택하지 않는다.
+        .then((tree) => (activeBatchesRef.current > 1
+          ? new Map<string, DocumentItemResponse>()
+          : planUploadAdoptions(tree.items, candidates, uploadedDocumentIdsRef.current)))
         .catch(() => new Map<string, DocumentItemResponse>());
     const entries = alive.map(({ entry }) => ({
       ...entry,
@@ -361,16 +382,21 @@ export function useDocumentUpload({
     entries.forEach((entry) => updateRow(entry.itemId, (items) => updateUploadWaiting(items, entry.itemId, true)));
     return runEntries(entries);
   }
+  retryUploadsRef.current = retryUploads;
 
   /**
    * 업로드 하나를 끝까지 처리한다(성공하면 트리 행·문서 목록 반영, 실패하면 행을 실패로 두고 사유를 행 tooltip에 남긴다).
    * retry가 null이 아니면(파일 하나 업로드) 실패 카드를 띄우고 "다시 올리기"를 단다. 묶음은 요약 카드가 맡는다.
    */
-  function uploadEntry(entry: UploadEntry, retry: ((error: unknown) => () => void) | null): Promise<UploadOutcome<DocumentItemResponse>> {
+  function uploadEntry(entry: UploadEntry, retry: ((error: unknown, sent: boolean) => () => void) | null): Promise<UploadOutcome<DocumentItemResponse>> {
     const { task, itemId } = entry;
     const attemptId = newAnalyticsId();
+    let sent = false;
     const hooks: DocumentUploadHooks = {
-      onStart: () => updateRow(itemId, (items) => updateUploadWaiting(items, itemId, false)),
+      onStart: () => {
+        sent = true;
+        updateRow(itemId, (items) => updateUploadWaiting(items, itemId, false));
+      },
       // 대기 중에 워크스페이스를 바꾸면 새 워크스페이스로 보내지 않는다.
       beforeSend: () => {
         if (entry.workspaceId !== getSelectedWorkspaceId()) throw new Error(t("workspaceChanged"));
@@ -395,22 +421,21 @@ export function useDocumentUpload({
         const message = describeLimitError(error) ?? error.message;
         updateRow(itemId, (items) => updateTreeItemStatus(items, itemId, "failed", message));
         // 행 tooltip만으로는 실패 사유가 보이지 않으므로 파일 하나 업로드는 알림 카드(role=alert)로 파일 이름과 함께 띄운다.
-        if (retry) noticeUploadFailed(task.label, message, retry(error));
+        if (retry) noticeUploadFailed(task.label, message, retry(error, sent));
         if (error instanceof ApiError && error.code === "STORAGE_QUOTA_EXCEEDED") invalidateStorageUsage(queryClient);
         // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
         void refreshBackendData().catch(() => {});
-        return { ok: false, error };
+        return { ok: false, error, sent };
       });
   }
 
   /**
-   * 채택한 문서가 있으면 다시 보내지 않고 그 문서를 결과로 쓴다(처음 업로드 때 서버가 이미 편입 여부를 정했으므로 편입 요청도 다시 하지 않는다).
-   * 없으면 올리고, 필요하면 위키 편입을 요청한다.
+   * 채택한 문서가 있으면 다시 보내지 않고 그 문서를 결과로 쓴다. 없으면 올린다.
+   * 어느 쪽이든 프론트가 편입을 요청하는 경우(구 서버, shouldAutoIngestUpload)에만 편입을 요청한다. 서버가 편입하면 보내지 않는다.
    */
   async function sendEntry(entry: UploadEntry, hooks: DocumentUploadHooks): Promise<DocumentItemResponse> {
     const adopted = entry.adopted ? await entry.adopted : undefined;
-    if (adopted) return adopted;
-    return ingestUploadedDocument(entry.task, await entry.task.run(hooks));
+    return ingestUploadedDocument(entry.task, adopted ?? await entry.task.run(hooks));
   }
 
   /** 새 노트를 업로드한다. 만들어진 문서(실패면 null)로 풀린다. */

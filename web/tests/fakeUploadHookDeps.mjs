@@ -9,7 +9,12 @@ export const controls = {
   tree: async () => ({ items: [] }),
   sent: [],
   treeFetches: 0,
-  ingestRequests: []
+  ingestRequests: [],
+  /** 꺼 둔 알림 설정 키 */
+  disabledNotices: new Set(),
+  /** useSelectedWorkspace 응답 */
+  workspace: null,
+  canIngest: false
 };
 
 let limit = createConcurrencyLimiter(2);
@@ -18,15 +23,27 @@ export function resetUploadQueue() {
   controls.sent = [];
   controls.treeFetches = 0;
   controls.ingestRequests = [];
+  controls.disabledNotices = new Set();
+  controls.workspace = null;
+  controls.canIngest = false;
 }
 
 // @/entities/document/api/document
 export function uploadDocumentFile(file, folderId = null, { onStart, beforeSend } = {}) {
+  let blocked = null;
   return limit(() => {
-    beforeSend?.();
+    if (blocked) throw blocked.error;
     controls.sent.push(file.name);
     return controls.upload(file, folderId);
-  }, onStart);
+  }, () => {
+    try {
+      beforeSend?.();
+    } catch (error) {
+      blocked = { error };
+      return;
+    }
+    onStart?.();
+  });
 }
 export async function reflectDocumentToWiki(id) {
   controls.ingestRequests.push(id);
@@ -41,7 +58,7 @@ export function fetchDocumentTree() {
 // @/entities/workspace
 export const describeLimitError = () => null;
 export const invalidateStorageUsage = () => {};
-export const useSelectedWorkspace = () => null;
+export const useSelectedWorkspace = () => controls.workspace;
 
 // @tanstack/react-query
 export const useQueryClient = () => ({});
@@ -50,7 +67,7 @@ export const useQueryClient = () => ({});
 export const captureAnalytics = () => {};
 
 // @/features/wiki-ingest/model/useWikiActionPermissions
-export const useWikiActionPermissions = () => ({ canIngest: false, canLint: false });
+export const useWikiActionPermissions = () => ({ canIngest: controls.canIngest, canLint: false });
 
 // @/features/note-editing/api/note
 export async function saveNoteDraft(documentId, markdown, baseVersion) {
@@ -58,7 +75,7 @@ export async function saveNoteDraft(documentId, markdown, baseVersion) {
 }
 
 // @/entities/user
-const allOn = new Proxy({}, { get: (_, key) => key !== "browser" });
+const allOn = new Proxy({}, { get: (_, key) => key !== "browser" && !controls.disabledNotices.has(key) });
 export const useUserPreferences = () => ({ preferences: { notifications: allOn, notificationControls: { enabled: true, groups: {} } }, reduceMotion: true });
 
 // @/shared/hooks/usePageVisible

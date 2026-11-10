@@ -126,7 +126,7 @@ test("결과를 알 수 없이 실패한 파일은 서버에 만들어진 문서
   await flush();
   assert.equal(controls.treeFetches, 1);
   assert.deepEqual(controls.sent, [], "이미 만들어진 문서는 다시 보내지 않는다");
-  assert.deepEqual(controls.ingestRequests, [], "채택한 문서에 편입을 다시 요청하지 않는다");
+  assert.deepEqual(controls.ingestRequests, [], "프론트가 편입을 요청하는 구 서버 경로가 아니면 채택한 문서에 편입을 요청하지 않는다");
   assert.equal(row("b.md").documentId, "server-b");
   assert.equal(row("b.md").uploadWaiting, undefined);
 });
@@ -179,7 +179,7 @@ test("Markdown 묶음 문서(.md+그림)는 결과를 알 수 없이 실패해�
 });
 
 test("대기 중에 워크스페이스를 바꾸면 기다리던 파일을 새 워크스페이스로 보내지 않는다", async (t) => {
-  const { row, upload } = setup(t);
+  const { notices, row, upload } = setup(t);
   const first = deferred();
   const second = deferred();
   controls.upload = (sent) => (sent.name === "a.md" ? first.promise : sent.name === "b.md" ? second.promise : Promise.resolve(doc(sent.name)));
@@ -191,7 +191,55 @@ test("대기 중에 워크스페이스를 바꾸면 기다리던 파일을 새 �
   await done;
   assert.deepEqual(controls.sent, ["a.md", "b.md"]);
   assert.equal(row("c.md").status, "failed");
+  assert.equal(row("c.md").uploadWaiting, true, "보내지 않은 파일은 업로드 중으로 바뀌지 않는다");
   assert.equal(row("c.md").errorMessage, "워크스페이스가 바뀌어 다시 올리지 않았어요.");
+
+  // 서버로 보낸 적 없는 실패는 서버 트리를 확인하지 않고 그냥 다시 보낸다.
+  workspaceId = "ws_test";
+  controls.sent = [];
+  notices.at(-1).action.onAction();
+  await flush();
+  await flush();
+  assert.equal(controls.treeFetches, 0);
+  assert.deepEqual(controls.sent, ["c.md"]);
+});
+
+test("채택한 문서도 프론트가 편입을 요청하는 구 서버 경로면 편입을 요청한다", async (t) => {
+  controls.workspace = { auto_ingest_on_upload: false };
+  controls.canIngest = true;
+  const { notices, upload } = setup(t);
+  controls.workspace = { auto_ingest_on_upload: false };
+  controls.canIngest = true;
+  upload();
+  controls.upload = async () => { throw new TypeError("Failed to fetch"); };
+  await upload().dropUploadFiles(PROJECT, null, [file("b.md")]);
+  const created = doc("b.md", { id: "server-b", document_role: "EDITABLE" });
+  controls.tree = async () => ({ items: [{ type: "document", id: "server-b", name: "b.md", document: created }] });
+  controls.sent = [];
+  notices.at(-1).action.onAction();
+  await flush();
+  await flush();
+  assert.deepEqual(controls.sent, []);
+  assert.deepEqual(controls.ingestRequests, ["server-b"]);
+});
+
+test("이 페이지의 다른 업로드 묶음이 진행 중이면 채택하지 않고 다시 보낸다", async (t) => {
+  const { notices, upload } = setup(t);
+  controls.upload = async () => { throw new TypeError("Failed to fetch"); };
+  await upload().dropUploadFiles(PROJECT, null, [file("b.md")]);
+  const retry = notices.at(-1).action;
+  controls.tree = async () => ({ items: [{ type: "document", id: "server-b", name: "b.md", document: doc("b.md", { id: "server-b" }) }] });
+  const pending = deferred();
+  controls.upload = (sent) => (sent.name === "other.md" ? pending.promise : Promise.resolve(doc(sent.name)));
+  const other = upload().dropUploadFiles(PROJECT, null, [file("other.md")]);
+  controls.sent = [];
+  retry.onAction();
+  await flush();
+  await flush();
+  assert.equal(controls.treeFetches, 0);
+  assert.deepEqual(controls.sent.filter((name) => name === "b.md"), ["b.md"], "채택하지 않고 b.md를 다시 보낸다");
+  pending.resolve(doc("other.md"));
+  await other;
 });
 
 test("다시 올리기 전에 실패 행을 지웠으면 업로드하지 않는다", async (t) => {
@@ -214,4 +262,36 @@ test("작업 제안을 받지 않는 코너 스택도 업로드 실패·요약 �
   publishNotice({ kind: "failed", notificationKey: "uploadFailed", replaceKey: "batch", title: "일부 업로드 실패", message: "c", action: { label: "다시 올리기", onAction } });
   box.rerender();
   assert.deepEqual(box.result.notices.map((notice) => notice.message), ["a", "c"]);
+});
+
+test("묶음 요약이 알림 설정으로 표시되지 않으면 진행 카드도 남기지 않는다", (t) => {
+  resetUploadQueue();
+  controls.disabledNotices = new Set(["uploadFailed"]);
+  const box = render(() => useDocumentProcessingNotifications([], false, true));
+  t.after(() => box.unmount());
+  publishNotice({ kind: "info", notificationKey: "other", replaceKey: "batch", keepOpen: true, title: "파일 올리는 중", message: "3개 중 0개 완료" });
+  box.rerender();
+  assert.equal(box.result.notices.length, 1);
+  publishNotice({ kind: "failed", notificationKey: "uploadFailed", replaceKey: "batch", title: "일부 업로드 실패", message: "m", action: { label: "다시 올리기", onAction() {} } });
+  box.rerender();
+  assert.deepEqual(box.result.notices, []);
+});
+
+test("사용자가 닫은 진행 카드는 다시 만들지 않고 최종 요약만 새 카드(바뀐 role)로 보인다", (t) => {
+  resetUploadQueue();
+  const box = render(() => useDocumentProcessingNotifications([], false, true));
+  t.after(() => box.unmount());
+  const progress = (message) => publishNotice({ kind: "info", notificationKey: "other", replaceKey: "batch-2", keepOpen: true, title: "파일 올리는 중", message });
+  progress("2개 중 0개 완료");
+  box.rerender();
+  const [card] = box.result.notices;
+  box.result.dismissNotice(card.id);
+  box.rerender();
+  progress("2개 중 1개 완료");
+  box.rerender();
+  assert.deepEqual(box.result.notices, []);
+  publishNotice({ kind: "completed", notificationKey: "other", replaceKey: "batch-2", title: "업로드 완료", message: "파일 2개를 모두 올렸어요." });
+  box.rerender();
+  assert.deepEqual(box.result.notices.map((notice) => [notice.kind, notice.message]), [["completed", "파일 2개를 모두 올렸어요."]]);
+  assert.notEqual(box.result.notices[0].id, card.id);
 });

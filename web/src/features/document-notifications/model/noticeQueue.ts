@@ -93,19 +93,38 @@ export function isWorkSuggestionNotice(notice: Pick<QueuedNotice, "action" | "re
 }
 
 /**
- * replaceKey가 같은 카드(퇴장 중 제외)가 있으면 id·표시 상태는 두고 내용만 새 알림으로 바꾼다.
+ * replaceKey가 같은 카드(퇴장 중 제외)가 있으면 그 자리·표시 상태는 두고 내용만 새 알림으로 바꾼다.
+ * 종류(kind)가 바뀌면 카드 role(status·alert)이 렌더 중에 바뀌지 않도록 newId로 새 카드를 만든다(진행 → 요약).
  * 그런 카드가 없으면 null을 돌려주어 호출하는 쪽이 새 카드로 넣게 한다.
  */
-export function replaceKeyedNotice<T extends QueuedNotice & { replaceKey?: string }>(
+export function replaceKeyedNotice<T extends QueuedNotice & { replaceKey?: string; kind?: string }>(
   current: readonly T[],
-  notice: Omit<T, "id" | "leaving" | "parked" | "shownAt">
+  notice: Omit<T, "id" | "leaving" | "parked" | "shownAt">,
+  newId: string
 ): T[] | null {
   if (!notice.replaceKey) return null;
   const target = current.find((item) => !item.leaving && item.replaceKey === notice.replaceKey);
   if (!target) return null;
+  const id = target.kind === notice.kind ? target.id : newId;
   return current.map((item) => item === target
-    ? { ...notice, id: item.id, parked: item.parked, shownAt: item.shownAt } as T
+    ? { ...notice, id, parked: item.parked, shownAt: item.shownAt } as T
     : item);
+}
+
+/**
+ * replaceKey가 같은 카드를 내린다(removeImmediately면 바로 빼고, 아니면 퇴장 표시). 바꿀 알림이 설정으로 표시되지 않을 때
+ * 진행 카드가 남지 않게 한다. 그런 카드가 없으면 같은 배열을 돌려준다.
+ */
+export function dropKeyedNotice<T extends QueuedNotice & { replaceKey?: string }>(
+  current: readonly T[],
+  replaceKey: string,
+  { removeImmediately }: { removeImmediately: boolean }
+): T[] {
+  const isTarget = (item: T) => !item.leaving && item.replaceKey === replaceKey;
+  if (!current.some(isTarget)) return current as T[];
+  return removeImmediately
+    ? current.filter((item) => !isTarget(item))
+    : current.map((item) => (isTarget(item) ? { ...item, leaving: true } : item));
 }
 
 /**

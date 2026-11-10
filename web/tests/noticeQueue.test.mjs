@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  dropKeyedNotice,
   enqueueNotice,
   isWorkSuggestionNotice,
   NOTICE_MIN_VISIBLE_MS,
@@ -172,25 +173,35 @@ test("버튼에 필요한 권한이 회수된 카드만 내린다(확인 전·�
   assert.deepEqual(selectPermissionRevokedIds(notices, () => null), []);
 });
 
-test("replaceKey가 같은 카드는 쌓지 않고 자리·표시 상태를 둔 채 내용만 바꾼다", () => {
+test("replaceKey가 같은 카드는 쌓지 않고 자리·표시 상태를 둔 채 내용만 바꾸고, 종류가 바뀌면 새 id로 만든다", () => {
   const notices = [
-    { id: "progress", replaceKey: "batch-1", kind: "info", title: "올리는 중", message: "3개 중 1개 완료", shownAt: 10 },
+    { id: "progress", replaceKey: "batch-1", kind: "info", title: "올리는 중", message: "3개 중 1개 완료", shownAt: 10, keepOpen: true },
     { id: "other", kind: "failed", title: "업로드 실패", message: "a" },
     { id: "old", replaceKey: "batch-0", kind: "info", title: "올리는 중", message: "x", leaving: true }
   ];
+  const progress = replaceKeyedNotice(notices, { replaceKey: "batch-1", kind: "info", title: "올리는 중", message: "3개 중 2개 완료", keepOpen: true }, "new-id");
+  assert.equal(progress[0].id, "progress", "같은 종류면 같은 카드를 갱신한다");
+  assert.equal(progress[0].message, "3개 중 2개 완료");
+
   const summary = { replaceKey: "batch-1", kind: "failed", title: "일부 업로드 실패", message: "3개 중 2개", action };
-  const replaced = replaceKeyedNotice(notices, summary);
-  assert.deepEqual(replaced.map((notice) => notice.id), ["progress", "other", "old"]);
+  const replaced = replaceKeyedNotice(notices, summary, "summary-id");
+  assert.deepEqual(replaced.map((notice) => notice.id), ["summary-id", "other", "old"], "진행(status) → 요약(alert)은 role이 바뀌지 않게 새 카드로");
   assert.equal(replaced[0].message, "3개 중 2개");
   assert.equal(replaced[0].action, action);
+  assert.equal(replaced[0].keepOpen, undefined, "진행 카드의 keepOpen이 요약에 남지 않는다");
   assert.equal(replaced[0].shownAt, 10);
   assert.equal(replaced[1], notices[1]);
   assert.equal(notices[0].message, "3개 중 1개 완료", "원본 배열은 바꾸지 않는다");
 
-  // 이전 내용의 버튼이 새 내용에 남지 않는다.
-  assert.equal(replaceKeyedNotice(replaced, { replaceKey: "batch-1", kind: "info", title: "t", message: "m" })[0].action, undefined);
-  assert.equal(replaceKeyedNotice(notices, { replaceKey: "batch-0", kind: "info", title: "t", message: "m" }), null, "퇴장 중인 카드는 바꾸지 않는다");
-  assert.equal(replaceKeyedNotice(notices, { kind: "info", title: "t", message: "m" }), null);
+  assert.equal(replaceKeyedNotice(notices, { replaceKey: "batch-0", kind: "info", title: "t", message: "m" }, "x"), null, "퇴장 중인 카드는 바꾸지 않는다");
+  assert.equal(replaceKeyedNotice(notices, { kind: "info", title: "t", message: "m" }, "x"), null);
+});
+
+test("dropKeyedNotice는 같은 키의 카드만 내리고, 없으면 같은 배열을 돌려준다", () => {
+  const notices = [{ id: "progress", replaceKey: "batch-1" }, { id: "other" }];
+  assert.deepEqual(dropKeyedNotice(notices, "batch-1", { removeImmediately: true }).map((notice) => notice.id), ["other"]);
+  assert.equal(dropKeyedNotice(notices, "batch-1", { removeImmediately: false })[0].leaving, true);
+  assert.equal(dropKeyedNotice(notices, "missing", { removeImmediately: true }), notices);
 });
 
 test("keepOpen 카드(업로드 진행)는 자동으로 닫지 않고 넘쳐도 닫지 않고 대기열로만 뺀다", () => {
