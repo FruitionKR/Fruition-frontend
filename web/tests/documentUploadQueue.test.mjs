@@ -295,3 +295,66 @@ test("사용자가 닫은 진행 카드는 다시 만들지 않고 최종 요약
   assert.deepEqual(box.result.notices.map((notice) => [notice.kind, notice.message]), [["completed", "파일 2개를 모두 올렸어요."]]);
   assert.notEqual(box.result.notices[0].id, card.id);
 });
+
+const skipped = (reason) => ({ wiki_ingest: { status: "SKIPPED", reason } });
+
+test("파일 하나 업로드가 크레딧 부족으로 편입을 건너뛰면 카드 하나로 알린다", async (t) => {
+  const { notices, upload } = setup(t);
+  controls.upload = async (sent) => doc(sent.name, skipped("INSUFFICIENT_CREDIT"));
+  await upload().dropUploadFiles(PROJECT, null, [file("a.md")]);
+  assert.deepEqual(notices.map((notice) => [notice.title, notice.notificationKey]), [["위키 편입 건너뜀", "ingestFailed"]]);
+  assert.match(notices[0].message, /"a\.md" 문서는 올라갔지만 크레딧이 부족해/);
+});
+
+test("묶음 업로드는 편입을 건너뛴 파일을 사유별 건수로 요약 카드에만 붙인다", async (t) => {
+  const { notices, upload } = setup(t);
+  controls.upload = async (sent) => doc(sent.name, sent.name === "c.md" ? skipped("ERROR") : sent.name === "d.md" ? {} : skipped("INSUFFICIENT_CREDIT"));
+  await upload().dropUploadFiles(PROJECT, null, [file("a.md"), file("b.md"), file("c.md"), file("d.md")]);
+  assert.ok(notices.every((notice) => notice.replaceKey === notices[0].replaceKey), "파일마다 카드를 띄우지 않는다");
+  assert.equal(
+    notices.at(-1).message,
+    "파일 4개를 모두 올렸어요. 2개는 위키에 편입되지 않았어요(크레딧 부족). 1개는 위키에 편입되지 않았어요(편입 시작 오류)."
+  );
+  assert.equal(notices.at(-1).notificationKey, "other", "알림 설정 키는 업로드 결과로 정한다");
+});
+
+test("wiki_ingest가 없거나 QUEUED면 업로드 뒤 편입 안내를 띄우지 않는다", async (t) => {
+  const { notices, upload } = setup(t);
+  controls.upload = async (sent) => doc(sent.name, sent.name === "a.md" ? {} : { wiki_ingest: { status: "QUEUED", reason: null } });
+  await upload().dropUploadFiles(PROJECT, null, [file("a.md")]);
+  await upload().dropUploadFiles(PROJECT, null, [file("b.md")]);
+  assert.deepEqual(notices, []);
+});
+
+test("다시 올린 파일이 편입을 건너뛰면 파일 하나는 카드, 묶음은 요약에 붙인다", async (t) => {
+  const { notices, upload } = setup(t);
+  controls.upload = async () => { throw new ApiError("거절", 400); };
+  await upload().dropUploadFiles(PROJECT, null, [file("a.md")]);
+  controls.upload = async (sent) => doc(sent.name, skipped("AI_USAGE_LIMIT_EXCEEDED"));
+  notices.at(-1).action.onAction();
+  await flush();
+  await flush();
+  assert.equal(notices.at(-1).title, "위키 편입 건너뜀");
+  assert.equal(notices.at(-1).notificationKey, "ingestFailed");
+
+  controls.upload = async (sent) => {
+    if (sent.name !== "ok.md") throw new ApiError("거절", 400);
+    return doc(sent.name);
+  };
+  await upload().dropUploadFiles(PROJECT, null, [file("b.md"), file("c.md"), file("ok.md")]);
+  const summary = notices.at(-1);
+  assert.equal(summary.notificationKey, "uploadFailed");
+  controls.upload = async (sent) => doc(sent.name, sent.name === "b.md" ? skipped("INSUFFICIENT_CREDIT") : {});
+  summary.action.onAction();
+  await flush();
+  await flush();
+  assert.equal(notices.at(-1).message, "파일 2개를 모두 올렸어요. 1개는 위키에 편입되지 않았어요(크레딧 부족).");
+  assert.equal(notices.at(-1).notificationKey, "other");
+});
+
+test("새 노트 만들기처럼 편입 대상이 아닌 업로드는 편입 건너뜀을 알리지 않는다", async (t) => {
+  const { notices, upload } = setup(t);
+  controls.upload = async (sent) => doc(sent.name, skipped("INSUFFICIENT_CREDIT"));
+  await upload().createMarkdownFile(PROJECT, null);
+  assert.deepEqual(notices, []);
+});
