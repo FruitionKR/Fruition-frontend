@@ -23,6 +23,8 @@ export type McpWorkspaceChoice = {
   workspace_name: string;
   role: "OWNER" | "MEMBER";
   policy_generation: number;
+  /** 이 워크스페이스를 고르면 실제로 부여될 범위(요청 범위 ∩ 워크스페이스 MCP 정책). */
+  scopes: McpScope[];
 };
 
 export type McpPendingAuthorization = {
@@ -105,18 +107,31 @@ function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function parseWorkspace(value: unknown): McpWorkspaceChoice | null {
+function parseScopes(value: unknown): McpScope[] | null {
+  if (!Array.isArray(value)) return null;
+  const scopes = value.filter((scope): scope is McpScope => typeof scope === "string" && MCP_SCOPES.has(scope as McpScope));
+  if (scopes.length !== value.length || new Set(scopes).size !== scopes.length) return null;
+  return scopes;
+}
+
+function parseWorkspace(value: unknown, requestedScopes: McpScope[]): McpWorkspaceChoice | null {
   if (!isRecord(value)
     || !nonEmptyString(value.workspace_id)
     || !nonEmptyString(value.workspace_name)
     || (value.role !== "OWNER" && value.role !== "MEMBER")
     || !Number.isSafeInteger(value.policy_generation)
     || Number(value.policy_generation) < 1) return null;
+  // 배포 전환 중 scopes를 주지 않는 이전 Access 응답은 요청 범위 전체를 부여하던 기존 계약으로 해석한다.
+  const scopes = value.scopes === undefined ? requestedScopes : parseScopes(value.scopes);
+  if (!scopes
+    || (value.scopes !== undefined && scopes.length === 0)
+    || scopes.some((scope) => !requestedScopes.includes(scope))) return null;
   return {
     workspace_id: value.workspace_id,
     workspace_name: value.workspace_name,
     role: value.role,
-    policy_generation: Number(value.policy_generation)
+    policy_generation: Number(value.policy_generation),
+    scopes
   };
 }
 
@@ -132,11 +147,10 @@ export function parsePendingAuthorization(value: unknown): McpPendingAuthorizati
     || !Array.isArray(value.workspaces)
     || !nonEmptyString(value.expires_at)) throw new McpAuthorizationError("INVALID_PREVIEW");
 
-  const scopes = value.scopes.filter((scope): scope is McpScope => typeof scope === "string" && MCP_SCOPES.has(scope as McpScope));
-  const workspaces = value.workspaces.map(parseWorkspace);
-  if (scopes.length !== value.scopes.length
-    || new Set(scopes).size !== scopes.length
-    || workspaces.some((workspace) => workspace === null)
+  const scopes = parseScopes(value.scopes);
+  if (!scopes) throw new McpAuthorizationError("INVALID_PREVIEW");
+  const workspaces = value.workspaces.map((workspace) => parseWorkspace(workspace, scopes));
+  if (workspaces.some((workspace) => workspace === null)
     || new Set(workspaces.map((workspace) => workspace?.workspace_id)).size !== workspaces.length
     || !Number.isFinite(Date.parse(value.expires_at))) throw new McpAuthorizationError("INVALID_PREVIEW");
 

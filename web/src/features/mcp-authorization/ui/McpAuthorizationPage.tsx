@@ -168,6 +168,8 @@ export function McpAuthorizationConsent({
   const expired = isPendingExpired(pending);
   const clientName = pending.client_name ?? pending.client_id;
   const scopeLabel = (scope: McpScope) => t(`scopes.${scope}`);
+  const selectedWorkspace = pending.workspaces.find((workspace) => workspace.workspace_id === selectedWorkspaceId);
+  const scopesReduced = selectedWorkspace !== undefined && selectedWorkspace.scopes.length < pending.scopes.length;
 
   return (
     <AuthScreen shellModifier="verification" title={t("title")}>
@@ -205,6 +207,17 @@ export function McpAuthorizationConsent({
             );
           })}
         </fieldset>
+
+        {selectedWorkspace ? (
+          <dl aria-live="polite" className={styles.details}>
+            <div><dt>{t("grantedScopesLabel")}</dt><dd>{selectedWorkspace.scopes.map(scopeLabel).join(", ")}</dd></div>
+          </dl>
+        ) : null}
+        {scopesReduced ? (
+          <div className={styles.warnings} role="note">
+            <p>{t("scopesReduced")}</p>
+          </div>
+        ) : null}
 
         <div className={styles.actions}>
           <button className={styles.secondaryButton} disabled={busy || expired} onClick={onDeny} type="button">
