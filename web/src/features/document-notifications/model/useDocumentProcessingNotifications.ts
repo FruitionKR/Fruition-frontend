@@ -11,7 +11,7 @@ import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { summarizeFailedDocuments } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
-import { enqueueNotice, promoteParkedNotices, reconcileNotices, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
+import { enqueueNotice, promoteParkedNotices, reconcileNotices, replaceKeyedNotice, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
 import { isNoticeEnabled } from "./noticePreference";
 
@@ -55,6 +55,11 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
   const autoDismissTimersRef = useRef(new Map<string, number>());
   const exitTimersRef = useRef(new Map<string, number>());
   const operationFilterRef = useRef(createOperationNoticeFilter());
+  // pushNotice가 replaceKey 카드의 자동 닫힘 타이머를 다시 걸 때 지금 카드 목록을 본다.
+  const noticesRef = useRef(notices);
+  useEffect(() => {
+    noticesRef.current = notices;
+  }, [notices]);
 
   // 닫기는 퇴장 표시(leaving) → NOTICE_EXIT_MS 뒤 제거 두 단계다. reduce-motion이면 바로 제거한다.
   const dismissNotice = useCallback((id: string) => {
@@ -72,7 +77,16 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     // 설정 확인은 위에서 공통 처리하고, 작업 id 중복만 거른다.
     if (!operationFilterRef.current(notice, { lint: true, restore: true })) return;
     const id = createClientId(notice.kind);
-    setNotices((current) => enqueueNotice(current, { id, ...notice }, {
+    // 같은 replaceKey 카드의 내용을 바꾸면 자동 닫힘 시간을 처음부터 다시 센다(아래 effect가 타이머를 새로 건다).
+    const replaced = notice.replaceKey
+      ? noticesRef.current.find((item) => !item.leaving && item.replaceKey === notice.replaceKey)
+      : undefined;
+    const replacedTimer = replaced && autoDismissTimersRef.current.get(replaced.id);
+    if (replaced && replacedTimer !== undefined) {
+      window.clearTimeout(replacedTimer);
+      autoDismissTimersRef.current.delete(replaced.id);
+    }
+    setNotices((current) => replaceKeyedNotice(current, notice) ?? enqueueNotice(current, { id, ...notice }, {
       max: MAX_VISIBLE_NOTICES,
       now: Date.now(),
       removeImmediately: reduceMotion
@@ -80,7 +94,8 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
     // 자동 닫힘 타이머는 아래 effect가 건다(액션 카드는 사용자가 선택할 때까지 남긴다).
 
     if (
-      browserNotifications
+      !(notice.replaceKey && notice.kind === "info")
+      && browserNotifications
       && document.visibilityState === "hidden"
       && "Notification" in window
       && Notification.permission === "granted"

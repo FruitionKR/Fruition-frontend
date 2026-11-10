@@ -6,6 +6,7 @@ import {
   planNoticeOverflow,
   promoteParkedNotices,
   reconcileNotices,
+  replaceKeyedNotice,
   selectAutoDismissIds,
   selectPermissionRevokedIds,
   visibleNoticeSubjectIds
@@ -168,4 +169,25 @@ test("버튼에 필요한 권한이 회수된 카드만 내린다(확인 전·�
   const granted = { "wiki.ingest": false, "wiki.lint": true };
   assert.deepEqual(selectPermissionRevokedIds(notices, (permission) => granted[permission]), ["ingest"]);
   assert.deepEqual(selectPermissionRevokedIds(notices, () => null), []);
+});
+
+test("replaceKey가 같은 카드는 쌓지 않고 자리·표시 상태를 둔 채 내용만 바꾼다", () => {
+  const notices = [
+    { id: "progress", replaceKey: "batch-1", kind: "info", title: "올리는 중", message: "3개 중 1개 완료", shownAt: 10 },
+    { id: "other", kind: "failed", title: "업로드 실패", message: "a" },
+    { id: "old", replaceKey: "batch-0", kind: "info", title: "올리는 중", message: "x", leaving: true }
+  ];
+  const summary = { replaceKey: "batch-1", kind: "failed", title: "일부 업로드 실패", message: "3개 중 2개", action };
+  const replaced = replaceKeyedNotice(notices, summary);
+  assert.deepEqual(replaced.map((notice) => notice.id), ["progress", "other", "old"]);
+  assert.equal(replaced[0].message, "3개 중 2개");
+  assert.equal(replaced[0].action, action);
+  assert.equal(replaced[0].shownAt, 10);
+  assert.equal(replaced[1], notices[1]);
+  assert.equal(notices[0].message, "3개 중 1개 완료", "원본 배열은 바꾸지 않는다");
+
+  // 이전 내용의 버튼이 새 내용에 남지 않는다.
+  assert.equal(replaceKeyedNotice(replaced, { replaceKey: "batch-1", kind: "info", title: "t", message: "m" })[0].action, undefined);
+  assert.equal(replaceKeyedNotice(notices, { replaceKey: "batch-0", kind: "info", title: "t", message: "m" }), null, "퇴장 중인 카드는 바꾸지 않는다");
+  assert.equal(replaceKeyedNotice(notices, { kind: "info", title: "t", message: "m" }), null);
 });

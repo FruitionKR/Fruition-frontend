@@ -293,3 +293,33 @@ test("문서 업로드는 한 탭에서 동시에 2개까지만 보내고 나머
   assert.deepEqual(results.map((result) => result.status), ["fulfilled", "rejected", "fulfilled", "fulfilled", "fulfilled"],
     "한 파일이 실패해도 대기 중인 업로드는 이어 간다");
 });
+
+test("기다리던 업로드는 실제로 보내기 시작할 때 onStart로 알린다(대기 중 → 업로드 중)", async t => {
+  browser(t);
+  const sent = [];
+  const replies = new Map();
+  t.mock.method(globalThis, "fetch", async (path, init) => {
+    if (path === "/api/document-transport") return transport();
+    const name = init.body.get("file").name;
+    sent.push(name);
+    await new Promise((resolve) => replies.set(name, resolve));
+    return Response.json({ id: name, filename: name }, { status: 201 });
+  });
+  const started = [];
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
+  const uploads = ["a.md", "b.md", "c.md"].map((name) =>
+    uploadDocumentFile(new File(["x"], name), null, { onStart: () => started.push(name) }));
+  assert.deepEqual(started, ["a.md", "b.md"], "빈 자리 두 개는 호출하자마자 업로드 중으로 바뀐다");
+  await settle();
+  assert.deepEqual(sent, ["a.md", "b.md"]);
+  assert.deepEqual(started, ["a.md", "b.md"], "세 번째는 보내지 않은 채 대기 중으로 남는다");
+
+  replies.get("a.md")();
+  await uploads[0];
+  await settle();
+  assert.deepEqual(started, ["a.md", "b.md", "c.md"]);
+  assert.deepEqual(sent, ["a.md", "b.md", "c.md"], "시작으로 알린 뒤에 보낸다");
+  replies.get("b.md")();
+  replies.get("c.md")();
+  assert.deepEqual((await Promise.all(uploads)).map((result) => result.id), ["a.md", "b.md", "c.md"]);
+});

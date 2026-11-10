@@ -24,6 +24,11 @@ export type NoticePayload = {
    * id가 있으면 같은 작업의 알림(직접 발행 + 로그 폴링)을 한 번만 표시한다.
    */
   operation?: { type: "lint" | "restore"; id?: string };
+  /**
+   * 같은 키의 카드가 떠 있으면(대기열 포함) 새 카드를 쌓지 않고 그 카드의 내용을 바꾼다(여러 파일 업로드 진행률).
+   * 바꾸면 자동 닫힘 시간을 처음부터 다시 센다. 진행 표시(kind info)는 브라우저 알림을 띄우지 않는다.
+   */
+  replaceKey?: string;
   /** 카드가 다루는 문서 id. 이 카드가 보이는 동안 같은 문서로 제안 카드를 또 띄우지 않는 데 쓴다. */
   subjectIds?: readonly string[];
   /**

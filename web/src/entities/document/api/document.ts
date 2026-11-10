@@ -92,13 +92,19 @@ export async function uploadSkillReferenceDocument(file: File) {
  */
 /**
  * 이 탭에서 동시에 보내는 문서 업로드 수. 서버는 사용자별 저장 용량·업로드 한도 확인을 직렬로 처리하므로
- * 여러 파일을 한꺼번에 놓아도 2개씩만 보내고 나머지는 순서대로 기다린다(트리 행은 그동안 "업로드 중"으로 남는다).
+ * 여러 파일을 한꺼번에 놓아도 2개씩만 보내고 나머지는 순서대로 기다린다.
+ * onStart는 기다리던 업로드가 실제로 보내지기 시작할 때 부른다(트리 행을 "대기 중"에서 "업로드 중"으로 바꾼다).
+ * 시도마다 새 Idempotency-Key를 쓰므로(sendDocumentUpload·uploadPdfMultipart) 다시 올리기는 새 업로드다.
  */
 export const DOCUMENT_UPLOAD_CONCURRENCY = 2;
 const limitDocumentUpload = createConcurrencyLimiter(DOCUMENT_UPLOAD_CONCURRENCY);
 
-export function uploadDocumentFile(file: File, folderId: string | null = null): Promise<DocumentUploadResponse> {
-  return limitDocumentUpload(() => sendDocumentUpload(file, folderId));
+export function uploadDocumentFile(
+  file: File,
+  folderId: string | null = null,
+  options: { onStart?: () => void } = {}
+): Promise<DocumentUploadResponse> {
+  return limitDocumentUpload(() => sendDocumentUpload(file, folderId), options.onStart);
 }
 
 async function sendDocumentUpload(file: File, folderId: string | null): Promise<DocumentUploadResponse> {

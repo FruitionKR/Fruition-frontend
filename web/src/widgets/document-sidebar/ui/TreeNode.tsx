@@ -229,7 +229,7 @@ export function TreeNode({
               </Tooltip>
             )}
             {isUploading
-              ? <small className={styles["tree-type-badge"]}>{t("uploading")}</small>
+              ? <small className={styles["tree-type-badge"]}>{item.uploadWaiting ? t("uploadWaiting") : t("uploading")}</small>
               : isUploadFailed
                 ? <small className={cx(styles["tree-type-badge"], styles["is-upload-failed"])}>{t("uploadFailed")}</small>
                 : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}

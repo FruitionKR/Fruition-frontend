@@ -81,6 +81,22 @@ export function enqueueNotice<T extends QueuedNotice>(
 }
 
 /**
+ * replaceKey가 같은 카드(퇴장 중 제외)가 있으면 id·표시 상태는 두고 내용만 새 알림으로 바꾼다.
+ * 그런 카드가 없으면 null을 돌려주어 호출하는 쪽이 새 카드로 넣게 한다.
+ */
+export function replaceKeyedNotice<T extends QueuedNotice & { replaceKey?: string }>(
+  current: readonly T[],
+  notice: Omit<T, "id" | "leaving" | "parked" | "shownAt">
+): T[] | null {
+  if (!notice.replaceKey) return null;
+  const target = current.find((item) => !item.leaving && item.replaceKey === notice.replaceKey);
+  if (!target) return null;
+  return current.map((item) => item === target
+    ? { ...notice, id: item.id, parked: item.parked, shownAt: item.shownAt } as T
+    : item);
+}
+
+/**
  * 화면에 있거나 대기 중인(퇴장 중 제외) 카드가 다루는 문서 id. 같은 문서로 제안 카드를 겹쳐 띄우지 않는 데 쓴다.
  * 대기열로 뺀 카드도 사용자가 아직 고르지 않았으므로 센다.
  */

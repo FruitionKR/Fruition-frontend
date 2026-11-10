@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { reflectDocumentToWiki, uploadDocumentFile } from "@/entities/document/api/document";
+import { fetchDocumentTree } from "@/entities/tree/api/documentTree";
 import { describeLimitError, invalidateStorageUsage, useSelectedWorkspace } from "@/entities/workspace";
 import {
   appendItemsToFolder,
@@ -12,11 +13,13 @@ import {
   createClientId,
   findTreeItem,
   isSupportedUploadFile,
-  updateTreeItemStatus
+  updateTreeItemStatus,
+  updateUploadWaiting
 } from "@/entities/tree";
 import type { DocumentItemResponse } from "@/entities/document/model/document";
 import type { FileDropTarget, Project, UploadPickerTarget } from "@/entities/tree/model/tree";
 import { captureAnalytics } from "@/shared/lib/analytics/client";
+import { getSelectedWorkspaceId } from "@/shared/lib/authSessionStorage";
 import { newAnalyticsId } from "@/shared/lib/analytics/events";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import { publishNotice } from "@/features/document-notifications";
@@ -27,9 +30,28 @@ import { ZipSafetyError } from "@/shared/lib/markdown-import/zipArchive";
 import { countMissingImages, isImagePath, isMarkdownPath, planMarkdownBundle, type BundleDocument, type BundleFile } from "../lib/markdownBundle";
 import { bundleFilesFromSelection, bundleFromZip, isZipFile } from "./markdownBundleSources";
 import { uploadMarkdownBundleDocument } from "./markdownBundleUpload";
+import { documentIdsInTree, findCreatedUpload, isAmbiguousUploadFailure, runUploadBatch, type UploadBatchProgress, type UploadOutcome } from "./uploadBatch";
 
-/** autoIngest: 업로드가 끝나면 바로 위키 편입을 요청할 문서인지(일반 업로드의 Markdown·txt). 새 노트는 빈 본문이라 뺀다. */
-type UploadTask = { label: string; autoIngest: boolean; run: () => Promise<DocumentItemResponse> };
+/**
+ * autoIngest: 업로드가 끝나면 바로 위키 편입을 요청할 문서인지(일반 업로드의 Markdown·txt). 새 노트는 빈 본문이라 뺀다.
+ * run의 onStart는 업로드 대기열에서 자리를 얻어 실제로 보내기 시작할 때 부른다.
+ */
+type UploadTask = { label: string; autoIngest: boolean; run: (onStart: () => void) => Promise<DocumentItemResponse> };
+
+/**
+ * 트리 자리표시 행(itemId) 하나와 그 업로드. 실패하면 같은 행·같은 폴더로 다시 올린다(File은 이 페이지 메모리에만 있다).
+ * recheckAgainst: 결과를 알 수 없이 실패한 업로드를 다시 올릴 때, 그 시도 전에 트리에 있던 문서 id. 이 밖의 같은 이름 문서가
+ * 서버에 생겼으면 다시 보내지 않고 그 문서를 업로드 결과로 쓴다.
+ * workspaceId: 행을 만든 워크스페이스. 다시 올리기 전에 워크스페이스를 바꿨으면 다른 워크스페이스로 보내지 않는다.
+ */
+type UploadEntry = {
+  task: UploadTask;
+  itemId: string;
+  serverFolder: string | null;
+  workspaceId: string | null;
+  recheckAgainst?: ReadonlySet<string>;
+};
+type UploadFailure = { entry: UploadEntry; error: unknown; knownDocumentIds: ReadonlySet<string> };
 
 function baseName(path: string) {
   return path.slice(path.lastIndexOf("/") + 1);
@@ -61,10 +83,19 @@ export function useDocumentUpload({
   const { canIngest } = useWikiActionPermissions();
   const workspace = useSelectedWorkspace();
   const autoIngestContext = autoIngestContextOf(workspace, canIngest);
+  // 다시 올리기는 알림 카드 버튼에서 나중에 불리므로, 그때의 트리를 본다.
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
 
-  /** 업로드 실패 알림: 어떤 파일이 왜 실패했는지 함께 보인다. */
-  function noticeUploadFailed(filename: string, reason: string) {
-    publishNotice({ kind: "failed", notificationKey: "uploadFailed", title: t("failed.title"), message: t("failed.message", { filename, reason }) });
+  /** 업로드 실패 알림: 어떤 파일이 왜 실패했는지 함께 보인다. retry가 있으면 "다시 올리기" 버튼을 단다. */
+  function noticeUploadFailed(filename: string, reason: string, retry?: () => void) {
+    publishNotice({
+      kind: "failed",
+      notificationKey: "uploadFailed",
+      title: t("failed.title"),
+      message: t("failed.message", { filename, reason }),
+      action: retry ? { label: t("retry"), onAction: retry } : undefined
+    });
   }
 
   /** 본문이 가리키는데 함께 받지 못한 그림 안내(빠른 경고). */
@@ -100,10 +131,10 @@ export function useDocumentUpload({
     const images = files.filter((file) => isImagePath(file.name));
     // 그림이나 zip이 없으면 지금처럼 파일마다 올린다.
     if (zips.length === 0 && images.length === 0) {
-      return runUploads(projectId, folderId, plainUploadTasks(files, serverFolder, autoIngest));
+      return runUploads(projectId, folderId, serverFolder, plainUploadTasks(files, serverFolder, autoIngest));
     }
     const plainFiles = files.filter((file) => !isZipFile(file) && !isImagePath(file.name) && !isMarkdownPath(file.name));
-    return collectBundleDocuments(files, zips, serverFolder).then((documents) => runUploads(projectId, folderId, [
+    return collectBundleDocuments(files, zips, serverFolder).then((documents) => runUploads(projectId, folderId, serverFolder, [
       ...plainUploadTasks(plainFiles, serverFolder, autoIngest),
       ...documents.map((document) => bundleUploadTask(document, serverFolder, autoIngest))
     ]));
@@ -119,11 +150,11 @@ export function useDocumentUpload({
     return uploadFiles.map((file) => ({
       label: file.name,
       autoIngest,
-      run: () => {
+      run: (onStart) => {
         if (isMarkdownPath(file.name)) {
           void file.text().then((markdown) => noticeMissingImages(file.name, countMissingImages(markdown, file.name))).catch(() => {});
         }
-        return uploadDocumentFile(file, serverFolder) as Promise<DocumentItemResponse>;
+        return uploadDocumentFile(file, serverFolder, { onStart }) as Promise<DocumentItemResponse>;
       }
     }));
   }
@@ -168,10 +199,10 @@ export function useDocumentUpload({
       label: name,
       // 그림을 본문에 넣은 뒤(run이 끝난 뒤) 편입해 그림 자리까지 위키에 들어가게 한다.
       autoIngest,
-      run: async () => {
+      run: async (onStart) => {
         noticeMissingImages(name, document.missing.length);
         const result = await uploadMarkdownBundleDocument(document, {
-          uploadMarkdown: (file) => uploadDocumentFile(file, serverFolder) as Promise<DocumentItemResponse>,
+          uploadMarkdown: (file) => uploadDocumentFile(file, serverFolder, { onStart }) as Promise<DocumentItemResponse>,
           saveContent: (documentId, markdown, baseVersion, attachments) => saveNoteDraft(
             documentId, markdown, baseVersion, undefined, undefined, attachments.map((attachment) => ({ ...attachment, objectUrl: "" })))
         });
@@ -204,60 +235,141 @@ export function useDocumentUpload({
     }
   }
 
-  function runUploads(projectId: string, folderId: string | null, tasks: UploadTask[]): Promise<(DocumentItemResponse | null)[]> {
+  function runUploads(projectId: string, folderId: string | null, serverFolder: string | null, tasks: UploadTask[]): Promise<(DocumentItemResponse | null)[]> {
     if (tasks.length === 0) return Promise.resolve([]);
 
-    // 작업과 업로드 항목을 쌍으로 묶어 인덱스 기반 병렬 배열 접근을 피한다.
-    const uploads = tasks.map((task) => ({
-      task,
-      attemptId: newAnalyticsId(),
-      item: {
-        id: createClientId("upload"),
-        label: task.label,
-        type: "file" as const,
-        status: "uploading" as const
-      }
+    const workspaceId = getSelectedWorkspaceId();
+    const entries: UploadEntry[] = tasks.map((task) => ({ task, itemId: createClientId("upload"), serverFolder, workspaceId }));
+    // 처음에는 모두 "대기 중"으로 두고, 대기열에서 자리를 얻은 업로드만 onStart에서 "업로드 중"으로 바꾼다.
+    // 자리가 비어 있으면 onStart가 같은 틱에 불려 "대기 중"이 화면에 보이지 않는다.
+    const uploadItems = entries.map(({ task, itemId }) => ({
+      id: itemId,
+      label: task.label,
+      type: "file" as const,
+      status: "uploading" as const,
+      uploadWaiting: true
     }));
-    const uploadItems = uploads.map(({ item }) => item);
 
     setProjects((current) => current.map((project) => {
       if (project.id !== projectId) return project;
       return { ...project, items: appendItemsToFolder(project.items, folderId, uploadItems) };
     }));
 
-    return Promise.all(uploads.map(({ task, item, attemptId }) => {
-      return task.run()
-        .then((uploaded) => ingestUploadedDocument(task, uploaded))
-        .then((response) => {
-          setDocuments((current) => {
-            const withoutCurrent = current.filter((document) => document.id !== response.id);
-            return [...withoutCurrent, response];
-          });
-          setProjects((current) => current.map((project) => {
-            if (!findTreeItem(project.items, item.id)) return project;
-            return { ...project, items: applyUploadedDocument(project.items, item.id, response) };
-          }));
-          void refreshBackendData();
-          invalidateStorageUsage(queryClient);
-          return response;
-        })
-        .catch((error: Error) => {
-          captureAnalytics("upload_failed_shown", { upload_attempt_id: attemptId, reason: error instanceof ApiError
-            ? error.status === 413 ? "file_too_large" : error.status === 403 ? "permission" : error.status >= 500 ? "server_error" : "unknown"
-            : error instanceof TypeError ? "network" : "unknown" });
-          const message = describeLimitError(error) ?? error.message;
-          setProjects((current) => current.map((project) => {
-            if (!findTreeItem(project.items, item.id)) return project;
-            return { ...project, items: updateTreeItemStatus(project.items, item.id, "failed", message) };
-          }));
-          // 행 tooltip만으로는 실패 사유가 보이지 않으므로 알림 카드(role=alert)로 파일 이름과 함께 띄운다.
-          noticeUploadFailed(task.label, message);
-          if (error instanceof ApiError && error.code === "STORAGE_QUOTA_EXCEEDED") invalidateStorageUsage(queryClient);
-          // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
-          void refreshBackendData().catch(() => {});
-          return null;
-        });
+    return runEntries(entries);
+  }
+
+  /** 자리표시 행의 상태를 바꾼다. 행이 없는 프로젝트(삭제·다른 워크스페이스)는 건드리지 않는다. */
+  function updateRow(itemId: string, update: (items: Project["items"]) => Project["items"]) {
+    setProjects((current) => current.map((project) => {
+      if (!findTreeItem(project.items, itemId)) return project;
+      return { ...project, items: update(project.items) };
     }));
+  }
+
+  /**
+   * 업로드 묶음을 올린다. 2개 이상이면 "N개 중 M개 완료" 진행 카드를 한 장으로 갱신하고, 끝나면 성공·실패 수 요약으로 바꾼다.
+   * 실패가 있으면 요약 카드의 "다시 올리기"가 실패한 파일만 같은 대기열로 다시 보낸다. 파일 하나면 지금처럼 실패 카드만 띄운다.
+   */
+  async function runEntries(entries: UploadEntry[]): Promise<(DocumentItemResponse | null)[]> {
+    const knownDocumentIds = documentIdsInTree(projectsRef.current.flatMap((project) => project.items));
+    const isBatch = entries.length >= 2;
+    const batchKey = isBatch ? createClientId("upload-batch") : null;
+    const publishProgress = (progress: UploadBatchProgress) => {
+      if (!batchKey) return;
+      publishNotice({
+        kind: "info",
+        notificationKey: "other",
+        replaceKey: batchKey,
+        title: t("batch.progressTitle"),
+        message: progress.failed > 0
+          ? t("batch.progressWithFailed", { total: progress.total, completed: progress.completed, failed: progress.failed })
+          : t("batch.progress", { total: progress.total, completed: progress.completed })
+      });
+    };
+    publishProgress({ total: entries.length, completed: 0, succeeded: 0, failed: 0 });
+
+    const batch = await runUploadBatch(
+      entries,
+      (entry) => uploadEntry(entry, isBatch ? undefined : (error) => retryUploads([{ entry, error, knownDocumentIds }])),
+      (progress) => {
+        if (progress.completed < progress.total) publishProgress(progress);
+      }
+    );
+
+    if (batchKey) {
+      const { total, succeeded, failed } = batch.progress;
+      const failures = batch.failures.map((failure) => ({ ...failure, knownDocumentIds }));
+      publishNotice(failed === 0
+        ? { kind: "completed", notificationKey: "other", replaceKey: batchKey, title: t("batch.doneTitle"), message: t("batch.done", { count: succeeded }) }
+        : {
+          kind: "failed",
+          notificationKey: "uploadFailed",
+          replaceKey: batchKey,
+          title: t("batch.partialTitle"),
+          message: t("batch.partial", { total, succeeded, failed }),
+          action: { label: t("retry"), onAction: () => void retryUploads(failures) }
+        });
+    }
+    return batch.results;
+  }
+
+  /** 실패한 업로드만 같은 행·같은 폴더로 다시 대기열에 넣는다. 시도마다 새 Idempotency-Key를 쓴다(uploadDocumentFile). */
+  function retryUploads(failures: UploadFailure[]): Promise<(DocumentItemResponse | null)[]> {
+    const entries = failures.map(({ entry, error, knownDocumentIds }) => ({
+      ...entry,
+      recheckAgainst: isAmbiguousUploadFailure(error) ? knownDocumentIds : undefined
+    }));
+    entries.forEach((entry) => updateRow(entry.itemId, (items) => updateUploadWaiting(items, entry.itemId, true)));
+    return runEntries(entries);
+  }
+
+  /**
+   * 업로드 하나를 끝까지 처리한다(성공하면 트리 행·문서 목록 반영, 실패하면 행을 실패로 두고 알림).
+   * retry가 있으면(파일 하나 업로드) 실패 카드에 "다시 올리기"를 단다.
+   */
+  function uploadEntry(entry: UploadEntry, retry?: (error: unknown) => void): Promise<UploadOutcome<DocumentItemResponse>> {
+    const { task, itemId } = entry;
+    const attemptId = newAnalyticsId();
+    const onStart = () => updateRow(itemId, (items) => updateUploadWaiting(items, itemId, false));
+    return sendEntry(entry, onStart)
+      .then((uploaded) => ingestUploadedDocument(task, uploaded))
+      .then((response): UploadOutcome<DocumentItemResponse> => {
+        setDocuments((current) => {
+          const withoutCurrent = current.filter((document) => document.id !== response.id);
+          return [...withoutCurrent, response];
+        });
+        updateRow(itemId, (items) => applyUploadedDocument(items, itemId, response));
+        void refreshBackendData();
+        invalidateStorageUsage(queryClient);
+        return { ok: true, value: response };
+      })
+      .catch((error: Error): UploadOutcome<DocumentItemResponse> => {
+        captureAnalytics("upload_failed_shown", { upload_attempt_id: attemptId, reason: error instanceof ApiError
+          ? error.status === 413 ? "file_too_large" : error.status === 403 ? "permission" : error.status >= 500 ? "server_error" : "unknown"
+          : error instanceof TypeError ? "network" : "unknown" });
+        const message = describeLimitError(error) ?? error.message;
+        updateRow(itemId, (items) => updateTreeItemStatus(items, itemId, "failed", message));
+        // 행 tooltip만으로는 실패 사유가 보이지 않으므로 알림 카드(role=alert)로 파일 이름과 함께 띄운다.
+        noticeUploadFailed(task.label, message, retry && (() => retry(error)));
+        if (error instanceof ApiError && error.code === "STORAGE_QUOTA_EXCEEDED") invalidateStorageUsage(queryClient);
+        // 서버가 거절한 경우에도 최신 목록으로 맞춘다.
+        void refreshBackendData().catch(() => {});
+        return { ok: false, error };
+      });
+  }
+
+  /**
+   * 결과를 알 수 없이 실패했던 업로드를 다시 올릴 때는 먼저 서버 트리를 보고, 그 사이 서버에 만들어진 같은 이름 문서가 있으면
+   * 다시 보내지 않고 그 문서를 결과로 쓴다(새 Idempotency-Key로 보내면 서버가 `이름 (2)`로 또 만들기 때문).
+   */
+  async function sendEntry(entry: UploadEntry, onStart: () => void): Promise<DocumentItemResponse> {
+    if (entry.workspaceId !== getSelectedWorkspaceId()) throw new Error(t("workspaceChanged"));
+    if (entry.recheckAgainst) {
+      const tree = await fetchDocumentTree();
+      const created = findCreatedUpload(tree.items, entry.serverFolder, entry.task.label, entry.recheckAgainst);
+      if (created) return created;
+    }
+    return entry.task.run(onStart);
   }
 
   /** 새 노트를 업로드한다. 만들어진 문서(실패면 null)로 풀린다. */

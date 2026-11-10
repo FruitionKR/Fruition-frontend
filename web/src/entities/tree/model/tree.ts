@@ -6,6 +6,8 @@ export type TreeItem = {
   generated?: boolean;
   customLabel?: boolean;
   status?: "uploading" | DocumentStatus;
+  /** status가 uploading인 업로드 자리표시 행이 동시 업로드 자리를 기다리는 중인지. 자리를 얻으면 false가 된다. */
+  uploadWaiting?: boolean;
   processingState?: DocumentProcessingState;
   processingStage?: string;
   errorMessage?: string;
