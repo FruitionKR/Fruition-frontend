@@ -228,10 +228,11 @@ export function TreeNode({
                 />
               </Tooltip>
             )}
+            {/* 대기 중 → 업로드 중 → 실패처럼 업로드 상태 배지가 바뀌면 스크린리더에 알린다. */}
             {isUploading
-              ? <small className={styles["tree-type-badge"]}>{item.uploadWaiting ? t("uploadWaiting") : t("uploading")}</small>
+              ? <small className={styles["tree-type-badge"]} aria-live="polite">{item.uploadWaiting ? t("uploadWaiting") : t("uploading")}</small>
               : isUploadFailed
-                ? <small className={cx(styles["tree-type-badge"], styles["is-upload-failed"])}>{t("uploadFailed")}</small>
+                ? <small className={cx(styles["tree-type-badge"], styles["is-upload-failed"])} aria-live="polite">{t("uploadFailed")}</small>
                 : display.badge && <small className={styles["tree-type-badge"]}>{display.badge}</small>}
             {isFileDropTarget && <small className={styles["tree-drop-hint"]}>{t("dropHere")}</small>}
           </>

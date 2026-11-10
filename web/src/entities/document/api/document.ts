@@ -99,12 +99,21 @@ export async function uploadSkillReferenceDocument(file: File) {
 export const DOCUMENT_UPLOAD_CONCURRENCY = 2;
 const limitDocumentUpload = createConcurrencyLimiter(DOCUMENT_UPLOAD_CONCURRENCY);
 
+export type DocumentUploadHooks = {
+  onStart?: () => void;
+  /** 대기열에서 자리를 얻어 실제로 보내기 직전에 부른다. 던지면 보내지 않고 그 오류로 실패한다(워크스페이스가 바뀐 경우 등). */
+  beforeSend?: () => void;
+};
+
 export function uploadDocumentFile(
   file: File,
   folderId: string | null = null,
-  options: { onStart?: () => void } = {}
+  { onStart, beforeSend }: DocumentUploadHooks = {}
 ): Promise<DocumentUploadResponse> {
-  return limitDocumentUpload(() => sendDocumentUpload(file, folderId), options.onStart);
+  return limitDocumentUpload(() => {
+    beforeSend?.();
+    return sendDocumentUpload(file, folderId);
+  }, onStart);
 }
 
 async function sendDocumentUpload(file: File, folderId: string | null): Promise<DocumentUploadResponse> {

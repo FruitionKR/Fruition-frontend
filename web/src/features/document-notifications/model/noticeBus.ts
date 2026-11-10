@@ -29,6 +29,8 @@ export type NoticePayload = {
    * 바꾸면 자동 닫힘 시간을 처음부터 다시 센다. 진행 표시(kind info)는 브라우저 알림을 띄우지 않는다.
    */
   replaceKey?: string;
+  /** 자동으로 닫지 않고 새 카드에 밀려도 닫지 않는다(대기열로만 뺀다). 요약으로 바뀔 때까지 남는 업로드 진행 카드에 쓴다. */
+  keepOpen?: boolean;
   /** 카드가 다루는 문서 id. 이 카드가 보이는 동안 같은 문서로 제안 카드를 또 띄우지 않는 데 쓴다. */
   subjectIds?: readonly string[];
   /**

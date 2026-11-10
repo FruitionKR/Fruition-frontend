@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   enqueueNotice,
+  isWorkSuggestionNotice,
   NOTICE_MIN_VISIBLE_MS,
   planNoticeOverflow,
   promoteParkedNotices,
@@ -190,4 +191,22 @@ test("replaceKey가 같은 카드는 쌓지 않고 자리·표시 상태를 둔 
   assert.equal(replaceKeyedNotice(replaced, { replaceKey: "batch-1", kind: "info", title: "t", message: "m" })[0].action, undefined);
   assert.equal(replaceKeyedNotice(notices, { replaceKey: "batch-0", kind: "info", title: "t", message: "m" }), null, "퇴장 중인 카드는 바꾸지 않는다");
   assert.equal(replaceKeyedNotice(notices, { kind: "info", title: "t", message: "m" }), null);
+});
+
+test("keepOpen 카드(업로드 진행)는 자동으로 닫지 않고 넘쳐도 닫지 않고 대기열로만 뺀다", () => {
+  assert.deepEqual(selectAutoDismissIds([{ id: "progress", keepOpen: true }, { id: "plain" }], new Set()), ["plain"]);
+  const now = 10_000;
+  const { evictIds, parkIds } = planNoticeOverflow([
+    { id: "progress", keepOpen: true, shownAt: 0 },
+    { id: "plain", shownAt: 0 },
+    { id: "newest", shownAt: now }
+  ], { max: 1, now });
+  assert.deepEqual(evictIds, ["plain"]);
+  assert.deepEqual(parkIds, ["progress"]);
+});
+
+test("권한이 필요한 action 카드만 작업 제안으로 본다(업로드 다시 올리기는 아니다)", () => {
+  assert.equal(isWorkSuggestionNotice({ action, requiredPermission: "wiki.ingest" }), true);
+  assert.equal(isWorkSuggestionNotice({ action }), false);
+  assert.equal(isWorkSuggestionNotice({ requiredPermission: "wiki.ingest" }), false);
 });

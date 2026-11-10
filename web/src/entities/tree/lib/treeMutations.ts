@@ -180,6 +180,7 @@ export function applyUploadedDocument(items: TreeItem[], itemId: string, documen
     label: document.filename,
     status: document.status,
     errorMessage: undefined,
+    uploadWaiting: undefined,
     documentId: document.id,
     graphNodeId: makeRawId(document.id),
     mimeType: document.mime_type,

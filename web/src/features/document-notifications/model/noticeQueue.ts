@@ -3,6 +3,10 @@
 type QueuedNotice = {
   id: string;
   action?: unknown;
+  /** 자동 닫힘·밀려 닫힘 없이 남는 카드(업로드 진행). action 카드처럼 넘치면 대기열로만 뺀다. */
+  keepOpen?: boolean;
+  /** 버튼에 필요한 권한. 있으면 위키 편입·최신화 같은 작업 제안 카드다. */
+  requiredPermission?: string;
   subjectIds?: readonly string[];
   /** 퇴장 애니메이션 중. 개수 계산에서 빠진다. */
   leaving?: boolean;
@@ -36,7 +40,7 @@ export function planNoticeOverflow(
   if (overflow <= 0) return { evictIds: [], parkIds: [] };
   const candidates = shown.slice(0, -1);
   const evictIds = candidates
-    .filter((notice) => !notice.action && now - (notice.shownAt ?? Number.NEGATIVE_INFINITY) >= minVisibleMs)
+    .filter((notice) => !notice.action && !notice.keepOpen && now - (notice.shownAt ?? Number.NEGATIVE_INFINITY) >= minVisibleMs)
     .slice(0, overflow)
     .map((notice) => notice.id);
   const parkIds = candidates
@@ -81,6 +85,14 @@ export function enqueueNotice<T extends QueuedNotice>(
 }
 
 /**
+ * 위키 편입·최신화처럼 권한이 필요한 작업 제안 카드인지. 작업 제안을 받지 않는 화면(설정 화면 코너 스택)은 이것만 거른다.
+ * 업로드 다시 올리기처럼 권한 없이 쓰는 action 카드는 작업 제안이 아니다.
+ */
+export function isWorkSuggestionNotice(notice: Pick<QueuedNotice, "action" | "requiredPermission">): boolean {
+  return Boolean(notice.action && notice.requiredPermission);
+}
+
+/**
  * replaceKey가 같은 카드(퇴장 중 제외)가 있으면 id·표시 상태는 두고 내용만 새 알림으로 바꾼다.
  * 그런 카드가 없으면 null을 돌려주어 호출하는 쪽이 새 카드로 넣게 한다.
  */
@@ -110,7 +122,7 @@ export function visibleNoticeSubjectIds(notices: readonly QueuedNotice[]): Set<s
  */
 export function selectAutoDismissIds(notices: readonly QueuedNotice[], scheduledIds: ReadonlySet<string>): string[] {
   return notices
-    .filter((notice) => isShown(notice) && !notice.action && !scheduledIds.has(notice.id))
+    .filter((notice) => isShown(notice) && !notice.action && !notice.keepOpen && !scheduledIds.has(notice.id))
     .map((notice) => notice.id);
 }
 

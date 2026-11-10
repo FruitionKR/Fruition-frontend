@@ -11,7 +11,7 @@ import { usePageVisible } from "@/shared/hooks/usePageVisible";
 import { summarizeFailedDocuments } from "./failedDocumentsNotice";
 import { hasFinishedSince, latestProcessedAt } from "./finishedWhilePaused";
 import { publishNotice, setVisibleNoticeSubjects, subscribeNotices, type NoticePayload } from "./noticeBus";
-import { enqueueNotice, promoteParkedNotices, reconcileNotices, replaceKeyedNotice, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
+import { enqueueNotice, isWorkSuggestionNotice, promoteParkedNotices, reconcileNotices, replaceKeyedNotice, selectAutoDismissIds, visibleNoticeSubjectIds } from "./noticeQueue";
 import { createOperationNoticeFilter } from "./operationNoticeFilter";
 import { isNoticeEnabled } from "./noticePreference";
 
@@ -72,7 +72,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
 
   // 카드 표시 + 백그라운드 탭이면 브라우저 알림까지. 모든 알림이 이 경로를 지난다.
   const pushNotice = useCallback((notice: NoticePayload) => {
-    if (!allowWorkSuggestions && notice.action) return;
+    if (!allowWorkSuggestions && isWorkSuggestionNotice(notice)) return;
     if (!isNoticeEnabled(notice, notificationSettings, notificationControls)) return;
     // 설정 확인은 위에서 공통 처리하고, 작업 id 중복만 거른다.
     if (!operationFilterRef.current(notice, { lint: true, restore: true })) return;
@@ -107,7 +107,7 @@ export function useDocumentProcessingNotifications(documents: DocumentItemRespon
   // 설정을 끄면 현재 보이는 카드와 대기열 모두에서 해당 종류를 제거한다.
   useEffect(() => {
     setNotices((current) => promote(current.filter((notice) =>
-      (allowWorkSuggestions || !notice.action) && isNoticeEnabled(notice, notificationSettings, notificationControls)
+      (allowWorkSuggestions || !isWorkSuggestionNotice(notice)) && isNoticeEnabled(notice, notificationSettings, notificationControls)
     )));
   }, [allowWorkSuggestions, notificationControls, notificationSettings]);
 
