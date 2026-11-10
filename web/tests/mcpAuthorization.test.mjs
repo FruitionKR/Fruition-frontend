@@ -169,6 +169,26 @@ test("pending DTO는 서버 계약의 값만 받고 workspace·scope·expiry를 
   assert.equal(mcp.isPendingExpired({ expires_at: new Date(Date.now() - 1).toISOString() }), true);
 });
 
+test("workspace scopes는 실제 부여 범위로 파싱하고 누락 시 요청 범위로 대체하며 잘못된 값은 거절한다", () => {
+  const requested = ["read", "write_propose", "wiki_write"];
+  const workspace = (extra) => ({ workspace_id: "ws-read", workspace_name: "Read Only", role: "MEMBER", policy_generation: 2, ...extra });
+
+  const parsed = mcp.parsePendingAuthorization(pending({ scopes: requested, workspaces: [workspace({ scopes: ["read"] })] }));
+  assert.deepEqual(parsed.scopes, requested);
+  assert.deepEqual(parsed.workspaces[0].scopes, ["read"]);
+
+  const legacy = mcp.parsePendingAuthorization(pending({ scopes: requested, workspaces: [workspace({})] }));
+  assert.deepEqual(legacy.workspaces[0].scopes, requested);
+
+  for (const scopes of [["admin"], ["read", "read"], [], ["wiki_write"], "read", null]) {
+    assert.throws(
+      () => mcp.parsePendingAuthorization(pending({ scopes: ["read", "write_propose"], workspaces: [workspace({ scopes })] })),
+      { code: "INVALID_PREVIEW" },
+      JSON.stringify(scopes)
+    );
+  }
+});
+
 test("approve와 deny는 preview Bearer·cookie·CSRF로 허용된 body만 한 번 전송한다", async (t) => {
   const calls = [];
   t.mock.method(globalThis, "fetch", async (path, init) => {
@@ -315,4 +335,27 @@ test("실제 consent view는 server pending 값만 React text로 렌더하고 �
   const emptyButtons = nodes.filter((node) => node?.type === "button");
   assert.equal(emptyButtons.find((button) => button.props.type === "button").props.disabled, false);
   assert.equal(emptyButtons.find((button) => button.props.type === "submit").props.disabled, true);
+
+  const scopedPending = mcp.parsePendingAuthorization(pending({
+    scopes: ["read", "write_propose", "wiki_write"],
+    workspaces: [
+      { workspace_id: "ws-read", workspace_name: "Read Only", role: "MEMBER", policy_generation: 1, scopes: ["read"] },
+      { workspace_id: "ws-all", workspace_name: "Full", role: "OWNER", policy_generation: 1, scopes: ["read", "write_propose", "wiki_write"] }
+    ]
+  }));
+  const renderText = (selectedWorkspaceId) => {
+    nodes.length = 0;
+    walk(exports.McpAuthorizationConsent({ busy: false, onApprove() {}, onDeny() {}, onSelectWorkspace() {}, selectedWorkspaceId, pending: scopedPending }));
+    return nodes.filter((node) => typeof node === "string").join(" | ");
+  };
+  const grantedText = (text) => text.split("grantedScopesLabel | ")[1]?.split(" | ")[0];
+
+  const unselected = renderText("");
+  assert.doesNotMatch(unselected, /grantedScopesLabel|scopesReduced/);
+  const readOnly = renderText("ws-read");
+  assert.equal(grantedText(readOnly), "Read scope");
+  assert.match(readOnly, /scopesReduced/);
+  const full = renderText("ws-all");
+  assert.equal(grantedText(full), "Read scope, scopes.write_propose, scopes.wiki_write");
+  assert.doesNotMatch(full, /scopesReduced/);
 });
