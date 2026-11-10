@@ -185,7 +185,8 @@
       "mcpConnections": "We couldn't load your MCP connections.",
       "mcpRuns": "We couldn't load this MCP connection's tasks.",
       "mcpDisconnect": "We couldn't disconnect this MCP connection.",
-      "locale": "Couldn't save your language setting."
+      "locale": "Couldn't save your language setting.",
+      "betaCredit": "Could not load beta credit status."
     },
     "rateLimit": {
       "generic": "Too many attempts.",
