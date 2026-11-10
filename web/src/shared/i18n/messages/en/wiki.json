@@ -152,5 +152,19 @@
     "skipped": "A source document with the same content already exists, so we opened it.",
     "savedCanIngest": "Saved the chat as a source document. Click ‘Add to wiki’ to add it to the wiki so chat answers can cite it.",
     "saved": "Saved the chat as a source document. To add it to the wiki, select it under ‘Add to wiki’."
+  },
+  "betaCredit": {
+    "pending": {
+      "title": "Your beta spot is confirmed",
+      "message": "You are among the first 50 signups. Your $5 in AI credit is being added. We will notify you when it is ready."
+    },
+    "granted": {
+      "title": "Your beta credit is ready",
+      "message": "Start with $5 in AI credit. Daily token limits still apply."
+    },
+    "exhausted": {
+      "title": "Free beta credits are fully claimed",
+      "message": "All 50 signup awards have been claimed. This account will not receive free beta credit."
+    }
   }
 }

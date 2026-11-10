@@ -10,6 +10,7 @@ import { useDocumentProcessingNotifications } from "../model/useDocumentProcessi
 import { useOperationNotifications } from "../model/useOperationNotifications";
 import { selectPermissionRevokedIds } from "../model/noticeQueue";
 import { usePendingWorkNotifications } from "../model/usePendingWorkNotifications";
+import { useBetaCreditNotice } from "../model/useBetaCreditNotice";
 import { useServerNotifications } from "../model/useServerNotifications";
 import styles from "./DocumentProcessingNotifications.module.css";
 
@@ -54,6 +55,7 @@ export function DocumentProcessingNotifications({
     isDocumentsLoaded
   });
   useServerNotifications();
+  useBetaCreditNotice();
   // 위키 편입 제안처럼 권한이 필요한 카드가 떠 있는 동안 권한이 회수되면(OWNER가 회수·403 뒤 역할 재조회) 카드를 내린다.
   const { role, permissions, isLoading: isRoleLoading } = workspaceRole;
   useEffect(() => {

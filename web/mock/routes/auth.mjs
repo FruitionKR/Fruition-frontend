@@ -332,6 +332,7 @@ export function registerAuthRoutes(router) {
     ctx.json(204);
   }, { open: true });
 
+  router.get("/api/auth/me/beta-credit", (ctx) => ctx.json(200, { status: "ineligible", amount_krw_milli: null }));
   router.get("/api/auth/me", (ctx) => ctx.json(200, toMe(ctx.user)));
 
   // 이용약관이 바뀐 기존 회원의 재동의. 시드 사용자는 동의 기록이 없어 첫 로그인 뒤 한 번 거친다.
