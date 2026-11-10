@@ -324,13 +324,14 @@ export function useDocumentUpload({
     if (batchKey) {
       const { total, succeeded, failed } = batch.progress;
       // 서버가 자동 위키 편입을 건너뛴 파일은 파일마다 카드를 띄우지 않고 요약 문구에 사유별 건수로 붙인다.
-      const skips = countWikiIngestSkips(batch.results);
+      // 알림 설정 키는 업로드 결과(실패 여부)로 정하고 편입 건너뜀으로 바꾸지 않는다.
+      const skips = countWikiIngestSkips(batch.results.map((result, index) => (entries[index].task.autoIngest ? result : null)));
       const skipText = skips.map(({ reason, count }) => t("ingestSkipped.batch", { count, reason: t(`ingestSkipped.reason.${reason}`) })).join(" ");
       const withSkips = (message: string) => (skipText ? `${message} ${skipText}` : message);
       publishNotice(failed === 0
         ? {
           kind: "completed",
-          notificationKey: skips.length > 0 ? "ingestFailed" : "other",
+          notificationKey: "other",
           replaceKey: batchKey,
           title: t("batch.doneTitle"),
           message: withSkips(t("batch.done", { count: succeeded }))
@@ -343,7 +344,8 @@ export function useDocumentUpload({
           message: withSkips(t("batch.partial", { total, succeeded, failed })),
           action: { label: t("retry"), onAction: retryOnce(batch.failures.map(({ entry, error, sent }) => toFailure(entry, error, sent))) }
         });
-    } else {
+    } else if (entries[0].task.autoIngest) {
+      // 편입 대상이 아닌 업로드(새 노트 만들기 등)는 편입 건너뜀을 알리지 않는다.
       const [uploaded] = batch.results;
       const reason = uploaded ? parseWikiIngestSkip(uploaded) : null;
       if (uploaded && reason) {
