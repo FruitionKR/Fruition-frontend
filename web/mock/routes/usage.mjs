@@ -121,10 +121,16 @@ export function registerUsageRoutes(router) {
   // 크레딧 잔액: 베타 지급액(MOCK_BETA_CREDIT=granted)에서 mock 사용 금액을 뺀다. 실행 중 예약은 MOCK_CREDIT_RESERVED_KRW_MILLI로 준다.
   router.get("/api/users/me/credits", (ctx) => {
     const granted = process.env.MOCK_BETA_CREDIT === "granted" ? MOCK_BETA_CREDIT_KRW_MILLI : 0;
-    const charged = ledgerFor(ctx.user.id).reduce((sum, call) => sum + priceCall(call).milli, 0);
+    const calls = ledgerFor(ctx.user.id);
+    const charged = calls.reduce((sum, call) => sum + priceCall(call).milli, 0);
+    const entries = calls.map((call, index) => ({
+      type: "charge", amount_krw_milli: -priceCall(call).milli, run_id: `mock-usage-${index}`,
+      reason: null, created_at: new Date(call.started_at).toISOString()
+    })).filter((entry) => entry.amount_krw_milli < 0)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50);
     const reserved = Number(process.env.MOCK_CREDIT_RESERVED_KRW_MILLI ?? 0);
     const balance = granted - charged;
-    ctx.json(200, { user_id: ctx.user.id, currency: "KRW", balance_krw_milli: balance, reserved_krw_milli: reserved, available_krw_milli: balance - reserved, entries: [] });
+    ctx.json(200, { user_id: ctx.user.id, currency: "KRW", balance_krw_milli: balance, reserved_krw_milli: reserved, available_krw_milli: balance - reserved, entries });
   });
   router.get("/api/users/me/usage/charges", (ctx) => {
     if (["1", "true"].includes(process.env.MOCK_USAGE_CHARGES_FAIL ?? "")) return error(ctx, 503, "AI 사용량을 불러오지 못했습니다.");
