@@ -156,11 +156,12 @@
   "betaCredit": {
     "pending": {
       "title": "Your beta spot is confirmed",
-      "message": "You are among the first 50 signups. Your $5 in AI credit is being added. We will notify you when it is ready."
+      "message": "You are among the first 50 signups. Your beta AI credit is being added. We will notify you when it is ready."
     },
     "granted": {
       "title": "Your beta credit is ready",
-      "message": "Start with $5 in AI credit. Daily token limits still apply."
+      "message": "Start with your awarded AI credit. Daily token limits still apply.",
+      "amountMessage": "Start with KRW {amount, number} in AI credit. Daily token limits still apply."
     },
     "exhausted": {
       "title": "Free beta credits are fully claimed",

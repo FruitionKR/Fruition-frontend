@@ -21,7 +21,7 @@ test("베타 알림은 계정별로 한 번 표시하며 지급 중에만 폴링
     require: (name) => ({
       react: { useEffect: (fn) => fn(), useRef: () => ref },
       "@tanstack/react-query": { useQuery: (value) => { options = value; return { data }; } },
-      "next-intl": { useTranslations: () => (key) => key },
+      "next-intl": { useTranslations: () => (key, values) => values ? `${key}:${values.amount}` : key },
       "@/entities/user": { useMe: () => ({ data: user }), fetchBetaCredit: () => {} },
       "./noticeBus": { publishNotice: (notice) => notices.push(notice) }
     })[name]
@@ -35,6 +35,7 @@ test("베타 알림은 계정별로 한 번 표시하며 지급 중에만 폴링
   render(); render();
   assert.equal(notices.length, 2);
   assert.equal(notices[1].title, "granted.title");
+  assert.equal(notices[1].message, "granted.amountMessage:7000");
   assert.equal(options.refetchInterval({ state: { data } }), false);
   ref.current.clear(); render();
   assert.equal(notices.length, 2);
@@ -42,6 +43,10 @@ test("베타 알림은 계정별로 한 번 표시하며 지급 중에만 폴링
   assert.equal(notices[2].title, "exhausted.title");
   data = { status: "ineligible", amount_krw_milli: null }; render();
   assert.equal(notices.length, 3);
+  user = { id: "new" }; data = { status: "granted", amount_krw_milli: 500000 }; render();
+  assert.equal(notices.at(-1).message, "granted.amountMessage:500");
+  user = { id: "unknown" }; data = { status: "granted", amount_krw_milli: null }; render();
+  assert.equal(notices.at(-1).message, "granted.message");
   user = undefined; render();
   assert.equal(options.enabled, false);
   assert.equal(options.refetchInterval({ state: {} }), 5000);
