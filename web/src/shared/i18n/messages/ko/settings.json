@@ -411,7 +411,7 @@
       "unavailable": "아직 크레딧을 볼 수 없어요.",
       "beta": {
         "label": "베타 크레딧",
-        "description": "베타 선착순 50명에게 드리는 $5 상당 AI 크레딧이에요.",
+        "description": "베타 선착순 50명에게 드리는 AI 크레딧이에요.",
         "granted": "{amount} 지급 완료",
         "pending": "지급 중"
       }

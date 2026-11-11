@@ -15,7 +15,7 @@ function formatSignedKrwMilli(value: number, t: Parameters<typeof formatKrwMilli
 }
 
 /**
- * AI 설정의 크레딧: GET users/me/credits의 가용액·잔액·예약과 베타 $5 크레딧 지급 상태.
+ * AI 설정의 크레딧: GET users/me/credits의 가용액·잔액·예약과 베타 크레딧 실제 지급 상태.
  * 합계 카드는 AI 사용량과 같은 모양을 쓴다. 베타 지급 기록은 원장 최근 50건에서 밀려나므로 beta-credit 상태로 보인다.
  */
 export function AiCreditSection() {
