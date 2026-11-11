@@ -75,7 +75,7 @@ export const mcpApprovalSelectionKey = (userId: string, workspaceId: string, run
   `${userId}:${workspaceId}:${runId}:${plan.version}:${plan.operation_hash}`;
 
 function validMoney(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 export function validMcpPriceSnapshot(value: unknown): value is McpPriceSnapshot {
@@ -83,7 +83,7 @@ export function validMcpPriceSnapshot(value: unknown): value is McpPriceSnapshot
   const price = value as Partial<McpPriceSnapshot>;
   return validMoney(price.unit_price_minor)
     && validMoney(price.plan_cap_minor)
-    // Skill 정의 저장만 고른 계획은 무료라 최대 청구액이 0일 수 있다. 단가·상한은 그대로 양수다.
+    // 운영 설정이 문서 작업 승인을 무료(단가·상한 0)로 둘 수 있고, Skill 정의 저장만 고른 계획도 최대 청구액이 0이다.
     && typeof price.maximum_charge_minor === "number" && Number.isSafeInteger(price.maximum_charge_minor) && price.maximum_charge_minor >= 0
     && price.currency === "KRW"
     && typeof price.price_version === "string"
