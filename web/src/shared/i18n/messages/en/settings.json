@@ -414,6 +414,14 @@
         "description": "AI credits for the first 50 beta members.",
         "granted": "{amount} granted",
         "pending": "Granting"
+      },
+      "history": {
+        "title": "Recent credit charges",
+        "scope": "Actual charges from the latest 50 ledger entries. Reservations and releases are not spending. Older charges may not appear here.",
+        "mcpTotal": "MCP task fees shown",
+        "mcpFee": "MCP task fee",
+        "aiUsage": "AI usage charge",
+        "empty": "No charges in the recent ledger."
       }
     },
     "usage": {
@@ -455,7 +463,7 @@
       "outputDetail": "Output {value}",
       "cacheDetail": "Cached {value}",
       "modelTitle": "{model} · {value} tokens total",
-      "vatNote": "Costs include VAT."
+      "vatNote": "AI costs include the exchange-rate buffer, service markup and VAT. MCP task fees are separate and appear in your credit charge history."
     }
   },
   "preferences": {

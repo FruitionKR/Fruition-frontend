@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
-import { fetchCredits, formatKrwMilli } from "@/entities/ai";
+import { useLocale, useTranslations } from "next-intl";
+import { fetchCredits, formatKrwMilli, usageRefetchInterval } from "@/entities/ai";
 import { fetchBetaCredit, useMe } from "@/entities/user";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
 import styles from "../SettingsModal.module.css";
@@ -20,6 +20,7 @@ function formatSignedKrwMilli(value: number, t: Parameters<typeof formatKrwMilli
  */
 export function AiCreditSection() {
   const t = useTranslations("settings.ai.credit");
+  const locale = useLocale();
   const tShared = useTranslations("shared");
   const { data: me } = useMe();
   const credits = useQuery({
@@ -27,6 +28,7 @@ export function AiCreditSection() {
     queryFn: fetchCredits,
     enabled: Boolean(me?.id),
     retry: false,
+    refetchInterval: (query) => usageRefetchInterval(query.state.error),
     refetchOnWindowFocus: "always"
   });
   // useBetaCreditNotice와 같은 키라 알림과 캐시를 나눠 쓴다.
@@ -37,6 +39,11 @@ export function AiCreditSection() {
     retry: false
   });
   const betaStatus = beta.data?.status;
+  const charges = credits.data?.entries?.filter((entry) => entry.type === "charge" && entry.amount_krw_milli < 0);
+  const exactAmount = (amount: number) => new Intl.NumberFormat(locale, {
+    style: "currency", currency: "KRW", maximumFractionDigits: 3
+  }).format(amount / 1000);
+  const mcpFees = charges?.reduce((sum, entry) => sum + (entry.reason === "mcp_approval" ? -entry.amount_krw_milli : 0), 0) ?? 0;
 
   return (
     <section className={styles.section} aria-labelledby="ai-credit-heading">
@@ -71,6 +78,30 @@ export function AiCreditSection() {
             )}
           </div>
           <p className={usageStyles["cost-note"]}>{t("note")}</p>
+        </div>
+      )}
+
+      {charges && (
+        <div>
+          <strong>{t("history.title")}</strong>
+          <p className={usageStyles.note}>{t("history.scope")}</p>
+          <div className={styles.row}>
+            <span>{t("history.mcpTotal")}</span>
+            <strong>{exactAmount(mcpFees)}</strong>
+          </div>
+          {charges.length === 0 ? <p className={usageStyles.note}>{t("history.empty")}</p> : (
+            <ul className={usageStyles["charge-history"]}>
+              {charges.map((entry, index) => (
+                <li key={`${entry.run_id}:${entry.created_at}:${index}`} className={styles.row}>
+                  <div className={styles["row-title"]}>
+                    <strong>{t(entry.reason === "mcp_approval" ? "history.mcpFee" : "history.aiUsage")}</strong>
+                    <small><time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString(locale)}</time></small>
+                  </div>
+                  <strong>{exactAmount(-entry.amount_krw_milli)}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
