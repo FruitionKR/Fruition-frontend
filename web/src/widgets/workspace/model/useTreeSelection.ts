@@ -35,7 +35,8 @@ export function getSelectionLocation(selection: TreeSelectionState): WorkspaceLo
   return toDocumentLocation({
     pageId: selection.selectedPreviewTarget.pageId,
     documentId: selection.selectedDocumentId,
-    treeItemId: selection.selectedTreeItemId
+    treeItemId: selection.selectedTreeItemId,
+    blockIds: selection.selectedPreviewTarget.sourceBlockHighlights?.map((highlight) => highlight.block_id)
   });
 }
 
