@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { issueAccessToken } from "../lib/http.mjs";
 import { state, now, id, error, avatarUrlOf } from "../state.mjs";
+import { MOCK_BETA_CREDIT_KRW_MILLI } from "../seed.mjs";
 
 const REFRESH_COOKIE = "refresh";
 const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 14;
@@ -332,7 +333,11 @@ export function registerAuthRoutes(router) {
     ctx.json(204);
   }, { open: true });
 
-  router.get("/api/auth/me/beta-credit", (ctx) => ctx.json(200, { status: "ineligible", amount_krw_milli: null }));
+  // MOCK_BETA_CREDIT=granted|pending|exhausted로 베타 크레딧 상태를 바꿔 본다. 기본은 대상 아님이다.
+  router.get("/api/auth/me/beta-credit", (ctx) => {
+    const status = process.env.MOCK_BETA_CREDIT ?? "ineligible";
+    ctx.json(200, { status, amount_krw_milli: status === "granted" ? MOCK_BETA_CREDIT_KRW_MILLI : null });
+  });
   router.get("/api/auth/me", (ctx) => ctx.json(200, toMe(ctx.user)));
 
   // 이용약관이 바뀐 기존 회원의 재동의. 시드 사용자는 동의 기록이 없어 첫 로그인 뒤 한 번 거친다.

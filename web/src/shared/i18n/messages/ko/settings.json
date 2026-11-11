@@ -400,6 +400,22 @@
         }
       }
     },
+    "credit": {
+      "section": "크레딧",
+      "available": "사용 가능한 크레딧",
+      "balance": "잔액",
+      "reserved": "실행 중 예약",
+      "note": "AI 작업을 실행하면 이 크레딧에서 차감돼요. 실행 중인 작업은 예상 금액을 먼저 잡아 두었다가 끝나면 실제 금액으로 정산해요.",
+      "loading": "크레딧을 불러오는 중…",
+      "loadFailed": "크레딧을 불러오지 못했습니다.",
+      "unavailable": "아직 크레딧을 볼 수 없어요.",
+      "beta": {
+        "label": "베타 크레딧",
+        "description": "베타 선착순 50명에게 드리는 $5 상당 AI 크레딧이에요.",
+        "granted": "{amount} 지급 완료",
+        "pending": "지급 중"
+      }
+    },
     "usage": {
       "section": "AI 사용량",
       "heading": "내 계정에서 쓴 토큰",

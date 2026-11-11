@@ -271,7 +271,8 @@
     "requestFailed": {
       "providerLoad": "We couldn't load the LLM provider settings.",
       "providerSave": "We couldn't save the LLM provider settings.",
-      "usageLoad": "We couldn't load AI usage."
+      "usageLoad": "We couldn't load AI usage.",
+      "creditsLoad": "We couldn't load your credits."
     }
   },
   "trash": {
