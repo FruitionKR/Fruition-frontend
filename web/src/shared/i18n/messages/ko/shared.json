@@ -271,7 +271,8 @@
     "requestFailed": {
       "providerLoad": "LLM Provider 설정을 불러오지 못했습니다.",
       "providerSave": "LLM Provider 설정을 저장하지 못했습니다.",
-      "usageLoad": "AI 사용량을 불러오지 못했습니다."
+      "usageLoad": "AI 사용량을 불러오지 못했습니다.",
+      "creditsLoad": "크레딧을 불러오지 못했습니다."
     }
   },
   "trash": {

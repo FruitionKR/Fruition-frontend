@@ -400,6 +400,22 @@
         }
       }
     },
+    "credit": {
+      "section": "Credits",
+      "available": "Available credits",
+      "balance": "Balance",
+      "reserved": "Reserved for running jobs",
+      "note": "AI jobs are paid from these credits. Running jobs hold an estimate first and settle to the actual amount when they finish.",
+      "loading": "Loading credits…",
+      "loadFailed": "We couldn't load your credits.",
+      "unavailable": "Credits aren't available yet.",
+      "beta": {
+        "label": "Beta credit",
+        "description": "$5 worth of AI credits for the first 50 beta members.",
+        "granted": "{amount} granted",
+        "pending": "Granting"
+      }
+    },
     "usage": {
       "section": "AI usage",
       "heading": "Tokens used by my account",
@@ -590,8 +606,6 @@
         "generation": "Policy generation: {generation}",
         "updatedAt": "Last updated: {date}",
         "scopesLabel": "Allowed permissions",
-        "save": "Save MCP policy",
-        "saving": "Saving…",
         "saved": "MCP policy saved. Connections are being refreshed.",
         "saveFailed": "Couldn't save the MCP policy.",
         "confirmTitle": "Change the workspace MCP policy?",

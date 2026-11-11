@@ -4,6 +4,8 @@ import { ingestSourceBlocks } from "./lib/sourceBlocks.mjs";
 
 export const DEMO_EMAIL = "demo@fruition.local";
 export const DEMO_PASSWORD = "demo1234";
+/** 베타 크레딧 $5 상당(milli-KRW). MOCK_BETA_CREDIT=granted일 때 지급한 것으로 본다. */
+export const MOCK_BETA_CREDIT_KRW_MILLI = 7_250_000;
 export const WORKSPACE_ID = "ws_fruition";
 const USER_ID = "user_demo";
 const MEMBER_ID = "user_jihyun";

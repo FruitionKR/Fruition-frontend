@@ -249,14 +249,14 @@ test("실제 section은 OWNER 확인 전 숨고 workspace/user key로 remount한
   assert.equal(tree.key, "workspace-a:user-a");
 });
 
-test("실제 관리 handler는 scope 변경을 확인 뒤에만 mutate하고 실패한 다음 페이지에서 이전을 유지한다", () => {
+test("실제 관리 handler는 scope 토글을 확인 뒤에만 mutate하고 실패한 다음 페이지에서 이전을 유지한다", () => {
   const currentPolicy = policy({ enabled: true, allowed_scopes: ["read"], generation: 3 });
   const changed = { enabled: true, allowed_scopes: [] };
   const mutateCalls = [];
   const policyMutation = { isPending: false, mutate: (value) => mutateCalls.push(value) };
   const revokeMutation = { isPending: false, mutate() {} };
   const first = loadComponent({
-    states: [1, changed, null, false, null, null],
+    states: [1, null, false, null, null],
     queries: [
       { data: currentPolicy, isPending: false, isFetching: false, error: null },
       { data: undefined, isPending: false, isFetching: false, error: new Error("page failed") }
@@ -265,16 +265,17 @@ test("실제 관리 handler는 scope 변경을 확인 뒤에만 mutate하고 실
   });
   const tree = first.exports.WorkspaceMcpManagement({ workspaceId: "workspace-a", userId: "user-a" });
   const nodes = nodesOf(tree);
-  const save = nodes.find((node) => node.type === "button" && node.props.children === "Save MCP policy");
+  assert.ok(!nodes.some((node) => node.type === "button" && node.props.children === "Save MCP policy"));
+  const readSwitch = nodes.find((node) => node.type?.name === "Switch" && node.props.label === "Read shared workspace content");
   const previous = nodes.find((node) => node.type === "button" && node.props.children === "Previous");
-  assert.equal(save.props.disabled, false);
+  assert.equal(readSwitch.props.checked, true);
   assert.equal(previous.props.disabled, false);
-  save.props.onClick();
+  readSwitch.props.onClick();
   assert.deepEqual(mutateCalls, []);
   assert.ok(first.updates.some((value) => value?.kind === "policy" && value.update.allowed_scopes.length === 0));
 
   const confirming = loadComponent({
-    states: [0, changed, { kind: "policy", update: changed }, false, null, null],
+    states: [0, { kind: "policy", update: changed }, false, null, null],
     queries: [
       { data: currentPolicy, isPending: false, isFetching: false, error: null },
       { data: { connections: [], page: 0, size: 20, has_next: false }, isPending: false, isFetching: false, error: null }
@@ -294,7 +295,7 @@ test("실제 연결 handler는 특정 grant의 관리자 강제 회수를 확인
   const policyMutation = { isPending: false, mutate() {} };
   const revokeMutation = { isPending: false, mutate: (value) => revokeCalls.push(value) };
   const first = loadComponent({
-    states: [0, { enabled: false, allowed_scopes: [] }, null, false, null, null],
+    states: [0, null, false, null, null],
     queries: [
       { data: policy(), isPending: false, isFetching: false, error: null },
       { data: { connections: [target], page: 0, size: 20, has_next: false }, isPending: false, isFetching: false, error: null }
@@ -307,7 +308,7 @@ test("실제 연결 handler는 특정 grant의 관리자 강제 회수를 확인
   assert.ok(first.updates.some((value) => value?.kind === "revoke" && value.connection.grant_id === "grant-a"));
 
   const confirming = loadComponent({
-    states: [0, { enabled: false, allowed_scopes: [] }, { kind: "revoke", connection: target }, false, null, null],
+    states: [0, { kind: "revoke", connection: target }, false, null, null],
     queries: [
       { data: policy(), isPending: false, isFetching: false, error: null },
       { data: { connections: [target], page: 0, size: 20, has_next: false }, isPending: false, isFetching: false, error: null }
