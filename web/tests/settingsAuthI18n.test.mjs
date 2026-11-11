@@ -172,3 +172,39 @@ test("AI 사용량 표(음성 시간·글자 수·1원 미만·축약 토큰)가
   assert.doesNotMatch(english, HANGUL, english.match(/.{0,40}[가-힣]+.{0,40}/)?.[0]);
   assert.match(english, /78\.3K/);
 });
+
+function renderCredits(entries, locale = "ko") {
+  const { AiCreditSection } = loadComponent("../src/features/user-settings/ui/panels/AiCreditSection.tsx", {
+    "next-intl": { useTranslations: (namespace) => translator(locale, namespace), useLocale: () => locale },
+    "@tanstack/react-query": { useQuery: ({ queryKey }) => queryKey[0] === "credits"
+      ? { data: { available_krw_milli: 100000, reserved_krw_milli: 0, entries } } : { data: null } },
+    "@/entities/ai": { ...aiUsage, fetchCredits() {} },
+    "@/entities/user": { useMe: () => ({ data: { id: "user" } }), fetchBetaCredit() {} },
+    "@/shared/lib/apiErrors": { ApiError, getErrorMessage() {} },
+    "../SettingsSectionHeader": { SettingsSectionHeader: ({ children }) => React.createElement("h3", null, children) },
+    "../SettingsModal.module.css": {},
+    "./AiUsageSection.module.css": {}
+  });
+  return renderToStaticMarkup(React.createElement(AiCreditSection));
+}
+
+test("크레딧 내역은 실제 차감만 표시하며 MCP 수수료를 따로 합산한다", () => {
+  const entry = (type, amount, reason) => ({ type, amount_krw_milli: amount, reason, run_id: "r", created_at: "2026-11-12T00:00:00Z" });
+  const html = renderCredits([
+    entry("reserve", 99000, "mcp_approval"), entry("release", -88000, "mcp_approval"),
+    entry("grant", 500000, "beta"), entry("charge", -10000, "mcp_approval"),
+    entry("charge", -20000, "mcp_approval"), entry("charge", -1234, "chat")
+  ]);
+  assert.match(html, /표시된 MCP 작업 수수료 합계/);
+  assert.match(html, /₩30/);
+  assert.match(html, /₩1\.234/);
+  assert.doesNotMatch(html, /₩99|₩88|₩500/);
+  assert.equal((html.match(/<time /g) ?? []).length, 3);
+  assert.match(html, /최근 원장 50건/);
+});
+
+test("원장이 없는 이전 응답은 합계를 0원으로 꾸미지 않으며 빈 원장과 구분한다", () => {
+  assert.doesNotMatch(renderCredits(undefined), /표시된 MCP 작업 수수료 합계/);
+  assert.match(renderCredits([]), /최근 원장에 차감 내역이 없어요/);
+  assert.doesNotMatch(renderCredits([], "en"), HANGUL);
+});
