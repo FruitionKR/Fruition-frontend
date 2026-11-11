@@ -590,8 +590,6 @@
         "generation": "Policy generation: {generation}",
         "updatedAt": "Last updated: {date}",
         "scopesLabel": "Allowed permissions",
-        "save": "Save MCP policy",
-        "saving": "Saving…",
         "saved": "MCP policy saved. Connections are being refreshed.",
         "saveFailed": "Couldn't save the MCP policy.",
         "confirmTitle": "Change the workspace MCP policy?",
