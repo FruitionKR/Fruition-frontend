@@ -289,6 +289,11 @@ export function HomeWorkspace() {
     if (target.kind === "document") {
       const document = documents.find((item) => item.id === target.documentId);
       if (!document) return false;
+      if (target.blockIds?.length) {
+        selection.openSourceBlockPreview(document.id, document.filename,
+          target.blockIds.map((block_id, index) => ({ block_id, rank: index + 1 })));
+        return true;
+      }
       // 트리에 있는 문서면 사이드바 클릭과 같은 경로로 열어 트리 행 강조를 맞춘다.
       const treeItem = findTreeItemInProjects(projectTree.projects, document.id);
       if (treeItem && selection.selectTreeGraphNode(treeItem)) return true;
