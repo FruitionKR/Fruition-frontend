@@ -1,7 +1,7 @@
 // document-svc(8080) 본인 AI 사용량: GET /api/users/me/usage/charges?from_at&to_at. 워크스페이스를 가로질러 응답 모델별로 합친
 // 토큰과 부가세 포함 milli-KRW다. MOCK_USAGE_CHARGES_FAIL=1이면 503으로 조회 실패 상태를 재현한다.
 import { error } from "../state.mjs";
-import { WORKSPACE_ID } from "../seed.mjs";
+import { MOCK_BETA_CREDIT_KRW_MILLI, WORKSPACE_ID } from "../seed.mjs";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -118,6 +118,14 @@ function parseInstant(value) {
 }
 
 export function registerUsageRoutes(router) {
+  // 크레딧 잔액: 베타 지급액(MOCK_BETA_CREDIT=granted)에서 mock 사용 금액을 뺀다. 실행 중 예약은 MOCK_CREDIT_RESERVED_KRW_MILLI로 준다.
+  router.get("/api/users/me/credits", (ctx) => {
+    const granted = process.env.MOCK_BETA_CREDIT === "granted" ? MOCK_BETA_CREDIT_KRW_MILLI : 0;
+    const charged = ledgerFor(ctx.user.id).reduce((sum, call) => sum + priceCall(call).milli, 0);
+    const reserved = Number(process.env.MOCK_CREDIT_RESERVED_KRW_MILLI ?? 0);
+    const balance = granted - charged;
+    ctx.json(200, { user_id: ctx.user.id, currency: "KRW", balance_krw_milli: balance, reserved_krw_milli: reserved, available_krw_milli: balance - reserved, entries: [] });
+  });
   router.get("/api/users/me/usage/charges", (ctx) => {
     if (["1", "true"].includes(process.env.MOCK_USAGE_CHARGES_FAIL ?? "")) return error(ctx, 503, "AI 사용량을 불러오지 못했습니다.");
     // 실제 백엔드처럼 두 값 모두 필수이고 366일 이하다.
