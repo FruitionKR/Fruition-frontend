@@ -62,7 +62,11 @@ test("server-attributed 1..20 supported operations with an exact KRW quote are a
   assert.equal(mcpApprovalAvailability({ ...run, mcp_approval_quote: { ...run.mcp_approval_quote, selected_operation_count: 2 } }).reason, "quote_mismatch");
   assert.equal(validMcpPriceSnapshot({ ...price, currency: "mKRW" }), false, "ledger milli-KRW is not a browser quote");
   assert.equal(validMcpPriceSnapshot({ ...price, maximum_charge_minor: undefined }), false, "missing amounts never default to zero");
-  assert.equal(validMcpPriceSnapshot({ ...price, unit_price_minor: 0 }), false, "zero price fails closed");
+  assert.equal(validMcpPriceSnapshot({ ...price, unit_price_minor: -1 }), false, "negative price fails closed");
+  // 운영 설정의 무료 문서 작업 승인(단가·상한 0)은 승인할 수 있다.
+  const zero = { ...price, unit_price_minor: 0, plan_cap_minor: 0, maximum_charge_minor: 0 };
+  assert.deepEqual(mcpApprovalAvailability({ ...run, mcp_approval_quote: { ...run.mcp_approval_quote, price_snapshot: zero } }),
+    { available: true, priceSnapshot: zero });
   assert.equal(mcpPriceSnapshotForSelection({ client_name: "client", selected_operation_count: 1, price_snapshot: { ...price, unit_price_minor: Number.MAX_SAFE_INTEGER } }, ["one", "two"],
     { operations: [{ ...operation, id: "one" }, { ...operation, id: "two" }] }), null, "unsafe multiplication fails closed");
   assert.deepEqual(mcpApprovalAvailability({ ...run, plan: { ...plan, operations: [{ ...operation, suggested_selected: false }] } }), {
