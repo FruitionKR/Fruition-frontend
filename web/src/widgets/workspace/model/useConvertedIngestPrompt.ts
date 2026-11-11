@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { reflectDocumentToWiki, type DocumentItemResponse } from "@/entities/document";
+import { fetchDocumentBlocks, reflectDocumentToWiki, type DocumentItemResponse } from "@/entities/document";
 import { useSelectedWorkspace } from "@/entities/workspace";
 import { publishNotice } from "@/features/document-notifications";
 import { autoIngestContextOf, shouldPromptConvertedIngest } from "@/features/wiki-ingest/model/autoIngestPolicy";
@@ -57,6 +57,7 @@ export function useConvertedIngestPrompt({
 }) {
   const { canIngest } = useWikiActionPermissions();
   const workspace = useSelectedWorkspace();
+  const workspaceId = getSelectedWorkspaceId();
   const autoIngestContext = autoIngestContextOf(workspace, canIngest);
   const t = useTranslations("wiki.notifications.ingestRequest");
   const tShared = useTranslations("shared");
@@ -71,11 +72,28 @@ export function useConvertedIngestPrompt({
   });
 
   useEffect(() => {
-    if (promptedIdRef.current !== openDocumentId) promptedIdRef.current = null;
-    if (!shouldPrompt || !openDocument || promptedIdRef.current === openDocument.id) return;
-    promptedIdRef.current = openDocument.id;
-    setTarget(openDocument);
-  }, [openDocument, openDocumentId, shouldPrompt]);
+    promptedIdRef.current = null;
+    setTarget(null);
+  }, [openDocumentId, workspaceId]);
+
+  useEffect(() => {
+    if (!shouldPrompt) {
+      setTarget(null);
+      return;
+    }
+    if (!openDocument || promptedIdRef.current === openDocument.id) return;
+    let ignore = false;
+    // MCP 편입 뒤에도 convert: 실행 ID가 남을 수 있어 실제 위키 스냅샷을 확인한다.
+    void fetchDocumentBlocks(openDocument.id).then((result) => {
+      if (ignore || getSelectedWorkspaceId() !== workspaceId) return;
+      promptedIdRef.current = openDocument.id;
+      if (result.source_content_hash || result.blocks.length > 0) return;
+      setTarget(openDocument);
+    }).catch(() => {
+      // 조회 실패를 미편입으로 간주해 중복 편입을 권하지 않는다.
+    });
+    return () => { ignore = true; };
+  }, [openDocument, shouldPrompt, workspaceId]);
 
   function cancel() {
     if (target) saveDismissedId(target.id);
@@ -83,7 +101,7 @@ export function useConvertedIngestPrompt({
   }
 
   function confirm() {
-    if (!target) return;
+    if (!target || target.id !== openDocumentId || !shouldPrompt) return;
     const { id, filename } = target;
     setTarget(null);
     // 묻는 동안 편입이 시작됐거나 문서가 사라졌으면 다시 보내지 않는다.
@@ -99,5 +117,5 @@ export function useConvertedIngestPrompt({
       });
   }
 
-  return { target, confirm, cancel };
+  return { target: shouldPrompt && target?.id === openDocumentId ? target : null, confirm, cancel };
 }
