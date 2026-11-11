@@ -26,7 +26,9 @@ export function useBetaCreditNotice() {
       notificationKey: "other",
       kind: "info",
       title: t(`${data.status}.title`),
-      message: t(`${data.status}.message`)
+      message: data.status === "granted" && data.amount_krw_milli !== null
+        ? t("granted.amountMessage", { amount: data.amount_krw_milli / 1000 })
+        : t(`${data.status}.message`)
     });
     try { sessionStorage.setItem(key, "1"); } catch { /* 알림은 저장소 없이도 표시한다. */ }
   }, [data, me, t]);

@@ -411,7 +411,7 @@
       "unavailable": "Credits aren't available yet.",
       "beta": {
         "label": "Beta credit",
-        "description": "$5 worth of AI credits for the first 50 beta members.",
+        "description": "AI credits for the first 50 beta members.",
         "granted": "{amount} granted",
         "pending": "Granting"
       }
