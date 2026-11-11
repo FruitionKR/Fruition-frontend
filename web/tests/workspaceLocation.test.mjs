@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { resolveSourceBlockRanges } from "../src/entities/document/lib/sourceBlockRanges.ts";
 import {
   buildWorkspaceHref,
   formatWorkspaceDocumentTitle,
@@ -123,4 +124,43 @@ test("워크스페이스를 바꾸면 이전 워크스페이스의 문서·페�
   assert.equal(workspaceSwitchHref(null), "/home");
   assert.equal(workspaceSwitchHref(params("view=graph&doc=d1")), "/home?view=graph");
   assert.equal(workspaceSwitchHref(params("view=settings&section=members")), "/home?view=settings&section=members");
+});
+
+
+test("원문 블록 링크를 왕복하고 블록 변경을 별도 위치로 인식한다", () => {
+  const location = { kind: "document", documentId: "doc_1", blockIds: ["B0046", "B0048"] };
+  const href = buildWorkspaceHref(location);
+  assert.equal(href, "/home?doc=doc_1&blocks=B0046%2CB0048");
+  assert.deepEqual(parseWorkspaceLocation(new URL(href, "https://app.example").searchParams), location);
+  assert.deepEqual(parseWorkspaceLocation(params("doc=doc_1&blocks=B0046")),
+    { kind: "document", documentId: "doc_1", blockIds: ["B0046"] });
+  assert.notEqual(getWorkspaceLocationKey(location), getWorkspaceLocationKey({ kind: "document", documentId: "doc_1" }));
+  assert.notEqual(getWorkspaceLocationKey(location), getWorkspaceLocationKey({ ...location, blockIds: ["B0047"] }));
+  assert.equal(workspaceSwitchHref(params("doc=doc_1&blocks=B0046")), "/home");
+});
+
+test("URL의 블록은 중복·잘못된 ID를 빼고 최대 100개만 받는다", () => {
+  assert.deepEqual(parseWorkspaceLocation(params("doc=doc_1&blocks=B0046,B0046,,../bad,B0048")),
+    { kind: "document", documentId: "doc_1", blockIds: ["B0046", "B0048"] });
+  assert.deepEqual(parseWorkspaceLocation(params("doc=doc_1&blocks=%3Cscript%3E")),
+    { kind: "document", documentId: "doc_1" });
+  assert.deepEqual(parseWorkspaceLocation(params("blocks=B0046")), { kind: "home" });
+  assert.deepEqual(parseWorkspaceLocation(params("page=p1&blocks=B0046")), { kind: "page", pageId: "p1" });
+  assert.equal(parseWorkspaceLocation(params(`doc=doc_1&blocks=${Array.from({ length: 101 }, (_, i) => `B${i}`).join(",")}`)).blockIds.length, 100);
+});
+
+test("기존 인용 선택의 원문 블록을 URL에 보존한다", () => {
+  assert.deepEqual(toDocumentLocation({ pageId: null, documentId: "doc_1", treeItemId: "t1", blockIds: ["B0046", "B0046", "B0048"] }),
+    { kind: "document", documentId: "doc_1", blockIds: ["B0046", "B0048"] });
+});
+
+
+test("MCP attention 근거 링크가 기존 원문 위치 검증으로 연결된다", () => {
+  const location = parseWorkspaceLocation(new URL("https://app.example/home?doc=doc_attention&blocks=B0046").searchParams);
+  const markdown = "# Attention\n\nCompute dot products of the query with all keys.\n\nAnother paragraph.";
+  const result = resolveSourceBlockRanges(markdown, { is_stale: false, blocks: [
+    { block_id: "B0046", line_start: 3, line_end: 3, text: "Compute dot products of the query with all keys." }
+  ] }, location.blockIds);
+  assert.equal(location.documentId, "doc_attention");
+  assert.deepEqual(result, { ranges: [{ blockId: "B0046", startLine: 3, endLine: 3 }], missingBlockIds: [] });
 });

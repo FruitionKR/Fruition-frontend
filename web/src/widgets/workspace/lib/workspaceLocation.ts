@@ -17,7 +17,7 @@ export type WorkspaceView = Exclude<RailView, "home">;
 export type WorkspaceLocation =
   | { kind: "home" }
   | { kind: "page"; pageId: string }
-  | { kind: "document"; documentId: string }
+  | { kind: "document"; documentId: string; blockIds?: string[] }
   | { kind: "tree"; treeItemId: string }
   | { kind: "view"; view: WorkspaceView; section?: SettingsSection };
 
@@ -53,7 +53,11 @@ export function parseWorkspaceLocation(params: SearchParamsLike | null): Workspa
   const pageId = readParam(params, "page");
   if (pageId) return { kind: "page", pageId };
   const documentId = readParam(params, "doc");
-  if (documentId) return { kind: "document", documentId };
+  if (documentId) {
+    const blockIds = [...new Set((readParam(params, "blocks") ?? "").split(","))]
+      .filter((id) => /^[A-Za-z0-9][A-Za-z0-9_:-]{0,254}$/.test(id)).slice(0, 100);
+    return { kind: "document", documentId, ...(blockIds.length ? { blockIds } : {}) };
+  }
   const treeItemId = readParam(params, "tree");
   if (treeItemId) return { kind: "tree", treeItemId };
   return WORKSPACE_HOME_LOCATION;
@@ -63,7 +67,9 @@ function toSearchParams(location: WorkspaceLocation): [name: string, value: stri
   switch (location.kind) {
     case "home": return [];
     case "page": return [["page", location.pageId]];
-    case "document": return [["doc", location.documentId]];
+    case "document": return location.blockIds?.length
+      ? [["doc", location.documentId], ["blocks", location.blockIds.join(",")]]
+      : [["doc", location.documentId]];
     case "tree": return [["tree", location.treeItemId]];
     case "view": return location.section ? [["view", location.view], ["section", location.section]] : [["view", location.view]];
   }
@@ -101,9 +107,13 @@ export function toDocumentLocation(target: {
   pageId: string | null;
   documentId: string | null;
   treeItemId: string | null;
+  blockIds?: string[];
 }): WorkspaceLocation | null {
   if (target.pageId) return { kind: "page", pageId: target.pageId };
-  if (target.documentId) return { kind: "document", documentId: target.documentId };
+  if (target.documentId) return {
+    kind: "document", documentId: target.documentId,
+    ...(target.blockIds?.length ? { blockIds: [...new Set(target.blockIds)] } : {})
+  };
   if (target.treeItemId) return { kind: "tree", treeItemId: target.treeItemId };
   return null;
 }
