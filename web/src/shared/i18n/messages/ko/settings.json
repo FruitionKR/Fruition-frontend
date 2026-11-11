@@ -590,8 +590,6 @@
         "generation": "정책 세대: {generation}",
         "updatedAt": "마지막 변경: {date}",
         "scopesLabel": "허용 권한",
-        "save": "MCP 정책 저장",
-        "saving": "저장 중…",
         "saved": "MCP 정책을 저장했습니다. 연결 목록을 새로 확인합니다.",
         "saveFailed": "MCP 정책을 저장하지 못했습니다.",
         "confirmTitle": "워크스페이스 MCP 정책을 변경하시겠습니까?",

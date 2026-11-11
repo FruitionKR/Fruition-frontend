@@ -28,26 +28,6 @@
   font-weight: 600;
 }
 
-.scopes label {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  color: var(--color-body);
-  cursor: pointer;
-}
-
-.scopes label > span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.scopes small {
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 .connections {
   display: flex;
   flex-direction: column;
