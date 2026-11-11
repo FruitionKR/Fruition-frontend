@@ -55,7 +55,6 @@ export function WorkspaceMcpManagement({ workspaceId, userId }: { workspaceId: s
   const format = useFormatter();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
-  const [draft, setDraft] = useState<WorkspaceMcpPolicyUpdate | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,11 +75,6 @@ export function WorkspaceMcpManagement({ workspaceId, userId }: { workspaceId: s
     retry: false
   });
 
-  useEffect(() => {
-    if (!policy.data) return;
-    setDraft({ enabled: policy.data.enabled, allowed_scopes: [...policy.data.allowed_scopes] });
-  }, [policy.data]);
-
   const accessFailure = [policy.error, connections.error].find(isWorkspaceMcpAccessFailure);
   useEffect(() => {
     if (!accessFailure) return;
@@ -91,8 +85,7 @@ export function WorkspaceMcpManagement({ workspaceId, userId }: { workspaceId: s
 
   const savePolicy = useMutation({
     mutationFn: (update: WorkspaceMcpPolicyUpdate) => saveWorkspaceMcpPolicy(queryClient, workspaceId, userId, update),
-    onSuccess: (saved) => {
-      setDraft({ enabled: saved.enabled, allowed_scopes: [...saved.allowed_scopes] });
+    onSuccess: () => {
       setActionError(null);
       setMessage(t("policy.saved"));
     },
@@ -133,20 +126,9 @@ export function WorkspaceMcpManagement({ workspaceId, userId }: { workspaceId: s
     revokeConnection.mutate(connection, { onSettled: () => { mutationInFlight.current = false; } });
   }
 
-  function toggleScope(scope: WorkspaceMcpScope) {
-    if (!draft || busy) return;
-    setMessage(null);
-    setDraft({
-      ...draft,
-      allowed_scopes: draft.allowed_scopes.includes(scope)
-        ? draft.allowed_scopes.filter((candidate) => candidate !== scope)
-        : WORKSPACE_MCP_SCOPES.filter((candidate) => candidate === scope || draft.allowed_scopes.includes(candidate))
-    });
-  }
-
-  function requestPolicySave() {
-    if (!policy.data || !draft || busy || !workspaceMcpPolicyChanged(policy.data, draft)) return;
-    const update = { enabled: draft.enabled, allowed_scopes: [...draft.allowed_scopes] };
+  /** 토글 한 번이 곧 저장이다. 회수가 따르는 변경만 확인을 거친다. */
+  function requestPolicyChange(update: WorkspaceMcpPolicyUpdate) {
+    if (!policy.data || busy || !workspaceMcpPolicyChanged(policy.data, update)) return;
     setMessage(null);
     setActionError(null);
     if (workspaceMcpPolicyNeedsConfirmation(policy.data, update)) {
@@ -187,7 +169,22 @@ export function WorkspaceMcpManagement({ workspaceId, userId }: { workspaceId: s
     );
   }
 
-  const policyChanged = Boolean(policy.data && draft && workspaceMcpPolicyChanged(policy.data, draft));
+  // 저장 중에는 요청한 값을 보여 줘 토글이 눌린 즉시 움직인다. 실패하면 서버 값으로 돌아간다.
+  const shownPolicy = savePolicy.isPending ? savePolicy.variables : policy.data;
+  const toggleEnabled = () => {
+    if (!policy.data) return;
+    requestPolicyChange({ enabled: !policy.data.enabled, allowed_scopes: [...policy.data.allowed_scopes] });
+  };
+  const toggleScope = (scope: WorkspaceMcpScope) => {
+    if (!policy.data) return;
+    const current = policy.data.allowed_scopes;
+    requestPolicyChange({
+      enabled: policy.data.enabled,
+      allowed_scopes: current.includes(scope)
+        ? current.filter((candidate) => candidate !== scope)
+        : WORKSPACE_MCP_SCOPES.filter((candidate) => candidate === scope || current.includes(candidate))
+    });
+  };
   return (
     <>
       <div className={styles.section}>
@@ -201,41 +198,35 @@ export function WorkspaceMcpManagement({ workspaceId, userId }: { workspaceId: s
 
         {policy.isPending && <small className={styles["status-text"]} role="status">{t("policy.loading")}</small>}
         {policy.error && <small className={styles["field-error"]} role="alert">{getErrorMessage(policy.error, t("policy.loadFailed"), shared)}</small>}
-        {policy.data && draft && (
+        {policy.data && shownPolicy && (
           <div className={panelStyles.policy}>
             <div className={styles.row}>
               <div className={styles["row-title"]}>
                 <strong>{t("policy.enabledLabel")}</strong>
-                <small>{t(draft.enabled ? "policy.enabled" : "policy.disabled")}</small>
+                <small>{t(shownPolicy.enabled ? "policy.enabled" : "policy.disabled")}</small>
                 <small>{policy.data.generation === null ? t("policy.noGeneration") : t("policy.generation", { generation: policy.data.generation })}</small>
                 {policy.data.updated_at && <small>{t("policy.updatedAt", { date: formatDate(policy.data.updated_at) })}</small>}
               </div>
-              <Switch
-                checked={draft.enabled}
-                disabled={busy}
-                label={t("policy.enabledLabel")}
-                onClick={() => { setMessage(null); setDraft({ ...draft, enabled: !draft.enabled }); }}
-              />
+              {/* 저장 중에 disabled로 바꾸면 스위치의 포커스가 body로 빠진다. 중복 요청은 requestPolicyChange의 busy 검사가 막는다. */}
+              <Switch checked={shownPolicy.enabled} label={t("policy.enabledLabel")} onClick={toggleEnabled} />
             </div>
 
-            <fieldset className={panelStyles.scopes} disabled={busy}>
+            <fieldset className={panelStyles.scopes}>
               <legend>{t("policy.scopesLabel")}</legend>
               {WORKSPACE_MCP_SCOPES.map((scope) => (
-                <label key={scope}>
-                  <input
-                    type="checkbox"
-                    checked={draft.allowed_scopes.includes(scope)}
-                    onChange={() => toggleScope(scope)}
+                <div className={styles.row} key={scope}>
+                  <div className={styles["row-title"]}>
+                    <strong>{t(`scopes.${scope}.label`)}</strong>
+                    <small>{t(`scopes.${scope}.description`)}</small>
+                  </div>
+                  <Switch
+                    checked={shownPolicy.allowed_scopes.includes(scope)}
+                    label={t(`scopes.${scope}.label`)}
+                    onClick={() => toggleScope(scope)}
                   />
-                  <span><strong>{t(`scopes.${scope}.label`)}</strong><small>{t(`scopes.${scope}.description`)}</small></span>
-                </label>
+                </div>
               ))}
             </fieldset>
-            <div className={styles["tile-actions"]}>
-              <button type="button" className={styles.btn} disabled={!policyChanged || busy} onClick={requestPolicySave}>
-                {savePolicy.isPending ? t("policy.saving") : t("policy.save")}
-              </button>
-            </div>
           </div>
         )}
       </div>

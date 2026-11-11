@@ -19,7 +19,7 @@ import usageStyles from "./AiUsageSection.module.css";
 /**
  * AI 설정의 AI 사용량: 참여한 모든 워크스페이스에서 내 계정으로 실행한 AI 작업의 모델별 토큰과 실제 금액.
  * GET users/me/usage/charges 하나만 쓰므로 워크스페이스 선택에 의존하지 않는다.
- * 청구는 실행이 끝난 뒤 수집되어 방금 쓴 사용량은 늦게 보일 수 있다. 크레딧·충전은 사업자 등록 전까지 보이지 않는다(users/me/credits 미호출).
+ * 청구는 실행이 끝난 뒤 수집되어 방금 쓴 사용량은 늦게 보일 수 있다. 잔액은 AiCreditSection이 보이고, 충전은 사업자 등록 전까지 보이지 않는다.
  */
 export function AiUsageSection() {
   const t = useTranslations("settings.ai.usage");
