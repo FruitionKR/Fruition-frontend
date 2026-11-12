@@ -69,12 +69,15 @@ function draft(draft_id, draft_kind, sources, summary) {
       schema_version: "mcp.wiki-preview.v1",
       complete: true,
       source_documents: sources,
-      target_pages: [{ page_id: "page_c_ingest", version: 3, content_hash: sha256("page_c_ingest") }],
-      changes: [{
-        change_id: `${draft_id}_change_1`, kind: "PAGE_BODY", action: "UPDATE", page_id: "page_c_ingest", subject_id: null,
-        before_text: "# Ingest\n\n위키 본문은 승인 화면에 보이지 않아야 한다.\n", after_text: "# Ingest\n\n위키 본문은 승인 화면에 보이지 않아야 한다(수정).\n", evidence: []
-      }],
-      ...(summary ? { summary } : {})
+      // 현재 document는 위키 본문(changes)과 내부 hash(target_pages)를 보내지 않는다.
+      // 요약 없는 레거시 초안만 배포 전 document처럼 두 필드를 보내, 프론트가 받아서 버리는지 확인한다.
+      ...(summary ? { summary } : {
+        target_pages: [{ page_id: "page_c_ingest", version: 3, content_hash: sha256("page_c_ingest") }],
+        changes: [{
+          change_id: `${draft_id}_change_1`, kind: "PAGE_BODY", action: "UPDATE", page_id: "page_c_ingest", subject_id: null,
+          before_text: "# Ingest\n\n위키 본문은 승인 화면에 보이지 않아야 한다.\n", after_text: "# Ingest\n\n위키 본문은 승인 화면에 보이지 않아야 한다(수정).\n", evidence: []
+        }]
+      })
     },
     approval: { status: "AWAITING", reason: null },
     publication: { status: "NOT_STARTED", changed: null, published_reference_hash: null, committed_at: null, error_code: null },

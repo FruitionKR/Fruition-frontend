@@ -1,27 +1,10 @@
-export const MCP_WIKI_CHANGE_KINDS = [
-  "SOURCE_PAGE", "CONCEPT_STATEMENT", "EVIDENCE_INVALIDATION", "PAGE_BODY", "PAGE_DELETE",
-  "ENTRY", "LINK", "REFERENCE", "REVIVAL_LINK"
-] as const;
-export const MCP_WIKI_CHANGE_ACTIONS = ["ADD", "UPDATE", "REMOVE", "DELETE", "REVIVE"] as const;
 export const MCP_WIKI_SUMMARY_KINDS = [
   "CONCEPT_CREATE", "SOURCE_PAGE", "STATEMENT_ADD", "STATEMENT_UPDATE", "STATEMENT_REMOVE",
   "EVIDENCE_INVALIDATION", "LINK_ADD", "LINK_REMOVE", "CONCEPT_MERGE", "CONCEPT_DELETE"
 ] as const;
 
-export type McpWikiChangeKind = (typeof MCP_WIKI_CHANGE_KINDS)[number];
-export type McpWikiChangeAction = (typeof MCP_WIKI_CHANGE_ACTIONS)[number];
 export type McpWikiSummaryKind = (typeof MCP_WIKI_SUMMARY_KINDS)[number];
 export type McpWikiEvidence = { document_id: string; block_id: string; quote: string };
-export type McpWikiChange = {
-  change_id: string;
-  kind: McpWikiChangeKind;
-  action: McpWikiChangeAction;
-  page_id: string;
-  subject_id: string | null;
-  before_text: string | null;
-  after_text: string | null;
-  evidence: McpWikiEvidence[];
-};
 /** 사람이 읽는 변경 요약 한 줄. 위키 본문(Markdown)은 담지 않고 개념 제목·문장·근거만 담는다. */
 export type McpWikiSummaryItem = {
   kind: McpWikiSummaryKind;
@@ -42,8 +25,6 @@ export type McpWikiPreview = {
   schema_version: "mcp.wiki-preview.v1";
   complete: true;
   source_documents: McpWikiSourceDocument[];
-  target_pages: Array<{ page_id: string; version: number; content_hash: string }>;
-  changes: McpWikiChange[];
   /** 배포 전에 만든 초안에는 없다. 없으면 빈 목록이다. */
   summary: McpWikiSummaryItem[];
 };
@@ -89,8 +70,6 @@ export function mcpWikiDraftRoute(workspaceId: string, draftId: string): string 
 export const mcpWikiDraftQueryKey = (userId: string, workspaceId: string, draftId: string) =>
   ["mcpWikiDraftApproval", userId, workspaceId, draftId] as const;
 
-const CHANGE_KINDS = new Set<string>(MCP_WIKI_CHANGE_KINDS);
-const CHANGE_ACTIONS = new Set<string>(MCP_WIKI_CHANGE_ACTIONS);
 const SUMMARY_KINDS = new Set<string>(MCP_WIKI_SUMMARY_KINDS);
 const APPROVAL_STATUSES = new Set(["AWAITING", "INVALIDATED", "REJECTED", "EXECUTING"]);
 const PUBLICATION_STATUSES = new Set(["NOT_STARTED", "APPLYING", "PUBLISHED", "NO_CHANGE", "CONFLICTED", "HALTED", "UNKNOWN"]);
@@ -123,34 +102,6 @@ function parseEvidence(value: unknown): McpWikiEvidence | null {
   if (!record(value) || !exactKeys(value, ["document_id", "block_id", "quote"])
     || !nonblank(value.document_id) || !nonblank(value.block_id) || !nonblank(value.quote)) return null;
   return { document_id: value.document_id, block_id: value.block_id, quote: value.quote };
-}
-
-function parseChange(value: unknown): McpWikiChange | null {
-  if (!record(value)
-    || !exactKeys(value, ["change_id", "kind", "action", "page_id", "subject_id", "before_text", "after_text", "evidence"])
-    || !nonblank(value.change_id)
-    || !CHANGE_KINDS.has(String(value.kind))
-    || !CHANGE_ACTIONS.has(String(value.action))
-    || !nonblank(value.page_id)
-    || !(value.subject_id === null || nonblank(value.subject_id))
-    || !nullableText(value.before_text)
-    || !nullableText(value.after_text)
-    || !Array.isArray(value.evidence)) return null;
-  const parsedEvidence = value.evidence.map(parseEvidence);
-  if (parsedEvidence.some((item) => item === null)) return null;
-  const locators = parsedEvidence.map((item) => `${item!.document_id}\0${item!.block_id}`);
-  if (new Set(locators).size !== locators.length) return null;
-  if (value.kind === "CONCEPT_STATEMENT" && ["ADD", "UPDATE"].includes(String(value.action)) && parsedEvidence.length === 0) return null;
-  return {
-    change_id: value.change_id,
-    kind: value.kind as McpWikiChangeKind,
-    action: value.action as McpWikiChangeAction,
-    page_id: value.page_id,
-    subject_id: value.subject_id,
-    before_text: value.before_text,
-    after_text: value.after_text,
-    evidence: parsedEvidence as McpWikiEvidence[]
-  };
 }
 
 function parseSummaryItem(value: unknown): McpWikiSummaryItem | null {
@@ -192,38 +143,27 @@ function parseSourceDocument(source: unknown): McpWikiSourceDocument | null {
 }
 
 function parsePreview(value: unknown): McpWikiPreview | null {
+  // 위키 본문(changes의 before/after)과 내부 hash(target_pages)는 받지 않는다. 배포 중 이전 document가
+  // 보내면 배열인지만 보고 버린다. 화면은 summary만 그린다.
   if (!record(value)
-    || !keysWithOptional(value, ["schema_version", "complete", "source_documents", "target_pages", "changes"], ["summary"])
+    || !keysWithOptional(value, ["schema_version", "complete", "source_documents"], ["summary", "target_pages", "changes"])
     || value.schema_version !== "mcp.wiki-preview.v1"
     || value.complete !== true
     || !Array.isArray(value.source_documents)
-    || !Array.isArray(value.target_pages)
-    || !Array.isArray(value.changes)
+    || !(value.target_pages === undefined || Array.isArray(value.target_pages))
+    || !(value.changes === undefined || Array.isArray(value.changes))
     || !(value.summary === undefined || Array.isArray(value.summary))) return null;
   const sources = value.source_documents.map(parseSourceDocument);
-  const targets = value.target_pages.map((target) => {
-    if (!record(target) || !exactKeys(target, ["page_id", "version", "content_hash"])
-      || !nonblank(target.page_id) || !positiveInteger(target.version) || !nonblank(target.content_hash)) return null;
-    return { page_id: target.page_id, version: target.version, content_hash: target.content_hash };
-  });
-  const changes = value.changes.map(parseChange);
   const summary = ((value.summary ?? []) as unknown[]).map(parseSummaryItem);
   if (sources.some((source) => source === null)
     || summary.some((item) => item === null)
-    || targets.some((target) => target === null)
-    || changes.some((item) => item === null)
-    || new Set(sources.map((source) => source?.document_id)).size !== sources.length
-    || new Set(targets.map((target) => target?.page_id)).size !== targets.length
-    || new Set(changes.map((item) => item?.change_id)).size !== changes.length) return null;
+    || new Set(sources.map((source) => source?.document_id)).size !== sources.length) return null;
   const sourceIds = new Set(sources.map((source) => source!.document_id));
-  if (changes.some((item) => item!.evidence.some((itemEvidence) => !sourceIds.has(itemEvidence.document_id)))
-    || summary.some((item) => item!.evidence.some((itemEvidence) => !sourceIds.has(itemEvidence.document_id)))) return null;
+  if (summary.some((item) => item!.evidence.some((itemEvidence) => !sourceIds.has(itemEvidence.document_id)))) return null;
   return {
     schema_version: "mcp.wiki-preview.v1",
     complete: true,
     source_documents: sources as McpWikiPreview["source_documents"],
-    target_pages: targets as McpWikiPreview["target_pages"],
-    changes: changes as McpWikiChange[],
     summary: summary as McpWikiSummaryItem[]
   };
 }

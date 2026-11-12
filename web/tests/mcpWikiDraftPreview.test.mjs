@@ -46,45 +46,27 @@ const draft = {
   settlement: { status: "NOT_RESERVED", charged_minor: 0 }
 };
 
-test("parses the complete INGEST cascade and keeps equal block IDs document-qualified", () => {
+test("the current document sends no wiki body, and the parsed preview exposes none", () => {
+  const { changes: _changes, target_pages: _targets, ...current } = preview;
+  const parsed = parseMcpWikiWebDraft({ ...draft, preview: current });
+  assert.deepEqual(Object.keys(parsed.preview).sort(), ["complete", "schema_version", "source_documents", "summary"]);
+});
+
+test("an older document's changes and target_pages are accepted during rollout but dropped", () => {
   const parsed = parseMcpWikiWebDraft(draft);
-  assert.equal(parsed.preview.changes.length, 8);
-  assert.deepEqual(parsed.preview.changes.slice(0, 2).map((item) => item.evidence[0]), [
-    { document_id: "doc-one", block_id: "B0001", quote: "quote-doc-one" },
-    { document_id: "doc-two", block_id: "B0001", quote: "quote-doc-two" }
-  ]);
-  assert.deepEqual(parsed.preview.changes.map((item) => item.kind), [
-    "SOURCE_PAGE", "CONCEPT_STATEMENT", "EVIDENCE_INVALIDATION", "PAGE_DELETE", "ENTRY", "LINK", "REFERENCE", "REVIVAL_LINK"
-  ]);
-});
-
-test("parses a complete LINT preview without requiring evidence on structural changes", () => {
-  const parsed = parseMcpWikiWebDraft({
-    ...draft, draft_kind: "LINT", quote: { ...draft.quote, pricing_model: "LINT_FIXED_APPLY" },
-    preview: { ...preview, changes: [change("link", "LINK", "REMOVE", null)] }
-  });
-  assert.equal(parsed.draft_kind, "LINT");
-  assert.deepEqual(parsed.preview.changes[0].evidence, []);
-});
-
-test("parses a LINT statement edit, which the pipeline reports as a PAGE_BODY update", () => {
-  const parsed = parseMcpWikiWebDraft({
-    ...draft, draft_kind: "LINT", quote: { ...draft.quote, pricing_model: "LINT_FIXED_APPLY" },
-    preview: { ...preview, changes: [change("body", "PAGE_BODY", "UPDATE", null)] }
-  });
-  assert.deepEqual(parsed.preview.changes.map((item) => item.kind), ["PAGE_BODY"]);
+  assert.equal("changes" in parsed.preview, false);
+  assert.equal("target_pages" in parsed.preview, false);
+  assert.equal(JSON.stringify(parsed).includes("before"), false, "wiki before/after text must not survive parsing");
 });
 
 test("fails closed for incomplete, malformed, internal, duplicate, or unmapped preview data", () => {
   const invalid = [
     { ...draft, preview: { ...preview, complete: false } },
-    { ...draft, preview: { ...preview, changes: [{ ...preview.changes[1], evidence: [] }] } },
+    { ...draft, preview: { ...preview, changes: "not-a-list" } },
+    { ...draft, preview: { ...preview, target_pages: {} } },
     { ...draft, preview: { ...preview, source_documents: [{ ...source("doc-one"), snapshot_id: "internal" }] } },
     { ...draft, preview: { ...preview, source_documents: [source("doc-one"), source("doc-one")] } },
-    { ...draft, preview: { ...preview, target_pages: [preview.target_pages[0], preview.target_pages[0]] } },
-    { ...draft, preview: { ...preview, changes: [preview.changes[0], { ...preview.changes[0] }] } },
-    { ...draft, preview: { ...preview, changes: [change("statement", "CONCEPT_STATEMENT", "ADD", "doc-missing")] } },
-    { ...draft, preview: { ...preview, changes: [{ ...preview.changes[0], evidence: [preview.changes[0].evidence[0], preview.changes[0].evidence[0]] }] } },
+    { ...draft, preview: { ...preview, internal_markdown: "# wiki" } },
     { ...draft, quote: { ...draft.quote, maximum_charge_minor: 0 } },
     { ...draft, browser_price: 1 }
   ];
@@ -145,7 +127,7 @@ test("legacy drafts without summary or display_name parse with an empty summary 
   assert.deepEqual(mcpWikiSummaryGroups(parsed.preview.summary), []);
 });
 
-test("parses summary items and source display names, keeping changes and hashes for approval", () => {
+test("parses summary items and source display names without wiki body or page hashes", () => {
   const parsed = parseMcpWikiWebDraft(withSummary([
     summaryItem("CONCEPT_CREATE", "Ingest", { page_id: null }),
     summaryItem("STATEMENT_ADD", "Ingest", { text: "Markdown만 받는다.", evidence: [{ document_id: "doc-one", block_id: "B0004", quote: "Markdown만" }] }),
@@ -157,8 +139,8 @@ test("parses summary items and source display names, keeping changes and hashes 
   assert.equal(mcpWikiSourceName(parsed.preview, "doc-one"), "아키텍처 개요.md");
   assert.equal(mcpWikiSourceName(parsed.preview, "doc-two"), null);
   assert.equal(mcpWikiSourceName(parsed.preview, "doc-unknown"), null);
-  assert.equal(parsed.preview.changes.length, 8);
-  assert.equal(parsed.preview.target_pages[0].content_hash, "opaque-page-hash");
+  assert.equal("changes" in parsed.preview, false);
+  assert.equal("target_pages" in parsed.preview, false);
   assert.deepEqual(mcpWikiApprovalBody(parsed), {
     draft_id: "draft-1", draft_version: 1, draft_hash: "opaque-draft-hash", public_state_hash: "opaque-public-hash"
   });
