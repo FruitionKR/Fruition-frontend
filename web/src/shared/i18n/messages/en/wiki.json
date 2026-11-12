@@ -160,8 +160,8 @@
     },
     "granted": {
       "title": "Your beta credit is ready",
-      "message": "Start with your awarded AI credit. Daily token limits still apply.",
-      "amountMessage": "Start with KRW {amount, number} in AI credit. Daily token limits still apply."
+      "message": "Start with your awarded AI credit. Daily token limits still apply. Once the credit runs out, Fruition's own AI refinement is skipped and quality may drop.",
+      "amountMessage": "Start with KRW {amount, number} in AI credit. Daily token limits still apply. Once the credit runs out, Fruition's own AI refinement is skipped and quality may drop."
     },
     "exhausted": {
       "title": "Free beta credits are fully claimed",

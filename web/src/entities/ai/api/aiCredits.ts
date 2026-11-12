@@ -17,6 +17,8 @@ export type CreditsResponse = {
   balance_krw_milli: number;
   reserved_krw_milli: number;
   available_krw_milli: number;
+  /** 잔액 제한을 받지 않는 기존 가입자. 화면은 크레딧을 숨긴다. 구버전 서버는 보내지 않는다. */
+  limit_exempt?: boolean;
 };
 
 export async function fetchCredits(): Promise<CreditsResponse> {

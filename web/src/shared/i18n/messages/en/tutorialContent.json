@@ -240,7 +240,7 @@
     },
     "mcp-external-ai-role": {
       "title": "What the external AI does",
-      "body": "Once connected, the external AI does the work Fruition's AI used to do (answers, edit proposals, wiki updates, meeting notes). Fruition's existing rules such as read permissions and saving stay the same. Results from the external AI are not saved directly; they wait for your approval."
+      "body": "Once connected, the external AI does the work Fruition's AI used to do (answers, edit proposals, wiki updates, meeting notes). Fruition's existing rules such as read permissions and saving stay the same. Results from the external AI are not saved directly; they wait for your approval. Because your own AI (LLM) does the thinking, you can keep reading, searching, and proposing edits even after your Fruition credits run out; only wiki ingest and cleanup carry a small separate Fruition fee."
     },
     "mcp-add-server": {
       "title": "Add the MCP server",

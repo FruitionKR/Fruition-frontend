@@ -17,6 +17,7 @@ function formatSignedKrwMilli(value: number, t: Parameters<typeof formatKrwMilli
 /**
  * AI 설정의 크레딧: GET users/me/credits의 가용액·잔액·예약과 베타 크레딧 실제 지급 상태.
  * 합계 카드는 AI 사용량과 같은 모양을 쓴다. 베타 지급 기록은 원장 최근 50건에서 밀려나므로 beta-credit 상태로 보인다.
+ * 잔액 제한이 면제된 기존 가입자에게는 음수 잔액이 빚처럼 보이지 않도록 섹션 전체를 숨긴다.
  */
 export function AiCreditSection() {
   const t = useTranslations("settings.ai.credit");
@@ -44,6 +45,8 @@ export function AiCreditSection() {
     style: "currency", currency: "KRW", maximumFractionDigits: 3
   }).format(amount / 1000);
   const mcpFees = charges?.reduce((sum, entry) => sum + (entry.reason === "mcp_approval" ? -entry.amount_krw_milli : 0), 0) ?? 0;
+
+  if (credits.data?.limit_exempt) return null;
 
   return (
     <section className={styles.section} aria-labelledby="ai-credit-heading">
@@ -78,6 +81,7 @@ export function AiCreditSection() {
             )}
           </div>
           <p className={usageStyles["cost-note"]}>{t("note")}</p>
+          <p className={usageStyles["cost-note"]}>{t("exhaustNotice")}</p>
         </div>
       )}
 
