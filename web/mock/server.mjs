@@ -19,6 +19,7 @@ import { registerMeetingRoutes } from "./routes/meetings.mjs";
 import { registerUsageRoutes } from "./routes/usage.mjs";
 import { registerImportRoutes } from "./routes/imports.mjs";
 import { registerDocumentUploadRoutes } from "./routes/documentUploads.mjs";
+import { registerMcpWikiDraftRoutes } from "./routes/mcpWikiDrafts.mjs";
 
 const ACCESS_PORT = Number(process.env.MOCK_ACCESS_PORT ?? 8081);
 const DOCUMENT_PORT = Number(process.env.MOCK_DOCUMENT_PORT ?? 8080);
@@ -45,6 +46,7 @@ registerNotificationRoutes(router);
 registerSpeechRoutes(router);
 registerMeetingRoutes(router);
 registerUsageRoutes(router);
+registerMcpWikiDraftRoutes(router);
 
 const servers = await Promise.all([listen(router, ACCESS_PORT), listen(router, DOCUMENT_PORT)]);
 

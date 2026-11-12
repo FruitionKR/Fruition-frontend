@@ -132,7 +132,7 @@
     },
     "graph-explore": {
       "title": "Explore the graph",
-      "body": "Drag nodes to move them, and pan or zoom to look around. Double-click a node to open that page in the document area in the middle. Wiki pages also show their connected source documents. If the graph looks out of date, click “Refresh graph”."
+      "body": "Drag nodes to move them, and pan or zoom to look around. Double-click a source document (Raw) node to open that document in a tab in the middle. Double-clicking a Source or Concept node only moves the graph focus to it; wiki content doesn’t open. If the graph looks out of date, click “Refresh graph”."
     },
     "ask-question": {
       "title": "Ask a question",
@@ -216,7 +216,7 @@
     },
     "view-logs": {
       "title": "View operation logs",
-      "body": "“Logs” in the rail collects the AI operations run in this workspace. Filter with the “AI edits”, “Wiki ingest”, “Wiki refresh”, and “Rollback” tabs. Select an operation to see what changed in documents and wiki pages."
+      "body": "“Logs” in the rail collects the AI operations run in this workspace. Filter with the “AI edits”, “Wiki ingest”, “Wiki refresh”, and “Rollback” tabs. Select an operation to see the documents it changed and the titles of wiki pages it created or deleted."
     },
     "rollback-operation": {
       "title": "Undo an operation",
