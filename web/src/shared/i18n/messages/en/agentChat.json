@@ -449,6 +449,7 @@
       "dependenciesChanged": "{count, plural, one {# required or dependent operation was also changed} other {# required or dependent operations were also changed}} to keep the selection valid.",
       "editPreview": "Document edit preview",
       "operationCheckbox": "Select operation: {operation}",
+      "operations": "{count, plural, one {# proposed operation} other {# proposed operations}}",
       "previewMissing": "A selected document edit or creation preview is missing, malformed, or expired. Refresh the status; approval is disabled.",
       "requires": "Requires {count, plural, one {# earlier operation} other {# earlier operations}}. Selecting or clearing either side updates its dependencies.",
       "selectOne": "Select at least one operation. The selected operations must include every required earlier operation."

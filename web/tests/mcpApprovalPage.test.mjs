@@ -34,11 +34,15 @@ const aliases = {
   "@/shared/lib/apiErrors": { LoginRequiredError: class LoginRequiredError extends Error {} },
   "@/shared/lib/authSessionStorage": { setAfterLoginPath() {} },
   "../lib/mcpApproval": approval,
+  "../lib/wikiDraftPreview": await import("../src/features/mcp-approval/lib/wikiDraftPreview.ts"),
   "./McpApprovalPage.module.css": { __esModule: true, default: new Proxy({}, { get: (_, name) => name }) },
   "next/navigation": { useRouter: () => ({ replace() {} }) },
-  "next-intl": { useTranslations: () => (key) => key, useFormatter: () => ({ number: (value) => `KRW ${value}` }) },
+  "next-intl": { useTranslations: () => (key, values) => values ? `${key}(${Object.values(values).join(",")})` : key, useFormatter: () => ({ number: (value) => `KRW ${value}` }) },
+  "@/entities/wiki": { fetchDocumentDataForWorkspace: async () => ({ tree: [] }) },
   "@tanstack/react-query": {
-    useQuery: () => ({ data: run, error: null, isPending: false, isFetching: false, refetch() {} }),
+    useQuery: ({ queryKey }) => queryKey.at(-1) === "documents"
+      ? { data: [{ id: "doc-1", name: "연구계획서 초안" }], error: null, isPending: false, isFetching: false }
+      : { data: run, error: null, isPending: false, isFetching: false, refetch() {} },
     useQueryClient: () => ({ removeQueries() {}, setQueryData() {}, invalidateQueries() {} }),
     useMutation: () => ({ isPending: false, error: null, mutate: () => { mutations += 1; } })
   }
@@ -55,6 +59,8 @@ test("MCP review renders untrusted labels as text and never approves, cancels, o
   assert.doesNotMatch(html, /<img|<script|revise|regenerate/i);
   assert.match(html, /KRW 100/);
   assert.match(html, /Explicit approval only/);
+  // 머리말은 워크스페이스 트리에서 찾은 문서 이름으로 말한다.
+  assert.ok(html.includes("headline.editDocumentNamed(") && html.includes(",1,연구계획서 초안,0)</h1>"));
 });
 
 test("source version conflicts keep the registered client visible but approval disabled with a distinct reason", () => {
@@ -66,4 +72,34 @@ test("source version conflicts keep the registered client visible but approval d
   assert.match(html, /unavailable.target_version_changed/);
   assert.match(html, /Disabled:/);
   assert.doesNotMatch(html, /Explicit approval only/);
+});
+
+test("run review leads with what changes, a human status and one cost line; technical values are collapsed", () => {
+  const html = renderToStaticMarkup(React.createElement(McpApprovalPage, { workspaceId: "ws-1", runId: "run-1" }));
+  const at = html.indexOf("<details");
+  assert.ok(at > 0);
+  const visible = html.slice(0, at);
+  const details = html.slice(at);
+  assert.match(visible, /<h1[^>]*>headline\.editDocumentNamed\(&lt;img src=x onerror=alert\(1\)&gt;,1,연구계획서 초안,0\)<\/h1>/);
+  assert.match(visible, /data-tone="pending"[^>]*>승인 대기</);
+  assert.match(visible, /cost\.maximum\(KRW 100\)/);
+  for (const raw of ["grant-1", "a".repeat(64), "https://client.example/metadata", ">v1<", "fees.scope", "awaiting_approval"]) {
+    assert.ok(!visible.includes(raw), `${raw} is not shown up front`);
+    assert.ok(details.includes(raw), `${raw} is in details`);
+  }
+});
+
+test("settled run shows the charged amount and maps unknown settlement codes to a neutral label", () => {
+  const current = run;
+  run = { ...run, status: "completed", mcp_settlement: {
+    approval_id: "a-1", execution_status: "SOMETHING_NEW", forward_status: "ACCEPTED", settlement_status: "SETTLED",
+    charged_minor: 70, maximum_charge_minor: 100, currency: "KRW", client_name: "Claude Code", price_snapshot: price
+  } };
+  const html = renderToStaticMarkup(React.createElement(McpApprovalPage, { workspaceId: "ws-1", runId: "run-1" }));
+  run = current;
+  const at = html.indexOf("<details");
+  assert.match(html.slice(0, at), /data-tone="success"/);
+  assert.match(html.slice(0, at), /cost\.charged\(KRW 70\)/);
+  assert.match(html.slice(at), /execution\.OTHER/);
+  assert.match(html.slice(at), /settlementStatus\.SETTLED/);
 });

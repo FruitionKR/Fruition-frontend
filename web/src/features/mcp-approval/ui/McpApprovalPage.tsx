@@ -8,11 +8,15 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
 import { cancelAgentPlanRun, fetchAgentPlanRunById } from "@/features/agent-chat/api/agentPlan";
+import { fetchDocumentDataForWorkspace } from "@/entities/wiki";
 import { agentPlanStatusLabel, canApproveAgentPlan, type AgentPlanRun, type McpPriceSnapshot } from "@/features/agent-chat/lib/agentPlan";
 import { AgentPlanTaskDetail } from "@/features/agent-chat/ui/AgentPlanTaskDetail";
 import { LoginRequiredError } from "@/shared/lib/apiErrors";
 import { setAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import {
+  MCP_EXECUTION_STATUSES,
+  MCP_FORWARD_STATUSES,
+  MCP_SETTLEMENT_STATUSES,
   canCancelMcpRun,
   initialMcpSelectedOperationIds,
   mcpApprovalAvailability,
@@ -20,8 +24,12 @@ import {
   mcpApprovalRoute,
   mcpApprovalSelectionKey,
   mcpDecisionErrorKey,
+  mcpRunCostLine,
+  mcpRunHeadline,
+  mcpRunTone,
   shouldPollMcpApproval
 } from "../lib/mcpApproval";
+import { mcpKnownCode } from "../lib/wikiDraftPreview";
 import styles from "./McpApprovalPage.module.css";
 
 export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: string; runId: string }) {
@@ -43,6 +51,16 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
     refetchInterval: (query) => !query.state.error && shouldPollMcpApproval(query.state.data) ? 3000 : false
   });
   const run = runQuery.data ?? null;
+  // 머리말의 문서 이름. 아래 작업 목록(AgentPlanTaskDetail)과 같은 키라 트리를 한 번만 받는다.
+  const documentTree = useQuery({
+    queryKey: ["mcpApproval", userId, workspaceId, runId, "documents"],
+    queryFn: () => fetchDocumentDataForWorkspace(workspaceId),
+    select: (data) => data.tree,
+    staleTime: Infinity,
+    enabled: Boolean(userId && run?.plan),
+    retry: false
+  });
+  const documentNames = documentNameIndex(documentTree.data ?? []);
   const availability = mcpApprovalAvailability(run);
   const quote = run?.mcp_approval_quote ?? null;
   const settlement = run?.mcp_settlement ?? null;
@@ -99,81 +117,117 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
   if (me.isPending || (userId && runQuery.isPending)) return <main className={styles.page}><p role="status">{t("loading")}</p></main>;
   if (me.error || runQuery.error) {
     const error = me.error ?? runQuery.error;
-    return <main className={styles.page}><section className={styles.card}><h1>{t("title")}</h1><p role="alert">{error instanceof LoginRequiredError ? t("login") : t("errors.inaccessible")}</p></section></main>;
+    return <main className={styles.page}><section className={styles.card}><h1 className={styles.title}>{t("title")}</h1><p className={styles.notice} data-tone="danger" role="alert">{error instanceof LoginRequiredError ? t("login") : t("errors.inaccessible")}</p></section></main>;
   }
   if (!run || !me.data) return <main className={styles.page}><p role="status">{t("loading")}</p></main>;
+
+  const headline = mcpRunHeadline(run.plan, (id) => documentNames.get(id));
+  const cost = mcpRunCostLine(settlement, priceSnapshot);
+  const costText = !cost ? null : cost.kind === "free" ? t("cost.free") : t(`cost.${cost.kind}`, { amount: money(cost.amount) });
+  const code = (value: string) => <> <span className={styles.code}>{value}</span></>;
 
   return (
     <main className={styles.page}>
       {confirmationDialog}
-      <section className={styles.card} aria-labelledby="mcp-approval-title">
-        <header className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>{t("origin")}</p>
-            <h1 id="mcp-approval-title">{t("title")}</h1>
+      <article className={styles.card} aria-labelledby="mcp-approval-title">
+        <header className={styles.hero}>
+          <div className={styles.heroTop}>
+            <p className={styles.eyebrow}>{t("eyebrow")}</p>
+            <button type="button" className={styles.ghost} disabled={runQuery.isFetching} onClick={() => void runQuery.refetch()}>{t("refresh")}</button>
           </div>
-          <button type="button" className={styles.secondary} disabled={runQuery.isFetching} onClick={() => void runQuery.refetch()}>{t("refresh")}</button>
+          <h1 id="mcp-approval-title">{t(`headline.${headline.kind}`, {
+            client: clientName || t("clientFallback"), count: headline.count,
+            ...("name" in headline ? { name: headline.name, others: headline.others } : {})
+          })}</h1>
+          <dl className={styles.overview}>
+            <div><dt>{t("overview.status")}</dt><dd><span className={styles.badge} data-tone={mcpRunTone(run.status)}>{agentPlanStatusLabel(run.status, tAgent)}</span></dd></div>
+            {costText && <div><dt>{t("overview.cost")}</dt><dd className={styles.costText}>{costText}</dd></div>}
+          </dl>
         </header>
 
-        <dl className={styles.details}>
-          <div><dt>{t("client")}</dt><dd>{clientName || t("unavailable.client")}</dd></div>
-          <div><dt>{t("grant")}</dt><dd>{run.grant_id || t("unavailable.value")}</dd></div>
-          <div><dt>{t("runStatus")}</dt><dd>{agentPlanStatusLabel(run.status, tAgent)}</dd></div>
-          <div><dt>{t("planVersion")}</dt><dd>{run.plan?.version ?? t("unavailable.value")}</dd></div>
-          <div><dt>{t("planHash")}</dt><dd className={styles.hash}>{run.plan?.operation_hash || t("unavailable.value")}</dd></div>
-        </dl>
+        {run.status === "halted" && <p className={styles.notice} data-tone="warning" role="alert">{t("halted")}</p>}
 
-        {priceSnapshot && (
-          <section className={styles.fees} aria-label={t("fees.title")}>
-            <h2>{t("fees.title")}</h2>
-            <dl className={styles.details}>
-              {quote && <div><dt>{t("fees.operations")}</dt><dd>{selectedOperationCount}</dd></div>}
-              <div><dt>{t("fees.unit")}</dt><dd>{money(priceSnapshot.unit_price_minor)}</dd></div>
-              <div><dt>{t("fees.cap")}</dt><dd>{money(priceSnapshot.plan_cap_minor)}</dd></div>
-              <div><dt>{t("fees.maximum")}</dt><dd>{priceSnapshot.maximum_charge_minor === 0 ? t("fees.free") : money(priceSnapshot.maximum_charge_minor)}</dd></div>
-              <div><dt>{t("fees.currency")}</dt><dd>{priceSnapshot.currency}</dd></div>
-              <div><dt>{t("fees.version")}</dt><dd>{priceSnapshot.price_version}</dd></div>
-            </dl>
-            <p>{t("fees.scope")}</p>
-            <p>{t("fees.partial")}</p>
-          </section>
-        )}
-
-        {settlement && (
-          <section className={styles.status} aria-label={t("settlement.title")}>
-            <h2>{t("settlement.title")}</h2>
-            <dl className={styles.details}>
-              <div><dt>{t("settlement.execution")}</dt><dd>{t(`execution.${settlement.execution_status}`)}</dd></div>
-              <div><dt>{t("settlement.forward")}</dt><dd>{t(`forward.${settlement.forward_status}`)}</dd></div>
-              <div><dt>{t("settlement.status")}</dt><dd>{t(`settlementStatus.${settlement.settlement_status}`)}</dd></div>
-              <div><dt>{t("settlement.charge")}</dt><dd>{settlement.settlement_status === "SETTLED" ? money(settlement.charged_minor) : t("settlement.notFinal")}</dd></div>
-            </dl>
-          </section>
-        )}
-
-        {run.status === "halted" && <p className={styles.warning} role="alert">{t("halted")}</p>}
-        <AgentPlanTaskDetail
-          action="mcp_plan"
-          approvalDisabledReason={approvalDisabledReason}
-          errorMessage={decisionError}
-          isRunFetching={runQuery.isFetching}
-          mcpContext={{ workspaceId, userId: me.data.id, runId }}
-          mcpQuote={availability.available ? quote : null}
-          onMcpSelectionChange={handleSelectionChange}
-          onRefetch={() => void runQuery.refetch()}
-          run={run}
-          runError={runQuery.error}
-          turnId={runId}
-        />
+        <section className={styles.section} aria-labelledby="mcp-approval-core">
+          <h2 id="mcp-approval-core">{t("core")}</h2>
+          <AgentPlanTaskDetail
+            action="mcp_plan"
+            approvalDisabledReason={approvalDisabledReason}
+            decisionClassNames={{ row: styles.actions, accept: styles.primary, reject: styles.secondary }}
+            errorMessage={decisionError}
+            isRunFetching={runQuery.isFetching}
+            mcpContext={{ workspaceId, userId: me.data.id, runId }}
+            mcpQuote={availability.available ? quote : null}
+            onMcpSelectionChange={handleSelectionChange}
+            onRefetch={() => void runQuery.refetch()}
+            run={run}
+            runError={runQuery.error}
+            turnId={runId}
+          />
+        </section>
 
         {canCancelMcpRun(run.status) && (
           <div className={styles.cancelArea}>
             <p>{t("cancel.notice")}</p>
-            {cancel.error && <p role="alert">{decisionError(cancel.error)}</p>}
-            <button type="button" className={styles.danger} disabled={cancel.isPending} onClick={requestCancel}>{cancel.isPending ? t("cancel.processing") : t("cancel.button")}</button>
+            {cancel.error && <p className={styles.notice} data-tone="danger" role="alert">{decisionError(cancel.error)}</p>}
+            <div className={styles.actions}>
+              <button type="button" className={styles.danger} disabled={cancel.isPending} onClick={requestCancel}>{cancel.isPending ? t("cancel.processing") : t("cancel.button")}</button>
+            </div>
           </div>
         )}
-      </section>
+
+        <details className={styles.more}>
+          <summary>{t("more.summary")}</summary>
+          <section className={styles.moreGroup} aria-label={t("more.request")}>
+            <h2>{t("more.request")}</h2>
+            <dl className={styles.facts}>
+              <div><dt>{t("client")}</dt><dd>{clientName || t("unavailable.client")}</dd></div>
+              <div><dt>{t("more.clientId")}</dt><dd className={styles.code}>{run.client_id || t("unavailable.value")}</dd></div>
+              <div><dt>{t("grant")}</dt><dd className={styles.code}>{run.grant_id || t("unavailable.value")}</dd></div>
+              <div><dt>{t("runStatus")}</dt><dd>{agentPlanStatusLabel(run.status, tAgent)}{code(run.status)}</dd></div>
+              <div><dt>{t("planVersion")}</dt><dd>{run.plan?.version ?? t("unavailable.value")}</dd></div>
+              <div><dt>{t("planHash")}</dt><dd className={styles.code}>{run.plan?.operation_hash || t("unavailable.value")}</dd></div>
+            </dl>
+          </section>
+          {priceSnapshot && (
+            <section className={styles.moreGroup} aria-label={t("fees.title")}>
+              <h2>{t("fees.title")}</h2>
+              <dl className={styles.facts}>
+                {quote && <div><dt>{t("fees.operations")}</dt><dd>{selectedOperationCount}</dd></div>}
+                <div><dt>{t("fees.unit")}</dt><dd>{money(priceSnapshot.unit_price_minor)}</dd></div>
+                <div><dt>{t("fees.cap")}</dt><dd>{money(priceSnapshot.plan_cap_minor)}</dd></div>
+                <div><dt>{t("fees.maximum")}</dt><dd>{priceSnapshot.maximum_charge_minor === 0 ? t("fees.free") : money(priceSnapshot.maximum_charge_minor)}</dd></div>
+                <div><dt>{t("fees.currency")}</dt><dd>{priceSnapshot.currency}</dd></div>
+                <div><dt>{t("fees.version")}</dt><dd>{priceSnapshot.price_version}</dd></div>
+              </dl>
+              <p>{t("fees.scope")}</p>
+              <p>{t("fees.partial")}</p>
+            </section>
+          )}
+          {settlement && (
+            <section className={styles.moreGroup} aria-label={t("settlement.title")}>
+              <h2>{t("settlement.title")}</h2>
+              <dl className={styles.facts}>
+                <div><dt>{t("settlement.execution")}</dt><dd>{t(`execution.${mcpKnownCode(MCP_EXECUTION_STATUSES, settlement.execution_status)}`)}{code(settlement.execution_status)}</dd></div>
+                <div><dt>{t("settlement.forward")}</dt><dd>{t(`forward.${mcpKnownCode(MCP_FORWARD_STATUSES, settlement.forward_status)}`)}{code(settlement.forward_status)}</dd></div>
+                <div><dt>{t("settlement.status")}</dt><dd>{t(`settlementStatus.${mcpKnownCode(MCP_SETTLEMENT_STATUSES, settlement.settlement_status)}`)}{code(settlement.settlement_status)}</dd></div>
+                <div><dt>{t("settlement.charge")}</dt><dd>{settlement.settlement_status === "SETTLED" ? money(settlement.charged_minor) : t("settlement.notFinal")}</dd></div>
+              </dl>
+            </section>
+          )}
+        </details>
+      </article>
     </main>
   );
+}
+
+type NamedTreeItem = { id: string; name: string; children?: NamedTreeItem[] };
+
+function documentNameIndex(tree: NamedTreeItem[]): Map<string, string> {
+  const names = new Map<string, string>();
+  const visit = (items: NamedTreeItem[]) => items.forEach((item) => {
+    names.set(item.id, item.name);
+    visit(item.children ?? []);
+  });
+  visit(tree);
+  return names;
 }

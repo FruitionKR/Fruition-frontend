@@ -1,5 +1,5 @@
 // document-svc(8080) MCP 위키 초안 승인 화면 라우트. 화면 확인용으로 INGEST·LINT·요약 없는(배포 전) 초안을 하나씩 둔다.
-// 열기: /mcp/workspaces/ws_fruition/wiki-drafts/draft_ingest_demo (draft_lint_demo, draft_legacy_demo)
+// 열기: /mcp/workspaces/ws_fruition/wiki-drafts/draft_ingest_demo (draft_lint_demo, draft_legacy_demo, draft_published_demo, draft_invalidated_demo)
 import { error, requireWorkspace } from "../state.mjs";
 import { sha256 } from "../lib/sourceBlocks.mjs";
 
@@ -90,7 +90,18 @@ function seedDrafts() {
   return new Map([
     ["draft_ingest_demo", draft("draft_ingest_demo", "INGEST", [source("doc_arch", "아키텍처 개요.md"), source("doc_intro", null)], INGEST_SUMMARY)],
     ["draft_lint_demo", draft("draft_lint_demo", "LINT", [source("doc_arch", "아키텍처 개요.md")], LINT_SUMMARY)],
-    ["draft_legacy_demo", draft("draft_legacy_demo", "INGEST", legacySources, null)]
+    ["draft_legacy_demo", draft("draft_legacy_demo", "INGEST", legacySources, null)],
+    // 승인 뒤 상태 확인용: 반영·청구가 끝난 초안과 더 이상 승인할 수 없는 초안
+    ["draft_published_demo", {
+      ...draft("draft_published_demo", "LINT", [source("doc_arch", "아키텍처 개요.md")], LINT_SUMMARY),
+      approval: { status: "EXECUTING", reason: null },
+      publication: { status: "PUBLISHED", changed: true, published_reference_hash: sha256("draft_published_demo"), committed_at: new Date().toISOString(), error_code: null },
+      settlement: { status: "SETTLED", charged_minor: 100 }
+    }],
+    ["draft_invalidated_demo", {
+      ...draft("draft_invalidated_demo", "INGEST", [source("doc_arch", "아키텍처 개요.md")], INGEST_SUMMARY.slice(0, 3)),
+      approval: { status: "INVALIDATED", reason: "원문 문서가 그 사이에 바뀌었어요. Claude Code에서 다시 제안해 주세요." }
+    }]
   ]);
 }
 
