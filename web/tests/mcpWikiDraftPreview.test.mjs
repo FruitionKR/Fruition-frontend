@@ -11,7 +11,7 @@ registerHooks({
 });
 
 const {
-  canApproveMcpWikiDraft, canCancelMcpWikiDraft, mcpWikiApprovalBody, mcpWikiChangeGroups,
+  canApproveMcpWikiDraft, canCancelMcpWikiDraft, mcpWikiApprovalBody, mcpWikiSourceName, mcpWikiSummaryGroups,
   mcpWikiDecisionErrorKey, mcpWikiDraftQueryKey, mcpWikiDraftRoute, parseMcpWikiWebDraft, shouldPollMcpWikiDraft
 } = await import("../src/features/mcp-approval/lib/wikiDraftPreview.ts");
 
@@ -46,46 +46,27 @@ const draft = {
   settlement: { status: "NOT_RESERVED", charged_minor: 0 }
 };
 
-test("parses the complete INGEST cascade and keeps equal block IDs document-qualified", () => {
+test("the current document sends no wiki body, and the parsed preview exposes none", () => {
+  const { changes: _changes, target_pages: _targets, ...current } = preview;
+  const parsed = parseMcpWikiWebDraft({ ...draft, preview: current });
+  assert.deepEqual(Object.keys(parsed.preview).sort(), ["complete", "schema_version", "source_documents", "summary"]);
+});
+
+test("an older document's changes and target_pages are accepted during rollout but dropped", () => {
   const parsed = parseMcpWikiWebDraft(draft);
-  assert.equal(parsed.preview.changes.length, 8);
-  assert.deepEqual(parsed.preview.changes.slice(0, 2).map((item) => item.evidence[0]), [
-    { document_id: "doc-one", block_id: "B0001", quote: "quote-doc-one" },
-    { document_id: "doc-two", block_id: "B0001", quote: "quote-doc-two" }
-  ]);
-  assert.deepEqual(mcpWikiChangeGroups(parsed.preview).map((group) => group.kind), [
-    "SOURCE_PAGE", "CONCEPT_STATEMENT", "EVIDENCE_INVALIDATION", "PAGE_DELETE", "ENTRY", "LINK", "REFERENCE", "REVIVAL_LINK"
-  ]);
-});
-
-test("parses a complete LINT preview without requiring evidence on structural changes", () => {
-  const parsed = parseMcpWikiWebDraft({
-    ...draft, draft_kind: "LINT", quote: { ...draft.quote, pricing_model: "LINT_FIXED_APPLY" },
-    preview: { ...preview, changes: [change("link", "LINK", "REMOVE", null)] }
-  });
-  assert.equal(parsed.draft_kind, "LINT");
-  assert.deepEqual(parsed.preview.changes[0].evidence, []);
-});
-
-test("parses a LINT statement edit, which the pipeline reports as a PAGE_BODY update", () => {
-  const parsed = parseMcpWikiWebDraft({
-    ...draft, draft_kind: "LINT", quote: { ...draft.quote, pricing_model: "LINT_FIXED_APPLY" },
-    preview: { ...preview, changes: [change("body", "PAGE_BODY", "UPDATE", null)] }
-  });
-  assert.notEqual(parsed, null);
-  assert.deepEqual(mcpWikiChangeGroups(parsed.preview).map((group) => group.kind), ["PAGE_BODY"]);
+  assert.equal("changes" in parsed.preview, false);
+  assert.equal("target_pages" in parsed.preview, false);
+  assert.equal(JSON.stringify(parsed).includes("before"), false, "wiki before/after text must not survive parsing");
 });
 
 test("fails closed for incomplete, malformed, internal, duplicate, or unmapped preview data", () => {
   const invalid = [
     { ...draft, preview: { ...preview, complete: false } },
-    { ...draft, preview: { ...preview, changes: [{ ...preview.changes[1], evidence: [] }] } },
+    { ...draft, preview: { ...preview, changes: "not-a-list" } },
+    { ...draft, preview: { ...preview, target_pages: {} } },
     { ...draft, preview: { ...preview, source_documents: [{ ...source("doc-one"), snapshot_id: "internal" }] } },
     { ...draft, preview: { ...preview, source_documents: [source("doc-one"), source("doc-one")] } },
-    { ...draft, preview: { ...preview, target_pages: [preview.target_pages[0], preview.target_pages[0]] } },
-    { ...draft, preview: { ...preview, changes: [preview.changes[0], { ...preview.changes[0] }] } },
-    { ...draft, preview: { ...preview, changes: [change("statement", "CONCEPT_STATEMENT", "ADD", "doc-missing")] } },
-    { ...draft, preview: { ...preview, changes: [{ ...preview.changes[0], evidence: [preview.changes[0].evidence[0], preview.changes[0].evidence[0]] }] } },
+    { ...draft, preview: { ...preview, internal_markdown: "# wiki" } },
     { ...draft, quote: { ...draft.quote, maximum_charge_minor: 0 } },
     { ...draft, browser_price: 1 }
   ];
@@ -131,4 +112,79 @@ test("route/cache scope and decision errors keep owners and failure classes dist
   assert.equal(mcpWikiDecisionErrorKey({ status: 413 }), "tooLarge");
   assert.equal(mcpWikiDecisionErrorKey({ status: 503 }), "unavailable");
   assert.equal(mcpWikiDecisionErrorKey(new TypeError("lost response")), "ambiguous");
+});
+
+const summaryItem = (kind, page_title, overrides = {}) => ({
+  kind, page_id: `page-${page_title}`, page_title, text: null, before_text: null, related_page_title: null, evidence: [], ...overrides
+});
+const withSummary = (summary, sources = preview.source_documents) => ({ ...draft, preview: { ...preview, source_documents: sources, summary } });
+
+test("legacy drafts without summary or display_name parse with an empty summary and null names", () => {
+  const parsed = parseMcpWikiWebDraft(draft);
+  assert.deepEqual(parsed.preview.summary, []);
+  assert.deepEqual(parsed.preview.source_documents.map((item) => item.display_name), [null, null]);
+  assert.equal(mcpWikiSourceName(parsed.preview, "doc-one"), null);
+  assert.deepEqual(mcpWikiSummaryGroups(parsed.preview.summary), []);
+});
+
+test("parses summary items and source display names without wiki body or page hashes", () => {
+  const parsed = parseMcpWikiWebDraft(withSummary([
+    summaryItem("CONCEPT_CREATE", "Ingest", { page_id: null }),
+    summaryItem("STATEMENT_ADD", "Ingest", { text: "Markdown만 받는다.", evidence: [{ document_id: "doc-one", block_id: "B0004", quote: "Markdown만" }] }),
+    summaryItem("STATEMENT_UPDATE", "Lint", { before_text: "old", text: "new" }),
+    summaryItem("LINK_ADD", "Lint", { related_page_title: "Ingest" })
+  ], [{ ...source("doc-one"), display_name: "아키텍처 개요.md" }, { ...source("doc-two"), display_name: null }]));
+  assert.equal(parsed.preview.summary.length, 4);
+  assert.equal(parsed.preview.summary[0].page_id, null);
+  assert.equal(mcpWikiSourceName(parsed.preview, "doc-one"), "아키텍처 개요.md");
+  assert.equal(mcpWikiSourceName(parsed.preview, "doc-two"), null);
+  assert.equal(mcpWikiSourceName(parsed.preview, "doc-unknown"), null);
+  assert.equal("changes" in parsed.preview, false);
+  assert.equal("target_pages" in parsed.preview, false);
+  assert.deepEqual(mcpWikiApprovalBody(parsed), {
+    draft_id: "draft-1", draft_version: 1, draft_hash: "opaque-draft-hash", public_state_hash: "opaque-public-hash"
+  });
+});
+
+test("blank display names are treated as missing", () => {
+  const parsed = parseMcpWikiWebDraft(withSummary([], [{ ...source("doc-one"), display_name: "  " }, source("doc-two")]));
+  assert.equal(mcpWikiSourceName(parsed.preview, "doc-one"), null);
+});
+
+test("fails closed for malformed summary items, evidence, or source display names", () => {
+  const evidence = { document_id: "doc-one", block_id: "B0001", quote: "quote" };
+  const invalid = [
+    withSummary("not-a-list"),
+    withSummary([{ ...summaryItem("STATEMENT_ADD", "A"), page_markdown: "# leaked" }]),
+    withSummary([{ kind: "STATEMENT_ADD", page_id: null, page_title: "A", text: null, before_text: null, evidence: [] }]),
+    withSummary([summaryItem("PAGE_BODY", "A")]),
+    withSummary([summaryItem("STATEMENT_ADD", "A", { page_id: "" })]),
+    withSummary([summaryItem("STATEMENT_ADD", null)]),
+    withSummary([summaryItem("STATEMENT_ADD", "A", { text: 3 })]),
+    withSummary([summaryItem("STATEMENT_ADD", "A", { evidence: [{ ...evidence, change_id: "internal" }] })]),
+    withSummary([summaryItem("STATEMENT_ADD", "A", { evidence: [{ ...evidence, quote: "" }] })]),
+    withSummary([summaryItem("STATEMENT_ADD", "A", { evidence: [{ ...evidence, document_id: "doc-missing" }] })]),
+    withSummary([], [{ ...source("doc-one"), display_name: 7 }, source("doc-two")]),
+    withSummary([], [{ ...source("doc-one"), title: "unknown key" }, source("doc-two")]),
+    { ...draft, preview: { ...preview, summary: [], extra: true } }
+  ];
+  for (const value of invalid) assert.throws(() => parseMcpWikiWebDraft(value));
+});
+
+test("groups summary by concept title in first-seen order and folds textless invalidations into one line", () => {
+  const groups = mcpWikiSummaryGroups([
+    summaryItem("STATEMENT_ADD", "Ingest", { text: "a" }),
+    summaryItem("EVIDENCE_INVALIDATION", "Lint", { text: null }),
+    summaryItem("EVIDENCE_INVALIDATION", "Ingest", { text: "근거가 바뀐 문장" }),
+    summaryItem("EVIDENCE_INVALIDATION", "Ingest", { text: null }),
+    summaryItem("EVIDENCE_INVALIDATION", "Ingest", { text: "  " }),
+    summaryItem("LINK_REMOVE", "Lint", { related_page_title: "Ingest" })
+  ]);
+  assert.deepEqual(groups.map((group) => group.title), ["Ingest", "Lint"]);
+  assert.deepEqual(groups[0].entries.map((entry) => entry.type === "item" ? entry.item.kind : entry), [
+    "STATEMENT_ADD", "EVIDENCE_INVALIDATION", { type: "otherInvalidations", count: 2, others: true }
+  ]);
+  assert.deepEqual(groups[1].entries.map((entry) => entry.type === "item" ? entry.item.kind : entry), [
+    "LINK_REMOVE", { type: "otherInvalidations", count: 1, others: false }
+  ]);
 });

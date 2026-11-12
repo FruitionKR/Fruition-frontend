@@ -28,9 +28,10 @@ const aliases = {
   "react": { ...React, useEffect() {}, useRef: (value) => ({ current: value }) },
   "../api/wikiDraftApproval": { approveMcpWikiDraft: async () => { mutations += 1; }, cancelMcpWikiDraft: async () => { mutations += 1; }, fetchMcpWikiDraft: async () => draft, rejectMcpWikiDraft: async () => { mutations += 1; } },
   "../lib/wikiDraftPreview": contract,
-  "./WikiDraftPreview": { WikiDraftPreview: () => React.createElement("div", null, "complete preview") },
+  "./WikiDraftPreview": { WikiDraftPreview: ({ canOpenSources }) => React.createElement("div", { "data-open": String(canOpenSources) }, "complete preview") },
   "./McpApprovalPage.module.css": { __esModule: true, default: new Proxy({}, { get: (_, name) => name }) },
   "@/entities/user": { useMe: () => ({ data: { id: "user-1" }, isPending: false, error: null }) },
+  "@/shared/api/client": { readWorkspaceId: () => "ws-1" },
   "@/shared/lib/apiErrors": { LoginRequiredError: class LoginRequiredError extends Error {} },
   "@/shared/lib/authSessionStorage": { setAfterLoginPath() {} },
   "next/link": { __esModule: true, default: ({ href, children }) => React.createElement("a", { href }, children) },
@@ -56,7 +57,13 @@ test("Wiki draft detail is text-only and never mutates on mount", () => {
   assert.match(html, /&lt;img src=x onerror=bad\(\)&gt;/);
   assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<img|<script/);
-  assert.match(html, /complete preview/);
+  assert.match(html, /data-open="true"[^>]*>complete preview/, "source links are enabled only for the selected workspace");
+  assert.doesNotMatch(html, /draft-hash|public-hash|draftHash|publicHash/, "opaque hashes are not shown");
+});
+
+test("source links stay off when the draft belongs to another workspace than the selected one", () => {
+  const html = renderToStaticMarkup(React.createElement(Page, { workspaceId: "ws-other", draftId: "draft-1" }));
+  assert.match(html, /data-open="false"/);
 });
 
 test("same-turn approval clicks send only one mutation until it settles", () => {

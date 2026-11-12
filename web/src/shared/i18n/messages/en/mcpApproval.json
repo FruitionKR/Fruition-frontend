@@ -85,31 +85,33 @@
     "clientUnavailable": "Registered client information unavailable",
     "kind": "Draft kind",
     "version": "Draft version",
-    "draftHash": "Draft hash",
-    "publicHash": "Public-state hash",
     "approvalStatus": "Approval",
-    "preview": {
-      "sources": "Frozen source documents",
-      "targets": "Affected existing Wiki pages",
-      "version": "Version {version}",
+    "summary": {
+      "title": "What will change",
+      "intro": "Approving applies the changes below to the wiki. Each concept lists what changes and the source passages behind it.",
+      "legacy": "This draft has no summary, so its changes can't be shown. They will be applied to the wiki after approval.",
+      "untitled": "Untitled concept",
       "kinds": {
-        "SOURCE_PAGE": "Source pages",
-        "CONCEPT_STATEMENT": "Concept statements",
-        "EVIDENCE_INVALIDATION": "Evidence invalidations",
-        "PAGE_BODY": "Page bodies",
-        "PAGE_DELETE": "Page deletions",
-        "ENTRY": "Entries",
-        "LINK": "Links",
-        "REFERENCE": "References",
-        "REVIVAL_LINK": "Revived links"
+        "CONCEPT_CREATE": "New concept",
+        "SOURCE_PAGE": "Source page update",
+        "STATEMENT_ADD": "Add",
+        "STATEMENT_UPDATE": "Edit",
+        "STATEMENT_REMOVE": "Remove",
+        "EVIDENCE_INVALIDATION": "Evidence invalidated",
+        "LINK_ADD": "Link added",
+        "LINK_REMOVE": "Link removed",
+        "CONCEPT_MERGE": "Merge concepts",
+        "CONCEPT_DELETE": "Delete concept"
       },
-      "actions": {
-        "ADD": "Add",
-        "UPDATE": "Update",
-        "REMOVE": "Remove",
-        "DELETE": "Delete",
-        "REVIVE": "Revive"
-      }
+      "invalidations": "{count, plural, one {# piece of evidence no longer supports} other {# pieces of evidence no longer support}} this concept.",
+      "otherInvalidations": "{count, plural, one {# more piece of evidence no longer supports} other {# more pieces of evidence no longer support}} this concept.",
+      "changedTo": "changes to:",
+      "linkedWith": "and",
+      "mergedInto": "merged into:",
+      "evidence": "Evidence",
+      "sourceFallback": "Source document",
+      "openSource": "View in source",
+      "openSourceLabel": "Open this evidence in {name} (new tab)"
     },
     "fees": {
       "title": "Immutable fee quote before approval",

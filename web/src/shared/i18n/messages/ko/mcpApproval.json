@@ -85,31 +85,33 @@
     "clientUnavailable": "등록된 클라이언트 정보 없음",
     "kind": "초안 종류",
     "version": "초안 버전",
-    "draftHash": "초안 해시",
-    "publicHash": "공개 상태 해시",
     "approvalStatus": "승인 상태",
-    "preview": {
-      "sources": "고정된 원문 문서",
-      "targets": "영향받는 기존 Wiki 페이지",
-      "version": "버전 {version}",
+    "summary": {
+      "title": "바뀌는 내용",
+      "intro": "승인하면 아래 내용이 위키에 반영돼요. 개념마다 무엇이 바뀌는지와 그 근거가 된 원문을 함께 보여 드려요.",
+      "legacy": "이 초안은 요약 정보가 없어 변경 내용을 표시할 수 없어요. 내용은 승인 후 위키에 반영돼요.",
+      "untitled": "제목 없는 개념",
       "kinds": {
-        "SOURCE_PAGE": "원문 페이지",
-        "CONCEPT_STATEMENT": "개념 문장",
+        "CONCEPT_CREATE": "새 개념 만들기",
+        "SOURCE_PAGE": "원문 페이지 반영",
+        "STATEMENT_ADD": "추가",
+        "STATEMENT_UPDATE": "수정",
+        "STATEMENT_REMOVE": "삭제",
         "EVIDENCE_INVALIDATION": "근거 무효화",
-        "PAGE_BODY": "페이지 본문",
-        "PAGE_DELETE": "페이지 삭제",
-        "ENTRY": "항목",
-        "LINK": "링크",
-        "REFERENCE": "참조",
-        "REVIVAL_LINK": "부활 링크"
+        "LINK_ADD": "연결 추가",
+        "LINK_REMOVE": "연결 삭제",
+        "CONCEPT_MERGE": "개념 합치기",
+        "CONCEPT_DELETE": "개념 삭제"
       },
-      "actions": {
-        "ADD": "추가",
-        "UPDATE": "수정",
-        "REMOVE": "제거",
-        "DELETE": "삭제",
-        "REVIVE": "부활"
-      }
+      "invalidations": "근거 {count}건이 더 이상 이 개념을 뒷받침하지 않아요.",
+      "otherInvalidations": "그 외 근거 {count}건이 더 이상 이 개념을 뒷받침하지 않아요.",
+      "changedTo": "에서 다음으로 바뀜:",
+      "linkedWith": "와(과)",
+      "mergedInto": "을(를) 다음 개념으로 합침:",
+      "evidence": "근거",
+      "sourceFallback": "원본 문서",
+      "openSource": "원문에서 보기",
+      "openSourceLabel": "{name}에서 이 근거 위치 열기 (새 탭)"
     },
     "fees": {
       "title": "승인 전 변경 불가능한 수수료 견적",
