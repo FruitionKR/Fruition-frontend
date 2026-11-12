@@ -29,7 +29,7 @@ export type McpWikiPreview = {
   summary: McpWikiSummaryItem[];
 };
 export type McpWikiQuote = {
-  pricing_model: "INGEST_SOURCE_QUANTITY" | "LINT_FIXED_APPLY";
+  pricing_model: (typeof MCP_WIKI_PRICING_MODELS)[number];
   currency: "KRW";
   price_version: string;
   quantity: number;
@@ -40,23 +40,23 @@ export type McpWikiQuote = {
 export type McpWikiWebDraft = {
   schema_version: "mcp.wiki-web-draft.v1";
   draft_id: string;
-  draft_kind: "INGEST" | "LINT";
+  draft_kind: (typeof MCP_WIKI_DRAFT_KINDS)[number];
   draft_version: number;
   draft_hash: string;
   public_state_hash: string;
   client_name: string | null;
   quote: McpWikiQuote;
   preview: McpWikiPreview;
-  approval: { status: "AWAITING" | "INVALIDATED" | "REJECTED" | "EXECUTING"; reason: string | null };
+  approval: { status: (typeof MCP_WIKI_APPROVAL_STATUSES)[number]; reason: string | null };
   publication: {
-    status: "NOT_STARTED" | "APPLYING" | "PUBLISHED" | "NO_CHANGE" | "CONFLICTED" | "HALTED" | "UNKNOWN";
+    status: (typeof MCP_WIKI_PUBLICATION_STATUSES)[number];
     changed: boolean | null;
     published_reference_hash: string | null;
     committed_at: string | null;
     error_code: string | null;
   };
   settlement: {
-    status: "NOT_RESERVED" | "RESERVED" | "PENDING_RECONCILIATION" | "SETTLED" | "RELEASED" | "ADJUSTED";
+    status: (typeof MCP_WIKI_SETTLEMENT_STATUSES)[number];
     charged_minor: number;
   };
 };
@@ -70,10 +70,17 @@ export function mcpWikiDraftRoute(workspaceId: string, draftId: string): string 
 export const mcpWikiDraftQueryKey = (userId: string, workspaceId: string, draftId: string) =>
   ["mcpWikiDraftApproval", userId, workspaceId, draftId] as const;
 
+/** 파서가 받는 상태 값. 화면 라벨(mcpApproval.wiki.labels)도 이 목록을 기준으로 둔다. */
+export const MCP_WIKI_DRAFT_KINDS = ["INGEST", "LINT"] as const;
+export const MCP_WIKI_PRICING_MODELS = ["INGEST_SOURCE_QUANTITY", "LINT_FIXED_APPLY"] as const;
+export const MCP_WIKI_APPROVAL_STATUSES = ["AWAITING", "INVALIDATED", "REJECTED", "EXECUTING"] as const;
+export const MCP_WIKI_PUBLICATION_STATUSES = ["NOT_STARTED", "APPLYING", "PUBLISHED", "NO_CHANGE", "CONFLICTED", "HALTED", "UNKNOWN"] as const;
+export const MCP_WIKI_SETTLEMENT_STATUSES = ["NOT_RESERVED", "RESERVED", "PENDING_RECONCILIATION", "SETTLED", "RELEASED", "ADJUSTED"] as const;
+
 const SUMMARY_KINDS = new Set<string>(MCP_WIKI_SUMMARY_KINDS);
-const APPROVAL_STATUSES = new Set(["AWAITING", "INVALIDATED", "REJECTED", "EXECUTING"]);
-const PUBLICATION_STATUSES = new Set(["NOT_STARTED", "APPLYING", "PUBLISHED", "NO_CHANGE", "CONFLICTED", "HALTED", "UNKNOWN"]);
-const SETTLEMENT_STATUSES = new Set(["NOT_RESERVED", "RESERVED", "PENDING_RECONCILIATION", "SETTLED", "RELEASED", "ADJUSTED"]);
+const APPROVAL_STATUSES = new Set<string>(MCP_WIKI_APPROVAL_STATUSES);
+const PUBLICATION_STATUSES = new Set<string>(MCP_WIKI_PUBLICATION_STATUSES);
+const SETTLEMENT_STATUSES = new Set<string>(MCP_WIKI_SETTLEMENT_STATUSES);
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -282,4 +289,74 @@ export function mcpWikiSummaryGroups(summary: McpWikiSummaryItem[]): McpWikiSumm
 /** 근거 원문 이름. 이름이 없거나 미리보기 원문 목록에 없으면 null(화면은 "원본 문서"로 쓴다). */
 export function mcpWikiSourceName(preview: McpWikiPreview, documentId: string): string | null {
   return preview.source_documents.find((source) => source.document_id === documentId)?.display_name ?? null;
+}
+
+/** 상태 배지 색. 색만으로 구분하지 않도록 배지에는 항상 글자 라벨을 함께 쓴다. */
+export type McpStatusTone = "pending" | "progress" | "success" | "neutral" | "warning" | "danger";
+export type McpWikiDraftStage =
+  | "awaiting" | "executing" | "published" | "noChange" | "conflicted" | "halted" | "unknown" | "rejected" | "invalidated" | "other";
+
+const STAGE_TONE: Record<McpWikiDraftStage, McpStatusTone> = {
+  awaiting: "pending", executing: "progress", published: "success", noChange: "neutral", conflicted: "danger",
+  halted: "warning", unknown: "warning", rejected: "neutral", invalidated: "warning", other: "neutral"
+};
+
+/**
+ * 초안이 지금 어디까지 왔는지 한 단계로 요약한다. 승인 뒤에는 approval이 EXECUTING에 머물러도
+ * 공개 결과(publication)가 더 정확하므로 공개 상태를 먼저 본다.
+ */
+export function mcpWikiDraftStage(draft: Pick<McpWikiWebDraft, "approval" | "publication">): { stage: McpWikiDraftStage; tone: McpStatusTone } {
+  const stage = ((): McpWikiDraftStage => {
+    switch (draft.publication.status) {
+      case "PUBLISHED": return "published";
+      case "NO_CHANGE": return "noChange";
+      case "CONFLICTED": return "conflicted";
+      case "HALTED": return "halted";
+      case "UNKNOWN": return "unknown";
+      case "APPLYING": return "executing";
+    }
+    switch (draft.approval.status) {
+      case "AWAITING": return "awaiting";
+      case "EXECUTING": return "executing";
+      case "REJECTED": return "rejected";
+      case "INVALIDATED": return "invalidated";
+      default: return "other";
+    }
+  })();
+  return { stage, tone: STAGE_TONE[stage] };
+}
+
+/** 원시 코드를 라벨 키로 바꾼다. 목록에 없는 값(새 서버 값 등)은 "OTHER"로 중립 라벨을 쓴다. */
+export function mcpKnownCode<T extends string>(allowed: readonly T[], value: string): T | "OTHER" {
+  return (allowed as readonly string[]).includes(value) ? value as T : "OTHER";
+}
+
+/** 수수료 한 줄의 종류. 승인 전에는 최대액, 예약·대사 중에는 진행 상태, 끝나면 실제 청구액을 보여 준다. */
+export type McpWikiCostLine =
+  | { kind: "maximum"; amount: number }
+  | { kind: "reserved"; amount: number }
+  | { kind: "reconciling"; amount: number }
+  | { kind: "charged"; amount: number }
+  | { kind: "adjusted"; amount: number }
+  | { kind: "released" };
+
+export function mcpWikiCostLine(draft: Pick<McpWikiWebDraft, "approval" | "quote" | "settlement">): McpWikiCostLine {
+  const maximum = draft.quote.maximum_charge_minor;
+  // 거절됐거나 더 이상 승인할 수 없는 초안은 예약 전이면 청구될 일이 없다.
+  if (draft.settlement.status === "NOT_RESERVED" && ["REJECTED", "INVALIDATED"].includes(draft.approval.status)) return { kind: "released" };
+  switch (draft.settlement.status) {
+    case "RESERVED": return { kind: "reserved", amount: maximum };
+    case "PENDING_RECONCILIATION": return { kind: "reconciling", amount: maximum };
+    case "SETTLED": return { kind: "charged", amount: draft.settlement.charged_minor };
+    case "ADJUSTED": return { kind: "adjusted", amount: draft.settlement.charged_minor };
+    case "RELEASED": return { kind: "released" };
+    default: return { kind: "maximum", amount: maximum };
+  }
+}
+
+/** 머리말 문장에 쓸 대표 개념과 나머지 개념 수. 요약이 없는 초안이면 null. */
+export function mcpWikiHeadlineTopic(summary: McpWikiSummaryItem[]): { topic: string; others: number } | null {
+  const groups = mcpWikiSummaryGroups(summary);
+  if (groups.length === 0) return null;
+  return { topic: groups[0].title.trim(), others: groups.length - 1 };
 }
