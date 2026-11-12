@@ -406,6 +406,7 @@
       "balance": "Balance",
       "reserved": "Reserved for running jobs",
       "note": "AI jobs are paid from these credits. Running jobs hold an estimate first and settle to the actual amount when they finish.",
+      "exhaustNotice": "When your credits run out, Fruition's own AI refinement that improves wiki quality is skipped, so results may be less accurate. Connect an external AI (MCP) to keep reading, searching, and proposing edits with the AI you already use. Wiki ingest carries a small separate fee.",
       "loading": "Loading credits…",
       "loadFailed": "We couldn't load your credits.",
       "unavailable": "Credits aren't available yet.",
