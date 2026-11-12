@@ -23,6 +23,7 @@ import {
   shouldPollMcpWikiDraft,
   type McpWikiWebDraft
 } from "../lib/wikiDraftPreview";
+import { readWorkspaceId } from "@/shared/api/client";
 import { LoginRequiredError } from "@/shared/lib/apiErrors";
 import { setAfterLoginPath } from "@/shared/lib/authSessionStorage";
 import { WikiDraftPreview } from "./WikiDraftPreview";
@@ -98,8 +99,6 @@ export default function McpWikiDraftApprovalPage({ workspaceId, draftId }: { wor
           <div><dt>{t("client")}</dt><dd>{draft.client_name ?? t("clientUnavailable")}</dd></div>
           <div><dt>{t("kind")}</dt><dd>{draft.draft_kind}</dd></div>
           <div><dt>{t("version")}</dt><dd>{draft.draft_version}</dd></div>
-          <div><dt>{t("draftHash")}</dt><dd className={styles.hash}>{draft.draft_hash}</dd></div>
-          <div><dt>{t("publicHash")}</dt><dd className={styles.hash}>{draft.public_state_hash}</dd></div>
           <div><dt>{t("approvalStatus")}</dt><dd>{draft.approval.status}</dd></div>
         </dl>
         {draft.approval.reason && <p className={styles.warning}>{draft.approval.reason}</p>}
@@ -118,7 +117,7 @@ export default function McpWikiDraftApprovalPage({ workspaceId, draftId }: { wor
           <p>{t("fees.charge")}</p>
         </section>
 
-        <WikiDraftPreview preview={draft.preview} />
+        <WikiDraftPreview preview={draft.preview} canOpenSources={readWorkspaceId() === workspaceId} />
 
         <section className={styles.status} aria-label={t("status.title")}>
           <h2>{t("status.title")}</h2>
