@@ -246,7 +246,9 @@
     "createDocuments": "{client}에서 새 문서 {count}개 만들기를 제안했어요",
     "publishSkill": "{client}에서 Skill 저장을 제안했어요",
     "operations": "{client}에서 작업 {count}개를 제안했어요",
-    "unknown": "{client}에서 작업을 제안했어요"
+    "unknown": "{client}에서 작업을 제안했어요",
+    "editDocumentNamed": "{client}에서 “{name}”{others, plural, =0 {} other { 외 문서 #개}} 수정을 제안했어요",
+    "createDocumentNamed": "{client}에서 새 문서 “{name}”{others, plural, =0 {} other { 외 #개}} 만들기를 제안했어요"
   },
   "overview": {
     "status": "상태",

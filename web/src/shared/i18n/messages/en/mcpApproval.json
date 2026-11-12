@@ -246,7 +246,9 @@
     "createDocuments": "{client} proposes creating {count, plural, one {# new document} other {# new documents}}",
     "publishSkill": "{client} proposes saving a Skill",
     "operations": "{client} proposes {count, plural, one {# change} other {# changes}}",
-    "unknown": "{client} proposes changes"
+    "unknown": "{client} proposes changes",
+    "editDocumentNamed": "{client} proposes editing “{name}”{others, plural, =0 {} one { and # other document} other { and # other documents}}",
+    "createDocumentNamed": "{client} proposes creating “{name}”{others, plural, =0 {} one { and # other new document} other { and # other new documents}}"
   },
   "overview": {
     "status": "Status",

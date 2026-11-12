@@ -96,6 +96,19 @@ test("run headline, tone and cost line", () => {
   assert.deepEqual(run.mcpRunHeadline(ops("publish_skill_definition")), { kind: "publishSkill", count: 1 });
   assert.deepEqual(run.mcpRunHeadline(ops("create_folder", "move_document")), { kind: "operations", count: 2 });
   assert.deepEqual(run.mcpRunHeadline(null), { kind: "unknown", count: 0 });
+  // 문서 이름을 알면 첫 이름과 나머지 개수로, 하나라도 모르면 개수로만 말한다.
+  const edits = { operations: [
+    { tool_name: "apply_document_edit", target_id: "doc_a", arguments: {} },
+    { tool_name: "apply_document_edit", target_id: "doc_b", arguments: {} },
+    { tool_name: "apply_document_edit", target_id: "doc_a", arguments: {} }
+  ] };
+  const names = new Map([["doc_a", "연구계획서 초안"], ["doc_b", "회의록"]]);
+  assert.deepEqual(run.mcpRunHeadline(edits, (id) => names.get(id)),
+    { kind: "editDocumentNamed", count: 3, name: "연구계획서 초안", others: 1 });
+  assert.deepEqual(run.mcpRunHeadline(edits, (id) => (id === "doc_a" ? "연구계획서 초안" : undefined)),
+    { kind: "editDocuments", count: 3 });
+  assert.deepEqual(run.mcpRunHeadline({ operations: [{ tool_name: "create_document", target_id: null, arguments: { name: "새 메모" } }] }),
+    { kind: "createDocumentNamed", count: 1, name: "새 메모", others: 0 });
   assert.equal(run.mcpRunTone("awaiting_approval"), "pending");
   assert.equal(run.mcpRunTone("completed"), "success");
   assert.equal(run.mcpRunTone("failed"), "danger");

@@ -38,8 +38,11 @@ const aliases = {
   "./McpApprovalPage.module.css": { __esModule: true, default: new Proxy({}, { get: (_, name) => name }) },
   "next/navigation": { useRouter: () => ({ replace() {} }) },
   "next-intl": { useTranslations: () => (key, values) => values ? `${key}(${Object.values(values).join(",")})` : key, useFormatter: () => ({ number: (value) => `KRW ${value}` }) },
+  "@/entities/wiki": { fetchDocumentDataForWorkspace: async () => ({ tree: [] }) },
   "@tanstack/react-query": {
-    useQuery: () => ({ data: run, error: null, isPending: false, isFetching: false, refetch() {} }),
+    useQuery: ({ queryKey }) => queryKey.at(-1) === "documents"
+      ? { data: [{ id: "doc-1", name: "연구계획서 초안" }], error: null, isPending: false, isFetching: false }
+      : { data: run, error: null, isPending: false, isFetching: false, refetch() {} },
     useQueryClient: () => ({ removeQueries() {}, setQueryData() {}, invalidateQueries() {} }),
     useMutation: () => ({ isPending: false, error: null, mutate: () => { mutations += 1; } })
   }
@@ -56,6 +59,8 @@ test("MCP review renders untrusted labels as text and never approves, cancels, o
   assert.doesNotMatch(html, /<img|<script|revise|regenerate/i);
   assert.match(html, /KRW 100/);
   assert.match(html, /Explicit approval only/);
+  // 머리말은 워크스페이스 트리에서 찾은 문서 이름으로 말한다.
+  assert.ok(html.includes("headline.editDocumentNamed(") && html.includes(",1,연구계획서 초안,0)</h1>"));
 });
 
 test("source version conflicts keep the registered client visible but approval disabled with a distinct reason", () => {
@@ -75,7 +80,7 @@ test("run review leads with what changes, a human status and one cost line; tech
   assert.ok(at > 0);
   const visible = html.slice(0, at);
   const details = html.slice(at);
-  assert.match(visible, /<h1[^>]*>headline\.editDocuments\(&lt;img src=x onerror=alert\(1\)&gt;,1\)<\/h1>/);
+  assert.match(visible, /<h1[^>]*>headline\.editDocumentNamed\(&lt;img src=x onerror=alert\(1\)&gt;,1,연구계획서 초안,0\)<\/h1>/);
   assert.match(visible, /data-tone="pending"[^>]*>승인 대기</);
   assert.match(visible, /cost\.maximum\(KRW 100\)/);
   for (const raw of ["grant-1", "a".repeat(64), "https://client.example/metadata", ">v1<", "fees.scope", "awaiting_approval"]) {

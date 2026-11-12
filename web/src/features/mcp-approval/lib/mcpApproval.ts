@@ -273,12 +273,36 @@ export function mcpRunTone(status: string | undefined): McpRunTone {
 }
 
 /** 머리말 문장 종류. 모든 작업이 같은 종류면 그 종류로, 섞였으면 작업 수로 말한다. */
-export function mcpRunHeadline(plan: Pick<AgentPlan, "operations"> | null | undefined): { kind: "editDocuments" | "createDocuments" | "publishSkill" | "operations" | "unknown"; count: number } {
+export type McpRunHeadline =
+  | { kind: "editDocuments" | "createDocuments" | "publishSkill" | "operations" | "unknown"; count: number }
+  | { kind: "editDocumentNamed" | "createDocumentNamed"; count: number; name: string; others: number };
+
+/**
+ * 머리말 문장. 문서 이름을 알면(편집은 워크스페이스 트리, 생성은 인자) 첫 문서 이름과 나머지 개수로 말한다.
+ * 이름을 하나라도 모르면 개수로만 말한다.
+ */
+export function mcpRunHeadline(
+  plan: Pick<AgentPlan, "operations"> | null | undefined,
+  documentName: (id: string) => string | undefined = () => undefined
+): McpRunHeadline {
   const operations = plan?.operations ?? [];
   if (operations.length === 0) return { kind: "unknown", count: 0 };
   const every = (tool: string) => operations.every((operation) => operation.tool_name === tool);
-  if (every("apply_document_edit")) return { kind: "editDocuments", count: operations.length };
-  if (every("create_document")) return { kind: "createDocuments", count: operations.length };
+  const named = (kind: "editDocumentNamed" | "createDocumentNamed", names: (string | undefined)[]): McpRunHeadline | null => {
+    const unique = [...new Set(names)];
+    if (unique.some((name) => !name?.trim())) return null;
+    return { kind, count: operations.length, name: unique[0]!.trim(), others: unique.length - 1 };
+  };
+  if (every("apply_document_edit")) {
+    return named("editDocumentNamed", operations.map((operation) => operation.target_id ? documentName(operation.target_id) : undefined))
+      ?? { kind: "editDocuments", count: operations.length };
+  }
+  if (every("create_document")) {
+    return named("createDocumentNamed", operations.map((operation) => {
+      const value = operation.arguments?.name ?? operation.arguments?.display_name;
+      return typeof value === "string" ? value : undefined;
+    })) ?? { kind: "createDocuments", count: operations.length };
+  }
   if (every("publish_skill_definition")) return { kind: "publishSkill", count: operations.length };
   return { kind: "operations", count: operations.length };
 }

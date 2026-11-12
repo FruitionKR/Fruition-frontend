@@ -8,6 +8,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/entities/user";
 import { cancelAgentPlanRun, fetchAgentPlanRunById } from "@/features/agent-chat/api/agentPlan";
+import { fetchDocumentDataForWorkspace } from "@/entities/wiki";
 import { agentPlanStatusLabel, canApproveAgentPlan, type AgentPlanRun, type McpPriceSnapshot } from "@/features/agent-chat/lib/agentPlan";
 import { AgentPlanTaskDetail } from "@/features/agent-chat/ui/AgentPlanTaskDetail";
 import { LoginRequiredError } from "@/shared/lib/apiErrors";
@@ -50,6 +51,16 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
     refetchInterval: (query) => !query.state.error && shouldPollMcpApproval(query.state.data) ? 3000 : false
   });
   const run = runQuery.data ?? null;
+  // 머리말의 문서 이름. 아래 작업 목록(AgentPlanTaskDetail)과 같은 키라 트리를 한 번만 받는다.
+  const documentTree = useQuery({
+    queryKey: ["mcpApproval", userId, workspaceId, runId, "documents"],
+    queryFn: () => fetchDocumentDataForWorkspace(workspaceId),
+    select: (data) => data.tree,
+    staleTime: Infinity,
+    enabled: Boolean(userId && run?.plan),
+    retry: false
+  });
+  const documentNames = documentNameIndex(documentTree.data ?? []);
   const availability = mcpApprovalAvailability(run);
   const quote = run?.mcp_approval_quote ?? null;
   const settlement = run?.mcp_settlement ?? null;
@@ -110,7 +121,7 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
   }
   if (!run || !me.data) return <main className={styles.page}><p role="status">{t("loading")}</p></main>;
 
-  const headline = mcpRunHeadline(run.plan);
+  const headline = mcpRunHeadline(run.plan, (id) => documentNames.get(id));
   const cost = mcpRunCostLine(settlement, priceSnapshot);
   const costText = !cost ? null : cost.kind === "free" ? t("cost.free") : t(`cost.${cost.kind}`, { amount: money(cost.amount) });
   const code = (value: string) => <> <span className={styles.code}>{value}</span></>;
@@ -124,7 +135,10 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
             <p className={styles.eyebrow}>{t("eyebrow")}</p>
             <button type="button" className={styles.ghost} disabled={runQuery.isFetching} onClick={() => void runQuery.refetch()}>{t("refresh")}</button>
           </div>
-          <h1 id="mcp-approval-title">{t(`headline.${headline.kind}`, { client: clientName || t("clientFallback"), count: headline.count })}</h1>
+          <h1 id="mcp-approval-title">{t(`headline.${headline.kind}`, {
+            client: clientName || t("clientFallback"), count: headline.count,
+            ...("name" in headline ? { name: headline.name, others: headline.others } : {})
+          })}</h1>
           <dl className={styles.overview}>
             <div><dt>{t("overview.status")}</dt><dd><span className={styles.badge} data-tone={mcpRunTone(run.status)}>{agentPlanStatusLabel(run.status, tAgent)}</span></dd></div>
             {costText && <div><dt>{t("overview.cost")}</dt><dd className={styles.costText}>{costText}</dd></div>}
@@ -204,4 +218,16 @@ export default function McpApprovalPage({ workspaceId, runId }: { workspaceId: s
       </article>
     </main>
   );
+}
+
+type NamedTreeItem = { id: string; name: string; children?: NamedTreeItem[] };
+
+function documentNameIndex(tree: NamedTreeItem[]): Map<string, string> {
+  const names = new Map<string, string>();
+  const visit = (items: NamedTreeItem[]) => items.forEach((item) => {
+    names.set(item.id, item.name);
+    visit(item.children ?? []);
+  });
+  visit(tree);
+  return names;
 }
