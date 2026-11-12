@@ -67,6 +67,15 @@ test("parses a complete LINT preview without requiring evidence on structural ch
   assert.deepEqual(parsed.preview.changes[0].evidence, []);
 });
 
+test("parses a LINT statement edit, which the pipeline reports as a PAGE_BODY update", () => {
+  const parsed = parseMcpWikiWebDraft({
+    ...draft, draft_kind: "LINT", quote: { ...draft.quote, pricing_model: "LINT_FIXED_APPLY" },
+    preview: { ...preview, changes: [change("body", "PAGE_BODY", "UPDATE", null)] }
+  });
+  assert.notEqual(parsed, null);
+  assert.deepEqual(mcpWikiChangeGroups(parsed.preview).map((group) => group.kind), ["PAGE_BODY"]);
+});
+
 test("fails closed for incomplete, malformed, internal, duplicate, or unmapped preview data", () => {
   const invalid = [
     { ...draft, preview: { ...preview, complete: false } },
