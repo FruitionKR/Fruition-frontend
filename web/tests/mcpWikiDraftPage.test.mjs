@@ -12,7 +12,11 @@ const draft = {
   schema_version: "mcp.wiki-web-draft.v1", draft_id: "draft-1", draft_kind: "INGEST", draft_version: 1,
   draft_hash: "draft-hash", public_state_hash: "public-hash", client_name: "<img src=x onerror=bad()>",
   quote: { pricing_model: "INGEST_SOURCE_QUANTITY", currency: "KRW", price_version: "v1", quantity: 2, unit: "pages", formula: "<script>bad()</script>", maximum_charge_minor: 500 },
-  preview: { schema_version: "mcp.wiki-preview.v1", complete: true, source_documents: [], target_pages: [], changes: [] },
+  // 화면은 파서를 거친 초안을 받는다. 파서는 summary를 늘 채운다(없으면 빈 목록).
+  preview: { schema_version: "mcp.wiki-preview.v1", complete: true, source_documents: [], summary: [
+    { kind: "CONCEPT_CREATE", page_id: null, page_title: "생성형 AI 학습 활용", text: null, before_text: null, related_page_title: null, evidence: [] },
+    { kind: "STATEMENT_ADD", page_id: "page-2", page_title: "Lint", text: "문장", before_text: null, related_page_title: null, evidence: [] }
+  ] },
   approval: { status: "AWAITING", reason: null },
   publication: { status: "NOT_STARTED", changed: null, published_reference_hash: null, committed_at: null, error_code: null },
   settlement: { status: "NOT_RESERVED", charged_minor: 0 }
@@ -36,7 +40,7 @@ const aliases = {
   "@/shared/lib/authSessionStorage": { setAfterLoginPath() {} },
   "next/link": { __esModule: true, default: ({ href, children }) => React.createElement("a", { href }, children) },
   "next/navigation": { useRouter: () => ({ replace() {} }) },
-  "next-intl": { useTranslations: () => (key) => key, useFormatter: () => ({ number: (value) => `KRW ${value}` }) },
+  "next-intl": { useTranslations: () => (key, values) => values ? `${key}(${Object.values(values).join(",")})` : key, useFormatter: () => ({ number: (value) => `KRW ${value}` }) },
   "@tanstack/react-query": {
     useQuery: () => ({ data: draft, error: queryError, isPending: false, isFetching: false, refetch() {} }),
     useQueryClient: () => ({ removeQueries() {}, setQueryData() {}, invalidateQueries() {} }),
@@ -103,4 +107,62 @@ test("top-level missing owner or draft hides a previously cached preview and app
   queryError = null;
   assert.match(html, /errors\.missing/);
   assert.doesNotMatch(html, /complete preview|>approve<|KRW 500/);
+});
+
+const render = () => renderToStaticMarkup(React.createElement(Page, { workspaceId: "ws-1", draftId: "draft-1" }));
+const split = (html) => {
+  const at = html.indexOf("<details");
+  assert.ok(at > 0, "technical details live in one collapsed <details>");
+  assert.doesNotMatch(html.slice(at), /<details[^>]*open/, "details start collapsed");
+  return { visible: html.slice(0, at), details: html.slice(at) };
+};
+
+test("header says in plain words what is approved, with one human status and one cost line", () => {
+  const { visible } = split(render());
+  assert.match(visible, /<h1[^>]*>headline\.INGEST\(&lt;img src=x onerror=bad\(\)&gt;,생성형 AI 학습 활용,1\)<\/h1>/);
+  assert.match(visible, /data-tone="pending"[^>]*>stage\.awaiting</);
+  assert.match(visible, /cost\.maximum\(KRW 500\)/);
+  assert.match(visible, />approve</);
+});
+
+test("raw codes, pricing basis, versions and legal notes are only inside the collapsed section", () => {
+  const { visible, details } = split(render());
+  for (const raw of ["INGEST_SOURCE_QUANTITY", "NOT_STARTED", "NOT_RESERVED", "AWAITING", ">INGEST<", "fees.bound", "fees.charge", "fees.version", "&lt;script&gt;"]) {
+    assert.doesNotMatch(visible, new RegExp(raw.replace(/[()]/g, "\\$&")), `${raw} is not shown up front`);
+    assert.match(details, new RegExp(raw.replace(/[()]/g, "\\$&")), `${raw} is still available in details`);
+  }
+  assert.match(details, /<summary>more\.summary<\/summary>/);
+  assert.match(details, /labels\.kind\.INGEST/);
+  assert.match(details, /labels\.approval\.AWAITING/);
+  assert.match(details, /labels\.publication\.NOT_STARTED/);
+  assert.match(details, /labels\.settlement\.NOT_RESERVED/);
+  assert.match(details, /labels\.pricingModel\.INGEST_SOURCE_QUANTITY/);
+});
+
+test("a published and settled draft shows the applied state and charged amount, history link only in details", () => {
+  const saved = { approval: draft.approval, publication: draft.publication, settlement: draft.settlement };
+  Object.assign(draft, {
+    approval: { status: "EXECUTING", reason: null },
+    publication: { status: "PUBLISHED", changed: true, published_reference_hash: "ref", committed_at: "2026-11-13T00:00:00Z", error_code: null },
+    settlement: { status: "SETTLED", charged_minor: 300 }
+  });
+  const { visible, details } = split(render());
+  Object.assign(draft, saved);
+  assert.match(visible, /data-tone="success"[^>]*>stage\.published</);
+  assert.match(visible, /cost\.charged\(KRW 300\)/);
+  assert.doesNotMatch(visible, />approve<|>reject</);
+  assert.match(visible, />cancel</, "cancel stays available while approval is EXECUTING");
+  assert.doesNotMatch(visible, /status\.history/);
+  assert.match(details, /href="\/home\?view=logs"[^>]*>status\.history/);
+});
+
+test("invalidated draft keeps its reason visible and says nothing will be charged", () => {
+  const saved = draft.approval;
+  draft.approval = { status: "INVALIDATED", reason: "원문이 바뀌었어요" };
+  const { visible } = split(render());
+  draft.approval = saved;
+  assert.match(visible, /stage\.invalidated/);
+  assert.match(visible, /원문이 바뀌었어요/);
+  assert.match(visible, /cost\.released/);
+  assert.doesNotMatch(visible, />approve</);
 });

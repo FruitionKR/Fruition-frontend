@@ -10,7 +10,7 @@
   "planVersion": "Plan version",
   "planHash": "Plan hash",
   "fees": {
-    "title": "Fee quote before approval",
+    "title": "Pricing basis",
     "operations": "Selected operations",
     "unit": "Unit price",
     "cap": "Per-approval cap",
@@ -18,34 +18,37 @@
     "free": "Free (₩0)",
     "currency": "Currency",
     "version": "Price version",
-    "scope": "This cap applies to this approval only, not the conversation total. The displayed server quote is bound to approval.",
-    "partial": "Only successfully changed selected operations are charged, up to this approval cap. NO_CHANGE and failed operations are free. Cancelling or rolling back later does not refund successful changes."
+    "scope": "This cap applies to this approval only. The amount comes from the server and does not change when you approve.",
+    "partial": "Only selected operations that actually change something are charged, up to the cap. Unchanged or failed operations are free, and cancelling or rolling back later does not refund successful changes."
   },
   "settlement": {
-    "title": "Execution and settlement",
+    "title": "Run and charge",
     "execution": "Execution",
     "forward": "Forwarding",
-    "status": "Settlement",
+    "status": "Charge status",
     "charge": "Charge",
-    "notFinal": "Not final — reconciliation is still pending"
+    "notFinal": "Not final yet"
   },
   "execution": {
     "RESERVED": "Reserved",
     "FORWARDED": "Forwarded",
     "CANCELLED": "Cancelled with reverse rollback requested",
     "HALTED": "Stopped by an administrator or security policy",
-    "PURGED": "Purge in progress"
+    "PURGED": "Purge in progress",
+    "OTHER": "Unknown"
   },
   "forward": {
     "NOT_SENT": "Not sent",
-    "UNKNOWN": "Attempt outcome unknown",
-    "ACCEPTED": "Accepted"
+    "UNKNOWN": "Confirming delivery",
+    "ACCEPTED": "Accepted",
+    "OTHER": "Unknown"
   },
   "settlementStatus": {
-    "RESERVED": "Reserved",
+    "RESERVED": "Maximum reserved",
     "EXECUTING": "Executing",
-    "PENDING_RECONCILIATION": "Pending reconciliation",
-    "SETTLED": "Settled"
+    "PENDING_RECONCILIATION": "Confirming the charge",
+    "SETTLED": "Charged",
+    "OTHER": "Unknown"
   },
   "halted": "This run was stopped by an administrator or security policy. It will not roll back automatically; use the explicit cancel and reverse-rollback action if needed.",
   "cancel": {
@@ -88,7 +91,7 @@
     "approvalStatus": "Approval",
     "summary": {
       "title": "What will change",
-      "intro": "Approving applies the changes below to the wiki. Each concept lists what changes and the source passages behind it.",
+      "intro": "Each concept lists what changes and the source passages behind it.",
       "legacy": "This draft has no summary, so its changes can't be shown. They will be applied to the wiki after approval.",
       "untitled": "Untitled concept",
       "kinds": {
@@ -114,35 +117,35 @@
       "openSourceLabel": "Open this evidence in {name} (new tab)"
     },
     "fees": {
-      "title": "Immutable fee quote before approval",
+      "title": "Pricing basis",
       "model": "Pricing model",
       "quantity": "Server quantity",
       "formula": "Price calculation",
       "maximum": "Maximum charge",
       "currency": "Currency",
       "version": "Price version",
-      "bound": "This server quote is bound to this exact draft version, hashes, client, and source mapping. It is not recalculated in the browser.",
-      "charge": "A published actual change is charged once. NO_CHANGE and unpublished drafts are free. Restoring later does not refund a successful publication."
+      "bound": "The server set this amount for this exact draft, so it does not change when you approve.",
+      "charge": "You are charged once when the change is actually applied to the wiki. Nothing is charged if nothing changes or it is not applied, and restoring later does not refund it."
     },
     "status": {
-      "title": "Publication and settlement",
-      "publication": "Publication",
-      "settlement": "Settlement",
+      "title": "Apply and charge",
+      "publication": "Apply",
+      "settlement": "Charge status",
       "charge": "Charge",
       "error": "Result code",
       "notFinal": "Not final",
-      "unknown": "The publication result is unknown. This is not proof of failure or a free operation; use read-only refresh while reconciliation continues.",
-      "pending": "Settlement is pending reconciliation even if execution has stopped.",
-      "publishedCharge": "The actual Wiki change was published and is charged once. A later restore does not refund this publication.",
-      "noChange": "No Wiki change was published, so the reservation is released without a charge.",
+      "unknown": "We have not confirmed the result yet. This does not mean it failed; refresh the status until it is confirmed.",
+      "pending": "The run stopped, but the charge is still being confirmed.",
+      "publishedCharge": "The change was applied to the wiki and charged once. Restoring later does not refund it.",
+      "noChange": "Nothing changed in the wiki, so the reservation was released without a charge.",
       "history": "Open operation history and restore"
     },
     "approvalUnavailable": "This draft is no longer eligible for explicit approval.",
     "clientApprovalUnavailable": "Trusted registered-client information is unavailable. History remains readable, but approval is disabled.",
-    "approve": "Approve the whole draft",
+    "approve": "Approve and apply",
     "approving": "Approving…",
-    "reject": "Reject the whole draft",
-    "rejectConfirm": "Reject this entire immutable draft?",
+    "reject": "Reject",
+    "rejectConfirm": "Reject this draft? It cannot be approved afterwards.",
     "cancel": "Cancel and request recovery",
     "cancelling": "Requesting cancellation…",
     "cancelConfirm": "Cancel this draft execution? Already published changes require the existing explicit restore flow and successful publication is not refunded.",
@@ -155,6 +158,114 @@
       "unavailable": "Authorization, pricing, or another required service is unavailable. Approval remains disabled.",
       "ambiguous": "The mutation result is unclear. It was not retried; use read-only status refresh until the server reports the result.",
       "failed": "The action could not be completed. The latest status was requested."
+    },
+    "eyebrow": "Wiki change approval",
+    "clientFallback": "An external AI client",
+    "headline": {
+      "INGEST": "{client} proposes adding “{topic}”{others, plural, =0 {} one { and # more concept} other { and # more concepts}} to the wiki",
+      "LINT": "{client} proposes tidying “{topic}”{others, plural, =0 {} one { and # more concept} other { and # more concepts}} in the wiki",
+      "OTHER": "{client} proposes changing “{topic}”{others, plural, =0 {} one { and # more concept} other { and # more concepts}} in the wiki"
+    },
+    "headlineNoTopic": {
+      "INGEST": "{client} proposes adding sources to the wiki",
+      "LINT": "{client} proposes tidying the wiki",
+      "OTHER": "{client} proposes a wiki change"
+    },
+    "overview": {
+      "status": "Status",
+      "cost": "Fee"
+    },
+    "stage": {
+      "awaiting": "Awaiting approval",
+      "executing": "Applying",
+      "published": "Applied",
+      "noChange": "Nothing changed",
+      "conflicted": "Not applied (conflict)",
+      "halted": "Stopped",
+      "unknown": "Confirming result",
+      "rejected": "Rejected",
+      "invalidated": "No longer approvable",
+      "other": "Check status"
+    },
+    "cost": {
+      "maximum": "Up to {amount} · charged once the change is applied to the wiki",
+      "reserved": "Up to {amount} reserved · charged when applied",
+      "reconciling": "Confirming the charge · up to {amount}",
+      "charged": "{amount} charged",
+      "adjusted": "{amount} charged (adjusted)",
+      "released": "No charge"
+    },
+    "labels": {
+      "kind": {
+        "INGEST": "Wiki ingest",
+        "LINT": "Wiki tidy-up",
+        "OTHER": "Unknown"
+      },
+      "approval": {
+        "AWAITING": "Awaiting approval",
+        "EXECUTING": "Approved",
+        "REJECTED": "Rejected",
+        "INVALIDATED": "No longer approvable",
+        "OTHER": "Unknown"
+      },
+      "publication": {
+        "NOT_STARTED": "Not applied yet",
+        "APPLYING": "Applying",
+        "PUBLISHED": "Applied",
+        "NO_CHANGE": "Nothing changed",
+        "CONFLICTED": "Not applied (conflict)",
+        "HALTED": "Stopped",
+        "UNKNOWN": "Confirming result",
+        "OTHER": "Unknown"
+      },
+      "settlement": {
+        "NOT_RESERVED": "Not charged yet",
+        "RESERVED": "Maximum reserved",
+        "PENDING_RECONCILIATION": "Confirming the charge",
+        "SETTLED": "Charged",
+        "RELEASED": "No charge (reservation released)",
+        "ADJUSTED": "Charge adjusted",
+        "OTHER": "Unknown"
+      },
+      "pricingModel": {
+        "INGEST_SOURCE_QUANTITY": "Per source document",
+        "LINT_FIXED_APPLY": "Fixed per apply",
+        "OTHER": "Unknown"
+      }
+    },
+    "more": {
+      "summary": "More details",
+      "request": "Request",
+      "code": "Code"
     }
+  },
+  "eyebrow": "Document change approval",
+  "clientFallback": "An external AI client",
+  "headline": {
+    "editDocuments": "{client} proposes editing {count, plural, one {# document} other {# documents}}",
+    "createDocuments": "{client} proposes creating {count, plural, one {# new document} other {# new documents}}",
+    "publishSkill": "{client} proposes saving a Skill",
+    "operations": "{client} proposes {count, plural, one {# change} other {# changes}}",
+    "unknown": "{client} proposes changes",
+    "editDocumentNamed": "{client} proposes editing “{name}”{others, plural, =0 {} one { and # other document} other { and # other documents}}",
+    "createDocumentNamed": "{client} proposes creating “{name}”{others, plural, =0 {} one { and # other new document} other { and # other new documents}}"
+  },
+  "overview": {
+    "status": "Status",
+    "cost": "Fee"
+  },
+  "cost": {
+    "free": "Free",
+    "maximum": "Up to {amount} · only operations that actually change something are charged",
+    "reserved": "Up to {amount} reserved · finalized when the run ends",
+    "reconciling": "Confirming the charge · up to {amount}",
+    "charged": "{amount} charged"
+  },
+  "core": "What will change",
+  "more": {
+    "summary": "More details",
+    "request": "Request",
+    "clientId": "Client ID",
+    "code": "Code"
   }
 }

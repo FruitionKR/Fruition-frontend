@@ -250,6 +250,14 @@ function settleRun(run) {
     : succeeded > 0 ? "partial_failed" : "failed";
   run.status = status;
   run.plan.status = status;
+  if (run.origin === "MCP_CLIENT") {
+    const price = run.mcp_approval_quote.price_snapshot;
+    run.mcp_settlement = {
+      approval_id: `approval_${run.id}`, execution_status: "FORWARDED", forward_status: "ACCEPTED", settlement_status: "SETTLED",
+      charged_minor: Math.min(succeeded * price.unit_price_minor, price.plan_cap_minor), maximum_charge_minor: price.maximum_charge_minor,
+      currency: price.currency, client_name: run.mcp_approval_quote.client_name, price_snapshot: price
+    };
+  }
 }
 
 function attachedEditResult(workspace, turn, request) {
@@ -510,7 +518,12 @@ function toTurn(turn) {
 
 function toRun(run) {
   const { id: runId, status, error_code, request_summary, target_folder_id, rule_summary, plan } = run;
-  return { id: runId, status, error_code, request_summary: request_summary ?? null, target_folder_id: target_folder_id ?? null, rule_summary: rule_summary ?? null, plan };
+  // MCP 클라이언트가 제안한 run(mcpRuns.mjs)만 승인 권한·견적·정산 필드를 함께 보낸다.
+  const mcp = run.origin === "MCP_CLIENT" ? {
+    origin: run.origin, grant_id: run.grant_id, client_id: run.client_id, policy_generation: run.policy_generation,
+    mcp_approval_quote: run.mcp_approval_quote, mcp_settlement: run.mcp_settlement
+  } : {};
+  return { id: runId, status, error_code, request_summary: request_summary ?? null, target_folder_id: target_folder_id ?? null, rule_summary: rule_summary ?? null, plan, ...mcp };
 }
 
 export function registerAgentRoutes(router) {

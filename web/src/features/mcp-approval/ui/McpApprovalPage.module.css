@@ -1,42 +1,465 @@
-.page { min-height: 100vh; padding: 32px 16px; background: var(--color-canvas); color: var(--color-foreground); }
-.card { width: min(880px, 100%); margin: 0 auto; padding: 24px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); }
-.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.header h1, .fees h2, .status h2 { margin: 0; }
-.eyebrow { margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--color-primary); }
-.details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
-.details div { min-width: 0; padding: 12px; border-radius: 10px; background: var(--color-canvas); }
-.details dt { font-size: 12px; color: var(--color-body); }
-.details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
-.hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-.fees, .status, .cancelArea { margin-top: 20px; padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; }
-.fees p, .cancelArea p { margin: 8px 0 0; }
-.warning { padding: 12px; border-radius: 10px; background: color-mix(in srgb, var(--color-status-warning) 12%, var(--color-canvas)); color: var(--color-foreground); }
-.secondary, .danger { min-height: 38px; padding: 8px 14px; border: 1px solid currentColor; border-radius: 8px; background: transparent; cursor: pointer; }
-.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-.primary { min-height: 38px; padding: 8px 14px; border: 1px solid var(--color-primary); border-radius: 8px; background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; }
-.danger { margin-top: 12px; color: var(--color-danger); }
-.actions .danger { margin-top: 0; }
-.secondary:disabled, .primary:disabled, .danger:disabled { border-color: var(--color-border); background: var(--color-surface-strong); color: var(--color-body); cursor: default; }
-.wikiPreview { display: grid; gap: 14px; margin-top: 20px; }
-.wikiPreview h2 { margin: 0; }
-.wikiSummaryNote { margin: 0; color: var(--color-body); }
-.wikiConcept { padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; }
-.wikiConcept h3 { margin: 0 0 12px; font-size: 15px; overflow-wrap: anywhere; }
-.wikiSummaryList { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
-.wikiSummaryItem { display: grid; gap: 8px; min-width: 0; }
-.wikiSummaryLine { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 10px; margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
-.wikiKind { justify-self: start; white-space: nowrap; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--color-primary); background: var(--color-primary-weak); }
-.wikiKind[data-tone="add"] { color: var(--color-status-success); background: color-mix(in srgb, var(--color-status-success) 12%, transparent); }
-.wikiKind[data-tone="remove"] { color: var(--color-danger); background: var(--color-danger-weak); }
-.wikiBefore { color: var(--color-body); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--color-body) 60%, transparent); }
-.wikiEvidence { display: grid; gap: 8px; margin: 0 0 0 12px; padding: 0; list-style: none; }
-.wikiEvidence li { min-width: 0; padding: 10px 12px; border-left: 3px solid var(--color-border); border-radius: 0 8px 8px 0; background: var(--color-canvas); overflow-wrap: anywhere; }
+/* MCP 승인 화면(문서 작업·위키 초안) 공용 스타일.
+   순서: 머리말(무엇을 승인하는지·상태·수수료) → 바뀌는 내용 → 버튼 → 접힌 "자세히 보기".
+   색은 base.css 의미 토큰만 쓰고, 간격은 4·8·12·16·24·32 단계로 맞춘다. */
+.page {
+  --approval-radius: 12px;
+  --approval-gap: 24px;
+  min-height: 100vh;
+  padding: 40px 16px 64px;
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.card {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--approval-gap);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-canvas);
+  box-shadow: 0 1px 2px var(--color-shadow);
+  word-break: keep-all;
+}
+
+.card h1,
+.card h2,
+.card h3,
+.card p {
+  margin: 0;
+}
+
+.title {
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+/* --- 머리말 --- */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-body);
+}
+
+.hero h1 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.overview {
+  margin: 4px 0 0;
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  border-radius: var(--approval-radius);
+  background: var(--color-surface);
+}
+
+.overview div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.overview dt {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--color-body);
+}
+
+.overview dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.costText {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* 상태 배지: 점 + 글자. 글자를 늘 함께 써서 색만으로 상태를 구분하지 않는다. */
+.badge {
+  --tone: var(--color-body);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  color: color-mix(in srgb, var(--tone) 72%, var(--color-foreground));
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+.badge[data-tone="pending"],
+.badge[data-tone="progress"] { --tone: var(--color-primary); }
+.badge[data-tone="success"],
+.notice[data-tone="success"] { --tone: var(--color-status-success); }
+.badge[data-tone="warning"],
+.notice[data-tone="warning"] { --tone: var(--color-status-warning); }
+.badge[data-tone="danger"],
+.notice[data-tone="danger"] { --tone: var(--color-danger); }
+.badge[data-tone="neutral"] { --tone: var(--color-muted); }
+
+/* 진행 중이면 점이 천천히 깜빡인다. 움직임 줄이기 설정에서는 멈춘다. */
+.badge[data-tone="progress"]::before {
+  animation: approval-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes approval-pulse {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge[data-tone="progress"]::before { animation: none; }
+}
+
+/* 안내·경고. 왼쪽 띠와 옅은 바탕은 같은 tone 색을 쓴다. */
+.notice {
+  --tone: var(--color-status-warning);
+  padding: 12px 16px;
+  border-left: 3px solid var(--tone);
+  border-radius: 0 var(--approval-radius) var(--approval-radius) 0;
+  background: color-mix(in srgb, var(--tone) 10%, var(--color-canvas));
+  color: var(--color-foreground);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* --- 본문 영역 --- */
+.section,
+.wikiPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.section h2,
+.wikiPreview h2 {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.wikiSummaryNote {
+  font-size: 14px;
+  color: var(--color-body);
+}
+
+/* 위키 개념 묶음. 화면의 카드 모양은 이것 하나다. */
+.wikiConcept {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--approval-radius);
+  background: var(--color-surface);
+}
+
+.wikiConcept h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.wikiSummaryList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wikiSummaryItem {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wikiSummaryLine {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.wikiKind {
+  --tone: var(--color-primary);
+  justify-self: start;
+  white-space: nowrap;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--tone) 72%, var(--color-foreground));
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+
+.wikiKind[data-tone="add"] { --tone: var(--color-status-success); }
+.wikiKind[data-tone="remove"] { --tone: var(--color-danger); }
+
+.wikiBefore {
+  color: var(--color-body);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--color-body) 60%, transparent);
+}
+
+.wikiEvidence {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wikiEvidence li {
+  min-width: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-border);
+  border-radius: 0 8px 8px 0;
+  background: var(--color-canvas);
+  overflow-wrap: anywhere;
+}
+
 .wikiEvidence figure { margin: 0; }
-.wikiEvidence blockquote { margin: 0; white-space: pre-wrap; }
-.wikiEvidence figcaption { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12px; color: var(--color-body); }
+.wikiEvidence blockquote { margin: 0; font-size: 14px; white-space: pre-wrap; }
+
+.wikiEvidence figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-body);
+}
+
 .wikiEvidence cite { font-style: normal; }
-.wikiEvidence a { color: var(--color-primary); text-underline-offset: 2px; }
-.wikiEvidence a:hover { text-decoration-thickness: 2px; }
-.wikiEvidence a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 2px; }
+
+.wikiEvidence a,
+.link {
+  color: var(--color-primary-weak-foreground);
+  text-underline-offset: 2px;
+}
+
+.wikiEvidence a:hover,
+.link:hover { text-decoration-thickness: 2px; }
+
+/* --- 버튼 --- */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: var(--approval-gap);
+  border-top: 1px solid var(--color-border);
+}
+
+.primary,
+.secondary,
+.danger,
+.ghost {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary) 88%, var(--color-foreground)); }
+
+.secondary {
+  border-color: var(--color-border);
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+}
+
+.secondary:hover:not(:disabled),
+.ghost:hover:not(:disabled) { background: var(--color-hover-overlay); }
+
+.danger {
+  border-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-border));
+  background: var(--color-canvas);
+  color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) { background: var(--color-danger-weak); }
+
+/* 새로고침처럼 보조 동작은 테두리 없이 작게 둔다. */
+.ghost {
+  min-height: 36px;
+  padding: 6px 12px;
+  flex: 0 0 auto;
+  border-color: var(--color-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-body);
+  font-size: 13px;
+}
+
+.primary:disabled,
+.secondary:disabled,
+.danger:disabled {
+  border-color: var(--color-border);
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
+  cursor: default;
+}
+
+.ghost:disabled { color: var(--color-muted); cursor: default; }
+
+/* 문서 작업 화면의 거절·수락 버튼은 아이콘을 함께 그린다. */
+.actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.danger:focus-visible,
+.ghost:focus-visible,
+.more > summary:focus-visible,
+.wikiEvidence a:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.cancelArea {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--color-body);
+}
+
+/* --- 자세히 보기 --- */
+.more {
+  border-top: 1px solid var(--color-border);
+}
+
+.more > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  list-style: none;
+  border-radius: 4px;
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.more > summary::-webkit-details-marker { display: none; }
+
+.more > summary::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 150ms ease;
+}
+
+.more[open] > summary::before { transform: translateY(1px) rotate(-135deg); }
+.more > summary:hover { color: var(--color-foreground); }
+
+.moreGroup {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.moreGroup h2 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-body);
+}
+
+.moreGroup > p {
+  font-size: 13px;
+  color: var(--color-body);
+}
+
+.facts {
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.facts div {
+  display: grid;
+  grid-template-columns: minmax(120px, 2fr) minmax(0, 5fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+}
+
+.facts dt { color: var(--color-body); }
+.facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-@media (max-width: 640px) { .page { padding: 16px 8px; } .card { padding: 16px; } .details { grid-template-columns: 1fr; } }
+
+@media (max-width: 640px) {
+  .page { padding: 16px 12px 40px; }
+  .card { --approval-gap: 20px; padding: 20px 16px; border-radius: 14px; }
+  .hero h1 { font-size: 20px; }
+  .overview { flex-direction: column; gap: 8px; }
+  .wikiConcept { padding: 12px; }
+  .actions > * { flex: 1 1 auto; }
+  .facts div { grid-template-columns: 1fr; gap: 2px; }
+}

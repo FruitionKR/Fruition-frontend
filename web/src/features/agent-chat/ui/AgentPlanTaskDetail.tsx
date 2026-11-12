@@ -90,7 +90,8 @@ export function AgentPlanTaskDetail({
   mcpQuote,
   onMcpSelectionChange,
   approvalDisabledReason,
-  errorMessage
+  errorMessage,
+  decisionClassNames
 }: {
   turnId: string | null;
   action: string;
@@ -110,6 +111,8 @@ export function AgentPlanTaskDetail({
   onMcpSelectionChange?: (selection: { operationIds: readonly string[]; priceSnapshot: McpPriceSnapshot | null }) => void;
   approvalDisabledReason?: string | null;
   errorMessage?: (error: unknown) => string;
+  /** 독립 화면(MCP 승인)이 자기 버튼 모양을 쓸 때 거절·수락 줄의 클래스를 바꾼다. 동작은 같다. */
+  decisionClassNames?: { row: string; accept: string; reject: string };
 }) {
   const t = useTranslations("agentChat");
   const tShared = useTranslations("shared");
@@ -273,7 +276,7 @@ export function AgentPlanTaskDetail({
         {planSummary.scopeNote && <p className={styles["task-card-meta"]} role="status">{planSummary.scopeNote}</p>}
         {mcpContext ? <>
           <details className={styles["plan-details"]} open>
-            <summary>{t("plan.details")}</summary>
+            <summary>{t("plan.mcpSelection.operations", { count: operations.length })}</summary>
             {planSummary.body && <p>{planSummary.body}</p>}
             <ol>
               {operations.map((operation) => {
@@ -428,20 +431,20 @@ export function AgentPlanTaskDetail({
       )}
       {(canDecide || (error && turnId)) && (
         // 거절·수락 (Figma 1671:13230): 오른쪽 정렬, 빨강·주 색 바탕
-        <div className={styles["task-decisions"]}>
+        <div className={decisionClassNames?.row ?? styles["task-decisions"]}>
           {error && turnId && (
             <button type="button" className={styles["task-pill"]} disabled={busy} onClick={() => { mutation.reset(); onRefetch(); void tree.refetch(); }}>
               {t("actions.checkAgain")}
             </button>
           )}
           {canDecide && <>
-            <button type="button" className={cx(styles["task-decision"], styles["is-danger"])} disabled={busy || Boolean(runError)} onClick={() => mutation.mutate({ decision: "reject" })}>
+            <button type="button" className={decisionClassNames?.reject ?? cx(styles["task-decision"], styles["is-danger"])} disabled={busy || Boolean(runError)} onClick={() => mutation.mutate({ decision: "reject" })}>
               <AgentAssetIcon src={taskRejectIcon} size={12} />
               {t("actions.reject")}
             </button>
             <button
               type="button"
-              className={styles["task-decision"]}
+              className={decisionClassNames?.accept ?? styles["task-decision"]}
               aria-label={isEditPlan ? t("plan.acceptLabel.edit") : action === "folder_organize" ? t("plan.acceptLabel.folderOrganize") : t("plan.acceptLabel.workspace")}
               disabled={!ready || busy}
               title={accessVerdict === "all_blocked" ? accessMessage ?? undefined : previewNotice ?? undefined}

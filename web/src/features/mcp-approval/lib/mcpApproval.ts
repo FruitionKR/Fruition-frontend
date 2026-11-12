@@ -253,3 +253,79 @@ export function mcpDecisionErrorKey(error: unknown): "credit" | "conflict" | "fo
   if (status >= 500 || status === 0) return "ambiguous";
   return "failed";
 }
+
+/** 정산 응답에 오는 상태 값. 화면 라벨(mcpApproval.execution 등)도 이 목록을 기준으로 둔다. */
+export const MCP_EXECUTION_STATUSES = ["RESERVED", "FORWARDED", "CANCELLED", "HALTED", "PURGED"] as const;
+export const MCP_FORWARD_STATUSES = ["NOT_SENT", "UNKNOWN", "ACCEPTED"] as const;
+export const MCP_SETTLEMENT_STATUSES = ["RESERVED", "EXECUTING", "PENDING_RECONCILIATION", "SETTLED"] as const;
+
+export type McpRunTone = "pending" | "progress" | "success" | "neutral" | "warning" | "danger";
+const RUN_TONES: Record<string, McpRunTone> = {
+  queued: "progress", planning: "progress", awaiting_approval: "pending", executing: "progress", verifying: "progress",
+  cancel_requested: "progress", rolling_back: "progress", completed: "success", partial_failed: "warning", failed: "danger",
+  conflicted: "danger", rollback_failed: "danger", rejected: "neutral", cancelled: "neutral", clarification_required: "warning",
+  halted: "warning", invalidated: "warning", expired: "neutral"
+};
+
+/** 실행 상태 배지 색. 모르는 상태는 중립색이다(라벨은 agentPlanStatusLabel이 "알 수 없음"으로 쓴다). */
+export function mcpRunTone(status: string | undefined): McpRunTone {
+  return RUN_TONES[status ?? ""] ?? "neutral";
+}
+
+/** 머리말 문장 종류. 모든 작업이 같은 종류면 그 종류로, 섞였으면 작업 수로 말한다. */
+export type McpRunHeadline =
+  | { kind: "editDocuments" | "createDocuments" | "publishSkill" | "operations" | "unknown"; count: number }
+  | { kind: "editDocumentNamed" | "createDocumentNamed"; count: number; name: string; others: number };
+
+/**
+ * 머리말 문장. 문서 이름을 알면(편집은 워크스페이스 트리, 생성은 인자) 첫 문서 이름과 나머지 개수로 말한다.
+ * 이름을 하나라도 모르면 개수로만 말한다.
+ */
+export function mcpRunHeadline(
+  plan: Pick<AgentPlan, "operations"> | null | undefined,
+  documentName: (id: string) => string | undefined = () => undefined
+): McpRunHeadline {
+  const operations = plan?.operations ?? [];
+  if (operations.length === 0) return { kind: "unknown", count: 0 };
+  const every = (tool: string) => operations.every((operation) => operation.tool_name === tool);
+  const named = (kind: "editDocumentNamed" | "createDocumentNamed", names: (string | undefined)[]): McpRunHeadline | null => {
+    const unique = [...new Set(names)];
+    if (unique.some((name) => !name?.trim())) return null;
+    return { kind, count: operations.length, name: unique[0]!.trim(), others: unique.length - 1 };
+  };
+  if (every("apply_document_edit")) {
+    return named("editDocumentNamed", operations.map((operation) => operation.target_id ? documentName(operation.target_id) : undefined))
+      ?? { kind: "editDocuments", count: operations.length };
+  }
+  if (every("create_document")) {
+    return named("createDocumentNamed", operations.map((operation) => {
+      const value = operation.arguments?.name ?? operation.arguments?.display_name;
+      return typeof value === "string" ? value : undefined;
+    })) ?? { kind: "createDocuments", count: operations.length };
+  }
+  if (every("publish_skill_definition")) return { kind: "publishSkill", count: operations.length };
+  return { kind: "operations", count: operations.length };
+}
+
+/** 수수료 한 줄의 종류. 정산이 있으면 정산 결과를, 없으면 지금 선택의 최대액(0이면 무료)을 보여 준다. */
+export type McpRunCostLine =
+  | { kind: "free" }
+  | { kind: "maximum"; amount: number }
+  | { kind: "reserved"; amount: number }
+  | { kind: "reconciling"; amount: number }
+  | { kind: "charged"; amount: number };
+
+export function mcpRunCostLine(
+  settlement: Pick<NonNullable<AgentPlanRun["mcp_settlement"]>, "settlement_status" | "charged_minor" | "maximum_charge_minor"> | null | undefined,
+  priceSnapshot: Pick<McpPriceSnapshot, "maximum_charge_minor"> | null | undefined
+): McpRunCostLine | null {
+  if (settlement) {
+    switch (settlement.settlement_status) {
+      case "SETTLED": return { kind: "charged", amount: settlement.charged_minor };
+      case "PENDING_RECONCILIATION": return { kind: "reconciling", amount: settlement.maximum_charge_minor };
+      default: return settlement.maximum_charge_minor === 0 ? { kind: "free" } : { kind: "reserved", amount: settlement.maximum_charge_minor };
+    }
+  }
+  if (!priceSnapshot) return null;
+  return priceSnapshot.maximum_charge_minor === 0 ? { kind: "free" } : { kind: "maximum", amount: priceSnapshot.maximum_charge_minor };
+}
