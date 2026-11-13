@@ -26,7 +26,6 @@
   },
   "tree": {
     "label": "문서 트리",
-    "empty": "아직 문서가 없습니다",
     "rowMenu": "항목 메뉴 열기",
     "uploading": "업로드 중",
     "uploadWaiting": "대기 중",

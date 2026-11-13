@@ -36,9 +36,7 @@ export function RootTree({ project, interaction }: { project: Project; interacti
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {project.items.length > 0
-        ? <SidebarTree items={project.items} projectId={project.id} interaction={interaction} />
-        : <p className={styles["tree-root-empty"]}>{t("empty")}</p>}
+      {project.items.length > 0 && <SidebarTree items={project.items} projectId={project.id} interaction={interaction} />}
     </div>
   );
 }
