@@ -110,7 +110,8 @@
     "retry": "Retry converting remaining PDFs",
     "all": "Convert all {count, plural, one {# PDF} other {# PDFs}}",
     "failed": "Couldn't request PDF conversion.",
-    "stalled": "Couldn't queue the remaining PDFs for conversion. Please try again in a moment."
+    "stalled": "Couldn't queue the remaining PDFs for conversion. Please try again in a moment.",
+    "unreadable": "{count, plural, one {# PDF is} other {# PDFs are}} password-protected or damaged and can't be converted. They're left out of the estimate and will be marked as failed at no cost."
   },
   "ingest": {
     "done": "Queued {count, plural, one {# document} other {# documents}} for the wiki. You can track progress in wiki tasks.",
