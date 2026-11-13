@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// 이 작은 요청도 /api middleware의 접근 코드 검사를 통과해야 한다.
 export const dynamic = "force-dynamic";
 
 export function GET() {

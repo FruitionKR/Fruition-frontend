@@ -27,20 +27,11 @@ import { AuthError, AuthField, AuthSubmitButton, SocialLoginButtons } from "@/sh
 import { AuthScreen, AuthScreenBlank } from "@/shared/ui/auth/AuthScreen";
 import { MfaLoginForm } from "@/views/auth/ui/MfaLoginForm";
 import { useOAuthCallbackGate } from "@/views/auth/model/useOAuthCallbackGate";
-import { useServerWake, type AccessCodeResult } from "@/views/auth/model/useServerWake";
+import { useServerWake } from "@/views/auth/model/useServerWake";
 import { getLoginErrorMessage } from "@/views/auth/lib/loginErrorMessage";
 import { OAuthSignupConsentForm } from "@/views/auth/ui/OAuthSignupConsentForm";
 
-const ACCESS_CODE_ERROR_ID = "login-access-code-error";
 const PASSWORD_HANGUL_WARNING_ID = "login-password-hangul-warning";
-type AccessCodeErrorKey = "empty" | "invalid" | "error" | "rateLimited";
-// 접근 코드 확인 결과 → auth.accessCodeErrors 키
-const ACCESS_CODE_ERROR_KEYS: Record<Exclude<AccessCodeResult, "ok"> | "empty", AccessCodeErrorKey> = {
-  empty: "empty",
-  invalid: "invalid",
-  error: "error",
-  "rate-limited": "rateLimited"
-};
 
 const LEGACY_AUTH_ROUTES: Record<string, string> = {
   signup: "/signup",
@@ -74,19 +65,14 @@ function LoginPageContent() {
   const [signupToken, setSignupToken] = useState<string | null>(null);
   // 탈퇴 직후 로그인 화면으로 돌아오면 완료 안내를 보여 준다. query는 처리하며 주소에서 지운다.
   const [isAccountDeleted] = useState(() => searchParams.get("deleted") === "1");
-  const [accessCode, setAccessCode] = useState("");
-  const [accessCodeError, setAccessCodeError] = useState<AccessCodeErrorKey | null>(null);
   const {
     isPreparing,
     isWakeTimedOut,
-    isAccessCodeVisible,
-    isAccessCodeVerified,
-    unlockAccessCode,
     requestBeforeSubmit,
     isServerUnready
   } = useServerWake();
   // 콜백 query는 처리하면서 주소에서 지운다. 지운 뒤에도 세션 확인(useMe)이 code 교환과 겹치지 않게 첫 렌더 값을 유지한다.
-  const { isOAuthLinkCallback, hasOAuthParams, canCheckSession, finishOAuthLoginAttempt } = useOAuthCallbackGate(searchParams);
+  const { isOAuthLinkCallback, canCheckSession, finishOAuthLoginAttempt } = useOAuthCallbackGate(searchParams);
   // refresh 쿠키로 세션이 살아 있으면 로그인 폼 대신 바로 워크스페이스로 보낸다.
   // OAuth 콜백(code/error/signup_token, 연동의 link_code/link)을 처리하는 동안은 그 처리가 우선이라 건너뛴다.
   // 탈퇴 직후는 세션이 없어 /me가 실패만 하므로 묻지 않는다.
@@ -175,13 +161,6 @@ function LoginPageContent() {
       });
   }, [finishOAuthLoginAttempt, isAccountDeleted, queryClient, router, searchParams, t, tShared]);
 
-  // 칸을 벗어나면 바로 확인해, 이메일·비밀번호를 입력하는 동안 서버 기동이 시작되게 한다.
-  async function handleAccessCodeBlur() {
-    if (isAccessCodeVerified || !accessCode.trim()) return;
-    const result = await unlockAccessCode(accessCode);
-    setAccessCodeError(result === "ok" ? null : ACCESS_CODE_ERROR_KEYS[result]);
-  }
-
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
     if (isSubmitting || isLoginRequestInFlight.current) return;
@@ -190,16 +169,6 @@ function LoginPageContent() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    // 접근 코드 게이트가 켜져 있으면 코드가 확인되기 전에는 로그인하지 않는다(서비스 사용 불가).
-    if (isAccessCodeVisible && !isAccessCodeVerified) {
-      const result = accessCode.trim() ? await unlockAccessCode(accessCode) : "empty";
-      if (result !== "ok") {
-        setAccessCodeError(ACCESS_CODE_ERROR_KEYS[result]);
-        isLoginRequestInFlight.current = false;
-        setIsSubmitting(false);
-        return;
-      }
-    }
     requestBeforeSubmit();
 
     try {
@@ -243,32 +212,9 @@ function LoginPageContent() {
   );
 
   return (
-    <AuthScreen extra={<SocialLoginButtons disabled={isAccessCodeVisible && !isAccessCodeVerified} />} shellModifier="login" title={t("login.title")}>
+    <AuthScreen extra={<SocialLoginButtons />} shellModifier="login" title={t("login.title")}>
       <form className="auth-form" method="post" onSubmit={handleLogin} ref={formRef}>
         <div className="auth-field-stack">
-          {isAccessCodeVisible && !hasOAuthParams ? (
-            <div className="auth-field-with-error">
-              <AuthField
-                autoComplete="off"
-                describedBy={accessCodeError ? ACCESS_CODE_ERROR_ID : undefined}
-                invalid={Boolean(accessCodeError)}
-                label={t("login.accessCodeLabel")}
-                name="access-code"
-                onBlur={() => void handleAccessCodeBlur()}
-                onChange={(event) => {
-                  setAccessCode(event.target.value);
-                  setAccessCodeError(null);
-                }}
-                placeholder={t("login.accessCodePlaceholder")}
-                readOnly={isAccessCodeVerified}
-                // 빈 값도 handleLogin에서 칸 아래 문구로 알리도록 브라우저 기본 검증은 쓰지 않는다.
-                required={false}
-                value={accessCode}
-              />
-              {accessCodeError ? <AuthError id={ACCESS_CODE_ERROR_ID}>{t(`accessCodeErrors.${accessCodeError}`)}</AuthError> : null}
-              {isAccessCodeVerified ? <p className="auth-prompt" role="status">{t("login.accessCodeVerified")}</p> : null}
-            </div>
-          ) : null}
           <AuthField
             autoComplete="email"
             label={t("fields.email")}
