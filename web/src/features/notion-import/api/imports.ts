@@ -32,6 +32,8 @@ export type ImportIngestEstimate = {
   convert_estimated_cost_usd?: number | null;
   /** PDF 변환 예상 크레딧(milli-KRW) */
   convert_estimated_credits?: number | null;
+  /** pdf_unconverted_count 중 암호화·손상으로 읽을 수 없는 PDF 수. 변환 예상 비용에서 빠지고 변환하면 비용 없이 실패로 남는다(구 서버는 없음) */
+  pdf_unreadable_count?: number;
 };
 
 type CreatedFolder = { id: string };

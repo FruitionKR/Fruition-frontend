@@ -107,3 +107,11 @@ test("PDF 변환 루프는 변환 문구로 멈춘 이유를 알린다", async (
   assert.deepEqual(stalled, { status: "error", queued: 0, remaining: 2, message: t("convert.stalled") });
   assert.match(stalled.message, /남은 PDF를 변환 대기열에/);
 });
+
+test("읽을 수 없는 PDF 수는 변환 예상 비용에서 빠졌고 비용 없이 실패로 남는다고 알린다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  assert.equal(t("convert.unreadable", { count: 2 }), "PDF 2개는 암호가 걸렸거나 손상되어 변환할 수 없어요. 예상 비용에서 빠지고, 변환하면 비용 없이 실패로 표시돼요.");
+  const dialog = await readFile(new URL("../src/features/notion-import/ui/NotionImportDialog.tsx", import.meta.url), "utf8");
+  assert.match(dialog, /pdf_unreadable_count \?\? 0/);
+  assert.match(dialog, /t\("convert\.unreadable", \{ count: unreadable \}\)/);
+});
