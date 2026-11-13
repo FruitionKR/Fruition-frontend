@@ -26,7 +26,6 @@
   },
   "tree": {
     "label": "Document tree",
-    "empty": "No documents yet",
     "rowMenu": "Open item menu",
     "uploading": "Uploading",
     "uploadWaiting": "Waiting",
