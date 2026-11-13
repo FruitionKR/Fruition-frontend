@@ -1,4 +1,4 @@
-// GET /wake 응답의 phase. unknown은 기능 꺼짐·접근 코드 미통과·조회 실패.
+// GET /wake 응답의 phase. unknown은 기능 꺼짐·조회 실패.
 export type WakePhase = "asleep" | "sleeping" | "waking" | "awake" | "unknown";
 
 /**

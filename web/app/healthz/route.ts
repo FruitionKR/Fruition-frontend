@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-// ALB·kubelet 헬스체크용. /api 밖이라 접근 코드 middleware를 거치지 않는다.
+// ALB·kubelet 헬스체크용.
 export const dynamic = "force-dynamic";
 
 export function GET() {

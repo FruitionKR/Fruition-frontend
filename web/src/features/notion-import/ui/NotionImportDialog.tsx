@@ -203,11 +203,13 @@ function ConvertStep({ step, controller }: { step: SummaryStep; controller: Noti
     );
   }
   const running = step.convert === "running";
+  const unreadable = step.estimate?.pdf_unreadable_count ?? 0;
   return (
     <>
       <section className={styles.ingest} aria-labelledby="notion-import-convert">
         <h3 id="notion-import-convert">{t("convert.question", { count: askCount, label })}</h3>
         <p className={styles.meta}>{t("cost.convertHint")}</p>
+        {unreadable > 0 && <p className={styles.meta}>{t("convert.unreadable", { count: unreadable })}</p>}
         <p className={styles.meta}>{t("convert.why")}</p>
         <p className={styles.meta}>{t("convert.qualityNotice")}</p>
         {running && progress && (

@@ -7,7 +7,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 }});
 const { GET } = await import("../app/healthz/route.ts");
 
-test("헬스체크는 접근 코드 없이 캐시되지 않는 200을 준다", async () => {
+test("헬스체크는 인증 없이 캐시되지 않는 200을 준다", async () => {
   const response = GET();
 
   assert.equal(response.status, 200);
