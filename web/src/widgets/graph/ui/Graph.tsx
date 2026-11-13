@@ -21,7 +21,6 @@ export function Graph({
   onClearNodeFocus,
   loading = false,
   errorMessage = null,
-  ingestProgressInputs,
   onRefreshGraph
 }: GraphCanvasProps & {
   rawDocumentCount: number;
@@ -98,7 +97,6 @@ export function Graph({
         onClearNodeFocus={onClearNodeFocus}
         loading={loading}
         errorMessage={errorMessage}
-        ingestProgressInputs={ingestProgressInputs}
         revealRequest={revealRequest}
       />
     </section>

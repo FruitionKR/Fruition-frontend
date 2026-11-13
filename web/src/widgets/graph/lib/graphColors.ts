@@ -24,14 +24,6 @@ export type GraphPalette = {
   rawLabelInk: string;
   /** 중심(선택) 노드 glow 중앙 불투명도 */
   hoverGlowAlpha: number;
-  /** 생성 중 노드: 진행률 링, 점선 원, 링크 그라데이션 끝 색 */
-  progressRing: string;
-  progressTrack: string;
-  progressFill: string;
-  progressText: string;
-  progressLabel: string;
-  generatingLinkFrom: string;
-  generatingLinkTo: string;
 };
 
 const LIGHT_GRAPH_PALETTE: GraphPalette = {
@@ -48,14 +40,7 @@ const LIGHT_GRAPH_PALETTE: GraphPalette = {
   sourceLabelInk: "#21252a",
   conceptLabelInk: "#21252a",
   rawLabelInk: "#4e5968",
-  hoverGlowAlpha: 0.2,
-  progressRing: "#3182f6",
-  progressTrack: "#8b95a1",
-  progressFill: "#ffffff",
-  progressText: "#21252a",
-  progressLabel: "#4e5968",
-  generatingLinkFrom: "#3182f6",
-  generatingLinkTo: "#8cb7f5"
+  hoverGlowAlpha: 0.2
 };
 
 const DARK_GRAPH_PALETTE: GraphPalette = {
@@ -72,14 +57,7 @@ const DARK_GRAPH_PALETTE: GraphPalette = {
   sourceLabelInk: "#f0f0f0",
   conceptLabelInk: "#8a8a8a",
   rawLabelInk: "#8a8a8a",
-  hoverGlowAlpha: 0.24,
-  progressRing: "#ffc117",
-  progressTrack: "#6b6b6b",
-  progressFill: "#0a0a0a",
-  progressText: "#f0f0f0",
-  progressLabel: "#a7a7a7",
-  generatingLinkFrom: "#ffc117",
-  generatingLinkTo: "#8a6a10"
+  hoverGlowAlpha: 0.24
 };
 
 export const DARK_SCHEME_QUERY = "(prefers-color-scheme: dark)";
