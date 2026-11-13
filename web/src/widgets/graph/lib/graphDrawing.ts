@@ -14,25 +14,10 @@ const SELECTED_MARKER_INNER_RADIUS = 9;
 const BASE_LINK_WIDTH = 1.4;
 const RAW_SOURCE_LINK_WIDTH = 1.6;
 const RAW_SOURCE_LINK_DASH = [3, 2.5];
-const GENERATING_LINK_DASH = [4, 3];
 
 // 새 노드 강조 geometry: 노드 바깥 광채 폭과 링 간격
 const NEW_NODE_GLOW_WIDTH = 22;
 const NEW_NODE_RING_GAP = 5;
-
-// 생성 중 노드 geometry (Figma 1406:15752: 52px 진행률 링, 34px 점선 원)
-const PROGRESS_RING_RADIUS = 23.4;
-const PROGRESS_RING_WIDTH = 5.2;
-const PROGRESS_TRACK_RADIUS = 17;
-const PROGRESS_LABEL_OFFSET = 43;
-
-/** 생성 중인 노드. progress(0~1)가 있으면 진행률 링으로 그린다. */
-type GeneratingGraphNode = GraphNode & { progress?: number };
-
-function nodeProgress(node: GraphNode | undefined, getNodeProgress?: (nodeId: string) => number | undefined): number | null {
-  const progress = (node && getNodeProgress?.(node.id)) ?? (node as GeneratingGraphNode | undefined)?.progress;
-  return typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : null;
-}
 
 let rawNodeImage: HTMLImageElement | null = null;
 
@@ -46,7 +31,6 @@ export function drawGraphFrame({
   graphToCanvas,
   nodeSize,
   isRawSourceLink,
-  getNodeProgress,
   getNodeEntry,
   getLinkOpacity
 }: {
@@ -59,8 +43,6 @@ export function drawGraphFrame({
   graphToCanvas: (position: NodePosition, canvas: HTMLCanvasElement) => NodePosition;
   nodeSize: (node: GraphNode) => number;
   isRawSourceLink: (link: GraphLink) => boolean;
-  /** 연출형 진행률(0~1). 값이 있으면 node.progress보다 우선한다. */
-  getNodeProgress?: (nodeId: string) => number | undefined;
   /** 첫 렌더 뒤 추가돼 등장 중인 노드의 이번 프레임 모습. null이면 평소대로 그린다. */
   getNodeEntry?: (nodeId: string) => NodeEntryFrame | null;
   /** 전체 등장 연출 중인 링크의 불투명도 배수(0~1). 없으면 1이다. */
@@ -75,7 +57,6 @@ export function drawGraphFrame({
   if (!context) return;
 
   const palette = getGraphPalette();
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   context.clearRect(0, 0, cssWidth, cssHeight);
   const drawableNodeCount = Math.min(visibleNodeCount, nodes.length);
@@ -101,10 +82,8 @@ export function drawGraphFrame({
     const fromScreen = graphToCanvas(from, canvas);
     const toScreen = graphToCanvas(to, canvas);
     const rawSourceLink = isRawSourceLink(link);
-    const generatingLink =
-      nodeProgress(nodeById.get(link.from), getNodeProgress) !== null || nodeProgress(nodeById.get(link.to), getNodeProgress) !== null;
-    const baseAlpha = generatingLink ? 1 : rawSourceLink ? palette.rawSourceLinkAlpha : palette.baseLinkAlpha;
-    const fadedAlpha = rawSourceLink || generatingLink ? 0.14 : 0.08;
+    const baseAlpha = rawSourceLink ? palette.rawSourceLinkAlpha : palette.baseLinkAlpha;
+    const fadedAlpha = rawSourceLink ? 0.14 : 0.08;
     const linkHoverAmount = Math.max(nodeHoverAmounts[link.from] ?? 0, nodeHoverAmounts[link.to] ?? 0);
     const focusAmount = focusAmountFromHover(linkHoverAmount);
     // 새 노드로 가는 링크는 먼저 자리 잡은 끝에서 새 노드 쪽으로 뻗어 나간다(덜 진행된 쪽이 나중에 온 노드).
@@ -121,20 +100,9 @@ export function drawGraphFrame({
     context.beginPath();
     context.moveTo(lineStart.x, lineStart.y);
     context.lineTo(lineEnd.x, lineEnd.y);
-    if (generatingLink) {
-      // 생성 중 노드로 가는 링크: primary 그라데이션 점선 (생성 중 쪽이 옅다)
-      const generatingAtEnd = nodeProgress(nodeById.get(link.to), getNodeProgress) !== null;
-      const gradient = context.createLinearGradient(fromScreen.x, fromScreen.y, toScreen.x, toScreen.y);
-      gradient.addColorStop(0, generatingAtEnd ? palette.generatingLinkFrom : palette.generatingLinkTo);
-      gradient.addColorStop(1, generatingAtEnd ? palette.generatingLinkTo : palette.generatingLinkFrom);
-      context.setLineDash(GENERATING_LINK_DASH);
-      context.lineWidth = RAW_SOURCE_LINK_WIDTH;
-      context.strokeStyle = gradient;
-    } else {
-      context.setLineDash(link.dashed ? RAW_SOURCE_LINK_DASH : []);
-      context.lineWidth = rawSourceLink ? RAW_SOURCE_LINK_WIDTH : BASE_LINK_WIDTH;
-      context.strokeStyle = rawSourceLink ? palette.rawSourceLink : palette.baseLink;
-    }
+    context.setLineDash(link.dashed ? RAW_SOURCE_LINK_DASH : []);
+    context.lineWidth = rawSourceLink ? RAW_SOURCE_LINK_WIDTH : BASE_LINK_WIDTH;
+    context.strokeStyle = rawSourceLink ? palette.rawSourceLink : palette.baseLink;
     context.stroke();
 
     if (linkHoverAmount > 0.01) {
@@ -188,13 +156,6 @@ export function drawGraphFrame({
       scaleAround(context, screenPosition, entry.scale);
     }
 
-    const progress = nodeProgress(node, getNodeProgress);
-    if (progress !== null) {
-      drawGeneratingNode(context, palette, node, screenPosition.x, screenPosition.y, progress);
-      context.restore();
-      continue;
-    }
-
     if (hoverAmount > 0.01) {
       drawSelectedNodeMarker(context, palette, screenPosition.x, screenPosition.y, hoverAmount * entryOpacity);
       context.globalAlpha = nodeAlpha;
@@ -239,7 +200,7 @@ export function drawGraphFrame({
   for (let index = 0; index < drawableNodeCount; index += 1) {
     const node = nodes[index];
     const entry = getNodeEntry?.(node.id) ?? null;
-    if ((entry?.opacity ?? 1) <= 0 || nodeProgress(node, getNodeProgress) !== null) continue;
+    if ((entry?.opacity ?? 1) <= 0) continue;
     if (visibleLabelIds && !visibleLabelIds.has(node.id)) continue;
     const screenPosition = graphToCanvas(getNodePosition(node.id), canvas);
     context.save();
@@ -388,60 +349,6 @@ function drawNodeLabel(context: CanvasRenderingContext2D, palette: GraphPalette,
       ? palette.rawLabelInk
       : palette.conceptLabelInk;
   context.fillText(node.label, x, labelY);
-}
-
-/** 생성 중 노드: 점선 원 + 진행률 링 + 퍼센트 + 제목 (Figma 1406:15752) */
-function drawGeneratingNode(
-  context: CanvasRenderingContext2D,
-  palette: GraphPalette,
-  node: GraphNode,
-  x: number,
-  y: number,
-  progress: number
-) {
-  context.beginPath();
-  context.arc(x, y, PROGRESS_TRACK_RADIUS, 0, Math.PI * 2);
-  context.fillStyle = palette.progressFill;
-  context.fill();
-  context.setLineDash([3, 3]);
-  context.lineWidth = 1;
-  context.strokeStyle = palette.progressTrack;
-  context.stroke();
-  context.setLineDash([]);
-
-  if (progress > 0) {
-    // 12시 방향에서 반시계 방향으로 진행률만큼 채운다.
-    const start = -Math.PI / 2;
-    context.beginPath();
-    context.arc(x, y, PROGRESS_RING_RADIUS, start, start - Math.PI * 2 * progress, true);
-    context.lineWidth = PROGRESS_RING_WIDTH;
-    context.lineCap = "round";
-    context.strokeStyle = palette.progressRing;
-    context.stroke();
-    context.lineCap = "butt";
-  }
-
-  // "58%" — 숫자 12px, % 8px SemiBold
-  const percentText = String(Math.round(progress * 100));
-  context.textBaseline = "alphabetic";
-  context.textAlign = "left";
-  context.fillStyle = palette.progressText;
-  context.font = `600 12px ${LABEL_FONT_FAMILY}`;
-  const numberWidth = context.measureText(percentText).width;
-  context.font = `600 8px ${LABEL_FONT_FAMILY}`;
-  const percentWidth = context.measureText("%").width;
-  const textLeft = x - (numberWidth + percentWidth) / 2;
-  const baseline = y + 4;
-  context.font = `600 12px ${LABEL_FONT_FAMILY}`;
-  context.fillText(percentText, textLeft, baseline);
-  context.font = `600 8px ${LABEL_FONT_FAMILY}`;
-  context.fillText("%", textLeft + numberWidth, baseline);
-
-  context.font = `500 14px ${LABEL_FONT_FAMILY}`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillStyle = palette.progressLabel;
-  context.fillText(node.label, x, y + PROGRESS_LABEL_OFFSET);
 }
 
 function drawSelectedNodeMarker(context: CanvasRenderingContext2D, palette: GraphPalette, x: number, y: number, opacity: number) {
