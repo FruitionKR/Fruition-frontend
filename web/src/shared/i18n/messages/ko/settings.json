@@ -443,6 +443,7 @@
           "post_ingest": "위키 편입 후 검토",
           "lint": "위키 정리",
           "convert": "문서 변환",
+          "document_conversion": "PDF 문서 변환",
           "convert_batch": "문서 일괄 변환",
           "restore_ingest": "위키 편입 복원",
           "restore_lint": "위키 정리 복원",
