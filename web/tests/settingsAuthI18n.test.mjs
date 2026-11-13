@@ -237,6 +237,13 @@ test("실행별 내역은 작업·모델·호출수와 실제 차감 합계를 �
   assert.doesNotMatch(renderCredits([], "en", groupedHistory), HANGUL);
 });
 
+test("PDF 변환 원장의 document_conversion 작업명을 한영으로 표시한다", () => {
+  const history = [{ ...groupedHistory[0], usage: [{ ...groupedUsage, kind: "document_conversion" }] }];
+  assert.match(renderCredits([], "ko", history), /PDF 문서 변환 · model-a/);
+  assert.match(renderCredits([], "en", history), /PDF document conversion · model-a/);
+  assert.doesNotMatch(renderCredits([], "ko", history), /작업 정보 없음/);
+});
+
 test("상세가 없는 실제 차감과 알 수 없는 작업·모델은 추정하지 않는다", () => {
   const missing = [{ ...groupedHistory[0], usage: [] }];
   assert.match(renderCredits([], "ko", missing), /상세 정보가 없거나 집계 중/);

@@ -443,6 +443,7 @@
           "post_ingest": "Post-ingestion review",
           "lint": "Wiki cleanup",
           "convert": "Document conversion",
+          "document_conversion": "PDF document conversion",
           "convert_batch": "Batch document conversion",
           "restore_ingest": "Ingestion restoration",
           "restore_lint": "Cleanup restoration",
