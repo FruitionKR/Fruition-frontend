@@ -243,6 +243,10 @@ test("상세가 없는 실제 차감과 알 수 없는 작업·모델은 추정�
   assert.match(renderCredits([], "ko", missing), /₩56\.179/);
   const unknown = [{ ...groupedHistory[0], usage: [{ ...groupedUsage, kind: "future-kind", model: null }] }];
   assert.match(renderCredits([], "ko", unknown), /작업 정보 없음 · 모델 정보 없음/);
+  // 에이전트 대화 턴은 document 명령 kind "agent" 그대로 사용량에 기록된다.
+  const agent = [{ ...groupedHistory[0], usage: [{ ...groupedUsage, kind: "agent" }] }];
+  assert.match(renderCredits([], "ko", agent), /에이전트 요청 · model-a/);
+  assert.match(renderCredits([], "en", agent), /Agent request · model-a/);
   assert.doesNotMatch(renderCredits([], "en", unknown), HANGUL);
   assert.match(renderCredits([], "ko", []), /최근 원장에 차감 내역이 없어요/);
 });
