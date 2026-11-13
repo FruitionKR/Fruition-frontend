@@ -129,9 +129,26 @@ export function registerUsageRoutes(router) {
       reason: null, created_at: new Date(call.started_at).toISOString()
     })).filter((entry) => entry.amount_krw_milli < 0)
       .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50);
+    const charge_history = entries.map((entry) => {
+      const index = Number(entry.run_id.slice("mock-usage-".length));
+      const call = calls[index];
+      return {
+        id: index + 1, run_id: entry.run_id, reason: null,
+        amount_krw_milli: -entry.amount_krw_milli, charged_at: entry.created_at,
+        usage: [{
+          workspace_id: call.workspace_id, kind: call.tts_characters ? "speech_synthesis" : "query",
+          provider: call.provider, model: call.model, calls: 1,
+          input_tokens: call.input_tokens, output_tokens: call.output_tokens,
+          cached_input_tokens: call.cached_input_tokens, cache_creation_tokens: call.cache_creation_tokens,
+          audio_seconds: null, tts_characters: call.tts_characters ?? null,
+          amount_krw_milli: -entry.amount_krw_milli,
+          started_at: entry.created_at, last_started_at: entry.created_at
+        }]
+      };
+    });
     const reserved = Number(process.env.MOCK_CREDIT_RESERVED_KRW_MILLI ?? 0);
     const balance = granted - charged;
-    ctx.json(200, { user_id: ctx.user.id, currency: "KRW", balance_krw_milli: balance, reserved_krw_milli: reserved, available_krw_milli: balance - reserved, limit_exempt: ["1", "true"].includes(process.env.MOCK_CREDIT_LIMIT_EXEMPT ?? ""), entries });
+    ctx.json(200, { user_id: ctx.user.id, currency: "KRW", balance_krw_milli: balance, reserved_krw_milli: reserved, available_krw_milli: balance - reserved, limit_exempt: ["1", "true"].includes(process.env.MOCK_CREDIT_LIMIT_EXEMPT ?? ""), entries, charge_history });
   });
   router.get("/api/users/me/usage/charges", (ctx) => {
     if (["1", "true"].includes(process.env.MOCK_USAGE_CHARGES_FAIL ?? "")) return error(ctx, 503, "AI 사용량을 불러오지 못했습니다.");
