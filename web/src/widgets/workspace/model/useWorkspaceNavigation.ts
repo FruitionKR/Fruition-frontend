@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAccessGate } from "@/features/access-code-settings";
 import type { RailView } from "@/widgets/rail-navigation/ui/RailNavigation";
 import type { SelectableTreeItem } from "@/widgets/document-sidebar/model/treeInteraction";
 import { makeRawId, rawNodeIdToDocumentId } from "@/entities/graph/lib/graphBuilder";
@@ -33,12 +32,6 @@ export function useWorkspaceNavigation() {
     if (resolveNavigationMode(window.history.state, mode) === "replace") router.replace(href, { scroll: false });
     else router.push(href, { scroll: false });
   }, [router]);
-  // 접근 코드 미입력 상태면 설정 화면에 고정한다. API는 middleware가 403으로 막는다.
-  const { isLocked: isAccessLocked } = useAccessGate();
-  useEffect(() => {
-    if (isAccessLocked && activeView !== "settings") navigate({ kind: "view", view: "settings" }, "replace");
-  }, [isAccessLocked, activeView, navigate]);
-
   // 사이드바 "문서" 전환이 돌아갈 마지막 문서 위치. 메모리에만 둔다(새로고침하면 첫 노트).
   const lastDocumentLocationRef = useRef<WorkspaceLocation | null>(null);
   useEffect(() => {
@@ -84,7 +77,6 @@ export function useWorkspaceNavigation() {
     location,
     locationKey,
     activeView,
-    isAccessLocked,
     navigate,
     openDocument,
     openTreeItemInNewTab,

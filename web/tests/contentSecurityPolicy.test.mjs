@@ -101,7 +101,7 @@ test("CSP는 화면 요청에만 붙이고 API·정적 청크·폰트·랜딩·�
   for (const path of ["/_next/static/chunks/a.js", "/_next/static/media/a.woff2", "/fonts/pretendard/a.woff2", "/healthz", "/wake", "/csp-report", "/favicon/icon-dark.svg", "/favicon.ico", "/landing/query.mp4", "/landing/query.webp", "/tutorial/ko/write-note.webp"]) {
     assert.equal(matched(path), false, path);
   }
-  // /api 요청은 CSP 대신 접근 코드 게이트를 거친다
+  // /api 요청은 CSP를 붙이지 않고 통과시킨다
   const api = await middleware(new NextRequest("http://localhost/api/workspaces/ws/documents"));
   assert.equal(api.headers.get("Content-Security-Policy"), null);
 });

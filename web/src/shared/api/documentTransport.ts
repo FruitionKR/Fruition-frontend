@@ -21,7 +21,7 @@ export function getDocumentTransport(): Promise<Transport> {
   if (!transport) {
     transport = fetchDocumentTransport();
     transports.set(page, transport);
-    // 접근 코드 입력 전 403 같은 실패는 저장하지 않는다. 코드를 넣은 뒤 다음 호출이 다시 조회한다.
+    // 조회 실패는 저장하지 않고 다음 호출에서 다시 조회한다.
     transport.catch(() => transports.delete(page));
   }
   return transport;
