@@ -114,8 +114,7 @@ export function AuthSubmitButton({ children, disabled = false }: { children: str
   );
 }
 
-/** disabled: 접근 코드 확인 전처럼 간편 로그인으로 넘어가면 안 될 때 버튼을 막는다. */
-export function SocialLoginButtons({ disabled = false }: { disabled?: boolean }) {
+export function SocialLoginButtons() {
   const t = useTranslations("auth.controls");
   const providers = [
     { provider: "kakao", logo: kakaoLogo },
@@ -130,15 +129,12 @@ export function SocialLoginButtons({ disabled = false }: { disabled?: boolean })
         <p>{t("socialDivider")}</p>
         <span />
       </div>
-      {disabled ? <p className="auth-prompt auth-prompt--wrap" role="status">{t("socialDisabledNotice")}</p> : null}
       <div className="auth-social-buttons">
         {providers.map(({ logo, provider }) => (
           <button
             aria-label={t("socialLogin", { provider: t(`providers.${provider}`) })}
             className={`auth-social-button auth-social-button--${provider}`}
-            disabled={disabled}
             key={provider}
-            title={disabled ? t("socialDisabledTitle") : undefined}
             onClick={() => window.location.assign(getOAuthAuthorizationUrl(provider))}
             type="button"
           >

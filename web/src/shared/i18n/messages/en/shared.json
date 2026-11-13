@@ -376,7 +376,6 @@
     "authRefreshUnavailable": "Couldn't refresh your sign-in. Please try again in a moment.",
     "workspaceGone": "Workspace not found.",
     "imageLoadFailed": "Couldn't load the image.",
-    "accessGateCheckFailed": "Couldn't check the access code status.",
     "documentTransportCheckFailed": "Couldn't check the document transfer connection.",
     "documentServerInvalid": "The document server address is invalid."
   },

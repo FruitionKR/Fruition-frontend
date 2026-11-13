@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 const mock = spawn(process.execPath, [path.join(root, "mock", "server.mjs")], { cwd: root, stdio: "inherit" });
-const next = spawn(npx, ["next", "dev"], { cwd: root, stdio: "inherit", env: { ...process.env, ACCESS_CODE: "" } });
+const next = spawn(npx, ["next", "dev"], { cwd: root, stdio: "inherit" });
 
 let exiting = false;
 function stopAll(code = 0) {

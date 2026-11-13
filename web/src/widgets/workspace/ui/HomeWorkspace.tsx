@@ -16,7 +16,6 @@ import { Graph } from "@/widgets/graph/ui/Graph";
 import { SkillRunCoach, SkillsView } from "@/widgets/skills-view";
 import { LogView } from "@/widgets/log-view";
 import { NotificationsView, useNotificationFeed } from "@/widgets/notifications-view";
-import { AccessCodeSettingsPanel } from "@/features/access-code-settings";
 import { SettingsContent, SettingsNav, takeSettingsResume, type SettingsResume } from "@/features/user-settings";
 import { DocumentProcessingNotifications } from "@/features/document-notifications";
 import { UploadErrorModal } from "@/features/document-upload/ui/UploadErrorModal";
@@ -91,7 +90,7 @@ export function HomeWorkspace() {
   const tTree = useTranslations("documents.tree");
   const rootDocumentsTitle = tTree("rootTitle");
   const queryClient = useQueryClient();
-  const { location, locationKey, activeView, isAccessLocked, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
+  const { location, locationKey, activeView, navigate, openDocument, openTreeItemInNewTab, handleViewChange, forgetDeletedLocation } =
     useWorkspaceNavigation();
   // 설정에서 시작한 소셜 재로그인·워크스페이스 전환을 마치고 돌아오면 설정 화면을 떠났던 자리(탈퇴 확인·멤버 관리)로 다시 연다.
   // 한 번 쓰고 나면 다음 열기부터는 기본 위치다.
@@ -516,7 +515,7 @@ export function HomeWorkspace() {
         }}
         onViewChange={handleViewChange}
         onOpenSettings={(section) => navigate({ kind: "view", view: "settings", section })}
-        settingsNav={isSettingsView && !isAccessLocked ? (
+        settingsNav={isSettingsView ? (
           <SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />
         ) : undefined}
         isCollapsed={panels.isSidebarCollapsed}
@@ -781,15 +780,12 @@ export function HomeWorkspace() {
             }}
           />
         ) : isSettingsView ? (
-          // 접근 코드가 잠겨 있으면 개인 설정(접근 코드) 화면만, 아니면 설정 화면(Figma 1540:22452)
-          isAccessLocked ? <AccessCodeSettingsPanel /> : (
-            <SettingsContent
-              section={settingsSection}
-              resume={settingsResume}
-              onOpenSection={(section) => navigate({ kind: "view", view: "settings", section })}
-              phoneNav={<SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />}
-            />
-          )
+          <SettingsContent
+            section={settingsSection}
+            resume={settingsResume}
+            onOpenSection={(section) => navigate({ kind: "view", view: "settings", section })}
+            phoneNav={<SettingsNav activeSection={settingsSection} onSelect={(section) => navigate({ kind: "view", view: "settings", section })} />}
+          />
         ) : (
           <section className="blank-view" aria-label={t("blankView", { view: screenTitle ?? "" })} />
         )

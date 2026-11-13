@@ -144,13 +144,13 @@ test("expired token refreshes on the same origin and retries the same direct bod
   });
   assert.equal((await apiFetch("/api/workspaces/ws_test/documents", { method: "POST", body })).status, 201);
 });
-test("access-code rejection prevents any direct AWS call", async t => {
+test("transport lookup rejection prevents any direct AWS call", async t => {
   browser(t);
   t.mock.method(globalThis, "fetch", async (path, init) => {
     assert.equal(path, "/api/document-transport");
-    return Response.json({ error: { message: "접근 코드 필요" } }, { status: 403 });
+    return Response.json({ error: { message: "권한 필요" } }, { status: 403 });
   });
-  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), /접근 코드 필요/);
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), /권한 필요/);
 });
 test("transport setting is fetched once per page and reused by later document calls", async t => {
   browser(t);
@@ -163,17 +163,17 @@ test("transport setting is fetched once per page and reused by later document ca
   await apiFetch("/api/workspaces/ws_test/folders");
   assert.equal(lookups, 1);
 });
-test("a rejected transport lookup is retried after the access code is entered", async t => {
+test("a rejected transport lookup is retried after access is restored", async t => {
   browser(t);
   let unlocked = false, lookups = 0;
   t.mock.method(globalThis, "fetch", async (path) => {
     if (path === "/api/document-transport") {
       lookups++;
-      return unlocked ? transport() : Response.json({ error: { message: "접근 코드 필요" } }, { status: 403 });
+      return unlocked ? transport() : Response.json({ error: { message: "권한 필요" } }, { status: 403 });
     }
     return Response.json({ documents: [] });
   });
-  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), /접근 코드 필요/);
+  await assert.rejects(apiFetch("/api/workspaces/ws_test/documents"), /권한 필요/);
   unlocked = true;
   assert.equal((await apiFetch("/api/workspaces/ws_test/documents")).status, 200);
   assert.equal(lookups, 2);

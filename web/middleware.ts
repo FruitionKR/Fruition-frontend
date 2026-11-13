@@ -1,13 +1,11 @@
-import type { NextRequest } from "next/server";
-import { handleAccessGate } from "@/shared/lib/security/accessGateMiddleware";
+import { NextResponse, type NextRequest } from "next/server";
 import { applyContentSecurityPolicy } from "@/shared/lib/security/contentSecurityHeaders";
 import { LOCALE_HEADER } from "@/shared/i18n/locale";
 import { decideRequestLocale, rememberLocaleDecision } from "@/shared/i18n/localeMiddleware";
 
 // Next.js는 라우팅 app/과 같은 위치(프로젝트 루트)의 middleware.ts만 인식한다.
-// 그래서 이 파일은 루트에 두고, 게이트 로직은 src/shared/lib/security/accessGateMiddleware.ts에 둔다.
 export function middleware(request: NextRequest) {
-  if (/^\/api(\/|$)/.test(request.nextUrl.pathname)) return handleAccessGate(request);
+  if (/^\/api(\/|$)/.test(request.nextUrl.pathname)) return NextResponse.next();
   // 화면 언어를 정해 서버 렌더에 헤더로 넘기고, 새로 판정했으면 쿠키로 남긴다(src/shared/i18n/locale.ts).
   const decision = decideRequestLocale(request);
   const response = applyContentSecurityPolicy(request, { [LOCALE_HEADER]: decision.locale });

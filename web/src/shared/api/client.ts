@@ -162,7 +162,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   let requestPath = path;
   let requestInit = init;
   if (typeof window !== "undefined" && usesDocumentTransport(path)) {
-    // 본문 없이 접근 코드 게이트를 확인한 뒤, 대용량 본문은 AWS로 보낸다.
+    // 전송 설정을 조회한 뒤, 대용량 본문은 AWS로 보낸다.
     const transport = await getDocumentTransport();
     if (transport.origin) {
       requestPath = transport.origin + path;
