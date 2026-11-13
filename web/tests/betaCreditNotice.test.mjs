@@ -43,8 +43,8 @@ test("베타 알림은 계정별로 한 번 표시하며 지급 중에만 폴링
   assert.equal(notices[2].title, "exhausted.title");
   data = { status: "ineligible", amount_krw_milli: null }; render();
   assert.equal(notices.length, 3);
-  user = { id: "new" }; data = { status: "granted", amount_krw_milli: 500000 }; render();
-  assert.equal(notices.at(-1).message, "granted.amountMessage:500");
+  user = { id: "new" }; data = { status: "granted", amount_krw_milli: 1000000 }; render();
+  assert.equal(notices.at(-1).message, "granted.amountMessage:1000");
   user = { id: "unknown" }; data = { status: "granted", amount_krw_milli: null }; render();
   assert.equal(notices.at(-1).message, "granted.message");
   user = undefined; render();

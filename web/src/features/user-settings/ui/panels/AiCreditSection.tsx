@@ -2,9 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
-import { fetchCredits, formatKrwMilli, usageRefetchInterval } from "@/entities/ai";
+import { fetchCredits, formatKrwMilli, usageRefetchInterval, type ChargeUsage } from "@/entities/ai";
 import { fetchBetaCredit, useMe } from "@/entities/user";
 import { ApiError, getErrorMessage } from "@/shared/lib/apiErrors";
+import type { AppMessages } from "@/shared/i18n/messages";
 import styles from "../SettingsModal.module.css";
 import { SettingsSectionHeader } from "../SettingsSectionHeader";
 import usageStyles from "./AiUsageSection.module.css";
@@ -44,7 +45,14 @@ export function AiCreditSection() {
   const exactAmount = (amount: number) => new Intl.NumberFormat(locale, {
     style: "currency", currency: "KRW", maximumFractionDigits: 3
   }).format(amount / 1000);
-  const mcpFees = charges?.reduce((sum, entry) => sum + (entry.reason === "mcp_approval" ? -entry.amount_krw_milli : 0), 0) ?? 0;
+  const history = credits.data?.charge_history;
+  const kindLabel = (kind: string | null) => {
+    const key = `history.kinds.${kind}` as `history.kinds.${keyof AppMessages["settings"]["ai"]["credit"]["history"]["kinds"]}`;
+    return kind && t.has(key) ? t(key) : t("history.unknownTask");
+  };
+  const usageTitle = (usage: ChargeUsage) => `${kindLabel(usage.kind)} · ${usage.model || t("history.unknownModel")}`;
+  const count = (value: number | null) => value == null ? t("history.unknownValue") : value.toLocaleString(locale);
+  const mcpFees = history ? history.reduce((sum, entry) => sum + (entry.reason === "mcp_approval" ? entry.amount_krw_milli : 0), 0) : charges?.reduce((sum, entry) => sum + (entry.reason === "mcp_approval" ? -entry.amount_krw_milli : 0), 0) ?? 0;
 
   if (credits.data?.limit_exempt) return null;
 
@@ -85,17 +93,63 @@ export function AiCreditSection() {
         </div>
       )}
 
-      {charges && (
+      {(history || charges) && (
         <div>
           <strong>{t("history.title")}</strong>
-          <p className={usageStyles.note}>{t("history.scope")}</p>
+          <p className={usageStyles.note}>{t(history ? "history.groupedScope" : "history.scope")}</p>
           <div className={styles.row}>
             <span>{t("history.mcpTotal")}</span>
             <strong>{exactAmount(mcpFees)}</strong>
           </div>
-          {charges.length === 0 ? <p className={usageStyles.note}>{t("history.empty")}</p> : (
+          {history ? (
+            history.length === 0 ? <p className={usageStyles.note}>{t("history.empty")}</p> : (
+              <ul className={usageStyles["charge-history"]}>
+                {history.map((entry) => {
+                  const isMcp = entry.reason === "mcp_approval";
+                  const usage = entry.usage;
+                  const title = isMcp ? t("history.mcpFee") : usage.length === 1
+                    ? usageTitle(usage[0]) : usage.length > 0
+                      ? [...new Set(usage.map((item) => kindLabel(item.kind)))].join(" · ") : t("history.aiUsage");
+                  return (
+                    <li key={entry.id} className={usageStyles["charge-group"]}>
+                      <div className={styles.row}>
+                        <div className={styles["row-title"]}>
+                          <strong>{title}</strong>
+                          {usage.length > 0 && <small>{t("history.calls", { count: usage.reduce((sum, item) => sum + item.calls, 0) })}</small>}
+                          <small>{t("history.chargedAt")} <time dateTime={entry.charged_at}>{new Date(entry.charged_at).toLocaleString(locale)}</time></small>
+                        </div>
+                        <strong>{exactAmount(entry.amount_krw_milli)}</strong>
+                      </div>
+                      {!isMcp && (usage.length === 0 ? <p className={usageStyles.note}>{t("history.detailsUnavailable")}</p> : (
+                        <details className={usageStyles["charge-details"]}>
+                          <summary>{t("history.details")}</summary>
+                          <ul className={usageStyles["charge-history"]}>
+                            {usage.map((item, index) => (
+                              <li key={index}>
+                                <div className={styles.row}>
+                                  <strong>{usageTitle(item)}</strong>
+                                  <strong>{exactAmount(item.amount_krw_milli)}</strong>
+                                </div>
+                                <p>{t("history.calls", { count: item.calls })}{item.provider ? ` · ${item.provider}` : ""}</p>
+                                <p>{t("history.executionTime")} <time dateTime={item.started_at}>{new Date(item.started_at).toLocaleString(locale)}</time>
+                                  {item.last_started_at !== item.started_at && <> – <time dateTime={item.last_started_at}>{new Date(item.last_started_at).toLocaleString(locale)}</time></>}
+                                </p>
+                                <p>{t("history.tokens", { input: count(item.input_tokens), output: count(item.output_tokens), cached: count(item.cached_input_tokens), created: count(item.cache_creation_tokens) })}</p>
+                                {item.audio_seconds != null && <p>{t("history.audio", { seconds: count(item.audio_seconds) })}</p>}
+                                {item.tts_characters != null && <p>{t("history.characters", { count: count(item.tts_characters) })}</p>}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            )
+          ) : charges?.length === 0 ? <p className={usageStyles.note}>{t("history.empty")}</p> : (
             <ul className={usageStyles["charge-history"]}>
-              {charges.map((entry, index) => (
+              {charges?.map((entry, index) => (
                 <li key={`${entry.run_id}:${entry.created_at}:${index}`} className={styles.row}>
                   <div className={styles["row-title"]}>
                     <strong>{t(entry.reason === "mcp_approval" ? "history.mcpFee" : "history.aiUsage")}</strong>
