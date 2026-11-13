@@ -173,11 +173,11 @@ test("AI 사용량 표(음성 시간·글자 수·1원 미만·축약 토큰)가
   assert.match(english, /78\.3K/);
 });
 
-function renderCredits(entries, locale = "ko") {
+function renderCredits(entries, locale = "ko", charge_history) {
   const { AiCreditSection } = loadComponent("../src/features/user-settings/ui/panels/AiCreditSection.tsx", {
     "next-intl": { useTranslations: (namespace) => translator(locale, namespace), useLocale: () => locale },
     "@tanstack/react-query": { useQuery: ({ queryKey }) => queryKey[0] === "credits"
-      ? { data: { available_krw_milli: 100000, reserved_krw_milli: 0, entries } } : { data: null } },
+      ? { data: { available_krw_milli: 100000, reserved_krw_milli: 0, entries, charge_history } } : { data: null } },
     "@/entities/ai": { ...aiUsage, fetchCredits() {} },
     "@/entities/user": { useMe: () => ({ data: { id: "user" } }), fetchBetaCredit() {} },
     "@/shared/lib/apiErrors": { ApiError, getErrorMessage() {} },
@@ -207,4 +207,56 @@ test("원장이 없는 이전 응답은 합계를 0원으로 꾸미지 않으며
   assert.doesNotMatch(renderCredits(undefined), /표시된 MCP 작업 수수료 합계/);
   assert.match(renderCredits([]), /최근 원장에 차감 내역이 없어요/);
   assert.doesNotMatch(renderCredits([], "en"), HANGUL);
+});
+
+const groupedUsage = {
+  workspace_id: "ws", kind: "ingest", provider: "test-provider", model: "model-a", calls: 9,
+  input_tokens: 900, output_tokens: 100, cached_input_tokens: null, cache_creation_tokens: 0,
+  audio_seconds: null, tts_characters: null, amount_krw_milli: 56179,
+  started_at: "2026-11-12T09:43:34Z", last_started_at: "2026-11-12T09:44:34Z"
+};
+const groupedHistory = [
+  { id: 1, run_id: "run", reason: null, amount_krw_milli: 56179, charged_at: "2026-11-13T09:47:15Z", usage: [groupedUsage] },
+  { id: 2, run_id: "mcp", reason: "mcp_approval", amount_krw_milli: 2000, charged_at: "2026-11-13T09:47:15Z", usage: [] }
+];
+
+test("실행별 내역은 작업·모델·호출수와 실제 차감 합계를 표시하고 정산/호출 시각을 구분한다", () => {
+  const html = renderCredits([{ type: "charge", amount_krw_milli: -999999 }], "ko", groupedHistory);
+  assert.match(html, /위키 편입 · model-a/);
+  assert.match(html, /모델 호출 9회/);
+  assert.match(html, /₩56\.179/);
+  assert.match(html, /최근 정산/);
+  assert.match(html, /모델 호출 시각/);
+  assert.match(html, /입력 900 · 출력 100 · 캐시 읽기 미확인 · 캐시 생성 0 토큰/);
+  assert.match(html, /<details/);
+  assert.match(html, /<summary>사용량 상세 보기/);
+  assert.match(html, /최근 차감된 실행 50건/);
+  assert.match(html, /₩2/);
+  assert.doesNotMatch(html, /999\.999/);
+  assert.equal((html.match(/<details/g) ?? []).length, 1, "MCP 수수료에는 모델 내역을 붙이지 않는다");
+  assert.doesNotMatch(renderCredits([], "en", groupedHistory), HANGUL);
+});
+
+test("상세가 없는 실제 차감과 알 수 없는 작업·모델은 추정하지 않는다", () => {
+  const missing = [{ ...groupedHistory[0], usage: [] }];
+  assert.match(renderCredits([], "ko", missing), /상세 정보가 없거나 집계 중/);
+  assert.match(renderCredits([], "ko", missing), /₩56\.179/);
+  const unknown = [{ ...groupedHistory[0], usage: [{ ...groupedUsage, kind: "future-kind", model: null }] }];
+  assert.match(renderCredits([], "ko", unknown), /작업 정보 없음 · 모델 정보 없음/);
+  assert.doesNotMatch(renderCredits([], "en", unknown), HANGUL);
+  assert.match(renderCredits([], "ko", []), /최근 원장에 차감 내역이 없어요/);
+});
+
+test("같은 시각의 다른 실행과 한 실행의 여러 모델을 별도 금액으로 표시한다", () => {
+  const history = [
+    { ...groupedHistory[0], amount_krw_milli: 59179, usage: [groupedUsage, { ...groupedUsage, model: "model-b", calls: 1, amount_krw_milli: 3000 }] },
+    { ...groupedHistory[0], id: 3, run_id: "other-run", amount_krw_milli: 4000, usage: [{ ...groupedUsage, calls: 1, amount_krw_milli: 4000 }] }
+  ];
+  const html = renderCredits([], "ko", history);
+  assert.equal((html.match(/<details/g) ?? []).length, 2);
+  assert.match(html, /model-b/);
+  assert.doesNotMatch(html, /AI 사용료/);
+  assert.match(html, /모델 호출 10회/);
+  assert.match(html, /₩59\.179/);
+  assert.match(html, /₩4/);
 });

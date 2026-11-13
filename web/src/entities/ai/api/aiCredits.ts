@@ -9,10 +9,38 @@ export type CreditEntry = {
   created_at: string;
 };
 
+export type ChargeUsage = {
+  workspace_id: string | null;
+  kind: string | null;
+  provider: string | null;
+  model: string | null;
+  calls: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cached_input_tokens: number | null;
+  cache_creation_tokens: number | null;
+  audio_seconds: number | null;
+  tts_characters: number | null;
+  amount_krw_milli: number;
+  started_at: string;
+  last_started_at: string;
+};
+
+export type ChargeHistory = {
+  id: number;
+  run_id: string | null;
+  reason: string | null;
+  amount_krw_milli: number;
+  charged_at: string;
+  usage: ChargeUsage[];
+};
+
 /** 본인 크레딧(milli-KRW). available은 잔액 − 실행 중 예약이고, 실제 사용이 예약보다 크면 음수일 수 있다. */
 export type CreditsResponse = {
   /** 최근 원장 50건. 예약·해제도 포함하므로 전체 사용 내역은 아니다. */
   entries?: CreditEntry[];
+  /** 최근 차감 실행 50건. 같은 실행의 모든 차감분을 합산한다. */
+  charge_history?: ChargeHistory[];
   currency: string;
   balance_krw_milli: number;
   reserved_krw_milli: number;
