@@ -48,7 +48,6 @@ import { findContextFolderId } from "../lib/treeOpenState";
 import { buildGraphFromBackend } from "@/entities/graph/lib/graphBuilder";
 import { buildDocumentPathSuffixes } from "@/entities/graph/lib/documentLabels";
 import { filterGraphProjects, selectGraphDocuments } from "@/features/wiki-ingest/model/graphDocuments";
-import { selectGraphIngestProgressInputs } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { usePdfWikiIngest } from "@/features/wiki-ingest/model/usePdfWikiIngest";
 import { getChatEvidenceState } from "@/features/wiki-ingest/model/wikiReflectState";
 import { getWikiActionGate } from "@/features/wiki-ingest/model/wikiActionPermission";
@@ -194,7 +193,6 @@ export function HomeWorkspace() {
     () => buildGraphFromBackend(graphDocuments, wikiGraph, documentPathSuffixes),
     [graphDocuments, wikiGraph, documentPathSuffixes]
   );
-  const graphIngestProgressInputs = useMemo(() => selectGraphIngestProgressInputs(graphDocuments), [graphDocuments]);
   const selection = useTreeSelection(projectTree.projects, graphData.nodes);
   const isHomeView = activeView === "home";
   const isGraphView = activeView === "graph";
@@ -654,7 +652,6 @@ export function HomeWorkspace() {
           onClearNodeFocus={selection.clearGraphFocus}
           loading={isGraphLoading || (documentsUpdatedAt === 0 && !apiError)}
           errorMessage={apiError}
-          ingestProgressInputs={graphIngestProgressInputs}
           onRefreshGraph={refreshGraph}
         />
       )}

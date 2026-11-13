@@ -41,9 +41,7 @@ import {
   isInitialGraphDataChange
 } from "../lib/graphEnter";
 import { useUserPreferences } from "@/entities/user";
-import type { GraphIngestProgressInput } from "@/features/wiki-ingest/model/graphIngestProgressInputs";
 import { useGraphAnimation } from "./useGraphAnimation";
-import { useGraphIngestProgress } from "./useGraphIngestProgress";
 import { useGraphPointer } from "./useGraphPointer";
 import { useGraphReveal } from "./useGraphReveal";
 
@@ -52,7 +50,6 @@ const HOVER_SETTLE_THRESHOLD = 0.002;
 const GRAPH_CACHE_DEBOUNCE_MS = 700;
 /** graph cache signature의 레이아웃 버전 prefix */
 const GRAPH_LAYOUT_VERSION = "d3-layout-v1";
-const NO_INGEST_PROGRESS_INPUTS: readonly GraphIngestProgressInput[] = [];
 
 export function useGraphCanvas({
   nodes = [],
@@ -60,7 +57,6 @@ export function useGraphCanvas({
   focusedNodeId,
   onOpenNodePreview,
   onClearNodeFocus,
-  ingestProgressInputs = NO_INGEST_PROGRESS_INPUTS,
   loading = false,
   revealRequest = 0
 }: {
@@ -69,7 +65,6 @@ export function useGraphCanvas({
   focusedNodeId: string | null;
   onOpenNodePreview: (node: GraphNode) => void;
   onClearNodeFocus?: () => void;
-  ingestProgressInputs?: readonly GraphIngestProgressInput[];
   /** 첫 표시 연출을 시작하기 전까지 기다릴 데이터가 남아 있으면 true */
   loading?: boolean;
   /** 값이 바뀌면 노드가 하나씩 나타나는 연출을 처음부터 다시 재생한다. */
@@ -138,8 +133,6 @@ export function useGraphCanvas({
   const hitTestNodeRef = useRef<(clientX: number, clientY: number) => GraphNode | null>(() => null);
   const currentNodeBoundsRef = useRef<() => GraphRect | null>(() => null);
   const currentNodePositionsRef = useRef<() => NodePosition[]>(() => []);
-  // 생성 중 노드 진행률은 매 프레임 바뀌므로 React 상태가 아니라 ref로 그리기에 전달한다.
-  const ingestProgressRef = useGraphIngestProgress({ inputs: ingestProgressInputs, drawGraphRef });
   /** 현재 simulation이 쓰는 기준점(origin). 데이터 갱신 때 기존 노드에 그대로 넘겨 레이아웃이 다시 섞이지 않게 한다. */
   const originPositionsRef = useRef<NodePositionMap>({});
   /** 첫 렌더 뒤 추가된 노드의 등장 시작 시각(performance.now 기준). 등장이 끝나면 지운다. */
@@ -561,7 +554,6 @@ export function useGraphCanvas({
       graphToCanvas,
       nodeSize,
       isRawSourceLink,
-      getNodeProgress: (nodeId) => ingestProgressRef.current.get(nodeId),
       getNodeEntry: (nodeId) => revealFrames?.get(nodeId) ?? entryFrames.get(nodeId) ?? null,
       getLinkOpacity: revealFrames ? (link) => reveal.linkOpacity(link, now) : undefined
     });
