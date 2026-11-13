@@ -16,7 +16,7 @@ export type LegalDocumentSlug = "terms" | "privacy";
 
 export type LegalDocumentMeta = {
   slug: LegalDocumentSlug;
-  /** 공개 경로. 로그인·접근 코드 없이 열린다(middleware는 /api만 막는다). */
+  /** 공개 경로. 로그인 없이 열린다. */
   path: `/${LegalDocumentSlug}`;
   currentVersion: string;
 };

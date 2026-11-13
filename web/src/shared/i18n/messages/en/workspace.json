@@ -164,18 +164,6 @@
       "started": "The rollback has started."
     }
   },
-  "accessCode": {
-    "title": "Access code",
-    "lockedDescription": "Enter an access code to use the service. Other features are locked until you do.",
-    "unlockedDescription": "This browser has a verified access code.",
-    "submit": "Verify",
-    "result": {
-      "ok": "Access code verified.",
-      "invalid": "That code isn’t valid.",
-      "rateLimited": "Too many attempts. Please try again in a moment.",
-      "error": "Something went wrong while verifying. Please try again."
-    }
-  },
   "personalSettings": {
     "title": "Personal settings",
     "description": "Changes are saved automatically for you in this browser.",

@@ -14,7 +14,7 @@ type LegalDocumentPageProps = {
 };
 
 /**
- * /terms, /privacy 공개 페이지(이슈 #130). 로그인·접근 코드 없이 열린다.
+ * /terms, /privacy 공개 페이지(이슈 #130). 로그인 없이 열린다.
  * `?version=YYYY-MM-DD`로 이전 버전을 보고, 비교표 파일이 있으면 본문 아래에 함께 보인다.
  * 서버 컴포넌트라 저장소 Markdown을 요청 때 읽는다(layout이 force-dynamic).
  * NEXT_PUBLIC_LEGAL_PAGES_ENABLED가 "true"가 아니면 404로 처리한다(법률 확정본 전까지 기본 꺼짐).
