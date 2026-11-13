@@ -27,8 +27,14 @@
   box-shadow: 0 8px 24px var(--color-shadow);
 }
 
-.sidebar.is-file-drop-target {
-  box-shadow: inset 0 0 0 1px var(--sidebar-accent-line);
+/* 테두리를 자식(레일·헤더) 위에 그려 가려지지 않게 한다 */
+.sidebar.is-file-drop-target::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  border: 1px solid var(--sidebar-accent-line);
+  pointer-events: none;
 }
 
 .sidebar.is-file-drop-target::after {
@@ -578,21 +584,6 @@
   letter-spacing: -0.12px;
   line-height: normal;
   text-transform: uppercase;
-}
-
-/* 빈 트리 안내: 트리 행(h37) 한 줄 높이로 고정해, 문서가 1개일 때와 "새 노트 추가" 위치가 같게 한다 */
-.tree-root-empty {
-  height: 37px;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: normal;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* 새 노트 추가 (Figma 1486:4480 새 페이지 추가 자리): 좌우 10, 상하 12, + 20px */
